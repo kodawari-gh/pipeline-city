@@ -5,10 +5,10 @@
 //   warn   it runs badly: crashes, throttling, heat
 //   tip    it works, but there is something better to do
 
-import { AMBIENT_C, BOARD_TIERS } from "./specs";
+import { AMBIENT_C, basicFan, BOARD_TIERS, CASE_TIERS, fanShare } from "./specs";
 import type { CoolerSpec, CpuSpec, RadiatorSpec, RamSpec } from "./specs";
-import { deviceSpec, findDevices, fittedRadiator, installedPsu, pcieLeadsNeeded, ratedLoadW, type Board } from "./board";
-import { clockPowerW } from "./thermal";
+import { deviceSpec, fanAir, fansOn, findDevices, fittedRadiator, installedPsu, mountFan, pcieLeadsNeeded, ratedLoadW, type Board } from "./board";
+import { clockPowerW, UNFANNED_SHARE } from "./thermal";
 import { SMT_LOAD_SHARE } from "@/core/sim/memmap";
 import { currentDemand, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_OVERLOAD } from "./vrm";
 
@@ -65,8 +65,12 @@ function cpuSteadyC(board: Board, cpuId: string): number | null {
   const d = board.devices.find((x) => x.id === cpuId), cooler = findDevices(board, "cooler").find((c) => !c.burnt);
   if (!d || !cooler) return null;
   const s = deviceSpec(d) as CpuSpec, cs = deviceSpec(cooler) as CoolerSpec, r = (d.clock ?? s.clock.base) / s.clock.base;
-  const rad = fittedRadiator(board);
-  const k = s.thermal.passive + (cs.loop ? cs.loop.pumpPerC + (rad ? (deviceSpec(rad.dev) as RadiatorSpec).coolingPerC : 0) : cs.coolingPerC);
+  // the fans fitted on the heatsink, or on the radiator's mounts, all turning
+  const rad = fittedRadiator(board), base = basicFan(CASE_TIERS[board.caseTier]!.fanSize).airflow;
+  const radAir = rad ? rad.mounts.reduce((a, m) => { const f = mountFan(board, m); return a + (f ? fanAir([f]) : 0); }, 0) / (rad.mounts.length * base) : 0;
+  const radK = rad ? (deviceSpec(rad.dev) as RadiatorSpec).coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * Math.min(1, radAir)) : 0;
+  const airK = cs.coolingPerC * (cs.fanSpots ? fanShare(cs.fanSpots.bare, fanAir(fansOn(board, cooler.slot))) : 1);
+  const k = s.thermal.passive + (cs.loop ? cs.loop.pumpPerC + radK : airK);
   return AMBIENT_C + (clockPowerW(s, r, cpuFullLoad(s)) * s.heatFactor) / k;
 }
 
@@ -104,6 +108,8 @@ export function checkCompat(board: Board): CompatIssue[] {
 
   const cooler = findDevices(board, "cooler").find((d) => !d.burnt), rad = fittedRadiator(board);
   if (cooler && (deviceSpec(cooler) as CoolerSpec).loop && !rad) add({ id: "loop-no-radiator", severity: "tip", part: cooler.id, message: "The liquid loop has no radiator: the pump alone gives it little cooling. Fit a radiator on the front or the top of the case." });
+  const spots = cooler ? (deviceSpec(cooler) as CoolerSpec).fanSpots : undefined;
+  if (cooler && spots && !fansOn(board, cooler.slot).length) add({ id: "cooler-no-fan", severity: "tip", part: cooler.id, message: `The CPU heatsink has no fan: it cools only by itself, at about a third of its rating. Clip a ${spots.size} mm fan on it.` });
   if (rad && rad.side === "front" && findDevices(board, "cpu").some((d) => (deviceSpec(d) as CpuSpec).loadW >= 60)) add({ id: "radiator-front-heat", severity: "tip", part: rad.dev.id, message: "A radiator on the front puts the CPU's heat into the case air, which warms the other parts. On the top it blows the heat out of the case." });
 
   const rank: Record<CompatSeverity, number> = { error: 0, warn: 1, tip: 2 };

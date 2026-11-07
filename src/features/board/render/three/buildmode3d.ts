@@ -16,7 +16,7 @@ import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, nodeKind, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
-import { boardSlots, deviceSpec, freeSlots, slotAccepts, slotFitsWidth, type Board } from '@/features/board/sim/board';
+import { boardSlots, deviceSpec, freeSlots, slotAccepts, slotFits, type Board } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, caseMounts, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
@@ -446,7 +446,7 @@ export class BuildStage {
       const spec = getSpec(itemId);
       if (!spec) { this.note(`Unknown part ${itemId}`); return; }
       const free = freeSlots(this.board, spec.slot, spec)[0];
-      const taken = boardSlots(this.board).find((s) => slotAccepts(s.type, spec.slot) && slotFitsWidth(s, spec) && this.board.devices.some((d) => d.slot === s.id));
+      const taken = boardSlots(this.board).find((s) => slotAccepts(s.type, spec.slot) && slotFits(s, spec) && this.board.devices.some((d) => d.slot === s.id));
       const slot = free?.id ?? taken?.id;
       if (!slot) { this.note(`${spec.name} fits no socket on this board`); return; }
       const occupant = this.board.devices.find((d) => d.slot === slot) ?? null;

@@ -3,8 +3,10 @@ import { Game } from "./game";
 import { Operator, play } from "../../features/economy/sim/operator";
 import { migrate, parseSave, SAVE_VERSION } from "./save";
 import { ECONOMY } from "../../features/economy/sim/economy";
+import { basicFan, caseMounts, CASE_TIERS } from "../../features/board/sim/specs";
 
 ECONOMY.caseGating = false;
+const isFan = (spec: string) => spec.startsWith("fan");
 
 const run = (g: Game, n: number) => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -36,7 +38,7 @@ describe("save/load v2", () => {
     run(g, 10);
     const save = g.toSave();
     expect(save.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(4);
+    expect(SAVE_VERSION).toBe(5);
     const text = JSON.stringify(save);
     expect(JSON.parse(text)).toEqual(save);
     expect(text).not.toMatch(/"(regs|ram|pipeline|program|registers)"/i);
@@ -51,7 +53,7 @@ describe("save/load v2", () => {
     const l = Game.fromSave(json(g.toSave()));
     expect(l.toSave()).toEqual(g.toSave());
     const s = l.snapshot();
-    expect(s.inventory.map((i) => i.spec)).toEqual(["ram0", "display0", "cooler0"]);
+    expect(s.inventory.map((i) => i.spec)).toEqual(["ram0", "display0", "cooler0", "fan92"]);
     expect(s.cables.find((c) => c.id === "atx")!.connected).toBe(true);
     expect(s.progress).toMatchObject({ cpuInstalled: true, psuInstalled: true, atxConnected: true, poweredOn: false });
     expect(s.tray).toHaveLength(1);
@@ -238,7 +240,10 @@ describe("migration v1 -> v2", () => {
     const l = Game.fromSave(json(V1));
     const s = l.snapshot();
     expect(s).toMatchObject({ powered: false, phase: "off", money: 321, baseTick: 500, completed: 7, dropped: 2, errors: 1, avgTurnaround: 80 });
-    expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler1", "cpu1", "display0", "psu1", "ram0"]);
+    expect(s.devices.filter((d) => !isFan(d.spec)).map((d) => d.spec).sort()).toEqual(["cooler1", "cpu1", "display0", "psu1", "ram0"]);
+    // the v5 step gives every case mount a basic fan and the tower heatsink the one fan it had built in
+    const fans = s.devices.filter((d) => isFan(d.spec)).map((d) => [d.slot, d.spec]);
+    expect(fans).toEqual([...caseMounts(l.board.caseTier).map((m) => [m, basicFan(CASE_TIERS[l.board.caseTier]!.fanSize).id]), [`${s.devices.find((d) => d.spec === "cooler1")!.slot}.fan0`, "fan120"]]);
     expect(s.cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true);
     expect(s.tray.map((k) => k.id)).toEqual([7, 8, 9]); // the in-flight request first, then the queue
     expect(s.plugged).toBeNull();
@@ -255,7 +260,7 @@ describe("migration v1 -> v2", () => {
 
   it("produces a valid current save that round-trips, and the migrated game plays", () => {
     const m = migrate(json(V1)) as { version: number };
-    expect(m.version).toBe(4);
+    expect(m.version).toBe(5);
     const l = Game.fromSave(json(V1));
     expect(Game.fromSave(json(l.toSave())).toSave()).toEqual(l.toSave());
     const op = new Operator(l, 1);
@@ -277,11 +282,17 @@ describe("migrate", () => {
   });
 });
 
+/** A save as a build from before the fan parts wrote it: no fan devices (the case and the heatsinks had them built in). */
+function fanless(s: Record<string, unknown>): Record<string, unknown> {
+  const b = s.board as { devices: { spec: string }[] };
+  return { ...s, board: { ...b, devices: b.devices.filter((d) => !d.spec.startsWith("fan")) } };
+}
+
 /** A version 2 save as the previous build wrote it: an assembled machine mid-game, no storage, no OS, 12 milestones. */
 function v2Save(): Record<string, unknown> {
   const g = new Game({ seed: 21, preassembled: true });
   play(g, 300, 1);
-  const s = json(g.toSave()) as unknown as Record<string, unknown>;
+  const s = fanless(json(g.toSave()) as unknown as Record<string, unknown>);
   const { storageInstalled, osInstalled, firstOsJob, ...old } = s.progress as Record<string, boolean>;
   void storageInstalled; void osInstalled; void firstOsJob;
   delete s.os;
@@ -293,15 +304,15 @@ describe("migration v2 -> v3", () => {
     const v2 = v2Save();
     expect(v2.version).toBe(2);
     const m = migrate(json(v2)) as { version: number; os: unknown; progress: Record<string, boolean> };
-    expect(m.version).toBe(4);
+    expect(m.version).toBe(5);
     expect(m.os).toBeNull();
     expect(m.progress).toMatchObject({ storageInstalled: false, osInstalled: false, firstOsJob: false, poweredOn: true });
     const l = Game.fromSave(json(v2));
     const s = l.snapshot();
     expect(s).toMatchObject({ powered: false, phase: "off", os: null, storage: [] });
     expect(s.money).toBe(v2.money);
-    expect(s.devices.map((d) => d.spec).sort()).toEqual(g2specs(v2));
-    expect(l.toSave().version).toBe(4);
+    expect(s.devices.filter((d) => !isFan(d.spec)).map((d) => d.spec).sort()).toEqual(g2specs(v2));
+    expect(l.toSave().version).toBe(5);
   });
 
   it("loads, boots and earns money exactly as a fresh v3 save of the same game would", () => {
@@ -327,14 +338,14 @@ function g2specs(v2: Record<string, unknown>): string[] {
 function v3Save(oldTier: number, inventory: { id: string; spec: string }[] = []): Record<string, unknown> {
   const g = new Game({ seed: 31, preassembled: true });
   play(g, 100, 1);
-  const s = json(g.toSave()) as unknown as Record<string, unknown>;
+  const s = fanless(json(g.toSave()) as unknown as Record<string, unknown>);
   return { ...s, version: 3, board: { ...(s.board as object), tier: oldTier }, inventory };
 }
 
 describe("migration v3 -> v4", () => {
   it("maps old tier 0 to Basic, old tier 1 to Mainstream, and shifts board ids in the inventory", () => {
     const a = migrate(json(v3Save(0, [{ id: "inv1", spec: "board1" }]))) as { version: number; board: { tier: number }; inventory: { spec: string }[] };
-    expect(a.version).toBe(4);
+    expect(a.version).toBe(5);
     expect(a.board.tier).toBe(1);
     expect(a.inventory.map((i) => i.spec)).toEqual(["board2"]);
     const b = migrate(json(v3Save(1))) as { board: { tier: number } };
@@ -348,7 +359,7 @@ describe("migration v3 -> v4", () => {
     expect(s.board.name).toBe("Basic");
     expect(s.board.burnt).toBe(false);
     expect(s.inventory.map((i) => i.spec)).toEqual(["board2"]);
-    expect(l.toSave().version).toBe(4);
+    expect(l.toSave().version).toBe(5);
   });
 });
 

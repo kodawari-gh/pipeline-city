@@ -24,6 +24,9 @@ function rig(tier: number, cpu: string, o: { clock?: number; cooler?: string; si
   for (const s of [cpu, "ram0", "display0", o.cooler ?? "cooler1", o.psu ?? (tier >= 2 ? "psu2" : "psu1")]) ok(install(b, s));
   if (o.cooler === "cooler2") ok(install(b, "rad2", boardSlots(b).find((s) => s.type === "radiator")!.id)); // an AIO cools through its radiator
   if (o.sink) ok(install(b, o.sink));
+  // every heatsink gets the fan it used to have built in
+  const builtIn: Record<string, string> = { cooler0: "fan92", cooler1: "fan120", vsink2: "fan40", rsink2: "fan40" };
+  for (const d of [...b.devices]) if (builtIn[d.spec]) ok(install(b, builtIn[d.spec]!, `${d.slot}.fan0`));
   if (o.clock) ok(setClock(b, findDevices(b, "cpu")[0]!.id, o.clock));
   return b;
 }
@@ -285,7 +288,7 @@ describe("the game around the VRM", () => {
     const g = new Game({ seed: 1 });
     const s = g.snapshot();
     expect(s.board).toMatchObject({ tier: 0, name: "Starter", burnt: false, features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 } });
-    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "pcie", "radiator", "ram-sink", "sata", "sata", "usb", "vrm-sink"]);
+    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "fan", "fan", "pcie", "radiator", "ram-sink", "sata", "sata", "usb", "vrm-sink"]); // the Mini's two front mounts
     expect(s.board.slots).toEqual(s.slots);
     expect(s.board.vrm).toMatchObject({ phases: 2, ampsPerPhase: 12, burnt: false, sinkDeviceId: null });
     expect(s.board.vrmSink).toBeNull();

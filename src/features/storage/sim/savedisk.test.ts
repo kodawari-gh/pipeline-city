@@ -198,7 +198,7 @@ describe("old saves", () => {
     expect(data.mount).toBe("unformatted");
     expect(data.fs.list()).toHaveLength(0);
     expect(data.badGroups).toBe(0);
-    expect(l.toSave().version).toBe(4);
+    expect(l.toSave().version).toBe(5);
   });
 
   it("an old fixture with no contract, disk or wear fields passes parseSave unchanged", () => {

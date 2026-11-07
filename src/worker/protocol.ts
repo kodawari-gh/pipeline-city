@@ -2,12 +2,12 @@
 // free of DOM and Pixi imports: it is shared by both sides.
 
 import type { Snapshot } from './game/game';
-import type { SaveV4 } from './game/save';
+import type { SaveV5 } from './game/save';
 import type { CrashReport } from './crash';
 
-export type { Snapshot, SaveV4, CrashReport };
+export type { Snapshot, SaveV5, CrashReport };
 /** The current save shape (older versions are migrated on load). The old name is kept for the main thread. */
-export type SaveV1 = SaveV4;
+export type SaveV1 = SaveV5;
 
 /**
  * Speed as a multiplier of base ticks per second (0 = paused). The player sees it divided by 4: the pace the game is

@@ -546,7 +546,7 @@ describe("the save fields", () => {
     const s = base() as { tray: { cls?: string }[] };
     s.tray[0]!.cls = "nope";
     expect(() => parseSave(s)).toThrow(/cls/);
-    expect(parseSave(base()).version).toBe(4);
+    expect(parseSave(base()).version).toBe(5);
   });
 
   it("is deterministic for the same seed, start level and script", { timeout: 30000 }, () => {

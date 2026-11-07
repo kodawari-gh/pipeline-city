@@ -318,7 +318,7 @@ describe("board upgrade purchase", () => {
     g.powerButton();
     g.advanceBaseTick();
     const s = g.snapshot();
-    expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler0", "cpu0", "display0", "psu2", "ram0"]);
+    expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler0", "cpu0", "display0", "fan92", "psu2", "ram0"]); // the heatsink keeps its fan
     expect(s.power.budgetW).toBe(250);
     expect(g.purchase("cpu2").ok).toBe(true);
   });

@@ -187,13 +187,13 @@ describe('VRM heatsink rows and slot', () => {
     expect(describeId('vrm-sink0', sinkSnap())!.plain).toMatch(/VRM heatsink slot/);
   });
 
-  it('stats: cooling for the bars, power draw for the fan version', () => {
+  it('stats: cooling for the bars; the fan fins draw no power, the fan clipped on them does', () => {
     expect(statsOf('vsink0').map((x) => x.key)).toEqual(['cooling', 'power']);
-    expect(statsOf('vsink2').find((x) => x.key === 'power')).toMatchObject({ value: 1.5, unit: 'W' });
+    expect(statsOf('vsink2').find((x) => x.key === 'power')!.value).toBe(0);
     expect(statsOf('vsink0').find((x) => x.key === 'power')!.value).toBe(0);
+    expect(statsOf('fan40').find((x) => x.key === 'power')).toMatchObject({ value: 0.5, unit: 'W' });
     const rows = compareRows('vrm-sink', 'vsink0', 'vsink2');
     expect(rows.find((r) => r.key === 'cooling')!.trend).toBe('better');
-    expect(rows.find((r) => r.key === 'power')!.trend).toBe('worse');
   });
 
   it('every heatsink tier has art (no empty svg)', () => {

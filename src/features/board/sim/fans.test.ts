@@ -5,9 +5,13 @@ import { CASE_FAN_K, FANS_ON, type FanPower } from "./thermal";
 
 const ok = <T extends { ok: boolean }>(r: T): T => { expect(r.ok).toBe(true); return r; };
 
+/** The fan each heatsink used to have built in, fitted on its first spot. */
+const BUILT_IN: Record<string, string> = { cooler0: "fan92", cooler1: "fan120", vsink2: "fan40", rsink2: "fan40" };
+
 function rig(sink?: string, cooler = "cooler1"): Board {
   const b = createBoard(2);
   for (const s of ["cpu1", "ram0", "display0", cooler, "psu2", ...(sink ? [sink] : [])]) ok(install(b, s));
+  for (const d of [...b.devices]) if (BUILT_IN[d.spec]) ok(install(b, BUILT_IN[d.spec]!, `${d.slot}.fan0`));
   ok(setClock(b, findDevices(b, "cpu")[0]!.id, 1));
   return b;
 }

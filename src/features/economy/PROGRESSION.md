@@ -145,15 +145,15 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 
 | Lvl | Buy: devices and tiers | Boards / OS / network | New job types arriving (see mix below) |
 |---|---|---|---|
-| 1 | start crate: `cpu0`, `ram0`, `psu0`, `cooler0`, `display0`, board 0 Starter. Shop: `cpu1` ($200), `ram1` ($100, buy **two**: 2 x 32K = 64K, the RAM the network needs), `cooler1` ($50), `psu1` ($60), `vsink0` ($30) | none | `cli.log`, `cli.calc`, `cli.checksum`, `cli.scan` (scan ramps in over 300 ticks as today) |
+| 1 | start crate: `cpu0`, `ram0`, `psu0`, `cooler0`, `fan92`, `display0`, board 0 Starter. Shop: `cpu1` ($200), `ram1` ($100, buy **two**: 2 x 32K = 64K, the RAM the network needs), `cooler1` ($50), `fan120` ($18, it fits the tower), `psu1` ($60), `vsink0` ($30) | none | `cli.log`, `cli.calc`, `cli.checksum`, `cli.scan` (scan ramps in over 300 ticks as today) |
 | 2 | `vsink1` ($70), `hdd0` ($40) | board 1 Basic ($150: 2 DIMM, 1 PCIe, 100 Mbit jack, live from level 4) | none new (heavier `cli` scales) |
 | 3 | `ssd1` ($150) | `os1` Resident OS ($150: needs a drive and 32K RAM) | **db** (needs an OS and a SATA SSD or better) |
 | 4 | | **Network start** ([`NETWORK.md`](NETWORK.md)): `router1` ($60, 100 Mbit), `isp1` ($150, 50/10 Mbit, 2 clients); the Basic jack goes live and the ethernet cable comes free with the router; the automation lesson. Needs `os1` and 64K RAM | **web** (once a plan is bought; needs a live link to run) |
 | 5 | `psu2` 250 W ATX+ ($250), `ram2` 64K low-latency ($400) | board 2 Mainstream ($300: 4 DIMM, 2 PCIe, M.2, ATX+, 100 Mbit jack) | db and web grow |
 | 6 | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300) | `isp2` ($500: 200/50 Mbit, 4 clients) | |
-| 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), case fans `fan1` (**planned**) | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
+| 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), `rsink2`, `fan40`, high-airflow fans `fan92x`, `fan120x` | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
 | 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Paged OS 2.0 ($600) | |
-| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
+| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it), `fan140`, `fan140x` (the Full case's size) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
 | 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (OS dashboard, and the GPU's frame when its cable is on the card) | | **GPU render** (needs a GPU) |
 | 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), radiator `rad3` (the big one; `rad1` unlocks at level 6 with `cooler2`, `rad2` at 7: the AIO cools only through a radiator, along the front or the top of the case, the player's choice) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
@@ -400,7 +400,7 @@ Owner decisions are at the top. Every other proposal is accepted as written: **d
 
 ## Still undecided
 
-- Prices and final names of the planned items (`cpu3` to `cpu5`, `gpu1` to `gpu3`, `npu1` and `npu2`, `tpm1` and `tpm2`, `psu3` and `psu4`, `fan1`, `cooler3`, `board4`, `nvme3`, `ram3`): orders of magnitude only until the engines and GPU work set them.
+- Prices and final names of the planned items (`cpu3` to `cpu5`, `gpu1` to `gpu3`, `npu1` and `npu2`, `tpm1` and `tpm2`, `psu3` and `psu4`, the fans, `cooler3`, `board4`, `nvme3`, `ram3`): orders of magnitude only until the engines and GPU work set them.
 - Level 18 is the cap. Extending the ladder past it is not designed.
 - Every time and income estimate here (the table's times, the price check) is a placeholder until the Operator bot measures it.
 

@@ -10,6 +10,7 @@
 // tier's rectangles; never copy one of these into a module-level constant.
 
 import { BD_X, DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
+import { CASE_TIERS } from '../../sim/specs';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -190,8 +191,8 @@ export let REAR_FAN: Rect = { x: IO_X + WALL_T, y: -1260, w: 440, h: 2120 };
 /** Whether the case carries the rear fan: the sim gives the Mini no rear mount, so it has a punched exhaust grille over the same round opening. */
 export let REAR_FAN_FITTED = true;
 export let TOP_FANS: Rect[] = [];
-/** The fans the cases carry on the top and the front (mini, micro, mid, full tower: the sim's `CASE_TIERS`). */
-export const TOP_FAN_COUNT = [0, 1, 2, 3], FRONT_FAN_COUNT = [2, 3, 3, 4];
+/** The fan mounts the cases have on the top and the front (mini, micro, mid, full tower), from the sim's `CASE_TIERS`. */
+export const TOP_FAN_COUNT = CASE_TIERS.map((c) => c.fans.top), FRONT_FAN_COUNT = CASE_TIERS.map((c) => c.fans.front);
 /** Every case fan is one size: a frame this thick and this long on each side (front, top and rear), so a fan reads the same wherever it sits. */
 export const TOP_FAN_T = 440, TOP_FAN_LEN = 2120, TOP_FAN_PITCH = 2200, TOP_FAN_X0 = -2500;
 /**

@@ -23,13 +23,14 @@ describe("sandbox start", () => {
     expect(s.money).toBe(SANDBOX_MONEY);
     expect(Object.values(s.progress).every(Boolean)).toBe(true);
     expect(s.powered).toBe(false);
-    expect(s.devices.length).toBe(5);
+    expect(s.devices.map((d) => d.kind).filter((k) => k !== "fan").length).toBe(5);
+    expect(s.devices.filter((d) => d.kind === "fan").map((d) => d.slot)).toEqual(["front0", "front1", "cooler0.fan0"]);
     expect(g.powerButton().ok).toBe(true);
   });
   it("bare keeps the starter crate", () => {
     const s = sb().snapshot();
-    expect(s.devices.length).toBe(0);
-    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0", "cooler0"]);
+    expect(s.devices.map((d) => d.slot)).toEqual(["front0", "front1"]); // only the case's two fans
+    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0", "cooler0", "fan92"]);
   });
   it("campaign is unchanged", () => {
     const g = new Game({ seed: 3, economy: econ() });
@@ -57,10 +58,12 @@ describe("sandbox purchases", () => {
     const ids = g.snapshot().purchases.map((p) => p.id);
     for (const id of ["cpu0", "cpu2", "ram0", "psu1", "cooler0", "vsink0", "board1", "board2", "board3", "hdd0", "ssd1", "nvme2", "os1"]) expect(ids).toContain(id);
     expect(ids).toContain("os4");
-    const before = g.board.devices.map((d) => d.id);
+    const caseFan = (d: { spec: string; slot: string }) => d.spec.startsWith("fan") && !d.slot.includes(".");
+    const before = g.board.devices.filter((d) => !caseFan(d)).map((d) => d.id);
     g.install(buy(g, "board3"));
     expect(g.board.tier).toBe(3);
     expect(g.board.devices.map((d) => d.id)).toEqual(before);
+    expect(g.snapshot().inventory.filter((i) => i.spec === "fan92").length).toBe(2); // the bigger case takes bigger fans: the Mini's come off
   });
   it("physics still refuses at the install, not at the till: PSU watts, missing slot, powered-on install", () => {
     const g = sb({ preassembled: true });
@@ -137,7 +140,7 @@ describe("sandbox save", () => {
     buy(g, "board2");
     const save = JSON.parse(JSON.stringify(g.toSave()));
     expect(save.sandbox).toBe(true);
-    expect(save.version).toBe(4);
+    expect(save.version).toBe(5);
     const g2 = Game.fromSave(parseSave(save), { baseDemandPerTick: 0 });
     expect(g2.sandbox).toBe(true);
     expect(g2.snapshot().money).toBe(SANDBOX_MONEY);
@@ -256,7 +259,7 @@ describe("sandbox maxed machine", () => {
     expect(g.snapshot().phase).not.toBe("error");
   }, 30000);
   it("does not change the plain assembled sandbox machine", () => {
-    expect(sb({ preassembled: true }).snapshot().devices.length).toBe(5);
+    expect(sb({ preassembled: true }).snapshot().devices.length).toBe(8); // five parts and three fans
   });
 });
 

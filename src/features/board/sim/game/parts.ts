@@ -4,9 +4,9 @@
 import {
   boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, hotPluggable, isFanCable, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
-  findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts, slotFitsWidth, slotRefusal,
-  specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
-  type Board, type CableId, type DeviceKind, type DisplaySpec, type InstalledDevice,
+  fanSlots, findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts, slotFits, slotRefusal,
+  specList, specsOfKind, strayFans, uninstall as boardUninstall, upgradeBoard, upgradeCase,
+  type Board, type CableId, type DeviceKind, type DisplaySpec, type FanSpec, type InstalledDevice,
 } from "..";
 import { getRouterSpec, ISP_SPECS, ROUTER_SPECS, routerByTier, type RouterSpec } from "@/features/network/sim";
 import { getOsSpec, OS_SPECS } from "@/features/os/sim";
@@ -34,6 +34,12 @@ export function buildMaxRig(this: Game): void {
   put(`board${boardTier}`);
   for (const kind of ["psu", "cpu", "cooler", "vrm-sink", "ram-sink"] as const) put(top(kind));
   put(top("radiator"), "rad-top");
+  // every fan spot (the case mounts, the heatsinks' spots) gets the best fan of its size
+  for (const s of fanSlots(this.board)) {
+    if (this.board.devices.some((d) => d.slot === s.id)) continue;
+    const best = specList.filter((f): f is FanSpec => f.kind === "fan" && f.size === s.size).sort((a, b) => b.airflow - a.airflow)[0];
+    if (best) put(best.id, s.id);
+  }
   for (let i = 0; i < (slots.dimm ?? 0); i++) put(top("ram"), `dimm${i}`);
   // the top plain drive: a RAID module cannot hold the OS
   const bootDrive = specsOfKind("storage").filter((s) => !s.mirror).pop()!.id;
@@ -71,6 +77,7 @@ export function install(this: Game, invId: string, slotId?: string): Result<{ de
     if (!r.ok) return r;
     this.removeItem(item.id);
     this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `case${was}` }); // the case it replaced is a spare now
+    this.afterBoardChange(); // fans of another size come off the mounts
     this.note("install", `${CASE_TIERS[caseTier]!.name} installed: the board and every part moved in`);
     return { ok: true, deviceId: null, slot: "case" };
   }
@@ -83,6 +90,7 @@ export function install(this: Game, invId: string, slotId?: string): Result<{ de
     if (!caseHolds(this.board, tier)) this.board.caseTier = caseFor(tier); // ungated: the case follows the board
     this.removeItem(item.id);
     if (!dead) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `board${was}` }); // the board it replaced is a spare now (a dead one is scrapped)
+    this.afterBoardChange();
     this.note("install", `${BOARD_TIERS[tier]!.name} installed`);
     return { ok: true, deviceId: null, slot: "board" };
   }
@@ -343,8 +351,8 @@ export function inventoryItems(this: Game): readonly { id: string; spec: string 
   return this.inventory;
 }
 
-export function mustInstall(this: Game, spec: string, invId?: string): void {
-  const r = boardInstall(this.board, spec);
+export function mustInstall(this: Game, spec: string, invId?: string, slot?: string): void {
+  const r = boardInstall(this.board, spec, slot);
   if (!r.ok) throw new Error(`starting board: ${r.reason}`);
   if (invId) this.removeItem(invId);
   this.flagInstalled(getSpec(spec)!.kind);
@@ -360,8 +368,21 @@ export function flagInstalled(this: Game, kind: DeviceKind): void {
   if (f) this.progress[f] = true;
 }
 
-/** Unplug cables whose source part is gone. */
+/** Send every fan whose spot is gone or takes another size (a heatsink, case or board swapped) back to the inventory. */
+export function dropStrayFans(this: Game): void {
+  for (const f of strayFans(this.board)) {
+    boardUninstall(this.board, f.id);
+    if (!f.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: f.spec });
+    this.note("install", `${deviceSpec(f).name} came off: its spot is gone`);
+  }
+}
+
+/** Take off the fans that lost their spot, and unplug cables whose source part is gone. */
 export function afterBoardChange(this: Game): void {
+  this.dropStrayFans();
+  // the cable of a case mount that is gone (a smaller case) comes out
+  const mounts = new Set<string>(cablesOf(this.board).map((c) => c.id));
+  for (const k of Object.keys(this.cables) as CableId[]) if (k.startsWith("fan:") && this.cables[k] && !mounts.has(k)) this.cables[k] = false;
   // A cable plugged into a network card that left the board comes out with it.
   if (this.lan && this.lan !== "board" && !this.board.devices.some((d) => d.id === this.lan)) {
     this.lan = null;
@@ -484,7 +505,7 @@ export function inventorySnap(this: Game): InventorySnap[] {
     let why: string | undefined;
     for (const s of boardSlots(this.board)) {
       if (!slotAccepts(s.type, spec.slot)) continue;
-      if (!slotFitsWidth(s, spec)) { why ??= slotRefusal(s, spec)!; continue; }
+      if (!slotFits(s, spec)) { why ??= slotRefusal(s, spec)!; continue; }
       const occ = this.board.devices.find((d) => d.slot === s.id);
       if (occ && deviceSpec(occ).kind !== spec.kind) continue;
       const r = this.placeInto(boardFromJson(boardToJson(this.board)), it.spec, s.id);

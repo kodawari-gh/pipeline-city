@@ -12,10 +12,10 @@ import type { Key } from "./internal";
 import { JOB_DEX, type DexRecord } from "../../features/jobs/sim/jobdex";
 import { JOB_LOG_CAP, type JobLogEntry } from "../../features/jobs/sim/joblog";
 import { JOB_CLASSES, levelFor, type JobClassId } from "../../features/economy/sim/levels";
-import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV4 } from "./save";
+import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV5 } from "./save";
 
 /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
-export function toSave(this: Game): SaveV4 {
+export function toSave(this: Game): SaveV5 {
   const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired, ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}) });
   const disks = this.savedDisks();
   const p = this.plugged;
@@ -112,7 +112,7 @@ export function restoreDisks(this: Game, list: readonly SavedDisk[]): void {
 }
 
 /** The contracts block of the save, back into the game: offers, running contracts, the id counter and the offers' stream. */
-export function restoreContracts(this: Game, c: NonNullable<SaveV4["contracts"]>): void {
+export function restoreContracts(this: Game, c: NonNullable<SaveV5["contracts"]>): void {
   this.nextContractId = c.nextId;
   this.contractRng.setState(c.rng);
   this.contractOffers = JSON.parse(JSON.stringify(c.offers)) as ContractOffer[];
@@ -134,7 +134,7 @@ export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
  * Put a parsed save into this fresh game (`Game.fromSave` builds the game and calls this). The machine loads powered off; a
  * plugged key stays plugged and its job restarts from boot at the next power-on.
  */
-export function restoreSave(this: Game, s: SaveV4): void {
+export function restoreSave(this: Game, s: SaveV5): void {
   this.board = boardFromJson(s.board);
   // a save from before the radiators: its liquid loop kept the cooling of a slim radiator, so it gets one for free (top fan mount if the case has one)
   legacyRadiatorSlots(this.board);

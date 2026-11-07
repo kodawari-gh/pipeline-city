@@ -69,7 +69,7 @@ describe('milestone list', () => {
     expect(display.planned).toBe(false);
     expect(hasArt(display.id, display.kind, display.planned)).toBe(true);
     expect(display.icon).toBe('screen');
-    const planned = rows[6]!.unlocks.find((u) => u.id === 'fan1')!; // still only a name in the table
+    const planned = rows[14]!.unlocks.find((u) => u.id === 'board4')!; // still only a name in the table
     expect(planned.planned).toBe(true);
     expect(hasArt(planned.id, planned.kind, planned.planned)).toBe(false);
     const cpu = rows[0]!.unlocks.find((u) => u.id === 'cpu1')!;

@@ -37,7 +37,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'wall' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
+  | 'welcome' | 'cpu' | 'cooler' | 'fan' | 'ram' | 'psu' | 'monitor' | 'cables' | 'wall' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
   | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid'
   | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'buyCase' | 'fitCase' | 'buyBoard' | 'fitBoard' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
 
@@ -138,6 +138,19 @@ export const INVENTORY_ID = 'inventory';
 
 const OS_RAM_KB = (getOsSpec('os1')?.minRamBytes ?? 32 * 1024) / 1024;
 
+/** The fan spots of the fitted CPU heatsink (`cooler0.fan0`...). */
+const coolerFanSpots = (s: Snapshot): string[] => {
+  const c = s.devices.find((d) => d.kind === 'cooler');
+  return c ? s.slots.filter((x) => x.type === 'fan' && x.id.startsWith(`${c.slot}.fan`)).map((x) => x.id) : [];
+};
+/** A fan sits on the CPU heatsink, or the cooler takes none (a liquid loop). */
+const cpuFanFitted = (s: Snapshot): boolean => {
+  const c = s.devices.find((d) => d.kind === 'cooler');
+  if (!c) return true; // no heatsink to clip a fan on: the cooler step asks for it
+  const spots = coolerFanSpots(s);
+  return !spots.length || s.devices.some((d) => d.kind === 'fan' && spots.includes(d.slot));
+};
+
 /** The four cables of the first build, by cable id and the progress flag that says each is in (the fan cable has none: the cable list says). */
 const CABLES: Array<{ id: 'atx' | 'cpu' | 'cpufan' | 'video'; flag: keyof Progress | null; end: string }> = [
   { id: 'atx', flag: 'atxConnected', end: 'psu' },
@@ -157,11 +170,18 @@ export const STEPS: StepDef[] = [
   { id: 'cpu', chapter: 'Build', title: 'Install the processor', flag: 'cpuInstalled',
     text: 'Every computer has a brain. This one is called the processor, or CPU, and it does all the thinking, one tiny step at a time. Drag it onto the big square socket on the board.',
     targets: installTargets('cpu') },
-  { id: 'cooler', chapter: 'Build', title: 'Install the cooler', flag: 'coolerInstalled',
-    text: 'Thinking is hot work! The CPU gets toasty while it runs, so it needs a fan to blow the heat away. Drag the cooler onto the processor.',
+  { id: 'cooler', chapter: 'Build', title: 'Install the heatsink', flag: 'coolerInstalled',
+    text: 'Thinking is hot work! The CPU gets toasty while it runs, so it needs a heatsink: a block of metal fins that soaks up the heat. Drag the heatsink onto the processor.',
     targets: (s) => {
       const items = invOf(s, 'cooler');
       return [INVENTORY_ID, ...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
+    } },
+  { id: 'fan', chapter: 'Build', title: 'Clip on the fan', flag: null,
+    done: (s, p) => p.poweredOn || cpuFanFitted(s),
+    text: 'Fins alone cool slowly. A fan blows air through them and carries the heat away much faster. Drag the fan onto the heatsink.',
+    targets: (s) => {
+      const items = invOf(s, 'fan'), spots = coolerFanSpots(s);
+      return [INVENTORY_ID, ...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots.filter((x) => spots.includes(x)))];
     } },
   { id: 'ram', chapter: 'Build', title: 'Install the memory', flag: 'ramInstalled',
     text: 'Now a desk to work on. Memory (RAM) is where the machine keeps a job while it works on it. Small or slow memory makes the brain sit around waiting. Drag the memory stick into a long slot next to the processor.',
@@ -174,7 +194,7 @@ export const STEPS: StepDef[] = [
     targets: installTargets('display') },
   { id: 'cables', chapter: 'Build', title: 'Plug in the four cables', flag: null,
     done: (s, p) => CABLES.every((c) => (c.flag ? p[c.flag] : !s.cables.some((y) => y.id === c.id && !y.connected))), // the fan cable counts once the cooler it belongs to is on (else it is not listed)
-    text: 'Parts need wires to talk to each other. Main power and processor power carry energy from the power supply to the board. The fan cable lets the board spin the cooler\'s fan, and it will not start without it. The video cable carries pictures from the board to the monitor. Drag the lit cable plug to its socket, four cables in all.',
+    text: 'Parts need wires to talk to each other. Main power and processor power carry energy from the power supply to the board. The fan cable lets the board spin the heatsink\'s fan: without it the CPU runs hot. The video cable carries pictures from the board to the monitor. Drag the lit cable plug to its socket, four cables in all.',
     // One cable at a time, and only its two ends (plug and socket), not the whole device around it.
     targets: (s) => {
       const c = CABLES.find((x) => !s.cables.find((y) => y.id === x.id)?.connected);
@@ -409,6 +429,12 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       const items = invOf(s, 'cooler');
       if (!items.length) return 'No cooler in the inventory. Buy one from the cooler slot on the processor.';
       return itemReason(s, 'cooler');
+    }
+    case 'fan': {
+      if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
+      const items = invOf(s, 'fan');
+      if (!items.length) return 'No fan in the inventory. Buy one from the fan spot on the heatsink.';
+      return items.some((i) => i.freeSlots.some((x) => coolerFanSpots(s).includes(x))) ? null : items[0]!.reason ?? 'This fan does not fit the heatsink.';
     }
     case 'cables': {
       const open = s.cables.filter((c) => CABLES.some((x) => x.id === c.id) && !c.connected);

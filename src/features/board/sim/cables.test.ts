@@ -89,21 +89,40 @@ describe("fan cables", () => {
       expect(cableNeeded(b, "cpufan")).toBe(false);
     }
     expect(caseMounts(0)).toEqual(["front0", "front1"]); // the Mini has a grille at the back, not a fan
-    expect(caseMounts(3)).toEqual(["front0", "front1", "front2", "front3", "top0", "top1", "top2", "rear"]);
+    expect(caseMounts(3)).toEqual(["front0", "front1", "front2", "top0", "top1", "rear"]); // 140 mm fans: three high, two across
   });
 
-  it("a missing CPU fan cable stops POST; the other fans never do", () => {
+  it("a missing pump cable stops POST; a heatsink's fans and the other fans never do", () => {
     const b = rig("psu2");
+    ok(install(b, "fan92", "cooler0.fan0"));
     const cables: Cables = { ...basics(), cpufan: false };
-    expect(bootCheck(b, cables).post).toMatchObject({ short: "NO CPU FAN" });
-    ok(connectCable(b, cables, "cpufan"));
-    expect(bootCheck(b, cables).post).toBeNull();
+    expect(bootCheck(b, cables).post).toBeNull(); // the heatsink cools by itself, hot
+    const loop = createBoard(3);
+    for (const id of ["psu2", "cpu0", "ram0", "cooler2"]) ok(install(loop, id));
+    expect(bootCheck(loop, cables).post).toMatchObject({ short: "NO CPU FAN" });
+    ok(connectCable(loop, cables, "cpufan"));
+    expect(bootCheck(loop, cables).post).toBeNull();
     expect(cables.sysfan).toBeFalsy();
     expect(cables["fan:rear"]).toBeFalsy();
   });
 
+  it("the CPU fan cable waits for a fan on the heatsink; a case fan's cable for a fan on its mount", () => {
+    const b = rig("psu2");
+    expect(cableBlocked(b, "cpufan")).toMatch(/no fan on the CPU heatsink/);
+    ok(install(b, "fan92", "cooler0.fan0"));
+    expect(cableBlocked(b, "cpufan")).toBeNull();
+    expect(cableBlocked(b, "fan:rear")).toMatch(/no fan on the rear/);
+    ok(install(b, "fan140", "rear"));
+    expect(cableBlocked(b, "fan:rear")).toBeNull();
+    const cables = noCables();
+    ok(connectCable(b, cables, "fan:rear"));
+    ok(uninstall(b, b.devices.find((d) => d.slot === "rear")!.id));
+    expect(pruneCables(b, cables)).toEqual(["fan:rear"]);
+  });
+
   it("a case fan's cable plugs and unplugs; one the case does not have is refused", () => {
     const b = createBoard(1);
+    ok(install(b, "fan92", "top0"));
     const cables = noCables();
     ok(connectCable(b, cables, "fan:top0"));
     expect(cables["fan:top0"]).toBe(true);
@@ -113,22 +132,27 @@ describe("fan cables", () => {
     expect(cables["fan:top0"]).toBe(false);
   });
 
-  it("the heatsink fans' cables exist only with a fan version, and come off with it", () => {
-    expect(cableBlocked(rig("psu2", ["vsink0"]), "vrmfan")).toMatch(/with a fan/);
+  it("the sink fans' cables need fan fins with a fan on them, and come off with the fan", () => {
+    expect(cableBlocked(rig("psu2", ["vsink0"]), "vrmfan")).toMatch(/no VRM fan fins/);
     const b = rig("psu2", ["vsink2"]);
+    expect(cableBlocked(b, "vrmfan")).toMatch(/no fan on the VRM fan fins/);
+    ok(install(b, "fan40"));
+    expect(b.devices.find((d) => d.spec === "fan40")!.slot).toBe("vrm-sink0.fan0");
     expect(cableBlocked(b, "vrmfan")).toBeNull();
     expect(cableNeeded(b, "vrmfan")).toBe(true);
     const cables = noCables();
     ok(connectCable(b, cables, "vrmfan"));
-    ok(uninstall(b, b.devices.find((d) => d.spec === "vsink2")!.id));
+    ok(uninstall(b, b.devices.find((d) => d.spec === "fan40")!.id));
     expect(pruneCables(b, cables)).toEqual(["vrmfan"]);
   });
 
-  it("allCables plugs the fans a board has and leaves the ones it has no part for", () => {
-    const b = rig("psu2", ["vsink2"]);
+  it("allCables plugs the fans a board has and leaves the ones it has no fan for", () => {
+    const b = rig("psu2", ["vsink2", "fan40", "fan92", "fan140"]);
+    expect(b.devices.find((d) => d.spec === "fan140")!.slot).toBe("front0");
     const c = allCables(b);
-    expect(c.cpufan && c.sysfan && c.vrmfan && c["fan:rear"] && c["fan:top2"]).toBe(true);
+    expect(c.cpufan && c.sysfan && c.vrmfan && c["fan:front0"]).toBe(true);
     expect(c.ramfan).toBe(false); // no RAM VRM heatsink with a fan
+    expect(c["fan:rear"]).toBe(false); // an empty mount
   });
 
   it("leads fill the cards in slot order, and a card runs only with all its own leads", () => {

@@ -12,9 +12,9 @@ let ST: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 const resetTutorialState = () => { ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] }; };
 /** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
-/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial, network included, is over in eight. */
+/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial, network included, is over in under nine. */
 const SMOOTH_STEP_TICKS = 120;
-const SMOOTH_TOTAL_TICKS = 480;
+const SMOOTH_TOTAL_TICKS = 520;
 /** Steps a player may already be past when they come up (the level is reached while the OS lesson runs). */
 const OPTIONAL: StepId[] = ['reachLevel4'];
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'case', 'board', 'storage', 'os'];
@@ -59,6 +59,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'cpu': installPart(['cpu']); break;
     case 'ram': installPart(['ram']); break;
     case 'cooler': installPart(['cooler']); break;
+    case 'fan': installPart(['fan']); break;
     case 'psu': installPart(['psu']); break;
     case 'monitor': installPart(['display']); break;
     case 'cables': {

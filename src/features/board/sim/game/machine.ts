@@ -1,7 +1,7 @@
 // Game feature: the running machine. The power button, cold boot, the phase it is in, the clock rates and the base tick
 // that steps it all. Every export is a `Game` method (see game.ts).
 
-import { applyEngine, applyRates, bootCheck, caseMounts, deviceSpec, findDevices, fittedRadiator, UNFANNED_SHARE, type FanPower, type RadiatorSpec, type RamSpec } from "..";
+import { applyEngine, applyRates, basicFan, bootCheck, CASE_TIERS, caseMounts, deviceSpec, fanAir, findDevices, fittedRadiator, mountFan, UNFANNED_SHARE, type FanPower, type RadiatorSpec, type RamSpec } from "..";
 import { BLOCK_BYTES, PchPhase } from "@/core/sim/memmap";
 import { bootBlocksFor } from "@/features/os/sim";
 import { ROM_IMAGE } from "../pch";
@@ -163,21 +163,30 @@ export function monitorLive(this: Game): boolean {
   return this.video === "board" || this.videoCard() !== null;
 }
 
-/** Which fans turn: each part's own (cable plugged), and the case fans (their cable and the hub's, with the hub on the board's SYS_FAN header). */
+/**
+ * Which fans turn: the heatsinks' fans on their header's cable, and the case fans (a fan on the mount, its cable and the hub's, with the hub on the board's
+ * SYS_FAN header). The board says which fans sit where.
+ */
 export function fanPower(this: Game): FanPower {
-  const c = this.cables;
+  const c = this.cables, b = this.board;
   const hub = !!c.sysfan;
-  const rad = fittedRadiator(this.board);
+  const rad = fittedRadiator(b);
   const radSpec = rad ? (deviceSpec(rad.dev) as RadiatorSpec) : null;
-  // The radiator spans every mount of its side: those fans are no longer case fans, their cables turn the radiator's fans instead, and the more
-  // of them turn the nearer the radiator gets to its full cooling (none: UNFANNED_SHARE of it).
-  const mounts = caseMounts(this.board.caseTier).filter((m) => !rad?.mounts.includes(m));
-  const turning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]).length / rad.mounts.length : 0;
-  const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * turning) : 0;
-  const spinning = hub ? mounts.filter((m) => c[`fan:${m}`]) : [];
+  const flowOf = (m: string): number => { const f = mountFan(b, m); return f ? fanAir([f]) : 0; };
+  const turns = (m: string): boolean => hub && !!c[`fan:${m}`] && flowOf(m) > 0;
+  // The radiator spans every mount of its side: those fans are not case fans, they push air through it, and the more air they move the nearer it gets
+  // to its full cooling (none: UNFANNED_SHARE of it; a basic fan on every mount: all of it).
+  const mounts = caseMounts(b.caseTier).filter((m) => !rad?.mounts.includes(m));
+  const radAir = rad ? rad.mounts.filter(turns).reduce((a, m) => a + flowOf(m), 0) / (rad.mounts.length * basicFan(CASE_TIERS[b.caseTier]!.fanSize).airflow) : 0;
+  const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * Math.min(1, radAir)) : 0;
+  const spinning = mounts.filter(turns);
   // the radiator's own fans move air through the case too (they count for the areas' air, not as case fans)
-  const radSpinning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]) : [];
-  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: spinning.length, mounts: [...spinning, ...radSpinning], loopK, ...(rad ? { radSide: rad.side } : {}) };
+  const radSpinning = rad ? rad.mounts.filter(turns) : [];
+  const all = [...spinning, ...radSpinning];
+  return {
+    cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: spinning.length, mounts: all, mountFlow: Object.fromEntries(all.map((m) => [m, flowOf(m)])),
+    loopK, ...(rad ? { radSide: rad.side } : {}),
+  };
 }
 
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */

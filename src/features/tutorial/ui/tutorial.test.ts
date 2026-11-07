@@ -7,7 +7,7 @@ import {
   stepProblem, tutorialForSave, type TutorialState,
 } from './tutorial';
 import { describeId } from '@/core/ui/logic';
-import { boardSnap, dev, key, snap, STARTER_CRATE } from '@/core/ui/testdata';
+import { boardSnap, dev, EMPTY_SLOTS, key, snap, STARTER_CRATE, STOCK_COOLER } from '@/core/ui/testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 /** The first fifteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
@@ -135,7 +135,7 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(7) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cables');
-    expect(stepCount(step!)).toEqual({ n: 6, total: 7, chapter: 'Build' });
+    expect(stepCount(step!)).toEqual({ n: 7, total: 8, chapter: 'Build' });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
@@ -188,6 +188,20 @@ describe('tutorial step from snapshot flags', () => {
     expect(idOf(currentStep(snap({ progress: q }), welcomed))).toBe('cooler');
     // A legacy save (cooler pre-mounted, flag derived true) skips the step.
     expect(idOf(currentStep(snap({ progress: oldUpTo(2) }), welcomed))).toBe('ram');
+  });
+
+  it('a fitted heatsink with a free fan spot asks for the fan next; the fan lights its spot and the step ends when it sits there', () => {
+    const p = oldUpTo(2), cooler = { ...STOCK_COOLER };
+    const spot = { id: 'cooler0.fan0', type: 'fan' as const, deviceId: null, size: 92 };
+    const fan = invItem('fan', 'fan92', 'inv6', ['cooler0.fan0', 'front0']);
+    const open = snap({ progress: p, devices: [cooler], slots: [...EMPTY_SLOTS, spot], inventory: [fan] });
+    const step = currentStep(open, welcomed)!;
+    expect(step.id).toBe('fan');
+    expect(step.targets(open)).toEqual(['inventory', 'inv:inv6', 'cooler0.fan0']); // not the case mount
+    const fitted = snap({ progress: p, devices: [cooler, dev({ id: 'f', kind: 'fan', spec: 'fan92', slot: 'cooler0.fan0' })], slots: [...EMPTY_SLOTS, { ...spot, deviceId: 'f' }] });
+    expect(idOf(currentStep(fitted, welcomed))).toBe('ram');
+    expect(stepProblem(snap({ progress: p, devices: [cooler], slots: [...EMPTY_SLOTS, spot], inventory: [invItem('fan', 'fan120', 'inv7', [])] }), step)).toBeTruthy(); // a size that fits no spot of the heatsink
+    expect(idOf(currentStep(snap({ progress: { ...p, poweredOn: true }, devices: [cooler], slots: [...EMPTY_SLOTS, spot] }), welcomed))).not.toBe('fan'); // an old game that already runs is not sent back
   });
 
   it('the cooler step shows the sim reason when it is dragged too early or power is pressed without it', () => {

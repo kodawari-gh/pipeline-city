@@ -43,7 +43,7 @@ ram0 16K (starter), ram1 32K fast, ram2 64K low-latency: a free DIMM slot and wa
 | 3+ | bigger/faster NVMe, RAID of two drives | more m2 slots, board tier | planned |
 
 ## Cooler (built: 3)
-Stock heatsink (starter), tower fan, liquid loop: cooler slot and watts. Planned: case fans that cool the non-CPU parts, a bigger radiator tier needing a bigger case/board.
+Stock heatsink (starter), tower heatsink, liquid loop: cooler slot and watts. Fans are parts of their own, in standard sizes (40, 92, 120, 140 mm; basic and high-airflow): the player fits them on case mounts, heatsinks and radiators. Planned: a bigger radiator tier needing a bigger case/board.
 
 ## PSU (built: 3)
 40 W, 100 W (plain ATX), 250 W (needs the ATX+ connector, i.e. the bigger board). Planned: 500 W+ with PCIe power connectors for GPUs, a connector count (SATA, PCIe, 8-pin) instead of watts alone.
@@ -63,7 +63,7 @@ You buy the **next tier** (`board1`, `board2`, `board3`), only while the machine
 |---|---|---|---|
 | 0 | vsink0 passive fins | 0.25 W/C of VRM cooling | $30 |
 | 1 | vsink1 big fins | 0.5 W/C | $70 |
-| 2 | vsink2 fins + small fan | 1.0 W/C, draws up to 1.5 W | $140 |
+| 2 | vsink2 fan fins, with a `fan40` | 1.0 W/C, the fan draws up to 0.5 W | $140 |
 
 A `vrm-sink` slot on every board. Matters with a liquid CPU cooler (no airflow over the VRM) and when overclocking.
 

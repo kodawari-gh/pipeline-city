@@ -13,7 +13,7 @@
 // The cards warm the air (CASE_HEAT_C_PER_W per watt, thermal.ts): how much each area feels is `COUPLE` (the air leaves the cards for the rear, over the
 // processor), and the less air moves through an area the more of it stays (up to `MAX_TRAPPED` times).
 
-import { caseMounts } from "./specs";
+import { basicFan, CASE_TIERS, caseMounts } from "./specs";
 import type { DeviceKind } from "./specs";
 
 export type AirZoneId = "north" | "cards" | "bay";
@@ -60,17 +60,18 @@ export interface ZoneAir {
 
 const gauss = (x: number, c: number) => Math.exp(-(((x - c) / 0.3) ** 2));
 
-/** Supply and draw of an area for a set of turning fans (ids as `caseMounts`), each 0 to its best case. */
-function supplyDraw(tier: number, turning: ReadonlySet<string>): Record<AirZoneId, { supply: number; draw: number }> {
+/** Supply and draw of an area for the turning fans (ids as `caseMounts`, each with its airflow). */
+function supplyDraw(tier: number, turning: ReadonlyMap<string, number>): Record<AirZoneId, { supply: number; draw: number }> {
   const mounts = caseMounts(tier), nFront = mounts.filter((m) => m.startsWith("front")).length;
   const out = {} as Record<AirZoneId, { supply: number; draw: number }>;
   for (const z of AIR_ZONES) {
     let supply = 0, draw = PASSIVE * DRAW_REAR[z];
     for (const m of mounts) {
-      if (!turning.has(m)) continue;
-      if (m.startsWith("front")) supply += REACH[z] * gauss((Number(m.slice(5)) + 0.5) / nFront, LEVEL[z]);
-      else if (m === "rear") draw += DRAW_REAR[z];
-      else draw += DRAW_TOP[z];
+      const w = turning.get(m);
+      if (w === undefined) continue;
+      if (m.startsWith("front")) supply += w * REACH[z] * gauss((Number(m.slice(5)) + 0.5) / nFront, LEVEL[z]);
+      else if (m === "rear") draw += w * DRAW_REAR[z];
+      else draw += w * DRAW_TOP[z];
     }
     out[z] = { supply, draw };
   }
@@ -83,18 +84,21 @@ const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d
 /**
  * The air of each area. `turning` is the ids of the case fans that turn (their own cable and the hub's); undefined means no layout is known (a model run
  * on its own with `FanPower.caseFans` only) and every area gets that count, as before zones. `cardW` is what the working cards draw, W; `heatPerW` the case heat per watt.
+ * `flowOf` is the airflow of the fan on each turning mount (absent: a basic fan of the case's size). The case as designed is every mount with a basic fan:
+ * `flow` is capped at 1 there, while `fans` keeps growing with high-airflow fans.
  */
-export function zoneAir(tier: number, turning: readonly string[] | undefined, caseFans: number, cardW: number, heatPerW: number): Record<AirZoneId, ZoneAir> {
+export function zoneAir(tier: number, turning: readonly string[] | undefined, caseFans: number, cardW: number, heatPerW: number, flowOf?: Readonly<Record<string, number>>): Record<AirZoneId, ZoneAir> {
   const out = {} as Record<AirZoneId, ZoneAir>;
   if (!turning) {
     for (const z of AIR_ZONES) out[z] = { fans: caseFans, flow: 1, riseC: heatPerW * cardW };
     return out;
   }
-  const all = caseMounts(tier), n = all.length;
-  const now = supplyDraw(tier, new Set(turning)), best = supplyDraw(tier, new Set(all));
+  const size = CASE_TIERS[tier]?.fanSize, base = size ? basicFan(size).airflow : 1;
+  const all = caseMounts(tier), n = all.length * base;
+  const now = supplyDraw(tier, new Map(turning.map((m) => [m, flowOf?.[m] ?? base]))), best = supplyDraw(tier, new Map(all.map((m) => [m, base])));
   for (const z of AIR_ZONES) {
-    const flow = Math.min(1, through(now[z].supply, now[z].draw) / Math.max(1e-6, through(best[z].supply, best[z].draw)));
-    out[z] = { fans: n * flow * QUALITY[z], flow, riseC: heatPerW * cardW * COUPLE[z] * Math.min(MAX_TRAPPED, 1 / Math.max(1 / MAX_TRAPPED, flow)) };
+    const ratio = through(now[z].supply, now[z].draw) / Math.max(1e-6, through(best[z].supply, best[z].draw)), flow = Math.min(1, ratio);
+    out[z] = { fans: n * ratio * QUALITY[z], flow, riseC: heatPerW * cardW * COUPLE[z] * Math.min(MAX_TRAPPED, 1 / Math.max(1 / MAX_TRAPPED, flow)) };
   }
   return out;
 }

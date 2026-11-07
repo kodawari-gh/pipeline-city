@@ -1,7 +1,7 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import { boardFromJson, CABLE_IDS, PCIE_LEADS, getSpec, isFanCable, type BoardJson, type Cables } from "../../features/board/sim";
+import { basicFan, boardFromJson, CABLE_IDS, CASE_TIERS, caseMounts, PCIE_LEADS, getSpec, isFanCable, type BoardJson, type Cables } from "../../features/board/sim";
 import { getOsSpec } from "../../features/os/sim";
 import { offerPrice } from "../../features/economy/sim/economy";
 import { TEMPLATES } from "../../features/jobs/sim/gen";
@@ -10,7 +10,7 @@ import { FILE_KINDS, type FsFileRecord, type MountState } from "../../features/s
 import type { DiskMediaState } from "../../features/storage/sim/storage";
 import { CONTRACT_KINDS, type Contract, type ContractOffer } from "../../features/economy/sim/contracts";
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** A key (job) as seeds/params only; the program is regenerated on load. */
 export interface SavedKey {
@@ -124,8 +124,13 @@ export interface SaveV3 extends Omit<SaveV4, "version"> {
   version: 3;
 }
 
-export interface SaveV4 {
+/** The shape before fans were parts of their own (v4): the same fields. Only the migration reads it. */
+export interface SaveV4 extends Omit<SaveV5, "version"> {
   version: 4;
+}
+
+export interface SaveV5 {
+  version: 5;
   /** Seed the machine was created with (kept for reference; the live stream is `prngState`). */
   seed: number;
   /** Machine PRNG state (one uint32). */
@@ -245,7 +250,7 @@ export interface SavedNet {
   spool: SavedKey[];
 }
 
-export type Save = SaveV4;
+export type Save = SaveV5;
 
 /** The shape before the USB keys (v1). Only the migration reads it. */
 export interface SaveV1 {
@@ -309,6 +314,26 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       }),
     };
   },
+  /**
+   * v4 -> v5: fans became parts of their own. Every case mount gets the basic fan of the case's size, and every heatsink the fan it had built in (stock:
+   * a 92 mm, tower: one 120 mm, the fan fins: a 40 mm). The Full case lost a front and a top mount (140 mm fans): those and their cables go. Plugged
+   * cables stay plugged, so the machine cools as before.
+   */
+  4: (s: SaveV4): SaveV5 => {
+    if (!isObj(s.board) || !Array.isArray(s.board.devices) || !isObj(s.cables)) throw new Error("save: not a valid version 4 save");
+    const b = s.board, smallest = CASE_TIERS.findIndex((c) => c.maxBoard >= b.tier);
+    const caseTier = Math.max(typeof b.caseTier === "number" ? b.caseTier : 0, smallest);
+    let next = Math.max(typeof b.nextId === "number" ? b.nextId : 1, ...b.devices.map((d) => Number(String(d.id).replace(/\D/g, "")) + 1), 1);
+    const fans: BoardJson["devices"] = [], taken = new Set(b.devices.map((d) => d.slot));
+    const fit = (spec: string, slot: string) => { if (!taken.has(slot)) fans.push({ id: `dev${next++}`, spec, slot }); };
+    if (CASE_TIERS[caseTier]) for (const m of caseMounts(caseTier)) fit(basicFan(CASE_TIERS[caseTier]!.fanSize).id, m);
+    const builtIn: Record<string, string> = { cooler0: "fan92", cooler1: "fan120", vsink2: "fan40", rsink2: "fan40" };
+    for (const d of b.devices) if (builtIn[d.spec]) fit(builtIn[d.spec]!, `${d.slot}.fan0`);
+    const cables = { ...s.cables } as Record<string, boolean>;
+    const mounts = new Set(CASE_TIERS[caseTier] ? caseMounts(caseTier) : []);
+    for (const k of Object.keys(cables)) if (k.startsWith("fan:") && !mounts.has(k.slice(4))) delete cables[k];
+    return { ...s, version: 5, board: { ...b, devices: [...b.devices, ...fans], nextId: next }, cables: cables as Cables };
+  },
   /** v2 -> v3: no storage or OS yet, so the machine keeps the reboot-per-job flow; the three new milestones start false. */
   2: (s: SaveV2): SaveV3 => {
     if (!isObj(s.progress) || !isObj(s.board)) throw new Error("save: not a valid version 2 save");
@@ -335,7 +360,7 @@ export function migrate(save: unknown): unknown {
 }
 
 /** Migrate and validate untrusted input (parsed JSON). Throws Error with a clear message. */
-export function parseSave(input: unknown): SaveV4 {
+export function parseSave(input: unknown): SaveV5 {
   const s = migrate(input) as Record<string, unknown>;
   // Saves from before the cooler became an install step have no `coolerInstalled`: it was pre-mounted, so derive it.
   if (isObj(s.progress) && typeof s.progress.coolerInstalled !== "boolean" && isObj(s.board) && Array.isArray(s.board.devices)) {
@@ -454,7 +479,7 @@ export function parseSave(input: unknown): SaveV4 {
   }
   if (s.contracts !== undefined) checkContracts(s.contracts);
   if (s.lastCompleted !== null && !isObj(s.lastCompleted)) throw new Error('save: "lastCompleted" must be an object or null');
-  return s as unknown as SaveV4;
+  return s as unknown as SaveV5;
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);

@@ -201,6 +201,8 @@ export interface InventorySnap {
 export interface SlotSnap {
   id: string;
   type: SlotType;
+  /** A fan spot's fan size, mm (a case mount, a heatsink's spot). */
+  size?: number;
   /** Installed device instance id, or null if empty. */
   deviceId: string | null;
 }

@@ -31,7 +31,7 @@ export function fmtClock(c: number): string {
 export const KIND_LABEL: Record<DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard', case: 'Case',
   os: 'Operating system', 'vrm-sink': 'VRM cooling', 'ram-sink': 'Memory VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
-  gpu: 'Graphics card', npu: 'AI card', tpm: 'Secure module', radiator: 'Radiator',
+  gpu: 'Graphics card', npu: 'AI card', tpm: 'Secure module', radiator: 'Radiator', fan: 'Fan',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -162,8 +162,9 @@ export type { Description };
 const PLAIN_KIND: Record<DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
-  cooler: 'Mounts on the CPU and pulls heat off it so it can run fast without slowing down or breaking. The fan spins only while the machine is powered.',
-  radiator: 'Where a liquid loop gets rid of its heat. It bolts along the front or the top of the case and covers every fan on that side in place of them, and the two tubes of the loop run to it. A bigger radiator cools the processor more, and each of its fans needs plugging in too.',
+  cooler: 'Mounts on the CPU and pulls heat off it so it can run fast without slowing down or breaking. A heatsink cools a little by itself; the fans clipped on it cool it much more.',
+  radiator: 'Where a liquid loop gets rid of its heat. It bolts along the front or the top of the case, and the fans on that side push air through it. A bigger radiator cools the processor more; with no fans it gives only half of it.',
+  fan: 'Moves air. On a case mount it brings cool air in or pushes hot air out; on a heatsink or a radiator it blows through the fins. It fits only a spot of its own size, and spins only while its cable is plugged.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',

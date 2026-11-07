@@ -296,7 +296,7 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
 // ---------- purchases ----------
 
 /** Every kind of device the shop sells. */
-const DEVICE_KINDS: DeviceKind[] = ["cpu", "ram", "psu", "cooler", "display", "storage", "vrm-sink", "ram-sink", "nic", "gpu", "npu", "tpm", "radiator"];
+const DEVICE_KINDS: DeviceKind[] = ["cpu", "ram", "psu", "cooler", "display", "storage", "vrm-sink", "ram-sink", "nic", "gpu", "npu", "tpm", "radiator", "fan"];
 
 /** Something the player can buy: a device spec id, or a board tier (`board1`). */
 export interface Offer { id: string; name: string; kind: DeviceKind | "board" | "case"; price: number }

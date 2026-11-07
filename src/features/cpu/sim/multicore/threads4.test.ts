@@ -8,7 +8,7 @@ import { JT_BASE } from "@/features/os/sim";
 import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, kernelImageFor, KERNEL_IMAGE_PRE_SMP, KERNEL_IMAGE_THR, PCB, PCBS, RESERVED_FRAME, SPOOL_BLOCKS_PER_JOB } from "@/features/os/sim";
 import { ECONOMY } from "@/features/economy/sim/economy";
 import { Game } from "@/worker/game/game";
-import { checkCompat, compatProblems, setClock } from "@/features/board/sim";
+import { basicFan, checkCompat, compatProblems, fanSlots, setClock, type FanSize } from "@/features/board/sim";
 import { econ } from "@/worker/game/testkit";
 
 ECONOMY.levelGating = false;
@@ -50,6 +50,11 @@ function machine(cpu: string): Game {
     if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
     const r = g.install(b.invId);
     if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+  }
+  // the bigger case comes without fans: fit and plug a basic one on every mount, so the radiator gets its air
+  for (const s of fanSlots(g.board).filter((x) => !g.board.devices.some((d) => d.slot === x.id))) {
+    const b = g.purchase(basicFan(s.size as FanSize).id);
+    if (!b.ok || !g.install(b.invId, s.id).ok || !g.connectCable(`fan:${s.id}`).ok) throw new Error(`fan on ${s.id}`);
   }
   // the board must be able to feed the CPU it carries (compat.ts): an overloaded regulator crashes the machine under load, and a job then never finishes.
   // A CPU that draws more than its board's regulator gives runs at the clock the check says is safe.

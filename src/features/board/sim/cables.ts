@@ -3,8 +3,8 @@
 // removing that part unplugs it. The `pcie` lead also needs the PSU to have one (`pcieLeads`). The two cords from the wall (`pcmains`, `monmains`) are the exception:
 // they need no part and stay plugged when parts are swapped.
 
-import { deviceSpec, findDevices, installedPsu, pcieLeadsNeeded, type Board, type InstalledDevice, type Result } from "./board";
-import { cardLeads, caseMounts, type DeviceKind, type VrmSinkSpec } from "./specs";
+import { deviceSpec, fansOn, findDevices, hostSpots, installedPsu, mountFan, pcieLeadsNeeded, type Board, type InstalledDevice, type Result } from "./board";
+import { cardLeads, caseMounts, type CoolerSpec, type DeviceKind } from "./specs";
 
 /** The cables every machine has. A case fan's cable has the id `fan:<mount>` (`caseMounts`): those depend on the case. `pcie` to `pcie4` are the PSU's PCIe power leads, one cable each. */
 export type StaticCableId = "atx" | "cpu" | "video" | "lan" | "pcmains" | "monmains" | PcieLeadId | "cpufan" | "vrmfan" | "ramfan" | "sysfan";
@@ -37,9 +37,9 @@ export const CABLES: readonly CableSpec[] = [
   { id: "video", name: "Video cable", from: "display", plain: "Board display output to the monitor. Can be plugged or pulled while the machine runs (the screen goes dark, the jobs go on)." },
   { id: "pcmains", name: "PC power cord", from: "wall", plain: "From the case's power inlet to the wall socket. Without it the PSU has no power at all. Can be plugged or pulled at any time (pulling it cuts the power)." },
   { id: "monmains", name: "Monitor power cord", from: "wall", plain: "From the monitor to the wall socket. Without it the screen stays dark. Can be plugged or pulled at any time." },
-  { id: "cpufan", name: "CPU fan cable", from: "cooler", plain: "The CPU cooler's fan (or the loop's pump) to the CPU_FAN header. The CPU needs it: without it the board stops at POST and the cooler does not turn." },
-  { id: "vrmfan", name: "VRM fan cable", from: "vrm-sink", plain: "The VRM heatsink's fan to the VRM_FAN header. Without it the fan stands still and cools less." },
-  { id: "ramfan", name: "RAM VRM fan cable", from: "ram-sink", plain: "The memory VRM heatsink's fan to the RAM_FAN header. Without it the fan stands still and cools less." },
+  { id: "cpufan", name: "CPU fan cable", from: "cooler", plain: "The CPU heatsink's fans (or the liquid loop's pump) to the CPU_FAN header. Without it the fans stand still and the CPU runs hot; a liquid loop's pump must run, or the board stops at POST." },
+  { id: "vrmfan", name: "VRM fan cable", from: "vrm-sink", plain: "The fan on the VRM fan fins to the VRM_FAN header. Without it the fan stands still and the fins cool less." },
+  { id: "ramfan", name: "RAM VRM fan cable", from: "ram-sink", plain: "The fan on the memory VRM fan fins to the RAM_FAN header. Without it the fan stands still and the fins cool less." },
   { id: "sysfan", name: "Fan hub cable", from: "case", plain: "The case's fan hub to the SYS_FAN header: it carries the power of every case fan, so with it unplugged none of them turns." },
   { id: "lan", name: "Ethernet cable", from: "router", plain: "A board or network card port to the router. Can be plugged while the machine is on." },
 ];
@@ -52,9 +52,9 @@ export type Cables = Record<string, boolean>;
 
 const mountName = (m: string): string => (m === "rear" ? "rear fan" : m.replace(/^(front|top)(\d+)$/, (_, side: string, k: string) => `${side} fan ${Number(k) + 1}`));
 
-/** The cable of one case fan, from the fan to its header on the fan hub. */
+/** The cable of one case fan, from the fan on that mount to its header on the fan hub (there only while a fan is fitted). */
 function mountCable(m: string): CableSpec {
-  return { id: `fan:${m}`, name: `Case fan cable (${mountName(m)})`, from: "case", plain: `The ${mountName(m)}'s cable to the fan hub. Without it the fan stands still and the case gets less airflow.` };
+  return { id: `fan:${m}`, name: `Case fan cable (${mountName(m)})`, from: "fan", plain: `The ${mountName(m)}'s cable to the fan hub. Without it the fan stands still and the case gets less airflow.` };
 }
 
 /** Every cable this board's machine can have: the fixed ones and one per fan mount of its case. */
@@ -96,12 +96,19 @@ export const cableName = (id: string): string => spec(id)?.name ?? id;
 export function cableBlocked(board: Board, id: CableId): string | null {
   const c = spec(id, board);
   if (!c) return `unknown cable "${id}"`;
-  if (c.from === "router" || c.from === "wall" || c.from === "case") return null; // the Game owns the router and the port choice; a wall cord needs no part; the case brings its own hub and fans
+  if (c.from === "router" || c.from === "wall" || c.from === "case") return null; // the Game owns the router and the port choice; a wall cord needs no part; the case brings its own hub
+  if (c.from === "fan") return mountFan(board, c.id.slice(4)) ? null : `no fan on the ${mountName(c.id.slice(4))} mount`;
   if (c.id === "vrmfan" || c.id === "ramfan") {
-    const kind = c.from as "vrm-sink" | "ram-sink";
-    return findDevices(board, kind).some((d) => (deviceSpec(d) as VrmSinkSpec).fan) ? null : `no ${kind === "vrm-sink" ? "VRM" : "RAM VRM"} heatsink with a fan installed`;
+    const kind = c.from as "vrm-sink" | "ram-sink", what = kind === "vrm-sink" ? "VRM" : "RAM VRM";
+    const sink = findDevices(board, kind)[0];
+    if (!sink || !hostSpots(sink)) return `no ${what} fan fins installed`;
+    return fansOn(board, sink.slot).length ? null : `no fan on the ${what} fan fins`;
   }
-  if (c.id === "cpufan") return findDevices(board, "cooler").length === 0 ? "no CPU cooler installed for the CPU fan cable" : null;
+  if (c.id === "cpufan") {
+    const cooler = findDevices(board, "cooler")[0];
+    if (!cooler) return "no CPU cooler installed for the CPU fan cable";
+    return (deviceSpec(cooler) as CoolerSpec).loop || fansOn(board, cooler.slot).length ? null : "no fan on the CPU heatsink";
+  }
   if (findDevices(board, c.from).length === 0) return `no ${c.from === "display" ? "monitor" : c.from.toUpperCase()} installed for the ${c.name} cable`;
   const lead = pcieLeadNo(c.id);
   if (lead > 0) {
@@ -200,7 +207,8 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   if (!cpu) post = { reason: "no CPU installed", short: "NO CPU" };
   else if (cpu.burnt) post = { reason: "the CPU is burnt out", short: "CPU FAILED" };
   else if (!findDevices(board, "cooler").some((d) => !d.burnt)) post = { reason: "no CPU cooler installed: it mounts on the CPU", short: "NO CPU COOLER" };
-  else if (!cables.cpufan) post = { reason: "the CPU fan cable is not connected: plug it into the CPU_FAN header", short: "NO CPU FAN" };
+  // an air heatsink still cools without its fans (the CPU runs hot); a liquid loop's pump must run
+  else if (!cables.cpufan && findDevices(board, "cooler").some((d) => (deviceSpec(d) as CoolerSpec).loop)) post = { reason: "the pump cable is not connected: plug it into the CPU_FAN header", short: "NO CPU FAN" };
   else if (!cables.cpu) post = { reason: "the 8-pin CPU power cable is not connected", short: "NO CPU POWER" };
   else if (ram.length === 0) post = { reason: "no working RAM installed", short: "NO RAM" };
   else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Prng } from "@/core/sim";
 import { AIR_ZONES, MAX_TRAPPED, QUALITY, zoneAir, zoneOf } from "./airflow";
-import { caseMounts, CASE_TIERS, getSpec } from "./specs";
+import { basicFan, caseMounts, CASE_TIERS, getSpec } from "./specs";
 import { createBoard, findDevices, install, setClock, ThermalModel } from "./index";
 import { CARD_FAN_START_C, CASE_FAN_K, CASE_HEAT_C_PER_W, cardFan, FANS_ON, type FanPower } from "./thermal";
 
@@ -22,14 +22,17 @@ describe("airflow zones", () => {
     for (const z of AIR_ZONES) expect(a[z]).toMatchObject({ fans: 3, flow: 1, riseC: 9 });
   });
 
-  it("with every fan turning each area is as designed (flow 1) and the cooling is the old count times the area's quality", () => {
+  it("with a basic fan on every mount each area is as designed (flow 1) and the cooling is the fans' airflow times the area's quality", () => {
     for (let tier = 0; tier < CASE_TIERS.length; tier++) {
       const a = air(tier, all(tier));
       for (const z of AIR_ZONES) {
         expect(a[z].flow).toBeCloseTo(1, 6);
-        expect(a[z].fans).toBeCloseTo(all(tier).length * QUALITY[z], 6);
+        expect(a[z].fans).toBeCloseTo(all(tier).length * basicFan(CASE_TIERS[tier]!.fanSize).airflow * QUALITY[z], 6);
       }
     }
+    // high-airflow fans cool more, but the area is no better ventilated than designed
+    const strong = zoneAir(2, all(2), 0, 0, CASE_HEAT_C_PER_W, Object.fromEntries(all(2).map((m) => [m, 1.5])));
+    for (const z of AIR_ZONES) { expect(strong[z].flow).toBe(1); expect(strong[z].fans).toBeGreaterThan(all(2).length * 1.4 * QUALITY[z]); }
     // the average case is as it was
     const mean = AIR_ZONES.reduce((s, z) => s + QUALITY[z], 0) / AIR_ZONES.length;
     expect(mean).toBeGreaterThan(0.9);
@@ -56,7 +59,7 @@ describe("airflow zones", () => {
   });
 
   it("the front fans are level with what they cool: losing the bottom one hurts the drive bay and the cards more than the processor", () => {
-    const a = air(3, without(3, "front3")), top = air(3, without(3, "front0"));
+    const a = air(3, without(3, "front2")), top = air(3, without(3, "front0"));
     expect(a.bay.flow).toBeLessThan(a.north.flow);
     expect(top.north.flow).toBeLessThan(top.bay.flow);
   });

@@ -23,7 +23,7 @@ export type PickerKind = DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp'
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
   | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick'
-  | 'board' | 'case' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop' | 'play' | 'pause' | 'card' | 'grid';
+  | 'board' | 'case' | 'heatsink' | 'tower' | 'layers' | 'router' | 'globe' | 'shop' | 'play' | 'pause' | 'card' | 'grid';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -263,6 +263,11 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'radiator': return [{ key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true }];
+    case 'fan': return [
+      { key: 'airflow', label: 'Airflow', icon: 'fan', value: spec.airflow, unit: '', higherIsBetter: true },
+      { key: 'size', label: 'Size', icon: 'fan', value: spec.size, unit: 'mm', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
     case 'vrm-sink': case 'ram-sink': return [
       { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
@@ -394,6 +399,7 @@ export function specBrief(spec: DeviceSpec): string {
     case 'psu': return `${spec.watts} W${spec.slot === 'atx-plus' ? ', needs ATX+ board' : ''}`;
     case 'cooler': return `${spec.coolingPerC} W/C cooling`;
     case 'radiator': return `adds ${spec.coolingPerC} W/C to a liquid loop`;
+    case 'fan': return `${spec.size} mm fan, ${spec.airflow}x airflow`;
     case 'display': return 'text monitor';
     case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
@@ -407,7 +413,7 @@ export function specBrief(spec: DeviceSpec): string {
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
-  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic', tpm: 'tpm', radiator: 'radiator',
+  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic', tpm: 'tpm', radiator: 'radiator', fan: 'fan',
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp'> = {
   psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', case: 'case', bay: 'storage', os: 'os', router: 'router', wall: 'isp',

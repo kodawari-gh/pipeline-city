@@ -42,7 +42,8 @@ describe('the airflow lens model', () => {
 
   it('the components bring their own fans: a stream for a cooler, a card, a sink and the PSU, tied to the fan id the view spins', () => {
     const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' }),
-      dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', spec: 'vsink2', slot: 'vrm-sink0' }), dev({ id: 'vs2', kind: 'ram-sink', spec: 'rsink0', slot: 'ram-sink0' })] });
+      dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', spec: 'vsink2', slot: 'vrm-sink0' }), dev({ id: 'vs2', kind: 'ram-sink', spec: 'rsink0', slot: 'ram-sink0' }),
+      dev({ id: 'f1', kind: 'fan', spec: 'fan120', slot: 'cooler0.fan0' }), dev({ id: 'f2', kind: 'fan', spec: 'fan40', slot: 'vrm-sink0.fan0' })] });
     i.slots.set('pcie0', { x: CASE_GLASS.x + 3000, y: CASE_GLASS.y + 1500, w: 3000, h: 900 });
     const m = airflowModel(i), local = m.lanes.filter((l) => l.local);
     // a passive sink (rsink0) has no fan; the fan sink, the cooler, the card and the PSU do

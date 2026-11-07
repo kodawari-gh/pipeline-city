@@ -352,7 +352,7 @@ describe("save v3 with an OS", () => {
   it("round-trips the installed OS; the loaded machine boots it again", () => {
     const g = rig("ssd1");
     const save = JSON.parse(JSON.stringify(g.toSave()));
-    expect(save).toMatchObject({ version: 4, os: { spec: "os1" } });
+    expect(save).toMatchObject({ version: 5, os: { spec: "os1" } });
     const l = Game.fromSave(save, econ());
     expect(l.snapshot().os).toMatchObject({ spec: "os1", slot: "sata0" });
     expect(l.snapshot().storage[0]).toMatchObject({ hasOs: true, usedBytes: 12 * 1024 });

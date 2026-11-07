@@ -238,8 +238,10 @@ export class Game {
     this.tpm = new TpmPort(this.machine.bus, this.machine.ram, this.machine.prng);
     this.machine.addDevice(this.tpm);
     this.thermal = new ThermalModel(this.machine.prng);
-    // The crate: CPU, PSU, RAM, monitor, stock cooler (last, so the older item ids stay inv1..inv4). Nothing is mounted at the start.
-    for (const spec of ["cpu0", "psu0", "ram0", "display0", "cooler0"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
+    // The case comes with two basic fans on its front mounts (their cables still out).
+    for (const m of ["front0", "front1"]) this.mustInstall("fan92", undefined, m);
+    // The crate: CPU, PSU, RAM, monitor, stock heatsink and its fan (last, so the older item ids stay inv1..inv4). Nothing else is mounted at the start.
+    for (const spec of ["cpu0", "psu0", "ram0", "display0", "cooler0", "fan92"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
     if (opts.preassembled) {
       for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);

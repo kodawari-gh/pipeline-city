@@ -24,7 +24,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | VRM heat sinks | `vsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | RAM VRM heat sinks | `rsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | Monitor | `display0..1` | stage proxy in `buildmode3d.ts` | [x] the screen was a blue slab; it now shows a console (title bar, boot lines, prompt, scan lines) | [x] | [x] | [x] lifts off its desk spot, cables first |
-| Case fans | per case | `fans3d.ts` | [x] rear fan reviewed up close edge-on (blades, hub, ring), no defect; 2026-11-07: one size on every mount | [x] | [x] fan cable first | [x] "Swap" in the machine list; a fan moves off its wall, then out |
+| Case fans (parts since 2026-11-07: sim only, the mesh still shows on every mount) | `fan92`, `fan92x`, `fan120`, `fan120x`, `fan140`, `fan140x`; `fan40` for fan fins | `fans3d.ts` | [x] rear fan reviewed up close edge-on (blades, hub, ring), no defect; 2026-11-07: one size on every mount | [x] | [x] fan cable first | [x] "Swap" in the machine list; a fan moves off its wall, then out |
 | Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [x] close-up review 2026-11-07, no defect | n/a | n/a | n/a (soldered) |
 
 ## Cables (graph nodes `cable:<id>`)

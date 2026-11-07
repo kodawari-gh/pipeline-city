@@ -175,7 +175,7 @@ export function pendingSwapSnap(this: Game, p: { invId: string; slotId: string }
 }
 
 export function slotSnaps(this: Game): SlotSnap[] {
-  return boardSlots(this.board).map((s) => ({ id: s.id, type: s.type, deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null }));
+  return boardSlots(this.board).map((s) => ({ id: s.id, type: s.type, ...(s.size ? { size: s.size } : {}), deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null }));
 }
 
 export function boardSnap(this: Game): BoardSnap {

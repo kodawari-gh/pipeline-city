@@ -1,6 +1,6 @@
 // Board model: pure data plus validation. A Board is plain JSON-serialisable data.
 
-import { BOARD_TIERS, CASE_TIERS, PCIE_POWER_MIN_TIER, PCIE_SLOT_W, cardLeads, caseMounts, getSpec, pcieLabel, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
+import { BOARD_TIERS, CASE_TIERS, PCIE_POWER_MIN_TIER, PCIE_SLOT_W, cardLeads, caseMounts, getSpec, pcieLabel, type DeviceSpec, type FanSpec, type FanSpots, type PsuSpec, type SlotType } from "./specs";
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -25,8 +25,8 @@ export interface Board {
   burnt?: boolean;
 }
 
-/** `width`: a `pcie` slot's lanes. */
-export interface SlotInfo { id: string; type: SlotType; width?: number }
+/** `width`: a `pcie` slot's lanes. `size`: a `fan` spot's fan size, mm. */
+export interface SlotInfo { id: string; type: SlotType; width?: number; size?: number }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };
 
@@ -68,9 +68,46 @@ export function boardSlots(board: Board): SlotInfo[] {
   for (const [type, n] of Object.entries(t.slots) as [SlotType, number][]) {
     for (let k = 0; k < n; k++) out.push(type === "pcie" ? { id: `${type}${k}`, type, width: t.pcieWidths[k] } : { id: `${type}${k}`, type });
   }
-  // A radiator bolts onto one side of the case (front or top) and spans every fan mount of that side, taking their fans.
+  // A radiator bolts onto one side of the case (front or top) and spans every fan mount of that side; their fans push air through it.
   for (const side of RADIATOR_SIDES) if (sideMounts(board.caseTier, side).length > 0) out.push({ id: radiatorSlot(side), type: "radiator" });
+  return [...out, ...fanSlots(board)];
+}
+
+/** The fan spots: every case mount (the case's fan size), then the spots of each fitted heatsink that has them (`<its slot>.fan<k>`). */
+export function fanSlots(board: Board): SlotInfo[] {
+  const size = CASE_TIERS[board.caseTier]?.fanSize;
+  const out: SlotInfo[] = caseMounts(board.caseTier).map((id) => ({ id, type: "fan", size }));
+  for (const d of board.devices) {
+    const spots = hostSpots(d);
+    if (spots) for (let k = 0; k < spots.n; k++) out.push({ id: `${d.slot}.fan${k}`, type: "fan", size: spots.size });
+  }
   return out;
+}
+
+/** A device's fan spots (an air heatsink, the fan fins), or null. */
+export function hostSpots(d: InstalledDevice): FanSpots | null {
+  return (getSpec(d.spec) as { fanSpots?: FanSpots } | undefined)?.fanSpots ?? null;
+}
+
+/** The slot of the heatsink a fan spot belongs to (`cooler0` for `cooler0.fan1`), or null for a case mount. */
+export const fanHost = (slotId: string): string | null => { const k = slotId.lastIndexOf(".fan"); return k > 0 ? slotId.slice(0, k) : null; };
+
+/** The fans on a heatsink's spots (by the heatsink's slot). */
+export const fansOn = (board: Board, hostSlot: string): InstalledDevice[] => board.devices.filter((d) => fanHost(d.slot) === hostSlot && getSpec(d.spec)?.kind === "fan");
+
+/** The fan on a case mount, if one is fitted. */
+export const mountFan = (board: Board, mount: string): InstalledDevice | undefined => board.devices.find((d) => d.slot === mount && getSpec(d.spec)?.kind === "fan");
+
+/** The summed airflow of these fans (burnt ones turn no more). */
+export const fanAir = (fans: readonly InstalledDevice[]): number => fans.reduce((a, d) => a + (d.burnt ? 0 : (getSpec(d.spec) as FanSpec).airflow), 0);
+
+/**
+ * The fans whose spot is gone or takes another size now: a case swapped for one with fewer or other mounts, a heatsink taken out or swapped for one
+ * with other spots. The Game sends them back to the inventory.
+ */
+export function strayFans(board: Board): InstalledDevice[] {
+  const spots = new Map(fanSlots(board).map((s) => [s.id, s.size]));
+  return board.devices.filter((d) => { const s = getSpec(d.spec); return s?.kind === "fan" && spots.get(d.slot) !== (s as FanSpec).size; });
 }
 
 /** The sides of the case a radiator can bolt onto (the rear has one fan and the tubes cannot reach it). */
@@ -114,21 +151,27 @@ export function findDevices(board: Board, kind: DeviceSpec["kind"]): InstalledDe
   return board.devices.filter((d) => deviceSpec(d).kind === kind);
 }
 
-/** Is a card of `spec` narrow enough for the slot? (Always, for a slot without a width.) */
-export const slotFitsWidth = (slot: SlotInfo, spec: DeviceSpec): boolean => slot.width === undefined || (spec.pcieWidth ?? 1) <= slot.width;
+/** Does `spec` fit the slot's size: a card narrow enough for its lanes, a fan of the spot's size? (Always, for a slot without a width or a size.) */
+export const slotFits = (slot: SlotInfo, spec: DeviceSpec): boolean =>
+  (slot.width === undefined || (spec.pcieWidth ?? 1) <= slot.width) && (slot.size === undefined || (spec as Partial<FanSpec>).size === slot.size);
 
 /** Why `spec` does not go into `slot`, or null if it does. */
 export function slotRefusal(slot: SlotInfo, spec: DeviceSpec): string | null {
   if (!slotAccepts(slot.type, spec.slot)) return `${spec.name} needs a ${spec.slot} slot, "${slot.id}" is ${slot.type}`;
-  if (!slotFitsWidth(slot, spec)) return `${spec.name} needs a ${pcieLabel(spec.pcieWidth ?? 1)} slot, "${slot.id}" is only ${pcieLabel(slot.width ?? 1)}`;
+  if (slot.size !== undefined && !slotFits(slot, spec)) return `${spec.name} does not fit: "${slot.id}" takes a ${slot.size} mm fan`;
+  if (!slotFits(slot, spec)) return `${spec.name} needs a ${pcieLabel(spec.pcieWidth ?? 1)} slot, "${slot.id}" is only ${pcieLabel(slot.width ?? 1)}`;
   return null;
 }
 
-/** Free slots of `type`; with `spec`, only those it fits, the narrowest first (a small card does not take the big slot a GPU needs). */
+/**
+ * Free slots of `type`; with `spec`, only those it fits, the narrowest first (a small card does not take the big slot a GPU needs) and a
+ * heatsink's fan spot before a case mount (the processor's cooling first).
+ */
 export function freeSlots(board: Board, type: SlotType, spec?: DeviceSpec): SlotInfo[] {
   const used = new Set(board.devices.map((d) => d.slot));
-  const free = boardSlots(board).filter((s) => slotAccepts(s.type, type) && !used.has(s.id) && (!spec || slotFitsWidth(s, spec)));
-  return spec ? free.sort((a, b) => (a.width ?? 0) - (b.width ?? 0)) : free;
+  const free = boardSlots(board).filter((s) => slotAccepts(s.type, type) && !used.has(s.id) && (!spec || slotFits(s, spec)));
+  const rank = (s: SlotInfo) => (s.width ?? 0) + (s.type === "fan" && fanHost(s.id) === null ? 1 : 0);
+  return spec ? free.sort((a, b) => rank(a) - rank(b)) : free;
 }
 
 /** Rated load (W, at base clocks) of everything except the PSU. */
@@ -179,7 +222,11 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
     slot = freeSlots(board, spec.slot, spec)[0];
     if (!slot) {
       const all = boardSlots(board).filter((s) => slotAccepts(s.type, spec.slot)), total = all.length;
-      const wide = all.filter((s) => slotFitsWidth(s, spec)).length;
+      const wide = all.filter((s) => slotFits(s, spec)).length;
+      if (spec.kind === "fan") {
+        const size = (spec as FanSpec).size;
+        return { ok: false, reason: wide === 0 ? `no spot for a ${size} mm fan: the case mounts and the heatsinks take ${[...new Set(all.map((s) => `${s.size} mm`))].join(", ") || "no fan"}` : `every ${size} mm fan spot is taken (${wide} of ${wide})` };
+      }
       return {
         ok: false,
         reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}`
@@ -223,16 +270,18 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   // A dead board may be replaced by one of the same tier.
   if (tier === board.tier && !board.burnt) return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board is already fitted` };
   const next: Board = { tier, caseTier: board.caseTier, nextId: board.nextId, devices: [] };
-  const slots = boardSlots(next);
+  const slots = boardSlots(next).filter((s) => s.type !== "fan");
   const used = new Set<string>();
   const place = (d: InstalledDevice): string | undefined => {
-    const spec = deviceSpec(d), need = spec.slot, fits = (s: SlotInfo) => slotAccepts(s.type, need) && slotFitsWidth(s, spec) && !used.has(s.id);
+    const spec = deviceSpec(d), need = spec.slot, fits = (s: SlotInfo) => slotAccepts(s.type, need) && slotFits(s, spec) && !used.has(s.id);
     const same = slots.find((s) => s.id === d.slot && fits(s));
     return (same ?? slots.filter(fits).sort((a, b) => (a.width ?? 0) - (b.width ?? 0))[0])?.id;
   };
-  // (the widest cards choose first, so a narrow one does not leave them without a slot)
+  // (the widest cards choose first, so a narrow one does not leave them without a slot; the fans stay on their spot: a heatsink keeps its slot id,
+  // and a fan whose spot is gone is the Game's stray)
   const moved = new Map<string, string>();
-  for (const d of [...board.devices].sort((a, b) => (deviceSpec(b).pcieWidth ?? 0) - (deviceSpec(a).pcieWidth ?? 0))) {
+  for (const d of board.devices) if (deviceSpec(d).kind === "fan") moved.set(d.id, d.slot);
+  for (const d of [...board.devices].filter((x) => !moved.has(x.id)).sort((a, b) => (deviceSpec(b).pcieWidth ?? 0) - (deviceSpec(a).pcieWidth ?? 0))) {
     const slot = place(d);
     if (!slot) return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board has no slot for ${deviceSpec(d).name}: take it out first` };
     used.add(slot);
@@ -278,11 +327,14 @@ export function boardFromJson(json: BoardJson): Board {
     if (!CASE_TIERS[json.caseTier]) throw new Error(`save: unknown case tier ${json.caseTier}`);
     board.caseTier = Math.max(json.caseTier, board.caseTier);
   }
-  const slots = boardSlots(board);
   const seen = new Set<string>();
-  for (const d of json.devices) {
+  // the fans last: a heatsink's spots exist once it is in
+  const isFan = (d: InstalledDevice) => getSpec(d.spec)?.kind === "fan";
+  let slots = boardSlots(board), hosted = false;
+  for (const d of [...json.devices.filter((x) => !isFan(x)), ...json.devices.filter(isFan)]) {
     const spec = getSpec(d.spec);
     if (!spec) throw new Error(`save: unknown device spec "${d.spec}"`);
+    if (spec.kind === "fan" && !hosted) { slots = boardSlots(board); hosted = true; }
     const slot = slots.find((s) => s.id === d.slot);
     if (!slot || !slotAccepts(slot.type, spec.slot)) throw new Error(`save: bad slot "${d.slot}" for ${d.spec}`);
     if (seen.has(d.slot) || board.devices.some((x) => x.id === d.id)) throw new Error(`save: duplicate slot or id "${d.id}"`);
@@ -296,6 +348,9 @@ export function boardFromJson(json: BoardJson): Board {
     if (d.burnt) dev.burnt = true;
     board.devices.push(dev);
   }
+  // back in the saved order
+  const at = new Map(json.devices.map((d, k) => [d.id, k]));
+  board.devices.sort((a, b) => at.get(a.id)! - at.get(b.id)!);
   if (json.burnt) board.burnt = true;
   board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replace(/\D/g, "")) + 1), 1);
   return board;

@@ -84,9 +84,9 @@ Buying: every `board<N>` is for sale at any time (any tier, any number, the mach
 |---|---|---|---|---|
 | vsink0 | Passive fins | 0.25 | 0 / 0 | $30 |
 | vsink1 | Big fins | 0.5 | 0 / 0 | $70 |
-| vsink2 | Fins and small fan | 1.0 | 0.3 / 1.5 (follows CPU load) | $140 |
+| vsink2 | Fan fins (a spot for a 40 mm fan; half the rating with no fan turning) | 1.0 | 0 / 0 (the `fan40` draws 0.1 / 0.5, follows CPU load) | $140 |
 
-Coupling to the CPU cooler (it now mounts on the installed CPU, so with no CPU or cooler the VRM gets no airflow; `CoolerSpec.vrmAirPerC`): stock heatsink 0.05, tower fan 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
+Coupling to the CPU cooler (it now mounts on the installed CPU, so with no CPU or cooler the VRM gets no airflow; `CoolerSpec.vrmAirPerC`, in proportion to the air of the heatsink's turning fans, up to one basic fan): stock heatsink 0.05, tower heatsink 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
 
 Fans need their plug (src/features/cpu/ASSEMBLY.md "Fan cables and radiators"): an unplugged `vrmfan` / `ramfan` loses the fan's share of the heatsink, an unplugged `cpufan` stops the cooler (and the airflow it gives the VRM), and every plugged case fan on the hub adds `CASE_FAN_K` = 0.01 W/C to each passive path. `ThermalModel.step` takes the plugs as `FanPower` (`FANS_ON` for a bare board: all on, the fitted radiator at full fan). A radiator spans its side's fans: its cooling is half without any fan turning and full with all of them (`fanPower`).
 
@@ -115,7 +115,7 @@ Every board tier also has a **memory VRM** (`BoardTierSpec.ramVrm`, same `VrmSpe
 
 - **Demand**: the sticks' total power over the memory voltage (`ramVoltage(r)`: 1.2 V at base clock, +0.3 V per unit of clock ratio, floor 0.9 V; `ramDemand`). Efficiency, loss, heat and errors use the same maths as the CPU rail.
 - **Effects**: a hot memory VRM trims every stick's clock (same 0.8 floor); overload or heat makes `ramVrmErrorRoll()` crash the machine ("memory VRM voltage droop" in the log); sustained overload or heat burns the board (`Board.burnt`, the same dead-board rule). Its conversion loss is drawn from the PSU.
-- **Cooling**: a memory VRM heatsink in slot `ram-sink0` (device kind `ram-sink`; `rsink0` fins $25 / `rsink1` big fins $60 / `rsink2` fins + fan $120, same cooling as the CPU ones). The CPU cooler's `vrmAirPerC` blows over this rail too. A CPU-side heatsink does not cool it.
+- **Cooling**: a memory VRM heatsink in slot `ram-sink0` (device kind `ram-sink`; `rsink0` fins $25 / `rsink1` big fins $60 / `rsink2` fan fins $120, a `fan40` clips on it; same cooling as the CPU ones). The CPU cooler's `vrmAirPerC` blows over this rail too. A CPU-side heatsink does not cool it.
 - **Overclocking memory**: each stick has a clock slider (`Game.setRamClock(deviceId, clock)`, message `setRamClock`), inside its spec range. Higher clock means more power (r^3) and a higher memory-regulator load; it also lowers the RAM latency seen by the CPU (apply.ts).
 - **Ladder** (phases x A, peak efficiency, ripple): Starter 2 x 6, 0.78, 0.60; Basic 2 x 8, 0.82, 0.45; Mainstream 3 x 10, 0.86, 0.25; Enthusiast 4 x 15, 0.90, 0.10. Stock memory on its own tier's board stays under 70% of rating.
 - **Snapshot**: `board.ramVrm` (a `VrmSnap`) and `board.ramSink`. The UI shows it on the memory stick card (Memory VRM block, clock dial with throttle/unstable zones including where the regulator runs out) and on the DRAM VRM region card; board cards show its total amps.

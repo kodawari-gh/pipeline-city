@@ -64,8 +64,8 @@ describe('the radiator', () => {
   it('spans every fan of its side, and the rear has no radiator', () => {
     setLayoutTier(3, 3);
     const top = radiatorSpan('top')!, front = radiatorSpan('front')!;
-    expect(top.ids).toEqual(['top0', 'top1', 'top2']);
-    expect(front.ids).toEqual(['front0', 'front1', 'front2', 'front3']);
+    expect(top.ids).toEqual(['top0', 'top1']);
+    expect(front.ids).toEqual(['front0', 'front1', 'front2']);
     expect(top.rect.w).toBeGreaterThan(top.rect.h);
     expect(front.rect.h).toBeGreaterThan(front.rect.w);
     setLayoutTier(0, 0);

@@ -5,9 +5,12 @@ import type { EngineConfig } from "../../cpu/sim/engines";
 import type { GpuConfig } from "../../gpu/sim/engine/engine";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm" | "radiator";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm" | "radiator" | "fan";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm" | "radiator";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm" | "radiator" | "fan";
+
+/** The standard fan sizes, mm: a fan fits only a spot of its own size (a case mount, a heatsink's fan spot). */
+export type FanSize = 40 | 92 | 120 | 140;
 
 /** What a PCIe slot can give a card on its own (W). A card that draws more takes PCIe power leads, `cardLeads` (docs/ACCEL.md). */
 export const PCIE_SLOT_W = 75;
@@ -111,30 +114,45 @@ export interface PsuSpec extends SpecBase {
   fan: boolean;
 }
 
+/**
+ * The fan spots of a heatsink (docs/ASSEMBLY.md "Fans"): `n` spots for fans of `size`, slots `<its slot>.fan<k>` while it is fitted. It cools
+ * by its rating times `fanShare`: `bare` of it with no fan turning, all of it with one basic fan, a little more with more air.
+ */
+export interface FanSpots { n: number; size: FanSize; bare: number }
+
 export interface CoolerSpec extends SpecBase {
   kind: "cooler";
-  /** Extra heat removal from the CPU, W per degree C above ambient. */
+  /** Extra heat removal from the CPU, W per degree C above ambient (with one basic fan turning on an air heatsink). */
   coolingPerC: number;
-  /** Airflow the cooler gives the VRM, W per degree C above ambient (an air cooler blows over it, liquid does not). */
+  /** Airflow the cooler gives the VRM, W per degree C above ambient (an air cooler's fan blows over it, liquid does not). */
   vrmAirPerC: number;
   /** A liquid loop (an AIO): `coolingPerC` is its best, with a radiator; the pump alone gives `pumpPerC`, and the radiator adds its own (`RadiatorSpec`). */
   loop?: { pumpPerC: number };
+  /** An air heatsink's fan spots (the fans are parts of their own). */
+  fanSpots?: FanSpots;
 }
 
-/** A radiator for a liquid loop: it bolts along the front or the top of the case (slot `rad-front` / `rad-top`), spanning every fan mount of that side and replacing their fans; each fan keeps its mount's cable. */
+/** A radiator for a liquid loop: it bolts along the front or the top of the case (slot `rad-front` / `rad-top`), spanning every fan mount of that side; the fans on those mounts push air through it, each on its mount's cable. */
 export interface RadiatorSpec extends SpecBase {
   kind: "radiator";
-  /** W per degree C it adds to the loop. */
+  /** W per degree C it adds to the loop (every mount of its side with a basic fan turning). */
   coolingPerC: number;
 }
 
-/** A heatsink bolted onto one of the board's VRMs: slot `vrm-sink` is the CPU's, slot `ram-sink` the memory's (see docs/VRM.md). A fan version draws idleW..loadW. */
+/** A heatsink bolted onto one of the board's VRMs: slot `vrm-sink` is the CPU's, slot `ram-sink` the memory's (see docs/VRM.md). The fan fins take a fan on their spot. */
 export interface VrmSinkSpec extends SpecBase {
   kind: "vrm-sink" | "ram-sink";
-  /** Heat removal from the VRM, W per degree C above ambient. */
+  /** Heat removal from the VRM, W per degree C above ambient (with its fan turning, if it has a spot). */
   coolingPerC: number;
-  /** Carries a fan: it has a cable to plug into the board's VRM_FAN / RAM_FAN header. */
-  fan?: true;
+  /** The fan fins' spot: the fan's cable plugs into the board's VRM_FAN / RAM_FAN header. */
+  fanSpots?: FanSpots;
+}
+
+/** A fan (docs/ASSEMBLY.md "Fans"): it fits a spot of its `size` only. `airflow` 1 is a basic fan's; it draws idleW..loadW while it turns. */
+export interface FanSpec extends SpecBase {
+  kind: "fan";
+  size: FanSize;
+  airflow: number;
 }
 
 export interface DisplaySpec extends SpecBase {
@@ -192,7 +210,7 @@ export interface TpmSpec extends SpecBase {
   tpm?: { measureTicks: number; attestTicks: number; surcharge: number };
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec | RadiatorSpec;
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec | RadiatorSpec | FanSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -204,7 +222,7 @@ const dispThermal: ThermalSpec = { passive: 0.3, mass: 30, throttleC: 80, unstab
 const storageThermal: ThermalSpec = { passive: 0.4, mass: 25, throttleC: 55, unstableC: 70, damageC: 85 };
 const inertThermal: ThermalSpec = { passive: 1, mass: 50, throttleC: 999, unstableC: 999, damageC: 999 };
 
-const specList: DeviceSpec[] = [
+export const specList: DeviceSpec[] = [
   { id: "cpu0", kind: "cpu", tier: 0, name: "Tiny-1 (unpipelined)", slot: "cpu", price: 0, idleW: 2, loadW: 10, heatFactor: 1,
     clock: { min: 0.25, base: 1, max: 1.5 }, thermal: cpuThermal, visual: "cpu-unpipelined",
     engine: { kind: "unpipelined" } },
@@ -299,10 +317,11 @@ const specList: DeviceSpec[] = [
   { id: "psu4", kind: "psu", tier: 4, name: "PSU 1 kW (ATX+)", slot: "atx-plus", price: 2400, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-big", watts: 1000, pcieLeads: 4, fan: true },
 
-  { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },
-  { id: "cooler1", kind: "cooler", tier: 1, name: "Tower fan", slot: "cooler", price: 50, idleW: 0.5, loadW: 3, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8, vrmAirPerC: 0.25 },
+  // the air heatsinks are bare: their fans are parts of their own (the `fan*` specs below)
+  { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05, fanSpots: { n: 1, size: 92, bare: 0.35 } },
+  { id: "cooler1", kind: "cooler", tier: 1, name: "Tower heatsink", slot: "cooler", price: 40, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8, vrmAirPerC: 0.25, fanSpots: { n: 2, size: 120, bare: 0.3 } },
   { id: "cooler2", kind: "cooler", tier: 2, name: "Liquid loop", slot: "cooler", price: 300, idleW: 1, loadW: 6, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8, vrmAirPerC: 0, loop: { pumpPerC: 0.4 } },
 
@@ -318,14 +337,31 @@ const specList: DeviceSpec[] = [
     thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
   { id: "vsink1", kind: "vrm-sink", tier: 1, name: "VRM big fins", slot: "vrm-sink", price: 70, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
-  { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fins + fan", slot: "vrm-sink", price: 140, idleW: 0.3, loadW: 1.5, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fan: true },
+  { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fan fins", slot: "vrm-sink", price: 130, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fanSpots: { n: 1, size: 40, bare: 0.5 } },
   { id: "rsink0", kind: "ram-sink", tier: 0, name: "RAM VRM fins", slot: "ram-sink", price: 25, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
   { id: "rsink1", kind: "ram-sink", tier: 1, name: "RAM VRM big fins", slot: "ram-sink", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
-  { id: "rsink2", kind: "ram-sink", tier: 2, name: "RAM VRM fins + fan", slot: "ram-sink", price: 120, idleW: 0.3, loadW: 1.5, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fan: true },
+  { id: "rsink2", kind: "ram-sink", tier: 2, name: "RAM VRM fan fins", slot: "ram-sink", price: 110, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fanSpots: { n: 1, size: 40, bare: 0.5 } },
+
+  // Fans (docs/ASSEMBLY.md "Fans"): one per standard size, a basic and a high-airflow grade. The 140 mm basic fan moves a third more than the
+  // smaller ones: the Full tower fits fewer of them. Placeholder prices and power.
+  { id: "fan40", kind: "fan", tier: 0, name: "40 mm fan", slot: "fan", price: 10, idleW: 0.1, loadW: 0.5, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-basic", size: 40, airflow: 1 },
+  { id: "fan92", kind: "fan", tier: 0, name: "92 mm fan", slot: "fan", price: 12, idleW: 0.2, loadW: 1, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-basic", size: 92, airflow: 1 },
+  { id: "fan92x", kind: "fan", tier: 1, name: "92 mm high-airflow fan", slot: "fan", price: 30, idleW: 0.3, loadW: 1.6, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-high", size: 92, airflow: 1.5 },
+  { id: "fan120", kind: "fan", tier: 0, name: "120 mm fan", slot: "fan", price: 18, idleW: 0.3, loadW: 1.5, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-basic", size: 120, airflow: 1 },
+  { id: "fan120x", kind: "fan", tier: 1, name: "120 mm high-airflow fan", slot: "fan", price: 45, idleW: 0.5, loadW: 2.4, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-high", size: 120, airflow: 1.5 },
+  { id: "fan140", kind: "fan", tier: 0, name: "140 mm fan", slot: "fan", price: 25, idleW: 0.4, loadW: 1.8, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-basic", size: 140, airflow: 1.35 },
+  { id: "fan140x", kind: "fan", tier: 1, name: "140 mm high-airflow fan", slot: "fan", price: 60, idleW: 0.6, loadW: 2.8, heatFactor: 0,
+    thermal: inertThermal, visual: "fan-high", size: 140, airflow: 2 },
 
   { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
@@ -448,23 +484,34 @@ export interface CaseTierSpec {
   /** The form factor of the biggest board it holds, for the player's eyes. */
   form: string;
   visual: string;
-  /** The fan mounts it comes with: front, top and rear (the Mini tower has a rear grille, no fan). The renderer's layout must show the same counts (`layout.test.ts`). */
+  /** The fan mounts it has: front, top and rear (the Mini tower has a rear grille, no mount), each for a fan of `fanSize`. It comes without fans. The renderer's layout must show the same counts (`layout.test.ts`). */
   fans: { front: number; top: number; rear: boolean };
+  /** The size of fan its mounts take, mm. */
+  fanSize: FanSize;
 }
 
 export const CASE_TIERS: readonly CaseTierSpec[] = [
-  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini", fans: { front: 2, top: 0, rear: false } },
-  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro", fans: { front: 3, top: 1, rear: true } },
-  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid", fans: { front: 3, top: 2, rear: true } },
-  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full", fans: { front: 4, top: 3, rear: true } },
+  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini", fans: { front: 2, top: 0, rear: false }, fanSize: 92 },
+  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro", fans: { front: 3, top: 1, rear: true }, fanSize: 92 },
+  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid", fans: { front: 3, top: 2, rear: true }, fanSize: 120 },
+  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full", fans: { front: 3, top: 2, rear: true }, fanSize: 140 },
 ];
 
-/** The fan mounts of a case tier, ids `front0..`, `top0..` and `rear`: each carries a fan and a cable to the fan hub. */
+/** The fan mounts of a case tier, ids `front0..`, `top0..` and `rear`: each takes a fan of the case's size, with a cable to the fan hub. */
 export function caseMounts(tier: number): string[] {
   const f = CASE_TIERS[tier]?.fans;
   if (!f) return [];
   return [...Array.from({ length: f.front }, (_, k) => `front${k}`), ...Array.from({ length: f.top }, (_, k) => `top${k}`), ...(f.rear ? ["rear"] : [])];
 }
+
+/** The basic fan of a size (the one a migrated save and the starting machine get). */
+export const basicFan = (size: FanSize): FanSpec => specList.find((s): s is FanSpec => s.kind === "fan" && s.size === size && s.tier === 0)!;
+
+/**
+ * The share of a heatsink's rated cooling it gives with `air` of fans turning on it (the summed `airflow`): `bare` with none, 1 with one basic fan, and a
+ * little more for each fan or grade beyond (the gain flattens: two fans give about a fifth more, not twice).
+ */
+export const fanShare = (bare: number, air: number): number => bare + (1 - bare) * Math.pow(Math.max(0, air), 0.35);
 
 /** The smallest case tier that holds a board tier. */
 export const caseFor = (boardTier: number): number => CASE_TIERS.findIndex((c) => c.maxBoard >= boardTier);

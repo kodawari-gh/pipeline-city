@@ -5,7 +5,7 @@
 // Two kinds of block: a *cable* feeds the part (unplug it first), and a part *covers* another (a cooler hides the CPU, a long card hides the next slot).
 // The cover table (`COVERS`) is checked against the 3D geometry in render/three/fit.test.ts, so the rules and the models cannot drift apart.
 
-import { boardSlots, deviceSpec, fittedRadiator, type Board, type InstalledDevice } from "./board";
+import { boardSlots, deviceSpec, fanHost, fansOn, fittedRadiator, mountFan, type Board, type InstalledDevice } from "./board";
 import { cablesOf, cardLeadIds, type Cables } from "./cables";
 import type { DeviceKind } from "./specs";
 
@@ -42,6 +42,10 @@ function coveredBy(board: Board, dev: InstalledDevice): InstalledDevice[] {
   const others = board.devices.filter((o) => o.id !== dev.id);
   if (spec.kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler"));
   if (spec.kind === "cooler" && (spec as { loop?: unknown }).loop) out.push(...others.filter((o) => deviceSpec(o).kind === "radiator")); // the hoses join the pump to the radiator: it comes out first
+  // a heatsink's fans clip onto it; the fans on a radiator's mounts are screwed through it into the case
+  out.push(...fansOn(board, dev.slot));
+  const rad = spec.kind === "radiator" ? fittedRadiator(board) : null;
+  if (rad) out.push(...rad.mounts.map((m) => mountFan(board, m)).filter((f): f is InstalledDevice => !!f));
   if (spec.slot === "pcie") {
     const n = slotNo(dev.slot);
     for (const o of others) {
@@ -65,6 +69,13 @@ function cablesOn(board: Board, cables: Cables, dev: InstalledDevice): string[] 
     case "display": ids.push("video", "monmains"); break;
     case "gpu": case "npu": ids.push(...cardLeadIds(board, dev)); if (spec.kind === "gpu") ids.push("video"); break;
     case "nic": ids.push("lan"); break;
+    case "fan": {
+      // a case fan's own cord, or the header cable of the heatsink it sits on
+      const host = fanHost(dev.slot), hostDev = host === null ? undefined : board.devices.find((o) => o.slot === host);
+      const hostKind = hostDev ? deviceSpec(hostDev).kind : null;
+      ids.push(host === null ? `fan:${dev.slot}` : hostKind === "cooler" ? "cpufan" : hostKind === "vrm-sink" ? "vrmfan" : hostKind === "ram-sink" ? "ramfan" : "");
+      break;
+    }
     default: break;
   }
   return ids.filter(plugged);
@@ -83,8 +94,10 @@ export function buildGraph(board: Board, cables: Cables): Graph {
     const inside = spec.kind !== "display";
     add(devNode(d.id), ...(inside ? [SIDE] : []), ...cablesOn(board, cables, d).map(cableNode), ...coveredBy(board, d).map((o) => devNode(o.id)));
   }
-  // The board comes out only bare: every part that sits on it and every cable inside the case first. The PSU, the drives in the cage, the monitor and the radiator hang off the case.
-  const onBoard = board.devices.filter((d) => !["psu", "display", "radiator"].includes(deviceSpec(d).kind) && !deviceSpec(d).slot.startsWith("sata"));
+  // The board comes out only bare: every part that sits on it and every cable inside the case first. The PSU, the drives in the cage, the monitor, the
+  // radiator and the fans on the case mounts hang off the case.
+  const offBoard = (d: InstalledDevice) => ["psu", "display", "radiator"].includes(deviceSpec(d).kind) || deviceSpec(d).slot.startsWith("sata") || (deviceSpec(d).kind === "fan" && fanHost(d.slot) === null);
+  const onBoard = board.devices.filter((d) => !offBoard(d));
   const innerCables = ["atx", "cpu", "sysfan", "vrmfan", "ramfan"].filter((id) => cables[id]);
   add(BOARD, SIDE, ...onBoard.map((d) => devNode(d.id)), ...innerCables.map(cableNode));
   const fanCables = [...cableIds].filter((id) => cables[id] && (id.startsWith("fan:") || id === "sysfan"));

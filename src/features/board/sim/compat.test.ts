@@ -12,7 +12,13 @@ const ids = (b: ReturnType<typeof createBoard>) => checkCompat(b).map((i) => i.i
 
 describe("compatibility checks", () => {
   it("a plain starter-class build has no problems", () => {
-    expect(compatProblems(build(1, ["cpu1", "ram0", "display0", "cooler1", "psu1"]))).toEqual([]);
+    expect(compatProblems(build(1, ["cpu1", "ram0", "display0", "cooler1", "fan120", "psu1"]))).toEqual([]);
+  });
+
+  it("a bare CPU heatsink is a tip, and it may run the CPU hot", () => {
+    const b = build(1, ["cpu1", "ram0", "display0", "cooler1", "psu1"]);
+    expect(checkCompat(b).find((i) => i.id === "cooler-no-fan")).toMatchObject({ severity: "tip", message: expect.stringContaining("120 mm") });
+    expect(ids(build(1, ["cpu1", "ram0", "display0", "cooler1", "fan120", "psu1"]))).not.toContain("cooler-no-fan");
   });
 
   it("the static VRM ratio matches what the thermal model sees at full load", () => {

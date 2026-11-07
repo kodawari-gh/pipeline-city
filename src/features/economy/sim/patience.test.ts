@@ -60,7 +60,7 @@ describe("patience by level", () => {
     for (let t = 0; t < 1000; t++) g.advanceBaseTick();
     const save = json(g.toSave());
     expect(save.firstBootTick).toBe(0);
-    expect(save.version).toBe(4);
+    expect(save.version).toBe(5);
     expect(Game.fromSave(save).snapshot().patience.sinceFirstBoot).toBe(1000);
     const old = json(g.toSave()) as unknown as Record<string, unknown>;
     delete old.firstBootTick;

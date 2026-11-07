@@ -12,14 +12,14 @@ ECONOMY.caseGating = false;
 // The manual removal of a finished key is what most of these tests are about: auto-eject has its own tests at the end.
 const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0, autoEjectTicks: 0 };
 
-/** Bare game with the starter crate, ids inv1..inv5 = cpu0 psu0 ram0 display0 cooler0. */
+/** Bare game with the starter crate, ids inv1..inv6 = cpu0 psu0 ram0 display0 cooler0 fan92. */
 function bare(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   return new Game({ seed: 1, economy });
 }
 
 function assembled(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   const g = bare(economy);
-  for (const id of ["inv1", "inv5", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
+  for (const id of ["inv1", "inv5", "inv6", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
   for (const c of ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"]) expect(g.connectCable(c).ok).toBe(true);
   return g;
 }
@@ -45,8 +45,9 @@ describe("the bare start", () => {
     const g = bare();
     const s = g.snapshot();
     expect(s).toMatchObject({ phase: "off", powered: false, money: 0, boardTier: 0, display: "", monitorLive: false });
-    expect(s.devices).toEqual([]); // nothing is mounted: the cooler is in the crate and mounts on the CPU
-    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0", "cooler0"]);
+    // only the case's two front fans are mounted: the heatsink and its fan are in the crate and mount on the CPU
+    expect(s.devices.map((d) => [d.spec, d.slot])).toEqual([["fan92", "front0"], ["fan92", "front1"]]);
+    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0", "cooler0", "fan92"]);
     expect(s.tray).toHaveLength(1);
     expect(s.plugged).toBeNull();
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
@@ -70,7 +71,8 @@ describe("the bare start", () => {
     const s = new Game({ seed: 1, preassembled: true }).snapshot();
     expect(s.powered).toBe(true);
     expect(s.inventory).toEqual([]);
-    expect(s.devices.map((d) => d.kind).sort()).toEqual(["cooler", "cpu", "display", "psu", "ram"]);
+    expect(s.devices.map((d) => d.kind).sort()).toEqual(["cooler", "cpu", "display", "fan", "fan", "fan", "psu", "ram"]);
+    expect(s.devices.find((d) => d.slot === "cooler0.fan0")?.spec).toBe("fan92"); // the crate's fan is on the heatsink
     expect(s.cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true); // the ethernet cable is the player's
     expect(s.progress.poweredOn).toBe(true);
   });
@@ -83,8 +85,8 @@ describe("install, uninstall and cables", () => {
     expect(g.install("inv1", "nope9")).toMatchObject({ ok: false, reason: expect.stringMatching(/no slot/) });
     expect(g.install("inv99")).toMatchObject({ ok: false, reason: expect.stringMatching(/no inventory item/) });
     expect(g.install("inv2", "cooler0")).toMatchObject({ ok: false, reason: expect.stringMatching(/needs a atx slot/) });
-    expect(g.snapshot().inventory).toHaveLength(5); // nothing was consumed
-    expect(g.snapshot().devices).toHaveLength(0);
+    expect(g.snapshot().inventory).toHaveLength(6); // nothing was consumed
+    expect(g.snapshot().devices).toHaveLength(2); // the case fans only
   });
 
   it("installs into a chosen slot, then a second part of the same kind swaps over it and the old one comes back", () => {
@@ -565,13 +567,13 @@ describe("the CPU cooler mounts on the CPU", () => {
     expect(g.snapshot().display).toContain("NO CPU COOLER");
     g.powerButton();
     expect(g.install(g.snapshot().inventory.find((i) => i.spec === "cooler0")!.id).ok).toBe(true);
-    g.powerButton();
-    ticks(g, g.snapshot().postTicks + 50);
-    expect(g.snapshot().display).toContain("NO CPU FAN"); // the cooler is on, its cable is not
-    g.powerButton();
-    expect(g.connectCable("cpufan").ok).toBe(true);
+    // a bare heatsink (its fan came off with it) boots: it cools by itself, and the CPU fan cable waits for a fan
+    expect(g.snapshot().cables.find((c) => c.id === "cpufan")).toBeUndefined();
     g.powerButton();
     expect(g.snapshot().phase).toBe("posting");
+    g.powerButton();
+    expect(g.install(g.snapshot().inventory.find((i) => i.spec === "fan92")!.id)).toMatchObject({ ok: true, slot: "cooler0.fan0" });
+    expect(g.connectCable("cpufan").ok).toBe(true);
   });
 
   it("uninstalling the CPU takes the cooler back to the inventory; swapping the CPU keeps it mounted", () => {
@@ -583,7 +585,7 @@ describe("the CPU cooler mounts on the CPU", () => {
     g.uninstall(g.snapshot().devices.find((d) => d.kind === "cpu")!.id);
     const s = g.snapshot();
     expect(s.devices.some((d) => d.kind === "cooler")).toBe(false);
-    expect(s.inventory.map((i) => i.spec).sort()).toEqual(["cooler0", "cpu0", "cpu1"]);
+    expect(s.inventory.map((i) => i.spec).sort()).toEqual(["cooler0", "cpu0", "cpu1", "fan92"]); // the heatsink's fan comes off with it
     expect(s.progress).toMatchObject({ cpuInstalled: true, coolerInstalled: true }); // sticky
   });
 
@@ -593,7 +595,7 @@ describe("the CPU cooler mounts on the CPU", () => {
     const c = (g.purchase("cooler1") as { invId: string }).invId;
     expect(g.install(c)).toMatchObject({ ok: true, slot: "cooler0" });
     expect(g.snapshot().devices.find((d) => d.kind === "cooler")!.spec).toBe("cooler1");
-    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cooler0"]);
+    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cooler0", "fan92"]); // the 92 mm fan does not fit the tower's 120 mm spots
     const p = new Game({ seed: 1, preassembled: true }).snapshot();
     expect(p.devices.find((d) => d.kind === "cooler")!.spec).toBe("cooler0");
     expect(p.progress.coolerInstalled).toBe(true);
