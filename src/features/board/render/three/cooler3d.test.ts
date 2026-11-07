@@ -4,7 +4,8 @@ import { radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { radiatorFit, radiatorPorts } from '../cooler';
 import { COOLER, setLayoutTier } from '../layout/layout';
-import { FAN_MAX, FAN_ZC, barbZ, coolerModel, hose, hoseEnds, radiatorModel } from './cooler3d';
+import { barbZ, coolerModel, hose, hoseEnds, radiatorModel } from './cooler3d';
+import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 
 const rad = (side: 'top' | 'front') => {
   const span = radiatorSpan(side)!;

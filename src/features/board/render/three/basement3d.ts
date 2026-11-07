@@ -7,11 +7,10 @@ import { drum, instanced, paint, rectBox, softBox, type RectLike } from '@/core/
 import { decal, decalX, perfMat, tex, wallX, type Span } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
-import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
 import { driveBody, type DriveKind } from '@/features/storage/render/drives';
 import { BAY_CELLS, CASE, CASE_IN, PC_POWER, PSU } from '../layout/layout';
 
-const FRONT = CASE_Z + CASE_D;
 /** How deep a drive's body is behind its face (the hard disk's base and lid, the SSD's shell: `sataDrive`). */
 export const driveDepth = (kind: DriveKind): number => (kind === 'hdd' ? 176 : 76);
 

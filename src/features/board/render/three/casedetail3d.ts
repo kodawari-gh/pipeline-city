@@ -8,14 +8,13 @@ import { instanced, place, post, rectBox, softBox, type RectLike } from '@/core/
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
-import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { frontFanRects, standoffs } from '@/features/room/render/desk/props/case';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_BD, GEO, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
 import { HINGE_Z, slotBlank, STAND } from './card3d';
-import { FAN_MAX, FAN_ZC, REAR_ZC } from './cooler3d';
 import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import { TRAY_Z } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';

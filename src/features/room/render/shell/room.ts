@@ -116,7 +116,7 @@ export function shaftSpan(w: Rect, y: number, slant: number): { xl: number; xr: 
 export function roomGeo(): RoomGeo {
   const ys = deskY(), east = CASE.x + CASE.w, lx = MONITOR.x - 3600, plate = POWER_PLATE;
   // the window: west of the desk, the whole height of the wall: from just under the top of the highest thing on it (the key rack) down to its sill, which is just above the desk top's height
-  const clock: Rect = { x: CASE.x + CASE.w / 2 - 1500, y: -5500, w: 3000, h: 1100 };
+  const clock: Rect = { x: CASE.x + CASE.w / 2 - 1500, y: Math.min(-5500, CASE.y - 1500), w: 3000, h: 1100 };
   const WIN_W = 5600, winTop = Math.min(clock.y, ROUTER_SPOT.y, TRAY.y) + 190, WIN_H = ys - 700 - winTop;
   const window: Rect = { x: lx - DESK_WEST - 250 - WIN_W, y: winTop, w: WIN_W, h: WIN_H };
   const head = { x: lx + LAMP.head.x, y: ys + LAMP.head.y };

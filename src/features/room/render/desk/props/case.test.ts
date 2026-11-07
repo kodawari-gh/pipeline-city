@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { CASE_BD, CASE_IN, GEO, PSU, REAR_FAN, REAR_FAN_FITTED, TOP_FAN_LEN, TOP_FANS, setLayoutTier } from '@/features/board/render/layout/layout';
+import { CASE_BD, CASE_IN, FAN_LEN, GEO, PCIE_RAILS, PSU, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, setLayoutTier } from '@/features/board/render/layout/layout';
+import { BOARD_Z, CASE_FRONT, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { basementPlan } from '@/features/board/render/three/basement3d';
 import { frontFanRects, standoffs } from './case';
 
@@ -25,18 +26,30 @@ describe('the case\'s mounts and fans', () => {
     expect(n).toEqual([6, 8, 9, 12]);
   });
 
-  it('fits one size of fan on every mount, inside the case', () => {
+  it('fits the tier\'s size of fan on every mount, inside the case', () => {
     for (let c = 0; c <= 3; c++) {
       setLayoutTier(c, c);
+      expect(FAN_LEN, `case ${c}`).toBe([2120, 2120, 2760, 3220][c]);
       for (const r of frontFanRects()) {
-        expect(r.h, `case ${c} front`).toBe(TOP_FAN_LEN);
+        expect(r.h, `case ${c} front`).toBe(FAN_LEN);
         expect(r.y, `case ${c} front`).toBeGreaterThanOrEqual(CASE_IN.y);
         expect(r.y + r.h, `case ${c} front`).toBeLessThanOrEqual(CASE_IN.y + CASE_IN.h);
         // (a fan beside the basement stands east of the shroud, which stops short of it)
         if (r.y + r.h > PSU.y) expect(r.x, `case ${c} front`).toBeGreaterThan(basementPlan().east);
       }
-      for (const r of TOP_FANS) expect(r.w, `case ${c} top`).toBe(TOP_FAN_LEN);
-      if (REAR_FAN_FITTED) expect(REAR_FAN.h, `case ${c} rear`).toBe(TOP_FAN_LEN);
+      const front = frontFanRects()[0]!;
+      for (const r of TOP_FANS) {
+        expect(r.w, `case ${c} top`).toBe(FAN_LEN);
+        expect(r.x + r.w, `case ${c} top clears the front fans`).toBeLessThan(front.x);
+        if (REAR_FAN_FITTED) expect(r.y + r.h, `case ${c} top clears the rear fan`).toBeLessThan(REAR_FAN.y);
+      }
+      if (REAR_FAN_FITTED) {
+        expect(REAR_FAN.h, `case ${c} rear`).toBe(FAN_LEN);
+        // above the first expansion slot, beside the I/O plate in depth and inside the side panel
+        expect(REAR_FAN.y + REAR_FAN.h, `case ${c} rear`).toBeLessThan(PCIE_RAILS[0]!.y);
+        expect(REAR_ZC - FAN_LEN / 2, `case ${c} rear`).toBeGreaterThanOrEqual(BOARD_Z + 1240);
+        expect(REAR_ZC + FAN_LEN / 2, `case ${c} rear`).toBeLessThan(CASE_FRONT - 100);
+      }
     }
   });
 });

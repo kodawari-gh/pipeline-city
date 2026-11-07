@@ -13,14 +13,13 @@ import { drum, instanced, place, post, rectBox, rod, softBox } from '@/core/rend
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { builtinTheme, type Theme } from '@/core/render/theme';
-import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { CASE_D, CASE_Z, FAN_MAX } from '@/features/room/render/three/roomplan';
 import { CASE_LOOK } from '@/features/room/render/desk/props/case';
 import { CASE_CUTS, WINDOW_CUTS, caseWindow, showPillars, type CaseKind, type Cuts } from '@/features/room/render/shell/casedecor';
 import { stripRect, type StripMode } from '@/features/room/render/shell/exterior';
 import { frontFanRects } from '@/features/room/render/desk/props/case';
 import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, PSU, TOP_FANS } from '../layout/layout';
 import { basementPlan } from './basement3d';
-import { FAN_MAX } from './cooler3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
   FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,

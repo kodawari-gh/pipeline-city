@@ -9,7 +9,7 @@ import { drum, fanRotor, instanced, paint, place, rounded, softBox, tube, type R
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
-import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { COOLER } from '../layout/layout';
 import { COOLER_FANS, STOCK_VANES_R, TANK, TUBE_W, frameOf, radiatorPorts, towerFanRect, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
@@ -18,9 +18,6 @@ import { caseFan, glowMat, partFan, squareFan, type Spin } from './fans3d';
 /** The 2D heatsinks' metal ramp (dark theme `metals`), the heat pipes' copper and each look's accent (`coolerArt`). */
 const METAL = { metal: 0x3b4663, hi: 0x56628a, lo: 0x222a41 }, COPPER = 0xc0793a;
 const ACCENT = { stock: 0x8a97c2, tower: 0x3be3ff, liquid: 0xa68bff, sub: 0x0d1636, die: 0x111b46 } as const;
-
-/** A radiator and the case fans sit centred in the case's depth; a fan is at most this wide. The rear fan sits toward the glass, beside the I/O plate. */
-export const FAN_ZC = CASE_Z + CASE_D / 2, FAN_MAX = CASE_D - 600, REAR_ZC = FAN_ZC + 480;
 
 export interface Model { root: Group; spins: Spin[]; /** The materials that follow the part's state (`PartSkin`). */ skin: MeshStandardMaterial[] }
 /** The radiator the loop's tubes run to: where it is bolted and how many fans it carries. */

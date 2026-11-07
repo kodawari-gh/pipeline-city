@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { Box3, type Material, type Mesh } from 'three';
 import { builtinTheme } from '@/core/render/theme';
 import { CASE_KIND, caseWindow } from '@/features/room/render/shell/casedecor';
-import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
 import { CASE, FOOT, setLayoutTier } from '../layout/layout';
 import { caseModel, outlinePts, SIDE_T } from './case3d';
 
-const T = builtinTheme(true), FRONT = CASE_Z + CASE_D;
+const T = builtinTheme(true);
 
 describe('the 3D cases', () => {
   it('builds each tier as its own kind, inside the case box, standing on its feet', () => {

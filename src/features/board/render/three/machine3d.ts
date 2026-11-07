@@ -30,7 +30,7 @@ import { npuGeo } from '@/features/npu/render/npulayout';
 import { nicArt } from '@/features/network/render/net';
 import { driveArt, driveBody, driveKindOf, drawDriveLive, slotRect } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
-import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
@@ -45,7 +45,7 @@ import { ACCENT, cpuArt, sinkFanRect, vrmSinkArt } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
-import { FAN_MAX, FAN_ZC, REAR_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, gpuVideoAt, slotBlank, type Card3D } from './card3d';
@@ -73,7 +73,6 @@ import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
-const FRONT = CASE_Z + CASE_D;
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const union = (a: RectLike, b: RectLike): RectLike => {

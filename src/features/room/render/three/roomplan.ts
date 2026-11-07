@@ -4,8 +4,23 @@ import type { Rect } from '@/features/board/render/layout/layout';
 
 /** The desk's depth from the wall (about 650 mm at the monitor's scale), and its top's thickness. */
 export const DESK_D = 12000, DESK_TOP = 360;
-/** The case stands this far from the wall, this deep; the board sits on its far panel. */
-export const CASE_Z = 2200, CASE_D = 4200, BOARD_Z = CASE_Z + 260;
+/** The case stands this far from the wall; the board sits on its far panel. */
+export const CASE_Z = 2200, BOARD_Z = CASE_Z + 260;
+/** How deep each case tier is (mini, micro, mid, full tower): the rear fan stands beside the I/O plate, so the bigger fans need a deeper case. */
+export const CASE_DEPTHS = [4200, 4200, 4500, 4900];
+/**
+ * The current case's depth and its face toward the viewer; the case fans and a radiator sit centred in that depth, a fan is at most `FAN_MAX` wide.
+ * The rear fan's centre `REAR_ZC`: toward the glass, just clear of the I/O plate. Live bindings, as in `layout.ts`: `setCaseDepth` moves them.
+ */
+export let CASE_D = CASE_DEPTHS[0]!, CASE_FRONT = CASE_Z + CASE_D, FAN_ZC = CASE_Z + CASE_D / 2, FAN_MAX = CASE_D - 600, REAR_ZC = BOARD_Z + 1260 + 1060;
+/** Point the case's depths at this case tier, whose fans are `fanLen` long (`setLayoutTier` calls it). */
+export function setCaseDepth(tier: number, fanLen: number): void {
+  CASE_D = CASE_DEPTHS[tier] ?? CASE_DEPTHS[0]!;
+  CASE_FRONT = CASE_Z + CASE_D;
+  FAN_ZC = CASE_Z + CASE_D / 2;
+  FAN_MAX = CASE_D - 600;
+  REAR_ZC = BOARD_Z + 1260 + fanLen / 2;
+}
 export const MONITOR_Z = 3200;
 export const ROOM_D = 26000;
 

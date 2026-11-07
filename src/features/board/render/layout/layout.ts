@@ -11,6 +11,7 @@
 
 import { BD_X, DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
 import { CASE_TIERS } from '../../sim/specs';
+import { setCaseDepth } from '@/features/room/render/three/roomplan';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -193,8 +194,13 @@ export let REAR_FAN_FITTED = true;
 export let TOP_FANS: Rect[] = [];
 /** The fan mounts the cases have on the top and the front (mini, micro, mid, full tower), from the sim's `CASE_TIERS`. */
 export const TOP_FAN_COUNT = CASE_TIERS.map((c) => c.fans.top), FRONT_FAN_COUNT = CASE_TIERS.map((c) => c.fans.front);
-/** Every case fan is one size: a frame this thick and this long on each side (front, top and rear), so a fan reads the same wherever it sits. */
-export const TOP_FAN_T = 440, TOP_FAN_LEN = 2120, TOP_FAN_PITCH = 2200, TOP_FAN_X0 = -2500;
+/** A fan's frame side from its size in mm (23 units a mm: a 92 mm fan is 2120). */
+export const fanLen = (mm: number): number => Math.round((mm * 23) / 20) * 20;
+/** Every fan mount of a case takes one size (the sim's `fanSize`): a frame this thick and this long on each side (front, top and rear), so a fan reads the same wherever it sits. */
+export const TOP_FAN_T = 440, TOP_FAN_X0 = -2500;
+export let FAN_LEN = fanLen(92), TOP_FAN_PITCH = FAN_LEN + 80;
+/** Where the rear fan ends (layout y): above the first expansion slot and its retention bar, whatever its size. */
+const REAR_FAN_END = 860;
 /**
  * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
  * slot sata<i>, top to bottom; the cage has the case's bays (`CASE_BAYS`), those beyond the board's SATA ports are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
@@ -337,18 +343,24 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 230, w: FAN_HUB.w - 120, h: 70 };
   HUB_POWER_Y = south + 760;
   SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + GUTTER_EXTRA + i * 22 }));
+  // the case's fan size sets the mounts' length and the case's depth
+  const mounts = CASE_TIERS[cg.tier]!;
+  FAN_LEN = fanLen(mounts.fanSize); TOP_FAN_PITCH = FAN_LEN + 80;
+  setCaseDepth(cg.tier, FAN_LEN);
   // the front fans stand in front of the cage, the perforated front panel closes the glass
   const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
-  const ce = glassEast + 160, caseW = ce - IO_X, top = cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, bottom = south + 1750; // the head room above the board: the top fans' and the 8-pin cable's
+  // the head room above the board: the top fans' and the 8-pin cable's, more when the front stack needs it (it ends over the case's inner floor, room for its cable's stub)
+  const stack = 40 + mounts.fans.front * FAN_LEN + (mounts.fans.front - 1) * 20 + 100;
+  const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack - 400), bottom = south + 1750;
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
   CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 - (top + 400) };
   CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
   CASE_PANEL = { x: IO_X, y: top, w: caseW, h: 400 };
   POWER_BTN = { x: ce - 600, y: top + 200, r: 130 };
   CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
-  REAR_FAN = { x: CASE_IN.x, y: -1260, w: FAN_W, h: TOP_FAN_LEN };
+  REAR_FAN = { x: CASE_IN.x, y: REAR_FAN_END - FAN_LEN, w: FAN_W, h: FAN_LEN };
   REAR_FAN_FITTED = cg.tier >= 1;
-  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: TOP_FAN_X0 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));  // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
+  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: TOP_FAN_X0 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: FAN_LEN, h: TOP_FAN_T }));  // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
   DESK_Y = bottom + FOOT; FLOOR_Y = DESK_Y + DESK_SLAB + DESK_UNDER;
   const MW = 3300 * MONITOR_K, MH = 1995 * MONITOR_K;
   MONITOR = { x: MONITOR_EAST - MW, y: DESK_Y - MON_STAND - MH, w: MW, h: MH };

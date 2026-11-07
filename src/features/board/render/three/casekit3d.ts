@@ -6,10 +6,9 @@ import {
 } from 'three';
 import { anisotropy, extrude, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
-export const FRONT = CASE_Z + CASE_D;
+export { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 /** The outer side panel's thickness: it closes the body's open side, its face at `FRONT`. */
 export const SIDE_T = 36;
 export const NONE: Cuts = [0, 0, 0, 0];

@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, TOP_FAN_LEN, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T,
   sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
@@ -142,13 +142,13 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
 /**
  * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
  * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. The sim's count of one
- * size of fan (`FRONT_FAN_COUNT`, `TOP_FAN_LEN`), stacked from under the top; the Mini's stack starts under the ports on its face.
+ * size of fan (`FRONT_FAN_COUNT`, `FAN_LEN`), stacked from under the top; the Mini's stack starts under the ports on its face.
  */
 export function frontFanRects(): Rect[] {
   const gl = CASE_GLASS, east = gl.x + gl.w, n = FRONT_FAN_COUNT[LAYOUT_CASE] ?? 1, gap = 20;
   const y0 = LAYOUT_CASE === 0 ? CASE.y + 1880 : CASE_IN.y + 40;
   const w = FAN_W, x = east - 170 - 20 - w;
-  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (TOP_FAN_LEN + gap), w, h: TOP_FAN_LEN }));
+  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (FAN_LEN + gap), w, h: FAN_LEN }));
 }
 
 function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
