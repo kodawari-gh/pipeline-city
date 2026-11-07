@@ -21,6 +21,13 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Open now
 
+Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after.
+- [ ] M2 [auto] Review the inventory shelf. Files: src/features/economy/ui/shop/Inventory.tsx, src/core/ui/ui.css. Docs: docs/MENU_REVIEW.md. Done when: checklist met, row updated.
+- [ ] M3 [auto] Review the picker bubble; add the 3D view button. Files: src/features/economy/ui/shop/PickerCard.tsx, src/core/ui/ui.css. Docs: docs/MENU_REVIEW.md. Done when: checklist met, row updated.
+- [ ] M4 [auto] Review the OS panel. Files: src/features/os/ui, src/core/ui/ui.css. Docs: docs/MENU_REVIEW.md. Done when: checklist met, row updated.
+- [ ] M5 [auto] Review the graphics panel and the main menu. Files: src/core/ui/panels, src/core/ui/Hud.tsx. Docs: docs/MENU_REVIEW.md. Done when: checklist met, rows updated.
+- [ ] M6 [auto] Review the start menu, tutorial cards, hints and notices. Files: src/core/ui, src/features/tutorial/ui. Docs: docs/MENU_REVIEW.md. Done when: checklist met, rows updated.
+
 ## 3D render: one light, one palette, one level of detail
 
 From the 2026-11-05 survey of the `?3d` room. The owner's goal: uniformity above all (one palette, one level of detail, one light across the room, its props and the view out). Run the tasks in this order. Shoot with `npm run shot -- <png> --3d --size 1920x1080 --hour h --look x,y,z,yaw,pitch,height` (or `--view room`); the rects below assume 1920x1080. L is the mean linear luminance that `node tools/lum.mjs <png> x,y,w,h` prints. Look at each shot before you call a task done.
