@@ -5,19 +5,27 @@ import { Box3, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D }
 import { readTheme, type Theme } from '@/core/render/theme';
 import { extrude, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { getSpec, type CardSpec, type FanSpec, type NicSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
+import { getSpec, specsOfKind, type CardSpec, type FanSpec, type NicSpec, type PsuSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
+import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { Monitor } from '@/features/room/render/three/props3d';
+import { aloe, floorPlant, succulent } from '@/features/room/render/three/plants3d';
+import { DigitalClock, keyboard, mouse, notebook, teaCup } from '@/features/room/render/three/props3d';
+import { deskChair } from '@/features/room/render/three/chair3d';
+import { arcLamp, bed, bookcase, ceilingLight, door, floorLantern, nightstand, sconce } from '@/features/room/render/three/furniture3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { DIE, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, PKG, fanLen, setLayoutTier } from '../layout/layout';
+import { DESK_Y, DIE, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, MONITOR, PKG, SCREEN, fanLen, setLayoutTier } from '../layout/layout';
+import { kitFit, radiatorGrade } from '../cooler';
 import { card3d } from './card3d';
-import { basementPlan, cage, shroud } from './basement3d';
+import { basementPlan, cage, psuUnit, shroud } from './basement3d';
 import { caseModel } from './case3d';
 import { fanHub } from './fanhub3d';
 import { leadCoil } from './casetray3d';
-import { coolerModel } from './cooler3d';
+import { coolerModel, radiatorModel } from './cooler3d';
 import { fanPart } from './fans3d';
-import { nvmeStick, sataDrive, type Raise } from './parts3d';
+import { nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
+import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
 
 /** Build with the layout of this board tier (the builders read the layout's module state), then put the live board's layout back. */
@@ -88,6 +96,27 @@ function cpuModel(): Group {
 
 const CASE_ID = /^case(\d)$/;
 
+/** The room's props, by id (`ROOM_PROPS`). Each is built as the room builds it, then centred on the origin. */
+const ROOM: Record<string, () => Object3D> = {
+  'room:keyboard': () => keyboard(0, 0, 0),
+  'room:mouse': () => mouse(0, 0, 0),
+  'room:notebook': () => notebook(0, 0, 0, 0),
+  'room:cup': () => teaCup(0, 0, 0).root,
+  'room:clock': () => new DigitalClock({ x: 0, y: 0, w: 2400, h: 800 }).root,
+  'room:chair': () => deskChair(0, 0, 0),
+  'room:bed': () => bed().root,
+  'room:nightstand': () => nightstand().root,
+  'room:bookcase': () => bookcase(),
+  'room:door': () => door(),
+  'room:floorlantern': () => floorLantern().root,
+  'room:arclamp': () => arcLamp().root,
+  'room:sconce': () => sconce().root,
+  'room:ceiling': () => ceilingLight(0, 0, 0).root,
+  'room:floorplant': () => floorPlant(0, 0),
+  'room:aloe': () => aloe(0, 0, 0),
+  'room:succulent': () => succulent(0, 0, 0, 600),
+};
+
 /** The showcase model of a shop item, or null where there is none (a kind without a 3D builder). */
 export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Object3D | null {
   const c = CASE_ID.exec(specId);
@@ -101,6 +130,8 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
       return g;
     }, tier));
   }
+  const prop = ROOM[specId];
+  if (prop) return centred(prop());
   const spec = getSpec(specId);
   if (!spec) return null;
   switch (spec.kind) {
@@ -131,6 +162,40 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
         else sataDrive(g, kind === 'hdd', b, 0, plainRaise);
         return g;
       }));
+    }
+    case 'psu': {
+      const ps = spec as PsuSpec;
+      return centred(withLayout(() => psuUnit(basementPlan(), ps.visual, ps.fan !== false).root));
+    }
+    case 'radiator': {
+      // two fan mounts long, no fans fitted
+      const vis = (spec as { visual: string }).visual;
+      return centred(withLayout(() => radiatorModel(kitFit(), radiatorGrade(vis), ['a', 'b']).root));
+    }
+    case 'tpm': {
+      return upright(withLayout(() => {
+        const g = new Group(), r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier);
+        if (r && h) tpmModule(g, r, headerRect(h), plainRaise);
+        return g;
+      }));
+    }
+    case 'vrm-sink': case 'ram-sink': {
+      const visual = (spec as { visual: string }).visual;
+      return upright(withLayout(() => {
+        const g = new Group(), { spot, foot, top } = sinkBody(g, T, spec.kind as 'vrm-sink' | 'ram-sink', visual), fs = specsOfKind('fan').find((f) => f.size === 40);
+        if (spot && fs) {
+          const d = Math.min(spot.h, top - foot) * 0.95, fan = fanPart(fs, d, spot.w);
+          fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + d / 2);
+          fan.root.rotation.y = Math.PI / 2;
+          g.add(fan.root);
+        }
+        return g;
+      }));
+    }
+    case 'display': {
+      const m = new Monitor(MONITOR, SCREEN, DESK_Y, 0);
+      m.set({ installed: true, powered: true, live: false, text: '' }, 12);
+      return centred(m.root);
     }
     default: return null;
   }

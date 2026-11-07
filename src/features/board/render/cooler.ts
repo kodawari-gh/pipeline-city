@@ -385,7 +385,7 @@ export function fanKitArt(T: Theme, spec: FanSpec): Container {
 }
 
 /** A top-mounted radiator on the west of the pump, for the shop pictures. */
-const kitFit = (): RadiatorFit => radiatorFit({ id: 'top0', side: 'top', rect: { x: -1000, y: -1560, w: 1700, h: 230 } }, 0);
+export const kitFit = (): RadiatorFit => radiatorFit({ id: 'top0', side: 'top', rect: { x: -1000, y: -1560, w: 1700, h: 230 } }, 0);
 
 /** A picture of a radiator for a shop tile: the slab alone, its fan switched off. */
 export function radiatorKitArt(T: Theme, visual: string): Container {
