@@ -19,12 +19,12 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 | Shop | done 2026-11-07 | Full-screen, category rail with counts, 3D showcase over the stat bars, arrow keys. |
 | Inventory shelf | done 2026-11-07 | Filter chips now carry words, not bare icons. Lock icons on tiles still have only a tooltip. |
 | Picker (board bubble) | partly | "3D view" button opens the shop on that part (`openShopAt`). Bubble layout not re-reviewed. |
-| OS panel | reviewed, no change | Clear tabs and list. Lower half is empty while the machine is off; a hint there would help. |
+| OS panel | done 2026-11-07 | Banner now says the machine is off instead of "nothing holds it back". Lower half stays empty while off. |
 | Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
 | Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
 | Start menu / load screen | reviewed, no change | Clear. Not seen with a saved game (no Continue row checked). |
-| Tutorial cards, hints | todo | Card seen only while typing out. Hints not reviewed. |
-| Notices, toasts, modals | todo | Not looked at yet. |
+| Tutorial cards, hints | reviewed, no change | Card and hint toast readable. A hint toast sits close above the dock. Not checked: every tutorial step. |
+| Notices, toasts, modals | partly | Toast seen. Notices and the new-game confirm not looked at. |
 
 ## Shared patterns (from the shop)
 - Rail + list + detail: three fixed zones; the detail pane is the hero (picture first, numbers below).

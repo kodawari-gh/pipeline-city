@@ -22,7 +22,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## Open now
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after.
-- [ ] M6 [auto] Review the tutorial cards, hints, notices and toasts; check the start menu with a saved game; add a hint to the empty OS panel. Files: src/core/ui, src/features/tutorial/ui, src/features/os/ui. Docs: docs/MENU_REVIEW.md. Done when: checklist met, rows updated.
+- [ ] M6 [auto] Review notices and the new-game confirm; check the start menu with a saved game; step through every tutorial card. Files: src/core/ui, src/features/tutorial/ui. Docs: docs/MENU_REVIEW.md. Done when: checklist met, rows updated.
 
 ## 3D render: one light, one palette, one level of detail
 
