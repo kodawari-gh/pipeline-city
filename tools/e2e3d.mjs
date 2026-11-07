@@ -79,7 +79,8 @@ await p.waitForTimeout(1500);
 const dev = await snap("s.devices.find((d) => d.kind === 'tpm')?.id"), from = dev && (await at(dev)), shelf = await (await p.$('.inv'))?.boundingBox();
 if (from && shelf) await drag(from, { x: shelf.x + shelf.width / 2, y: shelf.y + shelf.height / 2 });
 check('an installed part dragged to the shelf is unmounted', !(await snap("s.devices.some((d) => d.kind === 'tpm')")));
-// 3. keys
+// 3. keys (the shelf is shut first: it covers the key tray)
+await p.click('.invbtn:has-text("Inventory")').catch(() => {});
 await view('flyToRoom');
 const key = await snap('s.tray[0]?.id');
 if (key != null) {

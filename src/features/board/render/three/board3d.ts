@@ -368,7 +368,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     const id = idAt(e, false, true);
     hover.value = id ? { id, x: e.clientX, y: e.clientY } : null;
-    canvas.style.cursor = id ? 'pointer' : '';
+    canvas.style.cursor = id ? (id.startsWith('cable.') || id.startsWith('key:') ? 'grab' : 'pointer') : '';
   });
   canvas.addEventListener('pointerup', (e) => {
     const d = drag;
