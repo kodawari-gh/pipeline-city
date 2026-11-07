@@ -525,7 +525,7 @@ export class Machine3D {
       }
       case 'psu': {
         // at the basement's back corner, by its mains inlet (`psuUnit`); the shroud's panel over it answers the click
-        const u = psuUnit(this.plan);
+        const u = psuUnit(this.plan, visual);
         g.add(u.root);
         tag(g, 'psu');
         this.softSkin(d.id, u.body);

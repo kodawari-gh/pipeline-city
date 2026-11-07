@@ -116,9 +116,15 @@ export function intoBay(drive: Group, body: RectLike, faceZ: number, b: Bay): Gr
  * The power supply at its place: the body, the honeycomb grille of its fan on the top (it breathes up through the shroud), the modular sockets on
  * its east face. Its rear shows through the case's back wall with the mains inlet and the switch (`PC_POWER`, where the cord plugs in).
  */
-export function psuUnit(p: BasementPlan): { root: Group; body: MeshStandardMaterial } {
+export function psuUnit(p: BasementPlan, visual = 'psu-basic'): { root: Group; body: MeshStandardMaterial } {
   const g = new Group(), u = p.psu, body = mat(0x22242a, { metalness: 0.4, roughness: 0.45 }), black = mat(0x07080b, { roughness: 0.6 });
   g.add(softBox(u, u.z0, u.z1, body, 30));
+  // its tier's look (the 2D drawings': a plain case, a banded one, the big modular unit with its lead sockets and a wide band)
+  const band = visual === 'psu-big' ? 0xd9a441 : visual === 'psu-mid' ? 0x3b6ea8 : 0, bm = band ? mat(band, { roughness: 0.4, metalness: 0.5 }) : null;
+  if (bm) {
+    g.add(rectBox({ x: u.x, y: u.y + u.h * 0.22 - 22, w: u.w, h: 44 }, u.z0 - 3, u.z1 + 3, bm));
+    if (visual === 'psu-big') g.add(rectBox({ x: u.x, y: u.y + u.h * 0.78 - 14, w: u.w, h: 28 }, u.z0 - 3, u.z1 + 3, bm));
+  }
   const holes = [];
   for (let x = u.x + 140; x < u.x + u.w - 120; x += 70) for (let z = u.z0 + 140; z < u.z1 - 120; z += 70) holes.push({ x, y: -u.y, z, sx: 40, sy: 6, sz: 40 });
   g.add(instanced(new BoxGeometry(1, 1, 1), black, holes));
