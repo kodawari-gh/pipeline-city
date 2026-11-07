@@ -67,7 +67,7 @@ export const BENCH = { x0: WINDOW.x + 1200, x1: -24600, z0: 400, z1: 5600, top: 
 /** The key stand on the desk west of the monitor: where the rack's west end stands (x) and its hooks' plane (z). */
 export const KEY_STAND = { x: -19800, z: 5600 };
 /** The cable tray hung under the desk top's back edge, behind the monitor: its ends (x), its back and front (z), its top `drop` under the top, `h` deep. */
-export const TRAY = { x0: -16000, x1: -5000, z0: 400, z1: 2600, drop: 400, h: 1500 };
+export const TRAY = { x0: -16000, x1: -5800, z0: 400, z1: 2600, drop: 400, h: 1500 };
 /** The drawer unit under the desk's east end: its west side `in` from the desk's east end, `w` wide. */
 export const PED = { in: 7800, w: 7500 };
 /** The floating shelf on the east wall past the bed's foot: its ends (z), its top (2D y) and its depth. */

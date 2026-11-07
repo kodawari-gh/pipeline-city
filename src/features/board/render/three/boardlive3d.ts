@@ -102,6 +102,11 @@ export class BoardLive3D {
     const canvas = (this.screenCanvas ??= document.createElement('canvas'));
     const got = drawLive(live.ext, SCREEN, 1280 / SCREEN.w, canvas);
     this.screen = got ? { canvas, ...got } : null;
+    if (got) {
+      // the 2D screen is drawn over the panel's dark glass: under a blank screen's faint art the texture would be clear, and its colour alone (no alpha) would show
+      const c = canvas.getContext('2d')!;
+      c.globalCompositeOperation = 'destination-over'; c.fillStyle = '#0d1116'; c.fillRect(0, 0, got.w, got.h); c.globalCompositeOperation = 'source-over';
+    }
     this.screenAt = now;
   }
 
