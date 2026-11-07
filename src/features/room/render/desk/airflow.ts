@@ -256,7 +256,8 @@ export function airflowModel(i: AirIn): AirModel {
 
 // ---------------------------------------------------------------- drawing
 
-interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number }
+/** `fit`: how far (world x) a tag over [x0, x1] at this y must slide to be whole on the screen (the 3D lens sees its plane at an angle, so only the camera knows). */
+interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number; fit?: (x0: number, x1: number, y: number) => number }
 
 /** Particles a lane carries, by its length, and the cap over the whole view. */
 /** Segments of a stream particle's trail. */
@@ -460,7 +461,7 @@ export class AirflowLens {
         g.circle(x, y, px(1.4 + 1.8 * r1) * (1 - ph * 0.5)).fill({ color: airColor(Math.min(1, zn.heat + 0.2)), alpha: 0.7 * Math.sin(Math.PI * ph) });
       }
     }
-    this.tags(m.tags, z);
+    this.tags(m.tags, z, { left, top, w, h }, v.fit);
   }
 
   private path(g: Graphics, pts: Pt[]) {
@@ -480,7 +481,7 @@ export class AirflowLens {
     return st.slope > TREND_C_PER_S ? 1 : st.slope < -TREND_C_PER_S ? -1 : 0;
   }
 
-  private tags(tags: AirTag[], z: number) {
+  private tags(tags: AirTag[], z: number, view: { left: number; top: number; w: number; h: number }, fit?: View['fit']) {
     const T = this.T, pad = 5 / z;
     this.pills.clear();
     // the tags keep their size on the screen, so how near they sit depends on the zoom: each one that would cover an earlier one moves up until it is clear
@@ -496,13 +497,16 @@ export class AirflowLens {
       t.anchor.set(tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? 1 : 0.5, 0.5);
       t.scale.set(1 / z);
       t.visible = true;
-      const w = t.width, h = t.height, x0 = tag.at[0] - (tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? w : w / 2);
-      const trend = tag.tempC === undefined ? 0 : this.trendOf(tag.id, tag.tempC), ax = trend ? 15 / z : 0;
+      const w = t.width, h = t.height, trend = tag.tempC === undefined ? 0 : this.trendOf(tag.id, tag.tempC), ax = trend ? 15 / z : 0;
+      // a tag stays whole on the screen: slid in from the edge it would run off
+      const full = w + 2 * pad + ax, from = tag.at[0] - (tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? w : w / 2) - pad;
+      const dx = fit ? fit(from, from + full, tag.at[1]) : Math.max(view.left - from, Math.min(0, view.left + view.w - (from + full)));
+      const x0 = from + pad + dx;
       const box = (y: number) => ({ x0: x0 - pad, x1: x0 + w + pad + ax, y0: y - h / 2 - pad, y1: y + h / 2 + pad });
       let y = tag.at[1];
       for (let k = 0; k < 12 && placed.some((p) => p.x0 < box(y).x1 && p.x1 > box(y).x0 && p.y0 < box(y).y1 && p.y1 > box(y).y0); k++) y -= h + pad;
       placed.push(box(y));
-      t.position.set(tag.at[0], y);
+      t.position.set(tag.at[0] + dx, y);
       this.pills.roundRect(x0 - pad, y - h / 2 - pad * 0.4, w + 2 * pad + ax, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
       if (trend) {
         // a small triangle at the end of the pill: up and warm while it climbs, down and cool while it falls

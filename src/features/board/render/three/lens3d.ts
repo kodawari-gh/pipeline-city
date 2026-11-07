@@ -3,7 +3,7 @@
 // stands at the board's depth and covers the view, drawn over everything: seen flat it is the 2D lens, seen from an angle it is a sheet laid over the
 // machine.
 import { Container } from 'pixi.js';
-import { Mesh, MeshBasicMaterial, PlaneGeometry, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
+import { Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { assignLeads } from '../../sim/cables';
 import { getSpec } from '../../sim/specs';
@@ -41,6 +41,15 @@ function cablesOf(s: Snapshot): Cable[] {
   });
   const hasPsu = s.devices.some((d) => d.kind === 'psu'), hasDisplay = s.devices.some((d) => d.kind === 'display');
   return buildCables(targets).filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu));
+}
+
+/** How far (world x) a label over [x0, x1] at layout y, on the lens plane, must slide so both its ends are on the screen (seen through `cam`, 3% in from the edge). */
+function keepOnScreen(cam: PerspectiveCamera, x0: number, x1: number, y: number): number {
+  const a = new Vector3(x0, -y, Z).project(cam), b = new Vector3(x1, -y, Z).project(cam), span = b.x - a.x, lim = 0.97;
+  if (!(span > 0) || span > 2 * lim) return 0;
+  const k = (x1 - x0) / span;
+  if (a.x < -lim) return (-lim - a.x) * k;
+  return b.x > lim ? (lim - b.x) * k : 0;
 }
 
 export class Lens3D {
@@ -105,7 +114,7 @@ export class Lens3D {
     const v = viewOn(cam, H, Z), world = { x: -1e5, y: -1e5, w: 2e5, h: 2e5 }, crop = v.zoom > 0 && v.rect ? liveCrop(world, v.rect, 0.05) : null;
     if (!crop) { this.mesh.visible = false; return; }
     // the lens draws over the view as a 2D camera at this zoom would show it
-    const z = v.zoom, view = { x: crop.x + crop.w / 2, y: crop.y + crop.h / 2, z, cx: (crop.w * z) / 2, cy: (crop.h * z) / 2, w: crop.w * z, h: crop.h * z };
+    const z = v.zoom, view = { x: crop.x + crop.w / 2, y: crop.y + crop.h / 2, z, cx: (crop.w * z) / 2, cy: (crop.h * z) / 2, w: crop.w * z, h: crop.h * z, fit: (x0: number, x1: number, y: number) => keepOnScreen(cam, x0, x1, y) };
     this.power.frame(wantPower, view, dt, now);
     this.air.frame(wantAir, view, dt, now);
     if (now - this.at < 33) { this.mesh.visible = true; return; }
