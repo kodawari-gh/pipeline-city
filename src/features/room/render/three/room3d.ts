@@ -618,11 +618,13 @@ export class Room3D {
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));
     for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), 20));
-    const plateBox = tag(softBox(WALL_PLATE, 0, 80, graphite, 30), 'wall');
+    // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
+    const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
+    const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {
       const m = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(NEON), emissiveIntensity: 0 });
-      const d = drum(WALL_PLATE.x + WALL_PLATE.w * (0.14 + k * 0.18), WALL_PLATE.y + WALL_PLATE.h * 0.8, 80, 96, WALL_PLATE.w * 0.04, m, 8);
+      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, 8);
       this.ispDots.push(m);
       R.add(d);
     }
@@ -631,8 +633,8 @@ export class Room3D {
       const cv = document.createElement('canvas');
       cv.width = 512; cv.height = 128;
       const tex = rawSrgb(cv);
-      const face = new Mesh(new PlaneGeometry(WALL_PLATE.w * 0.84, WALL_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
-      face.position.set(WALL_PLATE.x + WALL_PLATE.w / 2, -(WALL_PLATE.y + WALL_PLATE.h * 0.5), 82);
+      const face = new Mesh(new PlaneGeometry(ISP_PLATE.w * 0.84, ISP_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
+      face.position.set(ISP_PLATE.x + ISP_PLATE.w / 2, -(ISP_PLATE.y + ISP_PLATE.h * 0.5), 82);
       this.ispText = { cv, tex, shown: '\u0000' };
       R.add(seeThrough(face));
     }
