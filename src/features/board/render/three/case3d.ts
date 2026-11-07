@@ -24,7 +24,7 @@ import { glowMat, light, type Spin } from './fans3d';
 import {
   FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
 } from './casekit3d';
-import { controls, drumX, frontWall, hinges, psuFilter, psuIntake, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
+import { controls, drumX, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
 
 export { outlinePts, SIDE_T } from './casekit3d';
 
@@ -125,7 +125,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const topPts = clipY(outer(), -f.yTop, 1), vent = topVent();
   if (vent) root.add(...slabWithOpening(topPts, f.z0, z1, vent, body)); else root.add(slab(shapeOf(topPts), f.z0, z1, body, 18));
   root.add(...slabWithOpening(clipY(outer(), -f.yBot, -1), f.z0, z1, psuIntake(), body));
-  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, bottom), trayDetail(f));
+  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, bottom), trayDetail(f), fanMountPlates(inner));
   root.add(slab(shapeOf(outer()), CASE_Z, CASE_Z + 70, inner, 12));
   const ctl = controls(f, ex, GAMER_CAP);
   root.add(ctl.root);

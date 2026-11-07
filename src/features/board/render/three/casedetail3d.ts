@@ -4,12 +4,12 @@
 // the top controls (the power button and the status lights of each kind, the front ports), and the tray's cable management (cut-outs, grommets
 // and tie points). Airflow reads from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { instanced, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, fanFlange, instanced, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
-import { frontFanRects, standoffs } from '@/features/room/render/desk/props/case';
+import { fanMounts, frontFanRects, standoffs } from '@/features/room/render/desk/props/case';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_BD, GEO, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
@@ -57,6 +57,8 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   holes.push({ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20 }, psuOpening(u));
   const fan = rearFanHole();
   holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
+  // (the mount's four screw holes)
+  if (REAR_FAN_FITTED) for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) holes.push(wallCircle(fan.cy + dy * fan.d * FAN_SCREW, REAR_ZC + dz * fan.d * FAN_SCREW, 18));
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
   // the slots the board lacks: blank covers behind their openings (the board's own empty slots get theirs in machine3d.ts)
   for (let i = boardSlots; i < slots; i++) g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
@@ -68,14 +70,34 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     const knurl = steel();
     for (let i = 0; i < slots; i++) g.add(drumX(x0 - 30, -(slotY(i) + 30), (za + zb) / 2, 30, 34, knurl, 18));
   }
-  // over the round opening: a honeycomb grille and four screws where the case carries a fan, the Mini's punched grille where it has none
+  // over the round opening: a honeycomb grille where the case has a mount (its four screw holes go with it), the Mini's punched grille where it has none
   const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
   grille.rotation.y = -Math.PI / 2;
   grille.position.set(x0 - 2, -fan.cy, REAR_ZC);
   g.add(grille);
-  if (REAR_FAN_FITTED) {
-    const sc = steel(), o = fan.d * 0.43;
-    for (const [dy, dz] of [[-o, -o], [-o, o], [o, -o], [o, o]] as const) g.add(drumX(x0 - 6, -(fan.cy + dy), REAR_ZC + dz, 22, 12, sc, 12));
+  return g;
+}
+
+/** The rear fan's four screws, seen in the rear wall's holes: they come and go with the fan. */
+export function rearFanScrews(): Group {
+  const g = new Group(), { d, cy } = rearFanHole(), sc = steel(), o = d * FAN_SCREW;
+  for (const [dy, dz] of [[-o, -o], [-o, o], [o, -o], [o, o]] as const) g.add(drumX(CASE.x - 6, -(cy + dy), REAR_ZC + dz, 22, 12, sc, 12));
+  return g;
+}
+
+/**
+ * The case's fan mounts where a fan's flange meets it: a thin plate behind the front wall and under the top, with the fan's throat and its four
+ * screw holes, in the case's inner finish. The rear mount is the rear wall's own (`rearWall`).
+ */
+export function fanMountPlates(m: Material): Group {
+  const g = new Group(), T = 12;
+  for (const fan of fanMounts()) {
+    if (fan.side === 'rear') continue;
+    const r = fan.rect, top = fan.side === 'top', d = Math.min(top ? r.w : r.h, FAN_MAX) * 0.92;
+    const o = place(new Mesh(fanFlange(d, T, d * 1.02), m));
+    if (top) { o.rotation.x = Math.PI / 2; o.position.set(r.x + r.w / 2, -(r.y - T / 2 - 2), FAN_ZC); }
+    else { o.rotation.y = Math.PI / 2; o.position.set(r.x + r.w + T / 2 + 2, -(r.y + r.h / 2), FAN_ZC); }
+    g.add(o);
   }
   return g;
 }

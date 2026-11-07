@@ -1,19 +1,20 @@
 // The CPU cooler and the loop's radiator in 3D, after the 2D art (`cooler.ts`, docs/render/board.md "Cooler"): the same three looks on the same
-// mounting plate (`COOLER`), stood up off the board. The stock cooler is a round heatsink of radial vanes under a small fan; the tower a stack of fin
-// plates with copper heat pipes arching through them and a fan on its east end that blows west along the fins; the loop a pump head (a brushed ring,
-// a ring light round the impeller under a glass dome) whose two stiff braided hoses arc to the radiator's barbs (`hose`, hung round the parts in
-// their way). The radiator (`radiatorModel`) is the 2D slab stood up across the case: an end tank at each end, a core of fin plates on the
-// outboard side and one fan per mount it covers on the inboard side.
+// mounting plate (`COOLER`), stood up off the board. The stock heatsink is a round block of radial vanes; the tower a stack of fin plates with copper
+// heat pipes arching through them, a fan spot on each end (they blow west along the fins); the loop a pump head (a brushed ring, a ring light round
+// the impeller under a glass dome) whose two stiff braided hoses arc to the radiator's barbs (`hose`, hung round the parts in their way). The
+// radiator (`radiatorModel`) is the 2D slab stood up across the case: an end tank at each end, a core of fin plates on the outboard side and a fan
+// spot per mount it covers on the inboard side. Heatsinks come bare: the fans are parts of their own (`fanPart`), shown where the player fitted them.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry, Vector3, type Texture } from 'three';
 import { drum, fanRotor, instanced, paint, place, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough } from '@/core/render/three/pick';
+import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { COOLER } from '../layout/layout';
 import { COOLER_FANS, STOCK_VANES_R, TANK, TUBE_W, frameOf, radiatorPorts, towerFanRect, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
-import { caseFan, glowMat, partFan, squareFan, type Spin } from './fans3d';
+import { tex, tiled } from './casekit3d';
+import { caseFan, fanPart, glowMat, type FanFit, type Spin } from './fans3d';
 
 /** The 2D heatsinks' metal ramp (dark theme `metals`), the heat pipes' copper and each look's accent (`coolerArt`). */
 const METAL = { metal: 0x3b4663, hi: 0x56628a, lo: 0x222a41 }, COPPER = 0xc0793a;
@@ -50,6 +51,13 @@ const brushed = () => brushedTex ??= paint(512, 512, (c, w, h) => {
   for (const f of [510, 490, 470]) { c.beginPath(); c.arc(w / 2, h / 2, (f / 548) * (w / 2), 0, Math.PI * 2); c.stroke(); }
 });
 
+/** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
+const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {
+  c.fillStyle = '#0b0f1c'; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#7f8bb3';
+  if (along === 'u') c.fillRect(0, 0, w * 0.34, h); else c.fillRect(0, 0, w, h * 0.34);
+});
+
 // ------------------------------------------------------------------ small parts
 /** Screws standing on a face at depth `z`, `r` round (the plate's corner screws, the push pins). */
 function screws(g: Group, at: readonly [number, number][], z: number, r: number) {
@@ -72,8 +80,21 @@ function fitting(g: Group, p: Vector3, dir: Vector3, m: MeshStandardMaterial) {
 const plate = (g: Group) => g.add(softBox(COOLER, BOARD_Z + 260, BOARD_Z + 320, alu(0x343d57, 0.4), 60));
 
 // ------------------------------------------------------------------ the three coolers
-function stock(g: Group, spins: Spin[]): MeshStandardMaterial {
-  const c = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2, Z = BOARD_Z, top = Z + 980, r0 = 340, r1 = STOCK_VANES_R - 14, mid = (r0 + r1) / 2;
+/** The depth of the stock heatsink's top, and of a tower's base and top. */
+const STOCK_TOP = BOARD_Z + 980, TOWER_BASE = BOARD_Z + 420, TOWER_TOP = BOARD_Z + 2500;
+/** The stock heatsink's fan: how wide and how deep it is. It stands on the bezel over the vanes. */
+const STOCK_FAN = { d: 1300, depth: 200 };
+
+/** The room a fan takes on a heatsink's spot (`spot`: its number on the host), or null: the cooler has no such spot. */
+export function coolerFanBox(visual: string, spot: number): { r: RectLike; z0: number; z1: number } | null {
+  if (visual === 'cooler-tower') return { r: towerFanRect(spot), z0: TOWER_BASE, z1: TOWER_TOP };
+  if (visual !== 'cooler-stock') return null;
+  const c = COOLER, d = STOCK_FAN.d;
+  return { r: { x: c.x + (c.w - d) / 2, y: c.y + (c.h - d) / 2, w: d, h: d }, z0: STOCK_TOP + 20, z1: STOCK_TOP + 20 + STOCK_FAN.depth };
+}
+
+function stock(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMaterial {
+  const c = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2, Z = BOARD_Z, top = STOCK_TOP, r0 = 340, r1 = STOCK_VANES_R - 14, mid = (r0 + r1) / 2;
   plate(g);
   const vane = alu(METAL.hi);
   g.add(drum(cx, cy, Z + 320, top, r0, alu(METAL.lo), 48));
@@ -82,14 +103,21 @@ function stock(g: Group, spins: Spin[]): MeshStandardMaterial {
     const a = (k / 40) * Math.PI * 2;
     return { x: cx + Math.cos(a) * mid, y: -cy + Math.sin(a) * mid, z: (Z + 320 + top) / 2, sx: r1 - r0, sy: 22, sz: top - Z - 320, rz: a + 0.18 };
   })));
-  // the bezel over the vanes and the small fan in it
+  // the bezel over the vanes; the plain fan on it blows down into them (it has no light)
   g.add(drum(cx, cy, top - 10, top + 20, 350, mat(ACCENT.sub, { roughness: 0.5 }), 48));
-  const f = partFan(cx, cy, top + 130, COOLER_FANS.stock.r, ACCENT.sub);
-  g.add(f.root);
-  spins.push(f.spin);
+  const fan = fans[0];
+  if (fan) {
+    const f = fanPart(fan.spec, STOCK_FAN.d, STOCK_FAN.depth);
+    f.root.position.set(cx, -cy, top + 20 + STOCK_FAN.depth / 2);
+    g.add(tag(f.root, fan.id));
+    spins.push({ ...f.spin, needs: 'cpufan', gain: 0 });
+  }
   screws(g, corners(c, 100), Z + 320, 34); // the push pins
   return vane;
 }
+
+/** A fan's number on its host (`<host's slot>.fan<k>`). */
+const spotOf = (fan: FanFit) => Number(fan.slot.slice(fan.slot.lastIndexOf('.fan') + 4));
 
 /** A tower fin: a plate across the stack (x, z), its top corners cut and a shallow notch in the middle, `t` thick along y. */
 function finPlate(w: number, h: number, t: number) {
@@ -98,11 +126,12 @@ function finPlate(w: number, h: number, t: number) {
   return new ExtrudeGeometry(s, { depth: t, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, t / 2, 0);
 }
 
-function tower(g: Group, spins: Spin[]): MeshStandardMaterial {
-  const c = COOLER, Z = BOARD_Z, base = Z + 420, top = Z + 2500;
+function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMaterial {
+  const c = COOLER, Z = BOARD_Z, base = TOWER_BASE, top = TOWER_TOP;
   plate(g);
   g.add(softBox({ x: c.x + 120, y: c.y + 120, w: c.w - 240, h: c.h - 240 }, Z + 320, base, alu(METAL.metal), 30));
-  const slab = towerFanRect(), fin = { x: c.x + 40, y: c.y + 50, w: slab.x - 24 - (c.x + 40), h: c.h - 160 };
+  // the fins stand between the two fan spots
+  const east = towerFanRect(0), west = towerFanRect(1), finX = west.x + west.w + 24, fin = { x: finX, y: c.y + 50, w: east.x - 24 - finX, h: c.h - 160 };
   // the fin plates, as the 2D rails: one every 40 units across the stack
   const plates: { x: number; y: number; z: number }[] = [];
   for (let y = fin.y + 14; y + 22 < fin.y + fin.h - 8; y += 40) plates.push({ x: fin.x + fin.w / 2, y: -(y + 11), z: base });
@@ -114,13 +143,15 @@ function tower(g: Group, spins: Spin[]): MeshStandardMaterial {
     const px = fin.x + fin.w * (0.2 + k * 0.28);
     g.add(tube(rounded([[px, yn, base - 60], [px, yn, top + 30], [px, ys, top + 30], [px, ys, base - 60]], 110, 6), 15, cu, 12));
   }
-  // the bracket across the south end, and the fan on the east end, its axis along the fins
+  // the bracket across the south end, and the fans fitted on the ends, their axes along the fins (the light on the face that looks out)
   g.add(softBox({ x: c.x + 30, y: c.y + c.h - 100, w: c.w - 60, h: 70 }, Z + 320, Z + 520, alu(METAL.metal), 20));
-  const d = Math.min(slab.h, top - base), f = squareFan(d, slab.w, { ring: ACCENT.tower, ringSide: 1, frame: ACCENT.sub });
-  f.root.position.set(slab.x + slab.w / 2, -(slab.y + slab.h / 2), base + (top - base) / 2);
-  f.root.rotation.y = Math.PI / 2;
-  g.add(f.root);
-  spins.push({ ...f.spin, fixed: ACCENT.tower });
+  for (const fan of fans) {
+    const spot = spotOf(fan), r = towerFanRect(spot), f = fanPart(fan.spec, Math.min(r.h, top - base), r.w, spot ? -1 : 1);
+    f.root.position.set(r.x + r.w / 2, -(r.y + r.h / 2), base + (top - base) / 2);
+    f.root.rotation.y = Math.PI / 2;
+    g.add(tag(f.root, fan.id));
+    spins.push({ ...f.spin, needs: 'cpufan', fixed: ACCENT.tower });
+  }
   return finM;
 }
 
@@ -182,10 +213,10 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   return side;
 }
 
-/** The cooler on the CPU, by its spec's `visual` (the loop's hoses are `hose`'s). */
-export function coolerModel(visual: string): Model {
+/** The cooler on the CPU, by its spec's `visual` (the loop's hoses are `hose`'s), with the fans fitted on its spots: without any, a bare heatsink. */
+export function coolerModel(visual: string, fans: readonly FanFit[] = []): Model {
   const root = new Group(), spins: Spin[] = [];
-  const m = visual === 'cooler-liquid' ? liquid(root, spins) : visual === 'cooler-tower' ? tower(root, spins) : stock(root, spins);
+  const m = visual === 'cooler-liquid' ? liquid(root, spins) : visual === 'cooler-tower' ? tower(root, spins, fans) : stock(root, spins, fans);
   return { root, spins, skin: [m] };
 }
 
@@ -199,24 +230,30 @@ function radiatorDepth(at: RadiatorAt): number {
 /** The depth of the radiator's barbs, where the tubes come to it (the half of it nearer the board). */
 export const barbZ = (at: RadiatorAt): number => FAN_ZC - radiatorDepth(at) / 2 + 170;
 
+/** The radiator's fan spot `k` of `count`, on its inboard side, and how wide a fan it takes. */
+export function radiatorFanSpot(fit: RadiatorFit, k: number, count: number): { r: RectLike; d: number } {
+  const fr = frameOf(fit.mount, fit.end), { L, S } = fr, CORE = Math.round(S * 0.5), GAP = 10, seg = (L - 2 * TANK + 20) / count;
+  return { r: fr.rect(TANK - 10 + k * seg, CORE + GAP, seg, S - CORE - GAP), d: Math.min(seg, FAN_MAX) * 0.92 };
+}
+
 /**
- * The radiator on its mount (`ids`: the fan mounts it covers, in order along it; their cables run its fans). `grade` sets the fin pitch and the
- * tanks' stripes, as in 2D.
+ * The radiator on its mount (`ids`: the fan mounts it covers, in order along it). `fans`: those fitted on them, each on its mount's cable. `grade`
+ * sets the fin pitch and the tanks' stripes, as in 2D.
  */
-export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly string[]): Model {
+export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly string[], fans: readonly FanFit[] = []): Model {
   const root = new Group(), spins: Spin[] = [], at = { fit, count: ids.length };
-  const fr = frameOf(fit.mount, fit.end), { L, S } = fr, CORE = Math.round(S * 0.5), GAP = 10, D = radiatorDepth(at), z0 = FAN_ZC - D / 2, z1 = FAN_ZC + D / 2;
+  const fr = frameOf(fit.mount, fit.end), { L, S } = fr, CORE = Math.round(S * 0.5), D = radiatorDepth(at), z0 = FAN_ZC - D / 2, z1 = FAN_ZC + D / 2;
   const cu0 = TANK - 10, cuL = L - 2 * TANK + 20, side = fit.mount.side as 'front' | 'top';
-  const box = new BoxGeometry(1, 1, 1), finM = alu(0x6f7a9c, 0.36), tankM = alu(METAL.hi, 0.3), dark = mat(0x0b0f1c, { roughness: 0.6 });
+  const box = new BoxGeometry(1, 1, 1), tankM = alu(METAL.hi, 0.3), dark = mat(0x0b0f1c, { roughness: 0.6 });
   const item = (r: RectLike, za: number, zb: number) => ({ x: r.x + r.w / 2, y: -(r.y + r.h / 2), z: (za + zb) / 2, sx: r.w, sy: r.h, sz: zb - za });
-  // the core: thin fin plates across it (the 2D ladder), the flat coolant tubes through them and a rail along each edge
-  const pitch = grade === 3 ? 11 : grade === 2 ? 16 : 22, fins = [];
-  for (let u = cu0 + 14; u < cu0 + cuL - 10; u += pitch) fins.push(item(fr.rect(u, 10, 3, CORE - 20), z0, z1));
-  root.add(instanced(box, finM, fins));
+  // the core: the fin ladder painted on its faces (plates this thin shimmer from afar, the painted ones blend into one tone), the flat coolant tubes
+  // standing a little proud of it and a rail along each long edge
+  const pitch = grade === 3 ? 11 : grade === 2 ? 16 : 22, n = cuL / pitch;
+  root.add(instanced(box, mat(0xffffff, { map: side === 'front' ? tiled(finLadder('v'), 1, n) : tiled(finLadder('u'), n, 1), metalness: 0.5, roughness: 0.5 }), [item(fr.rect(cu0, 4, cuL, CORE - 8), z0, z1)]));
   const flats = [];
-  for (let z = z0 + 50; z < z1 - 40; z += 110) flats.push(item(fr.rect(cu0, 14, cuL, CORE - 28), z, z + 18));
+  for (let z = z0 + 50; z < z1 - 40; z += 110) flats.push(item(fr.rect(cu0, 0, cuL, CORE), z, z + 18));
   root.add(instanced(box, dark, flats));
-  root.add(instanced(box, tankM, [item(fr.rect(cu0, 0, cuL, 10), z0, z1), item(fr.rect(cu0, CORE - 10, cuL, 10), z0, z1)]));
+  root.add(instanced(box, tankM, [item(fr.rect(cu0, 0, cuL, CORE), z0 - 8, z0 + 4), item(fr.rect(cu0, 0, cuL, CORE), z1 - 4, z1 + 8)]));
   // the end tanks, each with its groove and the grade's stripes on the face toward the glass; the fill port on the far one
   const stripe = mat(ACCENT.liquid, { roughness: 0.4 });
   for (const first of [true, false]) {
@@ -228,11 +265,12 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
   }
   const fill = fr.P(L - 100, 42);
   screws(root, [fill], z1 + 20, 20);
-  // one fan per mount on the inboard side
-  const seg = cuL / ids.length;
+  // the fans fitted on the mounts it covers, on the inboard side
   ids.forEach((id, k) => {
-    const f = caseFan(id, side, fr.rect(cu0 + k * seg, CORE + GAP, seg, S - CORE - GAP), FAN_ZC, FAN_MAX);
-    root.add(f.root);
+    const fan = fans.find((x) => x.slot === id);
+    if (!fan) return;
+    const f = caseFan(fan, side, radiatorFanSpot(fit, k, ids.length).r, FAN_ZC, FAN_MAX);
+    root.add(tag(f.root, fan.id));
     spins.push(f.spin);
   });
   // the barbs the tubes plug into, on the inboard face of the tank nearer the pump

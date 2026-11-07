@@ -259,8 +259,8 @@ export const STOCK_VANES_R = 630;
 /** The round fan (or the loop's pump impeller) of the stock cooler and the loop: its blade length and count. The art and the airflow lens both read these. */
 export const COOLER_FANS = { stock: { r: 300, blades: 7 }, liquid: { r: 360, blades: 5 } } as const;
 
-/** The tower's fan, seen edge-on: a slab on the east end of the cooler, as tall as its fins (it blows west through them). */
-export const towerFanRect = (): Rect => ({ x: COOLER.x + COOLER.w - 40 - 170, y: COOLER.y + 50, w: 170, h: COOLER.h - 160 });
+/** A tower fan, seen edge-on: a slab on an end of the cooler, as tall as its fins. Both blow west: spot 0 on the east end pushes through the fins, spot 1 on the west end pulls. */
+export const towerFanRect = (spot = 0): Rect => ({ x: spot ? COOLER.x + 40 : COOLER.x + COOLER.w - 40 - 170, y: COOLER.y + 50, w: 170, h: COOLER.h - 160 });
 
 /** Where a round cooler's fan sits and how big it is (`visual` is the cooler spec's: `cooler-liquid` the pump, else the stock one; the tower's is `towerFanRect`). */
 export function coolerFanAt(visual: string): { x: number; y: number; r: number; blades: number } {

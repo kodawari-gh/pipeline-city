@@ -142,6 +142,8 @@ export function airflowModel(i: AirIn): AirModel {
   const running = s.powered && !s.power.off;
   const cable = (id: string) => s.cables.find((c) => c.id === id)?.connected ?? true;
   const hub = cable('sysfan');
+  /** Is a fan fitted on this mount? A case only offers the mounts. */
+  const fitted = (id: string) => s.devices.some((d) => d.kind === 'fan' && d.slot === id);
 
   // the heat zones and the local fans come from the components themselves (`AIR_SOURCES`): this model knows no part
   const ctx: AirCtx = { s, slots: i.slots, live: running && !s.power.tripped };
@@ -177,21 +179,21 @@ export function airflowModel(i: AirIn): AirModel {
     return { id, pts, intake, kind: intake ? 'in' : 'out', port: intake ? [rect.x, cy] : [cx, cy], span: rect, state: !on ? 'dead' : running ? 'on' : 'idle', strength: on ? strength : 0, fanIds: [], picks: [] };
   };
   for (const m of i.mounts) {
-    if (radIds.has(m.id)) continue;
+    if (radIds.has(m.id) || !fitted(m.id)) continue;
     const on = hub && cable(`fan:${m.id}`);
     lanes.push({ ...make(m.id, m.side, m.rect, on, 1), fanIds: [`case:${m.id}`] });
     mounts.push({ id: m.id, rect: m.rect, state: !on ? 'dead' : running ? 'on' : 'idle', fanIds: [`case:${m.id}`] });
   }
-  if (!i.rearFitted) { // a grille only: air leaves it by pressure, weakly
+  if (!i.rearFitted || !fitted('rear')) { // a grille only: air leaves it by pressure, weakly
     lanes.push(make('rear', 'rear', i.rear, true, 0.3));
   }
   if (i.radiator && i.radiator.ids.length) {
-    const r = i.radiator, share = hub ? r.ids.filter((id) => cable(`fan:${id}`)).length / r.ids.length : 0, fanIds = r.ids.map((id) => `radiator:${id}`);
+    const r = i.radiator, share = hub ? r.ids.filter((id) => fitted(id) && cable(`fan:${id}`)).length / r.ids.length : 0, fanIds = r.ids.map((id) => `radiator:${id}`);
     lanes.push({ ...make(`rad-${r.side}`, r.side, r.rect, share > 0, 0.4 + 0.6 * share), fanIds });
     mounts.push({ id: `rad-${r.side}`, rect: r.rect, state: share <= 0 ? 'dead' : running ? 'on' : 'idle', fanIds });
   }
   // the fans of the components (cooler, graphics cards, sinks, PSU): a short stream from each toward the nearest way out of the case
-  const outlets: Pt[] = [[rearX + 80, rearY], ...i.mounts.filter((m) => m.side === 'top').map((m): Pt => [mid(m.rect)[0], m.rect.y + m.rect.h])];
+  const outlets: Pt[] = [[rearX + 80, rearY], ...i.mounts.filter((m) => m.side === 'top' && fitted(m.id)).map((m): Pt => [mid(m.rect)[0], m.rect.y + m.rect.h])];
   for (const f of localFans) {
     if (f.noStream) continue;
     const from = f.rotor ? [f.rotor.x, f.rotor.y] as Pt : mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));

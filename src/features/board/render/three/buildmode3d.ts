@@ -16,9 +16,9 @@ import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, nodeKind, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
-import { boardSlots, deviceSpec, freeSlots, slotAccepts, slotFits, type Board } from '@/features/board/sim/board';
+import { boardSlots, deviceSpec, fanHost, freeSlots, slotAccepts, slotFits, type Board } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
-import { BOARD_TIERS, CASE_TIERS, caseMounts, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
+import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
 import { startBaker } from './bake';
@@ -50,11 +50,14 @@ const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it. */
+export const motionOf = (kind: string, slot: string): string => (kind === 'fan' && !fanHost(slot) ? `fan-${slot.replace(/\d+$/, '')}` : kind);
+
 /** The bin: every case, board and part kind that has a 3D model in the machine. */
 export function binParts(): BinPart[] {
   const out: BinPart[] = CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, kind: 'case', tier: c.tier }));
   for (const b of BOARD_TIERS) out.push({ id: `board${b.tier}`, name: `${b.name} board`, kind: 'board', tier: b.tier });
-  for (const k of ['cpu', 'cooler', 'radiator', 'ram', 'vrm-sink', 'ram-sink', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu'] as const) for (const s of specsOfKind(k)) out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
+  for (const k of ['cpu', 'cooler', 'radiator', 'fan', 'ram', 'vrm-sink', 'ram-sink', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu'] as const) for (const s of specsOfKind(k)) out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
   return out;
 }
 
@@ -297,7 +300,6 @@ export class BuildStage {
   private objectOf(node: string): Object3D | null {
     const root = this.machine.root;
     if (isCableNode(node)) return findById(root, 'cable.' + node.slice(6));
-    if (node.startsWith('fan:')) return findById(root, 'case:' + node.slice(4));
     if (isDevNode(node)) {
       const d = this.board.devices.find((x) => devNode(x.id) === node);
       if (!d) return null;
@@ -378,7 +380,7 @@ export class BuildStage {
     const d = this.board.devices.find((x) => devNode(x.id) === node);
     if (!d) return null;
     const kind = deviceSpec(d).kind;
-    await this.unseat(node, kind);
+    await this.unseat(node, motionOf(kind, d.slot));
     const r = this.game.uninstall(d.id);
     if (!r.ok) { this.note(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
     undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock });
@@ -403,7 +405,7 @@ export class BuildStage {
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
     this.rebuild();
     const node = devNode(r.deviceId ?? '');
-    await this.seat(node, deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind);
+    await this.seat(node, motionOf(deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, u.slot));
   }
 
   /** Plug in the cables a part just fitted needs. */
@@ -464,32 +466,12 @@ export class BuildStage {
         else {
           this.note(`Fit ${spec.name} in ${slot}`);
           this.rebuild();
-          await this.seat(devNode(put.deviceId ?? ''), spec.kind);
+          await this.seat(devNode(put.deviceId ?? ''), motionOf(spec.kind, slot));
           await this.plugNeeded();
         }
       }
       for (const u of undo.reverse()) await this.putBack(u);
       await this.plugNeeded();
-    });
-  }
-
-  /** The case fans that can be swapped (the mounts a radiator covers have none). */
-  fanMounts(): string[] { return caseMounts(this.board.caseTier).filter((m) => !!findById(this.machine.root, 'case:' + m)); }
-
-  /** Swap a case fan: unplug its cable, unscrew and lift it out, put it back, plug it in. */
-  serviceFan(mount: string): Promise<void> {
-    return this.job(async () => {
-      const id = `fan:${mount}`, plugged = !!this.cables[id];
-      await this.door(true);
-      this.note(`Unplug the fan cable (${mount})`);
-      if (plugged) { await this.play(cableNode(id), 'cable', 'out'); this.game.disconnectCable(id); this.rebuild(); }
-      // (it comes off its own wall first: the mount's id starts with its side)
-      const motion = `fan-${mount.replace(/\d+$/, '')}`;
-      this.note(`Take out the fan (${mount})`);
-      await this.play('fan:' + mount, motion, 'out');
-      this.note(`Put the fan back (${mount})`);
-      await this.play('fan:' + mount, motion, 'in');
-      if (plugged) { this.game.connectCable(id); this.rebuild(); await this.play(cableNode(id), 'cable', 'in'); this.note(`Plug in the fan cable (${mount})`); }
     });
   }
 

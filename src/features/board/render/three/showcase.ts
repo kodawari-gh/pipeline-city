@@ -5,14 +5,15 @@ import { Box3, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D }
 import { readTheme, type Theme } from '@/core/render/theme';
 import { extrude, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { getSpec, type CardSpec, type NicSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
+import { getSpec, type CardSpec, type FanSpec, type NicSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { DIE, GEO, LAYOUT_CASE, LAYOUT_TIER, PKG, setLayoutTier } from '../layout/layout';
+import { DIE, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, PKG, fanLen, setLayoutTier } from '../layout/layout';
 import { card3d } from './card3d';
 import { caseModel } from './case3d';
 import { coolerModel } from './cooler3d';
+import { fanPart } from './fans3d';
 import { nvmeStick, sataDrive, type Raise } from './parts3d';
 import { ramStick } from './ram3d';
 
@@ -109,6 +110,11 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
     }
     case 'cpu': return upright(withLayout(() => cpuModel()));
     case 'cooler': return upright(withLayout(() => coolerModel((spec as { visual: string }).visual).root));
+    // (faces the viewer; a 40 mm fan is half as thick as the others)
+    case 'fan': {
+      const fs = spec as FanSpec;
+      return centred(fanPart(fs, fanLen(fs.size), fs.size > 40 ? FAN_W : FAN_W / 2).root);
+    }
     case 'storage': {
       const kind = driveKindOf((spec as StorageSpec).visual);
       return upright(withLayout(() => {

@@ -179,14 +179,17 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
   return g;
 }
 
-/** A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`. */
-export function fanRotor(r: number, n: number, blade: Material, hub: Material): Group {
+/**
+ * A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`.
+ * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`).
+ */
+export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number } = {}): Group {
   const rotor = new Group(), hr = r * 0.3;
   const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, 28).rotateX(Math.PI / 2), hub);
   const dome = new Mesh(new SphereGeometry(hr, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
   rotor.add(place(hubM), place(dome));
-  const g = fanBlade(hr * 0.92, r * 0.97, r * 0.62);
+  const g = fanBlade(hr * 0.92, r * 0.97, r * (o.chord ?? 0.62), o.pitch === undefined ? {} : { pitch: o.pitch });
   for (let k = 0; k < n; k++) {
     const b = place(new Mesh(g, blade));
     b.rotation.z = (k / n) * Math.PI * 2;
@@ -195,19 +198,28 @@ export function fanRotor(r: number, n: number, blade: Material, hub: Material): 
   return rotor;
 }
 
-/** A square fan frame `d` wide and `depth` deep round the z axis (centred): a round throat and a screw hole in each corner. */
-export function fanFrame(d: number, depth: number): BufferGeometry {
-  const h = d / 2, s = new Shape();
-  s.moveTo(-h, -h).lineTo(h, -h).lineTo(h, h).lineTo(-h, h).closePath();
+/** A fan's throat radius and how far off its axis its four screws stand (along x and y), in parts of its width: the same on every size, as on a real fan. */
+export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
+
+/**
+ * A fan's flange round the z axis (centred, `t` thick), for a fan `d` wide: a square plate with rounded corners, a round throat and a screw hole in
+ * each corner. A case's fan mount is the same plate, `w` wide, so its holes meet the fan's.
+ */
+export function fanFlange(d: number, t: number, w = d): BufferGeometry {
+  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006), s = new Shape();
+  s.moveTo(-h + c, -h).lineTo(h - c, -h).absarc(h - c, -h + c, c, -Math.PI / 2, 0, false);
+  s.lineTo(h, h - c).absarc(h - c, h - c, c, 0, Math.PI / 2, false);
+  s.lineTo(-h + c, h).absarc(-h + c, h - c, c, Math.PI / 2, Math.PI, false);
+  s.lineTo(-h, -h + c).absarc(-h + c, -h + c, c, Math.PI, Math.PI * 1.5, false);
   const throat = new Path();
-  throat.absarc(0, 0, d * 0.47, 0, Math.PI * 2, true);
+  throat.absarc(0, 0, d * FAN_THROAT, 0, Math.PI * 2, true);
   s.holes.push(throat);
   for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
     const p = new Path();
-    p.absarc(x * d * 0.43, y * d * 0.43, d * 0.03, 0, Math.PI * 2, true);
+    p.absarc(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 0, Math.PI * 2, true);
     s.holes.push(p);
   }
-  return extrude(s, { depth, bevelEnabled: true, bevelSize: d * 0.01, bevelThickness: d * 0.01, bevelSegments: 1, curveSegments: 40 }).translate(0, 0, -depth / 2);
+  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 48 }).translate(0, 0, -t / 2 + b);
 }
 
 /**

@@ -4,24 +4,50 @@ import { radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { radiatorFit, radiatorPorts } from '../cooler';
 import { COOLER, setLayoutTier } from '../layout/layout';
-import { barbZ, coolerModel, hose, hoseEnds, radiatorModel } from './cooler3d';
+import { barbZ, coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel } from './cooler3d';
 import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
+import { getSpec, type FanSpec } from '../../sim/specs';
+import { findById } from '@/core/render/three/pick';
+import type { FanFit } from './fans3d';
 
 const rad = (side: 'top' | 'front') => {
   const span = radiatorSpan(side)!;
   return { span, fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length };
 };
+const fit = (spec: string, slot: string): FanFit => ({ id: `d-${slot}`, slot, spec: getSpec(spec) as FanSpec });
 
 describe('the 3D coolers', () => {
-  it('stands every cooler on its plate over the CPU, with its fan (and on the loop the ring light) for the live frame', () => {
+  it('stands every cooler on its plate over the CPU, a bare heatsink with nothing to spin (and on the loop the ring light and the impeller)', () => {
     setLayoutTier(3, 3);
-    for (const [visual, spins] of [['cooler-stock', 1], ['cooler-tower', 1], ['cooler-liquid', 2]] as const) {
+    for (const [visual, spins] of [['cooler-stock', 0], ['cooler-tower', 0], ['cooler-liquid', 2]] as const) {
       const m = coolerModel(visual), b = new Box3().setFromObject(m.root);
       expect(m.spins.length, visual).toBe(spins);
       expect(b.min.z, visual).toBeGreaterThanOrEqual(BOARD_Z + 250);
       expect(b.min.x, visual).toBeGreaterThanOrEqual(COOLER.x - 1);
       expect(b.max.x, visual).toBeLessThanOrEqual(COOLER.x + COOLER.w + 1);
     }
+  });
+
+  it('shows the fans fitted on a heatsink, each on the CPU fan cable, inside its spot and picked as itself', () => {
+    setLayoutTier(3, 3);
+    for (const [visual, fans] of [['cooler-stock', [fit('fan92', 'cooler0.fan0')]], ['cooler-tower', [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')]]] as const) {
+      const m = coolerModel(visual, fans), b = new Box3().setFromObject(m.root);
+      expect(m.spins.map((s) => s.needs), visual).toEqual(fans.map(() => 'cpufan'));
+      expect(b.min.x, visual).toBeGreaterThanOrEqual(COOLER.x - 1);
+      expect(b.max.x, visual).toBeLessThanOrEqual(COOLER.x + COOLER.w + 1);
+      fans.forEach((f, k) => {
+        // (its light stands a little proud of its face)
+        const o = findById(m.root, f.id)!, c = new Box3().setFromObject(o, true), spot = coolerFanBox(visual, k)!, proud = 16;
+        expect(c.min.x, f.slot).toBeGreaterThanOrEqual(spot.r.x - proud);
+        expect(c.max.x, f.slot).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
+        expect(c.min.z, f.slot).toBeGreaterThanOrEqual(spot.z0 - proud);
+        expect(c.max.z, f.slot).toBeLessThanOrEqual(spot.z1 + proud);
+      });
+    }
+  });
+
+  it('has no fan spot on the liquid block', () => {
+    expect(coolerFanBox('cooler-liquid', 0)).toBeNull();
   });
 
   it('hangs the loop\'s two hoses from the pump\'s ports to the radiator\'s barbs, whichever side it is bolted on', () => {
@@ -43,11 +69,18 @@ describe('the 3D coolers', () => {
     }
   });
 
-  it('gives a radiator one fan per mount it covers, each on its mount\'s cable', () => {
+  it('shows a radiator bare, and a fan only on the mounts that have one, each on its mount\'s cable', () => {
     setLayoutTier(3, 3);
     for (const side of ['top', 'front'] as const) {
-      const r = rad(side), m = radiatorModel(r.fit, 2, r.span.ids);
-      expect(m.spins.map((s) => s.needs), side).toEqual(r.span.ids.map((id) => 'fan:' + id));
+      const r = rad(side), ids = r.span.ids, bare = radiatorModel(r.fit, 2, ids);
+      expect(bare.spins, side).toEqual([]);
+      const full = radiatorModel(r.fit, 2, ids, ids.map((id) => fit('fan140', id)));
+      expect(full.spins.map((s) => s.needs), side).toEqual(ids.map((id) => 'fan:' + id));
+      const one = radiatorModel(r.fit, 2, ids, [fit('fan140', ids[ids.length - 1]!)]), o = findById(one.root, `d-${ids[ids.length - 1]}`)!;
+      expect(one.spins.map((s) => s.needs), side).toEqual(['fan:' + ids[ids.length - 1]]);
+      const spot = radiatorFanSpot(r.fit, ids.length - 1, ids.length).r;
+      expect(o.position.x, side).toBeCloseTo(spot.x + spot.w / 2, 3);
+      expect(-o.position.y, side).toBeCloseTo(spot.y + spot.h / 2, 3);
     }
   });
 });

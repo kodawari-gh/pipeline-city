@@ -1,10 +1,20 @@
 // Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`): the lenses read them, and the empty ones get a drop box.
 import type { Snapshot } from '@/worker/protocol';
-import { BOARD_TIERS } from '../../sim/specs';
+import { BOARD_TIERS, getSpec, type FanSpots } from '../../sim/specs';
 import { tpmRect } from '@/core/render/accelart';
-import { radiatorSpan } from '@/features/room/render/desk/props/case';
+import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { slotRect as storageSlotRect } from '@/features/storage/render/drives';
+import { towerFanRect } from '../cooler';
+import { sinkFanRect } from '../devices';
 import { COOLER, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, LAYOUT_TIER, MONITOR, PCIE_RAILS, PKG, PSU, RAM_SINK, VRM_SINK, type Rect } from '../layout/layout';
+
+/** Where a heatsink's fan spot `k` is, seen from the glass: the stock fan over the whole plate, a tower's on its ends, a sink's on its east end. */
+function hostSpotRect(kind: string, visual: string | undefined, k: number): Rect | null {
+  if (kind === 'cooler') return visual === 'cooler-tower' ? towerFanRect(k) : COOLER;
+  if (kind === 'vrm-sink') return sinkFanRect(VRM_SINK);
+  if (kind === 'ram-sink') return sinkFanRect(RAM_SINK);
+  return null;
+}
 
 /** Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`). */
 export function slotRects(s: Snapshot): Map<string, Rect> {
@@ -23,5 +33,11 @@ export function slotRects(s: Snapshot): Map<string, Rect> {
   for (const side of ['front', 'top'] as const) { const span = radiatorSpan(side); if (span) m.set(`rad-${side}`, span.rect); }
   add('sata', slots.sata ?? 0, (i) => storageSlotRect('sata' + i));
   add('m2', slots.m2 ?? 0, (i) => storageSlotRect('m2' + i));
+  // the fan spots: the case's mounts, and those of the heatsinks fitted
+  for (const f of fanMounts()) m.set(f.id, f.rect);
+  for (const d of s.devices) {
+    const spec = getSpec(d.spec) as { visual?: string; fanSpots?: FanSpots } | undefined;
+    for (let k = 0; k < (spec?.fanSpots?.n ?? 0); k++) { const r = hostSpotRect(d.kind, spec?.visual, k); if (r) m.set(`${d.slot}.fan${k}`, r); }
+  }
   return m;
 }

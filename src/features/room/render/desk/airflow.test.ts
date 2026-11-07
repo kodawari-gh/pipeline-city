@@ -13,14 +13,14 @@ import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import { emptyScene } from '@/core/render/interact';
 
-/** A running Mid tower: a CPU at `cpuC`, fans cabled as `plugged` says (default: all). */
+/** A running Mid tower with a fan on every mount: a CPU at `cpuC`, fans cabled but for `unplug`. */
 function running(cpuC = 40, unplug: string[] = [], over: Partial<Snapshot> = {}): AirIn {
   setLayoutTier(2, 2);
   const mounts: AirMount[] = fanMounts();
   const ids = ['sysfan', ...mounts.map((m) => `fan:${m.id}`)];
   const s = snap({
     powered: true, power: { vrmLossW: 2, totalW: 54, budgetW: 250, psuFactor: 1, off: false, tripped: false },
-    devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0', powerW: 0 }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0', powerW: 13, tempC: cpuC })],
+    devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0', powerW: 0 }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0', powerW: 13, tempC: cpuC }), ...mounts.map((m) => dev({ id: `f-${m.id}`, kind: 'fan', spec: 'fan120', slot: m.id }))],
     cables: ids.map((id) => ({ id, name: id, connected: !unplug.includes(id) })) as Snapshot['cables'],
     ...over,
   });
@@ -38,6 +38,17 @@ describe('the airflow lens model', () => {
     for (const l of caseLanes(m)) expect(l.intake).toBe(l.id.startsWith('front'));
     expect(caseLanes(m).every((l) => l.state === 'on')).toBe(true);
     expect(caseLanes(m).every((l) => l.fanIds.length === 1 && l.fanIds[0]!.startsWith('case:'))).toBe(true);
+  });
+
+  it('a mount with no fan has no lane: only a fan moves air, and the rear opening still leaks by pressure', () => {
+    const i = running(), rest = i.s.devices.filter((d) => d.slot !== 'front0' && d.slot !== 'rear');
+    const m = airflowModel({ ...i, s: { ...i.s, devices: rest } });
+    expect(caseLanes(m).some((l) => l.id === 'front0')).toBe(false);
+    expect(m.mounts.some((x) => x.id === 'front0' || x.id === 'rear')).toBe(false);
+    expect(m.tags.some((t) => t.id === 'dead.front0')).toBe(false);
+    expect(caseLanes(m).find((l) => l.id === 'rear')).toMatchObject({ state: 'on', strength: 0.3 });
+    const bare = airflowModel({ ...i, s: { ...i.s, devices: i.s.devices.filter((d) => d.kind !== 'fan') } });
+    expect(caseLanes(bare).map((l) => l.id)).toEqual(['rear']);
   });
 
   it('the components bring their own fans: a stream for a cooler, a card, a sink and the PSU, tied to the fan id the view spins', () => {
@@ -208,6 +219,11 @@ describe('the airflow lens model', () => {
     const half = running(40, [`fan:${ids[0]}`]);
     const h = airflowModel({ ...half, radiator: { side: 'front', ids, rect: front[0]!.rect } });
     expect(h.lanes.find((l) => l.id === 'rad-front')!.strength).toBeLessThan(1);
+    // a mount of it with no fan counts as one that does not turn; with none at all the radiator's air stands still
+    const noFan = airflowModel({ ...i, s: { ...i.s, devices: i.s.devices.filter((d) => d.slot !== ids[0]) }, radiator: { side: 'front', ids, rect: front[0]!.rect } });
+    expect(noFan.lanes.find((l) => l.id === 'rad-front')!.strength).toBeLessThan(1);
+    const bare = airflowModel({ ...i, s: { ...i.s, devices: i.s.devices.filter((d) => !ids.includes(d.slot)) }, radiator: { side: 'front', ids, rect: front[0]!.rect } });
+    expect(bare.lanes.find((l) => l.id === 'rad-front')).toMatchObject({ state: 'dead', strength: 0 });
   });
 
   it('colours run blue to amber to red, and more airflow moves faster', () => {

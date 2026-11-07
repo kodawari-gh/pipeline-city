@@ -6,7 +6,7 @@ import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { buildShowcaseModel } from './showcase';
 
 const T = builtinTheme(true);
-const BUILT = ['cpu', 'ram', 'gpu', 'npu', 'nic', 'cooler', 'storage'];
+const BUILT = ['cpu', 'ram', 'gpu', 'npu', 'nic', 'cooler', 'fan', 'storage'];
 
 describe('the showcase models', () => {
   it('builds every spec of the modelled kinds: solid, resting on the floor, centred', () => {

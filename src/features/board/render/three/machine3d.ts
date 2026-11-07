@@ -1,5 +1,5 @@
 // The machine in 3D (docs/GRAPHICS_3D_OVERHAUL.md, phases 2 to 4): the glass-side case, the motherboard with its sockets, every installed part, the
-// case fans with their RGB rings, the power cables and the wall cords. Shapes over the 2D layout (`layout.ts`, y flipped), z out of the wall.
+// fans the player fitted, the power cables and the wall cords. Shapes over the 2D layout (`layout.ts`, y flipped), z out of the wall.
 // The faces wear the 2D renderer's own art (`ArtSurface` + `ArtBaker`): the board from `buildBoard`, each part from its art function, raised
 // parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import { BOARD_TIERS, getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
 import { cardArt, cardOrigin, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
@@ -37,6 +37,7 @@ import {
   LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK, nicY,
 } from '../layout/layout';
 import { IO_PORTS } from '../layout/boardlayout';
+import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
@@ -45,14 +46,14 @@ import { ACCENT, cpuArt, sinkFanRect, vrmSinkArt } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
-import { coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
-import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
+import { coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { caseFan, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
-import { GROMMETS, ioShield, SLOT_BLANK, type GrommetStyle } from './casedetail3d';
+import { GROMMETS, ioShield, rearFanScrews, SLOT_BLANK, type GrommetStyle } from './casedetail3d';
 import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 import { hexNum, skinOf, slotArmour } from '../skins';
 import { DOOR_SECONDS, doorPose } from './casedoor';
@@ -155,8 +156,10 @@ export class Machine3D {
   /** The draggable cables' rigs by kind, built with the cables; where each loose plug was dropped, kept until the parts change. */
   private rigs = new Map<string, CableRig>();
   readonly rest = new Map<string, Rest>();
-  /** The case's own pieces (the shell, the side panel, the fans, the light strips): what a case swap lifts away (`buildmode3d.ts`). */
+  /** The case's own pieces (the shell, the side panel, the fans on its mounts, the light strips): what a case swap lifts away (`buildmode3d.ts`). */
   readonly caseRoots: Object3D[] = [];
+  /** The parts fitted: a heatsink and a radiator show the fans on their spots (`fansOf`). */
+  private devs: readonly DeviceSnap[] = [];
   /** Each rig's tagged group, whether it stands seated, and how its card fades it while it is plugged in. */
   private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
   /** The cables built (their kinds), and the key in the port. */
@@ -187,6 +190,7 @@ export class Machine3D {
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
+    this.devs = s?.devices ?? [];
     this.buildCase(s);
     this.buildBoard(s);
     if (s) {
@@ -244,13 +248,28 @@ export class Machine3D {
     this.door = { kind, cm, t: 0, zoom: 0, board: 0.13, zoomOpen: false, manual: null, inside: false, busy: false };
     this.reveal(CASE_GLASS, FRONT, (z) => { this.door!.zoom = z; }, true);
     this.leds = cm.leds;
-    // the case fans (the mounts the case has), with an RGB ring; a radiator brings its own fans for the mounts it covers
+  }
+
+  /** The fans fitted on these spots, as their hosts build them. */
+  private fanFits(on: (slot: string) => boolean): FanFit[] {
+    return this.devs.filter((d) => d.kind === 'fan' && on(d.slot)).map((d) => ({ id: d.id, slot: d.slot, spec: getSpec(d.spec) as FanSpec }));
+  }
+
+  /** The unseen drop box of each free fan spot, as big as the fan it takes: a case mount's in the case, or on the radiator that covers it; a heatsink's on its end or over its top. */
+  private fanPicks(s: Snapshot, filled: ReadonlySet<string>, pickBox: (r: RectLike, z0: number, z1: number, id: string) => void) {
+    const rad = this.rad;
     for (const m of fanMounts()) {
-      if (this.rad?.span.ids.includes(m.id)) continue;
-      const f = caseFan(m.id, m.side, m.rect, m.side === 'rear' ? REAR_ZC : FAN_ZC, FAN_MAX);
-      this.root.add(tag(f.root, 'case:' + m.id));
-      this.caseRoots.push(f.root);
-      this.spin(cm.rgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
+      if (filled.has(m.id)) continue;
+      const k = rad ? rad.span.ids.indexOf(m.id) : -1, zc = m.side === 'rear' ? REAR_ZC : FAN_ZC;
+      const spot = rad && k >= 0 ? radiatorFanSpot(rad.fit, k, rad.count) : { r: m.rect, d: Math.min(m.side === 'top' ? m.rect.w : m.rect.h, FAN_MAX) * 0.92 };
+      pickBox(spot.r, zc - spot.d / 2, zc + spot.d / 2, m.id);
+    }
+    for (const [id, r] of slotRects(s)) {
+      const host = fanHost(id);
+      if (!host || filled.has(id)) continue;
+      const d = s.devices.find((x) => x.slot === host), visual = (getSpec(d?.spec ?? '') as { visual?: string } | undefined)?.visual ?? '';
+      const box = d?.kind === 'cooler' ? coolerFanBox(visual, Number(id.slice(id.lastIndexOf('.fan') + 4))) : { r, z0: BOARD_Z + 180, z1: BOARD_Z + 560 };
+      if (box) pickBox(box.r, box.z0, box.z1, id);
     }
   }
 
@@ -400,6 +419,7 @@ export class Machine3D {
     this.buildSlots();
     // the other empty sockets (the module's header, the cooler's seat, the heatsink pads) are picked by an unseen box over their rect
     if (s) for (const [id, r] of slotRects(s)) if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(id) && !filled.has(id)) pickBox(r, BOARD_Z, BOARD_Z + 40, id); // (low: the cooler's seat is round the CPU socket, which stands above it and wins the ray)
+    if (s) this.fanPicks(s, filled, pickBox);
     // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
@@ -482,7 +502,7 @@ export class Machine3D {
       case 'cooler': {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
-        const m = this.model(g, coolerModel(visual));
+        const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
         this.fades.push(g);
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);
@@ -572,36 +592,54 @@ export class Machine3D {
       }
       case 'vrm-sink': case 'ram-sink': {
         // the drawing's own fin rails stand up off a base plate (taller and fewer on the big sink), its heat pipe arches over them, its fan blows along them
-        const r = spec.kind === 'vrm-sink' ? VRM_SINK : RAM_SINK, p = vrmSinkArt(T, visual, r), big = visual === 'vrm-sink-big';
+        const r = spec.kind === 'vrm-sink' ? VRM_SINK : RAM_SINK, p = vrmSinkArt(T, visual, r), big = visual === 'vrm-sink-big', spot = p.fan ? sinkFanRect(r) : null;
         p.root.destroy({ children: true }); p.fan?.destroy({ children: true });
         g.userData.sink = true;
         this.obstacles.push(g);
         // as a real regulator sink: a solid anodised block on a thermal pad over the power stages, chamfered at its ends, a brushed plate on its
         // face toward the socket, the drawing's fin rails (`vrmSinkArt`) machined out of its top (taller and fewer on the big sink)
         // (in the board's finish, as the maker would match it: skins.ts)
-        const sk = skinOf(GEO.tier), base = BOARD_Z + 180, body = base + 190, top = BOARD_Z + (big ? 720 : 560);
+        // (a fan's spot at the east end stays low: the block stops short of it and a foot carries the fan)
+        const sk = skinOf(GEO.tier), base = BOARD_Z + 180, body = base + 190, foot = base + 30, top = BOARD_Z + (big ? 720 : 560), block = spot ? { ...r, w: spot.x - 14 - r.x } : r;
         const anod = mat(hexNum(sk.sink), { metalness: 0.5, roughness: 0.46, map: tiled(brushed(), 6, 1) });
-        g.add(rectBox({ x: r.x + 14, y: r.y + 14, w: r.w - 28, h: r.h - 28 }, base - 8, base, mat(0x8e98a8, { roughness: 0.85 })));
-        g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), base, body, anod, 8));
-        if (sk.insert) g.add(rectBox({ x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 }, base + 34, body - 30, mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
+        g.add(rectBox({ x: r.x + 24, y: r.y + 24, w: r.w - 48, h: r.h - 48 }, base - 8, base, mat(0x8e98a8, { roughness: 0.85 })));
+        g.add(slab(shapeOf(outlinePts(block, 0, [44, 44, 44, 44])), base, body, anod, 8));
+        if (spot) g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), base, foot, anod, 6));
+        if (sk.insert) g.add(rectBox({ x: block.x + 60, y: r.y + r.h - 2, w: block.w - 120, h: 6 }, base + 34, body - 30, mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
         for (const f of p.fins ?? []) { const t = Math.max(12, f.h * 0.5); g.add(softBox({ x: f.x + 20, y: f.y + (f.h - t) / 2, w: f.w - 40, h: t }, body - 10, top, anod, 6)); }
         if (p.pipe) {
           const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xb87a4a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
           g.add(rod([px, ya, base + 40], [px, ya, top + 30], 15, cu, 12), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, 12), rod([px, yb, top + 30], [px, yb, base + 40], 15, cu, 12));
         }
-        if (visual === 'vrm-sink-fan') {
-          // the fan at the east end, its axis along the rails
-          const f = sinkFanRect(r), fan = squareFan(Math.min(f.h, top - base) * 0.95, f.w, { blades: 7 });
-          fan.root.position.set(f.x + f.w / 2, -(f.y + f.h / 2), (base + top) / 2);
+        const fit = this.fanFits((slot) => fanHost(slot) === d.slot)[0];
+        if (fit && spot) {
+          // the fan fitted at the east end, its axis along the rails
+          const d = Math.min(spot.h, top - foot) * 0.95, fan = fanPart(fit.spec, d, spot.w);
+          fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + d / 2);
           fan.root.rotation.y = Math.PI / 2;
-          g.add(fan.root);
-          this.spin(fan.spin);
+          g.add(tag(fan.root, fit.id));
+          this.spin({ ...fan.spin, needs: spec.kind === 'vrm-sink' ? 'vrmfan' : 'ramfan' });
         }
         break;
       }
       case 'radiator': {
-        // bolted along the side the player chose, over that side's fan mounts; each of its fans runs on its mount's cable
-        if (this.rad) { const m = this.model(g, radiatorModel(this.rad.fit, radiatorGrade(visual), this.rad.span.ids)); m.root.userData.radiator = true; this.obstacles.push(m.root); }
+        // bolted along the side the player chose, over that side's fan mounts; each fan fitted on them runs on its mount's cable
+        if (this.rad) {
+          const { fit, span } = this.rad, m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids, this.fanFits((slot) => span.ids.includes(slot))));
+          m.root.userData.radiator = true;
+          this.obstacles.push(m.root);
+        }
+        break;
+      }
+      case 'fan': {
+        // on a case mount; a heatsink and a radiator build the fans on their own spots
+        const m = fanMounts().find((x) => x.id === d.slot);
+        if (!m || this.rad?.span.ids.includes(m.id)) return;
+        const f = caseFan({ slot: d.slot, spec: spec as FanSpec }, m.side, m.rect, m.side === 'rear' ? REAR_ZC : FAN_ZC, FAN_MAX);
+        g.add(f.root);
+        if (m.side === 'rear') g.add(rearFanScrews());
+        this.spin(this.caseRgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
+        this.caseRoots.push(g);
         break;
       }
       default: return; // the display is the room's (Room3D shows it)
