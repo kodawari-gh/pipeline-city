@@ -82,10 +82,10 @@ function Monitor() {
         {rows.map((r) => <Tile key={r.id} r={r} on={r === cur} onPick={() => setPick(r.id)} />)}
       </div>
       <div class="os-main">
-        <div class={`os-banner ${b ? b.level : 'ok'}`}>
+        <div class={`os-banner ${s.powered && b ? b.level : 'ok'}`}>
           <span class="os-pulse" />
-          <b>{b ? `Bottleneck: ${b.label}` : 'Nothing holds the machine back'}</b>
-          {b && <span>{b.text}</span>}
+          <b>{!s.powered ? 'The machine is off: switch it on to see live numbers' : b ? `Bottleneck: ${b.label}` : 'Nothing holds the machine back'}</b>
+          {s.powered && b && <span>{b.text}</span>}
         </div>
         {cur && <Detail r={cur} />}
       </div>
