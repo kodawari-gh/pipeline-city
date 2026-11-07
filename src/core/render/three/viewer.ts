@@ -17,8 +17,11 @@ export interface Viewer {
   dispose: () => void;
 }
 
-/** The turn and zoom limits: all the way round, from just under the floor to straight above. */
-export const VIEW_LIMITS = { pitchMin: -0.1, pitchMax: 1.5, zoomMin: 0.25, zoomMax: 2.5 };
+/** What a node of the part may carry in its userData: work before each render (`H`: the view's height in device pixels), and its own disposal. */
+export interface PartHooks { frame?: (cam: PerspectiveCamera, H: number) => void; dispose?: () => void }
+
+/** The turn and zoom limits: all the way round, from just under the floor to straight above; in close enough to read a chip's marking. */
+export const VIEW_LIMITS = { pitchMin: -0.1, pitchMax: 1.5, zoomMin: 0.06, zoomMax: 2.5 };
 /** The shadow map's side by the shadow quality (Off, Low, Med, High, Ultra). */
 const SHADOW_PX = [1, 512, 1024, 2048, 4096];
 const FOV = 28, START = { yaw: 0.6, pitch: 0.4 }, AUTO_SPEED = 0.35;
@@ -65,10 +68,13 @@ export function mountViewer(host: HTMLElement): Viewer {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  let obj: Object3D | null = null, size = new Vector3(1, 1, 1), centre = new Vector3();
+  // a part that wears baked art (`ArtSet`) carries its per-frame work and its disposal in a node's userData
+  let obj: Object3D | null = null, hooks: PartHooks[] = [], size = new Vector3(1, 1, 1), centre = new Vector3();
   let yaw = START.yaw, pitch = START.pitch, zoom = 1, view = frameView(size, centre, zoom, yaw, pitch), auto = true, last = performance.now(), raf = 0, dead = false, idle = 0;
+  // the view's target moved off the part's centre (a right drag), kept inside the part's box
+  const pan = new Vector3(), at = new Vector3(), RIGHT = new Vector3(), UP = new Vector3();
 
-  const goal = (): OrbitView => frameView(size, centre, zoom, yaw, pitch);
+  const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch);
   const place = () => {
     const r = Math.max(size.x, size.y, size.z, 1);
     floor.scale.setScalar(r * 0.8);
@@ -85,10 +91,12 @@ export function mountViewer(host: HTMLElement): Viewer {
     rim.target.position.copy(centre);
   };
   const setObject = (o: Object3D | null) => {
-    if (obj) { scene.remove(obj); disposeTree(obj); }
+    if (obj) { scene.remove(obj); for (const h of hooks) h.dispose?.(); disposeTree(obj); }
     obj = o;
+    hooks = [];
+    pan.set(0, 0, 0);
     if (o) {
-      o.traverse((n) => { n.castShadow = true; });
+      o.traverse((n) => { n.castShadow = true; if (n.userData.frame || n.userData.dispose) hooks.push(n.userData as PartHooks); });
       scene.add(o);
       const b = new Box3().setFromObject(o);
       b.getSize(size);
@@ -128,6 +136,7 @@ export function mountViewer(host: HTMLElement): Viewer {
     camera.near = Math.max(1, dist * 0.05, dist - reach);
     camera.far = dist + reach * 2;
     camera.updateProjectionMatrix();
+    for (const h of hooks) h.frame?.(camera, renderer.domElement.height);
     renderer.render(scene, camera);
   };
 
@@ -140,7 +149,14 @@ export function mountViewer(host: HTMLElement): Viewer {
     const p = down.get(e.pointerId);
     if (!p) return;
     idle = 0;
-    if (down.size === 1) {
+    if (down.size === 1 && (e.buttons & 2 || e.shiftKey)) {
+      // pan: the target follows the pointer across the view's plane
+      const k = view.height / Math.max(1, el.clientHeight);
+      RIGHT.setFromMatrixColumn(camera.matrixWorld, 0);
+      UP.setFromMatrixColumn(camera.matrixWorld, 1);
+      pan.addScaledVector(RIGHT, -(e.clientX - p.x) * k).addScaledVector(UP, (e.clientY - p.y) * k);
+      pan.clamp(at.copy(size).multiplyScalar(-0.5), UP.copy(size).multiplyScalar(0.5));
+    } else if (down.size === 1) {
       yaw -= (e.clientX - p.x) * 0.008;
       pitch = clamp(pitch + (e.clientY - p.y) * 0.008, VIEW_LIMITS.pitchMin, VIEW_LIMITS.pitchMax);
     }
@@ -153,7 +169,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   };
   const onUp = (e: PointerEvent) => { down.delete(e.pointerId); pinch = 0; };
   const onWheel = (e: WheelEvent) => { e.preventDefault(); idle = 0; zoom = clamp(zoom * Math.exp(e.deltaY * 0.0012), VIEW_LIMITS.zoomMin, VIEW_LIMITS.zoomMax); };
-  const reset = () => { yaw = START.yaw; pitch = START.pitch; zoom = 1; idle = 0; };
+  const reset = () => { yaw = START.yaw; pitch = START.pitch; zoom = 1; idle = 0; pan.set(0, 0, 0); };
   el.addEventListener('pointerdown', onDown);
   el.addEventListener('pointermove', onMove);
   el.addEventListener('pointerup', onUp);
@@ -171,6 +187,7 @@ export function mountViewer(host: HTMLElement): Viewer {
       dead = true;
       stopSettings();
       cancelAnimationFrame(raf);
+      for (const h of hooks) h.dispose?.();
       if (obj) disposeTree(obj);
       floor.geometry.dispose();
       (floor.material as MeshStandardMaterial).dispose();

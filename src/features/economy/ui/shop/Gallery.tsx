@@ -65,7 +65,7 @@ export function Gallery() {
             <button key={x.id} role="option" aria-selected={x === item} class={x === item ? 'on' : ''} onClick={() => setIi(i)}>{x.name}</button>
           ))}
         </div>
-        <div class="mute gal-hint">Drag to turn · scroll to zoom · ← → part · ↑ ↓ category · Esc to leave</div>
+        <div class="mute gal-hint">Drag to turn · right-drag to pan · scroll to zoom · ← → part · ↑ ↓ category · Esc to leave</div>
       </main>
     </div>
   );

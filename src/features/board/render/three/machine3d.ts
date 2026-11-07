@@ -45,6 +45,7 @@ import { radiatorFit, radiatorGrade } from '../cooler';
 import { ACCENT, cpuArt, sinkFanRect } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
+import { LV_BOARD, LV_RAISED } from './artset3d';
 import { ArtBaker } from './bake';
 import { coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
@@ -95,7 +96,7 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
  * Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units
  * high). The finest is for the closest view (`LIMITS.heightMin`: about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.
  */
-const LV_BOARD = [0.2, 0.8, 2.4, 7], LV_RAISED = [0.6, 2.4, 7], LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
+const LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
 
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
 export function machineKey(s: Snapshot | null): string {
