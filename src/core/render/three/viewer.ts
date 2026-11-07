@@ -160,6 +160,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   el.addEventListener('pointercancel', onUp);
   el.addEventListener('wheel', onWheel, { passive: false });
   el.addEventListener('dblclick', reset);
+  el.addEventListener('contextmenu', (e) => e.preventDefault()); // the browser's image menu has no place on a 3D view
   resize();
   raf = requestAnimationFrame(frame);
 
