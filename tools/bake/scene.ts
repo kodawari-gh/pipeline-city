@@ -101,7 +101,7 @@ function geometry(g: BufferGeometry, m: Matrix4): { pos: Float32Array; nrm: Floa
  */
 export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
   const r = room;
-  r.frame({ hour: 23, lamp: true, blind: false, screen: { installed: true, powered: true, live: false, text: '' }, router: 1, isp: 0, mail: false, t: 0 }, 1);
+  r.frame({ hour: 23, lamp: true, blind: false, screen: { installed: true, powered: true, live: false, text: '' }, router: 1, isp: 0, ispName: '', mail: false, t: 0 }, 1);
   r.root.updateMatrixWorld(true);
   for (const e of extra) e.updateMatrixWorld(true);
   const toRoom = new Matrix4().copy(r.root.matrixWorld).invert(), blinds = new Set<Object3D>((room as unknown as { blinds: Mesh[] }).blinds);

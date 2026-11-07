@@ -14,8 +14,8 @@
 // `key` stands in for it on what moves. The room's probe is the bounce on all that moves. No light fills from nowhere; the eye adapts to the
 // dark (`localeye.ts`). The sim knows nothing of it.
 import {
-  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  RectAreaLight, SpotLight, Vector2, type Light, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
+  RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
@@ -29,6 +29,7 @@ import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
+import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
@@ -306,7 +307,7 @@ function rugTex(): Texture | null {
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
-export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */ isp: number; mail: boolean; t: number }
+export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */ isp: number; ispName: string; mail: boolean; t: number }
 
 export class Room3D {
   readonly root = new Group();
@@ -340,6 +341,7 @@ export class Room3D {
   private routerTier = 0;
   private readonly ispDots: MeshStandardMaterial[] = [];
   private mailLed!: MeshStandardMaterial;
+  private ispText: { cv: HTMLCanvasElement; tex: CanvasTexture; shown: string } | null = null;
   private routerBuild!: (tier: number) => void;
   private routerSpot!: Mesh;
   private clock: DigitalClock;
@@ -623,6 +625,16 @@ export class Room3D {
       const d = drum(WALL_PLATE.x + WALL_PLATE.w * (0.14 + k * 0.18), WALL_PLATE.y + WALL_PLATE.h * 0.8, 80, 96, WALL_PLATE.w * 0.04, m, 8);
       this.ispDots.push(m);
       R.add(d);
+    }
+    // the plan's name under the lights, small print on the plate (drawn on a canvas when the plan changes)
+    if (typeof document !== 'undefined') {
+      const cv = document.createElement('canvas');
+      cv.width = 512; cv.height = 128;
+      const tex = rawSrgb(cv);
+      const face = new Mesh(new PlaneGeometry(WALL_PLATE.w * 0.84, WALL_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
+      face.position.set(WALL_PLATE.x + WALL_PLATE.w / 2, -(WALL_PLATE.y + WALL_PLATE.h * 0.5), 82);
+      this.ispText = { cv, tex, shown: '\u0000' };
+      R.add(seeThrough(face));
     }
     R.add(socket, plateBox);
     // the letterbox's light: on while an upload waits or goes out
@@ -925,6 +937,15 @@ export class Room3D {
     if (f.router > 0) this.routerBuild(f.router);
     this.ispDots.forEach((m, k) => { m.emissiveIntensity = k < f.isp ? 2 : 0; });
     this.mailLed.emissiveIntensity = f.mail ? 1.2 + 1.2 * Math.sin(f.t * 6) : 0;
+    const it = this.ispText;
+    if (it && it.shown !== f.ispName) {
+      it.shown = f.ispName;
+      const c = it.cv.getContext('2d')!;
+      c.clearRect(0, 0, it.cv.width, it.cv.height);
+      c.fillStyle = '#7fd8ff'; c.font = '600 54px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(f.ispName.toUpperCase(), it.cv.width / 2, it.cv.height / 2, it.cv.width - 24);
+      it.tex.needsUpdate = true;
+    }
     this.clock.set(f.hour);
     steam(this.cup, f.t);
   }

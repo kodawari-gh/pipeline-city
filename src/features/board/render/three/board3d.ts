@@ -609,7 +609,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     cues.frame(menu ? null : s);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
-    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, isp: Number(/\d+$/.exec(s?.net?.isp?.id ?? '')?.[0] ?? 0), mail: !!s?.net && (s.net.uploadsWaiting > 0 || s.net.transfers.some((t) => t.dir === 'up')), t: gt / 1000 }, dt);
+    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, isp: Number(/\d+$/.exec(s?.net?.isp?.id ?? '')?.[0] ?? 0), ispName: s?.net?.isp?.name ?? '', mail: !!s?.net && (s.net.uploadsWaiting > 0 || s.net.transfers.some((t) => t.dir === 'up')), t: gt / 1000 }, dt);
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
     // (a plug the hand still slides in or lets fall keeps it open too)
     const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
