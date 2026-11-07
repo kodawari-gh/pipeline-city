@@ -114,6 +114,20 @@ const capZoom = (c: Camera, overview: View): number => {
 export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(cameraRef)); }
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
 export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
+/** The world as the 3D renderer answers for it (`board3d.ts`): the same anchors and flights, from its own scene and camera. */
+export interface WorldAnchors { anchorsOf(id: string): Anchor[]; flyTo(id: string, opts: FlyOpts): boolean }
+let world3d: WorldAnchors | null = null;
+export function setWorldAnchors(w: WorldAnchors | null): void { world3d = w; }
+/** Every screen rectangle of a world id: for a loose cable its plug, then the sockets that take it (`Interact.rectsFor`). */
+export function anchorsOf(id: string): Anchor[] {
+  if (world3d) return world3d.anchorsOf(id);
+  if (!interactRef || !cameraRef) return [];
+  const f = cameraRef.freeRect();
+  return interactRef.rectsFor(id).map((r) => {
+    const s = cameraRef!.screenRect(r);
+    return { x: s.x, y: s.y, w: s.w, h: s.h, visible: s.x < f.x + f.w && s.x + s.w > f.x && s.y < f.y + f.h && s.y + s.h > f.y };
+  });
+}
 /**
  * Live screen rectangle of a world id (any id in the render/interact.md table: slot ids, device ids, `psu`, `monitor`, `case`,
  * `bay`, `power`, `usb`, `tray`, `held`, `os`, `vrm`, `key:<id>`, `cable.*`, `chipset`, `board`). Client px (relative to
@@ -123,6 +137,7 @@ export interface Anchor { x: number; y: number; w: number; h: number; visible: b
  * Recompute when `cameraRev` (src/game/interaction.ts) changes.
  */
 export function anchorOf(id: string): Anchor | null {
+  if (world3d) return world3d.anchorsOf(id)[0] ?? null;
   if (!interactRef || !cameraRef) return null;
   const r = interactRef.rectsFor(id)[0];
   if (!r) return null;
@@ -143,12 +158,13 @@ export function beginPartDrag(inventoryId: string, event: PointerEvent): void { 
  * `onDone` contract are in docs/render/interact.md ("Flights"). A press, wheel, pinch or another flight cancels it.
  */
 export function flyTo(id: string, opts: FlyOpts = {}): boolean {
+  if (world3d) return world3d.flyTo(id, opts);
   if (!interactRef || !interactRef.rectsFor(id).length) { opts.onDone?.(false); return false; }
   interactRef.flyToId(id, opts);
   return true;
 }
 /** Does the world currently have an object with this id (so `flyTo` / `highlight` can find it)? */
-export function hasTarget(id: string): boolean { return !!interactRef && interactRef.rectsFor(id).length > 0; }
+export function hasTarget(id: string): boolean { return world3d ? world3d.anchorsOf(id).length > 0 : !!interactRef && interactRef.rectsFor(id).length > 0; }
 
 export async function mountBoard(host: HTMLElement) {
   let T: Theme = readTheme();

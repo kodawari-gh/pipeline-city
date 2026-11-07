@@ -258,6 +258,13 @@ type Port = 'usbA' | 'usbC' | 'audio' | 'button';
 const PORTS: Record<CaseKind, Port[]> = { oem: ['usbA', 'usbA', 'audio', 'audio'], matte: ['usbA', 'usbA', 'audio'], gamer: ['usbC', 'usbA', 'usbA', 'audio', 'button'], show: ['usbC', 'usbC', 'usbA', 'usbA', 'audio', 'audio'] };
 const pip = (c: number) => mat(0x0c0c0e, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
+/** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
+const hitPlate = (x: number, y: number, z: number): Mesh => {
+  const o = rectBox({ x: x - 210, y: y - 260, w: 420, h: 260 }, z - 210, z + 210, mat(0, { transparent: true, opacity: 0, depthWrite: false }));
+  o.castShadow = o.receiveShadow = false;
+  return o;
+};
+
 /**
  * The power button, the status lights and the front ports of each kind. The Mini: a square beige button and two lamps on top of its plastic
  * front, the ports and a reset button on its face. The others carry a top I/O panel by the front edge: the Micro a flush round button in a white
@@ -270,6 +277,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   if (k === 'oem') {
     const bx = ex - 60, ty = top - 8, beige = mat(0xd9d0b0, { roughness: 0.55 });
     power.add(softBox({ x: bx - 95, y: ty - 34, w: 190, h: 34 }, zb - 95, zb + 95, beige, 14), rectBox({ x: bx - 60, y: ty - 36, w: 120, h: 3 }, zb - 6, zb + 6, mat(0x8a8468, { roughness: 0.8 })));
+    power.add(hitPlate(bx, ty, zb));
     root.add(power, seeThrough(rectBox({ x: bx - 30, y: ty - 10, w: 60, h: 10 }, zb - 300, zb - 220, on)), seeThrough(rectBox({ x: bx - 30, y: ty - 10, w: 60, h: 10 }, zb - 420, zb - 340, disk)));
     root.add(seeThrough(rectBox({ x: bx - 20, y: ty - 8, w: 40, h: 8 }, zb - 520, zb - 470, err)));
     // the face: a reset button, two USB ports and the audio jacks under the bay covers
@@ -294,6 +302,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
     const alu = mat(0xb9bec6, { map: tiled(brushed(), 2, 1), metalness: 0.8, roughness: 0.28 });
     power.add(post(ix, py, zb, 128, 22, mat(0x8a9099, { metalness: 0.8, roughness: 0.4 }), 64), post(ix, py - 22, zb, 118, 26, alu, 64));
   }
+  power.add(hitPlate(ix, py, zb));
   const ringR = k === 'show' ? 142 : k === 'gamer' ? 136 : 112, ringM = new Mesh(new TorusGeometry(ringR, k === 'gamer' ? 9 : 7, 8, k === 'gamer' ? 6 : 48), on);
   ringM.rotation.x = Math.PI / 2;
   if (k === 'gamer') ringM.rotation.z = Math.PI / 6;

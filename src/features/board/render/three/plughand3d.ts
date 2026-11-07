@@ -312,7 +312,9 @@ export class PlugHand {
     const on = hover(T(this.ray.ray.origin), T(this.ray.ray.direction), l.space, CLEAR, rig.deck.n);
     const goal = on ? V(on) : this.ray.ray.intersectPlane(this.plane.setFromNormalAndCoplanarPoint(up, V(l.pose.at)), new Vector3()) ?? V(l.pose.at);
     // how near the pointer is to the socket, on screen
-    const sp = pre.clone().project(cam), near = sp.z < 1 ? Math.hypot(this.px - (r.left + ((sp.x + 1) / 2) * r.width), this.py - (r.top + ((1 - sp.y) / 2) * r.height)) : Infinity;
+    // (the point in front of the mouth, or the mouth itself: a pointer on the socket you see is near it, whichever way the socket faces)
+    const far = (q: Vector3) => { const s = q.clone().project(cam); return s.z < 1 ? Math.hypot(this.px - (r.left + ((s.x + 1) / 2) * r.width), this.py - (r.top + ((1 - s.y) / 2) * r.height)) : Infinity; };
+    const near = Math.min(far(pre), far(V(rig.seat.at)));
     this.snapped = rig.canSeat && (near <= SNAP_PX || (!!rig.target && this.over === rig.target));
     const w = this.snapped ? 1 : rig.canSeat ? snapWeight(near) : 0;
     // its turn: hanging along its cable (which leaves it along the deck toward its grommet, not down through the board), squared to the socket

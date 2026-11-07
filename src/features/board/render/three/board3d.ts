@@ -8,8 +8,10 @@ import { Box3, Vector3, type Object3D, type WebGLCubeRenderTarget } from 'three'
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
-import { airflowLens, hover, powerLens, selected, INERT_REGIONS } from '@/app/hover';
-import { highlight } from '@/app/interaction';
+import { airflowLens, hover, powerLens, selected, viewInset, INERT_REGIONS } from '@/app/hover';
+import { cameraRev, highlight } from '@/app/interaction';
+import type { FlyOpts } from '@/core/render/camera';
+import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, AwayWatch, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
@@ -27,7 +29,7 @@ import { Probe } from '@/core/render/three/probe';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage } from '@/app/boot';
 import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
@@ -80,6 +82,8 @@ const NIGHT_KEY = 0.03, NIGHT_HIGH = 0.8;
 const MENU_SWAY = 0.07, MENU_S = 9;
 /** The boot screen goes at the latest this long (ms) after the programs have linked, if the room's light has not settled by then. */
 const REVEAL_MS = 4000;
+/** An anchor smaller than this on screen (px) is not comfortably visible: a plug that small is hard to grab. */
+const MIN_TARGET_PX = 10;
 
 /** After the page's next paint: the boot screen shows its stage before the work that holds the page. */
 const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
@@ -206,13 +210,19 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     return v;
   };
-  const overview = (): OrbitView => inRoom(fitRect(roomRect(), LOOK_Z, aspect(), ROOM_ANGLE, 0.9));
+  /** `fitRect` for the part of the screen the HUD leaves free (`viewInset`): the rect centres in it, and fills it by the margin. */
+  const inFree = (r: Box, z: number, from: Pick<OrbitView, 'yaw' | 'pitch' | 'fov'>, margin: number): OrbitView => {
+    const i = viewInset.peek(), fw = Math.max(50, W - i.left - i.right), fh = Math.max(50, H - i.top - i.bottom);
+    const v = fitRect(r, z, fw / fh, from, margin), height = (v.height * H) / fh, k = height / H;
+    return panBy({ ...v, height }, (-(i.left - i.right) / 2) * k, ((i.top - i.bottom) / 2) * k);
+  };
+  const overview = (): OrbitView => inRoom(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9));
   /** Before a game (the title over the live room): the overview, turning slowly a little way each side round its target. */
   const sway = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : MENU_SWAY;
   const menuView = (t: number): OrbitView => { const o = overview(); return inRoom({ ...o, yaw: o.yaw + sway * Math.sin(t / MENU_S) }); };
-  const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
+  const boardView = (): OrbitView => inFree(CASE_IN, BOARD_Z, FLAT, 0.95);
   // close enough that the cooler and the lid have faded (`DEVICE_LOD.die.fade`) and the die's names read
-  const cpuView = (): OrbitView => fitRect(DIE, BOARD_Z + 200, aspect(), FLAT, 0.95);
+  const cpuView = (): OrbitView => inFree(DIE, BOARD_Z + 200, FLAT, 0.95);
   /** The title shows (no game yet): the view turns over the room (`menuView`); the game's start flies it to the overview. */
   let menu = !snapshot.peek();
   let view = menu ? menuView(performance.now() / 1000) : overview(), goal = view;
@@ -240,10 +250,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     goal = inRoom(goal);
   };
-  const flyTo = (v: OrbitView) => { goal = inRoom(clampView(v)); settle(); };
+  /** The flight the tutorial asked for (`flyToId`): told whether the view arrived, or was cut short by the player or another flight. */
+  let pending: ((arrived: boolean) => void) | null = null;
+  const cancelFlight = () => { const p = pending; pending = null; p?.(false); };
+  /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
+  let atOverview = false;
+  const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); settle(); };
   /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
   const jump = (v: OrbitView) => { view = goal = inRoom(v); rail = null; };
-  const flyToRoom = () => flyTo(overview());
+  const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
   /** The first graphics card's die, framed close enough that the shroud has faded (`DEVICE_LOD.gpu.fade`) and the blocks read. */
@@ -274,21 +289,38 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     return p && p.z >= TARGET_Z0 && p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1 ? p : null;
   };
   /** The id under a client point; `raw`: the backdrops too (the board, the case), which hover nothing but take a dropped plug. */
-  const idAt = (e: { clientX: number; clientY: number }, raw = false): string | null => {
+  const idAt = (e: { clientX: number; clientY: number }, raw = false, grab = false): string | null => {
     const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
+    // a loose plug is small and lies among parts: one within a thumb's reach of the pointer is the one meant (not for a drop's raw id)
+    if (grab && !raw && !id?.startsWith('cable.')) { const p = looseNear(e.clientX, e.clientY); if (p) return p; }
     return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
+  };
+  /** The loose plugs' screen centres, measured again after a moment (they fall and the camera moves). */
+  let plugs = { at: -Infinity, key: '', list: [] as { id: string; x: number; y: number }[] };
+  const GRAB_PX = 22;
+  const looseNear = (x: number, y: number): string | null => {
+    const now = performance.now();
+    if (now - plugs.at > 120 || plugs.key !== revKey) {
+      const loose = (snapshot.peek()?.cables ?? []).filter((c) => !c.connected);
+      plugs = { at: now, key: revKey, list: loose.flatMap((c) => { const a = anchorsOf('cable.' + c.id)[0]; return a ? [{ id: 'cable.' + c.id, x: a.x + a.w / 2, y: a.y + a.h / 2 }] : []; }) };
+    }
+    let best: string | null = null, d = GRAB_PX;
+    for (const p of plugs.list) { const k = Math.hypot(p.x - x, p.y - y); if (k <= d) { d = k; best = p.id; } }
+    return best;
   };
   // a cable's plug held in the scene (plughand3d.ts), and the parts dragged in from the inventory or lifted off the board (drag3d.ts)
   const hand = new PlugHand({ machine: () => machine, snapshot: () => snapshot.peek(), toast: (t, x, y) => lift.toast(t, x, y) }, canvas);
   scene.add(hand.root);
-  const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand); // (a die's block is `cpu.fetch`: not an object of its own)
+  const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand, (cx, cy) => { const a = anchorsOf('usb')[0]; return !!a && Math.hypot(cx - (a.x + a.w / 2), cy - (a.y + a.h / 2)) <= Math.max(36, Math.max(a.w, a.h) / 2 + 16); }, (id) => anchorsOf(id)[0] ?? null); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
   /** A press: where, how far it has moved, whether it turns; the part, cable or key it lifts; for a pan, the depth of the surface it grabbed. */
   let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string; depth?: number } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
-    const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e) : null;
+    cancelFlight();
+    atOverview = false;
+    const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e, false, true) : null;
     // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
     // a plug seated in its socket is the socket to the ray: pulling on the socket pulls its cable
     const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null, plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
@@ -332,7 +364,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       }
       return;
     }
-    const id = idAt(e);
+    const id = idAt(e, false, true);
     hover.value = id ? { id, x: e.clientX, y: e.clientY } : null;
     canvas.style.cursor = id ? 'pointer' : '';
   });
@@ -347,6 +379,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   canvas.addEventListener('pointerleave', () => { if (!drag) hover.value = null; });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
+    cancelFlight();
+    atOverview = false;
     const { nx, ny } = ndc(e), a = aspect();
     // the zoom goes toward the surface under the pointer, which stays under it (`zoomOn`): each notch takes the same share of the way to it
     // (a line or a page of a wheel that counts them is about 40 or 800 pixels)
@@ -369,6 +403,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const s = snapshot.peek();
     // a part of a graphics card (`pcie1.lane3`) hovers on its own, a click opens the card
     if (s) id = deviceOfPart(id, s.devices);
+    // an empty drive bay opens the drive shop, as the 2D bay's region does; any other empty socket is only a place to drop on
+    if (/^sata\d+$/.test(id) && s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = 'bay'; return; }
     if (s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = null; return; }
     if (id === 'power') { if (!(s?.power.tripped || s?.phase === 'error')) { selected.value = null; powerButton(); return; } }
     if (id.startsWith('key:') && s) {
@@ -380,8 +416,77 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     selected.value = id;
   };
 
+  // ---- anchors and flights for the tutorial and the cards (the same contract as the 2D renderer: `anchorOf`, `flyTo` in board.ts) ----
+  /** Ids the tutorial and the shop use that stand for another object here (the monitor and the supply stand for their sockets; the bay for its first free mouth). */
+  const ALIAS: Record<string, string[]> = { display0: ['monitor'], atx0: ['psu'], 'atx-plus0': ['psu'], bay: Array.from({ length: 8 }, (_, i) => `sata${i}`) };
+  const objOf = (id: string): Object3D | null => { for (const r of roots()) { const o = findById(r, id); if (o) return o; } return null; };
+  /** The scene id an id stands for: an alias, or the device that fills a slot (the 2D scene answers to both). */
+  const real = (id: string): string => {
+    const a = ALIAS[id]?.find((x) => objOf(x));
+    if (a) return a;
+    if (!objOf(id)) { const d = snapshot.peek()?.devices.find((x) => x.slot === id); if (d && objOf(d.id)) return d.id; }
+    return id;
+  };
+  const plugOf = (o: Object3D): Object3D => { let p: Object3D | null = null; o.traverse((c) => { if (!p && c.userData.plug) p = c; }); return p ?? o; };
+  /** The world boxes an id stands for: an object's; a cable's plug, then (loose) the socket that takes it. */
+  const boxesOf = (id: string): Box3[] => {
+    const o = objOf(real(id));
+    if (!o) return [];
+    if (!id.startsWith('cable.')) return [new Box3().setFromObject(o)];
+    const kind = id.slice(6), out = [new Box3().setFromObject(plugOf(o))], rig = machine?.rig(kind);
+    if (rig?.canSeat && !snapshot.peek()?.cables.find((c) => c.id === kind)?.connected) {
+      const [x, y, z] = rig.seat.at;
+      out.push(new Box3(new Vector3(x - 100, y - 100, z - 100), new Vector3(x + 100, y + 100, z + 100)));
+    }
+    return out;
+  };
+  const freeRect = () => { const i = viewInset.peek(), r = canvas.getBoundingClientRect(); return { x: r.left + i.left, y: r.top + i.top, w: Math.max(50, r.width - i.left - i.right), h: Math.max(50, r.height - i.top - i.bottom) }; };
+  /** A world box as a client rectangle; null behind the eye. `visible`: it meets the part of the screen the HUD leaves free. */
+  const screenBox = (b: Box3): Anchor | null => {
+    if (b.isEmpty()) return null;
+    const r = canvas.getBoundingClientRect(), f = freeRect(), p = new Vector3();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) {
+      p.set(x, y, z).project(camera);
+      if (p.z >= 1) return null;
+      const px = r.left + ((p.x + 1) / 2) * r.width, py = r.top + ((1 - p.y) / 2) * r.height;
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+    // (a target too small to hit counts as not seen: the tutorial then flies in to it)
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, visible: x0 < f.x + f.w && x1 > f.x && y0 < f.y + f.h && y1 > f.y && Math.max(x1 - x0, y1 - y0) >= MIN_TARGET_PX };
+  };
+  const anchorsOf = (id: string): Anchor[] => boxesOf(id).map(screenBox).filter((a): a is Anchor => !!a);
+  const flyToId = (id: string, o: FlyOpts): boolean => {
+    const box = new Box3();
+    // a key shows with its port
+    for (const i of id.startsWith('key:') ? [id, 'usb'] : [id]) for (const b of boxesOf(i)) box.union(b);
+    if (box.isEmpty()) { o.onDone?.(false); return false; }
+    const inCaseId = !!machine && !!findById(machine.root, real(id)) && !OUTSIDE.has(id), pad = id.startsWith('key:') ? 600 : 0;
+    const f = freeRect(), bw = box.max.x - box.min.x, bh = box.max.y - box.min.y, cx = (box.min.x + box.max.x) / 2, cy = (box.min.y + box.max.y) / 2;
+    // the 2D window: at least 9500 wide with room round the target, as tall as the free area's shape asks
+    // (a plug or a key is small: its window hugs it and what it goes to, so it reads at a size the pointer can grab)
+    const small = id.startsWith('cable.') || id.startsWith('key:'), ext = Math.max(bw, bh);
+    const minW = small ? Math.min(9500, Math.max(2500, ext * 2.5 + 800)) : 9500, margin = small ? Math.max(800, ext * 0.6) : 1800;
+    let cw = Math.max(minW, bw + (small ? 2 * margin : 2200) + 2 * pad), ch = (cw * f.h) / f.w;
+    if (ch < bh + margin + 2 * pad) { ch = bh + margin + 2 * pad; cw = (ch * f.w) / f.h; }
+    // under the desk (the wall socket, the mains plugs) the desk's top hides the floor from above: look along it, from low down
+    const underDesk = !inCaseId && !!room && box.max.y < -(room.geo.ys + DESK_TOP);
+    let v = inFree({ x: cx - cw / 2, y: -cy - ch / 2, w: cw, h: ch }, box.max.z, inCaseId ? FLAT : underDesk ? { ...ROOM_ANGLE, pitch: -0.07 } : ROOM_ANGLE, 1);
+    v = { ...v, height: Math.min(v.height, overview().height) };
+    if (o.zoom) v = { ...v, height: H / o.zoom };
+    flyTo(v);
+    if (o.smooth === false) view = goal;
+    pending = o.onDone ?? (() => {});
+    return true;
+  };
+  setWorldAnchors({ anchorsOf, flyTo: flyToId });
+  /** What the cards and the pointer line place themselves by: they measure again when this changes (`cameraRev`). */
+  let revKey = '';
+
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    cancelFlight();
+    atOverview = false;
     const k = e.key.toLowerCase();
     if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value; else if (k === 'o') machine?.toggleDoor();
   };
@@ -451,9 +556,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
     menu = !s;
     view = inRoom(stepView(view, goal, dt), false);
+    if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
     applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
+    // the HUD's inset changed while the overview shows: fit it again to what is left free
+    const ins = viewInset.peek(), insKey = `${ins.left}|${ins.right}|${ins.top}|${ins.bottom}`;
+    const rk = `${view.x.toFixed(1)}|${view.y.toFixed(1)}|${view.z.toFixed(1)}|${view.height.toFixed(1)}|${view.yaw.toFixed(3)}|${view.pitch.toFixed(3)}|${lean.toFixed(3)}|${W}|${H}|${insKey}|${machKey}|${snapshot.peek()?.cables.map((c) => +c.connected).join('') ?? ''}`;
+    if (atOverview && !revKey.includes(insKey)) goal = overview();
+    if (rk !== revKey) { revKey = rk; cameraRev.value += 1; }
     machine?.lod(camera, H, ratio * (TEXTURE_LEVELS[g.textures] ?? 1));
     // the dies' replay: at the game's pace, slower as the camera comes in so a block can be followed (as board.ts); the HUD says so
     const scale = worldPace(speed.peek()), pace = zoomSlowOn.peek() ? zoomSlow(H / view.height, CYCLES_PER_SEC, scale) : scale, note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
@@ -473,7 +584,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));
     const picked: Object3D[] = [];
-    for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
+    for (const id of ids) for (const r of roots()) { const o = findById(r, real(id)); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
     // (how near the eye is, by the height shown at `LOOK_Z`: the same picture reads the same whatever its target)
     const seenH = heightAt(view, LOOK_Z);

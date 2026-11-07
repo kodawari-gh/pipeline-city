@@ -15,7 +15,7 @@ describe('the 3D cases', () => {
       const kind = CASE_KIND[t]!, m = caseModel(kind, T), b = new Box3().setFromObject(m.root);
       expect(b.min.x, kind).toBeGreaterThan(CASE.x - 160);
       expect(b.max.x, kind).toBeLessThan(CASE.x + CASE.w + 160);
-      expect(b.max.y, kind).toBeLessThan(-CASE.y + 100); // the controls stand on the top
+      expect(b.max.y, kind).toBeLessThan(-CASE.y + 300); // (the power button's unseen pick plate, `hitPlate`, rises 270 over the top) // the controls stand on the top
       expect(b.min.y, kind).toBeCloseTo(-(CASE.y + CASE.h + FOOT), 0); // the feet reach the desk
       expect(b.min.z, kind).toBeGreaterThanOrEqual(CASE_Z - 1);
       m.door.updateMatrixWorld(true);

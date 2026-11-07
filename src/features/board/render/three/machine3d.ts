@@ -33,7 +33,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/re
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
+  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
 import { IO_PORTS } from '../layout/boardlayout';
 import { assignLeads } from '../../sim/cables';
@@ -380,7 +380,7 @@ export class Machine3D {
     this.root.add(vrm, vrm2);
     this.buildSlots();
     // the other empty sockets (the module's header, the cooler's seat, the heatsink pads) are picked by an unseen box over their rect
-    if (s) for (const [id, r] of slotRects(s)) if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(id) && !filled.has(id)) pickBox(r, BOARD_Z, BOARD_Z + 400, id);
+    if (s) for (const [id, r] of slotRects(s)) if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(id) && !filled.has(id)) pickBox(r, BOARD_Z, BOARD_Z + 40, id); // (low: the cooler's seat is round the CPU socket, which stands above it and wins the ray)
     // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
@@ -760,22 +760,30 @@ export class Machine3D {
     }
     const mains = (id: string, from: RopeEnd, socket: { x: number; y: number }, dx: number) => {
       if (!has(id)) return;
-      // the plug is fed down through the desk's grommet: seated, it hangs just under the desk, its cord on to the wall socket
-      const g = tag(new Group(), 'cable.' + id), hole: V3 = [dg.x + dx, deskTop + 10, dg.z], seat: Seat = { at: [dg.x + dx, under - 190, dg.z], axis: [0, 1, 0] };
-      const o = { slack: 1.1, extra: 500, stiff: 0.4, n: 30 }, floor: Env = { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }], solids: [] };
+      // the cord runs from its device through the desk's grommet for good; what the player moves is the plug under the desk. It lies loose on the
+      // floor by the wall socket (nothing to weave through the desk) and goes into its outlet, out of the wall
+      const g = tag(new Group(), 'cable.' + id), hole: V3 = [dg.x + dx, deskTop + 10, dg.z], low: RopeEnd = { at: [dg.x + dx, under - 10, dg.z], dir: [0, -1, 0] };
+      const seat: Seat = { at: [socket.x, -socket.y, 100], axis: [0, 0, 1] }, o = { slack: 1.1, extra: 700, stiff: 0.4, n: 30 };
+      const floor: Env = { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }, { n: [0, -1, 0], d: -under }], solids: [] }, ground = floor.planes[0]!;
+      g.add(cableMesh(hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, { slack: 1.1, extra: 500, stiff: 0.4, n: 30 }), cord));
       this.addRig(g, {
-        id, name: 'the desk grommet', target: null, look: cord, env: room, fixed: [from], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
-        engage: hole[1] + 200 - seat.at[1], seated: (ex) => [[...hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, o), ex[0]!.at]],
-        deck, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
-        extra: () => {
-          const e = new Group();
-          e.add(hung({ at: seat.at, dir: [0, -1, 0] }, { at: [socket.x, -socket.y, 120], dir: [0, 0, 1] }, cord, floor, { slack: 1.1, extra: 500, stiff: 0.4, n: 24 }));
-          e.add(softBox({ x: socket.x - 70, y: socket.y - 90, w: 140, h: 180 }, 40, 220, mat(0x1b1c20, { roughness: 0.5 }), 20));
-          return e;
-        },
+        id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
+        engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
+        deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
       }, on(id));
       this.wires.add(g);
     };
+    if (has('lan')) {
+      // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
+      const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
+      const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };
+      const seat: Seat = { at: [CASE.x, -ly, lz], axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
+      this.addRig(g, {
+        id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: () => straightPlug(seat, 110, 80, 150, '#8cc3e0'), seat, canSeat: true, engage: 300,
+        seated: (ex) => [hangPts(from, ex[0]!, look, env, o)], deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
+      }, on('lan'));
+      this.wires.add(g);
+    }
     const inlet = mainsInlet(this.plan);
     if (has('pcmains')) this.wires.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
     mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);

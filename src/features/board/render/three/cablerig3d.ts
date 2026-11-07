@@ -179,12 +179,15 @@ export function rigStatic(rig: CableRig, seated: boolean, rest: Rest | undefined
   const g = new Group(), m = rig.model();
   g.userData.rig = true;
   if (seated && rig.canSeat) {
+    m.root.userData.plug = true;
     g.add(m.root, cableMesh(rig.seated(m.strands), rig.look));
     if (rig.extra) g.add(rig.extra());
     return g;
   }
   const l = looseState(rig, m.strands, rest);
-  g.add(pivotOf(rig.seat, m.root, l.rest.pose), cableMesh(l.strands, rig.look));
+  const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
+  pivot.userData.plug = true;
+  g.add(pivot, cableMesh(l.strands, rig.look));
   return g;
 }
 

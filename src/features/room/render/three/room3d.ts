@@ -335,6 +335,7 @@ export class Room3D {
   private keysKey = '';
   private lamp: Lamp;
   private monitor: Monitor;
+  private monitorSpot!: Mesh;
   private clock: DigitalClock;
   private cup: Cup;
   private shade: MeshStandardMaterial;
@@ -579,13 +580,7 @@ export class Room3D {
       router.add(place(knuckle), rod(base, tip, 95, aerial, 10));
     }
     R.add(router);
-    // the LAN lead: from the router's port it hangs along the wall into the network port on the case's rear panel (`hung`, a cable under its weight)
-    const lan = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300;
-    lan.add(softBox({ x: CASE.x - 150, y: ly - 50, w: 150, h: 100 }, lz - 60, lz + 60, mat(0x8cc3e0, { roughness: 0.5 }), 14));
-    lan.add(hung({ at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] }, { at: [CASE.x - 150, -ly, lz], dir: [-1, 0, 0] },
-      { r: 40, base: '#8cc3e0', accent: null }, { planes: [{ n: [0, 0, 1], d: 40 }, { n: [0, 1, 0], d: -ys }], solids: [{ min: [CASE.x, -(CASE.y + CASE.h), CASE_Z], max: [CASE.x + CASE.w, -CASE.y, CASE_Z + CASE_D] }] },
-      { slack: 1.1, extra: 600, stiff: 0.35, n: 30 }));
-    R.add(lan);
+    // (the LAN lead is the machine's: a cable with a plug to move, `Machine3D.buildRoomCords`)
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
     box.add(softBox(OUTBOX, 0, 700, mat(STEEL, { roughness: 0.45 }), 70));
@@ -635,6 +630,11 @@ export class Room3D {
     // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
     vertexAo(R);
     mergeStatic(R);
+    // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
+    const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
+    this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
+    this.monitorSpot.castShadow = this.monitorSpot.receiveShadow = false;
+    R.add(this.monitorSpot);
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's
     this.ready = roomBake().then((b) => { if (b && !this.gone) this.takeBake(b); });
   }
@@ -883,6 +883,7 @@ export class Room3D {
     bias.intensity = lit ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
+    this.monitorSpot.visible = !f.screen.installed;
     this.clock.set(f.hour);
     steam(this.cup, f.t);
   }

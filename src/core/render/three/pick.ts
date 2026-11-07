@@ -38,7 +38,7 @@ export const pick = (roots: readonly Object3D[], camera: Camera, nx: number, ny:
 /** Where the ray under the pointer meets that nearest surface (world), or null: the camera zooms and pans at its depth. */
 export const pickPoint = (roots: readonly Object3D[], camera: Camera, nx: number, ny: number): Vector3 | null => hit(roots, camera, nx, ny)?.point ?? null;
 
-function shown(o: Object3D): boolean {
+export function shown(o: Object3D): boolean {
   for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
   return true;
 }

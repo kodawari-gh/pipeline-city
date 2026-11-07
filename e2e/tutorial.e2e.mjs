@@ -17,7 +17,9 @@ import { chromium } from 'playwright-core';
 const PORT = Number(process.env.PORT || 5198);
 const W = Number(process.env.W || 1600), H = Number(process.env.H || 900);
 const SPEED = Number(process.env.SPEED || 12);
-const SHOTS = new URL('./shots/', import.meta.url);
+// R3D=1: play the 3D world (`?3d`) on the real GPU.
+const R3D = !!process.env.R3D;
+const SHOTS = process.env.SHOTS_DIR ? new URL(`file:///${process.env.SHOTS_DIR.replace(/\\/g, '/').replace(/\/?$/, '/')}`) : new URL('./shots/', import.meta.url);
 mkdirSync(SHOTS, { recursive: true });
 
 const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'wall', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
@@ -48,17 +50,19 @@ const browser = await chromium.launch({
   slowMo: Number(process.env.SLOWMO || 0),
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
   // The real GPU by default (a windowed run); SOFTWARE=1 (or HEADLESS=1 on a machine without one) falls back to SwiftShader, which is several times slower.
-  args: [...(process.env.SOFTWARE || process.env.HEADLESS ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : []), '--ignore-gpu-blocklist', `--window-size=${W},${H + 90}`],
+  args: [...(process.env.SOFTWARE || process.env.HEADLESS ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : []), '--ignore-gpu-blocklist', ...(R3D && !process.env.SOFTWARE ? ['--enable-gpu', '--use-angle=d3d11'] : []), `--window-size=${W},${H + 90}`],
 });
 const ctx = await browser.newContext({ viewport: { width: W, height: H } });
 const p = await ctx.newPage();
-p.setDefaultTimeout(Number(process.env.TMO || 6000));
+p.setDefaultTimeout(Number(process.env.TMO || 3000));
+// A step that does not advance fails fast: STEP_MS wall clock on one step, STEP_TRIES rounds on it, RUN_MS for the whole run.
+const STEP_MS = Number(process.env.STEP_MS || 25000), STEP_TRIES = Number(process.env.STEP_TRIES || 14), RUN_MS = Number(process.env.RUN_MS || 600000);
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 p.on('crash', () => { errors.push('PAGE CRASHED'); console.log('!!! PAGE CRASHED: the browser tab died (a headless-GL flake seen about one run in three; rerun). Stopping.'); process.exit(2); });
 p.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`); });
-await p.goto(`http://localhost:${PORT}/`);
-await p.waitForTimeout(2500);
+await p.goto(`http://localhost:${PORT}/${R3D ? '?3d' : ''}`);
+await p.waitForSelector('text=Yes, show me', { timeout: R3D ? 45000 : 10000 }).catch(() => { console.log('the new game dialog never came'); process.exit(3); });
 
 const shot = (name) => p.screenshot({ path: new URL(`${name}.png`, SHOTS).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 let shotN = 0;
@@ -91,15 +95,19 @@ async function dragPart(invId, slotId) {
 /** Drag a cable's plug onto its own socket (the second rect of the cable id), not onto the device it sits on. */
 async function dragCable(kind) {
   const a = await anchor('cable.' + kind);
-  const t = await p.evaluate((k) => { const bd = window.__board; const r = bd.interact.rectsFor('cable.' + k)[1]; return r ? bd.camera.screenRect(r) : null; }, kind);
+  const t = await p.evaluate(async (k) => (await import('/src/features/tutorial/ui/anchor.ts')).anchorsOf('cable.' + k)[1] ?? null, kind);
   if (!a || !t) { log('  cable anchors missing', kind, !!a, !!t); return false; }
   for (const [fx, fy] of [[0.5, 0.5], [0.9, 0.5], [0.1, 0.5], [0.5, 0.2], [0.5, 0.9]]) {
     const from = { x: a.x + a.w * fx, y: a.y + a.h * fy };
+    if (process.env.DEBUG_DRAG) log('  cable', kind, 'plug', JSON.stringify(a), 'socket', JSON.stringify(t), 'id under press', await p.evaluate(([x, y]) => window.__board?.idAt?.(x, y, true) ?? null, [from.x, from.y]), 'element', await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName}.${e.className}` : null; }, [from.x, from.y]));
     await p.mouse.move(from.x, from.y); await p.mouse.down();
     await p.mouse.move(from.x + 14, from.y + 8, { steps: 4 });
     if (await dragging()) {
       await p.mouse.move(center(t).x, center(t).y, { steps: 14 });
-      await p.waitForTimeout(200); await p.mouse.up(); await p.waitForTimeout(400);
+      await p.waitForTimeout(200);
+      if (process.env.DEBUG_DRAG) log('  held label near socket:', JSON.stringify(await p.evaluate(() => document.body.innerText.match(/(Plug into|Let go to plug|Pull it out|No card)[^\n]*/)?.[0] ?? null)), 'ghost:', JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('div')].filter((d) => d.style.position === 'fixed' && d.style.zIndex === '60').map((d) => d.textContent))));
+      await p.mouse.up(); await p.waitForTimeout(400);
+      if (process.env.DEBUG_DRAG) { await p.waitForTimeout(1500); log('  after drop connected:', JSON.stringify((await snap()).cables.map((c) => `${c.id}:${c.connected}`))); }
       return true;
     }
     await p.mouse.up(); await p.waitForTimeout(150);
@@ -108,7 +116,7 @@ async function dragCable(kind) {
 }
 const clickAnchor = async (id) => { const a = await anchor(id); if (!a) return false; await p.mouse.click(center(a).x, center(a).y); await p.waitForTimeout(500); return true; };
 /** Click through the dialogue like an impatient player (a click finishes typing, the next turns the page) until its last page is complete. */
-async function waitTyped(ms = 7000) {
+async function waitTyped(ms = 4000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     if (await p.$('.dlg-arrow.end')) return true;
@@ -173,16 +181,20 @@ async function serve(s) {
 }
 /** Read the dialogue to its end (click through its pages), then press the primary button that appears. */
 async function finishDialogue() {
-  for (let i = 0; i < 12 && !(await p.$('.dlg-actions.on')); i++) { await p.click('.dlg').catch(() => {}); await p.waitForTimeout(100); }
-  await p.click('.dlg-actions.on button.primary');
+  const t0 = Date.now();
+  while (Date.now() - t0 < 8000 && !(await p.$('.dlg-actions.on'))) { await p.click('.dlg', { timeout: 800 }).catch(() => {}); await p.waitForTimeout(100); }
+  await p.click('.dlg-actions.on button.primary', { timeout: 1500 }).catch(() => { log('  the dialogue never showed its button'); });
   await p.waitForTimeout(400);
 }
 /** Open the Shop and press the glowing Buy tile in it. */
 async function buyInShop() {
-  await p.click('[data-hud=shop]'); await p.waitForTimeout(700);
-  const btn = await p.$('.shop .rung.pulse button.buy');
-  if (btn) { await btn.click(); await p.waitForTimeout(500); } else log('  no glowing buy tile in the shop');
-  await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+  // (a shop left open by an interrupted round covers its own button: close it first, and always close it again)
+  await p.keyboard.press('Escape'); await p.waitForTimeout(150);
+  try {
+    await p.click('[data-hud=shop]', { timeout: 1500 }); await p.waitForTimeout(700);
+    const btn = await p.$('.shop .rung.pulse button.buy');
+    if (btn) { await btn.evaluate((b) => b.click()); await p.waitForTimeout(500); } else log('  no glowing buy tile in the shop');
+  } finally { await p.keyboard.press('Escape').catch(() => {}); await p.waitForTimeout(400); }
 }
 /** Open a picker and press the glowing Buy tile in it. */
 async function buyGlowing(openId) {
@@ -191,6 +203,9 @@ async function buyGlowing(openId) {
   const btn = await p.$('.rung.pulse button.buy');
   if (!btn) {
     log('  no glowing buy tile after clicking', openId, 'picker open:', !!(await p.$('aside.picker')), 'rungs:', JSON.stringify(await p.$$eval('.rung', (e) => e.map((x) => `${x.getAttribute('data-buy')}:${x.className.replace('rung ', '')}`))), 'highlight:', JSON.stringify(await p.evaluate(async () => (await import('/src/app/interaction.ts')).highlight.value)));
+    log('  picker model:', JSON.stringify(await p.evaluate(async (id) => { const { pickerFor } = await import('/src/features/economy/ui/shop/picker.ts'); const { snapshot } = await import('/src/app/store.ts'); const { selected } = await import('/src/app/hover.ts'); const m = pickerFor(id, snapshot.value); return m && { selected: selected.value, kind: m.kind, ladder: m.ladder.map((r) => `${r.specId}:${r.state}`), shelf: m.shelf?.length, lines: m.lines.length }; }, openId)));
+    { const rev = () => p.evaluate(async () => (await import('/src/app/interaction.ts')).cameraRev.value); const r1 = await rev(); await p.waitForTimeout(1000); log('  cameraRev ticks in 1s while idle:', (await rev()) - r1); }
+    log('  picker html:', JSON.stringify(await p.$eval('aside.picker', (e) => `${e.style.cssText} | len ${e.innerHTML.length} | rung ${e.innerHTML.includes('rung')} | children ${[...e.querySelector('.pk-content').children].map((c) => `${c.tagName}.${c.className}:${c.offsetHeight}`).join(' ')}`).catch(() => null)));
     await shot('no-buy-tile');
     await p.keyboard.press('Escape');
     return false;
@@ -208,25 +223,28 @@ await p.waitForTimeout(500);
 await setSpeed(SPEED);
 
 const seen = [];
-let last = null, stuck = 0;
+let last = null, stuck = 0, stepAt = Date.now();
 const T0 = Date.now();
 for (let i = 0; i < 1500; i++) {
+  if (Date.now() - T0 > RUN_MS) { log('RUN TIMEOUT on', last); await shot(`stuck-${last}`); break; }
   // The level-up popup holds the game until the player presses Next, whatever step is showing.
   const levelUp = await p.$('.lvl-card button.primary');
   if (levelUp) {
     log('  level-up popup');
     if (await p.$('aside.tut, .dlg-popup')) { problems.push('the tutorial is shown together with the level-up popup'); log('  PROBLEM tutorial and level-up popup at the same time'); }
-    await p.waitForTimeout(900); await stepShot('levelup'); await levelUp.click(); await p.waitForTimeout(500); continue;
+    await p.waitForTimeout(900); await stepShot('levelup'); await levelUp.evaluate((b) => b.click()).catch(() => {}); await p.waitForTimeout(500);
+    stepAt = Date.now(); stuck = 0; // (a popup the player must read is not the step's fault; RUN_MS still bounds the run)
+    continue;
   }
   const id = await stepId();
   if (!id) { await p.waitForTimeout(300); continue; }
   const s = await snap();
   if (id !== last) {
-    seen.push(id); last = id; stuck = 0;
+    seen.push(id); last = id; stuck = 0; stepAt = Date.now();
     const heap = await p.evaluate(() => Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576)).catch(() => -1);
     log(`step ${id.padEnd(11)} game ${String(s.baseTick).padStart(4)}s  money $${Math.round(s.money)}  wall ${Math.round((Date.now() - T0) / 1000)}s  heap ${heap}MB`);
     await validateStep(id);
-  } else if (++stuck > 150) { log('STUCK on', id); await shot(`stuck-${id}`); break; }
+  } else if (++stuck > STEP_TRIES || Date.now() - stepAt > STEP_MS) { log('STUCK on', id, `after ${stuck} tries, ${Math.round((Date.now() - stepAt) / 1000)}s`); await shot(`stuck-${id}`); break; }
   if (id === 'done') {
     await p.click('aside.tut .pactions button.primary').catch(() => {});
     await p.waitForTimeout(600);
@@ -259,8 +277,7 @@ for (let i = 0; i < 1500; i++) {
       const it = s.inventory.find((x) => x.freeSlots.length + x.swapSlots.length > 0 && ['cpu', 'ram', 'psu', 'cooler', 'display'].includes(x.kind));
       if (it) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800);
       break; }
-    case 'buyDrive': case 'buyOs': await buyGlowing('bay'); break;
-    case 'buyRam': await buyGlowing(s.devices.find((d) => d.kind === 'ram')?.slot ?? 'dimm0'); break;
+    case 'buyDrive': case 'buyOs': case 'buyRam': await buyInShop(); break; // the picker shows no ladder now: parts are bought in the Shop
     case 'drive': case 'os': case 'fitRam': {
       const it = inv(id === 'drive' ? 'storage' : id === 'os' ? 'os' : 'ram');
       if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800);

@@ -35,7 +35,7 @@ export class Drag3D {
   private noteT = 0;
 
   /** @param idAt the id of the scene object under a client point (null: none) */
-  constructor(private idAt: (cx: number, cy: number, raw?: boolean) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean, private hand: PlugHand | null = null) {}
+  constructor(private idAt: (cx: number, cy: number, raw?: boolean) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean, private hand: PlugHand | null = null, private onPort: (cx: number, cy: number) => boolean = () => false, private boxOf: (id: string) => { x: number; y: number; w: number; h: number } | null = () => null) {}
 
   get busy() { return !!this.cur; }
 
@@ -160,9 +160,21 @@ export class Drag3D {
       if (c.live) { this.hand!.move(cx, cy, raw); const l = this.hand!.label(); this.setGhost(l?.text ?? c.name, !!l?.ok); return; }
       c.over = raw && this.inMachine(raw) ? raw : null; this.setGhost(c.name, !!c.over); return;
     }
-    if (c.key !== undefined) { c.over = id === 'usb' || id === 'key:' + c.key ? 'usb' : null; this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why); return; }
-    c.over = this.target(c, id);
+    // (the port is behind the case's side panel: a drop near it on the screen counts)
+    if (c.key !== undefined) { c.over = id === 'usb' || id === 'key:' + c.key || (this.inside(cx, cy) && this.onPort(cx, cy)) ? 'usb' : null; this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why); return; }
+    c.over = this.target(c, id) ?? this.within(c, cx, cy);
     this.setGhost(c.why && id ? c.why : c.name, !!c.over);
+  }
+
+  /** A valid socket whose box on the screen holds the pointer (a thin or hollow object, such as the router's antennas, gives the ray nothing to hit): the smallest such. */
+  private within(c: Part, cx: number, cy: number): string | null {
+    if (c.why) return null;
+    let best: string | null = null, area = Infinity;
+    for (const id of [...c.free, ...c.swap]) {
+      const b = this.boxOf(id);
+      if (b && cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h && b.w * b.h < area) { best = id; area = b.w * b.h; }
+    }
+    return best;
   }
 
   /** The id to install onto (a socket, or `case` for a whole-case or whole-board item), when it is valid. */
@@ -170,6 +182,10 @@ export class Drag3D {
     if (c.why || !id) return null;
     const slot = this.slotOf(id);
     if (slot && (c.free.has(slot) || c.swap.has(slot))) return slot;
+    // the cooler's seat is the processor's: a cooler dropped on the CPU (or its package) takes the cooler socket
+    // (and the other way: a processor dropped on the cooler that stands over its socket takes the processor's)
+    if (slot && /^cpu\d+$/.test(slot)) for (const q of [...c.free, ...c.swap]) if (q.startsWith('cooler')) return q;
+    if (slot && /^cooler\d+$/.test(slot)) for (const q of [...c.free, ...c.swap]) if (q.startsWith('cpu')) return q;
     // the monitor and the power supply stand for their sockets (they are not on the board)
     const kind = id === 'monitor' ? 'display' : id === 'psu' ? 'atx' : null;
     if (kind) for (const q of [...c.free, ...c.swap]) if (q.startsWith(kind)) return q;
@@ -200,13 +216,13 @@ export class Drag3D {
       return;
     }
     if (c.key !== undefined) {
-      const onPort = !cancelled && this.inside(cx, cy) && this.idAt(cx, cy) === 'usb';
+      const onPort = !cancelled && this.inside(cx, cy) && (this.idAt(cx, cy) === 'usb' || this.onPort(cx, cy));
       if (!c.plugged && onPort) { if (c.why) this.toast(c.why, cx, cy); else plugKey(c.key); }
       else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== 'key:' + c.key) ejectKey();
       return;
     }
     if (cancelled || !this.inside(cx, cy)) return;
-    const id = this.idAt(cx, cy), over = this.target(c, id);
+    const id = this.idAt(cx, cy), over = this.target(c, id) ?? this.within(c, cx, cy);
     if (over) { install(c.invId, over === 'case' || over === 'board' ? undefined : over); return; }
     if (c.why) { if (id) this.toast(c.why, cx, cy); return; }
     const slot = this.slotOf(id);
