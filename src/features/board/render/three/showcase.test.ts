@@ -4,7 +4,6 @@ import { builtinTheme } from '@/core/render/theme';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { buildShowcaseModel } from './showcase';
-import { ROOM_PROPS } from './showcaseids';
 
 const T = builtinTheme(true);
 const BUILT = ['cpu', 'ram', 'gpu', 'npu', 'nic', 'cooler', 'fan', 'storage', 'psu', 'radiator', 'tpm', 'vrm-sink', 'ram-sink', 'display'];
@@ -23,14 +22,6 @@ describe('the showcase models', () => {
 
   it('builds the cases', () => {
     for (const id of ['case0', 'case1', 'case2', 'case3']) expect(buildShowcaseModel(id, T), id).not.toBeNull();
-  });
-
-  it('builds every room prop', () => {
-    for (const p of ROOM_PROPS) {
-      const m = buildShowcaseModel(p.id, T);
-      expect(m, p.id).not.toBeNull();
-      expect(new Box3().setFromObject(m!).isEmpty(), p.id).toBe(false);
-    }
   });
 
   it('stands a RAM stick with its long side along x', () => {

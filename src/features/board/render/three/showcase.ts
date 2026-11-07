@@ -8,10 +8,6 @@ import { mat } from '@/core/render/three/materials';
 import { getSpec, specsOfKind, type CardSpec, type FanSpec, type NicSpec, type PsuSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { Monitor } from '@/features/room/render/three/props3d';
-import { aloe, floorPlant, succulent } from '@/features/room/render/three/plants3d';
-import { DigitalClock, keyboard, mouse, notebook, teaCup } from '@/features/room/render/three/props3d';
-import { deskChair } from '@/features/room/render/three/chair3d';
-import { arcLamp, bed, bookcase, ceilingLight, door, floorLantern, nightstand, sconce } from '@/features/room/render/three/furniture3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -96,26 +92,6 @@ function cpuModel(): Group {
 
 const CASE_ID = /^case(\d)$/;
 
-/** The room's props, by id (`ROOM_PROPS`). Each is built as the room builds it, then centred on the origin. */
-const ROOM: Record<string, () => Object3D> = {
-  'room:keyboard': () => keyboard(0, 0, 0),
-  'room:mouse': () => mouse(0, 0, 0),
-  'room:notebook': () => notebook(0, 0, 0, 0),
-  'room:cup': () => teaCup(0, 0, 0).root,
-  'room:clock': () => new DigitalClock({ x: 0, y: 0, w: 2400, h: 800 }).root,
-  'room:chair': () => deskChair(0, 0, 0),
-  'room:bed': () => bed().root,
-  'room:nightstand': () => nightstand().root,
-  'room:bookcase': () => bookcase(),
-  'room:door': () => door(),
-  'room:floorlantern': () => floorLantern().root,
-  'room:arclamp': () => arcLamp().root,
-  'room:sconce': () => sconce().root,
-  'room:ceiling': () => ceilingLight(0, 0, 0).root,
-  'room:floorplant': () => floorPlant(0, 0),
-  'room:aloe': () => aloe(0, 0, 0),
-  'room:succulent': () => succulent(0, 0, 0, 600),
-};
 
 /** The showcase model of a shop item, or null where there is none (a kind without a 3D builder). */
 export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Object3D | null {
@@ -130,8 +106,6 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
       return g;
     }, tier));
   }
-  const prop = ROOM[specId];
-  if (prop) return centred(prop());
   const spec = getSpec(specId);
   if (!spec) return null;
   switch (spec.kind) {

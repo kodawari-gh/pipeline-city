@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { CASE_TIERS, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import { galleryOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
-import { ROOM_PROPS } from '@/features/board/render/three/showcaseids';
 import { Showcase } from './Showcase';
 import { kindIcon, kindLabel } from './shopdata';
 
@@ -19,7 +18,6 @@ const KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', '
 function groups(): Group[] {
   const out: Group[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case` })) }];
   for (const k of KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
-  out.push({ key: 'room', kind: 'room', items: ROOM_PROPS.map((p) => ({ ...p })) });
   return out.filter((g) => g.items.length > 0);
 }
 
@@ -54,7 +52,7 @@ export function Gallery() {
         <div class="gal-h">Gallery</div>
         {all.map((g, i) => (
           <button key={g.key} class={i === gi ? 'on' : ''} aria-pressed={i === gi} onClick={() => { setGi(i); setIi(0); }}>
-            <Icon name={kindIcon(g.kind)} size={14} /> {g.kind === 'room' ? 'Room props' : kindLabel(g.kind)}
+            <Icon name={kindIcon(g.kind)} size={14} /> {kindLabel(g.kind)}
           </button>
         ))}
       </nav>
