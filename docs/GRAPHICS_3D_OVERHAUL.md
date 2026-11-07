@@ -214,7 +214,7 @@ The 3D game plays the whole tutorial (`R3D=1 npm run e2e:tutorial`, fails fast: 
 - Router (4 looks) and PSU (3 looks) follow their tier. Touch: two fingers pinch-zoom toward their middle.
 - The monitor's screen is the 2D `Live` screen drawn into its texture (`BoardLive3D.screen`, `Monitor.useLive`): OS rows, the graphics display's dashboard, a GPU's frame. The wall plate has five ISP-tier lights, the letterbox a light for uploads (`RoomFrame.isp`, `.mail`).
 - The key ring and the pending-swap veil, ring and spinner are DOM boxes over the parts' screen rectangles (`cues3d.ts`). Edge arrows for off-screen targets are the TutorialCard's, shared with 2D.
-- Not as 2D: the wall plate's ISP name text.
+- The wall plate shows the ISP name text. The letterbox light pulses while an upload waits.
 
 ## Known Challenges & Mitigations
 

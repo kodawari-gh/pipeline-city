@@ -676,6 +676,11 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the metered eye (the meter's reading, the exposure's factor it asks for, and where it stands now)
     eye: () => ({ reading, metered, seen }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
+    // the client point of a world point (tests drive the pointer there: a socket that is no object of its own)
+    project: (x: number, y: number, z: number) => {
+      const r = canvas.getBoundingClientRect(), p = new Vector3(x, y, z).project(camera);
+      return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+    },
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {
       const o = roots().map((r) => findById(r, id)).find(Boolean);
