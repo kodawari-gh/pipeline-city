@@ -204,6 +204,16 @@ No changes to `Snapshot` structure. New render code reads same fields:
 - `power`: `totalW`, `off`, `tripped`
 - `display`, `pipe`: for overlays
 
+## Play parity with 2D (2026-11-07)
+
+The 3D game plays the whole tutorial (`R3D=1 npm run e2e:tutorial`, fails fast: `STEP_MS`, `STEP_TRIES`, `RUN_MS`). Where it differs from the 2D design:
+- Tutorial and picker anchors are renderer-neutral: `board.ts` `WorldAnchors` (`anchorsOf`, `flyTo`) is set by `board3d.ts`; `cameraRev` bumps when the view moves.
+- The board's live layer (`boardlive3d.ts`): the 2D `Live` runs unchanged and draws onto a plane over the board (buses, power, regulator). The dies, fans, drives and cards keep their 3D models.
+- Cables are rigs (`cablerig3d.ts`). The video, LAN and mains plugs are the movable end at the PC. The video plug lines up with the board's HDMI or a graphics card's port, the LAN plug with the board's jack or a card's (`CableRig.alts`, `connectCable(kind, port)`). Mains plugs lie on the floor and go into the wall socket.
+- Empty spots that take a drop are unseen boxes: `display0` (monitor), `router`, the PSU and power-button plates.
+- Router (4 looks) and PSU (3 looks) follow their tier. Touch: two fingers pinch-zoom toward their middle.
+- Not yet as 2D: edge arrows for off-screen targets, the pending-swap veil, the key waiting ring, the mail LED, the wall plate's ISP text.
+
 ## Known Challenges & Mitigations
 
 | Challenge | Mitigation |
