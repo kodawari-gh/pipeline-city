@@ -202,7 +202,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     cap.rotation.z = -Math.PI / 4;
     const t = perforation('mesh')?.clone() ?? null;
     if (t) { t.needsUpdate = true; t.repeat.set(len / 36, d / 36); }
-    const capBack = new Mesh(new PlaneGeometry(len - 40, d), dark), capMesh = new Mesh(new PlaneGeometry(len - 40, d), mat(0x2a3042, { map: t, alphaTest: 0.5, metalness: 0.5, roughness: 0.45 }));
+    const capBack = new Mesh(new PlaneGeometry(len - 40, d), dark), capMesh = new Mesh(new PlaneGeometry(len - 40, d), mat(0x2a3042, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: 0.5, roughness: 0.45 }));
     capBack.rotation.x = capMesh.rotation.x = -Math.PI / 2;
     capBack.position.y = -4;
     cap.add(capBack, capMesh);

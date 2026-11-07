@@ -160,7 +160,9 @@ export function perforation(kind: Perf): Texture | null {
 /** The material of a perforated sheet over a face `w` by `h` units, `pitch` units per hole. */
 export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Material {
   const t = tiled(perforation(kind), w / pitch, h / (pitch * (kind === 'mesh' || kind === 'slot' ? 1 : 1.73)));
-  return mat(tone, { map: t, alphaTest: 0.5, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  // The holes are alpha-tested. A hard cut on mip-averaged alpha shimmers when the view moves: the coverage mask (the scene is multisampled) smooths it.
+  // The sheet is pulled forward in depth, so the dark backing a few units behind it never wins a pixel at a far zoom (the hole flicker).
+  return mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
 }
 
 /** A perforated plate over `r` at depth z on a dark backing (the holes show the dark), `pitch` units per hole. */

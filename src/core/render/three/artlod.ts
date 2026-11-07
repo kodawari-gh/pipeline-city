@@ -165,7 +165,7 @@ export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMIS
  */
 export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
-    map, bumpMap: map, bumpScale: f.bump, roughness: 1, metalness: 0, alphaTest: 0.4,
+    map, bumpMap: map, bumpScale: f.bump, roughness: 1, metalness: 0, alphaTest: 0.4, alphaToCoverage: true,
     emissive: f.glow ? 0xffffff : 0x000000, emissiveMap: f.glow ? map : null, emissiveIntensity: f.glow,
     // each level sits a hair above the one under it
     polygonOffset: true, polygonOffsetFactor: -1 - level, polygonOffsetUnits: -2 - 2 * level,
