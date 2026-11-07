@@ -18,17 +18,22 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 |---|---|---|
 | Shop | done 2026-11-07 | Full-screen, category rail with counts, 3D showcase over the stat bars, arrow keys. |
 | Inventory shelf | done 2026-11-07 | Filter chips now carry words, not bare icons. Lock icons on tiles still have only a tooltip. |
-| Picker (board bubble) | reviewed 2026-11-07 | "3D view" button opens the shop on that part (`openShopAt`). Readings are icon chips with tooltips only; a first-time player may not know what "0.00x" means. |
-| OS panel | done 2026-11-07 | Banner now says the machine is off instead of "nothing holds it back". Lower half stays empty while off. |
+| Picker (board bubble) | done, pass 2 | "3D view" button opens the shop on that part (`openShopAt`). Temperatures read "25 °C"; the speed chip reads "0.00x clock" (tooltip explains). |
+| OS panel | done, pass 2 | Banner says the machine is off; a hint under the graph says how to start it, so the lower half is no longer empty. |
 | Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
 | Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
 | Start menu / load screen | reviewed, no change | New game (Campaign/Sandbox) and the saved-game "Welcome back" (New game / Continue) are both clear. |
-| Tutorial cards, hints | done 2026-11-07 | Dialogue card says "Click to continue". All 38 steps have a title and text, and no page is over 140 characters (`steps.test.ts`), so each fits the card. Hint toast readable. |
+| Tutorial cards, hints | done, pass 2 | All 97 dialogue pages of the 38 steps were rendered in the real card at its real width (harness, 2026-11-07): heights 130-145 px, none overflows. The "Click to continue" cue had covered one-line pages; it now has its own row. `steps.test.ts` keeps the text short. |
 | Notices, toasts, modals | reviewed | Toast fine. New game asks for a second click when a game runs. |
 | Power lens, Airflow lens | done 2026-11-07 | Airflow tags that would overlap now move up until clear (`AirflowLens.tags`). Power fine. |
 | Almanac | reviewed, no change | Dense but ordered: list, card, code, tips. |
 | Job log | done 2026-11-07 | Panel fits its content; the chip says "N finished" (it counted only ended jobs). |
-| Levels, Stats, Trace | reviewed, no change | Stats rows lack degree signs ("25 C"); minor. |
+| Levels, Stats, Trace | done, pass 2 | Stats temperatures now carry the degree sign. |
+
+## Passes
+- Pass 1 (2026-11-07): every menu looked at in a 1600x900 screenshot; fixes as in the table.
+- Pass 2 (2026-11-07): the fixed menus shot again (OS, inventory, shop) plus the narrow check (800x700) of the shop and the inventory: the rail becomes a chip row, the detail stacks under the tiles, nothing overlaps. The tutorial cards were rendered one by one (see the table). Graphics, start menu, almanac, job log, levels and the dock lenses were unchanged since pass 1.
+- Not done: narrow-screen shots of the panels other than the shop and the inventory. The showcase CPU is a plain package and heat spreader (no die, no pins); worth a better model.
 
 ## Shared patterns (from the shop)
 - Rail + list + detail: three fixed zones; the detail pane is the hero (picture first, numbers below).
