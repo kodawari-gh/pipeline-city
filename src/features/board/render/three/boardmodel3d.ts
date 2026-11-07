@@ -1,7 +1,7 @@
 // A motherboard as a 3D model on its own (the gallery's), built from the tier's layout (`GEO`) and skin. It wears the 2D renderer's own drawing as
 // the live board does (machine3d.ts): the PCB's face is `buildBoard` baked in tiles as the camera comes in (traces, pours, vias, silkscreen), and
 // each socket, chip and regulator part stands up off it with its own drawing on top. The pieces the drawing cannot show are modelled: the PCIe
-// slots' grooves and contacts, the memory sockets, the power sockets' cavities, the chipset's sink, the slot hardware, the rear I/O, the solids
+// slots' grooves and contacts, the memory sockets, the power sockets' cavities, the chipset's sink, the slot hardware, the rear I/O with its shield, the solids
 // (capacitors, passives, legs, pins, screws), and the lights a running board shows (power good, the debug code, the RGB strip).
 // Built in board space (x east, y north, z up off the board).
 import { BoxGeometry, Group, type Material } from 'three';
@@ -17,6 +17,7 @@ import { BD, GEO, M2_SLOTS, PCIE_RAILS, PKG, SOCKET_E } from '../layout/layout';
 import { hexNum, skinOf } from '../skins';
 import { ArtSet, LV_BOARD } from './artset3d';
 import { ioCover, slotHardware } from './boardhw3d';
+import { ioShield } from './casedetail3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { chipset, coinCell, m2Standoff, type Raise } from './parts3d';
 import { dimmSlot } from './ram3d';
@@ -79,7 +80,9 @@ export function boardModel(T: Theme, tier = GEO.tier): Group {
   g.add(slab(shapeOf(outline), BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 }), 4));
   g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0xc8b98a, { roughness: 0.7 })));
   art.surface(g, (f, px) => (px < LV_BOARD[1]! ? far : draw).bake(f, px), BD, BOARD_Z, LV_BOARD);
-  g.add(ioCover(BOARD_TIERS[tier]?.features).root);
+  // the rear I/O: the connectors and their cover, and the shield fitted over their mouths as the case holds it (the wall's thickness between)
+  const feat = BOARD_TIERS[tier]?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 };
+  g.add(ioCover(feat).root, ioShield(feat, tier));
   // the CPU socket (its pins are solids), the memory sockets, the slots, the M.2 connectors with their standoffs
   up(g, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket);
   for (const d of GEO.dimm) { const s = dimmSlot(d.rect, true, hexNum(sk.slot), hexNum(sk.latch)); g.add(s.housing, s.latches); }

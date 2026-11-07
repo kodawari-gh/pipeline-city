@@ -14,6 +14,7 @@ import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_IN, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
+import { fitted, IO_EXTRA, IO_HALF, IO_Z, legacyIo } from './boardhw3d';
 import { HINGE_Z, slotBlank, STAND } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
@@ -228,7 +229,9 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
       else if (p.kind === 'usb' && Number(p.id.slice(3)) < feat.usbPorts) at(tier >= 3 ? 'USB 3.2' : 'USB 3', y, BOARD_Z + 650);
     }
     // a frame line round the port field, as the printed shields carry
-    c.beginPath(); c.roundRect(u(BOARD_Z + 190), v(BR.io.y + 20), u(BOARD_Z + 860) - u(BOARD_Z + 190), v(BR.io.y + BR.io.h + 20) - v(BR.io.y + 20), 10); c.stroke();
+    // (the Enthusiast's runs out over its antenna jacks)
+    const z1 = BOARD_Z + (tier >= 3 ? 1210 : 860);
+    c.beginPath(); c.roundRect(u(BOARD_Z + 190), v(BR.io.y + 20), u(z1) - u(BOARD_Z + 190), v(BR.io.y + BR.io.h + 20) - v(BR.io.y + 20), 10); c.stroke();
     if (tier >= 2) { at('BIOS', -1290, BOARD_Z + 380); }
     if (tier >= 3) { at('CLR', -1220, BOARD_Z + 380); at('Wi-Fi', -540, BOARD_Z + 960); at('OPT', -430, BOARD_Z + 330); at('USB-C', -320, BOARD_Z + 640); }
   });
@@ -255,38 +258,42 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
     if (!stamped) return;
     for (const zz of [z0 - 6, z1 + 6]) for (let k = 0; k < 3; k++) { const y = y0 + ((k + 0.5) * (y1 - y0)) / 3; g.add(boxW(x - 15, x - 8, y - 9, y + 9, zz - 3, zz + 3, plateM)); }
   };
+  // (the numbers are boardhw3d.ts's `IO_Z` and `IO_HALF`: the connectors' shells behind the plate take the same)
   for (const p of IO_PORTS) {
+    if (!fitted(p, feat)) continue;
     const cy = -p.y, ly = p.y; // (a port's `y` is its centre, where the plugs aim)
     if (p.kind === 'jack') {
-      rim(cy - 34, cy + 34, Z + 266, Z + 334);
-      g.add(drumX(x - 12, cy, Z + 300, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, Z + 300, 17, 8, hole), drumX(x - 13, cy, Z + 300, 9, 6, shell));
+      const zj = Z + IO_Z.jack;
+      rim(cy - 34, cy + 34, zj - 34, zj + 34);
+      g.add(drumX(x - 12, cy, zj, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, zj, 17, 8, hole), drumX(x - 13, cy, zj, 9, 6, shell));
     } else if (p.kind === 'rj45') {
-      if (feat.ethernetMbps <= 0) continue;
-      rim(cy - 62, cy + 62, Z + 220, Z + 380);
-      g.add(boxW(x - 20, x - 8, cy - 62, cy + 62, Z + 220, Z + 380, shell), boxW(x - 24, x - 18, cy - 50, cy + 46, Z + 232, Z + 368, hole));
-      // the latch notch under the mouth, the eight contacts along its top
-      g.add(boxW(x - 24, x - 18, cy - 62, cy - 48, Z + 276, Z + 324, hole));
-      for (let k = 0; k < 8; k++) g.add(boxW(x - 22, x - 19, cy + 30, cy + 42, Z + 248 + k * 15, Z + 254 + k * 15, gold));
-      for (const [dz, c] of [[-60, 0x58e08a], [60, 0xffb547]] as const) g.add(boxW(x - 22, x - 18, cy + 44, cy + 58, Z + 300 + dz - 10, Z + 300 + dz + 10, mat(0x111111, { emissive: c, emissiveIntensity: 0.8 })));
-      fingers(cy - 62, cy + 62, Z + 220, Z + 380);
+      const h = IO_HALF.rj45, z0 = Z + IO_Z.rj45[0], z1 = Z + IO_Z.rj45[1], zm = (z0 + z1) / 2;
+      rim(cy - h, cy + h, z0, z1);
+      // the mouth sunk into the shell, keyed by the latch notch on its south side; the eight contacts hang from its north wall
+      const a = ly - h + 16, b = ly + h - 12, n = ly + h - 4, c0 = z0 + 12, c1 = z1 - 12;
+      const mouth = [wallPt(a, c0), wallPt(a, c1), wallPt(b, c1), wallPt(b, zm + 24), wallPt(n, zm + 24), wallPt(n, zm - 24), wallPt(b, zm - 24), wallPt(b, c0)];
+      g.add(wallX(x - 20, x - 8, { y0: ly - h, y1: ly + h, z0, z1 }, [mouth], shell), boxW(x - 11, x - 8, cy - h + 4, cy + h - 4, z0 + 4, z1 - 4, hole));
+      for (let k = 0; k < 8; k++) g.add(boxW(x - 18, x - 11, -a - 7, -a, z0 + 28 + k * 15, z0 + 34 + k * 15, gold));
+      for (const [dz, c] of [[-60, 0x58e08a], [60, 0xffb547]] as const) g.add(boxW(x - 22, x - 19, cy + h - 14, cy + h - 3, zm + dz - 10, zm + dz + 10, mat(0x111111, { emissive: c, emissiveIntensity: 0.8 })));
+      fingers(cy - h, cy + h, z0, z1);
     } else if (p.kind === 'hdmi' || p.kind === 'dp') {
-      if (p.kind === 'dp' && feat.displayPorts < 2) continue;
       // the shell and its keyed mouth (HDMI's two corners cut on its inner side, DP's one), the dark inside and the tongue
-      const k = 16, z0 = Z + 488, z1 = Z + 552, y0 = ly - 58, y1 = ly + 58, a = y0 + 8, b = y1 - 8, c0 = z0 + 8, c1 = z1 - 8;
+      const k = 16, z0 = Z + IO_Z.video[0], z1 = Z + IO_Z.video[1], y0 = ly - IO_HALF.video, y1 = ly + IO_HALF.video, a = y0 + 8, b = y1 - 8, c0 = z0 + 8, c1 = z1 - 8;
       const mouth = p.kind === 'hdmi'
         ? [wallPt(a + k, c0), wallPt(a, c0 + k), wallPt(a, c1), wallPt(b, c1), wallPt(b, c0 + k), wallPt(b - k, c0)]
         : [wallPt(a + k, c0), wallPt(a, c0 + k), wallPt(a, c1), wallPt(b, c1), wallPt(b, c0)];
-      rim(cy - 58, cy + 58, z0, z1);
+      rim(cy - IO_HALF.video, cy + IO_HALF.video, z0, z1);
       g.add(wallX(x - 16, x - 8, { y0, y1, z0, z1 }, [mouth], shell));
       g.add(boxW(x - 12, x - 8, cy - 50, cy + 50, c0, c1, hole));
-      g.add(boxW(x - 15, x - 10, cy - 40, cy + 40, Z + 514, Z + 526, mat(0x16171b, { roughness: 0.5 })));
+      g.add(boxW(x - 15, x - 10, cy - 40, cy + 40, (z0 + z1) / 2 - 6, (z0 + z1) / 2 + 6, mat(0x16171b, { roughness: 0.5 })));
     } else if (p.kind === 'usb') {
-      if (Number(p.id.slice(3)) >= feat.usbPorts) continue;
-      rim(cy - 56, cy + 56, Z + 572, Z + 628);
-      g.add(boxW(x - 16, x - 8, cy - 56, cy + 56, Z + 572, Z + 628, shell), boxW(x - 20, x - 14, cy - 48, cy + 48, Z + 578, Z + 622, hole));
-      g.add(boxW(x - 22, x - 18, cy - 40, cy + 40, Z + 600, Z + 612, mat(USB_TONGUE[tier] ?? 0x2a6fdc, { roughness: 0.5 })));
-      for (let k = 0; k < 4; k++) g.add(boxW(x - 23, x - 19, cy - 30 + k * 20 - 4, cy - 30 + k * 20 + 4, Z + 597, Z + 600, gold));
-      fingers(cy - 56, cy + 56, Z + 572, Z + 628);
+      const h = IO_HALF.usb, z0 = Z + IO_Z.usb[0], z1 = Z + IO_Z.usb[1], tz = z0 + 28;
+      rim(cy - h, cy + h, z0, z1);
+      // the mouth sunk into the shell, the tongue in it with its four contacts on the open side
+      g.add(wallX(x - 18, x - 8, { y0: ly - h, y1: ly + h, z0, z1 }, [{ y0: ly - h + 8, y1: ly + h - 8, z0: z0 + 6, z1: z1 - 6 }], shell), boxW(x - 10, x - 8, cy - h + 4, cy + h - 4, z0 + 3, z1 - 3, hole));
+      g.add(boxW(x - 17, x - 10, cy - 40, cy + 40, tz, tz + 12, mat(USB_TONGUE[tier] ?? 0x2a6fdc, { roughness: 0.5 })));
+      for (let k = 0; k < 4; k++) g.add(boxW(x - 16, x - 11, cy - 30 + k * 20 - 4, cy - 30 + k * 20 + 4, tz - 2, tz, gold));
+      fingers(cy - h, cy + h, z0, z1);
     }
   }
   if (stamped) legacyPorts(g, tier, plateM);
@@ -299,12 +306,22 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
   }
   // the buttons and the extra jacks of the better boards (look only)
   const button = (y: number, z: number, ring: number) => g.add(drumX(x - 12, -y, z, 26, 8, mat(ring, { roughness: 0.45 })), drumX(x - 16, -y, z, 18, 10, mat(0x1b1d22, { roughness: 0.5 })));
-  if (tier >= 2) button(-1290, Z + 300, 0x9aa3ae);
+  if (tier >= 2) button(IO_EXTRA.bios, Z + IO_Z.jack, 0x9aa3ae);
   if (tier >= 3) {
-    button(-1220, Z + 300, 0xc8323c);
-    for (const z of [Z + 900, Z + 1160]) g.add(drumX(x - 30, 620, z, 22, 44, gold, 14), drumX(x - 50, 620, z, 13, 4, hole, 12));
-    g.add(boxW(x - 18, x - 8, 410, 450, Z + 250, Z + 290, mat(0x1b1d22, { roughness: 0.5 })), boxW(x - 20, x - 16, 418, 442, Z + 258, Z + 282, hole));
-    g.add(softBoxW(x - 16, x - 8, 300, 340, Z + 470, Z + 610, shell), softBoxW(x - 20, x - 14, 306, 334, Z + 480, Z + 600, hole));
+    const e = IO_EXTRA, oy = -e.optical.y, oz = Z + e.optical.z, uy = -e.usbc.y, [u0, u1] = e.usbc.z;
+    button(e.clr, Z + IO_Z.jack, 0xc8323c);
+    // each antenna jack an SMA: the hex nut on the plate, the threaded barrel, the white insulator and the centre socket at its mouth
+    const nickel = mat(0xb8bcc2, { metalness: 0.85, roughness: 0.3 }), ptfe = mat(0xe8e6df, { roughness: 0.6 });
+    for (const z of e.wifi.z) {
+      const wy = -e.wifi.y, wz = Z + z;
+      g.add(drumX(x - 15, wy, wz, 30, 14, nickel, 6), drumX(x - 42, wy, wz, 18, 44, gold, 20), drumX(x - 64.6, wy, wz, 11, 1.4, ptfe, 16), drumX(x - 65.6, wy, wz, 3.5, 1, gold, 8));
+      for (let k = 0; k < 5; k++) g.add(drumX(x - 27 - k * 8, wy, wz, 20.5, 3, gold, 20));
+    }
+    g.add(boxW(x - 18, x - 8, oy - 20, oy + 20, oz - 20, oz + 20, mat(0x1b1d22, { roughness: 0.5 })), boxW(x - 20, x - 16, oy - 12, oy + 12, oz - 12, oz + 12, hole));
+    // the USB-C: its rounded mouth sunk into the shell, the thin tongue down its middle
+    const ul = e.usbc.y;
+    g.add(wallX(x - 16, x - 8, { y0: ul - 20, y1: ul + 20, z0: Z + u0, z1: Z + u1, r: 20 }, [{ y0: ul - 13, y1: ul + 13, z0: Z + u0 + 8, z1: Z + u1 - 8, r: 13 }], shell));
+    g.add(boxW(x - 10, x - 8, uy - 16, uy + 16, Z + u0 + 4, Z + u1 - 4, hole), boxW(x - 14, x - 10, uy - 3.5, uy + 3.5, Z + u0 + 26, Z + u1 - 26, mat(0x16171b, { roughness: 0.5 })));
   }
   return g;
 }
@@ -319,7 +336,7 @@ const LEGACY = { kb: 0x7a4fb0, mouse: 0x4caf50, serial: 0x13a3a3, parallel: 0xa0
  * plate, as a tower's board stands.
  */
 function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
-  const x = CASE.x, zc = BOARD_Z + 880, shell = steel(), hole = black(), screw = mat(0x9aa0a8, { metalness: 0.8, roughness: 0.35 });
+  const x = CASE.x, zc = BOARD_Z + IO_Z.legacy, shell = steel(), hole = black(), screw = mat(0x9aa0a8, { metalness: 0.8, roughness: 0.35 });
   const din = (y: number, tone: number, half?: number) => {
     g.add(drumX(x - 12, -y, zc, 40, 8, mat(tone, { roughness: 0.5 })), drumX(x - 15, -y, zc, 27, 8, hole), boxW(x - 16, x - 12, -y - 4, -y + 4, zc + 14, zc + 27, mat(tone, { roughness: 0.5 })));
     // (a combo port's ring is half each colour: the half over the ring's face, the mouth in front of it)
@@ -337,15 +354,10 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
     for (const yy of [a - 60, b + 60]) g.add(drumX(x - 20, -yy, zc, 20, 14, screw, 6), drumX(x - 28, -yy, zc, 8, 2, hole, 8));
     g.add(boxW(x - 11, x - 8, -(b + 90), -(a - 90), z0 - 30, z1 + 30, plateM));
   };
-  if (tier === 0) {
-    din(-1890, LEGACY.kb);
-    din(-1770, LEGACY.mouse);
-    dsub(-1460, 190, LEGACY.serial);
-    dsub(-930, 470, LEGACY.parallel);
-  } else {
-    din(-1830, LEGACY.kb, LEGACY.mouse);
-    dsub(-1460, 190, LEGACY.vga);
-    dsub(-980, 330, LEGACY.dvi);
+  const tone = (t: string) => LEGACY[t as keyof typeof LEGACY] ?? 0x999999;
+  for (const l of legacyIo(tier)) {
+    if (l.kind === 'din') din(l.y, tone(l.tone), l.half ? tone(l.half) : undefined);
+    else dsub(l.y, l.len, tone(l.tone));
   }
 }
 
