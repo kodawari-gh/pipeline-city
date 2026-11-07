@@ -17,14 +17,14 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 | Menu | State | Notes |
 |---|---|---|
 | Shop | done 2026-11-07 | Full-screen, category rail with counts, 3D showcase over the stat bars, arrow keys. |
-| Inventory shelf | todo | |
-| Picker (board bubble) | todo | Share the showcase button. |
-| OS panel | todo | |
-| Graphics panel | todo | |
-| Main menu (`...`) | todo | |
-| Start menu / load screen | todo | |
-| Tutorial cards, hints | todo | |
-| Notices, toasts, modals | todo | |
+| Inventory shelf | done 2026-11-07 | Filter chips now carry words, not bare icons. Lock icons on tiles still have only a tooltip. |
+| Picker (board bubble) | partly | "3D view" button opens the shop on that part (`openShopAt`). Bubble layout not re-reviewed. |
+| OS panel | reviewed, no change | Clear tabs and list. Lower half is empty while the machine is off; a hint there would help. |
+| Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
+| Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
+| Start menu / load screen | reviewed, no change | Clear. Not seen with a saved game (no Continue row checked). |
+| Tutorial cards, hints | todo | Card seen only while typing out. Hints not reviewed. |
+| Notices, toasts, modals | todo | Not looked at yet. |
 
 ## Shared patterns (from the shop)
 - Rail + list + detail: three fixed zones; the detail pane is the hero (picture first, numbers below).
