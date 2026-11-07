@@ -299,16 +299,24 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
   };
   /** The loose plugs' screen centres, measured again after a moment (they fall and the camera moves). */
-  let plugs = { at: -Infinity, key: '', list: [] as { id: string; x: number; y: number }[] };
-  const GRAB_PX = 22;
+  let plugs = { at: -Infinity, key: '', list: [] as { id: string; x: number; y: number; reach?: number }[] };
+  const GRAB_PX = 22, SEATED_PX = 12;
   const looseNear = (x: number, y: number): string | null => {
     const now = performance.now();
     if (now - plugs.at > 120 || plugs.key !== revKey) {
       const loose = (snapshot.peek()?.cables ?? []).filter((c) => !c.connected);
       plugs = { at: now, key: revKey, list: loose.flatMap((c) => { const a = anchorsOf('cable.' + c.id)[0]; return a ? [{ id: 'cable.' + c.id, x: a.x + a.w / 2, y: a.y + a.h / 2 }] : []; }) };
+      // a seated plug is as small (a fan's header plug is a few pixels): its seat is a handle too, a shorter reach
+      const r = canvas.getBoundingClientRect();
+      for (const c of (snapshot.peek()?.cables ?? []).filter((c) => c.connected)) {
+        const rig = machine?.rig(c.id);
+        if (!rig) continue;
+        const q = new Vector3(...rig.seat.at).project(camera);
+        if (q.z < 1 && Math.abs(q.x) < 1 && Math.abs(q.y) < 1) plugs.list.push({ id: 'cable.' + c.id, x: r.left + ((q.x + 1) / 2) * r.width, y: r.top + ((1 - q.y) / 2) * r.height, reach: SEATED_PX });
+      }
     }
     let best: string | null = null, d = GRAB_PX;
-    for (const p of plugs.list) { const k = Math.hypot(p.x - x, p.y - y); if (k <= d) { d = k; best = p.id; } }
+    for (const p of plugs.list) { const k = Math.hypot(p.x - x, p.y - y); if (k <= Math.min(d, p.reach ?? GRAB_PX)) { d = k; best = p.id; } }
     return best;
   };
   // a cable's plug held in the scene (plughand3d.ts), and the parts dragged in from the inventory or lifted off the board (drag3d.ts)
