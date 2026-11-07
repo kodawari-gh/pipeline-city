@@ -23,7 +23,7 @@ import { MainMenu } from './panels/MainMenu';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
 import { SandboxTools } from '../../features/sandbox/ui/SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from '../../features/economy/ui/progress/Levels';
-import { Shop } from '../../features/economy/ui/shop/Shop';
+import { Gallery, Shop } from '../../features/economy/ui/shop/Shop';
 import { TutorialCard } from '../../features/tutorial/ui/TutorialCard';
 import { toggleTrace, TracePanel, traceOpen } from '../../features/cpu/ui/TracePanel';
 import { AlmanacPanel } from '../../features/jobs/ui/AlmanacPanel';
@@ -31,7 +31,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { GraphicsDock } from './panels/Graphics';
 import {
-  graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  galleryOpen, graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -245,7 +245,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
 export function Hud() {
   const s = snapshot.value;
   // (the menu waits for the boot screen, app/boot.ts)
-  if (!s) return booted.value ? <><Title on /><MainMenu /><NewGameDialog /><GraphicsDock /></> : null;
+  if (!s) return booted.value ? <><Title on={!galleryOpen.value} /><MainMenu /><NewGameDialog /><Gallery /><GraphicsDock /></> : null;
   const dark = theme.value === 'dark';
   return (
     <>

@@ -228,6 +228,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const cpuView = (): OrbitView => inFree(DIE, BOARD_Z + 200, FLAT, 0.95);
   /** The title shows (no game yet): the view turns over the room (`menuView`); the game's start flies it to the overview. */
   let menu = !snapshot.peek();
+  canvas.style.pointerEvents = menu ? 'none' : ''; // (the main menu's room is a picture: no hover, no click, no zoom)
   let view = menu ? menuView(performance.now() / 1000) : overview(), goal = view;
   /** How far into the case a view is (`nearness`), by the height it shows on the board's plane: 0 from twice the board view's out, 1 from the board view in. */
   const inCase = (v: OrbitView): number => { const b = boardView().height; return nearness(heightAt(v, BOARD_Z), b, 2 * b); };
@@ -525,6 +526,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let revKey = '';
 
   const onKey = (e: KeyboardEvent) => {
+    if (menu) return; // the main menu's room is a picture: no keys, no pointer
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     cancelFlight();
     atOverview = false;
@@ -596,7 +598,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (next && linked(next.programs)) { install(next.m); next = null; }
     const s = snapshot.peek();
     if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
-    menu = !s;
+    if (menu !== !s) { menu = !s; canvas.style.pointerEvents = menu ? 'none' : ''; }
+    if (menu && hover.peek()) hover.value = null;
     view = inRoom(stepView(view, goal, dt), false);
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle

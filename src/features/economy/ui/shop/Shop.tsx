@@ -4,6 +4,7 @@ import { fmtMoney } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Rung } from './PickerCard';
 import { Showcase } from './Showcase';
+export { Gallery } from './Gallery';
 import { StatCard } from './StatCard';
 import { kindOf } from './picker';
 import { closeShop, shopFocus, shopOpen } from '@/core/ui/state';

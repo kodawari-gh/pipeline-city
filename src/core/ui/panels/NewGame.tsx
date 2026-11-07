@@ -8,12 +8,14 @@ import { resetTutorial } from '../state';
 // it when a game can be fallen back on.
 
 export const newGameOpen = signal(false);
-export const openNewGame = () => { newGameOpen.value = true; };
+/** The mode the dialog opens on (the main menu's Sandbox entry asks for the sandbox). */
+export const newGameMode = signal<'campaign' | 'sandbox'>('campaign');
+export const openNewGame = (mode: 'campaign' | 'sandbox' = 'campaign') => { newGameMode.value = mode; newGameOpen.value = true; };
 
 type Mode = 'campaign' | 'sandbox';
 
 export function NewGameDialog() {
-  const [mode, setMode] = useState<Mode>('campaign');
+  const [mode, setMode] = useState<Mode>(newGameMode.value);
   const [assembled, setAssembled] = useState(true);
   const [confirm, setConfirm] = useState(false);
   const [tutorialOn, setTutorialOn] = useState(true);
@@ -26,6 +28,7 @@ export function NewGameDialog() {
   // Focus the chosen card when the dialog opens, and give focus back to the page's last control when it closes.
   useEffect(() => {
     if (!open) { setConfirm(false); return; }
+    setMode(newGameMode.value);
     const before = document.activeElement as HTMLElement | null;
     dialog.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
     const onKey = (e: KeyboardEvent) => {

@@ -1237,3 +1237,17 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .rung.picked, .tile.sel, .os-tile.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--glass-hi)); }
 .inv-gname, .shop-sec h3, .almanac h4, .menu-h { font: 600 var(--fs-label) var(--ui); text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
 .shop-title, .alm-title, .inv-title { font-size: var(--fs-title); font-weight: 700; }
+
+/* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
+.gallery { position: fixed; inset: 0; z-index: 70; display: flex; gap: 1rem; padding: 1.2rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 93%, transparent); backdrop-filter: blur(0.6rem); animation: fade-in .3s ease both; }
+.gal-rail { display: flex; flex-direction: column; gap: 0.35rem; width: 11rem; flex: none; }
+.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+.gal-h { font: 750 1.2rem var(--ui); margin-bottom: 0.6rem; }
+.gal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.gal-main .showcase { flex: 1; min-height: 0; margin: 0; }
+.gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; }
+.gal-title { display: flex; align-items: baseline; gap: 0.7rem; font-size: 1.1rem; }
+.gal-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.gal-items button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
+.gal-hint { font-size: 0.7rem; }
+@media (max-width: 40em) { .gallery { flex-direction: column; } .gal-rail { width: auto; flex-direction: row; flex-wrap: wrap; } .gal-h { display: none; } }

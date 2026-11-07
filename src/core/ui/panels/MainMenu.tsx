@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { autosaveOffer, importSave, startSim } from '@/app/store';
 import { fmtMoney, fmtTicks } from '../logic';
 import { Icon } from '../kit/Icons';
-import { graphicsOpen, setUiScale, theme, toggleGraphics, toggleTheme, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
+import { galleryOpen, graphicsOpen, setUiScale, theme, toggleGraphics, toggleTheme, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
 import { newGameOpen, openNewGame } from './NewGame';
 
 // The MAIN MENU, over the live room before a game: Continue (when an autosave exists), New game, Load game, Settings.
@@ -14,7 +14,7 @@ const settingsOpen = signal(false);
 export function MainMenu() {
   const offer = autosaveOffer.value;
   const list = useRef<HTMLDivElement>(null);
-  const modal = newGameOpen.value || settingsOpen.value;
+  const modal = newGameOpen.value || settingsOpen.value || galleryOpen.value;
 
   // The first entry takes focus (Continue when there is one); arrows move up and down the list.
   useEffect(() => {
@@ -38,7 +38,9 @@ export function MainMenu() {
             <span class="mm-t">Continue<span class="mm-d">{offer.sandbox ? 'Sandbox' : fmtMoney(offer.money)} · {fmtTicks(offer.baseTick)}</span></span>
           </button>
         )}
-        <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={openNewGame}><Icon name="star" size={14} /><span class="mm-t">New game</span></button>
+        <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game</span></button>
+        <button class="mm-btn" onClick={() => openNewGame('sandbox')}><Icon name="box" size={14} /><span class="mm-t">Sandbox<span class="mm-d">Everything unlocked</span></span></button>
+        <button class="mm-btn" onClick={() => { galleryOpen.value = true; }}><Icon name="cpu" size={14} /><span class="mm-t">Gallery<span class="mm-d">Every part in 3D</span></span></button>
         <label class="mm-btn btn" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement).click(); } }}>
           <Icon name="import" size={14} /><span class="mm-t">Load game</span>
           <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) importSave(f); e.currentTarget.value = ''; }} />

@@ -212,7 +212,7 @@ A drawer and not a modal: the picture stays in view and each change applies at o
 
 ## Notices, toasts and modals
 
-The main menu (`panels/MainMenu.tsx`) shows over the live room before a game: Continue (with an autosave), New game, Load game, Settings. New game opens the dialog, whose Cancel returns to it.
+The main menu (`panels/MainMenu.tsx`) shows over the live room before a game: Continue (with an autosave), New game, Sandbox (the dialog on the sandbox choice), Gallery, Load game, Settings. New game opens the dialog, whose Cancel returns to it. Gallery (`shop/Gallery.tsx`) is the shop's 3D view, large, for every part with a model. The room behind the menu takes no hover, click, key or zoom (the canvas has `pointer-events: none` while no game runs).
 
 Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
 

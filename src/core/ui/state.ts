@@ -86,6 +86,9 @@ export const openShopAt = (specId: string) => { shopFocus.value = specId; shopOp
 export const closeShop = () => { shopOpen.value = false; };
 export const toggleShop = () => { shopOpen.value = !shopOpen.value; };
 
+/** The gallery (main menu): every part as a 3D model. */
+export const galleryOpen = signal(false);
+
 export const milestones = signal<{ focus: number | null } | null>(null);
 export const openMilestones = (focus: number | null = null) => { milestones.value = { focus }; };
 export const closeMilestones = () => { milestones.value = null; };
