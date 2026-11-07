@@ -1105,6 +1105,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* The job log: pictures first. A ring of the time split, bars for the stalls, a card per kind of job with its sprite and one coloured tag */
 .joblog .jl-left { width: 19rem; flex: none; display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
+/* nothing finished yet: the panel is only as tall as what it shows */
+.almanac.jl-none { height: auto; max-height: min(100%, 44rem); }
 .jl-key { display: inline-flex; gap: 0.7rem; font-size: 0.7rem; color: var(--mute); }
 .jl-filter { display: flex; flex-wrap: wrap; gap: 0.2rem; }
 .jl-filter button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); }

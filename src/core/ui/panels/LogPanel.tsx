@@ -257,10 +257,10 @@ export function LogPanel() {
   const sel = all.find((e) => e.id === picked.value) ?? null;
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeLog(); }}>
-      <div class="card almanac joblog" role="dialog" aria-modal="true" aria-label="Job log">
+      <div class={`card almanac joblog${all.length === 0 ? ' jl-none' : ''}`} role="dialog" aria-modal="true" aria-label="Job log">
         <header class="alm-head">
           <span class="alm-title"><Icon name="clock" size={16} /> Job log</span>
-          <span class="chip">{all.length} {all.length === 1 ? 'job' : 'jobs'}</span>
+          <span class="chip">{all.length} finished</span>
           <span class="jl-key">{PHASES.map(([k, name]) => <span key={k}><i class={`dot jl-${k}`} /> {name}</span>)}</span>
           <button class="close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
         </header>
