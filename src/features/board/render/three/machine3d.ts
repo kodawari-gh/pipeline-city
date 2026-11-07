@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
 import { cardArt, cardOrigin, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
@@ -795,8 +795,9 @@ export class Machine3D {
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
       const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };
       // its ports: the board's jack, and each network card's (the 2D game's `eth0`, `eth1`...); the plug stands in the one the sim has it in
-      const jacks = [{ port: 'board', at: [CASE.x, -ly, lz] as V3 }, ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, at: [CASE.x, -nicY(Number(/\d+$/.exec(d.slot)?.[0] ?? 0)), lz] as V3 }))];
-      const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0]!;
+      const jacks = [...((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0 && !s.board.burnt ? [{ port: 'board', at: [CASE.x, -ly, lz] as V3 }] : []), ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, at: [CASE.x, -nicY(Number(/\d+$/.exec(d.slot)?.[0] ?? 0)), lz] as V3 }))];
+      // (no jack at all, a board without one and no card: the plug waits at the board's place, and nothing takes it)
+      const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', at: [CASE.x, -ly, lz] as V3 };
       const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
       this.addRig(g, {
         id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: () => straightPlug(seat, 110, 80, 150, '#8cc3e0'), seat, canSeat: true, engage: 300,
