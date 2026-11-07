@@ -32,8 +32,9 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 
 ## Passes
 - Pass 1 (2026-11-07): every menu looked at in a 1600x900 screenshot; fixes as in the table.
-- Pass 2 (2026-11-07): the fixed menus shot again (OS, inventory, shop) plus the narrow check (800x700) of the shop and the inventory: the rail becomes a chip row, the detail stacks under the tiles, nothing overlaps. The tutorial cards were rendered one by one (see the table). Graphics, start menu, almanac, job log, levels and the dock lenses were unchanged since pass 1.
-- Not done: narrow-screen shots of the panels other than the shop and the inventory. The showcase CPU is a plain package and heat spreader (no die, no pins); worth a better model.
+- Pass 2 (2026-11-07): every menu shot again at 1600x900 and at 800x700 (shop, inventory, picker, OS, graphics, stats, trace, levels, almanac, job log, menu, new game, Power and Airflow lenses). Found and fixed: the graphics and stats side panels ran under the dock at 800x700 (`.dock` now ends above it); the OS tile list pushed the detail below the fold (tiles now wrap in two columns). The tutorial cards were rendered for all 97 pages of the 38 steps with their real titles in the real card at its real width: 130-145 px high, no title wraps, no page overflows.
+- Checks run after pass 2: `npm run test:q` (246 files, 3471 tests pass, 4 skipped) and `npm run build` (ok) before the last CSS change; after it `npx vitest run src/core/ui` and `npm run build` again.
+- Left as it is: the Airflow lens clips one tag at the screen edge when the case is at the edge (800x700); the showcase CPU is a plain package and heat spreader (no die, no pins).
 
 ## Shared patterns (from the shop)
 - Rail + list + detail: three fixed zones; the detail pane is the hero (picture first, numbers below).
