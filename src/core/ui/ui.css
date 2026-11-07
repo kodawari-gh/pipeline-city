@@ -451,7 +451,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Stats drawer (right side), kept as before but quieter */
 .dock {
-  position: fixed; top: 4rem; right: 0.533rem; bottom: 0.533rem; width: 18rem; overflow-y: auto; z-index: 20; padding: 0.667rem 0.733rem; scrollbar-width: thin;
+  position: fixed; top: 4rem; right: 0.533rem; bottom: 3.8rem; width: 18rem; overflow-y: auto; z-index: 20; padding: 0.667rem 0.733rem; scrollbar-width: thin;
 }
 .dock h2 { margin: 0 0 0.4rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .12em; }
 .dock h3 { margin: 0.667rem 0 0.267rem; font-size: 0.633rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); font-weight: 600; }
@@ -772,7 +772,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .os-actions { display: flex; gap: 0.3rem; padding: 0.2rem 0.45rem; }
 .os-drive { padding: 0.25rem 0; }
 .os-drive input { accent-color: var(--accent); }
-@media (max-width: 52rem) { .os-perf { flex-direction: column; } .os-tiles { width: auto; } }
+@media (max-width: 52rem) { .os-perf { flex-direction: column; } .os-tiles { width: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); } }
 .netpanel .sla { font-size: 0.667rem; color: var(--ok); font-family: var(--mono); }
 .netpanel .sla.warn { color: var(--warn); }
 .netpanel b.limit { font-size: 0.667rem; font-family: var(--mono); }
