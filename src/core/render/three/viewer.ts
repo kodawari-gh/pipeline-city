@@ -78,6 +78,9 @@ export function mountViewer(host: HTMLElement): Viewer {
     const s = r * 1.6;
     Object.assign(key.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: r * 8 });
     key.shadow.camera.updateProjectionMatrix();
+    // flat panels shade themselves without a bias (stripes across a side panel)
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = r * 0.004;
     rim.position.set(centre.x - r * 2, centre.y + r, centre.z - r * 1.5);
     rim.target.position.copy(centre);
   };
@@ -120,8 +123,10 @@ export function mountViewer(host: HTMLElement): Viewer {
     if (auto && idle > 2) yaw += AUTO_SPEED * dt;
     view = stepView(view, goal(), dt * 3);
     applyView(camera, view, renderer.domElement.width / Math.max(1, renderer.domElement.height));
-    camera.near = 1;
-    camera.far = size.length() * 20 + 1000;
+    // the depth range hugs the part: a near plane of 1 against a far plane of 100000 leaves the 24-bit depth about 10 units at the part, and its layers (panel, art, vents) fight
+    const dist = camera.position.distanceTo(centre), reach = size.length();
+    camera.near = Math.max(1, dist * 0.05, dist - reach);
+    camera.far = dist + reach * 2;
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
   };
