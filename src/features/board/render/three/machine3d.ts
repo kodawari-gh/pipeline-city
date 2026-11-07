@@ -156,6 +156,8 @@ export class Machine3D {
   /** The draggable cables' rigs by kind, built with the cables; where each loose plug was dropped, kept until the parts change. */
   private rigs = new Map<string, CableRig>();
   readonly rest = new Map<string, Rest>();
+  /** The case's own pieces (the shell, the side panel, the fans, the light strips): what a case swap lifts away (`buildmode3d.ts`). */
+  readonly caseRoots: Object3D[] = [];
   /** Each rig's tagged group, whether it stands seated, and how its card fades it while it is plugged in. */
   private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
   /** The cables built (their kinds), and the key in the port. */
@@ -227,7 +229,9 @@ export class Machine3D {
     // light strips along the inside of the top and the front: RGB in the gaming case, a cold white in the showcase, none in the plain cases
     if (cm.rgb) for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
       const m = glowMat(cm.accent);
-      this.root.add(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
+      const strip = seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m));
+      this.root.add(strip);
+      this.caseRoots.push(strip);
       this.spin(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
     }
     // the fan hub
@@ -235,6 +239,7 @@ export class Machine3D {
     // the board's I/O shield in the rear wall, with the ports the board has, in the board's style
     shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, GEO.tier));
     this.root.add(shell, cm.door);
+    this.caseRoots.push(shell, cm.door);
     this.grommets = GROMMETS[kind];
     // the side panel opens (casedoor.ts) from the board view in, for a drag or a tutorial target inside, or on a click on it (`toggleDoor`)
     this.door = { kind, cm, t: 0, zoom: 0, board: 0.13, zoomOpen: false, manual: null, inside: false, busy: false };
@@ -245,8 +250,15 @@ export class Machine3D {
       if (this.rad?.span.ids.includes(m.id)) continue;
       const f = caseFan(m.id, m.side, m.rect, FAN_ZC, FAN_MAX);
       this.root.add(tag(f.root, 'case:' + m.id));
+      this.caseRoots.push(f.root);
       this.spin(cm.rgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
     }
+  }
+
+  /** The board's pieces: everything on the root that is not the case, the cables or a light (a board swap lifts these). */
+  boardRoots(): Object3D[] {
+    const skip = new Set<Object3D>([...this.caseRoots, this.wires, this.rgb, this.spill]);
+    return this.root.children.filter((o) => !skip.has(o));
   }
 
   /** Let the live frame drive a fan or a light. */

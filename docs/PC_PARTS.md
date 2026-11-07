@@ -8,8 +8,8 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 | Part | Specs | Model (file) | Model | Fit | Graph | Anim |
 |---|---|---|---|---|---|---|
-| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [~] | [x] | [x] | [~] side panel opens; a swap lifts the whole machine |
-| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [~] | [x] | [x] | [~] a swap lifts the whole machine |
+| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [~] | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
+| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [~] | [x] | [x] | [x] a swap lifts the board with its fixed parts, not the case |
 | CPU (17 specs) | `cpu0..4w` | `chips3d.ts`, `showcase.ts` | [~] | [x] | [x] | [x] |
 | CPU cooler: stock, tower | `cooler0`, `cooler1` | `cooler3d.ts` | [~] | [x] | [x] | [x] |
 | Liquid loop: pump and radiator | `cooler2`, `rad1..3` | `cooler3d.ts`, `fans3d.ts` | [~] | [x] | [x] | [x] |
@@ -41,7 +41,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 ## Known visual defects
 
-- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Measured (2026-11-07, dev server, Full case, front view with the hex grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): 12.93 % before, 10.72 % after; views with no grille are equal (0.637 and 1.965 %). The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
+- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Measured (2026-11-07, dev server, Full case, front view with the hex grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): 12.93 % before, 10.72 % after; views with no grille are equal (0.637 and 1.965 %). With the perforation maps stripped the same view gives 3.52 %, so the grille still adds about 7 points. A 2x texture (10.70 %) and a blended alpha (11.82 %) did not help; both were dropped. The Mid case is not measured. The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
 - [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
 - [x] Second pass (same day): the NPU over the NIC (it covers the next slot, as `COVERS` says), the TPM header, the HDD in the cage (platter, SATA sockets), the Mini case with its panel open and a CPU and stick fitted. No defect found; the Mini's panel swings where the 3D notes say it slides (a motion difference, not a fit one).
 
@@ -53,5 +53,6 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 - Fit: pick a part from the bin, press Fit. Blocks come out, the part goes in, the blocks go back.
 - Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
-- Limits: the stage monitor is a plain stand-in for the room's; a board or case swap lifts the whole machine as one piece (the parts come out one by one first).
+- Board and case swaps: the parts come out first. The door closes. The board lifts out (`Machine3D.boardRoots`), then the case pieces (`caseRoots`). The new case lowers over the board, then the new board settles in.
+- Limits: the stage monitor is a plain stand-in for the room's. The model rows stay `[~]`: the close-up reviews found no defect, but no part got a new model pass.
 - Tests: `sim/removal.test.ts` (graph), `sim/removal.game.test.ts` (plans run on the real game), `render/three/fit.test.ts` (rules vs geometry), `render/three/buildmotion.test.ts`.

@@ -75,7 +75,7 @@ export class BuildStage {
   private dead = false;
   private last = performance.now();
   private wantOpen = false;
-  private anim: { obj: Object3D | null; base: [number, number, number]; baseTurn: number; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
+  private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
   private nSteps = 0;
@@ -207,9 +207,9 @@ export class BuildStage {
     if (!a) return;
     a.t += dt;
     const m = motionFor(a.kind), p = poseAt(m, a.t, a.dir);
-    if (a.obj) {
-      a.obj.position.set(a.base[0] + p.offset[0], a.base[1] + p.offset[1], a.base[2] + p.offset[2]);
-      a.obj.rotation.z = a.baseTurn + p.turn;
+    for (const x of a.objs) {
+      x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
+      x.o.rotation.z = x.baseTurn + p.turn;
     }
     this.setStep(p.label);
     if (a.t >= motionSeconds(m)) { this.anim = null; a.done(); }
@@ -275,14 +275,20 @@ export class BuildStage {
     return null;
   }
 
-  /** Play a node's motion on its object. Without an object (the monitor, an unbuilt cable) the time still passes, so the log reads right. */
-  private play(node: string, kind: string, dir: 'out' | 'in'): Promise<void> {
-    const obj = this.objectOf(node), m = motionFor(kind);
+  /** Play a motion on some objects together. Without any (the monitor of a part that is not built) the time still passes, so the log reads right. */
+  private playAll(objs: Object3D[], kind: string, dir: 'out' | 'in'): Promise<void> {
+    const m = motionFor(kind), p = poseAt(m, 0, dir);
     return new Promise((done) => {
-      const base: [number, number, number] = obj ? [obj.position.x, obj.position.y, obj.position.z] : [0, 0, 0];
-      this.anim = { obj, base, baseTurn: obj?.rotation.z ?? 0, kind, dir, t: 0, done };
-      if (obj) { const p = poseAt(m, 0, dir); obj.position.set(base[0] + p.offset[0], base[1] + p.offset[1], base[2] + p.offset[2]); }
+      const list = objs.map((o) => ({ o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z }));
+      this.anim = { objs: list, kind, dir, t: 0, done: () => { if (dir === 'out' && objs.length > 1) for (const x of list) x.o.position.set(...x.base); done(); } };
+      for (const x of list) x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
     });
+  }
+
+  /** Play a node's motion on its object. */
+  private play(node: string, kind: string, dir: 'out' | 'in'): Promise<void> {
+    const obj = this.objectOf(node);
+    return this.playAll(obj ? [obj] : [], kind, dir);
   }
 
   private async door(open: boolean): Promise<void> {
@@ -436,28 +442,28 @@ export class BuildStage {
       await this.takeOut(n, undo);
     }
     await this.door(false);
-    this.note(`Take the old ${isCase ? 'case' : 'board'} away`);
-    await this.playRoot(nodeKind(this.board, isCase ? CASE : BOARD), 'out');
+    // the board first (on a case swap too: the case cannot lift off with it inside), then the case
+    this.note('Undo the board screws and lift the board out');
+    await this.playAll(this.machine.boardRoots(), 'board', 'out');
+    if (isCase) { this.note('Take the old case away'); await this.playAll(this.machine.caseRoots, 'case', 'out'); }
     const bought = this.game.purchase(itemId);
-    if (!bought.ok) { this.note(bought.reason); await this.playRoot(isCase ? 'case' : 'board', 'in'); }
-    else {
-      const r = this.game.install(bought.invId);
-      if (!r.ok) this.note(`Cannot fit it: ${r.reason}`);
-      this.rebuild();
-      this.note(`Fit the ${isCase ? CASE_TIERS[tier]!.name : BOARD_TIERS[tier]!.name + ' board'}`);
-      await this.playRoot(isCase ? 'case' : 'board', 'in');
+    const fitted = bought.ok ? this.game.install(bought.invId) : bought;
+    if (!fitted.ok) this.note(`Cannot fit it: ${fitted.reason}`);
+    this.rebuild();
+    if (fitted.ok) {
+      const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset;
+      if (isCase) {
+        // the new case comes down first, the board still held over it
+        for (const o of board) o.position.set(o.position.x + far[0], o.position.y + far[1], o.position.z + far[2]);
+        this.note(`Set the ${CASE_TIERS[tier]!.name} down`);
+        await this.playAll(this.machine.caseRoots, 'case', 'in');
+        for (const o of board) o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]);
+      }
+      this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
+      await this.playAll(board, 'board', 'in');
     }
     for (const u of undo.reverse()) await this.putBack(u);
     await this.plugNeeded();
-  }
-
-  /** The whole machine moves (a board or a case swap). */
-  private playRoot(kind: string, dir: 'out' | 'in'): Promise<void> {
-    const root = this.machine.root;
-    return new Promise((done) => {
-      const base: [number, number, number] = [root.position.x, root.position.y, root.position.z];
-      this.anim = { obj: root, base, baseTurn: 0, kind, dir, t: 0, done: () => { root.position.set(...base); done(); } };
-    });
   }
 
   /** A new sandbox machine: the biggest rig, as at the start. */
