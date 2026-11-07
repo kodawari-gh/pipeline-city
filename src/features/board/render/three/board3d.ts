@@ -44,6 +44,7 @@ import { Drag3D, deviceOf } from './drag3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import { BoardLive3D } from './boardlive3d';
+import { Cues3D } from './cues3d';
 import { Particles3D } from './particles3d';
 import { setPartDragHandler } from '@/core/ui/worldDrag';
 import type { DeviceSnap } from '@/worker/game/types';
@@ -486,6 +487,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, visible: x0 < f.x + f.w && x1 > f.x && y0 < f.y + f.h && y1 > f.y && Math.max(x1 - x0, y1 - y0) >= MIN_TARGET_PX };
   };
   const anchorsOf = (id: string): Anchor[] => boxesOf(id).map(screenBox).filter((a): a is Anchor => !!a);
+  const cues = new Cues3D(anchorsOf);
   const flyToId = (id: string, o: FlyOpts): boolean => {
     const box = new Box3();
     // a key shows with its port
@@ -604,6 +606,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()), ratio);
     boardLive.frame(camera, H, s, gt, dt * pace, speed.peek() <= 0, ratio, !!machine);
     room?.setScreenImage(boardLive.screen);
+    cues.frame(menu ? null : s);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
     room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, isp: Number(/\d+$/.exec(s?.net?.isp?.id ?? '')?.[0] ?? 0), mail: !!s?.net && (s.net.uploadsWaiting > 0 || s.net.transfers.some((t) => t.dir === 'up')), t: gt / 1000 }, dt);
