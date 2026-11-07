@@ -1,9 +1,9 @@
 // Parts for the shop's showcase viewer (core/render/three/viewer.ts): a part built alone, stood upright, centred on the origin and resting on y = 0.
 // The builders are the board's own (the part looks as it does in the case). Where a part wears a 2D drawing in the case (a card's face, a drive's
 // label), the showcase leaves it plain: the drawing is baked by the board's Pixi pass. A kind with no 3D model yet gives null.
-import { Box3, Group, Vector3, type Material, type Object3D } from 'three';
+import { Box3, ExtrudeGeometry, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D } from 'three';
 import { readTheme, type Theme } from '@/core/render/theme';
-import { rectBox, softBox } from '@/core/render/three/geometry';
+import { place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { getSpec, type CardSpec, type NicSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -53,11 +53,32 @@ const plainRaise: Raise = (parent, r, z0, z1, side: Material, bevel = 0) => {
 
 const grow = (r: { x: number; y: number; w: number; h: number }, e: number) => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 
-/** The processor: the package on its substrate under a satin nickel heat spreader. */
+/**
+ * The processor: the package with its capacitors, the die with its core tiles and cache, and the heat spreader as an open frame round the die
+ * (a cutaway: the board's lid fades away over the die view, and the die view's floorplan is baked 2D art, so the tiles here stand in for it).
+ */
 function cpuModel(): Group {
-  const g = new Group();
-  g.add(rectBox(PKG, BOARD_Z + 70, BOARD_Z + 150, mat(0x111a33, { roughness: 0.6 })));
-  g.add(softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 }), 40));
+  const g = new Group(), z0 = BOARD_Z + 150;
+  g.add(rectBox(PKG, BOARD_Z + 70, z0, mat(0x111a33, { roughness: 0.6 })));
+  // capacitors in rows along the four edges, between the package's rim and the lid
+  const cap = mat(0xc9b27a, { metalness: 0.5, roughness: 0.4 }), cw = 34, cl = 62, step = 78, rim = 40;
+  for (let x = PKG.x + 100; x + cw <= PKG.x + PKG.w - 100; x += step) for (const y of [PKG.y + rim, PKG.y + PKG.h - rim - cl]) g.add(rectBox({ x, y, w: cl, h: cw }, z0, z0 + 28, cap));
+  for (let y = PKG.y + 140; y + cw <= PKG.y + PKG.h - 140; y += step) for (const x of [PKG.x + rim, PKG.x + PKG.w - rim - cl]) g.add(rectBox({ x, y, w: cw, h: cl }, z0, z0 + 28, cap));
+  // the die: dark silicon, a 2 x 2 block of core tiles over a strip of cache and a strip of memory controller and I/O
+  g.add(rectBox(DIE, z0, z0 + 50, mat(0x1b2236, { metalness: 0.3, roughness: 0.35 })));
+  const gap = 14, inner = grow(DIE, -26), coreH = inner.h * 0.5, tileW = (inner.w - gap) / 2, tileH = (coreH - gap) / 2;
+  const core = mat(0x3b5a8f, { metalness: 0.2, roughness: 0.5 }), cache = mat(0x2c8f8f, { roughness: 0.5 }), io = mat(0x8f5a3b, { roughness: 0.5 });
+  for (let i = 0; i < 4; i++) g.add(rectBox({ x: inner.x + (i % 2) * (tileW + gap), y: inner.y + Math.floor(i / 2) * (tileH + gap), w: tileW, h: tileH }, z0 + 50, z0 + 62, core));
+  g.add(rectBox({ x: inner.x, y: inner.y + coreH, w: inner.w, h: inner.h * 0.28 }, z0 + 50, z0 + 60, cache));
+  g.add(rectBox({ x: inner.x, y: inner.y + coreH + inner.h * 0.28 + gap, w: inner.w, h: inner.h - coreH - inner.h * 0.28 - gap }, z0 + 50, z0 + 58, io));
+  // the heat spreader: a satin nickel frame round the die
+  const o = grow(DIE, 90), hole = grow(DIE, 14), shape = new Shape(), cut = new Path();
+  shape.moveTo(o.x, -o.y).lineTo(o.x + o.w, -o.y).lineTo(o.x + o.w, -(o.y + o.h)).lineTo(o.x, -(o.y + o.h)).closePath();
+  cut.moveTo(hole.x, -hole.y).lineTo(hole.x, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -hole.y).closePath();
+  shape.holes.push(cut);
+  const lid = place(new Mesh(new ExtrudeGeometry(shape, { depth: 70, bevelEnabled: true, bevelSize: 10, bevelThickness: 10, bevelSegments: 2 }), mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 })));
+  lid.position.z = z0;
+  g.add(lid);
   return g;
 }
 
