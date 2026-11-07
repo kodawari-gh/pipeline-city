@@ -192,6 +192,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 A drawer and not a modal: the picture stays in view and each change applies at once, with no Apply button. It shares the docks' side with the stats and network drawers, so opening one closes the others (`state.ts`). The menu's Graphics entry opens it, Escape and the x close it. The numbers at the top are the running FPS, frame time and drawn size (`frameStats`).
 
 - **Presets**: Low, Medium, High, Ultra (`PRESETS`). High is the tuned look and the default. A change to an option in a preset's list shows the short Custom line under the buttons.
+- **Where they apply**: the game view, Build My PC (`buildmode3d.ts`: scale, AO, bloom, multisampling, brightness, filtering, frame limit) and the shop gallery (`viewer.ts`: scale, brightness, shadows, filtering, frame limit; multisampling only at open). All follow a change live.
 - **Options outside the presets**: frame limit (60 by default), brightness, auto-adjust. A preset leaves them alone.
 - **Away** (3D): the limit drops to 30 while the page has lost the focus, or after 30 s without input while the view and the hand stand still (`AwayWatch`). The next input lifts it. It is not a setting.
 - **Two renderers**: only the running renderer's options show (`rendererKind`). The 2D view has render scale and frame limit; its anti-aliasing is fixed at start.

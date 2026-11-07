@@ -2,7 +2,10 @@
 // part and disposed with `dispose`. The camera is the board's orbit (`camera.ts`) with the full turn allowed.
 import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { effect } from '@preact/signals';
+import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
+import { anisotropy, refilter } from './geometry';
 
 export interface Viewer {
   /** Show another part (null: an empty stage). The old one is disposed. */
@@ -16,6 +19,8 @@ export interface Viewer {
 
 /** The turn and zoom limits: all the way round, from just under the floor to straight above. */
 export const VIEW_LIMITS = { pitchMin: -0.1, pitchMax: 1.5, zoomMin: 0.25, zoomMax: 2.5 };
+/** The shadow map's side by the shadow quality (Off, Low, Med, High, Ultra). */
+const SHADOW_PX = [1, 512, 1024, 2048, 4096];
 const FOV = 28, START = { yaw: 0.6, pitch: 0.4 }, AUTO_SPEED = 0.35;
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -39,8 +44,8 @@ function disposeTree(o: Object3D): void {
 }
 
 export function mountViewer(host: HTMLElement): Viewer {
-  const renderer = new WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new WebGLRenderer({ antialias: effective.peek().msaa > 0, alpha: true }); // (the multisampling is fixed at creation)
+  renderer.setPixelRatio(pixelRatio(effective.peek().scale));
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.6;
@@ -93,9 +98,22 @@ export function mountViewer(host: HTMLElement): Viewer {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
     renderer.setSize(w, h, false);
   };
+  // the graphics settings (`app/graphics.ts`): the pixels drawn, the brightness, the shadows and the texture filtering
+  const stopSettings = effect(() => {
+    const g = effective.value;
+    renderer.setPixelRatio(pixelRatio(g.scale));
+    renderer.toneMappingExposure = 1.6 * g.brightness;
+    renderer.shadowMap.enabled = g.shadows > 0;
+    const px = SHADOW_PX[g.shadows] ?? 1024;
+    if (key.shadow.mapSize.x !== px) { key.shadow.mapSize.set(px, px); key.shadow.map?.dispose(); key.shadow.map = null; }
+    if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+    resize();
+  });
+  const gate = new FrameGate();
   const frame = (now: number) => {
     if (dead) return;
     raf = requestAnimationFrame(frame);
+    if (!gate.ready(now, effective.peek().fps)) return;
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     idle += dt;
@@ -145,6 +163,7 @@ export function mountViewer(host: HTMLElement): Viewer {
     setAutoTurn: (on) => { auto = on; },
     dispose: () => {
       dead = true;
+      stopSettings();
       cancelAnimationFrame(raf);
       if (obj) disposeTree(obj);
       floor.geometry.dispose();

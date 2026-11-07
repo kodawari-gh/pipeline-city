@@ -3,12 +3,12 @@
 // What has to come out before what is the removal graph (`sim/removal.ts`); how each step looks is `buildmotion.ts`. A swap or a removal takes out
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
-import { signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
 import { AmbientLight, Box3, BoxGeometry, CanvasTexture, SRGBColorSpace, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
-import { effective } from '@/app/graphics';
+import { effective, FrameGate } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
-import { disposeTree } from '@/core/render/three/geometry';
+import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import { findById, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
@@ -66,6 +66,7 @@ export class BuildStage {
   private readonly bakes = new BakeQueue();
   private readonly ctx;
   private readonly post: Post;
+  private readonly gate = new FrameGate();
   private readonly host: HTMLElement;
   private view: OrbitView;
   private goal: OrbitView;
@@ -99,7 +100,12 @@ export class BuildStage {
     lamp.position.set(0, 4000, 9000);
     scene.add(key, rim, lamp);
     this.post = new Post(renderer, scene, camera, this.W, this.H);
-    this.post.apply(effective.peek(), renderer, this.W, this.H);
+    // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
+    this.cleanup.push(effect(() => {
+      const g = effective.value;
+      this.post.apply(g, renderer, this.W, this.H);
+      if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+    }));
     this.view = this.goal = this.frameView();
     this.listen(renderer.domElement);
     const ro = new ResizeObserver(() => {
@@ -198,6 +204,7 @@ export class BuildStage {
   private frame = (now: number): void => {
     if (this.dead) return;
     this.raf = requestAnimationFrame(this.frame);
+    if (!this.gate.ready(now, effective.peek().fps)) return;
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const { camera, renderer } = this.ctx;
