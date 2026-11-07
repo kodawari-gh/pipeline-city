@@ -306,7 +306,7 @@ function rugTex(): Texture | null {
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
-export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; t: number }
+export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */ isp: number; mail: boolean; t: number }
 
 export class Room3D {
   readonly root = new Group();
@@ -338,6 +338,8 @@ export class Room3D {
   private monitorSpot!: Mesh;
   private routerBody!: Group;
   private routerTier = 0;
+  private readonly ispDots: MeshStandardMaterial[] = [];
+  private mailLed!: MeshStandardMaterial;
   private routerBuild!: (tier: number) => void;
   private routerSpot!: Mesh;
   private clock: DigitalClock;
@@ -614,7 +616,19 @@ export class Room3D {
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));
     for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), 20));
-    R.add(socket, tag(softBox(WALL_PLATE, 0, 80, graphite, 30), 'wall'));
+    const plateBox = tag(softBox(WALL_PLATE, 0, 80, graphite, 30), 'wall');
+    // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
+    for (let k = 0; k < 5; k++) {
+      const m = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(NEON), emissiveIntensity: 0 });
+      const d = drum(WALL_PLATE.x + WALL_PLATE.w * (0.14 + k * 0.18), WALL_PLATE.y + WALL_PLATE.h * 0.8, 80, 96, WALL_PLATE.w * 0.04, m, 8);
+      this.ispDots.push(m);
+      R.add(d);
+    }
+    R.add(socket, plateBox);
+    // the letterbox's light: on while an upload waits or goes out
+    const mailM = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xffb347), emissiveIntensity: 0 });
+    box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, 10));
+    this.mailLed = mailM;
 
     // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one
     // side and falls off away from it); the room's bounce is baked on the still meshes (`takeBake`) and its probe on the rest (`setProbe`);
@@ -909,6 +923,8 @@ export class Room3D {
     this.routerBody.visible = f.router > 0;
     this.routerSpot.visible = f.router === 0;
     if (f.router > 0) this.routerBuild(f.router);
+    this.ispDots.forEach((m, k) => { m.emissiveIntensity = k < f.isp ? 2 : 0; });
+    this.mailLed.emissiveIntensity = f.mail ? 1.2 + 1.2 * Math.sin(f.t * 6) : 0;
     this.clock.set(f.hour);
     steam(this.cup, f.t);
   }
