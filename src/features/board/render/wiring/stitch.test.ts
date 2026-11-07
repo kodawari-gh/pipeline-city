@@ -24,5 +24,5 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i ground stitching', (ti
       expect(d, `via at ${x},${y}`).toBeGreaterThan(STITCH_LANE - 12);
       for (const [hx, hy] of g.holes) expect(Math.hypot(hx - x, hy - y)).toBeGreaterThanOrEqual(STITCH_HOLE);
     }
-  });
+  }, 30000); // (about 5 s alone: the full suite's load made it time out at the default)
 });
