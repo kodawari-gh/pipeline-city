@@ -18,7 +18,7 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 |---|---|---|
 | Shop | done 2026-11-07 | Full-screen, category rail with counts, 3D showcase over the stat bars, arrow keys. |
 | Inventory shelf | done 2026-11-07 | Filter chips now carry words, not bare icons. Lock icons on tiles still have only a tooltip. |
-| Picker (board bubble) | partly | "3D view" button opens the shop on that part (`openShopAt`). Bubble layout not re-reviewed. |
+| Picker (board bubble) | reviewed 2026-11-07 | "3D view" button opens the shop on that part (`openShopAt`). Readings are icon chips with tooltips only; a first-time player may not know what "0.00x" means. |
 | OS panel | done 2026-11-07 | Banner now says the machine is off instead of "nothing holds it back". Lower half stays empty while off. |
 | Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
 | Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
