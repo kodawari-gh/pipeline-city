@@ -13,6 +13,7 @@ import {
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { netPropsVisible } from '@/features/network/render/netvis';
 import { cardArt, cardOrigin, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
@@ -106,7 +107,10 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 type Fan = Spin & { speed: number };
 
 /** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
-const videoKey = (s: Snapshot) => `${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
+const netVisible = (s: Snapshot) => netPropsVisible({
+  level: s.level.level, hasRouter: !!s.net?.router, hasIsp: !!s.net?.isp, routerInInventory: s.inventory.some((i) => i.kind === 'router'), lanConnected: !!s.cables.find((c) => c.id === 'lan')?.connected,
+});
+const videoKey = (s: Snapshot) => `${netVisible(s)}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
 
 export class Machine3D {
   readonly root = new Group();
@@ -786,7 +790,7 @@ export class Machine3D {
       }, on(id));
       this.wires.add(g);
     };
-    if (has('lan')) {
+    if (has('lan') && netVisible(s)) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
       const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };
