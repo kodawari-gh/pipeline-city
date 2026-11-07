@@ -14,7 +14,7 @@ import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_BD, GEO, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
-import { HINGE_Z, STAND } from './card3d';
+import { HINGE_Z, slotBlank, STAND } from './card3d';
 import { FAN_MAX, FAN_ZC, REAR_ZC } from './cooler3d';
 import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import { TRAY_Z } from './wires3d';
@@ -59,15 +59,15 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   const fan = rearFanHole();
   holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
-  // the slots the board lacks: blank covers behind their openings
-  const cover = mat(0xa0a6ae, { metalness: 0.55, roughness: 0.4 });
-  for (let i = boardSlots; i < slots; i++) g.add(rectBox({ x: NIC_BRACKET_X, y: slotY(i) - 60, w: 24, h: 600 }, SLOT_Z[0] - 50, SLOT_Z[1] + 40, cover));
-  // the retention bar along the slot row, a thumbscrew per slot
+  // the slots the board lacks: blank covers behind their openings (the board's own empty slots get theirs in machine3d.ts)
+  for (let i = boardSlots; i < slots; i++) g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
+  // the retention bar over the far ends of the openings, where the brackets' folds are (away from the board, as a card's top edge is), a
+  // thumbscrew per slot through it
   if (slots) {
-    const ya = slotY(0) - 90, yb = slotY(slots - 1) + 560;
-    g.add(boxW(x0 - 14, x0, -yb, -ya, BOARD_Z + 30, SLOT_Z[0] - 4, f.body));
+    const ya = slotY(0) - 90, yb = slotY(slots - 1) + 560, za = SLOT_Z[1] - 24, zb = SLOT_Z[1] + 110;
+    g.add(boxW(x0 - 14, x0, -yb, -ya, za, zb, f.body));
     const knurl = steel();
-    for (let i = 0; i < slots; i++) g.add(drumX(x0 - 30, -(slotY(i) + 30), (BOARD_Z + 30 + SLOT_Z[0]) / 2, 30, 34, knurl, 18));
+    for (let i = 0; i < slots; i++) g.add(drumX(x0 - 30, -(slotY(i) + 30), (za + zb) / 2, 30, 34, knurl, 18));
   }
   // over the round opening: a honeycomb grille and four screws where the case carries a fan, the Mini's punched grille where it has none
   const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
@@ -83,6 +83,8 @@ export function rearWall(f: Frame, boardSlots: number): Group {
 
 /** The sheet's tone of each kind, for its grilles and meshes. */
 const kindTone = (k: CaseKind) => ({ oem: 0xcfc6a3, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
+/** The slot blanks' finish by kind: bare zinc in the Mini, painted to match the body in the others. */
+export const SLOT_BLANK: Record<CaseKind, number> = { oem: 0xa3a69f, matte: 0x1c1d22, gamer: 0x232838, show: 0x17181d };
 
 /** The span of the front fans (layout y), and the depth their opening needs. */
 function frontSpan(): Span {

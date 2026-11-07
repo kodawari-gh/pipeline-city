@@ -48,11 +48,11 @@ import { ArtBaker } from './bake';
 import { FAN_MAX, FAN_ZC, REAR_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
-import { HINGE_Z, card3d, slotCover, type Card3D } from './card3d';
+import { HINGE_Z, card3d, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
-import { GROMMETS, ioShield, type GrommetStyle } from './casedetail3d';
+import { GROMMETS, ioShield, SLOT_BLANK, type GrommetStyle } from './casedetail3d';
 import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 import { hexNum, skinOf, slotArmour } from '../skins';
 import { DOOR_SECONDS, doorPose } from './casedoor';
@@ -370,7 +370,8 @@ export class Machine3D {
     });
     PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
     // the back wall's slot covers, where no card's bracket stands
-    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotCover(i)); });
+    const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
+    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotBlank(nicY(i), blank)); });
     // an M.2 slot is its connector at the west end and a standoff at the east end, the stick lies between them (`nvmeStick`)
     M2_SLOTS.forEach((m, i) => {
       const id = emptyId(`m2${i}`);
@@ -773,9 +774,14 @@ export class Machine3D {
       const monSeat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] }, mon = straightPlug(monSeat, 90, 60, 140, '#3a3d44');
       g.add(mon.root, cableMesh([...rounded(run, 250), ...hangPts(up, mon.strands[0]!, video, stand, o)], video));
       // the PC end: where the sim has it (the board's port, or a card's), and the other ports it could go to
-      const at = (yy: number): V3 => [CASE.x, -yy, z], gpuAt = (slot: string) => at(nicY(Number(/\d+$/.exec(slot)?.[0] ?? 0)));
+      // (a card's HDMI is on its bracket, inside the slot's opening: the plug reaches in through the case's back to its mouth)
+      const at = (yy: number): V3 => [CASE.x, -yy, z];
+      const gpuAt = (d: { spec: string; slot: string }): V3 => {
+        const p = gpuVideoAt((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '', idx(d.slot));
+        return [p.x - 2, -p.y, p.z];
+      };
       const gfx = !!(getSpec(s.devices.find((d) => d.kind === 'display')?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics;
-      const ports = [{ port: 'board', at: at(y) }, ...(gfx ? s.devices.filter((d) => d.kind === 'gpu' && !d.burnt).map((d) => ({ port: d.slot, at: gpuAt(d.slot) })) : [])];
+      const ports = [{ port: 'board', at: at(y) }, ...(gfx ? s.devices.filter((d) => d.kind === 'gpu' && !d.burnt).map((d) => ({ port: d.slot, at: gpuAt(d) })) : [])];
       const now = ports.find((p) => p.port === s.videoPort) ?? ports[0]!, axis: V3 = [-1, 0, 0];
       const seat: Seat = { at: now.at, axis }, grom: RopeEnd = { at: [dg.x, deskTop + 10, vz], dir: [0, 1, 0] };
       const env: Env = { planes: room.planes, solids: [caseBox] }, pc = { slack: 1.1, extra: 900, stiff: 0.35, n: 30 };

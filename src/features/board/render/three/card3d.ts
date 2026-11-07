@@ -14,7 +14,7 @@ import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicRect, nicY } from '../layout/layout';
 import { glowMat, partFan, type Spin } from './fans3d';
-import { tex } from './casekit3d';
+import { tex, wallX, type Span } from './casekit3d';
 
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
@@ -28,6 +28,10 @@ export const STAND: Record<CardKind, number> = { gpu: 1350, npu: 1150, nic: 700 
 /** The cooler's thickness under the PCB (toward the shroud, standing): two, two and a half, three slots for the GPUs; a blower; a NIC's small sink. */
 const COOLER_T: Record<string, number> = { 'gpu-1': 320, 'gpu-2': 420, 'gpu-3': 520 };
 const coolerT = (kind: CardKind, visual: string) => (kind === 'gpu' ? COOLER_T[visual] ?? 420 : kind === 'npu' ? 300 : 120);
+/** A GPU's display outputs through its bracket (an HDMI, then two DisplayPorts): their offsets from the slot line, lying (standing, their depth over the hinge), and their mouths' height on the PCB's far side (a share of the cooler). */
+const OUTS = [140, 340, 540], OUT_W = 120, OUT_AT = 0.35;
+/** The GPU's HDMI mouth, standing: its face (layout x), its middle (layout y) and depth, where the monitor's cable plugs in. */
+export const gpuVideoAt = (visual: string, slot: number) => ({ x: NIC_BRACKET_X - 54, y: nicY(slot) + PCB_T + coolerT('gpu', visual) * (1 - OUT_AT) - 35, z: HINGE_Z + OUTS[0]! + OUT_W / 2 });
 
 export interface Card3D {
   root: Group;
@@ -76,11 +80,12 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   flatOnly.add(rectBox(rect(x0, top, x1 - x0, y0 - top), Z - PCB_T + 2, Z - 2, pcbM));
   fades.add(rectBox(rect(x0, south, x1 - x0, end - south), Z - PCB_T, Z, pcbM));
   const art = face(lying, f.r, Z);
-  // the bracket at the west end, against the case's back: a steel plate as tall as the card and as thick as it, folded over at the top
+  // the bracket at the west end, against the case's back: the slot's full plate whatever the card's size (`bracketSpan`, laid down with the card:
+  // its depth along the lying y, its height along the lying z), folded over at its far end, where the case's thumbscrew holds it
   const steel = mat(0x6f7683, { metalness: 0.7, roughness: 0.42 }), black = mat(0x07090d, { roughness: 0.55 });
-  const zLo = Z - PCB_T - ct - 20, zHi = Z + (kind === 'nic' ? 30 : BACK_T + 20);
-  fades.add(rectBox(rect(NIC_BRACKET_X, y0 - 40, BRACKET_T, end - y0 + 60), zLo, zHi, steel));
-  fades.add(rectBox(rect(NIC_BRACKET_X - 90, end, 90 + BRACKET_T, 20), zLo, zHi, steel));
+  const S = bracketSpan(y0), ly0 = y0 + S.z0 - Z, ly1 = y0 + S.z1 - Z, zLo = Z - Math.max(S.y1 - y0, PCB_T + ct + 20), zHi = Z - (S.y0 - y0);
+  fades.add(kind === 'gpu' ? gpuBracket(y0, ly0, ly1, zLo, zHi, steel) : rectBox(rect(NIC_BRACKET_X, ly0, BRACKET_T, ly1 - ly0), zLo, zHi, steel));
+  fades.add(rectBox(rect(NIC_BRACKET_X - 90, ly1, 90 + BRACKET_T, 20), zLo, zHi, steel));
   const skin: MeshStandardMaterial[] = [];
   if (kind === 'gpu') skin.push(...gpu(fades, spins, visual, f, ct, black));
   else if (kind === 'npu') skin.push(npu(fades, spins, f, ct, black));
@@ -126,13 +131,28 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   };
 }
 
-/** The case's cover over the back-wall opening of a slot no card fills: a vented steel strip as tall as a card stands (a card's bracket takes its place). */
-export function slotCover(slot: number): Group {
-  const g = new Group(), y0 = nicY(slot), z0 = BOARD_Z + 80, z1 = HINGE_Z + STAND.gpu;
-  g.add(rectBox({ x: NIC_BRACKET_X, y: y0 - 60, w: BRACKET_T, h: 600 }, z0, z1, mat(0x646b78, { metalness: 0.5, roughness: 0.5 })));
-  const vents = [];
-  for (let z = z0 + 140; z < z1 - 120; z += 72) vents.push({ x: NIC_BRACKET_X + BRACKET_T, y: -(y0 + 240), z, sx: 2, sy: 320, sz: 26 });
-  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07090d, { roughness: 0.6 }), vents));
+/**
+ * A slot's bracket plate, standing (layout y and depth, its slot's line at `y0`): one size for every card and for a blank, a margin round the
+ * slot's opening in the rear wall (`casedetail3d.ts`), as a real full-height bracket does not follow the card's size.
+ */
+export const bracketSpan = (y0: number): Span => ({ y0: y0 - 60, y1: y0 + 540, z0: BOARD_Z + 80, z1: HINGE_Z + STAND.gpu });
+
+/** A GPU's bracket, lying (`ly0..ly1` its depth, `z0..z1` its height): the plate with a row of exhaust slots cut through it beyond the outputs. */
+function gpuBracket(y0: number, ly0: number, ly1: number, z0: number, z1: number, m: MeshStandardMaterial): Mesh {
+  const vents: Span[] = [];
+  for (let y = y0 + 780; y < ly1 - 120; y += 64) vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: z1 - 110, r: 14 });
+  return wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, { y0: ly0, y1: ly1, z0, z1 }, vents, m);
+}
+
+/**
+ * The cover over the rear wall's opening of a slot no card fills (the board's empty slots, and the case's slots the board lacks): the bracket's
+ * plate with a column of vent slots cut through it, folded over at its far end like a card's bracket. `tone`: the case's finish (`SLOT_BLANK`).
+ */
+export function slotBlank(y0: number, tone: number): Group {
+  const g = new Group(), s = bracketSpan(y0), m = mat(tone, { metalness: 0.55, roughness: 0.45 }), vents: Span[] = [];
+  for (let z = s.z0 + 160; z < s.z1 - 140; z += 72) vents.push({ y0: y0 + 80, y1: y0 + 400, z0: z - 13, z1: z + 13, r: 12 });
+  g.add(wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, s, vents, m));
+  g.add(rectBox({ x: NIC_BRACKET_X - 90, y: s.y0, w: 90 + BRACKET_T, h: s.y1 - s.y0 }, s.z1, s.z1 + 20, m));
   return g;
 }
 
@@ -174,8 +194,13 @@ function gpu(g: Group, spins: Spin[], visual: string, f: ReturnType<typeof frame
   const accent = glowMat(0x3be3ff, 0x1d6f80);
   g.add(rectBox({ x: xa + 80, y: yb, w: barEnd - xa - 80, h: 8 }, zB + ct * 0.5 - 16, zB + ct * 0.5 + 16, accent));
   spins.push({ rotor: new Group(), ring: accent, needs: null, fixed: 0x3be3ff });
-  // the display outputs through the bracket
-  for (let k = 0; k < 3; k++) g.add(rectBox({ x: NIC_BRACKET_X - 60, y: y0 + 140 + k * 200, w: 60 + 40, h: 120 }, zB + ct * 0.35, zB + ct * 0.35 + 70, black));
+  // the display outputs through the bracket: an HDMI and two DisplayPorts, each a steel shell round a dark mouth
+  // (`gpuVideoAt` finds the HDMI's mouth from the same numbers)
+  const shell = mat(0x9aa1ac, { metalness: 0.8, roughness: 0.35 }), pz = zB + ct * OUT_AT;
+  for (const o of OUTS) {
+    const y = y0 + o;
+    g.add(rectBox({ x: NIC_BRACKET_X - 50, y, w: 50 + 40, h: OUT_W }, pz - 8, pz + 78, shell), rectBox({ x: NIC_BRACKET_X - 54, y: y + 12, w: 8, h: OUT_W - 24 }, pz + 4, pz + 66, black));
+  }
   return [frameM, accent];
 }
 

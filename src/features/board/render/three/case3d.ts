@@ -23,7 +23,7 @@ import { basementPlan } from './basement3d';
 import { FAN_MAX } from './cooler3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
-  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
+  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
 } from './casekit3d';
 import { controls, drumX, frontWall, hinges, psuFilter, psuIntake, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
 
@@ -188,10 +188,17 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       slots.push({ y0: yc - 30, y1: yc + 30, z0: zc - half, z1: zc + half, r: 26 });
     }
     root.add(wallX(ex - OEM_BEZEL, ex + 50, { y0: C.y - 8, y1: C.y + C.h + 8, z0: CASE_Z + 10, z1: FRONT + 12, r: 40 }, slots, bezel));
+    // two 5.25-inch bay blanks, each in its dark gap: a face with soft corners, a raised rim round a recessed panel, the release notch under it
+    const blank = mat(0xcbc29f, { roughness: 0.6 }), gap = mat(0x34312a, { roughness: 0.9 });
     for (let k = 0; k < 2; k++) {
-      root.add(rectBox({ x: ex + 46, y: C.y + 520 + k * 470, w: 22, h: 420 }, zc - 740, zc + 740, mat(0xc8bf9c, { roughness: 0.6 })));
-      root.add(rectBox({ x: ex + 66, y: C.y + 720 + k * 470, w: 6, h: 16 }, zc - 600, zc + 600, mat(0xa59d7d, { roughness: 0.7 })));
+      const b: Span = { y0: C.y + 520 + k * 470, y1: C.y + 940 + k * 470, z0: zc - 740, z1: zc + 740, r: 12 }, inset = (e: number): Span => ({ y0: b.y0 + e, y1: b.y1 - e, z0: b.z0 + e, z1: b.z1 - e, r: 10 });
+      root.add(wallX(ex + 48, ex + 52, inset(-14), [], gap), wallX(ex + 52, ex + 66, b, [], blank, 3), wallX(ex + 66, ex + 71, inset(34), [inset(64)], blank));
+      root.add(rectBox({ x: ex + 62, y: b.y1 - 26, w: 10, h: 16 }, zc - 110, zc + 110, gap));
     }
+    // the maker's badge over the bays
+    const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
+    root.add(wallX(ex + 50, ex + 58, badge, [], mat(0xc2b994, { roughness: 0.5 }), 2));
+    root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
     const foot = mat(0x2a2924, { roughness: 0.9 });
     for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, 20, 95));
   }
@@ -314,6 +321,9 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     const knurl = mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 });
     for (const y of [C.y + 700, bottom - 700]) { const s = drumX(C.x - 24, -y, FRONT - SIDE_T / 2, 44, 48, knurl, 20); screws.push(s); side.add(s); }
   }
+  // the back panel's two thumbscrews in its rear edge, on every case (black on the dark ones)
+  const backKnurl = kind === 'oem' ? mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 }) : mat(0x1b1c21, { metalness: 0.55, roughness: 0.4 });
+  for (const y of [C.y + 700, bottom - 700]) root.add(drumX(C.x - 24, -y, CASE_Z + 46, 44, 48, backKnurl, 20));
   for (const o of side.children) seeThrough(o);
   // a click on the shut side opens the case: an unseen plate over it (machine3d.ts lets rays at it only while the panel is shut)
   const hit = tag(rectBox(kind === 'oem' ? { ...C, w: C.w - OEM_BEZEL } : C, FRONT, FRONT + 4, mat(0, { transparent: true, opacity: 0, depthWrite: false })), 'case.side');
