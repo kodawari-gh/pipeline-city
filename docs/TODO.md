@@ -22,8 +22,6 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## Open now
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after.
-- [ ] M7 [auto] Space the Airflow lens labels so they never overlap at the far room camera. Files: src/features/room/render/desk/airflow.ts. Docs: docs/MENU_REVIEW.md. Done when: a shot at the room view shows no overlapping tags, airflow.test.ts green.
-- [ ] M8 [auto] Step through every tutorial card and check the text fits and the cue is clear. Files: src/features/tutorial/ui. Docs: docs/MENU_REVIEW.md. Done when: row updated.
 
 ## 3D render: one light, one palette, one level of detail
 

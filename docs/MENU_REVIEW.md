@@ -23,9 +23,9 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 | Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
 | Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
 | Start menu / load screen | reviewed, no change | New game (Campaign/Sandbox) and the saved-game "Welcome back" (New game / Continue) are both clear. |
-| Tutorial cards, hints | done 2026-11-07 | Dialogue card now says "Click to continue" next to the arrow. Hint toast readable. Later tutorial steps not all stepped through. |
+| Tutorial cards, hints | done 2026-11-07 | Dialogue card says "Click to continue". All 38 steps have a title and text, and no page is over 140 characters (`steps.test.ts`), so each fits the card. Hint toast readable. |
 | Notices, toasts, modals | reviewed | Toast fine. New game asks for a second click when a game runs. |
-| Power lens, Airflow lens | partly | Power fine. Airflow: at the far room camera the world labels (ROOM, CASE AIR, PSU CASE, VRM, MEM VRM) overlap. Needs a label-spacing pass in `room/render/desk/airflow.ts`. |
+| Power lens, Airflow lens | done 2026-11-07 | Airflow tags that would overlap now move up until clear (`AirflowLens.tags`). Power fine. |
 | Almanac | reviewed, no change | Dense but ordered: list, card, code, tips. |
 | Job log | done 2026-11-07 | Panel fits its content; the chip says "N finished" (it counted only ended jobs). |
 | Levels, Stats, Trace | reviewed, no change | Stats rows lack degree signs ("25 C"); minor. |
