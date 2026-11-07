@@ -14,6 +14,7 @@ import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicRect, nicY } from '../layout/layout';
 import { glowMat, partFan, type Spin } from './fans3d';
+import { tex } from './casekit3d';
 
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
@@ -76,7 +77,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   fades.add(rectBox(rect(x0, south, x1 - x0, end - south), Z - PCB_T, Z, pcbM));
   const art = face(lying, f.r, Z);
   // the bracket at the west end, against the case's back: a steel plate as tall as the card and as thick as it, folded over at the top
-  const steel = mat(0x8c939e, { metalness: 0.75, roughness: 0.38 }), black = mat(0x07090d, { roughness: 0.55 });
+  const steel = mat(0x6f7683, { metalness: 0.7, roughness: 0.42 }), black = mat(0x07090d, { roughness: 0.55 });
   const zLo = Z - PCB_T - ct - 20, zHi = Z + (kind === 'nic' ? 30 : BACK_T + 20);
   fades.add(rectBox(rect(NIC_BRACKET_X, y0 - 40, BRACKET_T, end - y0 + 60), zLo, zHi, steel));
   fades.add(rectBox(rect(NIC_BRACKET_X - 90, end, 90 + BRACKET_T, 20), zLo, zHi, steel));
@@ -92,6 +93,15 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     const vents = [];
     for (let y = y0 + 120; y < end - 120; y += 46) vents.push({ x: x1 - 220, y: -y, z: Z + BACK_T, sx: 220, sy: 18, sz: 3 });
     fades.add(instanced(new BoxGeometry(1, 1, 1), black, vents));
+    // screws along the plate's rim and the maker's name, so the back reads as a finished part and not as a slab
+    const screw = mat(0x9aa3b2, { metalness: 0.85, roughness: 0.35 }), screws = [], bx0 = x0 + 90, bx1 = x1 - 60, by0 = y0 + 70, by1 = end - 70;
+    for (const sx of [bx0, (bx0 + bx1) / 2, bx1]) for (const sy of [by0, by1]) screws.push({ x: sx, y: -sy, z: Z + BACK_T + 2, sx: 34, sy: 34, sz: 6 });
+    fades.add(instanced(new CylinderGeometry(0.5, 0.5, 1, 14).rotateX(Math.PI / 2), screw, screws));
+    const name = tex('card-name-' + kind, 512, 128, (c, w, h) => {
+      c.fillStyle = '#cfd6e4'; c.font = '700 74px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(kind === 'gpu' ? 'PIPELINE' : 'NEURAL', w / 2, h / 2);
+    });
+    if (name) fades.add(rectBox(rect((bx0 + bx1) / 2 - 260, (y0 + end) / 2 - 65, 520, 130), Z + BACK_T, Z + BACK_T + 1.5, mat(0xffffff, { map: name, alphaTest: 0.4, metalness: 0.2, roughness: 0.5 })));
   }
   // the power sockets on the top edge, on the cooler's side, the mouth toward the glass (standing)
   const sockets = cardPlugs(visual).map((px) => {

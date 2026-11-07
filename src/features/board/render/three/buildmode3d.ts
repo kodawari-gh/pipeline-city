@@ -4,7 +4,7 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { signal } from '@preact/signals';
-import { AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
+import { AmbientLight, Box3, BoxGeometry, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
 import { effective } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
@@ -259,6 +259,15 @@ export class BuildStage {
   /** Dev and checks: put the camera exactly here (the flicker check nudges it a pixel at a time). */
   jump(v: Partial<OrbitView>): void { this.view = this.goal = { ...this.view, ...v }; }
   get orbit(): OrbitView { return this.view; }
+  /** Dev aid (close-up reviews): turn the camera to a node's part and fill the view with it. */
+  focus(node: string, yaw = 0.3, pitch = 0.35, fill = 2.2): boolean {
+    const o = this.objectOf(node);
+    if (!o) return false;
+    o.updateWorldMatrix(true, true);
+    const box = new Box3().setFromObject(o), c = box.getCenter(new Vector3()), s = box.getSize(new Vector3());
+    this.jump({ x: c.x, y: c.y, z: c.z, yaw, pitch, height: Math.max(s.x, s.y, s.z) * fill });
+    return true;
+  }
 
   // ------------------------------------------------------------------ the steps
   /** The scene object that stands for a node, or null (the monitor stands in the room, not in the machine). */
