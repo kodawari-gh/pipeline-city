@@ -512,7 +512,7 @@ export function inventorySnap(this: Game): InventorySnap[] {
       if (r.ok) (occ ? swap : free).push(s.id);
       else why ??= r.reason;
     }
-    if (free.length + swap.length === 0) why ??= `no ${spec.slot} slot for ${spec.name}`;
+    if (free.length + swap.length === 0) why = spec.kind === "fan" ? `nothing in this machine takes a ${spec.size} mm fan` : why ?? `no ${spec.slot} slot for ${spec.name}`;
     const installable = free.length + swap.length > 0 && off;
     return {
       id: it.id, spec: it.spec, kind: spec.kind, name: spec.name, freeSlots: free, swapSlots: swap, installable,

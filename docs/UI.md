@@ -286,6 +286,10 @@ On a multicore CPU `TracePanel.tsx` shows one button per logical core above the 
 
 With a graphics card installed the same row also has a **CPU** button and one per card (`pcie0`...): it sets the scrub target. For a card the step buttons send `stepGpu(slot, n)`, the scrubber moves the card view, and the lines are the card's last instructions (`gpuLines`, `trace.ts`) in the groups Launch, Mask, Mem, Reg and Sched (a line click seeks to its cycle). The card side also has a **Kernel** button: the kernel in the card's memory word by word (`gpuListing` of the snapshot's `code`) with the instruction the card is at marked, instead of the steps.
 
+## Picker: fans
+
+A fan compares airflow, size and power (`statsOf`, `picker.ts`). A fan spot's card, a fitted fan's card and a spare's card offer that size only, because no other size fits there. An empty spot's title and tooltip name its size ("120 mm fan spot"). A heatsink with free fan spots and no fan says so on its card; it still cools, more weakly. A drop on a spot of another size shows the size that fits (`drag3d.ts`). The tile thumb draws every size in one frame (`fanKitArt`, `thumbart.ts`), so a 40 mm fan reads small next to a 140 mm one.
+
 ## Picker: graphics cards
 
 A graphics card compares SMs, warps per SM, lanes, L2 cache (words in K, 0 without one), clock, card memory and power (`statsOf`, `picker.ts`); each stat's tooltip is in `STAT_HELP` (`shop/stathelp.ts`). The shop tile and the shelf thumb draw the die (`gpuFar`, `gpuNear`) under the fans, not the shroud plate.

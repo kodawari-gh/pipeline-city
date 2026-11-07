@@ -12,7 +12,7 @@ import { kindIcon, kindLabel } from './shopdata';
 interface Item { id: string; name: string; note: string }
 interface Group { key: string; kind: string; items: Item[] }
 
-const KINDS: DeviceKind[] = ['cpu', 'cooler', 'ram', 'storage', 'gpu', 'npu', 'nic'];
+const KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'ram', 'storage', 'gpu', 'npu', 'nic'];
 
 /** Every part the showcase can build, by category (cases first, as the shop lists them). */
 function groups(): Group[] {

@@ -1,9 +1,9 @@
 import { Container, Graphics, Rectangle, type ICanvas, type Renderer } from 'pixi.js';
-import { BOARD_TIERS, CASE_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/specs';
+import { BOARD_TIERS, CASE_TIERS, getSpec, type CoolerSpec, type CpuSpec, type FanSpec, type PsuSpec, type RamSpec } from '../sim/specs';
 import { getIspSpec, getRouterSpec } from '../../network/sim/specs';
 import { buildBoard } from './boardArt';
 import { cpuArt, monitorArt, psuBoxArt, ramArt, vrmSinkArt } from './devices';
-import { coolerKitArt, radiatorKitArt } from './cooler';
+import { coolerKitArt, FAN_ART_MAX, fanKitArt, radiatorKitArt } from './cooler';
 import { driveArt, drawDriveLive, driveKindOf } from '../../storage/render/drives';
 import { exteriorArt, exteriorFrame } from '../../room/render/shell/exterior';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier, BD } from './layout/layout';
@@ -95,6 +95,8 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
       }
       case 'cooler': holder.addChild(coolerKitArt(T, spec as CoolerSpec)); break;
       case 'radiator': holder.addChild(radiatorKitArt(T, spec.visual)); break;
+      // one frame for every size, so a 40 mm fan reads small next to a 140 mm one
+      case 'fan': holder.addChild(fanKitArt(T, spec as FanSpec)); return render(r, holder, T, frameOf({ x: -FAN_ART_MAX / 2, y: -FAN_ART_MAX / 2, width: FAN_ART_MAX, height: FAN_ART_MAX }));
       case 'psu': holder.addChild(psuBoxArt(T, spec as PsuSpec)); break;
       case 'display': holder.addChild(monitorArt(T, true, spec.visual === 'monitor-gfx').root); break;
       case 'vrm-sink': case 'ram-sink': {

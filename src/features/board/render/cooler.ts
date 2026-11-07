@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import type { CoolerSpec } from '../sim/specs';
+import type { CoolerSpec, FanSpec } from '../sim/specs';
 import { BR, COOLER, type Rect } from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
 import { EdgeFan, type FanMount } from '../../room/render/desk/props/case';
@@ -365,6 +365,22 @@ export function coolerKitArt(T: Theme, spec: CoolerSpec): Container {
   const fit = kitFit();
   const ra = radiatorArt(T, fit, 2, 2);
   holder.addChild(ra.root, ...ra.fans, coolerArt(T, spec, fit).root);
+  return holder;
+}
+
+/** The side of a fan's picture at its biggest. */
+export const FAN_ART_MAX = 1400;
+
+/** A picture of a fan for a shop tile, around the origin: the square frame, its corner screws, the blades and the hub. A bigger fan draws bigger; high-airflow has more blades. */
+export function fanKitArt(T: Theme, spec: FanSpec): Container {
+  const holder = new Container(), g = new Graphics(), m = metals(T);
+  const side = 500 + (spec.size - 40) * 9, h = side / 2, r = side * 0.45, accent = spec.tier > 0 ? T.st : T.alu;
+  box(g, -h, -h, side, side, side * 0.09, { fill: T.sub, stroke: mix(T.line, m.metal, 0.5), lw: 8 });
+  disc(g, 0, 0, r, { fill: T.dot, stroke: m.lo, lw: 10 });
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) screw(g, T, sx * h * 0.82, sy * h * 0.82, side * 0.035);
+  blades(g, spec.tier > 0 ? 9 : 7, r * 0.26, r * 0.95, T.tile, accent, 4);
+  g.circle(0, 0, r * 0.3).fill(rgrad(m.hi, m.lo, [0.4, 0.35], 0.75)).stroke({ width: 6, color: accent });
+  holder.addChild(g);
   return holder;
 }
 

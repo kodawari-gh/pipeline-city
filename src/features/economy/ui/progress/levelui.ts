@@ -148,7 +148,7 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
 /** Whether `PartArt` can draw this unlock-table id (a real part, a board tier or an OS). */
 export function hasArt(id: string, kind: string, planned: boolean): boolean {
   if (planned) return false;
-  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind);
+  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'fan', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind);
 }
 
 // ---------- locked items (the player level gates purchases) ----------

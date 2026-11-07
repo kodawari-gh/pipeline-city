@@ -12,7 +12,7 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // what is in the machine; Remove takes a part out with everything that stands in its way (the order is `sim/removal.ts`) and puts the rest back.
 // Styles: ui.css (the Build my PC section). Escape leaves.
 
-const KINDS = ['case', 'board', 'cpu', 'cooler', 'radiator', 'ram', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu', 'vrm-sink', 'ram-sink'];
+const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu', 'vrm-sink', 'ram-sink'];
 const SPEEDS = [0.5, 1, 2, 4];
 
 export function BuildMode() {

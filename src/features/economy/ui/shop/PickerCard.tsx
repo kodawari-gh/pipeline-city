@@ -405,7 +405,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         <Icon name="close" size={11} />
       </button>
       <header class="phead">
-        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'radiator' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
+        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'fan' || m.kind === 'radiator' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
           <div class="part"><PartArt id={artId} size={104} /></div>
         )}
         <div class="ptext">
@@ -416,7 +416,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       {m.job && (m.job.needs.length > 0 || !m.job.runnable) && (
         <div class="jobrow"><NeedChips job={m.job} /><Deadline job={m.job} /></div>
       )}
-      {m.device && !m.device.burnt && m.kind !== 'psu' && m.kind !== 'cooler' && <Readings dev={m.device} />}
+      {m.device && !m.device.burnt && m.kind !== 'psu' && m.kind !== 'cooler' && m.kind !== 'fan' && <Readings dev={m.device} />}
       {psu && (
         <div class={`bar load ${psu.tripped ? 'bad' : loadFrac > 0.85 ? 'warn' : ''}`} title={`${psu.totalW.toFixed(0)} W of ${psu.budgetW} W`}>
           <i style={{ width: `${Math.min(100, loadFrac * 100)}%` }} />

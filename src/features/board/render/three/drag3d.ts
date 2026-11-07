@@ -225,8 +225,9 @@ export class Drag3D {
     const id = this.idAt(cx, cy), over = this.target(c, id) ?? this.within(c, cx, cy);
     if (over) { install(c.invId, over === 'case' || over === 'board' ? undefined : over); return; }
     if (c.why) { if (id) this.toast(c.why, cx, cy); return; }
-    const slot = this.slotOf(id);
-    if (slot && /^[a-z]+\d+$/.test(slot)) this.toast(`${c.name} does not fit the ${slot.replace(/\d+$/, '')} socket.`, cx, cy);
+    const slot = this.slotOf(id), fanSize = snapshot.peek()?.slots.find((x) => x.id === slot)?.size;
+    if (fanSize) this.toast(`${c.name} does not fit: this spot takes a ${fanSize} mm fan.`, cx, cy);
+    else if (slot && /^[a-z]+\d+$/.test(slot)) this.toast(`${c.name} does not fit the ${slot.replace(/\d+$/, '')} socket.`, cx, cy);
   }
 
   // ---- DOM: the ghost and the messages ----

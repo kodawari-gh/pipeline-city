@@ -10,6 +10,8 @@ export const STAT_HELP: Record<string, string> = {
   speed: 'How much work the processor gets done each second (clock speed times how clever its design is). Higher finishes jobs sooner.',
   power: 'Electricity it draws while working. Lower is better: it costs less and leaves room on the power supply.',
   size: 'How much it can hold. More lets bigger jobs fit.',
+  airflow: 'How much air it moves, compared with a basic fan. More air keeps parts cooler, and each extra fan on a heatsink gains a little less.',
+  fansize: 'The width of the fan. A fan only fits a spot of its own size.',
   latency: 'How long one read takes, in ticks. Lower is better: the processor waits less.',
   watts: 'The most power the supply can deliver. Everything you fit must add up to less than this.',
   cooling: 'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',

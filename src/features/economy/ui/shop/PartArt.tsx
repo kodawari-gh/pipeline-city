@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { BOARD_TIERS, getSpec, type CpuSpec, type PsuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type PsuSpec, type RamSpec } from '@/features/board/sim/specs';
 import { getOsSpec } from '@/features/os/sim';
 import { getIspSpec, getRouterSpec } from '@/features/network/sim/specs';
 import { goodness } from './picker';
@@ -118,6 +118,23 @@ function Cooler({ tier }: { tier: number }) {
       <rect x={28} y={6} width={84} height={12} rx={3} class="plate edge" />
       {Array.from({ length: 10 }, (_, i) => <rect key={i} x={46 + i * 6} y={8} width={2} height={8} class="fin" />)}
       {vanes(96, 12, 5)}
+    </>
+  );
+}
+
+/** A fan from its intake: the square frame with four screw bosses, the ring, the blades and the hub. A bigger fan draws bigger; high-airflow has more blades. */
+function Fan({ spec }: { spec: FanSpec }) {
+  const side = 30 + (spec.size - 40) * 0.46, h = side / 2, r = side * 0.44, cx = 60, cy = 42, n = spec.tier > 0 ? 9 : 7;
+  return (
+    <>
+      <rect x={cx - h} y={cy - h} width={side} height={side} rx={side * 0.1} class="plate edge" />
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy], i) => <circle key={i} cx={cx + sx! * h * 0.8} cy={cy + sy! * h * 0.8} r={side * 0.035} class="ink" />)}
+      <circle cx={cx} cy={cy} r={r} class="fanring" />
+      {Array.from({ length: n }, (_, i) => {
+        const th = (i / n) * Math.PI * 2, at = (rad: number, turn: number) => `${cx + Math.cos(th + turn) * rad} ${cy + Math.sin(th + turn) * rad}`;
+        return <path key={i} d={`M${at(r * 0.3, 0)}Q${at(r * 0.72, 0.1)} ${at(r * 0.92, 0.62)}`} class="blade" />;
+      })}
+      <circle cx={cx} cy={cy} r={r * 0.3} class="ink" />
     </>
   );
 }
@@ -468,6 +485,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'cpu': body = <Cpu spec={spec} />; break;
         case 'ram': body = <Ram spec={spec} />; break;
         case 'cooler': body = <Cooler tier={spec.tier} />; break;
+        case 'fan': body = <Fan spec={spec} />; break;
         case 'psu': body = <Psu spec={spec} />; break;
         case 'display': body = <Display />; break;
         case 'vrm-sink': case 'ram-sink': body = <VrmSink tier={spec.tier} />; break;

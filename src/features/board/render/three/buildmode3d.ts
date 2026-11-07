@@ -401,7 +401,8 @@ export class BuildStage {
       return;
     }
     const r = this.game.install(u.invId, u.slot);
-    if (!r.ok) { this.note(`Cannot put ${getSpec(u.spec)?.name ?? u.spec} back: ${r.reason}`); return; }
+    // (a fan the new heatsink or case has no spot for stays out, as the game sends it to the inventory)
+    if (!r.ok) { this.note(getSpec(u.spec)?.kind === 'fan' ? `${getSpec(u.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(u.spec)?.name ?? u.spec} back: ${r.reason}`); return; }
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
     this.rebuild();
     const node = devNode(r.deviceId ?? '');
@@ -450,7 +451,7 @@ export class BuildStage {
       const free = freeSlots(this.board, spec.slot, spec)[0];
       const taken = boardSlots(this.board).find((s) => slotAccepts(s.type, spec.slot) && slotFits(s, spec) && this.board.devices.some((d) => d.slot === s.id));
       const slot = free?.id ?? taken?.id;
-      if (!slot) { this.note(`${spec.name} fits no socket on this board`); return; }
+      if (!slot) { this.note(spec.kind === 'fan' ? `Nothing in this machine takes a ${spec.size} mm fan` : `${spec.name} fits no socket on this board`); return; }
       const occupant = this.board.devices.find((d) => d.slot === slot) ?? null;
       const graph = buildGraph(this.board, this.cables);
       const steps = occupant ? removalPlan(graph, devNode(occupant.id)) : removalPlanAll(graph, accessBlockers(this.board, slot, spec.kind).filter((n) => graph.has(n)));
@@ -524,6 +525,8 @@ export class BuildStage {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
     this.game = new Game({ seed: 1, sandbox: true, preassembled: false });
+    // a new game's case holds its two starter fans: Empty means nothing fitted
+    for (const d of this.game.snapshot().devices) if (d.kind === 'fan') this.game.uninstall(d.id);
     this.status.value = { busy: false, step: '', log: [], rev: this.status.peek().rev };
     this.rebuild();
   }

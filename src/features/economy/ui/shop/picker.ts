@@ -191,7 +191,7 @@ export const caseId = (tier: number) => `case${tier}`;
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
   if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic' || kind === 'gpu' || kind === 'npu' || kind === 'tpm' || kind === 'radiator') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'fan' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic' || kind === 'gpu' || kind === 'npu' || kind === 'tpm' || kind === 'radiator') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
@@ -265,7 +265,7 @@ export function statsOf(specId: string): Stat[] {
     case 'radiator': return [{ key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true }];
     case 'fan': return [
       { key: 'airflow', label: 'Airflow', icon: 'fan', value: spec.airflow, unit: '', higherIsBetter: true },
-      { key: 'size', label: 'Size', icon: 'fan', value: spec.size, unit: 'mm', higherIsBetter: true },
+      { key: 'fansize', label: 'Size', icon: 'fan', value: spec.size, unit: 'mm', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
@@ -752,7 +752,10 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const d = (dev && !emptySocket ? describeId(dev.spec) : describeId(id, s))
       ?? describeId(id)
       ?? { title: KIND_LABEL[kind], plain: '', nerd: '' };
-    const ladder = ladderFor(s, kind);
+    // A fan spot takes one size: its card offers that size only (the next tier of the whole catalog would not fit).
+    const fanSpec = kind === 'fan' ? getSpec(dev?.spec ?? invItem?.spec ?? id) : undefined;
+    const fanSize = kind === 'fan' ? slot?.size ?? (fanSpec?.kind === 'fan' ? fanSpec.size : undefined) : undefined;
+    const ladder = ladderFor(s, kind).filter((r) => { const f = fanSize ? getSpec(r.specId) : undefined; return f?.kind !== 'fan' || f.size === fanSize; });
     const current = kind === 'board'
       ? boardId(s.boardTier)
       : kind === 'case' ? caseId(s.caseTier)
@@ -831,6 +834,14 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     if (kind === 'ram-sink' && emptySocket) {
       lines.push({ level: 'info', text: 'Drop a RAM VRM heatsink here: it bolts onto the memory regulator beside the RAM slots.' });
     }
+    if (kind === 'fan' && emptySocket) {
+      lines.push({ level: 'info', text: `Drop a ${fanSize} mm fan here. It turns once its cable is plugged in.` });
+    }
+    // A heatsink with free fan spots and no fan: it works, more weakly, until one is fitted.
+    if ((kind === 'cooler' || kind === 'vrm-sink' || kind === 'ram-sink') && dev?.slot) {
+      const spots = s.slots.filter((x) => x.id.startsWith(`${dev.slot}.fan`));
+      if (spots.length && spots.every((x) => !x.deviceId)) lines.push({ level: 'warn', text: `No fan on it yet: it cools by itself, more weakly. A ${spots[0]!.size} mm fan fits.` });
+    }
     // A network card: which jack it is, whether the cable is in it, and its heat (a hot card runs at half speed).
     if (kind === 'nic') {
       if (emptySocket) lines.push({ level: 'info', text: 'Drop a network card here: its jack then appears on the back of the machine. This slot also takes a graphics card or an AI card.' });
@@ -855,7 +866,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       if (note) lines.push({ level: 'warn', text: `${note.charAt(0).toUpperCase()}${note.slice(1)}.` });
     }
     const title = emptySocket
-      ? `${KIND_LABEL[kind]} socket`
+      ? kind === 'fan' ? `${fanSize} mm fan spot` : `${KIND_LABEL[kind]} socket`
       : dev ? dev.name : d.title;
     return {
       ...emptyCard(id, kind, title, d.plain, d.nerd),

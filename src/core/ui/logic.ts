@@ -202,6 +202,7 @@ export function describeSpec(spec: DeviceSpec): Description {
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);
   if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
+  if (spec.kind === 'fan') bits.push(`${spec.size} mm`, `airflow ${spec.airflow}x`);
   if (spec.kind === 'gpu' && spec.gpu) bits.push(`${spec.gpu.lanes} lanes`, `${spec.gpu.memBytes / 1024}K card memory in ${spec.gpu.banks} bank${spec.gpu.banks === 1 ? '' : 's'}`, leadText(cardLeads(spec)));
   if (spec.kind === 'npu' && spec.npu) bits.push(`${spec.npu.grid}x${spec.npu.grid} cells`, `${spec.npu.memBytes / 1024}K card memory`, leadText(cardLeads(spec)));
   if (spec.kind === 'tpm' && spec.tpm) bits.push(`measures at ${spec.tpm.measureTicks} ticks per word`, `attests in ${spec.tpm.attestTicks} ticks`, `+${spec.tpm.surcharge} cycles per memory access while protected`);
@@ -231,7 +232,7 @@ const SLOT_PLAIN: Record<string, string> = {
 };
 
 const FAN_CABLE_TIPS: Record<string, { title: string; plain: string; nerd: string }> = {
-  'cable.cpufan': { title: 'CPU fan cable', plain: 'Powers the cooler\'s fan (or the liquid cooler\'s pump). Plug it into the CPU_FAN header on the board; the machine will not start without it.', nerd: 'POST fails with NO CPU FAN while it is out; an unplugged cooler does not cool.' },
+  'cable.cpufan': { title: 'CPU fan cable', plain: 'Powers the heatsink\'s fan (or the liquid cooler\'s pump). Plug it into the CPU_FAN header on the board. Without it a heatsink runs hot, and a liquid cooler will not start.', nerd: 'POST fails with NO CPU FAN only when a pump\'s cable is out; a heatsink with a stopped fan cools by itself, more weakly.' },
   'cable.vrmfan': { title: 'VRM fan cable', plain: 'Powers the fan on the voltage-regulator heatsink. Plug it into the VRM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
   'cable.ramfan': { title: 'Memory VRM fan cable', plain: 'Powers the fan on the memory-regulator heatsink. Plug it into the RAM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
   'cable.sysfan': { title: 'Fan hub cable', plain: 'Feeds the case\'s fan hub from the SYS_FAN header on the board. No case fan turns without it.', nerd: 'The hub carries every case fan and the radiator\'s fans.' },
@@ -387,6 +388,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     const slot = s.slots.find((x) => x.id === id);
     if (slot) {
       if (!slot.deviceId) {
+        if (slot.type === 'fan') return { title: 'Empty fan spot', plain: `A ${slot.size} mm fan fits here: drag one onto it.`, nerd: `slot ${slot.id} | type fan | ${slot.size} mm` };
         return SLOT_PLAIN[slot.type]
           ? { title: 'Empty socket', plain: 'An empty ' + SLOT_PLAIN[slot.type] + '.', nerd: `slot ${slot.id} | type ${slot.type}` }
           : null;
@@ -545,7 +547,7 @@ export function friendlyError(message: string): string {
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
 
-const INVENTORY_ORDER = ['cpu', 'cooler', 'radiator', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'gpu', 'npu', 'tpm', 'router', 'os'];
+const INVENTORY_ORDER = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'gpu', 'npu', 'tpm', 'router', 'os'];
 
 /** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
 export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {

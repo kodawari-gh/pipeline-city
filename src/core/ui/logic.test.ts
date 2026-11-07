@@ -125,6 +125,16 @@ describe('hints', () => {
     expect(describeId('cable.fan:top1', s)!.title).toMatch(/Radiator fan cable \(top 2\)/); // it spans the whole top
     expect(describeId('cable.fan:front0', s)!.title).toMatch(/Case fan cable \(front 1\)/);
   });
+  it('an empty fan spot names the size that fits', () => {
+    const s = snap({ slots: [{ id: 'front0', type: 'fan', deviceId: null, size: 120 }] });
+    expect(describeId('front0', s)).toMatchObject({ title: 'Empty fan spot', plain: expect.stringContaining('120 mm') });
+  });
+  it('the CPU fan cable tip stops only a pump: a heatsink runs on', () => {
+    expect(describeId('cable.cpufan')!.nerd).toContain('only when a pump');
+  });
+  it('a fan part describes its size and airflow', () => {
+    expect(describeId('fan120x')!.nerd).toMatch(/120 mm \| airflow 1\.5x/);
+  });
   describe('network hints', () => {
     const base = snap().net;
     const withNet = (o: Partial<typeof base>) => snap({ net: { ...base, ...o } });
