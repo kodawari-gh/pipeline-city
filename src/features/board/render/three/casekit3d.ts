@@ -2,9 +2,10 @@
 // z (the side) or along x (the rear and front walls, with their openings), decals on any face, and the painted sheets (perforations, brushed
 // metal, badges). Shapes are drawn in the layout (y down) and come out in the world (y up), z out of the wall.
 import {
-  CanvasTexture, DoubleSide, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
+  BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
 } from 'three';
-import { anisotropy, extrude, place, type RectLike } from '@/core/render/three/geometry';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { anisotropy, extrude, instanced, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -102,6 +103,17 @@ export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])
   return place(new Mesh(g, m));
 }
 
+/** A sheet lying flat across the case (a shelf, the shroud's top): layout x from `x0` to `x1`, depth `z0` to `z1`, `t` thick under its top at layout `y`, with holes as world (x, z) outlines. */
+export function plateY(x0: number, x1: number, z0: number, z1: number, y: number, t: number, holes: Vector2[][], m: Material, bevel = 0): Mesh {
+  const b = Math.max(0, Math.min(bevel, t / 2.2)), s = shapeOf([new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x1, z1), new Vector2(x0, z1)], holes);
+  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
+  // (the shape's (u, v) is the world's (x, z); its extrusion runs down from the top)
+  g.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0);
+  return place(new Mesh(g, m));
+}
+/** A rounded slot in a `plateY` sheet, as its (x, z) outline. */
+export const flatSlot = (x: number, z: number, w: number, d: number): Vector2[] => outlinePts({ x, y: -z - d, w, h: d }, Math.min(w, d) / 2);
+
 /** A flat textured face over a layout rect at depth z, facing the viewer (a decal on the side). */
 export function decal(r: RectLike, z: number, m: Material): Mesh {
   const o = new Mesh(new PlaneGeometry(r.w, r.h), m);
@@ -126,6 +138,77 @@ export function decalTop(y: number, x0: number, x1: number, z0: number, z1: numb
   o.position.set((x0 + x1) / 2, -y, (z0 + z1) / 2);
   o.receiveShadow = true;
   return o;
+}
+
+// ---------------------------------------------------------------- the fixings, at their real size (23 units per mm: a case screw's head is 6 mm across, r 65)
+
+/** Which way a fixing's head looks, along a world axis. */
+export type Facing = 'x+' | 'x-' | 'y+' | 'y-' | 'z+' | 'z-';
+/** A fixing's place on the surface its head stands on (world: y up). */
+export interface Spot { x: number; y: number; z: number }
+
+/** Turn a part modelled round +z to look along `f`. */
+export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
+  if (f === 'z-') g.rotateX(Math.PI);
+  else if (f === 'x+') g.rotateY(Math.PI / 2);
+  else if (f === 'x-') g.rotateY(-Math.PI / 2);
+  else if (f === 'y+') g.rotateX(-Math.PI / 2);
+  else if (f === 'y-') g.rotateX(Math.PI / 2);
+  return g;
+}
+
+/** A solid turned round +z from its profile, [radius, height] from the foot up. */
+const lathe = (pts: readonly (readonly [number, number])[], sides = 20): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
+const driveM = () => mat(0x050608, { roughness: 0.8 });
+
+/** Pan-head screws: a low head with a cross recess in its flat crown. */
+export function screws(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
+  const g = new Group(), h = r * 0.38, arm = r, w = r * 0.2, t = Math.max(1, r * 0.03);
+  if (!spots.length) return g;
+  const cross = mergeGeometries([new BoxGeometry(arm, w, t), new BoxGeometry(w, arm, t)])!.translate(0, 0, h);
+  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.14], [r * 0.86, r * 0.28], [r * 0.6, h], [0, h]]), f), m, spots), instanced(turned(cross, f), driveM(), spots));
+  return g;
+}
+
+/** Blind rivets: a shallow dome with the mandrel's hole in its centre. */
+export function rivets(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
+  const g = new Group();
+  if (!spots.length) return g;
+  const floor = r * 0.2;
+  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.1], [r * 0.82, r * 0.26], [r * 0.5, r * 0.38], [r * 0.26, r * 0.4], [r * 0.23, floor], [0, floor]], 16), f), m, spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.24, 10).translate(0, 0, floor + 0.5), f), driveM(), spots));
+  return g;
+}
+
+/** Thumbscrews: a knurled head `len` tall over a washer, with a slot across its crown. */
+export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: number, m: Material): Group {
+  const g = new Group(), teeth = 24, b = Math.min(r * 0.06, len * 0.1), s = new Shape();
+  if (!spots.length) return g;
+  for (let i = 0; i < teeth * 2; i++) {
+    const a = (i / (teeth * 2)) * Math.PI * 2, q = i % 2 ? r * 0.94 : r;
+    if (i) s.lineTo(Math.cos(a) * q, Math.sin(a) * q); else s.moveTo(Math.cos(a) * q, Math.sin(a) * q);
+  }
+  s.closePath();
+  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 1 }).translate(0, 0, washer + b);
+  g.add(instanced(turned(head, f), m, spots), instanced(turned(lathe([[r * 1.1, 0], [r * 1.1, washer * 0.8], [r * 0.9, washer], [0, washer]]), f), m, spots));
+  g.add(instanced(turned(new BoxGeometry(r * 1.3, r * 0.2, Math.max(1, r * 0.03)).translate(0, 0, len + 0.5), f), driveM(), spots));
+  return g;
+}
+
+/** Hex-socket cap screws: a tall polished head with a dark socket (what holds a tempered glass panel off its frame). */
+export function capScrews(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
+  const g = new Group(), h = r * 0.6;
+  if (!spots.length) return g;
+  g.add(instanced(turned(lathe([[r, 0], [r, h * 0.82], [r * 0.9, h], [r * 0.56, h], [r * 0.5, h * 0.5], [0, h * 0.5]]), f), m, spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.52, 6).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots));
+  return g;
+}
+
+/** Soft rubber pads: a flat-topped button (the bumpers a side panel closes on). */
+export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
+  const g = new Group();
+  if (spots.length) g.add(instanced(turned(lathe([[r, 0], [r, r * 0.26], [r * 0.82, r * 0.4], [0, r * 0.4]], 14), f), m, spots));
+  return g;
 }
 
 // ---------------------------------------------------------------- painted sheets (painted once, shared by every rebuild)

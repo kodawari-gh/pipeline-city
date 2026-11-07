@@ -2,12 +2,13 @@
 // rear wall with the mains inlet, about 0.65 of a real ATX unit's size (the case is smaller than life, and the basement sets the room); and the drives
 // in a stepped cage beside it, filed two rows deep, each drive standing face to the glass, the back row raised on a step so it shows over the front one.
 // The 2D keeps its column of bays east of the board (it has no depth to file them in); a drive here is the 2D drive (its body and its drawing) moved to its bay.
-import { CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, type MeshStandardMaterial } from 'three';
-import { drum, instanced, paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { decal, decalX, perfMat, tex, wallX, type Span } from './casekit3d';
+import { CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, type Material, type MeshStandardMaterial } from 'three';
+import { instanced, paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { decal, decalX, flatSlot, NONE, outlinePts, pads, perfMat, perforated, plateY, ring, rivets, screws, shapeOf, slab, tex, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
+import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { driveBody, type DriveKind } from '@/features/storage/render/drives';
 import { BAY_CELLS, CASE, CASE_IN, PC_POWER, PSU } from '../layout/layout';
 
@@ -59,51 +60,103 @@ export function basementPlan(n = BAY_CELLS.length): BasementPlan {
 }
 
 /**
- * The shroud over the basement: its top, its glass-side cover over the power supply (the case's name printed on it, two thumbscrews; it comes off to
- * reach the supply and answers a click as the PSU), the panel's narrow east end and the shroud's east wall, slotted so the front fans' air reaches the
- * drives. Over the cage the front is open, the drives show through the glass.
+ * The shroud over the basement: its top (a sheet with cable holes by the tray and vent slots over the cage, riveted to the tray along a flange), its
+ * glass-side cover over the power supply (the case's name printed on it, a vented band, two thumbscrews and two screws; it comes off to reach the supply
+ * and answers a click as the PSU), the fold and the sill of the cage's opening, the panel's narrow east end and the shroud's east wall, slotted so the
+ * front fans' air reaches the drives. Over the cage the front is open, the drives show through the glass. On the floor, the strips the supply stands on.
  */
-export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }): Group {
+export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2b3142, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 })): Group {
   const g = new Group(), m = mat(look.body, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
   const bg = `#${look.body.toString(16).padStart(6, '0')}`;
-  g.add(rectBox({ x: CASE_IN.x, y: p.top, w: p.east - CASE_IN.x, h: 60 }, zb, zf, m));
+  const holes = [flatSlot(CASE_IN.x + 520, zb + 130, 760, 170), flatSlot(p.psu.x + p.psu.w - 620, zb + 130, 760, 170)];
+  for (let z = cageBack(p) + 40; z + 46 < zf - 110; z += 120) for (let x = p.cage.x + 40; x + 300 < p.cage.x + p.cage.w; x += 380) holes.push(flatSlot(x, z, 300, 46));
+  g.add(plateY(CASE_IN.x, p.east, zb, zf, p.top, 30, holes, m, 4));
+  // the flange down the tray, and its rivets
+  g.add(softBox({ x: CASE_IN.x, y: p.top - 50, w: p.east - CASE_IN.x, h: 50 }, zb - 1, zb + 10, m, 3));
+  const tray: Spot[] = [];
+  for (let x = CASE_IN.x + 300; x < p.east - 150; x += 620) tray.push({ x, y: -(p.top - 25), z: zb + 10 });
+  g.add(rivets(tray, 'z+', 40, rivet));
+
   const west = { x: CASE_IN.x, y: p.top, w: p.cage.x - 110 - CASE_IN.x, h: p.floor - p.top };
   const panel = tag(new Group(), 'psu');
   panel.name = PSU_COVER;
-  panel.add(rectBox(west, zf - 40, zf, m));
-  const knurl = mat(0x8e949c, { metalness: 0.75, roughness: 0.38 });
-  for (const y of [west.y + 140, west.y + west.h - 140]) panel.add(drum(west.x + west.w - 130, y, zf, zf + 18, 34, knurl, 16));
+  panel.add(softBox(west, zf - 40, zf, m, 8));
+  const knurl = mat(0x8e949c, { metalness: 0.75, roughness: 0.38 }), tx = west.x + west.w - 170;
+  panel.add(thumbscrews([west.y + 170, west.y + west.h - 170].map((y) => ({ x: tx, y: -y, z: zf + 2 })), 'z+', 80, 48, knurl));
+  panel.add(screws([west.y + 110, west.y + west.h - 110].map((y) => ({ x: west.x + 110, y: -y, z: zf + 2 })), 'z+', 48, screw));
   const W = 1024, H = Math.max(64, Math.round((W * west.h) / west.w));
   const print = paint(W, H, (c) => {
     c.fillStyle = bg; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, W, 6);
     c.fillStyle = look.ink; c.textBaseline = 'middle'; c.textAlign = 'center';
-    c.font = `600 ${Math.round(Math.min(H * 0.34, W * 0.1))}px system-ui, sans-serif`; c.fillText('PIPELINE CITY', W / 2, H / 2);
+    c.font = `600 ${Math.round(Math.min(H * 0.28, W * 0.056))}px system-ui, sans-serif`; c.fillText('PIPELINE CITY', W * 0.36, H / 2);
   });
   const face = new Mesh(new PlaneGeometry(west.w, west.h), mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }));
   face.position.set(west.x + west.w / 2, -(west.y + west.h / 2), zf + 2);
   panel.add(face);
+  const vent: RectLike = { x: west.x + west.w - 1020, y: west.y + 170, w: 640, h: west.h - 340 };
+  panel.add(ring(vent, 14, NONE, 14, zf, zf + 9, m));
+  perforated(panel, vent, zf + 3, 'slot', 110, look.body, { metal: 0.35, rough: 0.5 });
   g.add(panel);
-  const eastLip = p.cage.x + p.cage.w + 110;
+
+  // the opening over the cage: the sheet's fold along its top, a low sill along the floor
+  const x0 = west.x + west.w, eastLip = Math.min(p.east, p.cage.x + p.cage.w + 110);
+  g.add(softBox({ x: x0, y: p.top, w: eastLip - x0, h: 70 }, zf - 40, zf, m, 6), rectBox({ x: x0, y: p.floor - 40, w: eastLip - x0, h: 40 }, zf - 40, zf, m));
   if (eastLip < p.east) g.add(rectBox({ x: eastLip, y: p.top, w: p.east - eastLip, h: p.floor - p.top }, zf - 40, zf, m));
   const slots: Span[] = [];
   for (let y = p.top + 170; y + 60 < p.floor - 90; y += 130) slots.push({ y0: y, y1: y + 60, z0: zb + 320, z1: zf - 320, r: 30 });
   g.add(wallX(p.east - 40, p.east, { y0: p.top, y1: p.floor, z0: zb, z1: zf }, slots, m));
+
+  // the rubber strips under the power supply, either side of its fan
+  const u = p.psu, rubber = mat(0x0b0b0d, { roughness: 0.92 });
+  for (const z of [u.z0 + 60, u.z1 - 200]) g.add(rectBox({ x: u.x + 90, y: u.y + u.h, w: u.w - 180, h: 20 }, z, z + 140, rubber));
   return g;
 }
 
-/** The cage: a holder under each bay (a steel channel with a lip at each end), the step the back row stands on, the cage's back plate. */
-export function cage(p: BasementPlan): Group {
-  const g = new Group(), steel = mat(0x3a4152, { metalness: 0.6, roughness: 0.4 }), dark = mat(0x101217, { roughness: 0.8 });
-  if (p.step) g.add(softBox(p.step, p.step.z0, p.step.z1, steel, 14));
-  const d = driveDepth('hdd');
-  for (const b of p.bays) {
-    const z0 = b.face - d * b.k - 30, z1 = b.face + 20;
-    g.add(rectBox({ x: b.x - 20, y: b.y + b.h, w: b.w + 40, h: 20 }, z0, z1, steel));
-    for (const x of [b.x - 20, b.x + b.w]) g.add(rectBox({ x, y: b.y + b.h * 0.8, w: 20, h: b.h * 0.2 }, z0, z0 + 40, steel));
+/** Each kind's cage: bare zinc in the Mini, its paint in the others. */
+const CAGE_TONE: Record<CaseKind, number> = { oem: 0xa9aca4, matte: 0x1b1c20, gamer: 0x232838, show: 0x2a2d33 };
+
+/**
+ * The cage, in its case's finish: a caddy in each bay (a floor plate with a slot and rubber feet, a windowed rail either side with its screws and front
+ * ears, a windowed back plate: a drive's cables leave through them), the vented shelf the back row stands on, the end walls, the perforated back.
+ */
+export function cage(p: BasementPlan, kind: CaseKind = 'gamer'): Group {
+  const g = new Group(), tone = CAGE_TONE[kind], steel = mat(tone, { metalness: 0.6, roughness: 0.42 }), d = driveDepth('hdd');
+  const bolt = mat(kind === 'oem' ? 0xc9cbc3 : 0x62666e, { metalness: 0.8, roughness: 0.35 }), rubber = mat(0x0b0b0d, { roughness: 0.92 }), back = cageBack(p), front = FRONT - 150;
+  // the perforated back, and the end walls with a window the drives' cables pass
+  const rear: RectLike = { x: p.cage.x - 80, y: p.top + 60, w: p.cage.w + 160, h: p.floor - p.top - 60 };
+  g.add(rectBox(rear, back - 30, back, mat(0x08090b, { roughness: 0.85 })));
+  perforated(g, rear, back + 1, 'round', 80, tone, { metal: 0.55, rough: 0.45 });
+  for (const x of [p.cage.x - 70, p.cage.x + p.cage.w + 56]) g.add(wallX(x, x + 14, { y0: p.top + 30, y1: p.floor, z0: back, z1: front }, [{ y0: p.top + 150, y1: p.floor - 40, z0: back + 70, z1: front - 90, r: 40 }], steel, 2));
+
+  // the shelf: a slotted top, a leg at each end and at each gap, its perforated front
+  if (p.step) {
+    const s = p.step, top = s.y + 18, slots = [];
+    for (let z = s.z0 + 60; z + 40 < s.z1 - 50; z += 96) for (let x = s.x + 80; x + 280 < s.x + s.w - 60; x += 340) slots.push(flatSlot(x, z, 280, 40));
+    g.add(plateY(s.x, s.x + s.w, s.z0, s.z1, top, 18, slots, steel, 3));
+    const legs = [s.x, s.x + s.w - 18, ...p.bays.filter((b) => b.row === 1).slice(1).map((b) => b.x - 54)];
+    for (const x of legs) g.add(rectBox({ x, y: top + 18, w: 18, h: s.y + s.h - top - 18 }, s.z0, s.z1, steel));
+    perforated(g, { x: s.x + 18, y: top + 18, w: s.w - 36, h: s.y + s.h - top - 18 }, s.z1 - 12, 'round', 70, tone, { metal: 0.55, rough: 0.45 });
   }
-  const back = cageBack(p);
-  g.add(rectBox({ x: p.cage.x - 80, y: p.top + 60, w: p.cage.w + 160, h: p.floor - p.top - 60 }, back - 30, back, dark));
+
+  const feet: Spot[] = [], fronts: Spot[] = [], westHeads: Spot[] = [], eastHeads: Spot[] = [];
+  for (const b of p.bays) {
+    const z0 = b.face - d * b.k - 30, z1 = b.face + 20, y0 = b.y + b.h * 0.2, y1 = b.y + b.h, midZ = (z0 + z1) / 2;
+    g.add(plateY(b.x - 26, b.x + b.w + 26, z0, z1, y1, 18, [flatSlot(b.x + b.w * 0.2, midZ - 16, b.w * 0.6, 32)], steel, 3));
+    const window: Span = { y0: b.y + b.h * 0.3, y1: b.y + b.h * 0.78, z0: z0 + 36, z1: z1 - 36, r: 22 };
+    for (const x of [b.x - 26, b.x + b.w + 6]) g.add(wallX(x, x + 20, { y0, y1, z0, z1 }, [window], steel, 2));
+    const pane = { y: y0 + 70, h: y1 - y0 - 150 };
+    g.add(slab(shapeOf(outlinePts({ x: b.x - 26, y: y0, w: b.w + 52, h: y1 - y0 }, 6), [outlinePts({ x: b.x + b.w * 0.1, ...pane, w: b.w * 0.36 }, 22), outlinePts({ x: b.x + b.w * 0.54, ...pane, w: b.w * 0.36 }, 22)]), z0 - 12, z0, steel, 2));
+    // the ears at the front of the rails, and their screws
+    for (const [x, sx] of [[b.x - 42, b.x - 24], [b.x + b.w + 6, b.x + b.w + 24]] as const) for (const y of [y0 + 44, y1 - 54]) {
+      g.add(softBox({ x, y: y - 34, w: 36, h: 68 }, z1 - 12, z1, steel, 2));
+      fronts.push({ x: sx, y: -y, z: z1 });
+    }
+    westHeads.push({ x: b.x - 26, y: -(y1 - b.h * 0.1), z: midZ });
+    eastHeads.push({ x: b.x + b.w + 26, y: -(y1 - b.h * 0.1), z: midZ });
+    for (const x of [b.x + 70, b.x + b.w - 70]) for (const z of [z0 + 46, z1 - 46]) feet.push({ x, y: -y1, z });
+  }
+  g.add(pads(feet, 'y+', 30, rubber), screws(fronts, 'z+', 24, bolt), screws(westHeads, 'x-', 26, bolt), screws(eastHeads, 'x+', 26, bolt));
   return g;
 }
 

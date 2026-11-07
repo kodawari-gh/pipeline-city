@@ -8,7 +8,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 | Part | Specs | Model (file) | Model | Fit | Graph | Anim |
 |---|---|---|---|---|---|---|
-| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [x] mesh, door, top I/O panel reviewed up close; the grille shimmer is cut (see below); 2026-11-07: real air openings, board studs per tier, legacy rear ports ([render/case.md](render/case.md)) | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
+| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts`, `casetray3d.ts`, `fanhub3d.ts`, `basement3d.ts` | [x] mesh, door, top I/O panel reviewed up close; the grille shimmer is cut (see below); 2026-11-07: real air openings, board studs per tier, legacy rear ports; the empty case: tray, fixings, cable holes, hub, cage, front-panel leads ([render/case.md](render/case.md)) | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
 | Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] a swap lifts the board with its fixed parts, not the case |
 | CPU (17 specs) | `cpu0..4w` | `chips3d.ts`, `showcase.ts` | [x] socket, pins and lid reviewed up close, no defect | [x] | [x] | [x] |
 | CPU heatsink: stock, tower | `cooler0`, `cooler1` | `cooler3d.ts` | [x] stock (radial vanes) and tower (fins, heat pipes) reviewed up close, bare and with fans, 2026-11-07 | [x] | [x] | [x] |

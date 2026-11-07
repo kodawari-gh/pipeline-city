@@ -24,7 +24,8 @@ import { glowMat, light, type Spin } from './fans3d';
 import {
   FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
 } from './casekit3d';
-import { controls, drumX, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
+import { controls, drumX, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, type Controls, type Frame } from './casedetail3d';
+import { doorInner, frameDetail, rivetM, screwM, traySheet, trayDetail } from './casetray3d';
 
 export { outlinePts, SIDE_T } from './casekit3d';
 
@@ -83,6 +84,9 @@ export interface CaseModel {
   /** The inside's tone (the tray) and the shroud's (its print's ink). */
   inner: number;
   shroud: { body: number; ink: string };
+  /** The kind's rivets and screws, for what goes in the case (the basement). */
+  rivet: Material;
+  screw: Material;
 }
 
 /**
@@ -125,8 +129,10 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const topPts = clipY(outer(), -f.yTop, 1), vent = topVent();
   if (vent) root.add(...slabWithOpening(topPts, f.z0, z1, vent, body)); else root.add(slab(shapeOf(topPts), f.z0, z1, body, 18));
   root.add(...slabWithOpening(clipY(outer(), -f.yBot, -1), f.z0, z1, psuIntake(), body));
-  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, bottom), trayDetail(f), fanMountPlates(inner));
-  root.add(slab(shapeOf(outer()), CASE_Z, CASE_Z + 70, inner, 12));
+  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, bottom), traySheet(f, outer(), inner), trayDetail(f, inner), fanMountPlates(inner));
+  // the door's hooks along the top rail, clear of the cut corners, and where they go into the frame's rim
+  const hookY = (C.y + f.yTop) / 2, hookX = [C.x + C.w * 0.2, C.x + C.w * 0.45, C.x + C.w * 0.68];
+  root.add(frameDetail(f, ex, hookX, hookY));
   const ctl = controls(f, ex, GAMER_CAP);
   root.add(ctl.root);
   spins.push(...ctl.spins);
@@ -142,7 +148,9 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   // (the Mini's plastic front wraps round the front edge: its sheet stops short of it)
   const sheet = kind === 'oem' ? outlinePts({ ...C, w: C.w - OEM_BEZEL }, L.rad) : outer();
-  side.add(slab(shapeOf(sheet, [...(winPts ? [winPts] : []), outlinePts(intake, 16)]), z1, FRONT, kind === 'show' ? mat(0x111216, { roughness: 0.3, metalness: 0.55 }) : body, 14));
+  const sheetM = kind === 'show' ? mat(0x111216, { roughness: 0.3, metalness: 0.55 }) : body;
+  side.add(slab(shapeOf(sheet, [...(winPts ? [winPts] : []), outlinePts(intake, 16)]), z1, FRONT, sheetM, 14));
+  doorInner(side, kind === 'oem' ? { ...C, w: C.w - OEM_BEZEL } : C, L.rad, cuts, sheetM, hookX, hookY);
   let glass: Mesh | null = null;
   if (win && winPts && L.glass) {
     glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), glassMat(L.glass.tint));
@@ -333,7 +341,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   door.position.set(px, 0, FRONT);
   side.position.set(-px, 0, -FRONT);
   door.add(side);
-  return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, accent: acc, inner: L.inner, shroud: L.shroud };
+  return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, accent: acc, inner: L.inner, shroud: L.shroud, rivet: rivetM(kind), screw: screwM(kind) };
 
   /** Splayed feet along the case's depth (a dark wedge, a lit top line), on a silver plate for the showcase. */
   function feet(g: Group, fw: number, tone: number, plate: Material | null) {

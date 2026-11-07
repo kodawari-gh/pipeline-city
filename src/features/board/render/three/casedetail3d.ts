@@ -1,22 +1,22 @@
 // The working details of the 3D cases (case3d.ts): what a real case has round its box, by kind. The rear wall with its openings (the expansion
 // slot row behind its retention bar and thumbscrews, the exhaust fan behind a honeycomb grille, or the Mini's punched grille), the board's I/O
 // shield with its ports where the plugs go in, the front's intake (mesh or hex over the front fans, the Micro's side gaps, the Mini's grille),
-// the top controls (the power button and the status lights of each kind, the front ports), and the tray's cable management (cut-outs, grommets
-// and tie points). Airflow reads from outside: in at the front and under the PSU, out at the rear fan and the top.
-import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { FAN_SCREW, fanFlange, instanced, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+// the top controls (the power button and the status lights of each kind, the front ports). The inside of the case is casetray3d.ts. Airflow reads
+// from outside: in at the front and under the PSU, out at the rear fan and the top.
+import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
+import { FAN_SCREW, fanFlange, place, post, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
-import { fanMounts, frontFanRects, standoffs } from '@/features/room/render/desk/props/case';
+import { fanMounts, frontFanRects } from '@/features/room/render/desk/props/case';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
-import { BR, CASE, CASE_BD, GEO, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
+import { BR, CASE, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
 import { HINGE_Z, slotBlank, STAND } from './card3d';
-import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
-import { TRAY_Z } from './wires3d';
+import { brushed, decalX, FRONT, perfMat, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
+import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
 
 /** What the details need of the case: its kind, its body's material, its accent, and the cavity's height (layout y) and depth. */
@@ -103,7 +103,7 @@ export function fanMountPlates(m: Material): Group {
 }
 
 /** The sheet's tone of each kind, for its grilles and meshes. */
-const kindTone = (k: CaseKind) => ({ oem: 0xcfc6a3, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
+export const kindTone = (k: CaseKind) => ({ oem: 0xcfc6a3, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
 /** The slot blanks' finish by kind: bare zinc in the Mini, painted to match the body in the others. */
 export const SLOT_BLANK: Record<CaseKind, number> = { oem: 0xa3a69f, matte: 0x1c1d22, gamer: 0x232838, show: 0x17181d };
 
@@ -405,56 +405,8 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   return { root, power, leds: { on, err, disk }, spins };
 }
 
-// ---------------------------------------------------------------- the tray: cable management
-
-/** How each kind finishes a cable hole in the tray: a rolled steel lip (the Mini), black rubber, or a brushed aluminium ring (the Full tower). */
-export type GrommetStyle = { tone: number; metal: boolean };
-export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491, metal: false }, matte: { tone: 0x101114, metal: false }, gamer: { tone: 0x14171f, metal: false }, show: { tone: 0x9aa0a8, metal: true } };
-
-/** The tray under the board: a brass hex stud up to the board's underside at each of `used` (the fitted board's holes), a threaded hole at the case's other positions. */
-export function mounts(used: readonly (readonly [number, number])[]): Group {
-  const g = new Group(), h = BOARD_Z - 60 - TRAY_Z, at = (x: number, y: number) => used.some(([a, b]) => a === x && b === y);
-  const up = (r: number, n: number, len: number) => new CylinderGeometry(r, r, len, n).rotateX(Math.PI / 2);
-  g.add(instanced(up(58, 6, h), mat(0xc2a15a, { metalness: 0.8, roughness: 0.36 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 }))));
-  const free = standoffs().filter(([x, y]) => !at(x, y));
-  if (free.length) {
-    // (above the Full tower's perforated sheet, at +6)
-    g.add(instanced(up(46, 16, 3), mat(0x7c828b, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + 8 }))));
-    g.add(instanced(up(26, 12, 3), black(), free.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + 10 }))));
-  }
-  return g;
-}
-
-/**
- * The tray's cable management between the board and the front fans: a column of tie points for the straps, and the routing cut-outs of the kind
- * (the Micro's one rubber-rimmed slot, the Mid's slanted cut-outs, the Full tower's rimmed slots on a hex-perforated tray; the Mini has bare tie
- * points only). And the board's mounts: every position of every board the case takes is a threaded hole; the fitted board's stand a brass stud.
- */
-export function trayDetail(f: Frame): Group {
-  const g = new Group(), east = CASE_BD.x + CASE_BD.w, bd = CASE_BD, rim = mat(GROMMETS[f.kind].tone, GROMMETS[f.kind].metal ? { metalness: 0.75, roughness: 0.3 } : { roughness: 0.75 });
-  g.add(mounts(GEO.holes));
-  const pts = [];
-  for (let y = bd.y + 500; y < bd.y + bd.h - 300; y += 900) pts.push({ x: east + 480, y: -y, z: TRAY_Z + 12, rz: 0 });
-  const loop = new TorusGeometry(34, 9, 6, 12, Math.PI);
-  g.add(instanced(loop, mat(0x6d727b, { metalness: 0.7, roughness: 0.4 }), pts));
-  const hole = black();
-  const cut = (r: RectLike, rad: number) => { g.add(ring(r, rad, NONE, 26, TRAY_Z - 4, TRAY_Z + 18, rim)); g.add(seeThrough(slab(shapeOf(outlinePts(r, rad)), TRAY_Z - 6, TRAY_Z + 2, hole))); };
-  const x = east + 820;
-  if (f.kind === 'matte') cut({ x, y: bd.y + 500, w: 220, h: bd.h * 0.5 }, 100);
-  if (f.kind === 'gamer') {
-    for (let k = 0; k < 3; k++) {
-      const y = bd.y + 400 + k * (bd.h * 0.27), h = bd.h * 0.2, lean = 120;
-      const q = [[x + lean, y], [x + lean + 220, y], [x + 220, y + h], [x, y + h]].map(([a, b]) => new Vector2(a!, -b!));
-      const qo = [[x + lean - 26, y - 26], [x + lean + 246, y - 26], [x + 246, y + h + 26], [x - 26, y + h + 26]].map(([a, b]) => new Vector2(a!, -b!));
-      g.add(slab(shapeOf(qo, [q]), TRAY_Z - 4, TRAY_Z + 18, rim), seeThrough(slab(shapeOf(q), TRAY_Z - 6, TRAY_Z + 2, hole)));
-    }
-  }
-  if (f.kind === 'show') {
-    for (let k = 0; k < 3; k++) cut({ x, y: bd.y + 400 + k * (bd.h * 0.3), w: 240, h: bd.h * 0.22 }, 60);
-    perforated(g, { x: CASE.x + WALL_T + 40, y: f.yTop + 40, w: x - 120 - (CASE.x + WALL_T + 40), h: PSU.y - 60 - (f.yTop + 40) }, TRAY_Z + 1, 'hex', 90, 0x22252c, { metal: 0.5, rough: 0.5 });
-  }
-  return g;
-}
+/** How each kind finishes a cable hole in the tray: a rolled steel lip (the Mini), black rubber, or a brushed aluminium ring over rubber flaps (the Full tower). */
+export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491, metal: false, flap: null }, matte: { tone: 0x101114, metal: false, flap: 0x1c1d22 }, gamer: { tone: 0x14171f, metal: false, flap: 0x20242f }, show: { tone: 0x9aa0a8, metal: true, flap: 0x17181c } };
 
 /** Two hinge barrels on the front edge of a glass door (the Mid and the Full tower). */
 export function hinges(ex: number, yTop: number, yBot: number): Group {

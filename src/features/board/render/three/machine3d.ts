@@ -53,15 +53,17 @@ import { HINGE_Z, card3d, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
-import { GROMMETS, ioShield, rearFanScrews, SLOT_BLANK, type GrommetStyle } from './casedetail3d';
+import { GROMMETS, ioShield, rearFanScrews, SLOT_BLANK } from './casedetail3d';
 import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 import { hexNum, skinOf, slotArmour } from '../skins';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
+import { fanHub } from './fanhub3d';
+import { frontPanelLeads } from './casetray3d';
 import {
-  TRAY_Z, at, atxPlug, atxSocket, cableMesh, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, sataPort, type Env, type Look,
+  TRAY_Z, at, atxPlug, atxSocket, cableMesh, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, sataPort, type Env, type GrommetStyle, type Look,
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { rigStatic, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
@@ -170,6 +172,8 @@ export class Machine3D {
   private cooler: Group | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
+  /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
+  private panelLeads: Group | null = null;
   /**
    * The case's side panel: how far open (`t`, 0 to 1 along `doorPose`), the zoom seen at the side and the board view's zoom on this screen, whether
    * the zoom has opened it (with a dead band), the player's last say (null: the zoom decides), a drag or target inside, any drag at all.
@@ -228,7 +232,7 @@ export class Machine3D {
     for (const s of cm.spins) this.spin(s);
     // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
     // stepped cage the drives stand in (`basement3d.ts`)
-    shell.add(shroud(this.plan, cm.shroud), cage(this.plan));
+    shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), cage(this.plan, kind));
     // light strips along the inside of the top and the front: RGB in the gaming case, a cold white in the showcase, none in the plain cases
     if (cm.rgb) for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
       const m = glowMat(cm.accent);
@@ -237,8 +241,7 @@ export class Machine3D {
       this.caseRoots.push(strip);
       this.spin(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
     }
-    // the fan hub
-    shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, mat(cm.inner, { roughness: 0.8 })));
+    shell.add(fanHub());
     // the board's I/O shield in the rear wall, with the ports the board has, in the board's style
     shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, GEO.tier));
     this.root.add(shell, cm.door);
@@ -276,7 +279,7 @@ export class Machine3D {
   /** The board's pieces: everything on the root that is not the case, the cables or a light (a board swap lifts these). */
   boardRoots(): Object3D[] {
     const skip = new Set<Object3D>([...this.caseRoots, this.wires, this.rgb, this.spill]);
-    return this.root.children.filter((o) => !skip.has(o));
+    return [...this.root.children.filter((o) => !skip.has(o)), ...(this.panelLeads ? [this.panelLeads] : [])];
   }
 
   /** Let the live frame drive a fan or a light. */
@@ -754,7 +757,7 @@ export class Machine3D {
         // the hub's header on its top edge, the cord down to it from the slot
         const hx = p.seat[0], from = hubEnds[1 + hubHeaders().findIndex((h) => h.x === hx)] ?? hubEnds[0]!;
         this.addRig(g, cord(from, env, { slack: 1.2, extra: 80, n: 14 }, {
-          model: () => ({ root: rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 180, CASE_Z + 300, mat(0x1b2230, { roughness: 0.5 })), strands: [{ at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }] }),
+          model: () => ({ root: rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 206, CASE_Z + 276, mat(0x1b2230, { roughness: 0.5 })), strands: [{ at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }] }),
           seat: { at: [hx, -FAN_HUB.y, CASE_Z + 240], axis: [0, 1, 0] }, engage: 60,
         }), plugged);
       } else {
@@ -775,6 +778,9 @@ export class Machine3D {
       }
       this.wires.add(g);
     }
+    // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers
+    this.panelLeads = frontPanelLeads(this.caseEnv());
+    this.wires.add(this.panelLeads);
     this.buildRoomCords(s, geo);
   }
 

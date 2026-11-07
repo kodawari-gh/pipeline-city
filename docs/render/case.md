@@ -41,7 +41,17 @@ Review of 2026-11-07 (`case3d.ts`, `casedetail3d.ts`, `basement3d.ts`, `buildmot
 - **Openings.** Every extrusion with holes goes through `extrude` (`core/render/three/geometry.ts`), which winds each hole against its outline. ExtrudeGeometry corrects a hole only when it turns the outline, so a hole wound like a clockwise outline got walls that faced into the material. They were culled, and the background showed through the sides of every grille, vent and slot (`casekit3d.test.ts` checks it).
 - **Panels.** The back panel has two thumbscrews in its rear edge on every case. The Mini's front has two blank 5.25" bay covers (a rim, a gap and a finger notch each) and a "PC-1" badge.
 
-Open choices, not changed: the supply stays in the basement on every case (an old OEM tower like the Mini had it at the top of the rear wall); the Basic and Mainstream boards both have 100 Mb LAN in the sim; the front-panel lead has no 3D cable.
+Open choices, not changed: the supply stays in the basement on every case (an old OEM tower like the Mini had it at the top of the rear wall); the Basic and Mainstream boards both have 100 Mb LAN in the sim.
+
+## The empty case
+
+Each case must look good with nothing in it: the shop's viewer shows it so (`showcase.ts`: the body, the closed door, the shroud, the cage, the hub and the coiled front-panel leads). Real scale: 23 units a mm, so a case screw's head is r 45 to 70. The fixings are one kit (`casekit3d.ts`: `screws`, `rivets`, `thumbscrews`, `capScrews`, `pads`); `screwM` and `rivetM` (`casetray3d.ts`) give each kind's finish: zinc in the Mini, black in the Micro and Mid, polished in the Full.
+
+- **Tray** (`casetray3d.ts`). A back panel and the tray's sheet over it with real holes: the CPU cut-out (not on the Mini), the Mini's punched vents and keyholes, lacing slots. A stamped panel under the board; a brass stud under the fitted board, a threaded hole at every other position, each stamped with its form factors (I, M, A, E). Stiffening beads, tie-down bridges in two columns, Velcro straps on the Mid and Full. The kind's cable holes (`grommet`, `wires3d.ts`: a ring, the dark hole, slit rubber flaps; the Mini's are bare rolled holes) and each lead's own hole. The Full has a vented cable cover over its gutter.
+- **Frame.** Riveted flanges round the tray, rivet rows on the walls, a rolled lip round the side opening with rubber bumpers and the receivers of the door's hooks. The door has its hem and hooks (`doorInner`, on `side`: it follows the case's cut corners).
+- **Basement** (`basement3d.ts`). The shroud's top is a sheet with two cable holes by the tray and vent slots over the cage, riveted to the tray. Its cover has the print, a slotted vent, two thumbscrews and two screws. The cage takes the case's finish (`CAGE_TONE`): a caddy per bay (a floor plate with a slot and rubber feet, windowed rails with ears and screws, a windowed back plate), a vented shelf for the back row, windowed end walls, a perforated back. Rubber strips under the supply.
+- **Fan hub** (`fanhub3d.ts`). A green board on four brass standoffs with its print and traces, the controller, passives and two capacitors, a side-entry 4-pin header per mount (the fan cords' seats do not move), the input header, the SATA power socket, three ARGB outputs and a USB 2.0 header.
+- **Front-panel leads** (`frontPanelLeads`). From their hole under the board's south edge to the `F_PANEL` (four thin wires), `USB_2`, `USB_3` (thick blue) and `ARGB` headers, static and hung as the system fan's cord. They are in `wires`, and `boardRoots` lists them, so a board swap lifts them. With no board (the viewer) they lie coiled and tied over their hole (`leadCoil`).
 
 ## Level of detail: interior and exterior (far zoom)
 

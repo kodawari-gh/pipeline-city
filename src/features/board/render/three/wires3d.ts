@@ -3,7 +3,7 @@
 // own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column, and a
 // loose lead is the same comb with its plug at the end (cablerig3d.ts; plughand3d.ts holds it in the player's hand). The board's power and SATA
 // sockets are modelled with their cavities, the plugs seat in them.
-import { BoxGeometry, Group, Mesh, type Vector2 } from 'three';
+import { BoxGeometry, Group, Mesh, Vector2 } from 'three';
 import { instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { hang, naturalLength, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
@@ -50,13 +50,28 @@ export const hung = (a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts =
 /** A plug body round its own z axis (`straightPlug`, cablerig3d.ts): `w` by `h` across, `l` long, the cable leaving at +z. */
 export const loosePlug = (w: number, h: number, l: number, accent: string): Group => plugBody({ x: -w / 2, y: -h / 2, w, h }, -l, 0, accent);
 
-/** A rubber grommet in the tray over a layout rect: the moulded ring and the slit flaps of its membrane. */
-export function grommet(r: RectLike, style: { tone: number; metal: boolean } = { tone: 0x101114, metal: false }): Group {
-  const g = new Group(), rubber = mat(style.tone, style.metal ? { metalness: 0.75, roughness: 0.3 } : { roughness: 0.75 }), e = 40;
-  g.add(softBox({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, TRAY_Z - 10, TRAY_Z + 26, rubber, Math.min(40, (r.w + 2 * e) / 2.2, (r.h + 2 * e) / 2.2)));
-  g.add(rectBox(r, TRAY_Z + 20, TRAY_Z + 28, mat(0x050506, { roughness: 0.9 })));
-  const along = r.h >= r.w, slit = along ? { x: r.x + r.w / 2 - 2, y: r.y + 10, w: 4, h: r.h - 20 } : { x: r.x + 10, y: r.y + r.h / 2 - 2, w: r.w - 20, h: 4 };
-  g.add(rectBox(slit, TRAY_Z + 28, TRAY_Z + 30, mat(0x1c1d22, { roughness: 0.6 })));
+/** How a case finishes a cable hole in its tray: the ring's tone (`metal`: a machined ring), the rubber flaps' tone (null: a bare hole in a rolled lip). */
+export interface GrommetStyle { tone: number; metal: boolean; flap: number | null }
+
+/**
+ * A cable hole in the tray over a layout rect: the moulded ring standing round it, the dark hole, and the membrane's slit flaps sunk inside the ring,
+ * a row from each long edge up to a slit down the middle. `lean`: how far the slot's top runs east of its foot (a slanted cut-out).
+ */
+export function grommet(r: RectLike, style: GrommetStyle = { tone: 0x101114, metal: false, flap: 0x1a1b20 }, lean = 0): Group {
+  const g = new Group(), e = 34, rad = Math.min(r.w, r.h) / 2, along = r.h >= r.w, rubber = mat(style.tone, style.metal ? { metalness: 0.75, roughness: 0.3 } : { roughness: 0.75 });
+  // (a slanted slot's points slide along x with their height)
+  const sheared = (pts: Vector2[]) => (lean ? pts.map((p) => new Vector2(p.x + (lean * (r.y + r.h + p.y)) / r.h, p.y)) : pts);
+  const inner = sheared(outlinePts(r, rad));
+  g.add(slab(shapeOf(sheared(outlinePts({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, rad + e)), [inner]), TRAY_Z - 6, TRAY_Z + 24, rubber, 6));
+  g.add(slab(shapeOf(inner), TRAY_Z - 2, TRAY_Z + 2, mat(0x050506, { roughness: 0.9 })));
+  if (style.flap === null) return g;
+  const len = along ? r.h : r.w, wide = along ? r.w : r.h, n = Math.max(1, Math.round(len / 34)), pitch = len / n, slit = 8, fw = (wide - slit) / 2;
+  const flaps = Array.from({ length: n }, (_, i) => i).flatMap((i) => [-1, 1].map((s) => {
+    const a = (along ? r.y : r.x) + (i + 0.5) * pitch, o = (s * (slit + fw)) / 2;
+    if (!along) return { x: a, y: -(r.y + r.h / 2 + o), z: TRAY_Z + 10, sx: pitch - 6, sy: fw, sz: 6 };
+    return { x: r.x + r.w / 2 + o + (lean * (r.y + r.h - a)) / r.h, y: -a, z: TRAY_Z + 10, sx: fw, sy: pitch - 6, sz: 6 };
+  }));
+  g.add(instanced(new BoxGeometry(1, 1, 1), mat(style.flap, { roughness: 0.8 }), flaps));
   return g;
 }
 

@@ -11,7 +11,10 @@ import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/driv
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIE, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, PKG, fanLen, setLayoutTier } from '../layout/layout';
 import { card3d } from './card3d';
+import { basementPlan, cage, shroud } from './basement3d';
 import { caseModel } from './case3d';
+import { fanHub } from './fanhub3d';
+import { leadCoil } from './casetray3d';
 import { coolerModel } from './cooler3d';
 import { fanPart } from './fans3d';
 import { nvmeStick, sataDrive, type Raise } from './parts3d';
@@ -91,7 +94,12 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
   if (c) {
     const tier = Number(c[1]), kind = CASE_KIND[tier];
     if (!kind) return null;
-    return centred(withLayout(() => { const m = caseModel(kind, T), g = new Group(); g.add(m.root, m.side); return g; }, tier));
+    return centred(withLayout(() => {
+      const m = caseModel(kind, T), g = new Group(), plan = basementPlan();
+      // (the side panel hangs in its door's pivot group: added alone it would stand off the body by the pivot's offset)
+      g.add(m.root, m.door, shroud(plan, m.shroud, m.rivet, m.screw), cage(plan, kind), fanHub(), leadCoil());
+      return g;
+    }, tier));
   }
   const spec = getSpec(specId);
   if (!spec) return null;
