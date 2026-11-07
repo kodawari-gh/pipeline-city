@@ -195,7 +195,7 @@ A drawer and not a modal: the picture stays in view and each change applies at o
 - **Options outside the presets**: frame limit (60 by default), brightness, auto-adjust. A preset leaves them alone.
 - **Away** (3D): the limit drops to 30 while the page has lost the focus, or after 30 s without input while the view and the hand stand still (`AwayWatch`). The next input lifts it. It is not a setting.
 - **Two renderers**: only the running renderer's options show (`rendererKind`). The 2D view has render scale and frame limit; its anti-aliasing is fixed at start.
-- **Auto-adjust** (3D): when the frames stay under 30 FPS (`SlowWatch`, scaled by the frame limit) it takes one step down (`lowered`, `nextStep`). The step sits on top of the player's settings in `effective` and is never saved. The panel names what it lowered and offers Try again (`retryPicture`). Any change of the player's clears it.
+- **Auto-adjust** (3D): off by default; the player turns it on (saves from before carry a version tag `v`, and an older save is read as off). Steps: 1 AO, 2 bloom, multisampling and live dies, 3 resolution (last). A lone long frame counts at most 0.15 s (`HITCH_S`). When on, and the frames stay under 30 FPS (`SlowWatch`, scaled by the frame limit) it takes one step down (`lowered`, `nextStep`). The step sits on top of the player's settings in `effective` and is never saved. The panel names what it lowered and offers Try again (`retryPicture`). Any change of the player's clears it.
 - **Saved** per viewer in localStorage (`pipeline-city.graphics`), not in the game's save. `parseGraphics` clamps what it reads, so a stale value cannot break the picture.
 
 ## Camera inset

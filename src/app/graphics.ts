@@ -61,7 +61,7 @@ export const PRESETS: Record<Preset, PresetOptions> = {
 };
 export const PRESET_NAMES: readonly (readonly [Preset, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra']];
 
-export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 60, brightness: 1, auto: true };
+export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 60, brightness: 1, auto: false };
 
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];
 
@@ -84,14 +84,14 @@ export function parseGraphics(raw: unknown): Graphics {
 }
 
 /**
- * Auto-adjust's steps, each cheaper than the last: 1 drops the ambient occlusion, 2 also draws at 3/4 of the pixels, 3 also drops the bloom and the multisampling,
- * draws at 0.6 and calms the live dies. A step only lowers: an option already below it stays where the player put it.
+ * Auto-adjust's steps, each cheaper than the last: 1 drops the ambient occlusion, 2 also drops the bloom and the multisampling and calms the live dies,
+ * 3 also draws at 3/4 of the pixels (the resolution is the last to go). A step only lowers: an option already below it stays where the player put it.
  */
 export function lowered(g: Graphics, step: number): Graphics {
   if (step <= 0) return g;
   const out = { ...g, ao: 0 };
-  if (step >= 2) out.scale = Math.min(out.scale, 0.75);
-  if (step >= 3) { out.scale = Math.min(out.scale, 0.6); out.bloom = 0; out.msaa = 0; out.live = 0; }
+  if (step >= 2) { out.bloom = 0; out.msaa = 0; out.live = 0; }
+  if (step >= 3) out.scale = Math.min(out.scale, 0.75); // the resolution goes last: effects first
   return out;
 }
 
@@ -108,9 +108,16 @@ export function nextStep(g: Graphics, step: number): number | null {
 }
 
 const KEY = 'pipeline-city.graphics';
+const SAVE_VERSION = 2;
 
 function load(): Graphics {
-  try { return parseGraphics(JSON.parse(localStorage.getItem(KEY) ?? 'null')); } catch { return { ...DEFAULTS }; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    const g = parseGraphics(raw);
+    // saves from before auto-adjust became opt-in carry its old default: the player never chose it
+    if (raw && typeof raw === 'object' && (raw as { v?: unknown }).v !== SAVE_VERSION) g.auto = false;
+    return g;
+  } catch { return { ...DEFAULTS }; }
 }
 
 /** The player's settings. */
@@ -123,7 +130,7 @@ export const effective = computed(() => (graphics.value.auto ? lowered(graphics.
 function commit(next: Graphics) {
   graphics.value = next;
   autoStep.value = 0;
-  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage blocked or full: ignore */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ ...next, v: SAVE_VERSION })); } catch { /* storage blocked or full: ignore */ }
 }
 
 /** Set one option. Auto-adjust starts over: the player has just chosen this picture. */

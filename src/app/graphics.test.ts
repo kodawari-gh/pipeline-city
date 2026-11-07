@@ -6,7 +6,7 @@ import {
 describe('presets', () => {
   it('the default is High with nothing else set', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
-    expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: true });
+    expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: false });
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {
@@ -45,8 +45,12 @@ describe('auto-adjust', () => {
   it('walks the same three steps as before', () => {
     expect(lowered(DEFAULTS, 0)).toBe(DEFAULTS);
     expect(lowered(DEFAULTS, 1)).toEqual({ ...DEFAULTS, ao: 0 });
-    expect(lowered(DEFAULTS, 2)).toEqual({ ...DEFAULTS, ao: 0, scale: 0.75 });
-    expect(lowered(DEFAULTS, 3)).toEqual({ ...DEFAULTS, ao: 0, scale: 0.6, bloom: 0, msaa: 0, live: 0 });
+    expect(lowered(DEFAULTS, 2)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0 });
+    expect(lowered(DEFAULTS, 3)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75 });
+  });
+
+  it('keeps the resolution until the effects are gone', () => {
+    expect(lowered(DEFAULTS, 2).scale).toBe(DEFAULTS.scale);
   });
 
   it('never raises what the player set lower', () => {
@@ -65,6 +69,7 @@ describe('the settings signal', () => {
   beforeEach(() => resetGraphics());
 
   it('a preset keeps the frame limit, the brightness and auto-adjust', () => {
+    setGraphic('auto', true);
     setGraphic('fps', 120);
     setGraphic('brightness', 1.2);
     setPreset('low');
@@ -72,7 +77,8 @@ describe('the settings signal', () => {
   });
 
   it('any change hands the picture back to the player', () => {
-    autoStep.value = 2;
+    setGraphic('auto', true);
+    autoStep.value = 3;
     expect(effective.value.scale).toBe(0.75);
     setGraphic('shadows', 2);
     expect(autoStep.value).toBe(0);
