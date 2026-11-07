@@ -318,10 +318,20 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   /** A press: where, how far it has moved, whether it turns; the part, cable or key it lifts; for a pan, the depth of the surface it grabbed. */
   let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string; depth?: number } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  // touch: the browser leaves the canvas its fingers (no scroll, no page zoom); two fingers pinch (a zoom toward their middle, below)
+  canvas.style.touchAction = 'none';
+  const fingers = new Map<number, { x: number; y: number }>();
+  let pinch: { d: number } | null = null;
+  const span = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1; };
+  const mid = () => { const [a, b] = [...fingers.values()]; return { clientX: (a!.x + b!.x) / 2, clientY: (a!.y + b!.y) / 2 }; };
   canvas.addEventListener('pointerdown', (e) => {
-    canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer that is already gone (a synthetic one in a test) */ }
     cancelFlight();
     atOverview = false;
+    if (e.pointerType === 'touch') {
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingers.size === 2) { drag = null; pinch = { d: span() }; return; }
+    }
     const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e, false, true) : null;
     // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
     // a plug seated in its socket is the socket to the ray: pulling on the socket pulls its cable
@@ -333,6 +343,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   });
   canvas.addEventListener('pointermove', (e) => {
     if (lift.busy) return;
+    if (fingers.has(e.pointerId)) {
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && fingers.size === 2) {
+        const d = span();
+        zoomToward(mid(), pinch.d / d);
+        pinch.d = d;
+        return;
+      }
+    }
     if (drag) {
       // a press on an installed part that moves lifts the part instead of panning
       if (drag.dev || drag.grab) {
@@ -370,10 +389,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     hover.value = id ? { id, x: e.clientX, y: e.clientY } : null;
     canvas.style.cursor = id ? (id.startsWith('cable.') || id.startsWith('key:') ? 'grab' : 'pointer') : '';
   });
+  const lift_ = (e: PointerEvent) => { fingers.delete(e.pointerId); if (fingers.size < 2) pinch = null; };
+  canvas.addEventListener('pointercancel', lift_);
   canvas.addEventListener('pointerup', (e) => {
+    const wasPinch = pinch !== null;
+    lift_(e);
     const d = drag;
     drag = null;
-    if (!d) return;
+    // (a finger lifted off a pinch ends it: the other finger does not click or pan on)
+    if (!d || wasPinch) { if (wasPinch) settle(); return; }
     // the end of a pan or a turn: a pull past a part's edge springs back, a turn in the case eases back toward head on
     if (d.moved > 5) { settle(); return; }
     click(idAt(e));
@@ -381,20 +405,24 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   canvas.addEventListener('pointerleave', () => { if (!drag) hover.value = null; });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
+    // (a line or a page of a wheel that counts them is about 40 or 800 pixels)
+    const dy = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1)));
+    zoomToward(e, Math.exp(dy * 0.0012));
+  }, { passive: false });
+  /** Zoom by the factor `k` (above 1 out) toward the point `e` (a wheel notch, or the middle of a pinch). */
+  function zoomToward(e: { clientX: number; clientY: number }, k: number): void {
     cancelFlight();
     atOverview = false;
     const { nx, ny } = ndc(e), a = aspect();
     // the zoom goes toward the surface under the pointer, which stays under it (`zoomOn`): each notch takes the same share of the way to it
-    // (a line or a page of a wheel that counts them is about 40 or 800 pixels)
-    const p = anchor(e), base = p ? retarget(goal, p.z) : goal, by = (k: number) => (p ? zoomOn(base, p, k) : zoomAt(base, k, nx, ny, a));
-    const dy = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1)));
+    const p = anchor(e), base = p ? retarget(goal, p.z) : goal, by = (f: number) => (p ? zoomOn(base, p, f) : zoomAt(base, f, nx, ny, a));
     // out against the walls the zoom stops, and in against the furniture: then the point under the pointer moves only as far as the zoom that
     // was allowed (not at all if no closer look was)
-    const z = by(Math.exp(dy * 0.0012)), c = inRoom(z);
+    const z = by(k), c = inRoom(z);
     const cut = Math.abs(c.height - z.height) >= 1 && (c.height < z.height || z.height < base.height);
     goal = !cut ? c : c.height < z.height || c.height < base.height ? inRoom(by(c.height / base.height)) : goal;
     settle();
-  }, { passive: false });
+  }
 
   /** The same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power button, a key; anything else opens its card. */
   const click = (id: string | null) => {
