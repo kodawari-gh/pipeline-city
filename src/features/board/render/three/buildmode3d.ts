@@ -4,7 +4,7 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { signal } from '@preact/signals';
-import { AmbientLight, Box3, BoxGeometry, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
+import { AmbientLight, Box3, BoxGeometry, CanvasTexture, SRGBColorSpace, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
 import { effective } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
@@ -152,11 +152,26 @@ export class BuildStage {
   /** A plain monitor on the stage when the machine has one (the room's own stands in the room): a stand, a bezel and a lit screen, tagged for the animation. */
   private syncMonitor(on: boolean): void {
     const { scene } = this.ctx;
-    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor); this.monitor = null; }
+    if (this.monitor) { scene.remove(this.monitor); (this.monitor.userData.shot as CanvasTexture | undefined)?.dispose(); disposeTree(this.monitor); this.monitor = null; }
     if (!on) return;
     const g = tag(new Group(), 'monitor'), dark = new MeshStandardMaterial({ color: 0x14171e, roughness: 0.45, metalness: 0.5 });
     const box = (w: number, h: number, d: number, m: MeshStandardMaterial, x: number, y: number, z: number) => { const o = new Mesh(new BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); };
-    const screen = new MeshStandardMaterial({ color: 0x0b1626, emissive: 0x16345a, emissiveIntensity: 0.9, roughness: 0.2 });
+    // the screen shows a console: a title bar, a few lines and a prompt, so the panel reads as a working display and not as a blue slab
+    const cv = document.createElement('canvas');
+    cv.width = 1024; cv.height = 560;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#07101e'; c.fillRect(0, 0, 1024, 560);
+    c.fillStyle = '#16345a'; c.fillRect(0, 0, 1024, 54);
+    c.fillStyle = '#9fd0ff'; c.font = '600 28px monospace'; c.fillText('pipeline-city  ::  console', 24, 37);
+    c.font = '26px monospace';
+    ['boot ........................ ok', 'memory check ................. ok', 'storage ...................... ok', 'network ...................... link up', 'cpu: running'].forEach((t, i) => { c.fillStyle = i === 4 ? '#8bffb0' : '#6aa6d8'; c.fillText(t, 24, 110 + i * 44); });
+    c.fillStyle = '#d7ecff'; c.fillText('> _', 24, 110 + 5 * 44 + 20);
+    c.strokeStyle = 'rgba(120,180,255,0.07)'; c.lineWidth = 1;
+    for (let y = 0; y < 560; y += 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(1024, y); c.stroke(); }
+    const shot = new CanvasTexture(cv);
+    shot.colorSpace = SRGBColorSpace;
+    g.userData.shot = shot;
+    const screen = new MeshStandardMaterial({ color: 0x0b1626, emissive: 0xffffff, emissiveMap: shot, emissiveIntensity: 0.8, roughness: 0.2 });
     box(2600, 140, 1500, dark, 0, 70, 0);
     box(420, 1400, 260, dark, 0, 840, -200);
     box(6200, 3500, 240, dark, 0, 2900, 0);
