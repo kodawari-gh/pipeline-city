@@ -530,8 +530,8 @@ export class Room3D {
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
     R.add(mess(pedX, under, grommet));
-    // (the tea in the gap between the mat and the case)
-    this.cup = teaCup((matEnd + CASE.x) / 2, ys, MONITOR_Z + 3200);
+    // (the tea by the mat's end: west of the PC's mains cord, which runs from the case's side to the desk's grommet and must stay in view)
+    this.cup = teaCup(matEnd + 560, ys, MONITOR_Z + 3200);
     R.add(this.cup.root);
 
     // ---- the architect lamp ----
