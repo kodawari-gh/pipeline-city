@@ -824,6 +824,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .sc-title b { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-title .mute { display: inline-flex; align-items: center; gap: 0.25rem; }
 .sc-vs { font-size: 0.65rem; }
+.sc-3d { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--fs-label, 0.7rem); padding: 0.2rem 0.55rem; }
+/* The showcase: the part on a turntable, over the stat card in the shop's detail column. */
+.showcase { position: relative; display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
+.showcase-host { height: 16rem; border-radius: var(--r-tile, 0.5rem); overflow: hidden; background: radial-gradient(circle at 50% 35%, #2a3042, #11141c); cursor: grab; }
+.showcase-host:active { cursor: grabbing; }
+.showcase-note { position: absolute; inset: 0 0 2rem; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.75rem; pointer-events: none; }
+.showcase-bar { display: flex; align-items: center; gap: 0.3rem; }
+.showcase-hint { flex: 1; font-size: 0.65rem; }
+.showcase-bar button { font-size: var(--fs-label, 0.7rem); padding: 0.15rem 0.5rem; }
+.showcase-bar button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 
 /* The shop: a large modal, categories as icons, the stat card of the pressed item on the right. */
 .shop-back { display: flex; align-items: center; justify-content: center; }

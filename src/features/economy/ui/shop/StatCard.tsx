@@ -6,13 +6,15 @@ import { Compare } from './PickerCard';
 import { compareRows, kindOf } from './picker';
 import { currentSpecFor, kindIcon, kindLabel, tierOfSpec } from './shopdata';
 
+/** The kinds with no 3D model to show (the showcase says so for the rest that lack one). */
+const NO_MODEL = new Set(['board', 'os', 'router', 'isp']);
 const shortName = (name: string) => name.split(' (')[0]!;
 
 /**
  * A part's stats as bars: the part against the one fitted now (grey), each row an icon, a bar and a delta. Used by the
  * inventory's side card and the shop. `fit` adds one line saying whether it can go in right now.
  */
-export function StatCard({ s, specId, fit }: { s: Snapshot; specId: string; fit?: { ok: boolean; text: string } }) {
+export function StatCard({ s, specId, fit, onPreview }: { s: Snapshot; specId: string; fit?: { ok: boolean; text: string }; onPreview?: () => void }) {
   const kind = kindOf(specId, s);
   const current = kind ? currentSpecFor(s, kind) : null;
   const rows = kind ? compareRows(kind, current, specId) : [];
@@ -29,6 +31,9 @@ export function StatCard({ s, specId, fit }: { s: Snapshot; specId: string; fit?
           </span>
         </div>
       </header>
+      {onPreview && kind && !NO_MODEL.has(kind) && (
+        <button class="sc-3d" title="Look at it in 3D: turn and zoom" onClick={onPreview}><Icon name="box" size={12} /> 3D view</button>
+      )}
       {fit && (
         <div class={`pline ${fit.ok ? 'ok' : 'warn'}`}><Icon name={fit.ok ? 'check' : 'lock'} size={11} /> {fit.text}</div>
       )}

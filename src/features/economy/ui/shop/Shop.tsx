@@ -3,6 +3,7 @@ import type { Snapshot } from '@/worker/game/game';
 import { fmtMoney } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Rung } from './PickerCard';
+import { Showcase } from './Showcase';
 import { StatCard } from './StatCard';
 import { closeShop, shopOpen } from '@/core/ui/state';
 import { shopFor, type ShopKind } from './shopdata';
@@ -16,12 +17,15 @@ export function Shop({ s }: { s: Snapshot }) {
   const open = shopOpen.value;
   const [kind, setKind] = useState<ShopKind | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const [view3d, setView3d] = useState(false);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeShop(); };
+    // Esc closes the 3D view first, then the shop
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (view3d) setView3d(false); else closeShop(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, view3d]);
+  useEffect(() => { if (!open) setView3d(false); }, [open]);
   if (!open) return null;
   const all = shopFor(s);
   const sections = kind ? all.filter((x) => x.kind === kind) : all;
@@ -54,7 +58,10 @@ export function Shop({ s }: { s: Snapshot }) {
               </section>
             ))}
           </div>
-          <aside class="shop-detail">{shown && <StatCard s={s} specId={shown} />}</aside>
+          <aside class="shop-detail">
+            {shown && view3d && <Showcase specId={shown} onClose={() => setView3d(false)} />}
+            {shown && <StatCard s={s} specId={shown} onPreview={view3d ? undefined : () => setView3d(true)} />}
+          </aside>
         </div>
       </div>
     </div>

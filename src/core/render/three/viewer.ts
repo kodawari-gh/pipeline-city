@@ -1,6 +1,6 @@
 // The showcase viewer: one part on a turntable, turned and zoomed by the player (shop preview). It owns a small WebGL context, built on the first
 // part and disposed with `dispose`. The camera is the board's orbit (`camera.ts`) with the full turn allowed.
-import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, type Object3D, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { applyView, stepView, type OrbitView } from './camera';
 
@@ -23,7 +23,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 /** The view that frames a box of this size (its largest side, the fov and the zoom factor). */
 export function frameView(size: Vector3, centre: Vector3, zoom: number, yaw: number, pitch: number): OrbitView {
   const side = Math.max(size.x, size.y, size.z, 1);
-  return { x: centre.x, y: centre.y, z: centre.z, yaw, pitch, fov: FOV, height: side * 1.5 * zoom };
+  return { x: centre.x, y: centre.y, z: centre.z, yaw, pitch, fov: FOV, height: side * 1.05 * zoom };
 }
 
 function disposeTree(o: Object3D): void {
@@ -45,7 +45,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.6;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.shadowMap.type = PCFShadowMap;
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none';
   host.appendChild(renderer.domElement);
   const scene = new Scene(), pmrem = new PMREMGenerator(renderer), camera = new PerspectiveCamera(FOV, 1, 1, 100000);
@@ -66,7 +66,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   const goal = (): OrbitView => frameView(size, centre, zoom, yaw, pitch);
   const place = () => {
     const r = Math.max(size.x, size.y, size.z, 1);
-    floor.scale.setScalar(r * 1.4);
+    floor.scale.setScalar(r * 0.8);
     floor.position.set(centre.x, centre.y - size.y / 2 - r * 0.01, centre.z);
     key.position.set(centre.x + r * 1.5, centre.y + r * 2, centre.z + r * 1.2);
     key.target.position.copy(centre);
