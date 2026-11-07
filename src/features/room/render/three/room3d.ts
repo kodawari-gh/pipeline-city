@@ -306,7 +306,7 @@ function rugTex(): Texture | null {
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
-export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; t: number }
+export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** A router stands on its spot. */ router: boolean; t: number }
 
 export class Room3D {
   readonly root = new Group();
@@ -336,6 +336,8 @@ export class Room3D {
   private lamp: Lamp;
   private monitor: Monitor;
   private monitorSpot!: Mesh;
+  private routerBody!: Group;
+  private routerSpot!: Mesh;
   private clock: DigitalClock;
   private cup: Cup;
   private shade: MeshStandardMaterial;
@@ -580,6 +582,11 @@ export class Room3D {
       router.add(place(knuckle), rod(base, tip, 95, aerial, 10));
     }
     R.add(router);
+    // the router's empty place: an unseen box a router dragged from the inventory lands on (`router`), there while no router stands
+    this.routerBody = router;
+    this.routerSpot = tag(rectBox(ROUTER_SPOT, 300, 1400, new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false })), 'router');
+    this.routerSpot.castShadow = this.routerSpot.receiveShadow = false;
+    R.add(this.routerSpot);
     // (the LAN lead is the machine's: a cable with a plug to move, `Machine3D.buildRoomCords`)
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
@@ -884,6 +891,8 @@ export class Room3D {
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.monitorSpot.visible = !f.screen.installed;
+    this.routerBody.visible = f.router;
+    this.routerSpot.visible = !f.router;
     this.clock.set(f.hour);
     steam(this.cup, f.t);
   }

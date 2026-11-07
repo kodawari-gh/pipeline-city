@@ -577,7 +577,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     boardLive.frame(camera, H, s, gt, dt * pace, speed.peek() <= 0, ratio, !!machine);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
-    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
+    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: !s || !!s.net?.router, t: gt / 1000 }, dt);
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
     // (a plug the hand still slides in or lets fall keeps it open too)
     const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
