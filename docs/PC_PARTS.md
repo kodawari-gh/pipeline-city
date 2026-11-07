@@ -8,13 +8,13 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 | Part | Specs | Model (file) | Model | Fit | Graph | Anim |
 |---|---|---|---|---|---|---|
-| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [x] mesh, door, top I/O panel reviewed up close; the grille shimmer is cut (see below) | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
+| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [x] mesh, door, top I/O panel reviewed up close; the grille shimmer is cut (see below); 2026-11-07: real air openings, board studs per tier, legacy rear ports ([render/case.md](render/case.md)) | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
 | Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] a swap lifts the board with its fixed parts, not the case |
 | CPU (17 specs) | `cpu0..4w` | `chips3d.ts`, `showcase.ts` | [x] socket, pins and lid reviewed up close, no defect | [x] | [x] | [x] |
 | CPU cooler: stock, tower | `cooler0`, `cooler1` | `cooler3d.ts` | [x] stock (radial vanes, fan) and tower (fins, heat pipes) reviewed up close, no defect | [x] | [x] | [x] |
 | Liquid loop: pump and radiator | `cooler2`, `rad1..3` | `cooler3d.ts`, `fans3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] |
 | RAM sticks (SDR to DDR5 ECC) | `ram0..5` | `ram3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] |
-| Power supply | `psu0..4` | `basement3d.ts` | [x] close-up review, no defect (shroud, grille, sockets, rear plate) | [x] | [x] | [x] |
+| Power supply | `psu0..4` | `basement3d.ts` | [x] close-up review (shroud, grille, sockets, rear plate); 2026-11-07: fan on the underside, rear screws, sticker | [x] | [x] | [x] the shroud cover comes off, the supply slides off the rear wall, then lifts out |
 | Graphics cards | `gpu1..3` | `card3d.ts` | [x] backplate got rim screws and the maker's name; brackets darkened (they read white in the stage) | [x] | [x] | [x] |
 | AI cards | `npu1..2` | `card3d.ts` | [x] same backplate work as the GPUs; flat face (die art) checked | [x] | [x] | [x] |
 | Network cards | `nic1..3` | `card3d.ts` | [x] controller with pins, capacitors, resistors, crystal added (the face was a bare slab) | [x] | [x] | [x] |
@@ -24,7 +24,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | VRM heat sinks | `vsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | RAM VRM heat sinks | `rsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | Monitor | `display0..1` | stage proxy in `buildmode3d.ts` | [x] the screen was a blue slab; it now shows a console (title bar, boot lines, prompt, scan lines) | [x] | [x] | [x] lifts off its desk spot, cables first |
-| Case fans | per case | `fans3d.ts` | [x] rear fan reviewed up close edge-on (blades, hub, ring), no defect | [x] | [x] fan cable first | [x] "Swap" in the machine list |
+| Case fans | per case | `fans3d.ts` | [x] rear fan reviewed up close edge-on (blades, hub, ring), no defect; 2026-11-07: one size on every mount | [x] | [x] fan cable first | [x] "Swap" in the machine list; a fan moves off its wall, then out |
 | Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [x] close-up review 2026-11-07, no defect | n/a | n/a | n/a (soldered) |
 
 ## Cables (graph nodes `cable:<id>`)

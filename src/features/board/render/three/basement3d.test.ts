@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { CASE, CASE_IN, PC_POWER, setLayoutTier } from '../layout/layout';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
-import { basementPlan, cageBack, driveDepth } from './basement3d';
+import { basementPlan, cageBack, driveDepth, PSU_FAN_R, psuFanX, psuOpening } from './basement3d';
+import { motionFor } from './buildmotion';
 
 describe('the 3D basement', () => {
+  it('gives the power supply the room to leave: its rear clears the wall, its body stops short of the cage', () => {
+    const slide = motionFor('psu').keys.find((k) => k.at[0] > 0)!.at[0];
+    for (const t of [0, 1, 2, 3]) {
+      setLayoutTier(t, t);
+      const p = basementPlan(), u = p.psu, o = psuOpening(u);
+      expect(u.x - CASE.x, `tier ${t}`).toBeLessThan(slide);
+      expect(u.x + u.w + slide, `tier ${t}`).toBeLessThan(p.cage.x);
+      expect(o.y0, `tier ${t}`).toBeGreaterThan(u.y);
+      expect(o.y1, `tier ${t}`).toBeLessThan(u.y + u.h);
+    }
+  });
+
+  it('keeps the supply\'s fan on its underside', () => {
+    setLayoutTier(0, 0);
+    const u = basementPlan().psu;
+    expect(psuFanX(u) - PSU_FAN_R).toBeGreaterThan(u.x);
+    expect(psuFanX(u) + PSU_FAN_R).toBeLessThan(u.x + u.w);
+    expect(2 * PSU_FAN_R).toBeLessThan(u.z1 - u.z0);
+  });
+
   it('puts the power supply in the back corner by its inlet, and every drive bay in the cage beside it, under the shroud', () => {
     for (const t of [0, 1, 2, 3]) {
       setLayoutTier(t, t);

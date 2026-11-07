@@ -28,6 +28,9 @@ function lift(rise: number, away: readonly [number, number, number], sec: [numbe
   return [k([0, 0, rise], sec[0], verbs[0], verbs[3]), k(away, sec[1], verbs[1], verbs[2])];
 }
 
+/** A case fan: its screws, off its wall by `off`, then out through the open side. */
+const fanMotion = (off: readonly [number, number, number]): Motion => ({ keys: [hold(0.4, 'Undo the four fan screws', 'Tighten the four fan screws'), k(off, 0.5, 'Pull the fan off its mount', 'Press the fan onto its mount'), k([off[0], off[1], off[2] + 3000], 0.8, 'Lift the fan away', 'Bring the fan over its mount')] });
+
 const CABLE: Motion = { keys: [k([0, 0, 260], 0.45, 'Pull the plug out', 'Push the plug home'), k([0, 0, 2600], 0.7, 'Lift the cable clear', 'Lower the cable to its socket')] };
 
 const MOTIONS: Record<string, Motion> = {
@@ -44,10 +47,17 @@ const MOTIONS: Record<string, Motion> = {
   tpm: { keys: [k([0, 0, 220], 0.45, 'Pull the module off its header', 'Press the module onto its header'), k([0, 0, 2200], 0.6, 'Lift the module away', 'Bring the module over its header')] },
   'vrm-sink': { keys: [hold(0.4, 'Undo the push pins', 'Press the push pins in'), k([0, 0, 260], 0.45, 'Lift the heat sink off', 'Press the heat sink on'), k([0, 0, 2400], 0.65, 'Take the heat sink away', 'Bring the heat sink over the VRM')] },
   'ram-sink': { keys: [hold(0.4, 'Undo the push pins', 'Press the push pins in'), k([0, 0, 260], 0.45, 'Lift the heat sink off', 'Press the heat sink on'), k([0, 0, 2400], 0.65, 'Take the heat sink away', 'Bring the heat sink over the VRM')] },
-  psu: { keys: [hold(0.5, 'Undo the four rear screws', 'Tighten the four rear screws'), k([700, 0, 0], 0.7, 'Slide the supply toward the cage', 'Slide the supply into its corner'), k([700, 0, 2800], 0.9, 'Lift the supply out of the case', 'Lower the supply into the case')] },
-  fan: { keys: [hold(0.4, 'Undo the four fan screws', 'Tighten the four fan screws'), k([0, 0, 420], 0.5, 'Pull the fan off its mount', 'Press the fan onto its mount'), k([0, 0, 3000], 0.8, 'Lift the fan away', 'Bring the fan over its mount')] },
+  // the shroud's cover comes off first: the supply slides off the rear wall (its rear leaves the wall's opening, it has the room: `basement3d.ts`), then comes out through the shroud's open side
+  shroud: { keys: [hold(0.3, 'Undo the two cover thumbscrews', 'Tighten the two cover thumbscrews'), k([0, 0, 2600], 0.7, 'Take the shroud cover off', 'Put the shroud cover on')] },
+  psu: { keys: [hold(0.5, 'Undo the four rear screws', 'Tighten the four rear screws'), k([240, 0, 0], 0.6, 'Slide the supply off the rear wall', 'Slide the supply back against the rear wall'), k([240, 0, 2800], 0.9, 'Lift the supply out of the shroud', 'Bring the supply into the shroud')] },
+  // a fan comes off its own wall first (the top fan down, the front and rear fans inward), then out through the open side
+  fan: fanMotion([0, 0, 420]),
+  'fan-front': fanMotion([-160, 0, 0]),
+  'fan-top': fanMotion([0, -160, 0]),
+  'fan-rear': fanMotion([160, 0, 0]),
   display: { keys: [hold(0.3, 'Switch the monitor off', 'Switch the monitor on'), k([0, 600, 0], 0.5, 'Lift the monitor off the desk', 'Set the monitor on the desk'), k([0, 600, 3400], 0.9, 'Carry the monitor away', 'Bring the monitor over the desk')] },
-  board: { keys: [hold(0.6, 'Undo the nine board screws', 'Tighten the nine board screws'), k([0, 0, 800], 0.8, 'Lift the board off its standoffs', 'Lower the board onto its standoffs'), k([0, 0, 4200], 1.0, 'Take the board away', 'Bring the board over the tray')] },
+  // (the board stands on its studs: it lifts just off them, slides its ports out of the rear opening, and only then comes away)
+  board: { keys: [hold(0.6, 'Undo the board screws', 'Tighten the board screws'), k([0, 0, 90], 0.4, 'Lift the board off its standoffs', 'Lower the board onto its standoffs'), k([260, 0, 90], 0.5, 'Slide the ports out of the rear opening', 'Slide the ports into the rear opening'), k([260, 0, 4200], 1.0, 'Take the board away', 'Bring the board over the tray')] },
   case: { keys: [k([0, 0, 0], 0.4, 'Set the case aside', 'Set the case down'), k([0, 0, 5200], 1.1, 'Take the case away', 'Bring the case over the desk')] },
 };
 

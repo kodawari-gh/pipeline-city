@@ -24,6 +24,7 @@ import type { Game } from '@/worker/game/game';
 import { startBaker } from './bake';
 import { CASE as CASE_RECT, LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { DOOR_SECONDS } from './casedoor';
+import { PSU_BODY, PSU_COVER } from './basement3d';
 import { motionFor, motionSeconds, poseAt } from './buildmotion';
 import { Machine3D } from './machine3d';
 
@@ -301,9 +302,34 @@ export class BuildStage {
       const d = this.board.devices.find((x) => devNode(x.id) === node);
       if (!d) return null;
       if (deviceSpec(d).kind === 'display') return this.monitor;
-      return findById(root, d.id) ?? (deviceSpec(d).kind === 'psu' ? findById(root, 'psu') : null);
+      // (the shroud's cover also answers to 'psu': the supply's own group holds the unit)
+      return findById(root, d.id) ?? (deviceSpec(d).kind === 'psu' ? root.getObjectByName(PSU_BODY)?.parent ?? null : null);
     }
     return null;
+  }
+
+  /** The part comes out: a power supply's shroud cover comes off first, and stays off until the rebuild that follows. */
+  private async unseat(node: string, kind: string): Promise<void> {
+    const cover = kind === 'psu' ? this.machine.root.getObjectByName(PSU_COVER) : null;
+    if (cover) await this.playAll([cover], 'shroud', 'out');
+    await this.play(node, kind, 'out');
+  }
+
+  /** The part goes in, right after the rebuild that made it: a power supply with its shroud's cover held off, which then goes back on. */
+  private async seat(node: string, kind: string): Promise<void> {
+    const cover = kind === 'psu' ? this.machine.root.getObjectByName(PSU_COVER) : null, far = poseAt(motionFor('shroud'), 0, 'in').offset;
+    if (cover) cover.position.set(cover.position.x + far[0], cover.position.y + far[1], cover.position.z + far[2]);
+    await this.play(node, kind, 'in');
+    if (cover) {
+      cover.position.set(cover.position.x - far[0], cover.position.y - far[1], cover.position.z - far[2]);
+      await this.playAll([cover], 'shroud', 'in');
+    }
+  }
+
+  /** After the rebuild that took a power supply away: its shroud's cover, rebuilt in place, comes back from where it was left. */
+  private coverBack(kind: string): Promise<void> {
+    const cover = kind === 'psu' ? this.machine.root.getObjectByName(PSU_COVER) : null;
+    return cover ? this.playAll([cover], 'shroud', 'in') : Promise.resolve();
   }
 
   /** Play a motion on some objects together. Without any (the monitor of a part that is not built) the time still passes, so the log reads right. */
@@ -352,17 +378,20 @@ export class BuildStage {
     const d = this.board.devices.find((x) => devNode(x.id) === node);
     if (!d) return null;
     const kind = deviceSpec(d).kind;
-    await this.play(node, kind, 'out');
+    await this.unseat(node, kind);
     const r = this.game.uninstall(d.id);
     if (!r.ok) { this.note(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
     undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock });
     this.rebuild();
+    await this.coverBack(kind);
     return r.invId;
   }
 
   private async putBack(u: Undo): Promise<void> {
     if (u.t === 'cable') {
       if (this.cables[u.id] || !cableNeeded(this.board, u.id as never) || cableBlocked(this.board, u.id as never)) return;
+      // (the PC's cord goes into the supply's inlet: with the supply out it stays unplugged)
+      if (u.id === 'pcmains' && !this.board.devices.some((d) => deviceSpec(d).kind === 'psu')) return;
       this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === u.id)?.name ?? u.id}`);
       this.game.connectCable(u.id);
       this.rebuild();
@@ -374,7 +403,7 @@ export class BuildStage {
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
     this.rebuild();
     const node = devNode(r.deviceId ?? '');
-    await this.play(node, deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, 'in');
+    await this.seat(node, deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind);
   }
 
   /** Plug in the cables a part just fitted needs. */
@@ -435,7 +464,7 @@ export class BuildStage {
         else {
           this.note(`Fit ${spec.name} in ${slot}`);
           this.rebuild();
-          await this.play(devNode(put.deviceId ?? ''), spec.kind, 'in');
+          await this.seat(devNode(put.deviceId ?? ''), spec.kind);
           await this.plugNeeded();
         }
       }
@@ -454,10 +483,12 @@ export class BuildStage {
       await this.door(true);
       this.note(`Unplug the fan cable (${mount})`);
       if (plugged) { await this.play(cableNode(id), 'cable', 'out'); this.game.disconnectCable(id); this.rebuild(); }
+      // (it comes off its own wall first: the mount's id starts with its side)
+      const motion = `fan-${mount.replace(/\d+$/, '')}`;
       this.note(`Take out the fan (${mount})`);
-      await this.play('fan:' + mount, 'fan', 'out');
+      await this.play('fan:' + mount, motion, 'out');
       this.note(`Put the fan back (${mount})`);
-      await this.play('fan:' + mount, 'fan', 'in');
+      await this.play('fan:' + mount, motion, 'in');
       if (plugged) { this.game.connectCable(id); this.rebuild(); await this.play(cableNode(id), 'cable', 'in'); this.note(`Plug in the fan cable (${mount})`); }
     });
   }

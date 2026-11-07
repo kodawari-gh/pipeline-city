@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, TOP_FAN_LEN, WALL_T,
   sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
@@ -141,14 +141,14 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
 
 /**
  * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
- * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. One module per ~1800
- * units of height.
+ * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. The sim's count of one
+ * size of fan (`FRONT_FAN_COUNT`, `TOP_FAN_LEN`), stacked from under the top; the Mini's stack starts under the ports on its face.
  */
 export function frontFanRects(): Rect[] {
-  const BD = CASE_BD, gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
-  const n = Math.max(1, Math.round((y1 - y0 + 100) / 1800)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
+  const gl = CASE_GLASS, east = gl.x + gl.w, n = FRONT_FAN_COUNT[LAYOUT_CASE] ?? 1, gap = 20;
+  const y0 = LAYOUT_CASE === 0 ? CASE.y + 1880 : CASE_IN.y + 40;
   const w = FAN_W, x = east - 170 - 20 - w;
-  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (h + gap), w, h }));
+  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (TOP_FAN_LEN + gap), w, h: TOP_FAN_LEN }));
 }
 
 function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
@@ -200,7 +200,7 @@ export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
 
 /** The hub's fan headers, left to right along its top edge (one per case fan). */
 export function hubHeaders(): { x: number; y: number }[] {
-  const n = fanStubs().length, h = FAN_HUB, pitch = Math.min(130, (h.w - 400) / Math.max(1, n - 1));
+  const n = fanStubs().length, h = FAN_HUB, pitch = Math.min(130, (h.w - 300) / Math.max(1, n - 1));
   return Array.from({ length: n }, (_, i) => ({ x: h.x + h.w - 100 - (n - 1 - i) * pitch, y: h.y }));
 }
 
@@ -246,7 +246,7 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   box(g, h.x - 56, py - 50, 64, 100, 8, { fill: plugTone(T), stroke: T.ld, lw: 4, sa: 0.85 });
   // the lighting side: three addressable-LED outputs along the bottom edge and a USB header, a few passives round the controller
   for (let k = 0; k < 3; k++) {
-    const ax = h.x + 200 + k * 230, ay = h.y + h.h - 130;
+    const ax = h.x + 200 + k * 180, ay = h.y + h.h - 130;
     box(g, ax, ay, 150, 56, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
     for (let q = 0; q < 3; q++) g.rect(ax + 22 + q * 44, ay + 20, 12, 18);
     g.fill({ color: T.pin, alpha: 0.7 });

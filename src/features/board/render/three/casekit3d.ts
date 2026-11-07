@@ -2,7 +2,7 @@
 // z (the side) or along x (the rear and front walls, with their openings), decals on any face, and the painted sheets (perforations, brushed
 // metal, badges). Shapes are drawn in the layout (y down) and come out in the world (y up), z out of the wall.
 import {
-  CanvasTexture, ExtrudeGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
+  CanvasTexture, DoubleSide, ExtrudeGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
 } from 'three';
 import { anisotropy, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -42,6 +42,25 @@ export function clipY(pts: Vector2[], y: number, keep: 1 | -1): Vector2[] {
   });
   return out;
 }
+
+/** The part of a convex outline (world points) east (`keep` +1) or west (-1) of `x`: the pieces beside an opening in the top or the floor. */
+export function clipX(pts: Vector2[], x: number, keep: 1 | -1): Vector2[] {
+  const out: Vector2[] = [], inside = (p: Vector2) => (p.x - x) * keep >= 0;
+  pts.forEach((p, i) => {
+    const q = pts[(i + 1) % pts.length]!;
+    if (inside(p)) out.push(p.clone());
+    if (inside(p) !== inside(q)) { const t = (x - p.x) / (q.x - p.x); out.push(new Vector2(x, p.y + (q.y - p.y) * t)); }
+  });
+  return out;
+}
+
+/** A body's top or floor (the outline `pts`, depth `z0` to `z1`) with a rectangular opening through it: whole bands before and after, the pieces either side between. */
+export function slabWithOpening(pts: Vector2[], z0: number, z1: number, o: { x0: number; x1: number; z0: number; z1: number }, m: Material): Mesh[] {
+  return [slab(shapeOf(pts), z0, o.z0, m), slab(shapeOf(pts), o.z1, z1, m), slab(shapeOf(clipX(pts, o.x0, -1)), o.z0, o.z1, m), slab(shapeOf(clipX(pts, o.x1, 1)), o.z0, o.z1, m)];
+}
+
+/** A round opening in a wall across x, a true circle (`wallX`'s rounded span bulges at its diagonals past a round grille). */
+export const wallCircle = (y: number, z: number, r: number, n = 48): Vector2[] => Array.from({ length: n }, (_, k) => wallPt(y + Math.sin((k / n) * Math.PI * 2) * r, z + Math.cos((k / n) * Math.PI * 2) * r));
 
 export const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 export const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
@@ -163,7 +182,8 @@ export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: n
   // The holes are alpha-tested. A hard cut on mip-averaged alpha shimmers when the view moves: the coverage mask (the scene is multisampled) smooths it.
   // The sheet is pulled forward in depth, so the dark backing a few units behind it never wins a pixel at a far zoom (the hole flicker).
   // Once a hole is smaller than a few pixels no filter can draw it steadily: the sheet fades to a solid, darker average (the holes' mean look).
-  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  // (a thin sheet: over a real opening it shows from inside the case too)
+  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
   m.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       #ifdef USE_MAP

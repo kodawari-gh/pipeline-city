@@ -3,19 +3,20 @@
 // shield with its ports where the plugs go in, the front's intake (mesh or hex over the front fans, the Micro's side gaps, the Mini's grille),
 // the top controls (the power button and the status lights of each kind, the front ports), and the tray's cable management (cut-outs, grommets
 // and tie points). Airflow reads from outside: in at the front and under the PSU, out at the rear fan and the top.
-import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
+import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
 import { instanced, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { frontFanRects } from '@/features/room/render/desk/props/case';
+import { frontFanRects, standoffs } from '@/features/room/render/desk/props/case';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
-import { BR, CASE, CASE_BD, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
+import { BR, CASE, CASE_BD, GEO, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
+import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
 import { HINGE_Z, STAND } from './card3d';
-import { FAN_MAX, FAN_ZC } from './cooler3d';
-import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallPt, wallX, type Span } from './casekit3d';
+import { FAN_MAX, FAN_ZC, REAR_ZC } from './cooler3d';
+import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import { TRAY_Z } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
 
@@ -41,22 +42,22 @@ function boxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: nu
 const slotY = (i: number) => geoOf(LAYOUT_CASE).pcie[i]!.y + 30;
 const SLOT_Z = [BOARD_Z + 130, HINGE_Z + STAND.gpu - 40] as const;
 
-/** The rear fan's opening: a round hole in the rear wall round the fan (layout y and depth). */
-function rearFanHole(): Span & { d: number; cy: number } {
-  const d = Math.min(REAR_FAN.h, FAN_MAX) * 0.92, cy = REAR_FAN.y + REAR_FAN.h / 2;
-  return { y0: cy - d / 2, y1: cy + d / 2, z0: FAN_ZC - d / 2, z1: FAN_ZC + d / 2, r: d / 2, d, cy };
+/** The rear exhaust's round opening in the rear wall, on every case (layout y and depth). */
+function rearFanHole(): { d: number; cy: number } {
+  return { d: Math.min(REAR_FAN.h, FAN_MAX) * 0.92, cy: REAR_FAN.y + REAR_FAN.h / 2 };
 }
 
 /**
- * The rear wall (west): a sheet with the slot row cut out (each opening shows a card's bracket or a vented cover), the exhaust fan's round
- * opening behind a honeycomb grille (the Mini: a punched grille, no fan), the retention bar with a thumbscrew per slot. `boardSlots`: the slots
- * the fitted board has (the case's other openings get a blank cover).
+ * The rear wall (west): a sheet with its openings cut out. The slot row (each opening shows a card's bracket or a vented cover), the I/O plate's
+ * opening, the power supply's (its rear stands in it, `psuUnit`), the exhaust's round opening behind a honeycomb grille (the Mini: a punched
+ * grille, no fan), the retention bar with a thumbscrew per slot. `boardSlots`: the slots the fitted board has (the case's other openings get a blank cover).
  */
 export function rearWall(f: Frame, boardSlots: number): Group {
-  const g = new Group(), x0 = CASE.x, x1 = CASE.x + WALL_T, slots = geoOf(LAYOUT_CASE).pcie.length;
-  const holes: Span[] = Array.from({ length: slots }, (_, i) => ({ y0: slotY(i) - 30, y1: slotY(i) + 520, z0: SLOT_Z[0], z1: SLOT_Z[1], r: 10 }));
-  const fan = REAR_FAN_FITTED ? rearFanHole() : null;
-  if (fan) holes.push(fan);
+  const g = new Group(), x0 = CASE.x, x1 = CASE.x + WALL_T, slots = geoOf(LAYOUT_CASE).pcie.length, p = plateSpan(), u = basementPlan().psu;
+  const holes: (Span | Vector2[])[] = Array.from({ length: slots }, (_, i) => ({ y0: slotY(i) - 30, y1: slotY(i) + 520, z0: SLOT_Z[0], z1: SLOT_Z[1], r: 10 }));
+  holes.push({ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20 }, psuOpening(u));
+  const fan = rearFanHole();
+  holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
   // the slots the board lacks: blank covers behind their openings
   const cover = mat(0xa0a6ae, { metalness: 0.55, roughness: 0.4 });
@@ -68,18 +69,14 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     const knurl = steel();
     for (let i = 0; i < slots; i++) g.add(drumX(x0 - 30, -(slotY(i) + 30), (BOARD_Z + 30 + SLOT_Z[0]) / 2, 30, 34, knurl, 18));
   }
-  if (fan) {
-    // a honeycomb grille over the fan, four screws round it
-    const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }));
-    grille.rotation.y = -Math.PI / 2;
-    grille.position.set(x0 - 2, -fan.cy, FAN_ZC);
-    g.add(grille);
+  // over the round opening: a honeycomb grille and four screws where the case carries a fan, the Mini's punched grille where it has none
+  const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
+  grille.rotation.y = -Math.PI / 2;
+  grille.position.set(x0 - 2, -fan.cy, REAR_ZC);
+  g.add(grille);
+  if (REAR_FAN_FITTED) {
     const sc = steel(), o = fan.d * 0.43;
-    for (const [dy, dz] of [[-o, -o], [-o, o], [o, -o], [o, o]] as const) g.add(drumX(x0 - 6, -(fan.cy + dy), FAN_ZC + dz, 22, 12, sc, 12));
-  } else {
-    // the Mini: a punched exhaust grille where a bigger case has its fan
-    const s: Span = { y0: REAR_FAN.y + 20, y1: REAR_FAN.y + REAR_FAN.h - 20, z0: FAN_ZC - 900, z1: FAN_ZC + 900 };
-    g.add(decalX(x0 - 1, s, -1, black()), decalX(x0 - 3, s, -1, perfMat('round', s.z1 - s.z0, s.y1 - s.y0, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 })));
+    for (const [dy, dz] of [[-o, -o], [-o, o], [o, -o], [o, o]] as const) g.add(drumX(x0 - 6, -(fan.cy + dy), REAR_ZC + dz, 22, 12, sc, 12));
   }
   return g;
 }
@@ -94,14 +91,13 @@ function frontSpan(): Span {
 }
 
 /**
- * The front wall (east) and its intake: the gaming case is mesh from top to bottom over an opening in front of its fans, between two light bars;
- * the showcase has a hex mesh in a silver frame; the Micro's solid front stands off the body with a perforated gap down each side; the Mini's
- * plastic front (case3d.ts) carries its own grille.
+ * The front wall (east) with an opening in front of the fans on every case, and its intake: the gaming case is mesh from top to bottom between
+ * two light bars; the showcase has a hex mesh in a silver frame; the Micro's solid front stands off the body with a perforated gap down each side;
+ * the Mini's plastic front (case3d.ts) carries its own grille.
  */
 export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
-  const g = new Group(), x0 = ex - 160, s: Span = { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, mesh = f.kind === 'gamer' || f.kind === 'show';
-  const hole = frontSpan();
-  g.add(wallX(x0, ex, s, mesh ? [hole] : [], f.body));
+  const g = new Group(), x0 = ex - 160, s: Span = { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 };
+  g.add(wallX(x0, ex, s, [frontSpan()], f.body));
   if (f.kind === 'gamer') {
     const face: Span = { y0: f.yTop - 200, y1: f.yBot + 60, z0: f.z0 + 140, z1: f.z1 - 140 };
     g.add(decalX(ex + 3, face, 1, perfMat('mesh', face.z1 - face.z0, face.y1 - face.y0, 34, 0x2a3042, { metal: 0.5, rough: 0.45 })));
@@ -126,12 +122,27 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
   return g;
 }
 
-/** The PSU's intake under the case: a slide-out dust filter whose tab shows at the front edge of the floor (the plain cases breathe through the side). */
-export function psuFilter(f: Frame, ex: number, bottom: number): Group {
-  const g = new Group();
-  if (f.kind !== 'gamer' && f.kind !== 'show') return g;
-  g.add(rectBox({ x: ex - 260, y: bottom - 6, w: 300, h: 30 }, f.z0 + 400, f.z1 - 400, mat(0x101216, { roughness: 0.6 })));
-  g.add(rectBox({ x: ex + 30, y: bottom - 2, w: 24, h: 22 }, f.z0 + 1200, f.z1 - 1200, mat(0x2a2e38, { roughness: 0.5 })));
+/** The opening in the floor under the power supply's fan (layout x and depth). */
+export function psuIntake(): { x0: number; x1: number; z0: number; z1: number } {
+  const u = basementPlan().psu, x = psuFanX(u), zc = (u.z0 + u.z1) / 2;
+  return { x0: x - PSU_FAN_R - 40, x1: x + PSU_FAN_R + 40, z0: zc - PSU_FAN_R - 40, z1: zc + PSU_FAN_R + 40 };
+}
+
+/**
+ * Over the floor's opening under the power supply: the Mini's punched plate, the others' slide-out dust filter, a fine mesh in a frame that runs in
+ * the floor's thickness back to the rear wall, where its tab shows under the mains inlet.
+ */
+export function psuFilter(f: Frame, bottom: number): Group {
+  const g = new Group(), o = psuIntake(), y = bottom - 40, w = o.x1 - o.x0, d = o.z1 - o.z0;
+  const sheet = new Mesh(new PlaneGeometry(w, d), f.kind === 'oem' ? perfMat('round', w, d, 56, kindTone(f.kind), { metal: 0.05, rough: 0.6 }) : perfMat('mesh', w, d, 34, 0x15171b, { metal: 0.02, rough: 0.95 }));
+  sheet.rotation.x = Math.PI / 2;
+  sheet.position.set((o.x0 + o.x1) / 2, -y, (o.z0 + o.z1) / 2);
+  g.add(sheet);
+  if (f.kind === 'oem') return g;
+  // its frame round the sheet, and the tab at the rear wall
+  const frame = mat(0x101216, { roughness: 0.6 }), e = 30;
+  for (const [x0, x1, z0, z1] of [[o.x0, o.x1, o.z0, o.z0 + e], [o.x0, o.x1, o.z1 - e, o.z1], [o.x0, o.x0 + e, o.z0, o.z1], [o.x1 - e, o.x1, o.z0, o.z1]] as const) g.add(rectBox({ x: x0, y: y - 10, w: x1 - x0, h: 24 }, z0, z1, frame));
+  g.add(rectBox({ x: CASE.x - 26, y: y - 42, w: 26 + 40, h: 42 }, (o.z0 + o.z1) / 2 - 260, (o.z0 + o.z1) / 2 + 260, mat(0x2a2e38, { roughness: 0.5 })));
   return g;
 }
 
@@ -157,7 +168,7 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
     c.font = '700 20px system-ui, sans-serif'; c.textBaseline = 'middle';
     const at = (t: string, y: number, z: number) => c.fillText(t, u(z), v(y));
     for (const p of IO_PORTS) {
-      const y = p.y + p.h / 2;
+      const y = p.y;
       if (p.kind === 'jack') at({ 'line-out': 'OUT', 'line-in': 'IN', mic: 'MIC' }[p.id] ?? '', y, BOARD_Z + 350);
       else if (p.kind === 'rj45' && feat.ethernetMbps > 0) at(feat.ethernetMbps >= 2500 ? '2.5G LAN' : 'LAN', y, BOARD_Z + 400);
       else if (p.kind === 'hdmi') at('HDMI', y, BOARD_Z + 570);
@@ -165,7 +176,7 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
       else if (p.kind === 'usb' && Number(p.id.slice(3)) < feat.usbPorts) at(tier >= 3 ? 'USB 3.2' : 'USB 3', y, BOARD_Z + 650);
     }
     // a frame line round the port field, as the printed shields carry
-    c.beginPath(); c.roundRect(u(BOARD_Z + 190), v(BR.io.y + 20), u(BOARD_Z + 860) - u(BOARD_Z + 190), v(BR.io.y + BR.io.h - 20) - v(BR.io.y + 20), 10); c.stroke();
+    c.beginPath(); c.roundRect(u(BOARD_Z + 190), v(BR.io.y + 20), u(BOARD_Z + 860) - u(BOARD_Z + 190), v(BR.io.y + BR.io.h + 20) - v(BR.io.y + 20), 10); c.stroke();
     if (tier >= 2) { at('BIOS', -1290, BOARD_Z + 380); }
     if (tier >= 3) { at('CLR', -1220, BOARD_Z + 380); at('Wi-Fi', -540, BOARD_Z + 960); at('OPT', -430, BOARD_Z + 330); at('USB-C', -320, BOARD_Z + 640); }
   });
@@ -193,7 +204,7 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
     for (const zz of [z0 - 6, z1 + 6]) for (let k = 0; k < 3; k++) { const y = y0 + ((k + 0.5) * (y1 - y0)) / 3; g.add(boxW(x - 15, x - 8, y - 9, y + 9, zz - 3, zz + 3, plateM)); }
   };
   for (const p of IO_PORTS) {
-    const cy = -(p.y + p.h / 2), ly = p.y + p.h / 2;
+    const cy = -p.y, ly = p.y; // (a port's `y` is its centre, where the plugs aim)
     if (p.kind === 'jack') {
       rim(cy - 34, cy + 34, Z + 266, Z + 334);
       g.add(drumX(x - 12, cy, Z + 300, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, Z + 300, 17, 8, hole), drumX(x - 13, cy, Z + 300, 9, 6, shell));
@@ -226,6 +237,7 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
       fingers(cy - 56, cy + 56, Z + 572, Z + 628);
     }
   }
+  if (stamped) legacyPorts(g, tier, plateM);
   if (stamped) {
     // the folded rim round the stamped plate
     for (const [y0, y1, z0, z1] of [[s.y0, s.y1, s.z0, s.z0 + 14], [s.y0, s.y1, s.z1 - 14, s.z1], [s.y0, s.y0 + 14, s.z0, s.z1], [s.y1 - 14, s.y1, s.z0, s.z1]] as const) g.add(boxW(x - 14, x - 8, -y1, -y0, z0, z1, plateM));
@@ -245,6 +257,46 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
   return g;
 }
 
+/** The legacy ports' colours (PC 99): the PS/2 keyboard and mouse, serial, parallel, VGA, DVI. */
+const LEGACY = { kb: 0x7a4fb0, mouse: 0x4caf50, serial: 0x13a3a3, parallel: 0xa0306e, vga: 0x2350b4, dvi: 0xe6e6e6 };
+
+/**
+ * The older boards' legacy ports, in the stamped shield's free column beside the live ones (look only: the game's video lead keeps to HDMI). The
+ * Starter has an old board's full set: the PS/2 keyboard and mouse, a serial and a parallel port. The Basic has one PS/2 combo port, VGA and DVI.
+ * Each D-sub is a steel shell with its D-shaped mouth, the coloured insert inside, and a hex jack screw at each end; the long side runs down the
+ * plate, as a tower's board stands.
+ */
+function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
+  const x = CASE.x, zc = BOARD_Z + 880, shell = steel(), hole = black(), screw = mat(0x9aa0a8, { metalness: 0.8, roughness: 0.35 });
+  const din = (y: number, tone: number, half?: number) => {
+    g.add(drumX(x - 12, -y, zc, 40, 8, mat(tone, { roughness: 0.5 })), drumX(x - 15, -y, zc, 27, 8, hole), boxW(x - 16, x - 12, -y - 4, -y + 4, zc + 14, zc + 27, mat(tone, { roughness: 0.5 })));
+    // (a combo port's ring is half each colour: the half over the ring's face, the mouth in front of it)
+    if (half !== undefined) {
+      const o = new Mesh(new CylinderGeometry(40, 40, 0.8, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), mat(half, { roughness: 0.5 }));
+      o.position.set(x - 16.6, -y, zc);
+      g.add(place(o));
+    }
+  };
+  const dsub = (y: number, len: number, tone: number) => {
+    const a = y - len / 2, b = y + len / 2, z0 = zc - 44, z1 = zc + 44, k = 22;
+    g.add(wallX(x - 16, x - 8, { y0: a - 16, y1: b + 16, z0: z0 - 16, z1: z1 + 16 }, [[wallPt(a, z0), wallPt(a + k, z1), wallPt(b - k, z1), wallPt(b, z0)]], shell));
+    g.add(boxW(x - 13, x - 9, -b + 10, -a - 10, z0 + 8, z1 - 8, mat(tone, { roughness: 0.55 })));
+    g.add(boxW(x - 14, x - 10, -b + 26, -a - 26, zc - 6, zc + 6, hole));
+    for (const yy of [a - 60, b + 60]) g.add(drumX(x - 20, -yy, zc, 20, 14, screw, 6), drumX(x - 28, -yy, zc, 8, 2, hole, 8));
+    g.add(boxW(x - 11, x - 8, -(b + 90), -(a - 90), z0 - 30, z1 + 30, plateM));
+  };
+  if (tier === 0) {
+    din(-1890, LEGACY.kb);
+    din(-1770, LEGACY.mouse);
+    dsub(-1460, 190, LEGACY.serial);
+    dsub(-930, 470, LEGACY.parallel);
+  } else {
+    din(-1830, LEGACY.kb, LEGACY.mouse);
+    dsub(-1460, 190, LEGACY.vga);
+    dsub(-980, 330, LEGACY.dvi);
+  }
+}
+
 /** A box across x with its corners rounded in the wall's plane (a USB-C mouth): world y and depth, as `boxW`. */
 function softBoxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
   const r = Math.min(y1 - y0, z1 - z0) / 2;
@@ -255,7 +307,8 @@ function softBoxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1
 
 export interface Controls { root: Group; power: Group; leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial }; spins: Spin[] }
 type Port = 'usbA' | 'usbC' | 'audio' | 'button';
-const PORTS: Record<CaseKind, Port[]> = { oem: ['usbA', 'usbA', 'audio', 'audio'], matte: ['usbA', 'usbA', 'audio'], gamer: ['usbC', 'usbA', 'usbA', 'audio', 'button'], show: ['usbC', 'usbC', 'usbA', 'usbA', 'audio', 'audio'] };
+/** The front ports: the headers a board of the case's own tier has for them (USB_2, then USB_3 from the Mid; USB-C only on the Full, its `USB_3` header's own). */
+const PORTS: Record<CaseKind, Port[]> = { oem: ['usbA', 'usbA', 'audio', 'audio'], matte: ['usbA', 'usbA', 'audio'], gamer: ['usbA', 'usbA', 'audio', 'button'], show: ['usbC', 'usbA', 'usbA', 'audio', 'audio'] };
 const pip = (c: number) => mat(0x0c0c0e, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
@@ -313,7 +366,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   let z = zb - 430;
   for (const p of PORTS[k]) {
     if (p === 'usbA') {
-      root.add(rectBox({ x: ix - 34, y: py - 4, w: 68, h: 4 }, z - 70, z + 70, steel()), rectBox({ x: ix - 26, y: py - 6, w: 52, h: 3 }, z - 62, z + 62, black()), rectBox({ x: ix - 9, y: py - 8, w: 18, h: 3 }, z - 52, z + 52, mat(0x2a6fdc, { roughness: 0.5 })));
+      root.add(rectBox({ x: ix - 34, y: py - 4, w: 68, h: 4 }, z - 70, z + 70, steel()), rectBox({ x: ix - 26, y: py - 6, w: 52, h: 3 }, z - 62, z + 62, black()), rectBox({ x: ix - 9, y: py - 8, w: 18, h: 3 }, z - 52, z + 52, mat(USB_TONGUE[LAYOUT_CASE] ?? 0x2a6fdc, { roughness: 0.5 })));
       z -= 190;
     } else if (p === 'usbC') {
       root.add(softBox({ x: ix - 24, y: py - 4, w: 48, h: 4 }, z - 56, z + 56, steel(), 2), softBox({ x: ix - 16, y: py - 6, w: 32, h: 3 }, z - 48, z + 48, black(), 1));
@@ -335,13 +388,28 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
 export type GrommetStyle = { tone: number; metal: boolean };
 export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491, metal: false }, matte: { tone: 0x101114, metal: false }, gamer: { tone: 0x14171f, metal: false }, show: { tone: 0x9aa0a8, metal: true } };
 
+/** The tray under the board: a brass hex stud up to the board's underside at each of `used` (the fitted board's holes), a threaded hole at the case's other positions. */
+export function mounts(used: readonly (readonly [number, number])[]): Group {
+  const g = new Group(), h = BOARD_Z - 60 - TRAY_Z, at = (x: number, y: number) => used.some(([a, b]) => a === x && b === y);
+  const up = (r: number, n: number, len: number) => new CylinderGeometry(r, r, len, n).rotateX(Math.PI / 2);
+  g.add(instanced(up(58, 6, h), mat(0xc2a15a, { metalness: 0.8, roughness: 0.36 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 }))));
+  const free = standoffs().filter(([x, y]) => !at(x, y));
+  if (free.length) {
+    // (above the Full tower's perforated sheet, at +6)
+    g.add(instanced(up(46, 16, 3), mat(0x7c828b, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + 8 }))));
+    g.add(instanced(up(26, 12, 3), black(), free.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + 10 }))));
+  }
+  return g;
+}
+
 /**
  * The tray's cable management between the board and the front fans: a column of tie points for the straps, and the routing cut-outs of the kind
  * (the Micro's one rubber-rimmed slot, the Mid's slanted cut-outs, the Full tower's rimmed slots on a hex-perforated tray; the Mini has bare tie
- * points only).
+ * points only). And the board's mounts: every position of every board the case takes is a threaded hole; the fitted board's stand a brass stud.
  */
 export function trayDetail(f: Frame): Group {
   const g = new Group(), east = CASE_BD.x + CASE_BD.w, bd = CASE_BD, rim = mat(GROMMETS[f.kind].tone, GROMMETS[f.kind].metal ? { metalness: 0.75, roughness: 0.3 } : { roughness: 0.75 });
+  g.add(mounts(GEO.holes));
   const pts = [];
   for (let y = bd.y + 500; y < bd.y + bd.h - 300; y += 900) pts.push({ x: east + 480, y: -y, z: TRAY_Z + 12, rz: 0 });
   const loop = new TorusGeometry(34, 9, 6, 12, Math.PI);

@@ -186,8 +186,8 @@ function build(s: Spec): TierGeo {
   const hdrY = south - 520, hw = (cols: number) => cols * 52 + 24;
   const eastToWest: Omit<HeaderGeo, 'x' | 'y'>[] = [
     { name: 'SYS_FAN', cols: 4, rows: 1 }, { name: 'USB_2', cols: 5, rows: 2 }, { name: 'F_PANEL', cols: 5, rows: 2 },
-    ...(s.tier >= 3 ? [{ name: 'SYS_FAN2', cols: 4, rows: 1 }, { name: 'USB_3', cols: 5, rows: 2 }] : []),
-    ...(s.tier >= 2 ? [{ name: 'TPM', cols: 6, rows: 2 }] : []),
+    ...(s.tier >= 3 ? [{ name: 'SYS_FAN2', cols: 4, rows: 1 }] : []),
+    ...(s.tier >= 2 ? [{ name: 'USB_3', cols: 5, rows: 2 }, { name: 'TPM', cols: 6, rows: 2 }] : []),
     ...(s.tier >= 3 ? [{ name: 'ARGB', cols: 3, rows: 1 }] : []),
   ];
   let hx = sio.x - 50;
@@ -202,13 +202,14 @@ function build(s: Spec): TierGeo {
   // regulator's, above its controller and under the 12 V run (four lanes from its north legs); the sinks' fan cables come to them
   hdrs.push({ name: 'VRM_FAN', x: pwm.x - 250, y: pwm.y + 105 - (4 * 52 + 24) / 2, cols: 1, rows: 4 });
   hdrs.push({ name: 'RAM_FAN', x: dpwm.x + 105 - (4 * 52 + 24) / 2, y: dpwm.y - 190, cols: 4, rows: 1 });
-  const holes: [number, number][] = [
-    [s.tier === 0 ? bd.x + 1250 : bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150], // (the small board's top-west one sits beside the I/O plate)
-    [0, bd.y + 150], [0, south - 150],
-  ];
-  if (s.tier >= 1) holes.push([bd.x + 150 + Math.round((east - bd.x - 300) * 0.28), south - 150], [cpw.x - 220, bd.y + 150]); // the top one stays west of the 8-pin
-  if (s.tier >= 2) holes.push([east - 150, 1520]);
-  if (s.tier >= 3) holes.push([bd.x + 150, 1200], [east - 150, 2300], [-1500, 1450]);
+  // the mounting holes. The boards share tray positions where their parts allow, as real form factors do: a bigger case holds a smaller board on
+  // studs it already has. The memory bank and the big regulators keep some corners apart (a case then has those extra threads: `standoffs`).
+  const holes: [number, number][] = ([
+    [[-1600, -1900], [0, -2000], [1950, -2000], [-2450, 1700], [0, 1300], [1950, 1700]],
+    [[-2450, -2200], [0, -2200], [2250, -2200], [-2450, 1700], [0, 1300], [-2450, 2300], [0, 2350], [2250, 2300]],
+    [[-2450, -2200], [-1600, -1900], [0, -2200], [3250, -2350], [0, 1300], [3250, 1500], [-2450, 3400], [100, 3200], [3250, 3410]],
+    [[-2450, -2200], [-1600, -1900], [0, -2200], [4050, -2350], [0, 1300], [3250, 1500], [-2450, 3400], [100, 3200], [4050, 2300], [-2450, 4050], [0, 4050], [4050, 4050]],
+  ] as [number, number][][])[s.tier]!;
   return {
     tier: s.tier, form: s.form, bd,
     io: IO_PLATE,

@@ -17,12 +17,15 @@ import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { CASE_LOOK } from '@/features/room/render/desk/props/case';
 import { CASE_CUTS, WINDOW_CUTS, caseWindow, showPillars, type CaseKind, type Cuts } from '@/features/room/render/shell/casedecor';
 import { stripRect, type StripMode } from '@/features/room/render/shell/exterior';
+import { frontFanRects } from '@/features/room/render/desk/props/case';
 import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, PSU, TOP_FANS } from '../layout/layout';
+import { basementPlan } from './basement3d';
+import { FAN_MAX } from './cooler3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
-  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, tiled,
+  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
 } from './casekit3d';
-import { controls, drumX, frontWall, hinges, psuFilter, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
+import { controls, drumX, frontWall, hinges, psuFilter, psuIntake, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
 
 export { outlinePts, SIDE_T } from './casekit3d';
 
@@ -97,6 +100,13 @@ const STRIP_T = builtinTheme(true);
 
 // ---------------------------------------------------------------- the case
 
+/** The opening in the top over the top fans (layout x and depth), or null: the case has none there. */
+function topVent(): { x0: number; x1: number; z0: number; z1: number } | null {
+  if (!TOP_FANS.length) return null;
+  const zc = CASE_Z + CASE_D / 2, w = CASE_D - 1600;
+  return { x0: TOP_FANS[0]!.x - 60, x1: TOP_FANS[TOP_FANS.length - 1]!.x + TOP_FANS[0]!.w + 60, z0: zc - w / 2, z1: zc + w / 2 };
+}
+
 /** The case of this kind round the current layout (`CASE`, `CASE_IN`, the tier's window): body, feet, front, side panel, glass and lights. */
 export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const L = LOOKS[kind], C = CASE, P = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN, bottom = C.y + C.h;
@@ -110,10 +120,13 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const outer = () => outlinePts(C, L.rad, cuts);
   const z1 = FRONT - SIDE_T;
 
-  // the body: the top and the floor (the outline above and below the cavity), the rear and front walls with their openings, the back sheet
+  // the body: the top and the floor (the outline above and below the cavity, cut open over the top fans and under the power supply), the rear and
+  // front walls with their openings, the back sheet
   const f: Frame = { kind, body, acc, yTop: C.y + P.h, yBot: bottom - 150, z0: CASE_Z + 70, z1 };
-  root.add(slab(shapeOf(clipY(outer(), -f.yTop, 1)), f.z0, z1, body, 18), slab(shapeOf(clipY(outer(), -f.yBot, -1)), f.z0, z1, body, 18));
-  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, ex, bottom), trayDetail(f));
+  const topPts = clipY(outer(), -f.yTop, 1), vent = topVent();
+  if (vent) root.add(...slabWithOpening(topPts, f.z0, z1, vent, body)); else root.add(slab(shapeOf(topPts), f.z0, z1, body, 18));
+  root.add(...slabWithOpening(clipY(outer(), -f.yBot, -1), f.z0, z1, psuIntake(), body));
+  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, bottom), trayDetail(f));
   root.add(slab(shapeOf(outer()), CASE_Z, CASE_Z + 70, inner, 12));
   const ctl = controls(f, ex, GAMER_CAP);
   root.add(ctl.root);
@@ -123,9 +136,14 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   // the outer side panel: one sheet with the window cut out (the Mini's is solid)
   const win = kind === 'oem' ? null : caseWindow(kind), wcuts: Cuts = WINDOW_CUTS[kind], wr = kind === 'show' ? 0 : kind === 'gamer' ? 24 : 50;
   const winPts = win ? outlinePts(win, wr, wcuts) : null;
+  // the lower panel over the basement: its intake over the drive cage, a real opening under a punched sheet, the maker's badge over the supply's cover
+  const plan = basementPlan(), lowY = gl.y + gl.h, intake = { x: plan.cage.x - 60, y: PSU.y + 60, w: plan.cage.w + 120, h: PSU.h - 120 };
+  const area = { x: PSU.x + 120, y: PSU.y + 60, w: plan.cage.x - 260 - (PSU.x + 120), h: PSU.h - 120 };
+  const right = area.x + area.w, cy = area.y + area.h / 2;
+  const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   // (the Mini's plastic front wraps round the front edge: its sheet stops short of it)
   const sheet = kind === 'oem' ? outlinePts({ ...C, w: C.w - OEM_BEZEL }, L.rad) : outer();
-  side.add(slab(shapeOf(sheet, winPts ? [winPts] : []), z1, FRONT, kind === 'show' ? mat(0x111216, { roughness: 0.3, metalness: 0.55 }) : body, 14));
+  side.add(slab(shapeOf(sheet, [...(winPts ? [winPts] : []), outlinePts(intake, 16)]), z1, FRONT, kind === 'show' ? mat(0x111216, { roughness: 0.3, metalness: 0.55 }) : body, 14));
   let glass: Mesh | null = null;
   if (win && winPts && L.glass) {
     glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), glassMat(L.glass.tint));
@@ -134,12 +152,6 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     // (no painted streaks, as the 2D has: the glass shows the room's own light, the window by day, the lamps and the city at night)
     side.add(glass);
   }
-
-  // the lower panel over the PSU bay: its intake and the maker's badge (east of it, as in 2D)
-  const lowY = gl.y + gl.h, intake = { x: PSU.x + 120, y: PSU.y + 60, w: 3300, h: PSU.h - 120 };
-  const area = { x: intake.x + intake.w + 260, y: PSU.y + 60, w: ci.x + ci.w - 300 - (intake.x + intake.w + 260), h: PSU.h - 120 };
-  const right = area.x + area.w, cy = area.y + area.h / 2;
-  const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
 
   // the front rim: a slim vent column and the accent strip (the machine's state, `stripModeOf`)
   const st = stripRect(), rim = kind === 'oem' ? FRONT + 12 : FRONT; // (on the Mini's plastic front)
@@ -161,20 +173,25 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       side.add(drum(x, y, FRONT + 10, FRONT + 34, 46, screw, 18), rectBox({ x: x - 32, y: y - 6, w: 64, h: 12 }, FRONT + 34, FRONT + 37, dark));
     }
     side.add(rectBox({ x: ci.x + 40, y: lowY + 40, w: ci.w - 80, h: 14 }, FRONT - 2, FRONT + 1, mat(0x8f8768, { roughness: 0.7 })));
-    perforated(side, intake, FRONT + 2, 'round', 64, 0xbfb695, { metal: 0.05, rough: 0.6 });
+    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0xbfb695, { metal: 0.05, rough: 0.6 })));
     const label = { x: right - 700, y: cy - 150, w: 700, h: 300 };
     side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0xc9c0a0, { roughness: 0.5 }), 8));
     side.add(decal(grow(label, -20), FRONT + 9, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
     // the top strip's vents; the plastic front with two drive-bay covers and its grille; round feet
     for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 2, mat(0x8a8468, { roughness: 0.8 }), 12));
     const bezel = mat(0xd3caa9, { roughness: 0.65 }), ex = C.x + C.w;
-    root.add(softBox({ x: ex - OEM_BEZEL, y: C.y - 8, w: OEM_BEZEL + 50, h: C.h + 16 }, CASE_Z + 10, FRONT + 12, bezel, 44));
     const zc = CASE_Z + CASE_D / 2;
+    // the plastic front, with a round grille of slots cut through it over each front fan
+    const grilleR = Math.min(frontFanRects()[0]!.h, FAN_MAX) * 0.45, slots: Span[] = [];
+    for (const fan of frontFanRects()) for (let k = -6; k <= 6; k++) {
+      const yc = fan.y + fan.h / 2 + k * 130, half = Math.sqrt(grilleR * grilleR - (k * 130) ** 2);
+      slots.push({ y0: yc - 30, y1: yc + 30, z0: zc - half, z1: zc + half, r: 26 });
+    }
+    root.add(wallX(ex - OEM_BEZEL, ex + 50, { y0: C.y - 8, y1: C.y + C.h + 8, z0: CASE_Z + 10, z1: FRONT + 12, r: 40 }, slots, bezel));
     for (let k = 0; k < 2; k++) {
       root.add(rectBox({ x: ex + 46, y: C.y + 520 + k * 470, w: 22, h: 420 }, zc - 740, zc + 740, mat(0xc8bf9c, { roughness: 0.6 })));
       root.add(rectBox({ x: ex + 66, y: C.y + 720 + k * 470, w: 6, h: 16 }, zc - 600, zc + 600, mat(0xa59d7d, { roughness: 0.7 })));
     }
-    root.add(instanced(new BoxGeometry(1, 1, 1), mat(0x6e6852, { roughness: 0.8 }), Array.from({ length: 9 }, (_, k) => ({ x: ex + 52, y: -(bottom - 1300 + k * 110), z: zc, sx: 6, sy: 40, sz: 1800 }))));
     const foot = mat(0x2a2924, { roughness: 0.9 });
     for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, 20, 95));
   }
@@ -187,7 +204,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2c2e35, { roughness: 0.9 })));
       side.add(rectBox(b, FRONT, FRONT + 2, mat(0x08090b, { roughness: 0.95 })));
     }
-    perforated(side, intake, FRONT + 2, 'round', 64, 0x1b1c21, { metal: 0.1, rough: 0.85 });
+    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x1b1c21, { metal: 0.1, rough: 0.85 })));
     for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 1, dark, 12));
     const rubber = mat(0x0c0c0e, { roughness: 0.95 });
     for (const x of [C.x + 300, C.x + C.w - 600]) root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
@@ -219,7 +236,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       side.add(rectBox({ x: lx0 + (k * lw) / hues.length + 6, y: ly, w: lw / hues.length - 12, h: 26 }, z1 - 30, z1 - 4, m));
       spins.push(light(m, h, 2.4));
     });
-    perforated(side, intake, FRONT + 2, 'round', 64, 0x232938, { metal: 0.5, rough: 0.4 });
+    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x232938, { metal: 0.5, rough: 0.4 })));
     const plate = { x: right - 1100, y: cy - 190, w: 1100, h: 380 };
     const rim = glowMat(acc, 0x15121f);
     side.add(ring(plate, 28, NONE, 14, FRONT - 2, FRONT + 20, rim));
@@ -267,7 +284,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       side.add(rectBox({ x: r.x + 30, y: r.y + r.h * 0.56, w: r.w - 60, h: r.h * 0.2 }, FRONT + 14, FRONT + 18, fanLit));
     }
     spins.push(light(fanLit, acc, 2.2));
-    perforated(side, intake, FRONT + 4, 'hex', 46, 0x5a5f69, { metal: 0.5, rough: 0.4 });
+    side.add(decal(intake, FRONT + 4, perfMat('hex', intake.w, intake.h, 46, 0x5a5f69, { metal: 0.5, rough: 0.4 })));
     side.add(ring(intake, 20, NONE, 16, FRONT - 2, FRONT + 8, silver));
     const pw = 900, lean = 120, line = glowMat(acc, 0x1a1016);
     for (const k of [0, 1] as const) {
@@ -282,15 +299,13 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     feet(root, 600, 0x14161b, silver);
   }
 
-  // the top's dust filter over the top fans (the cases that have them)
-  if (TOP_FANS.length) {
-    const x0 = TOP_FANS[0]!.x - 60, x1 = TOP_FANS[TOP_FANS.length - 1]!.x + TOP_FANS[0]!.w + 60, zc = CASE_Z + CASE_D / 2, w = CASE_D - 900;
-    const r = { x: x0, y: 0, w: x1 - x0, h: w }, frame = kind === 'show' ? mat(SILVER.color, { metalness: SILVER.metalness, roughness: SILVER.roughness }) : body;
+  // the top's dust filter over the opening above the top fans (the cases that have them)
+  if (vent) {
+    const { x0, x1, z0, z1: ze } = vent, w = x1 - x0, h = ze - z0, frame = kind === 'show' ? mat(SILVER.color, { metalness: SILVER.metalness, roughness: SILVER.roughness }) : body;
     // a magnetic mesh: fine nylon on the plain cases (it must not catch the room's warm light), hex steel on the showcase
-    const plate = decalTop(C.y - 3, x0, x1, zc - w / 2, zc + w / 2, kind === 'show'
-      ? perfMat('hex', r.w, r.h, 70, 0x4a4f58, { metal: 0.5, rough: 0.45 }) : perfMat('mesh', r.w, r.h, 40, 0x15171b, { metal: 0.02, rough: 0.95 }));
-    root.add(decalTop(C.y - 1, x0, x1, zc - w / 2, zc + w / 2, dark), plate);
-    for (const z of [zc - w / 2 - 30, zc + w / 2 + 30]) root.add(rectBox({ x: x0 - 30, y: C.y - 10, w: r.w + 60, h: 14 }, z - 30, z + 30, frame));
+    root.add(decalTop(C.y - 3, x0, x1, z0, ze, kind === 'show' ? perfMat('hex', w, h, 70, 0x4a4f58, { metal: 0.5, rough: 0.45 }) : perfMat('mesh', w, h, 40, 0x15171b, { metal: 0.02, rough: 0.95 })));
+    for (const z of [z0 - 30, ze + 30]) root.add(rectBox({ x: x0 - 60, y: C.y - 10, w: w + 120, h: 14 }, z - 30, z + 30, frame));
+    for (const x of [x0 - 30, x1 + 30]) root.add(rectBox({ x: x - 30, y: C.y - 10, w: 60, h: 14 }, z0, ze, frame));
   }
 
   // the Mini's two thumbscrews hold the rear edge of its panel

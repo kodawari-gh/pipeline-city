@@ -45,7 +45,7 @@ import { ACCENT, cpuArt, sinkFanRect, vrmSinkArt } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
-import { FAN_MAX, FAN_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { FAN_MAX, FAN_ZC, REAR_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, slotCover, type Card3D } from './card3d';
@@ -248,7 +248,7 @@ export class Machine3D {
     // the case fans (the mounts the case has), with an RGB ring; a radiator brings its own fans for the mounts it covers
     for (const m of fanMounts()) {
       if (this.rad?.span.ids.includes(m.id)) continue;
-      const f = caseFan(m.id, m.side, m.rect, FAN_ZC, FAN_MAX);
+      const f = caseFan(m.id, m.side, m.rect, m.side === 'rear' ? REAR_ZC : FAN_ZC, FAN_MAX);
       this.root.add(tag(f.root, 'case:' + m.id));
       this.caseRoots.push(f.root);
       this.spin(cm.rgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
@@ -323,20 +323,19 @@ export class Machine3D {
     // drawers report the parts they could stand up (`Solid`)
     const solids: Solid[] = [];
     const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root), far = this.baker(() => buildBoard(T, GEO.tier, undefined, true).root);
-    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 })), 'board'));
-    tag(this.surface(this.root, { bake: (f, px) => (px < LV_BOARD[1]! ? far : art).bake(f, px) }, BD, BOARD_Z, LV_BOARD).root, 'board'); // (the coarsest level is the far picture: thin traces would be lost)
+    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 })), 'board'));    tag(this.surface(this.root, { bake: (f, px) => (px < LV_BOARD[1]! ? far : art).bake(f, px) }, BD, BOARD_Z, LV_BOARD).root, 'board'); // (the coarsest level is the far picture: thin traces would be lost)
     // the rear I/O inside the case, by the skin (skins.ts); it starts inside the rear wall (the wall and the I/O shield are the outside)
     const io = tag(new Group(), 'io'), ir = GEO.io, x0 = ir.x + WALL_T;
     if (sk.ioCover === 'bare') {
       // the Starter's connectors stand bare: steel shells (USB, LAN, video) with their solder tabs, and the black audio block
       const feat = s?.board.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }, steelM = mat(0x9aa1aa, { metalness: 0.65, roughness: 0.45 }), plastic = mat(0x111215, { roughness: 0.55 });
-      const jacks = IO_PORTS.filter((p) => p.kind === 'jack'), y0 = Math.min(...jacks.map((p) => p.y)), y1 = Math.max(...jacks.map((p) => p.y + p.h));
+      const jacks = IO_PORTS.filter((p) => p.kind === 'jack'), y0 = Math.min(...jacks.map((p) => p.y - p.h / 2)), y1 = Math.max(...jacks.map((p) => p.y + p.h / 2)); // (a port's `y` is its centre)
       io.add(softBox({ x: x0, y: y0, w: 250 - WALL_T + 30, h: y1 - y0 }, BOARD_Z, BOARD_Z + 360, plastic, 10));
       for (const p of IO_PORTS) {
         const h = p.kind === 'rj45' ? 400 : p.kind === 'usb' ? 650 : p.kind === 'hdmi' || p.kind === 'dp' ? 580 : 0;
         const fitted = p.kind === 'rj45' ? feat.ethernetMbps > 0 : p.kind === 'usb' ? Number(p.id.slice(3)) < feat.usbPorts : p.kind === 'dp' ? feat.displayPorts >= 2 : p.kind === 'hdmi';
         if (!h || !fitted) continue;
-        const r = { x: x0, y: p.y, w: p.x + p.w - x0, h: p.h };
+        const r = { x: x0, y: p.y - p.h / 2, w: p.x + p.w - x0, h: p.h };
         io.add(softBox(r, BOARD_Z, BOARD_Z + h, steelM, 6));
         for (const ty of [r.y + 10, r.y + r.h - 22]) io.add(rectBox({ x: r.x + r.w - 30, y: ty, w: 24, h: 12 }, BOARD_Z, BOARD_Z + 30, steelM));
       }
@@ -541,7 +540,7 @@ export class Machine3D {
       }
       case 'psu': {
         // at the basement's back corner, by its mains inlet (`psuUnit`); the shroud's panel over it answers the click
-        const u = psuUnit(this.plan, visual);
+        const u = psuUnit(this.plan, visual, (spec as { fan?: boolean }).fan !== false);
         g.add(u.root);
         tag(g, 'psu');
         this.softSkin(d.id, u.body);
@@ -823,9 +822,12 @@ export class Machine3D {
       }, on('lan'));
       this.wires.add(g);
     }
-    const inlet = mainsInlet(this.plan);
-    if (has('pcmains')) this.wires.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
-    mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+    // (the inlet is the power supply's: with no supply fitted there is nothing to hold the cord)
+    if (s.devices.some((d) => d.kind === 'psu')) {
+      const inlet = mainsInlet(this.plan);
+      if (has('pcmains')) this.wires.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
+      mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+    }
     mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
   }
 
