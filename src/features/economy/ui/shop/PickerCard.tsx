@@ -17,7 +17,8 @@ import {
 import { Icon } from '@/core/ui/kit/Icons';
 import { DeclineButton, Deadline, NeedChips } from '@/features/jobs/ui/Jobs';
 import { lockBadge, type LevelLock, type MoreOffer } from '../progress/levelui';
-import { openMilestones } from '@/core/ui/state';
+import { openMilestones, openShopAt } from '@/core/ui/state';
+import { hasModel } from './shopdata';
 import { PartArt } from './PartArt';
 import { anchorOf } from '@/features/tutorial/ui/anchor';
 import { dockPlacement, placePopup, type Rect, type Side } from '@/core/ui/place';
@@ -409,6 +410,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         )}
         <div class="ptext">
           <div class="ptitle" title={m.nerd ? `${m.plain} ${m.nerd}` : m.plain}>{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
+          {artId && hasModel(m.kind) && <button class="sc-3d" title="Look at it in 3D in the shop" onClick={() => openShopAt(artId)}><Icon name="box" size={12} /> 3D view</button>}
         </div>
       </header>
       {m.job && (m.job.needs.length > 0 || !m.job.runnable) && (

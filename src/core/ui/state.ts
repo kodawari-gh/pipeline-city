@@ -80,6 +80,9 @@ export const toggleGraphics = () => { graphicsOpen.value = !graphicsOpen.value; 
 /** The shop: every item in the game, with its price and state. */
 export const shopOpen = signal(false);
 export const openShop = () => { shopOpen.value = true; };
+/** The part the shop should show when it opens (the picker's 3D view button); the shop clears it once it has. */
+export const shopFocus = signal<string | null>(null);
+export const openShopAt = (specId: string) => { shopFocus.value = specId; shopOpen.value = true; };
 export const closeShop = () => { shopOpen.value = false; };
 export const toggleShop = () => { shopOpen.value = !shopOpen.value; };
 

@@ -6,7 +6,7 @@ import { Rung } from './PickerCard';
 import { Showcase } from './Showcase';
 import { StatCard } from './StatCard';
 import { kindOf } from './picker';
-import { closeShop, shopOpen } from '@/core/ui/state';
+import { closeShop, shopFocus, shopOpen } from '@/core/ui/state';
 import { hasModel, shopFor, type ShopKind } from './shopdata';
 
 /**
@@ -21,6 +21,16 @@ export function Shop({ s }: { s: Snapshot }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [view3d, setView3d] = useState(true);
   const all = open ? shopFor(s) : [];
+  const focus = shopFocus.value;
+  // opened on a part (the picker's 3D view button): its category, the part picked, the 3D view on
+  useEffect(() => {
+    if (!open || !focus) return;
+    const k = kindOf(focus, s);
+    setKind(k && all.some((x) => x.kind === k) ? (k as ShopKind) : null);
+    setPicked(focus);
+    setView3d(true);
+    shopFocus.value = null;
+  }, [open, focus]);
   const sections = kind ? all.filter((x) => x.kind === kind) : all;
   const flat = sections.flatMap((x) => x.items.map((i) => i.specId));
   const shown = picked && flat.includes(picked) ? picked : flat[0] ?? null;
