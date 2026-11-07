@@ -189,8 +189,8 @@ export class Machine3D {
   /** The parts with a detailed view, which hold the camera on rails up close (`rails.ts`). A new part with a detailed view adds its own (`rail`). */
   readonly rails: Rail[] = [];
 
-  /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. */
-  constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null) {
+  /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has no router. */
+  constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true) {
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
@@ -855,7 +855,7 @@ export class Machine3D {
       }, on(id));
       this.wires.add(g);
     };
-    if (has('lan') && netVisible(s)) {
+    if (has('lan') && netVisible(s) && this.inRoom) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
       const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };

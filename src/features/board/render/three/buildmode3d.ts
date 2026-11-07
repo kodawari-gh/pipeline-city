@@ -149,7 +149,7 @@ export class BuildStage {
     setLayoutTier(tier, caseTier);
     const { scene } = this.ctx;
     if (this.machine) { scene.remove(this.machine.root); this.machine.dispose(); }
-    this.machine = new Machine3D(s, roomGeo(), this.bakes, null);
+    this.machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
     scene.add(this.machine.root);
     this.stage(caseTier);
     this.syncMonitor(s.devices.some((d) => d.kind === 'display'));
