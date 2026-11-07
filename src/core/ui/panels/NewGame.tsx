@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { autosaveOffer, snapshot, startSim } from '@/app/store';
+import { snapshot, startSim } from '@/app/store';
 import { resetTutorial } from '../state';
 
 // The NEW GAME dialog: Campaign or Sandbox (docs/SANDBOX.md). Sizes are rem and CSS variables only; the styles are
@@ -19,9 +19,9 @@ export function NewGameDialog() {
   const [tutorialOn, setTutorialOn] = useState(true);
   const dialog = useRef<HTMLDivElement>(null);
   const open = newGameOpen.value;
-  // A game or a saved game to fall back on: only then may the dialog be dismissed.
   const running = snapshot.value !== null;
-  const dismissable = running || autosaveOffer.value !== null;
+  // (before a game the main menu is behind it: Cancel goes back to it)
+  const dismissable = true;
 
   // Focus the chosen card when the dialog opens, and give focus back to the page's last control when it closes.
   useEffect(() => {

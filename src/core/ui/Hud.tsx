@@ -4,7 +4,7 @@ import { selected, viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
 import { highlight } from '../../app/interaction';
 import {
-  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
@@ -19,6 +19,7 @@ import { OsModal } from '../../features/os/ui/OsPanel';
 import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
 import { NewGameDialog, openNewGame } from './panels/NewGame';
+import { MainMenu } from './panels/MainMenu';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
 import { SandboxTools } from '../../features/sandbox/ui/SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from '../../features/economy/ui/progress/Levels';
@@ -66,25 +67,6 @@ function SpeedControl() {
       </div>
     </div>
   );
-}
-
-function StartPrompt() {
-  const offer = autosaveOffer.value;
-  if (offer) {
-    return (
-      <div class="modal-back">
-        <div class="card modal" role="dialog" aria-modal="true" aria-label="Welcome back">
-          <div class="big">Welcome back</div>
-          <div class="mute">Autosave: tick {offer.baseTick}{offer.sandbox ? ", sandbox" : `, ${fmtMoney(offer.money)}`}</div>
-          <div class="pactions">
-            <button onClick={openNewGame}>New game</button>
-            <button class="primary" onClick={() => startSim(offer)}>Continue</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
 }
 
 /**
@@ -263,7 +245,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
 export function Hud() {
   const s = snapshot.value;
   // (the menu waits for the boot screen, app/boot.ts)
-  if (!s) return booted.value ? <><Title on /><StartPrompt /><NewGameDialog /></> : null;
+  if (!s) return booted.value ? <><Title on /><MainMenu /><NewGameDialog /><GraphicsDock /></> : null;
   const dark = theme.value === 'dark';
   return (
     <>

@@ -212,7 +212,9 @@ A drawer and not a modal: the picture stays in view and each change applies at o
 
 ## Notices, toasts and modals
 
-Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, Welcome back, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
+The main menu (`panels/MainMenu.tsx`) shows over the live room before a game: Continue (with an autosave), New game, Load game, Settings. New game opens the dialog, whose Cancel returns to it.
+
+Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
 
 **Keyboard and names (new dialogs and tools).** The New game dialog is `role="dialog"` with `aria-labelledby`; its two choices are a `radiogroup` of `role="radio"` cards (roving `tabindex`: Arrow keys move, Enter or Space picks). It opens focused on the chosen card, Tab and Shift+Tab wrap inside it, and Escape closes it only when a game can be fallen back on; focus returns to where it was. The sandbox chip is a button named `SANDBOX` (`aria-expanded`, `aria-controls`); its popover is a `role="dialog"`, Escape closes it and gives focus back to the chip, and every control has a name (the job template, the work multiplier, the reputation slider with `aria-valuetext`). Focus rings: `:focus-visible` outlines on buttons, inputs, `[role="button"]` and the new radio cards (rem offsets). Picker: Escape or the x closes it, the rungs are `role="button"` with Enter and Space, and the popup is an `aside` with its title as the label.
 

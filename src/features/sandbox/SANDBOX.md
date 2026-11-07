@@ -6,7 +6,7 @@ Code: `src/worker/game/game.ts` (the `sandbox` option), `sandbox.ts` (the sandbo
 
 ## Starting one
 
-The **New game** dialog (menu, or the Welcome back prompt's New game) offers two choices:
+The **New game** dialog (menu, or the main menu's New game) offers two choices:
 
 - **Campaign**: a bare board and the starter crate, the tutorial, money you earn and spend.
 - **Sandbox**: then pick **Assembled machine** (the **most powerful machine the game supports**, installed and cabled, powered off, ready for the power button: see below) or **Bare board** (the same crate as the campaign, in the inventory, nothing installed).

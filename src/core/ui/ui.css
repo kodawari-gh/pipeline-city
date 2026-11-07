@@ -541,6 +541,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .title.gone { opacity: 0; }
 /* Before a game the dialogs dim the room less: it is the title screen's picture. */
 .title:not(.gone) ~ .ng-back, .title:not(.gone) ~ .modal-back { background: radial-gradient(ellipse 80% 70% at 50% 58%, rgba(4, 8, 24, .12), rgba(4, 8, 24, .6)); }
+/* The main menu (panels/MainMenu.tsx): a column under the title, over the live room. */
+.mainmenu { position: fixed; top: 35vh; left: 0; right: 0; z-index: 58; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; animation: fade-in .6s ease .1s both; }
+.mm-btn { display: flex; align-items: center; gap: 0.7rem; width: clamp(13rem, 24vw, 17rem); padding: 0.7rem 1.1rem; box-sizing: border-box; font-size: 0.95rem; cursor: pointer; background: color-mix(in srgb, var(--menu-solid) 84%, transparent); backdrop-filter: blur(0.5rem); border-radius: 0.6rem; box-shadow: 0 0.2rem 1rem rgba(2, 6, 18, .35); transition: transform .15s ease, border-color .15s ease; }
+.mm-btn:hover:not(:disabled), .mm-btn:focus-visible { transform: translateX(0.2rem); }
+.mm-btn.primary { background: var(--accent); }
+.mm-t { display: flex; flex-direction: column; line-height: 1.2; }
+.mm-d { font: 500 0.7rem var(--mono); opacity: .8; }
+.mm-card { background: color-mix(in srgb, var(--menu-solid) 94%, transparent); backdrop-filter: blur(0.6rem); }
+.mm-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; }
+.mm-row.scale-row { padding: 0; }
 .hud, .stack { animation: hud-in .7s ease .25s both; }
 @keyframes hud-in { from { opacity: 0; } to { opacity: 1; } }
 
