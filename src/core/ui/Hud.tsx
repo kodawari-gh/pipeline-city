@@ -75,7 +75,7 @@ function StartPrompt() {
       <div class="modal-back">
         <div class="card modal" role="dialog" aria-modal="true" aria-label="Welcome back">
           <div class="big">Welcome back</div>
-          <div class="mute">Autosave: tick {offer.baseTick}, {fmtMoney(offer.money)}</div>
+          <div class="mute">Autosave: tick {offer.baseTick}{offer.sandbox ? ", sandbox" : `, ${fmtMoney(offer.money)}`}</div>
           <div class="pactions">
             <button onClick={openNewGame}>New game</button>
             <button class="primary" onClick={() => startSim(offer)}>Continue</button>

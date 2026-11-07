@@ -866,6 +866,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .shop-rail button { flex: none; }
   .shop-rail button em { display: none; }
   .shop-detail { width: auto; max-height: 45%; }
+  .shop-detail .showcase-host { height: clamp(9rem, 26vh, 15rem); }
 }
 
 /* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays

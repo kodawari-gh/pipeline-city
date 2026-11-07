@@ -61,7 +61,7 @@ function cpuModel(): Group {
   const g = new Group(), z0 = BOARD_Z + 150;
   g.add(rectBox(PKG, BOARD_Z + 70, z0, mat(0x111a33, { roughness: 0.6 })));
   // capacitors in rows along the four edges, between the package's rim and the lid
-  const cap = mat(0xc9b27a, { metalness: 0.5, roughness: 0.4 }), cw = 34, cl = 62, step = 78, rim = 40;
+  const cap = mat(0xc9b27a, { metalness: 0.5, roughness: 0.4 }), cw = 30, cl = 50, step = 70, rim = 20;
   for (let x = PKG.x + 100; x + cw <= PKG.x + PKG.w - 100; x += step) for (const y of [PKG.y + rim, PKG.y + PKG.h - rim - cl]) g.add(rectBox({ x, y, w: cl, h: cw }, z0, z0 + 28, cap));
   for (let y = PKG.y + 140; y + cw <= PKG.y + PKG.h - 140; y += step) for (const x of [PKG.x + rim, PKG.x + PKG.w - rim - cl]) g.add(rectBox({ x, y, w: cw, h: cl }, z0, z0 + 28, cap));
   // the die: dark silicon, a 2 x 2 block of core tiles over a strip of cache and a strip of memory controller and I/O
@@ -72,7 +72,7 @@ function cpuModel(): Group {
   g.add(rectBox({ x: inner.x, y: inner.y + coreH, w: inner.w, h: inner.h * 0.28 }, z0 + 50, z0 + 60, cache));
   g.add(rectBox({ x: inner.x, y: inner.y + coreH + inner.h * 0.28 + gap, w: inner.w, h: inner.h - coreH - inner.h * 0.28 - gap }, z0 + 50, z0 + 58, io));
   // the heat spreader: a satin nickel frame round the die
-  const o = grow(DIE, 90), hole = grow(DIE, 14), shape = new Shape(), cut = new Path();
+  const o = grow(DIE, 40), hole = grow(DIE, 10), shape = new Shape(), cut = new Path();
   shape.moveTo(o.x, -o.y).lineTo(o.x + o.w, -o.y).lineTo(o.x + o.w, -(o.y + o.h)).lineTo(o.x, -(o.y + o.h)).closePath();
   cut.moveTo(hole.x, -hole.y).lineTo(hole.x, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -hole.y).closePath();
   shape.holes.push(cut);
