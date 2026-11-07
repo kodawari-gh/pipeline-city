@@ -483,6 +483,8 @@ export class AirflowLens {
   private tags(tags: AirTag[], z: number) {
     const T = this.T, pad = 5 / z;
     this.pills.clear();
+    // the tags keep their size on the screen, so how near they sit depends on the zoom: each one that would cover an earlier one moves up until it is clear
+    const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
     tags.forEach((tag, i) => {
       let t = this.pool[i];
       if (!t) {
@@ -493,14 +495,18 @@ export class AirflowLens {
       t.style.fill = tag.tone === 'warn' ? T.bad : tag.tone === 'dim' ? T.mute : '#ffd9a0';
       t.anchor.set(tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? 1 : 0.5, 0.5);
       t.scale.set(1 / z);
-      t.position.set(tag.at[0], tag.at[1]);
       t.visible = true;
       const w = t.width, h = t.height, x0 = tag.at[0] - (tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? w : w / 2);
       const trend = tag.tempC === undefined ? 0 : this.trendOf(tag.id, tag.tempC), ax = trend ? 15 / z : 0;
-      this.pills.roundRect(x0 - pad, tag.at[1] - h / 2 - pad * 0.4, w + 2 * pad + ax, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
+      const box = (y: number) => ({ x0: x0 - pad, x1: x0 + w + pad + ax, y0: y - h / 2 - pad, y1: y + h / 2 + pad });
+      let y = tag.at[1];
+      for (let k = 0; k < 12 && placed.some((p) => p.x0 < box(y).x1 && p.x1 > box(y).x0 && p.y0 < box(y).y1 && p.y1 > box(y).y0); k++) y -= h + pad;
+      placed.push(box(y));
+      t.position.set(tag.at[0], y);
+      this.pills.roundRect(x0 - pad, y - h / 2 - pad * 0.4, w + 2 * pad + ax, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
       if (trend) {
         // a small triangle at the end of the pill: up and warm while it climbs, down and cool while it falls
-        const cx = x0 + w + pad + 3 / z, cy = tag.at[1], r = 5 / z, up = trend > 0;
+        const cx = x0 + w + pad + 3 / z, cy = y, r = 5 / z, up = trend > 0;
         this.pills.poly(up ? [cx, cy - r, cx - r, cy + r * 0.8, cx + r, cy + r * 0.8] : [cx, cy + r, cx - r, cy - r * 0.8, cx + r, cy - r * 0.8]).fill({ color: up ? '#ff7a4a' : '#6fd8ff' });
       }
     });
