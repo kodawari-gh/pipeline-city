@@ -43,7 +43,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 | `storage` | drives, file system, disk views | `sim` `render` |
 | `network` | NIC, link, transfers, network panel (`NETWORK`, `NETSTACK`) | `sim` `render` `ui` |
 | `os` | kernel in toy assembly, job table, spool, OS window (`OS`) | `sim` `ui` |
-| `board` | board tiers, parts, cables, VRM, thermal, PCH, board art (`BOARD`, `VRM`) | `sim/{game,pch}` `render/{layout,wiring}` `ui` |
+| `board` | board tiers, parts, cables, VRM, thermal, PCH, board art, removal graph and Build my PC mode (`BOARD`, `VRM`, `docs/PC_PARTS.md`) | `sim/{game,pch}` `render/{layout,wiring}` `ui` |
 | `economy` | money, shop, levels, contracts, power bill, clients (`GAME`, `PROGRESSION`, `TECHTREE`) | `sim` `ui/{shop,progress}` |
 | `jobs` | seeded job generator, job dex, job log, almanac (`JOBS`, `GEN`) | `sim/gen` `ui` |
 | `room` | desk, wall, monitor, props, light (`room`, `shell`, `light`) | `render/{shell,desk/props}` |

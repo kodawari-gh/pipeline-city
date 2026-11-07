@@ -4,7 +4,8 @@ import { COVERS, OVER_M2 } from '@/features/board/sim/removal';
 import { BOARD_TIERS, CASE_TIERS, specsOfKind } from '@/features/board/sim/specs';
 import { geoOf } from '../layout/boardlayout';
 import { BD, LAYOUT_CASE, LAYOUT_TIER, NIC_LEN, setLayoutTier } from '../layout/layout';
-import { STAND } from './card3d';
+import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { HINGE_Z, STAND } from './card3d';
 
 // The fit checks: the removal graph's cover rules (sim/removal.ts) and the 3D models must agree, and every part must sit inside its board and case.
 const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -54,3 +55,12 @@ describe('fit: every part has a socket', () => {
     for (const b of BOARD_TIERS) expect(CASE_TIERS.some((c) => c.maxBoard >= b.tier), b.name).toBe(true);
   });
 });
+
+describe('fit: parts stay inside the case', () => {
+  it('every standing card is lower than the glass', () => {
+    const glass = CASE_Z + CASE_D;
+    for (const kind of ['gpu', 'npu', 'nic'] as const) expect(HINGE_Z + STAND[kind], kind).toBeLessThan(glass - 200);
+    expect(HINGE_Z).toBeGreaterThan(BOARD_Z);
+  });
+});
+

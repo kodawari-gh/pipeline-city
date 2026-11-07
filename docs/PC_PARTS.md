@@ -8,8 +8,8 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 | Part | Specs | Model (file) | Model | Fit | Graph | Anim |
 |---|---|---|---|---|---|---|
-| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [~] | [x] | [x] | [x] side panel |
-| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [~] | [x] | [x] | [x] |
+| Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [~] | [x] | [x] | [~] side panel opens; a swap lifts the whole machine |
+| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [~] | [x] | [x] | [~] a swap lifts the whole machine |
 | CPU (17 specs) | `cpu0..4w` | `chips3d.ts`, `showcase.ts` | [~] | [x] | [x] | [x] |
 | CPU cooler: stock, tower | `cooler0`, `cooler1` | `cooler3d.ts` | [~] | [x] | [x] | [x] |
 | Liquid loop: pump and radiator | `cooler2`, `rad1..3` | `cooler3d.ts`, `fans3d.ts` | [~] | [x] | [x] | [x] |
@@ -23,8 +23,8 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | TPM module | `tpm1..2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
 | VRM heat sinks | `vsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | RAM VRM heat sinks | `rsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
-| Monitor | `display0..1` | `room3d` props | [~] | [x] | [x] | [ ] outside the case |
-| Case fans | per case | `fans3d.ts` | [~] | [x] | [x] | [ ] |
+| Monitor | `display0..1` | `room3d` props | [~] | [x] | [x] | [ ] stands in the room, not on the stage |
+| Case fans | per case | `fans3d.ts` | [~] | [x] | [ ] | [ ] stay with the case |
 | Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [~] | n/a | n/a | n/a (soldered) |
 
 ## Cables (graph nodes `cable:<id>`)
@@ -41,8 +41,9 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 ## Known visual defects
 
-- [ ] Holes in the 3D models flicker (z-fighting at the cut-outs). Reproduce with `npm run shot`, find the coplanar faces, fix with offsets or `polygonOffset`.
-- [ ] Review each model close up for the highest quality (second pass per part).
+- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Checked only by reading the shots: a still cannot show flicker, so watch the Mid and Full cases in motion.
+- [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
+- [ ] Second pass per part: the NIC and AI card faces, the TPM, the HDD and SATA SSD in the cage, the Micro and Mini cases with a part lifted.
 
 ## Build my PC mode
 
@@ -50,4 +51,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 - Stage: the machine alone on a neutral floor, no room. Orbit camera.
 - Remove: pick a part, press Remove. The graph gives the steps; each step plays its animation.
 - Fit: pick a part from the bin, press Fit. Blocks come out, the part goes in, the blocks go back.
-- Animation per kind: `render/three/buildmotion.ts`.
+- Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
+- Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
+- Limits: the monitor and the case fans do not animate; a board or case swap lifts the whole machine as one piece (the parts come out one by one first).
+- Tests: `sim/removal.test.ts` (graph), `sim/removal.game.test.ts` (plans run on the real game), `render/three/fit.test.ts` (rules vs geometry), `render/three/buildmotion.test.ts`.
