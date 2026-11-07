@@ -28,6 +28,11 @@ export interface CableRig {
   /** The plug's model built in its socket, and where each strand leaves it there. */
   model: () => { root: Object3D; strands: RopeEnd[] };
   seat: Seat;
+  /** Other sockets of the same kind on the seat's axis (a graphics card's display port, as well as the board's): the held plug lines up with the
+   *  one nearest the pointer, and `connectCable` names it. `port` is `connectCable`'s port argument; `seat.port` is the seat's own. */
+  alts?: { port: string; at: V3 }[];
+  /** `connectCable`'s port argument for the seat itself. */
+  port?: string;
   /** False when nothing takes it now (a PCIe lead with no card): its seat is only where its model is built. */
   canSeat: boolean;
   /** How far the plug goes in: it pops free past this, it lines up this far out of the mouth. */

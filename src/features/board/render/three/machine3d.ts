@@ -33,7 +33,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/re
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
+  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK, nicY,
 } from '../layout/layout';
 import { IO_PORTS } from '../layout/boardlayout';
 import { assignLeads } from '../../sim/cables';
@@ -105,6 +105,9 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 
 type Fan = Spin & { speed: number };
 
+/** What the video cable's PC end depends on: the port it is in and the cards and display that offer ports (it is built again when these change). */
+const videoKey = (s: Snapshot) => `${s.videoPort}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display').map((d) => `${d.spec}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
+
 export class Machine3D {
   readonly root = new Group();
   private skins = new Map<string, PartSkin>();
@@ -153,6 +156,7 @@ export class Machine3D {
   private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
   /** The cables built (their kinds), and the key in the port. */
   private cableIds = '';
+  private videoKey = '';
   private key: { id: number; g: Group } | null = null;
   /** The CPU cooler's group: the loop's hoses join it (they fade with it). */
   private cooler: Group | null = null;
@@ -740,21 +744,30 @@ export class Machine3D {
     const dg = { x: CASE.x - 900, z: 1300 };
     this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
     if (has('video')) {
-      // combed out of sight: from the HDMI port down through the desk's grommet, along under the top (over the tray), up through the keyboard's
-      // grommet by the wall (room3d.ts: the keyboard sits at MONITOR_Z + 3600) and behind the monitor's stand into its back. The rig holds only
-      // the length out of the keyboard's grommet: a plug out of the monitor lies by that grommet.
-      const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520, a: RopeEnd = { at: [CASE.x - 150, -y, z], dir: [-1, 0, 0] };
+      // combed out of sight: from the monitor's back (its plug is built in), behind the stand, down through the keyboard's grommet by the wall
+      // (room3d.ts: the keyboard sits at MONITOR_Z + 3600), along under the top (over the tray) and up through the desk's grommet behind the
+      // case. What the player moves is the PC end: from that grommet over the desk to the board's HDMI port on the case's west side, or to a
+      // graphics card's display port (a graphics display only), as the 2D game.
+      const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520;
       const vz = dg.z + 80, kg = { x: m.x + m.w / 2 + KEY_LEAD[0] + 160, z: mz + 3600 + KEY_LEAD[1] - 150 }, low = under - 340;
       const run: V3[] = [[dg.x, deskTop, vz], [dg.x, low, vz], [dg.x - 500, low, vz], [dg.x - 1500, low, kg.z], [kg.x, low, kg.z], [kg.x, deskTop, kg.z]];
-      g.add(plug(CASE.x, y, z, 150), cableMesh([...hangPts(a, { at: [dg.x, deskTop + 10, vz], dir: [0, 1, 0] }, video, room, { natural: true, n: 30 }), ...rounded(run, 250)], video));
       // the stand's neck and foot (props3d.ts `Monitor`): the cable runs behind them
       const cx = m.x + m.w / 2, neck = box({ x: cx - 330, y: m.y + m.h * 0.55, w: 660, h: geo.ys - m.y - m.h * 0.55 }, mz - 560, mz - 300);
       const stand: Env = { planes: room.planes, solids: [...room.solids, neck, box({ x: cx - 1700, y: geo.ys - 90, w: 3400, h: 90 }, mz - 1500, mz + 700)] };
       const up: RopeEnd = { at: [kg.x, deskTop + 10, kg.z], dir: [0, 1, 0] }, o = { natural: true, handle: 0.4, stiff: 0.45, n: 34 };
-      const seat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] };
+      const monSeat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] }, mon = straightPlug(monSeat, 90, 60, 140, '#3a3d44');
+      g.add(mon.root, cableMesh([...rounded(run, 250), ...hangPts(up, mon.strands[0]!, video, stand, o)], video));
+      // the PC end: where the sim has it (the board's port, or a card's), and the other ports it could go to
+      const at = (yy: number): V3 => [CASE.x, -yy, z], gpuAt = (slot: string) => at(nicY(Number(/\d+$/.exec(slot)?.[0] ?? 0)));
+      const gfx = !!(getSpec(s.devices.find((d) => d.kind === 'display')?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics;
+      const ports = [{ port: 'board', at: at(y) }, ...(gfx ? s.devices.filter((d) => d.kind === 'gpu' && !d.burnt).map((d) => ({ port: d.slot, at: gpuAt(d.slot) })) : [])];
+      const now = ports.find((p) => p.port === s.videoPort) ?? ports[0]!, axis: V3 = [-1, 0, 0];
+      const seat: Seat = { at: now.at, axis }, grom: RopeEnd = { at: [dg.x, deskTop + 10, vz], dir: [0, 1, 0] };
+      const env: Env = { planes: room.planes, solids: [caseBox] }, pc = { slack: 1.1, extra: 900, stiff: 0.35, n: 30 };
       this.addRig(g, {
-        id: 'video', name: 'the monitor', target: 'monitor', look: video, env: stand, fixed: [up], model: () => straightPlug(seat, 90, 60, 140, '#3a3d44'), seat, canSeat: true, engage: 120,
-        seated: (ex) => [hangPts(up, ex[0]!, video, stand, o)], deck, n: o.n, stiff: o.stiff, lead: video.r * 2.5,
+        id: 'video', name: 'the display port', target: 'io', look: video, env, fixed: [grom], model: () => straightPlug(seat, 90, 60, 150, '#3a3d44'), seat, canSeat: true, engage: 300,
+        port: now.port === 'board' ? undefined : now.port, alts: ports.filter((p) => p !== now),
+        seated: (ex) => [hangPts(grom, ex[0]!, video, env, pc)], deck, n: pc.n, stiff: pc.stiff, lead: video.r * 2.5,
       }, on('video'));
       this.wires.add(g);
     }
@@ -833,13 +846,14 @@ export class Machine3D {
     this.wires.clear();
     this.key = null;
     this.cableIds = s.cables.map((c) => c.id).join(',');
+    this.videoKey = videoKey(s);
     this.buildCables(s, geo);
     this.setKey(s.plugged?.id ?? null);
   }
 
   /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
   syncCables(s: Snapshot, geo: RoomGeo): void {
-    if (s.cables.map((c) => c.id).join(',') !== this.cableIds) { this.setCables(s, geo); return; }
+    if (s.cables.map((c) => c.id).join(',') !== this.cableIds || videoKey(s) !== this.videoKey) { this.setCables(s, geo); return; }
     for (const c of s.cables) {
       const b = this.built.get(c.id);
       if (b && b.seated !== c.connected) this.setCable(c.id, c.connected);

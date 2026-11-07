@@ -11,7 +11,7 @@ import { Rope, lengthOf, type Plane as RopePlane, type RopeEnd, type Solid, type
 import { Sleeve } from '@/core/render/three/sleeve';
 import type { Snapshot } from '@/worker/protocol';
 import { samplesFor, sleeveMat } from './cables3d';
-import { exitAt, freedom, looseAt, looseState, middle, pivotOf, resample, setPose, spineEnv, spineLength, withinCable, type CableRig, type Pose, type Rest } from './cablerig3d';
+import { exitAt, freedom, looseAt, looseState, middle, pivotOf, resample, setPose, spineEnv, spineLength, withinCable, type CableRig, type Pose, type Rest, type Seat } from './cablerig3d';
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
@@ -139,6 +139,9 @@ interface Live {
   /** A slide's start (its engage's share), and what is left of the spring's way when the slide in began. */
   from: number;
   off: Vector3;
+  /** The socket the plug lines up with now (the rig's own, or one of its `alts`), and its `connectCable` port. */
+  seat: Seat;
+  port: string | undefined;
   spine?: Rope;
   blend?: { a: V3[][]; b: V3[][] };
 }
@@ -192,7 +195,7 @@ export class PlugHand {
     const pivot = pivotOf(rig.seat, model.root, pose);
     this.root.add(pivot, mesh);
     const space = spineEnv(rig);
-    this.live = { rig, exits: model.strands, pivot, sleeve, mesh, ropes, lengths, free: freedom(rig, model.strands, lengths), space, pose, vel: new Vector3(), phase: seated ? 'pull' : 'held', t: 0, from: 0, off: new Vector3() };
+    this.live = { rig, exits: model.strands, pivot, sleeve, mesh, ropes, lengths, free: freedom(rig, model.strands, lengths), space, pose, vel: new Vector3(), phase: seated ? 'pull' : 'held', t: 0, from: 0, off: new Vector3(), seat: rig.seat, port: rig.port };
     this.px = this.sx = cx; this.py = this.sy = cy; this.over = null; this.snapped = false;
     this.hide(true);
     return true;
@@ -205,9 +208,9 @@ export class PlugHand {
     const l = this.live;
     if (!l) return;
     this.px = cx; this.py = cy;
-    if (l.phase === 'pull') { l.phase = 'reseat'; l.t = 0; l.from = V(l.pose.at).sub(V(l.rig.seat.at)).dot(V(l.rig.seat.axis)) / l.rig.engage; return; }
+    if (l.phase === 'pull') { l.phase = 'reseat'; l.t = 0; l.from = V(l.pose.at).sub(V(l.seat.at)).dot(V(l.seat.axis)) / l.rig.engage; return; }
     if (l.phase !== 'held') return;
-    if (!cancelled && this.snapped) { l.phase = 'insert'; l.t = 0; l.off = V(l.pose.at).sub(this.preSeat(l.rig)); return; }
+    if (!cancelled && this.snapped) { l.phase = 'insert'; l.t = 0; l.off = V(l.pose.at).sub(this.preSeat(l)); return; }
     if (!cancelled && !l.rig.canSeat) this.host.toast('No card takes this lead: install a graphics card first.', cx, cy);
     this.fall(l);
   }
@@ -254,7 +257,7 @@ export class PlugHand {
       case 'insert': {
         const dur = insertTime(rig.engage);
         this.slide(l, insertOffset(l.t, dur), Math.max(0, 1 - l.t / dur));
-        if (l.t >= dur + CLICK_S) { connectCable(rig.id); l.phase = 'wait'; l.t = 0; }
+        if (l.t >= dur + CLICK_S) { connectCable(rig.id, l.port); l.phase = 'wait'; l.t = 0; }
         break;
       }
       case 'wait': {
@@ -300,21 +303,28 @@ export class PlugHand {
   }
 
   /** The point in front of the socket where a plug lines up before it slides in. */
-  private preSeat(rig: CableRig): Vector3 { return V(rig.seat.at).addScaledVector(V(rig.seat.axis), rig.engage); }
+  private preSeat(l: Live, seat: Seat = l.seat): Vector3 { return V(seat.at).addScaledVector(V(seat.axis), l.rig.engage); }
 
   /**
    * Held: the plug on its spring toward the pointer, riding over what is under it (a part, the board, the desk), so it never sinks behind the
    * parts it passes or into the tray however slanted the view. Off the walls it goes on at its height over the deck.
    */
   private hold(l: Live, dt: number, cam: PerspectiveCamera) {
-    const rig = l.rig, pre = this.preSeat(rig), r = this.canvas.getBoundingClientRect(), up = V(rig.deck.n);
+    const rig = l.rig, r = this.canvas.getBoundingClientRect(), up = V(rig.deck.n);
     this.ray.setFromCamera(new Vector2(((this.px - r.left) / r.width) * 2 - 1, -((this.py - r.top) / r.height) * 2 + 1), cam);
     const on = hover(T(this.ray.ray.origin), T(this.ray.ray.direction), l.space, CLEAR, rig.deck.n);
     const goal = on ? V(on) : this.ray.ray.intersectPlane(this.plane.setFromNormalAndCoplanarPoint(up, V(l.pose.at)), new Vector3()) ?? V(l.pose.at);
     // how near the pointer is to the socket, on screen
     // (the point in front of the mouth, or the mouth itself: a pointer on the socket you see is near it, whichever way the socket faces)
     const far = (q: Vector3) => { const s = q.clone().project(cam); return s.z < 1 ? Math.hypot(this.px - (r.left + ((s.x + 1) / 2) * r.width), this.py - (r.top + ((1 - s.y) / 2) * r.height)) : Infinity; };
-    const near = Math.min(far(pre), far(V(rig.seat.at)));
+    // (of the rig's sockets, the one nearest the pointer takes the plug; it keeps its choice while it is snapped)
+    const dist = (s: Seat) => Math.min(far(this.preSeat(l, s)), far(V(s.at)));
+    if (!this.snapped && rig.alts?.length) {
+      const all: { seat: Seat; port: string | undefined }[] = [{ seat: rig.seat, port: rig.port }, ...rig.alts.map((a) => ({ seat: { at: a.at, axis: rig.seat.axis }, port: a.port }))];
+      const best = all.reduce((a, b) => (dist(b.seat) < dist(a.seat) ? b : a));
+      l.seat = best.seat; l.port = best.port;
+    }
+    const pre = this.preSeat(l), near = dist(l.seat);
     this.snapped = rig.canSeat && (near <= SNAP_PX || (!!rig.target && this.over === rig.target));
     const w = this.snapped ? 1 : rig.canSeat ? snapWeight(near) : 0;
     // its turn: hanging along its cable (which leaves it along the deck toward its grommet, not down through the board), squared to the socket
@@ -335,7 +345,7 @@ export class PlugHand {
 
   /** On the socket's axis, `out` of its engage from the mouth, square to it; `left` of the spring's way at the slide's start still to close. */
   private slide(l: Live, out: number, left: number) {
-    const at = V(l.rig.seat.at).addScaledVector(V(l.rig.seat.axis), l.rig.engage * out).addScaledVector(l.off, left);
+    const at = V(l.seat.at).addScaledVector(V(l.seat.axis), l.rig.engage * out).addScaledVector(l.off, left);
     l.pose.at = T(at);
     l.pose.q.slerp(ID, left > 0 ? 0.35 : 1);
     l.vel.set(0, 0, 0);
