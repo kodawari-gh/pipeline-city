@@ -134,6 +134,12 @@ describe('AwayWatch', () => {
 });
 
 describe('SlowWatch', () => {
+  it('ignores a few long hitches (shader compiles)', () => {
+    const w = new SlowWatch();
+    w.reset(0);
+    for (let i = 0; i < 5; i++) expect(w.tick(1, 1e4 + i * 2000, 0)).toBe(false);
+  });
+
   it('waits for the settling time, then for 2.5 s of slow frames', () => {
     const w = new SlowWatch();
     w.reset(0);

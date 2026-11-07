@@ -190,7 +190,7 @@ export class AwayWatch {
 
 /** Under this share of the frame limit a frame counts as slow, so a loop held to 30 is not read as a weak GPU. */
 const SLOW_SHARE = 0.8;
-const SLOW_FPS = 30, SLOW_FOR_S = 2.5, SETTLE_MS = 5000;
+const SLOW_FPS = 30, SLOW_FOR_S = 2.5, SETTLE_MS = 5000, HITCH_S = 0.15;
 
 /** Watches the frame times for auto-adjust: frames slower than 30 FPS for 2.5 s, after a settling time (the first bakes are slow on any GPU). */
 export class SlowWatch {
@@ -204,7 +204,8 @@ export class SlowWatch {
   tick(real: number, now: number, fps: number): boolean {
     if (now - this.since < SETTLE_MS) return false;
     const floor = fps ? Math.min(SLOW_FPS, fps * SLOW_SHARE) : SLOW_FPS;
-    this.slow = Math.max(0, this.slow + (real > 1 / floor ? real : -real * 2));
+    // a lone hitch (a shader compile, a bake) counts as at most HITCH_S: only slow frames in a row lower the picture
+    this.slow = Math.max(0, this.slow + (real > 1 / floor ? Math.min(real, HITCH_S) : -real * 2));
     if (this.slow <= SLOW_FOR_S) return false;
     this.slow = 0;
     return true;
