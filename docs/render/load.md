@@ -21,7 +21,7 @@ The screen goes when the probe has settled, or at the latest `REVEAL_MS` after t
 
 ## The boot screen
 
-- A CPU pipeline (FETCH, DECODE, EXECUTE, WRITE) with toy-ISA instructions passing through, two scrolling traces and a boot log of the stages done. All CSS: only transform and opacity move, so it runs while the build holds the main thread. It stops in the driver's link gaps (see below).
+- Four cells; one lights at a time and hops along (0.2 s a step), over a boot log of the stages done. All CSS: only transform and opacity move, so it runs while the build holds the main thread. It stops in the driver's link gaps (see below).
 - The still: `saveStill` (`boot.ts`) copies the canvas (480 px JPEG) into `localStorage` `pc.bootStill` every 30 s while a game runs. The next boot shows it, blurred, behind the screen. First visit: the shipped `public/boot-still.jpg`; if that is missing, no still.
 
 ## Menu and flight
