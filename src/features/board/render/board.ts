@@ -620,12 +620,14 @@ export async function mountBoard(host: HTMLElement) {
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
-    // (a radiator on a side replaces the fans of every mount on it: it brings its own, one per mount)
+    // (only on a mount with a fan part; a radiator on a side covers every mount on it and shows the fans on them)
+    const taken = new Set((s?.devices ?? []).map((d) => d.slot));
+    const onHost = (slot: string) => [...taken].some((x) => x.startsWith(`${slot}.fan`));
     const mounts = fanMounts();
     const radDev = (s?.devices ?? []).find((d) => d.kind === 'radiator');
     const radSpan = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     const radFit: RadiatorFit | null = radSpan ? radiatorFit(radSpan, COOLER.x + COOLER.w / 2) : null;
-    for (const m of mounts) { if (radSpan?.ids.includes(m.id)) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
+    for (const m of mounts) { if (radSpan?.ids.includes(m.id) || !taken.has(m.id)) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
@@ -684,28 +686,31 @@ export async function mountBoard(host: HTMLElement) {
       } else if (spec.kind === 'cooler') {
         const p = coolerArt(T, spec as CoolerSpec, radFit);
         coolerLayer.addChild(p.root); parts.push(p);
-        if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });        coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
+        // (the loop's `fan` is its pump's impeller; a heatsink's is the fan part on it)
+        if (p.fan && spec.visual !== 'cooler-liquid' && !onHost(d.slot)) p.fan.visible = false;
+        else if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
+        coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'radiator') {
         // bolted along the side the player chose; each of its fans runs on its mount's fan cable
         if (radSpan && radFit) {
           const ra = radiatorArt(T, radFit, radiatorGrade(spec.visual), radSpan.ids.length);
           deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
-          ra.fans.forEach((f, k) => { fans.push({ c: f, kind: 'radiator:' + radSpan.ids[k]! }); fanLayer.addChild(f); });
+          ra.fans.forEach((f, k) => { if (taken.has(radSpan.ids[k]!)) { fans.push({ c: f, kind: 'radiator:' + radSpan.ids[k]! }); fanLayer.addChild(f); } });
           deviceHits.push(partHit(d.id, ra.root, radSpan.rect));
           scene.rects.set(d.id, radSpan.rect);
         }
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
+        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push(partHit(d.id, p.root, VRM_SINK));
         scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'ram-sink') {
         const p = vrmSinkArt(T, spec.visual, RAM_SINK);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
+        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push(partHit(d.id, p.root, RAM_SINK));
         scene.rects.set(d.id, RAM_SINK);
