@@ -7,9 +7,9 @@
 // window, trim and lights) hangs in `door`, which machine3d.ts swings open (`doorPose`, casedoor.ts). The working details are in casedetail3d.ts.
 import {
   AddEquation, BoxGeometry, CustomBlending, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Shape, ShapeGeometry, Vector2,
-  type Material,
+  type Material, type Object3D,
 } from 'three';
-import { drum, instanced, place, post, rectBox, rod, softBox } from '@/core/render/three/geometry';
+import { instanced, place, post, rectBox, rod, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { builtinTheme, type Theme } from '@/core/render/theme';
@@ -22,9 +22,10 @@ import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, P
 import { basementPlan } from './basement3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
-  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, slabWithOpening, tiled, wallX, type Span,
+  FRONT, NONE, SIDE_T, badgeTex, brushed, capScrews, clipY, decal, decalTop, decalX, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, screws as screwHeads, shapeOf, slab, slabWithOpening,
+  thumbscrews, tiled, wallX, type Span,
 } from './casekit3d';
-import { controls, drumX, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, type Controls, type Frame } from './casedetail3d';
+import { bayFrame, controls, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, type Controls, type Frame } from './casedetail3d';
 import { doorInner, frameDetail, rivetM, screwM, traySheet, trayDetail } from './casetray3d';
 
 export { outlinePts, SIDE_T } from './casekit3d';
@@ -67,8 +68,8 @@ export interface CaseModel {
   px: number;
   /** The unseen plate over the shut side that a click opens the case by (`case.side`). */
   hit: Mesh;
-  /** The Mini's thumbscrews in the rear edge of its panel (they turn out before it slides). */
-  screws: Mesh[];
+  /** The Mini's thumbscrews in its panel's rear flange (they turn out before it opens). */
+  screws: Object3D[];
   glass: Mesh | null;
   /** The power button (`power`) and the lights on the case: on, error, drive activity. */
   power: Group;
@@ -175,10 +176,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     const v = { x: caseWindow('oem').x + 700, y: r.y + r.h / 2 - 760, w: 1500, h: 1500 };
     side.add(softBox(grow(v, 30), FRONT + 8, FRONT + 18, mat(0xc2b994, { roughness: 0.6 }), 10));
     perforated(side, v, FRONT + 20, 'round', 52, 0xcfc6a3, { metal: 0.05, rough: 0.6 });
-    const screw = mat(0xb9b29a, { metalness: 0.6, roughness: 0.35 });
-    for (const [x, y] of [[r.x + 120, r.y + 110], [r.x + r.w - 120, r.y + 110], [r.x + 120, r.y + r.h - 110], [r.x + r.w - 120, r.y + r.h - 110]] as const) {
-      side.add(drum(x, y, FRONT + 10, FRONT + 34, 46, screw, 18), rectBox({ x: x - 32, y: y - 6, w: 64, h: 12 }, FRONT + 34, FRONT + 37, dark));
-    }
+    const corners = [[r.x + 120, r.y + 110], [r.x + r.w - 120, r.y + 110], [r.x + 120, r.y + r.h - 110], [r.x + r.w - 120, r.y + r.h - 110]] as const;
+    side.add(screwHeads(corners.map(([x, y]) => ({ x, y: -y, z: FRONT + 14 })), 'z+', 62, mat(0xb9b29a, { metalness: 0.6, roughness: 0.35 })));
     side.add(rectBox({ x: ci.x + 40, y: lowY + 40, w: ci.w - 80, h: 14 }, FRONT - 2, FRONT + 1, mat(0x8f8768, { roughness: 0.7 })));
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0xbfb695, { metal: 0.05, rough: 0.6 })));
     const label = { x: right - 700, y: cy - 150, w: 700, h: 300 };
@@ -202,6 +201,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       root.add(wallX(ex + 48, ex + 52, inset(-14), [], gap), wallX(ex + 52, ex + 66, b, [], blank, 3), wallX(ex + 66, ex + 71, inset(34), [inset(64)], blank));
       root.add(rectBox({ x: ex + 62, y: b.y1 - 26, w: 10, h: 16 }, zc - 110, zc + 110, gap));
     }
+    root.add(bayFrame());
     // the maker's badge over the bays
     const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
     root.add(wallX(ex + 50, ex + 58, badge, [], mat(0xc2b994, { roughness: 0.5 }), 2));
@@ -288,7 +288,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
       const ax = bx + dx * cut, bY = by + dy * cut, ox = dx * off, oy = dy * off;
       const q = [[ax, by], [bx, bY], [bx + ox, bY + oy * 0.6], [ax + ox * 0.6, by + oy]].map(([x, y]) => new Vector2(x!, -y!));
       side.add(slab(shapeOf(q), FRONT - 2, FRONT + 24, plateM, 6));
-      side.add(drum((ax + bx) / 2 + ox * 0.55, (by + bY) / 2 + oy * 0.55, FRONT + 24, FRONT + 34, 24, silver, 14));
+      side.add(capScrews([{ x: (ax + bx) / 2 + ox * 0.55, y: -((by + bY) / 2 + oy * 0.55), z: FRONT + 24 }], 'z+', 34, silver));
     }
     const fanLit = glowMat(acc, 0x1a1016);
     for (const f of TOP_FANS) {
@@ -322,16 +322,24 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     for (const x of [x0 - 30, x1 + 30]) root.add(rectBox({ x: x - 30, y: C.y - 10, w: 60, h: 14 }, z0, ze, frame));
   }
 
-  // the Mini's two thumbscrews hold the rear edge of its panel
-  const screws: Mesh[] = [];
+  // the Mini's two thumbscrews hold its panel's rear flange, folded round onto the rear wall (each a group at the screw's axis: machine3d.ts
+  // turns them out before the panel opens)
+  const screws: Object3D[] = [], flange = { x: C.x - 12, y: C.y + 160, w: 12, h: bottom - C.y - 320 }, FL = 260;
   if (kind === 'oem') {
     const knurl = mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 });
-    for (const y of [C.y + 700, bottom - 700]) { const s = drumX(C.x - 24, -y, FRONT - SIDE_T / 2, 44, 48, knurl, 20); screws.push(s); side.add(s); }
+    side.add(rectBox(flange, FRONT - FL, FRONT, sheetM));
+    for (const y of [C.y + 700, bottom - 700]) {
+      const s = thumbscrews([{ x: 12, y: 0, z: 0 }], 'x-', 100, 96, knurl);
+      s.position.set(C.x - 24, -y, FRONT - FL / 2);
+      screws.push(s);
+      side.add(s);
+    }
   }
-  // the back panel's two thumbscrews in its rear edge, on every case (black on the dark ones)
+  // the back panel's flange and its two thumbscrews, on every case (black on the dark ones)
   const backKnurl = kind === 'oem' ? mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 }) : mat(0x1b1c21, { metalness: 0.55, roughness: 0.4 });
-  for (const y of [C.y + 700, bottom - 700]) root.add(drumX(C.x - 24, -y, CASE_Z + 46, 44, 48, backKnurl, 20));
-  for (const o of side.children) seeThrough(o);
+  root.add(rectBox(flange, CASE_Z, CASE_Z + FL, body));
+  root.add(thumbscrews([C.y + 700, bottom - 700].map((y) => ({ x: C.x - 12, y: -y, z: CASE_Z + FL / 2 })), 'x-', 100, 96, backKnurl));
+  side.traverse(seeThrough);
   // a click on the shut side opens the case: an unseen plate over it (machine3d.ts lets rays at it only while the panel is shut)
   const hit = tag(rectBox(kind === 'oem' ? { ...C, w: C.w - OEM_BEZEL } : C, FRONT, FRONT + 4, mat(0, { transparent: true, opacity: 0, depthWrite: false })), 'case.side');
   hit.castShadow = hit.receiveShadow = false;

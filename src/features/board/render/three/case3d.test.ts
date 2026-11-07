@@ -20,7 +20,7 @@ describe('the 3D cases', () => {
       expect(b.min.z, kind).toBeGreaterThanOrEqual(CASE_Z - 1);
       m.door.updateMatrixWorld(true);
       const s = new Box3().setFromObject(m.door);
-      expect(s.min.z, kind).toBeGreaterThanOrEqual(FRONT - SIDE_T - 60);
+      expect(s.min.z, kind).toBeGreaterThanOrEqual(FRONT - (kind === 'oem' ? 260 : SIDE_T + 60)); // (the Mini's panel folds round onto the rear wall)
       expect(s.max.z, kind).toBeLessThan(FRONT + 80);
     }
   });

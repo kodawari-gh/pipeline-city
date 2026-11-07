@@ -4,18 +4,18 @@
 // the top controls (the power button and the status lights of each kind, the front ports). The inside of the case is casetray3d.ts. Airflow reads
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { FAN_SCREW, fanFlange, place, post, rectBox, softBox } from '@/core/render/three/geometry';
+import { FAN_SCREW, fanFlange, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
-import { BOARD_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { fanMounts, frontFanRects } from '@/features/room/render/desk/props/case';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
-import { BR, CASE, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
+import { BR, CASE, CASE_IN, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
 import { HINGE_Z, slotBlank, STAND } from './card3d';
-import { brushed, decalX, FRONT, perfMat, tex, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
+import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
 
@@ -57,9 +57,17 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   holes.push({ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20 }, psuOpening(u));
   const fan = rearFanHole();
   holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
-  // (the mount's four screw holes)
-  if (REAR_FAN_FITTED) for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) holes.push(wallCircle(fan.cy + dy * fan.d * FAN_SCREW, REAR_ZC + dz * fan.d * FAN_SCREW, 18));
+  // (the mount's four screw holes: slots, so the fan can sit a little higher or lower)
+  if (REAR_FAN_FITTED) for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) {
+    const y = fan.cy + dy * fan.d * FAN_SCREW, z = REAR_ZC + dz * fan.d * FAN_SCREW;
+    holes.push({ y0: y - 90, y1: y + 90, z0: z - 26, z1: z + 26, r: 26 });
+  }
+  // a vented column beside the slot row, past the retention bar
+  const vz0 = SLOT_Z[1] + 260, vz1 = Math.min(vz0 + 900, f.z1 - 220);
+  if (slots && vz1 - vz0 > 300) for (let i = 0; i < slots; i++) for (let z = vz0; z + 50 <= vz1; z += 110) holes.push({ y0: slotY(i) + 40, y1: slotY(i) + 430, z0: z, z1: z + 50, r: 25 });
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
+  // the I/O opening's lip, folded in off the wall's inner face
+  g.add(wallX(x1, x1 + 60, { y0: p.y0 + 10, y1: p.y1 - 10, z0: p.z0 + 10, z1: p.z1 - 10, r: 8 }, [{ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20, r: 4 }], f.body, 2));
   // the slots the board lacks: blank covers behind their openings (the board's own empty slots get theirs in machine3d.ts)
   for (let i = boardSlots; i < slots; i++) g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
   // the retention bar over the far ends of the openings, where the brackets' folds are (away from the board, as a card's top edge is), a
@@ -67,8 +75,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   if (slots) {
     const ya = slotY(0) - 90, yb = slotY(slots - 1) + 560, za = SLOT_Z[1] - 24, zb = SLOT_Z[1] + 110;
     g.add(boxW(x0 - 14, x0, -yb, -ya, za, zb, f.body));
-    const knurl = steel();
-    for (let i = 0; i < slots; i++) g.add(drumX(x0 - 30, -(slotY(i) + 30), (za + zb) / 2, 30, 34, knurl, 18));
+    g.add(thumbscrews(Array.from({ length: slots }, (_, i) => ({ x: x0 - 14, y: -(slotY(i) + 30), z: (za + zb) / 2 })), 'x-', 56, 64, steel()));
   }
   // over the round opening: a honeycomb grille where the case has a mount (its four screw holes go with it), the Mini's punched grille where it has none
   const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
@@ -80,8 +87,30 @@ export function rearWall(f: Frame, boardSlots: number): Group {
 
 /** The rear fan's four screws, seen in the rear wall's holes: they come and go with the fan. */
 export function rearFanScrews(): Group {
-  const g = new Group(), { d, cy } = rearFanHole(), sc = steel(), o = d * FAN_SCREW;
-  for (const [dy, dz] of [[-o, -o], [-o, o], [o, -o], [o, o]] as const) g.add(drumX(CASE.x - 6, -(cy + dy), REAR_ZC + dz, 22, 12, sc, 12));
+  const { d, cy } = rearFanHole(), o = d * FAN_SCREW;
+  return screws(([[-o, -o], [-o, o], [o, -o], [o, o]] as const).map(([dy, dz]) => ({ x: CASE.x, y: -(cy + dy), z: REAR_ZC + dz })), 'x-', 58, steel());
+}
+
+/**
+ * The Mini's 5.25-inch bays behind its two covers: a zinc frame (two side plates with their screw slots, a top and a bottom plate, the rails between
+ * the bays) and a tool-less latch per bay on the glass side.
+ */
+export function bayFrame(): Group {
+  const g = new Group(), m = mat(0xa9aca4, { metalness: 0.7, roughness: 0.4 }), zc = CASE_Z + CASE_D / 2, x0 = CASE_IN.x + CASE_IN.w - 1830, x1 = CASE_IN.x + CASE_IN.w;
+  const ya = CASE.y + 480, yb = CASE.y + 1440, za = zc - 760, zb = zc + 760, t = 14, side: RectLike = { x: x0, y: ya, w: x1 - x0, h: yb - ya };
+  const holes = [0, 1].flatMap((k) => [200, 560, 920].map((dx) => outlinePts({ x: x0 + dx, y: CASE.y + 708 + k * 470, w: 160, h: 44 }, 22)));
+  holes.push(outlinePts({ x: x0 + 1240, y: ya + 160, w: 420, h: yb - ya - 320 }, 60));
+  for (const [z0, z1] of [[za, za + t], [zb - t, zb]] as const) g.add(slab(shapeOf(outlinePts(side, 8), holes), z0, z1, m, 2));
+  for (const [y, k] of [[ya, 0], [yb - t, 1]] as const) g.add(plateY(x0, x1, za + t, zb - t, y, t, [flatSlot(x0 + 300 + k * 200, zc - 40, 900, 80)], m, 2));
+  // the rails between the bays, and their stamped tabs
+  for (const z of [za + t, zb - t - 26]) g.add(rectBox({ x: x0 + 80, y: CASE.y + 952, w: x1 - x0 - 160, h: 26 }, z, z + 26, m));
+  // a plastic latch on the glass side over each bay: a slide over the first two slots with a grip at its end (the third slot takes a screw)
+  const latch = mat(0x2c2e33, { roughness: 0.55 });
+  for (let k = 0; k < 2; k++) {
+    const y = CASE.y + 640 + k * 470;
+    g.add(softBox({ x: x0 + 170, y, w: 700, h: 180 }, zb, zb + 34, latch, 10));
+    for (let j = 0; j < 4; j++) g.add(rectBox({ x: x0 + 700 + j * 40, y: y + 30, w: 14, h: 120 }, zb + 34, zb + 44, latch));
+  }
   return g;
 }
 
