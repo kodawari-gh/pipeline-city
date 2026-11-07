@@ -306,7 +306,7 @@ function rugTex(): Texture | null {
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
-export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** A router stands on its spot. */ router: boolean; t: number }
+export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; t: number }
 
 export class Room3D {
   readonly root = new Group();
@@ -337,6 +337,8 @@ export class Room3D {
   private monitor: Monitor;
   private monitorSpot!: Mesh;
   private routerBody!: Group;
+  private routerTier = 0;
+  private routerBuild!: (tier: number) => void;
   private routerSpot!: Mesh;
   private clock: DigitalClock;
   private cup: Cup;
@@ -566,21 +568,31 @@ export class Room3D {
     const router = tag(new Group(), 'router');
     // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
     router.userData.ao = 560;
-    router.add(softBox(ROUTER_SPOT, 300, 1400, mat(STEEL, { roughness: 0.4 }), 80));
-    router.add(softBox({ x: ROUTER_SPOT.x, y: ROUTER_SPOT.y, w: ROUTER_SPOT.w, h: 120 }, 300, 1400, mat(0x2a2c30, { roughness: 0.4 }), 40));
-    // its front: a darker strip with the status lights, vents over its top, two antennas on hinges at the back
-    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6;
-    router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, 1395, 1410, mat(0x0d0e10, { roughness: 0.5 }), 30));
-    const led = mat(0x111111, { emissive: new Color(NEON), emissiveIntensity: 1.8 });
-    for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, 1405, 1425, 36, led, 8));
-    for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
-    const aerial = mat(0x2a2d31, { roughness: 0.45 });
-    for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
-      const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
-      const knuckle = new Mesh(new SphereGeometry(130, 12, 8), aerial);
-      knuckle.position.set(...base);
-      router.add(place(knuckle), rod(base, tip, 95, aerial, 10));
-    }
+    // its tier's look (`net.router.visual`, as the 2D drawings): the home router with its two aerials and four lights; the gigabit one, broader,
+    // with a row of ports and a bright status; the 10G switch-router: no aerials, a port row and a lit strip; the core router: a deep rack unit
+    // with two rows of lights and a blue strip
+    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d31, { roughness: 0.45 });
+    const build = (tier: number) => {
+      for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
+      const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x111111, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
+      router.add(softBox(ROUTER_SPOT, 300, tier >= 4 ? 1500 : 1400, mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), 80));
+      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, 1400, mat(0x2a2c30, { roughness: 0.4 }), 40));
+      // its front: a darker strip with the status lights, vents over its top
+      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, 1395, 1410, mat(0x0d0e10, { roughness: 0.5 }), 30));
+      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, 1405, 1425, 36, led, 8));
+      for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
+      if (tier >= 2) for (let k = 0; k < 4; k++) router.add(rectBox({ x: rs.x + 1700 + k * 130, y: ledY - 50, w: 90, h: 100 }, 1395, 1415, mat(0x050607, { roughness: 0.7 })));
+      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, 1405, 1425, 24, led, 8));
+      if (tier >= 3) return; // a switch-router has no aerials
+      for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
+        const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
+        const knuckle = new Mesh(new SphereGeometry(tier >= 2 ? 160 : 130, 12, 8), aerial);
+        knuckle.position.set(...base);
+        router.add(place(knuckle), rod(base, tip, tier >= 2 ? 120 : 95, aerial, 10));
+      }
+    };
+    this.routerBuild = (tier) => { if (tier !== this.routerTier) { this.routerTier = tier; build(tier); } };
+    this.routerBuild(1);
     R.add(router);
     // the router's empty place: an unseen box a router dragged from the inventory lands on (`router`), there while no router stands
     this.routerBody = router;
@@ -891,8 +903,9 @@ export class Room3D {
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.monitorSpot.visible = !f.screen.installed;
-    this.routerBody.visible = f.router;
-    this.routerSpot.visible = !f.router;
+    this.routerBody.visible = f.router > 0;
+    this.routerSpot.visible = f.router === 0;
+    if (f.router > 0) this.routerBuild(f.router);
     this.clock.set(f.hour);
     steam(this.cup, f.t);
   }
