@@ -4,10 +4,8 @@ import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from './PartArt';
 import { Compare } from './PickerCard';
 import { compareRows, kindOf } from './picker';
-import { currentSpecFor, kindIcon, kindLabel, tierOfSpec } from './shopdata';
+import { currentSpecFor, hasModel, kindIcon, kindLabel, tierOfSpec } from './shopdata';
 
-/** The kinds with no 3D model to show (the showcase says so for the rest that lack one). */
-const NO_MODEL = new Set(['board', 'os', 'router', 'isp']);
 const shortName = (name: string) => name.split(' (')[0]!;
 
 /**
@@ -31,7 +29,7 @@ export function StatCard({ s, specId, fit, onPreview }: { s: Snapshot; specId: s
           </span>
         </div>
       </header>
-      {onPreview && kind && !NO_MODEL.has(kind) && (
+      {onPreview && hasModel(kind) && (
         <button class="sc-3d" title="Look at it in 3D: turn and zoom" onClick={onPreview}><Icon name="box" size={12} /> 3D view</button>
       )}
       {fit && (

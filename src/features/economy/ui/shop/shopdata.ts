@@ -22,6 +22,9 @@ export const kindLabel = (k: string): string => (k === 'os' ? 'Software' : KIND_
 /** The icon of a category, with a plain box for anything unknown. */
 export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'box';
 
+/** Has this kind a 3D model in the showcase? (Boards, software, routers and plans are not parts you can turn in your hand.) */
+export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'router', 'isp'].includes(k);
+
 export interface ShopSection { kind: ShopKind; label: string; icon: IconName; items: LadderStep[] }
 
 /** Every item the game sells, by category, with its state for this player (buy, poor, blocked, level lock, later, owned, outgrown). */
