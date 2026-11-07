@@ -213,7 +213,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
             {kinds.map((k) => (
               <button key={k} class={`ic ${kind === k ? 'on' : ''}`} aria-pressed={kind === k} aria-label={kindLabel(k)} title={kindLabel(k)}
                 onClick={() => { inventoryKind.value = kind === k ? null : k; }}>
-                <Icon name={kindIcon(k)} size={14} />
+                <Icon name={kindIcon(k)} size={12} /> <span>{kindLabel(k)}</span>
               </button>
             ))}
           </span>

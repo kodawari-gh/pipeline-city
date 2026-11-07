@@ -812,7 +812,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .ng-q { margin-right: 0.3rem; }
 
 /* Category icons: icon-only chips, the group name with its icon. */
-.inv-chips button.ic { padding: 0.15rem 0.45rem; line-height: 0; }
+.inv-chips button.ic { padding: 0.15rem 0.5rem; line-height: 1.2; display: inline-flex; align-items: center; gap: 0.25rem; }
+.inv-chips button.ic span { font-size: var(--fs-label, 0.7rem); }
 .inv-chips button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 
 /* The shelf's stat card: opens to the left of the shelf on a tile's selection, or after a tiny hover delay. */
