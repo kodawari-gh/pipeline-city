@@ -1,4 +1,4 @@
-import type { TierGeo } from '../layout/boardlayout';
+import { passiveRect, type TierGeo } from '../layout/boardlayout';
 import type { Rect } from '../layout/layout';
 import { pointAt, type Lane, type Pt } from './routes';
 
@@ -12,7 +12,7 @@ const EDGE = 130;
 
 /** The rects a stitching via keeps off. */
 function solids(g: TierGeo): Rect[] {
-  const rs: Rect[] = [g.chip, g.hub, g.bat, g.codec, g.vrm, g.dvrm, g.atx, g.cpw, g.io, g.dpwm, g.bios, g.sio, g.xtalCpu, g.xtalPch, ...g.m2, ...g.sata];
+  const rs: Rect[] = [g.chip, g.hub, g.bat, g.codec, g.vrm, g.dvrm, g.atx, g.cpw, g.io, g.dpwm, g.bios, g.sio, g.xtalCpu, g.xtalPch, ...g.m2, ...g.sata, ...g.passives.map(passiveRect)];
   for (const r of [g.phy, g.hex, g.qr, g.dbg, g.rgb]) if (r) rs.push(r);
   // a slot with its landing (the capacitors, the vias above it, the pads under it), a socket with its latches, the CPU with its decoupling
   for (const r of g.pcie) rs.push({ x: r.x - 20, y: r.y - 300, w: r.w + 90, h: r.h + 380 });

@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS, pcieLabel } from '../sim/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
+import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, SOCKET_KEEP, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
@@ -288,8 +288,6 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
       }
     }
     pchLedHousing(g, q); // (the activity LED lights in live.ts)
-    // decoupling under the chipset (the DMI lanes are above it, the SATA lanes east of it)
-    if (!geo.dbg) smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85); // (the top board's debug display hangs there)
     if (tier >= 1) {
       const pl = pchPlateau(q, tier);
       labels.addChild(label('PCH', pl.x + pl.w / 2, pl.y + pl.h / 2 - (tier >= 2 ? 16 : 0), tier >= 2 ? 84 : 70, tier >= 2 ? '#e8ebf0' : P.silk, { head: true, anchor: [0.5, 0.5], a: tier >= 2 ? 0.55 : 0.4 }));
@@ -355,18 +353,16 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
       for (let y = k.y + 70; y <= k.y + k.h - 70; y += PKG_PIN) { g.rect(k.x + o - 5, y - 5, 10, 10); g.rect(k.x + k.w - o - 5, y - 5, 10, 10); }
     }
     g.fill({ color: T.pin, alpha: 0.4 });
-    // silkscreen corner brackets round the socket's keep-out, as a real board prints it
-    const kx0 = k.x - e - 74, ky0 = k.y - e - 74, kx1 = k.x + k.w + e + 74, ky1 = k.y + k.h + e + 74, bl = 130;
+    // silkscreen corner brackets round the socket's keep-out, as a real board prints it (the arms stop short of the crystal under the south-west corner)
+    const kx0 = k.x - e - SOCKET_KEEP, ky0 = k.y - e - SOCKET_KEEP, kx1 = k.x + k.w + e + SOCKET_KEEP, ky1 = k.y + k.h + e + SOCKET_KEEP, bl = 100;
     for (const [bx, by, sx, sy] of [[kx0, ky0, 1, 1], [kx1, ky0, -1, 1], [kx0, ky1, 1, -1], [kx1, ky1, -1, -1]] as const) g.moveTo(bx + sx * bl, by).lineTo(bx, by).lineTo(bx, by + sy * bl);
     g.stroke({ width: 7, color: P.silkHi, alpha: 0.45, join: 'round', cap: 'round' });
     lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 36, 38);
   }
 
-  // ---- the small stuff that makes it a real board: decoupling beside the socket, the BIOS chip, the header corner with its controller ----
+  // ---- the small stuff that makes it a real board: decoupling by the socket and the chipset, the BIOS chip, the header corner with its controller ----
   {
-    const sx = PKG.x - SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
-    smd(c, -1000, qy + 44, 10, 56, 0, 30, 18, 0.85);      // under the package's south edge, west of the crystal and the PCIe lanes
-    smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the USB lanes
+    for (const p of geo.passives) smd(c, p.x, p.y, p.n, p.dx, p.dy, p.w, p.h, 0.85);
     // the BIOS flash west of the chipset (its SPI lanes are the `spi` bus), the I/O controller and every header (the `hdr` bus), the regulators' controllers
     chip(c, geo.bios, { legs: 4, pitch: 26, text: 'BIOS', size: 30, accent: T.mul });
     chip(c, geo.sio, { legs: 4, pitch: 26, text: 'SIO', size: 40, accent: T.mul });

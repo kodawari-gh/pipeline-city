@@ -24,6 +24,13 @@ import { MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './
 export interface Pt { x: number; y: number }
 export interface HeaderGeo { name: string; x: number; y: number; cols: number; rows: number }
 export interface DimmGeo { rect: Rect }
+/** A row of small passives (decoupling capacitors, the art's `smd`): `n` parts from the centre (x, y), `dx` and `dy` apart, each `w` by `h`. */
+export interface Passives { x: number; y: number; n: number; dx: number; dy: number; w: number; h: number }
+/** The rect a row of passives covers. */
+export function passiveRect(p: Passives): Rect {
+  const x1 = p.x + (p.n - 1) * p.dx, y1 = p.y + (p.n - 1) * p.dy;
+  return { x: Math.min(p.x, x1) - p.w / 2, y: Math.min(p.y, y1) - p.h / 2, w: Math.abs(x1 - p.x) + p.w, h: Math.abs(y1 - p.y) + p.h };
+}
 
 export interface TierGeo {
   tier: number;
@@ -76,6 +83,8 @@ export interface TierGeo {
   xtalCpu: Rect; xtalPch: Rect;
   /** The top board's two-digit debug display under the chipset and its RGB strip along the bottom edge. */
   dbg: Rect | null; rgb: Rect | null;
+  /** The decoupling: rows of passives by the CPU socket (outside its printed keep-out and the cooler's plate) and by the chipset. */
+  passives: Passives[];
   /** Mounting holes. */
   holes: [number, number][];
 }
@@ -200,16 +209,25 @@ function build(s: Spec): TierGeo {
   hdrs.push({ name: 'CPU_FAN', x: HUB.x + 90, y: 320, cols: 4, rows: 1 });
   // the heatsink fans' headers: the CPU regulator's, west of its controller (a vertical row, four lanes from the controller's west legs), the memory
   // regulator's, above its controller and under the 12 V run (four lanes from its north legs); the sinks' fan cables come to them
-  hdrs.push({ name: 'VRM_FAN', x: pwm.x - 250, y: pwm.y + 105 - (4 * 52 + 24) / 2, cols: 1, rows: 4 });
+  // (the top board's controller stands further north: its header drops 100, so it and its printed name clear the mounting hole north-west of it)
+  hdrs.push({ name: 'VRM_FAN', x: pwm.x - 250, y: pwm.y + 105 - (4 * 52 + 24) / 2 + (s.tier >= 3 ? 100 : 0), cols: 1, rows: 4 });
   hdrs.push({ name: 'RAM_FAN', x: dpwm.x + 105 - (4 * 52 + 24) / 2, y: dpwm.y - 190, cols: 4, rows: 1 });
   // the mounting holes. The boards share tray positions where their parts allow, as real form factors do: a bigger case holds a smaller board on
   // studs it already has. The memory bank and the big regulators keep some corners apart (a case then has those extra threads: `standoffs`).
+  // (the small board's south hole and the top board's chipset and bottom-edge holes stand where its own BIOS and RGB strip leave room)
   const holes: [number, number][] = ([
-    [[-1600, -1900], [0, -2000], [1950, -2000], [-2450, 1700], [0, 1300], [1950, 1700]],
+    [[-1600, -1900], [0, -2000], [1950, -2000], [-2450, 1700], [0, 1650], [1950, 1700]],
     [[-2450, -2200], [0, -2200], [2250, -2200], [-2450, 1700], [0, 1300], [-2450, 2300], [0, 2350], [2250, 2300]],
     [[-2450, -2200], [-1600, -1900], [0, -2200], [3250, -2350], [0, 1300], [3250, 1500], [-2450, 3400], [100, 3200], [3250, 3410]],
-    [[-2450, -2200], [-1600, -1900], [0, -2200], [4050, -2350], [0, 1300], [3250, 1500], [-2450, 3400], [100, 3200], [4050, 2300], [-2450, 4050], [0, 4050], [4050, 4050]],
+    [[-2450, -2200], [-1600, -1900], [0, -2200], [4050, -2350], [0, 1300], [3250, 1500], [-2450, 3400], [-200, 3125], [4050, 2300], [-2450, 4050], [0, 3925], [4050, 4050]],
   ] as [number, number][][])[s.tier]!;
+  // the decoupling: two blocks by the socket's south-west corner (outside the printed keep-out and the cooler's plate, clear of the USB lanes and the
+  // crystal) and one at the chipset's north-west corner (west of the DMI lanes, clear of its heat sink)
+  const row = (x: number, y: number, n: number, across: boolean): Passives => (across ? { x, y, n, dx: 46, dy: 0, w: 30, h: 18 } : { x, y, n, dx: 0, dy: 46, w: 18, h: 30 });
+  const passives = [
+    row(-830, 200, 6, false), row(-868, 200, 6, false), row(-1010, 724, 5, true), row(-1010, 756, 5, true),
+    row(s.chip.x - 66, s.chip.y - 112, 3, true), row(s.chip.x - 66, s.chip.y - 80, 3, true),
+  ];
   return {
     tier: s.tier, form: s.form, bd,
     io: IO_PLATE,
@@ -229,9 +247,10 @@ function build(s: Spec): TierGeo {
     pcie: pcieRails(s.tier),
     m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
     sata: sataRects.slice(0, s.sata),
-    // the sticker patch: along the bottom edge under the header trunk, or (on the top board, whose header bus runs there) in the free corner by the rear I/O, under the top hole
-    hex: s.tier >= 3 ? R(bd.x + 530, bd.y + 260, 640, 200) : R(bd.x + 400, south - 320, 640, 200),
-    qr: s.tier >= 3 ? R(bd.x + 300, bd.y + 250, 220, 220) : s.tier >= 1 ? R(bd.x + 1060, south - 330, 220, 220) : null,
+    // the sticker patch: along the bottom edge under the header trunk, or (on the top board, whose header bus runs there) in the free corner by the rear I/O, beside the top hole
+    // and above the audio capacitors
+    hex: s.tier >= 3 ? R(bd.x + 530, bd.y + 190, 640, 200) : R(bd.x + 400, south - 320, 640, 200),
+    qr: s.tier >= 3 ? R(bd.x + 300, bd.y + 180, 220, 220) : s.tier >= 1 ? R(bd.x + 1060, south - 330, 220, 220) : null,
     hdrY,
     dpwm, dpwmWest,
     sio, hdrs,
@@ -241,6 +260,7 @@ function build(s: Spec): TierGeo {
     // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
     dbg: s.tier >= 3 ? R(legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
     rgb: s.tier >= 3 ? R(bd.x + 700, south - 82, bd.w - 1400, 44) : null,
+    passives,
     holes,
   };
 }

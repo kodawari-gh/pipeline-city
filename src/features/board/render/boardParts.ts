@@ -161,9 +161,10 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
   powerStage(c, r.x + 14, r.y + 30, 90);
   smd(c, r.x + 128, r.y + 60, 3, 0, 32, 28, 18);
   g.rect(r.x + 40, r.y + 122, 30, 26).fill({ color: P.pour });
-  choke(c, r.x + 14, r.y + 148, 110, 96);
-  cap(c, r.x + 120, r.y + 262, 30);
+  // the output pour from under the choke down to the rail, the capacitor below the choke standing on it
   g.moveTo(r.x + 124, r.y + 196).lineTo(r.x + 124, r.y + r.h - 4).stroke({ width: 22, color: P.pour });
+  choke(c, r.x + 14, r.y + 148, 110, 88);
+  cap(c, r.x + 122, r.y + 266, 28);
 }
 
 /**

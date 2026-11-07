@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../../sim/specs';
-import { TIER_GEO } from './boardlayout';
-import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { TIER_GEO, passiveRect } from './boardlayout';
+import { boardBakeFrame, CASE_BD, CASE_IN, COOLER, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
@@ -53,6 +53,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     if (g.phy) parts.push(['phy', g.phy]);
     if (g.hex) parts.push(['hex', g.hex]);
     if (g.qr) parts.push(['qr', g.qr]);
+    g.passives.forEach((p, i) => parts.push([`passives${i}`, passiveRect(p)]));
     for (const [name, r] of parts) if (name !== 'io') expect(inside(r, g.bd), `${name} inside the board`).toBe(true);
     for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
       expect(overlap(parts[i]![1], parts[j]![1]), `${parts[i]![0]} and ${parts[j]![0]} overlap`).toBe(false);
@@ -61,6 +62,12 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const p of g.vrmPhases) expect(inside(p, g.vrm)).toBe(true);
     for (const p of g.dPhases) expect(inside(p, g.dvrm)).toBe(true);
     expect(inside(g.pwm, g.vrm)).toBe(true);
+  });
+
+  it('keeps the decoupling out of the socket\'s printed keep-out and from under the cooler\'s plate', () => {
+    const g = sockets(), e = SOCKET_E + SOCKET_KEEP, x = Math.min(PKG.x - e, COOLER.x), y = Math.min(PKG.y - e, COOLER.y);
+    const keep = { x, y, w: -2 * x, h: -2 * y }; // (both centred on the socket, the origin)
+    for (const p of g.passives) expect(overlap(passiveRect(p), keep), `passives at ${p.x},${p.y}`).toBe(false);
   });
 
   it('routes every memory bundle without crossing another', () => {
@@ -139,12 +146,17 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('never runs a signal trace across a PCIe slot, a DIMM, the M.2 or another chip it does not end on', () => {
     const g = sockets();
     const shrink = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d });
-    const hits = (l: Lane, r: Rect) => {
-      for (const part of visibleParts(l)) for (let i = 1; i < part.length; i++) { // (where a lane dives it is on an inner layer)
-        const a = part[i - 1]!, b = part[i]!;
-        const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
-        if (x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h) return true;
+    // does the segment a-b pass through the inside of r (clipped to it, Liang-Barsky: a 45 degree run beside a part does not count)
+    const through = (a: [number, number], b: [number, number], r: Rect) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      let t0 = 0, t1 = 1;
+      for (const [p, q] of [[-dx, a[0] - r.x], [dx, r.x + r.w - a[0]], [-dy, a[1] - r.y], [dy, r.y + r.h - a[1]]] as const) {
+        if (p === 0) { if (q <= 0) return false; } else if (p < 0) t0 = Math.max(t0, q / p); else t1 = Math.min(t1, q / p);
       }
+      return t0 < t1;
+    };
+    const hits = (l: Lane, r: Rect) => {
+      for (const part of visibleParts(l)) for (let i = 1; i < part.length; i++) if (through(part[i - 1]!, part[i]!, r)) return true; // (where a lane dives it is on an inner layer)
       return false;
     };
     const lanes = buildBuses().filter((b) => !['pwr12', 'pwrcpu', 'vcore', 'vdimm', 'mem', 'pwrpcie'].includes(b.id)).flatMap((b) => b.lanes.map((l) => ({ id: b.id, l })));
@@ -155,6 +167,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.dimm.forEach((d, i) => solid.push([`dimm${i}`, d.rect]));
     g.sata.forEach((r, i) => solid.push([`sata${i}`, r]));
     solid.push(['bios', g.bios]);
+    g.passives.forEach((p, i) => solid.push([`passives${i}`, passiveRect(p)]));
     for (const { id, l } of lanes) for (const [name, r] of solid) {
       // a lane may end on its own footprint (its first or last point is on the rect); anything else through it is a crossing
       const ends = near(l.pts[0]!, r, 16) || near(l.pts[l.pts.length - 1]!, r, 16);
@@ -388,7 +401,10 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
     g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
-    for (const [n, r] of [['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
+    for (const [n, r] of [['phy', g.phy], ['hex', g.hex], ['qr', g.qr], ['dbg', g.dbg], ['rgb', g.rgb]] as const) if (r) parts.push([n, r]);
+    for (const [n, r] of [['bios', g.bios], ['sio', g.sio], ['pwm', g.pwm], ['dpwm', g.dpwm], ['xtalCpu', g.xtalCpu], ['xtalPch', g.xtalPch]] as const) parts.push([n, r]);
+    for (const h of g.hdrs) parts.push([`hdr_${h.name}`, { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 }]);
+    g.passives.forEach((p, i) => parts.push([`passives${i}`, passiveRect(p)]));
     g.holes.forEach(([hx, hy], i) => {
       const p: [number, number] = [hx, hy];
       for (const [name, r] of parts) expect(rectDist(p, r), `hole ${i} vs ${name}`).toBeGreaterThan(R);

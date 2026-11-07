@@ -45,6 +45,8 @@ export const PKG: Rect = { x: -630, y: -530, w: 1260, h: 1060 };
 export const COOLER: Rect = { x: -790, y: -690, w: 1580, h: 1380 };
 /** Socket frame is PKG grown by this much; buses start at its edge. */
 export const SOCKET_E = 46;
+/** The printed keep-out round the socket frame (the art's corner brackets): no part stands in it. */
+export const SOCKET_KEEP = 74;
 
 // The floorplan of the die (blocks, links) is per architecture: cpuplans.ts, drawn by dieart.ts / dieview.ts (docs/DIE.md).
 
