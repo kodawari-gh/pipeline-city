@@ -7,7 +7,7 @@
 // Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
 import {
-  Box3, Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
+  Box3, Color, CylinderGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
   type PerspectiveCamera,
 } from 'three';
 import { Container, Graphics } from 'pixi.js';
@@ -19,7 +19,7 @@ import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme, type Theme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
-import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, extrude, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
@@ -428,7 +428,7 @@ export class Machine3D {
     frame.moveTo(o.x, -o.y).lineTo(o.x + o.w, -o.y).lineTo(o.x + o.w, -(o.y + o.h)).lineTo(o.x, -(o.y + o.h)).closePath();
     hole.moveTo(inner.x, -inner.y).lineTo(inner.x, -(inner.y + inner.h)).lineTo(inner.x + inner.w, -(inner.y + inner.h)).lineTo(inner.x + inner.w, -inner.y).closePath();
     frame.holes.push(hole);
-    const plate = place(new Mesh(new ExtrudeGeometry(frame, { depth: 16, bevelEnabled: true, bevelSize: 4, bevelThickness: 4, bevelSegments: 1 }), steel));
+    const plate = place(new Mesh(extrude(frame, { depth: 16, bevelEnabled: true, bevelSize: 4, bevelThickness: 4, bevelSegments: 1 }), steel));
     plate.position.z = BOARD_Z + 70;
     this.root.add(plate);
     const lx = o.x + o.w + 40, ys = o.y + o.h + 50, zl = BOARD_Z + 46;

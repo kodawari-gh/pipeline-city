@@ -2,9 +2,9 @@
 // z (the side) or along x (the rear and front walls, with their openings), decals on any face, and the painted sheets (perforations, brushed
 // metal, badges). Shapes are drawn in the layout (y down) and come out in the world (y up), z out of the wall.
 import {
-  CanvasTexture, DoubleSide, ExtrudeGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
+  CanvasTexture, DoubleSide, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
 } from 'three';
-import { anisotropy, place, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, extrude, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
@@ -73,7 +73,7 @@ export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
 /** A flat shape extruded from depth z0 to z1, its edges rounded by `bevel` inside its outline. */
 export function slab(shape: Shape, z0: number, z1: number, m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (z1 - z0) / 2.2));
-  const g = new ExtrudeGeometry(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
+  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
   g.translate(0, 0, z0 + b);
   return place(new Mesh(g, m));
 }
@@ -97,7 +97,7 @@ export const wallPt = (y: number, z: number): Vector2 => new Vector2(z, -y);
  */
 export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])[], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = new ExtrudeGeometry(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
+  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
   // the shape's (u, v) is the world's (z, y); its extrusion runs to -x after the turn
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));

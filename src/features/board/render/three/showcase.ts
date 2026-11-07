@@ -1,9 +1,9 @@
 // Parts for the shop's showcase viewer (core/render/three/viewer.ts): a part built alone, stood upright, centred on the origin and resting on y = 0.
 // The builders are the board's own (the part looks as it does in the case). Where a part wears a 2D drawing in the case (a card's face, a drive's
 // label), the showcase leaves it plain: the drawing is baked by the board's Pixi pass. A kind with no 3D model yet gives null.
-import { Box3, ExtrudeGeometry, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D } from 'three';
+import { Box3, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D } from 'three';
 import { readTheme, type Theme } from '@/core/render/theme';
-import { place, rectBox, softBox } from '@/core/render/three/geometry';
+import { extrude, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { getSpec, type CardSpec, type NicSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -76,7 +76,7 @@ function cpuModel(): Group {
   shape.moveTo(o.x, -o.y).lineTo(o.x + o.w, -o.y).lineTo(o.x + o.w, -(o.y + o.h)).lineTo(o.x, -(o.y + o.h)).closePath();
   cut.moveTo(hole.x, -hole.y).lineTo(hole.x, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -(hole.y + hole.h)).lineTo(hole.x + hole.w, -hole.y).closePath();
   shape.holes.push(cut);
-  const lid = place(new Mesh(new ExtrudeGeometry(shape, { depth: 70, bevelEnabled: true, bevelSize: 10, bevelThickness: 10, bevelSegments: 2 }), mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 })));
+  const lid = place(new Mesh(extrude(shape, { depth: 70, bevelEnabled: true, bevelSize: 10, bevelThickness: 10, bevelSegments: 2 }), mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 })));
   lid.position.z = z0;
   g.add(lid);
   return g;

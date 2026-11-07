@@ -1,7 +1,7 @@
 // Mesh builders of the 3D scene. The layout is 2D with y down (`layout.ts`): a rect of it plus a depth range is a box in the world, x east, y up, z out of the wall.
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, Object3D, Path, PlaneGeometry,
-  RepeatWrapping, SRGBColorSpace, Shape, SphereGeometry, TubeGeometry, Vector3, type Material, type Texture,
+  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -207,7 +207,21 @@ export function fanFrame(d: number, depth: number): BufferGeometry {
     p.absarc(x * d * 0.43, y * d * 0.43, d * 0.03, 0, Math.PI * 2, true);
     s.holes.push(p);
   }
-  return new ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelSize: d * 0.01, bevelThickness: d * 0.01, bevelSegments: 1, curveSegments: 40 }).translate(0, 0, -depth / 2);
+  return extrude(s, { depth, bevelEnabled: true, bevelSize: d * 0.01, bevelThickness: d * 0.01, bevelSegments: 1, curveSegments: 40 }).translate(0, 0, -depth / 2);
+}
+
+/**
+ * A shape extruded, its holes wound against its outline first. ExtrudeGeometry turns a hole only when it turns the outline: a hole that winds
+ * the same way as a clockwise outline gets walls that face into the material, so they are culled and the background shows through the
+ * opening's sides. Every extrusion with holes goes through here.
+ */
+export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeometry {
+  const seg = o.curveSegments ?? 12, cw = ShapeUtils.isClockWise(s.getPoints(seg));
+  s.holes = s.holes.map((h) => {
+    const p = h.getPoints(seg);
+    return ShapeUtils.isClockWise(p) === cw ? new Path(p.reverse()) : h;
+  });
+  return new ExtrudeGeometry(s, o);
 }
 
 /** A texture painted on a canvas, or null where no canvas exists (the tests run without a DOM). */

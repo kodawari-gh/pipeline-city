@@ -4,10 +4,10 @@
 // The 2D draws the card lying flat over the board, face up. So the card is built in that pose (the 2D rect and its art, the cooler under the
 // PCB, the backplate over it) and stood up by a hinge along the slot. Up close (`pose`, the card's 2D band) the cooler, the backplate and the
 // bracket fade, then the card swings down flat and shows its exact 2D face; it stands up again on the way out.
-import { BoxGeometry, CylinderGeometry, ExtrudeGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
 import { CARD_LEN, cardPlugs, cardRect, PLUG_BLOCK } from '@/core/render/accelart';
 import { fadeTree } from '@/core/render/three/artlod';
-import { instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
@@ -165,7 +165,7 @@ function gpu(g: Group, spins: Spin[], visual: string, f: ReturnType<typeof frame
   const s = new Shape();
   s.moveTo(xa, -yb).lineTo(xb, -yb).lineTo(xb, -ya).lineTo(xa, -ya).closePath();
   for (let k = 0; k < n; k++) { const h = new Path(); h.absarc(xa + seg * (k + 0.5), -cy, r * 1.04, 0, Math.PI * 2, true); s.holes.push(h); }
-  const plate = place(new Mesh(new ExtrudeGeometry(s, { depth: 28, bevelEnabled: true, bevelSize: 6, bevelThickness: 6, bevelSegments: 2, curveSegments: 48 }), frameM));
+  const plate = place(new Mesh(extrude(s, { depth: 28, bevelEnabled: true, bevelSize: 6, bevelThickness: 6, bevelSegments: 2, curveSegments: 48 }), frameM));
   plate.position.z = zB;
   g.add(plate);
   for (let k = 0; k < n; k++) {
@@ -214,7 +214,7 @@ function npu(g: Group, spins: Spin[], f: ReturnType<typeof frame>, ct: number, b
   const hole = new Path();
   hole.absarc(fx, -cy, r * 1.04, 0, Math.PI * 2, true);
   s.holes.push(hole);
-  const plate = place(new Mesh(new ExtrudeGeometry(s, { depth: 24, bevelEnabled: true, bevelSize: 8, bevelThickness: 8, bevelSegments: 2, curveSegments: 40 }), shroud));
+  const plate = place(new Mesh(extrude(s, { depth: 24, bevelEnabled: true, bevelSize: 8, bevelThickness: 8, bevelSegments: 2, curveSegments: 40 }), shroud));
   plate.position.z = zB;
   g.add(plate);
   // the walls round it, and the fin block the blower pushes its air through toward the bracket
