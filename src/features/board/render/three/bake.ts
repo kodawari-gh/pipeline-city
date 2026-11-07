@@ -18,6 +18,9 @@ export function startBaker(): void {
   });
 }
 
+/** The offscreen renderer, once it has started (the live board, `boardlive3d.ts`, builds its Pixi objects on it). */
+export const bakeRenderer = (): Renderer | null => renderer;
+
 /** A Text draws at its own resolution: raise it to the bake's, so the names stay sharp when the texture is dense. */
 function sharpen(node: Container, res: number): void {
   const n = node as unknown as { text?: unknown; resolution?: number };
