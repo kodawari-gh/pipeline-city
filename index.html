@@ -22,17 +22,69 @@
       .boot-bar::after { content: ''; position: absolute; inset: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent); animation: boot-sweep 1.8s ease-in-out infinite; }
       .boot-stage { font-size: 1.6vmin; letter-spacing: .14em; text-transform: uppercase; color: #8fa0cc; }
       @keyframes boot-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-      @media (prefers-reduced-motion: reduce) { #boot, .boot-bar i { transition: none; } .boot-bar::after { display: none; } }
+      /* The still: the last picture of the game (boot.ts `saveStill`), or the shipped one, soft behind everything. */
+      .boot-still { position: absolute; inset: -4%; z-index: -1; width: 108%; height: 108%; object-fit: cover; opacity: 0; filter: blur(1.1vmin) brightness(.5) saturate(1.15); transition: opacity 1.2s ease; pointer-events: none; }
+      .boot-still.on { opacity: 1; }
+      #boot::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse 75% 65% at 50% 55%, rgba(11, 15, 20, .15), rgba(11, 15, 20, .82)); pointer-events: none; }
+      /* The CPU at work: an instruction enters at the left, passes four stages and leaves. Only transform and opacity move, so the
+         compositor keeps it going while the page builds the world. 8 chips, 0.5 s apart: each stage holds one at a time. */
+      .boot-pipe { position: relative; width: 52vmin; height: 7.4vmin; margin-top: 1.6vmin; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+      .boot-pipe b { position: absolute; top: 0; bottom: 0; width: 12vmin; box-sizing: border-box; border: .2vmin solid rgba(139, 160, 255, .28); border-radius: .8vmin; background: rgba(20, 28, 52, .55);
+        display: flex; align-items: flex-end; justify-content: center; padding-bottom: .5vmin; font: 600 1.15vmin/1 system-ui, sans-serif; letter-spacing: .16em; color: #8fa0cc; animation: boot-stage .5s steps(1) infinite; }
+      .boot-pipe b:nth-child(1) { left: 0; } .boot-pipe b:nth-child(2) { left: 13.33vmin; } .boot-pipe b:nth-child(3) { left: 26.66vmin; } .boot-pipe b:nth-child(4) { left: 40vmin; }
+      .boot-pipe b:nth-child(2) { animation-delay: .125s; } .boot-pipe b:nth-child(3) { animation-delay: .25s; } .boot-pipe b:nth-child(4) { animation-delay: .375s; }
+      .boot-pipe i { position: absolute; top: 1.3vmin; left: 0; width: 6vmin; height: 3.6vmin; box-sizing: border-box; border-radius: .6vmin; display: flex; align-items: center; justify-content: center;
+        font-size: 1.5vmin; font-style: normal; font-weight: 600; color: #0b0f14; background: linear-gradient(90deg, #8b5cff, #3be3ff); box-shadow: 0 0 1.6vmin rgba(91, 156, 245, .55);
+        opacity: 0; animation: boot-chip 4s linear infinite; animation-delay: calc(var(--n) * -.5s); will-change: transform, opacity; }
+      @keyframes boot-chip { 0% { transform: translateX(-7vmin); opacity: 0; } 6% { opacity: 1; } 94% { opacity: 1; } 100% { transform: translateX(53vmin); opacity: 0; } }
+      @keyframes boot-stage { 0%, 100% { border-color: rgba(59, 227, 255, .8); box-shadow: 0 0 1.4vmin rgba(59, 227, 255, .25); color: #cfe9ff; } 50% { border-color: rgba(139, 160, 255, .28); box-shadow: none; color: #8fa0cc; } }
+      /* The trace: instructions run by, as the toy ISA writes them (the listing is made by the script below). */
+      .boot-trace { position: absolute; top: 14vh; bottom: 14vh; width: 24vmin; overflow: hidden; font: 1.35vmin/2.2vmin ui-monospace, 'Cascadia Mono', Consolas, monospace; color: #5f78c4; white-space: pre; pointer-events: none;
+        -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+      .boot-trace.l { left: 4vw; } .boot-trace.r { right: 4vw; text-align: right; }
+      .boot-trace div { animation: boot-scroll 14s linear infinite; }
+      .boot-trace.r div { animation-duration: 19s; animation-direction: reverse; }
+      @keyframes boot-scroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+      .boot-log { min-height: 8.6vmin; text-align: left; font: 1.45vmin/2.1vmin ui-monospace, 'Cascadia Mono', Consolas, monospace; color: #7f93c8; white-space: pre; }
+      .boot-log em { color: #3be3ff; font-style: normal; }
+      @media (max-width: 52em) { .boot-trace { display: none; } }
+      @media (prefers-reduced-motion: reduce) { #boot, .boot-bar i, .boot-still { transition: none; } .boot-bar::after { display: none; } .boot-pipe i { animation: none; opacity: 0; } .boot-pipe b, .boot-trace div { animation: none; } }
     </style>
   </head>
   <body>
     <div id="board"></div>
     <div id="hud"></div>
     <div id="boot" role="status" aria-live="polite">
+      <img class="boot-still" alt="" />
       <div class="boot-title">Pipeline City</div>
+      <div class="boot-pipe" aria-hidden="true">
+        <b>FETCH</b><b>DECODE</b><b>EXECUTE</b><b>WRITE</b>
+        <i style="--n:0">lw</i><i style="--n:1">addi</i><i style="--n:2">mul</i><i style="--n:3">add</i><i style="--n:4">sw</i><i style="--n:5">bne</i><i style="--n:6">xor</i><i style="--n:7">sll</i>
+      </div>
       <div class="boot-bar"><i></i></div>
       <div class="boot-stage">Loading</div>
+      <div class="boot-log" aria-hidden="true"></div>
+      <div class="boot-trace l" aria-hidden="true"><div></div></div>
+      <div class="boot-trace r" aria-hidden="true"><div></div></div>
     </div>
+    <script>
+      // Before any module: the still from the last visit (boot.ts `saveStill`) or the shipped one, and the trace's listing (two copies, so the scroll loops).
+      (function () {
+        var b = document.getElementById('boot'), img = b.querySelector('.boot-still'), src = '';
+        try { src = localStorage.getItem('pc.bootStill') || ''; } catch (e) {}
+        img.onload = function () { img.classList.add('on'); };
+        img.onerror = function () { img.remove(); };
+        img.src = src || 'boot-still.jpg';
+        var ops = ['lw   x5, 0(x2)', 'addi x2, x2, 4', 'mul  x6, x5, x5', 'add  x7, x7, x6', 'sw   x7, 8(x3)', 'bne  x2, x4, -20', 'xor  x8, x7, x5', 'sll  x9, x8, 3', 'slt  x1, x9, x7', 'srl  x9, x9, 1', 'sub  x4, x4, x1', 'andi x1, x7, 255'];
+        function listing(seed) {
+          var s = '', n = 0;
+          for (var i = 0; i < 2; i++) for (var k = 0; k < 40; k++) { s += (0x1000 + ((k * 4 + seed) & 0xfff)).toString(16) + '  ' + ops[(k * 7 + seed) % ops.length] + '\n'; n++; }
+          return s;
+        }
+        var t = b.querySelectorAll('.boot-trace div');
+        t[0].textContent = listing(0); t[1].textContent = listing(12);
+      })();
+    </script>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>
 </html>

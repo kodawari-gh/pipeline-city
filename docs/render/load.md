@@ -19,6 +19,11 @@ The bar only grows (`bootStage`). A stage that the page cannot paint before its 
 
 The screen goes when the probe has settled, or at the latest `REVEAL_MS` after the link. The new game dialog waits for `booted`, so it never shows behind the boot screen.
 
+## The boot screen
+
+- A CPU pipeline (FETCH, DECODE, EXECUTE, WRITE) with toy-ISA instructions passing through, two scrolling traces and a boot log of the stages done. All CSS: only transform and opacity move, so it runs while the build holds the main thread. It stops in the driver's link gaps (see below).
+- The still: `saveStill` (`boot.ts`) copies the canvas (480 px JPEG) into `localStorage` `pc.bootStill` every 30 s while a game runs. The next boot shows it, blurred, behind the screen. First visit: the shipped `public/boot-still.jpg`; if that is missing, no still.
+
 ## Menu and flight
 
 - Without a snapshot the camera holds the room's overview and sways slowly (`menuView`, `MENU_SWAY`, `MENU_S`; no sway with `prefers-reduced-motion`).

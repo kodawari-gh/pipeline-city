@@ -27,7 +27,7 @@ import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
-import { bootDone, bootStage } from '@/app/boot';
+import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
@@ -561,7 +561,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
   /** The boot screen has gone (`onShown` ends the mount's wait); when the last programs linked. */
-  let revealed = false, linkedAt = 0, onShown = () => {};
+  let revealed = false, linkedAt = 0, stillAt = 0, onShown = () => {};
+  const STILL_MS = 30000;
   const shown = new Promise<void>((done) => { onShown = done; });
   /** The new picture's programs have linked: it draws from this frame on. */
   const drawn = (now: number) => {
@@ -646,6 +647,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
+    // a still of the game for the next boot screen (the buffer is not kept: it is copied now, in the draw's task)
+    if (revealed && s && now - stillAt > STILL_MS) { stillAt = now; saveStill(canvas); }
     const lum = near > 0 ? post.meter() : null;
     if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
     seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));

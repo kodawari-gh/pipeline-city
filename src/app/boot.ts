@@ -16,6 +16,40 @@ export function bootStage(label: string, at: number): void {
   el.style.setProperty('--boot', share.toFixed(3));
   const t = el.querySelector('.boot-stage');
   if (t && t.textContent !== label) t.textContent = label;
+  logStage(el, label);
+}
+
+const LOG_LINES = 4;
+const done: string[] = [];
+
+/** The stages so far, as a short boot log under the bar: the older ones done, the newest lit. */
+function logStage(el: HTMLElement, label: string): void {
+  const log = el.querySelector('.boot-log');
+  if (!log || done[done.length - 1] === label) return;
+  done.push(label);
+  log.replaceChildren(...done.slice(-LOG_LINES).map((l, i, all) => {
+    const row = document.createElement(i === all.length - 1 ? 'em' : 'span');
+    row.textContent = `${i === all.length - 1 ? '[ .. ]' : '[ ok ]'} ${l.toLowerCase()}`;
+    row.style.display = 'block';
+    return row;
+  }));
+}
+
+const STILL_KEY = 'pc.bootStill';
+
+/** Keeps a small still of the canvas for the next boot screen. Call right after a draw, in the same task: the buffer is not kept. */
+export function saveStill(src: HTMLCanvasElement): void {
+  try {
+    if (!src.width || !src.height) return;
+    const w = 480, c = document.createElement('canvas');
+    c.width = w;
+    c.height = Math.max(1, Math.round((w * src.height) / src.width));
+    const g = c.getContext('2d');
+    if (!g) return;
+    g.drawImage(src, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.62);
+    if (url.length > 20 && url.startsWith('data:image/jpeg')) localStorage.setItem(STILL_KEY, url);
+  } catch { /* no storage, or a tainted canvas: the next boot has no still */ }
 }
 
 /** The board can be seen: the boot screen fades out and goes. */
