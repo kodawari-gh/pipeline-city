@@ -17,8 +17,11 @@ export interface Viewer {
   dispose: () => void;
 }
 
-/** What a node of the part may carry in its userData: work before each render (`H`: the view's height in device pixels), and its own disposal. */
-export interface PartHooks { frame?: (cam: PerspectiveCamera, H: number) => void; dispose?: () => void }
+/**
+ * What a node of the part may carry in its userData: work before each render (`H`: the view's height in device pixels), its own disposal,
+ * and `open`: show the part as from up close (a CPU's die under its lid). A shop tile's still opens it, so each part's tile tells it apart.
+ */
+export interface PartHooks { frame?: (cam: PerspectiveCamera, H: number) => void; dispose?: () => void; open?: () => void }
 
 /** The turn and zoom limits: all the way round, from just under the floor to straight above; in close enough to read a chip's marking. */
 export const VIEW_LIMITS = { pitchMin: -0.1, pitchMax: 1.5, zoomMin: 0.06, zoomMax: 2.5 };
@@ -110,6 +113,7 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   floor.visible = false;
   const hooks: PartHooks[] = [];
   o.traverse((n) => { n.castShadow = true; if (n.userData.frame || n.userData.dispose) hooks.push(n.userData as PartHooks); });
+  for (const k of hooks) k.open?.();
   scene.add(o);
   const b = new Box3().setFromObject(o), size = b.getSize(new Vector3()), centre = b.getCenter(new Vector3());
   place(size, centre);

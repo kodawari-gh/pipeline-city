@@ -59,18 +59,22 @@ export class ArtSet {
   /** On its own (`frame`): run `apply` every frame with the zoom seen at `at` (screen pixels per unit), as the machine's reveals do (a lid fades). */
   reveal(at: Object3D, apply: (zoom: number) => void): void { this.reveals.push({ at, apply }); }
 
+  /** Show the part as from up close from now on, whatever the zoom: its reveals done (a CPU's lid gone, its die's floorplan showing). */
+  private opened = false;
+  readonly open = (): void => { this.opened = true; };
+
   /** Each face asks for the tiles the camera needs (`H`: the view's height in device pixels). */
   update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
     for (const s of this.surfaces) s.update(cam, frustum, H, dpr, now);
   }
 
   /** Hand the set to the viewer on the part's root. */
-  attach(o: Object3D): void { o.userData.frame = this.frame; o.userData.dispose = this.dispose; }
+  attach(o: Object3D): void { o.userData.frame = this.frame; o.userData.dispose = this.dispose; o.userData.open = this.open; }
 
   /** Per frame, on its own: the reveals, then the faces' tiles; the queue bakes a few. */
   readonly frame = (cam: PerspectiveCamera, H: number): void => {
     const now = performance.now();
-    for (const r of this.reveals) r.apply(screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
+    for (const r of this.reveals) r.apply(this.opened ? Infinity : screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
     frustumOf(cam, this.frustum);
     this.update(cam, this.frustum, H, 1, now);
     this.q.run(8);
