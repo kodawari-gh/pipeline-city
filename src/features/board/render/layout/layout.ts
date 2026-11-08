@@ -147,7 +147,7 @@ export const caseForm = (caseTier: number): PsuForm => (caseTier >= 2 ? PSU_FORM
 export const BASE_GROW = [350, 350, 800, 800];
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
-/** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: a 24 inch monitor (9900 units, 530 mm at the room's 18.7 units a mm; its 3D body is `monitor3d.ts`) next to the case. */
+/** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: an 18.5 inch monitor (9900 units, 430 mm at the machine's 23 units a mm, as every PC part; its 3D body is `monitor3d.ts`) next to the case. */
 export const MONITOR_K = 3.0;
 /** The monitor's east edge: the gap between it and the case holds the mug, then the cables' trunks by the case's rear wall. */
 export const MONITOR_EAST = IO_X - 2300;

@@ -4,7 +4,7 @@ import { DESK_Y, MONITOR, MONITOR_POWER, SCREEN, setLayoutTier, VIDEO_SOCKET } f
 import { MONITOR_Z } from './roomplan';
 import { MONITOR_PLUG, monitorBody, monitorPlan, monitorSeats, type MonitorBox } from './monitor3d';
 
-const MM = 18.7;
+const MM = 23;
 const inside = (p: readonly number[], b: MonitorBox) => p[0]! > b.r.x && p[0]! < b.r.x + b.r.w && -p[1]! > b.r.y && -p[1]! < b.r.y + b.r.h && p[2]! > b.z0 && p[2]! < b.z1;
 
 describe('the 3D monitor', () => {
@@ -15,9 +15,9 @@ describe('the 3D monitor', () => {
       expect(p.foot.r.y + p.foot.r.h, `tier ${t}`).toBeCloseTo(DESK_Y);
       expect(p.column.r.y + p.column.r.h, `tier ${t} the column goes into the foot`).toBeGreaterThan(p.foot.r.y);
       expect(p.column.r.y, `tier ${t} the column reaches over the bracket`).toBeLessThan(p.vesa.y - 50 * MM);
-      expect(p.column.z1, `tier ${t} the column behind the boss`).toBeLessThanOrEqual(p.boss.z0 + 40);
+      expect(p.column.z1, `tier ${t} the column behind the boss`).toBeLessThanOrEqual(p.boss.z0 + 2.2 * MM);
       expect(p.column.z0, `tier ${t} the column on the foot`).toBeGreaterThan(p.foot.z0);
-      // a real 24 in. stand: a 200 x 165 mm foot, a 70 mm column
+      // a real stand at the machine's scale: a 200 x 165 mm foot, a 70 mm column
       expect(p.foot.r.w / MM).toBeCloseTo(200, 0);
       expect((p.foot.z1 - p.foot.z0) / MM).toBeCloseTo(165, 0);
       expect(p.column.r.w / MM).toBeCloseTo(70, 0);
