@@ -2,33 +2,35 @@
 // the board's four cooler holes (`COOLER_HOLES`) with a backplate behind the board (`mount`). The stock heatsink is a copper core in a ring of swept
 // vanes under a plastic shroud on four push pins, a 92 mm fan on top blowing down. The tower is a stack of aluminium fins offset north of the socket
 // (clear of the first card), four copper heat pipes rising from its base through every fin, held by a sprung crossbar on two bars; a 120 mm fan on
-// each end clips on by its wire clips, both blowing west. The loop's pump is a cold plate under a square housing and a round brushed body (a ring
-// light round the impeller under a glass dome) on a four-arm bracket; two 12 mm braided hoses arc from the G1/4 fittings in the port block on its
-// north side to the radiator's (`hose`, hung round the parts in their way). The radiator (`radiatorModel`) is the 2D one stood up across the case,
+// each end clips on by its wire clips, both blowing west. The loop's pump is a cold plate under a square base and a round anodised body (a thin
+// light ring under a brushed cap with a diamond-cut edge; the impeller is inside, unseen) on a four-arm bracket; two 12 mm braided hoses arc from
+// the G1/4 fittings in the port block on its north side to the radiator's (`hose`, hung round the parts in their way). The radiator (`radiatorModel`) is the 2D one stood up across the case,
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
-import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, DoubleSide, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
-import { FAN_SCREW, drum, extrude, fanRotor, instanced, paint, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
+import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { COOLER_HOLE, COOLER_HOLES, FAN_LEN, fanLen } from '../layout/layout';
-import { COOLER_FANS, FIN_PITCH, TANK, frameOf, radiatorCore, radiatorFanUs, type RadiatorFit } from '../cooler';
+import { FIN_PITCH, TANK, frameOf, radiatorCore, radiatorFanUs, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
 import { brushed as streaks, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
 import { CPU_Z } from './cpu3d';
-import { fanDepth, fanPart, glowMat, type FanFit, type Spin } from './fans3d';
+import { fanDepth, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
 
-/** The 2D heatsinks' metal ramp (dark theme `metals`), the heat pipes' copper and each look's accent (`coolerArt`). */
+/** The 2D heatsinks' metal ramp (dark theme `metals`), the heat pipes' copper and the tower's accent (`coolerArt`). */
 const METAL = { metal: 0x3b4663, hi: 0x56628a, lo: 0x222a41 }, COPPER = 0xc0793a;
-const ACCENT = { stock: 0x8a97c2, tower: 0x3be3ff, liquid: 0xa68bff, sub: 0x0d1636, die: 0x111b46 } as const;
+const ACCENT = { tower: 0x3be3ff } as const;
 
 export interface Model { root: Group; spins: Spin[]; /** The materials that follow the part's state (`PartSkin`). */ skin: MeshStandardMaterial[] }
 /** The radiator the loop's hoses run to: where it is bolted and how many of the case's fan mounts it spans. */
 export interface RadiatorAt { fit: RadiatorFit; count: number }
 
 const alu = (c: number, rough = 0.34) => mat(c, { metalness: 0.75, roughness: rough });
+/** The radiator's satin aluminium: half as metallic, so it keeps its grey in the case's shade. */
+const radAlu = (c: number, rough: number) => mat(c, { metalness: 0.45, roughness: rough });
 
 // ------------------------------------------------------------------ painted details
 let screwTex: Texture | null = null, brushedTex: Texture | null = null;
@@ -42,16 +44,16 @@ const screwHead = () => screwTex ??= paint(64, 64, (c, w, h) => {
   c.beginPath(); c.moveTo(w * 0.2, h * 0.44); c.lineTo(w * 0.8, h * 0.56); c.stroke();
 });
 
-/** The pump head's top: brushed in rings, lit toward the north-west as in 2D, with the three turned grooves near its rim. */
+/** The pump cap's face: neutral aluminium brushed in rings, lit toward the north-west as in 2D, a turned groove round the polished boss. */
 const brushed = () => brushedTex ??= paint(512, 512, (c, w, h) => {
   const g = c.createRadialGradient(w * 0.38, h * 0.32, 10, w / 2, h / 2, w / 2);
-  g.addColorStop(0, '#7f8bb3'); g.addColorStop(1, '#3a4562');
+  g.addColorStop(0, '#a3a8b1'); g.addColorStop(1, '#4e535c');
   c.fillStyle = g; c.fillRect(0, 0, w, h);
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let r = 4; r < w / 2; r += 1.5) { c.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.08})` : `rgba(0,0,0,${rnd() * 0.12})`; c.lineWidth = 1; c.beginPath(); c.arc(w / 2, h / 2, r, 0, Math.PI * 2); c.stroke(); }
-  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 3;
-  for (const f of [510, 490, 470]) { c.beginPath(); c.arc(w / 2, h / 2, (f / 548) * (w / 2), 0, Math.PI * 2); c.stroke(); }
+  c.lineWidth = 3;
+  for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
 });
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
@@ -286,57 +288,57 @@ export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Sol
   return g;
 }
 
-/** The pump: its round body's radius and the depth of its face; its two ports' x either side of the middle and their depth, on its north side. */
-const PUMP = { R: 780, top: L + 880, portX: 270, portZ: L + 620 };
+/**
+ * The pump head (an all-in-one loop's, about 66 mm round and 48 mm over the lid): its body's radius at the cap and at its foot, the depth of its
+ * cap; its two ports' x either side of the middle and their depth, on its north side.
+ */
+const PUMP = { R: 745, R0: 770, top: L + 1100, portX: 260, portZ: L + 780 };
 /** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
 const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
 
+/** A round band standing along z, open at both ends, from depth `z0` (radius `r0`) to `z1` (radius `r1`): a body's side, a chamfer, a light ring. */
+function band3(r0: number, r1: number, z0: number, z1: number, m: Material): Mesh {
+  const o = place(new Mesh(new CylinderGeometry(r1, r0, z1 - z0, 96, 1, true).rotateX(Math.PI / 2), m));
+  o.position.z = (z0 + z1) / 2;
+  return o;
+}
+
 function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
-  const { R, top } = PUMP, m = steel(), black = plastic();
-  // the copper cold plate on the lid, the square housing over it, and the bracket's four arms out of the housing to the standoffs, a nut on each
+  const { R, R0, top } = PUMP, black = plastic(), bracket = mat(0x1b1e24, { metalness: 0.55, roughness: 0.42 });
+  // the copper cold plate on the lid, the square base over it, and the bracket's four black steel arms out of the base to the standoffs, a
+  // knurled thumb nut on each
   mount(g, { standoff: L + 60, nut: L + 110 });
   g.add(softBox({ x: -500, y: -500, w: 1000, h: 1000 }, L, L + 50, copper(), 12));
   g.add(slab(shapeOf(outlinePts({ x: -820, y: -820, w: 1640, h: 1640 }, 320, undefined, 8)), L + 50, L + 250, black, 20));
   for (const [hx, hy] of COOLER_HOLES) {
-    const len = Math.hypot(hx, hy), k = (600 + len) / 2 / len, arm = place(new Mesh(new BoxGeometry(len - 600, 180, 50), m));
-    arm.position.set(hx * k, -hy * k, L + 85);
+    const len = Math.hypot(hx, hy), k = (600 + len) / 2 / len, arm = place(new Mesh(new BoxGeometry(len - 600, 170, 44), bracket));
+    arm.position.set(hx * k, -hy * k, L + 84);
     arm.rotation.z = Math.atan2(-hy, hx);
-    g.add(arm, drum(hx, hy, L + 60, L + 110, 130, m, 32));
+    g.add(arm, drum(hx, hy, L + 62, L + 108, 120, bracket, 32));
   }
-  // the body: a brushed drum, two turned grooves round its side, the accent ring round its face
-  const side = alu(0x4a5578, 0.3), body = place(new Mesh(new CylinderGeometry(R, R, top - L - 250, 96).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.32 }), side]));
-  body.position.z = (L + 250 + top) / 2;
-  g.add(body);
-  for (const z of [L + 330, L + 370]) { const t = place(new Mesh(new TorusGeometry(R, 6, 6, 96), black)); t.position.z = z; g.add(t); }
-  const edge = place(new Mesh(new TorusGeometry(R, 9, 8, 96), mat(ACCENT.liquid, { roughness: 0.4, metalness: 0.3 })));
-  edge.position.z = top;
-  g.add(edge);
-  // the face: a dark well, the ring light round it, the impeller under a glass dome
-  g.add(drum(0, 0, top - 14, top + 2, 640, mat(ACCENT.die, { roughness: 0.2, metalness: 0.3 }), 72));
-  const ringM = glowMat(ACCENT.liquid, 0x5b4c9c), ring = new Mesh(new TorusGeometry(610, 14, 10, 96), ringM);
-  ring.position.z = top + 4;
-  g.add(seeThrough(ring));
-  spins.push({ rotor: new Group(), ring: ringM, needs: null, fixed: ACCENT.liquid });
-  // the impeller (`COOLER_FANS.liquid`: five blades), flattened under the dome, with the hub's accent dot
-  const imp = new Group();
-  imp.position.z = top + 40;
-  imp.scale.z = 0.4;
-  const rotor = fanRotor(480, COOLER_FANS.liquid.blades, mat(0x2c2f6e, { roughness: 0.4, side: DoubleSide }), alu(METAL.hi, 0.3));
-  const dot = new Mesh(new CylinderGeometry(32, 32, 8, 16).rotateX(Math.PI / 2), mat(ACCENT.liquid, { roughness: 0.4 }));
-  dot.position.z = 106;
-  rotor.add(dot);
-  imp.add(rotor);
-  g.add(imp);
-  spins.push({ rotor, ring: null, needs: null });
-  const dome = new Mesh(new SphereGeometry(640, 64, 10, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.22),
-    new MeshStandardMaterial({ color: 0xb8c8e8, transparent: true, opacity: 0.12, roughness: 0.04, metalness: 0, envMapIntensity: 0.7, depthWrite: false }));
-  dome.position.z = top + 2;
-  dome.castShadow = false;
-  g.add(seeThrough(dome));
+  // the body: anodised dark aluminium (satin, as the radiator's: it keeps its grey in the case's shade), a little wider at its foot; a seam where
+  // it meets the base
+  const side = mat(0x3a3f48, { metalness: 0.45, roughness: 0.4 }), z1 = top - 126;
+  g.add(band3(R0, R, L + 250, z1, side));
+  g.add(drum(0, 0, L + 250, L + 262, R0 + 6, black, 96));
+  // a thin light ring under the cap, set a little in: smoked when off (a dark line between the body and the cap), lit in the case's colour with
+  // the fans
+  const ringM = glowMat(0xffffff, 0x14161b);
+  ringM.roughness = 0.7;
+  g.add(seeThrough(band3(R - 6, R - 6, z1, z1 + 46, ringM)));
+  spins.push(light(ringM, undefined, 1.4));
+  // the cap: its side, a bright diamond-cut chamfer round its face, the face brushed in rings; a small raised boss in the middle, dark satin in a
+  // polished bevel (a hole if it were all dark)
+  const polished = mat(0xc4c9d1, { metalness: 0.95, roughness: 0.14 });
+  g.add(band3(R, R, z1 + 46, top - 34, side));
+  g.add(band3(R, R - 40, top - 34, top, polished));
+  g.add(drum(0, 0, top - 4, top, R - 40, mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 }), 96));
+  g.add(band3(140, 118, top, top + 8, polished));
+  g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), 64));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from
   // them once every part is in: `hose`, machine3d.ts)
   const north = new Vector3(0, 1, 0), y0 = PUMP.R * 0.6;
-  g.add(softBox({ x: -PUMP.portX - 290, y: -portY(), w: 2 * PUMP.portX + 580, h: portY() - y0 }, PUMP.portZ - 260, PUMP.portZ + 260, side, 60));
+  g.add(softBox({ x: -PUMP.portX - 220, y: -portY(), w: 2 * PUMP.portX + 440, h: portY() - y0 }, PUMP.portZ - 220, PUMP.portZ + 220, black, 50));
   for (const sx of [-PUMP.portX, PUMP.portX]) fitting(g, new Vector3(sx, portY(), PUMP.portZ), north, chrome());
   return side;
 }
@@ -373,7 +375,8 @@ export function radiatorPorts3d(fit: RadiatorFit): { at: V3; dir: V3 }[] {
 export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly string[]): Model {
   const root = new Group(), fr = frameOf(fit.mount, fit.end), { L } = fr, { v0, v1 } = radiatorCore(fit), t = v1 - v0, side = fit.mount.side;
   const D = radiatorDepth(), zc = FAN_ZC, z0 = zc - D / 2, z1 = zc + D / 2, hole = Math.min(FAN_LEN, FAN_MAX) * FAN_SCREW, PLATE = 34, fold = D / 2 - hole + 90;
-  const unit = new BoxGeometry(1, 1, 1), plateM = alu(METAL.metal, 0.4), tankM = alu(METAL.hi, 0.3), tubeM = alu(0x6f7aa0, 0.36), dark = mat(0x0b0f1c, { roughness: 0.6 });
+  // (neutral brushed aluminium, a satin finish: the cooler's blue ramp at full metalness mirrors the dark case and reads purple there)
+  const unit = new BoxGeometry(1, 1, 1), plateM = radAlu(0x6a6f79, 0.42), tankM = radAlu(0x7b808a, 0.34), tubeM = radAlu(0x858a94, 0.36), dark = mat(0x0b0f1c, { roughness: 0.6 });
   const item = (r: RectLike, za: number, zb: number) => ({ x: r.x + r.w / 2, y: -(r.y + r.h / 2), z: (za + zb) / 2, sx: r.w, sy: r.h, sz: zb - za });
   // the core: the fins painted on its faces (fins this fine shimmer as plates; painted, they blend into one tone from afar), the flat tubes a
   // tube's pitch apart across its depth, their edges a little proud of both faces
@@ -395,9 +398,9 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
   root.add(instanced(holeGeo, dark, holes));
   // the side plate toward the glass: a lit edge along both folds, a brushed panel let into it with the model's plate in its middle (the length of
   // its fans and its thickness, as a radiator's name gives them), framed in the loop's accent: its one touch of colour, as on a real radiator
-  const edgeM = alu(0x7f8bb3, 0.28);
+  const edgeM = radAlu(0xa3a8b2, 0.28);
   for (const va of [v0 - 6, v1 - 4]) root.add(rectBox(fr.rect(0, va, L, 10), z1, z1 + 2, edgeM));
-  root.add(rectBox(fr.rect(160, v0 + t * 0.2, L - 320, t * 0.6), z1, z1 + 3, mat(0x6f7aa0, { metalness: 0.75, roughness: 0.34, map: tiled(streaks(), 4, 1) })));
+  root.add(rectBox(fr.rect(160, v0 + t * 0.2, L - 320, t * 0.6), z1, z1 + 3, mat(0x9297a1, { metalness: 0.5, roughness: 0.34, map: tiled(streaks(), 4, 1) })));
   const name = `RX ${Math.round(FAN_LEN / 23) * ids.length} / ${Math.round(t / 23)}`, PW = Math.min(1500, L * 0.4), PH = Math.min(t * 0.44, 420), along = side === 'front';
   const label = tex(`radiator-plate-${name}-${along}`, along ? 128 : 512, along ? 512 : 128, (c, w, h) => {
     c.fillStyle = '#121626'; c.fillRect(0, 0, w, h);

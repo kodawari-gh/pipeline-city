@@ -16,7 +16,8 @@ export function StatCard({ s, specId, fit, onPreview }: { s: Snapshot; specId: s
   const kind = kindOf(specId, s);
   const current = kind ? currentSpecFor(s, kind) : null;
   const rows = kind ? compareRows(kind, current, specId) : [];
-  const d = describeId(specId, s);
+  // (the spec alone: with the snapshot a spec id like `cooler0` also matches the fitted device of that id, and names that part instead)
+  const d = describeId(specId);
   const tier = tierOfSpec(specId);
   return (
     <div class="statcard" aria-label={d?.title ?? specId}>

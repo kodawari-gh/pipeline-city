@@ -101,9 +101,12 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
 }
 
 // ---------------------------------------------------------------- RAM
-/** A stick's accent colour by its `visual` (the 2D stripes, the 3D spreader). */
+/**
+ * A stick's trim by its `visual` (the 2D stripes): no tier colours, the tiers read by how premium they look. Plain on the bare sticks (SDR, the
+ * server ECC sticks), stamped steel (DDR2), dark anodised fins (DDR3), polished silver on the light-bar sticks (DDR4, brightest on DDR5).
+ */
 export const ramAccent = (T: Theme, visual: string): string =>
-  ({ 'dimm-ecc': T.st, 'dimm-ddr5ecc': T.st, 'dimm-lowlat': T.ld, 'dimm-ddr5': T.ld, 'dimm-ddr3': T.mul, 'dimm-fast': T.br } as Record<string, string>)[visual] ?? T.alu;
+  ({ 'dimm-fast': '#8d939c', 'dimm-ddr3': '#5b616c', 'dimm-lowlat': '#aeb4bd', 'dimm-ddr5': '#d6dbe2' } as Record<string, string>)[visual] ?? T.line;
 
 /** Each generation's key notch sits in a different place, so a stick fits only its own slot: the pin (of 24) where the pin row has its gap. */
 export const ramNotch = (visual: string): number =>

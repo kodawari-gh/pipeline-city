@@ -338,7 +338,8 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
     root.addChild(edge);
     return { root, fan: edge };
   } else {
-    // a pump head on a bracket: a brushed ring, a glass dome with the ring light round the impeller, the two tube ports on top
+    // a pump head on a bracket, as the 3D one: a dark anodised body, the thin light ring at its rim, a bright diamond-cut edge round the brushed
+    // cap, a small dark boss in a polished bevel in its middle; the two tube ports on its north side. The impeller is inside, unseen.
     fr = COOLER_FANS.liquid.r; nBlades = COOLER_FANS.liquid.blades; bezel = 400;
     disc(g, cx, cy, 590, { fill: mix(m.lo, '#000000', 0.45), stroke: mix(T.line, m.metal, 0.5), lw: 6 });
     for (const [x, y] of [[c.x + 100, c.y + 100], [c.x + c.w - 100, c.y + 100], [c.x + 100, c.y + c.h - 100], [c.x + c.w - 100, c.y + c.h - 100]] as const) screw(g, T, x, y, 34);
@@ -349,12 +350,14 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
       tube(g, T, tb, accent);
     }
     disc(g, cx + 12, cy + 20, 548, { fill: '#000000', fa: 0.35 });
-    g.circle(cx, cy, 548).fill(rgrad(m.hi, m.lo, [0.38, 0.32], 0.75)).stroke({ width: 8, color: accent, alpha: 0.8 });
-    for (const rr of [510, 490, 470]) g.circle(cx, cy, rr);
-    g.stroke({ width: 3, color: '#000000', alpha: 0.22 });
-    disc(g, cx, cy, 450, { fill: T.die, stroke: mix(T.line, '#000000', 0.4), lw: 8 });
-    g.circle(cx, cy, 424).stroke({ width: 44, color: accent, alpha: 0.12 });
-    g.circle(cx, cy, 424).stroke({ width: 12, color: accent, alpha: 0.85 });
+    g.circle(cx, cy, 548).fill('#3a3f48').stroke({ width: 8, color: mix('#14161b', accent, 0.35) });
+    g.circle(cx, cy, 528).fill(lgrad('#dfe3e8', '#8a9099', [1, 1]));
+    g.circle(cx, cy, 500).fill(rgrad('#a3a8b1', '#4e535c', [0.38, 0.32], 0.75));
+    for (const rr of [440, 380, 310, 190, 140]) g.circle(cx, cy, rr);
+    g.stroke({ width: 2, color: '#ffffff', alpha: 0.07 });
+    g.circle(cx, cy, 240).stroke({ width: 5, color: '#000000', alpha: 0.32 });
+    g.circle(cx, cy, 246).stroke({ width: 3, color: '#ffffff', alpha: 0.16 });
+    disc(g, cx, cy, 100, { fill: '#2a2d34', stroke: '#c4c9d1', lw: 14 });
     for (const sx of [-120, 120]) fitting(g, T, cx + sx, cy - 528, -1);
   }
 
@@ -362,18 +365,19 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   const [fx0, fy0] = fanAt;
   fan.position.set(fx0, fy0);
   const fg = new Graphics();
-  if (kind === 'stock') disc(g, cx, cy, bezel - 24, { fill: T.dot });
-  disc(fg, 0, 0, fr + 24, { fill: kind === 'liquid' ? T.dot : mix(T.dot, '#000000', 0.2) });
-  blades(fg, nBlades, kind === 'liquid' ? 70 : 54, fr, kind === 'liquid' ? mix(T.tile, accent, 0.25) : T.tile, accent, 4);
+  // the stock fan's blades (the pump's impeller is inside its head: nothing to draw, its `fan` turns unseen)
   fan.addChild(fg);
   root.addChild(fan);
+  if (kind === 'liquid') return { root, fan };
+  disc(g, cx, cy, bezel - 24, { fill: T.dot });
+  disc(fg, 0, 0, fr + 24, { fill: mix(T.dot, '#000000', 0.2) });
+  blades(fg, nBlades, 54, fr, T.tile, accent, 4);
 
-  // the hub (and on the loop the glass sheen across the dome) stays still above the spinning blades
+  // the hub stays still above the spinning blades
   const hub = new Graphics();
   hub.position.set(fx0, fy0);
   hub.circle(0, 0, 74).fill(rgrad(m.hi, m.lo, [0.4, 0.35], 0.75)).stroke({ width: 7, color: accent });
   disc(hub, 0, 0, 22, { fill: accent });
-  if (kind === 'liquid') hub.ellipse(-150, -190, 240, 90).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.22 });
   root.addChild(hub);
   return { root, fan };
 }

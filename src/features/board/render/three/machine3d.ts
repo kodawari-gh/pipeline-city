@@ -357,7 +357,7 @@ export class Machine3D {
       case 'ram': {
         // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
         const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, rs = spec as RamSpec;
-        const st = ramStick(T, rs.visual, !!rs.ecc, r);
+        const st = ramStick(T, rs.visual, !!rs.ecc, r, rs.name);
         g.add(st.root);
         for (const s of st.spins) this.spin(s);
         this.fades.push(st.spreader);

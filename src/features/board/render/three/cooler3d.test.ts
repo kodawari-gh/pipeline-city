@@ -26,10 +26,10 @@ const inRoom = (visual: string, b: Box3) => {
 };
 
 describe('the 3D coolers', () => {
-  it('mounts every cooler on the board\'s cooler holes over the CPU, a bare heatsink with nothing to spin (and on the loop the ring light and the impeller)', () => {
+  it('mounts every cooler on the board\'s cooler holes over the CPU, a bare heatsink with nothing to spin (and on the loop the pump\'s light ring)', () => {
     for (const t of [0, 3]) {
       setLayoutTier(t, t);
-      for (const [visual, spins] of [['cooler-stock', 0], ['cooler-tower', 0], ['cooler-liquid', 2]] as const) {
+      for (const [visual, spins] of [['cooler-stock', 0], ['cooler-tower', 0], ['cooler-liquid', 1]] as const) {
         const m = coolerModel(visual), b = new Box3().setFromObject(m.root);
         expect(m.spins.length, visual).toBe(spins);
         inRoom(visual, b);
