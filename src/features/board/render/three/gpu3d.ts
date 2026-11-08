@@ -50,18 +50,18 @@ const lookOf = (visual: string) => LOOK[visual] ?? LOOK['gpu-1']!;
 export const gpuDie = (f: CardFrame) => ({ x: f.x0 + (f.x1 - f.x0) * 0.42, y: f.y0 + 50 * MM });
 
 /** A layout point as a shape point (y up). */
-const V = (x: number, y: number) => new Vector2(x, -y);
+export const V = (x: number, y: number) => new Vector2(x, -y);
 /** A circle's outline round a layout point. */
-const circle = (cx: number, cy: number, r: number, n = 64): Vector2[] => Array.from({ length: n }, (_, k) => V(cx + Math.cos((k / n) * Math.PI * 2) * r, cy - Math.sin((k / n) * Math.PI * 2) * r));
+export const circle = (cx: number, cy: number, r: number, n = 64): Vector2[] => Array.from({ length: n }, (_, k) => V(cx + Math.cos((k / n) * Math.PI * 2) * r, cy - Math.sin((k / n) * Math.PI * 2) * r));
 /** Scale an extruded mesh's uvs (its shape's coordinates) so a texture spans `k` layout units. */
-function uvSpan<T extends Mesh>(o: T, k: number): T {
+export function uvSpan<T extends Mesh>(o: T, k: number): T {
   const uv = o.geometry.getAttribute('uv');
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / k, uv.getY(i) / k);
   uv.needsUpdate = true;
   return o;
 }
 /** A prism across x (x0 to x1) from an outline of `wallPt` points with holes: a port's shell, its mouth through it. */
-function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], m: Material, bevel = 0): Mesh {
+export function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
   const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
@@ -69,7 +69,7 @@ function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], 
 }
 
 /** A word painted for a decal: `ink` letters on a clear ground (cut by alpha), centred. */
-function word(key: string, s: string, w: number, h: number, ink: string, weight = 700): ReturnType<typeof tex> {
+export function word(key: string, s: string, w: number, h: number, ink: string, weight = 700): ReturnType<typeof tex> {
   return tex(`gpu-word:${key}`, w, h, (c) => {
     c.clearRect(0, 0, w, h);
     c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -80,7 +80,7 @@ function word(key: string, s: string, w: number, h: number, ink: string, weight 
 }
 
 /** A fan's hub sticker: a dark disc with a thin ring and the maker's mark. */
-function hubSticker(): ReturnType<typeof tex> {
+export function hubSticker(): ReturnType<typeof tex> {
   return tex('gpu-hub', 256, 256, (c, w, h) => {
     const g = c.createRadialGradient(w * 0.42, h * 0.38, 8, w / 2, h / 2, w / 2);
     g.addColorStop(0, '#30343c'); g.addColorStop(1, '#15171b');
@@ -240,14 +240,25 @@ export function gpuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
   // the name engraved toward the top edge, its tops toward the slot (it reads from the glass, over the card)
   const nm = word('back', 'PIPELINE', 1024, 128, L.backMetal ? '#d4d9e0' : '#8d939c');
   if (nm) g.add(decal({ x: (x0 + x1) / 2 - 30 * MM, y: end - 21 * MM, w: 60 * MM, h: 7.5 * MM }, Z + backT + 0.3, decalMat(nm, { rough: 0.35, metal: 0.5, cut: true })));
-  // the PCB in the cut-out: its mask with the traces and vias, the capacitor array behind the die, the X bracket and its spring screws
-  const win = { x: die.x - HOLE, y: die.y - HOLE, w: 2 * HOLE, h: 2 * HOLE };
-  g.add(maskTop(`gpu-back:${visual}`, win, Z, { mask: '#0d1016', trace: '#161b26', seed: 77, text: [{ x: die.x - HOLE + 2 * MM, y: die.y + HOLE - 2.5 * MM, s: 'GPU1', mm: 1.2 }] }));
+  dieBack(g, `gpu-back:${visual}`, die, HOLE, Z, 'GPU1');
+  // the screws round the plate's rim
+  const rim: Spot[] = [], xr = flow ? x1 - 8 * MM : xe - 14 * MM;
+  for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr]) for (const y of [y0 + 5 * MM, end - 6 * MM]) rim.push({ x, y: -y, z: Z + backT });
+  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1c1e22, { metalness: 0.6, roughness: 0.4 })));
+}
+
+/**
+ * The PCB behind a die, seen in a backplate's cut-out (`hole` its half-side) over the PCB's face at `Z`: the mask with its traces and vias and the
+ * die's designator `ref`, the capacitor array behind the die, the X bracket and its four spring screws.
+ */
+export function dieBack(g: Group, key: string, die: { x: number; y: number }, hole: number, Z: number, ref: string): void {
+  const win = { x: die.x - hole, y: die.y - hole, w: 2 * hole, h: 2 * hole };
+  g.add(maskTop(key, win, Z, { mask: '#0d1016', trace: '#161b26', seed: 77, text: [{ x: die.x - hole + 2 * MM, y: die.y + hole - 2.5 * MM, s: ref, mm: 1.2 }] }));
   const caps: Passive[] = [];
   for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) caps.push({ x: die.x + (i - 2.5) * 1.6 * MM, y: die.y + (j - 2.5) * 1.6 * MM, pkg: '0402', kind: 'cap', turn: (i + j) % 2 === 1 });
   for (let i = 0; i < 12; i++) for (const s of [-1, 1]) caps.push({ x: die.x + (i - 5.5) * 1.3 * MM, y: die.y + s * 7.5 * MM, pkg: '0201', kind: i % 5 === 2 ? 'res' : 'cap' });
   passives(g, caps, Z);
-  const spring = mat(0x24272d, { metalness: 0.6, roughness: 0.42 }), arm = 16 * MM, at = arm / Math.SQRT2;
+  const spring = mat(0x24272d, { metalness: 0.6, roughness: 0.42 }), arm = hole * (16 / 21), at = arm / Math.SQRT2;
   g.add(instanced(new BoxGeometry(1, 1, 1), spring, [{ x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: Math.PI / 4 }, { x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: -Math.PI / 4 }]));
   g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, 24));
   const coil = mat(0x8e959f, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
@@ -257,10 +268,6 @@ export function gpuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
     xs.push({ x, y: -y, z: Z + 3.4 * MM });
   }
   g.add(screws(xs, 'z+', 2.6 * MM, mat(0xa9b0ba, { metalness: 0.85, roughness: 0.3 })));
-  // the screws round the plate's rim
-  const rim: Spot[] = [], xr = flow ? x1 - 8 * MM : xe - 14 * MM;
-  for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr]) for (const y of [y0 + 5 * MM, end - 6 * MM]) rim.push({ x, y: -y, z: Z + backT });
-  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1c1e22, { metalness: 0.6, roughness: 0.4 })));
 }
 
 /**

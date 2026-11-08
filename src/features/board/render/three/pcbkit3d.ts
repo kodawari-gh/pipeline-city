@@ -119,10 +119,10 @@ export const decalMat = (map: Texture | null, o: { rough?: number; metal?: numbe
 
 /**
  * A PCB's top face over its layout rect `r` at depth z (`under`: its underside, facing down, at the PCB's bottom z): the mask with the copper traces
- * under it (runs at 0 and 45 degrees between the parts), vias, test points, the silkscreen, the pads. `key` caches the painting (one per part model).
+ * under it (runs at 0 and 45 degrees between the parts), vias, test points, the silkscreen, the pads. `key` caches the painting (one per part model), `px` its pixels a mm.
  */
-export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { rough?: number; under?: boolean } = {}): Mesh {
-  const k = 26 / MM, W = Math.min(4096, Math.round(r.w * k)), H = Math.min(4096, Math.round(r.h * k)), sx = W / r.w, sy = H / r.h;
+export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { rough?: number; under?: boolean; px?: number } = {}): Mesh {
+  const k = (o.px ?? 26) / MM, W = Math.min(4096, Math.round(r.w * k)), H = Math.min(4096, Math.round(r.h * k)), sx = W / r.w, sy = H / r.h;
   // (the underside is the face turned over about x: its picture's top row lies along the PCB's south edge)
   const t = tex(`mask:${key}`, W, H, (c) => {
     const X = (x: number) => (x - r.x) * sx, Y = (y: number) => (o.under ? r.y + r.h - y : y - r.y) * sy;
