@@ -6,21 +6,22 @@
 // bracket fade, then the card swings down flat and shows its exact 2D face; it stands up again on the way out.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
 import { Container, Graphics } from 'pixi.js';
-import { CARD_LEN, cardArt, cardOrigin, cardPlugs, cardRect, PLUG_BLOCK } from '@/core/render/accelart';
+import { CARD_LEN, cardArt, cardOrigin, cardRect } from '@/core/render/accelart';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
-import { extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
-import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { nicArt } from '@/features/network/render/net';
 import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicRect, nicY } from '../layout/layout';
 import { LV_PART, LV_RAISED, type ArtSet } from './artset3d';
-import { glowMat, partFan, type Spin } from './fans3d';
+import { partFan, type Spin } from './fans3d';
 import { tex, wallX, type Span } from './casekit3d';
+import { gpuBackplate, gpuCooler, gpuOutputs, gpuSockets, OUT_IN, OUT_TOP, outDepth, OUTPUTS, outputHoles } from './gpu3d';
+import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
 
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
@@ -59,13 +60,8 @@ const coolerT = (kind: CardKind, visual: string) => (kind === 'nic' ? JACK.h : (
 const lenOf = (kind: CardKind, visual: string) => (kind === 'nic' ? NIC_LEN[visual] ?? 1500 : Math.max(CARD_LEN[visual] ?? 1500, (BUILD[visual]?.len ?? 0) * MM));
 /** How far a card reaches, standing: its length, its depth south of its slot's line (the PCB and the cooler) and north of it (a backplate, or a bare face's parts). */
 export const cardReach = (kind: CardKind, visual: string) => ({ len: lenOf(kind, visual), south: PCB_T + coolerT(kind, visual), north: kind === 'nic' ? 40 : BACK_T });
-/**
- * A GPU's display outputs through its bracket (an HDMI, then three DisplayPorts), on the PCB beside it as real ones are: their offsets from the
- * slot line, lying (standing, their depth over the hinge), their mouths' width, and how far the row stands off the PCB.
- */
-const OUTS = [140, 340, 540, 740], OUT_W = 120, OUT_Y = 40;
-/** The GPU's HDMI mouth, standing: its face (layout x), its middle (layout y) and depth, where the monitor's cable plugs in. */
-export const gpuVideoAt = (_visual: string, slot: number) => ({ x: NIC_BRACKET_X - 54, y: nicY(slot) + PCB_T + OUT_Y + 43, z: HINGE_Z + OUTS[0]! + OUT_W / 2 });
+/** The GPU's HDMI mouth (gpu3d's `OUTPUTS`), standing: its face (layout x), its middle (layout y) and depth, where the monitor's cable plugs in. */
+export const gpuVideoAt = (_visual: string, slot: number) => ({ x: NIC_BRACKET_X + OUT_IN + 2, y: nicY(slot) + PCB_T + outDepth(OUTPUTS[0]!), z: HINGE_Z + OUTPUTS[0]!.c });
 
 export interface Card3D {
   root: Group;
@@ -101,20 +97,28 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   hinge.add(lying);
   root.add(hinge);
   lying.add(fades, flatOnly);
-  const pcbM = mat(kind === 'gpu' ? 0x1b2236 : kind === 'npu' ? 0x1c1d24 : 0x103848, { roughness: 0.5 });
+  const pcbHex = kind === 'gpu' ? 0x1b2236 : kind === 'npu' ? 0x1c1d24 : 0x103848, pcbM = mat(pcbHex, { roughness: 0.5 });
   const rect = (x: number, y: number, w: number, h: number): RectLike => ({ x, y, w, h });
+  // (a GPU's and an AI card's PCB shows its laminate on its routed edges; a NIC's follows the part's state, `skin`)
+  const pcb = (r: RectLike) => (kind === 'nic' ? rectBox(r, Z - PCB_T, Z, pcbM) : pcbSlab([[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], Z - PCB_T, Z, pcbHex));
   // the PCB: from the slot's line to its 2D south edge it carries the art; north of the line only the gold finger tab stands, down into the
   // slot (the rest of the 2D strip is there only lying flat); past the 2D edge the PCB goes on to the card's real height (it fades with the cooler)
-  const rail = PCIE_RAILS[slot]!, gold = mat(0xd9b25e, { metalness: 1, roughness: 0.25 });
-  lying.add(rectBox(rect(x0, y0, x1 - x0, south - y0), Z - PCB_T, Z, pcbM));
-  // (the tab's face and its gold sit just under the art's plane: lying flat, the 2D face covers them)
+  const rail = PCIE_RAILS[slot]!;
+  lying.add(pcb(rect(x0, y0, x1 - x0, south - y0)));
   const tw = Math.min(rail.w, x1 - rail.x);
-  lying.add(rectBox(rect(rail.x + 20, y0 - TAB, tw - 40, TAB), Z - PCB_T, Z - 1, pcbM));
-  for (const z of [Z - PCB_T - 1.5, Z - 1]) lying.add(rectBox(rect(rail.x + 30, y0 - TAB + 6, tw - 60, 60), z, z + 0.6, gold));
+  pcieTab(lying, rail.x + 20, tw - 40, y0, Z, pcbM);
   flatOnly.add(rectBox(rect(x0, top, x1 - x0, y0 - top), Z - PCB_T + 2, Z - 2, pcbM));
-  fades.add(rectBox(rect(x0, south, x1 - x0, end - south), Z - PCB_T, Z, pcbM));
+  fades.add(pcb(rect(x0, south, x1 - x0, end - south)));
   // (an AI card's PCB runs the shroud's length; a GPU's ends short of its cooler, which runs on past it)
-  if (kind === 'npu' && xe > x1) fades.add(rectBox(rect(x1, y0, xe - x1, end - y0), Z - PCB_T, Z, pcbM));
+  if (kind === 'npu' && xe > x1) fades.add(pcb(rect(x1, y0, xe - x1, end - y0)));
+  // the AC-coupling capacitors of the card's transmit lanes, a pair per lane on the component side by the fingers
+  if (kind !== 'nic') {
+    const under = new Group(), caps: Passive[] = [], cx0 = rail.x + 20 + KEY.at + KEY.w + 3 * MM;
+    under.rotation.x = Math.PI;
+    for (let k = 0; k < 16 && cx0 + k * 4.3 * MM + 2 * MM < rail.x + tw - 20; k++) for (const s of [0, 1]) caps.push({ x: cx0 + k * 4.3 * MM + s * 1.5 * MM, y: -(y0 + 1.8 * MM), pkg: '0402', kind: 'cap', turn: true });
+    passives(under, caps, -(Z - PCB_T));
+    fades.add(under);
+  }
   const art = face(lying, f.r, Z);
   // the bracket at the west end, against the case's back: the slot's full plate whatever the card's size (`bracketSpan`, laid down with the card:
   // its depth along the lying y, its height along the lying z), folded over at its far end, where the case's thumbscrew holds it
@@ -122,48 +126,34 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   const S = bracketSpan(y0), ly0 = y0 + S.z0 - Z, ly1 = y0 + S.z1 - Z, zLo = Z - Math.max(S.y1 - y0, PCB_T + ct + 20), zHi = Z - (S.y0 - y0);
   fades.add(kind === 'gpu' ? gpuBracket(y0, ly0, ly1, zLo, zHi, Z - PCB_T, steel) : rectBox(rect(NIC_BRACKET_X, ly0, BRACKET_T, ly1 - ly0), zLo, zHi, steel));
   fades.add(rectBox(rect(NIC_BRACKET_X - 90, ly1, 90 + BRACKET_T, 20), zLo, zHi, steel));
-  const skin: MeshStandardMaterial[] = [];
-  if (kind === 'gpu') skin.push(...gpu(fades, spins, visual, f, ct, black));
-  else if (kind === 'npu') skin.push(npu(fades, spins, f, ct, black));
+  const skin: MeshStandardMaterial[] = [], flow = kind === 'gpu' && xe - x1 > 600;
+  // a GPU's cooler, its display outputs and its backplate, with a window past the PCB's end where the end fan blows through the fins (gpu3d.ts)
+  if (kind === 'gpu') {
+    skin.push(...gpuCooler(fades, spins, visual, f, Z - PCB_T, Z, BACK_T, ct, flow));
+    gpuOutputs(fades, f, Z - PCB_T);
+    gpuBackplate(fades, visual, f, Z, BACK_T, flow);
+  } else if (kind === 'npu') skin.push(npu(fades, spins, f, ct, black));
   else nic(fades, visual, f, black, steel);
   if (kind === 'nic') skin.push(pcbM);
-  // the backplate over the PCB's face (the side that looks up, standing), the card's full length: a GPU's has a window past the PCB's end, where
-  // the end fan blows through the fins; an AI card's has a vent row at its far end
-  if (kind !== 'nic') {
-    const back = mat(0x1a1f2c, { metalness: 0.6, roughness: 0.42 }), flow = kind === 'gpu' && xe - x1 > 600;
-    if (flow) {
-      const s = new Shape(), wx0 = x1 + 80, wx1 = xe - 130, wy0 = y0 + 240, wy1 = end - 240, cr = 60;
-      s.moveTo(x0 + 40, -(end - 10)).lineTo(xe - 10, -(end - 10)).lineTo(xe - 10, -(y0 + 20)).lineTo(x0 + 40, -(y0 + 20)).closePath();
-      const w = new Path();
-      w.moveTo(wx0 + cr, -wy0).lineTo(wx1 - cr, -wy0).absarc(wx1 - cr, -wy0 - cr, cr, Math.PI / 2, 0, true).lineTo(wx1, -wy1 + cr)
-        .absarc(wx1 - cr, -wy1 + cr, cr, 0, -Math.PI / 2, true).lineTo(wx0 + cr, -wy1).absarc(wx0 + cr, -wy1 + cr, cr, -Math.PI / 2, -Math.PI, true)
-        .lineTo(wx0, -wy0 - cr).absarc(wx0 + cr, -wy0 - cr, cr, Math.PI, Math.PI / 2, true);
-      s.holes.push(w);
-      const plate = place(new Mesh(extrude(s, { depth: BACK_T - 10, bevelEnabled: true, bevelSize: 4, bevelThickness: 4, bevelSegments: 2, curveSegments: 12 }), back));
-      plate.position.z = Z + 6;
-      fades.add(plate);
-    } else {
-      fades.add(softBox(rect(x0 + 40, y0 + 20, xe - x0 - 50, end - y0 - 30), Z + 2, Z + BACK_T, back, 6));
-      const vents = [];
-      for (let y = y0 + 120; y < end - 120; y += 46) vents.push({ x: xe - 220, y: -y, z: Z + BACK_T, sx: 220, sy: 18, sz: 3 });
-      fades.add(instanced(new BoxGeometry(1, 1, 1), black, vents));
-    }
+  // an AI card's backplate over the PCB's face (the side that looks up, standing), the card's full length, a vent row at its far end
+  if (kind === 'npu') {
+    const back = mat(0x1a1f2c, { metalness: 0.6, roughness: 0.42 });
+    fades.add(softBox(rect(x0 + 40, y0 + 20, xe - x0 - 50, end - y0 - 30), Z + 2, Z + BACK_T, back, 6));
+    const vents = [];
+    for (let y = y0 + 120; y < end - 120; y += 46) vents.push({ x: xe - 220, y: -y, z: Z + BACK_T, sx: 220, sy: 18, sz: 3 });
+    fades.add(instanced(new BoxGeometry(1, 1, 1), black, vents));
     // screws along the plate's rim over the PCB and the maker's name, so the back reads as a finished part and not as a slab
-    const screw = mat(0x9aa3b2, { metalness: 0.85, roughness: 0.35 }), screws = [], bx0 = x0 + 90, bx1 = (flow ? x1 : xe) - 60, by0 = y0 + 70, by1 = end - 70;
+    const screw = mat(0x9aa3b2, { metalness: 0.85, roughness: 0.35 }), screws = [], bx0 = x0 + 90, bx1 = xe - 60, by0 = y0 + 70, by1 = end - 70;
     for (const sx of [bx0, (bx0 + bx1) / 2, bx1]) for (const sy of [by0, by1]) screws.push({ x: sx, y: -sy, z: Z + BACK_T + 2, sx: 34, sy: 34, sz: 6 });
     fades.add(instanced(new CylinderGeometry(0.5, 0.5, 1, 14).rotateX(Math.PI / 2), screw, screws));
     const name = tex('card-name-' + kind, 512, 128, (c, w, h) => {
       c.fillStyle = '#cfd6e4'; c.font = '700 74px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillText(kind === 'gpu' ? 'PIPELINE' : 'NEURAL', w / 2, h / 2);
+      c.fillText('NEURAL', w / 2, h / 2);
     });
     if (name) fades.add(rectBox(rect((bx0 + bx1) / 2 - 260, (y0 + end) / 2 - 65, 520, 130), Z + BACK_T, Z + BACK_T + 1.5, mat(0xffffff, { map: name, alphaTest: 0.4, metalness: 0.2, roughness: 0.5 })));
   }
-  // the power sockets on the top edge, on the cooler's side, the mouth toward the glass (standing)
-  const sockets = cardPlugs(visual).map((px) => {
-    const x = x0 + px;
-    fades.add(rectBox(rect(x - PLUG_BLOCK.w / 2, end - 90, PLUG_BLOCK.w, 96), Z - PCB_T - 120, Z - PCB_T, black));
-    return { x, y: y0 + PCB_T + 60, z: Z + STAND[kind] + 6 };
-  });
+  // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)
+  const sockets = kind === 'gpu' ? gpuSockets(fades, visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T) : [];
   const extra: Object3D[] = [];
   const band = DEVICE_LOD[kind === 'gpu' ? 'gpu' : 'npu'].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
   return {
@@ -215,14 +205,32 @@ export function cardModel(art: ArtSet, T: Theme, kind: CardKind, visual: string,
 export const bracketSpan = (y0: number): Span => ({ y0: y0 - 60, y1: y0 + 540, z0: BOARD_Z + 80, z1: BRACKET_TOP });
 
 /**
- * A GPU's bracket, lying (`ly0..ly1` its depth, `z0..z1` its height, the PCB's underside at `zP`): the plate with exhaust slots cut through it,
- * across it past the outputs and beside them, away from the PCB.
+ * A GPU's bracket, lying (`ly0..ly1` its depth, `z0..z1` its height, the PCB's underside at `zP`): the plate with the outputs' openings, a hair
+ * larger than their shells (`outputHoles`), and exhaust slots cut through it, across it past the outputs and beside them, away from the PCB.
  */
 function gpuBracket(y0: number, ly0: number, ly1: number, z0: number, z1: number, zP: number, m: MeshStandardMaterial): Mesh {
-  const vents: Span[] = [], past = y0 + OUTS[OUTS.length - 1]! + OUT_W + 120, side = zP - OUT_Y - 86 - 60;
+  const ports = outputHoles(y0, zP), vents: Span[] = [...ports], past = y0 + OUT_TOP + 3 * MM, side = Math.min(...ports.map((p) => p.z0)) - 3 * MM;
   for (let y = past; y < ly1 - 120; y += 64) vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: z1 - 110, r: 14 });
   if (side - (z0 + 70) > 120) for (let y = y0 + 120; y < past - 80; y += 64) vents.push({ y0: y - 16, y1: y + 16, z0: z0 + 70, z1: side, r: 14 });
   return wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, { y0: ly0, y1: ly1, z0, z1 }, vents, m);
+}
+
+/** The PCIe key's notch along the tab from its bracket end (the short run carries the power pins), and its width. */
+const KEY = { at: 11.65 * MM, w: 1.9 * MM };
+
+/**
+ * A card's PCIe edge, lying (north of the slot's line; standing, down in the slot): the tab from `x` for `w`, split by its key's notch, a gold
+ * finger per pin on both faces at the real 1 mm pitch. (The tab's face and its gold sit just under the art's plane: lying flat, the 2D face
+ * covers them.)
+ */
+function pcieTab(g: Group, x: number, w: number, y0: number, Z: number, pcbM: MeshStandardMaterial): void {
+  const runs = w > KEY.at + KEY.w + 4 * MM ? [[x, KEY.at], [x + KEY.at + KEY.w, w - KEY.at - KEY.w]] as const : [[x, w]] as const;
+  const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [], fl = 4.2 * MM, fy = y0 - TAB + 0.5 * MM + fl / 2;
+  for (const [a, l] of runs) {
+    g.add(rectBox({ x: a, y: y0 - TAB, w: l, h: TAB }, Z - PCB_T, Z - 1, pcbM));
+    for (let p = a + 0.5 * MM; p < a + l - 0.3 * MM; p += MM) for (const z of [Z - 0.7, Z - PCB_T - 0.3]) pins.push({ x: p, y: -fy, z, sx: 0.7 * MM, sy: fl, sz: 0.6 });
+  }
+  g.add(instanced(new BoxGeometry(1, 1, 1), gold(), pins));
 }
 
 /**
@@ -235,59 +243,6 @@ export function slotBlank(y0: number, tone: number): Group {
   g.add(wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, s, vents, m));
   g.add(rectBox({ x: NIC_BRACKET_X - 90, y: s.y0, w: 90 + BRACKET_T, h: s.y1 - s.y0 }, s.z1, s.z1 + 20, m));
   return g;
-}
-
-/** The GPU's cooler under the PCB: a shroud whose face carries the fans, the fin stack and heat pipes behind them, the light bar on the top edge. */
-function gpu(g: Group, spins: Spin[], visual: string, f: ReturnType<typeof frame>, ct: number, black: MeshStandardMaterial): MeshStandardMaterial[] {
-  // (the cooler starts 5 mm over the PCB's lower edge: it clears the low parts under it, the chipset's sink and the TPM module)
-  const { x0, x1, xe, y0, end } = f, Z = HINGE_Z - PCB_T, zB = Z - ct, xa = x0 + 60, xb = xe, ya = y0 + 110, yb = end - 8;
-  const frameM = mat(0x161c2c, { metalness: 0.5, roughness: 0.38 }), finM = mat(0x7d89a4, { metalness: 0.75, roughness: 0.32 });
-  // the fan face: a plate with a round hole per fan, 95 mm fans (a little less where three share the length)
-  const n = gpuFanCount(visual), seg = (xb - xa) / n, r = Math.min(seg / 2 - 30, (yb - ya) / 2 - 40, 47.5 * MM), cy = (ya + yb) / 2;
-  const s = new Shape();
-  s.moveTo(xa, -yb).lineTo(xb, -yb).lineTo(xb, -ya).lineTo(xa, -ya).closePath();
-  for (let k = 0; k < n; k++) { const h = new Path(); h.absarc(xa + seg * (k + 0.5), -cy, r * 1.04, 0, Math.PI * 2, true); s.holes.push(h); }
-  const plate = place(new Mesh(extrude(s, { depth: 28, bevelEnabled: true, bevelSize: 6, bevelThickness: 6, bevelSegments: 2, curveSegments: 48 }), frameM));
-  plate.position.z = zB;
-  g.add(plate);
-  for (let k = 0; k < n; k++) {
-    // a fan facing down (standing): built facing +z, turned over
-    const holder = new Group(), fan = partFan(0, 0, 0, r);
-    holder.position.set(xa + seg * (k + 0.5), -cy, zB + 2);
-    holder.rotation.x = Math.PI;
-    holder.add(fan.root);
-    g.add(holder);
-    spins.push(fan.spin);
-  }
-  // the walls: the two ends and the top edge (standing); the side over the slot stays open, the air leaves through the fins there
-  g.add(rectBox({ x: xa, y: ya, w: 28, h: yb - ya }, zB, Z - 4, frameM), rectBox({ x: xb - 28, y: ya, w: 28, h: yb - ya }, zB, Z - 4, frameM));
-  g.add(rectBox({ x: xa, y: yb - 28, w: xb - xa, h: 28 }, zB, Z - 4, frameM));
-  // the fins: thin plates across the card behind the fans, and three heat pipes along it from the die
-  // (past the PCB's end the fins run up to the backplate's window: the air goes straight through)
-  const plates = [], fz0 = zB + Math.min(170, ct * 0.4), fz1 = Z - 10, fzOut = HINGE_Z + BACK_T - 6;
-  for (let x = xa + 40; x < xb - 40; x += 24) {
-    const z1 = x > x1 + 30 ? fzOut : fz1;
-    plates.push({ x, y: -(ya + 20 + yb - 40) / 2, z: (fz0 + z1) / 2, sx: 6, sy: yb - 40 - ya - 20, sz: z1 - fz0 });
-  }
-  g.add(instanced(new BoxGeometry(1, 1, 1), finM, plates));
-  const nickel = mat(0xa9b6c6, { metalness: 0.9, roughness: 0.26 }), zm = (fz0 + fz1) / 2;
-  for (const k of [0.3, 0.5, 0.7]) {
-    const y = -(ya + (yb - ya) * k);
-    g.add(tube(rounded([[xa + 90, y, Z - 6], [xa + 90, y, zm], [xb - 90, y, zm], [xb - 90, y, Z - 6]], 80, 6), 15, nickel, 12));
-  }
-  // the light bar along the top edge (it faces the glass standing), on either side of the power sockets
-  const plugs = cardPlugs(visual).map((p) => x0 + p), accent = glowMat(0x3be3ff, 0x1d6f80);
-  const bars = plugs.length ? [[xa + 80, Math.min(...plugs) - 140], [Math.max(...plugs) + 140, xb - 80]] : [[xa + 80, xb - 80]];
-  for (const [b0, b1] of bars) if (b1! - b0! > 200) g.add(rectBox({ x: b0!, y: yb, w: b1! - b0!, h: 8 }, zB + ct * 0.5 - 16, zB + ct * 0.5 + 16, accent));
-  spins.push({ rotor: new Group(), ring: accent, needs: null, fixed: 0x3be3ff });
-  // the display outputs through the bracket: an HDMI and three DisplayPorts on the PCB's edge, each a steel shell round a dark mouth
-  // (`gpuVideoAt` finds the HDMI's mouth from the same numbers)
-  const shell = mat(0x9aa1ac, { metalness: 0.8, roughness: 0.35 }), pz = Z - OUT_Y - 78;
-  for (const o of OUTS) {
-    const y = y0 + o;
-    g.add(rectBox({ x: NIC_BRACKET_X - 50, y, w: 50 + 40, h: OUT_W }, pz - 8, pz + 78, shell), rectBox({ x: NIC_BRACKET_X - 54, y: y + 12, w: 8, h: OUT_W - 24 }, pz + 4, pz + 66, black));
-  }
-  return [frameM, accent];
 }
 
 /** The NPU's cooler: a closed blower shroud under the PCB, its round intake near the far end, an accent line along the top edge. */

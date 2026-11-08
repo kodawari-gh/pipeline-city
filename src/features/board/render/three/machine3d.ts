@@ -39,7 +39,7 @@ import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
-import { standingPlug } from './cables3d';
+import { CARD_PLUG, standingPlug } from './cables3d';
 import { HINGE_Z, card3d, cardModel, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
@@ -516,13 +516,13 @@ export class Machine3D {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
       // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
-      const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie'), look = lead(c.id, 20), fixed = fromSlot(slot, 4);
+      const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie'), look = lead(c.id), fixed = fromSlot(slot, 4);
       // with no card to take it, its model is built at a stand-in seat over its grommet
-      const at = sock ?? { x: slot.x + slot.w / 2, y: slot.y - 500, z: BOARD_Z + 300 }, top = at.z + 170, o = { natural: true, slack: 1.05, stiff: 0.6, n: 24 };
+      const at = sock ?? { x: slot.x + slot.w / 2, y: slot.y - 500, z: BOARD_Z + 300 }, top = at.z + 300, o = { natural: true, slack: 1.05, stiff: 0.6, n: 24 };
       this.wires.add(grommet(slot, this.grommets));
       this.addRig(g, {
         id: c.id, name: 'the card\'s power socket', target: (deal && s.devices.find((d) => d.slot === deal.slot)?.id) ?? null, look, env, fixed,
-        model: () => ({ root: standingPlug(at, accent, top), strands: [0, 1, 2, 3].map((i): RopeEnd => ({ at: [at.x - 42 + i * 28, -at.y, top + 2], dir: [0, 0, 1] })) }),
+        model: () => ({ root: standingPlug(at, accent, top), strands: [0, 1, 2, 3].map((i): RopeEnd => ({ at: [at.x + (i - 1.5) * (CARD_PLUG.w / 4), -at.y, top + 2], dir: [0, 0, 1] })) }),
         seat: { at: [at.x, -at.y, at.z], axis: [0, 0, 1] }, canSeat: !!sock, engage: 110,
         seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, c.connected, sock ? () => card!.alsoFade(g) : undefined);

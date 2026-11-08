@@ -3,7 +3,7 @@
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
-import { paint, place, softBox } from '@/core/render/three/geometry';
+import { paint, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
@@ -72,5 +72,18 @@ export function plugBody(r: { x: number; y: number; w: number; h: number }, z0: 
   return g;
 }
 
-/** A plug standing on a socket whose mouth faces the glass (a card's top edge): its body from the mouth at (x, y, z) up to `top`, where the cable leaves. */
-export const standingPlug = (at: { x: number; y: number; z: number }, accent: string, top: number): Group => plugBody({ x: at.x - 58, y: at.y - 52, w: 116, h: 104 }, at.z - 4, top, accent);
+
+/** A card's 8-pin plug (a Mini-Fit housing, 2 x 4 wires) over its socket's mouth, in mm: its width along the card and its depth across it. */
+export const CARD_PLUG = { w: 20.5 * 23, h: 9.1 * 23 };
+
+/**
+ * A card's 8-pin plug seated in its socket, whose mouth faces the glass (a card's top edge): its body from just inside the mouth at (x, y, z) up to
+ * `top`, where the wires leave; its latch arm down the side away from the PCB (+y), hooked under the socket's ridge, pressed at its top to pull it.
+ */
+export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
+  const { w, h } = CARD_PLUG, g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent), m = mat(0x1b2230, { roughness: 0.5 });
+  const y1 = at.y + 6.5 * 23;
+  g.add(rectBox({ x: at.x - 60, y: y1, w: 120, h: 30 }, at.z - 125, at.z + 70, m));
+  g.add(rectBox({ x: at.x - 60, y: at.y + h / 2, w: 120, h: y1 - at.y - h / 2 }, at.z + 30, at.z + 70, m), rectBox({ x: at.x - 60, y: at.y + 4.9 * 23, w: 120, h: y1 - at.y - 4.9 * 23 }, at.z - 125, at.z - 105, m));
+  return g;
+}
