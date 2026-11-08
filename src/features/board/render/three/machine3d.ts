@@ -26,7 +26,7 @@ import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITO
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, USB_PORT, VIDEO_SOCKET, VIDEO_Y, nicY,
+  LAYOUT_CASE, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -59,6 +59,7 @@ import {
   TRAY_Z, at, atxPlug, cableMesh, epsPlug, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, type Env, type GrommetStyle, type Look,
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
+import { MONITOR_PLUG, monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
 import { rigStatic, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -609,7 +610,7 @@ export class Machine3D {
     const deskTop = -geo.ys, under = -(geo.ys + DESK_TOP), m = MONITOR, mz = MONITOR_Z;
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
     const caseBox = box({ x: CASE.x, y: CASE.y, w: CASE.w, h: CASE.h + FOOT }, CASE_Z, FRONT);
-    const monitor = [box(m, mz, mz + 180), box({ x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 }, mz - 380, mz)];
+    const mp = monitorPlan(m, geo.ys, mz), seats = monitorSeats(m, mz), monitor = [mp.panel, mp.hump, mp.boss].map((o) => box(o.r, o.z0, o.z1));
     const room: Env = { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: 40 }], solids: [caseBox, ...monitor] }, deck = room.planes[0]!;
     // (a mains cord is a real IEC lead's, 6 mm thick)
     const cord: Look = { r: 70, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
@@ -624,11 +625,10 @@ export class Machine3D {
       const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520;
       const vz = dg.z + 80, kg = { x: m.x + m.w / 2 + KEY_LEAD[0] + 160, z: mz + 3600 + KEY_LEAD[1] - 150 }, low = under - 340;
       const run: V3[] = [[dg.x, deskTop, vz], [dg.x, low, vz], [dg.x - 500, low, vz], [dg.x - 1500, low, kg.z], [kg.x, low, kg.z], [kg.x, deskTop, kg.z]];
-      // the stand's neck and foot (props3d.ts `Monitor`): the cable runs behind them
-      const cx = m.x + m.w / 2, neck = box({ x: cx - 330, y: m.y + m.h * 0.55, w: 660, h: geo.ys - m.y - m.h * 0.55 }, mz - 560, mz - 300);
-      const stand: Env = { planes: room.planes, solids: [...room.solids, neck, box({ x: cx - 1700, y: geo.ys - 90, w: 3400, h: 90 }, mz - 1500, mz + 700)] };
+      // the stand's column and foot (monitor3d.ts): the cable runs behind them
+      const stand: Env = { planes: room.planes, solids: [...room.solids, ...[mp.column, mp.foot].map((o) => box(o.r, o.z0, o.z1))] };
       const up: RopeEnd = { at: [kg.x, deskTop + 10, kg.z], dir: [0, 1, 0] }, o = { natural: true, handle: 0.4, stiff: 0.45, n: 34 };
-      const monSeat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] }, mon = straightPlug(monSeat, 90, 60, 140, '#3a3d44');
+      const monSeat: Seat = seats.video, mon = straightPlug(monSeat, MONITOR_PLUG.w, MONITOR_PLUG.h, MONITOR_PLUG.l, '#3a3d44');
       g.add(mon.root, cableMesh([...rounded(run, 250), ...hangPts(up, mon.strands[0]!, video, stand, o)], video));
       // the PC end: where the sim has it (the board's port, or a card's), and the other ports it could go to
       // (a card's HDMI is on its bracket, inside the slot's opening: the plug reaches in through the case's back to its mouth)
@@ -698,7 +698,7 @@ export class Machine3D {
       if (has('pcmains')) this.wires.add(mainsPlug(this.plan, visual));
       mains('pcmains', { at: [CASE.x - PLUG_TAIL, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
     }
-    mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
+    mains('monmains', { at: seats.power.at, dir: seats.power.axis }, geo.socket.mon, -60);
   }
 
   /** The key in the USB port (`id`), or none: only the key is built again. */

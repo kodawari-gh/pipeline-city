@@ -12,6 +12,7 @@ import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { oak } from './furniture3d';
+import { monitorBody } from './monitor3d';
 import { NEON, NEON_WASH, STEEL } from './palette';
 
 type V3 = [number, number, number];
@@ -82,23 +83,13 @@ export class Monitor {
   readonly bias: RectAreaLight;
 
   constructor(m: RectLike, screen: RectLike, deskY: number, z0: number) {
-    const shell = mat(0x2d3137, { roughness: 0.45, metalness: 0.2 }), back = mat(0x24272c, { roughness: 0.6 });
-    const R = this.root, cx = m.x + m.w / 2, hump = { x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 };
-    // (its baked occlusion: the neck into the back, the foot on the desk; `vertexao.ts`)
+    const R = this.root, cx = m.x + m.w / 2;
+    // (its baked occlusion: the column into the back, the foot on the desk; `vertexao.ts`)
     R.userData.ao = 40 * MM;
-    R.add(softBox(m, z0, z0 + 180, shell, 50));
-    R.add(softBox(hump, z0 - 380, z0, back, 160));
+    // the body: the panel, the back housing, the bracket, the stand, the ports (monitor3d.ts)
+    R.add(monitorBody(m, screen, deskY, z0));
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
     this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
-    R.add(softBox({ x: cx - 330, y: m.y + m.h * 0.55, w: 660, h: deskY - m.y - m.h * 0.55 - 90 }, z0 - 560, z0 - 300, shell, 80));
-    R.add(softBox({ x: cx - 1700, y: deskY - 90, w: 3400, h: 90 }, z0 - 1500, z0 + 700, shell, 40));
-    // the maker's mark on the chin, vents across the back, the cable's hole through the neck
-    const chin = (screen.y + screen.h + m.y + m.h) / 2;
-    R.add(softBox({ x: cx - 300, y: chin - 30, w: 600, h: 60 }, z0 + 180, z0 + 188, mat(0x8b9198, { roughness: 0.4, metalness: 0.5 }), 20));
-    const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
-    for (let r = 0; r < 7; r++) for (let k = 0; k < 3; k++) vents.push({ x: hump.x + hump.w * (0.2 + k * 0.3), y: -(hump.y + 500 + r * 170), z: z0 - 384, sx: hump.w * 0.26, sy: 60, sz: 12 });
-    R.add(instanced(new BoxGeometry(1, 1, 1), mat(0x15171a, { roughness: 0.8 }), vents));
-    R.add(softBox({ x: cx - 200, y: deskY - 1400, w: 400, h: 520 }, z0 - 568, z0 - 560, mat(0x15171a, { roughness: 0.8 }), 60));
     const led = new Mesh(new CylinderGeometry(28, 28, 20, 10), this.led);
     led.rotation.x = Math.PI / 2; led.position.set(m.x + m.w - 260, -(m.y + m.h - 70), z0 + 186);
     R.add(seeThrough(led));
