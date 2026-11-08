@@ -204,9 +204,18 @@ export let TOP_FANS: Rect[] = [];
 export const TOP_FAN_COUNT = CASE_TIERS.map((c) => c.fans.top), FRONT_FAN_COUNT = CASE_TIERS.map((c) => c.fans.front);
 /** A fan's frame side from its size in mm (23 units a mm: a 92 mm fan is 2120). */
 export const fanLen = (mm: number): number => Math.round((mm * 23) / 20) * 20;
-/** Every fan mount of a case takes one size (the sim's `fanSize`): a frame this thick and this long on each side (front, top and rear), so a fan reads the same wherever it sits. */
-export const TOP_FAN_T = 440, TOP_FAN_X0 = -2500;
-export let FAN_LEN = fanLen(92), TOP_FAN_PITCH = FAN_LEN + 80;
+/**
+ * Every fan mount of a case takes one size (the sim's `fanSize`): a frame this thick (a 25 mm fan, `fanDepth`) and this long on each side (front,
+ * top and rear), so a fan reads the same wherever it sits. The first top fan stands clear of the rear fan by a radiator's end tank (`TOP_FAN_X0`).
+ */
+export const TOP_FAN_T = 575;
+export let FAN_LEN = fanLen(92), TOP_FAN_PITCH = FAN_LEN + 80, TOP_FAN_X0 = -1625;
+/**
+ * A radiator's core by grade (slim, thick, big: 27, 36 and 45 mm thick, as the cooling it adds; 27 mm is an all-in-one loop's), `RAD_GAP` inboard
+ * of the fans of its side. Each side with fan mounts keeps room for the thickest inboard of its fans (`RAD_ROOM`), and for an end tank past the fans
+ * at each end (`RAD_TANK`: 17 mm).
+ */
+export const RAD_T = [621, 828, 1035] as const, RAD_GAP = 20, RAD_ROOM = RAD_GAP + RAD_T[2], RAD_TANK = 400;
 /** Where the rear fan ends (layout y): above the first expansion slot and its retention bar, whatever its size. */
 const REAR_FAN_END = 860;
 /**
@@ -219,6 +228,8 @@ export let BAY_CELLS: Rect[] = [];
 export const CELL_W = 1050, CELL_H = 725, CELL_PITCH = 785;
 /** Width of a front fan module (seen edge-on) east of the cage: a fan's thickness (`TOP_FAN_T`). */
 export const FAN_W = TOP_FAN_T;
+/** How far under the Mini's top its front fans start: under the bay covers of its face. */
+export const MINI_FAN_Y = 1880;
 /** x of the SATA power lead that runs up the cage's west side (from the PSU), and the cage's west edge. */
 export let POWER_LEAD_X = 4070;
 /**
@@ -355,11 +366,16 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const mounts = CASE_TIERS[cg.tier]!;
   FAN_LEN = fanLen(mounts.fanSize); TOP_FAN_PITCH = FAN_LEN + 80;
   setCaseDepth(cg.tier, FAN_LEN);
-  // the front fans stand in front of the cage, the perforated front panel closes the glass
-  const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
-  // the head room above the board: the top fans' and the 8-pin cable's, more when the front stack needs it (it ends over the case's inner floor, room for its cable's stub)
-  const stack = 40 + mounts.fans.front * FAN_LEN + (mounts.fans.front - 1) * 20 + 100;
-  const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack - 400), bottom = south + 1750;
+  // the front fans stand in front of the cage with a radiator's room between (`RAD_ROOM`), the perforated front panel closes the glass
+  const glassEast = cageX + CELL_W + 70 + RAD_ROOM + FAN_W + 20 + 170;
+  // the case's top: over the board's head room (the 8-pin cable's); over the front stack, from the top (a radiator's end tank over and under the
+  // fans, room under it for the last fan's cable stub, over the case's inner floor: the Mini's fans start under the bay covers of its face,
+  // `frontFanRects`); and with top fans over their stack (the fans and a radiator's room under them, clear of the tall parts at the board's top
+  // edge, the VRM and memory sinks of every board the case holds: the radiator hangs in front of the board's top strip, above the low parts)
+  const nf = mounts.fans.front, stack = (cg.tier === 0 ? MINI_FAN_Y : 440 + RAD_TANK) + nf * FAN_LEN + (nf - 1) * 20 + RAD_TANK + 100;
+  const tall = Math.min(...Array.from({ length: cg.tier + 1 }, (_, t) => { const tg = geoOf(t); return Math.min(tg.vrmSink.y, tg.dSink.y); }));
+  const headTop = mounts.fans.top > 0 ? tall - 60 - (40 + TOP_FAN_T + RAD_ROOM) - 400 : Infinity;
+  const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack, headTop), bottom = south + 1750;
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
   CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 - (top + 400) };
   CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
@@ -368,7 +384,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
   REAR_FAN = { x: CASE_IN.x, y: REAR_FAN_END - FAN_LEN, w: FAN_W, h: FAN_LEN };
   REAR_FAN_FITTED = cg.tier >= 1;
-  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: TOP_FAN_X0 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: FAN_LEN, h: TOP_FAN_T }));  // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
+  TOP_FAN_X0 = REAR_FAN.x + REAR_FAN.w + 40 + RAD_TANK;
+  TOP_FANS =Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: TOP_FAN_X0 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: FAN_LEN, h: TOP_FAN_T }));  // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
   DESK_Y = bottom + FOOT; FLOOR_Y = DESK_Y + DESK_SLAB + DESK_UNDER;
   const MW = 3300 * MONITOR_K, MH = 1995 * MONITOR_K;
   MONITOR = { x: MONITOR_EAST - MW, y: DESK_Y - MON_STAND - MH, w: MW, h: MH };

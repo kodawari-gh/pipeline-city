@@ -37,7 +37,7 @@ import { isPcieKind } from '../wiring/routes';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
-import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanPart, type FanFit, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, cardModel, gpuVideoAt, slotBlank, type Card3D } from './card3d';
@@ -183,7 +183,7 @@ export class Machine3D {
     this.art = new ArtSet(q);
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
-    if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
+    if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2, radiatorGrade((getSpec(radDev!.spec) as { visual?: string } | undefined)?.visual ?? '')), count: span.ids.length, span };
     this.devs = s?.devices ?? [];
     this.buildCase();
     this.buildBoard(s);
@@ -203,7 +203,7 @@ export class Machine3D {
         if (!b.isEmpty()) this.solids.set(o, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
       }
       // the loop's hoses: stiff braided hoses arcing from the pump's ports to the radiator's barbs
-      if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
+      if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad.fit)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
       this.root.add(this.wires);
       this.setCables(s, geo);
     }
@@ -243,14 +243,12 @@ export class Machine3D {
     return this.devs.filter((d) => d.kind === 'fan' && on(d.slot)).map((d) => ({ id: d.id, slot: d.slot, spec: getSpec(d.spec) as FanSpec }));
   }
 
-  /** The unseen drop box of each free fan spot, as big as the fan it takes: a case mount's in the case, or on the radiator that covers it; a heatsink's on its end or over its top. */
+  /** The unseen drop box of each free fan spot, as big as the fan it takes: a case mount's in the case (a radiator leaves its side's fans on their mounts); a heatsink's on its end or over its top. */
   private fanPicks(s: Snapshot, filled: ReadonlySet<string>, pickBox: (r: RectLike, z0: number, z1: number, id: string) => void) {
-    const rad = this.rad;
     for (const m of fanMounts()) {
       if (filled.has(m.id)) continue;
-      const k = rad ? rad.span.ids.indexOf(m.id) : -1, zc = m.side === 'rear' ? REAR_ZC : FAN_ZC;
-      const spot = rad && k >= 0 ? radiatorFanSpot(rad.fit, k, rad.count) : { r: m.rect, d: Math.min(m.side === 'top' ? m.rect.w : m.rect.h, FAN_MAX) * 0.92 };
-      pickBox(spot.r, zc - spot.d / 2, zc + spot.d / 2, m.id);
+      const zc = m.side === 'rear' ? REAR_ZC : FAN_ZC, d = Math.min(m.side === 'top' ? m.rect.w : m.rect.h, FAN_MAX);
+      pickBox(m.rect, zc - d / 2, zc + d / 2, m.id);
     }
     for (const [id, r] of slotRects(s)) {
       const host = fanHost(id);
@@ -438,16 +436,16 @@ export class Machine3D {
       case 'radiator': {
         // bolted along the side the player chose, over that side's fan mounts; each fan fitted on them runs on its mount's cable
         if (this.rad) {
-          const { fit, span } = this.rad, m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids, this.fanFits((slot) => span.ids.includes(slot))));
+          const { fit, span } = this.rad, m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids));
           m.root.userData.radiator = true;
           this.obstacles.push(m.root);
         }
         break;
       }
       case 'fan': {
-        // on a case mount; a heatsink and a radiator build the fans on their own spots
+        // on a case mount (a radiator's side keeps its fans on their mounts); a heatsink builds the fans on its own spots
         const m = fanMounts().find((x) => x.id === d.slot);
-        if (!m || this.rad?.span.ids.includes(m.id)) return;
+        if (!m) return;
         const f = caseFan({ slot: d.slot, spec: spec as FanSpec }, m.side, m.rect, m.side === 'rear' ? REAR_ZC : FAN_ZC, FAN_MAX);
         g.add(f.root);
         if (m.side === 'rear') g.add(rearFanScrews());

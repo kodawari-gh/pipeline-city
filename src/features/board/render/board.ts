@@ -9,10 +9,10 @@ import type { StorageSnap } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '@/core/render/camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorBay, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from '../../storage/render/drives';
 import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
-import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, type RadiatorFit } from './cooler';
+import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, radiatorRect, type RadiatorFit } from './cooler';
 import { Interact, isWallCord, type CableInfo, type SceneInfo } from '@/core/render/interact';
 import { CordsView, type CordKind } from './wiring/cords';
 import { FanCordsView } from './wiring/fancords';
@@ -626,7 +626,7 @@ export async function mountBoard(host: HTMLElement) {
     const mounts = fanMounts();
     const radDev = (s?.devices ?? []).find((d) => d.kind === 'radiator');
     const radSpan = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
-    const radFit: RadiatorFit | null = radSpan ? radiatorFit(radSpan, COOLER.x + COOLER.w / 2) : null;
+    const radFit: RadiatorFit | null = radSpan ? radiatorFit(radSpan, COOLER.x + COOLER.w / 2, radiatorGrade(getSpec(radDev!.spec)?.visual ?? '')) : null;
     for (const m of mounts) { if (radSpan?.ids.includes(m.id) || !taken.has(m.id)) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
@@ -697,8 +697,9 @@ export async function mountBoard(host: HTMLElement) {
           const ra = radiatorArt(T, radFit, radiatorGrade(spec.visual), radSpan.ids.length);
           deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
           ra.fans.forEach((f, k) => { if (taken.has(radSpan.ids[k]!)) { fans.push({ c: f, kind: 'radiator:' + radSpan.ids[k]! }); fanLayer.addChild(f); } });
-          deviceHits.push(partHit(d.id, ra.root, radSpan.rect));
-          scene.rects.set(d.id, radSpan.rect);
+          const r = radiatorRect(radFit);
+          deviceHits.push(partHit(d.id, ra.root, r));
+          scene.rects.set(d.id, r);
         }
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
@@ -803,14 +804,15 @@ export async function mountBoard(host: HTMLElement) {
     empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
     empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
     empty('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER)!);
-    // the radiator sides: a drop target over all the fans of the front and of the top once an AIO is fitted and no radiator is on (the ids are the sim's `rad-<side>` slots)
+    // the radiator sides: a drop target over the room a radiator takes on the front and on the top (the fans there and the room inboard of them,
+    // `radiatorBay`) once an AIO is fitted and no radiator is on (the ids are the sim's `rad-<side>` slots)
     const hasAio = (s?.devices ?? []).some((d) => d.kind === 'cooler' && getSpec(d.spec)?.visual === 'cooler-liquid');
     for (const side of ['front', 'top'] as const) {
-      const span = radiatorSpan(side);
-      if (!span) continue;
+      const bay = radiatorBay(side);
+      if (!bay) continue;
       const id = `rad-${side}`;
-      scene.slots.set(id, span.rect); scene.rects.set(id, span.rect);
-      if (hasAio && !radDev && !filled.has(id)) { emptyHits.push({ id, rect: span.rect }); scene.interactive.add(id); }
+      scene.slots.set(id, bay); scene.rects.set(id, bay);
+      if (hasAio && !radDev && !filled.has(id)) { emptyHits.push({ id, rect: bay }); scene.interactive.add(id); }
     }
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;

@@ -8,7 +8,7 @@ import { BOARD_TIERS, getSpec, type CardSpec, type CpuSpec, type FanSpec, type N
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
-import { DESK_Y, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, fanLen, setLayoutTier } from '../layout/layout';
+import { DESK_Y, GEO, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, fanLen, setLayoutTier } from '../layout/layout';
 import { kitFit, radiatorGrade } from '../cooler';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
@@ -19,7 +19,7 @@ import { fanHub } from './fanhub3d';
 import { leadCoil } from './casetray3d';
 import { coolerModel, radiatorModel } from './cooler3d';
 import { cpuModel } from './cpu3d';
-import { fanPart } from './fans3d';
+import { fanDepth, fanPart } from './fans3d';
 import { driveRaise, nvmeStick, sataDrive, tpmModel } from './parts3d';
 import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
@@ -101,10 +101,10 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
       return c.root;
     })));
     case 'cooler': return upright(withLayout(() => coolerModel((spec as { visual: string }).visual).root));
-    // (faces the viewer; a 40 mm fan is half as thick as the others)
+    // (faces the viewer; 25 mm deep, the 40 mm fan 10 mm)
     case 'fan': {
       const fs = spec as FanSpec;
-      return centred(fanPart(fs, fanLen(fs.size), fs.size > 40 ? FAN_W : FAN_W / 2).root);
+      return centred(fanPart(fs, fanLen(fs.size), fanDepth(fs.size)).root);
     }
     case 'storage': {
       const ss = spec as StorageSpec, kind = driveKindOf(ss.visual), slot = kind === 'ssd-nvme' ? 'm20' : 'sata0';
@@ -120,9 +120,9 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
       return centred(withLayout(() => psuUnit(basementPlan(), ps.visual, ps.fan !== false).root));
     }
     case 'radiator': {
-      // two fan mounts long, no fans fitted
-      const vis = (spec as { visual: string }).visual;
-      return centred(withLayout(() => radiatorModel(kitFit(), radiatorGrade(vis), ['a', 'b']).root));
+      // the one the game fits on the Full tower's top: as long as its fan mounts there, no fans fitted
+      const grade = radiatorGrade((spec as { visual: string }).visual);
+      return centred(withLayout(() => { const kit = kitFit(grade)!; return radiatorModel(kit.fit, grade, kit.ids).root; }));
     }
     case 'tpm': {
       const visual = (spec as { visual: string }).visual;

@@ -117,7 +117,7 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
  */
 export function caseFan(fit: Pick<FanFit, 'slot' | 'spec'>, side: 'front' | 'top' | 'rear', r: RectLike, zc: number, maxD: number): { root: Group; spin: Spin } {
   const axis: 'x' | 'y' = side === 'top' ? 'y' : 'x';
-  const d = Math.min(axis === 'x' ? r.h : r.w, maxD) * 0.92, depth = axis === 'x' ? r.w : r.h;
+  const d = Math.min(axis === 'x' ? r.h : r.w, maxD), depth = axis === 'x' ? r.w : r.h;
   // built round z, then turned: its +z to world +x (the front's outside, the rear's inside) or to world -y (the top's inside)
   const f = fanPart(fit.spec, d, depth, side === 'front' ? -1 : 1);
   f.root.position.set(r.x + r.w / 2, -(r.y + r.h / 2), zc);

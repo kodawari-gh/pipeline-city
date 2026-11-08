@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T, MINI_FAN_Y, RAD_TANK, RAD_ROOM,
   sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
@@ -142,11 +142,12 @@ function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
 /**
  * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
  * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. The sim's count of one
- * size of fan (`FRONT_FAN_COUNT`, `FAN_LEN`), stacked from under the top; the Mini's stack starts under the ports on its face.
+ * size of fan (`FRONT_FAN_COUNT`, `FAN_LEN`), stacked from under the top, a radiator's end tank under it; the Mini's stack starts under the bay
+ * covers on its face.
  */
 export function frontFanRects(): Rect[] {
   const gl = CASE_GLASS, east = gl.x + gl.w, n = FRONT_FAN_COUNT[LAYOUT_CASE] ?? 1, gap = 20;
-  const y0 = LAYOUT_CASE === 0 ? CASE.y + 1880 : CASE_IN.y + 40;
+  const y0 = LAYOUT_CASE === 0 ? CASE.y + MINI_FAN_Y : CASE_IN.y + 40 + RAD_TANK;
   const w = FAN_W, x = east - 170 - 20 - w;
   return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (FAN_LEN + gap), w, h: FAN_LEN }));
 }
@@ -187,6 +188,16 @@ export function radiatorSpan(side: 'front' | 'top'): (FanMount & { ids: string[]
   const x0 = Math.min(...ms.map((m) => m.rect.x)), y0 = Math.min(...ms.map((m) => m.rect.y));
   const x1 = Math.max(...ms.map((m) => m.rect.x + m.rect.w)), y1 = Math.max(...ms.map((m) => m.rect.y + m.rect.h));
   return { id: side, side, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, ids: ms.map((m) => m.id) };
+}
+
+/**
+ * The room a radiator takes on a side: the box round that side's fans, grown by an end tank past each end (`RAD_TANK`) and by the room inboard
+ * of the fans (`RAD_ROOM`). A radiator's drop target. Null when the case has no mount there.
+ */
+export function radiatorBay(side: 'front' | 'top'): Rect | null {
+  const r = radiatorSpan(side)?.rect;
+  if (!r) return null;
+  return side === 'top' ? { x: r.x - RAD_TANK, y: r.y, w: r.w + 2 * RAD_TANK, h: r.h + RAD_ROOM } : { x: r.x - RAD_ROOM, y: r.y - RAD_TANK, w: r.w + RAD_ROOM, h: r.h + 2 * RAD_TANK };
 }
 
 /** Where each case fan's cable leaves it: a short stub into the gap beside the fan (front fans below, top fans east, the rear fan below), that goes behind the tray. */

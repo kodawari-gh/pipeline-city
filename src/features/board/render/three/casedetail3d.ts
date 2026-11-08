@@ -44,7 +44,7 @@ const SLOT_Z = [BOARD_Z + 130, HINGE_Z + STAND.gpu - 40] as const;
 
 /** The rear exhaust's round opening in the rear wall, on every case (layout y and depth). */
 function rearFanHole(): { d: number; cy: number } {
-  return { d: Math.min(REAR_FAN.h, FAN_MAX) * 0.92, cy: REAR_FAN.y + REAR_FAN.h / 2 };
+  return { d: Math.min(REAR_FAN.h, FAN_MAX) * 0.96, cy: REAR_FAN.y + REAR_FAN.h / 2 };
 }
 
 /**
@@ -88,7 +88,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
 
 /** The rear fan's four screws, seen in the rear wall's holes: they come and go with the fan. */
 export function rearFanScrews(): Group {
-  const { d, cy } = rearFanHole(), o = d * FAN_SCREW;
+  const { cy } = rearFanHole(), o = Math.min(REAR_FAN.h, FAN_MAX) * FAN_SCREW;
   return screws(([[-o, -o], [-o, o], [o, -o], [o, o]] as const).map(([dy, dz]) => ({ x: CASE.x, y: -(cy + dy), z: REAR_ZC + dz })), 'x-', 58, steel());
 }
 
@@ -123,7 +123,7 @@ export function fanMountPlates(m: Material): Group {
   const g = new Group(), T = 12;
   for (const fan of fanMounts()) {
     if (fan.side === 'rear') continue;
-    const r = fan.rect, top = fan.side === 'top', d = Math.min(top ? r.w : r.h, FAN_MAX) * 0.92;
+    const r = fan.rect, top = fan.side === 'top', d = Math.min(top ? r.w : r.h, FAN_MAX);
     const o = place(new Mesh(fanFlange(d, T, d * 1.02), m));
     if (top) { o.rotation.x = Math.PI / 2; o.position.set(r.x + r.w / 2, -(r.y - T / 2 - 2), FAN_ZC); }
     else { o.rotation.y = Math.PI / 2; o.position.set(r.x + r.w + T / 2 + 2, -(r.y + r.h / 2), FAN_ZC); }
@@ -139,7 +139,7 @@ export const SLOT_BLANK: Record<CaseKind, number> = { oem: 0xa3a69f, matte: 0x1c
 
 /** The span of the front fans (layout y), and the depth their opening needs. */
 function frontSpan(): Span {
-  const rs = frontFanRects(), y0 = Math.min(...rs.map((r) => r.y)), y1 = Math.max(...rs.map((r) => r.y + r.h)), d = Math.min(...rs.map((r) => Math.min(r.h, FAN_MAX))) * 0.92;
+  const rs = frontFanRects(), y0 = Math.min(...rs.map((r) => r.y)), y1 = Math.max(...rs.map((r) => r.y + r.h)), d = Math.min(...rs.map((r) => Math.min(r.h, FAN_MAX)));
   return { y0: y0 - 20, y1: y1 + 20, z0: FAN_ZC - d / 2 - 50, z1: FAN_ZC + d / 2 + 50, r: 40 };
 }
 

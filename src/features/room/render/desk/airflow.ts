@@ -5,11 +5,11 @@ import { COOLER, type Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
 import { EdgeFan, radiatorSpan } from './props/case';
-import { CoolantFlow, radiatorFit, tubeRoutes } from '@/features/board/render/cooler';
+import { CoolantFlow, radiatorFit, radiatorGrade, tubeRoutes } from '@/features/board/render/cooler';
 import { fanBank } from '@/core/render/fanmotor';
 import { blades } from '@/features/board/render/devices';
 import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
-import { AMBIENT_C, type DeviceKind } from '@/features/board/sim/specs';
+import { AMBIENT_C, getSpec, type DeviceKind } from '@/features/board/sim/specs';
 import { AirField, type FieldPort } from './airfield';
 import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
@@ -252,7 +252,8 @@ export function airflowModel(i: AirIn): AirModel {
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
   // the loop's tubes, as the board lays them (pump ports on top of the cooler's head to the radiator's barbs)
   const span = loop ? radiatorSpan(loop.side) : null, px = COOLER.x + COOLER.w / 2;
-  const loopTubes = span ? tubeRoutes(radiatorFit(span, px), [px - 120, -520], [px + 120, -520]) : null;
+  const grade = radiatorGrade(getSpec(s.devices.find((d) => d.kind === 'radiator')?.spec ?? '')?.visual ?? '');
+  const loopTubes = span ? tubeRoutes(radiatorFit(span, px, grade), [px - 120, -520], [px + 120, -520]) : null;
   return { lanes, zones, tags, mounts, fanArt: localFans, loopTubes, box: i.glass };
 }
 

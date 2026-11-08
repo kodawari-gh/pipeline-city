@@ -44,7 +44,7 @@ describe('the desk follows the case', () => {
     expect(by + MON_STAND).toBeCloseTo(g.ys, 6); // the foot ends on the desk top (monitorArt: 400 design units under the bezel)
     expect(MONITOR.x + MONITOR.w).toBe(MONITOR_EAST);
     expect(CASE.x - MONITOR_EAST).toBeGreaterThan(2000); // room between them for the mug and the cables
-    expect(MONITOR.w / CASE.w).toBeGreaterThan(0.95);
+    expect(MONITOR.w / CASE.w).toBeGreaterThan(0.85); // (a Full tower, with room for a 45 mm radiator behind its front fans, is a little deeper)
     expect(MONITOR.w / CASE.w).toBeLessThan(1.3); // (the Mini's case is the smallest: a real mini-ITX case is shallower than a 24 inch is wide)
   });
 

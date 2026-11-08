@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Box3, type Mesh, Vector3 } from 'three';
-import { radiatorSpan } from '@/features/room/render/desk/props/case';
-import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
-import { radiatorFit, radiatorPorts } from '../cooler';
-import { COOLER, COOLER_HOLES, PCIE_RAILS, setLayoutTier } from '../layout/layout';
-import { barbZ, coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel } from './cooler3d';
-import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
-import { getSpec, type FanSpec } from '../../sim/specs';
+import { radiatorBay, radiatorSpan } from '@/features/room/render/desk/props/case';
+import { BOARD_Z, CASE_D, CASE_Z, FAN_ZC } from '@/features/room/render/three/roomplan';
+import { radiatorCore, radiatorFit, radiatorRect } from '../cooler';
+import { COOLER, COOLER_HOLES, LAYOUT_CASE, PCIE_RAILS, RAD_T, fanLen, setLayoutTier } from '../layout/layout';
+import { coolerFanBox, coolerModel, hose, hoseEnds, radiatorDepth, radiatorModel, radiatorPorts3d } from './cooler3d';
+import { CASE_TIERS, getSpec, type FanSpec } from '../../sim/specs';
 import { findById } from '@/core/render/three/pick';
 import type { FanFit } from './fans3d';
 
@@ -14,6 +13,8 @@ const rad = (side: 'top' | 'front') => {
   const span = radiatorSpan(side)!;
   return { span, fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length };
 };
+/** The fan size of the current case's mounts. */
+const LAYOUT_CASE_FAN = () => CASE_TIERS[LAYOUT_CASE]!.fanSize;
 const fit = (spec: string, slot: string): FanFit => ({ id: `d-${slot}`, slot, spec: getSpec(spec) as FanSpec });
 
 /** Where a cooler must stay at its real size: behind the board only its backplate, north of the first card's backplate, under the glass, clear of the RAM's tops. */
@@ -59,37 +60,53 @@ describe('the 3D coolers', () => {
     expect(coolerFanBox('cooler-liquid', 0)).toBeNull();
   });
 
-  it('hangs the loop\'s two hoses from the pump\'s ports to the radiator\'s barbs, whichever side it is bolted on', () => {
+  it('hangs the loop\'s two hoses from the pump\'s fittings to the radiator\'s, whichever side it is bolted on', () => {
     setLayoutTier(3, 3);
     for (const side of ['top', 'front'] as const) {
-      const r = rad(side), ends = hoseEnds(r);
+      const r = rad(side), ends = hoseEnds(r.fit), ports = radiatorPorts3d(r.fit);
       expect(ends.length, side).toBe(2);
-      const tips = radiatorPorts(r.fit).tips.map((t) => new Vector3(t[0], -t[1], barbZ(r)));
-      for (const [a, b] of ends) {
+      // the hoses do not cross: the pump port nearer the radiator's tank goes to the radiator port nearer the board
+      expect(Math.abs(ends[0]![0].at[0] - ports[0]!.at[0]), side).toBeLessThan(Math.abs(ends[1]![0].at[0] - ports[0]!.at[0]));
+      expect(ends[0]![1].at[2], side).toBeLessThan(ends[1]![1].at[2]);
+      ends.forEach(([a, b], k) => {
         // the sleeve's first and last rings (its two caps follow them, a centre and a ring each): their centres are the hose's ends
         const t = hose(a, b, { planes: [], solids: [] }).children[0] as Mesh, pos = t.geometry.getAttribute('position'), ring = 15, caps = 2 * (ring + 1);
         const centre = (first: number) => Array.from({ length: ring - 1 }, (_, j) => new Vector3().fromBufferAttribute(pos, first + j)).reduce((s, p) => s.add(p), new Vector3()).divideScalar(ring - 1);
         expect(centre(0).distanceTo(new Vector3(...a.at)), side).toBeLessThan(2);
-        expect(Math.min(...tips.map((p) => p.distanceTo(centre(pos.count - caps - ring)))), side).toBeLessThan(40);
-      }
-      // the barbs sit inside the radiator's depth
-      expect(barbZ(r)).toBeGreaterThan(FAN_ZC - FAN_MAX / 2);
-      expect(barbZ(r)).toBeLessThan(FAN_ZC);
+        expect(centre(pos.count - caps - ring).distanceTo(new Vector3(...b.at)), side).toBeLessThan(40);
+        // the hose ends in its fitting's collar, on the port's axis
+        const p = ports[k]!, off = new Vector3(...b.at).sub(new Vector3(...p.at));
+        expect(off.dot(new Vector3(...p.dir)), side).toBeGreaterThan(200);
+        expect(off.cross(new Vector3(...p.dir)).length(), side).toBeLessThan(1);
+      });
+      // the ports sit inside the radiator's depth, either side of its middle
+      for (const p of ports) expect(Math.abs(p.at[2] - FAN_ZC), side).toBeLessThan(radiatorDepth() / 2 - 400);
     }
   });
 
-  it('shows a radiator bare, and a fan only on the mounts that have one, each on its mount\'s cable', () => {
-    setLayoutTier(3, 3);
-    for (const side of ['top', 'front'] as const) {
-      const r = rad(side), ids = r.span.ids, bare = radiatorModel(r.fit, 2, ids);
-      expect(bare.spins, side).toEqual([]);
-      const full = radiatorModel(r.fit, 2, ids, ids.map((id) => fit('fan140', id)));
-      expect(full.spins.map((s) => s.needs), side).toEqual(ids.map((id) => 'fan:' + id));
-      const one = radiatorModel(r.fit, 2, ids, [fit('fan140', ids[ids.length - 1]!)]), o = findById(one.root, `d-${ids[ids.length - 1]}`)!;
-      expect(one.spins.map((s) => s.needs), side).toEqual(['fan:' + ids[ids.length - 1]]);
-      const spot = radiatorFanSpot(r.fit, ids.length - 1, ids.length).r;
-      expect(o.position.x, side).toBeCloseTo(spot.x + spot.w / 2, 3);
-      expect(-o.position.y, side).toBeCloseTo(spot.y + spot.h / 2, 3);
+  it('bolts the radiator inboard of its side\'s fans, as deep as a fan and its core as thick as its grade, with no fans of its own', () => {
+    for (const tier of [1, 2, 3]) {
+      setLayoutTier(tier, tier);
+      for (const side of ['top', 'front'] as const) {
+        const span = radiatorSpan(side);
+        if (!span) continue;
+        for (const grade of [1, 2, 3] as const) {
+          const f = radiatorFit(span, COOLER.x + COOLER.w / 2, grade), m = radiatorModel(f, grade, span.ids), b = new Box3().setFromObject(m.root), key = `${tier} ${side} ${grade}`;
+          expect(m.spins, key).toEqual([]);
+          expect(radiatorCore(f).v1 - radiatorCore(f).v0, key).toBe(RAD_T[grade - 1]);
+          // in the case's depth, a fan's side and its side plates
+          expect(b.max.z - b.min.z, key).toBeGreaterThanOrEqual(fanLen(LAYOUT_CASE_FAN()));
+          expect(b.min.z, key).toBeGreaterThan(CASE_Z);
+          expect(b.max.z, key).toBeLessThan(CASE_Z + CASE_D);
+          // clear of the fans: wholly inboard of their inner face, and inside the room the side keeps for it (the fittings reach past it)
+          const r = span.rect, bay = radiatorBay(side)!, body = radiatorRect(f);
+          if (side === 'top') expect(-b.max.y, key).toBeGreaterThan(r.y + r.h);
+          else expect(b.max.x, key).toBeLessThan(r.x);
+          // (the tanks stand 10 proud of the core)
+          expect(body.x, key).toBeGreaterThanOrEqual(bay.x - 10); expect(body.x + body.w, key).toBeLessThanOrEqual(bay.x + bay.w + 10);
+          expect(body.y, key).toBeGreaterThanOrEqual(bay.y - 10); expect(body.y + body.h, key).toBeLessThanOrEqual(bay.y + bay.h + 10);
+        }
+      }
     }
   });
 });

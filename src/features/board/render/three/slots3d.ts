@@ -2,7 +2,7 @@
 import type { Snapshot } from '@/worker/protocol';
 import { BOARD_TIERS, getSpec, type FanSpots } from '../../sim/specs';
 import { tpmRect } from '@/core/render/accelart';
-import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
+import { fanMounts, radiatorBay } from '@/features/room/render/desk/props/case';
 import { slotRect as storageSlotRect } from '@/features/storage/render/drives';
 import { towerFanRect } from '../cooler';
 import { sinkFanRect } from '../devices';
@@ -30,7 +30,7 @@ export function slotRects(s: Snapshot): Map<string, Rect> {
   add('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
   add('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
   add('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER));
-  for (const side of ['front', 'top'] as const) { const span = radiatorSpan(side); if (span) m.set(`rad-${side}`, span.rect); }
+  for (const side of ['front', 'top'] as const) { const bay = radiatorBay(side); if (bay) m.set(`rad-${side}`, bay); }
   add('sata', slots.sata ?? 0, (i) => storageSlotRect('sata' + i));
   add('m2', slots.m2 ?? 0, (i) => storageSlotRect('m2' + i));
   // the fan spots: the case's mounts, and those of the heatsinks fitted
