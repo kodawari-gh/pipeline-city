@@ -10,7 +10,7 @@ import { TpmPlayer, REPLAY_HOP_MS } from './tpmplayer';
 import { tpmRoute } from './tpmroute';
 import type { TpmBlock } from './tpmplan';
 import { tpmCover } from '@/core/render/accelart';
-import { tpmGeo, type TpmGeo } from './tpmlayout';
+import { tpmGeo, tpmLed, type TpmGeo } from './tpmlayout';
 import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
@@ -70,7 +70,11 @@ export class TpmView {
   private now = 0;
   private lastWall = 0;
 
-  constructor() {
+  /**
+   * `bare`: the 3D view's (three/chips3d.ts): the module's real chip stands for the lid, so the lid is not drawn, and the padlock is the status LED
+   * the 3D module carries, lit red while protected mode is on (`tpmLed`). The die still fades in over the chip up close.
+   */
+  constructor(private readonly bare = false) {
     this.root.visible = false;
   }
 
@@ -94,6 +98,7 @@ export class TpmView {
     die.addChild(glowG, dyn, litG, texts, trailG, packetG, near.names, near.subs);
     const cover = tpmCover(T, s.visual, geo.band), badge = new Graphics();
     root.addChild(die, cover, badge);
+    if (this.bare) cover.renderable = false;
     this.root.addChild(root);
     const opt = { stages: plan.input.hashStages, rounds: plan.input.quoteRounds, keys: plan.input.keys };
     const areas = plan.blocks.flatMap((b) => { const a = tpmGlyphArea(b); return a ? [{ b, a }] : []; });
@@ -133,7 +138,9 @@ export class TpmView {
       this.lockBadge(T, m, show);
       const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       m.root.visible = on;
-      m.badge.alpha = m.cover.alpha = 1 - fade;
+      m.cover.alpha = 1 - fade;
+      // (the LED is a light on the module: it stays lit up close)
+      m.badge.alpha = this.bare ? 1 : 1 - fade;
       m.die.alpha = fade;
       m.die.visible = fade > 0.02;
       if (!m.die.visible || !on) continue;
@@ -157,6 +164,14 @@ export class TpmView {
     m.locked = locked;
     const b = m.geo.band, g = m.badge;
     g.clear();
+    if (this.bare) {
+      // the LED's light: a red glow round its lens and the hot core, nothing while it is off
+      if (!locked) return;
+      const { x, y } = tpmLed(m.geo);
+      g.circle(x, y, 20).fill({ color: T.bad, alpha: 0.22 }).circle(x, y, 12).fill({ color: T.bad, alpha: 0.5 });
+      g.roundRect(x - 6, y - 10, 12, 20, 4).fill({ color: '#ffd9d0', alpha: 0.95 });
+      return;
+    }
     box(g, b.x + b.w - 62, b.y + b.h / 2 - 24, 44, 52, 5, { fill: T.dark ? '#0b101c' : '#1d2536' });
     padlock(g, b.x + b.w - 40, b.y + b.h / 2 + 4, 30, locked, locked ? T.bad : T.mute, T.dark ? '#0b101c' : '#1d2536');
   }

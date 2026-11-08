@@ -21,7 +21,8 @@ import { coolerModel, radiatorModel } from './cooler3d';
 import { cpuModel } from './cpu3d';
 import { fanDepth, fanPart } from './fans3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
-import { driveRaise, sataDrive, tpmModel } from './parts3d';
+import { driveRaise, sataDrive } from './parts3d';
+import { tpmModel } from './tpm3d';
 import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
 
@@ -127,11 +128,11 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
     }
     case 'tpm': {
       const visual = (spec as { visual: string }).visual;
-      return upright(withLayout(() => withArt((art) => {
+      return upright(withLayout(() => {
         const g = new Group();
-        tpmModel(g, art, T, visual);
+        tpmModel(g, visual);
         return g;
-      })));
+      }));
     }
     // (bare: a fan on it is a part of its own)
     case 'vrm-sink': case 'ram-sink': {

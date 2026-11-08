@@ -1,18 +1,16 @@
 // The board's smaller hardware as real parts (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"), where the 2D drawing stands for a part seen from
-// above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder, the TPM module on its
-// header, a SATA drive's cast body with its lid and connectors.
-// Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures; `driveRaise` and `tpmModel` give the
-// drives and the module their own drawing, the same in the case, in Build my PC and in the gallery.
+// above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder, a SATA drive's cast
+// body with its lid and connectors (the TPM module: tpm3d.ts).
+// Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures; `driveRaise` gives the drives their own
+// drawing, the same in the case, in Build my PC and in the gallery.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { Container, Graphics } from 'pixi.js';
-import { headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import type { Theme } from '@/core/render/theme';
 import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { drawDriveLive, driveArt, type DriveKind } from '@/features/storage/render/drives';
 import { pchFixings, pchPlateau } from '../boardArt';
-import { GEO } from '../layout/layout';
 import { m2Standoffs } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
 import type { ArtSet } from './artset3d';
@@ -112,29 +110,6 @@ export function coinCell(r: RectLike): Group {
   g.add(cell);
   g.add(softBox({ x: cx - R - 22, y: cy - 16, w: R * 0.9, h: 32 }, BOARD_Z + 46, BOARD_Z + 56, steel(), 6));
   return g;
-}
-
-// ------------------------------------------------------------------ the TPM module
-/** The TPM module on its header: a female connector over the header's pins, the module's PCB on it wearing its 2D drawing. */
-export function tpmModule(g: Group, r: RectLike, header: RectLike, raise: Raise) {
-  g.add(softBox(header, BOARD_Z + 120, BOARD_Z + 290, mat(0x0d0f14, { roughness: 0.55 }), 8));
-  raise(g, r, BOARD_Z + 290, BOARD_Z + 312, mat(0x1d3b2c, { roughness: 0.5 }));
-}
-
-/**
- * The module on this tier's header (`GEO`), its PCB wearing `tpmArt`, into `g`. `onLid`: the PCB's top, its rect and depth (the machine runs the
- * die on it). False: the board has no header.
- */
-export function tpmModel(g: Group, art: ArtSet, T: Theme, visual: string, onLid?: (top: Group, r: RectLike, z: number) => void): boolean {
-  const r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier);
-  if (!r || !h) return false;
-  const raise = art.raise(art.baker(() => tpmArt(T, visual, h)));
-  tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel) => {
-    const top = raise(parent, rr, z0, z1, s, bevel);
-    if (rr === r) onLid?.(top, r, z1);
-    return top;
-  });
-  return true;
 }
 
 // ------------------------------------------------------------------ the drives' drawing

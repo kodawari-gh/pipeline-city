@@ -10,7 +10,7 @@ import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Ve
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
-import { cardOrigin } from '@/core/render/accelart';
+import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
@@ -62,7 +62,8 @@ import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
-import { driveRaise, sataDrive, tpmModel } from './parts3d';
+import { driveRaise, sataDrive } from './parts3d';
+import { tpmModel, TPM_Z } from './tpm3d';
 import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
@@ -387,9 +388,8 @@ export class Machine3D {
         break;
       }
       case 'tpm': {
-        // the module on its header: a female connector over the pins, the module's PCB on it
-        // (the module's lid: its die and its commands run on it, chips3d.ts)
-        tpmModel(g, this.art, T, visual, (top, r, z) => { this.chips?.face(top, 'tpm', r, z + 2, d.slot); this.rail(d.id, r, z, DEVICE_LOD.tpm.lid); });
+        // the module on its header (tpm3d.ts); its die runs over its chip, its LED shows protected mode (chips3d.ts)
+        if (tpmModel(g, visual, (top, r, z) => this.chips?.face(top, 'tpm', r, z + 2, d.slot))) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
         break;
       }
       case 'psu': {

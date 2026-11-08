@@ -93,7 +93,7 @@ export class Chips3D {
   private readonly die = new DieView(true);
   private readonly gpu = new GpuView(true);
   private readonly npu = new NpuCardView(true);
-  private readonly tpm = new TpmView();
+  private readonly tpm = new TpmView(true);
   private tpms = new Map<string, { visual: string; hdr: Rect }>();
   private faces: Face[] = [];
   private cpu = false;

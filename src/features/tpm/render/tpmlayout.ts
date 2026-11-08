@@ -49,6 +49,12 @@ export function tpmGeo(visual: string, hdr: Rect): TpmGeo {
   return geo;
 }
 
+/**
+ * The module's status LED (board space), by the PCB's east edge beside the chip: the 3D module carries it, and the 3D view (`TpmView` bare) lights it
+ * red while protected mode is on, where the 2D lid shows its padlock.
+ */
+export const tpmLed = (g: Pick<TpmGeo, 'pcb' | 'band'>): { x: number; y: number } => ({ x: g.pcb.x + g.pcb.w - 18, y: g.band.y + g.band.h / 2 });
+
 /** A block's rectangle in board space. */
 export const blockRect = (g: Pick<TpmGeo, 'die' | 'scale'>, b: Pick<TpmBlock, 'rect'>): Rect => ({ x: g.die.x + b.rect.x * g.scale, y: g.die.y + b.rect.y * g.scale, w: b.rect.w * g.scale, h: b.rect.h * g.scale });
 
