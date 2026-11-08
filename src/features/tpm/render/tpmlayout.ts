@@ -4,10 +4,10 @@ import { tpmPlanInput, type TpmBlock, type TpmPlan } from './tpmplan';
 import { TPM_DIE, tpmPlan } from './tpmplans';
 import type { Rect } from '../../board/render/layout/layout';
 
-// The secure module on its header (docs/ACCEL.md "TPM"), in board space. The daughterboard stands on the header; the header's pins come through
-// its south end (their solder joints show), and its die lies under a lid in the band between the module's name and those pins. The die's own
-// plan (`tpm/tpmplans.ts`) is drawn in die units and scaled into the band. Like `gpulayout` for the cards: the tooltip test enumerates the hover
-// ids from here, so a part cannot be drawn without a description.
+// The secure module on its header (docs/PC_PARTS.md "TPM"), in board space. The daughterboard stands on the header; the header's pins come through
+// its south end (their solder joints show). North of them, in the band between the board's edge and those pins, its chip: a real TSSOP-28, as on
+// the LPC modules of both TPM generations. The die's own plan (`tpm/tpmplans.ts`) is drawn in die units and scaled onto the chip's top. Like
+// `gpulayout` for the cards: the tooltip test enumerates the hover ids from here, so a part cannot be drawn without a description.
 
 /**
  * How far the daughterboard reaches round the header's pins: its margin, and how far it runs on past the pins (north): a real module (the ASUS
@@ -18,11 +18,19 @@ const PAD = 16, NAME = 140, NAME_ROW = 44;
 /** The daughterboard over a header's rectangle `hdr` (board space): what a click hits, and the PCB the 3D model raises. */
 export const tpmPcb = (hdr: Rect): Rect => ({ x: hdr.x - PAD, y: hdr.y - PAD - NAME, w: hdr.w + 2 * PAD, h: hdr.h + 2 * PAD + NAME });
 
+/** Board units a millimetre (the case's scale, `MM` in board/render/three/pcbkit3d.ts). */
+const MM = 23;
+/** The chip's package: a TSSOP-28 (JEDEC MO-153): a 9.7 x 4.4 mm body, 14 legs on each long side on a 0.65 mm pitch. */
+export const TSSOP28 = { w: 9.7 * MM, h: 4.4 * MM, legs: 14, pitch: 0.65 * MM } as const;
+/** The plain mould the die leaves round it on the chip's top. */
+const DIE_INSET = 0.25 * MM;
+
 export interface TpmGeo {
   /** The daughterboard (what a click on the module hits). */
   pcb: Rect;
-  /** The band the die and its lid fill, and the die inside it (die units scale to board units by `scale`). */
+  /** The band north of the pins (the 2D lid covers it), the chip's body centred in it (`TSSOP28`), and the die on the chip's top (die units scale to board units by `scale`). */
   band: Rect;
+  chip: Rect;
   die: Rect;
   scale: number;
   /** The module's plan. */
@@ -43,8 +51,9 @@ export function tpmGeo(visual: string, hdr: Rect): TpmGeo {
   if (hit) return hit;
   const pcb = tpmPcb(hdr);
   const band = { x: pcb.x + 10, y: pcb.y + NAME_ROW, w: pcb.w - 20, h: hdr.y - 10 - (pcb.y + NAME_ROW) };
-  const scale = Math.min(band.w / TPM_DIE.w, band.h / TPM_DIE.h), w = TPM_DIE.w * scale, h = TPM_DIE.h * scale;
-  const geo: TpmGeo = { pcb, band, die: { x: band.x + (band.w - w) / 2, y: band.y + (band.h - h) / 2, w, h }, scale, plan: tpmPlanOf(visual) };
+  const chip = { x: band.x + (band.w - TSSOP28.w) / 2, y: band.y + (band.h - TSSOP28.h) / 2, w: TSSOP28.w, h: TSSOP28.h };
+  const scale = Math.min((chip.w - 2 * DIE_INSET) / TPM_DIE.w, (chip.h - 2 * DIE_INSET) / TPM_DIE.h), w = TPM_DIE.w * scale, h = TPM_DIE.h * scale;
+  const geo: TpmGeo = { pcb, band, chip, die: { x: chip.x + (chip.w - w) / 2, y: chip.y + (chip.h - h) / 2, w, h }, scale, plan: tpmPlanOf(visual) };
   cache.set(key, geo);
   return geo;
 }

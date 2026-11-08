@@ -6,7 +6,7 @@ import { CARD_TOP, gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from '../..
 import { EdgeFan, edgeFan } from '../../features/room/render/desk/props/case';
 import { gpuFar, gpuNear } from '../../features/gpu/render/gpuart';
 import { padlock } from '../../features/tpm/render/tpmglyph';
-import { tpmGeo, tpmPcb } from '../../features/tpm/render/tpmlayout';
+import { TSSOP28, tpmGeo, tpmPcb } from '../../features/tpm/render/tpmlayout';
 import { NPU_H, NPU_LEN, npuGeo, type NpuGeo } from '../../features/npu/render/npulayout';
 import type { Theme } from './theme';
 
@@ -153,7 +153,7 @@ export function tpmCover(T: Theme, visual: string, band: Rect): Container {
   // the lock the module is named for
   padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), T.dark ? '#0b101c' : '#1d2536');
   root.addChild(label('SECURE MODULE', band.x + 34, band.y + band.h * 0.34, 22, T.ink, { head: true, a: 0.9 }));
-  root.addChild(label(two ? 'TPM 2 · SHIELDED' : 'TPM 1', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
+  root.addChild(label(two ? 'TPM 2.0' : 'TPM 1.2', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
   return root;
 }
 
@@ -168,7 +168,14 @@ export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Co
   const pcb = T.dark ? '#1f3b2e' : '#6faa86';
   box(g, p.x + 24, p.y + 58, p.w, p.h - 18, 8, { fill: '#000000', fa: 0.3 });
   box(g, p.x, p.y, p.w, p.h, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
-  box(g, geo.band.x - 3, geo.band.y - 3, geo.band.w + 6, geo.band.h + 6, 7, { fill: mix(pcb, '#000000', 0.45) });
+  // the chip (a TSSOP-28 at its real size, the die drawn on its top): its legs, then its body
+  const c = geo.chip;
+  for (let k = 0; k < TSSOP28.legs; k++) {
+    const x = c.x + c.w / 2 + (k - (TSSOP28.legs - 1) / 2) * TSSOP28.pitch - 3;
+    g.rect(x, c.y - 20, 6, 20).rect(x, c.y + c.h, 6, 20);
+  }
+  g.fill({ color: '#a9afb7' });
+  box(g, c.x, c.y, c.w, c.h, 3, { fill: '#17191d' });
   for (let i = 0; i < h.cols; i++) for (let j = 0; j < h.rows; j++) {
     if (i === h.key?.[0] && j === h.key[1]) continue;
     const x = r.x + 36 + i * 52, y = r.y + 36 + j * 52;

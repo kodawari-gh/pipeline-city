@@ -42,22 +42,31 @@ export function passiveRow(x: number, y: number, n: number, step: number, pkg: P
 }
 
 // ------------------------------------------------------------------ packages
-/** A package's top: its mould with the laser marking (lighter grey, as an etch reads), the pin-1 dimple in a corner. */
-function markTex(lines: readonly string[], wMm: number, hMm: number, mould: string, ink: string, dot: boolean): Texture | null {
+/** A package's corner, as its marking reads upright. */
+export type Corner = 'nw' | 'ne' | 'sw' | 'se';
+const CORNER: Record<Corner, [number, number]> = { nw: [0.12, 0.12], ne: [0.88, 0.12], sw: [0.12, 0.88], se: [0.88, 0.88] };
+
+/**
+ * A package's top: its mould with the laser marking (lighter grey, as an etch reads), the pin-1 dimple in corner `pin1` (as the marking reads
+ * upright). `flip`: the package lies turned half round, its marking upside down.
+ */
+function markTex(lines: readonly string[], wMm: number, hMm: number, mould: string, ink: string, dot: boolean, pin1: Corner = 'nw', flip = false): Texture | null {
   const px = 40, W = Math.max(64, Math.round(wMm * px)), H = Math.max(64, Math.round(hMm * px));
-  return tex(`mark:${lines.join('|')}:${W}x${H}:${mould}:${ink}:${dot}`, W, H, (c, w, h) => {
+  return tex(`mark:${lines.join('|')}:${W}x${H}:${mould}:${ink}:${dot}:${pin1}:${flip}`, W, H, (c, w, h) => {
     c.fillStyle = mould; c.fillRect(0, 0, w, h);
     // the mould's fine stipple
     for (let i = 0; i < (w * h) / 60; i++) { c.fillStyle = `rgba(255,255,255,${0.012 + ((i * 7919) % 13) / 900})`; c.fillRect((i * 7907) % w, (i * 104729) % h, 1, 1); }
-    if (dot) { c.fillStyle = 'rgba(0,0,0,0.35)'; c.beginPath(); c.arc(w * 0.12, h * 0.12, Math.min(w, h) * 0.05, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(255,255,255,0.08)'; c.lineWidth = 2; c.stroke(); }
+    if (flip) { c.translate(w, h); c.rotate(Math.PI); }
+    const [u, v] = CORNER[pin1];
+    if (dot) { c.fillStyle = 'rgba(0,0,0,0.35)'; c.beginPath(); c.arc(w * u, h * v, Math.min(w, h) * 0.05, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(255,255,255,0.08)'; c.lineWidth = 2; c.stroke(); }
     const n = lines.length, fs = Math.min(h * 0.6 / Math.max(1, n), (w * 0.82) / Math.max(4, ...lines.map((l) => l.length * 0.62)));
     c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `600 ${fs}px "Consolas", "DejaVu Sans Mono", monospace`;
     lines.forEach((l, i) => c.fillText(l, w / 2, h / 2 + (i - (n - 1) / 2) * fs * 1.3));
   });
 }
 
-/** A package's look: its mould (black epoxy) or a nickel lid, its marking's ink. */
-export interface PkgLook { mould?: number; lid?: boolean; dot?: boolean; bevel?: number }
+/** A package's look: its mould (black epoxy) or a nickel lid, its pin-1 dimple and the corner it is in, turned half round (`markTex`). */
+export interface PkgLook { mould?: number; lid?: boolean; dot?: boolean; bevel?: number; pin1?: Corner; flip?: boolean }
 
 /**
  * A moulded package (a BGA's or a QFN's body) on a PCB top at depth z, `h` tall, its marking on top. With `lid`, a nickel-plated lid over a
@@ -75,7 +84,7 @@ export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly
   }
   const mould = o.mould ?? 0x17191d, hexs = `#${mould.toString(16).padStart(6, '0')}`, m = mat(mould, { roughness: 0.58, metalness: 0.08 });
   g.add(softBox(r, z, z + h, m, o.bevel ?? Math.min(6, h * 0.3)));
-  if (lines.length) g.add(decal({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, z + h + 0.4, decalMat(markTex(lines, wMm, hMm, hexs, '#7b8089', o.dot !== false), { rough: 0.6, metal: 0.05 })));
+  if (lines.length) g.add(decal({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, z + h + 0.4, decalMat(markTex(lines, wMm, hMm, hexs, '#7b8089', o.dot !== false, o.pin1, o.flip), { rough: 0.6, metal: 0.05 })));
   return m;
 }
 
@@ -103,14 +112,36 @@ export interface MaskArt {
   parts?: { r: RectLike; ref?: string }[];
   /** Silkscreen text (layout point, text, size in mm). */
   text?: { x: number; y: number; s: string; mm: number; rot?: boolean }[];
-  /** Bare pads (tinned): layout rects. */
+  /** Bare pads: layout rects, and their finish (default gold, ENIG; a tin colour for a HASL board). */
   pads?: RectLike[];
+  pad?: string;
   /** Bare laminate with no mask on it (the edge fingers' strip): layout rects. */
   bare?: RectLike[];
   /** Areas that are not board (a notch, a key, a chamfered corner): cut out of the texture (the slab has its own outline). */
   cuts?: { circle?: [number, number, number]; rect?: RectLike; poly?: [number, number][] }[];
   /** A seed for the traces and vias, so every copy of a part shows the same routing. */
   seed: number;
+  /** A routed board's own copper: painted in place of the seeded traces and vias. */
+  copper?: MaskCopper;
+}
+
+type XY = readonly (readonly [number, number])[];
+/**
+ * A routed board's copper on one face (layout units), under the mask: its runs, its vias (a tented ring round the drill), its through-hole
+ * contacts (bare rings in the board's finish, pin 1 square), its fiducials (a bare dot in a clear ring of laminate) and pin-1 silkscreen dots.
+ * With `pour`, a ground pour fills the face `edge` in from the board's edge and `clear` off every other net's copper (`keep`: the other nets'
+ * bare pads); a ground contact ties into it by four spokes across its clear ring (a thermal relief).
+ */
+export interface MaskCopper {
+  traces: readonly { pts: XY; w: number; gnd?: boolean }[];
+  vias: readonly { x: number; y: number; gnd?: boolean }[];
+  holes?: readonly { x: number; y: number; square?: boolean; gnd?: boolean }[];
+  keep?: readonly RectLike[];
+  fiducials?: readonly { x: number; y: number; r: number }[];
+  dots?: readonly { x: number; y: number; r: number }[];
+  /** A via's ring and drill, a contact's ring and drill (radii). */
+  via: number; drill: number; ring: number; hole: number;
+  pour?: { clear: number; edge: number; round: number };
 }
 
 /** A decal's material: drawn over the face it lies on (no fight with it at any distance). */
@@ -127,33 +158,69 @@ export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { ro
   const t = tex(`mask:${key}`, W, H, (c) => {
     const X = (x: number) => (x - r.x) * sx, Y = (y: number) => (o.under ? r.y + r.h - y : y - r.y) * sy;
     c.fillStyle = a.mask; c.fillRect(0, 0, W, H);
-    let s = a.seed;
-    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    // the traces: busses of parallel runs with 45-degree jogs, and single runs to the vias
-    c.strokeStyle = a.trace; c.lineCap = 'round'; c.lineJoin = 'round';
-    for (let b = 0; b < Math.round((W * H) / 26000); b++) {
-      const n = 2 + Math.floor(rnd() * 6), x0 = rnd() * W, y0 = rnd() * H, len = (0.08 + rnd() * 0.3) * W, jog = (rnd() - 0.5) * H * 0.3, lw = 1.2 + rnd() * 1.6, gap = lw * 2.6;
-      c.lineWidth = lw;
-      for (let i = 0; i < n; i++) {
-        const o2 = i * gap;
-        c.beginPath(); c.moveTo(x0, y0 + o2); c.lineTo(x0 + len * 0.4, y0 + o2); c.lineTo(x0 + len * 0.4 + Math.abs(jog), y0 + o2 + jog); c.lineTo(x0 + len + Math.abs(jog), y0 + o2 + jog); c.stroke();
-      }
-    }
-    // vias (a tented ring), and a few bare test points
-    for (let i = 0; i < Math.round((W * H) / 1800); i++) {
-      const x = rnd() * W, y = rnd() * H, rr = 2.2 + rnd() * 1.4;
-      c.fillStyle = a.trace; c.beginPath(); c.arc(x, y, rr * 1.8, 0, Math.PI * 2); c.fill();
-      c.fillStyle = 'rgba(0,0,0,0.45)'; c.beginPath(); c.arc(x, y, rr * 0.7, 0, Math.PI * 2); c.fill();
-    }
-    for (let i = 0; i < Math.round((W * H) / 40000); i++) { c.fillStyle = '#b8a678'; c.beginPath(); c.arc(rnd() * W, rnd() * H, 4.5, 0, Math.PI * 2); c.fill(); }
-    // a rect in the picture, whichever face it is on
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    // a rect in the picture, whichever face it is on; a run, a disc
     const box = (q: RectLike): [number, number, number, number] => [X(q.x), Math.min(Y(q.y), Y(q.y + q.h)), q.w * sx, q.h * sy];
+    const run = (pts: XY, w: number, style: string) => {
+      c.strokeStyle = style; c.lineWidth = w * sx; c.beginPath();
+      pts.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
+    };
+    const disc = (x: number, y: number, rr: number, style: string) => { c.fillStyle = style; c.beginPath(); c.arc(X(x), Y(y), rr * sx, 0, Math.PI * 2); c.fill(); };
+    const cu = a.copper, finish = a.pad ?? '#c9a85e';
+    if (cu) {
+      if (cu.pour) {
+        const { clear: k, edge: e, round: rr } = cu.pour, [bx, by, bw, bh] = box({ x: r.x + e, y: r.y + e, w: r.w - 2 * e, h: r.h - 2 * e });
+        c.fillStyle = a.trace; c.beginPath(); c.roundRect(bx, by, bw, bh, rr * sx); c.fill();
+        for (const t of cu.traces) if (!t.gnd) run(t.pts, t.w + 2 * k, a.mask);
+        for (const v of cu.vias) if (!v.gnd) disc(v.x, v.y, cu.via + k, a.mask);
+        for (const h of cu.holes ?? []) disc(h.x, h.y, cu.ring + k, a.mask);
+        c.fillStyle = a.mask;
+        for (const q of cu.keep ?? []) c.fillRect(...box({ x: q.x - k, y: q.y - k, w: q.w + 2 * k, h: q.h + 2 * k }));
+        for (const f of cu.fiducials ?? []) disc(f.x, f.y, f.r * 2 + k, a.mask);
+        // a ground contact's thermal relief: four spokes across its clear ring
+        c.lineCap = 'butt';
+        for (const h of cu.holes ?? []) if (h.gnd) for (let i = 0; i < 4; i++) {
+          const t = Math.PI / 4 + (i * Math.PI) / 2, l = cu.ring + k + 1;
+          run([[h.x, h.y], [h.x + Math.cos(t) * l, h.y + Math.sin(t) * l]], 5, a.trace);
+        }
+        c.lineCap = 'round';
+      }
+      for (const t of cu.traces) run(t.pts, t.w, a.trace);
+      for (const v of cu.vias) { disc(v.x, v.y, cu.via, a.trace); disc(v.x, v.y, cu.drill, 'rgba(0,0,0,0.6)'); }
+    } else {
+      let s = a.seed;
+      const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+      // the traces: busses of parallel runs with 45-degree jogs, and single runs to the vias
+      c.strokeStyle = a.trace;
+      for (let b = 0; b < Math.round((W * H) / 26000); b++) {
+        const n = 2 + Math.floor(rnd() * 6), x0 = rnd() * W, y0 = rnd() * H, len = (0.08 + rnd() * 0.3) * W, jog = (rnd() - 0.5) * H * 0.3, lw = 1.2 + rnd() * 1.6, gap = lw * 2.6;
+        c.lineWidth = lw;
+        for (let i = 0; i < n; i++) {
+          const o2 = i * gap;
+          c.beginPath(); c.moveTo(x0, y0 + o2); c.lineTo(x0 + len * 0.4, y0 + o2); c.lineTo(x0 + len * 0.4 + Math.abs(jog), y0 + o2 + jog); c.lineTo(x0 + len + Math.abs(jog), y0 + o2 + jog); c.stroke();
+        }
+      }
+      // vias (a tented ring), and a few bare test points
+      for (let i = 0; i < Math.round((W * H) / 1800); i++) {
+        const x = rnd() * W, y = rnd() * H, rr = 2.2 + rnd() * 1.4;
+        c.fillStyle = a.trace; c.beginPath(); c.arc(x, y, rr * 1.8, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(0,0,0,0.45)'; c.beginPath(); c.arc(x, y, rr * 0.7, 0, Math.PI * 2); c.fill();
+      }
+      for (let i = 0; i < Math.round((W * H) / 40000); i++) { c.fillStyle = '#b8a678'; c.beginPath(); c.arc(rnd() * W, rnd() * H, 4.5, 0, Math.PI * 2); c.fill(); }
+    }
     c.fillStyle = '#2b2a24';
     for (const q of a.bare ?? []) c.fillRect(...box(q));
-    // the pads (gold) and the silkscreen
-    c.fillStyle = '#c9a85e';
+    // the pads (gold, or the board's finish): the SMD lands, the contacts' rings round their drills, the fiducials in their rings of laminate
+    c.fillStyle = finish;
     for (const p of a.pads ?? []) c.fillRect(...box(p));
+    for (const h of cu?.holes ?? []) {
+      if (h.square) { c.fillStyle = finish; c.fillRect(...box({ x: h.x - cu!.ring, y: h.y - cu!.ring, w: 2 * cu!.ring, h: 2 * cu!.ring })); } else disc(h.x, h.y, cu!.ring, finish);
+      disc(h.x, h.y, cu!.hole, '#1c1d20');
+    }
+    for (const f of cu?.fiducials ?? []) { disc(f.x, f.y, f.r * 2, '#6e6447'); disc(f.x, f.y, f.r, finish); }
     c.strokeStyle = '#d9dbe0'; c.fillStyle = '#d9dbe0'; c.lineWidth = Math.max(1.5, 0.15 * MM * sx);
+    for (const d of cu?.dots ?? []) disc(d.x, d.y, d.r, '#d9dbe0');
+    c.fillStyle = '#d9dbe0';
     for (const p of a.parts ?? []) {
       const e = 0.35 * MM, [bx, by, bw, bh] = box({ x: p.r.x - e, y: p.r.y - e, w: p.r.w + 2 * e, h: p.r.h + 2 * e });
       c.strokeRect(bx, by, bw, bh);

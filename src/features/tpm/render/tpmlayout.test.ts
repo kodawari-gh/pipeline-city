@@ -16,7 +16,11 @@ describe('the secure module on its header', () => {
     const hdr = header();
     for (const s of specsOfKind('tpm')) {
       const g = tpmGeo(s.visual, hdr);
-      expect(inside(g.die, g.band), s.id).toBe(true);
+      // the chip is a real TSSOP-28 body (9.7 x 4.4 mm at 23 units a mm), in the band; the die lies on its top
+      expect(g.chip.w / 23, s.id).toBeCloseTo(9.7, 2);
+      expect(g.chip.h / 23, s.id).toBeCloseTo(4.4, 2);
+      expect(inside(g.chip, g.band), s.id).toBe(true);
+      expect(inside(g.die, g.chip), s.id).toBe(true);
       expect(inside(g.band, g.pcb), s.id).toBe(true);
       expect(inside(g.pcb, tpmRect(3)!), s.id).toBe(true);
       expect(g.scale, s.id).toBeGreaterThan(0.1);

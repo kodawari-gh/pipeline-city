@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Group } from 'three';
+import { Box3, Group, type InstancedMesh } from 'three';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import type { RectLike } from '@/core/render/three/geometry';
 import { tpmGeo, tpmLed } from '@/features/tpm/render/tpmlayout';
@@ -22,8 +22,10 @@ describe('the TPM module', () => {
       expect(all.min.x).toBeGreaterThanOrEqual(p.x - 1);
       expect(all.max.x).toBeLessThanOrEqual(p.x + p.w + 1);
       expect(all.min.z).toBeCloseTo(TPM_Z.mate - 1, 0);
-      // the parts on top stay low: a bare chip about 1 mm, the TPM 2's can under 2 mm
-      expect(all.max.z - TPM_Z.top, visual).toBeLessThan(visual === 'tpm-2' ? 46 : 30);
+      // the parts on top stay low: a bare chip about 1 mm (no can: a TPM sends no radio)
+      expect(all.max.z - TPM_Z.top, visual).toBeLessThan(30);
+      // the chip is a TSSOP-28: 14 legs on each long side
+      expect((g.getObjectByName('tpm-legs') as InstancedMesh).count, visual).toBe(28);
       // the die's face covers the die over the chip's top, the LED's face its lens
       const geo = tpmGeo(visual, hr), [die, led] = faces;
       expect(faces.length).toBe(2);

@@ -1,18 +1,21 @@
 // The secure module as a real TPM daughterboard (docs/PC_PARTS.md "TPM"), the same in the case, in Build my PC and in the gallery: an 18 x 13 mm
 // board, 1 mm thick, lying flat on the 7 mm female connector that takes the board's keyed 14-1 header. The connector's 13 contacts come up through
-// the board's south end, soldered on top (their tails cut short in their fillets). North of them the TPM chip: a gull-wing TSSOP, its legs on
-// their pads, its decoupling caps at its ends, and the status LED with its resistor by the east edge. The TPM 2 is a black board with a tin-plated
-// shield can soldered over its chip; the TPM 1 a green one, its chip bare. Up close the die fades in over the chip (or the can), as the case's view
-// draws it (chips3d.ts: `TpmView` bare); the LED is lit red there while protected mode is on.
+// the board's south end, soldered on top (their tails cut short in their fillets). North of them the TPM chip, bare as on every real module: a
+// TSSOP-28 at its real size, turned half round so its LPC row faces the header, its gull-wing legs on their pads, the caps and resistors on its
+// nets, and the status LED by the east edge. The copper is routed (`tpmCopper`: every leg to its contact, part or via, ground pours on both
+// faces). Both modules talk LPC, as the board's TPM header does. The TPM 1.2 is a green board with tinned (HASL) pads; the TPM 2.0 a black one
+// with gold (ENIG) pads and a newer chip. Up close the die fades in over the chip's top, as the case's view draws it (chips3d.ts: `TpmView`
+// bare); the LED is lit red there while protected mode is on.
 import { BoxGeometry, Group, LatheGeometry, Matrix4, Shape, Vector2, type MeshStandardMaterial } from 'three';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { tpmGeo, tpmLed } from '@/features/tpm/render/tpmlayout';
+import { CU, tpmCopper, type Layer } from '@/features/tpm/render/tpmcopper';
+import { tpmGeo } from '@/features/tpm/render/tpmlayout';
 import { GEO } from '../layout/layout';
-import { decal, grow, tex } from './casekit3d';
-import { arc, decalMat, maskTop, MM, passives, pcbSlab, pkg, type MaskArt, type Passive } from './pcbkit3d';
+import { grow } from './casekit3d';
+import { arc, maskTop, MM, passives, pcbSlab, pkg, type MaskArt, type MaskCopper, type Passive } from './pcbkit3d';
 
 /** The module's depths: the connector's mating face (down on the header's base), the board's underside and top. */
 export const TPM_Z = { mate: BOARD_Z + 120, pcb: BOARD_Z + 290, top: BOARD_Z + 312 } as const;
@@ -20,10 +23,13 @@ export const TPM_Z = { mate: BOARD_Z + 120, pcb: BOARD_Z + 290, top: BOARD_Z + 3
 const tin = () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.3 });
 const solder = () => mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 });
 
-/** A board's look by module: its mask, the copper under it, the chip's marking. */
+/**
+ * A board's look by module: its mask, the copper under it, its pads' finish, the chip's marking, the generation on its silkscreen and its
+ * revision. Both share the routing: the two chips have the same LPC pinout.
+ */
 const LOOK = {
-  'tpm-1': { mask: 0x163e2b, art: { mask: '#163e2b', trace: '#1f5139' }, mark: ['PL 9635 TT 1.2', 'FW 3.19  B2', 'TWN 2644'], shield: false },
-  'tpm-2': { mask: 0x121519, art: { mask: '#121519', trace: '#1b2027' }, mark: ['PL 9672 TT 2.0', 'FW 7.85  A3', 'TWN 2645'], shield: true },
+  'tpm-1': { mask: 0x163e2b, art: { mask: '#163e2b', trace: '#1f5139', pad: '#b3b7bb' }, mark: ['PL 9635 TT 1.2', 'FW 3.19  B2', 'TWN 2644'], gen: '1.2', rev: 'A' },
+  'tpm-2': { mask: 0x121519, art: { mask: '#121519', trace: '#1b2027', pad: '#c9a85e' }, mark: ['PL 9665 TT 2.0', 'FW 5.63  A3', 'TWN 2645'], gen: '2.0', rev: 'B' },
 } as const;
 
 /**
@@ -38,14 +44,6 @@ function gullWing() {
   return extrude(s, { depth: w, bevelEnabled: false }).applyMatrix4(new Matrix4().set(0, 0, 1, -w / 2, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
 }
 
-/** The pads under a passive's two ends (a hair past its tinned ends), for the mask's painting. */
-function padsOf(p: Passive): RectLike[] {
-  const [l, w] = p.pkg === '0603' ? [1.6 * MM, 0.8 * MM] : [1 * MM, 0.5 * MM], e = l * 0.3, k = 2;
-  return [-1, 1].map((s) => p.turn
-    ? { x: p.x - w / 2 - k, y: p.y + s * (l / 2 - e / 2) - e / 2 - k, w: w + 2 * k, h: e + 2 * k }
-    : { x: p.x + s * (l / 2 - e / 2) - e / 2 - k, y: p.y - w / 2 - k, w: e + 2 * k, h: w + 2 * k });
-}
-
 /** A 0603 LED turned along y, centred at (x, y) on a PCB top at depth z: its white base, its red lens, the tinned ends. */
 function led(g: Group, x: number, y: number, z: number) {
   const L = 1.6 * MM, W = 0.8 * MM, e = 0.3 * MM;
@@ -54,28 +52,9 @@ function led(g: Group, x: number, y: number, z: number) {
   g.add(softBox({ x: x - W / 2 + 1.5, y: y - L / 2 + e + 1, w: W - 3, h: L - 2 * e - 2 }, z + 6, z + 14, mat(0x9a2318, { roughness: 0.16, metalness: 0 }), 2.5));
 }
 
-/** The shield can's lid: tin plate punched with rows of vent holes round a plain pick-up spot in its middle. */
-function lidTex(wMm: number, hMm: number) {
-  const px = 40, W = Math.round(wMm * px), H = Math.round(hMm * px);
-  return tex(`tpm-can:${W}x${H}`, W, H, (c, w, h) => {
-    c.fillStyle = '#c3c8cf'; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < (w * h) / 40; i++) { c.fillStyle = `rgba(255,255,255,${0.02 + ((i * 7919) % 11) / 400})`; c.fillRect((i * 7907) % w, (i * 104729) % h, 2, 1); }
-    const pitch = 1.3 * px, r = 0.32 * px, cx = w / 2, cy = h / 2;
-    for (let row = 0, y = pitch * 0.8; y < h - pitch * 0.5; row++, y += pitch * 0.87) {
-      for (let x = pitch * (row % 2 ? 1.1 : 0.6); x < w - pitch * 0.4; x += pitch) {
-        if (Math.abs(x - cx) < 2.6 * px && Math.abs(y - cy) < 1.2 * px) continue;
-        c.fillStyle = '#0d0f12'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, r + 1.5, Math.PI * 0.15, Math.PI * 0.85); c.stroke();
-      }
-    }
-    // the stamped step round the lid's edge
-    c.strokeStyle = 'rgba(0,0,0,0.28)'; c.lineWidth = 3; c.strokeRect(0.45 * px, 0.45 * px, w - 0.9 * px, h - 0.9 * px);
-  });
-}
-
 /**
  * The module on this tier's header (`GEO`) into `g`. `onFace`: each face the case's view draws on, under its parent, by its rect (layout) and
- * depth: the die over the chip's top (or the can's), the LED's light over its lens. Returns the board's material, or null: the board has no header.
+ * depth: the die over the chip's top, the LED's light over its lens. Returns the board's material, or null: the board has no header.
  */
 export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: RectLike, z: number) => void): MeshStandardMaterial | null {
   const p = tpmRect(GEO.tier), h = tpmHeader(GEO.tier);
@@ -92,9 +71,9 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
   pcb.name = 'tpm-pcb';
   g.add(pcb);
 
-  // the female connector under it: 2 x 7 cells on the header's pitch, the keyed cell plugged; its contacts' tails come up through the board
-  const pins: [number, number][] = [];
-  for (let i = 0; i < h.cols; i++) for (let j = 0; j < h.rows; j++) if (!(i === h.key?.[0] && j === h.key[1])) pins.push([hr.x + 36 + i * 52, hr.y + 36 + j * 52]);
+  // the female connector under it: 2 x 7 cells on the header's pitch, the keyed cell plugged; its contacts' tails come up through the board's
+  // contacts (`tpmCopper`)
+  const cu = tpmCopper(geo, hr), pins = cu.holes.map((q): [number, number] => [q.x, q.y]);
   const house = { x: hr.x + 10, y: hr.y + 10, w: h.cols * 52, h: h.rows * 52 }, pbt = mat(0x1a1b1f, { roughness: 0.52 });
   g.add(softBox(house, TPM_Z.mate, z0, pbt, 5));
   const box = new BoxGeometry(1, 1, 1), dark = mat(0x050607, { roughness: 0.9 });
@@ -105,54 +84,50 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
     return { x, y: -y, z: TPM_Z.mate + 14, sx: 4, sy: 3, sz: 28 };
   })));
 
-  // the chip: a TSSOP over the die's place, 28 legs a side on 0.5 mm, its legs reaching 0.85 mm out to their pads
-  const d = geo.die, body = { x: d.x - 6, y: d.y - 2, w: d.w + 12, h: d.h + 4 }, legX = Array.from({ length: 28 }, (_, k) => body.x + body.w / 2 + (k - 13.5) * 0.5 * MM);
-  const chipTop = z1 + 2 + 22;
-  pkg(g, body, z1 + 2, 22, look.mark, { dot: true, bevel: 4 });
-  const wing = gullWing(), legs = tin();
-  g.add(instanced(wing, legs, [...legX.map((x) => ({ x, y: -body.y, z: z1 })), ...legX.map((x) => ({ x, y: -(body.y + body.h), z: z1, rz: Math.PI }))]));
-  const legPads = legX.flatMap((x) => [{ x: x - 3.5, y: body.y - 22, w: 7, h: 15 }, { x: x - 3.5, y: body.y + body.h + 7, w: 7, h: 15 }]);
+  // the chip: a TSSOP-28 at its real size, 1 mm thick on a 0.1 mm stand-off, 14 legs a side on 0.65 mm reaching 0.85 mm out to their pads. It
+  // lies turned half round, as on the real modules: its LPC row faces the header, pin 1 and its dimple at the north-east, its marking upside down
+  const d = geo.die, body = geo.chip, chipTop = z1 + 2 + 22, chip = cu.pads.filter((q) => q.id.startsWith('U1.'));
+  pkg(g, body, z1 + 2, 22, look.mark, { dot: true, bevel: 4, pin1: 'sw', flip: true });
+  const legs = instanced(gullWing(), tin(), chip.map((q) => (q.c[1] < body.y ? { x: q.c[0], y: -body.y, z: z1 } : { x: q.c[0], y: -(body.y + body.h), z: z1, rz: Math.PI })));
+  legs.name = 'tpm-legs';
+  g.add(legs);
 
-  // its decoupling at its west end, the LED, its resistor and a cap by the east edge, two more caps by the silkscreen
-  const L = tpmLed(geo), mid = geo.band.y + geo.band.h / 2;
-  const parts: Passive[] = [
-    { x: X0 + 24, y: mid - 24, pkg: '0402', kind: 'cap', turn: true }, { x: X0 + 24, y: mid + 24, pkg: '0402', kind: 'cap', turn: true },
-    { x: L.x, y: L.y - 40, pkg: '0402', kind: 'res', turn: true }, { x: L.x, y: L.y + 40, pkg: '0402', kind: 'cap', turn: true },
-    { x: X1 - 76, y: Y1 - 19, pkg: '0402', kind: 'cap' }, { x: X1 - 38, y: Y1 - 19, pkg: '0402', kind: 'res' },
-  ];
-  passives(g, parts, z1);
+  // the parts on its nets: the main rail's bulk cap by contact 1 and a 100 nF cap each side of the trunk at the chip's west end, the standby
+  // rail's cap by contact 14, the PP pull-down and the LED's resistor by the chip's east end, the LED by the east edge
+  const L = cu.parts.find((q) => q.kind === 'led')!;
+  passives(g, cu.parts.flatMap((q): Passive[] => (q.kind === 'led' ? [] : [{ x: q.x, y: q.y, pkg: q.pkg, kind: q.kind, turn: q.turn }])), z1);
   led(g, L.x, L.y, z1);
 
   // the contacts' tails, cut short in their solder: a concave fillet over the pad climbing the tail to its rounded tip, 0.9 mm over the board
   const joint = new LatheGeometry([[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]].map(([r, z]) => new Vector2(r, z)), 20).rotateX(Math.PI / 2);
   g.add(instanced(joint, solder(), pins.map(([x, y]) => ({ x, y: -y, z: z1 }))));
 
-  // the shield can of the TPM 2: a fence soldered round the chip and its legs, its lid punched with vents
-  let faceZ = chipTop;
-  const fence = { x: body.x - 10, y: Y0 + 12, w: body.w + 20, h: body.y + body.h + 26 - (Y0 + 12) };
-  const fencePads = look.shield ? [{ x: fence.x - 2, y: fence.y - 2, w: fence.w + 4, h: 7.5 }, { x: fence.x - 2, y: fence.y + fence.h - 5.5, w: fence.w + 4, h: 7.5 }, { x: fence.x - 2, y: fence.y, w: 7.5, h: fence.h }, { x: fence.x + fence.w - 5.5, y: fence.y, w: 7.5, h: fence.h }] : [];
-  if (look.shield) {
-    const can = mat(0xc3c8cf, { metalness: 0.82, roughness: 0.34 }), t = 3.5, top = z1 + 41;
-    for (const r of [{ x: fence.x, y: fence.y, w: fence.w, h: t }, { x: fence.x, y: fence.y + fence.h - t, w: fence.w, h: t }, { x: fence.x, y: fence.y, w: t, h: fence.h }, { x: fence.x + fence.w - t, y: fence.y, w: t, h: fence.h }]) g.add(rectBox(r, z1, top - t, can));
-    g.add(softBox(fence, top - t, top, can, 2));
-    g.add(decal({ x: fence.x + 1, y: fence.y + 1, w: fence.w - 2, h: fence.h - 2 }, top + 0.3, decalMat(lidTex(fence.w / MM, fence.h / MM), { metal: 0.82, rough: 0.34 })));
-    faceZ = top;
-  }
-
-  // the mask: the traces, the legs' and the passives' pads, the silkscreen (the maker and the module south of the contacts, pin 1, the chip's dot)
+  // the mask over the routed copper (`tpmCopper`) and its ground pours, on both faces; the pads in the board's finish; the silkscreen (the
+  // maker, the module and its bus south of the contacts, contact 1, the chip's designator and its pin-1 dot, the bulk cap's designator)
+  const p1 = chip.find((q) => q.id === 'U1.1')!, j1 = cu.holes.find((q) => q.pin === 1)!;
+  const copper = (layer: Layer): MaskCopper => ({
+    traces: cu.traces.filter((t) => t.layer === layer).map((t) => ({ pts: t.pts, w: t.w, gnd: t.net === 'GND' })),
+    vias: cu.vias.map((v) => ({ x: v.x, y: v.y, gnd: v.net === 'GND' })),
+    holes: cu.holes.map((q) => ({ x: q.x, y: q.y, square: q.pin === 1, gnd: q.net === 'GND' })),
+    keep: layer === 'top' ? cu.pads.filter((q) => q.net !== 'GND').map((q) => q.r) : [],
+    fiducials: layer === 'top' ? cu.fiducials.map(([x, y]) => ({ x, y, r: CU.fid })) : [],
+    dots: layer === 'top' ? [{ x: p1.r.x + p1.r.w + 7, y: p1.r.y + 1, r: 3 }] : [],
+    via: CU.via, drill: CU.drill, ring: CU.ring, hole: CU.hole, pour: { clear: CU.pour, edge: CU.edge, round: rc - CU.edge },
+  });
   const art: MaskArt = {
-    ...look.art, seed: look.shield ? 23 : 19,
-    pads: [...legPads, ...parts.flatMap(padsOf), ...fencePads],
+    ...look.art, seed: 0, copper: copper('top'), pads: cu.pads.map((q) => q.r),
     text: [
-      { x: X0 + 22, y: Y1 - 19, s: `PIPELINE  TPM ${look.shield ? '2.0' : '1.2'}  SPI`, mm: 0.72 },
-      { x: X0 + 10, y: (pins[0]?.[1] ?? 0), s: '1', mm: 0.7 },
+      { x: X0 + 44, y: Y1 - 19, s: `PIPELINE  TPM ${look.gen}  LPC`, mm: 0.72 },
+      { x: X0 + 10, y: j1.y, s: '1', mm: 0.7 },
+      { x: X0 + 40, y: body.y - 6, s: 'U1', mm: 0.7 },
+      { x: X0 + 12, y: Y0 + 128, s: 'C1', mm: 0.6 },
     ],
   };
-  g.add(maskTop(`tpm-top:${visual}`, p, z1, art));
-  g.add(maskTop(`tpm-under:${visual}`, p, z0, { ...look.art, seed: look.shield ? 29 : 31, text: [{ x: X0 + 22, y: Y0 + 24, s: `REV ${look.shield ? 'B' : 'A'}  2645`, mm: 0.7 }] }, { under: true }));
+  g.add(maskTop(`tpm-top:${visual}`, p, z1, art, { px: 96 }));
+  g.add(maskTop(`tpm-under:${visual}`, p, z0, { ...look.art, seed: 0, copper: copper('bottom'), text: [{ x: X0 + 22, y: Y0 + 24, s: `REV ${look.rev}  2645`, mm: 0.7 }] }, { under: true, px: 48 }));
 
-  // the faces the case's view draws on: the die over the chip (or the can), the LED's light over its lens
-  onFace?.(g, grow(d, 2), faceZ);
+  // the faces the case's view draws on: the die over the chip, the LED's light over its lens
+  onFace?.(g, grow(d, 2), chipTop);
   onFace?.(g, { x: L.x - 24, y: L.y - 32, w: 48, h: 64 }, z1 + 14);
   return (pcb.material as MeshStandardMaterial[])[0]!;
 }
