@@ -142,6 +142,9 @@ interface Live {
   /** The socket the plug lines up with now (the rig's own, or one of its `alts`), and its `connectCable` port. */
   seat: Seat;
   port: string | undefined;
+  /** The plug's model in the pivot, and what built it (a socket of another size takes a plug of its own). */
+  plug: Object3D;
+  build: CableRig['model'];
   spine?: Rope;
   blend?: { a: V3[][]; b: V3[][] };
 }
@@ -195,7 +198,7 @@ export class PlugHand {
     const pivot = pivotOf(rig.seat, model.root, pose);
     this.root.add(pivot, mesh);
     const space = spineEnv(rig);
-    this.live = { rig, exits: model.strands, pivot, sleeve, mesh, ropes, lengths, free: freedom(rig, model.strands, lengths), space, pose, vel: new Vector3(), phase: seated ? 'pull' : 'held', t: 0, from: 0, off: new Vector3(), seat: rig.seat, port: rig.port };
+    this.live = { rig, exits: model.strands, pivot, sleeve, mesh, ropes, lengths, free: freedom(rig, model.strands, lengths), space, pose, vel: new Vector3(), phase: seated ? 'pull' : 'held', t: 0, from: 0, off: new Vector3(), seat: rig.seat, port: rig.port, plug: model.root, build: rig.model };
     this.px = this.sx = cx; this.py = this.sy = cy; this.over = null; this.snapped = false;
     this.hide(true);
     return true;
@@ -320,8 +323,11 @@ export class PlugHand {
     // (of the rig's sockets, the one nearest the pointer takes the plug; it keeps its choice while it is snapped)
     const dist = (s: Seat) => Math.min(far(this.preSeat(l, s)), far(V(s.at)));
     if (!this.snapped && rig.alts?.length) {
-      const all: { seat: Seat; port: string | undefined }[] = [{ seat: rig.seat, port: rig.port }, ...rig.alts.map((a) => ({ seat: { at: a.at, axis: rig.seat.axis }, port: a.port }))];
+      const all: { seat: Seat; port: string | undefined; build: CableRig['model'] }[] = [
+        { seat: rig.seat, port: rig.port, build: rig.model }, ...rig.alts.map((a) => ({ seat: { at: a.at, axis: rig.seat.axis }, port: a.port, build: a.model ?? rig.model })),
+      ];
       const best = all.reduce((a, b) => (dist(b.seat) < dist(a.seat) ? b : a));
+      if (best.build !== l.build) this.swap(l, best.build);
       l.seat = best.seat; l.port = best.port;
     }
     const pre = this.preSeat(l), near = dist(l.seat);
@@ -341,6 +347,16 @@ export class PlugHand {
     const p = l.pose.at;
     for (let j = 0; j < 3; j++) { const [x, v] = springStep(p[j]!, l.vel.getComponent(j), goal.getComponent(j), OMEGA, dt); p[j] = x; l.vel.setComponent(j, v); }
     l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));
+  }
+
+  /** Put the plug a socket takes in the hand (in the rig's seat, as every model is built): its model and its strands' exits. */
+  private swap(l: Live, build: CableRig['model']) {
+    const m = build(), inner = l.plug.parent!;
+    m.root.traverse((o) => { seeThrough(o); });
+    inner.remove(l.plug);
+    disposeTree(l.plug);
+    inner.add(m.root);
+    l.plug = m.root; l.build = build; l.exits = m.strands; l.free = freedom(l.rig, m.strands, l.lengths);
   }
 
   /** On the socket's axis, `out` of its engage from the mouth, square to it; `left` of the spring's way at the slide's start still to close. */

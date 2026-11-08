@@ -29,8 +29,9 @@ export interface CableRig {
   model: () => { root: Object3D; strands: RopeEnd[] };
   seat: Seat;
   /** Other sockets of the same kind on the seat's axis (a graphics card's display port, as well as the board's): the held plug lines up with the
-   *  one nearest the pointer, and `connectCable` names it. `port` is `connectCable`'s port argument; `seat.port` is the seat's own. */
-  alts?: { port: string; at: V3 }[];
+   *  one nearest the pointer, and `connectCable` names it. `port` is `connectCable`'s port argument; `seat.port` is the seat's own. `model`:
+   *  the plug that socket takes (one of another size or turn: a card's real HDMI, the board's smaller one), built in the rig's seat. */
+  alts?: { port: string; at: V3; model?: () => { root: Object3D; strands: RopeEnd[] } }[];
   /** `connectCable`'s port argument for the seat itself. */
   port?: string;
   /** False when nothing takes it now (a PCIe lead with no card): its seat is only where its model is built. */
@@ -56,6 +57,19 @@ const T = (v: Vector3): V3 => [v.x, v.y, v.z];
 /** A straight plug standing out of its seat along the axis, `l` long (a video or mains plug): its model and its exit. */
 export function straightPlug(seat: Seat, w: number, h: number, l: number, accent: string): { root: Object3D; strands: RopeEnd[] } {
   const root = loosePlug(w, h, l, accent), ax = V(seat.axis);
+  root.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), ax);
+  root.position.copy(V(seat.at).addScaledVector(ax, l));
+  return { root, strands: [{ at: T(V(seat.at).addScaledVector(ax, l + 2)), dir: seat.axis }] };
+}
+
+/**
+ * A plug model (plugs3d.ts: built round its own z axis, its socket's mouth at z = -l, the cable leaving at 0) standing in its seat, turned `roll`
+ * round the seat's axis (a socket's keyed side down or toward the board): its model and its exit.
+ */
+export function seatPlug(seat: Seat, plug: { body: Object3D; l: number }, roll = 0): { root: Object3D; strands: RopeEnd[] } {
+  const root = new Group(), ax = V(seat.axis), { body, l } = plug;
+  body.rotation.z = roll;
+  root.add(body);
   root.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), ax);
   root.position.copy(V(seat.at).addScaledVector(ax, l));
   return { root, strands: [{ at: T(V(seat.at).addScaledVector(ax, l + 2)), dir: seat.axis }] };

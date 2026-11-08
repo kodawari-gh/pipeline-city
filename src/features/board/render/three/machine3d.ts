@@ -59,8 +59,9 @@ import {
   TRAY_Z, at, atxPlug, cableMesh, epsPlug, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, type Env, type GrommetStyle, type Look,
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
-import { MONITOR_PLUG, monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
-import { rigStatic, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
+import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
+import { rigStatic, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
+import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Plug, rj45Real } from './plugs3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
@@ -628,7 +629,7 @@ export class Machine3D {
       // the stand's column and foot (monitor3d.ts): the cable runs behind them
       const stand: Env = { planes: room.planes, solids: [...room.solids, ...[mp.column, mp.foot].map((o) => box(o.r, o.z0, o.z1))] };
       const up: RopeEnd = { at: [kg.x, deskTop + 10, kg.z], dir: [0, 1, 0] }, o = { natural: true, handle: 0.4, stiff: 0.45, n: 34 };
-      const monSeat: Seat = seats.video, mon = straightPlug(monSeat, MONITOR_PLUG.w, MONITOR_PLUG.h, MONITOR_PLUG.l, '#3a3d44');
+      const monSeat: Seat = seats.video, mon = seatPlug(monSeat, hdmiPlug(hdmiReal(video.r)));
       g.add(mon.root, cableMesh([...rounded(run, 250), ...hangPts(up, mon.strands[0]!, video, stand, o)], video));
       // the PC end: where the sim has it (the board's port, or a card's), and the other ports it could go to
       // (a card's HDMI is on its bracket, inside the slot's opening: the plug reaches in through the case's back to its mouth)
@@ -642,9 +643,11 @@ export class Machine3D {
       const now = ports.find((p) => p.port === s.videoPort) ?? ports[0]!, axis: V3 = [-1, 0, 0];
       const seat: Seat = { at: now.at, axis }, grom: RopeEnd = { at: [dg.x, deskTop + 10, vz], dir: [0, 1, 0] };
       const env: Env = { planes: room.planes, solids: [caseBox] }, pc = { slack: 1.1, extra: 900, stiff: 0.35, n: 30 };
+      // (each socket takes its plug, plugs3d.ts: a card's is real; the board's is cut to its rear I/O's smaller mouth, its keyed side toward the board)
+      const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, hdmiPlug(boardHdmi(video.r)), -Math.PI / 2) : seatPlug(seat, hdmiPlug(hdmiReal(video.r))));
       this.addRig(g, {
-        id: 'video', name: 'the display port', target: 'io', look: video, env, fixed: [grom], model: () => straightPlug(seat, 90, 60, 150, '#3a3d44'), seat, canSeat: true, engage: 300,
-        port: now.port === 'board' ? undefined : now.port, alts: ports.filter((p) => p !== now),
+        id: 'video', name: 'the display port', target: 'io', look: video, env, fixed: [grom], model: plug(now.port), seat, canSeat: true, engage: 380,
+        port: now.port === 'board' ? undefined : now.port, alts: ports.filter((p) => p !== now).map((p) => ({ ...p, model: plug(p.port) })),
         seated: (ex) => [hangPts(grom, ex[0]!, video, env, pc)], deck, n: pc.n, stiff: pc.stiff, lead: video.r * 2.5,
       }, on('video'));
       this.wires.add(g);
@@ -683,9 +686,11 @@ export class Machine3D {
       // (no jack at all, a board without one and no card: the plug waits at the board's place, and nothing takes it)
       const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', at: [CASE.x, -ly, lz] as V3 };
       const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
+      // (a card's jack is real, its latch slot up; the board's is cut to its rear I/O's smaller mouth, its latch notch down)
+      const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, 0x8cc3e0))) : seatPlug(seat, rj45Plug(rj45Real(look.r, 0x8cc3e0)), Math.PI));
       this.addRig(g, {
-        id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: () => straightPlug(seat, 110, 80, 150, '#8cc3e0'), seat, canSeat: true, engage: 300,
-        port: now.port, alts: jacks.filter((j) => j !== now),
+        id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: plug(now.port), seat, canSeat: true, engage: 380,
+        port: now.port, alts: jacks.filter((j) => j !== now).map((j) => ({ ...j, model: plug(j.port) })),
         seated: (ex) => [hangPts(from, ex[0]!, look, env, o)], deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, on('lan'));
       this.wires.add(g);
