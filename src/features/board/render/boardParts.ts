@@ -59,6 +59,15 @@ export function hole(c: Ctx, x: number, y: number, r = 74) {
   g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46).arc(x, y, r * 0.46, 3.6, 5.0).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.35 : 0.7 }); // a highlight
 }
 
+/** A cooler's mounting hole: a bare plated ring round the drill, a printed circle round it (the backplate's standoff threads through; `cooler3d.ts`). */
+export function coolerHole(c: Ctx, x: number, y: number, r: number, ring: number) {
+  const { g, P, T } = c;
+  disc(g, x, y, ring + 6, { fill: P.board });
+  disc(g, x, y, ring, { fill: mix(P.via, '#c9a65a', 0.5), stroke: P.edge, lw: 4, sa: 0.6 });
+  disc(g, x, y, r, { fill: '#05070b' });
+  g.moveTo(x + Math.cos(3.7) * r, y + Math.sin(3.7) * r).arc(x, y, r, 3.7, 5.2).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.18 : 0.4 }); // the drill's lit wall
+}
+
 /** A square-ish IC with `legs` legs on every side (centred, `pitch` apart: the same positions `legAt` gives the router), a pin-1 dot and an optional label. */
 export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?: string; size?: number; tone?: string; accent?: string; round?: number } = {}) {
   const { g, P, T } = c;

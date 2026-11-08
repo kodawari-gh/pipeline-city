@@ -29,6 +29,24 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | Fans (parts since 2026-11-07) | `fan92`, `fan92x`, `fan120`, `fan120x`, `fan140`, `fan140x`; `fan40` for fan fins | `fans3d.ts` | [x] one model `fanPart` on every host, close-up review 2026-11-07: frame, venturi, struts, hub badge, high-airflow look | [x] | [x] fan cable first | [x] a case fan moves off its wall, then out; a heatsink's fan lifts off |
 | Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [x] close-up review 2026-11-07, no defect | n/a | n/a | n/a (soldered) |
 
+## Review pass 3 (2026-11-08): real size, mounts, detail parity
+
+Goal: every part other than the case, the board and the CPU is real size, has its real fixings and its fan provisions, and has the detail of those three. The scale is the case's: 23 units a mm (its fans, screws and standoffs). The board's sockets are the reference for what plugs into them (the DIMM slot is 2400 long by the owner's choice). Measured with the gallery's models (`showcase.ts`), so the shop, the gallery, the game and Build my PC agree. Tick a row when its model is changed, shot in the gallery and in the game, and committed.
+
+- [x] Stock heatsink `cooler0`: was 69 x 60 mm, 32 mm tall, its "92 mm" fan drawn 56 mm. Real: about 95 mm round, a 92 mm fan, 55 mm tall; four push pins at the socket's mounting holes. Done 2026-11-08: copper core, 60 swept vanes, a 95 mm shroud with the pins and two fan latches; the board has the four cooler holes (`COOLER_HOLES`).
+- [x] Tower `cooler1`: was 69 x 60 x 99 mm, its "120 mm" fans drawn 53 mm. Real: 120 mm fans, a fin stack about 125 x 52 x 154 mm, offset north to clear the first card; a backplate, four standoffs, a cross bracket with two spring screws; fan clips on both ends (push-pull). Done 2026-11-08: 48 notched fins, four U pipes, wire clips per fan; the CPU fan lead leaves the fitted fan (`coolerFanLead`).
+- [x] Pump `cooler2`: was 48 mm round. Real: about 70 mm round, 45 mm tall, a bracket on four standoffs with thumb nuts. Done 2026-11-08: a 68 mm pump on a housing and four bracket arms, its ports face north to the hoses.
+- [ ] Radiators `rad1..3`: the gallery drew a 74 mm stand-in (`kitFit`), not the game's model. Real: one model per fan count (120 / 240 / 360), thickness by grade, fan screw holes, G1/4 fill port.
+- [ ] Fans `fan40..fan140x`: frames 20 mm deep. Real: 25 mm (the 40 mm fan 10 mm).
+- [ ] RAM `ram0..5`: length set by the slot; check the height (31.25 mm), the spreaders' thickness, the chip count, the detail parity (312 to 4456 triangles).
+- [ ] VRM sinks `vsink0..2`, RAM VRM sinks `rsink0..2`: check the height, the screws through the board, the 40 mm fan's frame on the fan fins.
+- [ ] TPM `tpm1..2`: was 16 x 8 mm. Real: about 22 x 13 mm on a 2 x 7 header (2.54 mm pitch).
+- [ ] NVMe `nvme2`, `raid2`: was 72 x 12 mm. Real M.2 2280: 80 x 22 mm, a standoff and a screw at its end.
+- [ ] GPUs `gpu1..3`, NPUs `npu1..2`, NICs `nic1..3`: they stand 70 mm and are one slot thick. Real: full height (about 111 mm over the board), a GPU two to three slots thick, 170 to 300 mm long.
+- [ ] Power supply `psu0..4`: was 93 x 53 x 87 mm (the basement is 59 mm tall). Real ATX: 150 x 86 x 140 mm; SFX 125 x 63.5 x 100 mm. Needs a taller basement (a case change).
+- [ ] HDD `hdd0`, SATA SSD `ssd1`: the gallery drew them at the 2D body's size, the game at the bay's (42 mm wide). Real: 3.5 in. 147 x 101.6 x 26 mm, 2.5 in. 100 x 69.85 x 7 mm. Needs wider bays (a case change).
+- [ ] Monitor `display0..1`: built at the room's 18.7 units a mm; the stage and the gallery show it next to a machine at 23.
+
 ## Cables (graph nodes `cable:<id>`)
 
 `atx` 24-pin · `cpu` 8-pin · `pcie`..`pcie4` GPU leads · `video` · `lan` · `pcmains` · `monmains` · `cpufan` · `vrmfan` · `ramfan` · `sysfan` · `fan:<mount>` per case fan. Each unplugs before the part it feeds.
@@ -58,5 +76,5 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 - Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
 - Board and case swaps: the parts come out first. The door closes. The board lifts out (`Machine3D.boardRoots`), then the case pieces (`caseRoots`). The new case lowers over the board, then the new board settles in.
-- Limits: the stage monitor is a plain stand-in for the room's. The model rows stay `[~]`: the close-up reviews found no defect, but no part got a new model pass.
+- The stage shows the room's monitor on standby (`Monitor`, props3d.ts).
 - Tests: `sim/removal.test.ts` (graph), `sim/removal.game.test.ts` (plans run on the real game), `render/three/fit.test.ts` (rules vs geometry), `render/three/buildmotion.test.ts`.

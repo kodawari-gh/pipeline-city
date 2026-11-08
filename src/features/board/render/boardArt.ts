@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS, pcieLabel } from '../sim/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, SOCKET_KEEP, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
+import { BD, BOARD_SEED, COOLER_HOLE, COOLER_HOLES, GEO, PKG, SOCKET_E, SOCKET_KEEP, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
@@ -12,7 +12,7 @@ import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleP
 import { stitchVias } from './wiring/stitch';
 import { makePalette, type Palette, type Theme } from '@/core/render/theme';
 import {
-  cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieRelease, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
+  cap, chip, coolerHole, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieRelease, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
 } from './boardParts';
 
 export interface BoardArt {
@@ -428,6 +428,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
 
   // ---- the mounting holes, last: each has a clear ring, so no trim or silkscreen line runs through a screw ----
   for (const [x, y] of geo.holes) hole(c, x, y, 66);
+  for (const [x, y] of COOLER_HOLES) coolerHole(c, x, y, COOLER_HOLE.r, COOLER_HOLE.ring);
 
   root.addChild(labels);
   return { root, labels, buses, pal: P };

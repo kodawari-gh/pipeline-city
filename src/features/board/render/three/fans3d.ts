@@ -46,6 +46,9 @@ export function motor(holder: Group, r: number, depth: number, n = 3): void {
 /** A solid of turning round the z axis from a closed outline of (radius, z) points: walk its outer wall toward +z first, so its faces look out. */
 const lathe = (outline: readonly (readonly [number, number])[], seg: number): BufferGeometry => new LatheGeometry(outline.map(([r, z]) => new Vector2(r, z)), seg).rotateX(Math.PI / 2).toNonIndexed();
 
+/** A fan's real depth: a 25 mm frame, the 40 mm fan's 10 mm (23 units a millimetre, `fanLen`). */
+export const fanDepth = (size: number): number => (size > 40 ? 25 : 10) * 23;
+
 /** The fan's four corners, in parts of its width. */
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
 

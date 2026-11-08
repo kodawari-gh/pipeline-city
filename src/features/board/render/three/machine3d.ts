@@ -37,7 +37,7 @@ import { isPcieKind } from '../wiring/routes';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
-import { coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanPart, type FanFit, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, cardModel, gpuVideoAt, slotBlank, type Card3D } from './card3d';
@@ -572,7 +572,8 @@ export class Machine3D {
         }), plugged);
       } else {
         // the fan's end: the cooler's west side, a heatsink fan's housing, the hub's input
-        const anchor: RopeEnd = p.id === 'cpufan' ? { at: at(p.anchor[0], p.anchor[1], BOARD_Z + 460), dir: [-1, 0, 0] }
+        const cooler = s.devices.find((d) => d.kind === 'cooler'), coolerFans = s.devices.filter((d) => d.kind === 'fan' && cooler && fanHost(d.slot) === cooler.slot);
+        const anchor: RopeEnd = p.id === 'cpufan' ? coolerFanLead((getSpec(cooler?.spec ?? '') as { visual?: string } | undefined)?.visual ?? '', coolerFans.map((d) => Number(d.slot.slice(d.slot.lastIndexOf('.fan') + 4))))
           : p.id === 'sysfan' ? { at: at(FAN_HUB.x + 90, FAN_HUB.y - 60, CASE_Z + 240), dir: [0, 1, 0] }
           : { at: at(p.anchor[0], p.anchor[1] - 20, BOARD_Z + 430), dir: [0, 1, 0] };
         const skip = p.id === 'cpufan' ? this.obstacles.filter((o) => o.userData.cooler) : this.obstacles.filter((o) => o.userData.sink);

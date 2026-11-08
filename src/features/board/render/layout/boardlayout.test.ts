@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../../sim/specs';
 import { TIER_GEO, passiveRect } from './boardlayout';
-import { boardBakeFrame, CASE_BD, CASE_IN, COOLER, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
+import { boardBakeFrame, CASE_BD, CASE_IN, COOLER, COOLER_HOLE, COOLER_HOLES, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
@@ -415,6 +415,16 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       // the screw stays on the board
       expect(inside({ x: hx - 66, y: hy - 66, w: 132, h: 132 }, g.bd)).toBe(true);
     });
+    // the cooler's holes round the socket: a smaller keep-out (no screw head), clear of the socket's printed keep-out too
+    const sk = SOCKET_E + SOCKET_KEEP, keep = { x: PKG.x - sk, y: PKG.y - sk, w: PKG.w + 2 * sk, h: PKG.h + 2 * sk };
+    for (const [hx, hy] of COOLER_HOLES) {
+      const p: [number, number] = [hx, hy], K = COOLER_HOLE.keep;
+      for (const [name, r] of [...parts, ['keep-out', keep] as [string, Rect]]) expect(rectDist(p, r), `cooler hole ${p} vs ${name}`).toBeGreaterThan(K);
+      let near = Infinity;
+      for (const l of lanes) for (let k = 1; k < l.pts.length; k++) near = Math.min(near, segDist(p, l.pts[k - 1]!, l.pts[k]!));
+      expect(near, `cooler hole ${p} vs a lane`).toBeGreaterThan(K);
+      for (const [ox, oy] of g.holes) expect(Math.hypot(ox - hx, oy - hy), `cooler hole ${p} vs a board hole`).toBeGreaterThan(K + R);
+    }
   });
 
   it('seats every cable plug on its connector', () => {

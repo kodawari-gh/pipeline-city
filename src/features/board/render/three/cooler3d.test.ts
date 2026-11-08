@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Box3, type Mesh, Vector3 } from 'three';
 import { radiatorSpan } from '@/features/room/render/desk/props/case';
-import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { radiatorFit, radiatorPorts } from '../cooler';
-import { COOLER, setLayoutTier } from '../layout/layout';
+import { COOLER, COOLER_HOLES, PCIE_RAILS, setLayoutTier } from '../layout/layout';
 import { barbZ, coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel } from './cooler3d';
 import { FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { getSpec, type FanSpec } from '../../sim/specs';
@@ -16,15 +16,25 @@ const rad = (side: 'top' | 'front') => {
 };
 const fit = (spec: string, slot: string): FanFit => ({ id: `d-${slot}`, slot, spec: getSpec(spec) as FanSpec });
 
+/** Where a cooler must stay at its real size: behind the board only its backplate, north of the first card's backplate, under the glass, clear of the RAM's tops. */
+const inRoom = (visual: string, b: Box3) => {
+  expect(b.min.z, visual).toBeGreaterThanOrEqual(BOARD_Z - 130);
+  expect(-b.min.y, visual).toBeLessThan(PCIE_RAILS[0]!.y);
+  expect(b.max.z, visual).toBeLessThan(CASE_Z + CASE_D - 200);
+  expect(b.max.x, visual).toBeLessThan(1250);
+};
+
 describe('the 3D coolers', () => {
-  it('stands every cooler on its plate over the CPU, a bare heatsink with nothing to spin (and on the loop the ring light and the impeller)', () => {
-    setLayoutTier(3, 3);
-    for (const [visual, spins] of [['cooler-stock', 0], ['cooler-tower', 0], ['cooler-liquid', 2]] as const) {
-      const m = coolerModel(visual), b = new Box3().setFromObject(m.root);
-      expect(m.spins.length, visual).toBe(spins);
-      expect(b.min.z, visual).toBeGreaterThanOrEqual(BOARD_Z + 250);
-      expect(b.min.x, visual).toBeGreaterThanOrEqual(COOLER.x - 1);
-      expect(b.max.x, visual).toBeLessThanOrEqual(COOLER.x + COOLER.w + 1);
+  it('mounts every cooler on the board\'s cooler holes over the CPU, a bare heatsink with nothing to spin (and on the loop the ring light and the impeller)', () => {
+    for (const t of [0, 3]) {
+      setLayoutTier(t, t);
+      for (const [visual, spins] of [['cooler-stock', 0], ['cooler-tower', 0], ['cooler-liquid', 2]] as const) {
+        const m = coolerModel(visual), b = new Box3().setFromObject(m.root);
+        expect(m.spins.length, visual).toBe(spins);
+        inRoom(visual, b);
+        // the backplate reaches every hole
+        for (const [x, y] of COOLER_HOLES) expect(b.containsPoint(new Vector3(x, -y, BOARD_Z)), visual).toBe(true);
+      }
     }
   });
 
@@ -33,11 +43,10 @@ describe('the 3D coolers', () => {
     for (const [visual, fans] of [['cooler-stock', [fit('fan92', 'cooler0.fan0')]], ['cooler-tower', [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')]]] as const) {
       const m = coolerModel(visual, fans), b = new Box3().setFromObject(m.root);
       expect(m.spins.map((s) => s.needs), visual).toEqual(fans.map(() => 'cpufan'));
-      expect(b.min.x, visual).toBeGreaterThanOrEqual(COOLER.x - 1);
-      expect(b.max.x, visual).toBeLessThanOrEqual(COOLER.x + COOLER.w + 1);
+      inRoom(visual, b);
       fans.forEach((f, k) => {
         // (its light stands a little proud of its face)
-        const o = findById(m.root, f.id)!, c = new Box3().setFromObject(o, true), spot = coolerFanBox(visual, k)!, proud = 16;
+        const o = findById(m.root, f.id)!, c = new Box3().setFromObject(o, true), spot = coolerFanBox(visual, k)!, proud = 32;
         expect(c.min.x, f.slot).toBeGreaterThanOrEqual(spot.r.x - proud);
         expect(c.max.x, f.slot).toBeLessThanOrEqual(spot.r.x + spot.r.w + proud);
         expect(c.min.z, f.slot).toBeGreaterThanOrEqual(spot.z0 - proud);

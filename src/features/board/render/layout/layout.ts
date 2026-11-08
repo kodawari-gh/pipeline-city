@@ -47,6 +47,12 @@ export const COOLER: Rect = { x: -790, y: -690, w: 1580, h: 1380 };
 export const SOCKET_E = 46;
 /** The printed keep-out round the socket frame (the art's corner brackets): no part stands in it. */
 export const SOCKET_KEEP = 74;
+/**
+ * The cooler's four mounting holes round the socket (every tier: a cooler fits every board), their drill and plated ring radius. A cooler's
+ * backplate threads its standoffs through them (`cooler3d.ts`); the board's lanes and parts keep `COOLER_HOLE.keep` clear of each.
+ */
+export const COOLER_HOLES: readonly (readonly [number, number])[] = [[-920, -860], [920, -860], [-920, 860], [920, 860]];
+export const COOLER_HOLE = { r: 38, ring: 54, keep: 62 } as const;
 
 // The floorplan of the die (blocks, links) is per architecture: cpuplans.ts, drawn by dieart.ts / dieview.ts (docs/DIE.md).
 
