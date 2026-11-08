@@ -1,9 +1,10 @@
-// The drive cage in 3D (docs/PC_PARTS.md "Storage"), as a real one: a steel cage in the main compartment along the case's front, east of the
-// cable gutter and over the fan hub, the front fans blowing through its open sides at the drives. It holds a tray for each bay (`BAY_CELLS`: slot
-// sata<i> top down, 34 mm apart, as real cages), each a steel sled lying flat that slides out to the glass side: its floor with air windows and
+// The drive cages in 3D (docs/PC_PARTS.md "Storage"), as real ones: a steel cage in the main compartment along the case's front, east of the
+// cable gutter, on the shroud, the front fans blowing through its open sides at the drives; and a cage of two under it in the basement, out of
+// that air, as a Define 7's or a 4000D's. They hold a tray for each bay (`BAY_CELLS`: slots sata0 and sata1 in the basement, the rest in the
+// main cage, each cage top down, 34 mm apart, as real cages), each a steel sled lying flat that slides out to the glass side: its floor with air windows and
 // the 2.5 in. drive's four screw holes, a rail either side with two tool-less pins (in rubber rings) that go into the 3.5 in. drive's side holes,
 // a pull handle with a finger hole and a latch at its front. A drive lies on its tray with its SATA receptacles at the back, toward the case's tray
-// sheet (machine3d.ts plugs its cables there and runs them back through the sheet's opening, casetray3d.ts). The cage's back flanges are screwed
+// sheet (machine3d.ts plugs its cables there and runs them back through the sheet's opening, casetray3d.ts). A cage's back flanges are screwed
 // to the tray sheet. An empty bay keeps its empty tray; a fitted drive's tray goes with the drive (it slides out with it, buildmotion.ts).
 // The 2D keeps its column of cells (`BAY_CELLS`) at the cage's west end.
 import { CylinderGeometry, Group, Mesh, Vector2 } from 'three';
@@ -11,7 +12,7 @@ import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry'
 import { mat } from '@/core/render/three/materials';
 import { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
-import { BAY_CELLS, CAGE_W, CELL_H, PSU } from '../layout/layout';
+import { BASE_BAYS, BAY_CELLS, CAGE_W, CELL_H, PSU } from '../layout/layout';
 import { flatSlot, plateY, screws, shapeOf, slab, wallX, type Span, type Spot } from './casekit3d';
 import { box, flat, HDD_MM, SSD_MM, xy, xz } from './drive3d';
 import { MM } from './pcbkit3d';
@@ -43,18 +44,35 @@ export interface CagePlan {
   trays: TraySpot[];
 }
 
-/** Where the cage and its trays go: over the bay cells, from the tray sheet to the glass, each tray's floor on its cell's bottom line. It stands on the
- *  shroud's shelf (`basement3d.ts`), as a Define 7's cage on its shroud: its bottom on the shroud's top. */
-export function cagePlan(cells: readonly RectLike[] = BAY_CELLS): CagePlan {
-  const x0 = cells[0]?.x ?? 0, x1 = x0 + CAGE_W, last = cells[cells.length - 1];
-  const top = (cells[0]?.y ?? 0) - 70, bottom = Math.max(PSU.y, last ? last.y + last.h + 60 : top + 200);
-  const tx = x0 + (CAGE_W - TRAY.w) / 2, tz = FRONT - 110 - TRAY.l;
-  return { x0, x1, top, bottom, z0: TRAY_Z, z1: FRONT - 95, trays: cells.map((c, i) => ({ slot: i, x: tx, y: -(c.y + c.h), z: tz })) };
+/** A cage over some of the bay cells (`from` to `to`, the slots), from the tray sheet to `z1`, each tray's floor on its cell's bottom line, its bottom on `floor` or lower. */
+function planOf(cells: readonly RectLike[], from: number, to: number, floor: number, z1: number): CagePlan {
+  const mine = cells.slice(from, to), x0 = mine[0]?.x ?? 0, x1 = x0 + CAGE_W;
+  const top = Math.min(...mine.map((c) => c.y)) - 70, bottom = Math.max(floor, ...mine.map((c) => c.y + c.h + 60));
+  const tx = x0 + (CAGE_W - TRAY.w) / 2, tz = z1 - 15 - TRAY.l;
+  return { x0, x1, top, bottom, z0: TRAY_Z, z1, trays: mine.map((c, i) => ({ slot: from + i, x: tx, y: -(c.y + c.h), z: tz })) };
 }
+
+/** The main cage and its trays: over the main bays, from the tray sheet to the glass. It stands on the shroud's shelf (`basement3d.ts`), as a
+ *  Define 7's cage on its shroud: its bottom on the shroud's top. */
+export const cagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan => planOf(cells, BASE_BAYS, cells.length, PSU.y, FRONT - 95);
+
+/** The basement's cage under the main one: its two bays, on the basement's floor (its bottom cell's line), behind the shroud's folded edge at the glass side. */
+export const baseCagePlan = (cells: readonly RectLike[] = BAY_CELLS): CagePlan => planOf(cells, 0, BASE_BAYS, -Infinity, FRONT - 120);
+
+/** The tray of a bay, in whichever cage holds it. */
+export const traySpot = (plans: readonly CagePlan[], slot: number): TraySpot | undefined => plans.flatMap((p) => p.trays).find((t) => t.slot === slot);
 
 /** Where a drive lies in its tray (the tray's frame): centred across it, its connector end at the back, on the pins or on the floor. */
 export const onTray = (hdd: boolean): { x: number; y: number; z: number } =>
   ({ x: (TRAY.w - (hdd ? HDD_MM.w : SSD_MM.w) * MM) / 2, y: hdd ? HDD_LIFT : TRAY.floor, z: DRIVE_Z });
+
+/** A bay seen through the glass (layout coordinates): its tray's width, from the floor to a hard disk's top. The lenses mark the drive in it with this. */
+export function bayRect(slot: number, plans: readonly CagePlan[] = [baseCagePlan(), cagePlan()]): RectLike | null {
+  const t = traySpot(plans, slot);
+  if (!t) return null;
+  const top = -t.y - HDD_LIFT - HDD_MM.t * MM;
+  return { x: t.x, y: top, w: TRAY.w, h: -t.y - top };
+}
 
 /** A circle in a sheet's (x, z) plane. */
 const hole = (x: number, z: number, r: number, n = 16): Vector2[] => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, z + Math.sin((k / n) * Math.PI * 2) * r));

@@ -11,7 +11,7 @@ export interface Box { x: number; y: number; w: number; h: number }
  * the art, `scene.shapes`) the lens traces; with no id or no shape yet the rect is the fallback. `heat` is 0 (cool) to 1 (at its limit).
  */
 export interface AirHeat { id: string; label: string; rects: Box[]; ids?: (string | null)[]; tempC: number; heat: number;
-  /** A flat part (a drive, the processor, a regulator phase): it warms the air but stands too low to be in its way, so the air passes over it. */
+  /** A flat part (an M.2 drive, the processor, a regulator phase): it warms the air but stands too low to be in its way, so the air passes over it. */
   flat?: boolean }
 
 /**
@@ -53,12 +53,12 @@ export const clampHeat = clamp01;
 /** How hot a part is, 0 (cool) to 1 (at the point where it throttles). */
 export const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
 
-/** The usual source of heat: the devices of some kinds, grouped as one zone (all the RAM sticks together), hot at the hottest. */
-export function deviceHeat(kinds: string[], id: string, label: string, c: AirCtx, flat = false): AirHeat[] {
+/** The usual source of heat: the devices of some kinds (in the slots `only` takes), grouped as one zone (all the RAM sticks together), hot at the hottest. */
+export function deviceHeat(kinds: string[], id: string, label: string, c: AirCtx, flat = false, only?: (slot: string) => boolean): AirHeat[] {
   const rects: Box[] = [], ids: string[] = [];
   let tempC = 0;
   for (const d of c.s.devices) {
-    if (!kinds.includes(d.kind)) continue;
+    if (!kinds.includes(d.kind) || (only && !only(d.slot))) continue;
     const r = c.slots.get(d.slot);
     if (!r) continue;
     rects.push(r); ids.push(d.id);

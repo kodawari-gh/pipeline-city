@@ -14,7 +14,7 @@ import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { cardModel } from './card3d';
 import { basementPlan, shroud } from './basement3d';
-import { cagePlan, driveCage } from './drivecage3d';
+import { baseCagePlan, cagePlan, driveCage } from './drivecage3d';
 import { sataDriveModel } from './drive3d';
 import { psuUnit } from './psu3d';
 import { caseModel, innerStrips } from './case3d';
@@ -73,7 +73,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
     return centred(withLayout(() => {
       const m = caseModel(kind, T), g = new Group(), plan = basementPlan();
       // (the side panel hangs in its door's pivot group: added alone it would stand off the body by the pivot's offset)
-      g.add(m.root, m.door, shroud(plan, m.shroud, m.rivet, m.screw), driveCage(cagePlan(), kind), fanHub(), leadCoil());
+      g.add(m.root, m.door, shroud(plan, m.shroud, m.rivet, m.screw), driveCage(cagePlan(), kind), driveCage(baseCagePlan(), kind), fanHub(), leadCoil());
       for (const s of innerStrips(kind, m).roots) g.add(s);
       return g;
     }, tier));

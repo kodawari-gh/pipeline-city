@@ -11,6 +11,7 @@
 
 import { BD_X, DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
 import { CASE_TIERS } from '../../sim/specs';
+import { BASE_BAYS } from '../../sim/airflow';
 import { setCaseDepth } from '@/features/room/render/three/roomplan';
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -196,6 +197,8 @@ export let OUTBOX: Rect = { x: 0, y: 0, w: OUTBOX_W, h: OUTBOX_H };
 export const WALL_T = 170, CASE_TOP = -3400;
 /** Drive bays each case has (the Mini has room for four drives, the Full tower eight): a bay beyond the board's SATA ports is locked. */
 export const CASE_BAYS = [4, 6, 6, 8];
+/** Of them, the bays of the basement's cage under the shroud (sata0 and sata1, `BASE_BAYS`, sim/airflow.ts): the rest are the main cage's, behind the front fans. */
+export { BASE_BAYS };
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
 export let CASE: Rect = { x: IO_X, y: CASE_TOP, w: 9060, h: 7350 };
 /** Inside of the chassis (glass area plus the PSU compartment). */
@@ -231,8 +234,10 @@ export const RAD_T = [621, 828, 1035] as const, RAD_GAP = 20, RAD_ROOM = RAD_GAP
 /** Where the rear fan ends (layout y): above the first expansion slot and its retention bar, whatever its size. */
 const REAR_FAN_END = 860;
 /**
- * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
- * slot sata<i>, top to bottom; the cage has the case's bays (`CASE_BAYS`), those beyond the board's SATA ports are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
+ * The drive bays: two cages along the case's front, east of the cable gutter, one over the other (cell i = slot sata<i>; the case's bays,
+ * `CASE_BAYS`, those beyond the board's SATA ports are locked). The basement's cage under the shroud holds the first `BASE_BAYS`, out of the front
+ * fans' air as a real one, so the first drives cost the case no air; the main cage on the shroud holds the rest, its bottom in line with the board's.
+ * Each cage top down, as the board's ports (the 2D's cables cross only from one cage to the other). `BAY` is the main cage's outline.
  */
 export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
 export let BAY_CELLS: Rect[] = [];
@@ -247,16 +252,18 @@ export const MINI_FAN_Y = 1880;
 /** x of the SATA power lead that runs up the cage's west side (from the PSU), and the cage's west edge. */
 export let POWER_LEAD_X = 4070;
 /**
- * The fan hub in the case's floor corner (east of the PSU, under the shroud's shelf the drive cage stands on): a small board that feeds every case fan. It takes power from
- * a socket on the PSU's east face (`HUB_POWER_Y` is the socket's y), its control from the board's SYS_FAN header over a cable that runs under
- * the board (see `fanTrunkArt` in case.ts), and sends a cable to each fan, which goes behind the tray through `FAN_SLOT` (under the shelf).
+ * The fan hub in the basement (on the tray sheet west of the basement's drive cage, where the shroud's side is open): a small board that feeds every
+ * case fan. It takes power on a SATA socket on its west edge (`HUB_POWER_Y` is the socket's y), its control from the board's SYS_FAN header over a
+ * cable that runs under the board (see `fanTrunkArt` in case.ts), and sends a cable to each fan, which goes behind the tray through `FAN_SLOT` (under the shroud's top).
  */
 export let FAN_HUB: Rect = { x: 4180, y: 3000, w: 1100, h: 520 };
+/** The power supply's east face in the basement (basement3d.ts `psu`, at the case's back corner): the hub's power lead comes from it. */
+export let PSU_FACE_X = 0;
 export let FAN_SLOT: Rect = { x: 4240, y: 2800, w: 980, h: 70 };
 export let HUB_POWER_Y = 3200;
 /**
  * Where a drive's SATA data cable runs (`sataCablePath` in case.ts): out of the board port east, along the port's row to its own
- * column (`col`, west to east in port order, so no two cables cross), up the column to the drive's data plug (cell y + `plug`) and
+ * column (`col`, west to east in port order, east to west for the basement's cage, so no two cables of a cage cross), up or down the column to the drive's data plug (cell y + `plug`) and
  * east into it. The columns sit between the PSU cables' gutter and the cage.
  */
 export let SATA_LINK: { plug: number; col: number }[] = [];
@@ -369,15 +376,19 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   PSU_LABEL = { x: PSU_UNIT.x + 1330, y: PSU.y + 190, w: 1000, h: 790 };
   PSU_PANEL = { x: PSU.x + 170, y: PSU.y + 140, w: 2200, h: 820 };
   VENTS = { x: PSU_PANEL.x + PSU_PANEL.w + 150, y: PSU.y + 130, w: Math.max(0, PSU_UNIT.x - 70 - 150 - (PSU_PANEL.x + PSU_PANEL.w + 150)), h: 840 };
-  // the cage: as many cells as the biggest board the case holds has SATA ports, bottom-aligned with that board
-  const cells = CASE_BAYS[cg.tier] ?? cg.sata.length, cageX = east + 800 + GUTTER_EXTRA, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
-  BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: y0 + i * CELL_PITCH, w: CELL_W, h: CELL_H }));
-  BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
+  // the bays, each cage top down: the basement's on its floor (basement3d's floor, 150 over the case's bottom; its cage stands on it), then the main
+  // cage's, bottom-aligned with the board
+  const cells = CASE_BAYS[cg.tier] ?? cg.sata.length, main = cells - BASE_BAYS, cageX = east + 800 + GUTTER_EXTRA, floor = south + 1600 + (BASE_GROW[cg.tier] ?? 0);
+  const cellY = (i: number) => (i < BASE_BAYS ? floor - 60 - CELL_H - (BASE_BAYS - 1 - i) * CELL_PITCH : south - 100 - CELL_H - (cells - 1 - i) * CELL_PITCH);
+  BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: cellY(i), w: CELL_W, h: CELL_H }));
+  const y0 = cellY(BASE_BAYS);
+  BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (main - 1) * CELL_PITCH + CELL_H + 190 };
   POWER_LEAD_X = cageX - 130;
-  FAN_HUB = { x: east + 780 + GUTTER_EXTRA, y: south + 470, w: 1140, h: 780 };
+  FAN_HUB = { x: cageX - 1300, y: south + 470, w: 1140, h: 780 };
   FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 180, w: FAN_HUB.w - 120, h: 70 };
   HUB_POWER_Y = south + 760;
-  SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + GUTTER_EXTRA + i * 22 }));
+  // (a cable down to the basement's cage keeps east of the one under it: those columns run the other way)
+  SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + GUTTER_EXTRA + (i < BASE_BAYS ? BASE_BAYS - 1 - i : i) * 22 }));
   // the case's fan size sets the mounts' length and the case's depth
   const mounts = CASE_TIERS[cg.tier]!;
   FAN_LEN = fanLen(mounts.fanSize); TOP_FAN_PITCH = FAN_LEN + 80;
@@ -394,6 +405,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack, headTop), grow = BASE_GROW[cg.tier] ?? 0, bottom = south + 1750 + grow;
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
   CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 + grow - (top + 400) };
+  PSU_FACE_X = CASE_IN.x + 20 + caseForm(cg.tier).d;
   CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
   CASE_PANEL = { x: IO_X, y: top, w: caseW, h: 400 };
   POWER_BTN = { x: ce - 600, y: top + 200, r: 130 };

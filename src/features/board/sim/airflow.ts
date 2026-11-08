@@ -12,6 +12,10 @@
 //
 // The cards warm the air (CASE_HEAT_C_PER_W per watt, thermal.ts): how much each area feels is `COUPLE` (the air leaves the cards for the rear, over the
 // processor), and the less air moves through an area the more of it stays (up to `MAX_TRAPPED` times).
+//
+// The drives of the main cage stand in the front fans' air: each blocks a share of the fans level with it (`BAY_SHADE`, from the 3D models), and that share of
+// their air does not reach the board (the processor's and the cards' areas; the bay itself is cooled by it). A full cage of hard disks costs about one front
+// fan; the basement's cage under the shroud costs nothing.
 
 import { basicFan, CASE_TIERS, caseMounts } from "./specs";
 import type { DeviceKind } from "./specs";
@@ -49,6 +53,33 @@ const COUPLE: Record<AirZoneId, number> = { north: 1.25, cards: 0.6, bay: 0.75 }
 /** The most the heat of the cards can pile up in an area with almost no air, as a multiple. */
 export const MAX_TRAPPED = 3;
 
+/** Of the drive bays, the basement's cage under the shroud holds the first (sata0, sata1): out of the front fans' air, its drives cost no airflow. */
+export const BASE_BAYS = 2;
+type Shade = readonly (readonly number[])[];
+/**
+ * The share of each front fan's face (top to bottom) that a drive in a bay of the main cage blocks, per case tier: [main bay, top down][front fan]. A hard
+ * disk lies flat across the air; a 2.5-inch SSD is thin and short. Measured from the 3D models (render/three/fit.test.ts checks it against the layout).
+ */
+export const BAY_SHADE: readonly { hdd: Shade; ssd: Shade }[] = [
+  { hdd: [[0.186, 0.087], [0, 0.283]], ssd: [[0, 0.069], [0, 0.069]] },
+  { hdd: [[0, 0.283, 0], [0, 0.255, 0.019], [0, 0, 0.283], [0, 0, 0.283]], ssd: [[0, 0.069, 0], [0, 0.025, 0.035], [0, 0, 0.069], [0, 0, 0.069]] },
+  { hdd: [[0, 0.21, 0], [0, 0.189, 0.014], [0, 0, 0.21], [0, 0, 0.21]], ssd: [[0, 0.049, 0], [0, 0.018, 0.025], [0, 0, 0.049], [0, 0, 0.049]] },
+  { hdd: [[0, 0.156, 0], [0, 0.156, 0], [0, 0.156, 0], [0, 0.021, 0.13], [0, 0, 0.156], [0, 0, 0.156]], ssd: [[0, 0.036, 0], [0, 0.036, 0], [0, 0.036, 0], [0, 0, 0.036], [0, 0, 0.036], [0, 0, 0.036]] },
+];
+
+/** A drive in a bay: its SATA port's index (`sata<bay>`) and whether it is a hard disk. */
+export interface BayDrive { bay: number; hdd: boolean }
+
+/** The share of each front fan (top to bottom) that the drives of the main cage block, 0 to 1. */
+export function cageShade(tier: number, drives: readonly BayDrive[]): number[] {
+  const table = BAY_SHADE[tier], out = new Array<number>(CASE_TIERS[tier]?.fans.front ?? 0).fill(0);
+  for (const d of drives) {
+    const row = table && (d.hdd ? table.hdd : table.ssd)[d.bay - BASE_BAYS];
+    row?.forEach((s, i) => { if (i < out.length) out[i]! += s; });
+  }
+  return out.map((s) => Math.min(1, s));
+}
+
 export interface ZoneAir {
   /** Case-fan equivalents cooling the area, in the units of `CASE_FAN_K` (the old `caseFans`). */
   fans: number;
@@ -60,8 +91,8 @@ export interface ZoneAir {
 
 const gauss = (x: number, c: number) => Math.exp(-(((x - c) / 0.3) ** 2));
 
-/** Supply and draw of an area for the turning fans (ids as `caseMounts`, each with its airflow). */
-function supplyDraw(tier: number, turning: ReadonlyMap<string, number>): Record<AirZoneId, { supply: number; draw: number }> {
+/** Supply and draw of an area for the turning fans (ids as `caseMounts`, each with its airflow); `shade` is what the main cage blocks of each front fan. */
+function supplyDraw(tier: number, turning: ReadonlyMap<string, number>, shade?: readonly number[]): Record<AirZoneId, { supply: number; draw: number }> {
   const mounts = caseMounts(tier), nFront = mounts.filter((m) => m.startsWith("front")).length;
   const out = {} as Record<AirZoneId, { supply: number; draw: number }>;
   for (const z of AIR_ZONES) {
@@ -69,7 +100,10 @@ function supplyDraw(tier: number, turning: ReadonlyMap<string, number>): Record<
     for (const m of mounts) {
       const w = turning.get(m);
       if (w === undefined) continue;
-      if (m.startsWith("front")) supply += w * REACH[z] * gauss((Number(m.slice(5)) + 0.5) / nFront, LEVEL[z]);
+      if (m.startsWith("front")) {
+        const i = Number(m.slice(5)), kept = z === "bay" ? 1 : 1 - (shade?.[i] ?? 0);
+        supply += w * REACH[z] * gauss((i + 0.5) / nFront, LEVEL[z]) * Math.max(0, kept);
+      }
       else if (m === "rear") draw += w * DRAW_REAR[z];
       else draw += w * DRAW_TOP[z];
     }
@@ -85,9 +119,10 @@ const through = (s: number, d: number) => (s > 0 && d > 0 ? (2 * s * d) / (s + d
  * The air of each area. `turning` is the ids of the case fans that turn (their own cable and the hub's); undefined means no layout is known (a model run
  * on its own with `FanPower.caseFans` only) and every area gets that count, as before zones. `cardW` is what the working cards draw, W; `heatPerW` the case heat per watt.
  * `flowOf` is the airflow of the fan on each turning mount (absent: a basic fan of the case's size). The case as designed is every mount with a basic fan:
- * `flow` is capped at 1 there, while `fans` keeps growing with high-airflow fans.
+ * `flow` is capped at 1 there, while `fans` keeps growing with high-airflow fans. `shade` is the share of each front fan the main cage's drives block (`cageShade`):
+ * the case as designed has an empty cage.
  */
-export function zoneAir(tier: number, turning: readonly string[] | undefined, caseFans: number, cardW: number, heatPerW: number, flowOf?: Readonly<Record<string, number>>): Record<AirZoneId, ZoneAir> {
+export function zoneAir(tier: number, turning: readonly string[] | undefined, caseFans: number, cardW: number, heatPerW: number, flowOf?: Readonly<Record<string, number>>, shade?: readonly number[]): Record<AirZoneId, ZoneAir> {
   const out = {} as Record<AirZoneId, ZoneAir>;
   if (!turning) {
     for (const z of AIR_ZONES) out[z] = { fans: caseFans, flow: 1, riseC: heatPerW * cardW };
@@ -95,7 +130,7 @@ export function zoneAir(tier: number, turning: readonly string[] | undefined, ca
   }
   const size = CASE_TIERS[tier]?.fanSize, base = size ? basicFan(size).airflow : 1;
   const all = caseMounts(tier), n = all.length * base;
-  const now = supplyDraw(tier, new Map(turning.map((m) => [m, flowOf?.[m] ?? base]))), best = supplyDraw(tier, new Map(all.map((m) => [m, base])));
+  const now = supplyDraw(tier, new Map(turning.map((m) => [m, flowOf?.[m] ?? base])), shade), best = supplyDraw(tier, new Map(all.map((m) => [m, base])));
   for (const z of AIR_ZONES) {
     const ratio = through(now[z].supply, now[z].draw) / Math.max(1e-6, through(best[z].supply, best[z].draw)), flow = Math.min(1, ratio);
     out[z] = { fans: n * ratio * QUALITY[z], flow, riseC: heatPerW * cardW * COUPLE[z] * Math.min(MAX_TRAPPED, 1 / Math.max(1 / MAX_TRAPPED, flow)) };

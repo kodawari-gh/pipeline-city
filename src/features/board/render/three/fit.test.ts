@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { CARD_LEN } from '@/core/render/accelart';
 import { COVERS, overM2 } from '@/features/board/sim/removal';
+import { BAY_SHADE } from '@/features/board/sim/airflow';
+import { frontFanRects } from '@/features/room/render/desk/props/case';
 import { BOARD_TIERS, CASE_TIERS, specsOfKind } from '@/features/board/sim/specs';
 import { geoOf } from '../layout/boardlayout';
 import { BD, GUTTER_X, LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { m2Stick } from '../layout/pins';
-import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { HINGE_Z, STAND, cardReach, type CardKind } from './card3d';
+import { cagePlan, onTray } from './drivecage3d';
+import { HDD_MM, SSD_MM } from './drive3d';
 
 // The fit checks: the removal graph's cover rules (sim/removal.ts) and the 3D models must agree, and every part must sit inside its board and case.
 const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -77,3 +81,24 @@ describe('fit: parts stay inside the case', () => {
   });
 });
 
+describe('fit: the drive cage in the air', () => {
+  it('the share of each front fan a drive in the main cage blocks is the airflow table (sim/airflow.ts BAY_SHADE)', () => {
+    for (let t = 0; t < CASE_TIERS.length; t++) {
+      setLayoutTier(t, t);
+      const fans = frontFanRects();
+      for (const hdd of [true, false]) {
+        const d = hdd ? HDD_MM : SSD_MM, o = onTray(hdd), table = BAY_SHADE[t]![hdd ? 'hdd' : 'ssd'];
+        // the drive's cross-section across the air (layout y down, depth z) over each fan's face (its depth capped as the 3D fan is)
+        const got = cagePlan().trays.map((tr) => {
+          const y0 = -(tr.y + o.y) - d.t * 23, y1 = y0 + d.t * 23, z0 = tr.z + o.z, z1 = z0 + d.l * 23;
+          return fans.map((f) => {
+            const s = Math.min(f.h, FAN_MAX), a = FAN_ZC - s / 2;
+            return (Math.max(0, Math.min(y1, f.y + f.h) - Math.max(y0, f.y)) * Math.max(0, Math.min(z1, a + s) - Math.max(z0, a))) / (f.h * s);
+          });
+        });
+        expect(got.length, `case ${t}`).toBe(table.length);
+        got.forEach((row, i) => row.forEach((v, k) => expect(v, `case ${t} ${hdd ? 'hdd' : 'ssd'} bay ${i} fan ${k}`).toBeCloseTo(table[i]![k]!, 2)));
+      }
+    }
+  });
+});

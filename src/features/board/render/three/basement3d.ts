@@ -1,19 +1,19 @@
 // The case's basement in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Basement"). Under the shroud: the power supply at the back corner, its rear in the case's
 // rear wall with the mains inlet, at its real size (an SFX bay in the Mini and the Micro, an ATX one in the bigger cases; psu3d.ts builds the
-// unit), and the room east of it the front fans' air passes through to the supply. The shroud runs on east under the drive cage as its shelf, as a
-// Define 7's (drivecage3d.ts): open on the glass side there, over the fan hub.
+// unit), the room east of it the front fans' air passes through to the supply, the fan hub on the tray sheet and the basement's drive cage under
+// the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.
 import { Group, Mesh, PlaneGeometry, type Material } from 'three';
 import { paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { flatSlot, NONE, perforated, plateY, ring, rivets, screws, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
-import { BAY_CELLS, CAGE_W, CASE, CASE_IN, caseForm, LAYOUT_CASE, PSU } from '../layout/layout';
+import { BAY_CELLS, CAGE_W, CASE, CASE_IN, caseForm, FAN_HUB, LAYOUT_CASE, PSU, PSU_FACE_X } from '../layout/layout';
 
 export interface BasementPlan {
   /** The basement's floor and the shroud's top (layout y), the shroud's east end (layout x: its slotted wall, east of the cage, before a front radiator). */
   floor: number; top: number; east: number;
-  /** Where the side panels end (layout x): east of it the shroud's top is the cage's shelf, open on the glass side over the fan hub. */
+  /** Where the side panels end (layout x), west of the fan hub: east of it the shroud is open on the glass side over the hub and the basement's cage, its top the main cage's shelf. */
   shelf: number;
   /** The power supply's box: a layout rect and a depth range. */
   psu: RectLike & { z0: number; z1: number };
@@ -36,8 +36,8 @@ export const psuOpening = (u: BasementPlan['psu']): Span => ({ y0: u.y + 30, y1:
 export const PSU_FEET = 70;
 /** Where everything in the basement goes. */
 export function basementPlan(): BasementPlan {
-  const floor = CASE.y + CASE.h - 150, top = PSU.y, shelf = PSU.x + PSU.w, east = Math.max(shelf, (BAY_CELLS[0]?.x ?? shelf) + CAGE_W + 50);
-  const F = caseForm(LAYOUT_CASE), psu = { x: CASE_IN.x + 20, y: floor - PSU_FEET - F.h, w: F.d, h: F.h, z0: CASE_Z + 200, z1: CASE_Z + 200 + F.w };
+  const floor = CASE.y + CASE.h - 150, top = PSU.y, shelf = FAN_HUB.x - 150, east = Math.max(shelf, (BAY_CELLS[0]?.x ?? shelf) + CAGE_W + 50);
+  const F = caseForm(LAYOUT_CASE), psu = { x: PSU_FACE_X - F.d, y: floor - PSU_FEET - F.h, w: F.d, h: F.h, z0: CASE_Z + 200, z1: CASE_Z + 200 + F.w };
   const x = psu.x + psu.w + PSU_ROOM;
   return { floor, top, east, shelf, psu, vent: { x, w: Math.max(0, shelf - 140 - x) } };
 }
@@ -45,8 +45,8 @@ export function basementPlan(): BasementPlan {
 /**
  * The shroud over the basement: its top (a sheet with cable holes by the tray and vent slots over the vent span, riveted to the tray along a flange),
  * its glass-side cover over the power supply (the case's name printed on it, a vented band, two thumbscrews and two screws; it comes off to reach
- * the supply and answers a click as the PSU), the fixed panel east of it (perforated over the vent span, screwed on), the shelf under the cage
- * (its edge folded down, open below it over the fan hub) and the shroud's east wall, slotted so the front fans' air reaches the supply. On the
+ * the supply and answers a click as the PSU), the fixed panel east of it (perforated over the vent span, screwed on), the open top east of it
+ * (its edge folded down, the hub and the basement's cage under it) and the shroud's east wall, slotted so the front fans' air reaches the supply. On the
  * floor, the strips the supply stands on.
  */
 export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2b3142, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 })): Group {

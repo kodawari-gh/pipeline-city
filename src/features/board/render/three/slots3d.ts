@@ -6,6 +6,7 @@ import { fanMounts, radiatorBay } from '@/features/room/render/desk/props/case';
 import { slotRect as storageSlotRect } from '@/features/storage/render/drives';
 import { towerFanRect } from '../cooler';
 import { sinkFanRect } from '../devices';
+import { bayRect } from './drivecage3d';
 import { COOLER, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, LAYOUT_TIER, MONITOR, PCIE_RAILS, PKG, PSU, RAM_SINK, VRM_SINK, type Rect } from '../layout/layout';
 
 /** Where a heatsink's fan spot `k` is, seen from the glass: the stock fan over the whole plate, a tower's on its ends, a sink's in its housing. */
@@ -15,7 +16,7 @@ function hostSpotRect(kind: string, visual: string | undefined, k: number): Rect
   return null;
 }
 
-/** Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`). */
+/** Where each socket of the board and the case is, by slot id (the 2D board's `scene.slots`; a drive bay is its 3D tray, wider than the 2D cell). */
 export function slotRects(s: Snapshot): Map<string, Rect> {
   const m = new Map<string, Rect>(), slots = BOARD_TIERS[s.boardTier]?.slots ?? {};
   const add = (type: string, n: number, of: (i: number) => Rect | null) => { for (let i = 0; i < n; i++) { const r = of(i); if (r) m.set(`${type}${i}`, r); } };
@@ -30,7 +31,7 @@ export function slotRects(s: Snapshot): Map<string, Rect> {
   add('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
   add('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER));
   for (const side of ['front', 'top'] as const) { const bay = radiatorBay(side); if (bay) m.set(`rad-${side}`, bay); }
-  add('sata', slots.sata ?? 0, (i) => storageSlotRect('sata' + i));
+  add('sata', slots.sata ?? 0, (i) => bayRect(i) ?? storageSlotRect('sata' + i));
   add('m2', slots.m2 ?? 0, (i) => storageSlotRect('m2' + i));
   // the fan spots: the case's mounts, and those of the heatsinks fitted
   for (const f of fanMounts()) m.set(f.id, f.rect);

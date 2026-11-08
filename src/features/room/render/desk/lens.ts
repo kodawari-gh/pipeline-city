@@ -4,7 +4,7 @@ import { currentTextResolution } from '@/core/render/camera';
 import { assignLeads } from '@/features/board/sim/cables';
 import { getSpec } from '@/features/board/sim/specs';
 import { atx12vSlots, pcieFeed } from '@/features/board/render/layout/pins';
-import { BAY_CELLS, FAN_HUB, GEO, HUB_POWER_Y, PC_POWER, POWER_LEAD_X, PSU, type Rect } from '@/features/board/render/layout/layout';
+import { BAY_CELLS, FAN_HUB, GEO, HUB_POWER_Y, PC_POWER, POWER_LEAD_X, PSU, PSU_FACE_X, type Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Bus, type BusKind, type Cable, type Lane } from '@/features/board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
@@ -91,15 +91,17 @@ export function lensModel(i: LensIn): LensModel {
   const cells = s.storage.map((d) => ({ d, n: Number(/^sata(\d+)$/.exec(d.slot)?.[1] ?? -1) })).filter((c) => c.n >= 0 && BAY_CELLS[c.n]);
   if (hasPsu && cells.length) {
     const x0 = PSU.x + PSU.w, ys = PSU.y + PSU.h / 2, X = POWER_LEAD_X, py = (n: number) => BAY_CELLS[n]!.y + BAY_CELLS[n]!.h * 0.3;
-    const top = Math.min(...cells.map((c) => py(c.n)));
-    flows.push({ id: 'sata', pts: roundedPath([[x0, ys], [X, ys], [X, top]], 60, 30) as Pt[], watts: sataW, state: state(true, sataW) });
+    const top = Math.min(...cells.map((c) => py(c.n))), low = Math.max(...cells.map((c) => py(c.n)));
+    flows.push({ id: 'sata', pts: roundedPath(top < ys ? [[x0, ys], [X, ys], [X, top]] : [[x0, ys], [X, ys]], 60, 30) as Pt[], watts: sataW, state: state(true, sataW) });
+    // (down to the basement's cage)
+    if (low > ys) flows.push({ id: 'sata.low', pts: [[X, ys], [X, low]], watts: sataW, state: state(true, sataW), branch: true });
     for (const c of cells) {
       const w = on ? s.devices.find((d) => d.slot === c.d.slot)?.powerW ?? 0 : 0;
       flows.push({ id: `sata.${c.n}`, pts: [[X, py(c.n)], [BAY_CELLS[c.n]!.x - 40, py(c.n)]], watts: w, state: state(true, w), branch: true });
     }
   }
-  // the fan hub's lead (a few watts of fans)
-  if (hasPsu) flows.push({ id: 'hub', pts: [[PSU.x + PSU.w + 6, HUB_POWER_Y], [FAN_HUB.x - 20, HUB_POWER_Y]], watts: on ? 3 : 0, state: state(true, on ? 3 : 0), branch: true });
+  // the fan hub's lead (a few watts of fans), along the basement from the supply's face
+  if (hasPsu) flows.push({ id: 'hub', pts: [[PSU_FACE_X + 6, HUB_POWER_Y], [FAN_HUB.x - 20, HUB_POWER_Y]], watts: on ? 3 : 0, state: state(true, on ? 3 : 0), branch: true });
 
   // the board's feed to the parts: one run per kind (all the RAM sticks together, ...), from the main connector (the CPU's from its own),
   // with what the kind takes beside it

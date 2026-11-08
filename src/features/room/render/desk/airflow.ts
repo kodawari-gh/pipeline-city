@@ -101,8 +101,8 @@ export const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
 /** An area with less than this share of its designed airflow is named on the lens. */
 const POOR_AIR = 0.7;
-/** The sim's airflow area of a heat zone: the zone ids are the device kinds, and the two regulators sit in the north area with the processor. */
-const areaOf = (zoneId: string): AirZoneId | null => (zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : zoneOf(zoneId as DeviceKind));
+/** The sim's airflow area of a heat zone: the zone ids are the device kinds (a part after a dot names a group of them), and the two regulators sit in the north area with the processor. */
+const areaOf = (zoneId: string): AirZoneId | null => (zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : zoneOf(zoneId.split('.')[0] as DeviceKind));
 /** How far a component's own fan blows (world units) before its air joins the case's. */
 const LOCAL_REACH = 1900;
 /** How far the halo of a glow reaches at most (the silhouettes keep a margin of `SHAPE_PAD`, 280). */

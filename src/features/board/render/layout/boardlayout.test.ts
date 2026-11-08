@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../../sim/specs';
 import { SINK_FAN_RIM, TIER_GEO, passiveRect } from './boardlayout';
-import { boardBakeFrame, CASE_BD, CASE_IN, COOLER, COOLER_HOLE, COOLER_HOLES, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
+import { BASE_BAYS, boardBakeFrame, CASE_BD, CASE_IN, COOLER, COOLER_HOLE, COOLER_HOLES, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
@@ -474,20 +474,27 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) expect(lanesCross(cables[i]!.path, cables[j]!.path), `leads ${i} and ${j} cross`).toBe(false);
   });
 
-  it('puts a drive-cage cell, with a short cable that crosses no other, for every SATA port', () => {
+  it('puts a drive-cage cell, with a short cable that crosses no other of its cage, for every SATA port: the first in the basement, the rest in the main cage', () => {
     const g = sockets();
     expect(BAY_CELLS.length).toBeGreaterThanOrEqual(g.sata.length);
-    expect(BAY_CELLS.length * 785 / CASE_BD.h, 'the cage fills the case').toBeGreaterThan(0.6);
-    const cables = g.sata.map((_, i) => sataCablePath(i));
-    g.sata.forEach((p, i) => {
-      const c = BAY_CELLS[i]!;
-      expect(inside(c, CASE_GLASS), `cell ${i} in the glass`).toBe(true);
-      expect(inside(c, BAY), `cell ${i} in the cage`).toBe(true);
-      expect(c.y + SATA_LINK[i]!.plug, `cell ${i} is above its port`).toBeLessThan(p.y + p.h / 2);
-      expect(c.x, 'the cage is east of the board').toBeGreaterThan(BD.x + BD.w);
+    expect(BAY_CELLS.length * 785 / CASE_BD.h, 'the cages fill the case').toBeGreaterThan(0.6);
+    const cables = g.sata.map((_, i) => sataCablePath(i)), floor = CASE.y + CASE.h - 150;
+    BAY_CELLS.forEach((c, i) => {
+      if (i < BASE_BAYS) {
+        // under the shroud's top (30 thick, and the cage's own 70 over its top cell), on the basement's floor
+        expect(c.y - 70, `cell ${i} under the shroud`).toBeGreaterThan(PSU.y + 30);
+        expect(c.y + c.h + 60, `cell ${i} on the floor`).toBeLessThanOrEqual(floor);
+      } else {
+        expect(inside(c, CASE_GLASS), `cell ${i} in the glass`).toBe(true);
+        expect(inside(c, BAY), `cell ${i} in the cage`).toBe(true);
+        const p = g.sata[i];
+        if (p) expect(c.y + SATA_LINK[i]!.plug, `cell ${i} is above its port`).toBeLessThan(p.y + p.h / 2);
+      }
+      expect(c.x, 'the cages are east of the board').toBeGreaterThan(BD.x + BD.w);
       if (i) expect(overlap(c, BAY_CELLS[i - 1]!)).toBe(false);
     });
-    for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) expect(lanesCross(cables[i]!, cables[j]!), `cables ${i} and ${j} cross`).toBe(false);
+    const cage = (i: number) => (i < BASE_BAYS ? 0 : 1);
+    for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) if (cage(i) === cage(j)) expect(lanesCross(cables[i]!, cables[j]!), `cables ${i} and ${j} cross`).toBe(false);
   });
 
   it('lays the PSU out: the unit under the cable sockets, the shroud with the readout and the vents beside it, nothing overlapping', () => {
@@ -502,13 +509,13 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(VENTS.w, 'the shroud has room for vents').toBeGreaterThan(300);
   });
 
-  it('fills the case floor corner with the fan hub: inside the case, clear of the PSU, the cage and the fans, a header and a stub for every fan', () => {
+  it('puts the fan hub in the basement: inside the case under the shroud, west of the basement cage and clear of the fans, a header and a stub for every fan', () => {
     sockets();
     expect(inside(FAN_HUB, CASE_IN), 'hub in the case').toBe(true);
-    for (const [n, r] of [['PSU', PSU], ['cage', BAY], ['slot', FAN_SLOT]] as const) expect(overlap(FAN_HUB, r), `hub and ${n}`).toBe(false);
+    expect(FAN_HUB.y, 'under the shroud').toBeGreaterThan(PSU.y + 30);
+    for (const [n, r] of [['cage', BAY], ['slot', FAN_SLOT], ...BAY_CELLS.map((c, i) => [`cell ${i}`, c] as const)] as const) expect(overlap(FAN_HUB, r), `hub and ${n}`).toBe(false);
     for (const r of frontFanRects()) expect(overlap(FAN_HUB, r), 'hub and a front fan').toBe(false);
-    expect(FAN_HUB.x, 'east of the PSU').toBeGreaterThan(PSU.x + PSU.w);
-    expect(HUB_POWER_Y > PSU.y && HUB_POWER_Y < PSU.y + PSU.h, 'its power socket is on the PSU face').toBe(true);
+    expect(FAN_HUB.x + FAN_HUB.w, 'west of the cages').toBeLessThan(BAY_CELLS[0]!.x);
     expect(HUB_POWER_Y > FAN_HUB.y && HUB_POWER_Y < FAN_HUB.y + FAN_HUB.h, 'its power cable runs straight in').toBe(true);
     expect(inside(FAN_SLOT, CASE_IN) && FAN_SLOT.y > BAY.y + BAY.h, 'the slot is under the cage').toBe(true);
     const stubs = fanStubs(), hdrs = hubHeaders();

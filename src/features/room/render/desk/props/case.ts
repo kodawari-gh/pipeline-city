@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T, MINI_FAN_Y, RAD_TANK, RAD_ROOM,
+  BASE_BAYS, BAY, BAY_CELLS, BR, CASE_BD, CELL_H, CELL_PITCH, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_FACE_X, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T, MINI_FAN_Y, RAD_TANK, RAD_ROOM,
   sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
@@ -216,7 +216,7 @@ export function hubHeaders(): { x: number; y: number }[] {
 
 const plugTone = (T: Theme) => (T.dark ? '#1b2230' : '#2c3442');
 
-/** The fan hub on the case floor, the stubs of the fans' cables and the hub's cables up into the slot in the tray. */
+/** The fan hub in the basement (west of its drive cage), the stubs of the fans' cables and the hub's cables up into the slot in the tray. */
 function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
   const h = FAN_HUB, sl = FAN_SLOT, pcb = mix(cav, wall, 0.25);
   // the fans' cable stubs: a plug on the fan, a short sleeve into the gap, where it goes behind the tray
@@ -250,7 +250,7 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   box(g, h.x + 40, h.y + 8, 100, 44, 6, { fill: '#05070b', stroke: T.mul, lw: 3, sa: 0.7 });
   for (let k = 0; k < 4; k++) g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
   g.fill({ color: T.pin, alpha: 0.7 });
-  const py = HUB_POWER_Y, x0 = PSU.x + PSU.w;
+  const py = HUB_POWER_Y, x0 = PSU_FACE_X;
   paintCable(g, T, [[x0 + 6, py], [h.x - 20, py]], { w: 30, accent: T.ld });
   box(g, x0 - 14, py - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // the PSU's second socket
   box(g, h.x - 56, py - 50, 64, 100, 8, { fill: plugTone(T), stroke: T.ld, lw: 4, sa: 0.85 });
@@ -471,17 +471,21 @@ export function bayArt(T: Theme, nSata: number): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const kind = kindNow(), { wall, cav, edge } = caseInterior(T, kind), b = BAY, k = driveScale(), metal = mix(wall, T.bg, 0.15);
-  box(g, b.x + 12, b.y + 22, b.w, b.h, 24, { fill: '#000000', fa: T.dark ? 0.3 : 0.1 });
-  g.roundRect(b.x, b.y, b.w, b.h, 24).fill(lgrad(mix(metal, '#ffffff', T.dark ? 0.1 : 0.16), mix(metal, '#000000', T.dark ? 0.25 : 0.08), [1, 1])).stroke({ width: 6, color: edge, alpha: 0.7 });
-  g.moveTo(b.x + 40, b.y + 8).lineTo(b.x + b.w - 40, b.y + 8).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
-  // the uprights: a strip down each side, punched with a column of slots
-  for (const ux of [b.x + 12, b.x + b.w - 40]) {
-    box(g, ux, b.y + 20, 28, b.h - 40, 8, { fill: mix(metal, '#000000', T.dark ? 0.2 : 0.06), stroke: edge, lw: 3, sa: 0.5 });
-    for (let y = b.y + 60; y < b.y + b.h - 50; y += 64) g.roundRect(ux + 8, y, 12, 30, 6);
+  const kind = kindNow(), { wall, cav, edge } = caseInterior(T, kind), k = driveScale(), metal = mix(wall, T.bg, 0.15);
+  // the main cage (`BAY`) and the basement's under the shroud, round its cells
+  const low = BAY_CELLS.slice(0, BASE_BAYS), base: Rect | null = low.length ? { x: BAY.x, y: low[0]!.y - 110, w: BAY.w, h: (low.length - 1) * CELL_PITCH + CELL_H + 190 } : null;
+  for (const b of base ? [BAY, base] : [BAY]) {
+    box(g, b.x + 12, b.y + 22, b.w, b.h, 24, { fill: '#000000', fa: T.dark ? 0.3 : 0.1 });
+    g.roundRect(b.x, b.y, b.w, b.h, 24).fill(lgrad(mix(metal, '#ffffff', T.dark ? 0.1 : 0.16), mix(metal, '#000000', T.dark ? 0.25 : 0.08), [1, 1])).stroke({ width: 6, color: edge, alpha: 0.7 });
+    g.moveTo(b.x + 40, b.y + 8).lineTo(b.x + b.w - 40, b.y + 8).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
+    // the uprights: a strip down each side, punched with a column of slots
+    for (const ux of [b.x + 12, b.x + b.w - 40]) {
+      box(g, ux, b.y + 20, 28, b.h - 40, 8, { fill: mix(metal, '#000000', T.dark ? 0.2 : 0.06), stroke: edge, lw: 3, sa: 0.5 });
+      for (let y = b.y + 60; y < b.y + b.h - 50; y += 64) g.roundRect(ux + 8, y, 12, 30, 6);
+    }
+    g.fill({ color: cav, alpha: 0.9 });
   }
-  g.fill({ color: cav, alpha: 0.9 });
-  root.addChild(label('DRIVE CAGE', b.x + 52, b.y + 44, 38, T.mute, { head: true, a: 0.9 }));
+  root.addChild(label('DRIVE CAGE', BAY.x + 52, BAY.y + 44, 38, T.mute, { head: true, a: 0.9 }));
   BAY_CELLS.forEach((c, i) => {
     const live = i < nSata, w = c.w - 60 * k;
     // the recess: a dark bay with its top shadowed and its lower lip lit

@@ -25,7 +25,7 @@
 import type { Prng } from "@/core/sim/prng";
 import { deviceSpec, fanAir, fanHost, fansOn, findDevices, fittedRadiator, hostSpots, installedPsu, type Board, type InstalledDevice } from "./board";
 import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, fanShare, type CoolerSpec, type DeviceKind, type RadiatorSpec } from "./specs";
-import { AIR_ZONES, zoneAir, zoneOf, type AirZoneId, type ZoneAir } from "./airflow";
+import { AIR_ZONES, cageShade, zoneAir, zoneOf, type AirZoneId, type BayDrive, type ZoneAir } from "./airflow";
 import { currentDemand, efficiency, errorProb, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
 
 type VrmSpecOf = (typeof BOARD_TIERS)[number]["vrm"];
@@ -301,7 +301,9 @@ export class ThermalModel {
     // A radiator on the FRONT takes in room air and gives its heat to it: that air crosses the case, so the heat counts like the cards' (last tick's value).
     const radFit = fittedRadiator(board), radSide = fans.radSide ?? radFit?.side ?? null;
     const airW = cardW + (radSide === "front" ? this.loopRejectW : 0);
-    const air = zoneAir(board.caseTier, fans.mounts, fans.caseFans, airW, CASE_HEAT_C_PER_W, fans.mountFlow);
+    // The drives in the main cage stand in the front fans' air (a dead drive blocks it as well).
+    const drives = board.devices.flatMap((d): BayDrive[] => { const m = /^sata(\d+)$/.exec(d.slot), s = deviceSpec(d); return m && s.kind === "storage" ? [{ bay: Number(m[1]), hdd: s.visual !== "ssd-sata" }] : []; });
+    const air = zoneAir(board.caseTier, fans.mounts, fans.caseFans, airW, CASE_HEAT_C_PER_W, fans.mountFlow, cageShade(board.caseTier, drives));
     this.air = air;
     const caseRiseC = fans.mounts ? (air.north.riseC + air.bay.riseC) / 2 : CASE_HEAT_C_PER_W * airW;
     this.caseRiseC = caseRiseC;

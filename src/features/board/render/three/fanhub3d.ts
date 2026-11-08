@@ -1,4 +1,4 @@
-// The fan hub in 3D: the small fan and lighting controller in the case's lower front corner, as the 2D draws it (`fanHub`, room/render/desk/props/case.ts).
+// The fan hub in 3D: the small fan and lighting controller in the basement, west of its drive cage, as the 2D draws it (`fanHub`, room/render/desk/props/case.ts).
 // A green board on four brass standoffs with its printed labels and traces, the controller and its passives, a side-entry fan header per mount along the
 // top edge (the fan cords' plugs seat in these, `buildCables`: their seats do not move), the input header, the SATA power socket on the west edge, three
 // addressable-light outputs and the USB header along the bottom edge.

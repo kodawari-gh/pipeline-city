@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prng } from "@/core/sim";
-import { AIR_ZONES, MAX_TRAPPED, QUALITY, zoneAir, zoneOf } from "./airflow";
+import { AIR_ZONES, BASE_BAYS, BAY_SHADE, cageShade, MAX_TRAPPED, QUALITY, zoneAir, zoneOf } from "./airflow";
 import { basicFan, caseMounts, CASE_TIERS, getSpec } from "./specs";
 import { createBoard, findDevices, install, setClock, ThermalModel } from "./index";
 import { CARD_FAN_START_C, CASE_FAN_K, CASE_HEAT_C_PER_W, cardFan, FANS_ON, type FanPower } from "./thermal";
@@ -119,6 +119,55 @@ describe("the thermal model by area", () => {
     const { th } = settle({ ...FANS_ON, caseFans: mounts.length, mounts });
     for (const z of AIR_ZONES) expect(th.air[z].flow).toBeCloseTo(1, 6);
     expect(th.air.north.fans).toBeGreaterThan(th.air.cards.fans);
+  });
+});
+
+describe("the drive cages", () => {
+  const hdds = (n: number, from = BASE_BAYS) => Array.from({ length: n }, (_, k) => ({ bay: from + k, hdd: true }));
+
+  it("a drive in the main cage blocks a share of the front fans level with it; the basement's cost nothing, an SSD less than a disk", () => {
+    for (let tier = 0; tier < CASE_TIERS.length; tier++) {
+      const front = CASE_TIERS[tier]!.fans.front, t = BAY_SHADE[tier]!;
+      expect(t.hdd.length).toBe(t.ssd.length);
+      for (const row of [...t.hdd, ...t.ssd]) expect(row.length).toBe(front);
+      expect(cageShade(tier, hdds(BASE_BAYS, 0))).toEqual(new Array(front).fill(0));
+      const disk = cageShade(tier, hdds(1)), ssd = cageShade(tier, [{ bay: BASE_BAYS, hdd: false }]), sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+      expect(sum(disk)).toBeGreaterThan(0.1);
+      expect(sum(ssd)).toBeGreaterThan(0);
+      expect(sum(ssd)).toBeLessThan(sum(disk) / 2);
+      // a full cage never blocks more than a whole fan, and the top fan (the processor's air) stays free in the bigger cases
+      const full = cageShade(tier, hdds(t.hdd.length));
+      for (const s of full) expect(s).toBeLessThanOrEqual(1);
+      if (tier > 0) expect(full[0]).toBe(0);
+    }
+  });
+
+  it("a blocked share of a fan does not reach the board: the cards lose most, the processor's area a little, the bay keeps its air", () => {
+    for (let tier = 1; tier < CASE_TIERS.length; tier++) {
+      const free = air(tier, all(tier)), shade = cageShade(tier, hdds(BAY_SHADE[tier]!.hdd.length));
+      const full = zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, shade);
+      expect(full.cards.flow).toBeLessThan(0.9);
+      expect(full.north.flow).toBeLessThan(free.north.flow);
+      expect(full.north.flow).toBeGreaterThan(full.cards.flow);
+      expect(full.bay.flow).toBeCloseTo(free.bay.flow, 6);
+      // an empty cage is the case as designed
+      expect(zoneAir(tier, all(tier), all(tier).length, 0, CASE_HEAT_C_PER_W, undefined, cageShade(tier, []))).toEqual(free);
+    }
+  });
+
+  it("a full cage of disks warms a working graphics card, about as much as one front fan less; the same disks in the basement do not", () => {
+    const run = (drives: number, from: number, mounts = caseMounts(3)) => {
+      const b = createBoard(3);
+      for (const s of ["cpu1", "ram0", "display0", "cooler1", "psu2", "gpu1"]) expect(install(b, s, s === "gpu1" ? "pcie0" : undefined).ok).toBe(true);
+      for (let k = 0; k < drives; k++) expect(install(b, "hdd0", `sata${from + k}`).ok).toBe(true);
+      const th = new ThermalModel(new Prng(1)), id = findDevices(b, "gpu")[0]!.id;
+      for (let k = 0; k < 800; k++) th.step(b, { cpu: 1, gpu: 1 }, true, { ...FANS_ON, caseFans: mounts.length, mounts });
+      return th.state(id)!.tempC;
+    };
+    const empty = run(0, 0), full = run(BAY_SHADE[3]!.hdd.length, BASE_BAYS), base = run(BASE_BAYS, 0), noFront = run(0, 0, without(3, "front1"));
+    expect(full - empty).toBeGreaterThan(0.5);
+    expect(full - empty).toBeLessThan(2 * (noFront - empty));
+    expect(base).toBeCloseTo(empty, 6);
   });
 });
 
