@@ -14,7 +14,7 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
-import { disposeTree, place, post, rectBox, rounded, softBox, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, place, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
