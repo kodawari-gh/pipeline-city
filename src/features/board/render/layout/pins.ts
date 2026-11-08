@@ -86,11 +86,23 @@ export function slotLanding(r: Rect, n: number, near: 'n' | 's'): { x: number; p
   return a.flatMap((p, j) => [{ x: p[0], pad: p, far: false, dx: 0 }, { x: b[j]![0] - dx, pad: b[j]!, far: true, dx }]).sort((p, q) => p.x - q.x);
 }
 
-// ---- M.2 sockets: nine contacts at the west end, 22 apart, centred; the three signal lanes use the middle ones ----
+// ---- M.2 2280 slots: the 3.3 V tie at the west edge, then the socket (24 mm across), then the stick (80 x 22 mm) from its fingers in the
+// socket to its notch over the 80 mm standoff; threaded holes for 42 and 60 mm sticks on the way. Nine contacts in the socket, 22 apart,
+// centred; the three signal lanes use the middle ones ----
+/** The stick's length and width (80 x 22 mm), and where its fingers start, from the slot's west edge. */
+export const M2_STICK = { len: 80 * 23, w: 22 * 23, at: 118 } as const;
+/** A slot's size: the tie, the socket and the stick, and the standoff's head past its end. */
+export const M2_W = M2_STICK.at + M2_STICK.len + 40, M2_H = 560;
+/** The socket's housing. */
+export const m2Socket = (m: Rect): Rect => ({ x: m.x + 60, y: m.y + 2, w: 120, h: m.h - 4 });
+/** A fitted stick's PCB, fingers to notch. */
+export const m2Stick = (m: Rect): Rect => ({ x: m.x + M2_STICK.at, y: m.y + (m.h - M2_STICK.w) / 2, w: M2_STICK.len, h: M2_STICK.w });
+/** The standoff positions for 42, 60 and 80 mm sticks; the last is the one fitted (a 2280 stick screws to it through its notch). */
+export const m2Standoffs = (m: Rect): Pt[] => [42, 60, 80].map((mm) => [m.x + M2_STICK.at + mm * 23, m.y + m.h / 2] as Pt);
 export const M2_PITCH = 22, M2_CONTACTS = 9;
-/** All eight contacts of a socket (x is where the pad sits, just inside the housing's west edge). */
+/** All nine contacts of a socket (x is where the pad sits, just inside the housing's west edge). */
 export function m2Contacts(m: Rect): Pt[] {
-  return Array.from({ length: M2_CONTACTS }, (_, k) => [m.x + 40, m.y + m.h / 2 + (k - (M2_CONTACTS - 1) / 2) * M2_PITCH] as Pt);
+  return Array.from({ length: M2_CONTACTS }, (_, k) => [m.x + 92, m.y + m.h / 2 + (k - (M2_CONTACTS - 1) / 2) * M2_PITCH] as Pt);
 }
 export const m2Pads = (m: Rect): Pt[] => m2Contacts(m).slice(3, 6);
 
@@ -112,8 +124,8 @@ export const cellSide = (b: Rect, dy: number, west: boolean): Pt => [b.x + b.w /
 // ---- power ties, crystals ----
 /** Where a slot's supply ties into the board's plane: a patch of copper with vias east of its latch end (a short stub from the slot's tab runs to it: east for the slots after the first, down for the x16 slot, whose east side is the chipset's and the lanes'). */
 export const slotTie = (r: Rect, i: number): Rect => (i === 0 ? { x: r.x + r.w - 170, y: r.y + r.h + 70, w: 110, h: 48 } : { x: r.x + r.w + 50, y: r.y + r.h / 2 - 24, w: 110, h: 48 });
-/** The same for an M.2 socket: a patch in the housing's top-left corner. */
-export const m2Tie = (m: Rect): Rect => ({ x: m.x + 14, y: m.y + 12, w: 100, h: 40 });
+/** The same for an M.2 socket: a patch west of the housing's north end. */
+export const m2Tie = (m: Rect): Rect => ({ x: m.x + 4, y: m.y + 12, w: 48, h: 100 });
 /** The two pads of a crystal on its top (`'n'`) or bottom (`'s'`) edge, `2 * half` apart, centred. */
 export const xtalPads = (r: Rect, edge: 'n' | 's', half = 10): Pt[] => [-half, half].map((d) => [r.x + r.w / 2 + d, edge === 'n' ? r.y : r.y + r.h] as Pt);
 

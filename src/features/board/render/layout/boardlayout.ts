@@ -1,6 +1,6 @@
 import { BOARD_TIERS } from '../../sim/specs';
 import type { Rect } from './layout';
-import { MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './pins';
+import { M2_H, M2_W, MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './pins';
 
 // Per-tier motherboard geometry (pure data, no Pixi). The CPU socket is the origin on every board, the rear I/O sits on the west
 // edge and the power connectors on the east / top edges, as on a real board seen through the side glass of a case. Each tier is
@@ -143,8 +143,8 @@ interface Spec {
 const SPECS: Spec[] = [
   { tier: 0, form: 'mini-ITX', bd: R(BD_X, -2150, 4700, 4000), phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(180, 1140, 400, 400), bank: { x: 1100, top: 920, span: 1500 } },
   { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [0], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1020, span: 1800 } },
-  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [7], bios: 1, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
-  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [10], bios: 5, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
+  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1035, 1640], sata: 4, usb: 3, dp: true, west: { slots: [7], bios: 1, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
+  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1130, 1715, 2300], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [10], bios: 5, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
 ];
 
 /** Rail lengths going down the board, widest slot first (a real x16 slot's 89 mm, then shorter): every slot ends west of the CPU's DMI lanes,
@@ -271,7 +271,8 @@ function build(s: Spec): TierGeo {
     dvrm, dPhases, dSink, vdimmY, dRailY: dy - 70,
     dimm, memFrom, memLand, memLanes: lanes,
     pcie: pcieRails(s.tier),
-    m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
+    // the M.2 2280 slots (pins.ts `M2_STICK`) end where the cooler's hoses climb, west of the ATX plug's column
+    m2: s.m2Y.map((y) => R(2910 - M2_W, y, M2_W, M2_H)),
     sata: sataRects.slice(0, s.sata),
     // the sticker patch: along the bottom edge under the header trunk, or (on the top board, whose header bus runs there) in the free corner by the rear I/O, beside the top hole
     // and above the audio capacitors

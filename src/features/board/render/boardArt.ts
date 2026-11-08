@@ -4,7 +4,7 @@ import { BD, BOARD_SEED, COOLER_HOLE, COOLER_HOLES, GEO, PKG, SOCKET_E, SOCKET_K
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
-import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotLanding, slotTie, xtalPads } from './layout/pins';
+import { PKG_PIN, PKG_ROW, m2Contacts, m2Socket, m2Standoffs, m2Stick, m2Tie, pcieFeed, slotLanding, slotTie, xtalPads } from './layout/pins';
 import { tuneBump } from './layout/match';
 import { pchLedHousing } from './wiring/pchlive';
 import { skinOf, slotArmour } from './skins';
@@ -217,22 +217,29 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
   if (geo.pcie[0]) { const f = pcieFeed(geo.pcie[0]); box(g, f[0] - 22, f[1] - 18, 44, 36, 8, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 4, sa: 0.8 }); }
   geo.pcie.forEach((r) => pcieRelease(c, r)); // after the power tabs: the button stands above them
 
-  // ---- M.2: the connector at the west end, a standoff for the stick's far end ----
+  // ---- M.2 2280: the 3.3 V tie, the socket at the west end (its mouth keyed for an M-key stick), the stick's outline printed on the board
+  // with its name (a fitted stick covers them), threaded holes for 42 and 60 mm sticks, the standoff for an 80 mm one ----
   geo.m2.forEach((m, mi) => {
     shadow(c, m.x, m.y, m.w, m.h, 12, 8, 0.2);
     box(g, m.x, m.y, m.w, m.h, 12, { fill: P.sub, stroke: P.edge, lw: 5 });
-    box(g, m.x + 8, m.y + 70, 120, m.h - 140, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
-    for (const [cx, cy] of m2Contacts(m)) g.rect(cx - 20, cy - 5, 90, 10);
+    const so = m2Socket(m), st = m2Stick(m);
+    box(g, so.x, so.y, so.w, so.h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
+    box(g, so.x + 56, so.y + 22, 16, so.h - 44, 4, { fill: '#000000', fa: 0.55 }); // the mouth
+    g.rect(so.x + 54, st.y + st.h * 0.74, 20, 30).fill({ color: P.edge }); // the M key's ridge
+    for (const [cx, cy] of m2Contacts(m)) g.rect(cx - 20, cy - 5, 70, 10);
     g.fill({ color: P.via, alpha: 0.6 });
-    box(g, m.x + 160, m.y + 40, m.w - 320, m.h - 80, 10, { stroke: P.silk, lw: 4, sa: 0.3 });
-    disc(g, m.x + m.w - 70, m.y + m.h / 2, 36, { fill: P.panel, stroke: P.edge, lw: 6 });
-    disc(g, m.x + m.w - 70, m.y + m.h / 2, 14, { fill: P.dark });
-    const mt = m2Tie(m); // the 3.3 V tie into the plane, in the housing's top-left corner
+    box(g, st.x + 70, st.y, st.w - 70, st.h, 10, { stroke: P.silk, lw: 4, sa: 0.3 });
+    labels.addChild(label(`M2_${mi + 1} · PCIe x4`, st.x + 160, m.y + m.h / 2, 38, P.silk, { anchor: [0, 0.5], a: 0.6 }));
+    m2Standoffs(m).forEach(([sx, sy], k) => {
+      if (k < 2) { disc(g, sx, sy, 24, { fill: P.dark, stroke: P.pour, lw: 6 }); disc(g, sx, sy, 10, { fill: '#000000', fa: 0.6 }); }
+      else { disc(g, sx, sy, 36, { fill: P.panel, stroke: P.edge, lw: 6 }); disc(g, sx, sy, 14, { fill: P.dark }); }
+      labels.addChild(label(['2242', '2260', '2280'][k]!, sx, sy + (k < 2 ? 56 : 64), 22, P.silk, { anchor: [0.5, 0.5], a: 0.6 }));
+    });
+    const mt = m2Tie(m); // the 3.3 V tie into the plane, west of the housing's north end
     box(g, mt.x, mt.y, mt.w, mt.h, 6, { fill: P.pour });
-    for (let k = 0; k < 4; k++) g.circle(mt.x + 18 + k * 21, mt.y + mt.h / 2, 5);
+    for (let k = 0; k < 4; k++) g.circle(mt.x + mt.w / 2, mt.y + 16 + k * 23, 5);
     g.fill({ color: P.tent });
-    labels.addChild(label('3V3', mt.x + mt.w + 16, mt.y + mt.h / 2, 22, P.silk, { anchor: [0, 0.5], a: 0.7 }));
-    labels.addChild(label(geo.m2.length > 1 ? `M.2 NVMe · 2280 · M2_${mi}` : 'M.2 NVMe · 2280', m.x + m.w, m.y - 36, 38, P.silk, { anchor: [1, 0.5] }));
+    labels.addChild(label('3V3', mt.x + mt.w / 2, mt.y + mt.h + 20, 20, P.silk, { anchor: [0.5, 0.5], a: 0.7 }));
   });
 
   // ---- chipset (south-east of the CPU, on its SATA ports' rows): QFP legs; the better boards cover the package with a low heat sink ----

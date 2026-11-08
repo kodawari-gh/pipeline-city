@@ -4,6 +4,7 @@ import { softBox, type RectLike } from '@/core/render/three/geometry';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { driveBody } from '@/features/storage/render/drives';
 import { GEO, M2_SLOTS, setLayoutTier } from '../layout/layout';
+import { m2Socket } from '../layout/pins';
 import { chipset, coinCell, m2Standoff, nvmeStick, PCH_OVER, sataDrive, type Raise } from './parts3d';
 
 /** A `Raise` that only stands the box up (no art in a test), and keeps what it raised. */
@@ -18,8 +19,13 @@ describe('the 3D board parts', () => {
     setLayoutTier(3, 3);
     const m = M2_SLOTS[0]!, b = driveBody('ssd-nvme', 'm20'), { raise, raised } = raiser(), g = new Group();
     nvmeStick(g, m, b, raise);
-    const pcb = raised[0]!, box = new Box3().setFromObject(g), post = new Box3().setFromObject(m2Standoff(m));
-    expect(pcb.x).toBeLessThan(m.x + 8 + 120);
+    const pcb = raised[0]!, box = new Box3().setFromObject(g), post = new Box3().setFromObject(m2Standoff(m)), so = m2Socket(m);
+    // a real M.2 2280: 80 x 22 mm from the fingers (in the socket's mouth) to the notch, the notch centred on the standoff
+    expect(pcb.x).toBeGreaterThan(so.x);
+    expect(pcb.x).toBeLessThan(so.x + so.w);
+    expect(pcb.w).toBe(80 * 23);
+    expect(pcb.h).toBe(22 * 23);
+    expect(pcb.x + pcb.w).toBeCloseTo((post.min.x + post.max.x) / 2, 0);
     // the screw's head (34 round) on the standoff reaches over the PCB's end
     expect(pcb.x + pcb.w + 34).toBeGreaterThan((post.min.x + post.max.x) / 2);
     expect(box.min.z).toBeGreaterThanOrEqual(post.max.z - 1);

@@ -10,9 +10,10 @@ import type { Theme } from '@/core/render/theme';
 import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { drawDriveLive, driveArt, type DriveKind } from '@/features/storage/render/drives';
+import { drawDriveLive, driveArt, NVME_FINGERS, nvmeParts, type DriveKind } from '@/features/storage/render/drives';
 import { pchFixings, pchPlateau } from '../boardArt';
 import { GEO } from '../layout/layout';
+import { m2Standoffs } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
 import type { ArtSet } from './artset3d';
 import { brushed, grow, NONE, outlinePts, shapeOf, slab, tiled } from './casekit3d';
@@ -31,26 +32,27 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
 }
 
 // ------------------------------------------------------------------ M.2
-/** The M.2 socket's standoff at the slot's east end (the 2D disc), where the stick's notch is screwed down. */
+/** The M.2 slot's standoff for an 80 mm stick (the 2D disc), where the stick's notch is screwed down. */
 export function m2Standoff(m: RectLike): Mesh {
-  return drum(m.x + m.w - 70, m.y + m.h / 2, BOARD_Z, BOARD_Z + 42, 24, brass(), 16);
+  const [x, y] = m2Standoffs(m)[2]!;
+  return drum(x, y, BOARD_Z, BOARD_Z + 42, 24, brass(), 16);
 }
 
 /**
- * An NVMe stick over its 2D body `b` on slot `m`: the PCB from the fingers in the socket to the notch, the controller, the finned spreader over
- * the NAND (the 2D's fin lines stand up), the screw into the standoff, its head over the notch.
+ * An NVMe stick over its 2D body `b` on slot `m` (80 x 22 mm, 0.7 mm thick): the PCB from the fingers in the socket to the notch, the controller,
+ * the finned spreader over the DRAM and the NAND (the 2D's fin lines stand up), the screw into the standoff, its head over the notch.
  */
 export function nvmeStick(g: Group, m: RectLike, b: RectLike, raise: Raise): MeshStandardMaterial {
-  const pcb = mat(0x142330, { roughness: 0.5 }), chip = mat(0x10151e, { roughness: 0.5 }), sink = mat(0x3a4660, { metalness: 0.7, roughness: 0.35 });
-  const z = BOARD_Z + 42;
-  raise(g, { x: b.x - 46, y: b.y, w: b.w + 46, h: b.h }, z, z + 16, pcb);
-  raise(g, { x: b.x + 80, y: b.y + 50, w: 170, h: b.h - 100 }, z + 16, z + 34, chip, 4);
-  const sp = { x: b.x + 270, y: b.y + 20, w: 740, h: b.h - 40 };
+  const pcb = mat(0x142330, { roughness: 0.5 }), chip = mat(0x10151e, { roughness: 0.5 }), sink = mat(0x3c4048, { metalness: 0.7, roughness: 0.35 });
+  const z = BOARD_Z + 42, p = nvmeParts(b);
+  raise(g, { x: b.x - NVME_FINGERS, y: b.y, w: b.w + NVME_FINGERS, h: b.h }, z, z + 16, pcb);
+  raise(g, p.ctrl, z + 16, z + 34, chip, 4);
+  const sp = p.sink, fins = [];
   raise(g, sp, z + 16, z + 58, sink, 6);
-  const fins = [];
-  for (let k = 0; k < 14; k++) fins.push({ x: sp.x + 40 + k * 50, y: -(sp.y + sp.h / 2), z: z + 76, sx: 12, sy: sp.h - 28, sz: 36 });
-  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x56628a, { metalness: 0.75, roughness: 0.3 }), fins));
-  screw(g, m.x + m.w - 70, m.y + m.h / 2, z + 16, 34);
+  for (let k = 0; k <= (sp.w - 80) / 50; k++) fins.push({ x: sp.x + 40 + k * 50, y: -(sp.y + sp.h / 2), z: z + 76, sx: 12, sy: sp.h - 28, sz: 36 });
+  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x5c626c, { metalness: 0.75, roughness: 0.3 }), fins));
+  const [sx, sy] = m2Standoffs(m)[2]!;
+  screw(g, sx, sy, z + 16, 34);
   return sink;
 }
 

@@ -15,6 +15,7 @@ import { BOARD_TIERS } from '../../sim/specs';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
 import { BD, GEO, M2_SLOTS, PCIE_RAILS, PKG, SOCKET_E } from '../layout/layout';
+import { m2Socket } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
 import { LV_BOARD, type ArtSet } from './artset3d';
 import { ioCover, slotHardware, type IoFeatures } from './boardhw3d';
@@ -114,7 +115,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   });
   PCIE_RAILS.forEach((r, i) => { const s = pcieSlot(r, slot); g.add(s); sockets.set(`pcie${i}`, s); });
   M2_SLOTS.forEach((m, i) => {
-    sockets.set(`m2${i}`, up(g, { x: m.x + 8, y: m.y + 70, w: 120, h: m.h - 140 }, BOARD_Z, BOARD_Z + 70, chip, 6));
+    sockets.set(`m2${i}`, up(g, m2Socket(m), BOARD_Z, BOARD_Z + 70, chip, 6));
     g.add(m2Standoff(m));
   });
   const pch = chipset(GEO.chip, tier, up);

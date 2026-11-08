@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from '@/core/render/ink';
 import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layout/layout';
+import { m2Stick } from '../../board/render/layout/pins';
 import type { Theme } from '@/core/render/theme';
 import { armTip } from './diskplan';
 
@@ -20,18 +21,41 @@ export const driveScale = () => CELL_W / DESIGN.w;
 /** Body of a SATA drive in design coordinates (relative to its cell). */
 const bodyLocal = (kind: DriveKind): Rect => (kind === 'hdd' ? { x: 46, y: 28, w: 640, h: 444 } : { x: 46, y: 78, w: 520, h: 344 });
 
-/** Body rect of a drive of this kind sitting in a cage cell (SATA) or on an M.2 slot, in world coordinates. */
+/** How far an NVMe stick's gold fingers reach west of its body (into the socket). */
+export const NVME_FINGERS = 46;
+
+/**
+ * Body rect of a drive of this kind sitting in a cage cell (SATA) or on an M.2 slot, in world coordinates. An NVMe stick's body is its PCB east
+ * of the fingers (`m2Stick` less `NVME_FINGERS`): 80 x 22 mm in all, its notch on the slot's standoff.
+ */
 export function driveBody(kind: DriveKind, slot: string): Rect {
-  if (kind === 'ssd-nvme') { const m = M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!; return { x: m.x + 112, y: m.y + 52, w: m.w - 112 - 96, h: m.h - 104 }; }
+  if (kind === 'ssd-nvme') { const s = m2Stick(M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!); return { x: s.x + NVME_FINGERS, y: s.y, w: s.w - NVME_FINGERS, h: s.h }; }
   const c = BAY_CELLS[slotIndex(slot)]!, k = driveScale(), b = bodyLocal(kind);
   return { x: c.x + b.x * k, y: c.y + b.y * k, w: b.w * k, h: b.h * k };
 }
 
-/** The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`). */
+/**
+ * An NVMe stick's parts over its body `b`, as a real 2280 lays them out: the controller (13 mm square) by the fingers, its DRAM cache, two NAND
+ * packages, and the finned spreader over the DRAM and the NAND, short of the notch.
+ */
+export function nvmeParts(b: Rect): { ctrl: Rect; dram: Rect; nand: Rect[]; sink: Rect } {
+  const cy = b.y + b.h / 2;
+  return {
+    ctrl: { x: b.x + 110, y: cy - 150, w: 300, h: 300 },
+    dram: { x: b.x + 500, y: cy - 110, w: 220, h: 220 },
+    nand: [{ x: b.x + 780, y: cy - 180, w: 400, h: 360 }, { x: b.x + 1240, y: cy - 180, w: 400, h: 360 }],
+    sink: { x: b.x + 470, y: b.y + 24, w: b.w - 564, h: b.h - 48 },
+  };
+}
+
+/**
+ * The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`): on an NVMe stick, a sticker on the spreader's
+ * north edge, clear of the drive view's title (diskview.ts).
+ */
 export function osBadgeRect(kind: DriveKind, slot: string): Rect {
   const b = driveBody(kind, slot);
   const k = kind === 'ssd-nvme' ? 1 : driveScale();
-  return kind === 'ssd-nvme' ? { x: b.x + b.w / 2 - 70, y: b.y - 74, w: 140, h: 62 } : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
+  return kind === 'ssd-nvme' ? { x: b.x + 560, y: b.y + 18, w: 140, h: 62 } : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
@@ -48,20 +72,26 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, name: string, 
   const ink = T.dark ? '#e2eaff' : '#18203a';
   if (kind === 'ssd-nvme') {
     const b = driveBody(kind, slot);
-    // M.2 2280 stick lying along the slot: gold fingers inside the connector (west), controller and NAND on the board, a slim finned
-    // heat spreader over the NAND, a notch at the east end where the standoff screw holds it down
+    // M.2 2280 stick lying along the slot: gold fingers in the socket (west, the M key's gap in them), the controller and its passives by them,
+    // a finned spreader over the DRAM and the NAND, a notch at the east end where the standoff's screw holds it down
+    const p = nvmeParts(b), pcb = T.dark ? '#142330' : '#2f4a55';
     box(g, b.x + 8, b.y + 12, b.w, b.h, 12, { fill: '#000000', fa: 0.28 });
-    g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: T.dark ? '#142330' : '#2f4a55' }).stroke({ width: 5, color: T.mul, alpha: 0.8 });
+    g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: pcb }).stroke({ width: 5, color: mix(pcb, '#ffffff', 0.25), alpha: 0.8 });
     g.circle(b.x + b.w, b.y + b.h / 2, 40).fill({ color: T.dark ? '#05070c' : '#c9d2df' }); // the notch (the screw sits in it)
-    for (let i = 0; i < 12; i++) g.rect(b.x - 46, b.y + 22 + i * ((b.h - 44) / 12), 62, (b.h - 44) / 12 - 6);
+    const pads = 38, pitch = 11.5, y0 = b.y + (b.h - pads * pitch) / 2;
+    for (let i = 0; i < pads; i++) if (i < 29 || i > 32) g.rect(b.x - NVME_FINGERS, y0 + i * pitch, NVME_FINGERS + 16, pitch - 4);
     g.fill({ color: T.pin, alpha: 0.9 });
-    box(g, b.x + 80, b.y + 50, 170, b.h - 100, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
-    box(g, b.x + 290, b.y + 48, 330, b.h - 96, 8, { fill: '#10151e', stroke: T.line, lw: 3 }); // NAND
-    box(g, b.x + 650, b.y + 48, 330, b.h - 96, 8, { fill: '#10151e', stroke: T.line, lw: 3 });
-    const sp = { x: b.x + 270, y: b.y + 20, w: 740, h: b.h - 40 };
-    box(g, sp.x, sp.y, sp.w, sp.h, 10, { fill: metalHi(T), stroke: T.alu, lw: 4, sa: 0.6 });
-    for (let k = 0; k < 14; k++) g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
-    g.stroke({ width: 6, color: T.alu, alpha: 0.35 });
+    for (const r of [p.dram, ...p.nand]) box(g, r.x, r.y, r.w, r.h, 6, { fill: '#10151e', stroke: T.line, lw: 3 });
+    const c = p.ctrl;
+    box(g, c.x, c.y, c.w, c.h, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
+    disc(g, c.x + 34, c.y + c.h - 34, 9, { fill: T.alu, fa: 0.5 });
+    // its decoupling: a column west of it, a row south of it
+    for (let k = 0; k < 6; k++) g.rect(b.x + 40, c.y + 10 + k * 48, 36, 20).rect(c.x + 20 + k * 46, c.y + c.h + 22, 20, 36);
+    g.fill({ color: '#8a6a4a' });
+    const sp = p.sink, fins = Math.floor((sp.w - 80) / 50) + 1;
+    box(g, sp.x, sp.y, sp.w, sp.h, 10, { fill: T.dark ? '#3d4249' : '#c3c8cf', stroke: '#8d939b', lw: 4, sa: 0.6 }); // gunmetal, as the board's sinks
+    for (let k = 0; k < fins; k++) g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
+    g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
     return root;
   }
   // a SATA drive is drawn at its design size from the cell's corner and scaled to the cell of the cage
