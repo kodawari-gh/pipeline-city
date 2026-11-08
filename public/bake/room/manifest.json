@@ -10,82 +10,82 @@
    "id": "desk",
    "kind": "lamp",
    "file": "desk.png",
-   "scale": 2.8471171855926514,
+   "scale": 2.8337128162384033,
    "lead": 223047328.25021774
   },
   {
    "id": "arc",
    "kind": "lamp",
    "file": "arc.png",
-   "scale": 0.27995213866233826,
+   "scale": 0.279417484998703,
    "lead": 182081247.20955753
   },
   {
    "id": "floor",
    "kind": "lamp",
    "file": "floor.png",
-   "scale": 0.46477851271629333,
+   "scale": 0.4678921103477478,
    "lead": 31166739.54789073
   },
   {
    "id": "bedside",
    "kind": "lamp",
    "file": "bedside.png",
-   "scale": 2.9484448432922363,
+   "scale": 2.9454994201660156,
    "lead": 31166739.54789073
   },
   {
    "id": "strips",
    "kind": "lamp",
    "file": "strips.png",
-   "scale": 0.7782198190689087,
+   "scale": 0.7776391506195068,
    "lead": 18.750043845656187
   },
   {
    "id": "picture",
    "kind": "lamp",
    "file": "picture.png",
-   "scale": 0.23023033142089844,
+   "scale": 0.23071496188640594,
    "lead": 13.105280390932647
   },
   {
    "id": "sconce",
    "kind": "lamp",
    "file": "sconce.png",
-   "scale": 0.10184306651353836,
+   "scale": 0.10139479488134384,
    "lead": 286418197.70789385
   },
   {
    "id": "led",
    "kind": "lamp",
    "file": "led.png",
-   "scale": 0.5759090185165405,
+   "scale": 0.575354278087616,
    "lead": 6
   },
   {
    "id": "screen",
    "kind": "lamp",
    "file": "screen.png",
-   "scale": 0.016511376947164536,
+   "scale": 0.016702109947800636,
    "lead": 0.168
   },
   {
    "id": "sky",
    "kind": "sky",
    "file": "sky.png",
-   "scale": 6.658219814300537
+   "scale": 6.702366352081299
   },
   {
    "id": "city",
    "kind": "city",
    "file": "city.png",
-   "scale": 15.15494155883789
+   "scale": 15.179803848266602
   },
   {
    "id": "sun-20",
    "kind": "sun",
    "file": "sun-20.png",
-   "scale": 0.03203781694173813,
+   "scale": 0.03242726996541023,
    "hour": 20
   }
  ],
@@ -346,7 +346,7 @@
    "offset": 153450
   },
   {
-   "name": "mesh-f0e9d8-24",
+   "name": "mesh-f0e9d8-36",
    "hash": "24-58adaa99",
    "corners": 36,
    "offset": 154350
@@ -364,7 +364,7 @@
    "offset": 156546
   },
   {
-   "name": "mesh-ffffff-map-5757",
+   "name": "mesh-ffffff-map-33600",
    "hash": "5757-8bc4ea0d",
    "corners": 33600,
    "offset": 158706
