@@ -21,16 +21,24 @@ export const isDevNode = (n: string): boolean => n.startsWith("dev:");
 const OUTSIDE = new Set(["video", "lan", "pcmains", "monmains"]);
 
 /**
- * How many PCIe slots further down the row a card in a slot covers (it stands taller than the slot pitch): a GPU or an NPU hides the next slot's
- * card; a NIC stands inside its own slot. Checked against `STAND` in render/three/fit.test.ts.
+ * How many PCIe slots further down the row a card in a slot covers: a GPU's or an NPU's cooler stands less than a finger's width from the next
+ * slot's card, so that card's latch cannot be reached; a NIC's small sink leaves room. Checked against the 3D cards in render/three/fit.test.ts.
  */
 export const COVERS: Readonly<Partial<Record<DeviceKind, number>>> = { gpu: 1, npu: 1 };
 
 /**
- * Cards long enough to lie over the M.2 sockets when they swing down flat (the 32-lane GPU in the top slot of the Enthusiast board covers all three),
- * by spec id and the PCIe slot they must stand in. Checked against the card lengths in render/three/fit.test.ts.
+ * The M.2 sockets a card's cooler stands over, by spec id and the PCIe slot it stands in: its stick cannot come out under it. Checked against the
+ * 3D cards on every board in render/three/fit.test.ts (a socket a board lacks is never covered).
  */
-export const OVER_M2: Readonly<Record<string, readonly string[]>> = { gpu3: ["pcie0"] };
+export const OVER_M2: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
+  gpu1: { pcie0: ["m20"], pcie1: ["m21"], pcie2: ["m22"] },
+  gpu2: { pcie0: ["m20"], pcie1: ["m21", "m22"] },
+  gpu3: { pcie0: ["m20"] },
+  npu1: { pcie0: ["m20"], pcie1: ["m21"], pcie2: ["m22"] },
+  npu2: { pcie0: ["m20"], pcie1: ["m21"], pcie2: ["m22"] },
+};
+/** Whether a card (spec `spec` in PCIe slot `pcie`) stands over M.2 socket `m2`. */
+export const overM2 = (spec: string, pcie: string, m2: string): boolean => !!OVER_M2[spec]?.[pcie]?.includes(m2);
 
 const slotNo = (slot: string): number => Number(slot.replace(/^(m2|\D+)/, ""));
 
@@ -53,7 +61,7 @@ function coveredBy(board: Board, dev: InstalledDevice): InstalledDevice[] {
       if (os.slot === "pcie" && slotNo(o.slot) < n && slotNo(o.slot) + (COVERS[os.kind] ?? 0) >= n) out.push(o);
     }
   }
-  if (spec.slot === "m2") out.push(...others.filter((o) => OVER_M2[o.spec]?.includes(o.slot)));
+  if (spec.slot === "m2") out.push(...others.filter((o) => overM2(o.spec, o.slot, dev.slot)));
   return out;
 }
 
@@ -160,7 +168,7 @@ export function accessBlockers(board: Board, slotId: string, kind: DeviceKind): 
     const n = slotNo(slotId);
     for (const o of others) { const os = deviceSpec(o); if (os.slot === "pcie" && slotNo(o.slot) < n && slotNo(o.slot) + (COVERS[os.kind] ?? 0) >= n) out.push(devNode(o.id)); }
   }
-  if (slot.type === "m2") out.push(...others.filter((o) => OVER_M2[o.spec]?.includes(o.slot)).map((o) => devNode(o.id)));
+  if (slot.type === "m2") out.push(...others.filter((o) => overM2(o.spec, o.slot, slotId)).map((o) => devNode(o.id)));
   if (kind === "cooler" && fittedRadiator(board)) out.push(...others.filter((o) => deviceSpec(o).kind === "radiator").map((o) => devNode(o.id)));
   return [...new Set(out)];
 }

@@ -45,12 +45,13 @@ describe("removal graph", () => {
     const g = buildGraph(b, c);
     expect(removalPlan(g, devNode(nic.id))).toContain(devNode(gpu.id));
     expect(removalPlan(g, devNode(far.id))).not.toContain(devNode(gpu.id));
-    // gpu2 is shorter than the M.2 sockets lie (render/three/fit.test.ts); only the 32-lane card covers them
-    expect(removalPlan(g, devNode(nvme.id))).not.toContain(devNode(gpu.id));
-    const b2 = createBoard(3), big = install(b2, "gpu3", "pcie0"), st = install(b2, "nvme2", "m21");
-    if (!big.ok || !st.ok) throw new Error("install");
-    expect(removalPlan(buildGraph(b2, c), devNode(st.id))).toContain(devNode(big.id));
-    void nvme2;
+    // the card's cooler stands over the M.2 socket under its own slot, not the next one (render/three/fit.test.ts)
+    expect(removalPlan(g, devNode(nvme.id))).toContain(devNode(gpu.id));
+    expect(removalPlan(g, devNode(nvme2.id))).not.toContain(devNode(gpu.id));
+    const b2 = createBoard(3), big = install(b2, "gpu3", "pcie0"), st = install(b2, "nvme2", "m21"), under = install(b2, "nvme2", "m20");
+    if (!big.ok || !st.ok || !under.ok) throw new Error("install");
+    expect(removalPlan(buildGraph(b2, c), devNode(st.id))).not.toContain(devNode(big.id));
+    expect(removalPlan(buildGraph(b2, c), devNode(under.id))).toContain(devNode(big.id));
   });
 
   it("the loop's radiator comes out before the pump", () => {

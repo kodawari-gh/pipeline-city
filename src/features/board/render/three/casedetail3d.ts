@@ -15,7 +15,7 @@ import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_IN, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
 import { fitted, IO_EXTRA, IO_HALF, IO_Z, legacyIo } from './boardhw3d';
-import { HINGE_Z, slotBlank, STAND } from './card3d';
+import { BRACKET_TOP, slotBlank } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
@@ -40,7 +40,7 @@ function boxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: nu
 
 /** The y of the case's slot `i` (the biggest board it holds sets the row; every tier's rails sit at the same heights). */
 const slotY = (i: number) => geoOf(LAYOUT_CASE).pcie[i]!.y + 30;
-const SLOT_Z = [BOARD_Z + 130, HINGE_Z + STAND.gpu - 40] as const;
+const SLOT_Z = [BOARD_Z + 130, BRACKET_TOP - 40] as const;
 
 /** The rear exhaust's round opening in the rear wall, on every case (layout y and depth). */
 function rearFanHole(): { d: number; cy: number } {

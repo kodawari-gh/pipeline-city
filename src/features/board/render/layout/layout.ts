@@ -292,7 +292,8 @@ export const NIC_BRACKET_X = BD_X - 30;
 export const nicJack = (i: number): Rect => ({ x: BD_X - 200, y: nicY(i) - 62, w: 170, h: 124 });
 /** A graphics card's display port on the rear plate, at the height of its slot (the video cable's plug goes in here instead of the board's HDMI port, `HDMI_PORT`). */
 export const gpuPort = (i: number): Rect => ({ x: HDMI_PORT.x, y: nicY(i) - HDMI_PORT.h / 2, w: HDMI_PORT.w, h: HDMI_PORT.h });
-export const NIC_LEN: Record<string, number> = { 'nic-gbe': 1500, 'nic-10g': 1950, 'nic-40g': 2400 };
+/** A NIC's length from the board's west edge: real low-profile cards, 115, 135 and 145 mm (23 units a mm). */
+export const NIC_LEN: Record<string, number> = { 'nic-gbe': 2645, 'nic-10g': 3105, 'nic-40g': 3335 };
 export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: BD_X - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
 
 /**
