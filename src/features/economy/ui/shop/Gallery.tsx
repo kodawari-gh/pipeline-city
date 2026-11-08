@@ -1,30 +1,16 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { BOARD_TIERS, CASE_TIERS, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import { galleryOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Showcase } from './Showcase';
-import { kindIcon, kindLabel } from './shopdata';
+import { galleryGroups, kindIcon, kindLabel } from './shopdata';
 
 // The GALLERY (main menu): every part with a 3D model, large, on the showcase's turntable. It is the shop's 3D view with the shop taken
 // away: a category rail, the parts of the category and the model. Left and Right (or the list) change the part, Up and Down the category,
 // Escape closes.
 
-interface Item { id: string; name: string; note: string }
-interface Group { key: string; kind: string; items: Item[] }
-
-const KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
-
-/** Every part the showcase can build, by category (cases first, as the shop lists them). */
-function groups(): Group[] {
-  const out: Group[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case` })) }];
-  out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard' })) });
-  for (const k of KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
-  return out.filter((g) => g.items.length > 0);
-}
-
 export function Gallery() {
   const open = galleryOpen.value;
-  const all = useMemo(groups, []);
+  const all = useMemo(galleryGroups, []);
   const [gi, setGi] = useState(0);
   const [ii, setIi] = useState(0);
   const group = all[gi]!, item = group.items[Math.min(ii, group.items.length - 1)]!;

@@ -1,7 +1,7 @@
 // The shop and the inventory's category icons, pure logic: every kind of item the game sells, in the order a build meets them.
 
 import type { DeviceKind } from '@/features/board/sim/specs';
-import { getSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { getOsSpec } from '@/features/os/sim';
 import { KIND_LABEL } from '@/core/ui/logic';
@@ -24,6 +24,19 @@ export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'bo
 
 /** Has this kind a 3D model in the showcase? (Boards, software, routers and plans are not parts you can turn in your hand.) */
 export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'router', 'isp'].includes(k);
+
+export interface GalleryItem { id: string; name: string; note: string }
+export interface GalleryGroup { key: string; kind: string; items: GalleryItem[] }
+
+const GALLERY_KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
+
+/** Every part the showcase can build, by category (cases first, as the shop lists them): the gallery's list, and the shop's stills (`tools/stills.mjs`). */
+export function galleryGroups(): GalleryGroup[] {
+  const out: GalleryGroup[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case` })) }];
+  out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard' })) });
+  for (const k of GALLERY_KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
+  return out.filter((g) => g.items.length > 0);
+}
 
 export interface ShopSection { kind: ShopKind; label: string; icon: IconName; items: LadderStep[] }
 

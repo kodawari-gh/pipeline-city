@@ -11,6 +11,9 @@ import { onThemeChange, readTheme } from '@/core/render/theme';
 // PNG blob URL. Only when that worker cannot start (no OffscreenCanvas WebGL) are they drawn here, one per idle slice, with the
 // renderer given to `initThumbs`. `thumbsVersion` bumps whenever one arrives, so a component that reads it re-renders. Without a
 // renderer (tests) nothing is built and the UI falls back to its drawn icons.
+// The parts with a 3D model show a still of it instead (`tools/stills.mjs` bakes them to `public/stills/`): the tile shows the part as the
+// gallery, the shop's 3D view and the machine show it. Their list comes with `initThumbs` (`manifest.json`); until it is in, no tile asks
+// for a drawing, so a tile never shows the drawing first and the still after.
 
 let renderer: Renderer | null = null;
 let worker: Worker | null = null;
@@ -25,11 +28,26 @@ const queue: ThumbJob[] = [];
 let busy = false;
 /** Bumped when a new picture is ready or the theme changed: read it in a component to re-render. */
 export const thumbsVersion = signal(0);
+const STILLS = `${import.meta.env.BASE_URL}stills/`;
+/** The baked stills: each id's file hash (a new bake is a new URL); `{}` when there are none, null while the list loads. */
+let stills: Record<string, string> | null = null;
+let stillsAsked = false;
+
+/** Load the list of the baked stills (once). */
+function loadStills(): void {
+  if (stillsAsked) return;
+  stillsAsked = true;
+  void fetch(`${STILLS}manifest.json`)
+    .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))
+    .catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the shop stills did not load:', e); return null; })
+    .then((m) => { stills = m ?? {}; thumbsVersion.value += 1; });
+}
 
 export function initThumbs(r: Renderer): void {
   const first = !renderer;
   renderer = r;
   if (!first) return;
+  loadStills();
   onThemeChange(() => {
     for (const u of cache.values()) URL.revokeObjectURL(u);
     cache.clear(); failed.clear(); sent.clear(); queue.length = 0;
@@ -69,7 +87,9 @@ export function hasThumb(id: string): boolean {
 
 /** The picture of an id in the current theme, or null while it is being made (or cannot be made): read `thumbsVersion` to be told. */
 export function thumbOf(id: string): string | null {
-  if (!renderer || !hasThumb(id)) return null;
+  if (!renderer || !stills || !hasThumb(id)) return null;
+  const still = stills[id];
+  if (still) return `${STILLS}${id}.webp?${still}`;
   const theme = readTheme(), key = `${theme.dark ? 'd' : 'l'}|${id}`;
   const hit = cache.get(key);
   if (hit) return hit;

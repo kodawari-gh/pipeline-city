@@ -14,6 +14,7 @@
     "bench:3d": "node tools/bench3d.mjs",
     "shot": "node tools/shot.mjs",
     "bake": "node tools/bake/bake.mjs",
+    "stills": "node tools/stills.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
