@@ -6,7 +6,7 @@ import { CARD_TOP, gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from '../..
 import { EdgeFan, edgeFan } from '../../features/room/render/desk/props/case';
 import { gpuFar, gpuNear } from '../../features/gpu/render/gpuart';
 import { padlock } from '../../features/tpm/render/tpmglyph';
-import { tpmGeo } from '../../features/tpm/render/tpmlayout';
+import { tpmGeo, tpmPcb } from '../../features/tpm/render/tpmlayout';
 import { NPU_H, NPU_LEN, npuGeo, type NpuGeo } from '../../features/npu/render/npulayout';
 import type { Theme } from './theme';
 
@@ -137,7 +137,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
 }
 
 /** A header's rectangle in board space (`HeaderGeo`: pins of `cols` x `rows` at 52 spacing with a 24 border, as boardArt draws it). */
-export interface HeaderBox { x: number; y: number; cols: number; rows: number }
+export interface HeaderBox { x: number; y: number; cols: number; rows: number; key?: readonly [number, number] }
 export const headerRect = (h: HeaderBox): Rect => ({ x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 });
 
 /**
@@ -157,7 +157,10 @@ export function tpmCover(T: Theme, visual: string, band: Rect): Container {
   return root;
 }
 
-/** The TPM module standing on its header: a small daughterboard under a lid. `live`: on the board, where the view (tpmview.ts) draws the lid and the die. */
+/**
+ * The TPM module standing on its header: a small daughterboard, its chip under a lid, the header's pins soldered through its south end (the keyed
+ * pin left out). `live`: on the board, where the view (tpmview.ts) draws the lid and the die.
+ */
 export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
@@ -166,8 +169,14 @@ export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Co
   box(g, p.x + 24, p.y + 58, p.w, p.h - 18, 8, { fill: '#000000', fa: 0.3 });
   box(g, p.x, p.y, p.w, p.h, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
   box(g, geo.band.x - 3, geo.band.y - 3, geo.band.w + 6, geo.band.h + 6, 7, { fill: mix(pcb, '#000000', 0.45) });
-  for (let k = 0; k < h.cols; k++) g.rect(r.x + 18 + k * 52, r.y + r.h - 12, 16, 22);
-  g.fill({ color: T.pin, alpha: 0.9 });
+  for (let i = 0; i < h.cols; i++) for (let j = 0; j < h.rows; j++) {
+    if (i === h.key?.[0] && j === h.key[1]) continue;
+    const x = r.x + 36 + i * 52, y = r.y + 36 + j * 52;
+    disc(g, x, y, 15, { fill: '#a9afb7', stroke: mix(pcb, '#000000', 0.35), lw: 2 });
+    disc(g, x - 3, y - 3, 6, { fill: '#ffffff', fa: 0.45 });
+  }
+  // the chip's decoupling, between the lid and the pins
+  for (const cx of [p.x + 40, p.x + 80, p.x + p.w - 66]) { box(g, cx, r.y - 8, 26, 14, 2, { fill: '#8a6a4a' }); g.rect(cx, r.y - 8, 5, 14).rect(cx + 21, r.y - 8, 5, 14).fill({ color: T.alu, alpha: 0.9 }); }
   root.addChild(label('TPM', p.x + 12, p.y + 4, 26, T.alu, { head: true, a: 0.9 }));
   if (!live) root.addChild(tpmCover(T, visual, geo.band));
   return root;
@@ -180,6 +189,5 @@ export const tpmHeader = (tier: number): HeaderBox | null => geoOf(tier).hdrs.fi
 export function tpmRect(tier: number): Rect | null {
   const h = tpmHeader(tier);
   if (!h) return null;
-  const r = headerRect(h);
-  return { x: r.x - 16, y: r.y - 46, w: r.w + 32, h: r.h + 62 };
+  return tpmPcb(headerRect(h));
 }

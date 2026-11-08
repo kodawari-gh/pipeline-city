@@ -367,7 +367,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
     chip(c, geo.bios, { legs: 4, pitch: 26, text: 'BIOS', size: 30, accent: T.mul });
     chip(c, geo.sio, { legs: 4, pitch: 26, text: 'SIO', size: 40, accent: T.mul });
     chip(c, geo.dpwm, { legs: 6, pitch: 26, text: 'PWM', size: 46, accent: T.mul });
-    for (const h of geo.hdrs) header(c, h.x, h.y, h.cols, h.rows, h.name);
+    for (const h of geo.hdrs) header(c, h.x, h.y, h.cols, h.rows, h.name, h.key);
     // the reference crystals (24 MHz for the CPU, 25 MHz for the chipset): a metal can with two pads, the clock lanes land on them
     for (const [r, edge, half, txt] of [[geo.xtalCpu, 'n', 10, '24M'], [geo.xtalPch, 's', 13, '25M']] as const) {
       shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.3);

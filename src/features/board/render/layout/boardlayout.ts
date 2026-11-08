@@ -22,7 +22,8 @@ import { MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './
 // zigzags between the CPU and the bank, so every lane is as long as the longest, and a lane dives to an inner layer under the sockets before its own.
 
 export interface Pt { x: number; y: number }
-export interface HeaderGeo { name: string; x: number; y: number; cols: number; rows: number }
+/** A pin header; `key`: the pin left out where a plug is keyed (the TPM's 14-1). */
+export interface HeaderGeo { name: string; x: number; y: number; cols: number; rows: number; key?: [number, number] }
 export interface DimmGeo { rect: Rect }
 /** A row of small passives (decoupling capacitors, the art's `smd`): `n` parts from the centre (x, y), `dx` and `dy` apart, each `w` by `h`. */
 export interface Passives { x: number; y: number; n: number; dx: number; dy: number; w: number; h: number }
@@ -214,17 +215,18 @@ function build(s: Spec): TierGeo {
   const pcy = s.chip.y + s.chip.h / 2, sp = s.satap ?? SATA_PITCH, sy0 = pcy - ((s.sata - 1) * sp + 110) / 2;
   const sataRects = Array.from({ length: s.sata }, (_, i) => R(east - 390, sy0 + i * sp, 300, 110));
   // the I/O controller sits west of the chipset, level with the last four of its west legs (a straight link of four lanes); the pin headers
-  // stand in a row to its west, the last of them 50 from it, and a trunk below the row serves them all
+  // stand in a row to its west, the last of them 50 from it and 40 apart (the top board then keeps its RGB lane clear of the south-west hole),
+  // and a trunk below the row serves them all
   const sioLegs = legsFrom(s.chip, 'w', s.west.sio, 4), sio = R(s.chip.x - 520, sioLegs.reduce((a, p) => a + p[1], 0) / 4 - 75, 150, 150);
   const hdrY = south - 520, hw = (cols: number) => cols * 52 + 24;
   const eastToWest: Omit<HeaderGeo, 'x' | 'y'>[] = [
     { name: 'SYS_FAN', cols: 4, rows: 1 }, { name: 'USB_2', cols: 5, rows: 2 }, { name: 'F_PANEL', cols: 5, rows: 2 },
     ...(s.tier >= 3 ? [{ name: 'SYS_FAN2', cols: 4, rows: 1 }] : []),
-    ...(s.tier >= 2 ? [{ name: 'USB_3', cols: 5, rows: 2 }, { name: 'TPM', cols: 6, rows: 2 }] : []),
+    ...(s.tier >= 2 ? [{ name: 'USB_3', cols: 5, rows: 2 }, { name: 'TPM', cols: 7, rows: 2, key: [6, 0] as [number, number] }] : []),
     ...(s.tier >= 3 ? [{ name: 'ARGB', cols: 3, rows: 1 }] : []),
   ];
   let hx = sio.x - 50;
-  const hdrs: HeaderGeo[] = eastToWest.map((h) => { hx -= hw(h.cols); const g = { ...h, x: hx, y: hdrY }; hx -= 50; return g; });
+  const hdrs: HeaderGeo[] = eastToWest.map((h) => { hx -= hw(h.cols); const g = { ...h, x: hx, y: hdrY }; hx -= 40; return g; });
   // the CR2032 under the chipset (two lanes from its south legs to the cell's top, two to the vertical clear-CMOS jumper beside it)
   const br = [95, 105, 145, 120][s.tier]!, bcx = s.chip.x + s.chip.w * 0.75, bcy = s.chip.y + s.chip.h + 8 + 58 + br;
   const bat = R(bcx - br, bcy - br, 2 * br, 2 * br);

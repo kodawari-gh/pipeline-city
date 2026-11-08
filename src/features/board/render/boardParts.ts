@@ -264,11 +264,11 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
   c.labels.addChild(label(name, at[0], at[1], 32, P.silk, { a, anchor: [at[2], 0.5] }));
 }
 
-/** A pin header (cols x rows, 0.1 inch pitch): body, gold pins, a pin-1 mark, its name above. */
-export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string) {
+/** A pin header (cols x rows, 0.1 inch pitch): body, gold pins (but the `key` pin), a pin-1 mark, its name above. */
+export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string, key?: readonly [number, number]) {
   const { g, P } = c, pitch = HDR_PITCH, w = cols * pitch + 24, h = rows * pitch + 24;
   box(g, x, y, w, h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
-  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) { g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28); c.solid?.({ kind: 'pin', x: x + 12 + i * pitch + 24, y: y + 12 + j * pitch + 24, s: 12 }); }
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) if (i !== key?.[0] || j !== key[1]) { g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28); c.solid?.({ kind: 'pin', x: x + 12 + i * pitch + 24, y: y + 12 + j * pitch + 24, s: 12 }); }
   g.fill({ color: c.T.pin, alpha: 0.75 });
   g.poly([x + 4, y - 12, x + 22, y - 12, x + 4, y - 30]).fill({ color: P.silkHi, alpha: 0.6 });
   c.labels.addChild(label(name, x, y - 46, 28, P.silk, { anchor: [0, 0.5] }));

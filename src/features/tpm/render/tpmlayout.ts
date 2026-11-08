@@ -4,12 +4,19 @@ import { tpmPlanInput, type TpmBlock, type TpmPlan } from './tpmplan';
 import { TPM_DIE, tpmPlan } from './tpmplans';
 import type { Rect } from '../../board/render/layout/layout';
 
-// The secure module on its header (docs/ACCEL.md "TPM"), in board space. The daughterboard stands on the header; its die lies under a lid and fills
-// the band between the module's name and its pins. The die's own plan (`tpm/tpmplans.ts`) is drawn in die units and scaled into the band. Like
-// `gpulayout` for the cards: the tooltip test enumerates the hover ids from here, so a part cannot be drawn without a description.
+// The secure module on its header (docs/ACCEL.md "TPM"), in board space. The daughterboard stands on the header; the header's pins come through
+// its south end (their solder joints show), and its die lies under a lid in the band between the module's name and those pins. The die's own
+// plan (`tpm/tpmplans.ts`) is drawn in die units and scaled into the band. Like `gpulayout` for the cards: the tooltip test enumerates the hover
+// ids from here, so a part cannot be drawn without a description.
 
-/** How far the daughterboard reaches round the header's pins: the board's margin, and the room above for the module's name. */
-const PAD = 16, NAME = 30;
+/**
+ * How far the daughterboard reaches round the header's pins: its margin, and how far it runs on past the pins (north): a real module (the ASUS
+ * TPM-SPI on its 14-1 header) is 13 mm deep to the 2 x 7 header's 5 mm. Its name runs along that edge.
+ */
+const PAD = 16, NAME = 140, NAME_ROW = 44;
+
+/** The daughterboard over a header's rectangle `hdr` (board space): what a click hits, and the PCB the 3D model raises. */
+export const tpmPcb = (hdr: Rect): Rect => ({ x: hdr.x - PAD, y: hdr.y - PAD - NAME, w: hdr.w + 2 * PAD, h: hdr.h + 2 * PAD + NAME });
 
 export interface TpmGeo {
   /** The daughterboard (what a click on the module hits). */
@@ -34,8 +41,8 @@ const cache = new Map<string, TpmGeo>();
 export function tpmGeo(visual: string, hdr: Rect): TpmGeo {
   const key = `${visual}|${hdr.x}|${hdr.y}|${hdr.w}|${hdr.h}`, hit = cache.get(key);
   if (hit) return hit;
-  const pcb = { x: hdr.x - PAD, y: hdr.y - PAD - NAME, w: hdr.w + 2 * PAD, h: hdr.h + 2 * PAD + NAME };
-  const band = { x: pcb.x + 10, y: pcb.y + NAME - 2, w: pcb.w - 20, h: hdr.y + hdr.h - 24 - (pcb.y + NAME - 2) };
+  const pcb = tpmPcb(hdr);
+  const band = { x: pcb.x + 10, y: pcb.y + NAME_ROW, w: pcb.w - 20, h: hdr.y - 10 - (pcb.y + NAME_ROW) };
   const scale = Math.min(band.w / TPM_DIE.w, band.h / TPM_DIE.h), w = TPM_DIE.w * scale, h = TPM_DIE.h * scale;
   const geo: TpmGeo = { pcb, band, die: { x: band.x + (band.w - w) / 2, y: band.y + (band.h - h) / 2, w, h }, scale, plan: tpmPlanOf(visual) };
   cache.set(key, geo);
