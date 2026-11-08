@@ -20,7 +20,8 @@ import { leadCoil } from './casetray3d';
 import { coolerModel, radiatorModel } from './cooler3d';
 import { cpuModel } from './cpu3d';
 import { fanDepth, fanPart } from './fans3d';
-import { driveRaise, nvmeStick, sataDrive, tpmModel } from './parts3d';
+import { nvmeLook, nvmeStick } from './nvme3d';
+import { driveRaise, sataDrive, tpmModel } from './parts3d';
 import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
 
@@ -109,9 +110,9 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
     case 'storage': {
       const ss = spec as StorageSpec, kind = driveKindOf(ss.visual), slot = kind === 'ssd-nvme' ? 'm20' : 'sata0';
       return upright(withLayout(() => withArt((art) => {
-        const g = new Group(), b = driveBody(kind, slot), raise = driveRaise(art, T, kind, slot, ss.name, ss.capacityBytes);
-        if (kind === 'ssd-nvme') nvmeStick(g, slotRect(slot), b, raise);
-        else sataDrive(g, kind === 'hdd', b, 0, raise);
+        const g = new Group(), b = driveBody(kind, slot);
+        if (kind === 'ssd-nvme') nvmeStick(g, b, nvmeLook(ss));
+        else sataDrive(g, kind === 'hdd', b, 0, driveRaise(art, T, kind, slot, ss.name, ss.capacityBytes));
         return g;
       })));
     }

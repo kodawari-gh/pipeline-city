@@ -1,6 +1,6 @@
 // The board's smaller hardware as real parts (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"), where the 2D drawing stands for a part seen from
-// above: an NVMe stick on its socket and standoff (a thin PCB, the controller, the finned spreader over the NAND, the screw in its notch), the
-// chipset under its low heat sink, the coin cell in its holder, the TPM module on its header, a SATA drive's cast body with its lid and connectors.
+// above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder, the TPM module on its
+// header, a SATA drive's cast body with its lid and connectors.
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures; `driveRaise` and `tpmModel` give the
 // drives and the module their own drawing, the same in the case, in Build my PC and in the gallery.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
@@ -10,7 +10,7 @@ import type { Theme } from '@/core/render/theme';
 import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { drawDriveLive, driveArt, NVME_FINGERS, nvmeParts, type DriveKind } from '@/features/storage/render/drives';
+import { drawDriveLive, driveArt, type DriveKind } from '@/features/storage/render/drives';
 import { pchFixings, pchPlateau } from '../boardArt';
 import { GEO } from '../layout/layout';
 import { m2Standoffs } from '../layout/pins';
@@ -32,28 +32,17 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
 }
 
 // ------------------------------------------------------------------ M.2
-/** The M.2 slot's standoff for an 80 mm stick (the 2D disc), where the stick's notch is screwed down. */
-export function m2Standoff(m: RectLike): Mesh {
-  const [x, y] = m2Standoffs(m)[2]!;
-  return drum(x, y, BOARD_Z, BOARD_Z + 42, 24, brass(), 16);
-}
-
 /**
- * An NVMe stick over its 2D body `b` on slot `m` (80 x 22 mm, 0.7 mm thick): the PCB from the fingers in the socket to the notch, the controller,
- * the finned spreader over the DRAM and the NAND (the 2D's fin lines stand up), the screw into the standoff, its head over the notch.
+ * The M.2 slot's standoff for an 80 mm stick (the 2D disc), where the stick's notch is screwed down (nvme3d.ts): a brass hex, 4.5 mm across its
+ * corners and as tall as the socket holds the stick, its M2 thread dark in its top.
  */
-export function nvmeStick(g: Group, m: RectLike, b: RectLike, raise: Raise): MeshStandardMaterial {
-  const pcb = mat(0x142330, { roughness: 0.5 }), chip = mat(0x10151e, { roughness: 0.5 }), sink = mat(0x3c4048, { metalness: 0.7, roughness: 0.35 });
-  const z = BOARD_Z + 42, p = nvmeParts(b);
-  raise(g, { x: b.x - NVME_FINGERS, y: b.y, w: b.w + NVME_FINGERS, h: b.h }, z, z + 16, pcb);
-  raise(g, p.ctrl, z + 16, z + 34, chip, 4);
-  const sp = p.sink, fins = [];
-  raise(g, sp, z + 16, z + 58, sink, 6);
-  for (let k = 0; k <= (sp.w - 80) / 50; k++) fins.push({ x: sp.x + 40 + k * 50, y: -(sp.y + sp.h / 2), z: z + 76, sx: 12, sy: sp.h - 28, sz: 36 });
-  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x5c626c, { metalness: 0.75, roughness: 0.3 }), fins));
-  const [sx, sy] = m2Standoffs(m)[2]!;
-  screw(g, sx, sy, z + 16, 34);
-  return sink;
+export function m2Standoff(m: RectLike): Group {
+  const [x, y] = m2Standoffs(m)[2]!, g = new Group();
+  g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), 6));
+  const hole = new Mesh(new CylinderGeometry(20, 20, 0.6, 16).rotateX(Math.PI / 2), mat(0x2a2418, { roughness: 0.8 }));
+  hole.position.set(x, -y, BOARD_Z + 41.7);
+  g.add(hole);
+  return g;
 }
 
 // ------------------------------------------------------------------ chipset

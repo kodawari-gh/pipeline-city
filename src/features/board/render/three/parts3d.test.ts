@@ -5,7 +5,8 @@ import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { driveBody } from '@/features/storage/render/drives';
 import { GEO, M2_SLOTS, setLayoutTier } from '../layout/layout';
 import { m2Socket } from '../layout/pins';
-import { chipset, coinCell, m2Standoff, nvmeStick, PCH_OVER, sataDrive, type Raise } from './parts3d';
+import { nvmeStick } from './nvme3d';
+import { chipset, coinCell, m2Standoff, PCH_OVER, sataDrive, type Raise } from './parts3d';
 
 /** A `Raise` that only stands the box up (no art in a test), and keeps what it raised. */
 const raiser = () => {
@@ -17,19 +18,24 @@ const raiser = () => {
 describe('the 3D board parts', () => {
   it('lays an NVMe stick on its socket and standoff: its fingers in the connector, its notch over the standoff', () => {
     setLayoutTier(3, 3);
-    const m = M2_SLOTS[0]!, b = driveBody('ssd-nvme', 'm20'), { raise, raised } = raiser(), g = new Group();
-    nvmeStick(g, m, b, raise);
-    const pcb = raised[0]!, box = new Box3().setFromObject(g), post = new Box3().setFromObject(m2Standoff(m)), so = m2Socket(m);
-    // a real M.2 2280: 80 x 22 mm from the fingers (in the socket's mouth) to the notch, the notch centred on the standoff
-    expect(pcb.x).toBeGreaterThan(so.x);
-    expect(pcb.x).toBeLessThan(so.x + so.w);
-    expect(pcb.w).toBe(80 * 23);
-    expect(pcb.h).toBe(22 * 23);
-    expect(pcb.x + pcb.w).toBeCloseTo((post.min.x + post.max.x) / 2, 0);
-    // the screw's head (34 round) on the standoff reaches over the PCB's end
-    expect(pcb.x + pcb.w + 34).toBeGreaterThan((post.min.x + post.max.x) / 2);
-    expect(box.min.z).toBeGreaterThanOrEqual(post.max.z - 1);
-    expect(box.max.z).toBeLessThan(BOARD_Z + 200);
+    const m = M2_SLOTS[0]!, b = driveBody('ssd-nvme', 'm20'), post = new Box3().setFromObject(m2Standoff(m)), so = m2Socket(m);
+    for (const heatsink of [false, true]) {
+      const g = new Group();
+      nvmeStick(g, b, { name: 'NVMe SSD 128K', capacityBytes: 128 * 1024, heatsink });
+      const pcb = new Box3().setFromObject(g.getObjectByName('nvme-pcb')!), box = new Box3().setFromObject(g);
+      // a real M.2 2280: 80 x 22 mm, 0.8 mm thick, from the fingers (in the socket's mouth) to the notch, the notch centred on the standoff
+      expect(pcb.min.x).toBeGreaterThan(so.x);
+      expect(pcb.min.x).toBeLessThan(so.x + so.w);
+      expect(pcb.max.x - pcb.min.x).toBeCloseTo(80 * 23, 0);
+      expect(pcb.max.y - pcb.min.y).toBeCloseTo(22 * 23, 0);
+      expect(pcb.max.z - pcb.min.z).toBeCloseTo(0.8 * 23, 0);
+      expect(pcb.max.x).toBeCloseTo((post.min.x + post.max.x) / 2, 0);
+      // it lies on the standoff; a heat sink stands 9 mm over the board, under the cards' coolers
+      expect(box.min.z, `heatsink ${heatsink}`).toBeGreaterThanOrEqual(post.max.z - 1);
+      expect(box.max.z, `heatsink ${heatsink}`).toBeLessThan(BOARD_Z + (heatsink ? 215 : 100));
+      // the heat sink's skirts clip it to the board's edges, within the slot's width
+      expect(box.max.y - box.min.y, `heatsink ${heatsink}`).toBeLessThan(m.h);
+    }
   });
 
   it('leaves the Starter\'s chipset bare and covers the others, legs and all, with a low heat sink', () => {

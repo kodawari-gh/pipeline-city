@@ -61,7 +61,8 @@ import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
-import { driveRaise, nvmeStick, sataDrive, tpmModel } from './parts3d';
+import { nvmeLook, nvmeStick } from './nvme3d';
+import { driveRaise, sataDrive, tpmModel } from './parts3d';
 import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
@@ -402,8 +403,8 @@ export class Machine3D {
       case 'storage': {
         const kind = driveKindOf(visual), b = driveBody(kind, d.slot);
         // an M.2 stick lies on its socket and standoff; a SATA drive is built at its 2D body and moved into its bay in the basement's cage
+        if (kind === 'ssd-nvme') { this.softSkin(d.id, nvmeStick(g, b, nvmeLook(spec as StorageSpec))); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
         const raise = driveRaise(this.art, T, kind, d.slot, spec.name, (spec as StorageSpec).capacityBytes);
-        if (kind === 'ssd-nvme') { this.skin(d.id, nvmeStick(g, slotRect(d.slot), b, raise)); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
         const bay = this.plan.bays[idx(d.slot)], drive = new Group();
         this.skin(d.id, sataDrive(drive, kind === 'hdd', b, 0, raise));
         if (bay) {
