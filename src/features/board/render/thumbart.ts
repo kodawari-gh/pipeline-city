@@ -2,11 +2,11 @@ import { Container, Graphics, Rectangle, type ICanvas, type Renderer } from 'pix
 import { BOARD_TIERS, CASE_TIERS, getSpec, type CoolerSpec, type CpuSpec, type FanSpec, type PsuSpec, type RamSpec } from '../sim/specs';
 import { getIspSpec, getRouterSpec } from '../../network/sim/specs';
 import { buildBoard } from './boardArt';
-import { cpuArt, monitorArt, psuBoxArt, ramArt, vrmSinkArt } from './devices';
+import { cpuArt, monitorArt, psuBoxArt, ramArt, sinkFanRect, vrmSinkArt } from './devices';
 import { coolerKitArt, FAN_ART_MAX, fanKitArt, radiatorKitArt } from './cooler';
 import { driveArt, drawDriveLive, driveKindOf } from '../../storage/render/drives';
 import { exteriorArt, exteriorFrame } from '../../room/render/shell/exterior';
-import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier, BD } from './layout/layout';
+import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier, BD, RAM_SINK, VRM_SINK } from './layout/layout';
 import { nicArt, routerArt, wallArt } from '../../network/render/net';
 import { cardArt, tpmArt, tpmHeader } from '@/core/render/accelart';
 import type { Theme } from '@/core/render/theme';
@@ -100,11 +100,9 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
       case 'psu': holder.addChild(psuBoxArt(T, spec as PsuSpec)); break;
       case 'display': holder.addChild(monitorArt(T, true, spec.visual === 'monitor-gfx').root); break;
       case 'vrm-sink': case 'ram-sink': {
-        // a compact block (the one on the board is a long strip): the fins, the heat pipe, the fan
-        const p = vrmSinkArt(T, spec.visual, { x: 0, y: 0, w: spec.kind === 'ram-sink' ? 1100 : 1300, h: 640 });
-        holder.addChild(p.root);
-        if (p.fan) holder.addChild(p.fan);
-        if (p.over) holder.addChild(p.over);
+        // the sink as the board has it, bare as the gallery shows it (a fan is a part of its own): the fins, the heat pipe, the fan's housing
+        const r = spec.kind === 'ram-sink' ? RAM_SINK : VRM_SINK;
+        holder.addChild(vrmSinkArt(T, spec.visual, r, sinkFanRect(spec.kind)).root);
         break;
       }
       case 'nic': holder.addChild(nicArt(T, spec.visual, 0)); break;

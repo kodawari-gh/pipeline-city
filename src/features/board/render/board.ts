@@ -11,7 +11,7 @@ import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '@/core/render/camera';
 import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorBay, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from '../../storage/render/drives';
-import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
+import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, sinkFanRect, vrmSinkArt, type Part } from './devices';
 import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, radiatorRect, type RadiatorFit } from './cooler';
 import { Interact, isWallCord, type CableInfo, type SceneInfo } from '@/core/render/interact';
 import { CordsView, type CordKind } from './wiring/cords';
@@ -702,17 +702,16 @@ export async function mountBoard(host: HTMLElement) {
           scene.rects.set(d.id, r);
         }
       } else if (spec.kind === 'vrm-sink') {
-        const p = vrmSinkArt(T, spec.visual);
+        // (the fan in its housing, the grille and the fan's screws over the turning blades, only when one is fitted)
+        const p = vrmSinkArt(T, spec.visual, VRM_SINK, sinkFanRect('vrm-sink'));
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
-        if (p.over) fanLayer.addChild(p.over);
+        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); if (p.over) fanLayer.addChild(p.over); }
         deviceHits.push(partHit(d.id, p.root, VRM_SINK));
         scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'ram-sink') {
-        const p = vrmSinkArt(T, spec.visual, RAM_SINK);
+        const p = vrmSinkArt(T, spec.visual, RAM_SINK, sinkFanRect('ram-sink'));
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
-        if (p.over) fanLayer.addChild(p.over);
+        if (p.fan && onHost(d.slot)) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); if (p.over) fanLayer.addChild(p.over); }
         deviceHits.push(partHit(d.id, p.root, RAM_SINK));
         scene.rects.set(d.id, RAM_SINK);
       } else if (spec.kind === 'nic') {

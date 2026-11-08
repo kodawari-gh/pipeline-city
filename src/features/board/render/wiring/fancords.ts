@@ -4,7 +4,6 @@ import { fanMounts, hubHeaders, plugBox } from '@/features/room/render/desk/prop
 import { paintCable, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { Theme } from '@/core/render/theme';
 import { CASE_BD, COOLER, FAN_HUB, FAN_SLOT, GEO, type Rect } from '../layout/layout';
-import { sinkFanAt } from '../layout/pins';
 import { cordShape, type Shape } from '@/core/render/shape';
 import { roundedPath, rubberBand, type Pt } from './routes';
 
@@ -50,14 +49,15 @@ export function fanCordPlans(): FanCordPlan[] {
     const seat = mid(cf), x1 = COOLER.x + 70;
     out.push({ id: 'cpufan', anchor: [x1, seat[1]], anchorDir: [-1, 0], seat, plug: { w: cf.w + 16, h: cf.h + 16 }, route: [[x1, seat[1]], seat], rest: [seat[0], seat[1] + 380], header: cf, seatR: 200, endPlug: { x: x1 - 30, y: seat[1] - 28, w: 64, h: 56 }, width: 24 });
   }
-  // the heatsink fans: from the regulator's header up above it, east along a run of its own and down onto the fan's housing
+  // the heatsink fans: out of the fan's frame on the side toward its header (the header stands clear of the fan), along to above the header
+  // and down onto it
   for (const which of ['vrm', 'ram'] as const) {
     const h = hdrRect(which === 'vrm' ? 'VRM_FAN' : 'RAM_FAN');
     if (!h) continue;
-    const f = sinkFanAt(which === 'vrm' ? GEO.vrmSink : GEO.dSink), sx = which === 'vrm' ? h.x + h.w / 2 : h.x + h.w - 26, yRun = which === 'vrm' ? GEO.vrm.y - 80 : GEO.dvrm.y - 70;
-    const anchor: Pt = [f.x, f.y - f.r + 6], seat = mid(h);
-    out.push({ id: which === 'vrm' ? 'vrmfan' : 'ramfan', anchor, anchorDir: [0, -1], seat, plug: { w: h.w + 16, h: h.h + 16 }, route: [anchor, [f.x, yRun], [sx, yRun], [sx, h.y + 6]], rest: [seat[0] - 330, seat[1]],
-      header: h, seatR: 190, endPlug: { x: f.x - 26, y: f.y - f.r - 10, w: 52, h: 40 }, width: 22 });
+    const f = which === 'vrm' ? GEO.vrmFan : GEO.dFan, west = h.x < f.x, sx = h.x + h.w / 2, ay = Math.min(Math.max(h.y - 60, f.y + 120), f.y + f.h - 120);
+    const anchor: Pt = [west ? f.x + 20 : f.x + f.w - 20, ay], seat = mid(h);
+    out.push({ id: which === 'vrm' ? 'vrmfan' : 'ramfan', anchor, anchorDir: [west ? -1 : 1, 0], seat, plug: { w: h.w + 16, h: h.h + 16 }, route: [anchor, [sx, ay], [sx, h.y + 6]],
+      rest: [seat[0] + (west ? -330 : 330), seat[1]], header: h, seatR: 190, endPlug: null, width: 22 });
   }
   // the fan hub's control cable: from the SYS_FAN header down over the board's south edge, east and up into the hub's input header
   const sf = hdrRect('SYS_FAN');

@@ -38,14 +38,14 @@ import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
-import { caseFan, fanPart, type FanFit, type Spin } from './fans3d';
+import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { HINGE_Z, card3d, cardModel, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, innerStrips, stripLight, type CaseModel } from './case3d';
 import { GROMMETS, rearFanScrews, SLOT_BLANK } from './casedetail3d';
-import { sinkBody } from './sink3d';
+import { SINK_FAN_MID, sinkBody } from './sink3d';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
@@ -418,16 +418,14 @@ export class Machine3D {
         break;
       }
       case 'vrm-sink': case 'ram-sink': {
-        // as a real regulator sink (sink3d.ts); its fan blows along the rails
+        // as a real regulator sink (sink3d.ts); its fan sits in the housing over the fins, blowing down into them
         g.userData.sink = true;
         this.obstacles.push(g);
-        const { spot, foot, top } = sinkBody(g, T, spec.kind, visual);
+        const { spot, foot } = sinkBody(g, T, spec.kind, visual);
         const fit = this.fanFits((slot) => fanHost(slot) === d.slot)[0];
         if (fit && spot) {
-          // the fan fitted at the east end, its axis along the rails
-          const d = Math.min(spot.h, top - foot) * 0.95, fan = fanPart(fit.spec, d, spot.w);
-          fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + d / 2);
-          fan.root.rotation.y = Math.PI / 2;
+          const depth = fanDepth(fit.spec.size), fan = fanPart(fit.spec, spot.w, depth);
+          fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + depth / 2);
           g.add(tag(fan.root, fit.id));
           this.spin({ ...fan.spin, needs: spec.kind === 'vrm-sink' ? 'vrmfan' : 'ramfan' });
         }
@@ -573,7 +571,7 @@ export class Machine3D {
         const cooler = s.devices.find((d) => d.kind === 'cooler'), coolerFans = s.devices.filter((d) => d.kind === 'fan' && cooler && fanHost(d.slot) === cooler.slot);
         const anchor: RopeEnd = p.id === 'cpufan' ? coolerFanLead((getSpec(cooler?.spec ?? '') as { visual?: string } | undefined)?.visual ?? '', coolerFans.map((d) => Number(d.slot.slice(d.slot.lastIndexOf('.fan') + 4))))
           : p.id === 'sysfan' ? { at: at(FAN_HUB.x + 90, FAN_HUB.y - 60, CASE_Z + 240), dir: [0, 1, 0] }
-          : { at: at(p.anchor[0], p.anchor[1] - 20, BOARD_Z + 430), dir: [0, 1, 0] };
+          : { at: at(p.anchor[0], p.anchor[1], SINK_FAN_MID), dir: [p.anchorDir[0], -p.anchorDir[1], 0] }; // (out of a sink fan's frame)
         const skip = p.id === 'cpufan' ? this.obstacles.filter((o) => o.userData.cooler) : this.obstacles.filter((o) => o.userData.sink);
         const fenv = this.caseEnv(skip);
         if (p.id === 'sysfan') {

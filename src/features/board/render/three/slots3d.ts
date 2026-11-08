@@ -8,11 +8,10 @@ import { towerFanRect } from '../cooler';
 import { sinkFanRect } from '../devices';
 import { COOLER, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, LAYOUT_TIER, MONITOR, PCIE_RAILS, PKG, PSU, RAM_SINK, VRM_SINK, type Rect } from '../layout/layout';
 
-/** Where a heatsink's fan spot `k` is, seen from the glass: the stock fan over the whole plate, a tower's on its ends, a sink's on its east end. */
+/** Where a heatsink's fan spot `k` is, seen from the glass: the stock fan over the whole plate, a tower's on its ends, a sink's in its housing. */
 function hostSpotRect(kind: string, visual: string | undefined, k: number): Rect | null {
   if (kind === 'cooler') return visual === 'cooler-tower' ? towerFanRect(k) : COOLER;
-  if (kind === 'vrm-sink') return sinkFanRect(VRM_SINK);
-  if (kind === 'ram-sink') return sinkFanRect(RAM_SINK);
+  if (kind === 'vrm-sink' || kind === 'ram-sink') return sinkFanRect(kind);
   return null;
 }
 

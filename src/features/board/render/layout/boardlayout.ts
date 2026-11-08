@@ -59,6 +59,8 @@ export interface TierGeo {
   cpw: Rect; atx: Rect;
   // ---- CPU VRM: a row of phase blocks above the CPU, a PWM controller at its west end ----
   vrm: Rect; pwm: Rect; vrmPhases: Rect[]; vrmSink: Rect; vrmLed: Pt;
+  /** The square of a fan fitted on each regulator's sink (a 40 mm fan in the sink's housing over the fins, blowing down into them). */
+  vrmFan: Rect; dFan: Rect;
   /** Where the 8-pin's power enters the input rail, and the rail's y. */
   vrmRailY: number;
   // ---- memory VRM: a short row above the DIMM bank, its output rail runs along the pins of the sockets ----
@@ -91,6 +93,15 @@ export interface TierGeo {
 
 export const VRM_PITCH = 380, VRM_BW = 340, VRM_BH = 470;
 export const DRAM_PITCH = 225, DRAM_BW = 160, DRAM_BH = 300;
+/** A heatsink fan's side: a 40 mm fan (`fanLen(40)`). */
+export const SINK_FAN = 920;
+/** The rim of a fan sink's housing round the fan's square (sink3d.ts, devices.ts), and how far a fan's square keeps from its neighbours: the rim and 30 more. */
+export const SINK_FAN_RIM = 30;
+const CLEAR = SINK_FAN_RIM + 30;
+/** The stock cooler's shroud reaches 1090 north of the CPU (cooler3d.ts). */
+const SHROUD_N = -1090;
+/** The width of a one-column pin header. */
+const HDR1 = 52 + 24;
 /** A memory socket: the pitch of a bank, the stick's width as the 2D lays it flat, and its length (a real DIMM's 133 mm at the board's scale). */
 export const DIMM_PITCH = 220, DIMM_W0 = 170, DIMM_H0 = 2400;
 /** Vertical pitch of the SATA ports on the east edge. */
@@ -130,7 +141,7 @@ interface Spec {
 // (every board's west edge is `BD_X`; the M.2 stack sits under the memory bank, above the chipset)
 const SPECS: Spec[] = [
   { tier: 0, form: 'mini-ITX', bd: R(BD_X, -2150, 4700, 4000), phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(180, 1140, 400, 400), bank: { x: 1100, top: 920, span: 1500 } },
-  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [0], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1000, span: 1800 } },
+  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [0], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1020, span: 1800 } },
   { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [7], bios: 1, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
   { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [10], bios: 5, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
 ];
@@ -154,7 +165,8 @@ function build(s: Spec): TierGeo {
   const vrmPhases = Array.from({ length: s.phases }, (_, i) => R(vx0 + i * VRM_PITCH, vy, VRM_BW, VRM_BH));
   const pwm = R(vx0 - 390, vy + 110, 210, 210); // (the 120 between it and the first phase and the 60 more carry the controller's lanes to the phases)
   const vrm = R(pwm.x - 90, vy - 100, vx0 + s.phases * VRM_PITCH - (pwm.x - 90) + 20, 650);
-  const vrmSink = R(vx0 - 10, vy + 18, s.phases * VRM_PITCH - 20, 170);
+  // (its sink covers the power stages and the chokes: it stands on the stages, and clears the chokes)
+  const vrmSink = R(vx0 - 10, vy + 18, s.phases * VRM_PITCH - 20, 360);
   // ---- memory: one bank of sticks east of the CPU, each the length of a real DIMM, room for the memory regulator above it; the lanes' rows stack on the
   // CPU's east edge and spread along the sticks ----
   const lanes = memLanes(s.dimms), n = s.dimms, X0 = Math.max(s.bank.x, vrm.x + vrm.w + BANK_GAP), top0 = bd.y + s.bank.top;
@@ -180,11 +192,23 @@ function build(s: Spec): TierGeo {
   const dvrm = R(X0, dy - 120, s.dphases * DRAM_PITCH + 80, 440);
   const dpwmWest = s.tier < 2; // the bigger boards' regulators have the CPU's regulator close on their west side: the controller stands east of them
   const dpwm = dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210);
-  const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 150);
+  const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 230);
   // ---- connectors ----
     const cpw = R(vrm.x - 10, bd.y + 90, 520, 234); // the 24-pin's cavity pitch: 110 across, 87 down
   // the 24-pin's top row of pins is level with the memory regulator's input rail, so the 12 V run to it is straight
   const atx = R(east - 300, dy - 70 - 66, 300, 1100);
+  // the memory sink fan's header: a vertical row beside its controller, on the side away from the phases
+  const ramFanX = dpwmWest ? dpwm.x - 100 - HDR1 : dpwm.x + dpwm.w + 100;
+  // the sinks' fan squares, wider than the sinks: the CPU sink's at its west end, toward the rear I/O as real boards have it, east of the
+  // 8-pin's plug, on the board, north of the stock cooler's shroud; the memory sink's west of the 24-pin, clear of its header, north of the
+  // sticks' tops (it overhangs the sink's north side) (each keeps its housing's rim and 30 more clear of them: `CLEAR`)
+  const half = SINK_FAN / 2, out = half + CLEAR;
+  const vcx = Math.max(vrmSink.x + SINK_FAN_RIM + half, cpw.x + cpw.w + out), vcy = Math.min(Math.max(vrmSink.y + vrmSink.h / 2, bd.y + 40 + half), SHROUD_N - out);
+  const vrmFan = R(vcx - half, vcy - half, SINK_FAN, SINK_FAN);
+  const dcx = dpwmWest ? Math.max(Math.min(dSink.x + dSink.w / 2, atx.x - out), ramFanX + HDR1 + out) : Math.min(dSink.x + dSink.w / 2, atx.x - out, ramFanX - out);
+  // (the housing stands over the sockets' latches, so it keeps clear of the sticks only; on the mini-ITX its rim overhangs the board's top
+  // edge by 4 mm: the bank cannot move south, its south end is level with the SATA lanes)
+  const dFan = R(dcx - half, top0 - out - half, SINK_FAN, SINK_FAN);
   // SATA ports on the east edge, on the chipset's row, mouths facing east: the lanes run straight east from the chipset and the
   // drive cables come from the bay
   const pcy = s.chip.y + s.chip.h / 2, sp = s.satap ?? SATA_PITCH, sy0 = pcy - ((s.sata - 1) * sp + 110) / 2;
@@ -207,11 +231,11 @@ function build(s: Spec): TierGeo {
   hdrs.push({ name: 'CLR_CMOS', x: s.tier >= 3 ? bcx + br + 74 : bcx - br - 150, y: bcy - 62, cols: 1, rows: 3 });
   // the CPU fan's header south of the I/O hub (four lanes from the hub's south legs; the cooler's cable comes to it)
   hdrs.push({ name: 'CPU_FAN', x: HUB.x + 90, y: 320, cols: 4, rows: 1 });
-  // the heatsink fans' headers: the CPU regulator's, west of its controller (a vertical row, four lanes from the controller's west legs), the memory
-  // regulator's, above its controller and under the 12 V run (four lanes from its north legs); the sinks' fan cables come to them
+  // the heatsink fans' headers, each a vertical row beside its controller on the side away from its phases (four lanes from the controller's legs
+  // on that side), clear of the fan over its sink: the sinks' fan cables come to them
   // (the top board's controller stands further north: its header drops 100, so it and its printed name clear the mounting hole north-west of it)
   hdrs.push({ name: 'VRM_FAN', x: pwm.x - 250, y: pwm.y + 105 - (4 * 52 + 24) / 2 + (s.tier >= 3 ? 100 : 0), cols: 1, rows: 4 });
-  hdrs.push({ name: 'RAM_FAN', x: dpwm.x + 105 - (4 * 52 + 24) / 2, y: dpwm.y - 190, cols: 4, rows: 1 });
+  hdrs.push({ name: 'RAM_FAN', x: ramFanX, y: dpwm.y + 105 - (4 * 52 + 24) / 2, cols: 1, rows: 4 });
   // the mounting holes. The boards share tray positions where their parts allow, as real form factors do: a bigger case holds a smaller board on
   // studs it already has. The memory bank and the big regulators keep some corners apart (a case then has those extra threads: `standoffs`).
   // (the small board's south hole and the top board's chipset and bottom-edge holes stand where its own BIOS and RGB strip leave room)
@@ -240,7 +264,7 @@ function build(s: Spec): TierGeo {
     phy: s.tier >= 1 ? R(IO_X + 710, -1690, 220, 260) : null, // eight legs: the jack's four pads sit on the middle ones
     bat,
     cpw, atx,
-    vrm, pwm, vrmPhases, vrmSink, vrmLed: { x: pwm.x + 105, y: pwm.y - 62 },
+    vrm, pwm, vrmPhases, vrmSink, vrmLed: { x: pwm.x + 105, y: pwm.y - 62 }, vrmFan, dFan,
     vrmRailY: vy - 52,
     dvrm, dPhases, dSink, vdimmY, dRailY: dy - 70,
     dimm, memFrom, memLand, memLanes: lanes,

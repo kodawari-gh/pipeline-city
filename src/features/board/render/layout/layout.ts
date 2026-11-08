@@ -106,6 +106,8 @@ export const DRAM_VRM_MAX = 5;
 export const dramPhase = (i: number): Rect => GEO.dPhases[i] ?? EMPTY;
 /** Where a memory VRM heatsink bolts on: over the MOSFET row of the DRAM phases (slot `ram-sink0`). */
 export let RAM_SINK: Rect = GEO.dSink;
+/** The square of the 40 mm fan a sink can carry (over the CPU regulator's sink, over the memory regulator's). */
+export let VRM_FAN: Rect = GEO.vrmFan, RAM_FAN: Rect = GEO.dFan;
 /** The power-good light of the VRM. */
 export let VRM_LED = GEO.vrmLed;
 export { DRAM_BH, DRAM_BW };
@@ -334,7 +336,7 @@ export function boardBakeFrame(bd: Rect, io: Rect, pad = 40): Rect {
 export function setLayoutTier(tier: number, caseTier = tier): void {
   const g = geoOf(tier), cg = geoOf(Math.max(tier, caseTier));
   GEO = g; LAYOUT_TIER = g.tier; LAYOUT_CASE = cg.tier; CASE_BD = cg.bd; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
-  M2_SLOTS = g.m2; VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
+  M2_SLOTS = g.m2; VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed; VRM_FAN = g.vrmFan; RAM_FAN = g.dFan;
   // the lower compartment and the case follow the board: the PSU shroud runs under the board and the cable gutter, the drive bay
   // sits at its east end, the case closes round them
   const east = cg.bd.x + cg.bd.w, south = cg.bd.y + cg.bd.h, dy = south - 2500;
@@ -371,9 +373,9 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   // the case's top: over the board's head room (the 8-pin cable's); over the front stack, from the top (a radiator's end tank over and under the
   // fans, room under it for the last fan's cable stub, over the case's inner floor: the Mini's fans start under the bay covers of its face,
   // `frontFanRects`); and with top fans over their stack (the fans and a radiator's room under them, clear of the tall parts at the board's top
-  // edge, the VRM and memory sinks of every board the case holds: the radiator hangs in front of the board's top strip, above the low parts)
+  // edge, the VRM and memory sinks of every board the case holds and their fans: the radiator hangs in front of the board's top strip, above the low parts)
   const nf = mounts.fans.front, stack = (cg.tier === 0 ? MINI_FAN_Y : 440 + RAD_TANK) + nf * FAN_LEN + (nf - 1) * 20 + RAD_TANK + 100;
-  const tall = Math.min(...Array.from({ length: cg.tier + 1 }, (_, t) => { const tg = geoOf(t); return Math.min(tg.vrmSink.y, tg.dSink.y); }));
+  const tall = Math.min(...Array.from({ length: cg.tier + 1 }, (_, t) => { const tg = geoOf(t); return Math.min(tg.vrmSink.y, tg.dSink.y, tg.vrmFan.y, tg.dFan.y); }));
   const headTop = mounts.fans.top > 0 ? tall - 60 - (40 + TOP_FAN_T + RAD_ROOM) - 400 : Infinity;
   const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack, headTop), bottom = south + 1750;
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };

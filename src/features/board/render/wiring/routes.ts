@@ -527,13 +527,13 @@ export function buildBuses(): Bus[] {
     buses.push(mk('fanc', [[xc, legs[0]![1]], [xc, pins[0]![1]]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
   }
 
-  // the heatsink fans' headers: the CPU regulator's (a vertical row west of its controller: four lanes from the controller's west legs) and the memory
-  // regulator's (above its controller: four lanes from its north legs)
+  // the heatsink fans' headers, each a vertical row beside its controller on the side away from its phases: four lanes from the controller's legs
+  // on that side (the CPU regulator's west legs; the memory regulator's west or east ones)
   {
-    const v = g.hdrs.find((q) => q.name === 'VRM_FAN')!, legs = legRun(g.pwm, 'w', 4), pins = [0, 1, 2, 3].map((j) => headerPin(v.x, v.y, 0, j)), yc = mean(legs, 1);
-    buses.push(mk('fanc', [[legs[0]![0], yc], [pins[0]![0], yc]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
-    const r = g.hdrs.find((q) => q.name === 'RAM_FAN')!, ll = legRun(g.dpwm, 'n', 4), pp = [0, 1, 2, 3].map((i) => headerPin(r.x, r.y, i, 0)), xc = mean(ll, 0);
-    buses.push(mk('fanc', [[xc, ll[0]![1]], [xc, pp[0]![1]]], 4, LEG_PITCH, 8, 0, { from: ll, to: pp, lead: 40 }));
+    for (const [name, ctl, side] of [['VRM_FAN', g.pwm, 'w'], ['RAM_FAN', g.dpwm, g.dpwmWest ? 'w' : 'e']] as const) {
+      const v = g.hdrs.find((q) => q.name === name)!, legs = legRun(ctl, side, 4), pins = [0, 1, 2, 3].map((j) => headerPin(v.x, v.y, 0, j)), yc = mean(legs, 1);
+      buses.push(mk('fanc', [[legs[0]![0], yc], [pins[0]![0], yc]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
+    }
   }
 
   // the reference crystals: the CPU's (two lanes up onto pins of its south row) and the chipset's (two lanes down onto its last north legs, east of the DMI lanes)

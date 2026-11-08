@@ -2,13 +2,13 @@ import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
   CPU_S, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
-  LAYOUT_CASE, PSU_REAR_FAN, type Rect,
+  LAYOUT_CASE, PSU_REAR_FAN, RAM_FAN, VRM_FAN, type Rect,
 } from './layout/layout';
+import { SINK_FAN, SINK_FAN_RIM } from './layout/boardlayout';
 import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
 import { EdgeFan } from '../../room/render/desk/props/case';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
-import { sinkFanAt } from './layout/pins';
 import { hdmiPlug, rj45Plug } from './layout/ports';
 import { isPcieKind, looseCable, movablePlug, type Cable, type Plug } from './wiring/routes';
 import { paintCable, paintClip, paintTie, tiePoints } from '@/core/render/cable';
@@ -158,81 +158,74 @@ export function ramArt(T: Theme, spec: RamSpec): Part {
 
 // ---------------------------------------------------------------- VRM heatsink (bolts onto the board's MOSFET strip)
 /**
- * The three heatsinks over the VRM MOSFETs (visuals `vrm-sink-fins`, `vrm-sink-big`, `vrm-sink-fan`): thin passive fins, tall fins with a
- * heat pipe, and fins with a small fan at the east end. The fan (a spinning child returned as `fan`, kept above the bake) obeys the
- * power rules of the other fans.
+ * The three heatsinks over the VRM's power stages and chokes (visuals `vrm-sink-fins`, `vrm-sink-big`, `vrm-sink-fan`): thin passive fins, tall
+ * fins with a heat pipe, and fins with a housing for a 40 mm fan over the fan's square (`fanRect`: the board's, else centred on the sink). The
+ * housing is the sink's; the fan is a part of its own: `fan` (its blades, spun) and `over` (the housing's grille and the fan's screws over
+ * them), shown only when one is fitted.
  */
-export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Part {
+export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanRect?: Rect): Part {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
   const r = rect, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
   const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
-  const slab = sinkFanRect(r);
-  const finW = withFan ? slab.x - 14 - r.x : r.w;
   // base plate and drop shadow
   box(g, r.x + 8, r.y + 12, r.w, r.h, 18, { fill: '#000000', fa: 0.3 });
   box(g, r.x, r.y, r.w, r.h, 18, { fill: metalLo, stroke: mix(T.line, metal, 0.5), lw: 6 });
-  // fins: long rails along the sink (east to west), stacked across it, so the fan's air runs down the channels between them: many thin ones (passive), fewer thick ones (big)
+  // fins: long rails along the sink (east to west), stacked across it: many thin ones (passive), fewer thick ones (big)
   const n = big ? 5 : 7, pitch = (r.h - 30) / n, rail = pitch * (big ? 0.62 : 0.5);
-  const fins: Rect[] = Array.from({ length: n }, (_, k) => ({ x: r.x + 16, y: r.y + 15 + k * pitch + (pitch - rail) / 2, w: finW - 16, h: rail }));
+  const fins: Rect[] = Array.from({ length: n }, (_, k) => ({ x: r.x + 16, y: r.y + 15 + k * pitch + (pitch - rail) / 2, w: r.w - 32, h: rail }));
   for (const f of fins) g.rect(f.x, f.y, f.w, f.h);
   g.fill({ color: metal });
-  for (let k = 0; k < n; k++) g.rect(r.x + 16, r.y + 15 + k * pitch + (pitch - rail) / 2, finW - 16, Math.max(3, rail * 0.3));
+  for (const f of fins) g.rect(f.x, f.y, f.w, Math.max(3, rail * 0.3));
   g.fill({ color: metalHi, alpha: 0.7 });
   let pipe: Rect | undefined;
   if (big) {
     // a heat pipe standing across the rails
-    const px = r.x + finW * 0.3;
+    const px = r.x + r.w * 0.3;
     pipe = { x: px - 11, y: r.y + 8, w: 22, h: r.h - 16 };
     g.moveTo(px, r.y + 8).lineTo(px, r.y + r.h - 8).stroke({ width: 22, color: T.pin, alpha: 0.85, cap: 'round' });
     g.moveTo(px - 5, r.y + 8).lineTo(px - 5, r.y + r.h - 8).stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
   }
-  let fan: Container | undefined;
-  if (withFan) {
-    // a small fan on the east end, seen edge-on: its frame, with blades that slide along it when it turns
-    box(g, slab.x, slab.y, slab.w, slab.h, 10, { fill: T.sub, stroke: T.line, lw: 6 });
-    fan = new SinkFan(slab, T);
-    return { root, fan, fins };
-  }
-  return { root, fins, ...(pipe ? { pipe } : {}) };
+  if (!withFan) return { root, fins, ...(pipe ? { pipe } : {}) };
+  // the fan's housing, one casting with the sink over the fan's square: a cover with a round grille, the fins the fan blows onto under it
+  const f = fanRect ?? { x: r.x + r.w / 2 - SINK_FAN / 2, y: r.y + r.h / 2 - SINK_FAN / 2, w: SINK_FAN, h: SINK_FAN };
+  const cx = f.x + f.w / 2, cy = f.y + f.h / 2, R = f.w * 0.46, m = SINK_FAN_RIM, edge = mix(T.line, metal, 0.5);
+  const H = { x: f.x - m, y: f.y - m, w: f.w + 2 * m, h: f.h + 2 * m }, screwAt = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy]) => [cx + sx! * f.w * 0.41, cy + sy! * f.h * 0.41] as const);
+  g.roundRect(H.x + 10, H.y + 16, H.w, H.h, 60).fill({ color: '#000000', alpha: 0.3 });
+  g.roundRect(H.x, H.y, H.w, H.h, 60).fill(metalLo);
+  disc(g, cx, cy, R, { fill: mix(metalLo, '#000000', 0.5) });
+  // (the fins in the well, along the rails' channels)
+  for (let k = 1; k < 18; k++) { const y = cy - R + (k * 2 * R) / 18, dx = Math.sqrt(R * R - (y - cy) ** 2) - 4; g.rect(cx - dx, y - 5, 2 * dx, 10); }
+  g.fill({ color: metal, alpha: 0.8 });
+  g.roundRect(H.x, H.y, H.w, H.h, 60).fill(metal).circle(cx, cy, R).cut();
+  g.roundRect(H.x, H.y, H.w, H.h, 60).stroke({ width: 6, color: edge });
+  g.circle(cx, cy, R).stroke({ width: 10, color: metalHi, alpha: 0.55 });
+  for (const [x, y] of screwAt) disc(g, x, y, 16, { fill: '#000000', fa: 0.55 });
+  // the grille (drawn again over the fan's blades when one is fitted): four spokes to a round badge, a ring halfway
+  // (flat fills: the 3D sink draws this art too, where there is no canvas for a gradient)
+  const grille = (q: Graphics) => {
+    for (const k of [1, 3, 5, 7]) { const a = (k * Math.PI) / 4; q.moveTo(cx + Math.cos(a) * R * 0.28, cy + Math.sin(a) * R * 0.28).lineTo(cx + Math.cos(a) * (R - 2), cy + Math.sin(a) * (R - 2)); }
+    q.stroke({ width: 22, color: metal });
+    q.circle(cx, cy, R * 0.64).stroke({ width: 18, color: metal });
+    disc(q, cx, cy, R * 0.3, { fill: metal, stroke: edge, lw: 6 });
+    disc(q, cx, cy, R * 0.2, { fill: metalHi, fa: 0.6 });
+  };
+  grille(g);
+  // the fan: its blades turn in the well; the grille and the fan's four screws through the cover stay still over them
+  const fan = new Container(), fg = new Graphics(), over = new Container(), og = new Graphics();
+  fan.position.set(cx, cy);
+  fan.addChild(fg);
+  disc(fg, 0, 0, R, { fill: T.dot });
+  blades(fg, 7, R * 0.28, R * 0.95, T.tile, T.alu, 4);
+  over.addChild(og);
+  grille(og);
+  for (const [x, y] of screwAt) disc(og, x, y, 20, { fill: metalHi, stroke: metalLo, lw: 5 });
+  return { root, fan, over, fins };
 }
 
-/** The sink fan's rectangle on its heatsink: a slab at the east end, as deep as it is thin, as tall as the sink (it blows west, along the fins). */
-export const sinkFanRect = (r: Rect): Rect => {
-  const c = sinkFanAt(r);
-  return { x: c.x - 40, y: r.y + 8, w: 80, h: r.h - 16 };
-};
-
-/** A heatsink's fan seen edge-on (the look of the case fans, `EdgeFan`): slanted blades slide along the slab; `spin` advances them and sets the light. */
-export class SinkFan extends Container {
-  private g = new Graphics();
-  private phase = 0;
-  private key = '';
-  constructor(private r: Rect, private T: Theme) {
-    super();
-    this.addChild(this.g);
-    this.draw(0);
-  }
-  spin(d: number, level: number) {
-    this.phase = (this.phase + d * SINK_BLADE) % SINK_BLADE;
-    if (d === 0 && level.toFixed(2) === this.key) return;
-    this.draw(level);
-  }
-  private draw(level: number) {
-    const { x, y, w, h } = this.r, g = this.g, T = this.T, m = 14;
-    this.key = level.toFixed(2);
-    g.clear();
-    g.rect(x + m, y + m, w - 2 * m, h - 2 * m).fill({ color: T.dot });
-    for (let t = m + 10 - SINK_BLADE + this.phase; t < h - m - 10; t += SINK_BLADE) {
-      if (t < m + 10) continue;
-      g.moveTo(x + m + 4, y + t + 10).lineTo(x + w - m - 4, y + t - 10);
-    }
-    g.stroke({ width: 8, color: T.mute, alpha: 0.3 + 0.3 * level, cap: 'round' });
-    g.rect(x + m, y + m, w - 2 * m, 5).rect(x + m, y + h - m - 5, w - 2 * m, 5).fill({ color: T.alu, alpha: 0.16 + 0.6 * level });
-  }
-}
-const SINK_BLADE = 34;
+/** The square of the fan a board's sink can carry (`vrmSinkArt`'s bracket). */
+export const sinkFanRect = (kind: 'vrm-sink' | 'ram-sink'): Rect => (kind === 'ram-sink' ? RAM_FAN : VRM_FAN);
 
 // (the cooler and the AIO's radiator are in cooler.ts)
 

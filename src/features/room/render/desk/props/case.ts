@@ -7,7 +7,6 @@ import {
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
-import { sinkFanAt } from '@/features/board/render/layout/pins';
 import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
 import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, hexes, isCut, outline, pillar, showPillars, type CaseKind } from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';

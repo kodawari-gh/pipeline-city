@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../../sim/specs';
-import { TIER_GEO, passiveRect } from './boardlayout';
+import { SINK_FAN_RIM, TIER_GEO, passiveRect } from './boardlayout';
 import { boardBakeFrame, CASE_BD, CASE_IN, COOLER, COOLER_HOLE, COOLER_HOLES, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, SOCKET_KEEP, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
@@ -62,6 +62,21 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const p of g.vrmPhases) expect(inside(p, g.vrm)).toBe(true);
     for (const p of g.dPhases) expect(inside(p, g.dvrm)).toBe(true);
     expect(inside(g.pwm, g.vrm)).toBe(true);
+  });
+
+  it('stands each sink fan, its housing round it, on the board and clear of the tall parts and of the cooler\'s shroud', () => {
+    const g = sockets(), rim = (r: Rect) => ({ x: r.x - SINK_FAN_RIM, y: r.y - SINK_FAN_RIM, w: r.w + 2 * SINK_FAN_RIM, h: r.h + 2 * SINK_FAN_RIM });
+    const tall: [string, Rect][] = [['cpw', g.cpw], ['atx', g.atx], ['io', g.io], ['shroud', { x: -1090, y: -1090, w: 2180, h: 2180 }]];
+    g.dimm.forEach((d, i) => tall.push([`dimm${i}`, d.rect]));
+    g.pcie.forEach((r, i) => tall.push([`pcie${i}`, r]));
+    for (const [name, f] of [['vrm', g.vrmFan], ['ram', g.dFan]] as const) {
+      // (the mini-ITX's memory fan overhangs the board's top edge a little: boardlayout.ts)
+      const bd = tier === 0 && name === 'ram' ? { ...g.bd, y: g.bd.y - 100, h: g.bd.h + 100 } : g.bd;
+      expect(inside(rim(f), bd), `the ${name} sink fan on the board`).toBe(true);
+      expect(inside(rim(f), CASE_IN), `the ${name} sink fan in the case`).toBe(true);
+      for (const [t, r] of tall) expect(overlap(rim(f), r), `the ${name} sink fan over ${t}`).toBe(false);
+    }
+    expect(overlap(rim(g.vrmFan), rim(g.dFan)), 'the two sink fans apart').toBe(false);
   });
 
   it('keeps the decoupling out of the socket\'s printed keep-out and from under the cooler\'s plate', () => {
@@ -261,7 +276,10 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     // the heatsink fans' headers, the crystals
     const [, vf, rf] = ids('fanc'), vh = g.hdrs.find((h) => h.name === 'VRM_FAN')!, rh = g.hdrs.find((h) => h.name === 'RAM_FAN')!;
     for (const l of vf!.lanes) { hit(l.pts[0]!, legsOf(g.pwm, 'w'), 'vrm fan lane starts on a controller leg'); hit(end(l), [0, 1, 2, 3].map((j) => headerPin(vh.x, vh.y, 0, j)), 'vrm fan lane ends on a pin'); }
-    for (const l of rf!.lanes) { hit(l.pts[0]!, legsOf(g.dpwm, 'n'), 'ram fan lane starts on a controller leg'); hit(end(l), [0, 1, 2, 3].map((i) => headerPin(rh.x, rh.y, i, 0)), 'ram fan lane ends on a pin'); }
+    for (const l of rf!.lanes) { hit(l.pts[0]!, legsOf(g.dpwm, g.dpwmWest ? 'w' : 'e'), 'ram fan lane starts on a controller leg'); hit(end(l), [0, 1, 2, 3].map((j) => headerPin(rh.x, rh.y, 0, j)), 'ram fan lane ends on a pin'); }
+    // each sink fan's square leaves its header in sight
+    const housing = (f: Rect) => ({ x: f.x - SINK_FAN_RIM, y: f.y - SINK_FAN_RIM, w: f.w + 2 * SINK_FAN_RIM, h: f.h + 2 * SINK_FAN_RIM });
+    for (const [f, h] of [[g.vrmFan, vh], [g.dFan, rh]] as const) expect(overlap(housing(f), { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 }), 'a sink fan\'s housing over its header').toBe(false);
     const clk = ids('clk')[0]!;
     expect(clk.lanes.length).toBe(4);
     clk.lanes.slice(0, 2).forEach((l, k) => { hit(l.pts[0]!, xtalPads(g.xtalCpu, 'n'), 'cpu clock starts on a crystal pad'); hit(end(l), pkgPads(PKG, 's', xtalPads(g.xtalCpu, 'n')[0]![0] + 10, 2), `cpu clock ${k} ends on a package pin`); });

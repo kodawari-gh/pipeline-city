@@ -67,10 +67,11 @@ describe('the airflow lens model', () => {
     const vrm = local.find((l) => l.fanIds[0] === 'vrm')!;
     expect(vrm.channel).toBe(true);
     expect(vrm.pts[vrm.pts.length - 1]![0]).toBeLessThan(vrm.pts[0]![0]);
-    // what the lens draws for each: the tower cooler's fan and the sink's are edge-on slabs (they blow along their fins), the card's are edge-on strips along its top
+    // what the lens draws for each: the tower cooler's fan is an edge-on slab (it blows along its fins), the sink's a rotor (it lies flat on its
+    // bracket, blowing down into the fins), the card's are edge-on strips along its top
     const art = (id: string) => m.fanArt.find((f) => f.id === id)!;
     expect(art('cooler').edge!.length).toBe(1);
-    expect(art('vrm').edge!.length).toBe(1);
+    expect(art('vrm').rotor!.r).toBeGreaterThan(400);
     const cooler = local.find((l) => l.fanIds[0] === 'cooler')!; // the tower blows west through its fins, toward the rear exhaust
     expect(cooler.channel).toBe(true);
     expect(cooler.pts[cooler.pts.length - 1]![0]).toBeLessThan(cooler.pts[0]![0]);
