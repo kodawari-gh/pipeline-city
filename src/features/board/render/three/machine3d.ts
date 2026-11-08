@@ -49,7 +49,8 @@ import { SINK_FAN_MID, sinkBody } from './sink3d';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
-import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
+import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, shroud } from './basement3d';
+import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
 import { frontPanelLeads } from './casetray3d';
 import {
@@ -394,7 +395,7 @@ export class Machine3D {
       }
       case 'psu': {
         // at the basement's back corner, by its mains inlet (`psuUnit`); the shroud's panel over it answers the click
-        const u = psuUnit(this.plan, visual, (spec as { fan?: boolean }).fan !== false);
+        const u = psuUnit(this.plan, visual, (spec as { fan?: boolean }).fan !== false, (spec as { watts?: number }).watts ?? 0);
         g.add(u.root);
         tag(g, 'psu');
         this.softSkin(d.id, u.body);
@@ -605,8 +606,8 @@ export class Machine3D {
     const caseBox = box({ x: CASE.x, y: CASE.y, w: CASE.w, h: CASE.h + FOOT }, CASE_Z, FRONT);
     const monitor = [box(m, mz, mz + 180), box({ x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 }, mz - 380, mz)];
     const room: Env = { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: 40 }], solids: [caseBox, ...monitor] }, deck = room.planes[0]!;
-    const cord: Look = { r: 40, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
-    const plug = (x: number, y: number, z: number, l: number) => softBox({ x: x - l, y: y - 60, w: l, h: 120 }, z - 70, z + 70, mat(0x1b1c20, { roughness: 0.5 }), 16);
+    // (a mains cord is a real IEC lead's, 6 mm thick)
+    const cord: Look = { r: 70, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
     // the desk's grommet the mains cords drop through, behind the case's west side
     const dg = { x: CASE.x - 900, z: 1300 };
     this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
@@ -685,10 +686,12 @@ export class Machine3D {
       this.wires.add(g);
     }
     // (the inlet is the power supply's: with no supply fitted there is nothing to hold the cord)
-    if (s.devices.some((d) => d.kind === 'psu')) {
-      const inlet = mainsInlet(this.plan);
-      if (has('pcmains')) this.wires.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
-      mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+    const psu = s.devices.find((d) => d.kind === 'psu');
+    if (psu) {
+      // (the C13 plug sits in the supply's C14 inlet, `psu3d.ts`; the cord leaves its strain relief)
+      const visual = (getSpec(psu.spec) as { visual?: string } | undefined)?.visual ?? 'psu-basic', inlet = mainsInlet(this.plan, visual);
+      if (has('pcmains')) this.wires.add(mainsPlug(this.plan, visual));
+      mains('pcmains', { at: [CASE.x - PLUG_TAIL, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
     }
     mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
   }

@@ -13,7 +13,8 @@ import { kitFit, radiatorGrade } from '../cooler';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { cardModel } from './card3d';
-import { basementPlan, cage, psuUnit, shroud } from './basement3d';
+import { basementPlan, cage, shroud } from './basement3d';
+import { psuUnit } from './psu3d';
 import { caseModel, innerStrips } from './case3d';
 import { fanHub } from './fanhub3d';
 import { leadCoil } from './casetray3d';
@@ -119,7 +120,12 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
     }
     case 'psu': {
       const ps = spec as PsuSpec;
-      return centred(withLayout(() => psuUnit(basementPlan(), ps.visual, ps.fan !== false).root));
+      // (in a case whose bay is its own size: an SFX unit in an ATX bay wears an adapter plate). Laid on its far side as in a maker's photo: its
+      // underside (the fan, or the vents) toward the viewer, the badge on top; the viewer never looks from below
+      const lay = new Group();
+      lay.rotation.x = -Math.PI / 2;
+      lay.add(withLayout(() => psuUnit(basementPlan(), ps.visual, ps.fan !== false, ps.watts).root, ps.visual === 'psu-big' ? 3 : 0));
+      return centred(lay);
     }
     case 'radiator': {
       // the one the game fits on the Full tower's top: as long as its fan mounts there, no fans fitted

@@ -1,16 +1,16 @@
 // The case's basement in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Basement"). Under the shroud: the power supply at the back corner, its rear in the case's
-// rear wall with the mains inlet, about 0.65 of a real ATX unit's size (the case is smaller than life, and the basement sets the room); and the drives
-// in a stepped cage beside it, filed two rows deep, each drive standing face to the glass, the back row raised on a step so it shows over the front one.
+// rear wall with the mains inlet, at its real size (an SFX bay in the Mini and the Micro, an ATX one in the bigger cases; psu3d.ts builds the
+// unit); and the drives in a stepped cage beside it, filed two rows deep, each drive standing face to the glass, the back row raised on a step so it shows over the front one.
 // The 2D keeps its column of bays east of the board (it has no depth to file them in); a drive here is the 2D drive (its body and its drawing) moved to its bay.
-import { CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, type Material, type MeshStandardMaterial } from 'three';
-import { instanced, paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { decal, decalX, flatSlot, NONE, outlinePts, pads, perfMat, perforated, plateY, ring, rivets, screws, shapeOf, slab, tex, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
+import { Group, Mesh, PlaneGeometry, type Material } from 'three';
+import { paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { flatSlot, NONE, outlinePts, pads, perforated, plateY, ring, rivets, screws, shapeOf, slab, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { driveBody, type DriveKind } from '@/features/storage/render/drives';
-import { BAY_CELLS, CASE, CASE_IN, PC_POWER, PSU } from '../layout/layout';
+import { BAY_CELLS, CASE, CASE_IN, caseForm, LAYOUT_CASE, PSU } from '../layout/layout';
 
 /** How deep a drive's body is behind its face (the hard disk's base and lid, the SSD's shell: `sataDrive`). */
 export const driveDepth = (kind: DriveKind): number => (kind === 'hdd' ? 176 : 76);
@@ -35,16 +35,17 @@ const PSU_ROOM = 360;
 export const PSU_COVER = 'psu-cover';
 /** The power supply unit's object's name, in the device's group. */
 export const PSU_BODY = 'psu-body';
-/** The radius of the supply's fan, on its underside over the floor's opening, and where it sits along x: toward the cable end, clear of the case's rear feet. */
-export const PSU_FAN_R = 560;
-export const psuFanX = (u: RectLike): number => u.x + u.w - PSU_FAN_R - 130;
+/** The supply's fan on its underside, over the floor's opening: in the middle of the bay, a 120 mm fan in an ATX bay, a 92 mm one in an SFX bay. */
+export const psuFan = (u: BasementPlan['psu']): { x: number; z: number; r: number } => ({ x: u.x + u.w / 2, z: (u.z0 + u.z1) / 2, r: (u.h > 1700 ? 60 : 46) * 23 });
 /** The supply's opening in the rear wall: its rear slides out of it. */
 export const psuOpening = (u: BasementPlan['psu']): Span => ({ y0: u.y + 30, y1: u.y + u.h - 30, z0: u.z0 + 30, z1: u.z1 - 30 });
 
+/** The rubber strips the supply stands on are 3 mm thick: the fan guard's screw heads clear the floor. */
+export const PSU_FEET = 70;
 /** Where everything in the basement goes for `n` drive bays (the board's SATA count, `BAY_CELLS`). */
 export function basementPlan(n = BAY_CELLS.length): BasementPlan {
   const floor = CASE.y + CASE.h - 150, top = PSU.y, east = PSU.x + PSU.w;
-  const psu = { x: CASE_IN.x + 20, y: floor - 20 - 1230, w: 2150, h: 1230, z0: CASE_Z + 260, z1: CASE_Z + 2260 };
+  const F = caseForm(LAYOUT_CASE), psu = { x: CASE_IN.x + 20, y: floor - PSU_FEET - F.h, w: F.d, h: F.h, z0: CASE_Z + 200, z1: CASE_Z + 200 + F.w };
   const hdd = driveBody('hdd', 'sata0'), gap = 90, x0 = psu.x + psu.w + PSU_ROOM, W = east - 140 - x0;
   // one row while they fit across, else two (the back row raised); smaller drives where even two rows do not fit
   const across = Math.max(1, Math.floor((W + gap) / (hdd.w + gap))), rows: 1 | 2 = n > across ? 2 : 1, cols = Math.max(1, Math.ceil(n / rows));
@@ -109,7 +110,7 @@ export function shroud(p: BasementPlan, look: { body: number; ink: string } = { 
 
   // the rubber strips under the power supply, either side of its fan
   const u = p.psu, rubber = mat(0x0b0b0d, { roughness: 0.92 });
-  for (const z of [u.z0 + 60, u.z1 - 200]) g.add(rectBox({ x: u.x + 90, y: u.y + u.h, w: u.w - 180, h: 20 }, z, z + 140, rubber));
+  for (const z of [u.z0 + 60, u.z1 - 200]) g.add(rectBox({ x: u.x + 90, y: u.y + u.h, w: u.w - 180, h: PSU_FEET }, z, z + 140, rubber));
   return g;
 }
 
@@ -182,60 +183,3 @@ export function intoBay(drive: Group, body: RectLike, faceZ: number, b: Bay): Gr
   return g;
 }
 
-/**
- * The power supply at its place: the body, its maker's sticker on the side that faces the glass, the modular sockets on its east face. It breathes
- * through the case's floor: a fan under a honeycomb guard on its underside, or a passive unit's punched vent (`fan` false: the sim's two cheapest).
- * Its rear stands in the opening of the case's back wall, one plate with its four screws, the exhaust grille, the mains inlet and the switch
- * (`PC_POWER`, where the cord plugs in).
- */
-export function psuUnit(p: BasementPlan, visual = 'psu-basic', fan = true): { root: Group; body: MeshStandardMaterial } {
-  const g = new Group(), u = p.psu, body = mat(0x22242a, { metalness: 0.4, roughness: 0.45 }), black = mat(0x07080b, { roughness: 0.6 });
-  g.name = PSU_BODY;
-  g.add(softBox(u, u.z0, u.z1, body, 30));
-  // its tier's look (the 2D drawings': a plain case, a banded one, the big modular unit with its lead sockets and a wide band)
-  const band = visual === 'psu-big' ? 0xd9a441 : visual === 'psu-mid' ? 0x3b6ea8 : 0, bm = band ? mat(band, { roughness: 0.4, metalness: 0.5 }) : null;
-  if (bm) {
-    g.add(rectBox({ x: u.x, y: u.y + u.h * 0.22 - 22, w: u.w, h: 44 }, u.z0 - 3, u.z1 + 3, bm));
-    if (visual === 'psu-big') g.add(rectBox({ x: u.x, y: u.y + u.h * 0.78 - 14, w: u.w, h: 28 }, u.z0 - 3, u.z1 + 3, bm));
-  }
-  const zc = (u.z0 + u.z1) / 2, yb = u.y + u.h;
-  // the sticker on the glass side
-  const sticker = tex('psu-sticker', 512, 256, (c, w, h) => {
-    c.fillStyle = '#c9ced6'; c.fillRect(0, 0, w, h);
-    c.fillStyle = '#17181c'; c.textBaseline = 'middle'; c.font = '700 44px system-ui, sans-serif'; c.fillText('POWER SUPPLY', 28, 56);
-    c.font = '500 22px system-ui, sans-serif'; c.fillText('ATX  100-240 V AC  50/60 Hz', 28, 114); c.fillText('+12 V  +5 V  +3.3 V  -12 V', 28, 150);
-    for (let k = 0; k < 42; k++) c.fillRect(28 + k * 11, 186, k % 3 ? 3 : 7, 42);
-  });
-  g.add(decal({ x: u.x + 340, y: u.y + u.h * 0.3, w: 1000, h: u.h * 0.4 }, u.z1 + 1, mat(sticker ? 0xffffff : 0xc9ced6, { map: sticker, roughness: 0.6 })));
-  // its underside, over the floor's opening: a fan behind a honeycomb guard, or a passive unit's punched vent
-  if (fan) {
-    const x = psuFanX(u), guard = new Mesh(new CircleGeometry(PSU_FAN_R, 48), perfMat('hex', 2 * PSU_FAN_R, 2 * PSU_FAN_R, 70, 0x5a5f69, { metal: 0.6, rough: 0.4 })), floor = new Mesh(new CircleGeometry(PSU_FAN_R, 48), black);
-    floor.rotation.x = guard.rotation.x = Math.PI / 2;
-    floor.position.set(x, -yb - 1, zc);
-    guard.position.set(x, -yb - 3, zc);
-    g.add(floor, guard);
-  } else {
-    const w = 2 * PSU_FAN_R, x = psuFanX(u), vent = new Mesh(new PlaneGeometry(w, w), perfMat('round', w, w, 60, 0x5a5f69, { metal: 0.6, rough: 0.4 })), floor = new Mesh(new PlaneGeometry(w, w), black);
-    floor.rotation.x = vent.rotation.x = Math.PI / 2;
-    floor.position.set(x, -yb - 1, zc);
-    vent.position.set(x, -yb - 3, zc);
-    g.add(floor, vent);
-  }
-  const ex = u.x + u.w;
-  for (let k = 0; k < 6; k++) g.add(rectBox({ x: ex, y: u.y + 240 + (k % 3) * 280, w: 14, h: 180 }, u.z0 + 460 + Math.floor(k / 3) * 680, u.z0 + 740 + Math.floor(k / 3) * 680, black));
-  // the rear: a snout from the body through the wall's opening, its end the plate, flush with the wall's outer face
-  const o = psuOpening(u), rear = CASE.x;
-  g.add(rectBox({ x: rear, y: o.y0 + 2, w: u.x - rear + 4, h: o.y1 - o.y0 - 4 }, o.z0 + 2, o.z1 - 2, body));
-  g.add(rectBox({ x: rear - 8, y: o.y0 + 2, w: 8, h: o.y1 - o.y0 - 4 }, o.z0 + 2, o.z1 - 2, mat(0x07080a, { roughness: 0.8 })));
-  const pts = [[o.y0 + 70, o.z0 + 70], [o.y0 + 70, o.z1 - 70], [o.y1 - 70, o.z0 + 70], [o.y1 - 70, o.z1 - 70]].map(([y, z]) => ({ x: rear - 14, y: -y!, z: z! }));
-  g.add(instanced(new CylinderGeometry(30, 30, 12, 14).rotateZ(Math.PI / 2), mat(0x8e949c, { metalness: 0.75, roughness: 0.38 }), pts));
-  // its exhaust: a honeycomb grille over the plate, beside the inlet
-  const gs: Span = { y0: u.y + 150, y1: u.y + u.h - 150, z0: u.z0 + 170, z1: zc + 60 };
-  g.add(decalX(rear - 10, gs, -1, perfMat('hex', gs.z1 - gs.z0, gs.y1 - gs.y0, 70, 0x5a5f69, { metal: 0.6, rough: 0.4 })));
-  g.add(rectBox({ x: rear - 26, y: PC_POWER.y - 70, w: 20, h: 140 }, zc + 150, zc + 400, black));
-  g.add(rectBox({ x: rear - 22, y: PC_POWER.y - 60, w: 16, h: 100 }, zc + 480, zc + 620, mat(0x8a1c22, { roughness: 0.5 })));
-  return { root: g, body };
-}
-
-/** Where the mains cord plugs in: the inlet on the case's rear wall (world point), the cord leaving west. */
-export const mainsInlet = (p: BasementPlan): [number, number, number] => [CASE.x - 26, -PC_POWER.y, (p.psu.z0 + p.psu.z1) / 2 + 275];

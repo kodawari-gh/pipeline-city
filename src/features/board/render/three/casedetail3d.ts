@@ -13,7 +13,7 @@ import { fanMounts, frontFanRects } from '@/features/room/render/desk/props/case
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_IN, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
-import { basementPlan, psuFanX, PSU_FAN_R, psuOpening } from './basement3d';
+import { basementPlan, psuFan, psuOpening } from './basement3d';
 import { fitted, IO_EXTRA, IO_HALF, IO_Z, legacyIo } from './boardhw3d';
 import { BRACKET_TOP, slotBlank } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
@@ -177,8 +177,8 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
 
 /** The opening in the floor under the power supply's fan (layout x and depth). */
 export function psuIntake(): { x0: number; x1: number; z0: number; z1: number } {
-  const u = basementPlan().psu, x = psuFanX(u), zc = (u.z0 + u.z1) / 2;
-  return { x0: x - PSU_FAN_R - 40, x1: x + PSU_FAN_R + 40, z0: zc - PSU_FAN_R - 40, z1: zc + PSU_FAN_R + 40 };
+  const { x, z: zc, r } = psuFan(basementPlan().psu);
+  return { x0: x - r - 40, x1: x + r + 40, z0: zc - r - 40, z1: zc + r + 40 };
 }
 
 /**

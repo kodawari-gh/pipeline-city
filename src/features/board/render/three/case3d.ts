@@ -154,8 +154,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const win = kind === 'oem' ? null : caseWindow(kind), wcuts: Cuts = WINDOW_CUTS[kind], wr = kind === 'show' ? 0 : kind === 'gamer' ? 24 : 50;
   const winPts = win ? outlinePts(win, wr, wcuts) : null;
   // the lower panel over the basement: its intake over the drive cage, a real opening under a punched sheet, the maker's badge over the supply's cover
-  const plan = basementPlan(), lowY = gl.y + gl.h, intake = { x: plan.cage.x - 60, y: PSU.y + 60, w: plan.cage.w + 120, h: PSU.h - 120 };
-  const area = { x: PSU.x + 120, y: PSU.y + 60, w: plan.cage.x - 260 - (PSU.x + 120), h: PSU.h - 120 };
+  const plan = basementPlan(), lowY = gl.y + gl.h, intake = { x: plan.cage.x - 60, y: plan.top + 60, w: plan.cage.w + 120, h: plan.floor - plan.top - 120 };
+  const area = { x: PSU.x + 120, y: plan.top + 60, w: plan.cage.x - 260 - (PSU.x + 120), h: plan.floor - plan.top - 120 };
   const right = area.x + area.w, cy = area.y + area.h / 2;
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   // (the Mini's plastic front wraps round the front edge: its sheet stops short of it)

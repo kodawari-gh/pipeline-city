@@ -135,6 +135,16 @@ export const PCIE_PORT_PITCH = 90;
 export let PORT_Y = PSU.y;
 /** The heights (world y) of the ties round the PSU leads where they climb the gutter together: they line up across the leads, and the cable duct's clips sit under them. */
 export const gutterTieYs = () => [PORT_Y - 760, PORT_Y - 1640, PORT_Y - 2520];
+/**
+ * The power supplies' real sizes (23 units a mm): `d` along the case (from the rear wall), `h` tall, `w` across the case. The two small supplies
+ * are SFX units (125 x 63.5 x 100 mm), the big ones ATX (150 x 86 x 140 mm). The Mini's and the Micro's boards take only the small ones.
+ */
+export const PSU_FORM = { sfx: { d: 2300, h: 1460, w: 2875 }, atx: { d: 3220, h: 1978, w: 3450 } } as const;
+export type PsuForm = (typeof PSU_FORM)['sfx' | 'atx'];
+/** Each case's supply bay: SFX in the Mini and the Micro, ATX in the Mid and the Full (an SFX unit fits it on an adapter plate). */
+export const caseForm = (caseTier: number): PsuForm => (caseTier >= 2 ? PSU_FORM.atx : PSU_FORM.sfx);
+/** How much deeper each case's basement is than the old 59 mm one: room for its supply's height on the floor's rubber strips, under the shroud. */
+export const BASE_GROW = [350, 350, 800, 800];
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
 /** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: a 24 inch monitor (about as wide as the case is deep) next to the case. */
@@ -349,7 +359,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   PSU = { x: BD_X, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
   PSU_REAR_FAN = cg.tier >= 1 ? { x: IO_X + 14, y: PSU.y + 40, w: WALL_T - 28, h: 700 } : null;
-  PC_POWER = { x: IO_X, y: PSU.y + (PSU_REAR_FAN ? 1010 : 560) };
+  // (the inlet at the middle of the supply's rear: its bay stands on the 3 mm rubber strips, basement3d's `PSU_FEET`, on the basement's floor 150 over the case's bottom)
+  PC_POWER = { x: IO_X, y: south + 1530 + (BASE_GROW[cg.tier] ?? 0) - caseForm(cg.tier).h / 2 };
   // the unit sits at the east end under the cable sockets; the shroud (readout panel at its west end, then the vents) fills the rest
   PSU_UNIT = { x: psuEast - 2500, y: PSU.y, w: 2500, h: PSU.h };
   PSU_FAN = { x: PSU_UNIT.x + 640, y: PSU.y + 550, r: 430 };
@@ -378,9 +389,9 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const nf = mounts.fans.front, stack = (cg.tier === 0 ? MINI_FAN_Y : 440 + RAD_TANK) + nf * FAN_LEN + (nf - 1) * 20 + RAD_TANK + 100;
   const tall = Math.min(...Array.from({ length: cg.tier + 1 }, (_, t) => { const tg = geoOf(t); return Math.min(tg.vrmSink.y, tg.dSink.y, tg.vrmFan.y, tg.dFan.y); }));
   const headTop = mounts.fans.top > 0 ? tall - 60 - (40 + TOP_FAN_T + RAD_ROOM) - 400 : Infinity;
-  const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack, headTop), bottom = south + 1750;
+  const ce = glassEast + 160, caseW = ce - IO_X, top = Math.min(cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, south + 1490 - stack, headTop), grow = BASE_GROW[cg.tier] ?? 0, bottom = south + 1750 + grow;
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
-  CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 - (top + 400) };
+  CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 + grow - (top + 400) };
   CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
   CASE_PANEL = { x: IO_X, y: top, w: caseW, h: 400 };
   POWER_BTN = { x: ce - 600, y: top + 200, r: 130 };
