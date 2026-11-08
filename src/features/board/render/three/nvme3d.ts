@@ -154,24 +154,24 @@ function heatsink(g: Group, X0: number, X1: number, Y0: number, Y1: number, zc: 
 // ------------------------------------------------------------------ the print
 const PX = 40;
 const capOf = (look: NvmeLook) => `${Math.round(look.capacityBytes / 1024)}K`;
-const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif', MONO = '"Consolas", "DejaVu Sans Mono", monospace';
+export const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif', MONO = '"Consolas", "DejaVu Sans Mono", monospace';
 
-function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
 }
 /** A seeded random run (the barcodes and the matrix code are the same on every copy of a stick). */
-const seeded = (s: number) => () => ((s = (s * 16807) % 2147483647) / 2147483647);
-const hash = (t: string) => [...t].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 2147483646, 7) + 1;
+export const seeded = (s: number) => () => ((s = (s * 16807) % 2147483647) / 2147483647);
+export const hash = (t: string) => [...t].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 2147483646, 7) + 1;
 
 /** A linear barcode in `ink` over x .. x + w (its quiet zones inside), its digits under it. */
-function barcode(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number, ink: string, digits: string) {
+export function barcode(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number, ink: string, digits: string) {
   const rnd = seeded(seed), unit = w / 110;
   c.fillStyle = ink;
   for (let u = 6; u < 104;) { const bar = 1 + Math.floor(rnd() * 3), gap = 1 + Math.floor(rnd() * 3); c.fillRect(x + u * unit, y, bar * unit, h); u += bar + gap; }
   c.font = `500 ${h * 0.28}px ${MONO}`; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText(digits, x + w / 2, y + h + h * 0.06); c.textAlign = 'left';
 }
 /** A matrix code: its solid L finder on the west and south edges, its clock track on the north and east. */
-function matrix(c: CanvasRenderingContext2D, x: number, y: number, s: number, seed: number, ink: string) {
+export function matrix(c: CanvasRenderingContext2D, x: number, y: number, s: number, seed: number, ink: string) {
   const n = 16, k = s / n, rnd = seeded(seed);
   c.fillStyle = ink;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {

@@ -13,7 +13,9 @@ import { kitFit, radiatorGrade } from '../cooler';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { cardModel } from './card3d';
-import { basementPlan, cage, shroud } from './basement3d';
+import { basementPlan, shroud } from './basement3d';
+import { cagePlan, driveCage } from './drivecage3d';
+import { sataDriveModel } from './drive3d';
 import { psuUnit } from './psu3d';
 import { caseModel, innerStrips } from './case3d';
 import { fanHub } from './fanhub3d';
@@ -22,7 +24,6 @@ import { coolerModel, radiatorModel } from './cooler3d';
 import { cpuModel } from './cpu3d';
 import { fanDepth, fanPart } from './fans3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
-import { driveRaise, sataDrive } from './parts3d';
 import { tpmModel } from './tpm3d';
 import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
@@ -72,7 +73,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
     return centred(withLayout(() => {
       const m = caseModel(kind, T), g = new Group(), plan = basementPlan();
       // (the side panel hangs in its door's pivot group: added alone it would stand off the body by the pivot's offset)
-      g.add(m.root, m.door, shroud(plan, m.shroud, m.rivet, m.screw), cage(plan, kind), fanHub(), leadCoil());
+      g.add(m.root, m.door, shroud(plan, m.shroud, m.rivet, m.screw), driveCage(cagePlan(), kind), fanHub(), leadCoil());
       for (const s of innerStrips(kind, m).roots) g.add(s);
       return g;
     }, tier));
@@ -110,13 +111,14 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
       return centred(fanPart(fs, fanLen(fs.size), fanDepth(fs.size)).root);
     }
     case 'storage': {
-      const ss = spec as StorageSpec, kind = driveKindOf(ss.visual), slot = kind === 'ssd-nvme' ? 'm20' : 'sata0';
-      return upright(withLayout(() => withArt((art) => {
-        const g = new Group(), b = driveBody(kind, slot);
-        if (kind === 'ssd-nvme') nvmeStick(g, b, nvmeLook(ss));
-        else sataDrive(g, kind === 'hdd', b, 0, driveRaise(art, T, kind, slot, ss.name, ss.capacityBytes));
+      // (an M.2 stick in board space, stood up; a SATA drive lies flat as it lies on its tray, its label up)
+      const ss = spec as StorageSpec, kind = driveKindOf(ss.visual);
+      if (kind !== 'ssd-nvme') return centred(sataDriveModel(kind === 'hdd', { name: ss.name, capacityBytes: ss.capacityBytes }).root);
+      return upright(withLayout(() => {
+        const g = new Group();
+        nvmeStick(g, driveBody(kind, 'm20'), nvmeLook(ss));
         return g;
-      })));
+      }));
     }
     case 'psu': {
       const ps = spec as PsuSpec;

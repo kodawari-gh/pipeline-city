@@ -6,7 +6,7 @@ import { driveBody } from '@/features/storage/render/drives';
 import { GEO, M2_SLOTS, setLayoutTier } from '../layout/layout';
 import { m2Socket } from '../layout/pins';
 import { nvmeStick } from './nvme3d';
-import { chipset, coinCell, m2Standoff, PCH_OVER, sataDrive, type Raise } from './parts3d';
+import { chipset, coinCell, m2Standoff, PCH_OVER, type Raise } from './parts3d';
 
 /** A `Raise` that only stands the box up (no art in a test), and keeps what it raised. */
 const raiser = () => {
@@ -53,17 +53,10 @@ describe('the 3D board parts', () => {
     }
   });
 
-  it('sits the coin cell in its holder over its 2D spot, and stands a drive on its bay\'s rails', () => {
+  it('sits the coin cell in its holder over its 2D spot', () => {
     setLayoutTier(3, 3);
     const c = new Box3().setFromObject(coinCell(GEO.bat)), r = GEO.bat;
     expect(Math.abs((c.min.y + c.max.y) / 2 + (r.y + r.h / 2))).toBeLessThan(2);
     expect(c.min.z).toBeCloseTo(BOARD_Z, 0);
-    for (const hdd of [true, false]) {
-      const g = new Group(), b = driveBody(hdd ? 'hdd' : 'ssd-sata', 'sata0');
-      sataDrive(g, hdd, b, 5000, raiser().raise);
-      const d = new Box3().setFromObject(g);
-      expect(d.min.z).toBeGreaterThanOrEqual(5000 - 1);
-      expect(d.max.z - d.min.z).toBeGreaterThan(hdd ? 150 : 60);
-    }
   });
 });

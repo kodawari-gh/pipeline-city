@@ -1,19 +1,14 @@
 // The board's smaller hardware as real parts (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"), where the 2D drawing stands for a part seen from
-// above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder, a SATA drive's cast
-// body with its lid and connectors (the TPM module: tpm3d.ts).
-// Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures; `driveRaise` gives the drives their own
-// drawing, the same in the case, in Build my PC and in the gallery.
+// above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder (the SATA drives: drive3d.ts;
+// the TPM module: tpm3d.ts).
+// Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { Container, Graphics } from 'pixi.js';
-import type { Theme } from '@/core/render/theme';
 import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { drawDriveLive, driveArt, type DriveKind } from '@/features/storage/render/drives';
 import { pchFixings, pchPlateau } from '../boardArt';
 import { m2Standoffs } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
-import type { ArtSet } from './artset3d';
 import { brushed, grow, NONE, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 
 /** Stand a rect up from depth z0 to z1, its top wearing the 2D drawing of that rect (`bevel` rounds a moulded body). */
@@ -112,38 +107,3 @@ export function coinCell(r: RectLike): Group {
   return g;
 }
 
-// ------------------------------------------------------------------ the drives' drawing
-/** A drive's raised parts wear its 2D drawing (`driveArt`: the label, the window, the chips) with its moving parts at rest. */
-export function driveRaise(art: ArtSet, T: Theme, kind: DriveKind, slot: string, name: string, capacityBytes: number): Raise {
-  return art.raise(art.baker(() => {
-    const c = new Container(), live = new Graphics();
-    drawDriveLive(live, T, kind, slot, { spin: 0.4, head: 0.35, led: 0, burnt: false });
-    c.addChild(driveArt(T, kind, slot, name, `${Math.round(capacityBytes / 1024)}K`), live);
-    return c;
-  }));
-}
-
-// ------------------------------------------------------------------ SATA drives
-/**
- * A SATA drive on its bay's rails over its 2D body `b`, from depth z: a hard disk's cast base with its lid inset on top (the lid wears the 2D
- * drawing) and the lid's screws round it; an SSD's slim two-part shell. Both have the SATA power and data sockets on their west end.
- */
-export function sataDrive(g: Group, hdd: boolean, b: RectLike, z: number, raise: Raise): MeshStandardMaterial {
-  const shell = mat(hdd ? 0x6f7680 : 0x2d3035, { metalness: hdd ? 0.75 : 0.3, roughness: hdd ? 0.42 : 0.35 });
-  const black = mat(0x0b0d11, { roughness: 0.55 });
-  if (hdd) {
-    g.add(softBox(b, z, z + 150, shell, 16));
-    const lid = { x: b.x + 10, y: b.y + 10, w: b.w - 20, h: b.h - 20 };
-    raise(g, lid, z + 150, z + 176, mat(0xa9b0b9, { metalness: 0.8, roughness: 0.32 }), 12);
-    const k = Math.min(b.w, b.h) * 0.06;
-    for (const [fx, fy] of [[0.04, 0.06], [0.5, 0.04], [0.96, 0.06], [0.04, 0.94], [0.5, 0.96], [0.96, 0.94]] as const) screw(g, b.x + b.w * fx, b.y + b.h * fy, z + 176, k * 0.5);
-  } else {
-    // a base tray and a top shell meeting at a seam, the top wearing the label
-    g.add(softBox(b, z, z + 34, black, 10));
-    raise(g, { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8 }, z + 36, z + 76, shell, 12);
-  }
-  // the SATA sockets on the west end: the long power one and the short data one
-  const h = hdd ? 150 : 70, mid = z + h * 0.5;
-  g.add(rectBox({ x: b.x - 18, y: b.y + b.h * 0.18, w: 22, h: b.h * 0.34 }, mid - 18, mid + 18, black), rectBox({ x: b.x - 18, y: b.y + b.h * 0.58, w: 22, h: b.h * 0.2 }, mid - 18, mid + 18, black));
-  return shell;
-}

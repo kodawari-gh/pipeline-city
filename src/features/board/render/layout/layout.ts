@@ -238,6 +238,8 @@ export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
 export let BAY_CELLS: Rect[] = [];
 /** Cell size and pitch in the cage (the drive art is drawn at its design size, 700 x 500, and scaled to the cell). */
 export const CELL_W = 1050, CELL_H = 725, CELL_PITCH = 785;
+/** The 3D drive cage's length along the case (drivecage3d.ts): a 3.5 in. drive lies across it on its tray, 109 mm with the walls; the 2D cells sit at its west end. */
+export const CAGE_W = 2500;
 /** Width of a front fan module (seen edge-on) east of the cage: a fan's thickness (`TOP_FAN_T`). */
 export const FAN_W = TOP_FAN_T;
 /** How far under the Mini's top its front fans start: under the bay covers of its face. */
@@ -245,9 +247,9 @@ export const MINI_FAN_Y = 1880;
 /** x of the SATA power lead that runs up the cage's west side (from the PSU), and the cage's west edge. */
 export let POWER_LEAD_X = 4070;
 /**
- * The fan hub in the case's floor corner (east of the PSU, under the drive cage): a small board that feeds every case fan. It takes power from
+ * The fan hub in the case's floor corner (east of the PSU, under the shroud's shelf the drive cage stands on): a small board that feeds every case fan. It takes power from
  * a socket on the PSU's east face (`HUB_POWER_Y` is the socket's y), its control from the board's SYS_FAN header over a cable that runs under
- * the board (see `fanTrunkArt` in case.ts), and sends a cable to each fan, which goes behind the tray through `FAN_SLOT`.
+ * the board (see `fanTrunkArt` in case.ts), and sends a cable to each fan, which goes behind the tray through `FAN_SLOT` (under the shelf).
  */
 export let FAN_HUB: Rect = { x: 4180, y: 3000, w: 1100, h: 520 };
 export let FAN_SLOT: Rect = { x: 4240, y: 2800, w: 980, h: 70 };
@@ -373,15 +375,15 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
   POWER_LEAD_X = cageX - 130;
   FAN_HUB = { x: east + 780 + GUTTER_EXTRA, y: south + 470, w: 1140, h: 780 };
-  FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 230, w: FAN_HUB.w - 120, h: 70 };
+  FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 180, w: FAN_HUB.w - 120, h: 70 };
   HUB_POWER_Y = south + 760;
   SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + GUTTER_EXTRA + i * 22 }));
   // the case's fan size sets the mounts' length and the case's depth
   const mounts = CASE_TIERS[cg.tier]!;
   FAN_LEN = fanLen(mounts.fanSize); TOP_FAN_PITCH = FAN_LEN + 80;
   setCaseDepth(cg.tier, FAN_LEN);
-  // the front fans stand in front of the cage with a radiator's room between (`RAD_ROOM`), the perforated front panel closes the glass
-  const glassEast = cageX + CELL_W + 70 + RAD_ROOM + FAN_W + 20 + 170;
+  // the front fans stand in front of the cage (its 3D length, `CAGE_W`) with a radiator's room between (`RAD_ROOM`), the perforated front panel closes the glass
+  const glassEast = cageX + CAGE_W + 70 + RAD_ROOM + FAN_W + 20 + 170;
   // the case's top: over the board's head room (the 8-pin cable's); over the front stack, from the top (a radiator's end tank over and under the
   // fans, room under it for the last fan's cable stub, over the case's inner floor: the Mini's fans start under the bay covers of its face,
   // `frontFanRects`); and with top fans over their stack (the fans and a radiator's room under them, clear of the tall parts at the board's top

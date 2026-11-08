@@ -13,6 +13,7 @@ import type { CaseKind, Cuts } from '@/features/room/render/shell/casedecor';
 import { geoOf, TIER_GEO } from '../layout/boardlayout';
 import { CASE, CASE_BD, FAN_SLOT, GEO, LAYOUT_CASE, PSU, WALL_T } from '../layout/layout';
 import { GROMMETS, kindTone, type Frame } from './casedetail3d';
+import { cageGrommet, cagePlan } from './drivecage3d';
 import { decal, FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
 import { cableMesh, fanPlug, fromSlot, grommet, hung, TRAY_Z, type Env, type Look } from './wires3d';
 
@@ -133,6 +134,8 @@ export function trayDetail(f: Frame, inner: Material): Group {
   if (k === 'show') for (let i = 0; i < 3; i++) g.add(grommet({ x, y: bd.y + 400 + i * (bd.h * 0.3), w: 240, h: bd.h * 0.22 }, style));
   const atx = geo.atx, cpw = geo.cpw;
   g.add(grommet({ x: east + 620, y: atx.y + atx.h / 2 - 340, w: 60, h: 680 }, style), grommet({ x: cpw.x - 60, y: bd.y - 270, w: cpw.w + 120, h: 60 }, style), grommet(FAN_SLOT, style));
+  // the drives' cables go back through a slot behind the drive cage (drivecage3d.ts)
+  g.add(grommet(cageGrommet(cagePlan()), style));
   if (geo.sata.length) {
     const s0 = geo.sata[0]!, sn = geo.sata[geo.sata.length - 1]!;
     g.add(grommet({ x: east + 390, y: s0.y - 60, w: 60, h: sn.y + sn.h - s0.y + 120 }, style));

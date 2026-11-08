@@ -51,8 +51,9 @@ const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-/** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it. */
-export const motionOf = (kind: string, slot: string): string => (kind === 'fan' && !fanHost(slot) ? `fan-${slot.replace(/\d+$/, '')}` : kind);
+/** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
+ *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket. */
+export const motionOf = (kind: string, slot: string): string => (kind === 'fan' && !fanHost(slot) ? `fan-${slot.replace(/\d+$/, '')}` : kind === 'storage' && slot.startsWith('sata') ? 'tray' : kind);
 
 /** The bin: every case, board and part kind that has a 3D model in the machine. */
 export function binParts(): BinPart[] {

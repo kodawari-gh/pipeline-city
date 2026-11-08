@@ -49,7 +49,9 @@ import { SINK_FAN_MID, sinkBody } from './sink3d';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
-import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, shroud } from './basement3d';
+import { basementPlan, shroud } from './basement3d';
+import { cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit } from './drivecage3d';
+import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
 import { frontPanelLeads } from './casetray3d';
@@ -63,7 +65,6 @@ import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
-import { driveRaise, sataDrive } from './parts3d';
 import { tpmModel, TPM_Z } from './tpm3d';
 import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
@@ -137,8 +138,9 @@ export class Machine3D {
   private ramMap: RamMap3D | null = null;
   /** The cards by slot: their power leads plug into the top edge and fade with the cooler. */
   private cards = new Map<string, Card3D>();
-  /** The basement under the shroud: the power supply, the drive cage and its bays (`basementPlan`). */
+  /** The basement under the shroud, the power supply's (`basementPlan`); the drive cage over it, its trays one a bay (`cagePlan`). */
   private readonly plan = basementPlan();
+  private readonly cage = cagePlan();
   /** The parts the cables go round (their boxes, `caseEnv`); `userData` says which a cable may start in (`cooler`, `sink`, `radiator`). */
   private obstacles: Object3D[] = [];
   /** Their boxes, taken once as the parts stand (up close a card swings down flat: the cables still go round it standing). */
@@ -223,9 +225,10 @@ export class Machine3D {
     this.accent.setHex(cm.accent);
     this.strip = cm.strip;
     for (const s of cm.spins) this.spin(s);
-    // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
-    // stepped cage the drives stand in (`basement3d.ts`)
-    shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), cage(this.plan, kind));
+    // the basement's shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", `basement3d.ts`); over it the drive
+    // cage with an empty tray in each free bay (a fitted drive's tray is its device's, `drivecage3d.ts`)
+    const bays = new Set(this.devs.filter((d) => d.kind === 'storage' && d.slot.startsWith('sata')).map((d) => d.slot));
+    shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), driveCage(this.cage, kind, bays));
     // light strips along the inside of the top and the front (`innerStrips`)
     const strips = innerStrips(kind, cm);
     for (const m of strips.roots) this.root.add(m);
@@ -318,7 +321,7 @@ export class Machine3D {
     // the back wall's slot covers, where no card's bracket stands; an empty bay is picked by an unseen plate over its mouth
     const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
     PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotBlank(nicY(i), blank)); });
-    for (const bay of this.plan.bays) if (!filled.has(`sata${bay.slot}`)) this.root.add(tag(bayHit(bay), `sata${bay.slot}`));
+    for (const t of this.cage.trays) if (!filled.has(`sata${t.slot}`)) this.root.add(tag(trayHit(t), `sata${t.slot}`));
   }
 
   // ------------------------------------------------------------------ parts
@@ -403,20 +406,20 @@ export class Machine3D {
       }
       case 'storage': {
         const kind = driveKindOf(visual), b = driveBody(kind, d.slot);
-        // an M.2 stick lies on its socket and standoff; a SATA drive is built at its 2D body and moved into its bay in the basement's cage
+        // an M.2 stick lies on its socket and standoff; a SATA drive (drive3d.ts, at its real size) lies on its tray in its bay of the cage, the tray with it
         if (kind === 'ssd-nvme') { this.softSkin(d.id, nvmeStick(g, b, nvmeLook(spec as StorageSpec))); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
-        const raise = driveRaise(this.art, T, kind, d.slot, spec.name, (spec as StorageSpec).capacityBytes);
-        const bay = this.plan.bays[idx(d.slot)], drive = new Group();
-        this.skin(d.id, sataDrive(drive, kind === 'hdd', b, 0, raise));
-        if (bay) {
-          const placed = intoBay(drive, b, driveDepth(kind), bay), k = bay.k, mid = driveDepth(kind) * 0.42;
-          g.add(placed);
-          // (the drive is its 2D body drawn at k of its size: its detail shows k times closer)
-          this.railOf(d.id, placed, DEVICE_LOD.disk.fade[1] / k);
-          // the sockets on its west end (`sataDrive`): power over data
-          const w = (y: number): V3 => [placed.position.x + k * (b.x - 22), placed.position.y - k * (b.y + b.h * y), placed.position.z + k * mid];
-          this.driveSockets.set(d.slot, { power: w(0.35), data: w(0.68) });
-        }
+        const spot = this.cage.trays[idx(d.slot)];
+        if (!spot) break;
+        const hdd = kind === 'hdd', dm = sataDriveModel(hdd, { name: spec.name, capacityBytes: (spec as StorageSpec).capacityBytes }), o = onTray(hdd);
+        const tray = trayAt(CASE_KIND[LAYOUT_CASE] ?? 'gamer', spot, hdd ? 'hdd' : 'ssd');
+        dm.root.position.set(o.x, o.y, o.z);
+        tray.add(dm.root);
+        g.add(tray);
+        this.skin(d.id, dm.body);
+        this.railOf(d.id, tray, DEVICE_LOD.disk.fade[1]);
+        // its receptacles at its back, toward the tray sheet: the cables plug in there (`setCables`)
+        const w = (p: V3): V3 => [spot.x + o.x + p[0], spot.y + o.y + p[1], spot.z + o.z + p[2]];
+        this.driveSockets.set(d.slot, { data: w(dm.data), power: w(dm.power) });
         break;
       }
       case 'vrm-sink': case 'ram-sink': {
@@ -462,10 +465,10 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ cables
-  /** What the cables inside the case keep clear of: the tray, the glass, the top, the shroud, the board, and the parts that stand in their way. */
+  /** What the cables inside the case keep clear of: the tray, the glass, the top, the shroud, the drive cage, the board, and the parts that stand in their way. */
   private caseEnv(skip: readonly Object3D[] = []): Env {
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
-    const solids: RopeSolid[] = [box(BD, CASE_Z, BOARD_Z), box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT)];
+    const solids: RopeSolid[] = [box(BD, CASE_Z, BOARD_Z), box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT), cageBox(this.cage)];
     if (this.ram) solids.push(box(this.ram, BOARD_Z, BOARD_Z + 380));
     for (const [o, b] of this.solids) if (!skip.includes(o)) solids.push(b);
     return {
@@ -539,9 +542,11 @@ export class Machine3D {
       const i = idx(d.slot), port = GEO.sata[i], g = tag(new Group(), d.id);
       if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, red, env, { natural: true, slack: 1.05, stiff: 0.7, n: 18 })); }
       const drive = this.driveSockets.get(d.slot);
-      if (drive) for (const [sock, look, dz] of [[drive.data, red, 0], [drive.power, black, 60]] as const) {
-        const back: RopeEnd = { at: [sock[0] - 260, -(this.plan.floor - 60), cageBack(this.plan) + 30 + dz], dir: [0, 0, 1] };
-        g.add(hung({ at: sock, dir: [-1, 0, 0] }, back, look, { planes: [], solids: [] }, { slack: 1.2, extra: 100, stiff: 0.6, n: 16 }));
+      if (drive) for (const [sock, look, power] of [[drive.data, red, false], [drive.power, black, true]] as const) {
+        // its plug pushed into the receptacle, the cable back into the slot in the tray sheet behind the cage (`cageGrommet`)
+        const p = drivePlug(power, sock, power ? 0x16171b : 0xb3262f), slot = cageGrommet(this.cage);
+        const back: RopeEnd = { at: [slot.x + slot.w * (power ? 0.62 : 0.38), Math.min(-(slot.y + 80), Math.max(-(slot.y + slot.h - 80), sock[1] - 260)), TRAY_Z - 30], dir: [0, 0, 1] };
+        g.add(p.root, hung(p.end, back, look, { planes: [], solids: [] }, { slack: 1.15, extra: 60, stiff: 0.7, n: 16 }));
       }
       this.wires.add(g);
     }
