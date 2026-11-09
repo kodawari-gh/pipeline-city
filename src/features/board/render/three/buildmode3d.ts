@@ -623,7 +623,9 @@ export class BuildStage {
     const pick = (kind: DeviceKind): string | null => {
       // (a RAID module holds data only: no OS boots from it, so the benchmark's jobs could not run)
       const all = [...specsOfKind(kind as never)].filter((s) => !(s as { mirror?: boolean }).mirror).sort((a, b) => a.tier - b.tier || a.price - b.price);
-      return all.length ? all[Math.min(all.length - 1, Math.round(p.level * (all.length - 1)))]!.id : null;
+      // (a drive rounds up: the slowest drives make every job wait on the disk)
+      const at = p.level * (all.length - 1);
+      return all.length ? all[Math.min(all.length - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at))]!.id : null;
     };
     const put = (id: string | null, slot?: string): boolean => {
       if (!id) return false;
