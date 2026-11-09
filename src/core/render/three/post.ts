@@ -180,6 +180,10 @@ export class Post {
     this.outline.enabled = false;
     this.composer.addPass(this.outline);
     this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
+    // A lamp's glint at some angles overflows the half-float target (Inf, then NaN in the blur): one such pixel blanks the whole frame. The
+    // high-pass reads a sane, capped colour.
+    const hp = this.bloom.materialHighPassFilter;
+    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 32.0 ) );');
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.grade);
     this.local = new LocalEye(w, h);
