@@ -170,7 +170,8 @@ export function BuildMode() {
       </aside>
       <main class="bld-stage">
         <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
-        <div class="bld-title" aria-hidden="true">Build my PC</div>
+        <div class="mode-title" aria-hidden="true">Build my PC</div>
+        <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
         {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
         {failed && <div class="bld-note mute">3D is not available here.</div>}
         <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>
@@ -182,9 +183,7 @@ export function BuildMode() {
             {SPEEDS.map((x) => <button key={x} class={stage?.speed.value === x ? 'on' : ''} aria-pressed={stage?.speed.value === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
           </div>
           <button disabled={busy} onClick={() => stage?.reset()}>Full rig</button>
-          <button disabled={busy} onClick={() => stage?.clear()}>Empty</button>
-          <button title="Close" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-        </div>
+          <button disabled={busy} onClick={() => stage?.clear()}>Empty</button>        </div>
       </main>
       <aside class="bld-inst">
         <div class="bld-h">In the machine</div>
@@ -200,8 +199,8 @@ export function BuildMode() {
           ))}
           {devices.length === 0 && <li class="mute">Nothing fitted yet.</li>}
         </ul>
-        <div class="bld-h bld-h2">What was done</div>
-        <ol class="bld-log">{(st?.log ?? []).slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>
+        {(st?.log.length ?? 0) > 0 && <div class="bld-h bld-h2">What was done</div>}
+        {(st?.log.length ?? 0) > 0 && <ol class="bld-log">{st!.log.slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>}
       </aside>
       {drag && (
         <div class={`bld-ghost ${drag.over ?? ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">

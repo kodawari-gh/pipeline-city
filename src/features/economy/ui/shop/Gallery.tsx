@@ -36,7 +36,7 @@ export function Gallery() {
   return (
     <div class="gallery" role="dialog" aria-modal="true" aria-label="Gallery">
       <nav class="gal-rail" aria-label="Categories">
-        <div class="gal-h">Gallery</div>
+        <div class="gal-h">Categories</div>
         {all.map((g, i) => (
           <button key={g.key} class={i === gi ? 'on' : ''} aria-pressed={i === gi} onClick={() => { setGi(i); setIi(0); }}>
             <Icon name={kindIcon(g.kind)} size={14} /> {kindLabel(g.kind)}
@@ -45,6 +45,8 @@ export function Gallery() {
       </nav>
       <main class="gal-main">
         <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} />
+        <div class="mode-title" aria-hidden="true">Gallery</div>
+        <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { galleryOpen.value = false; }}><Icon name="close" size={12} /></button>
         <div class="gal-title">
           <button class="gal-arrow" aria-label="Previous part" title="Previous part (←)" onClick={() => setIi((i) => (i - 1 + group.items.length) % group.items.length)}>‹</button>
           <div class="gal-name"><b>{item.name}</b><span class="mute">{item.note}</span></div>
@@ -56,7 +58,7 @@ export function Gallery() {
             <button key={x.id} role="option" aria-selected={x === item} class={x === item ? 'on' : ''} onClick={() => setIi(i)}>{x.name}</button>
           ))}
         </div>
-        <div class="mute gal-hint">Drag to turn · right-drag to pan · scroll to zoom · ← → part · ↑ ↓ category · Esc to leave</div>
+        <div class="mute mode-hint">Drag to turn · right-drag to pan · scroll to zoom · ← → part · ↑ ↓ category · Esc to leave</div>
       </main>
     </div>
   );

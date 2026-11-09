@@ -1239,35 +1239,41 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .shop-title, .alm-title, .inv-title { font-size: var(--fs-title); font-weight: 700; }
 
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
-.gallery { position: fixed; inset: 0; z-index: 70; display: flex; gap: 1rem; padding: 1.2rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 93%, transparent); backdrop-filter: blur(0.6rem); animation: fade-in .3s ease both; }
-.gal-rail { display: flex; flex-direction: column; gap: 0.35rem; width: 12.5rem; flex: none; overflow-y: auto; }
-.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.5rem 0.7rem; font-size: 0.85rem; white-space: nowrap; }
-.gal-h { font: 750 1.2rem var(--ui); margin-bottom: 0.6rem; }
-.gal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+/* The two part-viewing modes (Gallery, Build my PC) share one look: a full-screen frame, glass side panels with a heading, a dark 3D stage with the mode title top left and a round close button top right, and a hint line. */
+.gallery, .build { position: fixed; inset: 0; z-index: 70; display: flex; gap: 0.8rem; padding: 1rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 95%, transparent); backdrop-filter: blur(0.6rem); animation: fade-in .3s ease both; }
+.gal-rail, .bld-bin, .bld-inst { display: flex; flex-direction: column; gap: 0.5rem; flex: none; min-height: 0; box-sizing: border-box; padding: 0.7rem; border: 1px solid var(--glass-line); border-radius: 0.7rem; background: var(--panel); }
+.gal-h, .bld-h { font: 750 1.05rem var(--ui); }
+.gal-h { margin-bottom: 0.2rem; }
+.mode-title { position: absolute; top: 0.8rem; left: 1rem; z-index: 2; font: 750 1rem var(--ui); color: #e8edff; pointer-events: none; text-shadow: 0 0.1rem 0.5rem #000; }
+.mode-close { position: absolute; top: 0.6rem; right: 0.7rem; z-index: 2; width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: #e8edff; background: rgba(10, 14, 34, 0.6); border-color: rgba(150, 170, 255, 0.3); }
+.mode-close:hover, .mode-close:focus-visible { border-color: var(--accent); }
+.mode-hint { font-size: 0.75rem; }
+.gal-rail { width: 12.5rem; gap: 0.3rem; overflow-y: auto; }
+.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.45rem 0.7rem; font-size: 0.82rem; white-space: nowrap; }
+.gal-main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .gal-main .showcase { flex: 1; min-height: 0; margin: 0; }
-.gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; }
+.gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; border-radius: 0.7rem; }
+.gal-main .showcase-bar button[aria-label="Close 3D view"], .gal-main .showcase-hint { display: none; }
+.gal-main .showcase-bar { justify-content: flex-end; }
 .gal-title { display: flex; align-items: center; gap: 0.7rem; font-size: 1.1rem; }
 .gal-name { display: flex; align-items: baseline; gap: 0.7rem; min-width: 0; flex: 1; flex-wrap: wrap; }
 .gal-arrow { flex: none; width: 2.4rem; height: 2.4rem; padding: 0; font-size: 1.7rem; line-height: 1; border-radius: 50%; display: grid; place-items: center; }
 .gal-count { flex: none; font-size: 0.8rem; }
-.gal-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.gal-items { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.gal-items button { padding: 0.3rem 0.5rem; font-size: 0.72rem; }
 .gal-items button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
-.gal-hint { font-size: 0.7rem; }
 @media (max-width: 40em) { .gallery { flex-direction: column; } .gal-rail { width: auto; flex-direction: row; flex-wrap: wrap; } .gal-h { display: none; } }
 
 /* Build my PC (features/board/ui/BuildMode.tsx): the machine alone on a stage, a bin of parts on the left, what is fitted on the right. */
-.build { position: fixed; inset: 0; z-index: 70; display: flex; gap: 0.8rem; padding: 1rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 96%, transparent); animation: fade-in .3s ease both; }
-.bld-bin, .bld-inst { display: flex; flex-direction: column; gap: 0.5rem; width: 18rem; flex: none; min-height: 0; border-radius: 0.6rem; transition: box-shadow .15s; }
-.bld-bin { padding: 0.4rem; }
+.bld-bin, .bld-inst { width: 18rem; transition: box-shadow .15s; }
 .bld-bin.drop { box-shadow: inset 0 0 0 0.133rem var(--accent); }
-.bld-h { font: 750 1.1rem var(--ui); }
-.bld-h2 { margin-top: 0.8rem; font-size: 0.9rem; }
+.bld-h2 { margin-top: 0.6rem; }
 .bld-kinds { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .bld-kinds button { padding: 0.3rem 0.5rem; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.3rem; }
 .bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; }
 .bld-sub { margin-top: 0.3rem; font: 650 0.7rem var(--ui); letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
 .bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: 0.4rem; }
-.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.4rem; border: 1px solid var(--line, rgba(127, 127, 127, 0.35)); border-radius: 0.5rem; background: var(--glass, transparent); cursor: grab; touch-action: none; user-select: none; }
+.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.4rem; border: 1px solid var(--glass-line); border-radius: 0.5rem; background: var(--glass-hi); cursor: grab; touch-action: none; user-select: none; }
 .bld-tile:hover, .bld-tile:focus-visible { border-color: var(--accent); }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
 .bld-tile.spare { border-style: dashed; }
@@ -1275,20 +1281,20 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-tag { position: absolute; top: 0.25rem; right: 0.3rem; padding: 0 0.3rem; border-radius: 0.3rem; font-size: 0.6rem; background: var(--accent); color: var(--on); }
 .bld-kinds button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .bld-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.bld-host { position: relative; flex: 1; min-height: 12rem; border-radius: 0.6rem; overflow: hidden; background: #0e1118; }
+.bld-host { position: relative; flex: 1; min-height: 12rem; border-radius: 0.7rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, #2a3042, #11141c); }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0; border: 0.133rem solid var(--accent); border-radius: inherit; pointer-events: none; }
 .bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, -60%); pointer-events: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.7rem 0.35rem 0.35rem; border-radius: 0.6rem; background: var(--menu-solid); box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.4); font-size: 0.75rem; white-space: nowrap; }
 .bld-ghost em { display: block; font-style: normal; opacity: 0.7; }
 .bld-ghost.stage, .bld-ghost.bin { outline: 0.133rem solid var(--accent); }
 .bld-bar button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; }
-.bld-title { position: absolute; top: 0.8rem; left: 0.9rem; font: 750 1rem var(--ui); pointer-events: none; text-shadow: 0 0.1rem 0.5rem #000; }
 .bld-step { position: absolute; left: 1rem; right: 1rem; bottom: 3.6rem; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.5rem #000; pointer-events: none; }
 .bld-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.bld-hint { font-size: 0.7rem; margin-right: auto; }
+.bld-hint { font-size: 0.75rem; margin-right: auto; }
 .bld-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; flex: 1 1 0; min-height: 6rem; }
-.bld-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; padding: 0.15rem 0.25rem; border-radius: 0.35rem; cursor: grab; touch-action: none; user-select: none; }
-.bld-list li.on { outline: 1px solid var(--accent); }
+.bld-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; padding: 0.25rem 0.4rem; border: 1px solid var(--glass-line); background: var(--glass-hi); border-radius: 0.5rem; cursor: grab; touch-action: none; user-select: none; }
+.bld-list li:hover { border-color: var(--accent); }
+.bld-list li.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .bld-list button { padding: 0.2rem 0.5rem; font-size: 0.72rem; flex: none; }
-.bld-log { margin: 0; padding-left: 1.1rem; font-size: 0.72rem; overflow-y: auto; min-height: 0; max-height: 30%; flex: none; }
+.bld-log { margin: 0; padding-left: 1.1rem; font-size: 0.72rem; overflow-y: auto; min-height: 0; max-height: 9rem; flex: none; }
 @media (max-width: 52em) { .build { flex-direction: column; overflow-y: auto; } .bld-bin, .bld-inst { width: auto; } .bld-host { min-height: 22rem; } }
