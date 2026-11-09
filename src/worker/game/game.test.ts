@@ -150,7 +150,7 @@ describe("queue, reputation and demand", () => {
     expect(rs).toBeLessThan(0.6);
     expect(rf).toBeGreaterThan(rs * 1.25);
     expect(doneFast).toBeGreaterThan(doneSlow * 1.5);
-  });
+  }, 30000); // (about 2.5 s alone: the full suite's load made it time out at the default)
 
   it("no clients arrive before the first boot, and the first key's clock starts at the first boot", () => {
     const g = new Game({ seed: 1 });
