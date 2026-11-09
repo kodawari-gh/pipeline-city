@@ -58,7 +58,7 @@ const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
-const SETTLE_SECONDS = 0.3, SETTLE_DEPTH = 14;
+const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
