@@ -1303,19 +1303,18 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: 19rem; transition: border-color .15s, box-shadow .15s; }
 .bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
 .bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: 17rem; }
-.bld-kinds { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.25rem; }
-.mode .bld-kinds button { height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 0.55rem; color: var(--mute); background: transparent; }
+.bld-kinds { display: flex; gap: 0.25rem; overflow-x: auto; padding-bottom: 0.2rem; scrollbar-width: thin; flex: none; }
+.mode .bld-kinds button { flex: none; height: 2.1rem; min-width: 2.1rem; padding: 0 0.55rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; font: 600 0.72rem var(--ui); border-radius: 0.55rem; color: var(--mute); background: transparent; }
 .mode .bld-kinds button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); }
 .mode .bld-kinds button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .bld-kind-h { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
 .bld-kind-h b { font: 700 0.95rem var(--ui); }
-.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
+.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.2rem; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
 .bld-sub { margin-top: 0.3rem; font: 650 0.62rem var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
-.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.45rem; }
+.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.35rem; }
 .bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; padding: 0.45rem 0.4rem 0.55rem; border: 1px solid var(--glass-line); border-radius: 0.8rem; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
 .bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35); }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
-.bld-tile.spare { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .bld-art { display: grid; place-items: center; width: 100%; height: 3.8rem; border-radius: 0.6rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-tname { font-size: 0.7rem; line-height: 1.25; text-align: center; }
 .bld-tag { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 99rem; font: 700 0.56rem var(--ui); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--on); }

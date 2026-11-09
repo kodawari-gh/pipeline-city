@@ -86,8 +86,9 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 
 - Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts`, `board/ui/BuildMode.tsx`.
 - Stage: the machine alone on a neutral floor, no room. Orbit camera.
-- Shelf (left): the spare parts the inventory holds, then the catalogue by kind. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.
-- Take out: drag a part off the PC onto the shelf (or press its Remove in the list). The graph gives the steps; each step plays its animation. The part goes to the inventory.
+- A free sandbox: no inventory, no money. Every part is unlimited.
+- Shelf (left): the catalogue. One scrolling icon row (All first; the active kind shows its label), parts grouped by kind. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.
+- Take out: drag a part off the PC onto the shelf (or press its Remove in the list). The graph gives the steps; each step plays its animation. The part is gone; take another from the shelf.
 - Parts sit inside the case: the side panel must be open to drag them (the Side panel button, or it opens when a drag starts).
 - Fit: blocks come out, the part goes in, the blocks go back.
 - Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).

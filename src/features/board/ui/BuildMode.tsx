@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { buildOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
@@ -9,13 +9,11 @@ import { DEVICE_SPECS } from '@/features/board/sim/specs';
 type Stage = import('../render/three/buildmode3d').BuildStage;
 type Part = import('../render/three/buildmode3d').BinPart;
 
-// BUILD MY PC (main menu): the machine alone on a stage. The shelf on the left holds the spare parts (what the inventory holds) and every
-// catalogue part. Drag one onto the PC to fit it on the socket it lands on. Drag a part off the PC onto the shelf to take it out (with
+// BUILD MY PC (main menu): the machine alone on a stage. A free sandbox: no inventory, no money. The shelf on the left holds every
+// catalogue part, unlimited. Drag one onto the PC to fit it on the socket it lands on. Drag a part off the PC onto the shelf to take it out (with
 // everything in its way; the order is `sim/removal.ts`). A press without a move is a click: a shelf part fits in the first free socket,
 // a machine part is selected. Styles: ui.css (the Build my PC section). Escape leaves.
 
-/** The shelf id of a spare part (see `SPARE_PREFIX` in buildmode3d.ts; kept here so the menu does not load three.js). */
-const SPARE = 'inv:';
 const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu', 'vrm-sink', 'ram-sink'];
 const SPEEDS = [0.5, 1, 2, 4];
 /** Pixels a press may move before it is a drag. */
@@ -24,7 +22,7 @@ const SLOP = 6;
 type Over = 'bin' | 'stage' | null;
 type Source = { from: 'shelf' | 'machine'; item: string; spec: string; name: string };
 type Drag = Source & { x: number; y: number; over: Over };
-interface Tile { item: string; spec: string; name: string; spare: boolean }
+interface Tile { item: string; spec: string; name: string }
 
 /** Is a client point inside an element's box? */
 const within = (el: HTMLElement | null, x: number, y: number): boolean => {
@@ -131,13 +129,14 @@ export function BuildMode() {
   const st = stage?.status.value;
   const rev = st?.rev;
   const busy = !!st?.busy;
-  const inv = useMemo(() => (stage ? stage.snapshot.inventory : []), [stage, rev]);
   if (!open) return null;
+  void rev;
   const devices = stage ? stage.board.devices : [];
   const name = (spec: string) => DEVICE_SPECS[spec]?.name ?? spec;
   const insideOpen = stage?.insideOpen ?? false;
-  const spares: Tile[] = inv.filter((i) => i.kind === kind).map((i) => ({ item: SPARE + i.id, spec: i.spec, name: i.name, spare: true }));
-  const catalogue: Tile[] = parts.filter((p) => p.kind === kind).map((p) => ({ item: p.id, spec: p.id, name: p.name, spare: false }));
+  const tilesOf = (k: string): Tile[] => parts.filter((p) => p.kind === k).map((p) => ({ item: p.id, spec: p.id, name: p.name }));
+  const count = (k: string) => parts.filter((p) => p.kind === k).length;
+  const shown = kind === 'all' ? KINDS : [kind];
 
   const tile = (t: Tile) => (
     <div
@@ -145,7 +144,7 @@ export function BuildMode() {
       role="button"
       tabIndex={0}
       data-item={t.item}
-      class={`bld-tile ${t.spare ? 'spare' : ''} ${busy ? 'dim' : ''}`}
+      class={`bld-tile ${busy ? 'dim' : ''}`}
       aria-disabled={busy}
       title={`${t.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`}
       onPointerDown={(e) => { if (e.button === 0 && !busy) begin({ from: 'shelf', item: t.item, spec: t.spec, name: t.name }, e, () => stageRef.current?.fit(t.item)); }}
@@ -153,7 +152,6 @@ export function BuildMode() {
     >
       <span class="bld-art"><PartArt id={t.spec} size={52} label={t.name} /></span>
       <span class="bld-tname">{t.name}</span>
-      {t.spare && <b class="bld-tag">Spare</b>}
     </div>
   );
 
@@ -165,16 +163,20 @@ export function BuildMode() {
       <aside class={`bld-bin mode-panel ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
         <header class="mode-head"><span class="mode-eyebrow">Workshop</span><b>Build my PC</b></header>
         <div class="bld-kinds" role="tablist" aria-label="Part kinds">
+          <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All (${parts.length})`} onClick={() => setKind('all')}>All</button>
           {KINDS.map((k) => (
-            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={kindLabel(k)} aria-label={kindLabel(k)} onClick={() => setKind(k)}><Icon name={kindIcon(k)} size={14} /></button>
+            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
+              <Icon name={kindIcon(k)} size={14} />{k === kind && <span>{kindLabel(k)}</span>}
+            </button>
           ))}
         </div>
-        <div class="bld-kind-h"><b>{kindLabel(kind)}</b><span class="mode-hint">{catalogue.length} to choose from</span></div>
         <div class="bld-parts" aria-label="Parts">
-          {spares.length > 0 && <div class="bld-sub">In the inventory</div>}
-          {spares.length > 0 && <div class="bld-tiles">{spares.map(tile)}</div>}
-          <div class="bld-sub">Catalogue</div>
-          <div class="bld-tiles">{catalogue.map(tile)}</div>
+          {shown.map((k) => (
+            <section key={k}>
+              <div class="bld-sub">{kindLabel(k)} <span class="mute">{count(k)}</span></div>
+              <div class="bld-tiles">{tilesOf(k).map(tile)}</div>
+            </section>
+          ))}
         </div>
         <span class="mode-hint bld-hint">Drop a machine part here to take it out.</span>
       </aside>

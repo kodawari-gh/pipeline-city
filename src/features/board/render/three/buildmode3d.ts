@@ -32,8 +32,6 @@ import { Machine3D } from './machine3d';
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
 
-/** The shelf id of a spare part (one the inventory holds): `inv:` and its inventory id. Any other shelf id is a catalogue part's own id. */
-export const SPARE_PREFIX = 'inv:';
 
 export interface BuildStatus {
   busy: boolean;
@@ -464,15 +462,13 @@ export class BuildStage {
     });
   }
 
-  /** Fit a part from the shelf: a catalogue part (its id) or a spare (`inv:` and its inventory id). `drop`: the socket it was dropped on
+  /** Fit a catalogue part (its id; the shelf is unlimited, there is no inventory here). `drop`: the socket it was dropped on
    *  (`slotAt`) when that socket takes it; otherwise (or without one) the first free socket that takes it, else the socket of the part it replaces. */
   fit(item: string, drop?: string): Promise<void> {
     return this.job(async () => {
       const g = this.game;
-      const spare = item.startsWith(SPARE_PREFIX) ? item.slice(SPARE_PREFIX.length) : null;
-      const itemId = spare ? g.snapshot().inventory.find((i) => i.id === spare)?.spec : item;
-      if (!itemId) { this.note('That spare is no longer in the inventory'); return; }
-      if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId, spare);
+      const itemId = item;
+      if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
       const spec = getSpec(itemId);
       if (!spec) { this.note(`Unknown part ${itemId}`); return; }
       const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
@@ -488,7 +484,7 @@ export class BuildStage {
       if (steps[0] !== SIDE) steps.unshift(SIDE);
       const undo: Undo[] = [];
       for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo);
-      const bought = spare ? { ok: true as const, invId: spare } : g.purchase(itemId);
+      const bought = g.purchase(itemId);
       if (!bought.ok) this.note(`Cannot get ${spec.name}: ${bought.reason}`);
       else {
         const put = g.install(bought.invId, slot);
@@ -506,7 +502,7 @@ export class BuildStage {
   }
 
   /** A new board or case: every part comes out first, the machine is swapped as one piece, then the parts go back (what no longer fits stays in the bin). */
-  private async fitShell(itemId: string, spare: string | null = null): Promise<void> {
+  private async fitShell(itemId: string): Promise<void> {
     const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1));
     if (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt) { this.note('That one is already fitted'); return; }
     const graph = buildGraph(this.board, this.cables), steps = removalPlan(graph, isCase ? CASE : BOARD);
@@ -520,7 +516,7 @@ export class BuildStage {
     this.note('Undo the board screws and lift the board out');
     await this.playAll(this.machine.boardRoots(), 'board', 'out');
     if (isCase) { this.note('Take the old case away'); await this.playAll(this.machine.caseRoots, 'case', 'out'); }
-    const bought = spare ? { ok: true as const, invId: spare } : this.game.purchase(itemId);
+    const bought = this.game.purchase(itemId);
     const fitted = bought.ok ? this.game.install(bought.invId) : bought;
     if (!fitted.ok) this.note(`Cannot fit it: ${fitted.reason}`);
     this.rebuild();
