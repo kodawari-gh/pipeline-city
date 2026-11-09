@@ -1306,10 +1306,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-cats { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .mode .bld-cats button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; font-size: 0.72rem; border-radius: 99rem; white-space: nowrap; }
 .mode .bld-cats button em { font: normal 0.62rem var(--mono); opacity: 0.55; }
-.bld-grp { display: flex; flex-direction: column; gap: 0.5rem; }
-.bld-grp > h2 { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0; padding-bottom: 0.3rem; border-bottom: 1px solid var(--glass-line); font: 750 0.86rem var(--ui); color: var(--ink); }
 .bld-sec { display: flex; flex-direction: column; gap: 0.4rem; }
-.bld-sec h3 { display: flex; align-items: center; gap: 0.35rem; margin: 0.2rem 0 0; font: 650 0.62rem var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.bld-sec h3 { display: flex; align-items: center; gap: 0.35rem; margin: 0.4rem 0 0; font: 650 0.66rem var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
 .bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
 .bld-sub { margin-top: 0.3rem; font: 650 0.62rem var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
 .bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.45rem; }
