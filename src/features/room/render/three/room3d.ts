@@ -29,7 +29,7 @@ import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
-import { cloth, mat } from '@/core/render/three/materials';
+import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
@@ -702,6 +702,7 @@ export class Room3D {
     // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
     vertexAo(R);
     mergeStatic(R);
+    this.share();
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
     const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
     this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
@@ -738,6 +739,15 @@ export class Room3D {
     }
     this.lightmap = mix;
     this.mixKey = '';
+    this.share();
+  }
+
+  /**
+   * Equal materials as one (`shareMaterials`: fewer uniform uploads per frame), once built and again once the bake has lit its meshes. The key
+   * rack is built again with each new key; a replaced material leaves the reflections' register.
+   */
+  private share(): void {
+    shareMaterials(this.root, { skip: [this.keys], onReplace: (m) => this.envs.mats.delete(m as MeshStandardMaterial) });
   }
 
   /** The baked bounce for the light as it stands, summed again only when that light changes (`lightKey`). */

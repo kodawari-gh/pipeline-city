@@ -147,6 +147,15 @@ The owner chose **room first** and the **stylised warm** look (see `LOWPOLY_STYL
   - `selected`: outline post-process
 - **Outline**: Custom post-process shader (Sobel or edge detection)
 
+### Shared materials
+PERF22 (`shareMaterials`, `materials.ts`). After the room is built, and again after its light bake, equal materials share one material. The others are disposed.
+- The key (`materialKey`) holds every own field of the material and its userData. A colour, vector or array is keyed by value, a texture or a plane by identity. The program key must be the plain one, with only the known patches (`|box`, `|lm`, `|ao`). An unknown `onBeforeCompile` or a function field gives no key: that material is never shared.
+- Only meshes of one scope (the nearest `userData.id` ancestor) and one kind (type, attributes, morphs, instance colours) share. A material whose meshes span scopes or kinds stays as it is.
+- Never shared: a material that glows (emissive not black), that is transparent or below opacity 1, that is in a multi-material mesh, under a skipped root (the key rack, rebuilt per key), or that a writer owns (`own(m)`; `PartSkin` owns its materials).
+- A writer that must change one mesh of a shared material calls `writable(mesh)`: it copies the material (with its patches), gives the copy to the mesh and owns it. Today no room writer needs it: every material the room changes after build glows, fades or spans scopes.
+- `onReplace` lets a holder drop a replaced material (the room's reflections register).
+- Result (menu room): 208 to 190 materials, programs equal. Most room materials differ in colour, roughness or metalness; the machine (239) is not shared yet.
+
 ### Camera System
 - **Orthographic**: Board overview (fits WORLD bounds)
 - **Perspective**: Detail view (for die, GPU, flyovers)

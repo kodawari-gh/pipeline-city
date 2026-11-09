@@ -1,5 +1,9 @@
 // Palette and state looks of the 3D parts (docs/LOWPOLY_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
-import { Color, MeshPhysicalMaterial, MeshStandardMaterial, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters } from 'three';
+// `shareMaterials` lets equal materials of a built tree become one (fewer uniform uploads per frame), `writable` copies one back for a writer.
+import {
+  Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
+  type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
+} from 'three';
 
 export const PALETTE = {
   cpu: 0x2a2f4d, gpu: 0x17263f, ram: 0x1f6d45, ssd: 0x2d3035, psu: 0x22242a, pcb: 0x123f3c, alu: 0xc4c8cc, cable: 0x2c2d31,
@@ -58,7 +62,7 @@ export class PartSkin {
   private goal: PartLook = { tint: 1, glow: 0, glowIntensity: 0 };
   private goalGlow = new Color(0);
 
-  constructor(readonly mats: MeshStandardMaterial[], private gain = 1) { this.base = mats.map((m) => m.color.clone()); }
+  constructor(readonly mats: MeshStandardMaterial[], private gain = 1) { this.base = mats.map((m) => own(m).color.clone()); }
 
   set(state: PartState): void {
     this.goal = partLook(state);
@@ -84,4 +88,145 @@ export class PartSkin {
       m.emissiveIntensity = this.level * this.gain;
     });
   }
+}
+
+// ---- shared materials (docs/GRAPHICS_3D_OVERHAUL.md "Shared materials") ----
+
+/** Materials a writer changes for its own meshes after the build: never shared, never replaced. */
+const owned = new WeakSet<Material>();
+/** The materials `shareMaterials` gave to more than one mesh. */
+const shared = new WeakSet<Material>();
+
+/** Marks `m` as one a writer changes for its own meshes (a part's state look): `shareMaterials` leaves it as it is. */
+export function own<T extends Material>(m: T): T {
+  owned.add(m);
+  return m;
+}
+
+/**
+ * Copy on write: the material `mesh` can change alone. A shared one is copied for it first (with its patches); `twin` hears of the copy (the
+ * room's reflections take it in, `RoomEnv.twin`). Either way the material is marked as `own`.
+ */
+export function writable(mesh: Mesh, twin?: (src: Material, copy: Material) => void): MeshStandardMaterial {
+  const m = mesh.material as MeshStandardMaterial;
+  if (!shared.has(m)) return own(m);
+  const c = m.clone();
+  c.onBeforeCompile = m.onBeforeCompile;
+  c.customProgramCacheKey = m.customProgramCacheKey;
+  twin?.(m, c);
+  mesh.material = c;
+  return own(c);
+}
+
+// the program key of a material with no patch; the patches a shared material may carry (`boxenv`, `bakedao`, `lightmapmix`): each reads only
+// uniforms the whole room shares or its mesh's own attributes. Another patch may hold uniforms of its own (`artlod`): no share.
+const plain = (): string => Material.prototype.onBeforeCompile.toString();
+const PURE = /^(\|box|\|lm|\|ao[\d.e-]+)*$/;
+// the fields that do not change the picture or the program (`userData` is keyed whole, the two hooks by the program key)
+const SKIP = new Set(['uuid', 'id', 'name', 'version', 'userData', '_listeners', 'onBeforeCompile', 'customProgramCacheKey']);
+const ids = new WeakMap<object, number>();
+let nextId = 0;
+const idOf = (o: object): number => { let n = ids.get(o); if (n === undefined) ids.set(o, (n = ++nextId)); return n; };
+
+// (no JSON.stringify: a texture's `toJSON` would read its whole picture)
+function ser(v: unknown, depth = 0): string {
+  if (v === null || v === undefined) return String(v);
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v !== 'object') return String(v);
+  const x = v as { isColor?: boolean; isVector2?: boolean; isVector3?: boolean; isVector4?: boolean; isEuler?: boolean };
+  if (x.isColor) { const c = v as Color; return `c${c.r},${c.g},${c.b}`; }
+  if (x.isVector2 || x.isVector3 || x.isVector4 || x.isEuler) return `v${(v as { toArray(): unknown[] }).toArray().join(',')}`;
+  if (depth < 8 && Array.isArray(v)) return `[${v.map((e) => ser(e, depth + 1)).join(',')}]`;
+  const proto = Object.getPrototypeOf(v) as unknown;
+  if (depth < 8 && (proto === Object.prototype || proto === null)) {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${ser(o[k], depth + 1)}`).join(',')}}`;
+  }
+  // a texture, a clipping plane: the same object or none
+  return `#${idOf(v)}`;
+}
+
+/**
+ * What a standard (or physical) material draws as: its type, every field that changes the picture or the program (colours, roughness, maps by
+ * identity, defines, sides, blending, polygon offset, clipping...), its `userData` and its program key. Two materials with the same key draw the
+ * same. Null: not one to share (not standard, a patch of unknown inputs, a hook of its own).
+ */
+export function materialKey(m: Material): string | null {
+  if (!(m as MeshStandardMaterial).isMeshStandardMaterial) return null;
+  const pk = m.customProgramCacheKey(), base = plain();
+  if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) return null;
+  const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(m.userData)}`];
+  for (const k of Object.keys(m).sort()) {
+    if (SKIP.has(k)) continue;
+    const v = (m as unknown as Record<string, unknown>)[k];
+    if (typeof v === 'function') return null;
+    out.push(`${k}=${ser(v)}`);
+  }
+  return out.join(';');
+}
+
+/** A material no writer is known to change: not `own`, not see-through (fades), not glowing (each lamp and light sets its own glow). */
+function still(m: Material): boolean {
+  const s = m as MeshStandardMaterial;
+  return !owned.has(m) && !m.transparent && m.opacity === 1 && s.emissive.r + s.emissive.g + s.emissive.b === 0;
+}
+
+// a mesh's inputs to the program that three does not check on each draw (its attributes, its kind): a shared material keeps one program
+const kind = (o: Mesh): string => {
+  const g = o.geometry, i = o as Mesh & { instanceColor?: unknown; morphTexture?: unknown };
+  return `${o.type}|${Object.keys(g.attributes).sort().join(',')}|${Object.keys(g.morphAttributes).sort().join(',')}|${!!i.instanceColor}|${!!i.morphTexture}`;
+};
+
+export interface ShareOptions {
+  /** Subtrees left as they are: built again or written after the build (the key rack). Their materials are not shared outside them either. */
+  skip?: readonly Object3D[];
+  /** Hears of each material replaced by an equal one before it is disposed (the room's reflections drop it). */
+  onReplace?: (old: Material, canon: Material) => void;
+}
+
+/** The standard materials under the root before and after a share. */
+export interface Shared { before: number; after: number }
+
+/**
+ * Shares equal materials under `root`: of the materials with the same `materialKey`, used in the same scope (the nearest ancestor tagged with
+ * a `userData.id`, which a rebuild disposes and a hover outlines as a whole) by the same kind of mesh, every mesh takes the first and the others
+ * are disposed. Fewer materials draw with fewer uniform uploads (each change of material uploads its uniforms and its lights' state). Left as
+ * they are: a material a writer changes (`own`, `PartSkin`, a glow, a fade), one of unknown inputs, one used across scopes or kinds of mesh or
+ * by more than a plain mesh, and everything under `skip`. A writer that must change a shared one alone takes a copy first (`writable`).
+ */
+export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
+  interface Use { scope: Object3D | null; kind: string | null; meshes: Mesh[]; fixed: boolean }
+  const uses = new Map<Material, Use>(), skip = new Set(o.skip ?? []);
+  const use = (m: Material): Use => { let u = uses.get(m); if (!u) uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false })); return u; };
+  const walk = (x: Object3D, scope: Object3D, fixed: boolean): void => {
+    const f = fixed || skip.has(x), s = typeof x.userData.id === 'string' ? x : scope, mesh = x as Mesh;
+    const m = (x as { material?: Material | Material[] }).material;
+    if (m) {
+      for (const a of Array.isArray(m) ? m : [m]) {
+        const u = use(a);
+        if (f || Array.isArray(m) || !mesh.isMesh) { u.fixed = true; continue; }
+        const k = kind(mesh);
+        if (u.meshes.length && (u.scope !== s || u.kind !== k)) u.fixed = true;
+        u.scope = s; u.kind = k;
+        u.meshes.push(mesh);
+      }
+    }
+    for (const c of x.children) walk(c, s, f);
+  };
+  walk(root, root, false);
+  const canon = new Map<string, Material>();
+  let before = 0, after = 0;
+  for (const [m, u] of uses) {
+    if (!(m as MeshStandardMaterial).isMeshStandardMaterial) continue;
+    before++;
+    const key = u.fixed || !still(m) ? null : materialKey(m);
+    if (key === null) { after++; continue; }
+    const at = `${idOf(u.scope!)}|${u.kind}|${key}`, c = canon.get(at);
+    if (!c) { canon.set(at, m); after++; continue; }
+    for (const mesh of u.meshes) mesh.material = c;
+    shared.add(c);
+    o.onReplace?.(m, c);
+    m.dispose();
+  }
+  return { before, after };
 }
