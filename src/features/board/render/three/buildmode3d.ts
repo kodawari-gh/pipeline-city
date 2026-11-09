@@ -65,6 +65,18 @@ const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket. */
 export const motionOf = (kind: string, slot: string): string => (kind === 'fan' && !fanHost(slot) ? `fan-${slot.replace(/\d+$/, '')}` : kind === 'storage' && slot.startsWith('sata') ? 'tray' : kind);
 
+/** A game's snapshot, kept until the game changes (PERF19): `game.snapshot()` builds the inventory and copies the board through JSON, about 8 % of
+ *  an idle phone frame when each frame asked for it. Call `drop` after every change to the game; another game object starts over by itself. */
+export class SnapCache {
+  private game: Game | null = null;
+  private snap: Snapshot | null = null;
+  of(game: Game): Snapshot {
+    if (game !== this.game || !this.snap) { this.game = game; this.snap = game.snapshot(); }
+    return this.snap;
+  }
+  drop(): void { this.snap = null; }
+}
+
 /** The bin: every case, board and part kind that has a 3D model in the machine. */
 export function binParts(): BinPart[] {
   const out: BinPart[] = CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, kind: 'case', tier: c.tier }));
@@ -80,7 +92,9 @@ export class BuildStage {
   readonly benching = signal<BenchKind | 'start' | null>(null);
   /** Playback speed: 1 is the animations' own time. */
   readonly speed = signal(1);
+  /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
   game!: Game;
+  private readonly snaps = new SnapCache();
   private machine!: Machine3D;
   private readonly bakes = new BakeQueue();
   private readonly ctx;
@@ -152,9 +166,14 @@ export class BuildStage {
     return s;
   }
 
-  get snapshot(): Snapshot { return this.game.snapshot(); }
+  /** The machine as it stands: one snapshot per change of the game, not one per frame. */
+  get snapshot(): Snapshot { return this.snaps.of(this.game); }
   get board(): Board { return this.game.board; }
   get cables(): Cables { return this.game.cables; }
+  /** Every change to the stage's game goes through here (install, uninstall, purchase, a cable): it drops the kept snapshot. */
+  private edit<T>(change: (g: Game) => T): T {
+    try { return change(this.game); } finally { this.snaps.drop(); }
+  }
 
   // ------------------------------------------------------------------ drawing
   private frameView(): OrbitView {
@@ -163,7 +182,9 @@ export class BuildStage {
 
   private rebuild(): void {
     if (this.bench.peek()) this.bench.value = null;
-    const s = this.game.snapshot(), tier = s.boardTier, caseTier = Math.max(tier, s.caseTier);
+    // (the redraw always reads the game as it is now)
+    this.snaps.drop();
+    const s = this.snapshot, tier = s.boardTier, caseTier = Math.max(tier, s.caseTier);
     const refit = !this.machine || `${tier}|${caseTier}` !== this.tierKey;
     this.tierKey = `${tier}|${caseTier}`;
     setLayoutTier(tier, caseTier);
@@ -182,7 +203,7 @@ export class BuildStage {
   private markerAt = '';
   /** The snap preview: a glowing box over the socket a dragged part would fit in (`dropTarget`); null hides it. A socket with no place of its own (a case fan) shows none. */
   showTarget(slot: string | null): void {
-    const rect = slot && this.machine.doorOpen ? slotRects(this.game.snapshot()).get(slot) : undefined;
+    const rect = slot && this.machine.doorOpen ? slotRects(this.snapshot).get(slot) : undefined;
     if (!rect) { if (this.marker) this.marker.visible = false; this.markerAt = ''; return; }
     if (!this.marker) {
       this.marker = seeThrough(new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color: 0x3be3ff, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false, toneMapped: false })));
@@ -234,12 +255,13 @@ export class BuildStage {
     this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);
     applyView(camera, this.view, this.W / this.H);
     this.machine.setOpen(this.wantOpen, true);
-    this.machine.frame(this.game.snapshot(), dt);
+    const snap = this.snapshot;
+    this.machine.frame(snap, dt);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
-    this.lens.frame(camera, this.H, this.game.snapshot(), roomGeo(), dt, renderer.getPixelRatio());
+    this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio());
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
     const lum = this.post.meter();
@@ -496,7 +518,7 @@ export class BuildStage {
       const id = node.slice(6);
       if (!OUTSIDE.has(id)) await this.door(true);
       await this.play(node, 'cable', 'out');
-      this.game.disconnectCable(id);
+      this.edit((g) => g.disconnectCable(id));
       undo?.push({ t: 'cable', id });
       this.rebuild();
       return null;
@@ -505,7 +527,7 @@ export class BuildStage {
     if (!d) return null;
     const kind = deviceSpec(d).kind;
     await this.unseat(node, motionOf(kind, d.slot));
-    const r = this.game.uninstall(d.id);
+    const r = this.edit((g) => g.uninstall(d.id));
     if (!r.ok) { this.note(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
     undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock });
     this.rebuild();
@@ -519,12 +541,12 @@ export class BuildStage {
       // (the PC's cord goes into the supply's inlet: with the supply out it stays unplugged)
       if (u.id === 'pcmains' && !this.board.devices.some((d) => deviceSpec(d).kind === 'psu')) return;
       this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === u.id)?.name ?? u.id}`);
-      this.game.connectCable(u.id);
+      this.edit((g) => g.connectCable(u.id));
       this.rebuild();
       await this.play(cableNode(u.id), 'cable', 'in');
       return;
     }
-    const r = this.game.install(u.invId, u.slot);
+    const r = this.edit((g) => g.install(u.invId, u.slot));
     // (a fan the new heatsink or case has no spot for stays out, as the game sends it to the inventory)
     if (!r.ok) { this.note(getSpec(u.spec)?.kind === 'fan' ? `${getSpec(u.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(u.spec)?.name ?? u.spec} back: ${r.reason}`); return; }
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
@@ -570,7 +592,6 @@ export class BuildStage {
    *  (`slotAt`) when that socket takes it; otherwise (or without one) the first free socket that takes it, else the socket of the part it replaces. */
   fit(item: string, drop?: string): Promise<void> {
     return this.job(async () => {
-      const g = this.game;
       const itemId = item;
       if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
       const spec = getSpec(itemId);
@@ -588,10 +609,10 @@ export class BuildStage {
       if (steps[0] !== SIDE) steps.unshift(SIDE);
       const undo: Undo[] = [];
       for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo);
-      const bought = g.purchase(itemId);
+      const bought = this.edit((g) => g.purchase(itemId));
       if (!bought.ok) this.note(`Cannot get ${spec.name}: ${bought.reason}`);
       else {
-        const put = g.install(bought.invId, slot);
+        const put = this.edit((g) => g.install(bought.invId, slot));
         if (!put.ok) this.note(`${spec.name} does not fit: ${put.reason}`);
         else {
           this.note(`Fit ${spec.name} in ${slot}`);
@@ -623,8 +644,8 @@ export class BuildStage {
     this.note('Undo the board screws and lift the board out');
     await this.playAll(this.machine.boardRoots(), 'board', 'out');
     if (isCase) { this.note('Take the old case away'); await this.playAll(this.machine.caseRoots, 'case', 'out'); }
-    const bought = this.game.purchase(itemId);
-    const fitted = bought.ok ? this.game.install(bought.invId) : bought;
+    const bought = this.edit((g) => g.purchase(itemId));
+    const fitted = bought.ok ? this.edit((g) => g.install(bought.invId)) : bought;
     if (!fitted.ok) this.note(`Cannot fit it: ${fitted.reason}`);
     this.rebuild();
     if (fitted.ok) {
@@ -751,7 +772,7 @@ export class BuildStage {
     this.forget();
     this.game = new Game({ seed: 1, sandbox: true, preassembled: false });
     // a new game's case holds its two starter fans: Empty means nothing fitted
-    for (const d of this.game.snapshot().devices) if (d.kind === 'fan') this.game.uninstall(d.id);
+    this.edit((g) => { for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id); });
     this.status.value = { busy: false, step: '', log: [], rev: this.status.peek().rev };
     this.rebuild();
   }
