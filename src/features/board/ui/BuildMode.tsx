@@ -32,6 +32,12 @@ const within = (el: HTMLElement | null, x: number, y: number): boolean => {
   return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 };
 
+/** Is a client point over the stage itself (the stage fills the screen; the panels float over it and are not the stage)? */
+const onStage = (el: HTMLElement | null, x: number, y: number): boolean => {
+  const hit = document.elementFromPoint(x, y);
+  return !!el && !!hit && el.contains(hit);
+};
+
 const hintFor = (d: Drag): string => {
   if (d.from === 'shelf') return d.over === 'stage' ? 'Let go to fit it here' : 'Drag it onto the PC';
   return d.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
@@ -56,7 +62,7 @@ export function BuildMode() {
   const begin = (src: Source, e: PointerEvent, click: () => void) => {
     const sx = e.clientX, sy = e.clientY;
     let moving = false;
-    const where = (x: number, y: number): Over => (within(bin.current, x, y) ? 'bin' : within(host.current, x, y) ? 'stage' : null);
+    const where = (x: number, y: number): Over => (within(bin.current, x, y) ? 'bin' : onStage(host.current, x, y) ? 'stage' : null);
     const move = (m: PointerEvent) => {
       if (!moving) {
         if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) return;
@@ -87,7 +93,7 @@ export function BuildMode() {
     const st = stageRef.current;
     if (!st) return;
     if (src.from === 'machine') { if (within(bin.current, x, y)) void st.remove(devNode(src.item)); return; }
-    if (within(host.current, x, y)) void st.fit(src.item, st.slotAt(x, y) ?? undefined);
+    if (onStage(host.current, x, y)) void st.fit(src.item, st.slotAt(x, y) ?? undefined);
   };
 
   useEffect(() => {
@@ -145,61 +151,62 @@ export function BuildMode() {
       onPointerDown={(e) => { if (e.button === 0 && !busy) begin({ from: 'shelf', item: t.item, spec: t.spec, name: t.name }, e, () => stageRef.current?.fit(t.item)); }}
       onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); stageRef.current?.fit(t.item); } }}
     >
-      <PartArt id={t.spec} size={52} label={t.name} />
+      <span class="bld-art"><PartArt id={t.spec} size={52} label={t.name} /></span>
       <span class="bld-tname">{t.name}</span>
       {t.spare && <b class="bld-tag">Spare</b>}
     </div>
   );
 
   return (
-    <div class="build" role="dialog" aria-modal="true" aria-label="Build my PC">
-      <aside class={`bld-bin ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
-        <div class="bld-h">Parts</div>
+    <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC">
+      <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
+      {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
+      {failed && <div class="bld-note mute">3D is not available here.</div>}
+      <aside class={`bld-bin mode-panel ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
+        <header class="mode-head"><span class="mode-eyebrow">Workshop</span><b>Build my PC</b></header>
         <div class="bld-kinds" role="tablist" aria-label="Part kinds">
           {KINDS.map((k) => (
-            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={kindLabel(k)} onClick={() => setKind(k)}><Icon name={kindIcon(k)} size={13} /> {kindLabel(k)}</button>
+            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={kindLabel(k)} aria-label={kindLabel(k)} onClick={() => setKind(k)}><Icon name={kindIcon(k)} size={14} /></button>
           ))}
         </div>
+        <div class="bld-kind-h"><b>{kindLabel(kind)}</b><span class="mode-hint">{catalogue.length} to choose from</span></div>
         <div class="bld-parts" aria-label="Parts">
           {spares.length > 0 && <div class="bld-sub">In the inventory</div>}
           {spares.length > 0 && <div class="bld-tiles">{spares.map(tile)}</div>}
           <div class="bld-sub">Catalogue</div>
           <div class="bld-tiles">{catalogue.map(tile)}</div>
         </div>
-        <span class="mute bld-hint">Drop a machine part here to take it out.</span>
+        <span class="mode-hint bld-hint">Drop a machine part here to take it out.</span>
       </aside>
-      <main class="bld-stage">
-        <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
-        <div class="mode-title" aria-hidden="true">Build my PC</div>
-        <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-        {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
-        {failed && <div class="bld-note mute">3D is not available here.</div>}
-        <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>
-        <div class="bld-bar">
-          <span class="mute bld-hint">Drag empty space turns · right drag moves · scroll zooms · double-click resets</span>
+      <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
+      <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>
+      <div class="bld-bar mode-panel">
           <button class={insideOpen ? 'on' : ''} aria-pressed={insideOpen} disabled={busy || !stage} title="Open or shut the side panel: the parts inside are only in reach with it open"
             onClick={() => { if (stage) { stage.openInside(!insideOpen); redraw((n) => n + 1); } }}>Side panel</button>
+          <i class="bld-sep" aria-hidden="true" />
           <div class="seg" role="group" aria-label="Speed">
             {SPEEDS.map((x) => <button key={x} class={stage?.speed.value === x ? 'on' : ''} aria-pressed={stage?.speed.value === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
           </div>
-          <button disabled={busy} onClick={() => stage?.reset()}>Full rig</button>
-          <button disabled={busy} onClick={() => stage?.clear()}>Empty</button>        </div>
-      </main>
-      <aside class="bld-inst">
-        <div class="bld-h">In the machine</div>
+          <i class="bld-sep" aria-hidden="true" />
+          <button disabled={busy} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
+          <button disabled={busy} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
+      </div>
+      <div class="mode-hint bld-tip">Drag empty space to turn · right-drag to move · scroll to zoom · double-click to reset</div>
+      <aside class="bld-inst mode-panel">
+        <header class="mode-head"><span class="mode-eyebrow">{devices.length} fitted</span><b>In the machine</b></header>
         <ul class="bld-list">
           {devices.map((d) => (
             <li key={d.id} class={sel === d.id ? 'on' : ''} onPointerDown={(e) => {
               if (e.button === 0 && !busy) begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () => setSel(d.id));
             }}>
-              <span class="bld-name">{name(d.spec)}<span class="mute"> {d.slot}</span></span>
-              <button disabled={busy} title={`Remove with everything in the way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
-                onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}>Remove</button>
+              <span class="bld-row"><span class="bld-name" title={name(d.spec)}>{name(d.spec)}</span><span class="bld-slot">{d.slot}</span></span>
+              <button disabled={busy} aria-label={`Remove ${name(d.spec)}`} title={`Remove with everything in the way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="close" size={11} /></button>
             </li>
           ))}
           {devices.length === 0 && <li class="mute">Nothing fitted yet.</li>}
         </ul>
-        {(st?.log.length ?? 0) > 0 && <div class="bld-h bld-h2">What was done</div>}
+        {(st?.log.length ?? 0) > 0 && <div class="bld-sub">What was done</div>}
         {(st?.log.length ?? 0) > 0 && <ol class="bld-log">{st!.log.slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>}
       </aside>
       {drag && (

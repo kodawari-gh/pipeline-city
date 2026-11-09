@@ -1239,62 +1239,101 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .shop-title, .alm-title, .inv-title { font-size: var(--fs-title); font-weight: 700; }
 
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
-/* The two part-viewing modes (Gallery, Build my PC) share one look: a full-screen frame, glass side panels with a heading, a dark 3D stage with the mode title top left and a round close button top right, and a hint line. */
-.gallery, .build { position: fixed; inset: 0; z-index: 70; display: flex; gap: 0.8rem; padding: 1rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 95%, transparent); backdrop-filter: blur(0.6rem); animation: fade-in .3s ease both; }
-.gal-rail, .bld-bin, .bld-inst { display: flex; flex-direction: column; gap: 0.5rem; flex: none; min-height: 0; box-sizing: border-box; padding: 0.7rem; border: 1px solid var(--glass-line); border-radius: 0.7rem; background: var(--panel); }
-.gal-h, .bld-h { font: 750 1.05rem var(--ui); }
-.gal-h { margin-bottom: 0.2rem; }
-.mode-title { position: absolute; top: 0.8rem; left: 1rem; z-index: 2; font: 750 1rem var(--ui); color: #e8edff; pointer-events: none; text-shadow: 0 0.1rem 0.5rem #000; }
-.mode-close { position: absolute; top: 0.6rem; right: 0.7rem; z-index: 2; width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: #e8edff; background: rgba(10, 14, 34, 0.6); border-color: rgba(150, 170, 255, 0.3); }
-.mode-close:hover, .mode-close:focus-visible { border-color: var(--accent); }
-.mode-hint { font-size: 0.75rem; }
-.gal-rail { width: 12.5rem; gap: 0.3rem; overflow-y: auto; }
-.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.45rem 0.7rem; font-size: 0.82rem; white-space: nowrap; }
-.gal-main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; }
-.gal-main .showcase { flex: 1; min-height: 0; margin: 0; }
-.gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; border-radius: 0.7rem; }
-.gal-main .showcase-bar button[aria-label="Close 3D view"], .gal-main .showcase-hint { display: none; }
-.gal-main .showcase-bar { justify-content: flex-end; }
-.gal-title { display: flex; align-items: center; gap: 0.7rem; font-size: 1.1rem; }
-.gal-name { display: flex; align-items: baseline; gap: 0.7rem; min-width: 0; flex: 1; flex-wrap: wrap; }
-.gal-arrow { flex: none; width: 2.4rem; height: 2.4rem; padding: 0; font-size: 1.7rem; line-height: 1; border-radius: 50%; display: grid; place-items: center; }
-.gal-count { flex: none; font-size: 0.8rem; }
-.gal-items { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.gal-items button { padding: 0.3rem 0.5rem; font-size: 0.72rem; }
-.gal-items button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
-@media (max-width: 40em) { .gallery { flex-direction: column; } .gal-rail { width: auto; flex-direction: row; flex-wrap: wrap; } .gal-h { display: none; } }
+/* The two part-viewing modes (Gallery, Build my PC) are one "studio": the dark 3D stage fills the screen and glass panels float over it. The tokens are redefined on `.mode`, so the studio is dark in both themes and every kit rule inside it follows. */
+.mode { position: fixed; inset: 0; z-index: 70; overflow: hidden; animation: fade-in .3s ease both; color: var(--ink);
+  --ink: #e9eeff; --mute: #8f9bc4; --accent: #3be3ff; --on: #07101f; --bad: #ff5a78; --tile: #141c3f; --menu-solid: #0a0e22;
+  --glass-line: rgba(150, 170, 255, 0.15); --glass-hi: rgba(255, 255, 255, 0.045); --panel: rgba(10, 14, 32, 0.66);
+  background: radial-gradient(120% 90% at 50% 38%, #222a45 0%, #0d1122 58%, #06080f 100%); }
+.mode::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 10rem rgba(0, 0, 0, 0.5); }
+.mode-panel { position: absolute; z-index: 3; box-sizing: border-box; display: flex; flex-direction: column; gap: 0.7rem; padding: 0.9rem; min-height: 0; border: 1px solid var(--glass-line); border-radius: 1rem; background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), var(--panel); backdrop-filter: blur(1.1rem) saturate(1.3); box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.mode-head { display: flex; flex-direction: column; gap: 0.15rem; }
+.mode-head b { font: 750 1.2rem/1.1 var(--ui); letter-spacing: -0.01em; }
+.mode-eyebrow { font: 650 0.62rem var(--ui); letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); }
+.mode-hint { font-size: 0.72rem; color: var(--mute); }
+.mode kbd { font: 600 0.62rem var(--mono); padding: 0.05rem 0.35rem; margin-right: 0.2rem; border: 1px solid var(--glass-line); border-bottom-width: 0.133rem; border-radius: 0.3rem; background: var(--glass-hi); color: var(--ink); }
+.mode button { color: var(--ink); background: var(--glass-hi); border: 1px solid var(--glass-line); border-radius: 0.6rem; transition: background .15s, border-color .15s, color .15s, transform .15s; }
+.mode button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); border-color: rgba(150, 170, 255, 0.35); }
+.mode button:focus-visible { outline: 0.133rem solid var(--accent); outline-offset: 0.1rem; }
+.mode button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.mode .mode-close { position: absolute; top: 1rem; right: 1rem; z-index: 4; width: 2.3rem; height: 2.3rem; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--panel); backdrop-filter: blur(1.1rem); }
+/* Gallery: the model fills the stage right of the categories and above the dock. */
+.gal-main { position: absolute; inset: 0 0 9.5rem 16rem; display: flex; -webkit-mask-image: linear-gradient(#000 calc(100% - 3rem), transparent); mask-image: linear-gradient(#000 calc(100% - 3rem), transparent); }
+.gal-main .showcase { flex: 1; min-height: 0; min-width: 0; margin: 0; }
+.gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; border-radius: 0; background: none; }
+.gal-main .showcase-hint, .gal-main .showcase-bar button[aria-label="Close 3D view"] { display: none; }
+.gal-main .showcase-bar { position: absolute; top: 1rem; right: 4.2rem; z-index: 3; gap: 0.3rem; }
+.mode .gal-main .showcase-bar button { padding: 0.4rem 0.8rem; font-size: 0.72rem; border-radius: 99rem; background: var(--panel); backdrop-filter: blur(1.1rem); }
+.mode .gal-main .showcase-bar button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.gal-rail { left: 1rem; top: 1rem; bottom: 1rem; width: 14rem; }
+.gal-cats { display: flex; flex-direction: column; gap: 0.15rem; overflow-y: auto; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
+.mode .gal-cat { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.55rem; text-align: left; padding: 0.5rem 0.6rem; font-size: 0.82rem; color: var(--mute); background: transparent; border-color: transparent; white-space: nowrap; }
+.mode .gal-cat:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
+.mode .gal-cat.on { color: var(--ink); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 85%); border-color: transparent; }
+.gal-cat.on::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 0.2rem; border-radius: 99rem; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
+.gal-cat em { font: normal 0.66rem var(--mono); opacity: 0.55; }
+.gal-dock { left: 16rem; right: 1rem; bottom: 1rem; gap: 0.7rem; }
+.gal-title { display: flex; align-items: center; gap: 0.9rem; }
+.gal-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.gal-line { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; }
+.gal-line b { font: 750 1.45rem/1.1 var(--ui); letter-spacing: -0.015em; }
+.gal-line .mute { font-size: 0.82rem; }
+.mode .gal-arrow { flex: none; width: 2.5rem; height: 2.5rem; padding: 0; display: grid; place-items: center; border-radius: 50%; font-size: 1.5rem; line-height: 1; }
+.gal-items { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.mode .gal-items button { padding: 0.32rem 0.75rem; font-size: 0.74rem; border-radius: 99rem; }
+.mode-keys { display: flex; flex-wrap: wrap; gap: 1.1rem; font-size: 0.68rem; color: var(--mute); }
+@media (max-width: 52em) {
+  .mode { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; overflow-y: auto; }
+  .mode-panel { position: static; width: auto !important; }
+  .gal-main { position: relative; inset: auto; height: 60vh; flex: none; }
+  .gal-cats { flex-direction: row; flex-wrap: wrap; }
+  .bld-host { position: relative !important; inset: auto !important; height: 60vh; flex: none; }
+  .bld-step, .bld-tip { position: static !important; }
+  .bld-bar { width: auto !important; }
+}
 
 /* Build my PC (features/board/ui/BuildMode.tsx): the machine alone on a stage, a bin of parts on the left, what is fitted on the right. */
-.bld-bin, .bld-inst { width: 18rem; transition: box-shadow .15s; }
-.bld-bin.drop { box-shadow: inset 0 0 0 0.133rem var(--accent); }
-.bld-h2 { margin-top: 0.6rem; }
-.bld-kinds { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.bld-kinds button { padding: 0.3rem 0.5rem; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.3rem; }
-.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; }
-.bld-sub { margin-top: 0.3rem; font: 650 0.7rem var(--ui); letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
-.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: 0.4rem; }
-.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.4rem; border: 1px solid var(--glass-line); border-radius: 0.5rem; background: var(--glass-hi); cursor: grab; touch-action: none; user-select: none; }
-.bld-tile:hover, .bld-tile:focus-visible { border-color: var(--accent); }
+.bld-host { position: absolute; inset: 0; }
+.bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
+.bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
+.bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: 19rem; transition: border-color .15s, box-shadow .15s; }
+.bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
+.bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: 17rem; }
+.bld-kinds { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.25rem; }
+.mode .bld-kinds button { height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 0.55rem; color: var(--mute); background: transparent; }
+.mode .bld-kinds button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); }
+.mode .bld-kinds button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.bld-kind-h { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.bld-kind-h b { font: 700 0.95rem var(--ui); }
+.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
+.bld-sub { margin-top: 0.3rem; font: 650 0.62rem var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.45rem; }
+.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; padding: 0.45rem 0.4rem 0.55rem; border: 1px solid var(--glass-line); border-radius: 0.8rem; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35); }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
-.bld-tile.spare { border-style: dashed; }
-.bld-tname { font-size: 0.7rem; line-height: 1.2; text-align: center; }
-.bld-tag { position: absolute; top: 0.25rem; right: 0.3rem; padding: 0 0.3rem; border-radius: 0.3rem; font-size: 0.6rem; background: var(--accent); color: var(--on); }
-.bld-kinds button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
-.bld-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.bld-host { position: relative; flex: 1; min-height: 12rem; border-radius: 0.7rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, #2a3042, #11141c); }
-.bld-host.drop::after { content: ''; position: absolute; inset: 0; border: 0.133rem solid var(--accent); border-radius: inherit; pointer-events: none; }
-.bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, -60%); pointer-events: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.7rem 0.35rem 0.35rem; border-radius: 0.6rem; background: var(--menu-solid); box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.4); font-size: 0.75rem; white-space: nowrap; }
-.bld-ghost em { display: block; font-style: normal; opacity: 0.7; }
-.bld-ghost.stage, .bld-ghost.bin { outline: 0.133rem solid var(--accent); }
-.bld-bar button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
-.bld-note { position: absolute; inset: 0; display: grid; place-items: center; }
-.bld-step { position: absolute; left: 1rem; right: 1rem; bottom: 3.6rem; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.5rem #000; pointer-events: none; }
-.bld-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.bld-hint { font-size: 0.75rem; margin-right: auto; }
-.bld-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; flex: 1 1 0; min-height: 6rem; }
-.bld-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; padding: 0.25rem 0.4rem; border: 1px solid var(--glass-line); background: var(--glass-hi); border-radius: 0.5rem; cursor: grab; touch-action: none; user-select: none; }
-.bld-list li:hover { border-color: var(--accent); }
-.bld-list li.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.bld-list button { padding: 0.2rem 0.5rem; font-size: 0.72rem; flex: none; }
-.bld-log { margin: 0; padding-left: 1.1rem; font-size: 0.72rem; overflow-y: auto; min-height: 0; max-height: 9rem; flex: none; }
-@media (max-width: 52em) { .build { flex-direction: column; overflow-y: auto; } .bld-bin, .bld-inst { width: auto; } .bld-host { min-height: 22rem; } }
+.bld-tile.spare { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.bld-art { display: grid; place-items: center; width: 100%; height: 3.8rem; border-radius: 0.6rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.bld-tname { font-size: 0.7rem; line-height: 1.25; text-align: center; }
+.bld-tag { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 99rem; font: 700 0.56rem var(--ui); letter-spacing: 0.08em; text-transform: uppercase; background: var(--accent); color: var(--on); }
+.bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, -60%); pointer-events: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem 0.4rem 0.4rem; border-radius: 0.9rem; border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); font-size: 0.75rem; white-space: nowrap; }
+.bld-ghost em { display: block; font-style: normal; color: var(--mute); }
+.bld-ghost.stage, .bld-ghost.bin { border-color: var(--accent); box-shadow: 0 0 1.2rem color-mix(in srgb, var(--accent) 40%, transparent), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); }
+.bld-step { position: absolute; left: 20.5rem; right: 18.5rem; bottom: 5.6rem; z-index: 2; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.6rem #000; pointer-events: none; }
+.bld-bar { left: 20rem; right: 18.5rem; bottom: 1.9rem; margin: 0 auto; width: max-content; max-width: calc(100% - 39rem); flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.4rem; border-radius: 99rem; }
+.mode .bld-bar button { padding: 0.4rem 0.9rem; font-size: 0.74rem; border-radius: 99rem; }
+.bld-bar .seg { gap: 0.1rem; padding: 0.15rem; border-radius: 99rem; background: var(--glass-hi); }
+.mode .bld-bar .seg > button { margin: 0; padding: 0.25rem 0.6rem; border-color: transparent; background: transparent; font-family: var(--mono); }
+.mode .bld-bar .seg > button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.bld-sep { width: 1px; height: 1.2rem; background: var(--glass-line); }
+.bld-tip { position: absolute; left: 20rem; right: 18.5rem; bottom: 0.7rem; z-index: 2; text-align: center; }
+.bld-hint { margin-top: auto; }
+.bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
+.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.4rem 0.4rem 0.6rem; border: 1px solid transparent; border-radius: 0.7rem; cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
+.bld-list li:hover { background: var(--glass-hi); border-color: var(--glass-line); }
+.bld-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.bld-name { font-size: 0.78rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bld-slot { font: 0.62rem var(--mono); color: var(--mute); }
+.mode .bld-list li button { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0.75; }
+.bld-list li:hover button { opacity: 1; }
+.mode .bld-list li button:hover:not(:disabled) { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.bld-log { margin: 0; padding-left: 1.1rem; font-size: 0.72rem; color: var(--mute); overflow-y: auto; min-height: 0; max-height: 9rem; flex: none; }
