@@ -2,12 +2,14 @@
 // A tree is its trunk and limbs, tapered tubes in bark, and its crown: a soft lump of leaves round each limb's end, near the window with sprays
 // of smaller lumps on it, dark in the creases between them. The lumps take normals bent toward the crown's own, so a crown shades as one mass,
 // darker inside and under. The shader (`leafShader`) breaks the mass up: clumps of leaves in their own greens, its outline bitten away leaf by
-// leaf; the sun behind it shines through its edge, and the wind stirs them. All the trees are two meshes: the bark, the leaves.
-import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial } from 'three';
+// leaf; the sun behind it shines through its edge, and the wind stirs them. The trees are two meshes per ring of detail, the bark and
+// the leaves, each tree in turn round the window, so `sweep.ts` draws only the run of them the camera sees.
+import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial, type Sphere } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
 import { CURB, GRID, rng, type Tree, type TreeKind } from './plan';
+import { ballOf, bearing, drawn, Sweep } from './sweep';
 
 type V3 = [number, number, number];
 const add = (a: V3, b: V3, k = 1): V3 => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
@@ -54,8 +56,6 @@ const SPRAYS = 4;
  */
 const enum Detail { Sprayed, Round, Coarse, Sparse }
 const detailAt = (away: number): Detail => (away < 160 ? Detail.Sprayed : away < 250 ? Detail.Round : away < 500 ? Detail.Coarse : Detail.Sparse);
-/** The grid's cell of the trees' meshes (m): what the window's box does not see is not drawn. */
-const TREE_CELL = 200;
 
 /** The leaf lumps of every crown in one geometry: places, normals (bent toward the crown's), a colour (its green, darker inside), the wind's swing and phase, the lump's own normal (for its outline). */
 class Lumps {
@@ -89,6 +89,11 @@ class Lumps {
     this.n += b.pos.length / 3;
     for (let i = 0; i < b.idx.length; i++) this.idx.push(base + b.idx[i]!);
   }
+
+  /** The vertices and the indices so far, and the vertices' places. */
+  get vertices(): number { return this.n; }
+  get indices(): number { return this.idx.length; }
+  get positions(): Float32Array { return this.pos; }
 
   geometry(): BufferGeometry {
     const g = new BufferGeometry(), at = (a: Float32Array, k: number) => new BufferAttribute(a.slice(0, k * this.n), k);
@@ -255,20 +260,37 @@ float leafNoise(vec3 p) {
   return u;
 }
 
-/** The trees' meshes (for each cell of the grid: bark, leaves; each casts and takes shadows) and their leaves' uniforms. Far from the window they are sparser (`Detail`). */
-export function plantTrees(list: readonly Tree[], k: Kit): { meshes: Mesh[]; leaf: LeafUniforms } {
-  const cells = new Map<string, { cards: Lumps; wood: BufferGeometry[] }>();
+/**
+ * The trees' meshes (for each ring of their `Detail`: bark, leaves; each casts and takes shadows), what cuts them to the camera's view (a tree
+ * a piece, `sweep.ts`), and their leaves' uniforms. Far from the window they are sparser (`Detail`).
+ */
+export function plantTrees(list: readonly Tree[], k: Kit): { meshes: Mesh[]; sweeps: Sweep[]; leaf: LeafUniforms } {
+  const rings = new Map<Detail, Tree[]>();
   for (const t of list) {
-    const key = `${Math.floor(t.x / TREE_CELL)},${Math.floor(t.z / TREE_CELL)}`;
-    let c = cells.get(key);
-    if (!c) cells.set(key, (c = { cards: new Lumps(), wood: [] }));
-    grow(t, c.cards, c.wood, detailAt(Math.hypot(t.x - GRID.av0, t.z)));
+    const d = detailAt(Math.hypot(t.x - GRID.av0, t.z));
+    let r = rings.get(d);
+    if (!r) rings.set(d, (r = []));
+    r.push(t);
   }
-  const meshes: Mesh[] = [];
-  for (const { cards, wood } of cells.values()) {
-    if (wood.length) meshes.push(new Mesh(mergeGeometries(wood, false)!, k.bark));
-    meshes.push(new Mesh(cards.geometry(), k.leaves));
+  const meshes: Mesh[] = [], sweeps: Sweep[] = [];
+  for (const [d, ts] of rings) {
+    ts.sort((a, b) => bearing(a.x, a.z) - bearing(b.x, b.z));
+    const cards = new Lumps(), wood: BufferGeometry[] = [], balls: Sphere[] = [], leafAt = [0], barkAt = [0];
+    let bark = 0;
+    for (const t of ts) {
+      const v = cards.vertices, w = wood.length;
+      grow(t, cards, wood, d);
+      const ball = ballOf(cards.positions, v, cards.vertices);
+      for (const g of wood.slice(w)) { ball.union(ballOf(g.attributes.position!.array, 0, g.attributes.position!.count)); bark += drawn(g); }
+      balls.push(ball);
+      leafAt.push(cards.indices);
+      barkAt.push(bark);
+    }
+    const leaves = new Mesh(cards.geometry(), k.leaves), runs = [{ mesh: leaves, at: leafAt }];
+    if (wood.length) { const b = new Mesh(mergeGeometries(wood, false)!, k.bark); meshes.push(b); runs.push({ mesh: b, at: barkAt }); }
+    meshes.push(leaves);
+    sweeps.push(new Sweep(balls, runs));
   }
   for (const m of meshes) m.castShadow = m.receiveShadow = true;
-  return { meshes, leaf: leafShader(k.leaves) };
+  return { meshes, sweeps, leaf: leafShader(k.leaves) };
 }

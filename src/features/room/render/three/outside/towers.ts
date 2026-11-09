@@ -1,4 +1,5 @@
-// The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
+// The city's buildings (`plan.ts` places them) on one material, a mesh for each ring round the window (`sweep.ts` cuts each to what the camera
+// sees). A building is its tiers' walls, each wall's facade painted by the
 // shader (`facadeMaterial`): its windows in bays and storeys on slim mullions, the glass over a room seen in depth (interior mapping) with its
 // blind or curtains, mirroring the sky, the street's far side and the city's skyline beyond, with the sun's glare and a rare pane's short glint (under the bloom's threshold) on it; the
 // walls in panels and tiles with their joints, slab edges and stains. At night its rooms are lit by each building's own habit (whole floors, zones,
@@ -11,9 +12,10 @@
 // screens, their LED bands, the red beacons blinking at night. The tall landmarks wear their own light after dark (a floodlit head, lit edges, a
 // lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
-import { BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, MeshStandardMaterial, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, MeshStandardMaterial, Vector3, type Sphere } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 import type { SignWash } from './signlight';
+import { ballOf, bearing } from './sweep';
 
 /** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel, a sign, a spire in its floodlights. */
 const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7, Sign = 8, Flood = 9 }
@@ -146,6 +148,10 @@ class Mass {
       }
     }
   }
+
+  /** The vertices so far, and their places. */
+  get vertices(): number { return this.n; }
+  get positions(): Float32Array { return this.pos; }
 
   geometry(): BufferGeometry {
     const g = new BufferGeometry(), at = (a: Float32Array, k: number) => new BufferAttribute(a.slice(0, k * this.n), k);
@@ -517,59 +523,73 @@ function signs(m: Mass, b: Building, away: number): void {
   }
 }
 
-/** The grid's cell of the buildings' geometries (m), near the window (within `CLUTTER`) and past it: what the window's box does not see is not drawn. */
-const CELL_NEAR = 300, CELL_FAR = 800;
+/** The rings round the window (m: each one's outer edge) whose buildings make one geometry each: a draw, cut to what the camera sees (`sweep.ts`). */
+const RINGS = [150, 300, 600, CLUTTER, 1800, 3600, Infinity] as const;
 
-/** The buildings, one geometry for each cell of the grid. `washes` takes the signs that light a wall (`signlight.ts`). */
-export function massGeometries(bs: readonly Building[], washes: SignWash[] = []): BufferGeometry[] {
-  const cells = new Map<string, Mass>();
-  for (const b of bs) {
-    const s = STYLES[b.style], rand = rng(b.seed), mx = (b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, away = Math.hypot(mx - GRID.av0, b.tiers[0]!.z1), near = away < CLUTTER, head = headLight(b);
-    const size = near ? CELL_NEAR : CELL_FAR, key = `${size},${Math.floor(mx / size)},${Math.floor(b.tiers[0]!.z1 / size)}`;
-    let m = cells.get(key)!;
-    if (!m) { cells.set(key, (m = new Mass())); m.washes = washes; }
-    b.tiers.forEach((t, i) => {
-      // the walls: each wall's bays stretched to fit it whole
-      const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
-      m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
-      if (head) { m.fl = head.c; m.flY = [head.from, topOf(b)]; }
-      m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
-      m.fl = [0, 0, 0];
-      m.flY = [0, 0];
-      // the parapet round the roof, the gravel inside it
-      const frame = new Color(b.frame).multiplyScalar(b.style === 'glass' ? 1 : 0.92);
-      m.set(frame, 0, Kind.Plain).box(t, t.y1, t.y1 + PARAPET, false);
-      m.box(inset(t, 0.3), t.y1, t.y1 + PARAPET, false, true);
-      m.set(frame.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.3, t.y1 + PARAPET);
-      const floor = inset(t, 0.3);
-      m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [floor.x0, floor.x1, floor.z0, floor.z1]).top(floor, t.y1);
-      if (near) flashing(m, floor, t.y1, 0.32);
-      // an office grid's stone cap under its parapet's top and its string course over the shop fronts; any other's slim metal cap
-      if (b.style === 'grid') {
-        const stone = new Color(b.frame).multiplyScalar(1.06), out = 0.25;
-        m.set(stone, 0, Kind.Plain).box(inset(t, -out), t.y1 + PARAPET - 0.75, t.y1 + PARAPET + 0.12, false);
-        m.ring(inset(t, -out), out + 0.3, t.y1 + PARAPET + 0.12);
-        if (i === 0 && t.y1 > s.storey * 2) {
-          m.box(inset(t, -0.18), s.storey - 0.35, s.storey, false);
-          m.ring(inset(t, -0.18), 0.18, s.storey);
-        }
-      } else {
-        m.set(frame.clone().lerp(new Color(0xb4b9be), 0.5), 0, Kind.Plain).box(inset(t, -0.12), t.y1 + PARAPET - 0.25, t.y1 + PARAPET + 0.05, false);
-        m.ring(inset(t, -0.12), 0.42, t.y1 + PARAPET + 0.05);
+/** A ring's buildings: their geometry, each building's ball, and where each one's vertices start in it (then their end). */
+export interface MassRing { geometry: BufferGeometry; balls: Sphere[]; at: number[] }
+
+/** The buildings, one geometry for each ring round the window, each ring's buildings in their bearing's order. `washes` takes the signs that light a wall (`signlight.ts`). */
+export function massGeometries(bs: readonly Building[], washes: SignWash[] = []): MassRing[] {
+  const away = (b: Building): number => Math.hypot((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0, b.tiers[0]!.z1);
+  const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+  const rings = RINGS.map(() => [] as Building[]);
+  for (const b of bs) rings[RINGS.findIndex((r) => away(b) < r)]!.push(b);
+  return rings.filter((r) => r.length).map((ring) => {
+    const m = new Mass(), balls: Sphere[] = [], at = [0];
+    m.washes = washes;
+    for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
+      building(m, b, away(b));
+      balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
+      at.push(m.vertices);
+    }
+    return { geometry: m.geometry(), balls, at };
+  });
+}
+
+/** A building into `m`, `away` from the window (m). */
+function building(m: Mass, b: Building, away: number): void {
+  const s = STYLES[b.style], rand = rng(b.seed), near = away < CLUTTER, head = headLight(b);
+  b.tiers.forEach((t, i) => {
+    // the walls: each wall's bays stretched to fit it whole
+    const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
+    m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
+    if (head) { m.fl = head.c; m.flY = [head.from, topOf(b)]; }
+    m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
+    m.fl = [0, 0, 0];
+    m.flY = [0, 0];
+    // the parapet round the roof, the gravel inside it
+    const frame = new Color(b.frame).multiplyScalar(b.style === 'glass' ? 1 : 0.92);
+    m.set(frame, 0, Kind.Plain).box(t, t.y1, t.y1 + PARAPET, false);
+    m.box(inset(t, 0.3), t.y1, t.y1 + PARAPET, false, true);
+    m.set(frame.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.3, t.y1 + PARAPET);
+    const floor = inset(t, 0.3);
+    m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [floor.x0, floor.x1, floor.z0, floor.z1]).top(floor, t.y1);
+    if (near) flashing(m, floor, t.y1, 0.32);
+    // an office grid's stone cap under its parapet's top and its string course over the shop fronts; any other's slim metal cap
+    if (b.style === 'grid') {
+      const stone = new Color(b.frame).multiplyScalar(1.06), out = 0.25;
+      m.set(stone, 0, Kind.Plain).box(inset(t, -out), t.y1 + PARAPET - 0.75, t.y1 + PARAPET + 0.12, false);
+      m.ring(inset(t, -out), out + 0.3, t.y1 + PARAPET + 0.12);
+      if (i === 0 && t.y1 > s.storey * 2) {
+        m.box(inset(t, -0.18), s.storey - 0.35, s.storey, false);
+        m.ring(inset(t, -0.18), 0.18, s.storey);
       }
-      // a flat block's balconies; the plant on the roof (on a podium, in the strip in front of the shaft, the side the window sees)
-      const next = b.tiers[i + 1];
-      if (near && b.style === 'band' && b.tiers.length === 1) balconies(m, t, s.storey, b);
-      if (near) {
-        const free = next ? { ...t, z0: next.z1 + 1 } : t;
-        if (free.z1 - free.z0 > 10) clutter(m, free, t.y1, b, rand, away < FINE);
-      }
-    });
-    crown(m, b, rand);
-    leds(m, b);
-    signs(m, b, away);
-  }
-  return [...cells.values()].map((m) => m.geometry());
+    } else {
+      m.set(frame.clone().lerp(new Color(0xb4b9be), 0.5), 0, Kind.Plain).box(inset(t, -0.12), t.y1 + PARAPET - 0.25, t.y1 + PARAPET + 0.05, false);
+      m.ring(inset(t, -0.12), 0.42, t.y1 + PARAPET + 0.05);
+    }
+    // a flat block's balconies; the plant on the roof (on a podium, in the strip in front of the shaft, the side the window sees)
+    const next = b.tiers[i + 1];
+    if (near && b.style === 'band' && b.tiers.length === 1) balconies(m, t, s.storey, b);
+    if (near) {
+      const free = next ? { ...t, z0: next.z1 + 1 } : t;
+      if (free.z1 - free.z0 > 10) clutter(m, free, t.y1, b, rand, away < FINE);
+    }
+  });
+  crown(m, b, rand);
+  leds(m, b);
+  signs(m, b, away);
 }
 
 /** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons, the sun (direction, colour) and the horizon's colour, for what the glass mirrors and the shadows on a wall; and a picture's pixel in metres for each metre away. */

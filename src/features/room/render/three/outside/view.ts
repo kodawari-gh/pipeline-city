@@ -1,5 +1,6 @@
-// The view out of the room's window: a real city in 3D (`plan.ts`), drawn each frame from where the room's camera stands, moved out to the
-// fifteenth floor (`toOutside`), into a supersampled target the size of the window on screen. The window's quad shows that picture, each
+// The view out of the room's window: a real city in 3D (`plan.ts`), drawn from where the room's camera stands, moved out to the
+// fifteenth floor (`toOutside`), into a supersampled target the size of the window on screen: each frame while the eye moves, each few
+// (`EVERY`) while it holds still, and only what the camera sees (`sweep.ts`). The window's quad shows that picture, each
 // screen pixel its block's average, so the perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue
 // down to the downtown towers, the hills. Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and
 // reflections, so the glass towers mirror it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at
@@ -10,7 +11,7 @@
 // itself shows faintly in the glass (`mirror.ts`), only its lit screen and lamps over the dark city.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
-  Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
+  Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
@@ -31,6 +32,7 @@ import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from '.
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
+import { Sweep, sweptMerge } from './sweep';
 import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
@@ -98,6 +100,11 @@ void main() {
 
 /** The picture is drawn at this many pixels per screen pixel each way (with multisampling on), and the quad averages each block of them. */
 const SUPER = 2;
+/**
+ * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
+ * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
+ */
+const EVERY = 3, HOLD_PX = 1;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
@@ -195,6 +202,17 @@ export class OutsideView {
   /** Frames since the room's picture in the glass was drawn, and whether it shows. */
   private mirrorAge = 0;
   private mirrorShown = false;
+  /** What the picture's camera sees: the buildings, the trees and the cars out of it are not drawn (`sweep.ts`, `Fleet.update`). */
+  private seen = new Frustum();
+  private seenOf = new Matrix4();
+  private sweeps: Sweep[] = [];
+  /** The camera's view at the last cut, and whether that cut kept all of it (for the sun's shadows). */
+  private cutOf = new Matrix4();
+  private cutAll = false;
+  /** The window's box (its corners in the frame, -1 to 1) and the frame, at the picture's last draw, and the frames it has stood since. */
+  private box = new Vector4();
+  private boxFrame = '';
+  private age = 0;
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). */
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
@@ -217,18 +235,26 @@ export class OutsideView {
     };
     this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
 
-    // the streets merged by material; the buildings on their facade's material, cell by cell, the trees and the land in their own
+    // the streets merged by material (their many small things in bearing order, cut by a sweep); the buildings on their facade's material,
+    // ring by ring, the trees and the land in their own
     const k = this.kit = makeKit(), ts = trees();
     const still = new Group(), st = street(k, ts);
     still.add(st.group);
+    this.sweeps.push(...sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb]));
     mergeStatic(still);
     const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = roofSteam(blocks, this.haze);
-    const mass = massGeometries(blocks, washes).map((g) => { const m = new Mesh(g, facade.mat); m.castShadow = m.receiveShadow = true; return m; });
+    const mass = massGeometries(blocks, washes).map((r) => {
+      const m = new Mesh(r.geometry, facade.mat);
+      m.castShadow = m.receiveShadow = true;
+      this.sweeps.push(new Sweep(r.balls, [{ mesh: m, at: r.at }]));
+      return m;
+    });
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
     this.steam = steam.u;
     this.scene.add(still, ...mass, land(k), steam.mesh, signLight);
     const plants = plantTrees(ts, k);
+    this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
     // the cars, moving and parked, and the signals' lamps
@@ -366,6 +392,7 @@ export class OutsideView {
     this.sight.frame(renderer.getContext() as QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
     if (this.sight.hidden && this.live === camera) return;
+    const shown = this.live === camera;
     this.live = null;
     // the window's box on screen, and how near its nearest corner is
     const p = (this.mesh.geometry as PlaneGeometry).parameters, v = new Vector3(), view = new Vector4();
@@ -382,6 +409,12 @@ export class OutsideView {
     const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
     const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
     if (rr - rx < 1 || rb - ry < 1) return;
+    // the eye has held (nearly) still since the picture was drawn: it stands for a few frames (`EVERY`)
+    const b = this.box, drift = behind ? (moved ? Infinity : 0) : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) / 2;
+    if (shown && frame === this.boxFrame && drift < HOLD_PX && ++this.age < EVERY) { this.live = camera; return; }
+    this.age = 0;
+    b.set(x0, y0, x1, y1);
+    this.boxFrame = frame;
     // the picture's target, supersampled (then fewer samples each): it only grows, so a flight does not make a new one each frame
     const ss = samples > 0 ? SUPER : 1, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
     let t = this.target;
@@ -405,14 +438,25 @@ export class OutsideView {
     // the traffic on to the frame's clock, each car placed for this eye, the signals lit
     const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;
     this.ran = this.clock;
-    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z);
+    // (only what the camera sees, cut again once it has moved; all of it when the sun's shadows are drawn this frame: what is out of sight
+    // casts them too)
+    const shadowNow = this.sunMoved && this.sun.castShadow;
+    this.seen.setFromProjectionMatrix(this.seenOf.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse));
+    const seen = shadowNow ? undefined : this.seen;
+    if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
+      for (const s of this.sweeps) s.cut(seen);
+      this.fleet.park(seen);
+      this.cutOf.copy(this.seenOf);
+      this.cutAll = shadowNow;
+    }
+    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z, seen);
     this.signals.update(this.traffic.t);
     // the leaves' light from behind, in the camera's frame
     const sd = sunOutside(this.key / 30);
     this.leaf.sunView.value.set(sd[0], sd[1], sd[2]).transformDirection(c.matrixWorldInverse);
     if (this.envDirty) { this.envDirty = false; this.envCam.update(renderer, this.envScene); this.env.texture.needsPMREMUpdate = true; }
     const was = renderer.getRenderTarget();
-    this.sun.shadow.autoUpdate = this.sunMoved && this.sun.castShadow;
+    this.sun.shadow.autoUpdate = shadowNow;
     t.viewport.set(0, 0, rw, rh);
     t.scissor.set(0, 0, rw, rh);
     t.scissorTest = true;

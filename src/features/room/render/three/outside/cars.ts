@@ -6,7 +6,7 @@
 // car's head lamps on the road ahead, the red of its tail lamps behind. In a car's frame x runs along it (its front at +x), y up, z across.
 import {
   AdditiveBlending, BoxGeometry, Color, CylinderGeometry, DoubleSide, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedBufferAttribute,
-  InstancedMesh, MeshPhysicalMaterial, ShaderMaterial, Shape, Vector2, type BufferGeometry, type Material,
+  InstancedMesh, MeshPhysicalMaterial, ShaderMaterial, Shape, Sphere, Vector2, type BufferGeometry, type Frustum, type Material,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HAZE_FN, withHaze, type HazeUniforms } from './haze';
@@ -17,6 +17,8 @@ import { MODELS, type Traffic } from './traffic';
 const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 /** Within this distance of the eye (m) a car is its full model; further off, the box. */
 const NEAR = 260;
+/** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
+const CAR_R = 3, CAR_BALL = new Sphere();
 
 const enum Part { Paint = 0, Glass = 1, Tyre = 2, Rim = 3, Head = 4, Tail = 5, Plate = 6, Trim = 7 }
 
@@ -203,17 +205,18 @@ function shadeGeometry(): BufferGeometry {
   return g;
 }
 
-/** An instanced mesh of `n` on a geometry of its own (its attributes shared), with its per-car paint and lamps. */
-function fleetMesh(g: BufferGeometry, m: Material, n: number, moving: boolean): InstancedMesh {
+/** An instanced mesh of up to `n` on a geometry of its own (its attributes shared), with its per-car paint and lamps; placed each draw (`Fleet.update`). */
+function fleetMesh(g: BufferGeometry, m: Material, n: number): InstancedMesh {
   const geo = g.clone();
   const lit = new InstancedBufferAttribute(new Float32Array(n * 2), 2);
-  if (moving) lit.setUsage(DynamicDrawUsage);
+  lit.setUsage(DynamicDrawUsage);
   geo.setAttribute('lit', lit);
   const im = new InstancedMesh(geo, m, n);
   im.instanceColor = new InstancedBufferAttribute(new Float32Array(n * 3), 3);
-  if (moving) { im.instanceMatrix.setUsage(DynamicDrawUsage); im.instanceColor.setUsage(DynamicDrawUsage); }
+  im.instanceMatrix.setUsage(DynamicDrawUsage);
+  im.instanceColor.setUsage(DynamicDrawUsage);
   im.frustumCulled = false;
-  im.count = moving ? 0 : n;
+  im.count = 0;
   return im;
 }
 
@@ -228,7 +231,7 @@ function place(a: Float32Array, i: number, x: number, z: number, rot: number): v
 
 const PAINT = CAR_COLOURS.map((c) => new Color(c));
 
-/** Every car: the parked ones set once, the moving ones placed each frame from the traffic. */
+/** Every car, only those the eye sees: the parked ones where they stand (`park`), the moving ones from the traffic at each draw (`update`). */
 export class Fleet {
   readonly group = new Group();
   private mat: MeshPhysicalMaterial;
@@ -238,6 +241,8 @@ export class Fleet {
   private shades: InstancedMesh;
   private poolMat: ShaderMaterial;
   private shadeMat: ShaderMaterial;
+  /** The parked cars, each model's mesh with its cars. */
+  private still: { im: InstancedMesh; cars: Car[] }[] = [];
 
   constructor(private traffic: Traffic, parked: readonly Car[], light: CarLight, haze: HazeUniforms) {
     const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)), box = farGeometry();
@@ -245,23 +250,24 @@ export class Fleet {
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
     const byModel = MODELS.map(() => [] as Car[]), boxed: Car[] = [];
     for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR ? byModel[Math.floor(rng(c.seed)() * MODELS.length)]! : boxed).push(c);
-    [...byModel, boxed].forEach((cs, k) => {
-      if (!cs.length) return;
-      const im = fleetMesh(geos[k] ?? box, mat, cs.length, false), a = im.instanceMatrix.array as Float32Array;
-      cs.forEach((c, i) => { place(a, i, c.x, c.z, c.rot); im.setColorAt(i, PAINT[c.colour]!); });
+    [...byModel, boxed].forEach((cars, k) => {
+      if (!cars.length) return;
+      const im = fleetMesh(geos[k] ?? box, mat, cars.length);
       im.castShadow = im.receiveShadow = true;
+      this.still.push({ im, cars });
       this.group.add(im);
     });
+    this.park();
     // the moving ones: each model near, the box far off
-    this.near = geos.map((g) => fleetMesh(g, mat, n, true));
-    this.far = fleetMesh(box, mat, n, true);
+    this.near = geos.map((g) => fleetMesh(g, mat, n));
+    this.far = fleetMesh(box, mat, n);
     for (const im of [...this.near, this.far]) { im.receiveShadow = true; this.group.add(im); }
     // their pools of light, and the shadows under every car
     this.poolMat = new ShaderMaterial({
       vertexShader: POOL_VERT, fragmentShader: POOL_FRAG, uniforms: { night: light.night, ...haze },
       transparent: true, depthWrite: false, blending: AdditiveBlending, side: DoubleSide,
     });
-    this.pools = fleetMesh(poolGeometry(), this.poolMat, n, true);
+    this.pools = fleetMesh(poolGeometry(), this.poolMat, n);
     this.pools.instanceColor = null;
     this.shadeMat = new ShaderMaterial({ vertexShader: SHADE_VERT, fragmentShader: SHADE_FRAG, uniforms: { ...haze }, transparent: true, depthWrite: false, side: DoubleSide });
     this.shades = new InstancedMesh(shadeGeometry(), this.shadeMat, n + parked.length);
@@ -273,22 +279,46 @@ export class Fleet {
     this.group.add(this.pools, this.shades);
   }
 
-  /** Move the traffic on by dt (s) and place each moving car: its full model within `NEAR` of the eye (x, z), else the box. */
-  update(dt: number, ex: number, ez: number): void {
+  /**
+   * The parked cars in their meshes: those in `seen` (the eye's frustum), or all of them (for a frame that draws the sun's shadows, which they
+   * cast). They do not move: call it when the eye's frustum changes.
+   */
+  park(seen?: Frustum): void {
+    for (const { im, cars } of this.still) {
+      const a = im.instanceMatrix.array as Float32Array;
+      im.count = 0;
+      for (const c of cars) {
+        if (seen && !seen.intersectsSphere(CAR_BALL.set(CAR_BALL.center.set(c.x, CAR_R / 2, c.z), CAR_R))) continue;
+        place(a, im.count, c.x, c.z, c.rot);
+        im.setColorAt(im.count++, PAINT[c.colour]!);
+      }
+      im.instanceMatrix.needsUpdate = true;
+      im.instanceColor!.needsUpdate = true;
+    }
+  }
+
+  /**
+   * Move the traffic on by dt (s) and place each moving car: its full model within `NEAR` of the eye (x, z), else the box. `seen`: the
+   * eye's frustum; a car out of it is not drawn (its pool and its soft shadow still are: they are cheap, and a pool reaches into the view).
+   */
+  update(dt: number, ex: number, ez: number, seen?: Frustum): void {
     const tr = this.traffic;
-    tr.step(Math.min(dt, 0.1));
+    // (in steps of 0.1 s at most, and 0.4 s at most a draw: after a pause the traffic does not run on for its whole length)
+    for (let left = Math.min(dt, 0.4); left > 0; left -= 0.1) tr.step(Math.min(left, 0.1));
     for (const im of [...this.near, this.far]) im.count = 0;
     const pa = this.pools.instanceMatrix.array as Float32Array, pl = this.pools.geometry.attributes.lit!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
     tr.cars.forEach((c, i) => {
-      const p = tr.pose(c), near = Math.hypot(p.x - ex, p.z - ez) < NEAR, im = near ? this.near[c.model]! : this.far, k = im.count++;
+      const p = tr.pose(c);
+      place(pa, i, p.x, p.z, p.rot);
+      pl[i * 2] = 1; pl[i * 2 + 1] = c.brake ? 1 : 0;
+      place(sa, i, p.x, p.z, p.rot);
+      if (seen && !seen.intersectsSphere(CAR_BALL.set(CAR_BALL.center.set(p.x, CAR_R / 2, p.z), CAR_R))) return;
+      const near = Math.hypot(p.x - ex, p.z - ez) < NEAR, im = near ? this.near[c.model]! : this.far, k = im.count++;
       place(im.instanceMatrix.array as Float32Array, k, p.x, p.z, p.rot);
       const col = PAINT[c.colour]!, ca = im.instanceColor!.array as Float32Array, la = im.geometry.attributes.lit!.array as Float32Array;
       ca[k * 3] = col.r; ca[k * 3 + 1] = col.g; ca[k * 3 + 2] = col.b;
       la[k * 2] = 1; la[k * 2 + 1] = c.brake ? 1 : 0;
-      place(pa, i, p.x, p.z, p.rot);
-      pl[i * 2] = 1; pl[i * 2 + 1] = c.brake ? 1 : 0;
-      place(sa, i, p.x, p.z, p.rot);
     });
     this.pools.count = tr.cars.length;
     for (const im of [...this.near, this.far, this.pools]) {

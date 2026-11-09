@@ -169,7 +169,8 @@ In order. Each is one commit; each is checked with shots against the targets. Th
 ## What the city costs a frame
 
 - **Detail by distance.** Far from the window, trees (`detailAt` in `outside/trees.ts`) and parked cars lose detail that the eye cannot see. The frame's triangles went from about 9.2 M to 3.6 M.
-- **Cells.** The buildings (`CELL_NEAR`, `CELL_FAR`) and the trees (`TREE_CELL`) sit in grid cells, so the window's crop culls them.
+- **Sweeps.** The buildings (`RINGS` in `outside/towers.ts`) and the trees sit in one mesh per ring of distance, sorted by their bearing from the window; the streets' small things (paint, lamps, tree pits, far kerbs) are one mesh per material, sorted by cell of the ground (`sweptMerge`). When the camera moves, `outside/sweep.ts` cuts each mesh to the run of pieces that the camera sees. The cars out of sight are not placed (`Fleet.park`, `Fleet.update`). On a draw that redraws the sun's shadows, all of it is drawn. At the touch default the city went from 2.8 M triangles a draw to 0.74 M (PERF16).
+- **Cadence.** While the eye holds still (the window's box moves under 1 px), the city is drawn each `EVERY` (3) frames (`view.ts`): about 0.25 M triangles a frame at the touch default.
 - **The hidden city.** `outside/sight.ts` asks the GPU if the eye sees the window's quad (an occlusion query). While the eye stands still and the window is hidden, the city is not drawn.
 - **The room in the glass.** `outside/mirror.ts` draws only what glows, and a plain black in place of each mesh that only hides what is behind it. With a still eye it draws every `MIRROR_EVERY` frames (`view.ts`).
 - **The frame limit.** The default is 60 fps. After 30 s with no input, or with no focus, it is 30 fps (`AWAY_FPS`, `graphics.ts`).
