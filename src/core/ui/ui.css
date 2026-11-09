@@ -1330,8 +1330,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-sep { width: 1px; height: 1.2rem; background: var(--glass-line); }
 .bld-tip { position: absolute; left: 20rem; right: 18.5rem; bottom: 0.7rem; z-index: 2; text-align: center; }
 .bld-hint { margin-top: auto; }
-.bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
-.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.4rem 0.4rem 0.6rem; border: 1px solid transparent; border-radius: 0.7rem; cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
+.bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
+.bld-thumb { flex: none; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.3rem 0.2rem 0.3rem; border: 1px solid transparent; border-radius: 0.7rem; cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
 .bld-list li:hover { background: var(--glass-hi); border-color: var(--glass-line); }
 .bld-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }

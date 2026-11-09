@@ -201,7 +201,8 @@ export function BuildMode() {
             <li key={d.id} class={sel === d.id ? 'on' : ''} onPointerDown={(e) => {
               if (e.button === 0 && !busy) begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () => setSel(d.id));
             }}>
-              <span class="bld-row"><span class="bld-name" title={name(d.spec)}>{name(d.spec)}</span><span class="bld-slot">{d.slot}</span></span>
+              <span class="bld-thumb"><PartArt id={d.spec} size={28} /></span>
+              <span class="bld-row"><span class="bld-name" title={`${name(d.spec)} (${d.slot})`}>{name(d.spec)}</span></span>
               <button disabled={busy} aria-label={`Remove ${name(d.spec)}`} title={`Remove with everything in the way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
                 onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="close" size={11} /></button>
             </li>
