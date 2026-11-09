@@ -86,7 +86,7 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 
 - Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts`, `board/ui/BuildMode.tsx`.
 - Stage: the machine alone on a neutral floor, no room. Orbit camera.
-- Shelf (left): a category row (icon, name, count, as the gallery's list; All shows every category), then the parts by category: the spare parts the inventory holds, then the catalogue. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.
+- Shelf (left): a group row (Board & case, Compute, Cooling, Power, Storage, Network, Security; `PART_GROUPS` in shopdata.ts), then the parts by group and kind: the spare parts the inventory holds, then the catalogue. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.
 - Take out: drag a part off the PC onto the shelf (or press its Remove in the list). The graph gives the steps; each step plays its animation. The part goes to the inventory.
 - Parts sit inside the case: the side panel must be open to drag them (the Side panel button, or it opens when a drag starts).
 - Fit: blocks come out, the part goes in, the blocks go back.

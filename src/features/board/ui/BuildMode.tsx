@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { buildOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
-import { kindIcon, kindLabel } from '@/features/economy/ui/shop/shopdata';
+import { kindIcon, kindLabel, PART_GROUPS, SHELF_KINDS } from '@/features/economy/ui/shop/shopdata';
 import { devNode } from '@/features/board/sim/removal';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 
@@ -16,8 +16,6 @@ type Part = import('../render/three/buildmode3d').BinPart;
 
 /** The shelf id of a spare part (see `SPARE_PREFIX` in buildmode3d.ts; kept here so the menu does not load three.js). */
 const SPARE = 'inv:';
-/** The shelf's categories, in the gallery's order (`galleryGroups`): the same list, names and icons as the gallery's rail. */
-const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
 const SPEEDS = [0.5, 1, 2, 4];
 /** Pixels a press may move before it is a drag. */
 const SLOP = 6;
@@ -53,8 +51,8 @@ export function BuildMode() {
   const stageRef = useRef<Stage | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [failed, setFailed] = useState(false);
-  // the category the shelf shows; null shows every category, grouped
-  const [kind, setKind] = useState<string | null>(null);
+  // the group the shelf shows (a key of PART_GROUPS); null shows every group
+  const [group, setGroup] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [, redraw] = useState(0);
@@ -138,13 +136,17 @@ export function BuildMode() {
   const devices = stage ? stage.board.devices : [];
   const name = (spec: string) => DEVICE_SPECS[spec]?.name ?? spec;
   const insideOpen = stage?.insideOpen ?? false;
-  // the shelf by category: each section is the spares of that kind, then its catalogue; a kind with nothing on the shelf is left out
-  const sections = KINDS.map((k) => ({
+  // the shelf by group, then by kind: each kind is the spares of that kind, then its catalogue; a kind with nothing on the shelf is left out
+  const kinds = SHELF_KINDS.map((k) => ({
     kind: k,
     spares: inv.filter((i) => i.kind === k).map((i): Tile => ({ item: SPARE + i.id, spec: i.spec, name: i.name, spare: true })),
     catalogue: parts.filter((p) => p.kind === k).map((p): Tile => ({ item: p.id, spec: p.id, name: p.name, spare: false })),
   })).filter((x) => x.spares.length + x.catalogue.length > 0);
-  const shown = kind && sections.some((x) => x.kind === kind) ? sections.filter((x) => x.kind === kind) : sections;
+  const groups = PART_GROUPS
+    .map((g) => ({ ...g, kinds: kinds.filter((x) => g.kinds.includes(x.kind)) }))
+    .filter((g) => g.kinds.length > 0)
+    .map((g) => ({ ...g, count: g.kinds.reduce((n, x) => n + x.catalogue.length, 0) }));
+  const shown = group && groups.some((g) => g.key === group) ? groups.filter((g) => g.key === group) : groups;
 
   const tile = (t: Tile) => (
     <div
@@ -171,22 +173,27 @@ export function BuildMode() {
       {failed && <div class="bld-note mute">3D is not available here.</div>}
       <aside class={`bld-bin mode-panel ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
         <header class="mode-head"><span class="mode-eyebrow">Workshop</span><b>Build my PC</b></header>
-        <div class="bld-cats" role="tablist" aria-label="Categories">
-          <button role="tab" aria-selected={!kind} class={!kind ? 'on' : ''} onClick={() => setKind(null)}>All</button>
-          {sections.map((x) => (
-            <button key={x.kind} role="tab" aria-selected={kind === x.kind} class={kind === x.kind ? 'on' : ''} title={`${kindLabel(x.kind)}: ${x.catalogue.length} to choose from`}
-              onClick={() => setKind(kind === x.kind ? null : x.kind)}>
-              <Icon name={kindIcon(x.kind)} size={12} /><span>{kindLabel(x.kind)}</span><em>{x.catalogue.length}</em>
+        <div class="bld-cats" role="tablist" aria-label="Groups">
+          <button role="tab" aria-selected={!group} class={!group ? 'on' : ''} onClick={() => setGroup(null)}>All</button>
+          {groups.map((g) => (
+            <button key={g.key} role="tab" aria-selected={group === g.key} class={group === g.key ? 'on' : ''} title={`${g.label}: ${g.count} to choose from`}
+              onClick={() => setGroup(group === g.key ? null : g.key)}>
+              <Icon name={g.icon} size={12} /><span>{g.label}</span><em>{g.count}</em>
             </button>
           ))}
         </div>
         <div class="bld-parts" aria-label="Parts">
-          {shown.map((x) => (
-            <section key={x.kind} class="bld-sec" aria-label={kindLabel(x.kind)}>
-              <h3><Icon name={kindIcon(x.kind)} size={13} /> {kindLabel(x.kind)}</h3>
-              {x.spares.length > 0 && <div class="bld-sub">In the inventory</div>}
-              {x.spares.length > 0 && <div class="bld-tiles">{x.spares.map(tile)}</div>}
-              <div class="bld-tiles">{x.catalogue.map(tile)}</div>
+          {shown.map((g) => (
+            <section key={g.key} class="bld-grp" aria-label={g.label}>
+              <h2><Icon name={g.icon} size={14} /> {g.label}</h2>
+              {g.kinds.map((x) => (
+                <section key={x.kind} class="bld-sec" aria-label={kindLabel(x.kind)}>
+                  <h3><Icon name={kindIcon(x.kind)} size={12} /> {kindLabel(x.kind)}</h3>
+                  {x.spares.length > 0 && <div class="bld-sub">In the inventory</div>}
+                  {x.spares.length > 0 && <div class="bld-tiles">{x.spares.map(tile)}</div>}
+                  <div class="bld-tiles">{x.catalogue.map(tile)}</div>
+                </section>
+              ))}
             </section>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ladderFor } from './picker';
-import { currentSpecFor, KIND_ICON, kindIcon, kindLabel, SHOP_ORDER, shopFor } from './shopdata';
+import { currentSpecFor, KIND_ICON, kindIcon, kindLabel, PART_GROUPS, SHELF_KINDS, SHOP_ORDER, shopFor } from './shopdata';
 import { snap } from '@/core/ui/testdata';
 
 describe('the shop', () => {
@@ -30,5 +30,13 @@ describe('the shop', () => {
   it('names the part fitted now, for the stat bars', () => {
     expect(currentSpecFor(snap(), 'board')).toBe('board0');
     expect(currentSpecFor(snap(), 'os')).toBeNull();
+  });
+});
+
+describe('the shelf groups', () => {
+  it('puts every shelf kind in exactly one group', () => {
+    const kinds = PART_GROUPS.flatMap((g) => g.kinds);
+    expect(new Set(kinds).size).toBe(kinds.length);
+    expect(kinds.sort()).toEqual(SHELF_KINDS.slice().sort());
   });
 });

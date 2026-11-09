@@ -67,3 +67,20 @@ export function tierOfSpec(specId: string): number | null {
   if (cm) return Number(cm[1]);
   return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
 }
+
+/** A group of the shelf: the kinds of parts that do one job together (the shelf's first row of chips). */
+export interface PartGroup { key: string; label: string; icon: IconName; kinds: ShopKind[] }
+
+/** The shelf's groups, in build order. Every kind the shelf holds is in exactly one group (`shopdata.test.ts`). */
+export const PART_GROUPS: PartGroup[] = [
+  { key: 'build', label: 'Board & case', icon: 'case', kinds: ['case', 'board'] },
+  { key: 'compute', label: 'Compute', icon: 'cpu', kinds: ['cpu', 'ram', 'gpu', 'npu'] },
+  { key: 'cooling', label: 'Cooling', icon: 'fan', kinds: ['cooler', 'fan', 'radiator', 'vrm-sink', 'ram-sink'] },
+  { key: 'power', label: 'Power', icon: 'bolt', kinds: ['psu'] },
+  { key: 'storage', label: 'Storage', icon: 'disk', kinds: ['storage'] },
+  { key: 'network', label: 'Network', icon: 'net', kinds: ['nic'] },
+  { key: 'security', label: 'Security', icon: 'lock', kinds: ['tpm'] },
+];
+
+/** The kinds the shelf can hold (the parts that fit the PC): the groups must cover them all. */
+export const SHELF_KINDS: ShopKind[] = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
