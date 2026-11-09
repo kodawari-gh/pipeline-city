@@ -6,6 +6,7 @@ import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
 import { anisotropy, refilter } from './geometry';
+import { DrawGate, STILL_PX, ViewWatch } from './ondemand';
 
 export interface Viewer {
   /** Show another part (null: an empty stage). The old one is disposed. */
@@ -176,10 +177,14 @@ export function mountViewer(host: HTMLElement): Viewer {
     } else { size = new Vector3(1, 1, 1); centre = new Vector3(); }
     place();
     view = goal();
+    demand.ask();
   };
+  // drawn on demand (docs/render/load.md): a still part draws no frame; a new part, size or setting, a baked tile or a camera move draws one
+  const demand = new DrawGate(), moved = new ViewWatch();
   const resize = () => {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
     renderer.setSize(w, h, false);
+    demand.ask(); // (a new size clears the canvas)
   };
   // the graphics settings (`app/graphics.ts`): the pixels drawn, the brightness, the shadows and the texture filtering
   const stopSettings = effect(() => {
@@ -202,9 +207,13 @@ export function mountViewer(host: HTMLElement): Viewer {
     idle += dt;
     if (auto && idle > 2) yaw += AUTO_SPEED * dt;
     view = stepView(view, goal(), dt * 3);
-    aim(camera, view, renderer.domElement.width / Math.max(1, renderer.domElement.height), size, centre);
-    for (const h of hooks) h.frame?.(camera, renderer.domElement.height);
+    const W = renderer.domElement.width, H = renderer.domElement.height;
+    aim(camera, view, W / Math.max(1, H), size, centre);
+    for (const h of hooks) h.frame?.(camera, H);
+    // (the turntable and an eased drag move the picture; at rest it stands)
+    if (!demand.want(now, moved.shift(camera, W, H, camera.near, camera.far) >= STILL_PX)) return;
     renderer.render(scene, camera);
+    moved.mark(camera, W, H);
   };
 
   // the pointer: one finger or the left button turns, two fingers pinch, the wheel zooms
@@ -244,6 +253,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   el.addEventListener('wheel', onWheel, { passive: false });
   el.addEventListener('dblclick', reset);
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // the browser's image menu has no place on a 3D view
+  el.addEventListener('webglcontextrestored', () => demand.ask());
   resize();
   raf = requestAnimationFrame(frame);
 

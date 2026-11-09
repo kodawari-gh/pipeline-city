@@ -8,6 +8,7 @@ import {
   type Material, type Object3D, type PerspectiveCamera, type Texture,
 } from 'three';
 import { anisotropy } from './geometry';
+import { sceneChanged } from './ondemand';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -68,6 +69,7 @@ export class BakeQueue {
       try { done = j.run(); } catch { done = true; }
       if (!done) return; // the baker is not ready yet: try again next frame
       this.jobs.shift();
+      sceneChanged(); // a baked tile or face shows: views drawn on demand draw it
     }
   }
 }
@@ -293,6 +295,7 @@ export class ArtSurface {
     this.root.remove(t.mesh);
     disposeMesh(t.mesh);
     t.mesh = null;
+    sceneChanged();
   }
 
   /** Take back the level's bake jobs that have not run (its baked tiles stay). */

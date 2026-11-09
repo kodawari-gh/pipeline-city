@@ -209,10 +209,12 @@ export class OutsideView {
   /** The camera's view at the last cut, and whether that cut kept all of it (for the sun's shadows). */
   private cutOf = new Matrix4();
   private cutAll = false;
-  /** The window's box (its corners in the frame, -1 to 1) and the frame, at the picture's last draw, and the frames it has stood since. */
+  /** The window's box (its corners in the frame, -1 to 1) and the frame, at the picture's last draw, and the ticks (`frame`) it has stood since. */
   private box = new Vector4();
   private boxFrame = '';
   private age = 0;
+  /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
+  get due(): boolean { return this.age >= EVERY; }
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). */
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
@@ -306,6 +308,7 @@ export class OutsideView {
 
   /** The hour's sky and light (a few times a game hour), the clouds' drift and the wind every frame. */
   frame(hour: number, t: number): void {
+    this.age++;
     const u = this.sky.uniforms as unknown as SkyUniforms;
     u.time.value = t;
     this.leaf.time.value = t;
@@ -382,7 +385,7 @@ export class OutsideView {
    * the multisampling of the frame's scene target.
    */
   draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    if (!this.mesh.parent) { this.live = null; return; }
+    if (!this.mesh.parent) { this.live = null; this.age = 0; return; }
     camera.updateMatrixWorld();
     this.mesh.updateWorldMatrix(true, false);
     const size = renderer.getDrawingBufferSize(new Vector2()), fw = size.x, fh = size.y;
@@ -391,7 +394,7 @@ export class OutsideView {
     if (moved) { this.eye.copy(this.eyeNow); this.eyeFrame = frame; }
     this.sight.frame(renderer.getContext() as QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
-    if (this.sight.hidden && this.live === camera) return;
+    if (this.sight.hidden && this.live === camera) { this.age = 0; return; }
     const shown = this.live === camera;
     this.live = null;
     // the window's box on screen, and how near its nearest corner is
@@ -408,10 +411,10 @@ export class OutsideView {
     if (behind) { x0 = y0 = -1; x1 = y1 = 1; nearest = 0; }
     const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
     const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
-    if (rr - rx < 1 || rb - ry < 1) return;
-    // the eye has held (nearly) still since the picture was drawn: it stands for a few frames (`EVERY`)
+    if (rr - rx < 1 || rb - ry < 1) { this.age = 0; return; }
+    // the eye has held (nearly) still since the picture was drawn: it stands for a few ticks (`EVERY`, counted by `frame`)
     const b = this.box, drift = behind ? (moved ? Infinity : 0) : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) / 2;
-    if (shown && frame === this.boxFrame && drift < HOLD_PX && ++this.age < EVERY) { this.live = camera; return; }
+    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < EVERY) { this.live = camera; return; }
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;

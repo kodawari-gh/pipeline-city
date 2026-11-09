@@ -7,8 +7,10 @@ import { effect, signal } from '@preact/signals';
 import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight, type Object3D } from 'three';
 import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
+import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue } from '@/core/render/three/artlod';
-import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
+import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
+import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
@@ -100,6 +102,9 @@ export class BuildStage {
   private readonly ctx;
   private readonly post: Post;
   private readonly gate = new FrameGate();
+  /** Drawn on demand (docs/render/load.md): a still machine draws no frame; a change, a motion or a camera move draws. */
+  private readonly demand = new DrawGate();
+  private readonly moved = new ViewWatch();
   /** The power and airflow lenses (the `powerLens` / `airflowLens` signals), over the machine as in the game. */
   private readonly lens: Lens3D;
   private readonly host: HTMLElement;
@@ -142,15 +147,20 @@ export class BuildStage {
       const g = effective.value;
       this.post.apply(g, renderer, this.W, this.H);
       if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+      this.demand.ask();
     }));
     this.view = this.goal = this.frameView();
     this.listen(renderer.domElement);
     const ro = new ResizeObserver(() => {
       this.W = Math.max(1, host.clientWidth); this.H = Math.max(1, host.clientHeight);
       renderer.setSize(this.W, this.H); this.post.setSize(this.W, this.H);
+      this.demand.ask(); // (a new size clears the canvas)
     });
     ro.observe(host);
     this.cleanup.push(() => ro.disconnect());
+    const restored = () => this.demand.ask();
+    renderer.domElement.addEventListener('webglcontextrestored', restored);
+    this.cleanup.push(() => renderer.domElement.removeEventListener('webglcontextrestored', restored));
   }
 
   /** Open the stage in `host` (a sized element) with a fresh sandbox game that holds the biggest machine. */
@@ -172,7 +182,7 @@ export class BuildStage {
   get cables(): Cables { return this.game.cables; }
   /** Every change to the stage's game goes through here (install, uninstall, purchase, a cable): it drops the kept snapshot. */
   private edit<T>(change: (g: Game) => T): T {
-    try { return change(this.game); } finally { this.snaps.drop(); }
+    try { return change(this.game); } finally { this.snaps.drop(); this.demand.ask(); }
   }
 
   // ------------------------------------------------------------------ drawing
@@ -197,12 +207,14 @@ export class BuildStage {
     if (refit) this.view = this.goal = this.frameView();
     const st = this.status.peek();
     this.status.value = { ...st, rev: st.rev + 1 };
+    this.demand.ask();
   }
 
   private marker: Mesh | null = null;
   private markerAt = '';
   /** The snap preview: a glowing box over the socket a dragged part would fit in (`dropTarget`); null hides it. A socket with no place of its own (a case fan) shows none. */
   showTarget(slot: string | null): void {
+    this.demand.ask();
     const rect = slot && this.machine.doorOpen ? slotRects(this.snapshot).get(slot) : undefined;
     if (!rect) { if (this.marker) this.marker.visible = false; this.markerAt = ''; return; }
     if (!this.marker) {
@@ -264,11 +276,17 @@ export class BuildStage {
     this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio());
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
-    const lum = this.post.meter();
-    if (lum !== null) this.metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
     this.seen *= (this.metered / this.seen) ** (1 - Math.pow(0.01, dt));
     this.post.setEye(this.seen);
+    // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
+    const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
+    const busy = !!this.anim || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
+      || Math.abs(Math.log(this.metered / this.seen)) > 1e-3 || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
+    if (!this.demand.want(now, busy)) return;
     this.post.render();
+    this.moved.mark(camera, w, h);
+    const lum = this.post.meter();
+    if (lum !== null) this.metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
   };
 
   private step(dt: number): void {
@@ -402,7 +420,7 @@ export class BuildStage {
 
   /** Is the side panel open (or opening)? The case hides what is inside it, so parts and sockets answer only then. */
   get insideOpen(): boolean { return this.wantOpen; }
-  openInside(open: boolean): void { this.wantOpen = open; }
+  openInside(open: boolean): void { this.wantOpen = open; this.demand.ask(); }
 
   /** The id under a client point, from the board's own pieces (the case is left out: it hides what is inside). */
   private hitId(x: number, y: number): string | null {

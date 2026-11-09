@@ -48,7 +48,7 @@ import { GROMMETS, rearFanScrews, SLOT_BLANK } from './casedetail3d';
 import { SINK_FAN_MID, sinkBody } from './sink3d';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
-import { stripModeOf } from '@/features/room/render/shell/exterior';
+import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
 import { basementPlan, shroud } from './basement3d';
 import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot } from './drivecage3d';
 import { drivePlug, sataDriveModel } from './drive3d';
@@ -781,13 +781,32 @@ export class Machine3D {
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
     this.spill.color.copy(rgb);
     this.spill.intensity = this.rgb.intensity * 0.3;
-    if (this.strip) stripLight(this.strip, stripModeOf(s), performance.now());
+    this.stripMode = stripModeOf(s);
+    if (this.strip) stripLight(this.strip, this.stripMode, performance.now());
     if (this.door) this.swingDoor(dt);
+    this.blink = live && s.storage.some((d) => d.busy);
     if (this.leds) {
       this.leds.on.emissiveIntensity = live ? 2 : 0;
       this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0;
-      this.leds.disk.emissiveIntensity = live && s.storage.some((d) => d.busy) && performance.now() % 240 < 150 ? 2.2 : 0;
+      this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 2.2 : 0;
     }
+  }
+
+  private stripMode: StripMode = 'off';
+  private blink = false;
+
+  /**
+   * Something of the machine moves after the last `frame`: a fan turns or coasts, the side panel swings, the strip pulses or blinks, the disk LED
+   * flickers, a part eases to its state's look. A frame drawn on demand (docs/render/load.md) keeps drawing meanwhile.
+   */
+  get moving(): boolean {
+    if (this.fans.some((f) => f.speed > 1e-3)) return true;
+    const d = this.door;
+    if (d && d.t !== (this.doorOpen ? 1 : 0)) return true;
+    if (this.strip && (this.stripMode === 'work' || this.stripMode === 'error')) return true;
+    if (this.blink && this.leds) return true;
+    for (const sk of this.skins.values()) if (sk.easing) return true;
+    return false;
   }
 
   /**

@@ -799,6 +799,12 @@ export class Room3D {
     this.outside.draw(renderer, scene, camera, samples);
   }
 
+  /**
+   * The room's slow motion is due a frame: the city's beat (`OutsideView.due`, each few ticks), which also carries the cup's steam, the clock
+   * and the hour's light as it turns. A frame drawn on demand (docs/render/load.md) draws on it.
+   */
+  get ambientDue(): boolean { return this.outside.due; }
+
   /** Free what is not under the root: the baked bounce's target. The city stays for the next room: call it before the root is freed. */
   dispose(): void { this.gone = true; this.outside.mesh.removeFromParent(); this.lightmap?.dispose(); }
 

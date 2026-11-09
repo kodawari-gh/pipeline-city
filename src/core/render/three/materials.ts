@@ -65,6 +65,13 @@ export class PartSkin {
     this.goalGlow.setHex(this.goal.glow);
   }
 
+  /** Still on its way to the state's look (a frame drawn on demand, docs/render/load.md, keeps drawing meanwhile). */
+  get easing(): boolean {
+    const g = this.glow, w = this.goalGlow;
+    return Math.abs(this.goal.tint - this.tint) > 1e-3 || Math.abs(this.goal.glowIntensity - this.level) > 1e-3
+      || (this.goal.glowIntensity > 0 && Math.abs(g.r - w.r) + Math.abs(g.g - w.g) + Math.abs(g.b - w.b) > 1e-3);
+  }
+
   /** Ease over about half a second (LOWPOLY_STYLE.md "State Transitions"). */
   frame(dt: number): void {
     const t = 1 - Math.pow(0.002, dt);

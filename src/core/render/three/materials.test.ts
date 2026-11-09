@@ -43,4 +43,13 @@ describe('part looks', () => {
     expect(m.color.r).toBeCloseTo(base, 3);
     expect(m.emissiveIntensity).toBeCloseTo(0, 3);
   });
+
+  it('a skin says it eases until it has reached the look', () => {
+    const skin = new PartSkin([mat(0x808080)]);
+    expect(skin.easing).toBe(false);
+    skin.set({ ...ON, active: true });
+    expect(skin.easing).toBe(true);
+    for (let i = 0; i < 600; i++) skin.frame(1 / 60);
+    expect(skin.easing).toBe(false);
+  });
 });

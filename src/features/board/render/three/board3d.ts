@@ -17,8 +17,9 @@ import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, AwayWatch, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
-  applyView, clampTilt, clampView, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+  applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
 } from '@/core/render/three/camera';
+import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { NO_PULL, holdOn, keeps, over, pullOn, railUnder, type Pull, type Rail } from '@/core/render/three/rails';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
@@ -109,6 +110,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
   const bakes = new BakeQueue();
   startBaker();
+  // the title's room is drawn on demand (docs/render/load.md "Draw on demand"): a frame when its picture changes, none while it stands
+  const demand = new DrawGate(), shift = new ViewWatch();
   // the studio's light: the scene's only until the room's probe is ready (the first frames)
   const studio = scene.environment!;
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
@@ -144,6 +147,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (machine) { scene.remove(machine.root); machine.dispose(); }
     machine = m;
     scene.add(m.root);
+    demand.ask();
     // the rail that holds the view stays if its part is still there
     const held = rail && m.rails.find((x) => x.id === rail!.r.id);
     rail = held ? { r: held, pull: NO_PULL } : null;
@@ -187,6 +191,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
     chips.update(s);
     room.setKeys(s?.tray ?? []);
+    demand.ask(); // (a save loaded, a part fitted, a plug in or out)
   };
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
   bootStage('Building the world', 0.14);
@@ -538,11 +543,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   // ---- snapshot, theme, size ----
   effect(() => { snapshot.value; rebuild(); });
-  onThemeChange(() => { T = readTheme(); (scene.background as { set(c: string): void }).set(T.bg); });
+  onThemeChange(() => { T = readTheme(); (scene.background as { set(c: string): void }).set(T.bg); demand.ask(); });
   new ResizeObserver(() => {
     W = host.clientWidth; H = Math.max(1, host.clientHeight);
     renderer.setSize(W, H); post.setSize(W, H);
+    demand.ask(); // (a new size clears the canvas)
   }).observe(host);
+  canvas.addEventListener('webglcontextrestored', () => demand.ask());
 
   // ---- the graphics settings (app/graphics.ts) ----
   const applyGraphics = (g: Graphics) => {
@@ -554,6 +561,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     chips.live = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
     fx.density = PARTICLE_LEVELS[g.particles] ?? 1;
     if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+    demand.ask();
   };
   effect(() => applyGraphics(effective.value));
   const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), away = new AwayWatch();
@@ -572,6 +580,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     linking = null;
     linkedAt = now;
     watch.reset(now);
+    demand.ask();
     if (!revealed) bootStage('Lighting the room', 0.92);
   };
   /**
@@ -580,11 +589,14 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * programs still link meanwhile (`warmed`, `linking`): a graphics change made there is ready on return.
    */
   const covered = () => revealed && warmed && !linking && !snapshot.peek() && (galleryOpen.peek() || buildOpen.peek());
+  /** The stage covered the room on the last tick (the first tick back draws); the outline's parts as last drawn. */
+  let wasCovered = false, outlineKey = '';
   const frame = (now: number) => {
     const g = effective.peek(), fps = away.limit(g.fps, now, document.hasFocus(), menu || lift.busy || !!hand.kind || !settled(view, goal));
     if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
     // (the frame rate the graphics settings show stays live: the page's, which the stage's draw sets)
-    if (covered()) { last = now; meter.tick(now, canvas.width, canvas.height); requestAnimationFrame(frame); return; }
+    if (covered()) { wasCovered = true; last = now; meter.tick(now, canvas.width, canvas.height); requestAnimationFrame(frame); return; }
+    if (wasCovered) { wasCovered = false; demand.ask(); }
     // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
     if (linking) {
       if (!linked(linking)) {
@@ -643,6 +655,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const picked: Object3D[] = [];
     for (const id of ids) for (const r of roots()) { const o = findById(r, real(id)); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
+    const ok = [...ids].join('|');
+    if (ok !== outlineKey) { outlineKey = ok; demand.ask(); }
     // (how near the eye is, by the height shown at `LOOK_Z`: the same picture reads the same whatever its target)
     const seenH = heightAt(view, LOOK_Z);
     post.setReach(seenH);
@@ -672,13 +686,25 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       post.setReach(seenH);
       post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
     }
-    room?.drawOutside(renderer, scene, camera, g.msaa);
-    post.render();
-    const lum = near > 0 ? post.meter() : null;
+    // drawn on demand (docs/render/load.md "Draw on demand"): the game draws every frame. The title's room draws when its picture changes: the
+    // sway moves it `STILL_PX` or more at the room's depths, the city's beat comes (its cars, the cup's steam, the hour's light), the machine
+    // moves, the probe works, the eye is on its way, or something asked (a new size, setting, theme, picture, part, tile or shadow)
+    const D = distanceOf(view);
+    // the city's beat is one frame, not a motion: it asks, so it draws no trailing frame after it
+    if (room?.ambientDue) demand.ask();
+    const busy = !menu || !revealed || !!machine?.moving || probe.busy || bounces > 0
+      || (near > 0 && Math.abs(Math.log(metered / seen)) > 1e-3) || shift.shift(camera, canvas.width, canvas.height, D / 2, D * 1.5) >= STILL_PX;
+    const draw = demand.want(now, busy);
+    if (draw) {
+      room?.drawOutside(renderer, scene, camera, g.msaa);
+      post.render();
+      shift.mark(camera, canvas.width, canvas.height);
+    }
+    const lum = draw && near > 0 ? post.meter() : null;
     if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
     seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
-    if (room) {
+    if (room && draw) {
       const key = `${room.lightKey}|${!!s?.powered}`;
       if (!probe.busy && (bounces > 0 || (key !== probeKey && now - probeAt > PROBE_MS))) { probe.request(); probeKey = key; probeAt = now; bounces = Math.max(0, bounces - 1); }
       // one light for all: the machine and the dies' art take the room's probe as the room's own materials do (`RoomEnv`), at every zoom
@@ -686,10 +712,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         roomEnv = pmrem.fromCubemap(probe.texture, roomEnv);
         scene.environment = roomEnv.texture; scene.environmentIntensity = PROBE_K;
         if (!probed) { room.setProbe(roomEnv.texture); probed = true; }
+        demand.ask();
       }
     }
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
-    room?.redrawShadows(shadows.scan(scene, now), now);
+    if (draw) {
+      const cast = shadows.scan(scene, now);
+      room?.redrawShadows(cast, now);
+      if (cast) demand.ask();
+    }
     meter.tick(now, canvas.width, canvas.height);
     // a new case is a new room: frame it again
     const tierNow = `${LAYOUT_TIER}|${LAYOUT_CASE}`;

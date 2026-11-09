@@ -2,6 +2,7 @@
 // loaded model in place of its primitives. The file loads once and is cloned for each use; until it is there, and when it fails, the primitives stay.
 import { Box3, Vector3, type Group, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { sceneChanged } from './ondemand';
 
 const loader = new GLTFLoader();
 const cache = new Map<string, Promise<Object3D | null>>();
@@ -10,7 +11,8 @@ const cache = new Map<string, Promise<Object3D | null>>();
 export function loadModel(url: string): Promise<Object3D | null> {
   let p = cache.get(url);
   if (!p) { p = loader.loadAsync(url).then((g) => g.scene, () => null); cache.set(url, p); }
-  return p;
+  // (a model that comes in changes a still view: its users add it before the next frame, which then draws, docs/render/load.md)
+  return p.then((m) => { sceneChanged(); return m; });
 }
 
 /**
