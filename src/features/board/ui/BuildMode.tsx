@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { buildOpen, graphicsOpen, toggleGraphics } from '@/core/ui/state';
 import { airflowLens, powerLens } from '@/app/hover';
-import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
+import { BUILD_PRESETS, specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
+import { deleteBuild, savedBuilds, saveBuild } from './savedbuilds';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
 import { kindIcon, kindLabel } from '@/features/economy/ui/shop/shopdata';
@@ -87,6 +88,7 @@ export function BuildMode() {
   const [parts, setParts] = useState<Part[]>([]);
   const [failed, setFailed] = useState(false);
   const [kind, setKind] = useState('cpu');
+  const [saved, setSaved] = useState<SavedBuild[]>(() => savedBuilds());
   const [sel, setSel] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [, redraw] = useState(0);
@@ -247,6 +249,18 @@ export function BuildMode() {
           {BUILD_PRESETS.map((p) => <button key={p.name} disabled={busy || !stage} title={`Build a ${p.name.toLowerCase()} machine`} onClick={() => stage?.buildPreset(p)}>{p.name}</button>)}
           <button disabled={busy || !stage} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
           <button disabled={busy || !stage} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
+        </div>
+        <div class="bld-presets" role="group" aria-label="Saved builds">
+          <button disabled={busy || !stage} title="Save this machine under a name" onClick={() => {
+            const n = window.prompt('Name this build', `My build ${saved.length + 1}`)?.trim();
+            if (n && stage) setSaved(saveBuild(n, stage.layout));
+          }}>Save…</button>
+          {saved.map((b) => (
+            <span key={b.name} class="bld-saved">
+              <button disabled={busy || !stage} title={`Load ${b.name}`} onClick={() => stage?.loadLayout(b.layout, b.name)}>{b.name}</button>
+              <button aria-label={`Delete ${b.name}`} title="Delete this saved build" onClick={() => setSaved(deleteBuild(b.name))}><Icon name="close" size={9} /></button>
+            </span>
+          ))}
         </div>
         {stage && <Specs stage={stage} rev={rev} />}
         <ul class="bld-list">

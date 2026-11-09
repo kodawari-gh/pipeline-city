@@ -9,6 +9,10 @@ export const BUILD_PRESETS: BuildPreset[] = [
   { name: 'Workstation', level: 1, ram: 8, storage: 4, gpus: 2, npus: 1 },
 ];
 
+/** A machine as saved: its case and board tier and each fitted part's spec and socket. */
+export interface BuildLayout { caseTier: number; boardTier: number; parts: { spec: string; slot: string }[] }
+export interface SavedBuild { name: string; layout: BuildLayout }
+
 export interface SpecSheet {
   /** Parts counted (the case and the board count as one each). */
   parts: number;

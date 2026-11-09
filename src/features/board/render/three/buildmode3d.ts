@@ -29,7 +29,7 @@ import { PSU_BODY, PSU_COVER } from './basement3d';
 import { motionFor, motionSeconds, poseAt } from './buildmotion';
 import { Machine3D } from './machine3d';
 import { Lens3D } from './lens3d';
-import type { BuildPreset } from '@/features/board/sim/buildspecs';
+import type { BuildLayout, BuildPreset } from '@/features/board/sim/buildspecs';
 
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
@@ -633,11 +633,34 @@ export class BuildStage {
     };
     fill('psu', 1); fill('cpu', 1); fill('cooler', 1); fill('ram', p.ram); fill('storage', p.storage); fill('gpu', p.gpus); fill('npu', p.npus);
     fill('nic', 1); fill('fan', 99); fill('display', 1);
+    this.adopt(g, `Built the ${p.name} machine`);
+  }
+
+  /** What is in the machine now, to save under a name (`loadLayout` builds it again). */
+  get layout(): BuildLayout {
+    return { caseTier: this.board.caseTier, boardTier: this.board.tier, parts: this.board.devices.map((d) => ({ spec: d.spec, slot: d.slot })) };
+  }
+
+  /** Build a saved layout at once (no animation). Parts that no longer fit are skipped. */
+  async loadLayout(l: BuildLayout, name: string): Promise<void> {
+    if (this.status.peek().busy) return;
+    const { Game } = await import('@/worker/game/game');
+    const g = new Game({ seed: 1, sandbox: true, preassembled: false });
+    for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
+    const put = (id: string, slot?: string) => { const b = g.purchase(id); return b.ok && g.install(b.invId, slot).ok; };
+    put(`case${l.caseTier}`);
+    put(`board${l.boardTier}`);
+    for (const p of l.parts) put(p.spec, p.slot);
+    this.adopt(g, `Loaded ${name}`);
+  }
+
+  /** Make `g` the machine: plug every cable it needs, forget the history and redraw. */
+  private adopt(g: Game, line: string): void {
     for (const c of cablesOf(g.board)) if (!OUTSIDE.has(c.id) && cableNeeded(g.board, c.id) && !cableBlocked(g.board, c.id)) g.connectCable(c.id);
     for (const c of OUTSIDE) if (cableNeeded(g.board, c as never)) g.connectCable(c);
     this.game = g;
     this.forget();
-    this.status.value = { busy: false, step: '', log: [`Built the ${p.name} machine`], rev: this.status.peek().rev };
+    this.status.value = { busy: false, step: '', log: [line], rev: this.status.peek().rev };
     this.rebuild();
   }
 
