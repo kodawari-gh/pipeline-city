@@ -648,10 +648,23 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       if (!linked(linking)) { requestAnimationFrame(frame); return; }
       drawn(now);
     }
+    // a still of the room for the next boot screen: always from the overview's fixed angle, whatever the player looks at. A draw of its own, before
+    // the frame's (which paints over it), in the same task: the buffer is not kept, so it is copied right after the draw.
+    if (revealed && s && now - stillAt > STILL_MS) {
+      stillAt = now;
+      const ov = overview(), h = heightAt(ov, LOOK_Z), nr = 1 - roomness(h);
+      applyView(camera, ov, aspect());
+      post.setReach(h);
+      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      room?.drawOutside(renderer, scene, camera, g.msaa);
+      post.render();
+      saveStill(canvas);
+      applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
+      post.setReach(seenH);
+      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    }
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
-    // a still of the game for the next boot screen (the buffer is not kept: it is copied now, in the draw's task); only of the room, not a die or the board up close
-    if (revealed && s && near < 0.4 && now - stillAt > STILL_MS) { stillAt = now; saveStill(canvas); }
     const lum = near > 0 ? post.meter() : null;
     if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
     seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
