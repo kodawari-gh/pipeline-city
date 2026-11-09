@@ -365,12 +365,6 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
   }
 }
 
-/** A box across x with its corners rounded in the wall's plane (a USB-C mouth): world y and depth, as `boxW`. */
-function softBoxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
-  const r = Math.min(y1 - y0, z1 - z0) / 2;
-  return wallX(x0, x1, { y0: -y1, y1: -y0, z0, z1, r }, [], m);
-}
-
 // ---------------------------------------------------------------- the controls on the top
 
 export interface Controls { root: Group; power: Group; leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial }; spins: Spin[] }

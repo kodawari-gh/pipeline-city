@@ -328,7 +328,7 @@ function lanternProfile(R: number, H: number, rBottom: number, rTop: number): Ve
 
 /** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on a black wire stand, a book and a phone. */
 export function nightstand(): Bedside {
-  const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
+  const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, cx = x + w / 2, cz = (z0 + z1) / 2;
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
   // the box on the wall, the drawer's front nearly flush in it, a dark gap round the front
   g.add(board({ x, y: top, w, h }, z0, z1, veneer));

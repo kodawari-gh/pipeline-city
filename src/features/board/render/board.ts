@@ -830,7 +830,7 @@ export async function mountBoard(host: HTMLElement) {
       const kind: DriveKind = driveKindOf(spec.visual), body = driveBody(kind, sd.slot);
       slotKind.set(sd.slot, kind);
       const node = new Container(), lg = new Graphics();
-      node.addChild(driveArt(T, kind, sd.slot, spec.name, `${Math.round((spec.capacityBytes ?? 0) / 1024)}K`), lg);
+      node.addChild(driveArt(T, kind, sd.slot, `${Math.round((spec.capacityBytes ?? 0) / 1024)}K`), lg);
       driveLayer.addChild(node);
       if (builtOnce && !driveSlotsSeen.has(sd.slot)) slides.push({ node, t0: now0 });
       const idx = slotIndex(sd.slot);

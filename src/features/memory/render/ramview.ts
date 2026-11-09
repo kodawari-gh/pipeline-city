@@ -44,16 +44,6 @@ export function vmNote(m: RamMap, addr: number): string {
   return out.slice(0, 2).join(' | ');
 }
 
-function wrap(text: string, width: number, lines: number): string {
-  const out: string[] = [];
-  let cur = '';
-  for (const w of text.split(' ')) {
-    if (cur && cur.length + 1 + w.length > width) { out.push(cur); cur = w; } else cur = cur ? `${cur} ${w}` : w;
-  }
-  if (cur) out.push(cur);
-  if (out.length > lines) { out.length = lines; out[lines - 1] = out[lines - 1]!.replace(/.{0,3}$/, '') + '…'; }
-  return out.join('\n');
-}
 
 export class RamView {
   readonly root = new Container();
@@ -240,15 +230,6 @@ export class RamView {
     return { x: r.x + (p % c.slot.tilesX) * sx, y: r.y + Math.floor(p / c.slot.tilesX) * sy, sx, sy };
   }
 
-  private text(pool: Text[], k: number, size: number, color: string): Text {
-    let t = pool[k];
-    if (!t) {
-      t = label('', 0, 0, size, color, { minPx: 4 });
-      pool[k] = t;
-      this.names.addChild(t);
-    }
-    return t;
-  }
 
   /** The pages' cells, region outlines and names on the chips, and how full each stick is. */
   private drawOutlines(): void {
@@ -261,7 +242,6 @@ export class RamView {
     this.outSig = sig;
     const g = this.outG;
     g.clear();
-    let nt = 0, ns = 0;
     const outlines = this.seen >= OUTLINE_Z, bands = this.seen >= BAND_Z;
     for (const t of this.regionTexts) t.visible = false;
     for (const t of this.stickTexts) t.visible = false;
@@ -329,7 +309,7 @@ export class RamView {
         const minY = Math.min(...cs.map((c) => c.slot.rect.y)), maxY = Math.max(...cs.map((c) => c.slot.rect.y + c.slot.rect.h));
         const flip = cs[0]!.slot.rect.y > cs[cs.length - 1]!.slot.rect.y;
         // the key sits on the free end of the stick, away from the pins and the ECC chip
-        const x = cs[0]!.slot.rect.x, w = cs[0]!.slot.rect.w, y = flip ? maxY + 8 : minY - 14, h = 0;
+        const x = cs[0]!.slot.rect.x, y = flip ? maxY + 8 : minY - 14;
         // the key: a line per owner on this stick (its colour and name, and what it holds here); a stick does not know how full it is
         const keys: { name: string; color: string; bytes: number }[] = [];
         for (const r of m.regions) {

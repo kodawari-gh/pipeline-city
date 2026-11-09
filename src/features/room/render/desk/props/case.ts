@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
-  BASE_BAYS, BAY, BAY_CELLS, BR, CASE_BD, CELL_H, CELL_PITCH, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_FACE_X, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T, MINI_FAN_Y, RAD_TANK, RAD_ROOM,
+  BASE_BAYS, BAY, BAY_CELLS, BR, CASE_BD, CELL_H, CELL_PITCH, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, FRONT_FAN_COUNT, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, PSU_FACE_X, PSU_REAR_FAN, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, FAN_LEN, WALL_T, MINI_FAN_Y, RAD_TANK, RAD_ROOM,
   sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';

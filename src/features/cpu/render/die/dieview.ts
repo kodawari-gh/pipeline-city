@@ -4,7 +4,7 @@ import { Ev } from '../../sim/engines/common';
 import { IRQ } from '@/core/sim/memmap';
 import type { PipeSnap } from '../../sim/pipesnap';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
-import type { Block, CpuPlan, Rect } from '../core/cpuplan';
+import type { Block, CpuPlan } from '../core/cpuplan';
 import { cellRects, dieNear, type DieArt } from './dieart';
 import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
@@ -26,7 +26,6 @@ import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 //  - blocks glow while an instruction is in them, the clock beats once per cycle.
 // A snapshot is a sampled instant: the replay is a slow-motion sample of the run.
 
-const CHIP_W = 176, CHIP_H = 92;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 /** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
 const WIPE_MS = 320;
@@ -94,7 +93,6 @@ export class PlanView {
   /** The zoom the die is seen at (lod.ts `seenZoom`): the layers fade on it, the line widths on `z`. */
   private zSeen = 1;
   private cellSig = '';
-  private dataSig = '';
   /** Told every time the CPU reaches out to RAM, for the memory sticks (set by board.ts). */
   onMemory: ((e: MemoryTouch) => void) | null = null;
   /** Told when the replay takes an interrupt, with its line (`IRQ`): the board lights the path the device's signal came along. */
@@ -127,7 +125,7 @@ export class PlanView {
     this.glow.clear();
     this.uncore.clear(); this.uncoreG.clear();
     this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
-    this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
+    this.cellSig = ''; this.glyphSig = '#';
     this.buildLegend(T, plan);
     this.setZoom(this.z, this.zSeen);
   }
@@ -194,7 +192,7 @@ export class PlanView {
     if (!this.plan || !this.player) return;
     if (!pipe || !pipe.trace) {
       // no machine running: the replay stops and the chips go
-      if (this.running) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#'; this.running = false; }
+      if (this.running) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.glyphSig = '#'; this.running = false; }
       return;
     }
     this.running = true;
@@ -273,7 +271,7 @@ export class PlanView {
       else if (e.kind === Ev.Pred) this.slotTime.set('p' + e.a, now);
       else if (e.kind === Ev.Tlb) { if (e.a === 2) this.sysAt.set('fault', now); else { this.slotTime.set('t' + e.b, now); this.tlbKind.set(e.b, e.a); } }
       else if (e.kind === Ev.Irq) {
-        this.sysAt.set('irq', now); this.sysLine = e.a;
+        this.sysAt.set('irq', now);
         const wire = plan.links.find((l) => l.kind === 'irq');
         // where the line came from: the timer (on the die) along its tick wire, any other (disk, network, USB) in over the system bus
         const from = plan.links.find((l) => l.id === (e.a === IRQ.TIMER ? 'timer-intc' : 'fab-intc'));
@@ -307,7 +305,7 @@ export class PlanView {
       // what was drawn is dropped and the signatures reset, so the first frame back in view draws everything fresh
       this.dropChips(); this.glow.clear(); this.packets = []; this.trails.clear();
       this.glowG.clear(); this.uncoreG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.packetG.clear(); this.trailG.clear();
-      this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
+      this.cellSig = ''; this.glyphSig = '#';
       return;
     }
 
@@ -582,7 +580,6 @@ export class PlanView {
   /** What each TLB entry last did (0 hit, 1 filled by a walk) and when the interrupt controller / address space last did something. */
   private tlbKind = new Map<number, number>();
   private sysAt = new Map<string, number>();
-  private sysLine = 0;
 }
 
 const WHICH = ['d', 'i', 'l2'];

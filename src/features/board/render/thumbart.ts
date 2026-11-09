@@ -110,7 +110,7 @@ export function drawThumb(r: Renderer, id: string, T: Theme): ICanvas | null {
       case 'tpm': { const h = tpmHeader(3); if (h) holder.addChild(tpmArt(T, spec.visual, h)); break; }
       case 'storage': {
         const kind = driveKindOf(spec.visual), slot = kind === 'ssd-nvme' ? 'm20' : 'sata0';
-        holder.addChild(driveArt(T, kind, slot, spec.name, `${Math.round(spec.capacityBytes / 1024)}K`));
+        holder.addChild(driveArt(T, kind, slot, `${Math.round(spec.capacityBytes / 1024)}K`));
         const live = new Graphics();
         drawDriveLive(live, T, kind, slot, { spin: 0.4, head: 0.35, led: 0, burnt: false });
         holder.addChild(live);

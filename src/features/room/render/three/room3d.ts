@@ -47,7 +47,7 @@ import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf, shadeOf } from './palette';
 import {
-  BED, BENCH, BOARD_Z, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
+  BED, BENCH, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
   WALL_T, WEST_X, WINDOW,
   daylight, sunDir, wallAround,
 } from './roomplan';

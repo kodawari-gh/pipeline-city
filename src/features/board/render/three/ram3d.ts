@@ -7,7 +7,6 @@ import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, 
 import { instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
-import type { Theme } from '@/core/render/theme';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
 import { ramChips, ramNotch } from '../devices';
@@ -159,7 +158,7 @@ export interface Stick {
 }
 
 /** One stick standing in the socket over `r`, `label` (its model) printed on its spreader or on a sticker over its chips. */
-export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike, label = ''): Stick {
+export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''): Stick {
   const look = stickLook(visual), cx = r.x + r.w / 2;
   const L = r.h - 2 * END, ys = -(r.y + r.h - END), root = new Group(), spreader = new Group(), spins: Spin[] = [];
   /** A 2D stick y (0 at its north end, DIMM_H long) as a world y. */

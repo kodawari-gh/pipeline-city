@@ -319,7 +319,7 @@ function screen(m: Mass, t: Tier, h: number, b: Building): void {
 
 /** A tower's crown on its top tier: a mast, a spire, a lit lantern; a red beacon at its tip and on the roof's corners. */
 function crown(m: Mass, b: Building, rand: () => number): void {
-  const t = b.tiers[b.tiers.length - 1]!, h = topOf(b), cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2, w = Math.min(t.x1 - t.x0, t.z1 - t.z0);
+  const t = b.tiers[b.tiers.length - 1]!, h = topOf(b), cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
   let tip = h + PARAPET;
   if (b.crown === 'mast') {
     const mh = 25 + h * 0.12;

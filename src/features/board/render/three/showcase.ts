@@ -88,7 +88,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)
   switch (spec.kind) {
     case 'ram': {
       const rs = spec as RamSpec;
-      return upright(withLayout(() => ramStick(T, rs.visual, !!rs.ecc, GEO.dimm[0]!.rect, rs.name).root), true);
+      return upright(withLayout(() => ramStick(rs.visual, !!rs.ecc, GEO.dimm[0]!.rect, rs.name).root), true);
     }
     case 'gpu': case 'npu': case 'nic': {
       const cs = spec as CardSpec | NicSpec;

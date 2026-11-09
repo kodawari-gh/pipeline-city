@@ -19,7 +19,6 @@ export const GPU_KIND_COLOR: Record<GpuBlockKind, Key> = {
 };
 export const GPU_LINK_COLOR: Record<GpuLinkKind, Key> = { data: 'alu', control: 'mute', mem: 'ld', launch: 'br' };
 
-const tint = (T: Theme, c: string, t: number) => mix(T.die, c, t);
 
 /** The accent of a card's die rim, by its microarchitecture (the CPU die's rim does the same by tier). */
 export const gpuAccent = (T: Theme, plan: GpuPlan): string => (plan.input.kind === 'multi' ? T.mul : plan.input.kind === 'warp' ? T.st : T.alu);

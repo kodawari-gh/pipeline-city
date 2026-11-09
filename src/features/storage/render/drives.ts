@@ -65,7 +65,7 @@ const metal = (T: Theme) => (T.dark ? '#2c3548' : '#b4bdcc');
 const metalHi = (T: Theme) => (T.dark ? '#3a4660' : '#cdd5e2');
 
 /** Static casing, centred nowhere: drawn straight in world coordinates. */
-export function driveArt(T: Theme, kind: DriveKind, slot: string, name: string, capLabel: string): Container {
+export function driveArt(T: Theme, kind: DriveKind, slot: string, capLabel: string): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);

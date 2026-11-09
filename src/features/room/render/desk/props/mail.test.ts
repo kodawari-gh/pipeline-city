@@ -6,12 +6,12 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 // gradient fills draw on a canvas, which the tests do not have
 vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
 
-import { CABLE_ROW_Y, CASE, MONITOR, OUTBOX, ROUTER_SPOT, TRAY, USB_PORT, setLayoutTier } from '@/features/board/render/layout/layout';
+import { MONITOR, TRAY, setLayoutTier } from '@/features/board/render/layout/layout';
 import { Graphics } from 'pixi.js';
 import { HANG_Y, KEY_LEN, KEY_LEN_PLUGGED, WORKLOAD_COLOURS, drawKeyTimer, keyTimerSpot, lanyardColour, pluggedKeyArt, trayKeyCentre } from './props';
 import type { KeySnap } from '@/worker/game/game';
 import { roomBox, roomGeo } from '../../shell/room';
-import { ENV_H, ENV_W, MAIL_S, OUT_K, POST_K, POSTING_FROM, SWAY, buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, outKeyPose, outLetterPose, outboxSlot, setLetter, swayAngle, swayStep, type SwayState } from './mail';
+import { ENV_H, ENV_W, MAIL_S, SWAY, buildLetter, carryAx, keyPose, letterPose, mailStage, setLetter, swayAngle, swayStep, type SwayState } from './mail';
 import type { Theme } from '@/core/render/theme';
 
 const DARK: Theme = {

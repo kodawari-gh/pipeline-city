@@ -100,7 +100,8 @@ export class Rope {
    * of `a`, since its other end will move (and again at each new end).
    */
   constructor(s: RopeSpec, o: { live?: boolean; start?: readonly V3[] } = {}) {
-    const n = this.n = Math.max(6, s.n ?? 28), r = this.r = s.r ?? 0, stiff = this.stiff = Math.min(1, Math.max(0, s.stiff ?? 0.3)), down = s.down ?? [0, -1, 0];
+    this.r = s.r ?? 0;
+    const n = this.n = Math.max(6, s.n ?? 28), stiff = this.stiff = Math.min(1, Math.max(0, s.stiff ?? 0.3)), down = s.down ?? [0, -1, 0];
     const a = s.a, b = s.b, chord = b ? dist(a.at, b.at) : 0, L = this.length = Math.max(s.length, chord * 1.0005, 1), seg = this.seg = L / (n - 1);
     this.sag = s.sag ?? 1;
     this.down = down;

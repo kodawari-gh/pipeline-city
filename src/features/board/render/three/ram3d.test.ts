@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Box3 } from 'three';
-import { builtinTheme } from '@/core/render/theme';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H, GEO, setLayoutTier } from '../layout/layout';
 import { SLOT_H, SLOT_W, STICK, STICK_MM, dimmSlot, ramStick, stickLook, stickTop } from './ram3d';
-
-const T = builtinTheme(true);
 
 describe('the 3D memory sticks', () => {
   it('gives each generation its look: bare, a low spreader, fins, a light bar', () => {
@@ -20,7 +17,7 @@ describe('the 3D memory sticks', () => {
     expect(STICK.t / mm).toBeCloseTo(3.27, 1);
     expect((stickTop('rgb') - STICK.z0) / STICK_MM).toBeCloseTo(44, 0);
     for (const visual of ['dimm-fast', 'dimm-ddr3', 'dimm-ddr5']) {
-      const b = new Box3().setFromObject(ramStick(T, visual, false, r, 'DDR5 256K').root), w = (b.max.x - b.min.x) / mm;
+      const b = new Box3().setFromObject(ramStick(visual, false, r, 'DDR5 256K').root), w = (b.max.x - b.min.x) / mm;
       expect(w, visual).toBeGreaterThan(5);
       expect(w, visual).toBeLessThan(8);
       // a gap to the next stick
@@ -32,7 +29,7 @@ describe('the 3D memory sticks', () => {
     setLayoutTier(3, 3);
     const r = GEO.dimm[0]!.rect, cx = r.x + r.w / 2;
     for (const visual of ['dimm-basic', 'dimm-fast', 'dimm-ddr3', 'dimm-ddr5']) {
-      const s = ramStick(T, visual, false, r), b = new Box3().setFromObject(s.root);
+      const s = ramStick(visual, false, r), b = new Box3().setFromObject(s.root);
       expect(b.max.x - b.min.x, visual).toBeLessThan(visual === 'dimm-basic' ? SLOT_W : r.w);
       expect(Math.abs((b.min.x + b.max.x) / 2 - cx), visual).toBeLessThan(1);
       expect(b.min.z, visual).toBeLessThan(BOARD_Z + SLOT_H);

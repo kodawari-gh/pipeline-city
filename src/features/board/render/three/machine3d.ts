@@ -84,11 +84,6 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 const DOOR_ZOOM = [0.82, 0.92] as const;
 const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
 
-/**
- * Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units
- * high). The finest is for the closest view (`LIMITS.heightMin`: about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.
- */
-const LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
 
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
 export function machineKey(s: Snapshot | null): string {
@@ -366,7 +361,7 @@ export class Machine3D {
       case 'ram': {
         // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
         const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, rs = spec as RamSpec;
-        const st = ramStick(T, rs.visual, !!rs.ecc, r, rs.name);
+        const st = ramStick(rs.visual, !!rs.ecc, r, rs.name);
         g.add(st.root);
         for (const s of st.spins) this.spin(s);
         this.fades.push(st.spreader);

@@ -294,23 +294,6 @@ export const pluggedKeyCentre = () => ({ x: USB_PORT.x + KEY_INSERT - KEY_LEN_PL
 
 function vgradFill(top: string, bot: string) { return new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' }); }
 
-/**
- * A glass-like panel (the key tray and the held rack): a shadow, a vertical gradient body with a top sheen and a coloured edge,
- * and a sunken well for its content. Dark and light share this structure; only the tones differ (a flat grey box in light was the
- * old black overlay on a light shell).
- */
-function glassPanel(g: Graphics, r: Rect, T: Theme, edge: string, lw: number, sa: number, rad: number, well: Rect) {
-  box(g, r.x + 12, r.y + 20, r.w, r.h, rad, { fill: '#000000', fa: T.dark ? 0.24 : 0.16 });
-  const top = T.dark ? mix(T.sub, T.tile, 0.5) : '#f7f9fd', bot = T.dark ? mix(T.sub, T.bg, 0.25) : '#d2dbe9';
-  g.roundRect(r.x, r.y, r.w, r.h, rad).fill(vgradFill(top, bot)).stroke({ width: lw, color: edge, alpha: sa });
-  g.roundRect(r.x + 16, r.y + 10, r.w - 32, 26, 13).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.75 });
-  // the well: its top lip is shaded (darker), its floor lighter, with a glint on the bottom lip
-  const wTop = T.dark ? '#060a16' : '#a9b4c8', wBot = T.dark ? '#0e1528' : '#c8d1e1';
-  g.roundRect(well.x, well.y, well.w, well.h, 20).fill(vgradFill(wTop, wBot));
-  g.roundRect(well.x, well.y, well.w, well.h, 20).stroke({ width: 4, color: T.dark ? '#000000' : '#6f7d98', alpha: T.dark ? 0.5 : 0.5 });
-  g.roundRect(well.x + 14, well.y + 12, well.w - 28, 18, 9).fill({ color: '#ffffff', alpha: T.dark ? 0.03 : 0.35 }); // glass sheen in the well
-  g.roundRect(well.x + 12, well.y + well.h - 14, well.w - 24, 6, 3).fill({ color: '#ffffff', alpha: T.dark ? 0.05 : 0.7 });
-}
 
 export type TrayMode = 'off' | 'retired' | 'waiting' | 'fallback';
 

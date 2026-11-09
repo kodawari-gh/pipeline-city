@@ -62,13 +62,13 @@ export class DiskPlay {
     tg.clear();
     pg.clear();
     const n = this.player.now;
-    if (n) this.glow(g, T, kind, plan, accent, n.script, n.t);
+    if (n) this.glow(g, T, plan, accent, n.script, n.t);
     drawTrails(tg, this.trails, this.clock, 1);
     this.packets = drawPackets(pg, this.packets, this.clock, 1, T.ink);
     for (const [k, t] of this.trails) if (this.clock - t.t0 > 1600) this.trails.delete(k);
   }
 
-  private glow(g: Graphics, T: Theme, kind: DriveKind, plan: DiskPlan, accent: string, s: Script, t: number): void {
+  private glow(g: Graphics, T: Theme, plan: DiskPlan, accent: string, s: Script, t: number): void {
     const { step, p } = stepAt(s, t), write = s.cmd.op === 'w', color = write ? T.ld : T.st, pulse = 0.5 + 0.5 * Math.sin(this.clock / 90);
     // the blocks that work
     for (const id of step.blocks) {

@@ -5,14 +5,13 @@ import { cameraRev, highlight } from '@/app/interaction';
 import { ejectKey, formatDrive, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstall, uninstallOs } from '@/app/store';
 import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
-import { getOsSpec } from '@/features/os/sim';
 import { describeId, fmtClock, fmtMoney } from '@/core/ui/logic';
 import {
-  boardId, caseId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, pickerFor, zoneOf,
+  boardId, caseId, clockZones, estTempC, installedCooler, nextUpgrade, pickerFor, zoneOf,
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import {
-  ramZones, VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
+  ramZones, VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type VrmReadout, type VrmZone,
 } from '@/features/board/ui/vrm';
 import { Icon } from '@/core/ui/kit/Icons';
 import { DeclineButton, Deadline, NeedChips } from '@/features/jobs/ui/Jobs';
@@ -233,61 +232,6 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
   );
 }
 
-/** One motherboard tier: slot counts and features as small icons, VRM strength against the strongest tier, and the state. */
-function BoardCardView({ c }: { c: BoardCard }) {
-  const cost = c.free ? 'free' : fmtMoney(c.price);
-  const net = c.ethernetMbps ? (c.ethernetMbps >= 1000 ? '1 Gbit' : `${c.ethernetMbps} Mbit`) : 'none';
-  const foot = (() => {
-    switch (c.state) {
-      case 'installed': return <><span class="need ok"><Icon name="check" size={11} /> Fitted{c.spares ? ` +${c.spares}` : ''}</span><MoreButton specId={c.id} more={c.more} /></>;
-      case 'dead': return (
-        <button class="primary buy" disabled={!c.canBuy}
-          title={c.canBuy ? `Replace the dead board with a ${c.name} for ${cost}. Power off first; your parts move over.` : c.reason}
-          onClick={(e) => { e.stopPropagation(); purchase(c.id); }}>
-          Replace {cost}
-        </button>
-      );
-      case 'crate': return <><span class="need ok" title={c.reason}><Icon name="box" size={11} /> Spare{(c.spares ?? 1) > 1 ? ` x${c.spares}` : ''}</span><MoreButton specId={c.id} more={c.more} /></>;
-      case 'ready': return (
-        <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(c.id); }} title={`Buy for ${cost}. It goes into your inventory.`}>
-          Buy {cost}
-        </button>
-      );
-      case 'poor': return <span class="need warn" title={c.reason}><Icon name="dollar" size={11} /> {cost}</span>;
-      case 'blocked': return <span class="need bad" title={c.reason}><Icon name="lock" size={11} /> Blocked</span>;
-      case 'locked': return <span class="need mute" title={c.reason}><Icon name="lock" size={11} /> Later</span>;
-      case 'level': return <LockBadge lock={c.lock!} reason={c.reason} />;
-    }
-  })();
-  return (
-    <div class={`bcard ${c.state} ${c.soon ? 'soon' : ''}`} role="group" aria-label={c.name} title={c.reason ?? c.name}>
-      <div class="bhead"><span class="rtier">Tier {c.tier}</span><span class="rname">{c.name}</span></div>
-      <div class="bart"><PartArt id={c.id} size={54} /></div>
-      <div class="bslots">
-        {c.slots.map((sl) => (
-          <span class="bi" key={sl.key} title={`${sl.count} ${sl.label}`}><Icon name={sl.icon} size={11} /> {sl.count}</span>
-        ))}
-      </div>
-      <div class="bslots">
-        <span class="bi" title={c.ethernetMbps ? `Onboard ethernet, ${net}. Nothing uses it yet.` : 'No onboard ethernet on this board.'}><Icon name="net" size={11} /> {net}</span>
-        <span class="bi" title={`${c.usbPorts} USB port${c.usbPorts === 1 ? '' : 's'}`}><Icon name="usb" size={11} /> {c.usbPorts}</span>
-        <span class="bi" title={`${c.displayPorts} monitor port${c.displayPorts === 1 ? '' : 's'}`}><Icon name="screen" size={11} /> {c.displayPorts}</span>
-      </div>
-      <div class="vbars" title={`VRM strength: ${c.phases} phases x ${c.ampsPerPhase} A = ${c.totalA} A. Grey is your board now, coloured is this tier.`}>
-        <div class="bar cur"><i style={{ width: `${c.curBar * 100}%` }} /></div>
-        <div class={`bar opt ${c.trend}`}><i style={{ width: `${c.optBar * 100}%` }} /></div>
-        <div class="ctext mute">
-          <span><Icon name="bolt" size={10} /> {c.totalA} A</span>
-          <b class={`delta ${c.trend}`}>{c.deltaText}</b>
-        </div>
-      </div>
-      <div class="bslots" title={`Memory VRM: ${c.ramPhases} phases x ${c.ramAmpsPerPhase} A = ${c.ramTotalA} A. It feeds every RAM stick; memory overclocking loads it.`}>
-        <span class="bi"><Icon name="memory" size={11} /> {c.ramTotalA} A</span>
-      </div>
-      <div class="bfoot">{foot}</div>
-    </div>
-  );
-}
 
 /** Live readings of an installed part as small icon chips. */
 function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
@@ -386,7 +330,6 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   const next = nextUpgrade(m.ladder);
   const option = picked ?? m.focus ?? firstOffer ?? next?.specId ?? null;
   // Operating systems have their own stats (programs, queue), so they are not compared with hardware bars.
-  const rows = option && m.kind !== 'key' && m.kind !== 'info' && !getOsSpec(option) ? compareRows(m.kind, m.current, option) : [];
   const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.kind === 'case' ? caseId(s.caseTier) : m.focus);
   // With a clock dial the overclock warnings are shown by the dial's zone, not as text.
   const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;

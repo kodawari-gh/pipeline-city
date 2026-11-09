@@ -55,8 +55,6 @@ const LCD_INK = '#dbe5ff', LCD_MUTE = '#8d9bc4';
 /** OS status screen: row count, font size and line height in world units (readable at overview zoom). */
 const OS_INK = '#7dffb0', OS_DIM = '#52a981', OS_RULE = '#2f5a46', OS_AMBER = '#ffc247', OS_CYAN = '#4fe3ff';
 const OS_ROWS = 10, OS_FONT = 118, OS_LINE = 150, OS_COLS = 42;
-const LOADS = new Set(['lw', 'lb', 'lbu']);
-const STORES = new Set(['sw', 'sb']);
 
 /** Game ms between packets on a bus that streams (a boot phase, a busy drive), and the least between two one-off messages on a bus. */
 const STREAM_GAP = 240;
@@ -138,7 +136,6 @@ export class Live {
   private psuTexts: Record<'load' | 'of' | 'pct' | 'temp' | 'state' | 'rpm', Text>;
   private panelFan = new Container();
   private dramFlash = new Graphics();
-  private dramChips: Rect[] = [];
   /** The memory sticks as a map of RAM: what each byte holds, whose it is, and what the CPU touches (docs/DIE.md "Memory"). */
   private ram = new RamView();
   /** The graphics cards: spinning fans and the lanes, registers and banks under the shroud (board/gpuview.ts). */
@@ -150,13 +147,7 @@ export class Live {
   /** The AI cards: their lid fades into the die at zoom, and descriptors run along the die's wires (board/npuview.ts). */
   private npu = new NpuCardView();
   private dimmIdx: number[] = [];
-  private ramSig = '';
-  /** Wall time (ms) of the last memory-bus event: the DRAM flash fades by wall time (see `memAt` for the game-time trigger). */
-  private memWall = -1e9;
   private phase = 0;
-  private lastMisses = 0;
-  private lastCycles = 0;
-  private lastStall = 0;
   private lastText = '';
   private cpuHeat = 0;
   private clockRatio = 1;
@@ -171,7 +162,6 @@ export class Live {
   private psuTripped = false;
   private psuW = 0;
   private psuBudget = 0;
-  private memAt = -1e9;
   private connected = new Set<CableKind>();
   private plugged = false;
   private bootPhase: Snapshot['phase'] = 'off';
@@ -203,7 +193,6 @@ export class Live {
   private standbyCap: Text | null = null;
   private blank: MonitorInput | null = null;
   private pchLevel = 0;
-  private lastBootDraw = '';
   private T!: Theme;
   /** Drives (activity, platter, LEDs) and their SATA cable pulses, keyed by slot id. */
   private drives = new Map<string, DriveLive>();
@@ -224,9 +213,6 @@ export class Live {
   private osBarRow = 3;
   private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
   private osUpTick: number | null = null;
-  private bootLike = false;
-  /** Cold-boot wait: posting with no POST line yet (the CPU idles, the monitor is black). */
-  private coldWait = false;
 
   constructor(renderer: Renderer, private additive: boolean) {
     this.busFlow = new BusFlow(additive);
@@ -285,7 +271,6 @@ export class Live {
     this.dots = [];
     this.hasPsu = flags.psu;
     this.fans = fans.map((f) => ({ ...f, speed: fanBank.get(f.kind), target: 0, motor: new FanMotor(fanBank.get(f.kind)) }));
-    this.dramChips = dramChips;
     this.dimmIdx = dimms;
     this.ram.setScene(T, dramChips);
     this.gpu.setScene(T, gpuCards);
@@ -603,7 +588,6 @@ export class Live {
     // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so no packet starts.
     // The cold-boot wait (posting, before the first POST line: no progress yet) is the CPU idling: nothing is read yet.
     const coldWait = s.phase === 'posting' && !(s.bootProgress > 0);
-    this.coldWait = coldWait;
     this.liveOn = machineLive(s);
     this.quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
     for (const l of this.memLit.values()) l.stream = false; // the phase below arms what moves data now
@@ -611,16 +595,6 @@ export class Live {
     this.probes = [];
 
     // ---- activity: only real traffic lights a bus ----
-    const c = s.counters, misses = c.cacheMisses ?? 0, stall = c.stallCache ?? 0, cycles = c.cycles ?? 0;
-    if (cycles < this.lastCycles) { this.lastMisses = 0; this.lastStall = 0; } // a new attempt
-    const missed = misses > this.lastMisses || stall > this.lastStall;
-    this.lastMisses = misses; this.lastStall = stall; this.lastCycles = cycles;
-    const mem = s.pipe?.stages[3 * (s.pipe.width || 1)];
-    const op = mem && mem.kind === 1 ? mem.op : '';
-    if (running) {
-      // (RAM traffic lights the bundle of the stick the address is on: `touchRam`, fed by the die's own fetches, loads and stores)
-      if (missed || LOADS.has(op) && !!mem && mem.stalled || STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); }
-    }
     this.snap = s;
     this.installed = new Set([...s.devices.map((d) => d.slot), ...(s.storage ?? []).map((d) => d.slot)]);
     this.tpmFitted = hasTpm(s.devices);
@@ -692,7 +666,6 @@ export class Live {
       for (const l of this.memLit.values()) l.stream = false;
       for (const [k, c] of this.streams) if (!this.liveOn || !c.force) this.streams.delete(k); // (only the BIOS reads while the screen is black)
       for (const dr of this.drives.values()) dr.busyUntil = -1e9;
-      this.memAt = -1e9; this.memWall = -1e9;
     }
 
     // ---- power ----
@@ -1154,7 +1127,6 @@ export class Live {
     }
 
     // ---- buses and cables ----
-    const T = this.T;
     const r = Math.max(9, 2.4 / this.zoom) / 16;
     let k = 0;
     // data buses: a packet per message (events send theirs where they happen); a streaming bus sends the next one when the last has gone

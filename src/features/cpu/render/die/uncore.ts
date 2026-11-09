@@ -50,8 +50,6 @@ export class UncoreFx {
   private cohAt = -1e9;
   private wait = -1;
   private waitAt = -1e9;
-  /** The die's own clock of this layer: the last time painted. */
-  private lastNow = 0;
 
   clear(): void { this.hits.clear(); this.input = null; this.coh = -1; this.wait = -1; this.cohAt = this.waitAt = -1e9; }
 
@@ -87,7 +85,6 @@ export class UncoreFx {
 
   /** Paint every outer block of the plan that is in `blocks`. Returns whether anything is still moving (the caller may skip frames when not). */
   draw(g: Graphics, blocks: readonly PlanBlock[], T: Theme, now: number): void {
-    this.lastNow = now;
     const inp = this.input, off = inp?.off ?? false;
     for (const b of blocks) {
       switch (b.kind) {
