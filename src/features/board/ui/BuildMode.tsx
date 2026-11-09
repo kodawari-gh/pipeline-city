@@ -154,7 +154,7 @@ export function BuildMode() {
   return (
     <div class="build" role="dialog" aria-modal="true" aria-label="Build my PC">
       <aside class={`bld-bin ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
-        <div class="bld-h">Inventory</div>
+        <div class="bld-h">Parts</div>
         <div class="bld-kinds" role="tablist" aria-label="Part kinds">
           {KINDS.map((k) => (
             <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={kindLabel(k)} onClick={() => setKind(k)}><Icon name={kindIcon(k)} size={13} /> {kindLabel(k)}</button>
@@ -170,6 +170,7 @@ export function BuildMode() {
       </aside>
       <main class="bld-stage">
         <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
+        <div class="bld-title" aria-hidden="true">Build my PC</div>
         {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
         {failed && <div class="bld-note mute">3D is not available here.</div>}
         <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>

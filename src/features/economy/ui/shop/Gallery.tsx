@@ -45,7 +45,12 @@ export function Gallery() {
       </nav>
       <main class="gal-main">
         <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} />
-        <div class="gal-title"><b>{item.name}</b><span class="mute">{item.note}</span></div>
+        <div class="gal-title">
+          <button class="gal-arrow" aria-label="Previous part" title="Previous part (←)" onClick={() => setIi((i) => (i - 1 + group.items.length) % group.items.length)}>‹</button>
+          <div class="gal-name"><b>{item.name}</b><span class="mute">{item.note}</span></div>
+          <span class="mute gal-count">{kindLabel(group.kind)} · {Math.min(ii, group.items.length - 1) + 1} of {group.items.length}</span>
+          <button class="gal-arrow" aria-label="Next part" title="Next part (→)" onClick={() => setIi((i) => (i + 1) % group.items.length)}>›</button>
+        </div>
         <div class="gal-items" role="listbox" aria-label="Parts">
           {group.items.map((x, i) => (
             <button key={x.id} role="option" aria-selected={x === item} class={x === item ? 'on' : ''} onClick={() => setIi(i)}>{x.name}</button>

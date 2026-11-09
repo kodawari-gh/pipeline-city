@@ -1240,13 +1240,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
 .gallery { position: fixed; inset: 0; z-index: 70; display: flex; gap: 1rem; padding: 1.2rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 93%, transparent); backdrop-filter: blur(0.6rem); animation: fade-in .3s ease both; }
-.gal-rail { display: flex; flex-direction: column; gap: 0.35rem; width: 11rem; flex: none; }
-.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+.gal-rail { display: flex; flex-direction: column; gap: 0.35rem; width: 12.5rem; flex: none; overflow-y: auto; }
+.gal-rail button { display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.5rem 0.7rem; font-size: 0.85rem; white-space: nowrap; }
 .gal-h { font: 750 1.2rem var(--ui); margin-bottom: 0.6rem; }
 .gal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .gal-main .showcase { flex: 1; min-height: 0; margin: 0; }
 .gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; }
-.gal-title { display: flex; align-items: baseline; gap: 0.7rem; font-size: 1.1rem; }
+.gal-title { display: flex; align-items: center; gap: 0.7rem; font-size: 1.1rem; }
+.gal-name { display: flex; align-items: baseline; gap: 0.7rem; min-width: 0; flex: 1; flex-wrap: wrap; }
+.gal-arrow { flex: none; width: 2.4rem; height: 2.4rem; padding: 0; font-size: 1.7rem; line-height: 1; border-radius: 50%; display: grid; place-items: center; }
+.gal-count { flex: none; font-size: 0.8rem; }
 .gal-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .gal-items button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .gal-hint { font-size: 0.7rem; }
@@ -1279,6 +1282,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-ghost.stage, .bld-ghost.bin { outline: 0.133rem solid var(--accent); }
 .bld-bar button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; }
+.bld-title { position: absolute; top: 0.8rem; left: 0.9rem; font: 750 1rem var(--ui); pointer-events: none; text-shadow: 0 0.1rem 0.5rem #000; }
 .bld-step { position: absolute; left: 1rem; right: 1rem; bottom: 3.6rem; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.5rem #000; pointer-events: none; }
 .bld-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .bld-hint { font-size: 0.7rem; margin-right: auto; }
