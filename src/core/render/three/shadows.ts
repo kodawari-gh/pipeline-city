@@ -1,6 +1,6 @@
 import {
   DepthFormat, DepthTexture, Group, RedFormat, UnsignedByteType, UnsignedIntType, WebGLRenderTarget,
-  type Camera, type Light as AnyLight, type LightShadow, type Mesh, type Object3D, type RenderTarget, type WebGLRenderer,
+  type Camera, type InstancedMesh, type Light as AnyLight, type LightShadow, type Mesh, type Object3D, type RenderTarget, type WebGLRenderer,
 } from 'three';
 
 /** A light, with the shadow the ones that cast one carry. */
@@ -11,14 +11,31 @@ type Light = AnyLight & { shadow?: LightShadow };
 // out of a still depth picture per light, drawn once; while they move, each map is that picture copied in, with only the movers drawn
 // over it. Depth is a minimum over what is drawn, so the map is the same one a full redraw makes. When nothing has moved for a while the
 // movers are forgotten and the next redraw is a plain one again.
+// A still scene draws no map: a catch-up request (`catchUp`) redraws only if a caster changed since the light's last draw. A light at
+// intensity 0 is not seen, so its map is not drawn: its request waits, and the map is drawn on the first frame the light is lit.
 
 /** Nothing moved for this long (ms): the movers join the still casters again. */
 const SETTLE_MS = 1000;
+
+/** `userData` key of a light's catch-up request (`catchUp`). */
+const CATCH_UP = 'shadowCatchUp';
+
+/**
+ * Ask for `l`'s shadow map to redraw if a caster changed since its last draw (what the scan leaves out: a fan's rotor that turns). A
+ * still scene makes it a no-op. A change the caller knows of (the light moved, its map was resized) sets `shadow.needsUpdate` instead.
+ */
+export function catchUp(l: AnyLight): void { l.userData[CATCH_UP] = true; }
 
 /** A fingerprint of one caster's place: its world matrix, weighted and summed. */
 function printOf(o: Object3D): number {
   const e = o.matrixWorld.elements;
   return e[0]! + 2 * e[1]! + 3 * e[2]! + 5 * e[4]! + 7 * e[5]! + 11 * e[6]! + 13 * e[8]! + 17 * e[9]! + 19 * e[10]! + 0.37 * e[12]! + 0.53 * e[13]! + 0.71 * e[14]!;
+}
+
+/** A caster's fingerprint: its place, its geometry and, for an instanced mesh, its copies' places. */
+function casterPrint(m: Mesh): number {
+  const im = m as Partial<InstancedMesh>;
+  return printOf(m) + 23 * m.geometry.id + 29 * (im.instanceMatrix?.version ?? 0) + 31 * (im.count ?? 1);
 }
 
 type ShadowDraw = (lights: Light[], scene: Object3D, camera: Camera) => void;
@@ -36,6 +53,15 @@ export class ShadowCache {
   /** Did the last scan see a caster move (a redraw now is a move's, not a catch-up's)? */
   private moved = false;
   private movedAt = 0;
+  /** Each spinning part's fingerprint at the last scan: it does not make a mover, only a change. */
+  private spins = new Map<Object3D, number>();
+  private nextSpins = new Map<Object3D, number>();
+  /** Bumped by each scan that saw a caster change (a spin too): a catch-up redraws a map drawn at an older count. */
+  private changes = 0;
+  /** The `changes` count at each light's last draw. */
+  private drawnAt = new WeakMap<Light, number>();
+  /** The lights whose maps this render draws. */
+  private readonly due: Light[] = [];
   private readonly top = new Group();
   private readonly draw: ShadowDraw;
 
@@ -47,18 +73,21 @@ export class ShadowCache {
 
   /**
    * After a frame is drawn (every world matrix set): which casters moved, showed or hid. A spinning part (`userData.spin`, a fan's rotor)
-   * is left out: it would move every frame. A mesh whose vertices move under a still matrix (`userData.live`, a held cable) moves on every
-   * scan. Returns whether any did, so the maps redraw for the next frame.
+   * is no mover: it would move every frame. Its turn counts as a change, so a catch-up (`catchUp`) redraws. A mesh whose vertices move
+   * under a still matrix (`userData.live`, a held cable) moves on every scan. Returns whether any caster moved, so the maps redraw for the
+   * next frame.
    */
   scan(root: Object3D, now: number): boolean {
-    const { seen, next } = this;
+    const { seen, next, spins, nextSpins } = this;
     next.clear();
+    nextSpins.clear();
     const fresh: Object3D[] = [];
-    let added = 0;
+    let added = 0, spun = false;
     const walk = (o: Object3D) => {
-      if (!o.visible || o.userData.spin) return;
+      if (!o.visible) return;
+      if (o.userData.spin) { const h = printOf(o); if (spins.get(o) !== h) spun = true; nextSpins.set(o, h); return; }
       if ((o as Mesh).isMesh && o.castShadow) {
-        const h = printOf(o), was = seen.get(o);
+        const h = casterPrint(o as Mesh), was = seen.get(o);
         next.set(o, h);
         if (was === undefined) added++;
         if (was !== h || o.userData.live) fresh.push(o);
@@ -71,7 +100,10 @@ export class ShadowCache {
     if (next.size - added < seen.size) for (const o of seen.keys()) if (!next.has(o) && !this.isMover(o)) { stale = true; break; }
     this.seen = next;
     this.next = seen;
+    this.spins = nextSpins;
+    this.nextSpins = spins;
     this.moved = fresh.length > 0 || stale;
+    if (this.moved || spun) this.changes++;
     if (!this.moved) {
       if (this.movers.length && now - this.movedAt > SETTLE_MS) { this.movers = []; this.moverSet.clear(); this.epoch++; }
       return false;
@@ -93,6 +125,7 @@ export class ShadowCache {
     for (const s of this.still.values()) { s.rt.depthTexture?.dispose(); s.rt.dispose(); }
     this.still.clear();
     this.epoch++;
+    this.changes++;
   }
 
   private isMover(o: Object3D): boolean {
@@ -101,13 +134,35 @@ export class ShadowCache {
   }
 
   private render(lights: Light[], scene: Object3D, camera: Camera): void {
-    if (!this.movers.length) { this.draw(lights, scene, camera); return; }
-    for (const l of lights) {
+    const due = this.due;
+    due.length = 0;
+    for (const l of lights) if (this.isDue(l)) due.push(l);
+    if (!due.length) return;
+    if (!this.movers.length) { this.draw(due, scene, camera); due.length = 0; return; }
+    for (const l of due) {
       const sh = l.shadow;
       // (a point light's map is a cube of six depth faces: the still picture is one face's copy, so it redraws whole)
       if (!sh || sh.autoUpdate || (l as { isPointLight?: boolean }).isPointLight) this.draw([l], scene, camera);
-      else if (sh.needsUpdate) this.redraw(l, scene, camera);
+      else this.redraw(l, scene, camera);
     }
+    due.length = 0;
+  }
+
+  /**
+   * Is `l`'s map drawn in this render? A catch-up becomes a redraw only if a caster changed since the light's last draw. A light at 0 draws
+   * nothing: its request waits (`needsUpdate` stays set), so the map is drawn on the first frame it is lit. A light its owner redraws by
+   * `autoUpdate` (the window's sun outside) is drawn as asked.
+   */
+  private isDue(l: Light): boolean {
+    const sh = l.shadow;
+    if (!sh) return true;
+    if (l.userData[CATCH_UP]) { l.userData[CATCH_UP] = false; if (this.drawnAt.get(l) !== this.changes) sh.needsUpdate = true; }
+    if (!sh.autoUpdate) {
+      if (!sh.needsUpdate) return false;
+      if (l.intensity <= 0) { const s = this.still.get(l); if (s) s.epoch = -1; return false; }
+    }
+    this.drawnAt.set(l, this.changes);
+    return true;
   }
 
   /** One light's map: its still picture (drawn again if out of date), then the movers over it. */

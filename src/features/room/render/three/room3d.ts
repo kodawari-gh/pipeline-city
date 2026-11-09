@@ -24,6 +24,7 @@ import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
+import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
@@ -75,7 +76,10 @@ const KEY_REF = 24000;
  * the whole room, and a bounce loses some.
  */
 export const PROBE_K = 1;
-/** While nothing large moves, one light redraws its shadow map at this pace (ms): a whole round costs one frame's worth, spread out. */
+/**
+ * While nothing large moves, one light at this pace (ms) redraws its shadow map if a fan's rotor turned since its last draw (`catchUp`): a whole
+ * round costs one frame's worth, spread out. A still room redraws none.
+ */
 const SHADOW_TURN_MS = 400;
 /** The window's frame sits this far back in its reveal (z of its room face), and the glass a little behind that. */
 const FRAME_Z = -1000, GLASS_Z = -1500;
@@ -803,15 +807,16 @@ export class Room3D {
 
   /**
    * The lights hold still (the sun moves a step a few times a game hour), so a shadow map holds until a caster moves. Every map redraws for the
-   * next frame when one moved (`ShadowCache.scan`, which then redraws only the movers), else one light per turn, so what the scan leaves out (the
-   * fans' rotors, instanced parts) catches up.
+   * next frame when one moved (`ShadowCache.scan`, which then redraws only the movers), else one light per turn asks to catch up (`catchUp`):
+   * it redraws only if something changed since its last draw (a fan's rotor turned), so a still room draws no shadow map. A light at 0 draws
+   * none until it is lit (`ShadowCache`).
    */
   redrawShadows(moved: boolean, now: number): void {
     const lights = this.casters;
     if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
-    lights[this.shadowTurn++ % lights.length]!.shadow.needsUpdate = true;
+    catchUp(lights[this.shadowTurn++ % lights.length]!);
   }
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */

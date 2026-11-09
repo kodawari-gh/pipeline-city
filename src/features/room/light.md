@@ -166,6 +166,17 @@ In order. Each is one commit; each is checked with shots against the targets. Th
 9. **`LightmapMix`** and the material patch; remove `fill` and `hemi`.
 10. **The night city** at its target (with T155), then a last check of every target at 07:00, 14:00, 19:00 and 23:00.
 
+## When a shadow map is drawn
+
+`ShadowCache` (`src/core/render/three/shadows.ts`) and `Room3D.redrawShadows` draw a map only when its picture can change:
+
+- **A caster moves** (a door, the chair, a new part; `ShadowCache.scan`): every room light redraws on that frame.
+- **A fan's rotor turns** (`userData.spin`): it is no mover. Each `SHADOW_TURN_MS` (400 ms), one light asks for a catch-up (`catchUp`). Its map redraws only if a caster or a rotor changed since its last draw. A still room draws no map.
+- **A light at intensity 0** (the lanterns and the room's sun spot by day) draws no map, because no one sees it. Its request waits, and the map is drawn on the first frame the light is lit.
+- **The sun moves** with the clock (`aimSun`, the city's sun in `outside/view.ts`): one map on each step.
+
+Still menu, phone profile, CPU /4, 300 frames (PERF18, 2026-11-09): at the touch default, frames with a shadow map went from 45 to 11 (each is the city's sun on a clock step) and shadow calls from 60.8 to 0.7 a frame. `bench:modes` menu at Low: 50.6 to 58.1 fps, 247 to 207 calls.
+
 ## What the city costs a frame
 
 - **Detail by distance.** Far from the window, trees (`detailAt` in `outside/trees.ts`) and parked cars lose detail that the eye cannot see. The frame's triangles went from about 9.2 M to 3.6 M.
