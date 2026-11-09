@@ -10,13 +10,13 @@ import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
-import { findById, tag } from '@/core/render/three/pick';
+import { findById, idOf, pick, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, nodeKind, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
-import { boardSlots, deviceSpec, fanHost, freeSlots, slotAccepts, slotFits, type Board } from '@/features/board/sim/board';
+import { boardSlots, deviceSpec, fanHost, freeSlots, slotAccepts, slotFits, type Board, type SlotInfo } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
@@ -31,6 +31,9 @@ import { Machine3D } from './machine3d';
 
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
+
+/** The shelf id of a spare part (one the inventory holds): `inv:` and its inventory id. Any other shelf id is a catalogue part's own id. */
+export const SPARE_PREFIX = 'inv:';
 
 export interface BuildStatus {
   busy: boolean;
@@ -89,6 +92,8 @@ export class BuildStage {
   private tierKey = '';
   private metered = 1;
   private seen = 1;
+  /** A press on a part inside the open case (no busy job) hands the device id and the press here: the UI drags it. */
+  onGrab: ((device: string, e: PointerEvent) => void) | null = null;
 
   private constructor(host: HTMLElement) {
     this.host = host;
@@ -239,7 +244,14 @@ export class BuildStage {
   // ------------------------------------------------------------------ the camera
   private listen(el: HTMLCanvasElement): void {
     let drag: { x: number; y: number; pan: boolean } | null = null;
-    const down = (e: PointerEvent) => { el.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; };
+    const down = (e: PointerEvent) => {
+      if (e.button === 0 && !e.shiftKey && this.onGrab && !this.status.peek().busy) {
+        const id = this.partAt(e.clientX, e.clientY);
+        if (id) { this.onGrab(id, e); return; }
+      }
+      el.setPointerCapture(e.pointerId);
+      drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
+    };
     const move = (e: PointerEvent) => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -266,6 +278,34 @@ export class BuildStage {
   }
 
   resetView(): void { this.goal = this.frameView(); }
+
+  /** Is the side panel open (or opening)? The case hides what is inside it, so parts and sockets answer only then. */
+  get insideOpen(): boolean { return this.wantOpen; }
+  openInside(open: boolean): void { this.wantOpen = open; }
+
+  /** The id under a client point, from the board's own pieces (the case is left out: it hides what is inside). */
+  private hitId(x: number, y: number): string | null {
+    const r = this.ctx.renderer.domElement.getBoundingClientRect();
+    const o = pick(this.machine.boardRoots(), this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
+    return idOf(o);
+  }
+
+  /** The device under a client point (its id), when the side panel is open; else null. */
+  partAt(x: number, y: number): string | null {
+    if (!this.machine.doorOpen) return null;
+    const id = this.hitId(x, y);
+    return id && this.board.devices.some((d) => d.id === id) ? id : null;
+  }
+
+  /** The socket under a client point: a part's slot, or an empty socket's id; null off the board or with the panel shut. */
+  slotAt(x: number, y: number): string | null {
+    if (!this.machine.doorOpen) return null;
+    const id = this.hitId(x, y);
+    if (!id) return null;
+    const d = this.board.devices.find((v) => v.id === id);
+    if (d) return d.slot;
+    return boardSlots(this.board).some((s) => s.id === id) ? id : null;
+  }
 
   /** Dev and checks: put the camera exactly here (the flicker check nudges it a pixel at a time). */
   jump(v: Partial<OrbitView>): void { this.view = this.goal = { ...this.view, ...v }; }
@@ -426,16 +466,22 @@ export class BuildStage {
     });
   }
 
-  /** Fit a part from the bin: into a free socket, or in place of the part that holds it. */
-  fit(itemId: string): Promise<void> {
+  /** Fit a part from the shelf: a catalogue part (its id) or a spare (`inv:` and its inventory id). `drop`: the socket it was dropped on
+   *  (`slotAt`) when that socket takes it; otherwise (or without one) the first free socket that takes it, else the socket of the part it replaces. */
+  fit(item: string, drop?: string): Promise<void> {
     return this.job(async () => {
       const g = this.game;
-      if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
+      const spare = item.startsWith(SPARE_PREFIX) ? item.slice(SPARE_PREFIX.length) : null;
+      const itemId = spare ? g.snapshot().inventory.find((i) => i.id === spare)?.spec : item;
+      if (!itemId) { this.note('That spare is no longer in the inventory'); return; }
+      if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId, spare);
       const spec = getSpec(itemId);
       if (!spec) { this.note(`Unknown part ${itemId}`); return; }
+      const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
       const free = freeSlots(this.board, spec.slot, spec)[0];
-      const taken = boardSlots(this.board).find((s) => slotAccepts(s.type, spec.slot) && slotFits(s, spec) && this.board.devices.some((d) => d.slot === s.id));
-      const slot = free?.id ?? taken?.id;
+      const taken = boardSlots(this.board).find((s) => fits(s) && this.board.devices.some((d) => d.slot === s.id));
+      const aimed = drop && boardSlots(this.board).some((s) => s.id === drop && fits(s)) ? drop : undefined;
+      const slot = aimed ?? free?.id ?? taken?.id;
       if (!slot) { this.note(spec.kind === 'fan' ? `Nothing in this machine takes a ${spec.size} mm fan` : `${spec.name} fits no socket on this board`); return; }
       const occupant = this.board.devices.find((d) => d.slot === slot) ?? null;
       const graph = buildGraph(this.board, this.cables);
@@ -444,7 +490,7 @@ export class BuildStage {
       if (steps[0] !== SIDE) steps.unshift(SIDE);
       const undo: Undo[] = [];
       for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo);
-      const bought = g.purchase(itemId);
+      const bought = spare ? { ok: true as const, invId: spare } : g.purchase(itemId);
       if (!bought.ok) this.note(`Cannot get ${spec.name}: ${bought.reason}`);
       else {
         const put = g.install(bought.invId, slot);
@@ -462,7 +508,7 @@ export class BuildStage {
   }
 
   /** A new board or case: every part comes out first, the machine is swapped as one piece, then the parts go back (what no longer fits stays in the bin). */
-  private async fitShell(itemId: string): Promise<void> {
+  private async fitShell(itemId: string, spare: string | null = null): Promise<void> {
     const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1));
     if (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt) { this.note('That one is already fitted'); return; }
     const graph = buildGraph(this.board, this.cables), steps = removalPlan(graph, isCase ? CASE : BOARD);
@@ -476,7 +522,7 @@ export class BuildStage {
     this.note('Undo the board screws and lift the board out');
     await this.playAll(this.machine.boardRoots(), 'board', 'out');
     if (isCase) { this.note('Take the old case away'); await this.playAll(this.machine.caseRoots, 'case', 'out'); }
-    const bought = this.game.purchase(itemId);
+    const bought = spare ? { ok: true as const, invId: spare } : this.game.purchase(itemId);
     const fitted = bought.ok ? this.game.install(bought.invId) : bought;
     if (!fitted.ok) this.note(`Cannot fit it: ${fitted.reason}`);
     this.rebuild();

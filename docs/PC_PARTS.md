@@ -86,8 +86,10 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 
 - Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts`, `board/ui/BuildMode.tsx`.
 - Stage: the machine alone on a neutral floor, no room. Orbit camera.
-- Remove: pick a part, press Remove. The graph gives the steps; each step plays its animation.
-- Fit: pick a part from the bin, press Fit. Blocks come out, the part goes in, the blocks go back.
+- Shelf (left): the spare parts the inventory holds, then the catalogue by kind. Drag a part onto the PC: it fits the socket under the pointer when that socket takes it, else the first free socket, else the socket of the part it replaces. Click a shelf part to fit it in the first free socket.
+- Take out: drag a part off the PC onto the shelf (or press its Remove in the list). The graph gives the steps; each step plays its animation. The part goes to the inventory.
+- Parts sit inside the case: the side panel must be open to drag them (the Side panel button, or it opens when a drag starts).
+- Fit: blocks come out, the part goes in, the blocks go back.
 - Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
 - Board and case swaps: the parts come out first. The door closes. The board lifts out (`Machine3D.boardRoots`), then the case pieces (`caseRoots`). The new case lowers over the board, then the new board settles in.

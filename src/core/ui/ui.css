@@ -1254,22 +1254,37 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Build my PC (features/board/ui/BuildMode.tsx): the machine alone on a stage, a bin of parts on the left, what is fitted on the right. */
 .build { position: fixed; inset: 0; z-index: 70; display: flex; gap: 0.8rem; padding: 1rem; box-sizing: border-box; background: color-mix(in srgb, var(--menu-solid) 96%, transparent); animation: fade-in .3s ease both; }
-.bld-bin, .bld-inst { display: flex; flex-direction: column; gap: 0.5rem; width: 15rem; flex: none; min-height: 0; }
+.bld-bin, .bld-inst { display: flex; flex-direction: column; gap: 0.5rem; width: 18rem; flex: none; min-height: 0; border-radius: 0.6rem; transition: box-shadow .15s; }
+.bld-bin { padding: 0.4rem; }
+.bld-bin.drop { box-shadow: inset 0 0 0 2px var(--accent); }
 .bld-h { font: 750 1.1rem var(--ui); }
 .bld-h2 { margin-top: 0.8rem; font-size: 0.9rem; }
 .bld-kinds { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .bld-kinds button { padding: 0.3rem 0.5rem; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.3rem; }
-.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem; }
-.bld-parts button { text-align: left; padding: 0.4rem 0.6rem; font-size: 0.8rem; }
-.bld-kinds button.on, .bld-parts button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
+.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; }
+.bld-sub { margin-top: 0.3rem; font: 650 0.7rem var(--ui); letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
+.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: 0.4rem; }
+.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.4rem; border: 1px solid var(--line, rgba(127, 127, 127, 0.35)); border-radius: 0.5rem; background: var(--glass, transparent); cursor: grab; touch-action: none; user-select: none; }
+.bld-tile:hover, .bld-tile:focus-visible { border-color: var(--accent); }
+.bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
+.bld-tile.spare { border-style: dashed; }
+.bld-tname { font-size: 0.7rem; line-height: 1.2; text-align: center; }
+.bld-tag { position: absolute; top: 0.25rem; right: 0.3rem; padding: 0 0.3rem; border-radius: 0.3rem; font-size: 0.6rem; background: var(--accent); color: var(--on); }
+.bld-kinds button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .bld-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.bld-host { flex: 1; min-height: 12rem; border-radius: 0.6rem; overflow: hidden; background: #0e1118; }
+.bld-host { position: relative; flex: 1; min-height: 12rem; border-radius: 0.6rem; overflow: hidden; background: #0e1118; }
+.bld-host.drop::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: inherit; pointer-events: none; }
+.bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, -60%); pointer-events: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.7rem 0.35rem 0.35rem; border-radius: 0.6rem; background: var(--menu-solid); box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.4); font-size: 0.75rem; white-space: nowrap; }
+.bld-ghost em { display: block; font-style: normal; opacity: 0.7; }
+.bld-ghost.stage, .bld-ghost.bin { outline: 2px solid var(--accent); }
+.bld-bar button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; }
 .bld-step { position: absolute; left: 1rem; right: 1rem; bottom: 3.6rem; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.5rem #000; pointer-events: none; }
 .bld-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .bld-hint { font-size: 0.7rem; margin-right: auto; }
 .bld-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; flex: 1 1 0; min-height: 6rem; }
-.bld-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; }
+.bld-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.78rem; padding: 0.15rem 0.25rem; border-radius: 0.35rem; cursor: grab; touch-action: none; user-select: none; }
+.bld-list li.on { outline: 1px solid var(--accent); }
 .bld-list button { padding: 0.2rem 0.5rem; font-size: 0.72rem; flex: none; }
 .bld-log { margin: 0; padding-left: 1.1rem; font-size: 0.72rem; overflow-y: auto; min-height: 0; max-height: 30%; flex: none; }
 @media (max-width: 52em) { .build { flex-direction: column; overflow-y: auto; } .bld-bin, .bld-inst { width: auto; } .bld-host { min-height: 22rem; } }
