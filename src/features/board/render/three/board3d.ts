@@ -47,6 +47,7 @@ import { BoardLive3D } from './boardlive3d';
 import { Cues3D } from './cues3d';
 import { Particles3D } from './particles3d';
 import { setPartDragHandler } from '@/core/ui/worldDrag';
+import { buildOpen, galleryOpen } from '@/core/ui/state';
 import type { DeviceSnap } from '@/worker/game/types';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
@@ -573,9 +574,17 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     watch.reset(now);
     if (!revealed) bootStage('Lighting the room', 0.92);
   };
+  /**
+   * Gallery or Build my PC (the main menu's, `Hud.tsx`) covers the whole screen with an opaque stage that draws in its own context: the room
+   * is not drawn behind it. The canvas keeps its last picture and the room's time stands still, so it is the same on return. A new picture's
+   * programs still link meanwhile (`warmed`, `linking`): a graphics change made there is ready on return.
+   */
+  const covered = () => revealed && warmed && !linking && !snapshot.peek() && (galleryOpen.peek() || buildOpen.peek());
   const frame = (now: number) => {
     const g = effective.peek(), fps = away.limit(g.fps, now, document.hasFocus(), menu || lift.busy || !!hand.kind || !settled(view, goal));
     if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
+    // (the frame rate the graphics settings show stays live: the page's, which the stage's draw sets)
+    if (covered()) { last = now; meter.tick(now, canvas.width, canvas.height); requestAnimationFrame(frame); return; }
     // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
     if (linking) {
       if (!linked(linking)) {
