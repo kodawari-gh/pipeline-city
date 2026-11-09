@@ -753,10 +753,15 @@ export class Room3D {
     lm.mix(renderer, levels);
   }
 
-  /** The sun at an hour: a spot far out along its direction, aimed through the window's middle. Its shadow is drawn again when it moves. */
+  /**
+   * The sun at an hour: a spot far out along its direction, aimed through the window's middle. Its shadow is drawn again when it moves; through
+   * the night it stands still (`sunDir`), so the moon's shaft it gives keeps its map.
+   */
   private aimSun(hour: number): void {
-    const d = sunDir(hour), W = WINDOW, c = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const;
-    this.sun.position.set(c[0] + d[0] * SUN_D, c[1] + d[1] * SUN_D, c[2] + d[2] * SUN_D);
+    const d = sunDir(hour), W = WINDOW, c = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const, p = this.sun.position;
+    const x = c[0] + d[0] * SUN_D, y = c[1] + d[1] * SUN_D, z = c[2] + d[2] * SUN_D;
+    if (p.x === x && p.y === y && p.z === z) return;
+    p.set(x, y, z);
     this.sun.target.position.set(c[0] - d[0] * 20000, c[1] - d[1] * 20000, c[2] - d[2] * 20000);
     this.sun.shadow.needsUpdate = true;
   }

@@ -32,6 +32,7 @@ import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from '.
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
+import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
 import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
@@ -190,8 +191,8 @@ export class OutsideView {
   /** Materials of the view's own, outside the kit. */
   private disposables: Material[] = [];
   private key = -1;
-  private sunKey = -1;
-  private sunMoved = true;
+  /** When the sun's shadow map is drawn: on its steps, and not while it is at 0 (`sunmap.ts`). */
+  private sunMap = new SunMap();
   /** The camera the window's picture is drawn for this frame: the quad shows the picture only to it. */
   private live: Camera | null = null;
   /** Whether the eye sees the window; the eye (its whole view and the frame's size) at the last draw. */
@@ -302,7 +303,7 @@ export class OutsideView {
     if (sh.mapSize.x !== size || !size) { sh.map?.dispose(); sh.map = null; }
     if (size) sh.mapSize.set(size, size);
     sh.radius = 2;
-    this.sunMoved = true;
+    this.sunMap.ask();
   }
 
 
@@ -375,8 +376,7 @@ export class OutsideView {
     this.lampLight.lampNight.value = lights;
     this.quad.uniforms.glowK!.value = GLOW * lights * lights;
     this.mirrorAt = MIRROR * smooth(MIRROR_FROM, 1, gone);
-    const sk = Math.round(hour * 20);
-    if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
+    this.sunMap.frame(hour);
   }
 
   /**
@@ -442,8 +442,8 @@ export class OutsideView {
     const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;
     this.ran = this.clock;
     // (only what the camera sees, cut again once it has moved; all of it when the sun's shadows are drawn this frame: what is out of sight
-    // casts them too)
-    const shadowNow = this.sunMoved && this.sun.castShadow;
+    // casts them too. A sun at 0 draws none: its map waits for its first lit frame, `sunmap.ts`)
+    const shadowNow = this.sunMap.due(this.sun.castShadow, this.sun.intensity);
     this.seen.setFromProjectionMatrix(this.seenOf.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse));
     const seen = shadowNow ? undefined : this.seen;
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
@@ -490,7 +490,7 @@ export class OutsideView {
     qu.mirrorK!.value = this.mirrorShown ? this.mirrorAt : 0;
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
-    this.sunMoved = false;
+    if (shadowNow) this.sunMap.drawn();
     this.quad.uniforms.off!.value.set(rx, fh - rb);
     this.quad.uniforms.ss!.value = ss;
     this.quad.uniforms.inv!.value.set(1 / t.width, 1 / t.height);
