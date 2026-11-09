@@ -452,7 +452,8 @@ export class OutsideView {
       this.cutOf.copy(this.seenOf);
       this.cutAll = shadowNow;
     }
-    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z, seen);
+    // (the moving cars always for the eye alone: they cast no shadows in the sun's map)
+    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z, this.seen);
     this.signals.update(this.traffic.t);
     // the leaves' light from behind, in the camera's frame
     const sd = sunOutside(this.key / 30);
