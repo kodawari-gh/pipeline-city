@@ -16,8 +16,7 @@ type Part = import('../render/three/buildmode3d').BinPart;
 
 /** The shelf id of a spare part (see `SPARE_PREFIX` in buildmode3d.ts; kept here so the menu does not load three.js). */
 const SPARE = 'inv:';
-/** The shelf's categories, in the gallery's order (`galleryGroups`): the same list, names and icons as the gallery's rail. */
-const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
+const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu', 'vrm-sink', 'ram-sink'];
 const SPEEDS = [0.5, 1, 2, 4];
 /** Pixels a press may move before it is a drag. */
 const SLOP = 6;
@@ -53,8 +52,7 @@ export function BuildMode() {
   const stageRef = useRef<Stage | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [failed, setFailed] = useState(false);
-  // the category the shelf shows; null shows every category, grouped
-  const [kind, setKind] = useState<string | null>(null);
+  const [kind, setKind] = useState('cpu');
   const [sel, setSel] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [, redraw] = useState(0);
@@ -138,13 +136,8 @@ export function BuildMode() {
   const devices = stage ? stage.board.devices : [];
   const name = (spec: string) => DEVICE_SPECS[spec]?.name ?? spec;
   const insideOpen = stage?.insideOpen ?? false;
-  // the shelf by category: each section is the spares of that kind, then its catalogue; a kind with nothing on the shelf is left out
-  const sections = KINDS.map((k) => ({
-    kind: k,
-    spares: inv.filter((i) => i.kind === k).map((i): Tile => ({ item: SPARE + i.id, spec: i.spec, name: i.name, spare: true })),
-    catalogue: parts.filter((p) => p.kind === k).map((p): Tile => ({ item: p.id, spec: p.id, name: p.name, spare: false })),
-  })).filter((x) => x.spares.length + x.catalogue.length > 0);
-  const shown = kind && sections.some((x) => x.kind === kind) ? sections.filter((x) => x.kind === kind) : sections;
+  const spares: Tile[] = inv.filter((i) => i.kind === kind).map((i) => ({ item: SPARE + i.id, spec: i.spec, name: i.name, spare: true }));
+  const catalogue: Tile[] = parts.filter((p) => p.kind === kind).map((p) => ({ item: p.id, spec: p.id, name: p.name, spare: false }));
 
   const tile = (t: Tile) => (
     <div
@@ -171,24 +164,17 @@ export function BuildMode() {
       {failed && <div class="bld-note mute">3D is not available here.</div>}
       <aside class={`bld-bin mode-panel ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
         <header class="mode-head"><span class="mode-eyebrow">Workshop</span><b>Build my PC</b></header>
-        <div class="bld-cats" role="tablist" aria-label="Categories">
-          <button role="tab" aria-selected={!kind} class={!kind ? 'on' : ''} onClick={() => setKind(null)}>All</button>
-          {sections.map((x) => (
-            <button key={x.kind} role="tab" aria-selected={kind === x.kind} class={kind === x.kind ? 'on' : ''} title={`${kindLabel(x.kind)}: ${x.catalogue.length} to choose from`}
-              onClick={() => setKind(kind === x.kind ? null : x.kind)}>
-              <Icon name={kindIcon(x.kind)} size={12} /><span>{kindLabel(x.kind)}</span><em>{x.catalogue.length}</em>
-            </button>
+        <div class="bld-kinds" role="tablist" aria-label="Part kinds">
+          {KINDS.map((k) => (
+            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={kindLabel(k)} aria-label={kindLabel(k)} onClick={() => setKind(k)}><Icon name={kindIcon(k)} size={14} /></button>
           ))}
         </div>
+        <div class="bld-kind-h"><b>{kindLabel(kind)}</b><span class="mode-hint">{catalogue.length} to choose from</span></div>
         <div class="bld-parts" aria-label="Parts">
-          {shown.map((x) => (
-            <section key={x.kind} class="bld-sec" aria-label={kindLabel(x.kind)}>
-              <h3><Icon name={kindIcon(x.kind)} size={13} /> {kindLabel(x.kind)}</h3>
-              {x.spares.length > 0 && <div class="bld-sub">In the inventory</div>}
-              {x.spares.length > 0 && <div class="bld-tiles">{x.spares.map(tile)}</div>}
-              <div class="bld-tiles">{x.catalogue.map(tile)}</div>
-            </section>
-          ))}
+          {spares.length > 0 && <div class="bld-sub">In the inventory</div>}
+          {spares.length > 0 && <div class="bld-tiles">{spares.map(tile)}</div>}
+          <div class="bld-sub">Catalogue</div>
+          <div class="bld-tiles">{catalogue.map(tile)}</div>
         </div>
         <span class="mode-hint bld-hint">Drop a machine part here to take it out.</span>
       </aside>
