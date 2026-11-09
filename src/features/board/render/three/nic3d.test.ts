@@ -3,13 +3,16 @@ import { Box3, Group } from 'three';
 import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier } from '../layout/layout';
 import { cardReach, HINGE_Z, nicJackAt, STAND } from './card3d';
 import type { CardFrame } from './gpu3d';
-import { JACK, JACK_X, jacksOf, MOUTH, mouthAt, nicParts } from './nic3d';
+import { JACK, JACK_X, jacksOf, MOUTH, mouthAt, nicBack, nicParts } from './nic3d';
+import { NIC_LANES, nicCopper } from './niccopper';
+import { TAB, tabOf } from './pcie';
 
 const MM = 23, Z = HINGE_Z, PCB_T = 24, Zp = Z - PCB_T;
 const frame = (visual: string): CardFrame => {
   const y0 = nicY(0), x1 = BD.x + NIC_LEN[visual]!;
   return { x0: BD.x, x1, xe: x1, y0, end: y0 + STAND.nic };
 };
+const copper = (visual: string, f: CardFrame) => nicCopper(visual, f, tabOf(0, f.x1, NIC_LANES[visual]!));
 
 describe("the network card's real parts", () => {
   it('builds the RJ45 jacks at their real size, out through the bracket, and seats the LAN plug in the first one\'s mouth', () => {
@@ -33,18 +36,37 @@ describe("the network card's real parts", () => {
     }
   });
 
-  it('keeps every part on the component side, inside the card\'s reach and its outline', () => {
+  it('keeps every part on the component side, inside the card\'s reach and its outline (the finger tab\'s face down in the slot)', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const f = frame(visual), g = new Group();
-      nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24);
+      nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24, copper(visual, f));
       const b = new Box3().setFromObject(g);
       expect(Z - b.min.z, visual).toBeLessThanOrEqual(cardReach('nic', visual).south + 1);
       expect(b.max.z, visual).toBeLessThanOrEqual(Zp + 1);
       expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
-      expect(-b.max.y, visual).toBeGreaterThanOrEqual(f.y0 - 1);
+      expect(-b.max.y, visual).toBeGreaterThanOrEqual(f.y0 - TAB - 1);
       expect(b.min.x, visual).toBeGreaterThanOrEqual(JACK_X - 1);
       expect(b.max.x, visual).toBeLessThanOrEqual(f.x1 + 1);
+    }
+  });
+
+  it('dresses the back (the solder side): its parts, joints and pin tips stand low over it, inside the card\'s outline', () => {
+    setLayoutTier(3, 3);
+    for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
+      const f = frame(visual), g = new Group(), cu = copper(visual, f);
+      nicBack(g, visual, f, Z, cu);
+      const b = new Box3().setFromObject(g);
+      // above the tab's face (a unit under the PCB's), under the card's reach north of the slot's line
+      expect(b.min.z, visual).toBeGreaterThanOrEqual(Z - 1.5);
+      expect(b.max.z - Z, visual).toBeLessThanOrEqual(cardReach('nic', visual).north);
+      expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
+      expect(-b.max.y, visual).toBeGreaterThanOrEqual(f.y0 - TAB - 1);
+      expect(b.min.x, visual).toBeGreaterThanOrEqual(f.x0 - 1);
+      expect(b.max.x, visual).toBeLessThanOrEqual(f.x1 + 1);
+      // a joint over every through-hole pin, a tip through every unplated hole, the solder side's passives
+      expect(cu.holes.length, visual).toBeGreaterThanOrEqual(10 * jacksOf(visual, f.y0).length);
+      expect(cu.parts.filter((p) => p.face === 'bottom').length, visual).toBeGreaterThan(4);
     }
   });
 });

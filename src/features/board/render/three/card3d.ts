@@ -21,8 +21,8 @@ import { LV_PART, LV_RAISED, type ArtSet } from './artset3d';
 import type { Spin } from './fans3d';
 import { wallX, type Span } from './casekit3d';
 import { gpuBackplate, gpuCooler, gpuOutputs, gpuSockets, OUT_IN, OUT_TOP, outDepth, OUTPUTS, outputHoles } from './gpu3d';
-import { JACK, JACK_X, jacksOf, mouthAt, nicBracket, nicParts } from './nic3d';
-import { NIC_LANES } from './niccopper';
+import { JACK, JACK_X, jacksOf, mouthAt, nicBack, nicBracket, nicParts } from './nic3d';
+import { NIC_LANES, nicCopper } from './niccopper';
 import { npuBackplate, npuBracket, npuCooler } from './npu3d';
 import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
 import { FINGER, KEY, pinAt, TAB, tabOf, txPin } from './pcie';
@@ -143,7 +143,9 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     skin.push(npuCooler(fades, spins, visual, f, Zp, ct));
     npuBackplate(fades, visual, f, Z, BACK_T);
   } else {
-    nicParts(fades, visual, f, Zp, bx1);
+    const cu = nicCopper(visual, f, tab);
+    nicParts(fades, visual, f, Zp, bx1, cu);
+    nicBack(fades, visual, f, Z, cu);
     skin.push(pcbM);
   }
   // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)

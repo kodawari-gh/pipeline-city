@@ -50,6 +50,9 @@ export interface NicCopper {
   traces: Trace[]; vias: Via[]; pads: Pad[]; holes: Hole[]; npth: Npth[]; parts: Part[]; fiducials: Pt[];
   /** The board's outline: the PCB with its finger tab, split by the key. */
   outline: Pt[];
+  /** The finger tab (layout x: its bracket end and length), and a key naming this copper (the card, its link width, the tab's place). */
+  tab: { x: number; w: number };
+  key: string;
   at: NicPlaces;
   /** The link width the copper is routed for (a narrower one where the slot cuts the tab short). */
   lanes: number;
@@ -395,7 +398,7 @@ export function nicCopper(visual: string, f: { x0: number; x1: number; y0: numbe
     npth: npth.map((h) => ({ x: X(h.x), y: Y(h.y), r: h.r * MM })),
     parts: parts.map((q) => ({ ...q, x: X(q.x), y: Y(q.y) })),
     fiducials: fids.map(pt),
-    outline,
+    outline, tab, key: `${visual}:x${lanes}:${Math.round(tab.x - f.x0)}:${Math.round(tab.w)}`,
     at: {
       chip: rect(chip), qfn, sink: sink && rect(sink), crystal: rect(crystal), flash: rect(flashR), reg: rect(regR),
       inductors: inductors.map(rect), cans: cans.map((c) => ({ ...c, x: X(c.x), y: Y(c.y), r: c.r * MM })),
