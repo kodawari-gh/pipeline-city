@@ -178,8 +178,7 @@ export class CordsView {
 
   /** The wall plug seen from its back: the same drawing the baked room used to carry (a body with grip ridges and the boot the cord enters). */
   private plug(g: Graphics, at: Pt, T: Theme, seated: boolean) {
-    const [x, y] = at, body = T.dark ? '#141a26' : '#262d3a', rim = T.dark ? '#5b6a94' : '#6b7794';
-    const lift = seated ? 0 : 1; // a plug that is out stands a little proud: a longer shadow
+    const [x, y] = at;
     // a Swiss plug (type J), white (`swiss.ts`). Seated, it is seen from behind: the cap with the cord boot at its top (the screw that holds the cover) over the pin face
     // that fills the outlet's recess. Out (lying, hanging, in the hand) it shows its pin face: the shield with three round pins, a black sleeve at the base of each and a bright tip.
     const white = T.dark ? '#dcdde2' : '#f4f3ee', shade = T.dark ? '#a9adba' : '#cfd0d6';

@@ -206,7 +206,7 @@ export class InOrderEngine extends EngineBase {
     if (this.isHalted) return;
     const W = this.width, mask = this.mask;
     const v = this.v, p = this.pool, c = v.counters;
-    const kind = v.stageKind, sid = v.stageId, cause = v.stageCause, stalled = v.stageStalled;
+    const kind = v.stageKind, sid = v.stageId, stalled = v.stageStalled;
     const wb = Stage.WB * W, mem = Stage.MEM * W, ex = Stage.EX * W, id = Stage.ID * W, iff = Stage.IF * W;
     this.cycleNo++;
     c[Counter.Cycles]!++;

@@ -1,13 +1,13 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
-  CPU_S, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
+  CPU_S, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VRM_SINK, gutterTieYs,
   LAYOUT_CASE, PSU_REAR_FAN, RAM_FAN, VRM_FAN, type Rect,
 } from './layout/layout';
 import { SINK_FAN, SINK_FAN_RIM } from './layout/boardlayout';
 import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
 import { EdgeFan } from '../../room/render/desk/props/case';
-import { box, dashed, disc, label, mix } from '@/core/render/ink';
+import { box, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
 import { hdmiPlug, rj45Plug } from './layout/ports';
 import { isPcieKind, looseCable, movablePlug, type Cable, type Plug } from './wiring/routes';

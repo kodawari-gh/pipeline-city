@@ -7,7 +7,7 @@ import {
   stepProblem, tutorialForSave, type TutorialState,
 } from './tutorial';
 import { describeId } from '@/core/ui/logic';
-import { boardSnap, dev, EMPTY_SLOTS, key, snap, STARTER_CRATE, STOCK_COOLER } from '@/core/ui/testdata';
+import { dev, EMPTY_SLOTS, key, snap, STARTER_CRATE, STOCK_COOLER } from '@/core/ui/testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 /** The first fifteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */

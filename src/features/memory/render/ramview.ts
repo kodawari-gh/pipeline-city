@@ -3,7 +3,7 @@ import type { RamMap } from '../../cpu/sim/pipesnap';
 import type { RamRegion } from '../sim/ramregions';
 import { label, mix } from '@/core/render/ink';
 import { opClass, type OpClass } from '../../cpu/render/die/diemotion';
-import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, pageCells, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
+import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, pageCells, regionColor, spanOutline, type ChipSlot, type Stick } from './ramlayout';
 import { coreColor } from '../../cpu/render/core/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from '../../board/render/layout/layout';

@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import { drawPlug, plugRect } from '../../board/render/devices';
 import { box, dashed, disc, label, mix, clear } from '@/core/render/ink';
-import type { LanJack, LanScene, SceneInfo } from '@/core/render/interact';
+import type { LanJack, SceneInfo } from '@/core/render/interact';
 import {
   BD, CABLE_ROW_Y, DESK_SLAB, DESK_Y, ETH0_MOUTH, ETH0_RECT, ISP_ROW_Y, LAN_TRUNK_X, MONITOR, WALL_Y, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
   NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,

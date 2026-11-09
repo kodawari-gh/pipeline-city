@@ -17,7 +17,6 @@ import { AirflowLens, airflowModel } from '@/features/room/render/desk/airflow';
 import { PowerLens, lensModel } from '@/features/room/render/desk/lens';
 import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { slotRect as storageSlotRect } from '@/features/storage/render/drives';
 import {
   CASE_GLASS, LAYOUT_CASE, LAYOUT_TIER, MONITOR, REAR_FAN, REAR_FAN_FITTED,
 } from '../layout/layout';

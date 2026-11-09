@@ -117,7 +117,7 @@ describe("storage tiers", () => {
     expect(eight[0]!).toBeGreaterThan(eight[1]!);
     expect(eight[1]!).toBeGreaterThan(eight[2]!);
     // throughput: the marginal block costs blockTicks / clock
-    const perBlock = [hdd, ssd, nvme].map((s, i) => (eight[i]! - first[i]!) / 7);
+    const perBlock = [hdd, ssd, nvme].map((_s, i) => (eight[i]! - first[i]!) / 7);
     expect(perBlock[0]!).toBeGreaterThan(perBlock[1]!);
     expect(perBlock[1]!).toBeGreaterThan(perBlock[2]!);
     expect(first[0]! / first[2]!).toBeGreaterThan(20); // HDD seek is the dominant cost

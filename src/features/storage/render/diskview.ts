@@ -7,7 +7,7 @@ import type { Rect } from '../../cpu/render/core/cpuplan';
 import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
 import { accentOf, diskStatic, drawArch, drawBar, drawMap, drawSpin, type ArchLive, type DataCtx } from './diskart';
 import { diskPlan, type DiskPlan } from './diskfloor';
-import { cellsOf, counterRows, CELL_BLOCKS, dimmed, headTrack, ownerSlot, type Cell } from './diskplan';
+import { cellsOf, counterRows, CELL_BLOCKS, dimmed, ownerSlot, type Cell } from './diskplan';
 import type { DriveKind } from './drives';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardCandidates, cardText } from '@/core/render/lod/lodcard';

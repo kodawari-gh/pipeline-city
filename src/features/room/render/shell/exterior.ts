@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
-import { box, disc, label, lgrad, mix } from '@/core/render/ink';
+import { box, label, lgrad, mix } from '@/core/render/ink';
 import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, TOP_FANS, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
 import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, showPillars, caseWindow, chamferFrame, cutRect, fanWindow, glowPoly, growCuts, hexes, holes, isCut, logoMark, outline, pillar, screw, slots, type CaseKind, type Cuts } from './casedecor';
@@ -98,9 +98,9 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const st = styleOf(), c = bodyTones(T, st), acc = st.accent(T), trim = st.trim(T), R = st.rad, d = T.dark;
+  const st = styleOf(), c = bodyTones(T, st), acc = st.accent(T), R = st.rad, d = T.dark;
   const c0 = CASE, p = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN;
-  const oem = st.kind === 'oem', ink = oem ? '#4a4636' : d ? '#dfe7ff' : '#1a2338', dim = oem ? '#5a5642' : d ? '#8d9bc4' : '#2a3550';
+  const oem = st.kind === 'oem', dim = oem ? '#5a5642' : d ? '#8d9bc4' : '#2a3550';
   const slit = oem ? mix(c.lo, '#000000', 0.5) : c.glassTop; // the dark of the vent holes
 
   // the feet (rubber pads on the small cases, wider blocks on the full tower, which also throws a little light on the desk) and the soft shadow

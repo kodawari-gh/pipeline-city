@@ -38,7 +38,6 @@ export interface LensIn {
   monitor: Rect;
 }
 
-const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
 const rev = (p: Pt[]): Pt[] => [...p].reverse();
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 const watts = (w: number) => (w >= 10 ? `${Math.round(w)} W` : `${(Math.round(w * 10) / 10).toFixed(1)} W`);

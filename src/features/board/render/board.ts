@@ -5,11 +5,10 @@ import { airflowLens, hover, INERT_REGIONS, powerLens, viewInset, type Inset } f
 import { cameraRev, dragging, highlight } from '@/app/interaction';
 import { snapshot, speed, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/specs';
-import type { StorageSnap } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '@/core/render/camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorBay, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, fanMounts, radiatorBay, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from '../../storage/render/drives';
 import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, sinkFanRect, vrmSinkArt, type Part } from './devices';
 import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, radiatorRect, type RadiatorFit } from './cooler';
@@ -33,7 +32,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../../room/r
 import { box, clear, dashed, label } from '@/core/render/ink';
 import {
   BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, CPU_S, DIE, DIMM_H, offBoard, onBoard, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, overviewFrame, RAM_SINK, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, overviewFrame, RAM_SINK, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, gpuPort, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
@@ -1110,7 +1109,6 @@ export async function mountBoard(host: HTMLElement) {
       }
       for (const o of a.objs) { scene.props.set(o.id, o); scene.rects.set(o.id, o.rect); scene.interactive.add(o.id); }
     };
-    const order: PropObj[] = [];
     powerArtRef = powerArt(T, powerState);
     add(powerArtRef);
     // a finished key (stage done) gets the remove cue: TAKE ME on a no-OS machine, REMOVE once the OS has flashed it

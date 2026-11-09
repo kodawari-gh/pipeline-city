@@ -4,7 +4,6 @@ import { fieldsOf, idColor, pcText, readsOf, seqText, slotValues, writesOf } fro
 
 // What the die shows of one instruction (docs/DIE.md "Instructions on the die").
 const word = (src: string) => { const p = assemble(src).program; return new DataView(p.buffer, p.byteOffset).getUint32(0, true) >>> 0; };
-const regs = Array.from({ length: 16 }, (_, k) => k * 10);
 
 describe('token text', () => {
   const add = word('add t4, t1, t2'), lw = word('lw a0, 8(t2)'), sw = word('sw t1, 4(sp)'), bne = word('loop:\nbne t0, t1, loop');

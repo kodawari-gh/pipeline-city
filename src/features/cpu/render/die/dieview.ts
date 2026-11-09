@@ -5,7 +5,7 @@ import { IRQ } from '@/core/sim/memmap';
 import type { PipeSnap } from '../../sim/pipesnap';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
 import type { Block, CpuPlan, Rect } from '../core/cpuplan';
-import { cellRects, isTall, dieNear, type DieArt } from './dieart';
+import { cellRects, dieNear, type DieArt } from './dieart';
 import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from '@/core/render/ink';
@@ -27,7 +27,6 @@ import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 // A snapshot is a sampled instant: the replay is a slow-motion sample of the run.
 
 const CHIP_W = 176, CHIP_H = 92;
-const TOKEN_W = CHIP_W, TOKEN_H = CHIP_H;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 /** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
 const WIPE_MS = 320;
@@ -36,8 +35,6 @@ const WIPE_MS = 320;
 /** A reach for RAM. `core` is the logical core that made it, on a multicore die (diemulti.ts adds it). */
 export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number; core?: number }
 
-/** The scale a chip has in a block: it fits inside it. */
-const fitOf = (r: Rect) => Math.max(0.3, Math.min(1, (r.w - 12) / CHIP_W, (r.h - 22) / CHIP_H));
 
 const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
 /** A register or memory value in a few characters. */

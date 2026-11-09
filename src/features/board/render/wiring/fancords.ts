@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import type { CordScene, SceneInfo } from '@/core/render/interact';
+import type { CordScene } from '@/core/render/interact';
 import { fanMounts, hubHeaders, plugBox } from '@/features/room/render/desk/props/case';
 import { paintCable, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { Theme } from '@/core/render/theme';

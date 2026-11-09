@@ -3,9 +3,8 @@ import { Graphics } from 'pixi.js';
 import { planInput, type PlanInput, type Rect } from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
 import { specsOfKind, type CpuSpec } from '@/features/board/sim/specs';
-import { isTall } from './dieart';
 import { dockLink, glyphPins, hasSymbol, inPinFor } from './glyphgeom';
-import { controlsOf, glyph, glyphArea, glyphLive, GLYPH_KINDS, slotsOf, CONTROL_LINES } from './blockart';
+import { controlsOf, glyph, glyphArea, glyphLive, slotsOf, CONTROL_LINES } from './blockart';
 import type { Theme } from '@/core/render/theme';
 
 const DARK: Theme = {

@@ -98,7 +98,7 @@ describe('a silhouette read from pixels', () => {
     expect(s.dist(125, 150)).toBeGreaterThan(18);
     expect(s.dist(125, 150)).toBeLessThan(21.5);
     expect(s.dist(95, 150)).toBe(0);
-    const ring = s.outline(0)!.flat().filter(([x, y]) => y > 60 && y < 240);
+    const ring = s.outline(0)!.flat().filter(([, y]) => y > 60 && y < 240);
     for (const [x] of ring) expect(Math.abs(x - 105.3)).toBeLessThan(2);
   });
   it('knows about how thick a thing is, and drops specks and pinholes from its ring', () => {

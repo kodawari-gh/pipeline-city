@@ -6,7 +6,7 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 
 import type { Snapshot } from '@/worker/protocol';
 import { boardSnap, dev, snap } from '@/core/ui/testdata';
-import { airColor, airSpeed, airflowModel, clipPath, laneHeat, type AirIn, type AirMount } from './airflow';
+import { airColor, airSpeed, airflowModel, clipPath, type AirIn, type AirMount } from './airflow';
 import { AIR_SOURCES, OUTSIDE_THE_CASE } from './airsources';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';

@@ -8,7 +8,7 @@ import type { Snapshot } from '@/worker/game/game';
 import { getOsSpec } from '@/features/os/sim';
 import { describeId, fmtClock, fmtMoney } from '@/core/ui/logic';
 import {
-  boardId, caseId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, osSection, pickerFor, zoneOf,
+  boardId, caseId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, pickerFor, zoneOf,
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import {

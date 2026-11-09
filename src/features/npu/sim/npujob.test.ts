@@ -3,7 +3,7 @@ import { createEngine } from "../../cpu/sim/engines";
 import { GPU_BASE, NPU_BASE } from "@/core/sim/memmap";
 import { GpuPort, Machine, NpuPort } from "@/core/sim";
 import { generate, runReference, type Generated } from "../../jobs/sim/gen/index";
-import { M, makeNetwork, networkChecksum, networkExpected, npuProgram } from "./kernels";
+import { makeNetwork, networkChecksum, networkExpected, npuProgram } from "./kernels";
 import { Prng } from "@/core/sim/prng";
 
 const GPU = { base: GPU_BASE, lanes: 8, memBytes: 8192 };

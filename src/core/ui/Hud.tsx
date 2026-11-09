@@ -1,10 +1,10 @@
 import './ui.css';
 import { useEffect, useState } from 'preact/hooks';
-import { selected, viewInset } from '../../app/hover';
+import { viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
 import { highlight } from '../../app/interaction';
 import {
-  exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';

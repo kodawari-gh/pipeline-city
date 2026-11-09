@@ -2,8 +2,8 @@
 // above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder (the SATA drives: drive3d.ts;
 // the TPM module: tpm3d.ts).
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
-import { BoxGeometry, CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
+import { drum, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';

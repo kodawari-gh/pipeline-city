@@ -1,11 +1,11 @@
 import { Container, FillGradient, Graphics, Text } from 'pixi.js';
 import type { KeySnap } from '@/worker/game/game';
 import { getSpec } from '@/features/board/sim/specs';
-import { box, dashed, disc, HEAD, label, mix, MONO } from '@/core/render/ink';
+import { box, disc, HEAD, label, mix, MONO } from '@/core/render/ink';
 import { wallTone } from './case';
 import { usbPlug } from '@/features/board/render/layout/ports';
 import { discShape, type Shape } from '@/core/render/shape';
-import { CASE_LEDS, HOOK_PITCH, HOOK_Y, LANYARD, POWER_BTN, ROW_DROP, TRAY, TRAY_COLS, TRAY_ROWS, USB_PORT, type Rect } from '@/features/board/render/layout/layout';
+import { CASE_LEDS, HOOK_PITCH, HOOK_Y, LANYARD, POWER_BTN, ROW_DROP, TRAY, TRAY_COLS, USB_PORT, type Rect } from '@/features/board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.

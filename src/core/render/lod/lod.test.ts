@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_LOD, DEVICE_LOD, FAR_ZOOM, LodClock, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
+import { DEVICE_LOD, FAR_ZOOM, LodClock, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
 
 describe('smooth', () => {
   it('runs 0..1 over the band and clamps', () => {

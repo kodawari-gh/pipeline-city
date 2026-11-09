@@ -108,8 +108,7 @@ const heightAt = (u: number) => {
 /** The mouse, from the owner's wireframe: a body turned a few degrees on the mat, made of cross-sections along its length (the plan from a top-down photo, the top line from a side drawing, the dome section from a back photo), lit tile by tile, on a dark skirt, with a scroll wheel in a slot. It has no cord or buttons yet. */
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx), { l, h } = MOUSE;
-  const wedge = (z: number) => heightAt(z / l + 0.5);
-  const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff', skirt = T.dark ? '#0d1122' : '#7e879c';
+  const shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff', skirt = T.dark ? '#0d1122' : '#7e879c';
   contact(o, p, mouseOutline(1), T.dark ? 0.55 : 0.4);
   // the surface is built from cross-sections: at each station along the length (u) the section across the width is the dome's profile `prof` (k of the half width at that station, f of the height there), and the top line along the length is the owner's side drawing, so the side view matches it exactly
   // from the owner's back view: a short dark skirt a little inset, then a dome that is widest at its foot and rounds in all the way up (a superellipse of exponent 2.2 in section)

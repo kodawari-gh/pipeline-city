@@ -15,7 +15,7 @@ import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, nodeKind, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
+import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
 import { boardSlots, deviceSpec, fanHost, freeSlots, slotAccepts, slotFits, type Board, type SlotInfo } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
@@ -88,7 +88,6 @@ export class BuildStage {
   private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
-  private nSteps = 0;
   private tierKey = '';
   private metered = 1;
   private seen = 1;
@@ -445,7 +444,6 @@ export class BuildStage {
   private async job(work: () => Promise<void>): Promise<void> {
     if (this.status.peek().busy) return;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
-    this.nSteps = 0;
     try { await work(); } finally {
       await this.door(false);
       this.status.value = { ...this.status.peek(), busy: false, step: '' };

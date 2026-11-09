@@ -7,7 +7,7 @@ import { builtinTheme, type Theme } from '@/core/render/theme';
 import { BOARD_TIERS, getSpec, type CardSpec, type CpuSpec, type FanSpec, type NicSpec, type PsuSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
-import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
+import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { DESK_Y, GEO, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, fanLen, setLayoutTier } from '../layout/layout';
 import { kitFit, radiatorGrade } from '../cooler';
 import { ArtSet } from './artset3d';

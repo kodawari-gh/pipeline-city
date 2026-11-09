@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS, pcieLabel } from '../sim/specs';
-import { BD, BOARD_SEED, COOLER_HOLE, COOLER_HOLES, GEO, PKG, SOCKET_E, SOCKET_KEEP, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
+import { BD, BOARD_SEED, COOLER_HOLE, COOLER_HOLES, GEO, PKG, SOCKET_E, SOCKET_KEEP, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
@@ -8,7 +8,7 @@ import { PKG_PIN, PKG_ROW, m2Contacts, m2Socket, m2Standoffs, m2Stick, m2Tie, pc
 import { tuneBump } from './layout/match';
 import { pchLedHousing } from './wiring/pchlive';
 import { skinOf, slotArmour } from './skins';
-import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './wiring/routes';
+import { buildBuses, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './wiring/routes';
 import { stitchVias } from './wiring/stitch';
 import { makePalette, type Palette, type Theme } from '@/core/render/theme';
 import {
@@ -124,7 +124,6 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
       for (let x = x0 + 40; x < x1 - 20; x += 60) g.circle(x, y, 5);
     }
     g.fill({ color: P.tent, alpha: 0.7 });
-    const dp = geo.dPhases;
     const pr = { x: vdimmStart(geo) - 30, y: geo.vdimmY - 56, w: vdimmEnd(geo) + 30 - vdimmStart(geo) + 30, h: 112 };
     box(g, pr.x, pr.y, pr.w, pr.h, 20, { fill: P.pour });
     stitch(c, pr, 52, 5, 0.7);

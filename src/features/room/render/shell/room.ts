@@ -1,5 +1,5 @@
 import { Container, Graphics, Rectangle, type Renderer } from 'pixi.js';
-import { disc, label, mix } from '@/core/render/ink';
+import { label, mix } from '@/core/render/ink';
 import { drawAircraft, drawCityLive, drawClouds, drawSkyline, drawStars } from './skyline';
 import { acPlug, metalOf } from '@/features/board/render/layout/ports';
 import { trayHook } from '../desk/props/props';
@@ -226,7 +226,7 @@ function segDigit(g: Graphics, x: number, y: number, d: number, color: string, a
  * a cord leaves its machine, drops behind the desk (so only the stretches above the desk and under it show) and runs to its outlet.
  */
 function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
-  const m = metalOf(T), s = geo.socket, p = s.plate;
+  const m = metalOf(T), s = geo.socket;
   // the PC: the plug in the rear wall's inlet; the cord leaves its tail, turns down and falls straight to its outlet (the plate is set so that the outlet is right under it)
   const pcPlug = { x: PC_POWER.x - 6, y: PC_POWER.y, dx: -1, dy: 0, w: 190, l: 330 };
   acPlug(back, T, pcPlug); // (the cord itself, and the plugs in the wall, are live: `cords.ts`)

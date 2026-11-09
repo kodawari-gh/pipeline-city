@@ -1,7 +1,7 @@
 // The event trace (the "Trace" panel): what the engine logged, one line per event, decoded for people. Pure: events in (the flat [cycle, kind, a, b, c, d]
 // groups of a snapshot's stored state), lines out, so the panel only keeps and shows them.
 
-import { Ev, Which } from '../sim/engines/common';
+import { Ev } from '../sim/engines/common';
 import type { GpuStep } from '../../gpu/sim/isa/ref';
 import { RowOutcome } from '../../memory/sim/dram';
 import { FAULT_CAUSE_LINE, IRQ, VmFault } from '@/core/sim/memmap';

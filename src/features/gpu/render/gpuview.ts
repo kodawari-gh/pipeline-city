@@ -2,7 +2,7 @@ import { Container, Graphics, type Text } from 'pixi.js';
 import type { DeviceSnap, GpuSnap } from '@/worker/game/types';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
 import type { GpuStep, GpuStepKind } from '../sim/isa/ref';
-import { box, label, mix } from '@/core/render/ink';
+import { box, label } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import { EdgeFan } from '../../room/render/desk/props/case';
 import { FanMotor, fanBank } from '../../../core/render/fanmotor';

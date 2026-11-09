@@ -17,7 +17,6 @@ ECONOMY.caseGating = false; // the level and price tests buy boards without a bi
 
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const ticks = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
-const NO_ARRIVALS = { baseDemandPerTick: 0 };
 const sandbox = (o: { preassembled?: boolean; level?: number; seed?: number } = {}): Game => {
   const g = new Game({ seed: o.seed ?? 3, sandbox: true, preassembled: o.preassembled ?? true, economy: econ() });
   if (o.level) g.setLevel(o.level);

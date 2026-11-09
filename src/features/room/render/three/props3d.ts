@@ -6,7 +6,7 @@ import {
   NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
