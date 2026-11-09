@@ -107,17 +107,20 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   // slot (the rest of the 2D strip is there only lying flat); past the 2D edge the PCB goes on to the card's real height (it fades with the cooler)
   const rail = PCIE_RAILS[slot]!;
   lying.add(pcb(rect(x0, y0, x1 - x0, south - y0)));
-  const tw = Math.min(rail.w, x1 - rail.x);
-  pcieTab(lying, rail.x + 20, tw - 40, y0, Z, pcbM);
+  const tw = Math.min(rail.w, x1 - rail.x) - 40, lanes = kind === 'nic' ? NIC_LANES[visual] ?? 1 : 16, tl = Math.min(tw, tabLen(lanes));
+  pcieTab(lying, rail.x + 20, tl, y0, Z, pcbM);
   flatOnly.add(rectBox(rect(x0, top, x1 - x0, y0 - top), Z - PCB_T + 2, Z - 2, pcbM));
   fades.add(pcb(rect(x0, south, x1 - x0, end - south)));
   // (an AI card's PCB runs the shroud's length; a GPU's ends short of its cooler, which runs on past it)
   if (kind === 'npu' && xe > x1) fades.add(pcb(rect(x1, y0, xe - x1, end - y0)));
   // the AC-coupling capacitors of the card's transmit lanes, a pair per lane on the component side by the fingers
   {
-    const under = new Group(), caps: Passive[] = [], lanes = kind !== 'nic' ? 16 : visual === 'nic-gbe' ? 1 : visual === 'nic-10g' ? 4 : 8, cx0 = rail.x + 20 + KEY.at + KEY.w + 3 * MM;
+    const under = new Group(), caps: Passive[] = [];
     under.rotation.x = Math.PI;
-    for (let k = 0; k < lanes && cx0 + k * 4.3 * MM + 2 * MM < rail.x + tw - 20; k++) for (const s of [0, 1]) caps.push({ x: cx0 + k * 4.3 * MM + s * 1.5 * MM, y: -(y0 + 1.8 * MM), pkg: '0402', kind: 'cap', turn: true });
+    for (let k = 0; k < lanes; k++) for (const s of [0, 1]) {
+      const at = pinAt(txPin(k) + s);
+      if (at < tl) caps.push({ x: rail.x + 20 + at, y: -(y0 + 1.8 * MM), pkg: '0402', kind: 'cap', turn: true });
+    }
     passives(under, caps, -(Z - PCB_T));
     fades.add(under);
   }
@@ -207,6 +210,16 @@ function gpuBracket(y0: number, ly0: number, ly1: number, z0: number, z1: number
 
 /** The PCIe key's notch along the tab from its bracket end (the short run carries the power pins), and its width. */
 const KEY = { at: 11.65 * MM, w: 1.9 * MM };
+/** A NIC's link width: x1, x4 or x8 (a GPU's and an AI card's are x16). */
+const NIC_LANES: Record<string, number> = { 'nic-gbe': 1, 'nic-10g': 4, 'nic-40g': 8 };
+/** The pins on each face of an edge `lanes` wide (the CEM spec: 18, 32, 49, 82). */
+export const edgePins = (lanes: number) => (lanes <= 1 ? 18 : lanes <= 4 ? 32 : lanes <= 8 ? 49 : 82);
+/** The tab's length for `lanes`: the 11 pins to the key, the key, the rest, half a pitch past the last. */
+const tabLen = (lanes: number) => KEY.at + KEY.w + (edgePins(lanes) - 10.5) * MM;
+/** Pin `p`'s middle along the tab from its bracket end (1 mm apart, the key between 11 and 12). */
+export const pinAt = (p: number) => (p <= 11 ? (p - 0.5) * MM : KEY.at + KEY.w + (p - 11.5) * MM);
+/** Side B's PETp pin of transmit lane `k` (its PETn the next one), as the CEM pinout has them. */
+export const txPin = (k: number) => (k === 0 ? 14 : k < 4 ? 19 + 4 * (k - 1) : k < 8 ? 33 + 4 * (k - 4) : 50 + 4 * (k - 8));
 
 /**
  * A card's PCIe edge, lying (north of the slot's line; standing, down in the slot): the tab from `x` for `w`, split by its key's notch, a gold

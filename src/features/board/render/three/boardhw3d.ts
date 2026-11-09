@@ -10,7 +10,7 @@ import { IO_PORTS } from '../layout/boardlayout';
 import { CASE, GEO, PCIE_RAILS, PKG, SOCKET_E, WALL_T } from '../layout/layout';
 import type { IoPort } from '../layout/pins';
 import { hexNum, skinOf, slotArmour } from '../skins';
-import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
+import { brushed, outlinePts, shapeOf, slab, tiled, wallX } from './casekit3d';
 import { glowMat } from './fans3d';
 
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
@@ -42,7 +42,7 @@ export function legacyIo(tier: number): LegacyPort[] {
 }
 
 /** A rear port's shell where it passes through the rear wall to the shield: layout y and depth spans (a round one is a barrel that fills them). */
-export interface IoShell { y0: number; y1: number; z0: number; z1: number; round: boolean; m: 'steel' | 'plastic' | 'gold' }
+export interface IoShell { y0: number; y1: number; z0: number; z1: number; round: boolean; m: 'steel' | 'plastic' | 'gold'; hollow?: boolean }
 
 /** The shells behind every opening the shield of this tier has (the fitted ports, the legacy ports, the extras). */
 export function ioShells(feat: IoFeatures, tier: number): IoShell[] {
@@ -52,7 +52,7 @@ export function ioShells(feat: IoFeatures, tier: number): IoShell[] {
   for (const p of IO_PORTS) {
     if (!fitted(p, feat)) continue;
     if (p.kind === 'jack') rd(p.y, IO_Z.jack, 26, 'plastic');
-    else if (p.kind === 'rj45') sq(p.y, IO_HALF.rj45, ...IO_Z.rj45);
+    else if (p.kind === 'rj45') { sq(p.y, IO_HALF.rj45, ...IO_Z.rj45); out[out.length - 1]!.hollow = true; }
     else if (p.kind === 'usb') sq(p.y, IO_HALF.usb, ...IO_Z.usb);
     else sq(p.y, IO_HALF.video, ...IO_Z.video);
   }
@@ -106,10 +106,12 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
   const shellM = { steel: steelM, plastic, gold: mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 }) };
   const shells = ioShells(feat, tier), stacks = ioStacks(shells.filter((s) => s.m !== 'gold'));
   const bare = sk.ioCover === 'bare', into = bare ? x0 + 8 : x0 + 6;
-  // the shells through the wall, from the shield's back to the housing (or the cover) inside
+  // the shells through the wall, from the shield's back to the housing (or the cover) inside; the RJ45's a hollow sleeve round the jack's
+  // insert, its mouth running deep inside (casedetail3d's `ioShield`)
   for (const s of shells) {
     if (s.m === 'gold') continue;
-    io.add(s.round ? barrel(xs, into, (s.y0 + s.y1) / 2, (s.z0 + s.z1) / 2, (s.y1 - s.y0) / 2, shellM[s.m]) : rectBox({ x: xs, y: s.y0, w: into - xs, h: s.y1 - s.y0 }, s.z0, s.z1, shellM[s.m]));
+    if (s.hollow) io.add(wallX(xs, into, s, [{ y0: s.y0 + 4, y1: s.y1 - 4, z0: s.z0 + 4, z1: s.z1 - 4 }], shellM[s.m]));
+    else io.add(s.round ? barrel(xs, into, (s.y0 + s.y1) / 2, (s.z0 + s.z1) / 2, (s.y1 - s.y0) / 2, shellM[s.m]) : rectBox({ x: xs, y: s.y0, w: into - xs, h: s.y1 - s.y0 }, s.z0, s.z1, shellM[s.m]));
   }
   const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
   /** A stack's housing from `from` up (the board, or inside a cover it rises through): steel over the black audio block where the stack starts with the jacks. */

@@ -288,6 +288,11 @@ export const ROUTER_EAST = MONITOR_EAST - 300;
 export let SHELF_Y = -2480;
 export let CABLE_ROW_Y = SHELF_Y + 200;
 export let ROUTER_SPOT: Rect = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
+/**
+ * The router's LAN jack on its east side, its face's middle (layout x and y, depth z): a compact jack (rj45jack3d's `jackFace`) standing 14 proud
+ * of the side. Room3d's router has it; the LAN lead's plug stays in it (machine3d).
+ */
+export const routerLan = () => ({ x: ROUTER_SPOT.x + ROUTER_SPOT.w + 14, y: ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6, z: 800 });
 /** The power socket plate on the wall under the desk (two outlets: the monitor's, the PC's). */
 /** Where the PC's mains cord drops: it leaves the plug's tail (the plug is 330 long, the cord turns down 150 beyond it) and falls straight to its outlet. */
 export const PC_CORD_X = IO_X - 476;

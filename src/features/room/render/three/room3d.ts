@@ -19,7 +19,9 @@ import {
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
-import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
+import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
+import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
+import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
@@ -575,18 +577,38 @@ export class Room3D {
     // its tier's look (`net.router.visual`, as the 2D drawings): the home router with its two aerials and four lights; the gigabit one, broader,
     // with a row of ports and a bright status; the 10G switch-router: no aerials, a port row and a lit strip; the core router: a deep rack unit
     // with two rows of lights and a blue strip
-    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d31, { roughness: 0.45 });
+    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d31, { roughness: 0.45 }), jackSteel = mat(0x9ea5ae, { metalness: 0.8, roughness: 0.44 });
+    // (its jacks are the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, their mouths 180 deep)
+    const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
       const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x111111, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
-      router.add(softBox(ROUTER_SPOT, 300, tier >= 4 ? 1500 : 1400, mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), 80));
-      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, 1400, mat(0x2a2c30, { roughness: 0.4 }), 40));
+      const top = tier >= 4 ? 1500 : 1400, body = mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), look = jackLook(jackSteel);
+      // its port row (the gigabit one and up): jacks sunk into the front. The body stops behind them, and a front slab open at each jack closes
+      // it (a solid box would fill the mouths)
+      const ports = tier >= 2 ? [0, 1, 2, 3].map((k) => rs.x + 1600 + k * 180) : [], front = ports.length ? top - DEEP : top;
+      router.add(softBox(ROUTER_SPOT, 300, front, body, 80));
+      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, Math.min(1400, front), mat(0x2a2c30, { roughness: 0.4 }), 40));
+      if (ports.length) {
+        const span = (px: number) => ({ y0: ledY - PORT.h / 2, y1: ledY + PORT.h / 2, z0: px - PORT.w / 2, z1: px + PORT.w / 2 });
+        const holes = ports.map((px) => outlinePts({ x: px - PORT.w / 2, y: ledY - PORT.h / 2, w: PORT.w, h: PORT.h }, 0));
+        router.add(slab(shapeOf(outlinePts(ROUTER_SPOT, 80, undefined, 2), holes), front - 80, top, body));
+        // (the jacks are built as a wall across x: turned, their mouths face the room, across x, the latch slots down; the faces 3 in)
+        const row = new Group();
+        row.rotation.y = Math.PI / 2;
+        for (const px of ports) jackFace(row, -(top - 3), span(px), DEEP, look);
+        router.add(row);
+      }
+      // the LAN jack on its east side, where the lead's plug stays (turned to face east)
+      const side = new Group();
+      side.rotation.y = Math.PI;
+      jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look);
+      router.add(side);
       // its front: a darker strip with the status lights, vents over its top
-      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, 1395, 1410, mat(0x0d0e10, { roughness: 0.5 }), 30));
-      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, 1405, 1425, 36, led, 8));
+      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x0d0e10, { roughness: 0.5 }), 30));
+      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, 8));
       for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
-      if (tier >= 2) for (let k = 0; k < 4; k++) router.add(rectBox({ x: rs.x + 1700 + k * 130, y: ledY - 50, w: 90, h: 100 }, 1395, 1415, mat(0x050607, { roughness: 0.7 })));
-      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, 1405, 1425, 24, led, 8));
+      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, 8));
       if (tier >= 3) return; // a switch-router has no aerials
       for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
         const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];

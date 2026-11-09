@@ -11,7 +11,8 @@ import { mat } from '@/core/render/three/materials';
 import { NIC_BRACKET_X } from '../layout/layout';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
-import { crystal, decalMat, gold, inductor, maskTop, MM, passiveRow, passives, pkg, type Passive } from './pcbkit3d';
+import { crystal, decalMat, inductor, maskTop, MM, passiveRow, passives, pkg, type Passive } from './pcbkit3d';
+import { springGold, unshadowed } from './rj45jack3d';
 
 /** An RJ45 jack with its magnetics (mm, as layout units): across the bracket, off the PCB, and deep; the tallest part on the card. */
 export const JACK = { w: 16 * MM, h: 13.5 * MM, d: 22 * MM };
@@ -52,19 +53,22 @@ interface JackMats { steel: Material; plastic: Material; back: Material; gold: M
 function jack(g: Group, y: number, Zp: number, M: JackMats, inX: number): void {
   const { w, h, d } = JACK, x0 = JACK_X, x1 = x0 + d, z0 = Zp - h, z1 = Zp, t = 0.3 * MM, yc = y + w / 2, zt = z0 + MOUTH.top, zm = zt + MOUTH.main;
   const outer = spanPts({ y0: y, y1: y + w, z0, z1, r: 0.5 * MM }), inner = spanPts({ y0: y + t, y1: y + w - t, z0: z0 + t, z1: z1 - t });
-  const leds = [y + 0.9 * MM, y + w - 3.3 * MM], led = (ly: number, e: number) => spanPts({ y0: ly - e, y1: ly + 2.4 * MM + e, z0: zm + 0.5 * MM - e, z1: zm + 2.3 * MM + e, r: 0.3 * MM });
+  // the lights' windows either side of the latch slot, clear of the mouth's opening (cut holes that touch break the plate's faces)
+  const lz0 = zm + 1.1 * MM, lz1 = zm + 2.9 * MM;
+  const leds = [y + 0.9 * MM, y + w - 3.3 * MM], led = (ly: number, e: number) => spanPts({ y0: ly - e, y1: ly + 2.4 * MM + e, z0: lz0 - e, z1: lz1 + e, r: 0.3 * MM });
   g.add(prismX(x0, x0 + t, outer, [mouthPts(yc, zt, 0.5 * MM), ...leds.map((l) => led(l, 0.25 * MM))], M.steel));
   g.add(prismX(x0 + t, x1, outer, [inner], M.steel));
   g.add(rectBox({ x: x1 - t, y: y + t, w: t, h: w - 2 * t }, z0 + t, z1 - t, M.steel));
+  // (the mouth's inside takes no shadow: deep in it the shadow map would only hide the contacts in its acne, as rj45jack3d's)
   const deep = x0 + 15 * MM;
-  g.add(prismX(x0 + t, deep, inner, [mouthPts(yc, zt, 0)], M.plastic));
-  g.add(rectBox({ x: deep, y: y + t, w: x1 - t - deep, h: w - 2 * t }, z0 + t, z1 - t, M.back));
+  g.add(unshadowed(prismX(x0 + t, deep, inner, [mouthPts(yc, zt, 0)], M.plastic)));
+  g.add(unshadowed(rectBox({ x: deep, y: y + t, w: x1 - t - deep, h: w - 2 * t }, z0 + t, z1 - t, M.back)));
   // the contacts: spring wires from the mouth's outer edge, sloping in toward the PCB side as they run back
   const ax = x0 + 2.5 * MM, bx = x0 + 13 * MM, az = zt + 0.45 * MM, bz = zt + 2.6 * MM, len = Math.hypot(bx - ax, bz - az);
   const wire = new BoxGeometry(len, 0.4 * MM, 0.25 * MM).rotateY(-Math.asin((bz - az) / len));
-  g.add(instanced(wire, M.gold, Array.from({ length: 8 }, (_, k) => ({ x: (ax + bx) / 2, y: -(yc + (k - 3.5) * 1.02 * MM), z: (az + bz) / 2 }))));
+  g.add(unshadowed(instanced(wire, M.gold, Array.from({ length: 8 }, (_, k) => ({ x: (ax + bx) / 2, y: -(yc + (k - 3.5) * 1.02 * MM), z: (az + bz) / 2 })))));
   // the lights' pipes, just proud of the body's face
-  leds.forEach((l, k) => g.add(rectBox({ x: x0 + t - 0.15 * MM, y: l, w: 1 * MM, h: 2.4 * MM }, zm + 0.5 * MM, zm + 2.3 * MM, k ? M.amber : M.green)));
+  leds.forEach((l, k) => g.add(rectBox({ x: x0 + t - 0.15 * MM, y: l, w: 1 * MM, h: 2.4 * MM }, lz0, lz1, k ? M.amber : M.green)));
   // the ground springs, bent out of the shield's sides and its outer face, pressing on the bracket's inside round its opening
   const sx = inX + 0.3 * MM, sw = 2 * MM;
   for (const zz of [z0 + h * 0.3, z0 + h * 0.72]) for (const [ya, yb] of [[y - 0.5 * MM, y], [y + w, y + w + 0.5 * MM]] as const) g.add(rectBox({ x: sx, y: ya, w: sw, h: yb - ya }, zz - 1.2 * MM, zz + 1.2 * MM, M.steel));
@@ -120,7 +124,7 @@ function polyCap(u: Group, x: number, y: number, zu: number, r: number, h: numbe
 export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number): void {
   const steel = mat(0x9ea5ae, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xc4c9d0, { metalness: 0.9, roughness: 0.32 });
   const M: JackMats = {
-    steel, plastic: mat(0x0f1013, { roughness: 0.62 }), back: mat(0x24262b, { roughness: 0.6 }), gold: gold(),
+    steel, plastic: mat(0x0f1013, { roughness: 0.62 }), back: mat(0x24262b, { roughness: 0.6 }), gold: springGold(),
     green: mat(0x2f8a52, { emissive: 0x5cff9a, emissiveIntensity: 0.55, roughness: 0.3 }), amber: mat(0x8a6420, { emissive: 0xffc247, emissiveIntensity: 0.4, roughness: 0.3 }),
   };
   const ys = jacksOf(visual, f.y0);

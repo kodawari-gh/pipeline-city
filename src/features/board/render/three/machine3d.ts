@@ -26,7 +26,7 @@ import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITO
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY,
+  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -676,7 +676,10 @@ export class Machine3D {
     if (has('lan') && netVisible(s) && this.inRoom) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
-      const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };
+      // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot)
+      const lan = routerLan(), fixed = seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, 0x8cc3e0)));
+      g.add(fixed.root);
+      const from: RopeEnd = fixed.strands[0]!;
       // (a card's jack is on its bracket, in the slot's opening: the plug goes into its mouth, nic3d's `mouthAt`)
       const nicAt = (d: { spec: string; slot: string }): V3 => {
         const p = nicJackAt((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '', idx(d.slot));

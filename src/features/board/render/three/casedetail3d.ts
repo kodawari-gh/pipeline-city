@@ -19,6 +19,7 @@ import { BRACKET_TOP, slotBlank } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
+import { jackFace, jackLook } from './rj45jack3d';
 
 /** What the details need of the case: its kind, its body's material, its accent, and the cavity's height (layout y) and depth. */
 export interface Frame { kind: CaseKind; body: Material; acc: number; yTop: number; yBot: number; z0: number; z1: number }
@@ -249,14 +250,20 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
   const g = tag(new Group(), 'io'), x = CASE.x, Z = BOARD_Z, s = plateSpan(), stamped = tier <= 1;
   // (stamped sheet is smooth satin steel, not brushed)
   const plateM = stamped ? mat(0xaeb4bc, { metalness: 0.65, roughness: 0.46 }) : mat(0x15171c, { metalness: 0.35, roughness: 0.5 });
-  g.add(rectBox({ x: x - 8, y: s.y0, w: 8, h: s.y1 - s.y0 }, s.z0, s.z1, plateM));
+  // (the plate is open behind the RJ45's mouth, which runs on through the wall into the jack)
+  const rj45 = IO_PORTS.filter((p) => p.kind === 'rj45' && fitted(p, feat)).map((p): Span => ({ y0: p.y - IO_HALF.rj45 + 4, y1: p.y + IO_HALF.rj45 - 4, z0: Z + IO_Z.rj45[0] + 4, z1: Z + IO_Z.rj45[1] - 4 }));
+  g.add(wallX(x - 8, x, s, rj45, plateM));
   const hole = black(), shell = steel(), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
-  /** An embossed rim round an opening on the stamped plate (world y, depth). */
-  const rim = (y0: number, y1: number, z0: number, z1: number) => { if (stamped) g.add(boxW(x - 11, x - 8, y0 - 14, y1 + 14, z0 - 14, z1 + 14, plateM)); };
-  /** EMI fingers: springy tabs bent out over a mouth's long edges. */
+  /** An embossed rim round an opening on the stamped plate (world y, depth); `open`: a frame round it, for a mouth that runs on through the plate. */
+  const rim = (y0: number, y1: number, z0: number, z1: number, open = false) => {
+    if (!stamped) return;
+    if (open) g.add(wallX(x - 11, x - 8, { y0: -y1 - 14, y1: -y0 + 14, z0: z0 - 14, z1: z1 + 14 }, [{ y0: -y1 + 4, y1: -y0 - 4, z0: z0 + 4, z1: z1 - 4 }], plateM));
+    else g.add(boxW(x - 11, x - 8, y0 - 14, y1 + 14, z0 - 14, z1 + 14, plateM));
+  };
+  /** EMI fingers: springy tongues cut from the opening's long edges, bent in against the connector's shell (they lie along its sides). */
   const fingers = (y0: number, y1: number, z0: number, z1: number) => {
     if (!stamped) return;
-    for (const zz of [z0 - 6, z1 + 6]) for (let k = 0; k < 3; k++) { const y = y0 + ((k + 0.5) * (y1 - y0)) / 3; g.add(boxW(x - 15, x - 8, y - 9, y + 9, zz - 3, zz + 3, plateM)); }
+    for (const [za, zb] of [[z0 - 4, z0], [z1, z1 + 4]] as const) for (let k = 0; k < 3; k++) { const y = y0 + ((k + 0.5) * (y1 - y0)) / 3; g.add(boxW(x - 16, x - 10, y - 8, y + 8, za, zb, plateM)); }
   };
   // (the numbers are boardhw3d.ts's `IO_Z` and `IO_HALF`: the connectors' shells behind the plate take the same)
   for (const p of IO_PORTS) {
@@ -267,14 +274,11 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
       rim(cy - 34, cy + 34, zj - 34, zj + 34);
       g.add(drumX(x - 12, cy, zj, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, zj, 17, 8, hole), drumX(x - 13, cy, zj, 9, 6, shell));
     } else if (p.kind === 'rj45') {
-      const h = IO_HALF.rj45, z0 = Z + IO_Z.rj45[0], z1 = Z + IO_Z.rj45[1], zm = (z0 + z1) / 2;
-      rim(cy - h, cy + h, z0, z1);
-      // the mouth sunk into the shell, keyed by the latch notch on its south side; the eight contacts hang from its north wall
-      const a = ly - h + 16, b = ly + h - 12, n = ly + h - 4, c0 = z0 + 12, c1 = z1 - 12;
-      const mouth = [wallPt(a, c0), wallPt(a, c1), wallPt(b, c1), wallPt(b, zm + 24), wallPt(n, zm + 24), wallPt(n, zm - 24), wallPt(b, zm - 24), wallPt(b, c0)];
-      g.add(wallX(x - 20, x - 8, { y0: ly - h, y1: ly + h, z0, z1 }, [mouth], shell), boxW(x - 11, x - 8, cy - h + 4, cy + h - 4, z0 + 4, z1 - 4, hole));
-      for (let k = 0; k < 8; k++) g.add(boxW(x - 18, x - 11, -a - 7, -a, z0 + 28 + k * 15, z0 + 34 + k * 15, gold));
-      for (const [dz, c] of [[-60, 0x58e08a], [60, 0xffb547]] as const) g.add(boxW(x - 22, x - 19, cy + h - 14, cy + h - 3, zm + dz - 10, zm + dz + 10, mat(0x111111, { emissive: c, emissiveIntensity: 0.8 })));
+      const h = IO_HALF.rj45, z0 = Z + IO_Z.rj45[0], z1 = Z + IO_Z.rj45[1];
+      rim(cy - h, cy + h, z0, z1, true);
+      // the jack's face (rj45jack3d's `jackFace`, as the router's ports): the mouth keyed by the latch notch on its south side, sunk through the
+      // shell into the insert behind the wall (boardhw3d's shell is a hollow sleeve round it), the lights in their windows on the north corners
+      jackFace(g, x - 20, { y0: ly - h, y1: ly + h, z0, z1 }, 170, jackLook(shell));
       fingers(cy - h, cy + h, z0, z1);
     } else if (p.kind === 'hdmi' || p.kind === 'dp') {
       // the shell and its keyed mouth (HDMI's two corners cut on its inner side, DP's one), the dark inside and the tongue
