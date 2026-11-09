@@ -650,8 +650,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
-    // a still of the game for the next boot screen (the buffer is not kept: it is copied now, in the draw's task)
-    if (revealed && s && now - stillAt > STILL_MS) { stillAt = now; saveStill(canvas); }
+    // a still of the game for the next boot screen (the buffer is not kept: it is copied now, in the draw's task); only of the room, not a die or the board up close
+    if (revealed && s && near < 0.4 && now - stillAt > STILL_MS) { stillAt = now; saveStill(canvas); }
     const lum = near > 0 ? post.meter() : null;
     if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
     seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
