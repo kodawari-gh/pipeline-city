@@ -68,9 +68,9 @@ export function isTouchDevice(): boolean {
   try { return matchMedia('(pointer: coarse) and (hover: none)').matches; } catch { return false; }
 }
 
-/** What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 30 fps on a touch device. The player's own choice replaces it. */
+/** What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 0.75 scale and 30 fps on a touch device (owner, 2026-11-09). The player's own choice replaces it. */
 export function deviceDefaults(touch = isTouchDevice()): Graphics {
-  return touch ? { ...DEFAULTS, ...PRESETS.low, fps: 30 } : { ...DEFAULTS };
+  return touch ? { ...DEFAULTS, ...PRESETS.low, scale: 0.75, fps: 30 } : { ...DEFAULTS };
 }
 
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];

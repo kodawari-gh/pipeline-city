@@ -8,9 +8,8 @@ describe('presets', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
     expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: false });
     expect(deviceDefaults(false)).toEqual(DEFAULTS);
-    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, fps: 30 });
-    expect(presetOf(deviceDefaults(true))).toBe('low');
-    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: PRESETS.low.scale, fps: 30 });
+    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, scale: 0.75, fps: 30 });
+    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: 0.75, fps: 30 });
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {
