@@ -118,6 +118,7 @@ export function BuildMode() {
       }
       const over = where(m.clientX, m.clientY);
       const target = src.from === 'shelf' && over === 'stage' ? stageRef.current?.dropTarget(src.item, m.clientX, m.clientY) ?? '' : undefined;
+      stageRef.current?.showTarget(target || null);
       setDrag({ ...src, x: m.clientX, y: m.clientY, over, target });
     };
     const end = (u: PointerEvent | null) => {
@@ -125,6 +126,7 @@ export function BuildMode() {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
       endDrag.current = () => {};
+      stageRef.current?.showTarget(null);
       setDrag(null);
       if (!moving) { if (u) click(); return; }
       if (u) drop(src, u.clientX, u.clientY);

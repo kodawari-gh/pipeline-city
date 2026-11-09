@@ -4,7 +4,7 @@ import { BOARD_TIERS, CASE_TIERS, getSpec } from './specs';
 /** A ready-made build (see `BuildStage.buildPreset`): `level` 0..1 picks how high a tier of each part; the counts say how many of each to fit. */
 export interface BuildPreset { name: string; level: number; ram: number; storage: number; gpus: number; npus: number }
 export const BUILD_PRESETS: BuildPreset[] = [
-  { name: 'Budget', level: 0.25, ram: 1, storage: 1, gpus: 0, npus: 0 },
+  { name: 'Budget', level: 0.3, ram: 1, storage: 1, gpus: 0, npus: 0 },
   { name: 'Gaming', level: 0.65, ram: 2, storage: 1, gpus: 1, npus: 0 },
   { name: 'Workstation', level: 1, ram: 8, storage: 4, gpus: 2, npus: 1 },
 ];

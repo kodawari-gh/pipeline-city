@@ -4,13 +4,14 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { effect, signal } from '@preact/signals';
-import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
+import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight, type Object3D } from 'three';
+import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
-import { findById, idOf, pick, tag } from '@/core/render/three/pick';
+import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -56,7 +57,9 @@ const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
+const SETTLE_SECONDS = 0.3, SETTLE_DEPTH = 14;
+const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
  *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket. */
@@ -175,6 +178,22 @@ export class BuildStage {
     this.status.value = { ...st, rev: st.rev + 1 };
   }
 
+  private marker: Mesh | null = null;
+  private markerAt = '';
+  /** The snap preview: a glowing box over the socket a dragged part would fit in (`dropTarget`); null hides it. A socket with no place of its own (a case fan) shows none. */
+  showTarget(slot: string | null): void {
+    const rect = slot && this.machine.doorOpen ? slotRects(this.game.snapshot()).get(slot) : undefined;
+    if (!rect) { if (this.marker) this.marker.visible = false; this.markerAt = ''; return; }
+    if (!this.marker) {
+      this.marker = seeThrough(new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color: 0x3be3ff, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false, toneMapped: false })));
+      this.marker.renderOrder = 999;
+      this.ctx.scene.add(this.marker);
+    }
+    const key = `${slot}`;
+    if (key !== this.markerAt) { this.markerAt = key; this.marker.position.set(rect.x + rect.w / 2, -(rect.y + rect.h / 2), BOARD_Z + 250); this.marker.scale.set(rect.w, rect.h, 1); }
+    this.marker.visible = true;
+  }
+
   private monitor: Group | null = null;
   /** The room's own monitor (`Monitor`, props3d.ts) on the stage when the machine has one, its screen on standby, tagged for the animation. */
   private syncMonitor(on: boolean): void {
@@ -219,6 +238,7 @@ export class BuildStage {
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);
+    if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
     this.lens.frame(camera, this.H, this.game.snapshot(), roomGeo(), dt, renderer.getPixelRatio());
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
@@ -239,7 +259,17 @@ export class BuildStage {
       x.o.rotation.z = x.baseTurn + p.turn;
     }
     this.setStep(p.label);
-    if (a.t >= motionSeconds(m)) { this.anim = null; a.done(); }
+    if (a.t >= motionSeconds(m)) {
+      // a part going in settles: it dips a little past its seat along the way it came, then comes back (a damped spring, 0.3 s)
+      if (a.dir === 'in' && a.t < motionSeconds(m) + SETTLE_SECONDS) {
+        const u = (a.t - motionSeconds(m)) / SETTLE_SECONDS, far = m.keys[m.keys.length - 1]!.at, reach = Math.hypot(...far) || 1;
+        const k = -SETTLE_DEPTH * Math.exp(-5 * u) * Math.sin(u * Math.PI * 3) / reach;
+        for (const x of a.objs) x.o.position.set(x.base[0] + far[0] * k, x.base[1] + far[1] * k, x.base[2] + far[2] * k);
+        return;
+      }
+      for (const x of a.objs) x.o.position.set(x.base[0], x.base[1], x.base[2]);
+      this.anim = null; a.done();
+    }
   }
 
   private setStep(step: string): void {
