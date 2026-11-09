@@ -95,4 +95,8 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
 - Board and case swaps: the parts come out first. The door closes. The board lifts out (`Machine3D.boardRoots`), then the case pieces (`caseRoots`). The new case lowers over the board, then the new board settles in.
 - The stage shows the room's monitor on standby (`Monitor`, props3d.ts).
+- Bottom bar: side panel, speed, Undo / Redo (one fit or removal each; a new case, board, preset or reset clears the history), camera presets (Front, Angle, Side, Top, Focus on the selected part: `BuildStage.preset`, `focusDevice`), the Power and Airflow lenses (`Lens3D` on the stage, the `powerLens` / `airflowLens` signals) and the Graphics dock (`toggleGraphics`).
+- Drag hint: over the PC, the ghost says which socket the part would fit in, or that it fits none (`BuildStage.dropTarget`).
+- Right panel: build presets (Budget, Gaming, Workstation: `BUILD_PRESETS`, built at once by `BuildStage.buildPreset`), Full rig, Empty, saved builds (`ui/savedbuilds.ts`, browser storage; `BuildStage.layout` / `loadLayout`), the spec sheet (budget and power from the part tables: `sim/buildspecs.ts`), then the fitted parts grouped by kind with thumbnails.
+- The machine is not run here: the power lens shows the layout at 0 W.
 - Tests: `sim/removal.test.ts` (graph), `sim/removal.game.test.ts` (plans run on the real game), `render/three/fit.test.ts` (rules vs geometry), `render/three/buildmotion.test.ts`.
