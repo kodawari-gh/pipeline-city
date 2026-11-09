@@ -135,7 +135,10 @@ type XY = readonly (readonly [number, number])[];
 export interface MaskCopper {
   traces: readonly { pts: XY; w: number; gnd?: boolean }[];
   vias: readonly { x: number; y: number; gnd?: boolean }[];
-  holes?: readonly { x: number; y: number; square?: boolean; gnd?: boolean }[];
+  /** (a contact's own ring and drill, where its part's differ from `ring` and `hole`) */
+  holes?: readonly { x: number; y: number; square?: boolean; gnd?: boolean; ring?: number; hole?: number }[];
+  /** Unplated holes (a jack's plastic pegs, a heatsink's push pins): bare drills, the pour cleared round them. */
+  npth?: readonly { x: number; y: number; r: number }[];
   keep?: readonly RectLike[];
   fiducials?: readonly { x: number; y: number; r: number }[];
   dots?: readonly { x: number; y: number; r: number }[];
@@ -173,14 +176,15 @@ export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { ro
         c.fillStyle = a.trace; c.beginPath(); c.roundRect(bx, by, bw, bh, rr * sx); c.fill();
         for (const t of cu.traces) if (!t.gnd) run(t.pts, t.w + 2 * k, a.mask);
         for (const v of cu.vias) if (!v.gnd) disc(v.x, v.y, cu.via + k, a.mask);
-        for (const h of cu.holes ?? []) disc(h.x, h.y, cu.ring + k, a.mask);
+        for (const h of cu.holes ?? []) disc(h.x, h.y, (h.ring ?? cu.ring) + k, a.mask);
+        for (const h of cu.npth ?? []) disc(h.x, h.y, h.r + k, a.mask);
         c.fillStyle = a.mask;
         for (const q of cu.keep ?? []) c.fillRect(...box({ x: q.x - k, y: q.y - k, w: q.w + 2 * k, h: q.h + 2 * k }));
         for (const f of cu.fiducials ?? []) disc(f.x, f.y, f.r * 2 + k, a.mask);
         // a ground contact's thermal relief: four spokes across its clear ring
         c.lineCap = 'butt';
         for (const h of cu.holes ?? []) if (h.gnd) for (let i = 0; i < 4; i++) {
-          const t = Math.PI / 4 + (i * Math.PI) / 2, l = cu.ring + k + 1;
+          const t = Math.PI / 4 + (i * Math.PI) / 2, l = (h.ring ?? cu.ring) + k + 1;
           run([[h.x, h.y], [h.x + Math.cos(t) * l, h.y + Math.sin(t) * l]], 5, a.trace);
         }
         c.lineCap = 'round';
@@ -214,9 +218,11 @@ export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { ro
     c.fillStyle = finish;
     for (const p of a.pads ?? []) c.fillRect(...box(p));
     for (const h of cu?.holes ?? []) {
-      if (h.square) { c.fillStyle = finish; c.fillRect(...box({ x: h.x - cu!.ring, y: h.y - cu!.ring, w: 2 * cu!.ring, h: 2 * cu!.ring })); } else disc(h.x, h.y, cu!.ring, finish);
-      disc(h.x, h.y, cu!.hole, '#1c1d20');
+      const rr = h.ring ?? cu!.ring;
+      if (h.square) { c.fillStyle = finish; c.fillRect(...box({ x: h.x - rr, y: h.y - rr, w: 2 * rr, h: 2 * rr })); } else disc(h.x, h.y, rr, finish);
+      disc(h.x, h.y, h.hole ?? cu!.hole, '#1c1d20');
     }
+    for (const h of cu?.npth ?? []) disc(h.x, h.y, h.r, '#16171a');
     for (const f of cu?.fiducials ?? []) { disc(f.x, f.y, f.r * 2, '#6e6447'); disc(f.x, f.y, f.r, finish); }
     c.strokeStyle = '#d9dbe0'; c.fillStyle = '#d9dbe0'; c.lineWidth = Math.max(1.5, 0.15 * MM * sx);
     for (const d of cu?.dots ?? []) disc(d.x, d.y, d.r, '#d9dbe0');

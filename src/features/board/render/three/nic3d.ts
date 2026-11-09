@@ -8,20 +8,15 @@
 import { BoxGeometry, Group, type Material, type Vector2 } from 'three';
 import { drum, instanced, rectBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { NIC_BRACKET_X } from '../layout/layout';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
+import { JACK, JACK_X, jacksOf } from './niccopper';
 import { crystal, decalMat, inductor, maskTop, MM, passiveRow, passives, pkg, type Passive } from './pcbkit3d';
 import { springGold, unshadowed } from './rj45jack3d';
 
-/** An RJ45 jack with its magnetics (mm, as layout units): across the bracket, off the PCB, and deep; the tallest part on the card. */
-export const JACK = { w: 16 * MM, h: 13.5 * MM, d: 22 * MM };
-/** The jacks' front: past the bracket's face, through the case's rear wall, the mouths just in from its outer face (where the LAN plug goes in). */
-export const JACK_X = NIC_BRACKET_X - 150;
+export { JACK, JACK_X, jacksOf };
 /** The mouth (mm): 11.68 across, its opening 6.6 tall from 2.3 in from the jack's outer side, then the latch slot, 6.2 wide, 1.9 on toward the PCB. */
 export const MOUTH = { w: 11.68 * MM, top: 2.3 * MM, main: 6.6 * MM, slotW: 6.2 * MM, slot: 1.9 * MM };
-/** A card's jacks (two on the 40G card), as their slot-side edges, lying. */
-export const jacksOf = (visual: string, y0: number): number[] => (visual === 'nic-40g' ? [0, 1] : [0]).map((k) => y0 + 120 + k * (JACK.w + 30));
 /** The middle of a jack's opening, lying: across it (y) and off the PCB (z), for the jack whose edge is at `y`. */
 export const mouthAt = (y: number, Zp: number) => ({ y: y + JACK.w / 2, z: Zp - JACK.h + MOUTH.top + MOUTH.main / 2 });
 

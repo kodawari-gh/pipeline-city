@@ -22,15 +22,15 @@ import type { Spin } from './fans3d';
 import { wallX, type Span } from './casekit3d';
 import { gpuBackplate, gpuCooler, gpuOutputs, gpuSockets, OUT_IN, OUT_TOP, outDepth, OUTPUTS, outputHoles } from './gpu3d';
 import { JACK, JACK_X, jacksOf, mouthAt, nicBracket, nicParts } from './nic3d';
+import { NIC_LANES } from './niccopper';
 import { npuBackplate, npuBracket, npuCooler } from './npu3d';
 import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
+import { FINGER, KEY, pinAt, TAB, tabOf, txPin } from './pcie';
 
 export type CardKind = 'gpu' | 'npu' | 'nic';
 
 /** The hinge: along the slot's centre line, over the slot and its latch (lying flat, the card clears them). The PCB's face (the 2D art) is on this plane, the PCB under it. */
 export const HINGE_Z = BOARD_Z + 250;
-/** How far the finger tab reaches below the hinge, down into the slot. */
-const TAB = 140;
 const PCB_T = 24, BACK_T = 18, BRACKET_T = 24;
 /** Real millimetres in layout units (the case's scale, docs/PC_PARTS.md). */
 const MM = 23;
@@ -107,14 +107,15 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   // slot (the rest of the 2D strip is there only lying flat); past the 2D edge the PCB goes on to the card's real height (it fades with the cooler)
   const rail = PCIE_RAILS[slot]!;
   lying.add(pcb(rect(x0, y0, x1 - x0, south - y0)));
-  const tw = Math.min(rail.w, x1 - rail.x) - 40, lanes = kind === 'nic' ? NIC_LANES[visual] ?? 1 : 16, tl = Math.min(tw, tabLen(lanes));
-  pcieTab(lying, rail.x + 20, tl, y0, Z, pcbM);
+  const lanes = kind === 'nic' ? NIC_LANES[visual] ?? 1 : 16, tab = tabOf(slot, x1, lanes), tl = tab.w;
+  pcieTab(lying, tab.x, tl, y0, Z, pcbM);
   flatOnly.add(rectBox(rect(x0, top, x1 - x0, y0 - top), Z - PCB_T + 2, Z - 2, pcbM));
   fades.add(pcb(rect(x0, south, x1 - x0, end - south)));
   // (an AI card's PCB runs the shroud's length; a GPU's ends short of its cooler, which runs on past it)
   if (kind === 'npu' && xe > x1) fades.add(pcb(rect(x1, y0, xe - x1, end - y0)));
-  // the AC-coupling capacitors of the card's transmit lanes, a pair per lane on the component side by the fingers
-  {
+  // the AC-coupling capacitors of the card's transmit lanes, a pair per lane on the component side by the fingers (a NIC's routed copper puts
+  // its own on the solder side, on side A's lines: niccopper.ts)
+  if (kind !== 'nic') {
     const under = new Group(), caps: Passive[] = [];
     under.rotation.x = Math.PI;
     for (let k = 0; k < lanes; k++) for (const s of [0, 1]) {
@@ -208,30 +209,17 @@ function gpuBracket(y0: number, ly0: number, ly1: number, z0: number, z1: number
   return wallX(NIC_BRACKET_X, NIC_BRACKET_X + BRACKET_T, { y0: ly0, y1: ly1, z0, z1 }, vents, m);
 }
 
-/** The PCIe key's notch along the tab from its bracket end (the short run carries the power pins), and its width. */
-const KEY = { at: 11.65 * MM, w: 1.9 * MM };
-/** A NIC's link width: x1, x4 or x8 (a GPU's and an AI card's are x16). */
-const NIC_LANES: Record<string, number> = { 'nic-gbe': 1, 'nic-10g': 4, 'nic-40g': 8 };
-/** The pins on each face of an edge `lanes` wide (the CEM spec: 18, 32, 49, 82). */
-export const edgePins = (lanes: number) => (lanes <= 1 ? 18 : lanes <= 4 ? 32 : lanes <= 8 ? 49 : 82);
-/** The tab's length for `lanes`: the 11 pins to the key, the key, the rest, half a pitch past the last. */
-const tabLen = (lanes: number) => KEY.at + KEY.w + (edgePins(lanes) - 10.5) * MM;
-/** Pin `p`'s middle along the tab from its bracket end (1 mm apart, the key between 11 and 12). */
-export const pinAt = (p: number) => (p <= 11 ? (p - 0.5) * MM : KEY.at + KEY.w + (p - 11.5) * MM);
-/** Side B's PETp pin of transmit lane `k` (its PETn the next one), as the CEM pinout has them. */
-export const txPin = (k: number) => (k === 0 ? 14 : k < 4 ? 19 + 4 * (k - 1) : k < 8 ? 33 + 4 * (k - 4) : 50 + 4 * (k - 8));
-
 /**
  * A card's PCIe edge, lying (north of the slot's line; standing, down in the slot): the tab from `x` for `w`, split by its key's notch, a gold
- * finger per pin on both faces at the real 1 mm pitch. (The tab's face and its gold sit just under the art's plane: lying flat, the 2D face
- * covers them.)
+ * finger per pin on both faces at the real 1 mm pitch (`pcie.ts`). (The tab's face and its gold sit just under the art's plane: lying flat, the
+ * 2D face covers them.)
  */
 function pcieTab(g: Group, x: number, w: number, y0: number, Z: number, pcbM: MeshStandardMaterial): void {
   const runs = w > KEY.at + KEY.w + 4 * MM ? [[x, KEY.at], [x + KEY.at + KEY.w, w - KEY.at - KEY.w]] as const : [[x, w]] as const;
-  const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [], fl = 4.2 * MM, fy = y0 - TAB + 0.5 * MM + fl / 2;
+  const pins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [], fl = FINGER.len, fy = y0 - TAB + FINGER.from + fl / 2;
   for (const [a, l] of runs) {
     g.add(rectBox({ x: a, y: y0 - TAB, w: l, h: TAB }, Z - PCB_T, Z - 1, pcbM));
-    for (let p = a + 0.5 * MM; p < a + l - 0.3 * MM; p += MM) for (const z of [Z - 0.7, Z - PCB_T - 0.3]) pins.push({ x: p, y: -fy, z, sx: 0.7 * MM, sy: fl, sz: 0.6 });
+    for (let p = a + 0.5 * MM; p < a + l - 0.3 * MM; p += MM) for (const z of [Z - 0.7, Z - PCB_T - 0.3]) pins.push({ x: p, y: -fy, z, sx: FINGER.w, sy: fl, sz: 0.6 });
   }
   g.add(instanced(new BoxGeometry(1, 1, 1), gold(), pins));
 }
