@@ -56,7 +56,8 @@ const byKind = <D extends { spec: string }>(devices: readonly D[]): [string, D[]
   return [...m].sort((a, b) => rank(a[0]) - rank(b[0]));
 };
 
-const money = (n: number) => `$${n.toLocaleString('en-US')}`;
+const BENCH_NAME: Record<string, string> = { compute: 'Compute', memory: 'Memory', storage: 'Storage', network: 'Network', gpu: 'Graphics', npu: 'AI' };
+const money =(n: number) => `$${n.toLocaleString('en-US')}`;
 
 /** The spec sheet: budget and power draw against the supply (from the part tables; the machine is not run). `rev` redraws it on a change. */
 function Specs({ stage, rev }: { stage: Stage; rev: number | undefined }) {
@@ -64,6 +65,7 @@ function Specs({ stage, rev }: { stage: Stage; rev: number | undefined }) {
   const s = stage.snapshot;
   const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec) });
   const over = sheet.headroom !== null && sheet.headroom > 1;
+  const result = stage.bench.value, running = stage.benching.value;
   return (
     <section class="bld-specs" aria-label="PC specs">
       <div class="bld-sub">Specs</div>
@@ -74,6 +76,14 @@ function Specs({ stage, rev }: { stage: Stage; rev: number | undefined }) {
         <dt>Supply</dt><dd>{sheet.psuW ? `${sheet.psuW} W` : 'none'}</dd>
       </dl>
       {sheet.headroom !== null && <div class={`bld-meter ${over ? 'bad' : ''}`} role="img" aria-label={`Full load is ${Math.round(sheet.headroom * 100)}% of the supply`}><i style={{ width: `${Math.min(100, sheet.headroom * 100)}%` }} /></div>}
+      <div class="bld-sub">Benchmark</div>
+      {result ? (
+        <dl>
+          {result.scores.map((b) => <><dt>{BENCH_NAME[b.kind]}</dt><dd title={b.note}>{b.score === null ? '—' : Math.round(b.score)}</dd></>)}
+          <dt><b>Overall</b></dt><dd><b>{Math.round(result.overall)}</b></dd>
+        </dl>
+      ) : <div class="mode-hint">{running ? `Running ${running === 'start' ? '…' : BENCH_NAME[running]}…` : 'Not run yet. A stock mid build scores about 1000.'}</div>}
+      <button disabled={!!running || stage.status.value.busy} title="Run short fixed jobs on this machine and score them" onClick={() => stage.runBenchmark()}>{result ? 'Run again' : 'Benchmark'}</button>
     </section>
   );
 }

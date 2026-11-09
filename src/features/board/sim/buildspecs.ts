@@ -10,7 +10,7 @@ export const BUILD_PRESETS: BuildPreset[] = [
 ];
 
 /** A machine as saved: its case and board tier and each fitted part's spec and socket. */
-export interface BuildLayout { caseTier: number; boardTier: number; parts: { spec: string; slot: string }[] }
+export interface BuildLayout { caseTier: number; boardTier: number; parts: { spec: string; slot: string }[]; os?: number; router?: number; isp?: number }
 export interface SavedBuild { name: string; layout: BuildLayout }
 
 export interface SpecSheet {

@@ -30,6 +30,7 @@ import { motionFor, motionSeconds, poseAt } from './buildmotion';
 import { Machine3D } from './machine3d';
 import { Lens3D } from './lens3d';
 import type { BuildLayout, BuildPreset } from '@/features/board/sim/buildspecs';
+import type { BenchKind, BenchResult } from '@/features/sandbox/sim/pcbench';
 
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
@@ -71,6 +72,9 @@ export function binParts(): BinPart[] {
 
 export class BuildStage {
   readonly status = signal<BuildStatus>({ busy: false, step: '', log: [], rev: 0 });
+  /** The last benchmark of the machine as it stands (cleared by any change), and the kind being run now. */
+  readonly bench = signal<BenchResult | null>(null);
+  readonly benching = signal<BenchKind | 'start' | null>(null);
   /** Playback speed: 1 is the animations' own time. */
   readonly speed = signal(1);
   game!: Game;
@@ -155,6 +159,7 @@ export class BuildStage {
   }
 
   private rebuild(): void {
+    if (this.bench.peek()) this.bench.value = null;
     const s = this.game.snapshot(), tier = s.boardTier, caseTier = Math.max(tier, s.caseTier);
     const refit = !this.machine || `${tier}|${caseTier}` !== this.tierKey;
     this.tierKey = `${tier}|${caseTier}`;
@@ -616,7 +621,8 @@ export class BuildStage {
     const g = new Game({ seed: 1, sandbox: true, preassembled: false });
     for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
     const pick = (kind: DeviceKind): string | null => {
-      const all = [...specsOfKind(kind as never)].sort((a, b) => a.tier - b.tier || a.price - b.price);
+      // (a RAID module holds data only: no OS boots from it, so the benchmark's jobs could not run)
+      const all = [...specsOfKind(kind as never)].filter((s) => !(s as { mirror?: boolean }).mirror).sort((a, b) => a.tier - b.tier || a.price - b.price);
       return all.length ? all[Math.min(all.length - 1, Math.round(p.level * (all.length - 1)))]!.id : null;
     };
     const put = (id: string | null, slot?: string): boolean => {
@@ -632,13 +638,44 @@ export class BuildStage {
       for (let i = 0; spec && i < n; i++) { const free = freeSlots(g.board, spec.slot, spec)[0]; if (!free || !put(id, free.id)) break; }
     };
     fill('psu', 1); fill('cpu', 1); fill('cooler', 1); fill('ram', p.ram); fill('storage', p.storage); fill('gpu', p.gpus); fill('npu', p.npus);
-    fill('nic', 1); fill('fan', 99); fill('display', 1);
+    fill('nic', 1); fill('display', 1);
+    // fans come in sizes (a heatsink takes 40 mm, a case mount its own): from the chosen tier down, each spec goes in every spot that takes it
+    const fans = [...specsOfKind('fan')].sort((a, b) => a.tier - b.tier || a.price - b.price);
+    for (const f of fans.slice(0, 1 + Math.round(p.level * (fans.length - 1))).reverse()) {
+      for (let i = 0; i < 40; i++) { const free = freeSlots(g.board, f.slot, f)[0]; if (!free || !put(f.id, free.id)) break; }
+    }
+    const t = (n: number) => Math.min(n, 1 + Math.round(p.level * (n - 1)));
+    this.software(g, { os: t(3), router: t(4), isp: t(5) });
     this.adopt(g, `Built the ${p.name} machine`);
+  }
+
+  /** The OS on the first drive, a router and an ISP plan with the LAN cable (what the benchmark's jobs need). Each is skipped when its tier is 0 or it does not fit. */
+  private software(g: Game, s: { os: number; router: number; isp: number }): void {
+    const buy = (id: string) => { const b = g.purchase(id); return b.ok && g.install(b.invId).ok; };
+    if (s.os && g.board.devices.some((d) => deviceSpec(d).kind === 'storage')) buy(`os${s.os}`);
+    if (s.router) buy(`router${s.router}`);
+    if (s.isp) g.purchase(`isp${s.isp}`);
+    if (s.router && s.isp) g.connectLan();
+  }
+
+  /** Run the benchmark on the machine as it is (a copy runs; the stage's game is not changed). */
+  async runBenchmark(): Promise<void> {
+    if (this.benching.peek() || this.status.peek().busy) return;
+    this.benching.value = 'start';
+    try {
+      const { runBench } = await import('@/features/sandbox/sim/pcbench');
+      const r = await runBench(this.game, (k) => { this.benching.value = k; });
+      if (!this.dead) this.bench.value = r;
+    } finally { this.benching.value = null; }
   }
 
   /** What is in the machine now, to save under a name (`loadLayout` builds it again). */
   get layout(): BuildLayout {
-    return { caseTier: this.board.caseTier, boardTier: this.board.tier, parts: this.board.devices.map((d) => ({ spec: d.spec, slot: d.slot })) };
+    const g = this.game;
+    return {
+      caseTier: this.board.caseTier, boardTier: this.board.tier, parts: this.board.devices.map((d) => ({ spec: d.spec, slot: d.slot })),
+      os: this.snapshot.os?.tier ?? 0, router: g.routerTier, isp: g.ispTier,
+    };
   }
 
   /** Build a saved layout at once (no animation). Parts that no longer fit are skipped. */
@@ -651,6 +688,7 @@ export class BuildStage {
     put(`case${l.caseTier}`);
     put(`board${l.boardTier}`);
     for (const p of l.parts) put(p.spec, p.slot);
+    this.software(g, { os: l.os ?? 0, router: l.router ?? 0, isp: l.isp ?? 0 });
     this.adopt(g, `Loaded ${name}`);
   }
 
