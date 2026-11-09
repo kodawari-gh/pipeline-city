@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { buildOpen } from '@/core/ui/state';
+import { buildOpen, graphicsOpen, toggleGraphics } from '@/core/ui/state';
+import { airflowLens, powerLens } from '@/app/hover';
+import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
 import { kindIcon, kindLabel } from '@/features/economy/ui/shop/shopdata';
@@ -21,7 +23,8 @@ const SLOP = 6;
 
 type Over = 'bin' | 'stage' | null;
 type Source = { from: 'shelf' | 'machine'; item: string; spec: string; name: string };
-type Drag = Source & { x: number; y: number; over: Over };
+/** `target`: for a shelf part over the stage, the socket it would fit in ('' when none takes it, undefined when not over the stage). */
+type Drag = Source & { x: number; y: number; over: Over; target?: string };
 interface Tile { item: string; spec: string; name: string }
 
 /** Is a client point inside an element's box? */
@@ -37,9 +40,42 @@ const onStage = (el: HTMLElement | null, x: number, y: number): boolean => {
 };
 
 const hintFor = (d: Drag): string => {
-  if (d.from === 'shelf') return d.over === 'stage' ? 'Let go to fit it here' : 'Drag it onto the PC';
+  if (d.from === 'shelf') {
+    if (d.over !== 'stage') return 'Drag it onto the PC';
+    return d.target === '' ? 'Fits no socket here' : d.target ? `Let go to fit it in ${d.target}` : 'Let go to fit it here';
+  }
   return d.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
 };
+
+/** The fitted devices grouped by kind, in the shelf's kind order. */
+const byKind = <D extends { spec: string }>(devices: readonly D[]): [string, D[]][] => {
+  const m = new Map<string, D[]>();
+  for (const d of devices) { const k = DEVICE_SPECS[d.spec]?.kind ?? 'other'; (m.get(k) ?? m.set(k, []).get(k)!).push(d); }
+  const rank = (k: string) => { const i = KINDS.indexOf(k); return i < 0 ? 99 : i; };
+  return [...m].sort((a, b) => rank(a[0]) - rank(b[0]));
+};
+
+const money = (n: number) => `$${n.toLocaleString('en-US')}`;
+
+/** The spec sheet: budget and power draw against the supply (from the part tables; the machine is not run). `rev` redraws it on a change. */
+function Specs({ stage, rev }: { stage: Stage; rev: number | undefined }) {
+  void rev;
+  const s = stage.snapshot;
+  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec) });
+  const over = sheet.headroom !== null && sheet.headroom > 1;
+  return (
+    <section class="bld-specs" aria-label="PC specs">
+      <div class="bld-sub">Specs</div>
+      <dl>
+        <dt>Budget</dt><dd>{money(sheet.budget)}</dd>
+        <dt>Parts</dt><dd>{sheet.parts}</dd>
+        <dt>Power</dt><dd class={over ? 'bad' : ''}>{sheet.idleW}–{sheet.loadW} W</dd>
+        <dt>Supply</dt><dd>{sheet.psuW ? `${sheet.psuW} W` : 'none'}</dd>
+      </dl>
+      {sheet.headroom !== null && <div class={`bld-meter ${over ? 'bad' : ''}`} role="img" aria-label={`Full load is ${Math.round(sheet.headroom * 100)}% of the supply`}><i style={{ width: `${Math.min(100, sheet.headroom * 100)}%` }} /></div>}
+    </section>
+  );
+}
 
 export function BuildMode() {
   const open = buildOpen.value;
@@ -68,7 +104,9 @@ export function BuildMode() {
         // a shelf part can only land on a socket with the case open
         if (src.from === 'shelf' && stageRef.current && !stageRef.current.insideOpen) { stageRef.current.openInside(true); redraw((n) => n + 1); }
       }
-      setDrag({ ...src, x: m.clientX, y: m.clientY, over: where(m.clientX, m.clientY) });
+      const over = where(m.clientX, m.clientY);
+      const target = src.from === 'shelf' && over === 'stage' ? stageRef.current?.dropTarget(src.item, m.clientX, m.clientY) ?? '' : undefined;
+      setDrag({ ...src, x: m.clientX, y: m.clientY, over, target });
     };
     const end = (u: PointerEvent | null) => {
       window.removeEventListener('pointermove', move);
@@ -190,14 +228,31 @@ export function BuildMode() {
             {SPEEDS.map((x) => <button key={x} class={stage?.speed.value === x ? 'on' : ''} aria-pressed={stage?.speed.value === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
           </div>
           <i class="bld-sep" aria-hidden="true" />
-          <button disabled={busy} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
-          <button disabled={busy} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
+          <button disabled={busy || !stage?.canUndo} title="Undo the last fit or removal" onClick={() => stage?.undo()}>Undo</button>
+          <button disabled={busy || !stage?.canRedo} title="Redo" onClick={() => stage?.redo()}>Redo</button>
+          <i class="bld-sep" aria-hidden="true" />
+          <div class="seg" role="group" aria-label="Camera">
+            {(['front', 'angle', 'side', 'top'] as const).map((v) => <button key={v} disabled={!stage} onClick={() => stage?.preset(v)}>{v[0]!.toUpperCase() + v.slice(1)}</button>)}
+            <button disabled={!stage || !sel} title="Fly to the selected part" onClick={() => { if (sel) stage?.focusDevice(sel); }}>Focus</button>
+          </div>
+          <i class="bld-sep" aria-hidden="true" />
+          <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!stage} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}>Power</button>
+          <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!stage} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}>Airflow</button>
+          <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}>Graphics</button>
       </div>
       <div class="mode-hint bld-tip">Drag empty space to turn · right-drag to move · scroll to zoom · double-click to reset</div>
       <aside class="bld-inst mode-panel">
         <header class="mode-head"><span class="mode-eyebrow">{devices.length} fitted</span><b>In the machine</b></header>
+        <div class="bld-presets" role="group" aria-label="Start from">
+          {BUILD_PRESETS.map((p) => <button key={p.name} disabled={busy || !stage} title={`Build a ${p.name.toLowerCase()} machine`} onClick={() => stage?.buildPreset(p)}>{p.name}</button>)}
+          <button disabled={busy || !stage} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
+          <button disabled={busy || !stage} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
+        </div>
+        {stage && <Specs stage={stage} rev={rev} />}
         <ul class="bld-list">
-          {devices.map((d) => (
+          {byKind(devices).map(([k, list]) => [
+            <li key={`h-${k}`} class="bld-sub bld-grp">{kindLabel(k)}{list.length > 1 ? ` ×${list.length}` : ''}</li>,
+            ...list.map((d) => (
             <li key={d.id} class={sel === d.id ? 'on' : ''} onPointerDown={(e) => {
               if (e.button === 0 && !busy) begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () => setSel(d.id));
             }}>
@@ -206,14 +261,15 @@ export function BuildMode() {
               <button disabled={busy} aria-label={`Remove ${name(d.spec)}`} title={`Remove with everything in the way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
                 onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="close" size={11} /></button>
             </li>
-          ))}
+            )),
+          ])}
           {devices.length === 0 && <li class="mute">Nothing fitted yet.</li>}
         </ul>
         {(st?.log.length ?? 0) > 0 && <div class="bld-sub">What was done</div>}
         {(st?.log.length ?? 0) > 0 && <ol class="bld-log">{st!.log.slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>}
       </aside>
       {drag && (
-        <div class={`bld-ghost ${drag.over ?? ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
+        <div class={`bld-ghost ${drag.over ?? ''} ${drag.target === '' ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
           <PartArt id={drag.spec} size={44} />
           <span><b>{drag.name}</b><em>{hintFor(drag)}</em></span>
         </div>

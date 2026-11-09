@@ -28,6 +28,8 @@ import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { motionFor, motionSeconds, poseAt } from './buildmotion';
 import { Machine3D } from './machine3d';
+import { Lens3D } from './lens3d';
+import type { BuildPreset } from '@/features/board/sim/buildspecs';
 
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
@@ -42,6 +44,9 @@ export interface BuildStatus {
   /** Counts up with every change of the machine (the UI reads it to redraw). */
   rev: number;
 }
+
+/** One undoable change: a part fitted in, or taken out of, a socket. */
+type Step = { t: 'fit' | 'remove'; spec: string; slot: string };
 
 /** What a swap took out, to put back. */
 type Undo = { t: 'cable'; id: string } | { t: 'dev'; spec: string; slot: string; invId: string; clock?: number };
@@ -74,6 +79,8 @@ export class BuildStage {
   private readonly ctx;
   private readonly post: Post;
   private readonly gate = new FrameGate();
+  /** The power and airflow lenses (the `powerLens` / `airflowLens` signals), over the machine as in the game. */
+  private readonly lens: Lens3D;
   private readonly host: HTMLElement;
   private view: OrbitView;
   private goal: OrbitView;
@@ -108,6 +115,7 @@ export class BuildStage {
     lamp.position.set(0, 4000, 9000);
     scene.add(key, rim, lamp);
     this.post = new Post(renderer, scene, camera, this.W, this.H);
+    this.lens = new Lens3D(scene);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
     this.cleanup.push(effect(() => {
       const g = effective.value;
@@ -206,6 +214,7 @@ export class BuildStage {
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);
+    this.lens.frame(camera, this.H, this.game.snapshot(), roomGeo(), dt, renderer.getPixelRatio());
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
     const lum = this.post.meter();
@@ -275,6 +284,64 @@ export class BuildStage {
   }
 
   resetView(): void { this.goal = this.frameView(); }
+
+  /** A camera preset: the whole machine seen from the front, three-quarter (the start), the side, or from above. */
+  preset(name: 'front' | 'angle' | 'side' | 'top'): void {
+    const at = { front: { yaw: 0, pitch: 0.08 }, angle: { yaw: START.yaw, pitch: START.pitch }, side: { yaw: 1.05, pitch: 0.12 }, top: { yaw: 0.2, pitch: 0.75 } }[name];
+    this.goal = { ...this.frameView(), ...at };
+  }
+
+  /** Fly the camera to a fitted part (its device id); false when it has no model. */
+  focusDevice(id: string): boolean {
+    const o = this.objectOf(devNode(id));
+    if (!o) return false;
+    o.updateWorldMatrix(true, true);
+    const box = new Box3().setFromObject(o), c = box.getCenter(new Vector3()), s = box.getSize(new Vector3());
+    this.goal = { ...this.goal, x: c.x, y: c.y, z: c.z, height: Math.max(s.x, s.y, s.z) * 2.4 };
+    return true;
+  }
+
+  /** The socket a part would be fitted in when dropped at a client point (or by a click when `x` is not given): what `fit` picks. Null when none takes it. */
+  dropTarget(item: string, x?: number, y?: number): string | null {
+    if (/^(case|board)\d$/.test(item)) return item;
+    const spec = getSpec(item);
+    if (!spec) return null;
+    const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
+    const at = x === undefined || y === undefined ? null : this.slotAt(x, y);
+    if (at && boardSlots(this.board).some((s) => s.id === at && fits(s))) return at;
+    return freeSlots(this.board, spec.slot, spec)[0]?.id ?? boardSlots(this.board).find((s) => fits(s) && this.board.devices.some((d) => d.slot === s.id))?.id ?? null;
+  }
+
+  // ------------------------------------------------------------------ undo and redo (fit and remove of one part; a new case, board, preset or reset starts over)
+  private past: Step[] = [];
+  private future: Step[] = [];
+  private replay = false;
+  get canUndo(): boolean { return this.past.length > 0; }
+  get canRedo(): boolean { return this.future.length > 0; }
+  private record(s: Step): void { if (this.replay) return; this.past.push(s); this.future = []; }
+  private forget(): void { this.past = []; this.future = []; }
+  private async run(s: Step): Promise<void> {
+    this.replay = true;
+    try {
+      if (s.t === 'fit') await this.fit(s.spec, s.slot);
+      else { const d = this.board.devices.find((x) => x.slot === s.slot && x.spec === s.spec); if (d) await this.remove(devNode(d.id)); }
+    } finally { this.replay = false; }
+  }
+  async undo(): Promise<void> {
+    const s = this.past.pop();
+    if (!s || this.status.peek().busy) { if (s) this.past.push(s); return; }
+    await this.run({ ...s, t: s.t === 'fit' ? 'remove' : 'fit' });
+    this.future.push(s);
+    this.bump();
+  }
+  async redo(): Promise<void> {
+    const s = this.future.pop();
+    if (!s || this.status.peek().busy) { if (s) this.future.push(s); return; }
+    await this.run(s);
+    this.past.push(s);
+    this.bump();
+  }
+  private bump(): void { const st = this.status.peek(); this.status.value = { ...st, rev: st.rev + 1 }; }
 
   /** Is the side panel open (or opening)? The case hides what is inside it, so parts and sockets answer only then. */
   get insideOpen(): boolean { return this.wantOpen; }
@@ -456,6 +523,8 @@ export class BuildStage {
   remove(node: string): Promise<void> {
     return this.job(async () => {
       const undo: Undo[] = [], steps = this.plan(node);
+      const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
+      if (gone) this.record({ t: 'remove', spec: gone.spec, slot: gone.slot });
       for (const n of steps) await this.takeOut(n, n === node ? null : undo);
       for (const u of undo.reverse()) await this.putBack(u);
       this.note(`Done: ${steps.length} step${steps.length === 1 ? '' : 's'}`);
@@ -491,6 +560,8 @@ export class BuildStage {
         if (!put.ok) this.note(`${spec.name} does not fit: ${put.reason}`);
         else {
           this.note(`Fit ${spec.name} in ${slot}`);
+          if (occupant) this.record({ t: 'remove', spec: occupant.spec, slot });
+          this.record({ t: 'fit', spec: itemId, slot });
           this.rebuild();
           await this.seat(devNode(put.deviceId ?? ''), motionOf(spec.kind, slot));
           await this.plugNeeded();
@@ -504,6 +575,7 @@ export class BuildStage {
   /** A new board or case: every part comes out first, the machine is swapped as one piece, then the parts go back (what no longer fits stays in the bin). */
   private async fitShell(itemId: string): Promise<void> {
     const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1));
+    this.forget();
     if (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt) { this.note('That one is already fitted'); return; }
     const graph = buildGraph(this.board, this.cables), steps = removalPlan(graph, isCase ? CASE : BOARD);
     const undo: Undo[] = [];
@@ -536,10 +608,44 @@ export class BuildStage {
     await this.plugNeeded();
   }
 
+  /** A ready-made machine, built at once (no animation): `level` 0..1 picks how high a tier of each part; `ram`, `storage`, `gpus` and `npus` how many
+   *  of each to fit. Parts that fit nowhere are skipped. */
+  async buildPreset(p: BuildPreset): Promise<void> {
+    if (this.status.peek().busy) return;
+    const { Game } = await import('@/worker/game/game');
+    const g = new Game({ seed: 1, sandbox: true, preassembled: false });
+    for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
+    const pick = (kind: DeviceKind): string | null => {
+      const all = [...specsOfKind(kind as never)].sort((a, b) => a.tier - b.tier || a.price - b.price);
+      return all.length ? all[Math.min(all.length - 1, Math.round(p.level * (all.length - 1)))]!.id : null;
+    };
+    const put = (id: string | null, slot?: string): boolean => {
+      if (!id) return false;
+      const b = g.purchase(id);
+      return b.ok && g.install(b.invId, slot).ok;
+    };
+    const shell = (list: readonly { tier: number }[]) => Math.round(p.level * (list.length - 1));
+    put(`case${shell(CASE_TIERS)}`);
+    put(`board${shell(BOARD_TIERS)}`);
+    const fill = (kind: DeviceKind, n: number): void => {
+      const id = pick(kind), spec = id ? getSpec(id) : undefined;
+      for (let i = 0; spec && i < n; i++) { const free = freeSlots(g.board, spec.slot, spec)[0]; if (!free || !put(id, free.id)) break; }
+    };
+    fill('psu', 1); fill('cpu', 1); fill('cooler', 1); fill('ram', p.ram); fill('storage', p.storage); fill('gpu', p.gpus); fill('npu', p.npus);
+    fill('nic', 1); fill('fan', 99); fill('display', 1);
+    for (const c of cablesOf(g.board)) if (!OUTSIDE.has(c.id) && cableNeeded(g.board, c.id) && !cableBlocked(g.board, c.id)) g.connectCable(c.id);
+    for (const c of OUTSIDE) if (cableNeeded(g.board, c as never)) g.connectCable(c);
+    this.game = g;
+    this.forget();
+    this.status.value = { busy: false, step: '', log: [`Built the ${p.name} machine`], rev: this.status.peek().rev };
+    this.rebuild();
+  }
+
   /** A new sandbox machine: the biggest rig, as at the start. */
   async reset(): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    this.forget();
     this.game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     this.status.value = { busy: false, step: '', log: [], rev: this.status.peek().rev };
     this.rebuild();
@@ -549,6 +655,7 @@ export class BuildStage {
   async clear(): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    this.forget();
     this.game = new Game({ seed: 1, sandbox: true, preassembled: false });
     // a new game's case holds its two starter fans: Empty means nothing fitted
     for (const d of this.game.snapshot().devices) if (d.kind === 'fan') this.game.uninstall(d.id);
@@ -560,6 +667,7 @@ export class BuildStage {
     this.dead = true;
     cancelAnimationFrame(this.raf);
     for (const f of this.cleanup) f();
+    this.lens.dispose();
     this.ctx.scene.remove(this.machine.root);
     this.machine.dispose();
     disposeTree(this.ctx.scene);

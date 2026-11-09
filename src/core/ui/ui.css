@@ -1328,6 +1328,23 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-bar .seg > button { margin: 0; padding: 0.25rem 0.6rem; border-color: transparent; background: transparent; font-family: var(--mono); }
 .mode .bld-bar .seg > button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .bld-sep { width: 1px; height: 1.2rem; background: var(--glass-line); }
+.bld-bar { border-radius: 1.4rem; }
+/* the graphics dock opens over Build my PC (the mode covers the screen at z-index 70) */
+.mode ~ .dock.gfx { z-index: 80; }
+.bld-step { bottom: 8rem; }
+.bld-ghost.no { border-color: var(--bad); }
+.bld-ghost.no em { color: var(--bad); }
+.bld-presets { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.mode .bld-presets button { padding: 0.25rem 0.6rem; font-size: 0.7rem; border-radius: 99rem; }
+.bld-specs dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.8rem; margin: 0.2rem 0; font-size: 0.75rem; }
+.bld-specs dt { color: var(--mute); }
+.bld-specs dd { margin: 0; text-align: right; font-family: var(--mono); }
+.bld-specs dd.bad { color: var(--bad); }
+.bld-meter { height: 0.3rem; border-radius: 99rem; background: var(--glass-hi); overflow: hidden; }
+.bld-meter i { display: block; height: 100%; background: var(--accent); }
+.bld-meter.bad i { background: var(--bad); }
+.bld-list li.bld-grp { padding: 0.35rem 0.3rem 0.05rem; cursor: default; border-color: transparent; background: none; }
+.bld-list li.bld-grp:hover { background: none; border-color: transparent; }
 .bld-tip { position: absolute; left: 20rem; right: 18.5rem; bottom: 0.7rem; z-index: 2; text-align: center; }
 .bld-hint { margin-top: auto; }
 .bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }

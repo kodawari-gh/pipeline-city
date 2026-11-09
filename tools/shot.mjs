@@ -55,10 +55,14 @@ try {
   const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   console.log('GL renderer:', renderer);
   if (/swiftshader|llvmpipe|software/i.test(renderer) && !process.env.SOFTWARE) { console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).'); process.exitCode = 2; throw new Error('software GL'); }
-  await p.click('text=Sandbox');
-  await p.click('button:has-text("Start")');
-  if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
-  else await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
+  // --build: open "Build my PC" from the main menu instead of a game (then --click / --eval work on that screen)
+  if (args.includes('--build')) { await p.click('text=Build my PC'); await p.waitForSelector('.bld-bar', { timeout: 20000 }); await p.waitForTimeout(4000); }
+  else {
+    await p.click('text=Sandbox');
+    await p.click('button:has-text("Start")');
+    if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
+    else await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
+  }
   await p.waitForTimeout(2500);
   if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
   const view = flag('view', '');
