@@ -46,15 +46,19 @@ body { font: 0.8rem/1.35 var(--ui); }
 
 /* Glass: every panel and bar. Translucent, blurred, hairline border, no shadow. */
 .card, .hud-side, .dock, .picker, .tut, .inv, .menu-pop, .notice, .toast {
-  background: var(--panel); border: 1px solid var(--glass-line); border-radius: 0.667rem;
-  backdrop-filter: blur(0.667rem) saturate(115%); -webkit-backdrop-filter: blur(0.667rem) saturate(115%); box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), var(--panel); border: 1px solid var(--glass-line); border-radius: 1rem;
+  backdrop-filter: blur(1.1rem) saturate(130%); -webkit-backdrop-filter: blur(1.1rem) saturate(130%); box-sizing: border-box;
+  box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
+:root:not([data-theme="dark"]) .card, :root:not([data-theme="dark"]) .hud-side, :root:not([data-theme="dark"]) .dock, :root:not([data-theme="dark"]) .picker, :root:not([data-theme="dark"]) .tut, :root:not([data-theme="dark"]) .inv, :root:not([data-theme="dark"]) .menu-pop, :root:not([data-theme="dark"]) .notice, :root:not([data-theme="dark"]) .toast { box-shadow: 0 1rem 2.2rem rgba(20, 30, 70, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 
 button, .btn, .menuitem {
-  font: 600 0.733rem var(--ui); color: var(--ink); background: transparent; border: 1px solid var(--glass-line); border-radius: 0.467rem;
-  padding: 0.267rem 0.533rem; cursor: pointer; letter-spacing: .01em; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.333rem;
+  font: 600 0.733rem var(--ui); color: var(--ink); background: var(--glass-hi); border: 1px solid var(--glass-line); border-radius: 0.6rem;
+  padding: 0.267rem 0.6rem; cursor: pointer; letter-spacing: .01em; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.333rem;
+  transition: background .15s, border-color .15s, color .15s;
 }
-button:hover:not(:disabled), .btn:hover, .menuitem:hover { border-color: var(--accent); }
+button:hover:not(:disabled), .btn:hover, .menuitem:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--glass-hi)); }
+kbd { font: 600 0.62rem var(--mono); padding: 0.05rem 0.35rem; border: 1px solid var(--glass-line); border-bottom-width: 0.133rem; border-radius: 0.3rem; background: var(--glass-hi); color: var(--ink); }
 button:disabled { opacity: .5; cursor: default; }
 button:focus-visible, .btn:focus-within, input:focus-visible, [role="button"]:focus-visible { outline: 0.133rem solid var(--accent); outline-offset: 1px; }
 button.primary { background: var(--accent); color: var(--on); border-color: var(--accent); }
@@ -1233,10 +1237,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jc-done .jl-pay { margin-left: auto; }
 
 /* One look for the panels (shop, inventory, almanac, OS): the same tile corner, the same hover and selected states, the same section label. */
-.rung:hover, .tile:hover, .os-tile:hover { border-color: var(--accent); }
-.rung.picked, .tile.sel, .os-tile.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--glass-hi)); }
-.inv-gname, .shop-sec h3, .almanac h4, .menu-h { font: 600 var(--fs-label) var(--ui); text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
-.shop-title, .alm-title, .inv-title { font-size: var(--fs-title); font-weight: 700; }
+.rung:hover, .tile:hover, .os-tile:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.rung, .tile, .os-tile { transition: border-color .15s, background .15s, box-shadow .15s; }
+.rung.picked, .tile.sel, .os-tile.sel { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0.9rem color-mix(in srgb, var(--accent) 22%, transparent); background: color-mix(in srgb, var(--accent) 14%, var(--glass-hi)); }
+.inv-gname, .shop-sec h3, .almanac h4, .menu-h { font: 650 var(--fs-label) var(--ui); text-transform: uppercase; letter-spacing: .18em; color: var(--mute); }
+.shop-title, .alm-title, .inv-title { font-size: 1.2rem; font-weight: 750; letter-spacing: -0.01em; }
 
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
 /* The two part-viewing modes (Gallery, Build my PC) are one "studio": the dark 3D stage fills the screen and glass panels float over it. The tokens are redefined on `.mode`, so the studio is dark in both themes and every kit rule inside it follows. */

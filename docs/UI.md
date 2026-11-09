@@ -6,6 +6,7 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 ## Look
 
+- **Studio look (2026-11-09)**: the glass rule also adds a top sheen, blur 1.1rem + saturate, a 1rem radius and a soft shadow; buttons have a faint fill and an accent-tinted hover; `kbd` is global; section labels are 0.18em spaced; selected tiles glow. Gallery and Build my PC (`.mode`) keep their own always-dark tokens. Checked on the board HUD in dark only; shop, almanac, light theme and narrow screens are not checked.
 - **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(0.67rem)`, a 1px hairline (`--glass-line`), a 0.67rem radius and no shadow. Tokens are on `:root` (the light theme) and `:root[data-theme="dark"]`; dark is the primary theme and the page starts with `data-theme="dark"`. Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in light and dark.
 - **Small type** (all rem): 0.8rem body, 0.65rem uppercase labels, 0.95rem titles.
 - **Shared panel look** (end of `ui.css`): tokens `--fs-label`, `--fs-body`, `--fs-title`, `--r-tile`; one tile corner, one hover and selected state (`.rung`, `.tile`, `.os-tile`), one section label, one title size. Mono is for numbers and code only. Hover ring on the board is neutral (cyan = selected, yellow = tutorial target).
