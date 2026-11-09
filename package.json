@@ -12,6 +12,7 @@
     "test:q": "vitest run --reporter=dot",
     "bench:speed": "node tools/bench-speed.mjs",
     "bench:3d": "node tools/bench3d.mjs",
+    "bench:modes": "node tools/bench-modes.mjs",
     "shot": "node tools/shot.mjs",
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",

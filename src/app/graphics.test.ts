@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  autoStep, AwayWatch, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, presetOf, PRESETS, PRESET_NAMES, resetGraphics, setGraphic, setPreset, SlowWatch,
+  autoStep, AwayWatch, CHOICES, DEFAULTS, deviceDefaults, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, presetOf, PRESETS, PRESET_NAMES, resetGraphics, setGraphic, setPreset, SlowWatch,
 } from './graphics';
 
 describe('presets', () => {
   it('the default is High with nothing else set', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
     expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: false });
+    expect(deviceDefaults(false)).toEqual(DEFAULTS);
+    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, fps: 30 });
+    expect(presetOf(deviceDefaults(true))).toBe('low');
+    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: PRESETS.low.scale, fps: 30 });
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {

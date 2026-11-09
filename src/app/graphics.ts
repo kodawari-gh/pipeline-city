@@ -63,6 +63,16 @@ export const PRESET_NAMES: readonly (readonly [Preset, string])[] = [['low', 'Lo
 
 export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 60, brightness: 1, auto: false };
 
+/** A touch screen with no hover: a phone or a tablet. The room costs the main thread about 8 ms a frame on a desktop (bench:modes), so these start on Low at 30 fps. */
+export function isTouchDevice(): boolean {
+  try { return matchMedia('(pointer: coarse) and (hover: none)').matches; } catch { return false; }
+}
+
+/** What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 30 fps on a touch device. The player's own choice replaces it. */
+export function deviceDefaults(touch = isTouchDevice()): Graphics {
+  return touch ? { ...DEFAULTS, ...PRESETS.low, fps: 30 } : { ...DEFAULTS };
+}
+
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];
 
 /** The preset these settings are, or null: the player's own mix (the panel says Custom). */
@@ -74,8 +84,8 @@ export function presetOf(g: Graphics): Preset | null {
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(v * 20) / 20));
 
 /** Stored settings made safe: a value that is missing, or one no longer on offer, falls back to the default. */
-export function parseGraphics(raw: unknown): Graphics {
-  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>, out = { ...DEFAULTS };
+export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>, out = { ...base };
   for (const k of Object.keys(CHOICES) as Choice[]) if (CHOICES[k].some(([v]) => v === o[k])) out[k] = o[k] as number;
   if (typeof o.scale === 'number' && Number.isFinite(o.scale)) out.scale = clamp(o.scale, SCALE_MIN, SCALE_MAX);
   if (typeof o.brightness === 'number' && Number.isFinite(o.brightness)) out.brightness = clamp(o.brightness, BRIGHT_MIN, BRIGHT_MAX);
@@ -113,11 +123,11 @@ const SAVE_VERSION = 2;
 function load(): Graphics {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    const g = parseGraphics(raw);
+    const g = parseGraphics(raw, deviceDefaults());
     // saves from before auto-adjust became opt-in carry its old default: the player never chose it
     if (raw && typeof raw === 'object' && (raw as { v?: unknown }).v !== SAVE_VERSION) g.auto = false;
     return g;
-  } catch { return { ...DEFAULTS }; }
+  } catch { return deviceDefaults(); }
 }
 
 /** The player's settings. */
@@ -136,7 +146,7 @@ function commit(next: Graphics) {
 /** Set one option. Auto-adjust starts over: the player has just chosen this picture. */
 export function setGraphic<K extends keyof Graphics>(key: K, value: Graphics[K]) { commit(parseGraphics({ ...graphics.value, [key]: value })); }
 export function setPreset(id: Preset) { commit({ ...graphics.value, ...PRESETS[id] }); }
-export function resetGraphics() { commit({ ...DEFAULTS }); }
+export function resetGraphics() { commit(deviceDefaults()); }
 
 /** Forget auto-adjust's steps: the panel's Try again. They come back if the frames are still slow. */
 export function retryPicture() { autoStep.value = 0; }
