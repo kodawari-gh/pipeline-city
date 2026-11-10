@@ -84,11 +84,20 @@ export const labelFade = (px: number, min: number) => Math.min(1, Math.max(0, (p
 interface FadeNode { alpha: number; destroyed?: boolean; scale?: { x: number }; parent?: FadeNode | null }
 interface Faded { t: FadeNode; base: number; size: number; min: number }
 const faded: Faded[] = [];
-let fadeZ = 0, fadeDirty = false;
+let fadeZ = 0, fadeDirty = false, sweepAt = 256;
 /** Put a label under the size rule (ink.ts `label` does this for every label it makes). `size` is its font size in its own units; the camera finds the scale it is drawn at. */
 export function registerLabel(t: FadeNode, base: number, size: number, min = 6): void {
   faded.push({ t, base, size, min });
   fadeDirty = true; // the camera sizes it on the next frame, once it has a parent
+  // without the 2D camera (the 3D view bakes the same art) no frame drops the destroyed labels: drop them each time the list doubles (PERF12)
+  if (faded.length >= sweepAt) { sweepLabels(); sweepAt = Math.max(256, faded.length * 2); }
+}
+/** Drop the destroyed labels from the size rule. The 2D camera does it each frame; a 3D screen calls it when its art is gone. Returns how many stay. */
+export function sweepLabels(): number {
+  let n = 0;
+  for (const f of faded) if (!f.t.destroyed) faded[n++] = f;
+  faded.length = n;
+  return n;
 }
 /** Size every label by the zoom and by the scale of the containers it sits in (the router and the wall plate are drawn at a design size and scaled). */
 function fadeLabels(z: number, world: unknown): void {

@@ -6,6 +6,7 @@ import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
 import { anisotropy, refilter } from './geometry';
+import { disposeRenderContext } from './init';
 import { DrawGate, STILL_PX, ViewWatch } from './ondemand';
 
 export interface Viewer {
@@ -142,10 +143,7 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
   disposeTree(o);
   floor.geometry.dispose();
   (floor.material as MeshStandardMaterial).dispose();
-  (scene.environment as { dispose?: () => void } | null)?.dispose?.();
-  pmrem.dispose();
-  renderer.dispose();
-  renderer.forceContextLoss();
+  disposeRenderContext({ scene, pmrem, renderer });
   return out;
 }
 
@@ -268,11 +266,9 @@ export function mountViewer(host: HTMLElement): Viewer {
       if (obj) disposeTree(obj);
       floor.geometry.dispose();
       (floor.material as MeshStandardMaterial).dispose();
-      (scene.environment as { dispose?: () => void } | null)?.dispose?.();
-      pmrem.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
-      el.remove();
+      obj = null;
+      hooks = [];
+      disposeRenderContext({ scene, pmrem, renderer });
     },
   };
 }

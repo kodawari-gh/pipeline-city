@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
-import { Camera, currentTextResolution, labelFade, registerLabel, screenRect, stepTextResolution, textResolutionFor } from './camera';
+import { Camera, currentTextResolution, labelFade, registerLabel, screenRect, stepTextResolution, sweepLabels, textResolutionFor } from './camera';
 
 // The camera only needs an element (style, listeners, a rect) and a container (scale, position); no DOM is required.
 const fakeEl = () => ({
@@ -225,5 +225,18 @@ describe('the size rule counts the scale of the containers a label sits in', () 
     expect(t.alpha).toBeLessThan(1);
     c.set({ x: 0, y: 0, z: 0.2 }); // 10 px
     expect(t.alpha).toBe(1);
+  });
+});
+
+describe('the size rule lets go of destroyed labels without a 2D camera (PERF12)', () => {
+  it('drops them on a sweep and keeps the live ones', () => {
+    const live = { alpha: 1 };
+    registerLabel(live, 1, 10);
+    const base = sweepLabels();
+    const gone = Array.from({ length: 2000 }, () => ({ alpha: 1, destroyed: false }));
+    for (const t of gone) registerLabel(t, 1, 10);
+    expect(sweepLabels()).toBe(base + 2000);
+    for (const t of gone) t.destroyed = true;
+    expect(sweepLabels()).toBe(base);
   });
 });

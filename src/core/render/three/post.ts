@@ -31,6 +31,13 @@ class ScenePass extends RenderPass {
 
   override setSize(w: number, h: number): void { this.target.setSize(w, h); }
 
+  override dispose(): void {
+    this.target.depthTexture?.dispose();
+    this.target.dispose();
+    this.copy.dispose();
+    this.quad.dispose();
+  }
+
   /** Draws the scene into its target. */
   draw(renderer: WebGLRenderer): void { this.render(renderer, this.target, this.target, 0, false); }
 
@@ -315,6 +322,17 @@ export class Post {
       }
     }
     r.setRenderTarget(was);
+  }
+
+  /** Frees every target and pass of the chain (a screen that owns its chain, as Build my PC, at its close). The renderer is the caller's. */
+  dispose(): void {
+    for (const p of [this.scene, this.ao, this.outline, this.bloom, this.local]) p.dispose();
+    // (three's own dispose leaves these)
+    for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) m.dispose();
+    this.work.dispose();
+    this.meterTarget.dispose();
+    (this.meterQuad.material as ShaderMaterial).dispose();
+    this.meterQuad.dispose();
   }
 
   /**

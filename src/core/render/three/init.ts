@@ -39,3 +39,18 @@ export function createRenderContext(host: HTMLElement, background: string): Rend
   const camera = new PerspectiveCamera(30, host.clientWidth / Math.max(1, host.clientHeight), 50, 200000);
   return { scene, camera, renderer, canvas: renderer.domElement, pmrem };
 }
+
+/**
+ * The end of a context that a screen owns (Gallery, Build my PC: PERF12). The context goes first (`forceContextLoss`): the browser frees all its
+ * GPU memory at once, now, not at a garbage collection that may never come, and each free after it skips its GL call. Then the environment map,
+ * the prefilter, the renderer (it drops the geometries and textures it tracked) and the canvas. Dispose the scene's own meshes and materials
+ * after it, which is cheap then: a material shared with the room still holds this renderer's listener until its `dispose`. Shared caches stay.
+ */
+export function disposeRenderContext(c: Pick<RenderContext, 'scene' | 'renderer' | 'pmrem'>): void {
+  c.renderer.forceContextLoss();
+  c.scene.environment?.dispose();
+  c.scene.environment = null;
+  c.pmrem.dispose();
+  c.renderer.dispose();
+  c.renderer.domElement.remove();
+}

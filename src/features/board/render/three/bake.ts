@@ -1,7 +1,7 @@
 // The bridge from the 2D art to the 3D world: an offscreen Pixi renderer draws the same containers the board draws (`buildBoard`, `cpuArt`,
 // `ramArt`, `cardArt`, the die floorplans...) into a canvas that three.js uses as a texture (`ArtSurface`, core/render/three/artlod.ts). Nothing is
 // redrawn for 3D. The renderer also feeds the shop's part pictures (`initThumbs`), which the 3D view had no renderer for.
-import { autoDetectRenderer, Container, Matrix, type Renderer } from 'pixi.js';
+import { autoDetectRenderer, BatchableGraphics, BigPool, Container, GraphicsContextRenderData, Matrix, TexturePool, type Renderer } from 'pixi.js';
 import type { Rect } from '@/core/render/three/artlod';
 import { initThumbs } from '../thumbs';
 
@@ -20,6 +20,17 @@ export function startBaker(): void {
 
 /** The offscreen renderer, once it has started (the live board, `boardlive3d.ts`, builds its Pixi objects on it). */
 export const bakeRenderer = (): Renderer | null => renderer;
+
+/**
+ * Frees what Pixi keeps for reuse after the art is destroyed (PERF12): a big drawing's render data keeps its own batcher, whose buffers grew to
+ * fit it (up to 14 MB each, in the renderer's list); the pieces of each batch; and the text textures. Only the free ones go: what is still drawn
+ * keeps its own, and the pools fill again on demand. Call it when a screen's art is gone (Build my PC's close).
+ */
+export function freeBakePools(): void {
+  BigPool.getPool(GraphicsContextRenderData).clear();
+  BigPool.getPool(BatchableGraphics).clear();
+  TexturePool.clear();
+}
 
 /** A Text draws at its own resolution: raise it to the bake's, so the names stay sharp when the texture is dense. */
 function sharpen(node: Container, res: number): void {
@@ -83,5 +94,9 @@ export class ArtBaker {
     return out;
   };
 
-  dispose(): void { if (!this.art.destroyed) this.art.destroy({ children: true }); }
+  /**
+   * Destroys the art and each Graphics' own context. Pixi destroys an owned context only without options (or with `context`): the baker's
+   * renderer kept every context it had drawn, about 50 MB per closed Build my PC (PERF12). The textures stay: the art may share them.
+   */
+  dispose(): void { if (!this.art.destroyed) this.art.destroy({ children: true, context: true }); }
 }

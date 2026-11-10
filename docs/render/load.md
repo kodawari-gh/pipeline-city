@@ -76,6 +76,33 @@ Some programs still link inside the first frame: the `LightmapMix` quad, and the
 
 The main thread stays free, but the page can get no frames for about 1 s of the link: there is no long task, only a gap between `requestAnimationFrame`s. The driver seems to hold the GPU process's main thread for part of the work. The CSS shimmer also waits then. The bar's stage text still updates between the gaps.
 
+## A closed screen frees what it owns
+
+Gallery (`viewer.ts`) and Build my PC (`BuildStage`) each have a WebGL context of their own. A close frees it all (PERF12):
+
+- `disposeRenderContext` (`init.ts`) loses the context first (`forceContextLoss`: the browser frees its GPU memory now, not at a garbage collection that may never come). Then it frees the environment map, the prefilter, the renderer and the canvas.
+- `Post.dispose` frees each pass's targets and materials. three's `GTAOPass` and `UnrealBloomPass` keep three materials when they dispose; `Post` frees them.
+- `BuildStage.dispose` frees the context at once and its meshes 20 ms later. All in one task held a phone's frame for about 90 ms. A material shared with the room holds the dead renderer's listener until its `dispose`, so the meshes are disposed after the renderer too.
+- The art baker is a second Pixi renderer that stays. `ArtBaker.dispose` destroys each `Graphics` with its context. `freeBakePools` (`bake.ts`) empties Pixi's pools: each pooled `GraphicsContextRenderData` has a batcher with 7 to 14 MB of buffers.
+- `registerLabel` (`camera.ts`) lists each label for the size rule, and only the 2D camera dropped the destroyed ones. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
+- A closed stage drops its machine, game and snapshots: Preact's effect closure holds the stage object until the next open.
+- Shared caches stay: `roomGeo`, the shared materials, the cached textures. A reopened screen looks the same.
+
+The menu has 3 contexts that stay: the room, Pixi's 1x1 shader probe and the Pixi art baker.
+
+Phone profile (412x915 at 2.6), 4x CPU throttle, the optimized build, heap after a forced GC; 5 opens and closes of each screen:
+
+| | Before | After |
+|---|---|---|
+| Menu | 31.4 MB, 3 contexts | 31.3 MB, 3 contexts |
+| After each Gallery close | 32.3 to 33.6 MB, 3 contexts | 32.6 to 33.4 MB, 3 contexts |
+| After each Build my PC close | 101, 155, 211, 264, 215 MB; 4 contexts | 37.9, 38.3, 40.4, 40.4, 40.4 MB; 3 contexts |
+| Build my PC open, first and fifth | 6.7 s, 3.7 s | 6.7 s, 3.7 s |
+| Build my PC close, longest frame | 76 to 121 ms | 68 to 82 ms |
+| Gallery open, first and fifth; close | 352 ms, 106 ms; 40 to 43 ms | 340 ms, 107 ms; 27 to 49 ms |
+
+The 9 MB that stays after Build my PC does not grow after the third close. About 6 MB of it is V8's compiled code for the screen's modules (machine code, bytecode, feedback): 20 more idle GCs do not drop it. The objects come back to within about 1 MB of the menu. The game's start builds a second `Room3D`: `board3d.ts` disposes the first, and the GC collects it.
+
 ## Measured
 
 Chrome, ANGLE D3D11, 1600x900, an optimized build without minifying, to the end of the boot screen (`Ready` is 0.9 s before it):

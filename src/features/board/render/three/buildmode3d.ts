@@ -12,7 +12,7 @@ import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
-import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
+import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
@@ -24,7 +24,8 @@ import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/boa
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
-import { startBaker } from './bake';
+import { freeBakePools, startBaker } from './bake';
+import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
 import { DOOR_SECONDS } from './casedoor';
@@ -76,7 +77,8 @@ export class SnapCache {
     if (game !== this.game || !this.snap) { this.game = game; this.snap = game.snapshot(); }
     return this.snap;
   }
-  drop(): void { this.snap = null; }
+  /** (the game goes too: a closed stage keeps no game through its cache) */
+  drop(): void { this.snap = null; this.game = null; }
 }
 
 /** The bin: every case, board and part kind that has a 3D model in the machine. */
@@ -95,9 +97,20 @@ export class BuildStage {
   /** Playback speed: 1 is the animations' own time. */
   readonly speed = signal(1);
   /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
-  game!: Game;
+  get game(): Game { return this.alive(this._game); }
+  set game(g: Game) { this._game = g; }
+  private _game: Game | null = null;
   private readonly snaps = new SnapCache();
-  private machine!: Machine3D;
+  private _machine: Machine3D | null = null;
+  private get machine(): Machine3D { return this.alive(this._machine); }
+  /**
+   * A closed stage lets go of its machine and its game (PERF12): the UI's last render can keep a closure that holds the stage until the next
+   * open. A job that wakes after the close (a timer) stops here, and `job` drops the error.
+   */
+  private alive<T>(x: T | null): T {
+    if (this.dead || !x) throw new Error('Build my PC is closed');
+    return x;
+  }
   private readonly bakes = new BakeQueue();
   private readonly ctx;
   private readonly post: Post;
@@ -191,17 +204,18 @@ export class BuildStage {
   }
 
   private rebuild(): void {
+    if (this.dead) return;
     if (this.bench.peek()) this.bench.value = null;
     // (the redraw always reads the game as it is now)
     this.snaps.drop();
     const s = this.snapshot, tier = s.boardTier, caseTier = Math.max(tier, s.caseTier);
-    const refit = !this.machine || `${tier}|${caseTier}` !== this.tierKey;
+    const refit = !this._machine || `${tier}|${caseTier}` !== this.tierKey;
     this.tierKey = `${tier}|${caseTier}`;
     setLayoutTier(tier, caseTier);
     const { scene } = this.ctx;
-    if (this.machine) { scene.remove(this.machine.root); this.machine.dispose(); }
-    this.machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
-    scene.add(this.machine.root);
+    if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
+    this._machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
+    scene.add(this._machine.root);
     this.stage(caseTier);
     this.syncMonitor(s.devices.some((d) => d.kind === 'display'));
     if (refit) this.view = this.goal = this.frameView();
@@ -582,12 +596,15 @@ export class BuildStage {
   }
 
   private async job(work: () => Promise<void>): Promise<void> {
-    if (this.status.peek().busy) return;
+    if (this.status.peek().busy || this.dead) return;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
-    try { await work(); } finally {
-      await this.door(false);
-      this.status.value = { ...this.status.peek(), busy: false, step: '' };
-      this.rebuild();
+    try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
+      // (a close in the middle of a job: the stage is gone, nothing to put back)
+      if (!this.dead) {
+        await this.door(false);
+        this.status.value = { ...this.status.peek(), busy: false, step: '' };
+        this.rebuild();
+      }
     }
   }
 
@@ -687,6 +704,7 @@ export class BuildStage {
   async buildPreset(p: BuildPreset): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    if (this.dead) return;
     const g = new Game({ seed: 1, sandbox: true, preassembled: false });
     for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
     const pick = (kind: DeviceKind): string | null => {
@@ -753,6 +771,7 @@ export class BuildStage {
   async loadLayout(l: BuildLayout, name: string): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    if (this.dead) return;
     const g = new Game({ seed: 1, sandbox: true, preassembled: false });
     for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
     const put = (id: string, slot?: string) => { const b = g.purchase(id); return b.ok && g.install(b.invId, slot).ok; };
@@ -777,6 +796,7 @@ export class BuildStage {
   async reset(): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    if (this.dead) return;
     this.forget();
     this.game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     this.status.value = { busy: false, step: '', log: [], rev: this.status.peek().rev };
@@ -787,6 +807,7 @@ export class BuildStage {
   async clear(): Promise<void> {
     if (this.status.peek().busy) return;
     const { Game } = await import('@/worker/game/game');
+    if (this.dead) return;
     this.forget();
     this.game = new Game({ seed: 1, sandbox: true, preassembled: false });
     // a new game's case holds its two starter fans: Empty means nothing fitted
@@ -795,17 +816,49 @@ export class BuildStage {
     this.rebuild();
   }
 
+  /**
+   * Frees all that the stage owns (PERF12), once. The WebGL context, the renderer and the post chain's targets go at once. The machine with
+   * its baked art, the monitor with its textures and the stage's own meshes go in a second task (`FREE_LATER_MS`): all in one task held a
+   * phone's frame longer than the close did before. The room's shared caches (`roomGeo`, shared materials) stay.
+   */
   dispose(): void {
+    if (this.dead) return;
     this.dead = true;
     cancelAnimationFrame(this.raf);
     for (const f of this.cleanup) f();
-    this.lens.dispose();
-    this.ctx.scene.remove(this.machine.root);
-    this.machine.dispose();
-    disposeTree(this.ctx.scene);
-    this.ctx.renderer.dispose();
-    this.ctx.canvas.remove();
+    this.cleanup.length = 0;
+    this.anim = null;
+    this.onGrab = null;
     setLayoutTier(...this.was);
+    if (import.meta.env.DEV) {
+      const w = window as unknown as { __build?: BuildStage };
+      if (w.__build === this) delete w.__build;
+    }
+    disposeRenderContext(this.ctx);
+    this.post.dispose();
+    setTimeout(() => this.freeScene(), FREE_LATER_MS);
+  }
+
+  /** The second half of `dispose`: the meshes and materials (cheap with the context lost), and what Pixi kept for their art. */
+  private freeScene(): void {
+    this.lens.dispose();
+    const { scene } = this.ctx;
+    if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
+    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; }
+    // the art is gone: what Pixi pooled for it, and its labels in the size rule
+    freeBakePools();
+    sweepLabels();
+    // (a material shared with the room keeps this renderer's listener until its dispose)
+    disposeTree(scene);
+    scene.clear();
+    this._machine = null;
+    this._game = null;
+    this.snaps.drop();
+    this.bakes.drop(''); // (a job's closure holds the art it bakes)
+    this.marker = this.floor = null;
     void this.host;
   }
 }
+
+/** How long after a close the stage frees its meshes: a frame or so after its context (`BuildStage.dispose`). */
+const FREE_LATER_MS = 20;
