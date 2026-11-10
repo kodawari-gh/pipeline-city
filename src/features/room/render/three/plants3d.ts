@@ -1,7 +1,7 @@
 // The room's plants in 3D (docs/LOWPOLY_STYLE.md "Look decision"): each leaf a curved blade (its outline, a crease down the midrib, a curl, a
 // wavy edge), its veins a faint relief and a shade paler (`leafTex`: never a bright drawn line), on a petiole off a tapered stem: a fiddle-leaf fig in a ribbed pot on the floor, pothos trailing off the
 // shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
-// All the leaves of a kind share a few materials, so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
+// All the leaves of a kind in one room share a few materials (`perRoom`), so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
 import { BufferGeometry, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, LatheGeometry, Matrix4, Mesh, Vector2, Vector3, type Material, type Texture } from 'three';
 import { paint, place, post, rod } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
@@ -126,17 +126,29 @@ function lathePot(x: number, y: number, z: number, profile: readonly (readonly [
   return place(pot);
 }
 
-let stonewareM: Material | null = null;
-/** Every pot's dark stoneware: a matt glaze speckled with pale grog and dark iron. */
-function stoneware(): Material {
-  return stonewareM ??= mat(0xffffff, {
-    map: paint(128, 64, (c, w, h) => {
-      c.fillStyle = STONEWARE; c.fillRect(0, 0, w, h);
-      for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(${SPECKLE},${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
-    }, [2, 1]),
-    roughness: 0.75,
-  });
+/**
+ * A material (or a set) that all the plants of one room share. Made again once one of them is disposed (the room is built again, a merge took
+ * it): each room patches and registers its own (`RoomEnv`). One kept from the room before took a second box patch, which does not compile.
+ */
+function perRoom<T extends Material | Material[]>(make: () => T): () => T {
+  let v: T | null = null;
+  return () => {
+    if (v) return v;
+    const made = make();
+    for (const m of ([] as Material[]).concat(made)) m.addEventListener('dispose', () => { if (v === made) v = null; });
+    return (v = made);
+  };
 }
+
+let stonewareTex: Texture | null = null;
+/** Every pot's dark stoneware: a matt glaze speckled with pale grog and dark iron. */
+const stoneware = perRoom(() => mat(0xffffff, {
+  map: stonewareTex ??= paint(128, 64, (c, w, h) => {
+    c.fillStyle = STONEWARE; c.fillRect(0, 0, w, h);
+    for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(${SPECKLE},${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
+  }, [2, 1]),
+  roughness: 0.75,
+}));
 
 let soilTex: Texture | null = null;
 /** Potting soil: dark crumbs, a fleck of perlite. */
@@ -206,17 +218,15 @@ export function floorPlant(x: number, z: number): Group {
 }
 
 // ---------------------------------------------------------------- pothos
+let pothosTex: ReturnType<typeof leafTex> | null = null;
 /** Golden pothos: heart leaves, green marbled with a soft cream along the veins (broad and faint: a streak, not a line). */
-let pothosM: Material[] | null = null;
-function pothosLeaves(): Material[] {
-  return pothosM ??= leafMats(leafTex('#4c8a3a', '#9cc77c', 6, (c, w, h) => {
-    for (let k = 0; k < 14; k++) {
-      const x = w * (0.2 + rnd() * 0.6), y = h * rnd();
-      c.strokeStyle = `rgba(226,214,140,${(0.35 + rnd() * 0.35) * 0.3})`; c.lineWidth = (2 + rnd() * 5) * 2.5;
-      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (rnd() - 0.5) * 30, y - 20, x + (x < w / 2 ? -1 : 1) * (10 + rnd() * 30), y - 40 - rnd() * 30); c.stroke();
-    }
-  }), 0.45);
-}
+const pothosLeaves = perRoom(() => leafMats(pothosTex ??= leafTex('#4c8a3a', '#9cc77c', 6, (c, w, h) => {
+  for (let k = 0; k < 14; k++) {
+    const x = w * (0.2 + rnd() * 0.6), y = h * rnd();
+    c.strokeStyle = `rgba(226,214,140,${(0.35 + rnd() * 0.35) * 0.3})`; c.lineWidth = (2 + rnd() * 5) * 2.5;
+    c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (rnd() - 0.5) * 30, y - 20, x + (x < w / 2 ? -1 : 1) * (10 + rnd() * 30), y - 40 - rnd() * 30); c.stroke();
+  }
+}), 0.45));
 
 /** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room (+x). */
 export function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {

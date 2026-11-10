@@ -32,8 +32,18 @@ const RADIANCE = ShaderChunk.envmap_physical_pars_fragment.replace(
   'reflectVec = boxProject( reflectVec, roughness );\n\t\t\tvec4 envMapColor = textureLod( envMap, envMapRotation * reflectVec, roughnessToMip( roughness ) );',
 );
 
-/** Patches a material's shader to project its reflections onto `box`; keeps an `onBeforeCompile` it already has. */
+/** The materials `boxProjected` patched. */
+const patched = new WeakSet<Material>();
+/** Has the box patch: patched here, or a copy that took the hooks of one (`writable`, the light map's and the palette's copies keep its key). */
+const hasBox = (m: Material): boolean => patched.has(m) || m.customProgramCacheKey().split('|').includes('box');
+
+/**
+ * Patches a material's shader to project its reflections onto `box`; keeps an `onBeforeCompile` it already has. A material with the patch
+ * already stays as it is (and keeps its box): a second patch declares `vBoxPos` twice, and that program does not compile (nothing draws).
+ */
 export function boxProjected(m: Material, box: BoxEnv): void {
+  if (hasBox(m)) return;
+  patched.add(m);
   const prev = m.onBeforeCompile.bind(m), key = m.customProgramCacheKey() + '|box';
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r) => {
     prev(sh, r);
