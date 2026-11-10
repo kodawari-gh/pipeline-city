@@ -68,9 +68,12 @@ export function isTouchDevice(): boolean {
   try { return matchMedia('(pointer: coarse) and (hover: none)').matches; } catch { return false; }
 }
 
-/** What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 0.75 scale and 30 fps on a touch device (owner, 2026-11-09). The player's own choice replaces it. */
+/**
+ * What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 0.75 scale and 30 fps on a touch device (owner, 2026-11-09), with
+ * shadows Off: they cost a drawn menu frame about 2 ms of a phone's CPU (PERF5, `room/light.md`). The player's own choice replaces it.
+ */
 export function deviceDefaults(touch = isTouchDevice()): Graphics {
-  return touch ? { ...DEFAULTS, ...PRESETS.low, scale: 0.75, fps: 30 } : { ...DEFAULTS };
+  return touch ? { ...DEFAULTS, ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 } : { ...DEFAULTS };
 }
 
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];

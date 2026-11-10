@@ -180,6 +180,10 @@ Still menu, phone profile, CPU /4, 300 frames (PERF18, 2026-11-09): at the touch
 
 The same menu with the clock running (PERF18 rest, touch default): at 23:00, 33 frames with a map (17 the room's sun, 17 the city's) and 34.6 shadow calls a frame went to none. By day (14:30 to 15:15) the city's sun still draws 15 maps of 18 calls, one on each step. Night menu, 10 s: drawn fps did not change (16.5, set by the city's beat), triangles a frame went from 304 k to 190 k, long tasks from 208 to 63 ms.
 
+**Shadows at Low and Off (PERF5, 2026-11-10).** Phone profile, menu by day with the clock running, frame limit lifted, CPU /4, maps counted where they are drawn:
+- **Maps a frame.** Low and High draw the same maps: 1 a second, the city's sun on each clock step (Low 16 maps in 15 s, 0.03 a drawn frame; High 12 in 12 s, 0.03). The redraw is set by events in time, not by the level. The old count (Low 0.53, High 0.21) was from before PERF18. `bench:3d`'s `shd` column counts the lights asked for a map, not the maps drawn: a light at 0 keeps its request, so `shd` reads 3.3 at Low and 3.6 at High in a still room.
+- **Off against On.** CPU ms per drawn frame (rAF callbacks), 5 runs each: Low 17.5 against Off 15.5 (p50 17.2 against 15.4). The maps cost only 0.05 ms of that. The rest is the lit draws: shadow uniforms and lookups. `bench:3d` in the game at CPU /1: `post.render` 3.8-4.9 ms against 3.1-3.6 ms. So a touch device's first start has shadows Off (`deviceDefaults`, owner decision). The graphics panel turns them back on.
+
 ## What the city costs a frame
 
 - **Detail by distance.** Far from the window, trees (`detailAt` in `outside/trees.ts`) and parked cars lose detail that the eye cannot see. The frame's triangles went from about 9.2 M to 3.6 M.

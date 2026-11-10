@@ -8,8 +8,15 @@ describe('presets', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
     expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: false });
     expect(deviceDefaults(false)).toEqual(DEFAULTS);
-    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, scale: 0.75, fps: 30 });
-    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: 0.75, fps: 30 });
+    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 });
+    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: 0.75, shadows: 0, fps: 30 });
+  });
+
+  it('a touch device starts with shadows Off, and the player can turn them back on', () => {
+    expect(deviceDefaults(true).shadows).toBe(0);
+    expect(CHOICES.shadows.map(([v]) => v)).toEqual([0, 1, 2, 3, 4]);
+    expect(parseGraphics({ shadows: 1 }, deviceDefaults(true))).toMatchObject({ shadows: 1, scale: 0.75, fps: 30 });
+    expect({ ...deviceDefaults(true), ...PRESETS.low }.shadows).toBe(PRESETS.low.shadows);
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {
