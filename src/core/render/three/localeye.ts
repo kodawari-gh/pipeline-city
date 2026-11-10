@@ -7,8 +7,15 @@
 // of `CELL` pixels, each cell split into bins of one stop, each bin the mean of the cell's pixels of about that brightness, then blurred over
 // the cells. A pixel reads the bin of its own brightness, so a dark column against the sky has a dark base, and no halo forms at the edge. The
 // base's distance from the eye's middle grey shrinks (to `SHADOW_C` of it below, `HIGH_C` above); the detail stays.
-import { HalfFloatType, LinearFilter, NearestFilter, ShaderMaterial, WebGLRenderTarget, type Texture, type WebGLRenderer } from 'three';
-import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
+//
+// It is the chain's last pass (PERF21): one draw to the screen takes the picture's look (the room's grade, `post.ts`), the lift, the tone
+// mapping and the screen's colour space (as three's OutputPass). Each was a full-screen pass of its own, into a half-float target; a phone's
+// tile GPU writes each such target out to memory and reads it back. The math and its order are as they were; only the half-float steps between are gone.
+import {
+  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping, NearestFilter, NeutralToneMapping,
+  RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
+} from 'three';
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
 export const CELL = 32, DOWN = 4;
@@ -36,16 +43,32 @@ export function lift(base: number, exposure: number, key = MID, high = HIGH_C): 
   return Math.min(MAX_UP, Math.max(-MAX_DOWN, -d * (1 - (d < 0 ? SHADOW_C : high))));
 }
 
+/**
+ * A look the picture takes before the eye sees it, in the scene's light (the room's grade, `post.ts`): GLSL that defines
+ * `vec3 look(vec3 c, vec2 uv)` for a pixel of colour `c` at `uv`, and its uniforms.
+ */
+export interface Look { glsl: string; uniforms: Record<string, IUniform> }
+const SAME: Look = { glsl: /* glsl */`vec3 look(vec3 c, vec2 uv) { return c; }`, uniforms: {} };
+
 const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const LUM = /* glsl */`dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))`;
 const f = (n: number) => n.toFixed(1);
 
-// the picture's log luminance at a quarter of its size: four taps, each the mean of four pixels
-const DOWN_FRAG = /* glsl */`
+// the picture's log luminance at a quarter of its size: four taps, each the mean of four pixels. The picture is the one after the look: each
+// texel takes it at its own middle (as a pass of its own over the picture did), then the four round a tap mix as the GPU's linear filter mixes them.
+const downFrag = (look: Look) => /* glsl */`
 uniform sampler2D tDiffuse;
 uniform vec2 px;
 varying vec2 vUv;
-float l(vec2 o) { vec4 c = texture2D(tDiffuse, vUv + o * px); return ${LUM}; }
+${look.glsl}
+vec3 seen(ivec2 t, ivec2 n) { t = clamp(t, ivec2(0), n - 1); return look(texelFetch(tDiffuse, t, 0).rgb, (vec2(t) + 0.5) / vec2(n)); }
+float l(vec2 o) {
+  ivec2 n = textureSize(tDiffuse, 0);
+  vec2 q = (vUv + o * px) * vec2(n) - 0.5, w = fract(q);
+  ivec2 t = ivec2(floor(q));
+  vec3 c = mix(mix(seen(t, n), seen(t + ivec2(1, 0), n), w.x), mix(seen(t + ivec2(0, 1), n), seen(t + ivec2(1, 1), n), w.x), w.y);
+  return ${LUM};
+}
 void main() {
   float m = 0.25 * (l(vec2(-1.0, -1.0)) + l(vec2(1.0, -1.0)) + l(vec2(-1.0, 1.0)) + l(vec2(1.0, 1.0)));
   gl_FragColor = vec4(log2(max(m, 1e-7)), 0.0, 0.0, 1.0);
@@ -86,9 +109,12 @@ void main() {
   gl_FragColor = vec4(s / 1024.0, 0.0, 1.0);
 }`;
 
-// each pixel: its base from the grid (its own bin, between the cells' middles and the two nearest bins; its own luminance where the bin is
-// near empty), then the lift (`lift` above)
-const APPLY_FRAG = /* glsl */`
+// each pixel, to the screen: the look; then its base from the grid (its own bin, between the cells' middles and the two nearest bins; its own
+// luminance where the bin is near empty) and the lift (`lift` above), while the eye is on; then the tone mapping and the colour space, as
+// three's OutputShader (`TONE`: the renderer's tone mapping function, `SRGB_TRANSFER`: an sRGB screen). A raw shader: the program is the same
+// whether it draws to a target or to the screen, so `startPrograms` (`compile.ts`) links the one the screen will use.
+const finishFrag = (look: Look) => /* glsl */`
+precision highp float;
 uniform sampler2D tDiffuse;
 uniform sampler2D tGrid;
 uniform vec2 size;
@@ -96,23 +122,50 @@ uniform vec2 grid;
 uniform float midLog;
 uniform float strength;
 uniform vec4 keep;
+#include <tonemapping_pars_fragment>
+#include <colorspace_pars_fragment>
+${look.glsl}
 varying vec2 vUv;
 vec2 at(float u, float v, float z) { return texture2D(tGrid, vec2((u + z * grid.x) / (grid.x * ${f(BINS)}), v)).rg; }
 void main() {
   vec4 c = texture2D(tDiffuse, vUv);
-  float l = log2(max(${LUM}, 1e-7)), b = clamp(l - ${f(LO)}, 0.0, ${f(BINS - 1)}), z0 = floor(b), z1 = min(z0 + 1.0, ${f(BINS - 1)});
-  float u = clamp(vUv.x * size.x / ${f(CELL)}, 0.5, grid.x - 0.5), v = clamp(vUv.y * size.y / ${f(CELL)}, 0.5, grid.y - 0.5) / grid.y;
-  vec2 s = mix(at(u, v, z0), at(u, v, z1), b - z0);
-  float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
-  float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
-  gl_FragColor = vec4(c.rgb * exp2(up * strength), c.a);
+  c.rgb = look(c.rgb, vUv);
+  if (strength > 0.0) {
+    float l = log2(max(${LUM}, 1e-7)), b = clamp(l - ${f(LO)}, 0.0, ${f(BINS - 1)}), z0 = floor(b), z1 = min(z0 + 1.0, ${f(BINS - 1)});
+    float u = clamp(vUv.x * size.x / ${f(CELL)}, 0.5, grid.x - 0.5), v = clamp(vUv.y * size.y / ${f(CELL)}, 0.5, grid.y - 0.5) / grid.y;
+    vec2 s = mix(at(u, v, z0), at(u, v, z1), b - z0);
+    float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
+    float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
+    c.rgb *= exp2(up * strength);
+  }
+  gl_FragColor = c;
+  #ifdef TONE
+  gl_FragColor.rgb = TONE(gl_FragColor.rgb);
+  #endif
+  #ifdef SRGB_TRANSFER
+  gl_FragColor = sRGBTransferOETF(gl_FragColor);
+  #endif
 }`;
+const FINISH_VERT = /* glsl */`
+precision highp float;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+attribute vec3 position;
+attribute vec2 uv;
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
+/** The GLSL tone mapping function of each of three's tone mappings (as OutputPass picks them). */
+const TONE: Record<number, string> = {
+  [LinearToneMapping]: 'LinearToneMapping', [ReinhardToneMapping]: 'ReinhardToneMapping', [CineonToneMapping]: 'CineonToneMapping', [ACESFilmicToneMapping]: 'ACESFilmicToneMapping',
+  [AgXToneMapping]: 'AgXToneMapping', [NeutralToneMapping]: 'NeutralToneMapping', [CustomToneMapping]: 'CustomToneMapping',
+};
 
 const target = (w: number, h: number, filter: typeof LinearFilter | typeof NearestFilter) =>
   new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false, magFilter: filter, minFilter: filter, generateMipmaps: false });
 
-/** The eye's local adaptation as a pass of the post chain, before the tone mapping. */
-export class LocalEye extends Pass {
+/** The eye's local adaptation, and the chain's last pass: the look, the lift, the tone mapping. */
+export class LocalEye {
   /** The exposure the tone mapping will apply (the base, the player's brightness, the eye's): middle grey follows it. */
   exposure = 1;
   /**
@@ -127,24 +180,41 @@ export class LocalEye extends Pass {
   private lum = target(1, 1, NearestFilter);
   private grid = target(1, 1, NearestFilter);
   private blur = target(1, 1, LinearFilter);
-  private down = new ShaderMaterial({ uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] } }, vertexShader: VERT, fragmentShader: DOWN_FRAG });
+  private down: ShaderMaterial;
   private build = new ShaderMaterial({ uniforms: { tLum: { value: this.lum.texture }, lumSize: { value: [1, 1] }, gx: { value: 1 } }, vertexShader: VERT, fragmentShader: GRID_FRAG });
   private smooth = new ShaderMaterial({ uniforms: { tGrid: { value: this.grid.texture }, grid: { value: [1, 1] } }, vertexShader: VERT, fragmentShader: BLUR_FRAG });
-  private apply = new ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: null }, tGrid: { value: this.blur.texture }, size: { value: [1, 1] }, grid: { value: [1, 1] }, midLog: { value: 0 }, strength: { value: 1 },
-      keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] },
-    },
-    vertexShader: VERT, fragmentShader: APPLY_FRAG,
-  });
+  private finish: RawShaderMaterial;
   private quad = new FullScreenQuad();
+  /** The renderer's tone mapping and colour space that the finish's defines stand for. */
+  private outputKey = '';
 
-  constructor(w: number, h: number) {
-    super();
+  /** `look` (the room's grade): its uniforms are shared, so a value set on them holds in the eye's grid and in the finish alike. */
+  constructor(w: number, h: number, look: Look = SAME) {
+    this.down = new ShaderMaterial({ uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] }, ...look.uniforms }, vertexShader: VERT, fragmentShader: downFrag(look) });
+    this.finish = new RawShaderMaterial({
+      name: 'Finish',
+      uniforms: {
+        tDiffuse: { value: null }, tGrid: { value: this.blur.texture }, size: { value: [1, 1] }, grid: { value: [1, 1] }, midLog: { value: 0 }, strength: { value: 1 },
+        keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] }, toneMappingExposure: { value: 1 }, ...look.uniforms,
+      },
+      vertexShader: FINISH_VERT, fragmentShader: finishFrag(look),
+    });
     this.setSize(w, h);
   }
 
-  override setSize(w: number, h: number): void {
+  /** Sets the finish's defines to `r`'s tone mapping and colour space (as three's OutputPass): a change makes its program again. */
+  output(r: WebGLRenderer): void {
+    const key = `${r.toneMapping}|${r.outputColorSpace}`;
+    if (key === this.outputKey) return;
+    this.outputKey = key;
+    const d: Record<string, string> = {}, tone = TONE[r.toneMapping];
+    if (tone) d.TONE = tone;
+    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d.SRGB_TRANSFER = '';
+    this.finish.defines = d;
+    this.finish.needsUpdate = true;
+  }
+
+  setSize(w: number, h: number): void {
     const lw = Math.max(1, Math.ceil(w / DOWN)), lh = Math.max(1, Math.ceil(h / DOWN)), [gx, gy] = gridSize(w, h);
     this.lum.setSize(lw, lh);
     this.grid.setSize(gx * BINS, gy);
@@ -153,27 +223,45 @@ export class LocalEye extends Pass {
     this.build.uniforms.lumSize!.value = [lw, lh];
     this.build.uniforms.gx!.value = gx;
     this.smooth.uniforms.grid!.value = [gx, gy];
-    this.apply.uniforms.size!.value = [w, h];
-    this.apply.uniforms.grid!.value = [gx, gy];
+    this.finish.uniforms.size!.value = [w, h];
+    this.finish.uniforms.grid!.value = [gx, gy];
   }
 
-  override render(renderer: WebGLRenderer, write: WebGLRenderTarget, read: WebGLRenderTarget): void {
-    const step = (m: ShaderMaterial, to: WebGLRenderTarget | null) => { this.quad.material = m; renderer.setRenderTarget(to); this.quad.render(renderer); };
-    this.down.uniforms.tDiffuse!.value = read.texture as Texture;
-    step(this.down, this.lum);
-    step(this.build, this.grid);
-    step(this.smooth, this.blur);
-    const a = this.apply.uniforms;
-    a.tDiffuse!.value = read.texture;
+  /** Is the eye on? Then `adapt` must run before each `draw`. */
+  get on(): boolean { return this.strength > 0; }
+
+  private step(renderer: WebGLRenderer, m: ShaderMaterial, to: WebGLRenderTarget | null): void {
+    this.quad.material = m;
+    renderer.setRenderTarget(to);
+    this.quad.render(renderer);
+  }
+
+  /** The grid of `picture` (the scene's light), in three small passes: a quarter of the picture, the grid, its blur. */
+  adapt(renderer: WebGLRenderer, picture: Texture): void {
+    this.down.uniforms.tDiffuse!.value = picture;
+    this.step(renderer, this.down, this.lum);
+    this.step(renderer, this.build, this.grid);
+    this.step(renderer, this.smooth, this.blur);
+  }
+
+  /**
+   * Draws `picture` to `to` (null: the screen) with the look, the lift (from the grid `adapt` made, while the eye is `on`) and the tone
+   * mapping, in one full-screen pass.
+   */
+  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null): void {
+    this.output(renderer);
+    const a = this.finish.uniforms;
+    a.tDiffuse!.value = picture;
     a.midLog!.value = Math.log2(this.key / this.exposure);
     (a.keep!.value as number[])[1] = this.high;
-    a.strength!.value = this.strength;
-    step(this.apply, this.renderToScreen ? null : write);
+    a.strength!.value = this.on ? this.strength : 0;
+    a.toneMappingExposure!.value = renderer.toneMappingExposure;
+    this.step(renderer, this.finish, to);
   }
 
-  override dispose(): void {
+  dispose(): void {
     for (const t of [this.lum, this.grid, this.blur]) t.dispose();
-    for (const m of [this.down, this.build, this.smooth, this.apply]) m.dispose();
+    for (const m of [this.down, this.build, this.smooth, this.finish]) m.dispose();
     this.quad.dispose();
   }
 }

@@ -12,7 +12,7 @@ export interface Program { isReady(): boolean }
  * Starts linking the programs `root` draws with, lit by `scene`'s lights (default `root`), and returns them. `root` is the scene, or an object
  * about to join it: then it must not be in the scene yet, or its lights count twice. The hidden parts count too (the die under its lid), and
  * the see-through variant of each opaque material under `fades` (`fadeTree` makes it transparent: another program). The programs are made for
- * a render target (linear, not tone mapped), as the frame draws into the composer's. Set the lights as they will be drawn first: a light shown
+ * a render target (linear, not tone mapped), as the frame draws into the scene's own (`post.ts`). Set the lights as they will be drawn first: a light shown
  * or hidden, or one that casts a shadow or stops, makes every lit program again.
  */
 export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [] }: { scene?: Scene; fades?: readonly Object3D[] } = {}): Program[] {

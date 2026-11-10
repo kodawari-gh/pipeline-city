@@ -156,6 +156,16 @@ PERF22 (`shareMaterials`, `materials.ts`). After the room is built, and again af
 - `onReplace` lets a holder drop a replaced material (the room's reflections register).
 - Result (menu room): 208 to 190 materials, programs equal. Most room materials differ in colour, roughness or metalness; the machine (239) is not shared yet.
 
+### Post chain
+PERF21 (`post.ts`, `localeye.ts`). Each full-screen pass writes a full-size half-float target, and a tile GPU sends that target to memory and reads it back. The chain runs only the steps that are on (`steps`, tested in `post.test.ts`): the scene (its own target, with depth and samples), the AO or a copy (only for the outline or the bloom), the outline (only while something is picked), the bloom, the eye's grid (a quarter size and smaller), the finish.
+- The finish (`LocalEye.draw`) is one draw to the screen: the grade (a `Look`), the eye's lift, the tone mapping and the sRGB transfer (the same code as three's OutputPass). Before, the scene copy, the grade, the eye and the output were four full-size passes.
+- The math and its order did not change. The eye's down pass applies the grade to each of the four texels of a tap, then mixes them as the linear filter did on the old grade target. Only the half-float steps between the passes are gone.
+- The finish is a `RawShaderMaterial`: its program does not depend on the target, so `startPrograms` links the program the screen uses. `LocalEye.output` sets its defines from the renderer.
+- Per drawn frame (1920x1080; full-screen quads, then all target switches with the shadow maps): Low room 4 + scene, 10.8 to 1 + scene, 7.8; Low with a pick 5, 18.5 to 3, 16.5; default room 9, 29 to 6, 26; Build my PC Low 3.2, 5 to 1, 2.8. In the board view the finish only tone maps (the eye is off).
+- GPU ms at `--throttle 1` (same build time, HEAD against new, RTX 5080): phone 412x915 menu Low 5.2-5.6 to 4.1-4.9, touch default 5.2-5.4 to 4.9-5.0; desktop menu Low 6.7-7.4 to 6.2-7.3, default 7.9-8.0 equal, Build my PC equal. The desktop GPU does not write tiles, so it gains little.
+- Look: dev shots (menu by night and day, the room by night with a hovered monitor, the case hovered and unhovered, Gallery, Build my PC) and prod phone menus at Low, default and High are pixel-equal in all still parts. Only the traffic, the blinking lights and the RGB differ, as between two shots of one build. The outline shows on the first hover frame and goes on unhover.
+- RGBA8 at Low, rejected. (a) The scene in an RGBA8 target, linear, with the eye: the night sky and walls band in steps; mean change 7.7 levels, 57 % of pixels change by more than 4; phone menu 4.85 to 4.57 ms. (b) The tone mapping in the scene, straight to the RGBA8 screen: no eye, no grade, no bloom, and the night room goes dark; mean change 20.9 levels, 92 % of pixels by more than 4; phone menu 4.85 to 3.64 ms. The eye needs the scene's linear light (it lifts up to 9 stops), and 8 bits cannot hold it.
+
 ### Camera System
 - **Orthographic**: Board overview (fits WORLD bounds)
 - **Perspective**: Detail view (for die, GPU, flyovers)

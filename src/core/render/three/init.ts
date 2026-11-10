@@ -14,7 +14,7 @@ export interface RenderContext { scene: Scene; camera: PerspectiveCamera; render
 export const BASE_EXPOSURE = 2.2;
 
 export function createRenderContext(host: HTMLElement, background: string): RenderContext {
-  const renderer = new WebGLRenderer({ antialias: false, powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance' }); // the composer's target does the antialiasing
+  const renderer = new WebGLRenderer({ antialias: false, powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance' }); // the scene's target (`post.ts`) does the antialiasing
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(host.clientWidth, host.clientHeight);
   renderer.outputColorSpace = SRGBColorSpace;

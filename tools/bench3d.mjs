@@ -66,10 +66,13 @@ const installProbe = () => {
       }
     };
     flush = () => mark(null);
-    for (const pass of post.composer.passes) {
-      const f = pass.render, label = pass.constructor.name.replace(/Pass$/, '');
-      pass.render = function (...a) { mark(label); const t = now(); try { return f.apply(this, a); } finally { if (rec) add(rec.cpu, 'pass:' + label, now() - t); } };
-    }
+    // the post chain's steps (`post.ts` `steps`), each labelled by what it draws
+    const step = (o, name, label) => {
+      const f = o[name];
+      o[name] = function (...a) { mark(label); const t = now(); try { return f.apply(this, a); } finally { if (rec) add(rec.cpu, 'pass:' + label, now() - t); } };
+    };
+    step(post.scene, 'render', 'Scene'); step(post.scene, 'copyTo', 'Copy'); step(post.ao, 'render', 'GTAO'); step(post.outline, 'render', 'PickOutline');
+    step(post.bloom, 'render', 'UnrealBloom'); step(post.local, 'adapt', 'LocalEye'); step(post.local, 'draw', 'Finish');
     const render = r.render;
     r.render = function (...a) { if (rec && a[0] === B.scene) rec.scenes++; return render.apply(this, a); };
     const sm = r.shadowMap, shadow = sm.render;
