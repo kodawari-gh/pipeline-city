@@ -87,6 +87,12 @@ describe('material key', () => {
     expect(materialKey(q)).toBeNull();
     expect(materialKey(new MeshBasicMaterial())).toBeNull();
   });
+
+  it('leaves out the fields it is told to (the palette merge: colour, roughness, metalness)', () => {
+    const omit = new Set(['color', 'roughness', 'metalness']), k = materialKey(mat(0x334455), omit);
+    expect(materialKey(mat(0x998877, { roughness: 0.1, metalness: 0.9 }), omit)).toBe(k);
+    expect(materialKey(mat(0x334455, { side: 2 }), omit)).not.toBe(k);
+  });
 });
 
 describe('shared materials', () => {

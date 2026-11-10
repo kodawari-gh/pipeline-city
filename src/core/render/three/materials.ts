@@ -149,15 +149,16 @@ function ser(v: unknown, depth = 0): string {
 /**
  * What a standard (or physical) material draws as: its type, every field that changes the picture or the program (colours, roughness, maps by
  * identity, defines, sides, blending, polygon offset, clipping...), its `userData` and its program key. Two materials with the same key draw the
- * same. Null: not one to share (not standard, a patch of unknown inputs, a hook of its own).
+ * same. Null: not one to share (not standard, a patch of unknown inputs, a hook of its own). `omit`: fields left out of the key (a palette
+ * merge keeps each mesh's colour, roughness and metalness on its vertices, `merge.ts`).
  */
-export function materialKey(m: Material): string | null {
+export function materialKey(m: Material, omit?: ReadonlySet<string>): string | null {
   if (!(m as MeshStandardMaterial).isMeshStandardMaterial) return null;
   const pk = m.customProgramCacheKey(), base = plain();
   if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) return null;
   const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(m.userData)}`];
   for (const k of Object.keys(m).sort()) {
-    if (SKIP.has(k)) continue;
+    if (SKIP.has(k) || omit?.has(k)) continue;
     const v = (m as unknown as Record<string, unknown>)[k];
     if (typeof v === 'function') return null;
     out.push(`${k}=${ser(v)}`);
@@ -166,7 +167,7 @@ export function materialKey(m: Material): string | null {
 }
 
 /** A material no writer is known to change: not `own`, not see-through (fades), not glowing (each lamp and light sets its own glow). */
-function still(m: Material): boolean {
+export function stillMaterial(m: Material): boolean {
   const s = m as MeshStandardMaterial;
   return !owned.has(m) && !m.transparent && m.opacity === 1 && s.emissive.r + s.emissive.g + s.emissive.b === 0;
 }
@@ -219,7 +220,7 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
   for (const [m, u] of uses) {
     if (!(m as MeshStandardMaterial).isMeshStandardMaterial) continue;
     before++;
-    const key = u.fixed || !still(m) ? null : materialKey(m);
+    const key = u.fixed || !stillMaterial(m) ? null : materialKey(m);
     if (key === null) { after++; continue; }
     const at = `${idOf(u.scope!)}|${u.kind}|${key}`, c = canon.get(at);
     if (!c) { canon.set(at, m); after++; continue; }

@@ -35,6 +35,9 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 - Text: see "Text sharpness" in [live.md](live.md): the resolution step has hysteresis and a new step is applied 250 texts a frame; the label size rule runs once per frame, not per input event (`Camera.apply(defer)`).
 - RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.
 
+## The 3D room
+Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level: at Low all six room lights still cast.
+
 ## Adding a view
 Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`board/lodcard.ts`).
 

@@ -4,6 +4,7 @@
 // sun's directions. A receiver carries the hash the game finds it by (`meshHash`, `lightmapmix.ts`), since a merged mesh has no name of its own.
 import { Matrix3, Matrix4, Vector3, type BufferGeometry, type InstancedMesh, type Light, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type PointLight, type RectAreaLight, type SpotLight, type Texture } from 'three';
 import { MIN_AREA, hasAo, meshHash, shown, solid } from '@/core/render/three/lightmapmix';
+import { partsOf } from '@/core/render/three/merge';
 import { SUN_HOURS, type Room3D } from '@/features/room/render/three/room3d';
 import { M } from '@/features/room/render/three/outside/plan';
 import { CEIL_Y, EAST_X, FLOOR_Y, FRONT_Z, WEST_X, sunDir } from '@/features/room/render/three/roomplan';
@@ -120,7 +121,12 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
   const walk = (root: Object3D, receivers: boolean) => root.traverse((o) => {
     const m = o as Mesh;
     if (!m.isMesh || (m as { isSkinnedMesh?: boolean }).isSkinnedMesh || blinds.has(o) || !shown(o) || Array.isArray(m.material) || !solid(m.material as Material)) return;
-    const mm = m.material as MeshStandardMaterial;
+    const mm = m.material as MeshStandardMaterial, parts = partsOf(m);
+    // a palette mesh (`mergePalette`): the meshes it was merged from, each with its own colour, hash and receiver's right
+    if (parts.length) {
+      for (const p of parts) add(p.mesh, p.mesh.material as MeshStandardMaterial, new Matrix4().multiplyMatrices(root.matrixWorld, p.inRoot), receivers && !hasAo(p.mesh.geometry));
+      return;
+    }
     if ((m as InstancedMesh).isInstancedMesh) {
       const im = new Matrix4(), w = new Matrix4(), inst = m as InstancedMesh;
       for (let i = 0; i < inst.count; i++) { inst.getMatrixAt(i, im); add(m, mm, w.multiplyMatrices(m.matrixWorld, im), false); }

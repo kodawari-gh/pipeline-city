@@ -23,7 +23,7 @@ import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, t
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
-import { mergeStatic } from '@/core/render/three/merge';
+import { mergePalette, mergeStatic } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
@@ -120,6 +120,9 @@ const BIAS_LM = 400;
 const ARC_LM = 1600;
 /** The print over the bed: its frame (2D y down) on the back wall. */
 const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
+
+/** The cells of space the palette merge keeps apart (`mergeByPalette`): 2 m, so a view of one corner still culls the rest. */
+const PALETTE_CELL = 2 * M;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -318,6 +321,8 @@ export class Room3D {
   readonly root = new Group();
   readonly geo: RoomGeo;
   private keys = new Group();
+  /** The mouse: its stand-in shell hides once the model loads, so the palette merge leaves it alone. */
+  private mouse!: Group;
   private sun = new SpotLight(0xfff0d8, 0, 0, 0.17, 0.35, 0);
   /** The sky's light through the window: a wide soft spot out behind it, so the wall's shadow lets it in by the opening only. */
   private key = new SpotLight(0xd4e2ff, 0, 0, 1.05, 0.9, KEY_DECAY);
@@ -527,7 +532,8 @@ export class Room3D {
     });
     const matEnd = kx + 4800;
     R.add(softBox({ x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
-    R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o)), notebook(-16600, ys, 10000, 0.22));
+    this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o));
+    R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
     R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, 24), post(grommet.x, under + 300, grommet.z, 300, 300, cap, 20));
@@ -708,8 +714,21 @@ export class Room3D {
     this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
     this.monitorSpot.castShadow = this.monitorSpot.receiveShadow = false;
     R.add(this.monitorSpot);
-    // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's
-    this.ready = roomBake().then((b) => { if (b && !this.gone) this.takeBake(b); });
+    // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's. Then the still scenery by palette
+    this.ready = roomBake().then((b) => { if (this.gone) return; if (b) this.takeBake(b); this.mergeByPalette(); });
+  }
+
+  /**
+   * The still meshes whose materials differ only in colour, roughness and metalness as one mesh a cell of space (`mergePalette`): fewer draws
+   * and fewer changes of material a frame. After the bake, as each keeps its light map's UVs (the bake's export reads the meshes it took in).
+   * Only materials that take the room's reflections join; the key rack is built again with each key, the mouse's stand-in hides when the
+   * model is in (it can come after the bake).
+   */
+  private mergeByPalette(): void {
+    mergePalette(this.root, {
+      skip: [this.keys, this.mouse], cell: PALETTE_CELL, ok: (m) => this.envs.mats.has(m as MeshStandardMaterial),
+      twin: (src, c) => this.envs.twin(src, c), drop: (m) => this.envs.mats.delete(m as MeshStandardMaterial),
+    });
   }
 
   /**
