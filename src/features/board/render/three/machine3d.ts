@@ -184,7 +184,7 @@ export class Machine3D {
   /** What the merge and the share leave as it is (`share`): the side panel's screws (they turn out one by one), a part a glTF model replaces. */
   private keep: Object3D[] = [];
   /** What fades alone besides `fades` (a card's cooler and backplate): its materials stay its own (`share`). */
-  private apart: Object3D[] = [];
+  readonly apart: Object3D[] = [];
 
   /**
    * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has

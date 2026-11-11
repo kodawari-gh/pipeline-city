@@ -72,8 +72,11 @@ export function mergeStatic(root: Object3D): number {
 
 // ---- the palette merge ----
 
-/** A mesh `mergePalette` took in, as it was (its geometry, its material), and its matrix in the root's frame: the light bake reads it. */
-export interface Part { mesh: Mesh; inRoot: Matrix4 }
+/**
+ * A mesh a palette mesh took in, as it was (its geometry, its material), and its matrix in the palette mesh's own frame: the palette mesh's
+ * `matrixWorld` times `inMesh` puts it where it stood (`mergePalette` merges on the root, `mergeSiblings` on each parent). The light bake reads it.
+ */
+export interface Part { mesh: Mesh; inMesh: Matrix4 }
 const partsBy = new WeakMap<Object3D, readonly Part[]>();
 /** The meshes a palette mesh was merged from; none for any other object (`tools/bake/scene.ts` exports them in its place). */
 export const partsOf = (o: Object3D): readonly Part[] => partsBy.get(o) ?? [];
@@ -185,9 +188,9 @@ export function mergePalette(root: Object3D, o: PaletteOptions = {}): number {
  * meshes it took in (`partsOf`). Null: the geometries do not merge.
  */
 function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshStandardMaterial): Mesh | null {
-  const parts = meshes.map((m) => ({ mesh: m, inRoot: new Matrix4().multiplyMatrices(toFrame, m.matrixWorld) }));
-  const g = mergeGeometries(parts.map(({ mesh, inRoot }) => {
-    let x = mesh.geometry.clone().applyMatrix4(inRoot);
+  const parts = meshes.map((m) => ({ mesh: m, inMesh: new Matrix4().multiplyMatrices(toFrame, m.matrixWorld) }));
+  const g = mergeGeometries(parts.map(({ mesh, inMesh }) => {
+    let x = mesh.geometry.clone().applyMatrix4(inMesh);
     if (x.index) x = x.toNonIndexed();
     x.clearGroups();
     const c = (mesh.material as MeshStandardMaterial).color, { roughness, metalness } = mesh.material as MeshStandardMaterial;

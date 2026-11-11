@@ -1,28 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DOMAdapter } from 'pixi.js';
-import { Material, Mesh, PerspectiveCamera, Raycaster, Vector2, Vector3, type BufferAttribute, type MeshStandardMaterial, type Object3D } from 'three';
+import { describe, expect, it } from 'vitest';
+import { Box3, Material, Mesh, PerspectiveCamera, Raycaster, Vector2, Vector3, type BufferAttribute, type MeshStandardMaterial, type Object3D } from 'three';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/game/types';
-import { BakeQueue, fadeTree } from '@/core/render/three/artlod';
 import { idOf, shown } from '@/core/render/three/pick';
-import { roomGeo } from '@/features/room/render/shell/room';
 import { BOARD_Z, CASE_FRONT } from '@/features/room/render/three/roomplan';
 import { BD, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y } from '../layout/layout';
-import { Machine3D } from './machine3d';
+import type { Machine3D } from './machine3d';
+import { buildMachine, quietCanvas } from './testutil';
 
-// The 2D art draws on Pixi canvases: in Node a canvas that draws nothing is enough (the art bakes on its queue later, and never here).
-const nothing: unknown = new Proxy(function () {}, { get: (_t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing), apply: () => nothing });
-const context = () => new Proxy({}, {
-  get: (_t, k) => (k === 'measureText' ? () => ({ width: 1, actualBoundingBoxAscent: 1, actualBoundingBoxDescent: 1 }) : k === 'getImageData' ? () => ({ data: new Uint8ClampedArray(4) }) : nothing),
-  set: () => true,
-});
-const canvas = () => ({ width: 1, height: 1, style: {}, getContext: context, addEventListener() {}, toDataURL: () => '' });
-const adapter = DOMAdapter.get();
-beforeAll(() => { DOMAdapter.set({ ...adapter, createCanvas: canvas } as unknown as typeof adapter); vi.spyOn(performance, 'now').mockReturnValue(100); });
-afterAll(() => { DOMAdapter.set(adapter); vi.restoreAllMocks(); });
+quietCanvas();
 
 const game = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
-const build = (s: Snapshot | null, merge: boolean) => new Machine3D(s, roomGeo(), new BakeQueue(), null, true, merge);
+const build = buildMachine;
 
 /** The machine's states that change a look: the skins (power, load, throttle, heat, burnt), the LEDs, the strip, the fans' rings. */
 function states(s: Snapshot): [string, Snapshot][] {
@@ -108,13 +97,31 @@ function look(root: Object3D): Map<string, number[]> {
   return out;
 }
 
+// (each triangle is the same, but the merged ones were baked into their parent's frame in float32: the area differs by up to 2e-5 of itself
+// and the middle by up to 0.005 units, measured on the maxed machine)
+const AREA_TOL = 1e-4, CENTRE_TOL = 0.02;
 function sameLook(before: Map<string, number[]>, after: Map<string, number[]>, what: string): void {
   expect([...after.keys()].sort(), what).toEqual([...before.keys()].sort());
   for (const [k, e] of before) {
-    const f = after.get(k)!;
+    const f = after.get(k)!, area = e[1]!;
     expect(f[0], `${what}: ${k}`).toBe(e[0]);
-    for (let i = 1; i < e.length; i++) expect(Math.abs(f[i]! - e[i]!), `${what}: ${k} [${i}]`).toBeLessThanOrEqual(1e-3 * Math.max(1, Math.abs(e[1]!) * 1e4, Math.abs(e[i]!)));
+    if (e.length < 2) continue; // (an instanced mesh: its count only)
+    const da = Math.abs(f[1]! - area) / Math.max(area, 1e-9);
+    expect(da, `${what}: ${k} area`).toBeLessThanOrEqual(AREA_TOL);
+    if (area < 1e-9) continue;
+    // the area-weighted middle of the key's triangles, in units
+    for (let i = 2; i < e.length; i++) {
+      const dc = Math.abs(f[i]! / f[1]! - e[i]! / area);
+      expect(dc, `${what}: ${k} middle [${i - 2}]`).toBeLessThanOrEqual(CENTRE_TOL);
+    }
   }
+}
+
+/** The opacity of the first material in `g`, against its own (`fadeTree` keeps that in `userData.base`). */
+function opacityOf(g: Object3D): number {
+  let a = 1;
+  g.traverse((o) => { const m = (o as Mesh).material as Material | undefined; if (m && a === 1 && !Array.isArray(m)) a = m.opacity / ((m.userData.base as { opacity: number } | undefined)?.opacity ?? m.opacity); });
+  return a;
 }
 
 /** The first shown thing each ray of a grid over the view meets: its id and how far. */
@@ -141,25 +148,42 @@ describe('Machine3D merge and share (PERF22 part 2)', () => {
 
   it('shows every part as before in every state and view: colour, glow, fade, shape', { timeout: 120_000 }, () => {
     const s = game().snapshot(), was = build(s, false), now = build(s, true);
-    // every state in the room's view, one state in each closer view (the fades and the swung cards)
     for (const [ci, cam] of cameras().entries()) {
       was.lod(cam, 1080, 1); now.lod(cam, 1080, 1);
-      for (const [name, st] of ci ? states(s).filter(([n]) => n === 'hot') : states(s)) {
+      for (const [name, st] of states(s)) {
         for (let i = 0; i < 4; i++) { was.frame(st, 5); now.frame(st, 5); }
-        sameLook(look(was.root), look(now.root), `${name} from ${cam.position.toArray().map(Math.round).join(',')}`);
+        sameLook(look(was.root), look(now.root), `${name} from camera ${ci}`);
       }
     }
   });
 
-  it('fades each lid, cooler and spreader alone, as before', { timeout: 60_000 }, () => {
+  it('fades each lid, cooler, spreader and card through the zoom alone, as before', { timeout: 120_000 }, () => {
     const s = game().snapshot(), was = build(s, false), now = build(s, true);
-    expect(now.fades.length).toBe(was.fades.length);
-    expect(now.fades.length).toBeGreaterThan(2);
-    now.fades.forEach((f, i) => {
-      fadeTree(was.fades[i]!, 0.5); fadeTree(f, 0.5);
-      sameLook(look(was.root), look(now.root), `fade ${i}`);
-      fadeTree(was.fades[i]!, 1); fadeTree(f, 1);
-    });
+    // (a RAM stick of the maxed machine has no spreader: its fade holds nothing)
+    const roots = (m: Machine3D) => [...m.fades, ...m.apart].filter((g) => { let n = 0; g.traverse((o) => { if ((o as Mesh).isMesh) n++; }); return n > 0; });
+    const wf = roots(was), nf = roots(now);
+    expect(nf.length).toBe(wf.length);
+    expect(nf.length).toBeGreaterThan(3);
+    // the camera comes in on each faded part, from the board view to its face: on the way the level of detail fades it out
+    const half = new Set<number>();
+    for (const f of wf) {
+      const at = new Box3().setFromObject(f).getCenter(new Vector3());
+      for (let d = 30000; d > 300; d *= 0.95) {
+        const cam = new PerspectiveCamera(40, 16 / 9, 10, 200000);
+        cam.position.set(at.x, at.y, at.z + d); cam.lookAt(at); cam.updateMatrixWorld();
+        was.lod(cam, 1080, 1); now.lod(cam, 1080, 1);
+        let mid = false;
+        wf.forEach((g, i) => {
+          const a = g.visible ? opacityOf(g) : 0;
+          expect(nf[i]!.visible ? opacityOf(nf[i]!) : 0, `fade ${i} at ${Math.round(d)}`).toBeCloseTo(a, 6);
+          if (a > 0.02 && a < 0.98) { half.add(i); mid = true; }
+        });
+        // (the whole look where a part is half faded: its see-through material must stay its own)
+        if (mid) sameLook(look(was.root), look(now.root), `fades at ${Math.round(d)} over ${at.toArray().map(Math.round).join(',')}`);
+      }
+    }
+    // each faded part was seen half faded on the way
+    expect(half.size).toBe(wf.length);
   });
 
   it('answers every pick as before, part by part', { timeout: 60_000 }, () => {

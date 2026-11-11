@@ -71,7 +71,7 @@ describe('mergePalette', () => {
     // the parts as they were, for the bake's export
     const parts = partsOf(out!);
     expect(parts.map((p) => p.mesh)).toEqual([a, b]);
-    expect(parts[1]!.inRoot.elements[12]).toBe(20);
+    expect(parts[1]!.inMesh.elements[12]).toBe(20);
     expect(partsOf(a)).toEqual([]);
   });
 
@@ -99,11 +99,11 @@ describe('mergePalette', () => {
     expect(mergePalette(root)).toBe(2);
     const out = merged(root)[0]!, pos = out.geometry.attributes.position!, parts = partsOf(out), p = new Vector3();
     let at = 0;
-    parts.forEach(({ mesh, inRoot }, i) => {
+    parts.forEach(({ mesh, inMesh }, i) => {
       expect(Array.from(mesh.geometry.attributes.position!.array)).toEqual(Array.from(was[i]!));
       const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry, q = g.attributes.position!;
       for (let k = 0; k < q.count; k++, at++) {
-        p.fromBufferAttribute(q, k).applyMatrix4(inRoot);
+        p.fromBufferAttribute(q, k).applyMatrix4(inMesh);
         expect(Math.abs(p.x - pos.getX(at)) + Math.abs(p.y - pos.getY(at)) + Math.abs(p.z - pos.getZ(at))).toBeLessThan(1e-3);
       }
     });
