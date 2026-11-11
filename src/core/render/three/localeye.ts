@@ -7,7 +7,15 @@
 // of `CELL` pixels, each cell split into bins of one stop, each bin the mean of the cell's pixels of about that brightness, then blurred over
 // the cells. A pixel reads the bin of its own brightness, so a dark column against the sky has a dark base, and no halo forms at the edge. The
 // base's distance from the eye's middle grey shrinks (to `SHADOW_C` of it below, `HIGH_C` above); the detail stays.
-import { HalfFloatType, LinearFilter, NearestFilter, ShaderMaterial, WebGLRenderTarget, type Texture, type WebGLRenderer } from 'three';
+//
+// It is the post chain's last pass (PERF21): its last step also does the room's grade before the lift, and the tone mapping and the output's
+// colour space after it. These were three full-screen passes (a `ShaderPass`, this one, an `OutputPass`), each a write and a read of a
+// half-float picture; the sums are the same.
+import {
+  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping, NearestFilter,
+  NeutralToneMapping, RawShaderMaterial, ReinhardToneMapping, SRGBTransfer, ShaderMaterial, WebGLRenderTarget,
+  type ColorSpace, type Texture, type ToneMapping, type WebGLRenderer,
+} from 'three';
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
@@ -40,12 +48,33 @@ const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = 
 const LUM = /* glsl */`dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))`;
 const f = (n: number) => n.toFixed(1);
 
-// the picture's log luminance at a quarter of its size: four taps, each the mean of four pixels
+/**
+ * The room's look over the picture, in its own light (before the tone mapping): the corners a little darker, as a lens's fall-off, and the
+ * shadows a little warmer. `gradeK` (`roomness`, `post.ts`) fades it out toward the board view, where a part must read to the corners.
+ */
+export const GRADE = /* glsl */`
+uniform float gradeK;
+vec3 graded(vec3 c, vec2 uv) {
+  vec2 d = uv - 0.5;
+  float edge = 1.0 - 0.34 * smoothstep(0.25, 1.0, dot(d, d) * 2.0);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec3 warm = mix(vec3(1.07, 1.0, 0.9), vec3(1.0), smoothstep(0.0, 0.5, l));
+  return c * mix(vec3(1.0), warm * edge, gradeK);
+}`;
+
+// the graded picture's log luminance at a quarter of its size: four taps, each the mean of four pixels. Each tap is the linear filter's own sum
+// over the graded pixels (the grade is applied to each pixel first, as when it was a pass of its own)
 const DOWN_FRAG = /* glsl */`
 uniform sampler2D tDiffuse;
 uniform vec2 px;
 varying vec2 vUv;
-float l(vec2 o) { vec4 c = texture2D(tDiffuse, vUv + o * px); return ${LUM}; }
+${GRADE}
+vec3 at(vec2 p) { vec2 q = clamp(p, vec2(0.0), 1.0 / px - 1.0), uv = (q + 0.5) * px; return graded(texture2D(tDiffuse, uv).rgb, uv); }
+float l(vec2 o) {
+  vec2 p = (vUv + o * px) / px - 0.5, p0 = floor(p), t = p - p0;
+  vec3 c = mix(mix(at(p0), at(p0 + vec2(1.0, 0.0)), t.x), mix(at(p0 + vec2(0.0, 1.0)), at(p0 + vec2(1.0)), t.x), t.y);
+  return ${LUM};
+}
 void main() {
   float m = 0.25 * (l(vec2(-1.0, -1.0)) + l(vec2(1.0, -1.0)) + l(vec2(-1.0, 1.0)) + l(vec2(1.0, 1.0)));
   gl_FragColor = vec4(log2(max(m, 1e-7)), 0.0, 0.0, 1.0);
@@ -86,9 +115,19 @@ void main() {
   gl_FragColor = vec4(s / 1024.0, 0.0, 1.0);
 }`;
 
-// each pixel: its base from the grid (its own bin, between the cells' middles and the two nearest bins; its own luminance where the bin is
-// near empty), then the lift (`lift` above)
+// each pixel: the grade, its base from the grid (its own bin, between the cells' middles and the two nearest bins; its own luminance where the
+// bin is near empty), then the lift (`lift` above; none at strength 0), the tone mapping and the output's colour space (as three's `OutputPass`)
+const APPLY_VERT = /* glsl */`
+precision highp float;
+attribute vec3 position;
+attribute vec2 uv;
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const APPLY_FRAG = /* glsl */`
+precision highp float;
+#include <tonemapping_pars_fragment>
+#include <colorspace_pars_fragment>
+${GRADE}
 uniform sampler2D tDiffuse;
 uniform sampler2D tGrid;
 uniform vec2 size;
@@ -100,18 +139,52 @@ varying vec2 vUv;
 vec2 at(float u, float v, float z) { return texture2D(tGrid, vec2((u + z * grid.x) / (grid.x * ${f(BINS)}), v)).rg; }
 void main() {
   vec4 c = texture2D(tDiffuse, vUv);
-  float l = log2(max(${LUM}, 1e-7)), b = clamp(l - ${f(LO)}, 0.0, ${f(BINS - 1)}), z0 = floor(b), z1 = min(z0 + 1.0, ${f(BINS - 1)});
-  float u = clamp(vUv.x * size.x / ${f(CELL)}, 0.5, grid.x - 0.5), v = clamp(vUv.y * size.y / ${f(CELL)}, 0.5, grid.y - 0.5) / grid.y;
-  vec2 s = mix(at(u, v, z0), at(u, v, z1), b - z0);
-  float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
-  float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
-  gl_FragColor = vec4(c.rgb * exp2(up * strength), c.a);
+  c.rgb = graded(c.rgb, vUv);
+  if (strength > 0.0) {
+    float l = log2(max(${LUM}, 1e-7)), b = clamp(l - ${f(LO)}, 0.0, ${f(BINS - 1)}), z0 = floor(b), z1 = min(z0 + 1.0, ${f(BINS - 1)});
+    float u = clamp(vUv.x * size.x / ${f(CELL)}, 0.5, grid.x - 0.5), v = clamp(vUv.y * size.y / ${f(CELL)}, 0.5, grid.y - 0.5) / grid.y;
+    vec2 s = mix(at(u, v, z0), at(u, v, z1), b - z0);
+    float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
+    float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
+    c.rgb *= exp2(up * strength);
+  }
+  gl_FragColor = c;
+  #ifdef LINEAR_TONE_MAPPING
+    gl_FragColor.rgb = LinearToneMapping(gl_FragColor.rgb);
+  #elif defined(REINHARD_TONE_MAPPING)
+    gl_FragColor.rgb = ReinhardToneMapping(gl_FragColor.rgb);
+  #elif defined(CINEON_TONE_MAPPING)
+    gl_FragColor.rgb = CineonToneMapping(gl_FragColor.rgb);
+  #elif defined(ACES_FILMIC_TONE_MAPPING)
+    gl_FragColor.rgb = ACESFilmicToneMapping(gl_FragColor.rgb);
+  #elif defined(AGX_TONE_MAPPING)
+    gl_FragColor.rgb = AgXToneMapping(gl_FragColor.rgb);
+  #elif defined(NEUTRAL_TONE_MAPPING)
+    gl_FragColor.rgb = NeutralToneMapping(gl_FragColor.rgb);
+  #elif defined(CUSTOM_TONE_MAPPING)
+    gl_FragColor.rgb = CustomToneMapping(gl_FragColor.rgb);
+  #endif
+  #ifdef SRGB_TRANSFER
+    gl_FragColor = sRGBTransferOETF(gl_FragColor);
+  #endif
 }`;
+
+/** The defines of the output's tone mapping and colour space, as three's `OutputPass` sets them. */
+export function outputDefines(toneMapping: ToneMapping, colorSpace: string): Record<string, string> {
+  const d: Record<string, string> = {};
+  if (ColorManagement.getTransfer(colorSpace as ColorSpace) === SRGBTransfer) d.SRGB_TRANSFER = '';
+  const tm = new Map<ToneMapping, string>([
+    [LinearToneMapping, 'LINEAR'], [ReinhardToneMapping, 'REINHARD'], [CineonToneMapping, 'CINEON'], [ACESFilmicToneMapping, 'ACES_FILMIC'],
+    [AgXToneMapping, 'AGX'], [NeutralToneMapping, 'NEUTRAL'], [CustomToneMapping, 'CUSTOM'],
+  ]).get(toneMapping);
+  if (tm) d[`${tm}_TONE_MAPPING`] = '';
+  return d;
+}
 
 const target = (w: number, h: number, filter: typeof LinearFilter | typeof NearestFilter) =>
   new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false, magFilter: filter, minFilter: filter, generateMipmaps: false });
 
-/** The eye's local adaptation as a pass of the post chain, before the tone mapping. */
+/** The post chain's last pass: the room's grade, the eye's local adaptation, then the tone mapping and the output's colour space. */
 export class LocalEye extends Pass {
   /** The exposure the tone mapping will apply (the base, the player's brightness, the eye's): middle grey follows it. */
   exposure = 1;
@@ -124,18 +197,24 @@ export class LocalEye extends Pass {
   high = HIGH_C;
   /** 0: off; 1: the whole lift. */
   strength = 1;
+  /** The room's grade (`GRADE`): 0, none; 1, all of it. */
+  grade = 1;
+  /** The picture to read in place of the chain's last (the scene's own target, when no pass stands between: `Post.render`); null, the chain's. */
+  source: Texture | null = null;
+  private outKey = '';
   private lum = target(1, 1, NearestFilter);
   private grid = target(1, 1, NearestFilter);
   private blur = target(1, 1, LinearFilter);
-  private down = new ShaderMaterial({ uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] } }, vertexShader: VERT, fragmentShader: DOWN_FRAG });
   private build = new ShaderMaterial({ uniforms: { tLum: { value: this.lum.texture }, lumSize: { value: [1, 1] }, gx: { value: 1 } }, vertexShader: VERT, fragmentShader: GRID_FRAG });
   private smooth = new ShaderMaterial({ uniforms: { tGrid: { value: this.grid.texture }, grid: { value: [1, 1] } }, vertexShader: VERT, fragmentShader: BLUR_FRAG });
-  private apply = new ShaderMaterial({
+  private down = new ShaderMaterial({ uniforms: { tDiffuse: { value: null }, px: { value: [0, 0] }, gradeK: { value: 1 } }, vertexShader: VERT, fragmentShader: DOWN_FRAG });
+  private apply = new RawShaderMaterial({
+    name: 'LocalEyeOutput',
     uniforms: {
       tDiffuse: { value: null }, tGrid: { value: this.blur.texture }, size: { value: [1, 1] }, grid: { value: [1, 1] }, midLog: { value: 0 }, strength: { value: 1 },
-      keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] },
+      keep: { value: [SHADOW_C, HIGH_C, MAX_UP, MAX_DOWN] }, gradeK: { value: 1 }, toneMappingExposure: { value: 1 },
     },
-    vertexShader: VERT, fragmentShader: APPLY_FRAG,
+    vertexShader: APPLY_VERT, fragmentShader: APPLY_FRAG,
   });
   private quad = new FullScreenQuad();
 
@@ -157,17 +236,34 @@ export class LocalEye extends Pass {
     this.apply.uniforms.grid!.value = [gx, gy];
   }
 
+  /** Takes the renderer's tone mapping and output colour space (its program changes only when they do). Call it before its programs link. */
+  setOutput(renderer: WebGLRenderer): void {
+    const key = `${renderer.toneMapping}|${renderer.outputColorSpace}`;
+    if (key === this.outKey) return;
+    this.outKey = key;
+    this.apply.defines = outputDefines(renderer.toneMapping, renderer.outputColorSpace);
+    this.apply.needsUpdate = true;
+  }
+
   override render(renderer: WebGLRenderer, write: WebGLRenderTarget, read: WebGLRenderTarget): void {
     const step = (m: ShaderMaterial, to: WebGLRenderTarget | null) => { this.quad.material = m; renderer.setRenderTarget(to); this.quad.render(renderer); };
-    this.down.uniforms.tDiffuse!.value = read.texture as Texture;
-    step(this.down, this.lum);
-    step(this.build, this.grid);
-    step(this.smooth, this.blur);
+    const src = this.source ?? read.texture;
+    // (at strength 0 the lift is off: its grid is not read, so it is not built)
+    if (this.strength > 0) {
+      this.down.uniforms.tDiffuse!.value = src;
+      this.down.uniforms.gradeK!.value = this.grade;
+      step(this.down, this.lum);
+      step(this.build, this.grid);
+      step(this.smooth, this.blur);
+    }
+    this.setOutput(renderer);
     const a = this.apply.uniforms;
-    a.tDiffuse!.value = read.texture;
+    a.tDiffuse!.value = src;
     a.midLog!.value = Math.log2(this.key / this.exposure);
     (a.keep!.value as number[])[1] = this.high;
     a.strength!.value = this.strength;
+    a.gradeK!.value = this.grade;
+    a.toneMappingExposure!.value = renderer.toneMappingExposure;
     step(this.apply, this.renderToScreen ? null : write);
   }
 

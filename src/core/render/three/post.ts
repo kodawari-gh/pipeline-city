@@ -1,15 +1,14 @@
 // The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
 // the picked part, LOWPOLY_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
-// the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked.
+// the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked. The last three are one pass (`LocalEye`);
+// with no AO, outline or bloom it reads the scene's own target, so a frame at Low writes two full-size pictures: the scene and the screen.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 import { DepthTexture, FloatType, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { pixelRatio, type Graphics } from '@/app/graphics';
@@ -20,6 +19,8 @@ import { HIGH_C, LocalEye, MID } from './localeye';
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
 class ScenePass extends RenderPass {
   readonly target: WebGLRenderTarget;
+  /** Copy the picture into the chain's buffer (false: the next pass reads `target` itself). */
+  copyOut = true;
   private copy = new ShaderMaterial({ ...CopyShader, uniforms: UniformsUtils.clone(CopyShader.uniforms), blending: NoBlending, depthTest: false, depthWrite: false });
   private quad = new FullScreenQuad(this.copy);
 
@@ -33,6 +34,7 @@ class ScenePass extends RenderPass {
 
   override render(renderer: WebGLRenderer, write: WebGLRenderTarget, read: WebGLRenderTarget, dt: number, mask: boolean): void {
     super.render(renderer, write, this.target, dt, mask);
+    if (!this.copyOut) return;
     renderer.setRenderTarget(read);
     this.quad.render(renderer);
   }
@@ -100,34 +102,12 @@ export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'br
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
 export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
 
-/**
- * The room's look over the picture, in its own light (before the tone mapping): the corners a little darker, as a lens's fall-off, and the
- * shadows a little warmer. `k` (`roomness`) fades it out toward the board view, where a part must read to the corners.
- */
-const GRADE = {
-  name: 'Grade',
-  uniforms: { tDiffuse: { value: null }, k: { value: 1 } },
-  vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: /* glsl */`
-    uniform sampler2D tDiffuse;
-    uniform float k;
-    varying vec2 vUv;
-    void main() {
-      vec4 c = texture2D(tDiffuse, vUv);
-      vec2 d = vUv - 0.5;
-      float edge = 1.0 - 0.34 * smoothstep(0.25, 1.0, dot(d, d) * 2.0);
-      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-      vec3 warm = mix(vec3(1.07, 1.0, 0.9), vec3(1.0), smoothstep(0.0, 0.5, l));
-      gl_FragColor = vec4(c.rgb * mix(vec3(1.0), warm * edge, k), c.a);
-    }`,
-};
-
 /** The light meter's grid (`Post.meter`): each cell the mean log luminance of its block of the scene, from 8 x 8 taps. */
 const METER_W = 16, METER_H = 9;
 const METER = {
   name: 'Meter',
   uniforms: { tDiffuse: { value: null } },
-  vertexShader: GRADE.vertexShader,
+  vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse;
     varying vec2 vUv;
@@ -153,7 +133,6 @@ export class Post {
   private outline: PickOutline;
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
-  private grade = new ShaderPass(GRADE);
   private local: LocalEye;
   private reach = 900;
   private brightness = 1;
@@ -185,10 +164,9 @@ export class Post {
     const hp = this.bloom.materialHighPassFilter;
     hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 32.0 ) );');
     this.composer.addPass(this.bloom);
-    this.composer.addPass(this.grade);
     this.local = new LocalEye(w, h);
+    this.local.setOutput(renderer);
     this.composer.addPass(this.local);
-    this.composer.addPass(new OutputPass());
   }
 
   /** The exposure the tone mapping applies: the base, the player's brightness and the eye's adaptation. The local eye's middle grey follows it. */
@@ -223,9 +201,8 @@ export class Post {
    */
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
-    this.grade.uniforms.k!.value = k;
+    this.local.grade = k;
     this.local.strength = k;
-    this.local.enabled = k > 0;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
@@ -272,14 +249,21 @@ export class Post {
   }
 
   setSize(w: number, h: number): void { this.composer.setSize(w, h); }
-  render(): void { this.composer.render(); }
+  render(): void {
+    // with no pass between the scene and the eye, the eye reads the scene's own target: no copy, and the chain's buffers stay unused
+    const direct = !this.ao.enabled && !this.outline.enabled && !this.bloom.enabled;
+    this.scene.copyOut = !direct;
+    this.local.source = direct ? this.scene.target.texture : null;
+    this.composer.render();
+  }
 
   /**
    * Starts linking the passes' programs (`compile.ts`): the AO's alone takes seconds on ANGLE D3D11. The outline's too, though it runs only
-   * once something is picked; not the output's, which sets its defines as it draws (a short one).
+   * once something is picked. The last pass's output defines are set (`LocalEye.setOutput`), so it links here too.
    */
   startPrograms(r: WebGLRenderer): Program[] {
-    const on = this.composer.passes.filter((p) => !(p instanceof OutputPass) && (p.enabled || p === this.outline));
+    this.local.setOutput(r);
+    const on = this.composer.passes.filter((p) => p.enabled || p === this.outline);
     return startPassPrograms(r, [...on, { meter: this.meterQuad }]);
   }
 }
