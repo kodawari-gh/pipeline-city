@@ -44,17 +44,22 @@ describe('cars', () => {
   });
 
   it('cuts a route to the stretch where a car\'s ball meets the frustum', () => {
-    const r = rng(5), tr = new Traffic(), out = [0, 0];
+    // (count the misses and expect once: an expect for each sample took over 5 s)
+    const r = rng(5), tr = new Traffic(), out = [0, 0], miss: string[] = [];
+    let n = 0;
     for (let k = 0; k < 12; k++) {
       const { seen } = eye(r, k % 2 ? 26 : 70);
       for (const rt of tr.routes) for (const [y, rad] of [[0, 4.5], [1.5, 3], [0, 17.5]] as const) {
         reach(rt, seen, y, rad, out);
         for (let m = -40; m < rt.len + 40; m += 3.7) {
           if (Math.abs(m - out[0]!) < 1e-6 || Math.abs(m - out[1]!) < 1e-6) continue;
-          expect(m >= out[0]! && m <= out[1]!).toBe(seen.intersectsSphere(ball(rt.x + rt.dx * m, y, rt.z + rt.dz * m, rad)));
+          n++;
+          if ((m >= out[0]! && m <= out[1]!) !== seen.intersectsSphere(ball(rt.x + rt.dx * m, y, rt.z + rt.dz * m, rad))) miss.push(`eye ${k} m ${m}`);
         }
       }
     }
+    expect(n).toBeGreaterThan(1000);
+    expect(miss).toEqual([]);
     // (with no frustum, all of it)
     reach(tr.routes[0]!, undefined, 0, 3, out);
     expect(out).toEqual([-Infinity, Infinity]);

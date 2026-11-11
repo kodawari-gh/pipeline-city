@@ -88,6 +88,18 @@ describe('material key', () => {
     expect(materialKey(new MeshBasicMaterial())).toBeNull();
   });
 
+  it('never throws on a cycle or an object inside userData: an object of its own is keyed by identity', () => {
+    const loop: Record<string, unknown> = { a: 1 };
+    loop.self = loop;
+    const m = mat(0x334455), n = mat(0x334455), o = new Group();
+    m.userData.loop = loop; m.userData.holder = { o };
+    n.userData.loop = loop; n.userData.holder = { o };
+    expect(() => materialKey(m)).not.toThrow();
+    expect(materialKey(m)).toBe(materialKey(n));
+    n.userData.holder = { o: new Group() };
+    expect(materialKey(n)).not.toBe(materialKey(m));
+  });
+
   it('leaves out the fields it is told to (the palette merge: colour, roughness, metalness)', () => {
     const omit = new Set(['color', 'roughness', 'metalness']), k = materialKey(mat(0x334455), omit);
     expect(materialKey(mat(0x998877, { roughness: 0.1, metalness: 0.9 }), omit)).toBe(k);
@@ -124,6 +136,18 @@ describe('shared materials', () => {
     const n = matsOf(root).size;
     expect(shareMaterials(root, { skip: [rack] })).toEqual({ before: n, after: n });
     expect(matsOf(root).size).toBe(n);
+  });
+
+  it('keeps each fade apart: a material under a fading lid is never shared with one outside it', () => {
+    const root = new Group(), part = tagged('cpu0'), lid = new Group();
+    const body = [new Mesh(box(), mat(0x222222)), new Mesh(box(), mat(0x222222))], top = [new Mesh(box(), mat(0x222222)), new Mesh(box(), mat(0x222222))];
+    part.add(...body, lid);
+    lid.add(...top);
+    root.add(part);
+    expect(shareMaterials(root, { apart: [lid] })).toEqual({ before: 4, after: 2 });
+    expect(body[1]!.material).toBe(body[0]!.material);
+    expect(top[1]!.material).toBe(top[0]!.material);
+    expect(top[0]!.material).not.toBe(body[0]!.material);
   });
 
   it('skin materials are never shared (a part state look stays on its own part)', () => {

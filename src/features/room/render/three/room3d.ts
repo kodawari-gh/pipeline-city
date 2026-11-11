@@ -312,6 +312,18 @@ function rugTex(): Texture | null {
   });
 }
 
+/**
+ * The room's merge by palette after the bake (`Room3D.mergeByPalette`): only a material that takes the room's reflections joins (`envs`), the
+ * palette materials join them, and a material no mesh draws with any more leaves them. Each merged mesh keeps its hash and its place for the
+ * bake's export (`partsOf`, `tools/bake/scene.ts`), so the next bake finds the same receivers and blockers.
+ */
+export function mergeAfterBake(root: Object3D, envs: RoomEnv, skip: readonly Object3D[]): number {
+  return mergePalette(root, {
+    skip, cell: PALETTE_CELL, ok: (m) => envs.mats.has(m as MeshStandardMaterial),
+    twin: (src, c) => envs.twin(src, c), drop: (m) => envs.mats.delete(m as MeshStandardMaterial),
+  });
+}
+
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
@@ -724,12 +736,7 @@ export class Room3D {
    * Only materials that take the room's reflections join; the key rack is built again with each key, the mouse's stand-in hides when the
    * model is in (it can come after the bake).
    */
-  private mergeByPalette(): void {
-    mergePalette(this.root, {
-      skip: [this.keys, this.mouse], cell: PALETTE_CELL, ok: (m) => this.envs.mats.has(m as MeshStandardMaterial),
-      twin: (src, c) => this.envs.twin(src, c), drop: (m) => this.envs.mats.delete(m as MeshStandardMaterial),
-    });
-  }
+  private mergeByPalette(): void { mergeAfterBake(this.root, this.envs, [this.keys, this.mouse]); }
 
   /**
    * Starts linking the programs the window's view draws with (`compile.ts`): the room's own come with the scene it stands in. Call it after a

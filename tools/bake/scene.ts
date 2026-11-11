@@ -122,9 +122,9 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
     const m = o as Mesh;
     if (!m.isMesh || (m as { isSkinnedMesh?: boolean }).isSkinnedMesh || blinds.has(o) || !shown(o) || Array.isArray(m.material) || !solid(m.material as Material)) return;
     const mm = m.material as MeshStandardMaterial, parts = partsOf(m);
-    // a palette mesh (`mergePalette`): the meshes it was merged from, each with its own colour, hash and receiver's right
+    // a palette mesh (`mergePalette`, `mergeSiblings`): the meshes it was merged from, each placed by the palette mesh's own matrix, with its own colour, hash and receiver's right
     if (parts.length) {
-      for (const p of parts) add(p.mesh, p.mesh.material as MeshStandardMaterial, new Matrix4().multiplyMatrices(root.matrixWorld, p.inRoot), receivers && !hasAo(p.mesh.geometry));
+      for (const p of parts) add(p.mesh, p.mesh.material as MeshStandardMaterial, new Matrix4().multiplyMatrices(m.matrixWorld, p.inMesh), receivers && !hasAo(p.mesh.geometry));
       return;
     }
     if ((m as InstancedMesh).isInstancedMesh) {
