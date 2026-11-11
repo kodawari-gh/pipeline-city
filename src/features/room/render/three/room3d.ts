@@ -26,10 +26,10 @@ import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, wor
 import { mergeStatic } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
-import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
+import { LightmapMix, STAND_IN_DECAY, applyLightmap, hasAo, keyFrames, loadBake, solid, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
-import { cloth, mat } from '@/core/render/three/materials';
+import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
@@ -702,6 +702,9 @@ export class Room3D {
     // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
     vertexAo(R);
     mergeStatic(R);
+    // then one material for each look (fewer uniform uploads). After the merge, so the merged meshes stay those the bake knows by their hash;
+    // `takeBake` merges again with the shared materials
+    shareMaterials(R);
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
     const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
     this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
@@ -733,6 +736,9 @@ export class Room3D {
   private takeBake(b: Bake): void {
     const mix = new LightmapMix(b), blinds = new Set<Object3D>(this.blinds);
     const lit = applyLightmap(this.root, b, mix.texture, { metre: M, skip: (o) => blinds.has(o), twin: (src, c) => this.envs.twin(src, c) });
+    // the still meshes again, now that equal materials are one (`shareMaterials`): the lit ones (they keep their hashes, `bakeParts`) and those
+    // the bake only blocks with. A receiver the bake does not know stays as it is, so the next bake's export finds it by the same hash.
+    mergeStatic(this.root, (m) => typeof m.userData.bakeHash === 'string' || Array.isArray(m.userData.bakeParts) || !solid(m.material as Material) || hasAo(m.geometry));
     if (import.meta.env.DEV && (lit.missing.length || lit.stale)) {
       console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit, ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
     }

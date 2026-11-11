@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { GLOW, HOT_FROM_C, HOT_FULL_C, PartSkin, heatColor, mat, partLook, type PartState } from './materials';
+import { BoxGeometry, Color, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Texture } from 'three';
+import { GLOW, HOT_FROM_C, HOT_FULL_C, PartSkin, heatColor, mat, materialKey, partLook, shareMaterials, type PartState } from './materials';
+import { boxEnv, boxProjected } from './boxenv';
 
 const ON: PartState = { powered: true, active: false, burnt: false, throttled: false, tempC: 30 };
 
@@ -51,5 +53,39 @@ describe('part looks', () => {
     expect(skin.easing).toBe(true);
     for (let i = 0; i < 600; i++) skin.frame(1 / 60);
     expect(skin.easing).toBe(false);
+  });
+});
+
+describe('shareMaterials', () => {
+  const box = () => new BoxGeometry();
+  it('gives the meshes one material for each look', () => {
+    const root = new Group(), a = new Mesh(box(), mat(0x223344, { roughness: 0.4 })), b = new Mesh(box(), mat(0x223344, { roughness: 0.4 }));
+    const inner = new Group();
+    inner.add(b);
+    root.add(a, inner);
+    expect(shareMaterials(root)).toBe(1);
+    expect(b.material).toBe(a.material);
+  });
+
+  it('keeps apart materials that differ in a setting, a map or a shader patch', () => {
+    const t = new Texture(), env = boxEnv([0, 0, 0], [1, 1, 1], [0, 0, 0]);
+    const patched = mat(0x223344);
+    boxProjected(patched, env);
+    const ms = [mat(0x223344), mat(0x223345), mat(0x223344, { roughness: 0.3 }), mat(0x223344, { map: t }), patched];
+    const root = new Group();
+    for (const m of ms) root.add(new Mesh(box(), m));
+    expect(shareMaterials(root)).toBe(0);
+    expect(new Set(ms.map(materialKey)).size).toBe(ms.length);
+  });
+
+  it('leaves glows, see-through and other kinds of material their own', () => {
+    // (the ISP's five lights: equal materials, each lit on its own)
+    const glow = () => new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
+    const glass = () => mat(0xffffff, { transparent: true, opacity: 0.2 });
+    const ms = [glow(), glow(), glass(), glass(), new MeshBasicMaterial(), new MeshBasicMaterial()];
+    const root = new Group(), meshes = ms.map((m) => new Mesh(box(), m));
+    root.add(...meshes);
+    expect(shareMaterials(root)).toBe(0);
+    expect(meshes.map((m) => m.material)).toEqual(ms);
   });
 });

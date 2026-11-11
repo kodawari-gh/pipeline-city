@@ -1,5 +1,5 @@
 // Palette and state looks of the 3D parts (docs/LOWPOLY_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
-import { Color, MeshPhysicalMaterial, MeshStandardMaterial, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters } from 'three';
+import { Color, MeshPhysicalMaterial, MeshStandardMaterial, type Material, type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D } from 'three';
 
 export const PALETTE = {
   cpu: 0x2a2f4d, gpu: 0x17263f, ram: 0x1f6d45, ssd: 0x2d3035, psu: 0x22242a, pcb: 0x123f3c, alu: 0xc4c8cc, cable: 0x2c2d31,
@@ -84,4 +84,52 @@ export class PartSkin {
       m.emissiveIntensity = this.level * this.gain;
     });
   }
+}
+
+/** What `materialKey` leaves out: the names and ids, the user data and the shader hooks (it reads those apart). */
+const UNKEYED = new Set(['id', 'uuid', 'name', 'version', 'userData', 'onBeforeCompile', 'customProgramCacheKey', '_listeners']);
+
+/** A setting as text: a colour, a vector or an angle by its numbers, a texture by its id, a plain value or object as JSON. */
+function keyOf(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? String(v);
+  const o = v as { isTexture?: boolean; uuid?: string; toArray?: () => unknown[] };
+  if (o.isTexture) return `tex:${o.uuid}`;
+  if (typeof o.toArray === 'function') return o.toArray().join(',');
+  return JSON.stringify(v);
+}
+
+/**
+ * A material's look as text: its type, its program key (the shader patches it has: `boxenv`, `bakedao`, `lightmapmix`), its user data and
+ * each setting in name order. Two materials with one key draw the same picture.
+ */
+export function materialKey(m: Material): string {
+  const set = Object.entries(m).filter(([k, v]) => !UNKEYED.has(k) && typeof v !== 'function').sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return [m.type, m.customProgramCacheKey(), JSON.stringify(m.userData), ...set.map(([k, v]) => `${k}=${keyOf(v)}`)].join('|');
+}
+
+/**
+ * Can `shareMaterials` give this material to other meshes: a standard material, opaque, with no glow. The room changes a glow's strength
+ * by itself (the ISP's five lights are five equal materials, each lit on its own), so a glow keeps its own material.
+ */
+export function shareable(m: Material): m is MeshStandardMaterial {
+  const s = m as MeshStandardMaterial;
+  return !!s.isMeshStandardMaterial && !s.transparent && s.opacity >= 1 && s.alphaTest === 0 && s.emissive.getHex() === 0 && !s.emissiveMap;
+}
+
+/**
+ * One material for each look (`materialKey`) under `root`: each mesh with a `shareable` material takes the first equal one. Three then
+ * uploads that material's uniforms once, and `mergeStatic` can join more meshes. Call it once the root is built. A material that code
+ * changes later must not be shareable (the room's reflections, `RoomEnv`, change all its materials alike: they can share). Returns how
+ * many materials no mesh uses now.
+ */
+export function shareMaterials(root: Object3D): number {
+  const first = new Map<string, Material>(), dropped = new Set<Material>();
+  root.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh || Array.isArray(m.material) || !shareable(m.material)) return;
+    const k = materialKey(m.material), had = first.get(k);
+    if (!had) first.set(k, m.material);
+    else if (had !== m.material) { dropped.add(m.material); m.material = had; }
+  });
+  return dropped.size;
 }

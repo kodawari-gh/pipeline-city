@@ -2,8 +2,9 @@
 // server and calls `exportRoom`: it reads the room as the game built it and hands back what Blender needs. The meshes (in Blender's frame:
 // metres, z up), each a receiver (it gets a lightmap) or only a blocker; each light group's lights at full power (`Room3D.lightGroups`); the
 // sun's directions. A receiver carries the hash the game finds it by (`meshHash`, `lightmapmix.ts`), since a merged mesh has no name of its own.
-import { Matrix3, Matrix4, Vector3, type BufferGeometry, type InstancedMesh, type Light, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type PointLight, type RectAreaLight, type SpotLight, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Matrix3, Matrix4, Vector3, type InstancedMesh, type Light, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type PointLight, type RectAreaLight, type SpotLight, type Texture } from 'three';
 import { MIN_AREA, hasAo, meshHash, shown, solid } from '@/core/render/three/lightmapmix';
+import type { BakePart } from '@/core/render/three/merge';
 import { SUN_HOURS, type Room3D } from '@/features/room/render/three/room3d';
 import { M } from '@/features/room/render/three/outside/plan';
 import { CEIL_Y, EAST_X, FLOOR_Y, FRONT_Z, WEST_X, sunDir } from '@/features/room/render/three/roomplan';
@@ -95,6 +96,16 @@ function geometry(g: BufferGeometry, m: Matrix4): { pos: Float32Array; nrm: Floa
   return { pos, nrm, room, index, area };
 }
 
+/** Corners `at` to `at + n` of an unindexed geometry (one part of a merged mesh): its positions and normals. */
+export function corners(g: BufferGeometry, at: number, n: number): BufferGeometry {
+  const out = new BufferGeometry();
+  for (const k of ['position', 'normal']) {
+    const a = g.getAttribute(k);
+    if (a) out.setAttribute(k, new BufferAttribute((a.array as Float32Array).slice(at * a.itemSize, (at + n) * a.itemSize), a.itemSize));
+  }
+  return out;
+}
+
 /**
  * The room as Blender bakes it. `room`: the game's `Room3D` (its lights are read at full power: the night with the desk lamp and the screen
  * on); `extra`: other roots that only block (the machine). Synchronous, so the game's next frame (which sets the lights back) comes after it.
@@ -106,9 +117,9 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
   for (const e of extra) e.updateMatrixWorld(true);
   const toRoom = new Matrix4().copy(r.root.matrixWorld).invert(), blinds = new Set<Object3D>((room as unknown as { blinds: Mesh[] }).blinds);
   const meshes: BakeMesh[] = [], names = new Map<string, number>();
-  const add = (o: Mesh, mm: MeshStandardMaterial, world: Matrix4, receiver: boolean) => {
+  const add = (o: Mesh, mm: MeshStandardMaterial, world: Matrix4, receiver: boolean, part?: { geo: BufferGeometry; hash: string }) => {
     // (a mesh the game lit with the last bake has lost its index: it keeps the hash the bake found it by)
-    const g = geometry(o.geometry, new Matrix4().multiplyMatrices(toRoom, world)), hash = (o.userData.bakeHash as string | undefined) ?? meshHash(g.room, g.index);
+    const g = geometry(part?.geo ?? o.geometry, new Matrix4().multiplyMatrices(toRoom, world)), hash = part?.hash ?? (o.userData.bakeHash as string | undefined) ?? meshHash(g.room, g.index);
     // a readable name: the material's colour and the vertex count, numbered when two match
     const base = `${o.name || 'mesh'}-${mm.color.getHexString()}${mm.map ? '-map' : ''}-${g.pos.length / 3}`, k = names.get(base) ?? 0;
     names.set(base, k + 1);
@@ -124,6 +135,13 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
     if ((m as InstancedMesh).isInstancedMesh) {
       const im = new Matrix4(), w = new Matrix4(), inst = m as InstancedMesh;
       for (let i = 0; i < inst.count; i++) { inst.getMatrixAt(i, im); add(m, mm, w.multiplyMatrices(m.matrixWorld, im), false); }
+      return;
+    }
+    // lit meshes the game merged after the bake (`bakeParts`, `merge.ts`): each part again, by the hash the bake knows it by
+    const parts = m.userData.bakeParts as BakePart[] | undefined;
+    if (parts) {
+      let at = 0;
+      for (const p of parts) { add(m, mm, m.matrixWorld, receivers, { geo: corners(m.geometry, at, p.corners), hash: p.hash }); at += p.corners; }
       return;
     }
     add(m, mm, m.matrixWorld, receivers && !hasAo(m.geometry));
