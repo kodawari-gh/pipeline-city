@@ -5,8 +5,9 @@
 // calls, the machine rebuilds, the long tasks and the hottest functions of a CPU profile. Compare two runs with `--baseline old.json`. It starts its own dev
 // server on PORT (5197), so no hot update changes the code under it; `window.__board` exists only there. Nothing here is a pass or a fail: it reports,
 // except that `--gpu <regex>` throws if the GL renderer string does not match, `--need-timers` throws if EXT_disjoint_timer_query_webgl2 is missing, and
-// `room night hover` throws on a missed hover, a moved key or a drawn shadow map.
+// `room night hover` throws on a missed hover, a moved key, a drawn shadow map or an off outline, and any scenario throws on a recording with no frames, no draw calls, or no GPU pass times when `--need-timers` is set.
 import { spawn } from 'node:child_process';
+import { assertRecording } from './bench3d-check.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -267,7 +268,7 @@ try {
     ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
     // the owner's report (2026-11-12): the room at night, the case's side panel under the pointer (its outline on), the city in the window.
     // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale
-    // The sim is paused while it runs (a sandbox key moves shadow casters), and a moved key, a lit shadow map or a missed hover throws.
+    // The sim is paused while it runs (a sandbox key moves shadow casters). A moved key, a lit shadow map, a missed hover, an off outline or an empty recording throws.
     ['room night hover', {
       pre: async () => {
         await go('flyToRoom', 1500); await hour(23); await wait(2500);
@@ -279,6 +280,7 @@ try {
         night.hover = id;
         night.outline = await p.evaluate(() => window.__board.parts().post.outline.enabled);
         console.log(`hover: ${night.hover}   outline: ${night.outline}`);
+        if (!night.outline) throw new Error('room night hover: the hover outline is off');
         // pause the sim for the measured window; the old speed comes back in post
         night.speed = await p.evaluate(async () => { const S = await import('/src/app/store.ts'), v = S.speed.value; S.setSpeed(0); return v; });
         await wait(300);
@@ -337,6 +339,7 @@ try {
     console.log(name.padEnd(20) + String(r.fps).padStart(7) + String(r.p50).padStart(7) + String(r.p95).padStart(7) + String(r.p99).padStart(7) + String(Math.round(r.max)).padStart(7) + String(r.over33).padStart(5) + String(r.over100).padStart(5) + String(r.longMs).padStart(7) + String(r.rebuilds).padStart(3) + String(r.scenes).padStart(5) + String(r.shadows).padStart(5) + String(r.calls).padStart(7) + String(r.ktris).padStart(7) + String(round(r.cpu['post.render'] ?? 0)).padStart(7) + String(round(gpu)).padStart(7));
     if (r.profile && TOP) for (const [k, v] of r.profile.total.filter(([k]) => !/^(frame|anonymous|\(anonymous\)|render|tick|f|run|e|i) /.test(k)).slice(0, TOP)) console.log(`      ${String(v).padStart(6)} ms  ${k}`);
     // check while the sim is still as pre left it (paused, for room night hover); then undo
+    if (!TWO) assertRecording(r, { name, needTimers: has('need-timers'), needOutline: name === 'room night hover' });
     await s.check?.(r);
     await s.post?.();
     await p.keyboard.press('Escape').catch(() => {});
