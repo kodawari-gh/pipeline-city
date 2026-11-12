@@ -3,7 +3,7 @@
 **Status: Approved by Khalil, 2026-11-12 (v3).**
 
 **Base:** `bfe11c69781196ae8dfb9ba7de3553b2037edffc` (main, 2026-11-12 19:49 UTC+1). Folds the five open calls Khalil answered on 2026-11-12 into DRAFT v2. Evidence: the direction audit (2026-11-12, delivered with the v2 draft, not in the repo) and the measurements cited below. **(J)** = judgement. "Proposal" = not decided, not scheduled.
-**Images:** palette [art/palette.png](art/palette.png), references [art/references.png](art/references.png), plus [art/ui-boot.png](art/ui-boot.png) (the boot screen of `index.html`, rendered headless) and [art/cpu2-die-crop.png](art/cpu2-die-crop.png) (a 2.7× crop of `public/stills/cpu2.webp`).
+**Images:** palette [art/palette.png](art/palette.png), references [art/references.png](art/references.png), and [art/cpu2-die-crop.png](art/cpu2-die-crop.png) (a 2.7× crop of `public/stills/cpu2.webp`).
 **Source of truth for values:** the code. Modelling and material detail: [`docs/LOWPOLY_STYLE.md`](LOWPOLY_STYLE.md) (it conflicts with this direction in places; see §12).
 
 ## 1. Direction
@@ -12,7 +12,7 @@ Pipeline City is a **neon hacker dashboard**: a near-black navy world where info
 **It is not:** a cozy warm desk scene (2700 K lamps, oak and wood as the mood); a light theme; cartoon or flat-shaded parts, stylised shapes or saturated base paint; a club rave (neon everywhere, flooding the room, glow that hides the hardware).
 
 ## 2. Palette (one set for UI, 3D parts and 2D interiors)
-Every hex already exists in the repo, except store `#a8ff55`, which is new (justified under Instruction classes below). Roles are decided in this draft.
+Every hex already exists in the repo, except store `#a8ff55`, which is new (justified under Instruction classes below). Roles are decided.
 | Role | Hex | Source |
 |---|---|---|
 | Void / page | `#04060f` | `--bg` (`src/core/ui/ui.css:15`), `theme.ts:15` |
@@ -30,7 +30,7 @@ Every hex already exists in the repo, except store `#a8ff55`, which is new (just
 | Neon primary: active, ALU | `#3be3ff` | `--alu`/`--accent` (`ui.css:17-18`), `GLOW.active` (`src/core/render/three/materials.ts:8`) |
 | Neon secondary: MUL, brand | `#a68bff` | `--mul` (`ui.css:17`); also replaces former brand `#8b5cff` |
 | Neon control: branch | `#ff55dc` | `--br` (`ui.css:17`) |
-| Load (instruction class) | `#9ab8ff` | already the cool key (`src/core/render/three/viewer.ts:68`); was `--ld #ffc247` |
+| Load (instruction class) | `#9ab8ff` | already the studio rim (`src/core/render/three/viewer.ts:68`); was `--ld #ffc247` |
 | Store (instruction class) | `#a8ff55` | **new**; was `--st #6dffa6`. Justification below |
 | Cyan cast light | `#8fd9e6` | `NEON_WASH` (`src/features/room/render/three/palette.ts:51`) |
 | Status ok / warn / error | `#6dffa6` / `#ffc247` / `#ff5a78` | `--ok`/`--warn`/`--bad` (`ui.css:18`) |
@@ -54,9 +54,9 @@ Status green and amber are no longer used as class colours. ALU, MUL and branch 
 | Store | `--st` / `T.st` | `#a8ff55` (**new**; was `#6dffa6`) | 91° | 16.47:1 | 13.47:1 |
 | Branch | `--br` / `T.br` | `#ff55dc` (unchanged) | 312° | 7.31:1 | 5.98:1 |
 
-WCAG: 4.5:1 is AA for normal text, 7:1 is AAA. All five clear AA against the void; ALU, load and store also clear AAA there. Against the die field (where class chips actually sit), MUL 6.11:1 and branch 5.98:1 stay AA, as they already were. Load is 34° from ALU and 32° from MUL, and is less saturated (S 0.40 vs ALU 0.77 / MUL 0.45), so it reads as a soft azure rather than a second cyan or violet. It reuses the cool-key hex already in the palette (no new colour).
+WCAG: 4.5:1 is AA for normal text, 7:1 is AAA. All five clear AAA against the void. Against the die field (where class chips actually sit), MUL 6.11:1 and branch 5.98:1 stay AA, as they already were. Load is 34° from ALU and 32° from MUL, and is less saturated (S 0.40 vs ALU 0.77 / MUL 0.45), so it reads as a soft azure rather than a second cyan or violet. It reuses the cool-key hex already in the palette (no new colour).
 
-**Why a new hex for store.** No remaining palette hue sits far enough from status green `#6dffa6` (143°), status amber `#ffc247` (40°) and ALU cyan (189°). The lime already in the repo, `#7dff4d` (the gamer-case RGB strip, `case3d.ts:258`, hue 104°), is only 31° from status green and would recreate the collision this change is meant to end. `#a8ff55` (hue 91°) sits nearly midway between amber (51° away) and status green (53° away), is neon at V 1.0, and contrasts 16.47:1 against the void.
+**Why a new hex for store.** No remaining palette hue sits far enough from status green `#6dffa6` (143°), status amber `#ffc247` (40°) and ALU cyan (189°). The lime already in the repo, `#7dff4d` (the gamer-case RGB strip, `case3d.ts:258`, hue 104°), is only 39.6° from status green and would recreate the collision this change is meant to end. `#a8ff55` (hue 91°) sits nearly midway between amber (51° away) and status green (53° away), is neon at V 1.0, and contrasts 16.47:1 against the void.
 
 ### Deprecated values (replace when the file is next touched; replacements marked (J) are judgements)
 | Value | Where | Replace with |
@@ -87,7 +87,7 @@ Light-theme tokens (the whole `:root` default palette and the `LIGHT` object) ar
 
 ## 3. Lighting
 - **Key: cool.** Stills, gallery and build mode: a cool white key (`#9ab8ff` family) replaces `#fff0dc`. **Rim: neon**, cyan `#3be3ff` or violet `#a68bff`, one per shot. Exposure and ACES stay (`viewer.ts`: ACES, exposure 1.6). (Proposal; today: key `#fff0dc` ×2.4, rim `#9ab8ff` ×1.2, `viewer.ts:68`.)
-- **Warm only as small accents:** a practical lamp may be warm (`#ffc27d`), never the key. Target (J): in a night room shot, warm-tinted pixels (R > B) under 20 % (the boot still has 48.0 % today).
+- **Warm only as small accents:** a practical lamp may be warm (`#ffc27d`), never the key. Target (J): in a night room shot, warm-tinted pixels (R > B + 5) under 20 % (the boot still has 48.0 % today).
 - **Room night look:** the window (moon, city) and the neon fixtures (strips, bias light, LED halo) define the room; warm lamps are pools, not the fill. Today the lamp cap keeps lights in `LIGHT_ORDER` (`src/features/room/render/three/roomlights.ts:18`): key, sun, arc, desk, floor, bedside, sconces, … `deskLed`, `ledHalo`, `ledUnder`, `bias`, `strips` last. So at cap 4 (Low) and cap 8 every neon light is capped; their fixtures still glow and their baked bounce shows ×2.5 (`CAPPED_BOUNCE`, `roomlights.ts:36`). **Proposal:** order neon fixtures before the warm lamps.
 - **Room surfaces: charcoal and graphite, not wood (decided).** Today the room is smoked oak and ash veneer: `OAK #665540` / `OAK_GRAIN #38291c` (`src/features/room/render/three/palette.ts:15`) used by `smokedOak` (roughness `OAK_ROUGH` 0.68, `furniture3d.ts:94,111`) for the floor (`room3d.ts:283-284`), the desk top (`room3d.ts:292`) and the bookcase (`furniture3d.ts:518`); `VENEER #2f2a26` / `VENEER_GRAIN #1c1815` (`palette.ts:10`) at roughness 0.5 (`furniture3d.ts:208,332,764`) for the bed, nightstand, shelf and drawer unit; walls are plaster over `WALL #3a404c` at roughness 0.92 (`palette.ts:8`, `room3d.ts:425`); ceiling `CEILING 0x4a4f59` at roughness 0.95 (`room3d.ts:438`); trim `TRIM 0x3d424c` (`palette.ts:8`). **Targets (J), all from §2:**
 
@@ -124,7 +124,7 @@ These four stay recognisably the same hardware (OEM tower, 3.5" HDD, DDR2 clip-o
 - Emissives only where real hardware has light: status and activity LEDs, RGB strips and rings (fans, GPU shroud, cooler cap, case strip, board strip, RAM), screens, lit traces and die blocks. No glowing outlines on geometry; no emissive on bare plastic or metal.
 - Colours from the neon and status roles only (§2). Existing state looks hold: active `#3be3ff` 0.4, throttled `#ffc247` 0.2, burnt `#ff5a78` 0.8, heat ramp cyan→amber→red from 42 °C to 82 °C (`materials.ts:8-33`).
 - LOD stand-ins keep the same materials, so emissive state survives at a distance (`src/core/render/three/partlod.ts`; `docs/render/lod.md` "The machine's stand-ins"). New emissive materials must keep this: a stateful material joins only its own set.
-- **Stills: powered-on idle (proposal).** Today `renderStill` shows parts unpowered (0 of 71 stills have a neon pixel, S > 0.6 and V > 0.85). New stills show idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
+- **Stills: powered-on idle (proposal).** Today `renderStill` shows parts unpowered (3 of 71 stills have any neon pixel, S > 0.6 and V > 0.85: `tpm1` 17 px, `tpm2` 15 px, `cooler1` 1 px). New stills show idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
 ## 5. Zoom continuity: 3D part → interior view
 Rules (targets; all values are proposals (J)):
@@ -155,15 +155,14 @@ Rules (targets; all values are proposals (J)):
 
 ## 9. References ([art/references.png](art/references.png))
 **References**
-1. `docs/art/ui-boot.png`: the UI at its most on-direction: navy void, glass, the brand gradient (today `#8b5cff`→`#3be3ff` in `index.html:21`; after the fold, `#a68bff`→`#3be3ff`), crisp type.
-2. `docs/art/cpu2-die-crop.png`: the die art's class colours and floorplan: the interior look the zoom must reach (at full value; §5). After the class-hue change, this crop will need a refresh.
-3. `public/stills/cpu2.webp`: a real package carrying neon art; the target once relit (§3).
-4. `public/stills/board2.webp`: black PCB, real slots, low-saturation base: the right base for lit traces.
-5. `public/stills/gpu3.webp`: charcoal shroud and modelled fans, ready for an RGB ring (§4).
-6. `public/stills/vsink1.webp`: a black fin stack with one copper band: dark, plausible, mean L 55.1.
+1. `docs/art/cpu2-die-crop.png`: the die art's class colours and floorplan: the interior look the zoom must reach (at full value; §5). After the class-hue change, this crop will need a refresh.
+2. `public/stills/cpu2.webp`: a real package carrying neon art; the target once relit (§3).
+3. `public/stills/board2.webp`: black PCB, real slots, low-saturation base: the right base for lit traces.
+4. `public/stills/gpu3.webp`: charcoal shroud and modelled fans, ready for an RGB ring (§4).
+5. `public/stills/vsink1.webp`: a black fin stack with one copper band: dark, plausible, mean L 55.1.
 
 **Anti-references (the old look, including the withdrawn light-part exceptions)**
-- `public/boot-still.jpg`: a sunny warm room (48.0 % warm pixels, 0 % neon, wood tones `#413124`, `#593e23`).
+- `public/boot-still.jpg`: a sunny warm room (48.0 % warm pixels (R > B + 5), 0 % neon, wood tones `#413124`, `#593e23`).
 - `public/stills/case0.webp`: cream case, mean L 231.6: the old OEM paint, to be replaced by the charcoal variant (§4).
 - `public/stills/hdd0.webp`: bright aluminium drive, mean L 191.4.
 - `public/stills/ram1.webp`: silver DDR2 spreader, mean L 171.2.
@@ -174,7 +173,7 @@ All stills are still lit warm-key and unpowered, so even the references are "par
 
 ## 10. Gaps and rework (proposals, ranked by visibility; nothing scheduled)
 S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold until Khalil says go.
-1. **Room: night light and charcoal / graphite surfaces (L).** Cool night key (moon, city), neon fixtures first in `LIGHT_ORDER`, warm lamps as one or two practicals, oak and ash veneer replaced by the charcoal/graphite specs in §3. *Touches:* `palette.ts` (`WALL`, `OAK`, `VENEER`, …), `room3d.ts`, `furniture3d.ts` (`smokedOak`), `roomlights.ts`, `room/light.md` targets, **lightmap re-bake** (`tools/bake/`), screenshots per preset (`npm run shot -- --preset Low|Medium|High`).
+1. **Room: night light and charcoal / graphite surfaces (L).** Cool night key (moon, city), neon fixtures first in `LIGHT_ORDER`, warm lamps as one or two practicals, oak and ash veneer replaced by the charcoal/graphite specs in §3. *Touches:* `palette.ts` (`WALL`, `OAK`, `VENEER`, …), `room3d.ts`, `furniture3d.ts` (`smokedOak`), `roomlights.ts`, `room/light.md` targets, **lightmap re-bake** (`tools/bake/`), screenshots per preset (`npm run shot -- out.png --preset Low|Medium|High`).
 2. **Boot still (S, after 1).** Re-shoot at night; replace `public/boot-still.jpg`. Fold the boot gradient `#8b5cff`→`#a68bff` in `index.html:21,32` at the same time (or with item 8).
 3. **Instruction-class hues (S).** `--ld #9ab8ff` and `--st #a8ff55` in `ui.css` and `theme.ts`; update tests that hard-code the old amber/green class colours. Live die and pipeline art follow the tokens. Refresh `docs/art/cpu2-die-crop.png` once a die still exists with the new hues.
 4. **Dark / anodised variants of the light parts (M).** `case0`, `hdd0`, `ram1`, `cooler1` to the material specs in §4; re-render their stills; they must meet C2's dark default (40–100). *Touches:* `case3d.ts` `LOOKS.oem`, `exterior.ts` `STYLES[0]`, `casedetail3d.ts` beige button, `drive3d.ts` `hddModel`, `ram3d.ts` `'low'` plate, `cooler3d.ts` `tower` fins.
@@ -208,7 +207,7 @@ S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold unti
 
 **Room**
 - [ ] Surfaces from the charcoal / graphite targets in §3, not oak or ash veneer.
-- [ ] Warm practicals only; warm-tinted pixels under 20 % in a night shot (J).
+- [ ] Warm practicals only; warm-tinted pixels (R > B + 5) under 20 % in a night shot (J).
 
 **Quick check (luminance, fill, neon)**
 ```python
@@ -233,4 +232,5 @@ mx=o.max(1)/255; S=(o.max(1)-o.min(1))/np.maximum(o.max(1),1); neon=((S>0.6)&(mx
 ## Changelog
 - 2026-11-12: v1-v5: the mixed-look guide (realistic parts, warm room, neon UI) with rules C1, C2, rework of radiators and display1 (see git history of this file).
 - 2026-11-12: DRAFT v2: direction "neon hacker dashboard" approved by Khalil for drafting; harmonised palette; cool key and neon rim; emissive and zoom rules; references reset. Base `bfe11c6`.
-- 2026-11-12: DRAFT v3 (this file): folds Khalil's five calls — drop the light theme; instruction classes get their own hues (`--ld #9ab8ff`, `--st #a8ff55`); dark or anodised variants of `case0`, `hdd0`, `ram1`, `cooler1`; room surfaces to charcoal and graphite; brand `#8b5cff` folded into `#a68bff`. Base still `bfe11c6`.
+- 2026-11-12: Approved v3 (this file): folds Khalil's five calls — drop the light theme; instruction classes get their own hues (`--ld #9ab8ff`, `--st #a8ff55`); dark or anodised variants of `case0`, `hdd0`, `ram1`, `cooler1`; room surfaces to charcoal and graphite; brand `#8b5cff` folded into `#a68bff`. Base still `bfe11c6`.
+- 2026-11-12: v3 fact fixes after review: status, changelog and palette wording; current studio key vs rim; AAA contrast for MUL and branch; hue distances; warm-pixel threshold (R > B + 5); neon still counts; references sheet (approved v3 at `bfe11c6`, all listed anti-references); dropped `ui-boot.png` as a reference; shot command usage.
