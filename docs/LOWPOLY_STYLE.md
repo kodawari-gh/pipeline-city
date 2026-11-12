@@ -1,6 +1,6 @@
 # Low-Poly Visual Style Guide
 
-> Updated 2026-11-12 against `2525863`. **Approved by Khalil, 2026-11-12.** **The code is the source of truth**: each value below cites the file it comes from. Where the repo sets no rule, the guide says "Rule to set". Measured values come from `public/stills/*.webp` (see the art style guide).
+> Updated 2026-11-12 against `2525863`. **Approved by Khalil, 2026-11-12.** **The code is the source of truth**: each value below cites the file it comes from. Where the repo sets no rule, the guide says "Rule to set". Measured values come from `public/stills/*.webp` (see [`docs/art-style.md`](art-style.md)).
 
 ## Aesthetic Goals
 
@@ -12,8 +12,6 @@ Pipeline City's 3D renders computing hardware with **precision, clarity, and rea
 
 ## Colour decisions (owner, 2026-11-12)
 
-- **Cyan `#3be3ff` is a UI and room colour only. No cyan on parts, in any form:** base colours, printed art, stills and in-game glows (state glow, RGB rings, strips, accents). UI overlays over the 3D view (selection ring, build-mode marker) are UI.
-- **Part glow colour: violet `#a68bff`** (`T.mul`; suggestion, the owner can override). It replaces cyan wherever a part glows. The code still uses cyan in the places marked **(to change)** below.
 - **Radiators follow the dark default** (target mean still luminance 60-100). Light parts that are light in reality (`case0`, `hdd0`, `ram1`, `cooler1`) are allowed exceptions.
 
 ## Inspiration
@@ -102,23 +100,23 @@ From `src/core/render/three/materials.ts` (`GLOW`, `partLook`):
 
 **Powered Off:** emissive 0; base colour × 0.5 (darken, not desaturate).
 
-**Active (running job, bus lit):** emissive 0.4, violet `#a68bff` (`GLOW.active`). **(to change:** the code has cyan `0x3be3ff` at `materials.ts:8`.)
+**Active (running job, bus lit):** emissive 0.4, cyan `#3be3ff` (`GLOW.active`, `materials.ts:8`).
 
 **Throttled:** emissive 0.2, amber `#ffc247`; base × 0.8.
 
-**Overheating (temp > 42 °C, full at 82 °C):** emissive 0.2–0.6 (scales with temp); colour violet → amber → red (`heatColor`; **to change** with `GLOW.active`).
+**Overheating (temp > 42 °C, full at 82 °C):** emissive 0.2–0.6 (scales with temp); colour cyan → amber → red (`heatColor`).
 
 **Burnt / Failed:** emissive 0.8, red `#ff5a78`; base × 0.3. (No overlay texture in code.)
 
 A part's glow scales by its `gain` (wide faces glow softer). `GLOW.hot` `#ff5a30` is defined but not used by `partLook`.
 
-**RGB (in-game, not in stills):** violet `#a68bff` where it was cyan; status colours stay amber `T.ld` and red `T.bad`; magenta `T.br` stays. **To change** in code:
-- GPU fan ring: `glowMat(0x3be3ff, 0x1d6f80)`, `fixed: 0x3be3ff` → `0xa68bff` on a dark violet base (suggestion `0x1a1430`, as tier-3 parts, `parts3d.ts:75`) (`gpu3d.ts:212-214`).
-- Tower cooler accent `ACCENT.tower = 0x3be3ff` → `0xa68bff` (`cooler3d.ts:25`; base colour at `:254`, fan ring at `:262`; re-bake the `cooler1` still).
-- Case strip idle/working `T.alu` → `T.mul`; halt `T.ld`, error/dead `T.bad` stay (`case3d.ts:98`).
-- Case accent by kind: gamer `T.mul`, show `T.br`, other kinds `T.alu` → copper `#c6874c` (suggestion; measured on `rsink1`) (`case3d.ts:133`).
-- Board RGB strip `T.alu` → `T.br` fade becomes `T.mul` → `T.br` (`boardmodel3d.ts:68`).
-- Printed part art that reads `T.alu` (die, GPU, NPU, TPM, disk, board art): check part by part; keep the `--alu` token itself, it is the UI accent.
+**RGB and accents (in-game, not in stills; stills are unpowered):**
+- GPU fan ring: `glowMat(0x3be3ff, 0x1d6f80)`, `fixed: 0x3be3ff` (`gpu3d.ts:212-214`).
+- Tower cooler accent `ACCENT.tower = 0x3be3ff`: two accent lines on the top cover (`cooler3d.ts:254`) and its fans' fixed ring (`:262`).
+- Case strip by machine state: idle/working `T.alu` (cyan; working breathes), halt `T.ld` amber, error/dead `T.bad` red (`case3d.ts:98`).
+- Case accent by kind: gamer `T.mul` violet, show `T.br` magenta, other kinds `T.alu` cyan (`case3d.ts:133`).
+- Board RGB strip: 44 LEDs fading `T.alu` cyan → `T.br` magenta (`boardmodel3d.ts:68`).
+- Tier-3 part glow: base `0x1a1430`, emissive the skin's accent, 0.9 (`parts3d.ts:75`).
 
 ### Outline / Selection
 
@@ -126,7 +124,7 @@ A part's glow scales by its `gain` (wide faces glow softer). `GLOW.hot` `#ff5a30
 - three.js `OutlinePass` (`PickOutline`, with the scene depth so hidden edges show dimmer)
 - Visible edge `#ffff00`, hidden edge `#8a7a00`
 - `edgeThickness` **1.5**, `edgeStrength` 4
-- Hover ring on the board is neutral, selected cyan, tutorial target yellow (`docs/UI.md`): UI overlays, not part colour.
+- Hover ring on the board is neutral, selected cyan, tutorial target yellow (`docs/UI.md`).
 
 ## Lighting Setup
 
@@ -221,7 +219,7 @@ The 3D world's baked art always uses the dark palette (`builtinTheme`, `theme.ts
 - [ ] Recognizable silhouette at shop-tile size (120 × 84)
 - [ ] Real size at 23 units/mm, real fixings (`docs/PC_PARTS.md`)
 - [ ] Soft edges (`softBox` / 1-segment bevels), no hard box edges
-- [ ] Materials from the measured table; saturated colour only on PCB, die art or one small accent; **no cyan `#3be3ff`** in base colour, printed art or any glow; part glow violet `#a68bff`
+- [ ] Materials from the measured table; saturated colour only on PCB, die art or one small accent
 - [ ] Still re-baked (`npm run stills -- --only <id>`): 480 × 336, fill 0.66–0.86, mean luminance ≤ 140 (exceptions: case0, hdd0, ram1, cooler1)
 - [ ] One distinct still per product (no duplicate hash in the manifest)
 - [ ] Outline renders correctly when selected
@@ -255,3 +253,8 @@ Not re-checked against the benchmarks in this update (`npm run bench:*`, `src/fe
 - Subsurface scattering for plastic parts (cooling shrouds)
 - Particle effects (thermal haze, dust)
 - Animated cables (sway, drape)
+
+## Changelog
+
+- 2026-11-12: updated against `2525863` to match the code; approved by Khalil.
+- 2026-11-12: cyan rule removed at Khalil's request; cyan glows and accents documented as they are in the code.
