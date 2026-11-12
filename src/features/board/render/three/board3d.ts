@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, AwayWatch, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics } from '@/app/graphics';
+import { autoStep, AwayWatch, awayHeld, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -727,9 +727,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     meter.tick(now, canvas.width, canvas.height);
     // auto tier: one decision from the first seconds of frames; manual mode never steps
-    // (only frames the renderer drew count: an idle frame is cheap on any device)
-    if (draw && tierRecord.peek().mode === 'auto' && document.visibilityState === 'visible') {
-      const dir = tierWatch.tick(rawDt, performance.now() - t0, now, fps);
+    // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)
+    if (draw && tierRecord.peek().mode === 'auto' && document.visibilityState === 'visible' && !awayHeld(fps, g.fps)) {
+      const dir = tierWatch.tick(rawDt, performance.now() - t0, now, g.fps);
       if (dir) stepTier(dir);
     }
     // a new case is a new room: frame it again

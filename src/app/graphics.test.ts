@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, AwayWatch, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
+  autoStep, AwayWatch, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
   resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
 } from './graphics';
 
@@ -62,6 +62,25 @@ describe('TierWatch', () => {
     for (let t = 20000; t < 40000; t += 50) expect(w.tick(0.05, 45, t, 60)).toBeNull();
   });
   it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
+
+  it('ignores frames the away limit holds down', () => {
+    const w = new AwayWatch(), w2 = new TierWatch();
+    w2.reset(0);
+    let out: 'down' | 'up' | null = null;
+    // unfocused: the limit is 30 against the player's 60; 30 fps frames must not count
+    for (let t = 5000, i = 0; i < 600; i++, t += 1000 / 30) {
+      const limit = w.limit(60, t, false, false);
+      if (!awayHeld(limit, 60)) out = w2.tick(1 / 30, 3, t, 60) ?? out;
+    }
+    expect(out).toBeNull();
+  });
+  it('awayHeld: only a limit under the player fps holds', () => {
+    expect(awayHeld(30, 60)).toBe(true);
+    expect(awayHeld(30, 0)).toBe(true);
+    expect(awayHeld(60, 60)).toBe(false);
+    expect(awayHeld(0, 0)).toBe(false);
+    expect(awayHeld(24, 24)).toBe(false);
+  });
 });
 
 describe('tier persistence', () => {
@@ -101,6 +120,27 @@ describe('tier persistence', () => {
     resetTierSteps();
     expect(stepTier('up', 'low')).toBe(false); // would be high: above detected + 1
   });
+  it('a step down is remembered: after a reload auto does not step back up', () => {
+    setAutoTier({ tier: 'low', reason: 'test' });
+    expect(stepTier('up', 'low')).toBe(true); // low -> medium
+    expect(stepTier('down', 'low')).toBe(false); // once per load
+    resetTierSteps();
+    expect(stepTier('down', 'low')).toBe(true); // medium -> low, the next load
+    expect(tierRecord.value).toMatchObject({ tier: 'low', maxUp: 'low' });
+    // reload
+    const saved = JSON.parse(store.get('pipeline-city.graphics')!), rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
+    const s = resolveStart(saved, rec, '', detect('low'));
+    expect(s.rec.tier).toBe('low');
+    tierRecord.value = s.rec; // the new load's state
+    resetTierSteps();
+    expect(stepTier('up', 'low')).toBe(false);
+    expect(tierRecord.value.tier).toBe('low');
+  });
+  it('a record with maxUp below its tier starts at maxUp; an old record parses', () => {
+    const s = resolveStart({ ...DEFAULTS, v: 2 }, { mode: 'auto', tier: 'high', reason: '', maxUp: 'medium' }, '', detect('high'));
+    expect(s.rec.tier).toBe('medium');
+    expect(parseTierRecord({ mode: 'auto', tier: 'low', reason: '' })).toEqual({ mode: 'auto', tier: 'low', reason: '' });
+  });
   it('a manual choice always wins over an auto step', () => {
     setTier('high');
     expect(tierRecord.value.mode).toBe('manual');
@@ -133,8 +173,18 @@ describe('presets', () => {
     expect(CHOICES.lights.map(([v]) => v)).toEqual([4, 8, 0]);
     expect(CHOICES.lightShadows.map(([v]) => v)).toEqual([0, 1]);
     expect(PRESETS.low).toMatchObject({ lights: 4, lightShadows: 0 });
+    expect(PRESETS.medium).toMatchObject({ lights: 0, lightShadows: 0 });
     expect(PRESETS.high).toMatchObject({ lights: 0, lightShadows: 1 });
     expect(parseGraphics({ lights: 8, lightShadows: 5 })).toMatchObject({ lights: 8, lightShadows: 1 });
+  });
+
+  it('an old low or medium save with no lamp keys stays low or medium', () => {
+    for (const id of ['low', 'medium'] as const) {
+      const { lights: _l, lightShadows: _s, ...old } = PRESETS[id];
+      const g = parseGraphics({ ...old, fps: 60, v: 2 });
+      expect(presetOf(g)).toBe(id);
+      expect(resolveStart({ ...old, fps: 60, v: 2 }, null, '', () => ({ tier: 'high', reason: '' })).rec.tier).toBe(id);
+    }
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {

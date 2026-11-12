@@ -61,7 +61,7 @@ export type Preset = 'low' | 'medium' | 'high' | 'ultra';
 /** `high` is the look the game is tuned on: the default. */
 export const PRESETS: Record<Preset, PresetOptions> = {
   low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
-  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 4, lightShadows: 1, textures: 1, filtering: 4, live: 1, particles: 1 },
+  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
   high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
@@ -139,13 +139,21 @@ export function readDeviceInfo(): DeviceInfo {
   };
 }
 
-export interface TierRecord { mode: 'auto' | 'manual'; tier: Tier; reason: string }
+export interface TierRecord {
+  mode: 'auto' | 'manual';
+  tier: Tier;
+  reason: string;
+  /** Set by a step down: auto never goes up past this tier again. */
+  maxUp?: Tier;
+}
 
 /** A stored tier record made safe, or null. */
 export function parseTierRecord(raw: unknown): TierRecord | null {
   const o = raw as Record<string, unknown> | null;
   if (!o || typeof o !== 'object' || (o.mode !== 'auto' && o.mode !== 'manual') || !TIERS.includes(o.tier as Tier)) return null;
-  return { mode: o.mode, tier: o.tier as Tier, reason: typeof o.reason === 'string' ? o.reason : '' };
+  const rec: TierRecord = { mode: o.mode, tier: o.tier as Tier, reason: typeof o.reason === 'string' ? o.reason : '' };
+  if (TIERS.includes(o.maxUp as Tier)) rec.maxUp = o.maxUp as Tier;
+  return rec;
 }
 
 /**
@@ -162,7 +170,11 @@ export function resolveStart(saved: unknown, rec: unknown, search: string, detec
   if (hasSave && !stored) {
     const p = presetOf(base);
     out = { g: base, rec: { mode: 'manual', tier: p === 'low' || p === 'medium' ? p : 'high', reason: 'saved settings' } };
-  } else if (stored) out = { g: stored.mode === 'auto' ? tierGraphics(stored.tier, base) : base, rec: stored };
+  } else if (stored) {
+    // auto never starts above a tier it stepped down from
+    const rec = stored.mode === 'auto' && stored.maxUp && TIERS.indexOf(stored.tier) > TIERS.indexOf(stored.maxUp) ? { ...stored, tier: stored.maxUp } : stored;
+    out = { g: rec.mode === 'auto' ? tierGraphics(rec.tier, base) : base, rec };
+  }
   else { const d = detect(); out = { g: tierGraphics(d.tier, DEFAULTS), rec: { mode: 'auto', ...d } }; }
   const q = new URLSearchParams(search).get('tier') as Tier | null;
   if (q && TIERS.includes(q)) out = { g: tierGraphics(q, out.g), rec: { mode: 'manual', tier: q, reason: `?tier=${q}` } };
@@ -184,6 +196,11 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>, out = { ...base };
   for (const k of Object.keys(CHOICES) as Choice[]) if (CHOICES[k].some(([v]) => v === o[k])) out[k] = o[k] as number;
   if (typeof o.scale === 'number' && Number.isFinite(o.scale)) out.scale = clamp(o.scale, SCALE_MIN, SCALE_MAX);
+  // an old save has no lamp keys: take them from the preset its other keys match, so low stays low and medium stays medium
+  if (o.lights === undefined && o.lightShadows === undefined) {
+    const p = PRESET_NAMES.find(([id]) => presetKeys.every((k) => k === 'lights' || k === 'lightShadows' || out[k] === PRESETS[id][k]));
+    if (p) { out.lights = PRESETS[p[0]].lights; out.lightShadows = PRESETS[p[0]].lightShadows; }
+  }
   if (typeof o.brightness === 'number' && Number.isFinite(o.brightness)) out.brightness = clamp(o.brightness, BRIGHT_MIN, BRIGHT_MAX);
   if (typeof o.auto === 'boolean') out.auto = o.auto;
   return out;
@@ -270,11 +287,15 @@ export function resetTierSteps() { stepped = false; }
 export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier): boolean {
   const rec = tierRecord.peek();
   if (rec.mode !== 'auto' || stepped) return false;
-  const at = TIERS.indexOf(rec.tier), to = dir === 'down' ? at - 1 : Math.min(at + 1, TIERS.indexOf(detectedTier) + 1, 2);
+  const at = TIERS.indexOf(rec.tier), top = rec.maxUp ? TIERS.indexOf(rec.maxUp) : 2;
+  const to = dir === 'down' ? at - 1 : Math.min(at + 1, TIERS.indexOf(detectedTier) + 1, top);
   if (to < 0 || to === at) return false;
   stepped = true;
   const tier = TIERS[to]!;
-  commit(tierGraphics(tier, graphics.peek()), { mode: 'auto', tier, reason: `${dir === 'down' ? 'slow frames' : 'fast frames'}, was ${tierName(rec.tier)}` });
+  // a step down is remembered: auto does not go up past it on a later load
+  const next: TierRecord = { mode: 'auto', tier, reason: `${dir === 'down' ? 'slow frames' : 'fast frames'}, was ${tierName(rec.tier)}` };
+  if (dir === 'down') next.maxUp = tier; else if (rec.maxUp) next.maxUp = rec.maxUp;
+  commit(tierGraphics(tier, graphics.peek()), next);
   return true;
 }
 
@@ -334,6 +355,9 @@ export class AwayWatch {
     return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
   }
 }
+
+/** Does the away limit hold the loop below the player's own `fps` (0: none)? Those frames say nothing to `TierWatch`. */
+export const awayHeld = (limit: number, fps: number): boolean => (fps ? limit < fps : limit > 0);
 
 /** Under this share of the frame limit a frame counts as slow, so a loop held to 30 is not read as a weak GPU. */
 const SLOW_SHARE = 0.8;
