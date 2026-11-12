@@ -73,6 +73,8 @@ export interface Card3D {
   /** The 2D rect the zoom is read over (its point nearest the view's centre), and what the zoom seen there does (fade, then swing). */
   at: RectLike;
   pose: (zoom: number) => void;
+  /** What `pose` fades: the cooler and the backplate (`fadeTree`). */
+  fades: Group;
   /** Fade this with the cooler too (a power lead plugged into the top edge). It returns what stops that (the lead is pulled or rebuilt). */
   alsoFade: (o: Object3D) => () => void;
   /** The power sockets' mouths, standing: layout x and y, and the depth of the top edge where a plug goes in. */
@@ -153,7 +155,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   const extra: Object3D[] = [];
   const band = DEVICE_LOD[kind === 'gpu' ? 'gpu' : 'npu'].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
   return {
-    root, spins, skin, sockets,
+    root, spins, skin, sockets, fades,
     at: f.r,
     alsoFade: (o) => { extra.push(o); return () => { const i = extra.indexOf(o); if (i >= 0) extra.splice(i, 1); }; },
     pose: (zoom) => {

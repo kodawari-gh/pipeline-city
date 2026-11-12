@@ -5,12 +5,6 @@ import {
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
 
-export const PALETTE = {
-  cpu: 0x2a2f4d, gpu: 0x17263f, ram: 0x1f6d45, ssd: 0x2d3035, psu: 0x22242a, pcb: 0x123f3c, alu: 0xc4c8cc, cable: 0x2c2d31,
-  chassis: 0x24262b, gold: 0xc9a24a, slot: 0x15171b, rgb: 0x7a5cff,
-  oak: 0xb98655, walnut: 0x7a4f2e, slat: 0xa87446, plaster: 0xe9dcc8, rug: 0x8c4f3f, ceramic: 0xf1ede5, lamp: 0xf4f0e6, plastic: 0x26272b,
-} as const;
-
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
 /** Above this temperature a part starts to glow (LOWPOLY_STYLE.md "Overheating"). */
 export const HOT_FROM_C = 42, HOT_FULL_C = 82;
@@ -181,6 +175,8 @@ const kind = (o: Mesh): string => {
 export interface ShareOptions {
   /** Subtrees left as they are: built again or written after the build (the key rack). Their materials are not shared outside them either. */
   skip?: readonly Object3D[];
+  /** Subtrees that fade alone (`fadeTree`: a lid, a cooler, a spreader): each is a scope of its own, so a fade changes nothing outside it. */
+  apart?: readonly Object3D[];
   /** Hears of each material replaced by an equal one before it is disposed (the room's reflections drop it). */
   onReplace?: (old: Material, canon: Material) => void;
 }
@@ -190,17 +186,18 @@ export interface Shared { before: number; after: number }
 
 /**
  * Shares equal materials under `root`: of the materials with the same `materialKey`, used in the same scope (the nearest ancestor tagged with
- * a `userData.id`, which a rebuild disposes and a hover outlines as a whole) by the same kind of mesh, every mesh takes the first and the others
- * are disposed. Fewer materials draw with fewer uniform uploads (each change of material uploads its uniforms and its lights' state). Left as
- * they are: a material a writer changes (`own`, `PartSkin`, a glow, a fade), one of unknown inputs, one used across scopes or kinds of mesh or
- * by more than a plain mesh, and everything under `skip`. A writer that must change a shared one alone takes a copy first (`writable`).
+ * a `userData.id`, which a rebuild disposes and a hover outlines as a whole, or an `apart` subtree) by the same kind of mesh, every mesh takes
+ * the first and the others are disposed. Fewer materials draw with fewer uniform uploads (each change of material uploads its uniforms and its
+ * lights' state). Left as they are: a material a writer changes (`own`, `PartSkin`, a glow, a fade), one of unknown inputs, one used across
+ * scopes or kinds of mesh or by more than a plain mesh, and everything under `skip`. A writer that must change a shared one alone takes a copy
+ * first (`writable`).
  */
 export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
   interface Use { scope: Object3D | null; kind: string | null; meshes: Mesh[]; fixed: boolean }
-  const uses = new Map<Material, Use>(), skip = new Set(o.skip ?? []);
+  const uses = new Map<Material, Use>(), skip = new Set(o.skip ?? []), apart = new Set(o.apart ?? []);
   const use = (m: Material): Use => { let u = uses.get(m); if (!u) uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false })); return u; };
   const walk = (x: Object3D, scope: Object3D, fixed: boolean): void => {
-    const f = fixed || skip.has(x), s = typeof x.userData.id === 'string' ? x : scope, mesh = x as Mesh;
+    const f = fixed || skip.has(x), s = typeof x.userData.id === 'string' || apart.has(x) ? x : scope, mesh = x as Mesh;
     const m = (x as { material?: Material | Material[] }).material;
     if (m) {
       for (const a of Array.isArray(m) ? m : [m]) {

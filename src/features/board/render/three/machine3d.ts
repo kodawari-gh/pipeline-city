@@ -16,7 +16,8 @@ import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
 import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
-import { PartSkin, mat, type PartState } from '@/core/render/three/materials';
+import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
+import { mergeSiblings } from '@/core/render/three/merge';
 import { tag } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
@@ -180,9 +181,16 @@ export class Machine3D {
   readonly fades: Object3D[] = [];
   /** The parts with a detailed view, which hold the camera on rails up close (`rails.ts`). A new part with a detailed view adds its own (`rail`). */
   readonly rails: Rail[] = [];
+  /** What the merge and the share leave as it is (`share`): the side panel's screws (they turn out one by one), a part a glTF model replaces. */
+  private keep: Object3D[] = [];
+  /** What fades alone besides `fades` (a card's cooler and backplate): its materials stay its own (`share`). */
+  readonly apart: Object3D[] = [];
 
-  /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has no router. */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true) {
+  /**
+   * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has
+   * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two).
+   */
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true) {
     this.art = new ArtSet(q);
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
@@ -213,6 +221,18 @@ export class Machine3D {
     this.rgb.position.set(BD.x + BD.w / 2, -(BD.y + BD.h / 2), FRONT - 900);
     this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
     this.root.add(this.rgb, this.spill);
+    if (merge) this.share();
+  }
+
+  /**
+   * Fewer draws and materials (PERF22, docs/GRAPHICS_3D_OVERHAUL.md "Shared materials"): the still meshes of each parent as one palette mesh
+   * (`mergeSiblings`), then equal materials as one in each part (`shareMaterials`). The cables (built again alone) and `keep` stay as they
+   * are; each fade (`fades`, `apart`) keeps its materials. The state looks are `own`: the skins, the rings and strips, the case's LEDs.
+   */
+  private share(): void {
+    const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
+    mergeSiblings(this.root, { skip, apart });
+    shareMaterials(this.root, { skip, apart });
   }
 
   // ------------------------------------------------------------------ case
@@ -240,6 +260,9 @@ export class Machine3D {
     this.door = { kind, cm, t: 0, zoom: 0, board: 0.13, zoomOpen: false, manual: null, inside: false, busy: false };
     this.reveal(CASE_GLASS, FRONT, (z) => { this.door!.zoom = z; }, true);
     this.leds = cm.leds;
+    for (const m of Object.values(cm.leds)) own(m);
+    own(cm.strip);
+    this.keep.push(...cm.screws);
   }
 
   /** The fans fitted on these spots, as their hosts build them. */
@@ -270,7 +293,7 @@ export class Machine3D {
   }
 
   /** Let the live frame drive a fan or a light. */
-  private spin(s: Spin) { s.rotor.userData.spin = true; this.fans.push({ ...s, speed: 0 }); }
+  private spin(s: Spin) { s.rotor.userData.spin = true; if (s.ring) own(s.ring); this.fans.push({ ...s, speed: 0 }); }
 
   /** Add a built model to `g` and let the live frame drive its fans and lights. */
   private model(g: Group, m: Model): Model {
@@ -386,6 +409,7 @@ export class Machine3D {
         // (flat, the card's face lies on the hinge's plane)
         if (kind !== 'nic') this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
+        this.apart.push(c.fades);
         this.softSkin(d.id, ...c.skin);
         break;
       }
@@ -458,7 +482,10 @@ export class Machine3D {
     }
     // a part with a glTF model wears it over its slot's rect in place of the primitives built above
     const model = modelOf(visual, spec.kind), fit = model ? this.rects.get(d.slot) : undefined;
-    if (model && fit) useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !!g.parent, model.stretch);
+    if (model && fit) {
+      this.keep.push(g); // (the model hides the children it replaces: they stay as they are)
+      useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !!g.parent, model.stretch);
+    }
     this.root.add(g);
   }
 
