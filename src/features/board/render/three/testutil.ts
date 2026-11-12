@@ -25,5 +25,5 @@ export function quietCanvas(): void {
 /** The sandbox's biggest machine. */
 export const maxedSnapshot = (): Snapshot => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }).snapshot();
 
-/** The machine of `s` as the room builds it, merged (`share`) or not. */
-export const buildMachine = (s: Snapshot | null, merge: boolean): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, true, merge);
+/** The machine of `s` as the room builds it, merged (`share`) or not, with the distance stand-ins (`lod`, PERF6) or not. */
+export const buildMachine = (s: Snapshot | null, merge: boolean, lod = false): Machine3D => new Machine3D(s, roomGeo(), new BakeQueue(), null, true, merge, lod);

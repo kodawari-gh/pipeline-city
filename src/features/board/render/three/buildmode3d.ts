@@ -13,7 +13,7 @@ import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, step
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
-import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
+import { findById, idOf, ownerOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -60,6 +60,8 @@ const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
+/** The distance stand-ins (`partlod.ts`) draw only from this part of the stage's own zoom out: at its own view and closer, every part is itself. */
+export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -129,6 +131,8 @@ export class BuildStage {
   private dead = false;
   private last = performance.now();
   private wantOpen = false;
+  /** The part last under the pointer (a hover, a press, a drop): it stays in full detail (`holdDetail`). */
+  private hot: Object3D | null = null;
   private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
@@ -283,6 +287,9 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
+    // no stand-in (partlod.ts) for what a step moves (all of it, while a job runs), for the part under the pointer, or from this stage's own zoom in
+    const held = this.anim || this.status.peek().busy ? this.machine.root : this.hot;
+    this.machine.holdDetail(held ? [held] : [], (LOD_CEIL * this.H) / this.frameView().height);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);
@@ -440,6 +447,7 @@ export class BuildStage {
   private hitId(x: number, y: number): string | null {
     const r = this.ctx.renderer.domElement.getBoundingClientRect();
     const o = pick(this.machine.boardRoots(), this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
+    this.hot = ownerOf(o);
     return idOf(o);
   }
 

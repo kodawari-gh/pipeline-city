@@ -38,6 +38,19 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 ## The 3D room
 Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level: at Low all six room lights still cast.
 
+## The machine's stand-ins
+PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of the machine is CPU per draw, not pixels. Far away, its small parts draw as a few merged meshes.
+- A stand-in holds the same triangles with the same materials. The picture, the shadows and the state looks do not change. Only the draw count falls. Hiding the small parts was tried and rejected: it removed visible parts.
+- Size classes by world radius: 25, 50, 100, 200 units (`LOD_RADII`). A larger mesh has no stand-in. A class is far while its greatest radius is under 8 px (`LOD_PX`), at the zoom of the case's nearest point. It goes back only over 10 px (`LOD_BAND` 0.25), so a zoom at the limit switches nothing.
+- Sets (`standInKey`): a still material joins a palette set of its program, across parts. A material with state (a skin, a ring, a strip, an LED) joins only the meshes of that same material object, so the stand-in shows the state with no code. An instanced mesh joins copy by copy.
+- Anchors (`Machine3D.lodScope`): each fade (`fades`, `apart`), the board's small parts and the cables. The stand-ins of an anchor's content are its children, so its fade, its visibility and its motion reach them. Left out: `keep`, the side panel, the key, a card's own tree (it swings; its cooler is an anchor), a rotor, a cable's draggable end, a see-through mesh.
+- A swap changes only layers. The part goes to `UNDRAWN` (`pick.ts`): no camera draws it, but the rays, `findById` and the outline still find it. Both stay `visible`, so the shadow scan sees no change and redraws no map.
+- Guard: a part hidden after the build (a reveal nobody declared) makes its anchor build again without it. A part that moves alone must be an anchor or under `skip`.
+- Rebuild: with the machine (`machineKey`), and the cables' anchor in `setCables`. The old geometry is freed there and in `dispose`.
+- Holds (`heldBy`, `standInDraws`, `farClasses` `ceil`): Build my PC keeps in full detail the part under the pointer, all of the machine while a step moves a part, and every part from 0.8 of its own view's zoom in (`LOD_CEIL`).
+- Off: the last argument of `Machine3D` (`buildMachine(s, true, false)` in tests).
+- Census (maxed sandbox machine, headless): 632 drawn meshes to 398 in the room view, 441 in the phone board view; 273 parts in 19 stand-ins. Frame times: not measured here.
+
 ## Adding a view
 Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`board/lodcard.ts`).
 
