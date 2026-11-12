@@ -242,16 +242,19 @@ describe("transfers and the flow of a job", () => {
     offer(g, "cli.scan", 4);
     offer(g, "cli.log");
     offer(g, "cli.log");
-    let maxRunning = 0, sawBoth = false;
-    for (let i = 0; i < 1500; i++) {
+    // Proves: while a job runs, a download still moves (sawBoth); never two programs run at once (maxRunning); all three jobs finish.
+    // It stops at the third completion: the evidence is in, and a full snapshot per tick is the cost.
+    let maxRunning = 0, sawBoth = false, completed = 0;
+    for (let i = 0; i < 1500 && completed < 3; i++) {
       g.advanceBaseTick();
       const s = g.snapshot();
       maxRunning = Math.max(maxRunning, s.os!.queue.filter((j) => j.state === "running").length);
       if (s.os!.queue.some((j) => j.state === "running") && s.net.transfers.length > 0) sawBoth = true;
+      completed = s.completed;
     }
     expect(maxRunning).toBe(1);
     expect(sawBoth).toBe(true);
-    expect(g.snapshot().completed).toBe(3);
+    expect(completed).toBe(3);
   });
 
   it("the reservation counts downloads: never more jobs than queue slots", () => {
