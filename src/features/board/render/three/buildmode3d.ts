@@ -15,6 +15,7 @@ import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
+import { Eye } from '@/core/render/three/eye';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
@@ -137,8 +138,7 @@ export class BuildStage {
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
   private tierKey = '';
-  private metered = 1;
-  private seen = 1;
+  private readonly eye = new Eye(EYE_KEY / BASE_EXPOSURE, EYE_RANGE);
   /** The last tick drew a frame; the drawn frames' count (`RANK_EVERY`). */
   private drew = true;
   private frames = 0;
@@ -303,13 +303,12 @@ export class BuildStage {
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
     // (the meter's reading comes a frame or more after its draw: a tick with no draw takes the last frame's too)
-    this.read(this.post.metered());
-    this.seen *= (this.metered / this.seen) ** (1 - Math.pow(0.01, dt));
-    this.post.setEye(this.seen);
+    this.eye.read(this.post.metered());
+    this.post.setEye(this.eye.step(dt));
     // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
     const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
     const busy = !!this.anim || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
-      || Math.abs(Math.log(this.metered / this.seen)) > 1e-3 || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
+      || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
     // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
     this.drew = this.demand.want(now, busy, this.bakes.size > 0);
     if (!this.drew) return;
@@ -318,15 +317,11 @@ export class BuildStage {
     this.moved.mark(camera, w, h);
     // (a frame with a change may have new materials or programs; the others refresh the ranks now and then)
     if (this.demand.forced || !(++this.frames % RANK_EVERY)) rankMaterials(scene, this.programOf);
-    this.read(this.post.meter());
+    this.eye.read(this.post.meter());
   };
 
   private readonly programOf = (m: Material): number =>
     (this.ctx.renderer.properties.get(m) as { currentProgram?: { id: number } }).currentProgram?.id ?? 0;
-
-  private read(lum: number | null): void {
-    if (lum !== null) this.metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
-  }
 
   private step(dt: number): void {
     const a = this.anim;
