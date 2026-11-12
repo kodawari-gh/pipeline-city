@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera } from 'three';
-import { DrawGate, ViewWatch, sceneChanged } from './ondemand';
+import { BATCH_MS, DrawGate, ViewWatch, sceneChanged } from './ondemand';
 
 describe('DrawGate', () => {
   it('draws the first tick, then waits', () => {
@@ -45,6 +45,54 @@ describe('DrawGate', () => {
     expect(g.want(50)).toBe(true);
     expect(g.want(99)).toBe(true);
     expect(g.want(100)).toBe(false);
+  });
+
+  it('scene changes with more on their way draw in batches, and the last one at once', () => {
+    const g = new DrawGate();
+    g.want(0);
+    let drawn = 0;
+    // a tile bakes each 16 ms tick for a second
+    for (let t = 16; t < 1000; t += 16) { sceneChanged(); if (g.want(t, false, true)) drawn++; }
+    expect(drawn).toBeGreaterThanOrEqual(4);
+    expect(drawn).toBeLessThanOrEqual(Math.ceil(1000 / BATCH_MS));
+    // the queue is empty: the tiles not yet shown draw now, then nothing
+    sceneChanged();
+    expect(g.want(1000, false, false)).toBe(true);
+    expect(g.want(1016, false, false)).toBe(false);
+  });
+
+  it('a held change is not lost when the queue empties with no new one', () => {
+    const g = new DrawGate();
+    g.want(0);
+    sceneChanged();
+    expect(g.want(16, false, true)).toBe(false);
+    expect(g.want(33, false, false)).toBe(true);
+  });
+
+  it('an ask or a busy source draws at once while changes are held', () => {
+    const g = new DrawGate();
+    g.want(0);
+    sceneChanged();
+    expect(g.want(16, false, true)).toBe(false);
+    g.ask();
+    expect(g.want(33, false, true)).toBe(true);
+    sceneChanged();
+    expect(g.want(50, true, true)).toBe(true);
+  });
+
+  it('tells a frame with a change from one that only moves', () => {
+    const g = new DrawGate();
+    g.want(0);
+    expect(g.forced).toBe(true);
+    g.want(16, true);
+    expect(g.forced).toBe(false);
+    sceneChanged();
+    g.want(33, true);
+    expect(g.forced).toBe(true);
+    g.want(50, true);
+    g.ask();
+    g.want(66);
+    expect(g.forced).toBe(true);
   });
 });
 

@@ -2,7 +2,7 @@ import { ACESFilmicToneMapping, BoxGeometry, Mesh, MeshBasicMaterial, Object3D, 
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/app/graphics', () => ({ pixelRatio: (scale: number) => scale }));
-const { Post, steps } = await import('./post');
+const { Post, meterMean, steps } = await import('./post');
 
 /** The full-screen passes of a step list: all but the eye's small ones. */
 const full = (s: string[]) => s.filter((x) => x !== 'eye').length;
@@ -72,5 +72,65 @@ describe('the post chain', () => {
     post.dispose();
     expect([...owned].filter((x) => !freed.has(x)).map((x) => x.constructor.name)).toEqual([]);
     expect(sceneFreed).toBe(false);
+  });
+});
+
+describe('the light meter', () => {
+  it('reads a flat grid as its luminance, and weights the middle', () => {
+    const flat = new Float32Array(16 * 9 * 4).fill(Math.log(0.25));
+    expect(meterMean(flat, 16, 9)).toBeCloseTo(0.25, 6);
+    // a bright middle counts for more than a bright corner
+    const mid = flat.slice(), corner = flat.slice();
+    mid[4 * (8 + 16 * 4)] = Math.log(8);
+    corner[0] = Math.log(8);
+    expect(meterMean(mid, 16, 9)).toBeGreaterThan(meterMean(corner, 16, 9));
+    expect(meterMean(corner, 16, 9)).toBeGreaterThan(0.25);
+  });
+
+  /** A renderer whose pixel reads end when the test says so. */
+  function meterRenderer() {
+    const reads: { buf: Float32Array; done: () => void; fail: () => void }[] = [];
+    const r = {
+      ...stubRenderer(), extensions: { has: () => true }, getRenderTarget: () => null, setRenderTarget: () => {}, render: () => {},
+      readRenderTargetPixels: () => { throw new Error('a read that holds the frame'); },
+      readRenderTargetPixelsAsync: (_t: unknown, _x: number, _y: number, _w: number, _h: number, buf: Float32Array) =>
+        new Promise<Float32Array>((done, fail) => { reads.push({ buf, done: () => done(buf), fail: () => fail(new Error('lost')) }); }),
+    } as unknown as WebGLRenderer;
+    return { r, reads };
+  }
+  const tick = () => new Promise((ok) => setTimeout(ok, 0));
+
+  it('starts a read every fourth frame, never two at once, and gives each reading once when it has come', async () => {
+    const { r, reads } = meterRenderer();
+    const post = new Post(r, new Scene(), new PerspectiveCamera(), 400, 300);
+    for (let i = 0; i < 3; i++) expect(post.meter()).toBeNull();
+    expect(reads.length).toBe(0);
+    expect(post.meter()).toBeNull(); // (started, not yet back)
+    expect(reads.length).toBe(1);
+    for (let i = 0; i < 8; i++) expect(post.meter()).toBeNull();
+    expect(reads.length).toBe(1);
+    reads[0]!.buf.fill(Math.log(0.5));
+    reads[0]!.done();
+    await tick();
+    expect(post.metered()).toBeCloseTo(0.5, 6);
+    expect(post.metered()).toBeNull();
+    for (let i = 0; i < 4; i++) post.meter();
+    expect(reads.length).toBe(2);
+  });
+
+  it('goes on after a read that failed, and drops a reading that comes after the close', async () => {
+    const { r, reads } = meterRenderer();
+    const post = new Post(r, new Scene(), new PerspectiveCamera(), 400, 300);
+    for (let i = 0; i < 4; i++) post.meter();
+    reads[0]!.fail();
+    await tick();
+    expect(post.metered()).toBeNull();
+    for (let i = 0; i < 4; i++) post.meter();
+    expect(reads.length).toBe(2);
+    post.dispose();
+    reads[1]!.buf.fill(0);
+    reads[1]!.done();
+    await tick();
+    expect(post.metered()).toBeNull();
   });
 });
