@@ -52,6 +52,7 @@ import {
   WALL_T, WEST_X, WINDOW,
   daylight, sunDir, wallAround,
 } from './roomplan';
+import { LIGHT_ORDER, bounceLift, chooseLights, type LightId } from './roomlights';
 
 const KEY_W = 230;
 
@@ -64,6 +65,8 @@ const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
 ];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
 const SHADOW_SOFT = [14, 5, 6, 5, 5, 4];
+/** The casters' names in `LIGHT_ORDER`, in `SHADOW_LEVELS`' order. */
+const CASTER_IDS: readonly LightId[] = ['key', 'sun', 'desk', 'bedside', 'floor', 'arc'];
 /**
  * The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. It marks the key as
  * the window's stand-in: a mesh with the baked light skips it (`STAND_IN_DECAY`).
@@ -782,7 +785,8 @@ export class Room3D {
     if (!lm || this.mixKey === this.lightKey) return;
     this.mixKey = this.lightKey;
     const levels = new Map<string, number | Color>();
-    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity);
+    // (a capped lamp's light is out of the scene, its level is not: its bounce stays, lifted for the pool it lost, `CAPPED_BOUNCE`)
+    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity * bounceLift(g.lights.filter((l) => !l.visible).length, g.lights.length));
     levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
     levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
     for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
@@ -815,12 +819,53 @@ export class Room3D {
   /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
   private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light]; }
 
-  /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
+  /** The room's lights by their name in `LIGHT_ORDER` (roomlights.ts). */
+  private lightsOf(id: LightId): Light[] {
+    switch (id) {
+      case 'key': return [this.key];
+      case 'sun': return [this.sun];
+      case 'arc': return [this.arc.light];
+      case 'desk': return [this.lampLight];
+      case 'floor': return [this.floorLight];
+      case 'bedside': return [this.bedLight];
+      case 'sconceUp': return [this.sconce.up];
+      case 'sconceDown': return [this.sconce.down];
+      case 'screen': return [this.screenLight];
+      case 'deskLed': return [this.deskLed];
+      case 'picture': return [this.picture.light];
+      case 'ledHalo': return [this.ledHalo];
+      case 'ledUnder': return [this.ledUnder];
+      case 'bias': return [this.monitor.bias];
+      case 'strips': return this.strips.lights;
+    }
+  }
+
+  /** The graphics settings' shadow level and choice of lights, as last set. */
+  private shadowLevel = 3;
+  private choice = chooseLights(0, true);
+
+  /**
+   * At most `cap` real-time lights in the room (0: all of them), and whether its lamps cast shadows (`chooseLights`). A capped light leaves
+   * the scene (the renderer counts a light at 0), so the lit programs are made again: call it when the setting changes, never by the frame.
+   * Its fixture still glows and its baked bounce shows lifted (`mixLight`); the frame still sets its level.
+   */
+  setLights(cap: number, lampShadows: boolean): void {
+    this.choice = chooseLights(cap, lampShadows, (id) => this.lightsOf(id).length);
+    for (const id of LIGHT_ORDER) for (const l of this.lightsOf(id)) l.visible = this.choice.live.has(id);
+    this.mixKey = '';
+    this.setShadows(this.shadowLevel);
+  }
+
+  /**
+   * The shadow maps at `level` of the graphics settings, for the lights that may cast (`setLights`). A new map is drawn on the next frame; no
+   * shadows frees them.
+   */
   setShadows(level: number): void {
+    this.shadowLevel = level;
     this.outside.setShadows(level);
     const sizes = SHADOW_LEVELS[level] ?? null;
     this.casters.forEach((l, i) => {
-      const size = sizes?.[i] ?? 0;
+      const size = this.choice.shadows.has(CASTER_IDS[i]!) ? sizes?.[i] ?? 0 : 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
       l.shadow.needsUpdate = true;
@@ -1004,7 +1049,7 @@ export class Room3D {
     this.screenLight.intensity = lit ? nits(SCREEN_NITS) : 0;
     const bias = this.monitor.bias;
     bias.intensity = lit ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
-    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
+    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}|${this.choice.live.size}`;
     this.monitor.set(f.screen, f.hour);
     this.monitorSpot.visible = !f.screen.installed;
     this.routerBody.visible = f.router > 0;

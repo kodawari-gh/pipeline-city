@@ -2,8 +2,8 @@
 // at the top say what it costs. Only the options of the running renderer show (`rendererKind`). The settings and the presets live in `app/graphics.ts`.
 import { useEffect } from 'preact/hooks';
 import {
-  autoStep, BRIGHT_MAX, BRIGHT_MIN, CHOICES, effective, frameStats, graphics, presetOf, PRESET_NAMES, rendererKind, resetGraphics, retryPicture, SCALE_MAX, SCALE_MIN, setGraphic, setPreset,
-  type Choice, type Graphics, type RendererKind,
+  autoStep, BRIGHT_MAX, BRIGHT_MIN, CHOICES, effective, frameStats, graphics, presetOf, PRESET_NAMES, rendererKind, resetGraphics, retryPicture, SCALE_MAX, SCALE_MIN, setAutoTier, setGraphic, setPreset,
+  setTier, TIER_NAMES, tierRecord, type Choice, type Graphics, type RendererKind,
 } from '@/app/graphics';
 import { Icon } from '../kit/Icons';
 import { graphicsOpen, toggleGraphics } from '../state';
@@ -14,6 +14,8 @@ interface Row { key: Choice; label: string; help: string; only?: RendererKind }
 const GROUPS: { title: string; rows: Row[] }[] = [
   { title: 'Light', rows: [
     { key: 'shadows', label: 'Shadows', help: 'The size of the shadow maps. Off draws the fastest room.', only: '3d' },
+    { key: 'lights', label: 'Room lamps', help: 'The most real-time lamps the room lights at once. All has no cap.', only: '3d' },
+    { key: 'lightShadows', label: 'Lamp shadows', help: 'Do the room\'s lamps cast shadows.', only: '3d' },
     { key: 'ao', label: 'Ambient occlusion', help: 'Soft contact shadows in corners and under parts.', only: '3d' },
     { key: 'bloom', label: 'Bloom', help: 'The glow round the RGB, the screen and the lamp.', only: '3d' },
   ] },
@@ -66,6 +68,23 @@ function Numbers() {
   );
 }
 
+/** The tier picker: Auto follows the detected tier (and its one step); a tier, a preset or any option makes it manual. */
+function TierPicker() {
+  const rec = tierRecord.value, auto = rec.mode === 'auto', name = TIER_NAMES.find(([id]) => id === rec.tier)![1];
+  return (
+    <div class="gfx-row" title="The device's performance tier. Auto picks it from the GPU and CPU, and may step once after the first seconds of frames.">
+      <span class="gfx-name">Tier</span>
+      <div class="seg" role="group" aria-label="Tier">
+        <button class={auto ? 'on' : ''} aria-pressed={auto} onClick={() => setAutoTier()}>{`Auto (${name}${rec.reason ? ` - ${rec.reason}` : ''})`}</button>
+        {TIER_NAMES.map(([id, label]) => {
+          const on = !auto && rec.tier === id;
+          return <button key={id} class={on ? 'on' : ''} aria-pressed={on} onClick={() => setTier(id)}>{label}</button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** Says what auto-adjust took away, and offers it back. */
 function AutoNote({ g }: { g: Graphics }) {
   const e = effective.value;
@@ -95,6 +114,7 @@ export function GraphicsDock() {
       <button class="close" aria-label="Close graphics" onClick={toggleGraphics}><Icon name="close" size={11} /></button>
       <h2>Graphics</h2>
       <Numbers />
+      <TierPicker />
       <div class="seg gfx-presets" role="group" aria-label="Preset">
         {PRESET_NAMES.map(([id, name]) => <button key={id} class={preset === id ? 'on' : ''} aria-pressed={preset === id} onClick={() => setPreset(id)}>{name}</button>)}
       </div>

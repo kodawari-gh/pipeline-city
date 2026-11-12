@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, AwayWatch, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
+import { autoStep, AwayWatch, awayHeld, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -166,6 +166,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
       room.setShadows(effective.peek().shadows);
+      room.setLights(effective.peek().lights, effective.peek().lightShadows > 0);
       shadows.reset();
       scene.add(room.root);
       machKey = '';
@@ -555,6 +556,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const applyGraphics = (g: Graphics) => {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
+    room?.setLights(g.lights, g.lightShadows > 0);
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;
     shadows.reset();
@@ -564,9 +566,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     demand.ask();
   };
   effect(() => applyGraphics(effective.value));
-  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), away = new AwayWatch();
+  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), tierWatch = new TierWatch(), away = new AwayWatch();
+  const resetWatches = (now: number) => { watch.reset(now); tierWatch.reset(now); };
   // a new choice of the player's starts the watch over, as a new picture bakes and compiles its way in
-  effect(() => { graphics.value; watch.reset(performance.now()); });
+  effect(() => { graphics.value; resetWatches(performance.now()); });
   for (const e of ['pointerdown', 'pointermove', 'wheel', 'keydown']) window.addEventListener(e, () => away.input(performance.now()), { passive: true, capture: true });
 
   // ---- the frame ----
@@ -579,7 +582,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const drawn = (now: number) => {
     linking = null;
     linkedAt = now;
-    watch.reset(now);
+    resetWatches(now);
     demand.ask();
     if (!revealed) bootStage('Lighting the room', 0.92);
   };
@@ -592,6 +595,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   /** The stage covered the room on the last tick (the first tick back draws); the outline's parts as last drawn. */
   let wasCovered = false, outlineKey = '';
   const frame = (now: number) => {
+    const t0 = performance.now(); // the frame work time (CPU in this callback) for `TierWatch`
     const g = effective.peek(), fps = away.limit(g.fps, now, document.hasFocus(), menu || lift.busy || !!hand.kind || !settled(view, goal));
     if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
     // (the frame rate the graphics settings show stays live: the page's, which the stage's draw sets)
@@ -612,7 +616,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const step = nextStep(graphics.peek(), autoStep.peek());
       if (step !== null) autoStep.value = step;
     }
-    const dt = Math.min(0.1, (now - last) / 1000), ratio = renderer.getPixelRatio();
+    const rawDt = (now - last) / 1000, dt = Math.min(0.1, rawDt), ratio = renderer.getPixelRatio();
     last = now;
     gt += dt * 1000 * speed.value;
     // a new machine whose programs have linked takes the old one's place
@@ -722,11 +726,17 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       if (cast) demand.ask();
     }
     meter.tick(now, canvas.width, canvas.height);
+    // auto tier: one decision from the first seconds of frames; manual mode never steps
+    // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)
+    if (draw && tierRecord.peek().mode === 'auto' && document.visibilityState === 'visible' && !awayHeld(fps, g.fps)) {
+      const dir = tierWatch.tick(rawDt, performance.now() - t0, now, g.fps);
+      if (dir) stepTier(dir);
+    }
     // a new case is a new room: frame it again
     const tierNow = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
     if (tierNow !== wasTier) { wasTier = tierNow; flyToRoom(); }
     // the boot screen goes once the room's light has settled (the probe's bounces), or at the latest `REVEAL_MS` after the link
-    if (!revealed && ((probed && bounces === 0 && !probe.busy) || now - linkedAt > REVEAL_MS)) { revealed = true; watch.reset(now); onShown(); }
+    if (!revealed && ((probed && bounces === 0 && !probe.busy) || now - linkedAt > REVEAL_MS)) { revealed = true; resetWatches(now); onShown(); }
     requestAnimationFrame(frame);
   };
   // the light bake's lightmap changes the room's programs: they link after it
