@@ -1,4 +1,4 @@
-// The room's plants in 3D (docs/LOWPOLY_STYLE.md "Look decision"): each leaf a curved blade (its outline, a crease down the midrib, a curl, a
+// The room's plants in 3D (docs/3D_STYLE.md "Look decision"): each leaf a curved blade (its outline, a crease down the midrib, a curl, a
 // wavy edge), its veins a faint relief and a shade paler (`leafTex`: never a bright drawn line), on a petiole off a tapered stem: a fiddle-leaf fig in a ribbed pot on the floor, pothos trailing off the
 // shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
 // All the leaves of a kind in one room share a few materials (`perRoom`), so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.

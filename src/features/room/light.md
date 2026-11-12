@@ -23,7 +23,7 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 
 ## 3D room light
 
-A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, the machine's light), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/LOWPOLY_STYLE.md` "Lighting Setup".
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, the machine's light), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
 
 ### The owner's call
 
