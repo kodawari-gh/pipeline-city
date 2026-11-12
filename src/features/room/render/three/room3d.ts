@@ -65,6 +65,15 @@ const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
 ];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
 const SHADOW_SOFT = [14, 5, 6, 5, 5, 4];
+/** A lantern's shadow range (it has no cut-off distance): across the room. */
+const LANTERN_FAR = 130000;
+/** The bedside lantern's shadow range with the lamps' shadows off: the drawer's whole shadow on the wall, the floor and the bed's side. */
+export const BEDSIDE_FAR = 21000;
+/**
+ * The layer of the casters in the bedside lantern's map with the lamps' shadows off: the drawer's box and its front (they stay on layer 0
+ * too). They alone stop the light that lit the wall, the floor and the bed's side under the drawer, so nothing else redraws that map.
+ */
+export const BEDSIDE_LAYER = 5;
 /** The casters' names in `LIGHT_ORDER`, in `SHADOW_LEVELS`' order. */
 const CASTER_IDS: readonly LightId[] = ['key', 'sun', 'desk', 'bedside', 'floor', 'arc'];
 /**
@@ -489,15 +498,16 @@ export class Room3D {
     this.bedLight.position.set(...ns.bulb);
     // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly
     // (a light with no cut-off distance keeps its shadow camera's own range: it must reach across the room)
-    Object.assign(this.bedLight.shadow.camera, { near: 200, far: 130000 }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
+    Object.assign(this.bedLight.shadow.camera, { near: 200, far: LANTERN_FAR }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
     // (a lantern's paper and its bulb let the light through: they cast no shadow, the paper glows with it)
     const glassy = (l: Lantern) => l.root.traverse((o) => { const m = (o as Mesh).material; if (m === l.shade || m === l.glow) o.castShadow = false; });
     glassy(ns);
+    for (const m of ns.body) m.layers.enable(BEDSIDE_LAYER);
     // the floor lantern's shadow: the bookcase's end, the fig's leaves on the west wall and the floor
     this.floorLamp = floorLantern();
     glassy(this.floorLamp);
     this.floorLight.position.set(...this.floorLamp.bulb);
-    Object.assign(this.floorLight.shadow.camera, { near: 200, far: 130000 }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
+    Object.assign(this.floorLight.shadow.camera, { near: 200, far: LANTERN_FAR }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight, this.strips.root);
     R.add(print(PRINT, 0), this.picture.root, this.sconce.root, this.arc.root);
@@ -870,6 +880,14 @@ export class Room3D {
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
       l.shadow.needsUpdate = true;
+      // (the bedside lantern at the smallest map holds only its drawer, `BEDSIDE_LAYER`, and casts only round it: past `BEDSIDE_FAR` its
+      // light is not shadowed, as with no map. A shadow camera on layer 0 alone draws the view's layers: three's `WebGLShadowMap`)
+      if (l === this.bedLight) {
+        const small = this.choice.small.has(id);
+        l.shadow.camera.far = small ? BEDSIDE_FAR : LANTERN_FAR;
+        l.shadow.camera.layers.set(small ? BEDSIDE_LAYER : 0);
+        l.shadow.camera.updateProjectionMatrix();
+      }
       if (l.shadow.mapSize.x !== size || !size) { l.shadow.map?.dispose(); l.shadow.map = null; }
       if (!size) return;
       l.shadow.mapSize.set(size, size);
@@ -899,14 +917,14 @@ export class Room3D {
   private shadowAt = 0;
 
   /**
-   * The lights hold still (the sun moves a step a few times a game hour), so a shadow map holds until a caster moves. Every map redraws for the
-   * next frame when one moved (`ShadowCache.scan`, which then redraws only the movers), else one light per turn asks to catch up (`catchUp`):
-   * it redraws only if something changed since its last draw (a fan's rotor turned), so a still room draws no shadow map. A light at 0 draws
-   * none until it is lit (`ShadowCache`).
+   * The lights hold still (the sun moves a step a few times a game hour), so a shadow map holds until a caster moves. Every light asks to catch
+   * up (`catchUp`) for the next frame when one moved (`ShadowCache.scan`, which then redraws only the movers), else one light per turn asks:
+   * a map redraws only if a caster in its light's range changed since its last draw (a fan's rotor turned), so a still room draws no shadow
+   * map. A light at 0 draws none until it is lit (`ShadowCache`).
    */
   redrawShadows(moved: boolean, now: number): void {
     const lights = this.casters;
-    if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
+    if (moved) { for (const l of lights) catchUp(l); return; }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
     catchUp(lights[this.shadowTurn++ % lights.length]!);

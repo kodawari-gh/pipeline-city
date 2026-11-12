@@ -280,7 +280,8 @@ export function bed(): Bed {
 // ---------------------------------------------------------------- the bedside drawer
 /** A paper lantern: what holds it, its paper (glows with its bulb), its bulb's glow and where the bulb is (the light's place). */
 export interface Lantern { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
-export type Bedside = Lantern;
+/** The bedside drawer and its lantern. `body`: the drawer's box and its front, which stop the lantern's light under it. */
+export type Bedside = Lantern & { body: Mesh[] };
 
 /** The lantern's bamboo ribs: rings evenly up its paper (by length along its side). */
 const RIBS = 16;
@@ -331,9 +332,10 @@ export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, cx = x + w / 2, cz = (z0 + z1) / 2;
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
   // the box on the wall, the drawer's front nearly flush in it, a dark gap round the front
-  g.add(board({ x, y: top, w, h }, z0, z1, veneer));
+  const body = [board({ x, y: top, w, h }, z0, z1, veneer), board({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer)];
+  g.add(body[0]!);
   g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x0b0b0c, { roughness: 0.9 })));
-  g.add(board({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer));
+  g.add(body[1]!);
   // the lantern: a paper round on bamboo ribs, open top and bottom (a black wire ring at each), on a wire stand of three legs; it glows from
   // the bulb inside
   const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, R = lamp.r, rb = 0.5 * R, rt = 0.42 * R;
@@ -370,7 +372,7 @@ export function nightstand(): Bedside {
   g.add(phone);
   // (it floats: its shadow on the floor is soft and faint)
   g.add(floorShadow(cx, cz + 300, w * 1.3, (z1 - z0) * 1.4, 0.3));
-  return { root: g, shade, glow, bulb: [lx, by, lz] };
+  return { root: g, shade, glow, bulb: [lx, by, lz], body };
 }
 
 /**

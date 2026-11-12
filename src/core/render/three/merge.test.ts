@@ -22,6 +22,19 @@ describe('mergeStatic', () => {
     expect(bb.max.y).toBeCloseTo(55);
   });
 
+  it('does not merge meshes of one material on different layers, and keeps the layers of the merged mesh', () => {
+    const root = new Group(), m = new MeshStandardMaterial();
+    const a = new Mesh(new BoxGeometry(), m), b = new Mesh(new BoxGeometry(), m), c = new Mesh(new BoxGeometry(), m);
+    a.layers.enable(5); b.layers.enable(5);
+    root.add(a, b, c);
+    expect(mergeStatic(root)).toBe(2);
+    expect(c.parent).toBe(root); // the lone one on layer 0 stays
+    const merged = root.children.filter((x) => x.name === 'merged') as Mesh[];
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.layers.mask).toBe(a.layers.mask);
+    expect(merged[0]!.layers.isEnabled(5)).toBe(true);
+  });
+
   it('keeps the baked occlusion when every mesh of a set has it', () => {
     const root = new Group(), m = new MeshStandardMaterial(), bare = new MeshStandardMaterial();
     const baked = (g: BoxGeometry) => g.setAttribute('_ao', new Float32BufferAttribute(new Float32Array(2 * g.attributes.position!.count).fill(0.5), 2));
