@@ -167,6 +167,16 @@ const METER = {
     }`,
 };
 
+/** The meter's reading from its grid (`cells`: RGBA floats, the mean log luminance in red): the mean weighted to the picture's middle, as a luminance. */
+export function meterMean(cells: ArrayLike<number>, w: number, h: number): number {
+  let s = 0, sum = 0;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const dx = (i + 0.5) / w - 0.5, dy = (j + 0.5) / h - 0.5, k = Math.exp(-(dx * dx + dy * dy) / 0.08);
+    s += k * cells[4 * (i + w * j)]!; sum += k;
+  }
+  return Math.exp(s / sum);
+}
+
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
 /** The bloom's strength at each level (0: the pass is off). */
@@ -188,6 +198,9 @@ export class Post {
   private meterQuad = new FullScreenQuad(new ShaderMaterial({ ...METER, uniforms: UniformsUtils.clone(METER.uniforms) }));
   private meterCells = new Float32Array(METER_W * METER_H * 4);
   private meterFrame = 0;
+  private metering = false;
+  private meterRead: number | null = null;
+  private gone = false;
 
   constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     this.scene = new ScenePass(scene, camera, w, h);
@@ -265,24 +278,32 @@ export class Post {
   }
 
   /**
-   * The last frame's mean luminance, before the exposure: log-averaged over the picture, weighted to its middle, as a camera's meter. It reads
-   * every fourth frame (null between, and always where a float target cannot be read back).
+   * A drawn frame's mean luminance, before the exposure: log-averaged over the picture, weighted to its middle, as a camera's meter. Call it
+   * after each drawn frame. Every fourth call starts a reading; the GPU gives it back a frame or more later (a pixel buffer and a fence: a
+   * read at once would hold the frame until the GPU has drawn it all). It returns a reading once, when it has come (null between, and always
+   * where a float target cannot be read back).
    */
   meter(): number | null {
     const r = this.renderer;
-    if (++this.meterFrame % 4 || !r.extensions.has('EXT_color_buffer_float')) return null;
-    const was = r.getRenderTarget();
-    (this.meterQuad.material as ShaderMaterial).uniforms.tDiffuse!.value = this.scene.target.texture;
-    r.setRenderTarget(this.meterTarget);
-    this.meterQuad.render(r);
-    r.setRenderTarget(was);
-    r.readRenderTargetPixels(this.meterTarget, 0, 0, METER_W, METER_H, this.meterCells);
-    let s = 0, w = 0;
-    for (let j = 0; j < METER_H; j++) for (let i = 0; i < METER_W; i++) {
-      const dx = (i + 0.5) / METER_W - 0.5, dy = (j + 0.5) / METER_H - 0.5, k = Math.exp(-(dx * dx + dy * dy) / 0.08);
-      s += k * this.meterCells[4 * (i + METER_W * j)]!; w += k;
+    if (!(++this.meterFrame % 4) && !this.metering && !this.gone && r.extensions.has('EXT_color_buffer_float')) {
+      const was = r.getRenderTarget();
+      (this.meterQuad.material as ShaderMaterial).uniforms.tDiffuse!.value = this.scene.target.texture;
+      r.setRenderTarget(this.meterTarget);
+      this.meterQuad.render(r);
+      r.setRenderTarget(was);
+      this.metering = true;
+      r.readRenderTargetPixelsAsync(this.meterTarget, 0, 0, METER_W, METER_H, this.meterCells)
+        .then(() => { if (!this.gone) this.meterRead = meterMean(this.meterCells, METER_W, METER_H); }, () => {})
+        .finally(() => { this.metering = false; });
     }
-    return Math.exp(s / w);
+    return this.metered();
+  }
+
+  /** The reading that came since the last call, if any: a view drawn on demand asks on its ticks with no draw too, for its last frame's. */
+  metered(): number | null {
+    const v = this.meterRead;
+    this.meterRead = null;
+    return v;
   }
 
   setOutlined(objects: Object3D[]): void {
@@ -326,6 +347,7 @@ export class Post {
 
   /** Frees every target and pass of the chain (a screen that owns its chain, as Build my PC, at its close). The renderer is the caller's. */
   dispose(): void {
+    this.gone = true; // (a reading on its way is dropped)
     for (const p of [this.scene, this.ao, this.outline, this.bloom, this.local]) p.dispose();
     // (three's own dispose leaves these)
     for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) m.dispose();

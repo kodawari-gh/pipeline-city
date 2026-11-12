@@ -4,13 +4,15 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { effect, signal } from '@preact/signals';
-import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight, type Object3D } from 'three';
+import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight, type Material, type Object3D } from 'three';
 import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
+import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
+import { syncWorld } from '@/core/render/three/stillworld';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
@@ -62,6 +64,8 @@ const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
+/** The tile bakes' time in a tick that follows a drawn frame, and in one that follows none (ms); the drawn frames between two rank refreshes. */
+const BAKE_MS = 6, BAKE_STILL_MS = 12, RANK_EVERY = 32;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
@@ -135,6 +139,9 @@ export class BuildStage {
   private tierKey = '';
   private metered = 1;
   private seen = 1;
+  /** The last tick drew a frame; the drawn frames' count (`RANK_EVERY`). */
+  private drew = true;
+  private frames = 0;
   /** A press on a part inside the open case (no busy job) hands the device id and the press here: the UI drags it. */
   onGrab: ((device: string, e: PointerEvent) => void) | null = null;
 
@@ -153,6 +160,10 @@ export class BuildStage {
     const lamp = new PointLight(0xfff1dd, 1.0, 0, 0);
     lamp.position.set(0, 4000, 9000);
     scene.add(key, rim, lamp);
+    // the frame's cuts (docs/render/case.md "Build my PC's frame"): the still parts' matrices stay (`syncWorld` in `frame`), and the opaque
+    // draws go in program order
+    scene.matrixWorldAutoUpdate = false;
+    renderer.setOpaqueSort(byProgram);
     this.post = new Post(renderer, scene, camera, this.W, this.H);
     this.lens = new Lens3D(scene);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
@@ -277,7 +288,7 @@ export class BuildStage {
     if (!this.gate.ready(now, effective.peek().fps)) return;
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    const { camera, renderer } = this.ctx;
+    const { scene, camera, renderer } = this.ctx;
     this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);
     applyView(camera, this.view, this.W / this.H);
     this.machine.setOpen(this.wantOpen, true);
@@ -285,23 +296,37 @@ export class BuildStage {
     this.machine.frame(snap, dt);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
-    this.bakes.run(6);
+    // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
+    this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
     this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio());
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
+    // (the meter's reading comes a frame or more after its draw: a tick with no draw takes the last frame's too)
+    this.read(this.post.metered());
     this.seen *= (this.metered / this.seen) ** (1 - Math.pow(0.01, dt));
     this.post.setEye(this.seen);
     // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
     const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
     const busy = !!this.anim || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
       || Math.abs(Math.log(this.metered / this.seen)) > 1e-3 || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
-    if (!this.demand.want(now, busy)) return;
+    // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
+    this.drew = this.demand.want(now, busy, this.bakes.size > 0);
+    if (!this.drew) return;
+    syncWorld(scene);
     this.post.render();
     this.moved.mark(camera, w, h);
-    const lum = this.post.meter();
-    if (lum !== null) this.metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
+    // (a frame with a change may have new materials or programs; the others refresh the ranks now and then)
+    if (this.demand.forced || !(++this.frames % RANK_EVERY)) rankMaterials(scene, this.programOf);
+    this.read(this.post.meter());
   };
+
+  private readonly programOf = (m: Material): number =>
+    (this.ctx.renderer.properties.get(m) as { currentProgram?: { id: number } }).currentProgram?.id ?? 0;
+
+  private read(lum: number | null): void {
+    if (lum !== null) this.metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
+  }
 
   private step(dt: number): void {
     const a = this.anim;

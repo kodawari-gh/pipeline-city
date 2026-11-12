@@ -4,6 +4,8 @@ import { Matrix4, Vector4, type Camera } from 'three';
 
 /** A view that moves less than this many device pixels anywhere on screen since the last draw looks the same. */
 export const STILL_PX = 0.5;
+/** Scene changes that come in a row (baked tiles) draw as one frame each this many ms, when nothing else draws (`DrawGate.want`, `more`). */
+export const BATCH_MS = 200;
 
 let changes = 0;
 /** Something changed a scene out of any frame's own work (a baked tile, a model that loaded): every gate draws its next tick. */
@@ -18,6 +20,9 @@ export class DrawGate {
   private was = false;
   private until = -Infinity;
   private seen = changes;
+  private drew = -Infinity;
+  /** The last drawn tick had a change (an ask or a `sceneChanged`), not only a busy source or a keep. */
+  forced = false;
 
   /** Something changed: draw the next tick. */
   ask(): void { this.asked = true; }
@@ -25,13 +30,21 @@ export class DrawGate {
   /** Keep drawing until `now + ms` (after input, or for a fade with no other source). */
   keep(now: number, ms: number): void { this.until = Math.max(this.until, now + ms); }
 
-  /** Draw this tick? `busy` says an animation plays now. One more frame follows the last busy tick, so the end pose shows. */
-  want(now: number, busy = false): boolean {
-    const w = this.asked || busy || this.was || now < this.until || this.seen !== changes;
+  /**
+   * Draw this tick? `busy` says an animation plays now. One more frame follows the last busy tick, so the end pose shows. `more` says that
+   * more scene changes are on their way (a bake queue with jobs): with no other reason, the changes wait and draw as one frame each
+   * `BATCH_MS`. The last one (`more` false) draws at once.
+   */
+  want(now: number, busy = false, more = false): boolean {
+    const changed = this.seen !== changes, hard = this.asked || busy || this.was || now < this.until;
+    if (!hard && !changed) return false;
+    if (!hard && more && now - this.drew < BATCH_MS) return false; // (the change stays unseen: a later tick draws it)
+    this.forced = this.asked || changed;
     this.seen = changes;
     this.asked = false;
     this.was = busy;
-    return w;
+    this.drew = now;
+    return true;
   }
 }
 
