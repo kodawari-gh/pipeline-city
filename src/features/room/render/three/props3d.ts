@@ -1,4 +1,4 @@
-// The room's props in 3D, modelled on the owner's reference image (docs/LOWPOLY_STYLE.md "Look decision"): the architect lamp, the monitor with its
+// The room's props in 3D, modelled on the owner's reference image (docs/3D_STYLE.md "Look decision"): the architect lamp, the monitor with its
 // standby screen, the digital clock, a tea cup steaming on its saucer, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {

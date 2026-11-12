@@ -1,5 +1,5 @@
 // The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
-// the picked part, LOWPOLY_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
+// the picked part, 3D_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
 // the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 // Each full-screen pass writes a target that a phone's tile GPU sends out to memory and reads back (PERF21): the chain runs only the passes

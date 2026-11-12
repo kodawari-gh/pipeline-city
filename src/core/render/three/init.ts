@@ -1,5 +1,5 @@
 // The Three.js context: renderer, scene, camera (docs/THREE_SETUP.md). Soft shadows, a studio environment for image-based light and filmic tone
-// mapping carry the warm room look (docs/LOWPOLY_STYLE.md).
+// mapping carry the warm room look (docs/3D_STYLE.md).
 import { ACESFilmicToneMapping, Color, HalfFloatType, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, WebGLCubeRenderTarget, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import './arealoop';
