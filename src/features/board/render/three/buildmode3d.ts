@@ -287,9 +287,8 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
-    // no stand-in (partlod.ts) for what a step moves (all of it, while a job runs), for the part under the pointer, or from this stage's own zoom in
-    const held = this.anim || this.status.peek().busy ? this.machine.root : this.hot;
-    this.machine.holdDetail(held ? [held] : [], (LOD_CEIL * this.H) / this.frameView().height);
+    // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held
+    this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);

@@ -330,6 +330,19 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       expect(drawnMeshes(now.root)).toBeLessThan(drawnMeshes(was.root));
     });
 
+    it('draws no stand-in at the wheel limit, in a tall, a square, a 16:9 or an ultrawide view', { timeout: 60_000 }, () => {
+      const s = game().snapshot(), now = build(s, true, true), seen: string[] = [];
+      for (const aspect of [0.5, 1, 16 / 9, 2.33]) {
+        const fit = fitRect({ x: CASE_RECT.x, y: CASE_RECT.y, w: CASE_RECT.w, h: CASE_RECT.h }, BOARD_Z, aspect, view, 0.55);
+        const cam = new PerspectiveCamera(); applyView(cam, { ...fit, height: LIMITS.heightMax }, aspect); cam.updateMatrixWorld();
+        now.holdDetail([], (LOD_CEIL * H) / fit.height);
+        now.lod(cam, H, 1);
+        seen.push(`${aspect.toFixed(2)}: ${lodOf(now).standIns.filter((x) => lodOf(now).draws(x)).length}`);
+      }
+      expect(seen.join(', ')).toBe('0.50: 0, 1.00: 0, 1.78: 0, 2.33: 0');
+      now.dispose();
+    });
+
     it('holds the part under the pointer, and the whole machine while a step runs', { timeout: 60_000 }, () => {
       const s = game().snapshot(), { was, now } = both(s), lod = lodOf(now), cam = camAt(view.height * 6);
       was.lod(cam, H, 1); now.lod(cam, H, 1);
