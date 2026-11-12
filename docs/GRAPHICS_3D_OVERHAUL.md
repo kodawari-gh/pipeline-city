@@ -41,7 +41,7 @@ Worker (sim)           Main thread (render)
 
 ## Status (2026-10-31)
 
-The owner chose **room first** and the **stylised warm** look (see `LOWPOLY_STYLE.md` "Look decision"). The 3D renderer runs behind a flag; Pixi stays the default.
+The owner chose **room first** and the **stylised warm** look (see `3D_STYLE.md` "Look decision"). The 3D renderer runs behind a flag; Pixi stays the default.
 
 - **3D is the default view** (2026-11-07). The 2D Pixi board is a hidden fallback: `?2d` in the address, or `VITE_3D_GRAPHICS=0` at build time (`src/app/main.tsx`; only the chosen renderer's code loads). `?3d` still works and wins over the build flag. Screenshot: `npm run shot -- out.png [--2d] [--view room|board|cpu]` (3D unless `--2d`).
 - **Shared code** `src/core/render/three/`: `init` (renderer, ACES tone mapping, shadows, a studio environment map), `camera` (pure orbit maths: target, yaw, pitch, view height, fov; a narrow fov reads nearly orthographic, so the ortho/perspective blend is a fov tween), `materials` (palette, `partLook` state looks, `PartSkin` eases them), `geometry` (boxes over layout rects, soft boxes, tubes, instancing, canvas textures), `pick` (raycast to the 2D hover ids), `post` (ambient occlusion that skips glass and sprites, outline, bloom for the neon, output).

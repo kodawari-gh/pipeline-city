@@ -1,4 +1,4 @@
-// Palette and state looks of the 3D parts (docs/LOWPOLY_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
+// Palette and state looks of the 3D parts (docs/3D_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
 // `shareMaterials` lets equal materials of a built tree become one (fewer uniform uploads per frame), `writable` copies one back for a writer.
 import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
@@ -6,7 +6,7 @@ import {
 } from 'three';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
-/** Above this temperature a part starts to glow (LOWPOLY_STYLE.md "Overheating"). */
+/** Above this temperature a part starts to glow (3D_STYLE.md "Overheating"). */
 export const HOT_FROM_C = 42, HOT_FULL_C = 82;
 
 export interface PartState { powered: boolean; active: boolean; burnt: boolean; throttled: boolean; tempC: number }
@@ -70,7 +70,7 @@ export class PartSkin {
       || (this.goal.glowIntensity > 0 && Math.abs(g.r - w.r) + Math.abs(g.g - w.g) + Math.abs(g.b - w.b) > 1e-3);
   }
 
-  /** Ease over about half a second (LOWPOLY_STYLE.md "State Transitions"). */
+  /** Ease over about half a second (3D_STYLE.md "State Transitions"). */
   frame(dt: number): void {
     const t = 1 - Math.pow(0.002, dt);
     this.tint += (this.goal.tint - this.tint) * t;
