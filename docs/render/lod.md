@@ -47,7 +47,7 @@ PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of
 - A swap changes only layers. The part goes to `UNDRAWN` (`pick.ts`): no camera draws it, but the rays, `findById` and the outline still find it. Both stay `visible`, so the shadow scan sees no change and redraws no map.
 - Guard: a part hidden after the build (a reveal nobody declared) makes its anchor build again without it. A part that moves alone must be an anchor or under `skip`.
 - Rebuild: with the machine (`machineKey`), and the cables' anchor in `setCables`. The old geometry is freed there and in `dispose`.
-- Holds (`heldBy`, `standInDraws`, `farClasses` `ceil`): Build my PC keeps in full detail the part under the pointer, all of the machine while a step moves a part, and every part from 0.8 of its own view's zoom in (`LOD_CEIL`).
+- Holds (`heldBy`, `standInDraws`, `farClasses` `ceil`): Build my PC keeps every part in full detail from 0.8 of its own view's zoom in (`LOD_CEIL`). Its wheel's limit stays inside that at every aspect, so it holds no part by hand (no pointer or step hold).
 - Off: the last argument of `Machine3D` (`buildMachine(s, true, false)` in tests).
 - Census (maxed sandbox machine, headless): 632 drawn meshes to 398 in the room view, 441 in the phone board view; 273 parts in 19 stand-ins. Frame times: not measured here.
 

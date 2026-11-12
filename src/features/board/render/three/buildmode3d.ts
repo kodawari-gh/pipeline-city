@@ -13,7 +13,7 @@ import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, step
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
-import { findById, idOf, ownerOf, pick, seeThrough, tag } from '@/core/render/three/pick';
+import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -131,8 +131,6 @@ export class BuildStage {
   private dead = false;
   private last = performance.now();
   private wantOpen = false;
-  /** The part last under the pointer (a hover, a press, a drop): it stays in full detail (`holdDetail`). */
-  private hot: Object3D | null = null;
   private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
@@ -446,7 +444,6 @@ export class BuildStage {
   private hitId(x: number, y: number): string | null {
     const r = this.ctx.renderer.domElement.getBoundingClientRect();
     const o = pick(this.machine.boardRoots(), this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
-    this.hot = ownerOf(o);
     return idOf(o);
   }
 
