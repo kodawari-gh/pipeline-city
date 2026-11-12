@@ -26,9 +26,13 @@ export function rebuild(this: Game, r: SavedKey): Key {
   const own = cls && (task ? r.scale === (task.scale ?? cls.scale) : cls.template === r.template && cls.scale === r.scale);
   const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : own ? cls.payMul * (task?.payMul ?? 1) : 1;
   const parsed = /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? "cli";
+  // `work` (a reference run of the whole program, up to 3M steps, 25-100 ms for a gpu job) is worked out on first read. A key nobody prices or pays never costs it.
+  let work: number | undefined;
   return {
     id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
-    work: runReference(g).steps, type: task?.id ?? (clsId === "cli" || clsId === "scan" ? parsed : clsId), jobNo: g.meta.params.jobId,
+    get work(): number { return work ??= runReference(g).steps; },
+    set work(v: number) { work = v; },
+    type: task?.id ?? (clsId === "cli" || clsId === "scan" ? parsed : clsId), jobNo: g.meta.params.jobId,
     cls: clsId, needs: task ? taskNeeds(task) : cls?.needs ?? [], payMul,
     attempts: 1, pluggedAt: r.pluggedAt ?? 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
   };
