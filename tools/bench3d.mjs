@@ -267,7 +267,8 @@ try {
     }],
     ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
     // the owner's report (2026-11-12): the room at night, the case's side panel under the pointer (its outline on), the city in the window.
-    // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale
+    // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale,
+    // and pins the GPU with `--gpu 'RTX 5080'` plus `--need-timers`, so a run on another GPU or without GPU timers throws
     // The sim is paused while it runs (a sandbox key moves shadow casters). A moved key, a lit shadow map, a missed hover, an off outline or an empty recording throws.
     ['room night hover', {
       pre: async () => {
