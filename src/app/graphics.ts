@@ -76,9 +76,9 @@ const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
 const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 
-/** A tier is its preset. Low also draws at 0.75 scale, with the sun's shadows Off and 30 fps (what phones got); the other two run 60. */
+/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], ...(tier === 'low' ? { scale: 0.75, shadows: 0, fps: 30 } : { fps: 60 }) };
+  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0 } : {}) };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */
@@ -402,21 +402,16 @@ export class FrameGate {
   }
 }
 
-/** The frame limit while the player is away, and how long without input (ms) means away. */
-const AWAY_FPS = 30, AWAY_AFTER_MS = 30000;
+/** The frame limit while the page has lost the focus. */
+const AWAY_FPS = 30;
 
-/** Lowers the frame limit while the player is away: the page has lost the focus, or no input came for a while and nothing moves that they started. The GPU and its fans rest. */
-export class AwayWatch {
-  private at = 0;
-
-  /** The player did something at `now`. */
-  input(now: number) { this.at = now; }
-
-  /** The frame limit at `now`, from the player's own `fps`. `busy`: the view or the player's hand is on its way, so frames still count. */
-  limit(fps: number, now: number, focused: boolean, busy: boolean): number {
-    if (focused && (busy || now - this.at < AWAY_AFTER_MS)) return fps;
-    return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
-  }
+/**
+ * The frame limit, from the player's own `fps`: lowered to 30 only while the page has lost the focus, so the GPU and its fans rest. Time without
+ * input lowers nothing (owner decision): a player who watches the city run keeps the full rate. A frame with nothing new is skipped elsewhere.
+ */
+export function awayLimit(fps: number, focused: boolean): number {
+  if (focused) return fps;
+  return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
 }
 
 /** Does the away limit hold the loop below the player's own `fps` (0: none)? Those frames say nothing to `TierWatch`. */

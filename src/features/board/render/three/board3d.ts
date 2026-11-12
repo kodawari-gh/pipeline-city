@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, AwayWatch, awayHeld, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics } from '@/app/graphics';
+import { autoStep, awayHeld, awayLimit, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -566,11 +566,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     demand.ask();
   };
   effect(() => applyGraphics(effective.value));
-  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), tierWatch = new TierWatch(), away = new AwayWatch();
+  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), tierWatch = new TierWatch();
   const resetWatches = (now: number) => { watch.reset(now); tierWatch.reset(now); };
   // a new choice of the player's starts the watch over, as a new picture bakes and compiles its way in
   effect(() => { graphics.value; resetWatches(performance.now()); });
-  for (const e of ['pointerdown', 'pointermove', 'wheel', 'keydown']) window.addEventListener(e, () => away.input(performance.now()), { passive: true, capture: true });
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
@@ -596,7 +595,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let wasCovered = false, outlineKey = '';
   const frame = (now: number) => {
     const t0 = performance.now(); // the frame work time (CPU in this callback) for `TierWatch`
-    const g = effective.peek(), fps = away.limit(g.fps, now, document.hasFocus(), menu || lift.busy || !!hand.kind || !settled(view, goal));
+    const g = effective.peek(), fps = awayLimit(g.fps, document.hasFocus());
     if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
     // (the frame rate the graphics settings show stays live: the page's, which the stage's draw sets)
     if (covered()) { wasCovered = true; last = now; meter.tick(now, canvas.width, canvas.height); requestAnimationFrame(frame); return; }

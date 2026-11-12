@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, AwayWatch, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
+  autoStep, awayHeld, awayLimit, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
   loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
 } from './graphics';
 
@@ -64,12 +64,12 @@ describe('TierWatch', () => {
   it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
 
   it('ignores frames the away limit holds down', () => {
-    const w = new AwayWatch(), w2 = new TierWatch();
+    const w2 = new TierWatch();
     w2.reset(0);
     let out: 'down' | 'up' | null = null;
     // unfocused: the limit is 30 against the player's 60; 30 fps frames must not count
     for (let t = 5000, i = 0; i < 600; i++, t += 1000 / 30) {
-      const limit = w.limit(60, t, false, false);
+      const limit = awayLimit(60, false);
       if (!awayHeld(limit, 60)) out = w2.tick(1 / 30, 3, t, 60) ?? out;
     }
     expect(out).toBeNull();
@@ -97,7 +97,7 @@ describe('tier persistence', () => {
   it('a first start applies the detected tier, in auto mode', () => {
     const s = resolveStart(null, null, '', detect('low'));
     expect(s.rec).toEqual({ mode: 'auto', tier: 'low', reason: 'test' });
-    expect(s.g).toMatchObject({ ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 });
+    expect(s.g).toMatchObject({ ...PRESETS.low, scale: 0.75, shadows: 0, fps: 60 });
   });
   it('an old save with no tier record is manual and keeps the settings', () => {
     const s = resolveStart({ ...PRESETS.high, msaa: 8, fps: 120, v: 2 }, null, '', detect('low'));
@@ -195,7 +195,7 @@ describe('tier persistence', () => {
     it('reads as Low, auto, with 4 lamps', () => {
       const s = resolveStart(old, null, '', detect('high'));
       expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });
-      expect(s.g).toMatchObject({ lights: 4, lightShadows: 0, scale: 0.75, shadows: 0, fps: 30 });
+      expect(s.g).toMatchObject({ lights: 4, lightShadows: 0, scale: 0.75, shadows: 0, fps: 60 });
     });
     it('a save that differs in any key stays manual', () => {
       for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['fps', 60], ['msaa', 2], ['particles', 1], ['brightness', 1.1]] as const) {
@@ -221,7 +221,7 @@ describe('tier persistence', () => {
   it('?tier= overrides for the session, is manual and is not stored', () => {
     const s = resolveStart({ ...DEFAULTS, v: 2 }, { mode: 'auto', tier: 'high', reason: '' }, '?tier=low', detect('high'));
     expect(s.rec).toMatchObject({ mode: 'manual', tier: 'low' });
-    expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 30 });
+    expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 60 });
     expect(resolveStart(null, null, '?tier=bogus', detect('medium')).rec.tier).toBe('medium');
     expect(store.size).toBe(0);
   });
@@ -353,32 +353,34 @@ describe('FrameGate', () => {
   });
 });
 
-describe('AwayWatch', () => {
-  it('keeps the limit while the player is there', () => {
-    const w = new AwayWatch();
-    w.input(1000);
-    expect(w.limit(60, 20000, true, false)).toBe(60);
-    expect(w.limit(0, 20000, true, false)).toBe(0);
+describe('the frame limit', () => {
+  // frames a 120 Hz screen lets draw in `s` seconds under the limit at each frame (the frame loop: `awayLimit`, then `FrameGate`)
+  const drawnIn = (s: number, limitAt: (t: number) => number) => {
+    const g = new FrameGate();
+    let n = 0;
+    for (let i = 0; i < 120 * s; i++) { const t = (i * 1000) / 120; if (g.ready(t, limitAt(t))) n++; }
+    return n;
+  };
+
+  it('Low runs at 60, not held to 30', () => {
+    setTier('low');
+    expect(graphics.value.fps).toBe(60);
+    expect(drawnIn(1, () => awayLimit(graphics.value.fps, true))).toBeGreaterThanOrEqual(59);
+    setTier('high');
   });
 
-  it('holds to 30 after a while without input, until the next', () => {
-    const w = new AwayWatch();
-    w.input(1000);
-    expect(w.limit(60, 40000, true, false)).toBe(30);
-    expect(w.limit(0, 40000, true, false)).toBe(30);
-    w.input(40000);
-    expect(w.limit(60, 40001, true, false)).toBe(60);
+  it('keeps the full rate after minutes without input', () => {
+    // no input for 5 minutes, page focused: every second of it draws at the player's limit
+    for (const fps of [60, 0]) expect(awayLimit(fps, true)).toBe(fps);
+    expect(drawnIn(300, () => awayLimit(60, true))).toBeGreaterThanOrEqual(299 * 60);
   });
 
   it('holds to 30 without the focus, at once', () => {
-    const w = new AwayWatch();
-    w.input(1000);
-    expect(w.limit(120, 1001, false, false)).toBe(30);
-    expect(w.limit(120, 1001, false, true)).toBe(30);
+    expect(awayLimit(120, false)).toBe(30);
+    expect(awayLimit(0, false)).toBe(30);
   });
 
-  it('does not hold while something moves', () => expect(new AwayWatch().limit(60, 99000, true, true)).toBe(60));
-  it('never raises a lower limit', () => expect(new AwayWatch().limit(24, 99000, false, false)).toBe(24));
+  it('never raises a lower limit', () => expect(awayLimit(24, false)).toBe(24));
 });
 
 describe('SlowWatch', () => {
