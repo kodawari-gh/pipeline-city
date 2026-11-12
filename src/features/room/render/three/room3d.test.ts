@@ -6,7 +6,7 @@ import { FLOOR_Y, NIGHTSTAND } from './roomplan';
 
 type Caster = Light & { shadow: LightShadow };
 
-it('keeps the bedside lantern\'s map to the drawer with the lamps\' shadows off: only a caster on BEDSIDE_LAYER redraws it', () => {
+it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' shadows off: only a caster on BEDSIDE_LAYER redraws it', () => {
   const room = new Room3D(), scene = new Scene();
   const bed = (room as unknown as { bedLight: PointLight }).bedLight, lights = (room as unknown as { casters: Caster[] }).casters;
   // a caster under the drawer: in the lantern's range, on no layer of its map

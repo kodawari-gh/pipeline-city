@@ -70,8 +70,9 @@ const LANTERN_FAR = 130000;
 /** The bedside lantern's shadow range with the lamps' shadows off: the drawer's whole shadow on the wall, the floor and the bed's side. */
 export const BEDSIDE_FAR = 21000;
 /**
- * The layer of the casters in the bedside lantern's map with the lamps' shadows off: the drawer's box and its front (they stay on layer 0
- * too). They alone stop the light that lit the wall, the floor and the bed's side under the drawer, so nothing else redraws that map.
+ * The layer of the casters in the bedside lantern's map with the lamps' shadows off: the drawer and the bed, with what stands on them (they
+ * stay on layer 0 too). The drawer stops the light that lit the wall, the floor and the bed's side under it; the rest keeps the small shadows
+ * that High shows there (the lantern's stand, the book, the mattress's edge). They do not move, so nothing else in the room redraws that map.
  */
 export const BEDSIDE_LAYER = 5;
 /** The casters' names in `LIGHT_ORDER`, in `SHADOW_LEVELS`' order. */
@@ -502,7 +503,7 @@ export class Room3D {
     // (a lantern's paper and its bulb let the light through: they cast no shadow, the paper glows with it)
     const glassy = (l: Lantern) => l.root.traverse((o) => { const m = (o as Mesh).material; if (m === l.shade || m === l.glow) o.castShadow = false; });
     glassy(ns);
-    for (const m of ns.body) m.layers.enable(BEDSIDE_LAYER);
+    for (const r of [ns.root, bd.root]) r.traverse((o) => { if (o.castShadow) o.layers.enable(BEDSIDE_LAYER); });
     // the floor lantern's shadow: the bookcase's end, the fig's leaves on the west wall and the floor
     this.floorLamp = floorLantern();
     glassy(this.floorLamp);
@@ -880,7 +881,7 @@ export class Room3D {
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
       l.shadow.needsUpdate = true;
-      // (the bedside lantern at the smallest map holds only its drawer, `BEDSIDE_LAYER`, and casts only round it: past `BEDSIDE_FAR` its
+      // (the bedside lantern at the smallest map holds only its drawer and the bed (`BEDSIDE_LAYER`) and casts only round it: past `BEDSIDE_FAR` its
       // light is not shadowed, as with no map. A shadow camera on layer 0 alone draws the view's layers: three's `WebGLShadowMap`)
       if (l === this.bedLight) {
         const small = this.choice.small.has(id);
