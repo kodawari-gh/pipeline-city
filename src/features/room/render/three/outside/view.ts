@@ -197,6 +197,7 @@ export class OutsideView {
   private live: Camera | null = null;
   /** Whether the eye sees the window; the eye (its whole view and the frame's size) at the last draw. */
   private sight = new Sight();
+  private sightCanvas: HTMLCanvasElement | null = null;
   private eye = new Matrix4();
   private eyeNow = new Matrix4();
   private eyeFrame = '';
@@ -392,6 +393,12 @@ export class OutsideView {
     this.eyeNow.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     const frame = `${fw}x${fh}x${samples}`, moved = frame !== this.eyeFrame || !nearly(this.eyeNow, this.eye);
     if (moved) { this.eye.copy(this.eyeNow); this.eyeFrame = frame; }
+    if (this.sightCanvas !== renderer.domElement) {
+      // a lost context takes the query with it (see `Sight.lose`)
+      const el = this.sightCanvas = renderer.domElement;
+      el.addEventListener('webglcontextlost', () => this.sight.lose());
+      el.addEventListener('webglcontextrestored', () => this.sight.restore());
+    }
     this.sight.frame(renderer.getContext() as QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
     if (this.sight.hidden && this.live === camera) { this.age = 0; return; }

@@ -40,7 +40,7 @@ function prepared(m: Mesh, toRoot: Matrix4, ao: boolean): BufferGeometry {
 }
 
 /**
- * Merge the still meshes under `root` by material (and by how they cast and take shadows): each set becomes one mesh on the root, the
+ * Merge the still meshes under `root` by material (and by how they cast and take shadows, and by their layers): each set becomes one mesh on the root, the
  * originals leave the tree. A mesh with an id over it (it answers a click), a see-through, transparent, instanced or moving one stays as it
  * is. Call it once the root is built, before it is drawn. Returns how many meshes were merged.
  */
@@ -50,7 +50,7 @@ export function mergeStatic(root: Object3D): number {
   const sets = new Map<string, { m: Material; cast: boolean; take: boolean; meshes: Mesh[] }>();
   root.traverse((o) => {
     if (!still(o, root)) return;
-    const k = `${(o.material as Material).uuid}|${o.castShadow}|${o.receiveShadow}`;
+    const k = `${(o.material as Material).uuid}|${o.castShadow}|${o.receiveShadow}|${o.layers.mask}`;
     let s = sets.get(k);
     if (!s) sets.set(k, (s = { m: o.material as Material, cast: o.castShadow, take: o.receiveShadow, meshes: [] }));
     s.meshes.push(o);
@@ -64,6 +64,7 @@ export function mergeStatic(root: Object3D): number {
     for (const m of s.meshes) m.parent?.remove(m);
     const out = new Mesh(g, s.m);
     out.castShadow = s.cast; out.receiveShadow = s.take;
+    out.layers.mask = s.meshes[0]!.layers.mask;
     out.name = 'merged';
     root.add(out);
     n += s.meshes.length;

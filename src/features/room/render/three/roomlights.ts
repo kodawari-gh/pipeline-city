@@ -21,6 +21,13 @@ export const LIGHT_ORDER: readonly LightId[] = ['key', 'sun', 'arc', 'desk', 'fl
 export const WINDOW_LIGHTS: readonly LightId[] = ['key', 'sun'];
 /** The lamps that can cast a shadow (a point or a spot with a map: `SHADOW_LEVELS` in room3d.ts). */
 export const LAMP_CASTERS: readonly LightId[] = ['desk', 'bedside', 'floor', 'arc'];
+/**
+ * The lamps that cast also with the lamps' shadows off, while they are live, at the smallest map (`LightChoice.small`).
+ * - `bedside`: its bulb stands just over the drawer it sits on. With no shadow its light passes the drawer's top: the wall and the floor
+ *   under the drawer and the bed's side light up (pool +5.4% at Medium), and the top itself must stay lit, so no cone can cut it.
+ *   Its map holds until a caster moves (`ShadowCache`), so a still room draws none.
+ */
+export const ALWAYS_CASTS: readonly LightId[] = ['bedside'];
 
 /**
  * A capped lamp's baked bounce is shown this many times over: the bake holds only its indirect light, and its pool on the wall or the floor
@@ -33,6 +40,8 @@ export interface LightChoice {
   live: Set<LightId>;
   /** Those of them that may cast a shadow (the `shadows` level still sizes each map, or turns all off). */
   shadows: Set<LightId>;
+  /** Those of `shadows` that cast only by `ALWAYS_CASTS` (the lamps' shadows are off): each takes the smallest map. */
+  small: Set<LightId>;
 }
 
 /**
@@ -41,7 +50,7 @@ export interface LightChoice {
  * in, so a higher cap only ever adds lights.
  */
 export function chooseLights(cap: number, lampShadows: boolean, count: (id: LightId) => number = () => 1): LightChoice {
-  const live = new Set<LightId>(), shadows = new Set<LightId>();
+  const live = new Set<LightId>(), shadows = new Set<LightId>(), small = new Set<LightId>();
   let n = 0;
   for (const id of LIGHT_ORDER) {
     const c = count(id);
@@ -49,8 +58,9 @@ export function chooseLights(cap: number, lampShadows: boolean, count: (id: Ligh
     n += c;
     live.add(id);
     if (WINDOW_LIGHTS.includes(id) || (lampShadows && LAMP_CASTERS.includes(id))) shadows.add(id);
+    else if (ALWAYS_CASTS.includes(id)) { shadows.add(id); small.add(id); }
   }
-  return { live, shadows };
+  return { live, shadows, small };
 }
 
 /** How many times over a light group's baked bounce shows with `capped` of its `total` lights out of the scene. */

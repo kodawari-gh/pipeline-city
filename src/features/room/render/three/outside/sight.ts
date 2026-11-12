@@ -17,9 +17,24 @@ export class Sight {
   private old = false;
   /** The frames since the query ended. The GPU is asked only after two: Firefox blocks on a query that is not done. */
   private age = 0;
+  /** The context is lost: no call goes to the GPU. */
+  private lost = false;
+
+  /** The context was lost: its query is gone with it (never read or deleted). The window counts as seen until a new answer comes. */
+  lose(): void {
+    this.lost = true;
+    this.query = null;
+    this.hidden = false;
+    this.armed = this.asking = this.waiting = this.old = false;
+    this.age = 0;
+  }
+
+  /** The context is back: the next query is a new one. */
+  restore(): void { this.lost = false; }
 
   /** Each frame, before anything is drawn: hears the answer if it has come. `moved`: the eye is not where it was last frame. */
   frame(gl: QueryGL, moved: boolean): void {
+    if (this.lost) return;
     if (moved) { this.hidden = false; this.old = this.waiting; }
     if (this.waiting) this.age++;
     if (this.waiting && this.age >= 2 && gl.getQueryParameter(this.query!, gl.QUERY_RESULT_AVAILABLE)) {
@@ -32,7 +47,7 @@ export class Sight {
 
   /** Just before the quad's draw. */
   begin(gl: QueryGL): void {
-    if (!this.armed) return;
+    if (this.lost || !this.armed) return;
     this.armed = false;
     this.asking = true;
     gl.beginQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE, (this.query ??= gl.createQuery()));
@@ -40,7 +55,7 @@ export class Sight {
 
   /** Just after the quad's draw. */
   end(gl: QueryGL): void {
-    if (!this.asking) return;
+    if (this.lost || !this.asking) return;
     this.asking = false;
     this.waiting = true;
     this.age = 0;

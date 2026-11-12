@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAPPED_BOUNCE, LAMP_CASTERS, LIGHT_ORDER, WINDOW_LIGHTS, bounceLift, chooseLights, type LightId } from './roomlights';
+import { ALWAYS_CASTS, CAPPED_BOUNCE, LAMP_CASTERS, LIGHT_ORDER, WINDOW_LIGHTS, bounceLift, chooseLights, type LightId } from './roomlights';
 
 /** The room as built: six strips under the shelves. */
 const count = (id: LightId): number => (id === 'strips' ? 6 : 1);
@@ -37,9 +37,24 @@ describe('chooseLights', () => {
   it('lets every live caster cast with the lamps\' shadows on', () => {
     expect([...chooseLights(0, true, count).shadows].sort()).toEqual([...WINDOW_LIGHTS, ...LAMP_CASTERS].sort());
     expect([...chooseLights(4, true, count).shadows]).toEqual(['key', 'sun', 'arc', 'desk']);
+    // (High and Ultra: each lamp at its level's own map size)
+    for (const cap of [4, 8, 0]) expect(chooseLights(cap, true, count).small.size).toBe(0);
   });
-  it('leaves only the window\'s shadows with the lamps\' shadows off', () => {
-    for (const cap of [4, 8, 0]) expect([...chooseLights(cap, false, count).shadows]).toEqual(['key', 'sun']);
+  it('keeps the bedside lantern\'s shadow, at the smallest map, with the lamps\' shadows off (Medium)', () => {
+    for (const cap of [8, 0]) {
+      const c = chooseLights(cap, false, count);
+      expect([...c.shadows]).toEqual(['key', 'sun', 'bedside']);
+      expect([...c.small]).toEqual(['bedside']);
+    }
+  });
+  it('casts nothing for a capped bedside lantern (Low): only the window\'s shadows', () => {
+    const c = chooseLights(4, false, count);
+    expect(c.live.has('bedside')).toBe(false);
+    expect([...c.shadows]).toEqual(['key', 'sun']);
+    expect(c.small.size).toBe(0);
+  });
+  it('lets only lamps with a map cast always', () => {
+    for (const id of ALWAYS_CASTS) expect(LAMP_CASTERS).toContain(id);
   });
   it('names each light once, the window first', () => {
     expect(new Set(LIGHT_ORDER).size).toBe(LIGHT_ORDER.length);

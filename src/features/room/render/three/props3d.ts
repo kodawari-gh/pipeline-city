@@ -120,7 +120,7 @@ export class Monitor {
   useLive(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void {
     const m = this.faceMat;
     if (!m) return;
-    if (!img) { if (m.map !== this.tex) { m.map = this.tex; m.needsUpdate = true; } return; }
+    if (!img) { this.liveRev = undefined; if (m.map !== this.tex) { m.map = this.tex; m.needsUpdate = true; } return; } // (off: the next show uploads again)
     // a new texture uploads by itself; an old one only when the canvas was drawn again (`rev`) or its size changed
     if (!this.liveTex || this.liveTex.image !== img.canvas) { this.liveTex?.dispose(); this.liveTex = rawSrgb(img.canvas); this.liveTex.anisotropy = this.tex?.anisotropy ?? 1; this.liveRev = img.rev; this.liveSize = ''; }
     this.liveTex.repeat.set(img.w / img.canvas.width, img.h / img.canvas.height);
