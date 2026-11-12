@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   autoStep, AwayWatch, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
-  resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
+  loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
 } from './graphics';
 
 const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
@@ -161,6 +161,32 @@ describe('tier persistence', () => {
     });
     it('an old record with no date is kept and dated now', () => {
       expect(run({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low' }, T0 + 9 * DAY)).toMatchObject({ tier: 'low', maxUp: 'low', maxUpAt: T0 + 9 * DAY, maxUpFp: 'gpu|1920x1080' });
+    });
+  });
+  describe('an undated maxUp is saved once', () => {
+    const DAY = 24 * 3600 * 1000, T0 = 1_000_000_000_000, TK = 'pipeline-city.graphics.tier';
+    it('is dated at the first load and expires on a later one', () => {
+      const m = new Map<string, string>([
+        ['pipeline-city.graphics', JSON.stringify({ ...DEFAULTS, v: 2 })],
+        [TK, JSON.stringify({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low' })],
+      ]);
+      const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+      const env = (now: number) => ({ now, fp: () => 'gpu|1920x1080' });
+      loadStart(store, '', detect('high'), env(T0));
+      expect(JSON.parse(m.get(TK)!)).toMatchObject({ maxUp: 'low', maxUpAt: T0, maxUpFp: 'gpu|1920x1080' });
+      const later = loadStart(store, '', detect('high'), env(T0 + 4 * DAY));
+      expect(later.rec.maxUp).toBeUndefined();
+    });
+  });
+  describe('the save adds only the date and device', () => {
+    it('keeps the stored tier', () => {
+      const m = new Map<string, string>([
+        ['pipeline-city.graphics', JSON.stringify({ ...DEFAULTS, v: 2 })],
+        ['pipeline-city.graphics.tier', JSON.stringify({ mode: 'auto', tier: 'high', reason: '', maxUp: 'medium' })],
+      ]);
+      const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+      loadStart(store, '', detect('high'), { now: 5, fp: () => 'f' });
+      expect(JSON.parse(m.get('pipeline-city.graphics.tier')!)).toEqual({ mode: 'auto', tier: 'high', reason: '', maxUp: 'medium', maxUpAt: 5, maxUpFp: 'f' });
     });
   });
   describe('the touch default from before tiers', () => {

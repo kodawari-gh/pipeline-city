@@ -179,7 +179,7 @@ function freshMaxUp(rec: TierRecord, env: StartEnv): TierRecord {
 }
 
 /** What `resolveStart` needs from the clock and the device. */
-interface StartEnv { now: number; fp: () => string }
+export interface StartEnv { now: number; fp: () => string }
 
 // the touch default from before tiers: Low's values with scale 0.75, shadows 0, 30 fps, and no lamp keys
 function isOldTouchDefault(raw: unknown): boolean {
@@ -286,7 +286,26 @@ function readJson(key: string): unknown {
   try { return JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { return null; }
 }
 
-const start = resolveStart(readJson(KEY), readJson(TIER_KEY), typeof location === 'undefined' ? '' : location.search, detect);
+/**
+ * `resolveStart` on the stored values. A `maxUp` that got its date or device now is saved at once: else an old record is dated "now" on every load
+ * and never expires.
+ */
+export function loadStart(
+  store: Pick<Storage, 'getItem' | 'setItem'>, search: string, detectTier: () => { tier: Tier; reason: string }, env?: StartEnv,
+): { g: Graphics; rec: TierRecord } {
+  const read = (k: string): unknown => { try { return JSON.parse(store.getItem(k) ?? 'null'); } catch { return null; } };
+  const raw = read(TIER_KEY), before = parseTierRecord(raw);
+  const s = resolveStart(read(KEY), raw, search, detectTier, env);
+  // only the stored record plus the missing date and device, not what `resolveStart` changed in memory
+  if (before?.maxUp && s.rec.maxUp && (before.maxUpAt === undefined || before.maxUpFp === undefined)) {
+    const dated = { ...before, maxUpAt: s.rec.maxUpAt, maxUpFp: s.rec.maxUpFp };
+    try { store.setItem(TIER_KEY, JSON.stringify(dated)); } catch { /* storage blocked or full: ignore */ }
+  }
+  return s;
+}
+
+const noStore = { getItem: () => null, setItem: () => {} };
+const start = loadStart(typeof localStorage === 'undefined' ? noStore : localStorage, typeof location === 'undefined' ? '' : location.search, detect);
 
 /** The player's settings. */
 export const graphics = signal<Graphics>(start.g);
