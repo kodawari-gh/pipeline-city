@@ -104,7 +104,9 @@ The 4K room is CPU-bound: about 2,000 draws each upload the uniforms of every li
 - **The choice depends on the cap alone**, not on the hour or a switch. A lamp that is off keeps its place, so the count of lights (and each lit program) holds through the evening. Programs link again only when the option changes.
 - **A capped lamp** leaves the scene (`visible = false`). Its fixture still glows, the frame still sets its level, and its baked bounce shows `CAPPED_BOUNCE` (2.5) times over, for the pool it lost. A group with a share of its lights capped takes that share of the lift.
 - **`lightShadows` off**: the lamps cast no shadow and their maps are freed. The window's shadows follow `shadows` alone.
-- Not yet measured: `CAPPED_BOUNCE` is a first value. Check the sconce's scallop and the darkest wall at 23:00 (the targets above) at cap 4 and cap 8, and tune it.
+- **A lamp with no shadow map must not shine through its own furniture** (`SHADOWLESS_CONE`, `shadowlessCone`): the bedside lantern's point light gives its place to a spot of the same level that aims up, 120 degrees wide a side (zero 30 degrees under the level, full from 20), so the drawer's sides, the wall and floor under it and the bed's side stay dark. One light for one: no map, no work in a frame.
+- Not cut: the desk lamp's spot through the desk top (about 5% of its pool on the floor under it; a `distance` cut-off would dim the chair) and the lamps' light through other furniture (the floor lantern across the desk, the arc lamp).
+- Measured at cap 4 (Low) against main Low (Reviewer, RTX 5080, 4K, 23:00): shelf strips -56%, desk LEDs -25%, bedside pool -19%, floor pool -7%. `CAPPED_BOUNCE` (2.5) stays a first value: tune it per group later.
 - The bake (`exportRoom`) ignores the cap: it bakes every lamp at full power, whatever the tier.
 - Tiers: Low caps at 4 lamps with no lamp shadows; Medium and High keep all lamps (Medium with lamp shadows off). The capped-lamp lift is a known limit: shelf strips lose much of their light at cap 4.
 

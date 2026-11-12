@@ -53,5 +53,20 @@ export function chooseLights(cap: number, lampShadows: boolean, count: (id: Ligh
   return { live, shadows };
 }
 
+/** A cone that stands in for a point light: its half-angle from straight up (rad, it may pass a half sphere) and its soft edge's share of it. */
+export interface OpenCone { angle: number; penumbra: number }
+
+/**
+ * The lamps that shine through their own furniture with no shadow map, and the cone that cuts that light (light.md "The lamp cap").
+ * - `bedside`: the bulb stands 2050 over the drawer's top and 2400 to 4800 in from its edges (`NIGHTSTAND`), so the top shades all below a line 23 to 40
+ *   degrees under the level (the drawer's sides, the wall and the floor under it, the bed's side). The cone ends 30 degrees under the level
+ *   and is full from 20: the mattress's top (at most 21 under) and all above keep the point light's level.
+ * The desk lamp and the arc lamp are spots that aim down at the desk; the floor lantern stands on wire legs, clear of furniture: none here.
+ */
+export const SHADOWLESS_CONE: Partial<Record<LightId, OpenCone>> = { bedside: { angle: (120 * Math.PI) / 180, penumbra: 1 - 110 / 120 } };
+
+/** The cone that stands in for the light `id`, or null for the light as built: only a live lamp that casts no shadow (`casts`) takes one. */
+export const shadowlessCone = (id: LightId, live: boolean, casts: boolean): OpenCone | null => (live && !casts ? SHADOWLESS_CONE[id] ?? null : null);
+
 /** How many times over a light group's baked bounce shows with `capped` of its `total` lights out of the scene. */
 export const bounceLift = (capped: number, total: number): number => (total > 0 ? 1 + (CAPPED_BOUNCE - 1) * (capped / total) : 1);
