@@ -1,10 +1,13 @@
-// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off]`:
+// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off] [--gpu <regex>] [--need-timers]`:
 // plays the game with the real pointer on the real GPU and measures what a player feels: the idle views, the flights, the side door, the hover, a cable pulled
 // and plugged, a part lifted, the running machine. Each scenario prints its frame times; out.json keeps, per scenario, the time of each part of the frame
 // (`cpu`), the GPU time of each pass (`gpu`, with EXT_disjoint_timer_query), how many times the scene and the shadow maps were drawn per frame, the draw
 // calls, the machine rebuilds, the long tasks and the hottest functions of a CPU profile. Compare two runs with `--baseline old.json`. It starts its own dev
-// server on PORT (5197), so no hot update changes the code under it; `window.__board` exists only there. Nothing here is a pass or a fail: it reports.
+// server on PORT (5197), so no hot update changes the code under it; `window.__board` exists only there. Nothing here is a pass or a fail: it reports,
+// except that `--gpu <regex>` throws if the GL renderer string does not match, `--need-timers` throws if EXT_disjoint_timer_query_webgl2 is missing, and
+// `room night hover` throws on a missed hover, a moved key, a drawn shadow map or an off outline, and any scenario throws on a recording with no frames, no draw calls, or no GPU pass times when `--need-timers` is set.
 import { spawn } from 'node:child_process';
+import { assertRecording } from './bench3d-check.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -193,13 +196,19 @@ try {
   const gl = await p.evaluate(() => { const g = window.__board.renderer?.getContext?.() ?? document.createElement('canvas').getContext('webgl2'), e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   console.log(`GL renderer: ${gl}`);
   if (/swiftshader|llvmpipe|software/i.test(gl)) throw new Error('software GL');
-  if (!TWO) console.log(`GPU timers: ${(await p.evaluate(() => window.__probe.gpuTimers())) ? 'yes' : 'no'}   ${W} x ${H}`);
+  const gpuRe = flag('gpu', '');
+  if (gpuRe && !new RegExp(gpuRe).test(gl)) throw new Error(`--gpu ${gpuRe} does not match the GL renderer: ${gl}`);
+  const timers = !TWO && (await p.evaluate(() => window.__probe.gpuTimers()));
+  if (!TWO) console.log(`GPU timers: ${timers ? 'yes' : 'no'}   ${W} x ${H}`);
+  if (has('need-timers') && !timers) throw new Error('--need-timers: EXT_disjoint_timer_query_webgl2 is missing');
 
   const wait = (ms) => p.waitForTimeout(ms);
   const store = (code) => p.evaluate(async (c) => { const S = await import('/src/app/store.ts'); const s = S.snapshot.value; return (0, eval)(`(S, s) => ${c}`)(S, s); }, code);
   const fly = async (v) => { await p.evaluate((v) => window.__board[v]?.(), v); };
   const at = (id) => p.evaluate((id) => window.__board.screenOf(id), id);
   const clearPointer = () => p.mouse.move(W / 2, 4);
+  /** Holds the room's clock at `h` (null: the game's own hour again). */
+  const hour = (h) => p.evaluate(async (h) => { (await import('/src/features/room/render/shell/room.ts')).roomDebug.hour = h; }, h);
   // sets the view and lets it settle, the art bake and the pointer rest, so a scenario starts clean
   const go = async (v, ms = 3000) => { await clearPointer(); await fly(v); await wait(ms); };
   /** The pointer on a path for `ms`, at a real mouse's rate. */
@@ -208,6 +217,8 @@ try {
   const circle = (o, r) => (k) => ({ x: o.x + r * Math.cos(k * Math.PI * 4), y: o.y + r * Math.sin(k * Math.PI * 4) });
 
   // Each scenario: `pre` sets the stage (not measured), `run` is measured, `post` undoes it (not measured).
+  // Optional: `meta()` adds fields to the report, `check(r)` throws on a dirty run.
+  const night = {};
   const three = [
     ['room idle', { pre: () => go('flyToRoom'), run: () => wait(3500) }],
     ['board idle', { pre: () => go('flyToBoard'), run: () => wait(3500) }],
@@ -255,6 +266,36 @@ try {
       },
     }],
     ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
+    // the owner's report (2026-11-12): the room at night, the case's side panel under the pointer (its outline on), the city in the window.
+    // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale,
+    // and pins the GPU with `--gpu 'RTX 5080'` plus `--need-timers`, so a run on another GPU or without GPU timers throws
+    // The sim is paused while it runs (a sandbox key moves shadow casters). A moved key, a lit shadow map, a missed hover, an off outline or an empty recording throws.
+    ['room night hover', {
+      pre: async () => {
+        await go('flyToRoom', 1500); await hour(23); await wait(2500);
+        const c = await at('case.side');
+        if (!c) throw new Error('room night hover: case.side is not on screen');
+        await p.mouse.move(c.x, c.y); await wait(1000);
+        const id = await p.evaluate(async () => (await import('/src/app/hover.ts')).hover.value?.id);
+        if (id !== 'case.side') throw new Error(`room night hover: the pointer is on ${id ?? 'nothing'}, not case.side`);
+        night.hover = id;
+        night.outline = await p.evaluate(() => window.__board.parts().post.outline.enabled);
+        console.log(`hover: ${night.hover}   outline: ${night.outline}`);
+        if (!night.outline) throw new Error('room night hover: the hover outline is off');
+        // pause the sim for the measured window; the old speed comes back in post
+        night.speed = await p.evaluate(async () => { const S = await import('/src/app/store.ts'), v = S.speed.value; S.setSpeed(0); return v; });
+        await wait(300);
+        night.keys = await store(`s.tray.length + (s.plugged ? 1 : 0)`);
+      },
+      run: () => wait(3500),
+      post: async () => { await hour(null); await p.evaluate(async (v) => (await import('/src/app/store.ts')).setSpeed(v), night.speed); },
+      meta: () => ({ hover: night.hover, outline: night.outline }),
+      check: async (r) => {
+        const keys = await store(`s.tray.length + (s.plugged ? 1 : 0)`);
+        if (keys !== night.keys) throw new Error(`room night hover: the key count changed during the run (${night.keys} before, ${keys} after)`);
+        if (r.shadows > 0) throw new Error(`room night hover: the shadow maps were drawn (${r.shadows} per frame, expected 0)`);
+      },
+    }],
     ['running room', { pre: async () => { await store(`(s.tray[0] && !s.plugged && S.plugKey(s.tray[0].id), !s.powered && S.powerButton(), 0)`); await go('flyToRoom', 6000); }, run: () => wait(3500) }],
     ['running board', { pre: () => go('flyToBoard'), run: () => wait(3500) }],
     ['running cpu', { pre: () => go('flyToCpu'), run: () => wait(3500) }],
@@ -274,6 +315,8 @@ try {
   await p.click('role=menuitem[name=/Graphics/]');
   if (flag('preset', '')) await p.click(`aside.gfx .gfx-presets >> text=${flag('preset', '')}`);
   if (!TWO) await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+  // a render scale of the player's own over the preset's (the owner plays Medium at 100 %)
+  if (flag('scale', '')) await p.evaluate(async (k) => (await import('/src/app/graphics.ts')).setGraphic('scale', k), Number(flag('scale', '')));
   await p.click('[aria-label="Close graphics"]');
   await wait(800);
 
@@ -291,10 +334,14 @@ try {
     const profile = has('no-profile') ? null : (await cdp.send('Profiler.stop')).profile;
     const r = sum(raw, ms);
     if (profile) r.profile = hottest(profile);
+    if (s.meta) Object.assign(r, s.meta());
     report.scenarios[name] = r;
     const gpu = Object.values(r.gpu).reduce((a, b) => a + b, 0);
     console.log(name.padEnd(20) + String(r.fps).padStart(7) + String(r.p50).padStart(7) + String(r.p95).padStart(7) + String(r.p99).padStart(7) + String(Math.round(r.max)).padStart(7) + String(r.over33).padStart(5) + String(r.over100).padStart(5) + String(r.longMs).padStart(7) + String(r.rebuilds).padStart(3) + String(r.scenes).padStart(5) + String(r.shadows).padStart(5) + String(r.calls).padStart(7) + String(r.ktris).padStart(7) + String(round(r.cpu['post.render'] ?? 0)).padStart(7) + String(round(gpu)).padStart(7));
     if (r.profile && TOP) for (const [k, v] of r.profile.total.filter(([k]) => !/^(frame|anonymous|\(anonymous\)|render|tick|f|run|e|i) /.test(k)).slice(0, TOP)) console.log(`      ${String(v).padStart(6)} ms  ${k}`);
+    // check while the sim is still as pre left it (paused, for room night hover); then undo
+    if (!TWO) assertRecording(r, { name, needTimers: has('need-timers'), needOutline: name === 'room night hover' });
+    await s.check?.(r);
     await s.post?.();
     await p.keyboard.press('Escape').catch(() => {});
   }

@@ -91,8 +91,9 @@ export class BoardLive3D {
   }
 
   /** The monitor's screen, drawn by `Live` at the screen's own resolution (about 15 times a second), or null while the monitor is off or absent. */
-  screen: { canvas: HTMLCanvasElement; w: number; h: number } | null = null;
+  screen: { canvas: HTMLCanvasElement; w: number; h: number; rev: number } | null = null;
   private screenCanvas: HTMLCanvasElement | null = null;
+  private screenRev = 0;
   private screenAt = -Infinity;
 
   private drawScreen(live: Live, s: Snapshot): void {
@@ -101,7 +102,7 @@ export class BoardLive3D {
     if (this.screen && now - this.screenAt < 66) return;
     const canvas = (this.screenCanvas ??= document.createElement('canvas'));
     const got = drawLive(live.ext, SCREEN, 1280 / SCREEN.w, canvas);
-    this.screen = got ? { canvas, ...got } : null;
+    this.screen = got ? { canvas, ...got, rev: ++this.screenRev } : null;
     if (got) {
       // the 2D screen is drawn over the panel's dark glass: under a blank screen's faint art the texture would be clear, and its colour alone (no alpha) would show
       const c = canvas.getContext('2d')!;
