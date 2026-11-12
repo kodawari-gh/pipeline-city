@@ -1,8 +1,9 @@
-// `npm run shot -- <out.png> [--view cpu|board|x,y,z] [--clip hud] [--wait ms] [--size WxH]`: starts (or reuses) the dev server, opens a sandbox game in a
+// `npm run shot -- <out.png> [--view cpu|board|x,y,z] [--clip hud] [--wait ms] [--size WxH] [--preset Low|Medium|High]`: starts (or reuses) the dev server, opens a sandbox game in a
 // headless Chrome that draws on the real GPU (ANGLE/D3D11, never SwiftShader: software GL burns the CPU), moves the camera and saves a screenshot.
 // It prints the WebGL renderer it got; if that says SwiftShader/llvmpipe it stops (SOFTWARE=1 allows it). Look at the picture after every render or UI change.
 //   --view cpu            fly to the CPU die (the camera `flyToCpu`); `board` the whole board; `x,y,z` an exact camera view (board units, zoom)
 //   --clip hud            only the top bar (the pause / speed / slow-motion controls)
+//   --preset name         a graphics preset, picked in the real panel with auto-adjust off (as tools/bench3d.mjs does); it stops if the preset did not take
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
 //   (default)             the Three.js renderer, the game's view; --view also takes `room` there
@@ -65,6 +66,20 @@ try {
   }
   await p.waitForTimeout(2500);
   if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
+  if (flag('preset', '')) {
+    const name = flag('preset', '');
+    await p.click('[aria-label=Menu]');
+    await p.click('role=menuitem[name=/Graphics/]');
+    await p.click(`aside.gfx .gfx-presets >> text=${name}`);
+    await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+    await p.click('[aria-label="Close graphics"]');
+    const g = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics') ?? 'null'));
+    const t = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics.tier') ?? 'null'));
+    // the preset's tier is saved as manual; `auto` false means the switch held
+    if (!g || g.auto !== false || t?.mode !== 'manual') { console.log(`The preset ${name} did not take (saved graphics: ${JSON.stringify(g)}, tier: ${JSON.stringify(t)}).`); process.exitCode = 3; throw new Error('preset'); }
+    console.log('preset:', name);
+    await p.waitForTimeout(800);
+  }
   const view = flag('view', '');
   if (PROD && (view === 'cpu' || view === 'board')) await p.keyboard.press(view === 'cpu' ? 'f' : 'b');
   else if (view === 'cpu') await p.evaluate(() => window.__board.flyToCpu());

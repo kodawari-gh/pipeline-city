@@ -70,4 +70,27 @@ describe('Sight', () => {
     frame(s, gl);
     expect(begun()).toBe(2);
   });
+
+  it('on context loss drops the query, shows the window and asks a new one after restore', () => {
+    const { gl, begun, polls } = fakeGl(() => false), s = new Sight();
+    for (let i = 0; i < 4; i++) frame(s, gl);
+    expect(s.hidden).toBe(true);
+    s.lose();
+    expect(s.hidden).toBe(false);
+    const p = polls(), b = begun();
+    for (let i = 0; i < 4; i++) frame(s, gl);
+    expect([polls(), begun(), s.hidden]).toEqual([p, b, false]); // no call to a lost context
+    s.restore();
+    for (let i = 0; i < 4; i++) frame(s, gl);
+    expect(begun()).toBeGreaterThan(b);
+    expect(s.hidden).toBe(true); // a fresh result
+  });
+
+  it('on context loss never reads the pending query', () => {
+    const { gl, polls } = fakeGl(() => false, 5), s = new Sight();
+    frame(s, gl); frame(s, gl);
+    s.lose(); s.restore();
+    frame(s, gl);
+    expect(polls()).toBe(0);
+  });
 });

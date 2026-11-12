@@ -2,7 +2,8 @@
 // cushion as its own mesh (easy to place and to read); merged, a frame draws one mesh per material, and the shadow scan walks far fewer.
 // Then the palette merge (`mergePalette`): still meshes whose materials differ only in colour, roughness and metalness become one mesh per
 // cell of space, each vertex with its mesh's three values, so a frame changes material far less often. `mergeSiblings` does the same inside
-// each parent of a built model (the machine): its parts keep their ids, fades, motion and picks.
+// each parent of a built model (the machine): its parts keep their ids, fades, motion and picks. `standIns` merges across parents for a
+// distance (`partlod.ts`): the meshes stay in the tree, and a stand-in draws in their place.
 import {
   Box3, BufferAttribute, Float32BufferAttribute, Matrix4, Mesh, Object3D, ShaderChunk, Vector3, type BufferGeometry, type Material,
   type MeshStandardMaterial, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
@@ -39,7 +40,7 @@ function prepared(m: Mesh, toRoot: Matrix4, ao: boolean): BufferGeometry {
 }
 
 /**
- * Merge the still meshes under `root` by material (and by how they cast and take shadows): each set becomes one mesh on the root, the
+ * Merge the still meshes under `root` by material (and by how they cast and take shadows, and by their layers): each set becomes one mesh on the root, the
  * originals leave the tree. A mesh with an id over it (it answers a click), a see-through, transparent, instanced or moving one stays as it
  * is. Call it once the root is built, before it is drawn. Returns how many meshes were merged.
  */
@@ -49,7 +50,7 @@ export function mergeStatic(root: Object3D): number {
   const sets = new Map<string, { m: Material; cast: boolean; take: boolean; meshes: Mesh[] }>();
   root.traverse((o) => {
     if (!still(o, root)) return;
-    const k = `${(o.material as Material).uuid}|${o.castShadow}|${o.receiveShadow}`;
+    const k = `${(o.material as Material).uuid}|${o.castShadow}|${o.receiveShadow}|${o.layers.mask}`;
     let s = sets.get(k);
     if (!s) sets.set(k, (s = { m: o.material as Material, cast: o.castShadow, take: o.receiveShadow, meshes: [] }));
     s.meshes.push(o);
@@ -63,6 +64,7 @@ export function mergeStatic(root: Object3D): number {
     for (const m of s.meshes) m.parent?.remove(m);
     const out = new Mesh(g, s.m);
     out.castShadow = s.cast; out.receiveShadow = s.take;
+    out.layers.mask = s.meshes[0]!.layers.mask;
     out.name = 'merged';
     root.add(out);
     n += s.meshes.length;
@@ -102,20 +104,26 @@ export function palettePatch(sh: { vertexShader: string; fragmentShader: string 
   sh.fragmentShader = sub(f, '#include <metalnessmap_fragment>', METAL);
 }
 
+/** What a palette material draws as, less the fields on the vertices (`materialKey` of its source): two with one key draw a mesh alike. */
+const palKeys = new WeakMap<Material, string>();
+
 /** A copy of `src` that reads its colour, roughness and metalness from the vertices; it keeps the source's patches. */
 function paletteOf(src: MeshStandardMaterial): MeshStandardMaterial {
   const m = src.clone(), prev = src.onBeforeCompile, key = `${src.customProgramCacheKey()}|pal`;
   m.color.setRGB(1, 1, 1);
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh); };
   m.customProgramCacheKey = () => key;
+  const pk = materialKey(src, ON_VERTEX);
+  if (pk !== null) palKeys.set(m, pk);
   return m;
 }
 
 /** The program inputs of a mesh's geometry: its attributes' names and formats (a merge needs them alike). Null: not one to merge. */
-function attrsKey(g: BufferGeometry): string | null {
+function attrsKey(g: BufferGeometry, omit?: ReadonlySet<string>): string | null {
   if (g.drawRange.start !== 0 || g.drawRange.count !== Infinity) return null;
   const out: string[] = [];
   for (const k of Object.keys(g.attributes).sort()) {
+    if (omit?.has(k)) continue;
     const a = g.attributes[k] as BufferAttribute & { isInterleavedBufferAttribute?: boolean };
     if (a.isInterleavedBufferAttribute) return null;
     out.push(`${k}:${a.itemSize}:${a.array.constructor.name}:${a.normalized}`);
@@ -193,12 +201,7 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
     let x = mesh.geometry.clone().applyMatrix4(inMesh);
     if (x.index) x = x.toNonIndexed();
     x.clearGroups();
-    const c = (mesh.material as MeshStandardMaterial).color, { roughness, metalness } = mesh.material as MeshStandardMaterial;
-    const count = x.attributes.position!.count, pc = new Float32Array(3 * count), prm = new Float32Array(2 * count);
-    for (let i = 0; i < count; i++) { pc[3 * i] = c.r; pc[3 * i + 1] = c.g; pc[3 * i + 2] = c.b; prm[2 * i] = roughness; prm[2 * i + 1] = metalness; }
-    x.setAttribute('_pc', new BufferAttribute(pc, 3));
-    x.setAttribute('_prm', new BufferAttribute(prm, 2));
-    return x;
+    return painted(x, mesh.material as MeshStandardMaterial);
   }), false);
   if (!g) return null;
   const first = meshes[0]!, out = new Mesh(g, material);
@@ -208,6 +211,16 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
   out.name = 'merged';
   partsBy.set(out, parts);
   return out;
+}
+
+/** Gives each vertex of `x` the material's colour, roughness and metalness (`_pc`, `_prm`: what a palette material reads). */
+function painted(x: BufferGeometry, m: MeshStandardMaterial): BufferGeometry {
+  const c = m.color, { roughness, metalness } = m;
+  const count = x.attributes.position!.count, pc = new Float32Array(3 * count), prm = new Float32Array(2 * count);
+  for (let i = 0; i < count; i++) { pc[3 * i] = c.r; pc[3 * i + 1] = c.g; pc[3 * i + 2] = c.b; prm[2 * i] = roughness; prm[2 * i + 1] = metalness; }
+  x.setAttribute('_pc', new BufferAttribute(pc, 3));
+  x.setAttribute('_prm', new BufferAttribute(prm, 2));
+  return x;
 }
 
 /** What no mesh under `root` draws with any more leaves the GPU (its fields stay for the bake's export); `drop` hears of each material. */
@@ -288,4 +301,95 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
   }
   freeGone(root, gone);
   return n;
+}
+
+// ---- the stand-ins for a distance (partlod.ts, docs/render/lod.md "The machine's stand-ins") ----
+
+type Copies = Mesh & { isInstancedMesh?: boolean; count: number; instanceColor?: unknown; getMatrixAt(i: number, m: Matrix4): void };
+const ON_PALETTE: ReadonlySet<string> = new Set(['_pc', '_prm']), COPY = new Matrix4();
+
+/** Is this mesh mirrored, or a copy of this instanced mesh (its triangles would turn their backs in a merge)? The world matrices must be set. */
+function mirrored(m: Copies): boolean {
+  const d = m.matrixWorld.determinant();
+  if (!m.isInstancedMesh) return d <= 0;
+  for (let i = 0; i < m.count; i++) { m.getMatrixAt(i, COPY); if (d * COPY.determinant() <= 0) return true; }
+  return false;
+}
+
+/** How `m` joins a stand-in: the key of its set and, for a palette set, the key of its program (one palette material draws it). */
+function joinOf(m: Mesh): { key: string; prog: string | null } | null {
+  const x = m as Copies & { isSkinnedMesh?: boolean; isBatchedMesh?: boolean }, mat = m.material as MeshStandardMaterial;
+  if (!m.isMesh || x.isSkinnedMesh || x.isBatchedMesh || Array.isArray(mat) || mat.transparent || mat.opacity !== 1 || !mat.visible) return null;
+  if (x.isInstancedMesh && (x.count < 1 || x.instanceColor)) return null;
+  if (Object.keys(m.geometry.morphAttributes).length || m.onBeforeRender !== Object3D.prototype.onBeforeRender || m.customDepthMaterial || m.customDistanceMaterial || mirrored(x)) return null;
+  const pal = palKeys.get(mat) ?? (mat.isMeshStandardMaterial && stillMaterial(mat) ? materialKey(mat, ON_VERTEX) : null);
+  const attrs = attrsKey(m.geometry, pal === null ? undefined : ON_PALETTE), flags = `${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.layers.mask}`;
+  if (attrs === null) return null;
+  return pal === null ? { key: `mat:${mat.uuid}|${attrs}|${flags}`, prog: null } : { key: `pal:${attrs}|${pal}|${flags}`, prog: `${attrs}|${pal}` };
+}
+
+/**
+ * The set a mesh joins in a stand-in (`standIns`), or null: it stays out. A still material (and a palette mesh) joins the meshes of its
+ * program (`pal:`): their colours, roughness and metalness go on the vertices. A material that carries state (a skin, a ring, an LED: `own`,
+ * or it glows) joins only the meshes of that same material object (`mat:`), so the stand-in shows the state as they do. Each set has one
+ * attribute layout, one pair of shadow flags, one order and one layer mask. Out: a see-through or multi-material mesh, a skinned, batched,
+ * morphed or mirrored one, one with a draw hook or instance colours. The world matrices must be set.
+ */
+export const standInKey = (m: Mesh): string | null => joinOf(m)?.key ?? null;
+
+/** The triangles of `m` in the frame `toFrame` takes the world to (unindexed, no groups): one geometry, or one per copy of an instanced mesh. */
+function copiesOf(m: Mesh, toFrame: Matrix4, palette: boolean): BufferGeometry[] {
+  const base = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(), x = m as Copies;
+  base.clearGroups();
+  if (palette && !base.attributes._pc) painted(base, m.material as MeshStandardMaterial);
+  const inFrame = new Matrix4().multiplyMatrices(toFrame, m.matrixWorld);
+  if (!x.isInstancedMesh) return [base.applyMatrix4(inFrame)];
+  const out: BufferGeometry[] = [];
+  for (let i = 0; i < x.count; i++) { x.getMatrixAt(i, COPY); out.push(base.clone().applyMatrix4(COPY.premultiply(inFrame))); }
+  return out;
+}
+
+/** A stand-in: one mesh that draws in the place of its meshes. */
+export interface StandIn { mesh: Mesh; sources: Mesh[] }
+
+/**
+ * The stand-ins of `meshes` for a distance: each set of two or more (`standInKey`) as one mesh under `frame`, in its space, with the same
+ * triangles, so it draws, casts and takes shadows as they do. The meshes stay in the tree as they are: the caller stops their draw
+ * (`PartLod`), and they still answer the rays and the outline. A stand-in answers no ray. A stand-in of a material with state draws with
+ * that same material object. A palette set draws with the palette material of its first palette mesh, else with one of `pals` (by program;
+ * made here when missing: the caller keeps the map over the rebuilds and disposes its materials). An instanced mesh joins copy by copy.
+ */
+export function standIns(frame: Object3D, meshes: readonly Mesh[], pals: Map<string, MeshStandardMaterial> = new Map()): StandIn[] {
+  frame.updateWorldMatrix(true, true);
+  const toFrame = frame.matrixWorld.clone().invert(), sets = new Map<string, { prog: string | null; sources: Mesh[] }>();
+  for (const m of meshes) {
+    const j = joinOf(m);
+    if (!j) continue;
+    let set = sets.get(j.key);
+    if (!set) sets.set(j.key, (set = { prog: j.prog, sources: [] }));
+    set.sources.push(m);
+  }
+  const out: StandIn[] = [];
+  for (const { prog, sources } of sets.values()) {
+    if (sources.length < 2) continue;
+    const g = mergeGeometries(sources.flatMap((m) => copiesOf(m, toFrame, prog !== null)), false);
+    if (!g) continue;
+    const first = sources[0]!;
+    let material = first.material as MeshStandardMaterial;
+    if (prog !== null) {
+      const has = sources.find((m) => palKeys.has(m.material as Material));
+      if (has) material = has.material as MeshStandardMaterial;
+      else { material = pals.get(prog) ?? paletteOf(material); pals.set(prog, material); }
+    }
+    const mesh = new Mesh(g, material);
+    mesh.castShadow = first.castShadow; mesh.receiveShadow = first.receiveShadow; mesh.renderOrder = first.renderOrder;
+    mesh.layers.mask = first.layers.mask;
+    mesh.raycast = () => {};
+    mesh.name = 'standin';
+    mesh.userData.standIn = true;
+    frame.add(mesh);
+    mesh.updateMatrixWorld();
+    out.push({ mesh, sources });
+  }
+  return out;
 }
