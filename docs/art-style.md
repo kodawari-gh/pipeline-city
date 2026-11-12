@@ -2,8 +2,8 @@
 
 **Status: approved by Khalil, 2026-11-12.**
 
-**Base:** `kodawari-gh/pipeline-city` at `2525863c5a87cf4815c3202612b1246a069324ca` (origin/main, merged 2026-11-12 10:21 UTC+1). `public/` is byte-identical to `c117331`; the 10 files that changed after `c117331` are graphics tiers and lamp cap only (`docs/UI.md`, `room/light.md`, `graphics.ts`, `roomlights.ts` …), so no art changed.
-**Sources measured:** 86 stills (`public/stills/*.webp`), 12 room lightmaps (`public/bake/room/*.png`), `public/boot-still.jpg`, 2 models (`public/models/*.glb`), `src/core/ui/ui.css`, `index.html`, `src/core/render/theme.ts`, `src/features/room/render/three/palette.ts`, `src/core/render/three/viewer.ts` (still studio), `src/core/render/three/post.ts`. **Source of truth: the code.** Modelling, material and lighting rules: [`docs/LOWPOLY_STYLE.md`](LOWPOLY_STYLE.md) (updated 2026-11-12 to match the code). `docs/UI.md` "Look" was read for context only.
+**Base:** `kodawari-gh/pipeline-city` at `2525863c5a87cf4815c3202612b1246a069324ca` (origin/main, merged 2026-11-12 10:21 UTC+1). `public/` is byte-identical to `c117331`; the 11 files that changed after `c117331` (10 under `public/ src/ docs/`, plus `tools/bench-modes.mjs`) are graphics tiers, lamp cap and benchmark only (`docs/UI.md`, `room/light.md`, `graphics.ts`, `roomlights.ts` …), so no art changed.
+**Sources measured:** 71 stills (`public/stills/*.webp`), 12 room lightmaps (`public/bake/room/*.png`), `public/boot-still.jpg`, 2 models (`public/models/*.glb`), `src/core/ui/ui.css`, `index.html`, `src/core/render/theme.ts`, `src/features/room/render/three/palette.ts`, `src/core/render/three/viewer.ts` (still studio), `src/core/render/three/post.ts`. **Source of truth: the code.** Modelling, material and lighting rules: [`docs/LOWPOLY_STYLE.md`](LOWPOLY_STYLE.md) (updated 2026-11-12 to match the code). `docs/UI.md` "Look" was read for context only.
 Values marked *(obs.)* are visual observations, not measurements.
 
 ## 1. Overview
@@ -17,7 +17,7 @@ Real-scale PC hardware rendered as clean, softly bevelled 3D models: mostly dark
 | | studio stage `#222a45`→`#0d1122`→`#06080f` (radial) | `ui.css` `.mode` |
 | **Room** | WALL `#3a404c`, OAK `#665540` / grain `#38291c`, VENEER `#2f2a26`, STEEL `#1c1d20`, DUVET `#434a5c`, RUNNER (terracotta) `#7a4434`, RUG `#3b3d42` | `room/render/three/palette.ts` |
 | | boot still top tones `#413124` 16.5 %, `#7a92a9` (sky) 14.0 %, `#593e23` 12.7 % | median-cut, `boot-still.jpg` |
-| **Primary: hardware** | `#222427` 11.8 %, `#2a2d32` 10.9 %, `#34373c` 9.9 %, `#4e5360` 7.9 %, `#40444b` 7.2 %, `#1d1e22` 5.8 % | median-cut 16 over opaque px of all 86 stills |
+| **Primary: hardware** | `#222427` 11.8 %, `#2a2d32` 10.9 %, `#34373c` 9.9 %, `#4e5360` 7.9 %, `#40444b` 7.2 %, `#1d1e22` 5.8 % | median-cut 16 over opaque px of all 71 stills |
 | Metals / light parts | `#959aa3` 6.5 %, `#b9babf` 6.5 %, `#e9e9e6` 3.7 % | same |
 | PCBs / die | green `#32875b` (ram0) / `#3d6957` (board0); blue `#2b406c` (board1); teal `#3a829e` (nic1-3); die blues `#2b4877`, `#557a98`; package `#2e344e` | per-family / per-still median-cut |
 | **Accents in stills** (small areas) | copper `#c6874c` (rsink1), `#a2602b` (cooler1), `#8c5c3d` (gpu1); violet `#c19ce7` (fan*x corners); brass `#e3cc71` (psu0 stripe); blue-grey anodised `#647293` (cooler2) | saturated px only (s>0.3) |
@@ -82,11 +82,11 @@ Real-scale PC hardware rendered as clean, softly bevelled 3D models: mostly dark
 ### Rework (decided by Khalil, 2026-11-12)
 | File | Issue (measured) | Rule | Fix / target |
 |---|---|---|---|
-| `public/stills/rad1.webp`, `rad2.webp`, `rad3.webp` | Mean luminance 154.9 / 154.4 / 153.6 (≈1.9× the all-stills median 80.4); top colours `#9da2ac`, `#818695`, `#abb3c9` (satin aluminium). Source materials `cooler3d.ts:379-413`: plate `0x6a6f79`, tank `0x7b808a`, tube `0x858a94`, edge `0xa3a8b2`, strip `0x9297a1`, fin texture `#7f8bb3` on `#0b0f1c` (`cooler3d.ts:60-63`). | C3; radiators follow the dark default | **Target mean L 60-100** (median 80.4 ± 20) on each of rad1-3, and ≤ 2 % of px with L > 200 (now 3.3-4.0 %). Pass/fail check: mean L ≤ 100. Suggested route *(obs., not decided)*: move the radiator's satin aluminium toward the pump body it is plumbed to (`cooler3d.ts` pump side `0x3a3f48`, metalness 0.45, roughness 0.4), then rebake with `npm run stills -- --only rad1,rad2,rad3`. |
+| `public/stills/rad1.webp`, `rad2.webp`, `rad3.webp` | Mean luminance 154.9 / 154.4 / 153.6 (≈1.9× the all-stills median 80.4); top colours `#9da2ac`, `#818695`, `#abb3c9` (satin aluminium). Source materials `cooler3d.ts:379-413`: plate `0x6a6f79`, tank `0x7b808a`, tube `0x858a94`, edge `0xa3a8b2`, strip `0x9297a1`, fin texture `#7f8bb3` on `#0b0f1c` (`cooler3d.ts:60-63`). | C2; radiators follow the dark default | **Target mean L 60-100** (median 80.4 ± 20) on each of rad1-3, and ≤ 2 % of px with L > 200 (now 3.3-4.0 %). Pass/fail check: mean L ≤ 100. Suggested route *(obs., not decided)*: move the radiator's satin aluminium toward the pump body it is plumbed to (`cooler3d.ts` pump side `0x3a3f48`, metalness 0.45, roughness 0.4), then rebake with `npm run stills -- --only rad1,rad2,rad3`. |
 | `public/stills/display1.webp` | Byte-identical to `display0.webp` (md5 `23136082…`); the two are different products: `display0` "CLI monitor", `visual: "monitor-cli"`; `display1` "Graphics display", `visual: "monitor-gfx"` (`specs.ts:410-413`). | One still per product | **Asset request for Asset Maker**, spec below. |
 
 **Asset request: `display1.webp` (Graphics display)**
-- Rendered by the stills pipeline (`npm run stills -- --only display1`, `renderStill`), not painted: same studio (FOV 28°, yaw 0.6, pitch 0.4, key `#fff0dc`×2.4, rim `#9ab8ff`×1.2, ACES, exposure 1.6), so it matches the other 85.
+- Rendered by the stills pipeline (`npm run stills -- --only display1`, `renderStill`), not painted: same studio (FOV 28°, yaw 0.6, pitch 0.4, key `#fff0dc`×2.4, rim `#9ab8ff`×1.2, ACES, exposure 1.6), so it matches the other 70.
 - 480×336 px, RGBA webp, q 0.9, transparent background, no ground shadow, no outline; name `display1.webp`; new hash in `public/stills/manifest.json`.
 - Must differ from `display0` at shop-tile size (120×84): different md5 and a visible difference that says "graphics" (it shows the OS dashboard / GPU picture per `specs.ts`), not the CLI screen.
 - Frame fill 0.66-0.86 (display0: 0.70); bbox centre within ±30 px x, ±40 px y (display0: +8, +3).
@@ -125,7 +125,7 @@ Light-coloured because the real part is. They are exempt from C2; do not use the
 - [ ] Named materials that code can map (`knit`, `rib`), no Blender defaults; UVs present if a map is used.
 - [ ] Name: short lowercase noun (`hoodie.glb`, `mouse.glb`), as the repo does today.
 - [ ] Size: no rule is enforced; current files are 46.8 KB and 418 KB. Rule to set (see [`docs/LOWPOLY_STYLE.md`](LOWPOLY_STYLE.md)).
-- [ ] PBR range from existing materials: metalness 0-0.9 (steel 0.85-0.9), roughness 0.25-0.9; check against `palette.ts`.
+- [ ] PBR range from existing part materials: metalness 0-1 (gold contacts 1, `pcbkit3d.ts:299`; polished cap 0.95, `cooler3d.ts:332`), roughness 0.03-1 (case glass 0.03, `case3d.ts:50`; polished cap 0.14; printed art 1, `artlod.ts:170`); room colours from `palette.ts`.
 
 **UI art**
 - [ ] Colours from `ui.css` tokens only (both themes); sizes in rem; icons 16×16 viewBox, stroke 1.5, round caps, `currentColor`.
@@ -142,3 +142,4 @@ fill=max((np.ptp(xs)+1)/480,(np.ptp(ys)+1)/336)
 - 2026-11-12 (v2): Khalil's answers. Added rules C1-C3 (C2 was the cyan rule, since removed; C3, brightness, is now C2); radiators and display1 to rework; case0/hdd0/ram1/cooler1 as allowed exceptions; code named as source of truth, LOWPOLY_STYLE.md replacement drafted; UI.md glass, `--mute` and page-bg splits flagged for Khalil; open questions removed; in-game cyan emissives flagged.
 - 2026-11-12 (v3): approved by Khalil.
 - 2026-11-12 (v4): cyan rule removed at Khalil's request. Cyan documented as it is in the code (UI, room, active-part glow and heat ramp, RGB accents); the brightness rule is now C2; the rework list is radiators + display1 only. Repo paths: links to `docs/LOWPOLY_STYLE.md`, `art/palette.png`, `art/references.png`.
+- 2026-11-12 (v5): review fixes on PR #10: 11 files changed since `c117331` (not 10); 71 stills (not 86; the stats were already measured on these 71 and do not change); PBR ranges matched to the code; stale C3 → C2 in the radiator row.

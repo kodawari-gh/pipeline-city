@@ -86,8 +86,9 @@ Saturated colour belongs to a PCB, the die art, or one small accent per part (a 
 
 ```
 Default (materials.ts `mat`): metalness 0.05, roughness 0.65
-Range in use: metalness 0.0–0.95, roughness 0.14–0.9
-  e.g. radiator satin alu 0.45 / 0.28–0.42 (cooler3d.ts `radAlu`), polished cap 0.95 / 0.14 (cooler3d.ts)
+Range in use on parts: metalness 0.0–1.0, roughness 0.03–1.0
+  e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:299), polished cap 0.95 / 0.14 (cooler3d.ts:332),
+  radiator satin alu 0.45 / 0.28–0.42 (cooler3d.ts `radAlu`), case glass 0 / 0.03 (case3d.ts:50), printed art 0 / 1.0 (artlod.ts:170)
 Cloth (materials.ts `cloth`): MeshPhysicalMaterial, roughness 0.92, sheen 1
 Emissive: 0x000000 (overridden by state: powered, active, throttled, burnt)
 ```
@@ -128,7 +129,7 @@ A part's glow scales by its `gain` (wide faces glow softer). `GLOW.hot` `#ff5a30
 
 ## Lighting Setup
 
-The room is lit from its window, as a real room is (`GRAPHICS_3D_OVERHAUL.md` "Light"):
+The room is lit from its window, as a real room is (`src/features/room/light.md` "3D room light"):
 
 - **Key:** the sky's light and the sun come in by the window only, with shadows. The room falls off away from it. On the still meshes the window's light is baked whole (`tools/bake/`; `public/bake/room/`, RGBM-sqrt, 50 texels/m, 16384 samples); a live spot stands in for it only on what moves.
 - **Bounce:** the bake's lightmaps (`LightmapMix`, each light group by its live level) on the still meshes; a light probe of the room on what moves, and the reflections. No flat fill lights a face from nowhere.
@@ -258,3 +259,4 @@ Not re-checked against the benchmarks in this update (`npm run bench:*`, `src/fe
 
 - 2026-11-12: updated against `2525863` to match the code; approved by Khalil.
 - 2026-11-12: cyan rule removed at Khalil's request; cyan glows and accents documented as they are in the code.
+- 2026-11-12: review fixes on PR #10: room light now points to `src/features/room/light.md` "3D room light" (`GRAPHICS_3D_OVERHAUL.md` has no "Light" section); PBR ranges matched to the code.
