@@ -60,6 +60,8 @@ const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
+/** The distance stand-ins (`partlod.ts`) draw only from this part of the stage's own zoom out: at its own view and closer, every part is itself. */
+export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -283,6 +285,8 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
+    // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held
+    this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     this.bakes.run(6);

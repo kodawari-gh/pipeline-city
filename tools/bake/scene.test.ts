@@ -48,6 +48,19 @@ describe('exportRoom', () => {
     expect(worstOff(now, was)).toBeLessThan(1e-4);
   });
 
+  it('leaves the LOD stand-ins out: the export is the same with them as without', { timeout: 120_000 }, () => {
+    const s = maxedSnapshot(), out = (lod: boolean) => {
+      const m = buildMachine(s, true, lod);
+      return { m, meshes: exportRoom(roomOf(), [m.root]).meshes };
+    };
+    const was = out(false), now = out(true);
+    expect(now.m.partLod!.standIns.length).toBeGreaterThan(0);
+    // (same names and hashes, so no stand-in is among them)
+    expect(now.meshes.length).toBe(was.meshes.length);
+    expect(now.meshes.map((m) => m.name)).toEqual(was.meshes.map((m) => m.name));
+    expect(now.meshes.map((m) => m.hash)).toEqual(was.meshes.map((m) => m.hash));
+  });
+
   it('after the bake, merges the lit receivers, the AO blockers, the small blockers and the unknown receivers, and exports each as before', () => {
     const root = new Group(), lit = new MeshStandardMaterial({ color: 0x808080 }), ao = new MeshStandardMaterial({ color: 0x406080 });
     const plain = new MeshStandardMaterial({ color: 0x604020 }), own = new MeshStandardMaterial({ color: 0x205020, envMap: new Texture() });

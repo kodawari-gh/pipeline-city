@@ -118,7 +118,9 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
       colour: albedo(mm), roughness: mm.roughness, metalness: mm.metalness, area: g.area,
     });
   };
-  const walk = (root: Object3D, receivers: boolean) => root.traverse((o) => {
+  // (a LOD stand-in, `partlod.ts`, copies meshes that export already: skip it)
+  const walk = (root: Object3D, receivers: boolean): void => { if (!root.userData.standIn) { visit(root, receivers); root.children.forEach((c) => walk(c, receivers)); } };
+  const visit = (o: Object3D, receivers: boolean): void => {
     const m = o as Mesh;
     if (!m.isMesh || (m as { isSkinnedMesh?: boolean }).isSkinnedMesh || blinds.has(o) || !shown(o) || Array.isArray(m.material) || !solid(m.material as Material)) return;
     const mm = m.material as MeshStandardMaterial, parts = partsOf(m);
@@ -133,7 +135,7 @@ export function exportRoom(room: Room3D, extra: Object3D[] = []): BakeScene {
       return;
     }
     add(m, mm, m.matrixWorld, receivers && !hasAo(m.geometry));
-  });
+  };
   walk(r.root, true);
   for (const e of extra) walk(e, false);
   const groups = r.lightGroups().map((g) => ({ id: g.id, lights: g.lights.map((l) => readLight(l, toRoom)) }));

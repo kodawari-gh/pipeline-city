@@ -18,6 +18,7 @@ import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/rende
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
+import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { tag } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
@@ -185,12 +186,19 @@ export class Machine3D {
   private keep: Object3D[] = [];
   /** What fades alone besides `fades` (a card's cooler and backplate): its materials stay its own (`share`). */
   readonly apart: Object3D[] = [];
+  /** The board's small parts (`boardModel`): shown by the zoom, so their stand-ins are theirs (`lodScope`). */
+  private small: Object3D | null = null;
+  /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
+  readonly partLod: PartLod | null = null;
+  /** The case's box (the root's space): the distance LOD reads the zoom at its nearest point. */
+  private readonly caseBox = new Box3(new Vector3(CASE.x, -(CASE.y + CASE.h + FOOT), CASE_Z), new Vector3(CASE.x + CASE.w, -CASE.y, FRONT));
 
   /**
    * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has
-   * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two).
+   * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two). `lod`: false builds it
+   * without the distance stand-ins (the tests compare the two).
    */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true) {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge) {
     this.art = new ArtSet(q);
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
@@ -222,7 +230,29 @@ export class Machine3D {
     this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
     this.root.add(this.rgb, this.spill);
     if (merge) this.share();
+    if (lod) this.partLod = new PartLod(this.root, () => this.lodScope());
   }
+
+  /**
+   * What the distance LOD must know (docs/render/lod.md "The machine's stand-ins"). Anchors: what a reveal shows, hides or fades as a whole
+   * (each fade, a card's cooler, the board's small parts) and the cables (built again alone): their stand-ins are their children. Left out:
+   * `keep`, the side panel (it swings), the key (built again alone), and a card's own tree (it swings down flat; its cooler is an anchor).
+   */
+  private lodScope(): LodScope {
+    const cards = new Set<Object3D>([...this.cards.values()].map((c) => c.root));
+    const anchors: Object3D[] = [this.wires, ...this.apart, ...this.fades.filter((o) => !cards.has(o))];
+    const skip: Object3D[] = [...this.keep, ...cards];
+    if (this.small) anchors.push(this.small);
+    if (this.door) skip.push(this.door.cm.door);
+    if (this.key) skip.push(this.key.g);
+    return { anchors, skip };
+  }
+
+  /**
+   * Keep these parts in full detail whatever the distance (each with all under it), and every part from the zoom `ceil` in (screen pixels
+   * per world unit): Build my PC holds what the player points at or what a step moves, and swaps nothing at its own view or closer.
+   */
+  holdDetail(held: readonly Object3D[], ceil = Infinity): void { this.partLod?.hold(held, ceil); }
 
   /**
    * Fewer draws and materials (PERF22, docs/GRAPHICS_3D_OVERHAUL.md "Shared materials"): the still meshes of each parent as one palette mesh
@@ -330,6 +360,7 @@ export class Machine3D {
     for (const l of b.lights) this.spin(l);
     this.root.add(b.root);
     // far out the flat drawing is enough: the small parts stand up only up close
+    this.small = b.small;
     this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
@@ -771,12 +802,14 @@ export class Machine3D {
     for (const u of this.unfade.values()) u();
     this.unfade.clear();
     this.built.clear();
+    this.partLod?.drop(this.wires);
     disposeTree(this.wires);
     this.wires.clear();
     this.key = null;
     this.cableIds = s.cables.map((c) => c.id).join(',');
     this.videoKey = videoKey(s);
     this.buildCables(s, geo);
+    this.partLod?.build(this.wires); // (the still parts of the new cables; a draggable end, `userData.rig`, and the key stay out)
     this.setKey(s.plugged?.id ?? null);
   }
 
@@ -851,6 +884,8 @@ export class Machine3D {
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
+    // the small parts as stand-ins from afar (after the reveals: a stand-in follows what they show and hide), by the zoom at the case's nearest point
+    this.partLod?.update(screenPx(LOD_BOX.copy(this.caseBox).applyMatrix4(this.root.matrixWorld).distanceToPoint(cam.position), cam.fov, H));
     this.art.update(cam, this.frustum, H, dpr, now);
   }
 
@@ -893,6 +928,7 @@ export class Machine3D {
   dispose(): void {
     this.art.dispose();
     this.ramMap?.dispose();
+    this.partLod?.dispose();
     disposeTree(this.root);
   }
 }
@@ -903,7 +939,7 @@ function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
   return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
 }
 
-const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3();
+const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3(), LOD_BOX = new Box3();
 
 /** Where the view's centre line meets the plane at depth `z`, held inside the layout rect `r`. */
 function nearestOn(r: RectLike, z: number, eye: Vector3, dir: Vector3): Vector3 {

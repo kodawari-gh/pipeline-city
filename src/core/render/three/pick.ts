@@ -23,7 +23,14 @@ export function findById(root: Object3D, id: string): Object3D | null {
   return hit;
 }
 
+/**
+ * The layer of a mesh that is not drawn (no camera has it) and still answers a ray: a part whose stand-in draws in its place at a distance
+ * (`partlod.ts`), so a pick and its outline find the part itself.
+ */
+export const UNDRAWN = 1;
+
 const ray = new Raycaster(), at = new Vector2();
+ray.layers.enable(UNDRAWN);
 
 function hit(roots: readonly Object3D[], camera: Camera, nx: number, ny: number) {
   at.set(nx, ny);
