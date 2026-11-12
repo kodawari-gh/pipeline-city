@@ -52,7 +52,7 @@ import {
   WALL_T, WEST_X, WINDOW,
   daylight, sunDir, wallAround,
 } from './roomplan';
-import { LIGHT_ORDER, SHADOWLESS_CONE, bounceLift, chooseLights, shadowlessCone, type LightId } from './roomlights';
+import { LIGHT_ORDER, bounceLift, chooseLights, type LightId } from './roomlights';
 
 const KEY_W = 230;
 
@@ -352,8 +352,6 @@ export class Room3D {
   private gone = false;
   private lampLight = new SpotLight(kelvin(3000), 0, 0, 0.6, 0.7, 2);
   private bedLight = new PointLight(LANTERN, 0, 0, 2);
-  /** The bedside lantern with no shadow map: a cone up from the bulb, so its light does not pass the drawer's top (`SHADOWLESS_CONE`). Only one of the two is in the scene. */
-  private bedOpen = new SpotLight(LANTERN, 0, 0, SHADOWLESS_CONE.bedside!.angle, SHADOWLESS_CONE.bedside!.penumbra, 2);
   /** The screen's glow on the keyboard and the desk: an area light on its face, lighting only what is in front of it. */
   private screenLight = new RectAreaLight(0xa8cfff, 0, 1, 1);
   private outside: OutsideView;
@@ -489,9 +487,6 @@ export class Room3D {
     this.shade = ns.shade;
     this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
-    this.bedOpen.position.set(...ns.bulb);
-    this.bedOpen.target.position.set(ns.bulb[0], ns.bulb[1] + 1000, ns.bulb[2]);
-    this.bedOpen.visible = false;
     // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly
     // (a light with no cut-off distance keeps its shadow camera's own range: it must reach across the room)
     Object.assign(this.bedLight.shadow.camera, { near: 200, far: 130000 }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
@@ -504,7 +499,7 @@ export class Room3D {
     this.floorLight.position.set(...this.floorLamp.bulb);
     Object.assign(this.floorLight.shadow.camera, { near: 200, far: 130000 }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.bedOpen, this.bedOpen.target, this.floorLamp.root, this.floorLight, this.strips.root);
+    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight, this.strips.root);
     R.add(print(PRINT, 0), this.picture.root, this.sconce.root, this.arc.root);
     // (the arc lamp's shadow reaches from its dome to the floor)
     const al = this.arc.light;
@@ -791,7 +786,7 @@ export class Room3D {
     this.mixKey = this.lightKey;
     const levels = new Map<string, number | Color>();
     // (a capped lamp's light is out of the scene, its level is not: its bounce stays, lifted for the pool it lost, `CAPPED_BOUNCE`)
-    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity * bounceLift(g.lights.filter((l) => !l.visible && !(l === this.bedLight && this.bedOpen.visible)).length, g.lights.length));
+    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity * bounceLift(g.lights.filter((l) => !l.visible).length, g.lights.length));
     levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
     levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
     for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
@@ -868,9 +863,10 @@ export class Room3D {
   setShadows(level: number): void {
     this.shadowLevel = level;
     this.outside.setShadows(level);
-    const sizes = SHADOW_LEVELS[level] ?? null;
+    const sizes = SHADOW_LEVELS[level] ?? null, least = SHADOW_LEVELS[Math.min(level, 1)] ?? null;
     this.casters.forEach((l, i) => {
-      const size = this.choice.shadows.has(CASTER_IDS[i]!) ? sizes?.[i] ?? 0 : 0;
+      // (a lamp that casts with the lamps' shadows off takes the smallest map: `ALWAYS_CASTS`)
+      const id = CASTER_IDS[i]!, size = this.choice.shadows.has(id) ? (this.choice.small.has(id) ? least : sizes)?.[i] ?? 0 : 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
       l.shadow.needsUpdate = true;
@@ -879,12 +875,6 @@ export class Room3D {
       l.shadow.mapSize.set(size, size);
       l.shadow.radius = SHADOW_SOFT[i]! * (size / SHADOW_LEVELS[3]![i]!);
     });
-    // (the bedside lantern with no map: its cone stands in, so its light stops at the drawer's top; one light for one, and the lit programs
-    // link again only on a change of the setting)
-    const live = this.choice.live.has('bedside'), open = shadowlessCone('bedside', live, this.bedLight.castShadow) !== null;
-    this.bedLight.visible = live && !open;
-    this.bedOpen.visible = open;
-    this.mixKey = '';
   }
 
   /**
@@ -1042,7 +1032,7 @@ export class Room3D {
     this.arc.light.intensity = lumens(ARC_LM, this.arc.light.angle);
     this.arc.glow.emissiveIntensity = 4;
     this.arc.shade.emissiveIntensity = 1.2;
-    this.bedLight.intensity = this.bedOpen.intensity = bedside * lumens(LANTERN_LM);
+    this.bedLight.intensity = bedside * lumens(LANTERN_LM);
     const pl = this.picture.light;
     pl.intensity = bedside * nits(PICTURE_LM / (Math.PI * pl.width * pl.height / (M * M)));
     this.picture.glow.emissiveIntensity = bedside * 1.6;
