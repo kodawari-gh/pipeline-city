@@ -74,6 +74,8 @@ export class Monitor {
   private key = '';
   private faceMat: MeshBasicMaterial | null = null;
   private liveTex: Texture | null = null;
+  private liveRev: number | undefined;
+  private liveSize = '';
   private led = mat(0x111111, { emissive: new Color(0x4cff8a), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
@@ -115,14 +117,16 @@ export class Monitor {
    * The screen drawn by the 2D game's own `Live` (boardlive3d.ts: the text rows, the OS rows, the dashboard of the graphics display, what a GPU
    * draws, the boot and no-signal screens) in place of the plain picture; null brings that back. `w` x `h` is the drawn part of `canvas`.
    */
-  useLive(img: { canvas: HTMLCanvasElement; w: number; h: number } | null): void {
+  useLive(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void {
     const m = this.faceMat;
     if (!m) return;
     if (!img) { if (m.map !== this.tex) { m.map = this.tex; m.needsUpdate = true; } return; }
-    if (!this.liveTex || this.liveTex.image !== img.canvas) { this.liveTex?.dispose(); this.liveTex = rawSrgb(img.canvas); this.liveTex.anisotropy = this.tex?.anisotropy ?? 1; }
+    // a new texture uploads by itself; an old one only when the canvas was drawn again (`rev`) or its size changed
+    if (!this.liveTex || this.liveTex.image !== img.canvas) { this.liveTex?.dispose(); this.liveTex = rawSrgb(img.canvas); this.liveTex.anisotropy = this.tex?.anisotropy ?? 1; this.liveRev = img.rev; this.liveSize = ''; }
     this.liveTex.repeat.set(img.w / img.canvas.width, img.h / img.canvas.height);
     this.liveTex.offset.set(0, 1 - img.h / img.canvas.height);
-    this.liveTex.needsUpdate = true;
+    const size = `${img.w}x${img.h}`;
+    if (img.rev === undefined || img.rev !== this.liveRev || size !== this.liveSize) { this.liveTex.needsUpdate = true; this.liveRev = img.rev; this.liveSize = size; }
     if (m.map !== this.liveTex) { m.map = this.liveTex; m.needsUpdate = true; }
   }
 

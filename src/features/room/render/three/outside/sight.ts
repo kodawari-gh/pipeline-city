@@ -15,11 +15,14 @@ export class Sight {
   private asking = false;
   private waiting = false;
   private old = false;
+  /** The frames since the query ended. The GPU is asked only after two: Firefox blocks on a query that is not done. */
+  private age = 0;
 
   /** Each frame, before anything is drawn: hears the answer if it has come. `moved`: the eye is not where it was last frame. */
   frame(gl: QueryGL, moved: boolean): void {
     if (moved) { this.hidden = false; this.old = this.waiting; }
-    if (this.waiting && gl.getQueryParameter(this.query!, gl.QUERY_RESULT_AVAILABLE)) {
+    if (this.waiting) this.age++;
+    if (this.waiting && this.age >= 2 && gl.getQueryParameter(this.query!, gl.QUERY_RESULT_AVAILABLE)) {
       this.waiting = false;
       if (!this.old) this.hidden = !gl.getQueryParameter(this.query!, gl.QUERY_RESULT);
       this.old = false;
@@ -40,6 +43,7 @@ export class Sight {
     if (!this.asking) return;
     this.asking = false;
     this.waiting = true;
+    this.age = 0;
     gl.endQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE);
   }
 }
