@@ -12,6 +12,7 @@
     "test:q": "vitest run --reporter=dot",
     "bench:speed": "node tools/bench-speed.mjs",
     "bench:3d": "node tools/bench3d.mjs",
+    "bench:4k": "node tools/bench3d.mjs --size 2560x1355 --dpr 1.5 --preset Medium --scale 1 --only \"room night hover\"",
     "bench:modes": "node tools/bench-modes.mjs",
     "shot": "node tools/shot.mjs",
     "bake": "node tools/bake/bake.mjs",

@@ -1,4 +1,4 @@
-// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off]`:
+// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off]`:
 // plays the game with the real pointer on the real GPU and measures what a player feels: the idle views, the flights, the side door, the hover, a cable pulled
 // and plugged, a part lifted, the running machine. Each scenario prints its frame times; out.json keeps, per scenario, the time of each part of the frame
 // (`cpu`), the GPU time of each pass (`gpu`, with EXT_disjoint_timer_query), how many times the scene and the shadow maps were drawn per frame, the draw
@@ -200,6 +200,8 @@ try {
   const fly = async (v) => { await p.evaluate((v) => window.__board[v]?.(), v); };
   const at = (id) => p.evaluate((id) => window.__board.screenOf(id), id);
   const clearPointer = () => p.mouse.move(W / 2, 4);
+  /** Holds the room's clock at `h` (null: the game's own hour again). */
+  const hour = (h) => p.evaluate(async (h) => { (await import('/src/features/room/render/shell/room.ts')).roomDebug.hour = h; }, h);
   // sets the view and lets it settle, the art bake and the pointer rest, so a scenario starts clean
   const go = async (v, ms = 3000) => { await clearPointer(); await fly(v); await wait(ms); };
   /** The pointer on a path for `ms`, at a real mouse's rate. */
@@ -255,6 +257,13 @@ try {
       },
     }],
     ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
+    // the owner's report (2026-11-12): the room at night, the case's side panel under the pointer (its outline on), the city in the window.
+    // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale
+    ['room night hover', {
+      pre: async () => { await go('flyToRoom', 1500); await hour(23); await wait(2500); const c = await at('case.side'); if (c) { await p.mouse.move(c.x, c.y); await wait(1000); } },
+      run: () => wait(3500),
+      post: () => hour(null),
+    }],
     ['running room', { pre: async () => { await store(`(s.tray[0] && !s.plugged && S.plugKey(s.tray[0].id), !s.powered && S.powerButton(), 0)`); await go('flyToRoom', 6000); }, run: () => wait(3500) }],
     ['running board', { pre: () => go('flyToBoard'), run: () => wait(3500) }],
     ['running cpu', { pre: () => go('flyToCpu'), run: () => wait(3500) }],
@@ -274,6 +283,8 @@ try {
   await p.click('role=menuitem[name=/Graphics/]');
   if (flag('preset', '')) await p.click(`aside.gfx .gfx-presets >> text=${flag('preset', '')}`);
   if (!TWO) await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+  // a render scale of the player's own over the preset's (the owner plays Medium at 100 %)
+  if (flag('scale', '')) await p.evaluate(async (k) => (await import('/src/app/graphics.ts')).setGraphic('scale', k), Number(flag('scale', '')));
   await p.click('[aria-label="Close graphics"]');
   await wait(800);
 
