@@ -145,15 +145,49 @@ export interface TierRecord {
   reason: string;
   /** Set by a step down: auto never goes up past this tier again. */
   maxUp?: Tier;
+  /** When `maxUp` was set (ms), and the device it was set on (`fingerprint`). It expires after `MAX_UP_MS` or on another device. */
+  maxUpAt?: number;
+  maxUpFp?: string;
 }
+
+const MAX_UP_MS = 3 * 24 * 3600 * 1000;
+
+/** Renderer string and screen size: a change means another GPU or screen. */
+export const fingerprint = (d: DeviceInfo): string => `${d.renderer}|${d.width}x${d.height}`;
 
 /** A stored tier record made safe, or null. */
 export function parseTierRecord(raw: unknown): TierRecord | null {
   const o = raw as Record<string, unknown> | null;
   if (!o || typeof o !== 'object' || (o.mode !== 'auto' && o.mode !== 'manual') || !TIERS.includes(o.tier as Tier)) return null;
   const rec: TierRecord = { mode: o.mode, tier: o.tier as Tier, reason: typeof o.reason === 'string' ? o.reason : '' };
-  if (TIERS.includes(o.maxUp as Tier)) rec.maxUp = o.maxUp as Tier;
+  if (TIERS.includes(o.maxUp as Tier)) {
+    rec.maxUp = o.maxUp as Tier;
+    if (typeof o.maxUpAt === 'number' && Number.isFinite(o.maxUpAt)) rec.maxUpAt = o.maxUpAt;
+    if (typeof o.maxUpFp === 'string') rec.maxUpFp = o.maxUpFp;
+  }
   return rec;
+}
+
+/** The record without a `maxUp` that is too old or from another device. An old record with no date or device is taken as set now. */
+function freshMaxUp(rec: TierRecord, env: StartEnv): TierRecord {
+  if (!rec.maxUp) return rec;
+  const { maxUp, maxUpAt, maxUpFp, ...rest } = rec;
+  if (maxUpAt !== undefined && env.now - maxUpAt > MAX_UP_MS) return rest;
+  const fp = env.fp();
+  if (maxUpFp !== undefined && maxUpFp !== fp) return rest;
+  return { ...rest, maxUp, maxUpAt: maxUpAt ?? env.now, maxUpFp: maxUpFp ?? fp };
+}
+
+/** What `resolveStart` needs from the clock and the device. */
+interface StartEnv { now: number; fp: () => string }
+
+// the touch default from before tiers: Low's values with scale 0.75, shadows 0, 30 fps, and no lamp keys
+function isOldTouchDefault(raw: unknown): boolean {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  if (o.lights !== undefined || o.lightShadows !== undefined) return false;
+  const want: Record<string, number> = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1 };
+  delete want.lights; delete want.lightShadows;
+  return Object.keys(want).every((k) => o[k] === want[k]);
 }
 
 /**
@@ -161,18 +195,25 @@ export function parseTierRecord(raw: unknown): TierRecord | null {
  * override for this session: manual, never saved). A graphics save with no tier record is an old save: the player's own, so manual.
  * With nothing stored, auto mode applies the detected tier.
  */
-export function resolveStart(saved: unknown, rec: unknown, search: string, detect: () => { tier: Tier; reason: string }): { g: Graphics; rec: TierRecord } {
+export function resolveStart(
+  saved: unknown, rec: unknown, search: string, detect: () => { tier: Tier; reason: string },
+  env: StartEnv = { now: Date.now(), fp: () => fingerprint(device()) },
+): { g: Graphics; rec: TierRecord } {
   const hasSave = !!saved && typeof saved === 'object', stored = parseTierRecord(rec);
   const base = parseGraphics(saved);
   // saves from before auto-adjust became opt-in carry its old default: the player never chose it
   if (hasSave && (saved as { v?: unknown }).v !== SAVE_VERSION) base.auto = false;
   let out: { g: Graphics; rec: TierRecord };
-  if (hasSave && !stored) {
+  if (hasSave && !stored && isOldTouchDefault(saved)) {
+    // never the player's choice: Low's cap, and auto
+    out = { g: tierGraphics('low', base), rec: { mode: 'auto', tier: 'low', reason: 'phone default' } };
+  } else if (hasSave && !stored) {
     const p = presetOf(base);
     out = { g: base, rec: { mode: 'manual', tier: p === 'low' || p === 'medium' ? p : 'high', reason: 'saved settings' } };
   } else if (stored) {
-    // auto never starts above a tier it stepped down from
-    const rec = stored.mode === 'auto' && stored.maxUp && TIERS.indexOf(stored.tier) > TIERS.indexOf(stored.maxUp) ? { ...stored, tier: stored.maxUp } : stored;
+    // auto never starts above a tier it stepped down from, until that note expires
+    const kept = freshMaxUp(stored, env);
+    const rec = kept.mode === 'auto' && kept.maxUp && TIERS.indexOf(kept.tier) > TIERS.indexOf(kept.maxUp) ? { ...kept, tier: kept.maxUp } : kept;
     out = { g: rec.mode === 'auto' ? tierGraphics(rec.tier, base) : base, rec };
   }
   else { const d = detect(); out = { g: tierGraphics(d.tier, DEFAULTS), rec: { mode: 'auto', ...d } }; }
@@ -198,7 +239,7 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
   if (typeof o.scale === 'number' && Number.isFinite(o.scale)) out.scale = clamp(o.scale, SCALE_MIN, SCALE_MAX);
   // an old save has no lamp keys: take them from the preset its other keys match, so low stays low and medium stays medium
   if (o.lights === undefined && o.lightShadows === undefined) {
-    const p = PRESET_NAMES.find(([id]) => presetKeys.every((k) => k === 'lights' || k === 'lightShadows' || out[k] === PRESETS[id][k]));
+    const p = isOldTouchDefault(raw) ? PRESET_NAMES[0] : PRESET_NAMES.find(([id]) => presetKeys.every((k) => k === 'lights' || k === 'lightShadows' || out[k] === PRESETS[id][k]));
     if (p) { out.lights = PRESETS[p[0]].lights; out.lightShadows = PRESETS[p[0]].lightShadows; }
   }
   if (typeof o.brightness === 'number' && Number.isFinite(o.brightness)) out.brightness = clamp(o.brightness, BRIGHT_MIN, BRIGHT_MAX);
@@ -237,7 +278,9 @@ const TIER_KEY = 'pipeline-city.graphics.tier';
 
 let detected: { tier: Tier; reason: string } | null = null;
 /** The tier this device gets from `pickTier`; read once. */
-const detect = () => (detected ??= pickTier(readDeviceInfo()));
+const detect = () => (detected ??= pickTier(device()));
+let info: DeviceInfo | null = null;
+const device = () => (info ??= readDeviceInfo());
 
 function readJson(key: string): unknown {
   try { return JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { return null; }
@@ -294,7 +337,8 @@ export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier)
   const tier = TIERS[to]!;
   // a step down is remembered: auto does not go up past it on a later load
   const next: TierRecord = { mode: 'auto', tier, reason: `${dir === 'down' ? 'slow frames' : 'fast frames'}, was ${tierName(rec.tier)}` };
-  if (dir === 'down') next.maxUp = tier; else if (rec.maxUp) next.maxUp = rec.maxUp;
+  if (dir === 'down') Object.assign(next, { maxUp: tier, maxUpAt: Date.now(), maxUpFp: fingerprint(device()) });
+  else if (rec.maxUp) Object.assign(next, { maxUp: rec.maxUp, maxUpAt: rec.maxUpAt, maxUpFp: rec.maxUpFp });
   commit(tierGraphics(tier, graphics.peek()), next);
   return true;
 }

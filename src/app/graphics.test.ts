@@ -141,6 +141,44 @@ describe('tier persistence', () => {
     expect(s.rec.tier).toBe('medium');
     expect(parseTierRecord({ mode: 'auto', tier: 'low', reason: '' })).toEqual({ mode: 'auto', tier: 'low', reason: '' });
   });
+  describe('maxUp expires', () => {
+    const DAY = 24 * 3600 * 1000, T0 = 1_000_000_000_000;
+    const rec = (o: object = {}) => ({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low', maxUpAt: T0, maxUpFp: 'gpu|1920x1080', ...o });
+    const run = (r: object, now: number, fp = 'gpu|1920x1080') => resolveStart({ ...DEFAULTS, v: 2 }, r, '', detect('high'), { now, fp: () => fp }).rec;
+    it('is kept inside 3 days on the same device', () => {
+      expect(run(rec(), T0 + 2 * DAY)).toMatchObject({ tier: 'low', maxUp: 'low', maxUpAt: T0 });
+    });
+    it('expires after 3 days', () => {
+      const r = run(rec(), T0 + 3 * DAY + 1);
+      expect(r.maxUp).toBeUndefined();
+      expect(r.tier).toBe('high');
+    });
+    it('is cleared on a new GPU name', () => {
+      expect(run(rec(), T0 + DAY, 'other gpu|1920x1080').maxUp).toBeUndefined();
+    });
+    it('is cleared on a new screen size', () => {
+      expect(run(rec(), T0 + DAY, 'gpu|2560x1440').maxUp).toBeUndefined();
+    });
+    it('an old record with no date is kept and dated now', () => {
+      expect(run({ mode: 'auto', tier: 'high', reason: '', maxUp: 'low' }, T0 + 9 * DAY)).toMatchObject({ tier: 'low', maxUp: 'low', maxUpAt: T0 + 9 * DAY, maxUpFp: 'gpu|1920x1080' });
+    });
+  });
+  describe('the touch default from before tiers', () => {
+    const old = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1, auto: true, v: 1 } as Record<string, unknown>;
+    delete old.lights; delete old.lightShadows;
+    it('reads as Low, auto, with 4 lamps', () => {
+      const s = resolveStart(old, null, '', detect('high'));
+      expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });
+      expect(s.g).toMatchObject({ lights: 4, lightShadows: 0, scale: 0.75, shadows: 0, fps: 30 });
+    });
+    it('a save that differs in any key stays manual', () => {
+      for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['fps', 60], ['msaa', 2], ['particles', 1], ['brightness', 1.1]] as const) {
+        const s = resolveStart({ ...old, [k]: v }, null, '', detect('low'));
+        expect(s.rec.mode, k).toBe('manual');
+        expect(s.g.lights, k).toBe(0);
+      }
+    });
+  });
   it('a manual choice always wins over an auto step', () => {
     setTier('high');
     expect(tierRecord.value.mode).toBe('manual');
