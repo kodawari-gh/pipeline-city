@@ -16,6 +16,10 @@ export interface Graphics {
   ao: number;
   bloom: number;
   shadows: number;
+  /** The cap on real-time room lamps; 0: no cap. */
+  lights: number;
+  /** Do the room's lamps cast shadows (0 or 1). The sun, moon and key light use `shadows`. */
+  lightShadows: number;
   /** How dense the baked art is, as a level. */
   textures: number;
   /** Anisotropic filtering, in samples. */
@@ -31,7 +35,7 @@ export interface Graphics {
   auto: boolean;
 }
 
-export type Choice = 'msaa' | 'ao' | 'bloom' | 'shadows' | 'textures' | 'filtering' | 'live' | 'particles' | 'fps';
+export type Choice = 'msaa' | 'ao' | 'bloom' | 'shadows' | 'lights' | 'lightShadows' | 'textures' | 'filtering' | 'live' | 'particles' | 'fps';
 
 /** Every value an option can take, with its name in the panel. */
 export const CHOICES: Record<Choice, readonly (readonly [number, string])[]> = {
@@ -39,6 +43,8 @@ export const CHOICES: Record<Choice, readonly (readonly [number, string])[]> = {
   ao: [[0, 'Off'], [1, 'Low'], [2, 'High'], [3, 'Ultra']],
   bloom: [[0, 'Off'], [1, 'Soft'], [2, 'Full']],
   shadows: [[0, 'Off'], [1, 'Low'], [2, 'Med'], [3, 'High'], [4, 'Ultra']],
+  lights: [[4, '4'], [8, '8'], [0, 'All']],
+  lightShadows: [[0, 'Off'], [1, 'On']],
   textures: [[0, 'Low'], [1, 'Med'], [2, 'High'], [3, 'Ultra']],
   filtering: [[2, '2x'], [4, '4x'], [8, '8x'], [16, '16x']],
   live: [[0, 'Low'], [1, 'Med'], [2, 'High'], [3, 'Ultra']],
@@ -54,26 +60,113 @@ export type Preset = 'low' | 'medium' | 'high' | 'ultra';
 
 /** `high` is the look the game is tuned on: the default. */
 export const PRESETS: Record<Preset, PresetOptions> = {
-  low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, textures: 0, filtering: 2, live: 0, particles: 0 },
-  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, textures: 1, filtering: 4, live: 1, particles: 1 },
-  high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, textures: 2, filtering: 8, live: 2, particles: 2 },
-  ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, textures: 3, filtering: 16, live: 3, particles: 2 },
+  low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
+  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 4, lightShadows: 1, textures: 1, filtering: 4, live: 1, particles: 1 },
+  high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
+  ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
 export const PRESET_NAMES: readonly (readonly [Preset, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra']];
 
 export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 60, brightness: 1, auto: false };
 
-/** A touch screen with no hover: a phone or a tablet. The room costs the main thread about 8 ms a frame on a desktop (bench:modes), so these start on Low at 30 fps. */
-export function isTouchDevice(): boolean {
-  try { return matchMedia('(pointer: coarse) and (hover: none)').matches; } catch { return false; }
+// ---- performance tiers: what the device can run, never what its input is ----
+
+export type Tier = 'low' | 'medium' | 'high';
+const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
+export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
+const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
+
+/** A tier is its preset. Low also draws at 0.75 scale, with the sun's shadows Off and 30 fps (what phones got); the other two run 60. */
+export function tierGraphics(tier: Tier, base: Graphics): Graphics {
+  return { ...base, ...PRESETS[tier], ...(tier === 'low' ? { scale: 0.75, shadows: 0, fps: 30 } : { fps: 60 }) };
+}
+
+/** What `pickTier` reads. A field the browser hides is 0 or ''. */
+export interface DeviceInfo {
+  /** The WebGL renderer string (unmasked when the browser gives it). */
+  renderer: string;
+  cores: number;
+  /** `navigator.deviceMemory` in GB (Chrome only, at most 8). */
+  memoryGb: number;
+  /** Screen size in CSS pixels. */
+  width: number;
+  height: number;
+  /** Device pixel ratio (kept for the report; the rules use the CSS size). */
+  dpr: number;
 }
 
 /**
- * What a first start gets (nothing stored): `DEFAULTS` on a desktop, Low at 0.75 scale and 30 fps on a touch device (owner, 2026-11-09), with
- * shadows Off: they cost a drawn menu frame about 2 ms of a phone's CPU (PERF5, `room/light.md`). The player's own choice replaces it.
+ * Rules, in order. 1) The GPU class from the renderer string: software GL (SwiftShader, llvmpipe, Basic Render) and mobile GPUs (Adreno, Mali, PowerVR...)
+ * -> low; an Apple GPU on a small screen -> low; NVIDIA GeForce/RTX/GTX, AMD Radeon RX/Pro, Apple M* -> high; Intel and other integrated -> medium;
+ * unknown -> medium. 2) Caps: <= 2 cores or <= 2 GB -> low; <= 4 cores or <= 4 GB -> at most medium; a short screen side under 500 CSS px -> at most medium.
  */
-export function deviceDefaults(touch = isTouchDevice()): Graphics {
-  return touch ? { ...DEFAULTS, ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 } : { ...DEFAULTS };
+export function pickTier(d: DeviceInfo): { tier: Tier; reason: string } {
+  const r = d.renderer.toLowerCase(), short = Math.min(d.width, d.height), small = short > 0 && short < 500;
+  let rank: number, why: string;
+  if (/swiftshader|llvmpipe|softpipe|basic render|software/.test(r)) { rank = 0; why = 'software rendering'; }
+  else if (/adreno|mali|powervr|immortalis|videocore|xclipse/.test(r)) { rank = 0; why = 'mobile GPU'; }
+  else if (/apple m\d/.test(r)) { rank = 2; why = 'Apple M GPU'; }
+  else if (/apple/.test(r)) { rank = small ? 0 : 1; why = small ? 'phone GPU' : 'Apple GPU'; }
+  else if (/nvidia|geforce|rtx|gtx|radeon (rx|pro)|radeon\(tm\) (rx|pro)/.test(r)) { rank = 2; why = 'discrete GPU'; }
+  else if (/intel|uhd|iris|radeon|vega|integrated/.test(r)) { rank = 1; why = 'integrated GPU'; }
+  else { rank = 1; why = 'unknown GPU'; }
+  const caps: string[] = [];
+  const cap = (max: number, note: string) => { if (rank > max) { rank = max; caps.push(note); } };
+  if (d.cores > 0 && d.cores <= 2) cap(0, `${d.cores} cores`);
+  else if (d.memoryGb > 0 && d.memoryGb <= 2) cap(0, `${d.memoryGb} GB`);
+  else if (d.cores > 0 && d.cores <= 4) cap(1, `${d.cores} cores`);
+  else if (d.memoryGb > 0 && d.memoryGb <= 4) cap(1, `${d.memoryGb} GB`);
+  if (small) cap(1, 'small screen');
+  return { tier: TIERS[rank]!, reason: [why, ...caps].join(', ') };
+}
+
+/** Gathers the inputs of `pickTier`. A throwaway WebGL context reads the renderer; it is freed at once. */
+export function readDeviceInfo(): DeviceInfo {
+  let renderer = '';
+  try {
+    const gl = document.createElement('canvas').getContext('webgl') as WebGLRenderingContext | null;
+    if (gl) {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      renderer = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '');
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+    }
+  } catch { /* no WebGL: unknown */ }
+  const nav = (typeof navigator === 'undefined' ? {} : navigator) as Navigator & { deviceMemory?: number };
+  const scr = typeof screen === 'undefined' ? { width: 0, height: 0 } : screen;
+  return {
+    renderer, cores: nav.hardwareConcurrency || 0, memoryGb: nav.deviceMemory || 0, width: scr.width, height: scr.height,
+    dpr: typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
+  };
+}
+
+export interface TierRecord { mode: 'auto' | 'manual'; tier: Tier; reason: string }
+
+/** A stored tier record made safe, or null. */
+export function parseTierRecord(raw: unknown): TierRecord | null {
+  const o = raw as Record<string, unknown> | null;
+  if (!o || typeof o !== 'object' || (o.mode !== 'auto' && o.mode !== 'manual') || !TIERS.includes(o.tier as Tier)) return null;
+  return { mode: o.mode, tier: o.tier as Tier, reason: typeof o.reason === 'string' ? o.reason : '' };
+}
+
+/**
+ * The settings of a start. `saved`: the stored graphics, `rec`: the stored tier record, `search`: the page's query (`?tier=low|medium|high` is a bench
+ * override for this session: manual, never saved). A graphics save with no tier record is an old save: the player's own, so manual.
+ * With nothing stored, auto mode applies the detected tier.
+ */
+export function resolveStart(saved: unknown, rec: unknown, search: string, detect: () => { tier: Tier; reason: string }): { g: Graphics; rec: TierRecord } {
+  const hasSave = !!saved && typeof saved === 'object', stored = parseTierRecord(rec);
+  const base = parseGraphics(saved);
+  // saves from before auto-adjust became opt-in carry its old default: the player never chose it
+  if (hasSave && (saved as { v?: unknown }).v !== SAVE_VERSION) base.auto = false;
+  let out: { g: Graphics; rec: TierRecord };
+  if (hasSave && !stored) {
+    const p = presetOf(base);
+    out = { g: base, rec: { mode: 'manual', tier: p === 'low' || p === 'medium' ? p : 'high', reason: 'saved settings' } };
+  } else if (stored) out = { g: stored.mode === 'auto' ? tierGraphics(stored.tier, base) : base, rec: stored };
+  else { const d = detect(); out = { g: tierGraphics(d.tier, DEFAULTS), rec: { mode: 'auto', ...d } }; }
+  const q = new URLSearchParams(search).get('tier') as Tier | null;
+  if (q && TIERS.includes(q)) out = { g: tierGraphics(q, out.g), rec: { mode: 'manual', tier: q, reason: `?tier=${q}` } };
+  return out;
 }
 
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];
@@ -123,33 +216,67 @@ export function nextStep(g: Graphics, step: number): number | null {
 const KEY = 'pipeline-city.graphics';
 const SAVE_VERSION = 2;
 
-function load(): Graphics {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    const g = parseGraphics(raw, deviceDefaults());
-    // saves from before auto-adjust became opt-in carry its old default: the player never chose it
-    if (raw && typeof raw === 'object' && (raw as { v?: unknown }).v !== SAVE_VERSION) g.auto = false;
-    return g;
-  } catch { return deviceDefaults(); }
+const TIER_KEY = 'pipeline-city.graphics.tier';
+
+let detected: { tier: Tier; reason: string } | null = null;
+/** The tier this device gets from `pickTier`; read once. */
+const detect = () => (detected ??= pickTier(readDeviceInfo()));
+
+function readJson(key: string): unknown {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { return null; }
 }
 
+const start = resolveStart(readJson(KEY), readJson(TIER_KEY), typeof location === 'undefined' ? '' : location.search, detect);
+
 /** The player's settings. */
-export const graphics = signal<Graphics>(load());
+export const graphics = signal<Graphics>(start.g);
+/** Auto or manual, the tier and why. Manual always wins: no auto step changes it. */
+export const tierRecord = signal<TierRecord>(start.rec);
 /** How far auto-adjust has lowered the picture this session. It is not saved: the next start tries the player's settings again. */
 export const autoStep = signal(0);
 /** What the renderers apply. */
 export const effective = computed(() => (graphics.value.auto ? lowered(graphics.value, autoStep.value) : graphics.value));
 
-function commit(next: Graphics) {
+function commit(next: Graphics, rec: TierRecord) {
   graphics.value = next;
+  tierRecord.value = rec;
   autoStep.value = 0;
-  try { localStorage.setItem(KEY, JSON.stringify({ ...next, v: SAVE_VERSION })); } catch { /* storage blocked or full: ignore */ }
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ ...next, v: SAVE_VERSION }));
+    localStorage.setItem(TIER_KEY, JSON.stringify(rec));
+  } catch { /* storage blocked or full: ignore */ }
 }
 
+/** The player chose: the mode is manual from now on. */
+const manual = (): TierRecord => ({ ...tierRecord.value, mode: 'manual' });
+
 /** Set one option. Auto-adjust starts over: the player has just chosen this picture. */
-export function setGraphic<K extends keyof Graphics>(key: K, value: Graphics[K]) { commit(parseGraphics({ ...graphics.value, [key]: value })); }
-export function setPreset(id: Preset) { commit({ ...graphics.value, ...PRESETS[id] }); }
-export function resetGraphics() { commit(deviceDefaults()); }
+export function setGraphic<K extends keyof Graphics>(key: K, value: Graphics[K]) { commit(parseGraphics({ ...graphics.value, [key]: value }), manual()); }
+export function setPreset(id: Preset) { commit({ ...graphics.value, ...PRESETS[id] }, manual()); }
+/** The player picks a tier: manual. */
+export function setTier(tier: Tier) { commit(tierGraphics(tier, graphics.value), { mode: 'manual', tier, reason: 'chosen' }); }
+/** Back to detection. */
+export function setAutoTier(d: { tier: Tier; reason: string } = detect()) { commit(tierGraphics(d.tier, graphics.value), { mode: 'auto', ...d }); }
+export function resetGraphics() { setAutoTier(); }
+
+let stepped = false;
+/** For tests: allow one more step. */
+export function resetTierSteps() { stepped = false; }
+
+/**
+ * `TierWatch` says step down or up. Only auto mode obeys, once per page load; up never goes above the detected tier + 1. The new tier's preset
+ * applies and is saved, so the next start begins there. True: the tier changed.
+ */
+export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier): boolean {
+  const rec = tierRecord.peek();
+  if (rec.mode !== 'auto' || stepped) return false;
+  const at = TIERS.indexOf(rec.tier), to = dir === 'down' ? at - 1 : Math.min(at + 1, TIERS.indexOf(detectedTier) + 1, 2);
+  if (to < 0 || to === at) return false;
+  stepped = true;
+  const tier = TIERS[to]!;
+  commit(tierGraphics(tier, graphics.peek()), { mode: 'auto', tier, reason: `${dir === 'down' ? 'slow frames' : 'fast frames'}, was ${tierName(rec.tier)}` });
+  return true;
+}
 
 /** Forget auto-adjust's steps: the panel's Try again. They come back if the frames are still slow. */
 export function retryPicture() { autoStep.value = 0; }
@@ -211,6 +338,36 @@ export class AwayWatch {
 /** Under this share of the frame limit a frame counts as slow, so a loop held to 30 is not read as a weak GPU. */
 const SLOW_SHARE = 0.8;
 const SLOW_FPS = 30, SLOW_FOR_S = 2.5, SETTLE_MS = 5000, HITCH_S = 0.15;
+
+const TIER_WINDOW_S = 4, TIER_WORK_SHARE = 0.35, TIER_HOLD = 0.9;
+
+/**
+ * Reads one window (4 s) of frames after the settle time and makes one decision, then stops. Down: the mean rate is under 30 fps or under 0.8 x the limit.
+ * Up: the mean rate holds 0.9 x the limit and the mean frame work (CPU ms in the frame callback) is under 35% of the frame budget. A lone hitch counts at most 0.15 s.
+ */
+export class TierWatch {
+  private since = -Infinity;
+  private time = 0;
+  private work = 0;
+  private n = 0;
+  private done = false;
+
+  reset(now: number) { this.since = now; this.time = 0; this.work = 0; this.n = 0; }
+
+  /** A frame of `real` seconds whose callback took `workMs`. Returns the one decision, once. */
+  tick(real: number, workMs: number, now: number, fps: number): 'down' | 'up' | null {
+    if (this.done || now - this.since < SETTLE_MS) return null;
+    this.time += Math.min(real, HITCH_S);
+    this.work += workMs;
+    this.n++;
+    if (this.time < TIER_WINDOW_S) return null;
+    this.done = true;
+    const limit = fps || 60, rate = this.n / this.time, budget = 1000 / limit;
+    if (rate < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
+    if (rate >= limit * TIER_HOLD && this.work / this.n < budget * TIER_WORK_SHARE) return 'up';
+    return null;
+  }
+}
 
 /** Watches the frame times for auto-adjust: frames slower than 30 FPS for 2.5 s, after a settling time (the first bakes are slow on any GPU). */
 export class SlowWatch {

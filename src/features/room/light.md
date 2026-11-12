@@ -96,6 +96,17 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 
 At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle; the arc lamp stays on at every hour (T149). Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. After T180 (the bake's bounce and the local eye) they read L .0067.
 
+### The lamp cap
+
+The 4K room is CPU-bound: about 2,000 draws each upload the uniforms of every light in the scene, also a light at 0. The graphics options `lights` (4, 8, 0 = all) and `lightShadows` cut that (`Room3D.setLights`, the pure choice in `roomlights.ts`).
+
+- **The cap counts all the room's lights**, the window's `key` and `sun` included (20 in all; the machine's own lights are not in it). `LIGHT_ORDER` gives the order and the reason for each place. Cap 4: the window, the arc lamp, the desk lamp. Cap 8: also the two lanterns and the sconce's two spots.
+- **The choice depends on the cap alone**, not on the hour or a switch. A lamp that is off keeps its place, so the count of lights (and each lit program) holds through the evening. Programs link again only when the option changes.
+- **A capped lamp** leaves the scene (`visible = false`). Its fixture still glows, the frame still sets its level, and its baked bounce shows `CAPPED_BOUNCE` (2.5) times over, for the pool it lost. A group with a share of its lights capped takes that share of the lift.
+- **`lightShadows` off**: the lamps cast no shadow and their maps are freed. The window's shadows follow `shadows` alone.
+- Not yet measured: `CAPPED_BOUNCE` is a first value. Check the sconce's scallop and the darkest wall at 23:00 (the targets above) at cap 4 and cap 8, and tune it.
+- The bake's export reads the lights at full power: run `npm run bake` with `lights` at All.
+
 ### RGB accents
 
 Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
@@ -182,7 +193,7 @@ The same menu with the clock running (PERF18 rest, touch default): at 23:00, 33 
 
 **Shadows at Low and Off (PERF5, 2026-11-10).** Phone profile, menu by day with the clock running, frame limit lifted, CPU /4, maps counted where they are drawn:
 - **Maps a frame.** Low and High draw the same maps: 1 a second, the city's sun on each clock step (Low 16 maps in 15 s, 0.03 a drawn frame; High 12 in 12 s, 0.03). The redraw is set by events in time, not by the level. The old count (Low 0.53, High 0.21) was from before PERF18. `bench:3d`'s `shd` column counts the lights asked for a map, not the maps drawn: a light at 0 keeps its request, so `shd` reads 3.3 at Low and 3.6 at High in a still room.
-- **Off against On.** CPU ms per drawn frame (rAF callbacks), 5 runs each: Low 17.5 against Off 15.5 (p50 17.2 against 15.4). The maps cost only 0.05 ms of that. The rest is the lit draws: shadow uniforms and lookups. `bench:3d` in the game at CPU /1: `post.render` 3.8-4.9 ms against 3.1-3.6 ms. So a touch device's first start has shadows Off (`deviceDefaults`, owner decision). The graphics panel turns them back on.
+- **Off against On.** CPU ms per drawn frame (rAF callbacks), 5 runs each: Low 17.5 against Off 15.5 (p50 17.2 against 15.4). The maps cost only 0.05 ms of that. The rest is the lit draws: shadow uniforms and lookups. `bench:3d` in the game at CPU /1: `post.render` 3.8-4.9 ms against 3.1-3.6 ms. So the Low tier has the sun's shadows Off (`tierGraphics`, owner decision); the tier comes from the GPU, not touch. The graphics panel turns them back on.
 
 ## What the city costs a frame
 

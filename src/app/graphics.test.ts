@@ -1,22 +1,140 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, AwayWatch, CHOICES, DEFAULTS, deviceDefaults, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, presetOf, PRESETS, PRESET_NAMES, resetGraphics, setGraphic, setPreset, SlowWatch,
+  autoStep, AwayWatch, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
+  resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
 } from './graphics';
+
+const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
+
+describe('pickTier', () => {
+  it('RTX 5080 4K desktop is high', () => {
+    expect(pickTier(dev({ renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 5080 Direct3D11 vs_5_0 ps_5_0)', cores: 24, width: 3840, height: 2160, dpr: 1.5 })).tier).toBe('high');
+  });
+  it('Intel UHD laptop is medium', () => {
+    expect(pickTier(dev({ renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 620)', cores: 8 }))).toMatchObject({ tier: 'medium', reason: 'integrated GPU' });
+  });
+  it('Adreno phone and iPhone are low', () => {
+    expect(pickTier(dev({ renderer: 'Adreno (TM) 730', width: 412, height: 915, dpr: 2.6 })).tier).toBe('low');
+    expect(pickTier(dev({ renderer: 'Apple GPU', width: 390, height: 844, dpr: 3 })).tier).toBe('low');
+  });
+  it('Apple M is high, an Apple GPU on a big screen is medium', () => {
+    expect(pickTier(dev({ renderer: 'ANGLE (Apple, Apple M2 Pro, OpenGL 4.1)' })).tier).toBe('high');
+    expect(pickTier(dev({ renderer: 'Apple GPU', width: 1440, height: 900 })).tier).toBe('medium');
+  });
+  it('software GL is low', () => {
+    expect(pickTier(dev({ renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)' })).tier).toBe('low');
+    expect(pickTier(dev({ renderer: 'llvmpipe (LLVM 15.0.7, 256 bits)' })).tier).toBe('low');
+  });
+  it('caps: 2 cores or 2 GB is low, 4 cores at most medium, a small screen at most medium', () => {
+    const gpu = 'NVIDIA GeForce GTX 1060';
+    expect(pickTier(dev({ renderer: gpu, cores: 2 })).tier).toBe('low');
+    expect(pickTier(dev({ renderer: gpu, memoryGb: 2 })).tier).toBe('low');
+    expect(pickTier(dev({ renderer: gpu, cores: 4 })).tier).toBe('medium');
+    expect(pickTier(dev({ renderer: gpu, width: 480, height: 800 })).tier).toBe('medium');
+  });
+  it('an unknown renderer is medium; hidden cores and memory cap nothing', () => {
+    expect(pickTier(dev({ renderer: 'Mystery', cores: 0, memoryGb: 0 }))).toMatchObject({ tier: 'medium', reason: 'unknown GPU' });
+  });
+});
+
+describe('TierWatch', () => {
+  const run = (w: TierWatch, frameS: number, workMs: number, fps = 60, from = 5000) => {
+    w.reset(0);
+    let out: 'down' | 'up' | null = null;
+    for (let t = from, i = 0; i < 600 && !out; i++, t += frameS * 1000) out = w.tick(frameS, workMs, t, fps);
+    return out;
+  };
+  it('waits out the settle time', () => {
+    const w = new TierWatch();
+    w.reset(0);
+    for (let t = 0; t < 4900; t += 50) expect(w.tick(0.05, 40, t, 60)).toBeNull();
+  });
+  it('steps down on slow frames', () => expect(run(new TierWatch(), 1 / 20, 45)).toBe('down'));
+  it('steps up when the limit holds and the work is small', () => expect(run(new TierWatch(), 1 / 60, 3)).toBe('up'));
+  it('does not step up when the work is heavy, and stops after one window', () => {
+    const w = new TierWatch();
+    expect(run(w, 1 / 60, 10)).toBeNull();
+    expect(w.tick(1 / 20, 45, 20000, 60)).toBeNull();
+  });
+  it('makes one decision and then stops', () => {
+    const w = new TierWatch();
+    expect(run(w, 1 / 20, 45)).toBe('down');
+    for (let t = 20000; t < 40000; t += 50) expect(w.tick(0.05, 45, t, 60)).toBeNull();
+  });
+  it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
+});
+
+describe('tier persistence', () => {
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    resetTierSteps();
+    setAutoTier({ tier: 'high', reason: 'test' });
+    store.clear();
+  });
+  const detect = (tier: Tier) => () => ({ tier, reason: 'test' });
+
+  it('a first start applies the detected tier, in auto mode', () => {
+    const s = resolveStart(null, null, '', detect('low'));
+    expect(s.rec).toEqual({ mode: 'auto', tier: 'low', reason: 'test' });
+    expect(s.g).toMatchObject({ ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 });
+  });
+  it('an old save with no tier record is manual and keeps the settings', () => {
+    const s = resolveStart({ ...PRESETS.high, msaa: 8, fps: 120, v: 2 }, null, '', detect('low'));
+    expect(s.rec.mode).toBe('manual');
+    expect(s.g).toMatchObject({ msaa: 8, fps: 120 });
+  });
+  it('a step saves the tier and the next start begins there (round trip)', () => {
+    expect(stepTier('down', 'high')).toBe(true);
+    const saved = JSON.parse(store.get('pipeline-city.graphics')!), rec = JSON.parse(store.get('pipeline-city.graphics.tier')!);
+    expect(parseTierRecord(rec)).toMatchObject({ mode: 'auto' });
+    const next = resolveStart(saved, rec, '', detect('high'));
+    expect(next.rec.tier).toBe(tierRecord.value.tier);
+    expect(next.g).toEqual(graphics.value);
+  });
+  it('up is capped at the detected tier + 1, and only one step is made', () => {
+    setAutoTier({ tier: 'low', reason: 'test' });
+    expect(stepTier('up', 'low')).toBe(true); // detected low -> medium
+    expect(tierRecord.value.tier).toBe('medium');
+    expect(stepTier('up', 'low')).toBe(false);
+    resetTierSteps();
+    expect(stepTier('up', 'low')).toBe(false); // would be high: above detected + 1
+  });
+  it('a manual choice always wins over an auto step', () => {
+    setTier('high');
+    expect(tierRecord.value.mode).toBe('manual');
+    expect(stepTier('down', 'high')).toBe(false);
+    expect(graphics.value).toEqual(tierGraphics('high', graphics.value));
+    setAutoTier({ tier: 'high', reason: 'test' });
+    setGraphic('msaa', 2);
+    expect(tierRecord.value.mode).toBe('manual');
+    setAutoTier({ tier: 'high', reason: 'test' });
+    setPreset('low');
+    expect(tierRecord.value.mode).toBe('manual');
+    expect(stepTier('up', 'high')).toBe(false);
+  });
+  it('?tier= overrides for the session, is manual and is not stored', () => {
+    const s = resolveStart({ ...DEFAULTS, v: 2 }, { mode: 'auto', tier: 'high', reason: '' }, '?tier=low', detect('high'));
+    expect(s.rec).toMatchObject({ mode: 'manual', tier: 'low' });
+    expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 30 });
+    expect(resolveStart(null, null, '?tier=bogus', detect('medium')).rec.tier).toBe('medium');
+    expect(store.size).toBe(0);
+  });
+});
 
 describe('presets', () => {
   it('the default is High with nothing else set', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
     expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: false });
-    expect(deviceDefaults(false)).toEqual(DEFAULTS);
-    expect(deviceDefaults(true)).toEqual({ ...DEFAULTS, ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30 });
-    expect(parseGraphics({ msaa: 4 }, deviceDefaults(true))).toMatchObject({ msaa: 4, scale: 0.75, shadows: 0, fps: 30 });
   });
 
-  it('a touch device starts with shadows Off, and the player can turn them back on', () => {
-    expect(deviceDefaults(true).shadows).toBe(0);
-    expect(CHOICES.shadows.map(([v]) => v)).toEqual([0, 1, 2, 3, 4]);
-    expect(parseGraphics({ shadows: 1 }, deviceDefaults(true))).toMatchObject({ shadows: 1, scale: 0.75, fps: 30 });
-    expect({ ...deviceDefaults(true), ...PRESETS.low }.shadows).toBe(PRESETS.low.shadows);
+  it('the lamp options are on offer and set by every preset', () => {
+    expect(CHOICES.lights.map(([v]) => v)).toEqual([4, 8, 0]);
+    expect(CHOICES.lightShadows.map(([v]) => v)).toEqual([0, 1]);
+    expect(PRESETS.low).toMatchObject({ lights: 4, lightShadows: 0 });
+    expect(PRESETS.high).toMatchObject({ lights: 0, lightShadows: 1 });
+    expect(parseGraphics({ lights: 8, lightShadows: 5 })).toMatchObject({ lights: 8, lightShadows: 1 });
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {
@@ -76,7 +194,7 @@ describe('auto-adjust', () => {
 });
 
 describe('the settings signal', () => {
-  beforeEach(() => resetGraphics());
+  beforeEach(() => setTier('high'));
 
   it('a preset keeps the frame limit, the brightness and auto-adjust', () => {
     setGraphic('auto', true);

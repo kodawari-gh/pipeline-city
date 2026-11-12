@@ -20,10 +20,10 @@ const THROTTLE = Number(flag('throttle', PHONE ? 4 : 1));
 const MS = Number(flag('ms', 3500));
 const PORT = Number(process.env.PORT || 5196), url = `http://localhost:${PORT}/`;
 const PRESETS = {
-  low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, textures: 0, filtering: 2, live: 0, particles: 0 },
-  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, textures: 1, filtering: 4, live: 1, particles: 1 },
-  high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, textures: 2, filtering: 8, live: 2, particles: 2 },
-  ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, textures: 3, filtering: 16, live: 3, particles: 2 },
+  low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
+  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 4, lightShadows: 1, textures: 1, filtering: 4, live: 1, particles: 1 },
+  high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
+  ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
 const presets = flag('presets', 'low,medium,high').split(',');
 const modes = flag('modes', 'menu,gallery,build').split(',');
@@ -150,7 +150,7 @@ try {
       if (preset !== 'default') await p.addInitScript(([g]) => { localStorage.setItem('pipeline-city.graphics', JSON.stringify({ ...g, fps: 0, brightness: 1, auto: false, v: 2 })); }, [PRESETS[preset]]);
       await p.addInitScript(probe);
       p.on('pageerror', (e) => console.log('page error:', e.message.slice(0, 200)));
-      await p.goto(url);
+      await p.goto(PHONE && preset === 'default' ? `${url}${url.includes('?') ? '&' : '?'}tier=low` : url); // the tier, not touch, picks the phone's settings
       await p.waitForSelector('text=Build my PC', { timeout: warm ? 60000 : 180000 });
       warm = true;
       const cdp = await ctx.newCDPSession(p);
