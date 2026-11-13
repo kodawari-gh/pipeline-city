@@ -57,7 +57,7 @@ it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' 
 
 it('casting is false with the shadows off and true at a shadow level', () => {
   const room = new Room3D();
-  room.setLights(2, false);
+  room.setLights(4, false);
   room.setShadows(0);
   expect(room.casting).toBe(false);
   room.setShadows(1);
@@ -68,7 +68,7 @@ it('scanShadows does not scan with no caster, and scans once with one', () => {
   const room = new Room3D(), scene = new Scene();
   let calls = 0;
   const cache = { scan: (_s: Object3D, _now: number) => { calls++; return false; } };
-  room.setLights(2, false);
+  room.setLights(4, false);
   room.setShadows(0);
   expect(room.scanShadows(cache, scene, 0)).toBe(false);
   expect(calls).toBe(0);

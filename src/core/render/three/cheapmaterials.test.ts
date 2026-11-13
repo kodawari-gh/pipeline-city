@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, ShaderMaterial, Texture } from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import { BoxGeometry, Color, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D, ShaderMaterial, Texture } from 'three';
+import { fadeTree } from './artlod';
 import { cheapMaterials, probePlan } from './cheapmaterials';
 
 const geo = new BoxGeometry();
+/** The distinct Lamberts under `o` (a Lambert shared by two meshes counts once). */
+const lamberts = (o: Object3D): Material[] => {
+  const out = new Set<Material>();
+  o.traverse((x) => { const m = (x as Mesh).material; for (const mm of Array.isArray(m) ? m : [m]) if (mm instanceof MeshLambertMaterial) out.add(mm); });
+  return [...out];
+};
 
 describe('cheapMaterials', () => {
   it('swaps a plain standard material for a Lambert that keeps its look, one per source', () => {
@@ -88,6 +95,59 @@ describe('cheapMaterials', () => {
     expect(patched.normalMap).toBe(n);
     expect([a.material, b.material]).toEqual([patched, plain]);
     expect(c.material).toEqual([multi, plain]);
+  });
+  it('a fade through the cheap mesh lands on the source; fading back restores it', () => {
+    const src = new MeshStandardMaterial({ opacity: 1, depthWrite: true });
+    const a = new Mesh(geo, src), root = new Group().add(a), h = cheapMaterials(root), l = a.material as unknown as MeshLambertMaterial;
+    fadeTree(root, 0.5);
+    expect([l.opacity, l.depthWrite, l.transparent]).toEqual([0.5, false, true]);
+    expect([src.opacity, src.depthWrite, src.transparent]).toEqual([0.5, false, true]);
+    fadeTree(root, 1);
+    expect([l.opacity, l.depthWrite, l.transparent]).toEqual([1, true, false]);
+    expect([src.opacity, src.depthWrite, src.transparent]).toEqual([1, true, false]);
+    h.undo();
+  });
+  it('sync swaps in the meshes a rebuild added, and drops the ones it removed', () => {
+    const a = new Mesh(geo, new MeshStandardMaterial()), root = new Group().add(a), h = cheapMaterials(root);
+    const b = new Mesh(geo, new MeshStandardMaterial());
+    root.add(b);
+    h.sync();
+    expect(lamberts(root)).toHaveLength(2);
+    expect(b.material).toBe(lamberts(root)[1]);
+    const removed = b.material as Material;
+    const dispose = vi.spyOn(removed, 'dispose');
+    root.remove(b);
+    h.sync();
+    expect(lamberts(root)).toHaveLength(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+    h.undo();
+    expect(a.material).toBeInstanceOf(MeshStandardMaterial);
+  });
+  it('a round trip keeps the Lambert count of a fresh pass, disposes every old Lambert, and swaps each source once', () => {
+    const shared = new MeshStandardMaterial({ color: 0x123456 });
+    const build = () => new Group().add(
+      new Mesh(geo, shared), new Mesh(geo, shared), new Mesh(geo, new MeshStandardMaterial()), new Mesh(geo, new MeshStandardMaterial({ map: new Texture() })),
+    );
+    const late = () => new Mesh(geo, new MeshStandardMaterial({ emissive: new Color(0xff0000), emissiveIntensity: 1 }));
+    // the fresh pass: the same tree (the late mesh included), cheapened once
+    const freshRoot = build().add(late()), fresh = cheapMaterials(freshRoot), want = lamberts(freshRoot).length;
+    fresh.undo();
+    // the first pass, then a rebuild adds a mesh that the pass must take in
+    const root = build(), first = cheapMaterials(root);
+    root.add(late());
+    first.sync();
+    const old = lamberts(root), spies = old.map((l) => vi.spyOn(l, 'dispose'));
+    expect(old).toHaveLength(want);
+    first.undo();
+    expect(spies.map((s) => s.mock.calls.length)).toEqual(old.map(() => 1));
+    expect(lamberts(root)).toHaveLength(0);
+    const again = cheapMaterials(root);
+    const now = lamberts(root);
+    expect(now).toHaveLength(want);
+    const [a, b] = root.children as Mesh[];
+    expect(a!.material).toBe(b!.material);
+    again.undo();
+    expect(lamberts(root)).toHaveLength(0);
   });
 });
 

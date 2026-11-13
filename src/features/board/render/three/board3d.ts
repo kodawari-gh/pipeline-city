@@ -201,6 +201,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
     chips.update(s);
     room.setKeys(s?.tray ?? []);
+    // the cables and keys this rebuild added or removed: a root in `cheaps` takes them in its sync (`cheap` skips it)
+    for (const r of [room.root, machine?.root, next?.m.root]) if (r) cheaps.get(r)?.sync();
     demand.ask(); // (a save loaded, a part fitted, a plug in or out)
   };
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)

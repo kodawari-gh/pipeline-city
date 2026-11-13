@@ -421,8 +421,12 @@ export function loopLimit(fps: number, focused: boolean): number {
 /** Low's frame limit before it moved to 60 (save v3): the auto-adjust watches still judge Low by it. */
 const LOW_WATCH_FPS = 30;
 
-/** Is `g` Low: the Low preset's picture (AO, bloom, MSAA, textures, filtering, live, particles), at any light count, scale or sun shadows? */
-/** (the light count, the lamps' shadows, the scale and the sun's shadows aside: the Low tier and Low saves old and new differ there) */
+/**
+ * Is `g` Low: the Low preset's picture (AO, bloom, MSAA, textures, filtering, live, particles), at any light count, scale or sun shadows?
+ * (the light count, the lamps' shadows, the scale and the sun's shadows aside: the Low tier and Low saves old and new differ there).
+ * Widening isLow on purpose also makes watchFps judge custom Low-like pictures (Low's picture at another light count, scale or sun shadows)
+ * at Low's 30 fps thresholds.
+ */
 const LOW_FREE: readonly (keyof PresetOptions)[] = ['lights', 'lightShadows', 'scale', 'shadows'];
 export const isLow = (g: Graphics): boolean => presetKeys.every((k) => LOW_FREE.includes(k) || g[k] === PRESETS.low[k]);
 

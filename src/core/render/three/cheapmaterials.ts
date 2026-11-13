@@ -1,5 +1,5 @@
 // The Low tier's cheaper material model: a Lambert program (no specular, no PBR maps) for the room's standard materials.
-import { Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D, type Side } from 'three';
 
 type Std = MeshStandardMaterial & { isMeshStandardMaterial: true };
 const STRIPPED = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'] as const;
@@ -8,12 +8,15 @@ type Stripped = (typeof STRIPPED)[number];
 const isStandard = (m: Material): m is Std => (m as Std).isMeshStandardMaterial === true;
 const isPatched = (m: Material): boolean => m.onBeforeCompile !== Material.prototype.onBeforeCompile;
 
-/** The values a Lambert reads live from its source (no copy, no frame work). */
-const LIVE = ['emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap'] as const;
+/**
+ * The values a Lambert reads live from its source (no copy, no frame work). A write through the Lambert lands on the source, so a fade
+ * (`fadeTree`) or a glow cap (`glowOnly`) reaches the material the game owns. `transparent` is among them: `sync` sees its change.
+ */
+const LIVE = ['emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap', 'transparent'] as const;
 
 /**
- * A Lambert with the look of `m`. Its colors are the source's own Color objects, and its live values are getters on the source: a write to `m`
- * shows on the Lambert at once. Only the program-level state (see `sync`) is copied.
+ * A Lambert with the look of `m`. Its colors are the source's own Color objects, and its live values are accessors on the source (see `LIVE`).
+ * Only the program-level state (see `sync`) is copied.
  */
 function lambertOf(m: Std): MeshLambertMaterial {
   const l = new MeshLambertMaterial({
@@ -21,23 +24,32 @@ function lambertOf(m: Std): MeshLambertMaterial {
   });
   l.color = m.color;
   l.emissive = m.emissive;
-  for (const k of LIVE) Object.defineProperty(l, k, { configurable: true, enumerable: true, get: () => m[k], set() { /* the source owns it */ } });
+  const src = m as unknown as Record<string, unknown>;
+  for (const k of LIVE) Object.defineProperty(l, k, { configurable: true, enumerable: true, get: () => src[k], set(v: unknown) { src[k] = v; } });
   l.userData = m.userData;
   l.name = m.name;
   return l;
 }
+
+/** What a Lambert's program depends on, as its source has it: `sync` compares it with the last one it saw. */
+type Prog = { transparent: boolean; side: Side; alpha: boolean; map: boolean; emap: boolean };
+const progOf = (s: Std): Prog => ({ transparent: s.transparent, side: s.side, alpha: s.alphaTest > 0, map: !!s.map, emap: !!s.emissiveMap });
+
+/** Is `o` `root` or under it? */
+const under = (o: Object3D, root: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (p === root) return true; return false; };
 
 /**
  * Swap `root`'s standard materials for cheaper ones, and return the function that undoes it (originals and maps back).
  * - A plain standard material (no `onBeforeCompile`, no light map) becomes a Lambert, one per source material.
  * - A patched one keeps its program, and loses its normal, roughness, metalness, ao and bump maps.
  * - Basic, shader and other materials stay. A mesh with `userData.standIn` is skipped.
- * Call it again after a rebuild adds meshes: what is already cheap is not touched twice.
+ * Call `sync` after a rebuild of the root adds or removes meshes: what is already cheap is not touched twice.
  */
 export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   const swaps: { mesh: Mesh; index: number | null; from: Material }[] = [];
   const stripped = new Map<Std, Partial<Record<Stripped, unknown>>>();
-  const made = new Map<Material, MeshLambertMaterial>();
+  const made = new Map<Std, MeshLambertMaterial>();
+  const prog = new Map<Std, Prog>();
   const cheap = (m: Material): Material => {
     if (!isStandard(m)) return m;
     if (isPatched(m) || m.lightMap) {
@@ -50,10 +62,11 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       return m;
     }
     let l = made.get(m);
-    if (!l) made.set(m, l = lambertOf(m));
+    if (!l) { made.set(m, l = lambertOf(m)); prog.set(m, progOf(m)); }
     return l;
   };
-  root.traverse((o) => {
+  // Swap what `root` holds that is still standard. A cheap mesh is a Lambert now, so it comes back as it is and is not swapped twice.
+  const swapAll = () => root.traverse((o) => {
     const mesh = o as Mesh;
     if (!mesh.isMesh || mesh.userData.standIn) return;
     if (Array.isArray(mesh.material)) {
@@ -64,24 +77,25 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       if (c !== mesh.material) { swaps.push({ mesh, index: null, from: mesh.material }); mesh.material = c; }
     }
   });
-  const from: Std[] = [], to: MeshLambertMaterial[] = [], prog: { map: boolean; emap: boolean }[] = [];
-  for (const [m, l] of made) { const s = m as Std; from.push(s); to.push(l); prog.push({ map: !!s.map, emap: !!s.emissiveMap }); }
+  swapAll();
   return {
     /**
-     * Copy the program-level state (transparent, side, alphaTest, map presence) onto the Lambert copies, and ask for a new program when one of
-     * them changed. Call it when the tier changes or a root is cheapened, not per frame: the live values need no sync (see `lambertOf`).
+     * Pick up what a rebuild added under `root` and forget what it removed (their Lamberts go, unless another mesh still uses the source).
+     * Then copy the program-level state (transparent, side, alphaTest, map presence) onto the Lambert copies, and ask for a new program when
+     * one of them changed. Call it when the tier changes or a rebuild changes the root, not per frame: the live values need no sync (see `lambertOf`).
      */
     sync() {
-      for (let i = 0; i < from.length; i++) {
-        const s = from[i]!, l = to[i]!, p = prog[i]!;
-        const map = !!s.map, emap = !!s.emissiveMap;
+      for (let i = swaps.length - 1; i >= 0; i--) if (!under(swaps[i]!.mesh, root)) swaps.splice(i, 1);
+      const used = new Set(swaps.map((s) => s.from));
+      for (const [s, l] of made) if (!used.has(s)) { l.dispose(); made.delete(s); prog.delete(s); }
+      swapAll();
+      for (const [s, l] of made) {
+        const p = prog.get(s)!, now = progOf(s);
         // (these change the program or the sorting: a new compile)
-        const dirty = l.transparent !== s.transparent || l.side !== s.side || (l.alphaTest > 0) !== (s.alphaTest > 0) || p.map !== map || p.emap !== emap;
-        l.transparent = s.transparent;
+        const dirty = p.transparent !== now.transparent || p.side !== now.side || p.alpha !== now.alpha || p.map !== now.map || p.emap !== now.emap;
+        prog.set(s, now);
         l.side = s.side;
         l.alphaTest = s.alphaTest;
-        p.map = map;
-        p.emap = emap;
         if (dirty) l.needsUpdate = true;
       }
     },
@@ -91,7 +105,7 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       }
       for (const [m, was] of stripped) { Object.assign(m, was); m.needsUpdate = true; }
       for (const l of made.values()) l.dispose();
-      swaps.length = 0; stripped.clear(); made.clear(); from.length = to.length = prog.length = 0;
+      swaps.length = 0; stripped.clear(); made.clear(); prog.clear();
     },
   };
 }
