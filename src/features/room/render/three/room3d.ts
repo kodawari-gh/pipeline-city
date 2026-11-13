@@ -827,6 +827,9 @@ export class Room3D {
     this.envs.setMap(t);
   }
 
+  /** Does any light of the room cast a shadow? With none, no map is drawn and the shadow scan has nothing to serve. */
+  get casting(): boolean { return this.casters.some((l) => l.castShadow); }
+
   /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
   private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light]; }
 
@@ -929,6 +932,17 @@ export class Room3D {
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
     catchUp(lights[this.shadowTurn++ % lights.length]!);
+  }
+
+  /**
+   * The frame's shadow scan (`ShadowCache.scan`) and the redraw it asks for. With no light casting it does not scan: it returns false, and the
+   * frame asks for nothing. Else it returns whether a caster moved.
+   */
+  scanShadows(cache: { scan(scene: Object3D, now: number): boolean }, scene: Object3D, now: number): boolean {
+    if (!this.casting) return false;
+    const cast = cache.scan(scene, now);
+    this.redrawShadows(cast, now);
+    return cast;
   }
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */
