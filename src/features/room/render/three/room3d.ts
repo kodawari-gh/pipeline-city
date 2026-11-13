@@ -22,7 +22,7 @@ import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
-import { disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';

@@ -269,7 +269,8 @@ export function shadowBlob(): Texture | null {
 
 /**
  * Free the geometries and the materials under `root`, and every texture on them (each material slot: `map`, `normalMap`...) that is not shared
- * (`shareTex`). `textures` frees the shared ones too.
+ * (`shareTex`). `textures` frees the shared ones too. A render target's texture is never freed here, even with `textures`: the target
+ * belongs to its owner (a room probe is still the envMap of the scene that rebuilds), so the owner frees it.
  */
 export function disposeTree(root: Object3D, textures = false): void {
   root.traverse((o) => {
@@ -279,6 +280,7 @@ export function disposeTree(root: Object3D, textures = false): void {
     for (const x of ms) {
       for (const v of Object.values(x)) {
         const t = v as Texture | null;
+        if (t?.isRenderTargetTexture) continue;
         if (t?.isTexture && (textures || !shared.has(t))) t.dispose();
       }
       x.dispose();

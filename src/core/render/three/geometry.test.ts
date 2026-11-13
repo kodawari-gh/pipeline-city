@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MeshBasicMaterial } from 'three';
-import { rectBox, worldUv } from './geometry';
+import { MeshBasicMaterial, Scene, WebGLRenderTarget } from 'three';
+import { disposeTree, rectBox, worldUv } from './geometry';
 
 /** The uvs of the box's face toward +z (BoxGeometry's fifth face) at its four corners, by corner position (x, y). */
 function front(o: ReturnType<typeof rectBox>): Map<string, [number, number]> {
@@ -19,5 +19,29 @@ describe('worldUv', () => {
     expect(narrow.get('1000,-8000')).toEqual([0.5, -4]);
     expect(wide.get('1000,0')).toEqual(narrow.get('1000,0'));
     expect(wide.get('7000,-8000')).toEqual([3.5, -4]);
+  });
+});
+
+describe('disposeTree', () => {
+  it('never frees a render target texture, even with textures=true, so a probe kept as envMap survives a rebuild', () => {
+    const target = new WebGLRenderTarget(4, 4);
+    const tex = target.texture;
+    expect(tex.isRenderTargetTexture).toBe(true);
+    const scene = new Scene();
+    scene.environment = tex;
+    const mat = new MeshBasicMaterial();
+    mat.envMap = tex;
+    let disposed = 0;
+    tex.addEventListener('dispose', () => { disposed++; });
+    const mesh = rectBox({ x: 0, y: 0, w: 10, h: 10 }, 0, 10, mat);
+    scene.add(mesh);
+    disposeTree(scene);
+    disposeTree(scene, true);
+    // rebuild: the same probe is still the envMap and the environment
+    const next = rectBox({ x: 0, y: 0, w: 10, h: 10 }, 0, 10, mat);
+    scene.add(next);
+    disposeTree(scene);
+    expect(disposed).toBe(0);
+    target.dispose();
   });
 });
