@@ -51,4 +51,22 @@ describe('massGeometries detail', () => {
     }
     expect(tops.size).toBeGreaterThan(1);
   }, 60000);
+
+  it('Low: far blocks keep live Led corner strips (vertical, not only the top band)', () => {
+    const far = withDetail(bs, [], 'low').at(-1)!;
+    const pos = far.geometry.attributes.position!, aux = far.geometry.attributes.aux!, look = far.geometry.attributes.look!;
+    // a corner strip is Led, grows across (look.w = Wide.Across = 1) and runs up a tier; the band is Led, Wide.Up, and flat
+    let strips = 0, tallest = 0;
+    for (let i = 0; i < far.balls.length; i++) {
+      let lo = Infinity, hi = -Infinity, n = 0;
+      for (let v = far.at[i]!; v < far.at[i + 1]!; v++) {
+        if (Math.round(aux.getY(v)) !== 5 || Math.round(look.getW(v)) !== 1) continue;
+        lo = Math.min(lo, pos.getY(v)); hi = Math.max(hi, pos.getY(v)); n++;
+      }
+      if (n > 0) strips++;
+      tallest = Math.max(tallest, hi - lo);
+    }
+    expect(strips, 'far blocks with Led corner strips').toBeGreaterThan(0);
+    expect(tallest, 'a corner strip runs up a tier, not a band').toBeGreaterThan(2);
+  }, 60000);
 });

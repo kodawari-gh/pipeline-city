@@ -449,13 +449,13 @@ function corners(m: Mass, t: Rect, y0: number, y1: number, w: number): void {
 /** A modern tower's LEDs: a band round the top of each tier under its parapet; on a few, a strip up each corner of the shaft. A landmark has them all, in its own light. */
 function leds(m: Mass, b: Building): void {
   const r = rng(b.seed ^ 0x5bd1);
-  // a far block (`lightsOnly`) keeps the top tier's band and no corner strips
+  // a far block (`lightsOnly`) keeps the top tier's band and its corner strips (live Led, thickened by the shader like High's)
   if (b.light) {
     m.set(b.light, 0, Kind.Led, b.seed % 991);
     for (const [i, t] of b.tiers.entries()) {
-      if (m.lightsOnly && i < b.tiers.length - 1) continue;
-      band(m, t);
-      if (i > 0 && !m.lightsOnly) corners(m, t, t.y0, t.y1 - 0.9, 0.5);
+      // far: only the top band (less mid-shaft rings), but the corner strips still run up every tier
+      if (!(m.lightsOnly && i < b.tiers.length - 1)) band(m, t);
+      if (i > 0) corners(m, t, t.y0, t.y1 - 0.9, 0.5);
     }
     return;
   }
@@ -463,7 +463,7 @@ function leds(m: Mass, b: Building): void {
   m.set(LEDS[Math.floor(r() * LEDS.length)]!, 0, Kind.Led, b.seed % 991);
   for (const t of m.lightsOnly ? b.tiers.slice(-1) : b.tiers) band(m, t);
   const s = b.tiers[1];
-  if (m.lightsOnly || !s || r() > 0.3) return;
+  if (!s || r() > 0.3) return;
   corners(m, s, s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, 0.36);
 }
 
@@ -572,7 +572,7 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
 
 /**
  * A far building at Low: each tier a plain box in the facade's look (36 vertices a tier), then only its night pieces: the crown's lights, the LED
- * bands and the signs. No roof, parapet or clutter (`Mass.lightsOnly` drops those). `away`: from the window (m).
+ * bands, their corner strips and the signs. No roof, parapet or clutter (`Mass.lightsOnly` drops those). `away`: from the window (m).
  */
 function block(m: Mass, b: Building, away: number): void {
   const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
