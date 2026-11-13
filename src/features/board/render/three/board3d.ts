@@ -15,6 +15,7 @@ import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
+import { whenDebug } from '@/app/debugflag';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -104,6 +105,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
+  void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas });
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
   // the shadow maps: a still picture per light, and only what moves drawn again (shadows.ts)
