@@ -1,0 +1,814 @@
+{
+  "machine/Group#3": {
+    "meshes": 24,
+    "draws": 24,
+    "verts": 5518,
+    "instances": 50,
+    "sum": "fc33b1c9"
+  },
+  "machine/Group#4": {
+    "meshes": 62,
+    "draws": 59,
+    "verts": 97926,
+    "instances": 734,
+    "sum": "af1eeb1d"
+  },
+  "machine/Group#47": {
+    "meshes": 42,
+    "draws": 38,
+    "verts": 38452,
+    "instances": 186,
+    "sum": "0d01e324"
+  },
+  "machine/Group#7": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 9372,
+    "instances": 0,
+    "sum": "a2c347ee"
+  },
+  "machine/Group#8": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 9372,
+    "instances": 0,
+    "sum": "816f63e5"
+  },
+  "machine/Mesh#0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "c4c5dcc9"
+  },
+  "machine/Mesh#1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "6ea493de"
+  },
+  "machine/atx": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 22872,
+    "instances": 24,
+    "sum": "35ea14d9"
+  },
+  "machine/bat": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1528,
+    "instances": 0,
+    "sum": "e313807f"
+  },
+  "machine/board": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 1284,
+    "instances": 0,
+    "sum": "5b6eebb1"
+  },
+  "machine/cable.atx": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 12648,
+    "instances": 0,
+    "sum": "26e26938"
+  },
+  "machine/cable.cpu": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 6692,
+    "instances": 0,
+    "sum": "05be9752"
+  },
+  "machine/cable.cpufan": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1826,
+    "instances": 0,
+    "sum": "2c0e5dbe"
+  },
+  "machine/cable.fan:front0": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "2cf851b4"
+  },
+  "machine/cable.fan:front1": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "973d062e"
+  },
+  "machine/cable.fan:front2": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "e57d4313"
+  },
+  "machine/cable.fan:rear": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "2b113c7d"
+  },
+  "machine/cable.fan:top0": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "e874687a"
+  },
+  "machine/cable.fan:top1": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 656,
+    "instances": 0,
+    "sum": "3f8c9184"
+  },
+  "machine/cable.lan": {
+    "meshes": 35,
+    "draws": 35,
+    "verts": 7540,
+    "instances": 32,
+    "sum": "a77b14a5"
+  },
+  "machine/cable.monmains": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 5676,
+    "instances": 0,
+    "sum": "fb83752b"
+  },
+  "machine/cable.pcmains": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 5676,
+    "instances": 0,
+    "sum": "0ba771c7"
+  },
+  "machine/cable.ramfan": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1826,
+    "instances": 0,
+    "sum": "77f9022a"
+  },
+  "machine/cable.sysfan": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 2278,
+    "instances": 0,
+    "sum": "f102e2c5"
+  },
+  "machine/cable.video": {
+    "meshes": 24,
+    "draws": 24,
+    "verts": 9322,
+    "instances": 62,
+    "sum": "ea11b1ff"
+  },
+  "machine/cable.vrmfan": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1826,
+    "instances": 0,
+    "sum": "5f6239d0"
+  },
+  "machine/case": {
+    "meshes": 172,
+    "draws": 172,
+    "verts": 655458,
+    "instances": 1230,
+    "sum": "96a45c43"
+  },
+  "machine/case.side": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "45ebb271"
+  },
+  "machine/chipset": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 2208,
+    "instances": 0,
+    "sum": "0370ab82"
+  },
+  "machine/cpw": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 7704,
+    "instances": 8,
+    "sum": "3ac508d7"
+  },
+  "machine/dev10": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 3828,
+    "instances": 252,
+    "sum": "3c30e71d"
+  },
+  "machine/dev11": {
+    "meshes": 11,
+    "draws": 11,
+    "verts": 33594,
+    "instances": 12,
+    "sum": "c114e57f"
+  },
+  "machine/dev12": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 30096,
+    "instances": 24,
+    "sum": "cfc0f9ec"
+  },
+  "machine/dev13": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 17496,
+    "instances": 24,
+    "sum": "68d1eb04"
+  },
+  "machine/dev14": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 11428,
+    "instances": 35,
+    "sum": "4ef56658"
+  },
+  "machine/dev15": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 83557,
+    "instances": 0,
+    "sum": "ed92b302"
+  },
+  "machine/dev16": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 83557,
+    "instances": 0,
+    "sum": "ceb4caa9"
+  },
+  "machine/dev17": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 83557,
+    "instances": 0,
+    "sum": "b35d351f"
+  },
+  "machine/dev18": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 83557,
+    "instances": 0,
+    "sum": "31653134"
+  },
+  "machine/dev19": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 83557,
+    "instances": 0,
+    "sum": "8600e1d2"
+  },
+  "machine/dev20": {
+    "meshes": 7,
+    "draws": 7,
+    "verts": 83710,
+    "instances": 8,
+    "sum": "58d2b8be"
+  },
+  "machine/dev21": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 78964,
+    "instances": 0,
+    "sum": "5efd74a3"
+  },
+  "machine/dev22": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 78964,
+    "instances": 0,
+    "sum": "d7a892b1"
+  },
+  "machine/dev23": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "edd94e28"
+  },
+  "machine/dev24": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "cd77dfb9"
+  },
+  "machine/dev25": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "9ecd6774"
+  },
+  "machine/dev26": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "6a534311"
+  },
+  "machine/dev27": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "3a3e37d1"
+  },
+  "machine/dev28": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "3a3e37d1"
+  },
+  "machine/dev29": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "3a3e37d1"
+  },
+  "machine/dev30": {
+    "meshes": 13,
+    "draws": 5,
+    "verts": 924,
+    "instances": 196,
+    "sum": "3a3e37d1"
+  },
+  "machine/dev31": {
+    "meshes": 14,
+    "draws": 14,
+    "verts": 24429,
+    "instances": 515,
+    "sum": "b81a25aa"
+  },
+  "machine/dev32": {
+    "meshes": 14,
+    "draws": 14,
+    "verts": 24429,
+    "instances": 515,
+    "sum": "6bd48767"
+  },
+  "machine/dev33": {
+    "meshes": 14,
+    "draws": 14,
+    "verts": 24429,
+    "instances": 515,
+    "sum": "b81a25aa"
+  },
+  "machine/dev34": {
+    "meshes": 34,
+    "draws": 28,
+    "verts": 96363,
+    "instances": 383,
+    "sum": "98849042"
+  },
+  "machine/io": {
+    "meshes": 8,
+    "draws": 8,
+    "verts": 6984,
+    "instances": 51,
+    "sum": "0c9a16a7"
+  },
+  "machine/pcie0": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 2664,
+    "instances": 192,
+    "sum": "3fa443d0"
+  },
+  "machine/pcie1": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 2664,
+    "instances": 152,
+    "sum": "246fae07"
+  },
+  "machine/power": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 168,
+    "instances": 0,
+    "sum": "e2a93ae1"
+  },
+  "machine/psu": {
+    "meshes": 33,
+    "draws": 33,
+    "verts": 27241,
+    "instances": 34,
+    "sum": "c9e37323"
+  },
+  "machine/sata0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "9f86aa0b"
+  },
+  "machine/sata1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "5c8f1596"
+  },
+  "machine/sata2": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "7d2f38b3"
+  },
+  "machine/sata3": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "a8e8d252"
+  },
+  "machine/sata4": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "fba2acf8"
+  },
+  "machine/sata5": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "9c64f895"
+  },
+  "machine/standin": {
+    "meshes": 7,
+    "draws": 0,
+    "verts": 326778,
+    "instances": 0,
+    "sum": "db32f15b"
+  },
+  "machine/tpm0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "55ee1e24"
+  },
+  "machine/usb": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "565dd592"
+  },
+  "machine/vrm": {
+    "meshes": 8,
+    "draws": 8,
+    "verts": 7200,
+    "instances": 0,
+    "sum": "1e7a1c02"
+  },
+  "machine/vrm2": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 5400,
+    "instances": 0,
+    "sum": "8de04e0b"
+  },
+  "room/Group#10": {
+    "meshes": 7,
+    "draws": 7,
+    "verts": 4648,
+    "instances": 0,
+    "sum": "88e3bc78"
+  },
+  "room/Group#11": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1164,
+    "instances": 0,
+    "sum": "5a22203b"
+  },
+  "room/Group#12": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 176,
+    "instances": 0,
+    "sum": "3465235a"
+  },
+  "room/Group#13": {
+    "meshes": 9,
+    "draws": 9,
+    "verts": 6236,
+    "instances": 0,
+    "sum": "0f70a823"
+  },
+  "room/Group#15": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 6572,
+    "instances": 0,
+    "sum": "d5ce8307"
+  },
+  "room/Group#18": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 904,
+    "instances": 0,
+    "sum": "3750cccd"
+  },
+  "room/Group#19": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "b1ca0070"
+  },
+  "room/Group#21": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 1955,
+    "instances": 0,
+    "sum": "0f422c69"
+  },
+  "room/Group#30": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 2005,
+    "instances": 0,
+    "sum": "824aef4e"
+  },
+  "room/Group#31": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 493,
+    "instances": 0,
+    "sum": "5c749a93"
+  },
+  "room/Group#32": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 124,
+    "instances": 0,
+    "sum": "807dfece"
+  },
+  "room/Group#33": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 928,
+    "instances": 0,
+    "sum": "ca3557d1"
+  },
+  "room/Group#34": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1024,
+    "instances": 0,
+    "sum": "e1b83b53"
+  },
+  "room/Group#35": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 6785,
+    "instances": 0,
+    "sum": "39478484"
+  },
+  "room/Group#6": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 124,
+    "instances": 0,
+    "sum": "119a8fad"
+  },
+  "room/Group#7": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 24138,
+    "instances": 0,
+    "sum": "e5d91bd4"
+  },
+  "room/Group#8": {
+    "meshes": 7,
+    "draws": 7,
+    "verts": 8420,
+    "instances": 0,
+    "sum": "11e5c866"
+  },
+  "room/Group#9": {
+    "meshes": 11,
+    "draws": 11,
+    "verts": 2552,
+    "instances": 358,
+    "sum": "66cbd105"
+  },
+  "room/Mesh#0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "dc01653c"
+  },
+  "room/Mesh#1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 4,
+    "instances": 0,
+    "sum": "12fd1a9d"
+  },
+  "room/Mesh#2": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "11ade38b"
+  },
+  "room/Mesh#22": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 2916,
+    "instances": 0,
+    "sum": "34de2d6a"
+  },
+  "room/Mesh#23": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 148,
+    "instances": 0,
+    "sum": "51b99b40"
+  },
+  "room/Mesh#24": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 148,
+    "instances": 0,
+    "sum": "7c23311d"
+  },
+  "room/Mesh#25": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "77f1b8b9"
+  },
+  "room/Mesh#29": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "17cadfc0"
+  },
+  "room/Mesh#4": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "6340e3b3"
+  },
+  "room/Mesh#41": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "45fefe48"
+  },
+  "room/Mesh#45": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "3797c180"
+  },
+  "room/Mesh#46": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "7e9d0b63"
+  },
+  "room/Mesh#47": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "bead0ab3"
+  },
+  "room/Mesh#48": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "257158d9"
+  },
+  "room/Mesh#49": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "04450e0f"
+  },
+  "room/Mesh#5": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "8bf959fd"
+  },
+  "room/blind": {
+    "meshes": 15,
+    "draws": 15,
+    "verts": 9956,
+    "instances": 0,
+    "sum": "4fedf4fe"
+  },
+  "room/clock": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 948,
+    "instances": 0,
+    "sum": "dcb8fda2"
+  },
+  "room/display0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "77f91138"
+  },
+  "room/lamp": {
+    "meshes": 16,
+    "draws": 16,
+    "verts": 2195,
+    "instances": 0,
+    "sum": "6ec1a3fa"
+  },
+  "room/mail": {
+    "meshes": 8,
+    "draws": 8,
+    "verts": 2912,
+    "instances": 0,
+    "sum": "a43068ea"
+  },
+  "room/merged": {
+    "meshes": 57,
+    "draws": 57,
+    "verts": 291936,
+    "instances": 0,
+    "sum": "1bcc7eb3"
+  },
+  "room/monitor": {
+    "meshes": 32,
+    "draws": 32,
+    "verts": 48023,
+    "instances": 8,
+    "sum": "233a03ce"
+  },
+  "room/router": {
+    "meshes": 25,
+    "draws": 25,
+    "verts": 4446,
+    "instances": 17,
+    "sum": "2161ff45"
+  },
+  "room/socket": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1148,
+    "instances": 0,
+    "sum": "e21e01ca"
+  },
+  "room/tray": {
+    "meshes": 16,
+    "draws": 16,
+    "verts": 6040,
+    "instances": 0,
+    "sum": "2b94f299"
+  },
+  "room/wall": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "efe7fb76"
+  }
+}

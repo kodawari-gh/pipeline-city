@@ -225,7 +225,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * A view with its eye in the room (the walls hide all outside it) and out of the furniture: a goal may narrow its fov back (`restore`), the
    * eased view only widens.
    */
-  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks });
+  /** Dev only: while the shot tool holds its eye (`unclamped`), the view is as given; the prod build has no such branch. */
+  let unclamped = false;
+  const inRoom = (v: OrbitView, restore = true): OrbitView => (import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks }));
   /** A pan that would push the eye through a wall or into the furniture slides along it (one axis), or stops. */
   const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
     for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
@@ -277,16 +279,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   };
   /** The flight the tutorial asked for (`flyToId`): told whether the view arrived, or was cut short by the player or another flight. */
   let pending: ((arrived: boolean) => void) | null = null;
-  /** Dev only (`jumpRaw`, the case shot tool): the frame does not hold the eye in the room. Any flight, cut or input ends it. */
-  let unclamped = false;
+  /** Any flight, cut or input ends the dev-only unclamped view. */
   const cancelFlight = () => { unclamped = false; const p = pending; pending = null; p?.(false); };
   /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
   let atOverview = false;
   const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); settle(); };
   /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
   const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); rail = null; };
-  /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
-  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
   const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -647,7 +646,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
     if (menu !== !s) { menu = !s; canvas.style.pointerEvents = menu ? 'none' : ''; }
     if (menu && hover.peek()) hover.value = null;
-    view = unclamped ? stepView(view, goal, dt) : inRoom(stepView(view, goal, dt), false);
+    view = inRoom(stepView(view, goal, dt), false);
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
@@ -768,7 +767,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   await shown;
   bootDone();
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
+  if (import.meta.env.DEV) {
+  /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
+  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
+  (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
     parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
@@ -821,4 +823,5 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       return v;
     },
   };
+  }
 }
