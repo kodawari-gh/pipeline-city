@@ -1,5 +1,5 @@
 /** The overlay's controls: the render scale, the main post passes, the sun's shadow and the lamp cap, set through the graphics settings (`setGraphic` saves them as the panel does), and the city and machine hides (visibility only, saved nowhere). */
-import { DEFAULTS, graphics, PRESETS, setAutoTier, setGraphic, type Graphics, type Tier } from '../graphics';
+import { CHOICES, DEFAULTS, debugLights, graphics, PRESETS, setAutoTier, setGraphic, type Graphics, type Tier } from '../graphics';
 
 /** The render scales the overlay offers (within SCALE_MIN..SCALE_MAX). */
 export const SCALES = [0.5, 0.6, 0.75, 0.85, 1];
@@ -50,14 +50,26 @@ export function setShadowsOn(on: boolean): void {
   setGraphic('shadows', v);
 }
 
-/**
- * The next lamp cap: 4, then All (0), then 4. `1` is not a `lights` choice: `setGraphic` would take it as the default (0), so the overlay
- * cannot offer it. Any other value (8, from the panel) goes to 4.
- */
-export const nextLights = (v: number): number => (v === 4 ? 0 : 4);
+/** The overlay's lamp caps, in order: 4, 1, All (0). */
+export const LIGHTS = [4, 1, 0];
 
+/** The lamp cap now applied (the overlay's, else the setting's). */
+export const lightsNow = (): number => debugLights.peek() ?? graphics.peek().lights;
+
+/** The next lamp cap: 4, then 1, then All (0), then 4. Any other value (8, from the panel) goes to 4. */
+export const nextLights = (v: number): number => LIGHTS[LIGHTS.indexOf(v) + 1] ?? LIGHTS[0]!;
+
+/**
+ * Sets the lamp cap. 4 and 0 go through `setGraphic` (saved, as the panel does). 1 is not a `lights` choice, so it is held in `debugLights`
+ * (applied, never saved) and the saved value stays what the player had. Auto drops it (`backToAuto`).
+ */
 export function setLights(v: number): void {
-  setGraphic('lights', v);
+  if (CHOICES.lights.some(([c]) => c === v)) {
+    debugLights.value = null;
+    setGraphic('lights', v);
+  } else {
+    debugLights.value = v;
+  }
 }
 
 /** Shows or hides a root (the city's or the machine's). Visibility only: no setting is changed or saved. A missing root is skipped. */
@@ -67,6 +79,7 @@ export function setRootHidden(root: { visible: boolean } | null, hidden: boolean
 
 /** Back to auto: re-detects the tier (or takes `d`, for tests) and leaves manual mode. */
 export function backToAuto(d?: { tier: Tier; reason: string }): void {
+  debugLights.value = null;
   if (d) setAutoTier(d);
   else setAutoTier();
 }

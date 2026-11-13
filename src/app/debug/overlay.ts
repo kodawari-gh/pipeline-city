@@ -5,7 +5,7 @@
  */
 import type { WebGLRenderer } from 'three';
 import { CHOICES, graphics, tierRecord } from '../graphics';
-import { backToAuto, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
+import { backToAuto, lightsNow, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
 import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
 
 /** A root the overlay can hide: its visibility only. */
@@ -52,7 +52,7 @@ export function mountDebug({ renderer, canvas, roots }: {
   const postBtn = button('Post', () => { setPost(!postOn(graphics.peek())); show(); });
   const scaleBtns = SCALES.map((v) => button(String(v), () => { setScale(v); show(); }));
   const shadowBtn = button('Shadows', () => { setShadowsOn(!shadowsOn(graphics.peek())); show(); });
-  const lightsBtn = button('Lights', () => { setLights(nextLights(graphics.peek().lights)); show(); });
+  const lightsBtn = button('Lights', () => { setLights(nextLights(lightsNow())); show(); });
   const cityBtn = button('Hide city', () => { hideRoot('city'); show(); });
   const machineBtn = button('Hide machine', () => { hideRoot('machine'); show(); });
   const autoBtn = button('Auto', () => { backToAuto(); show(); });
@@ -88,7 +88,7 @@ export function mountDebug({ renderer, canvas, roots }: {
       fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
       dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
       calls: drawCalls, scale: g.scale, post: postOn(g),
-      shadows: g.shadows, lights: g.lights, ...viewportOf(window, window.screen ?? {}),
+      shadows: g.shadows, lights: lightsNow(), ...viewportOf(window, window.screen ?? {}),
     };
   };
 
@@ -105,7 +105,7 @@ export function mountDebug({ renderer, canvas, roots }: {
     shadowBtn.textContent = `Shadows ${shadowOn ? 'on' : 'off'}`;
     shadowBtn.style.cssText = BTN + (shadowOn ? ON : '');
     // (the lamp cap's name as the panel shows it: 4, All for 0)
-    lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === g.lights)?.[1] ?? g.lights}`;
+    lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === s.lights)?.[1] ?? s.lights}`;
     cityBtn.style.cssText = BTN + (hide.city ? ON : '');
     machineBtn.style.cssText = BTN + (hide.machine ? ON : '');
     autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' ? ON : '');

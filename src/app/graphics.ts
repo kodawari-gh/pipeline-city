@@ -335,8 +335,14 @@ export const graphics = signal<Graphics>(start.g);
 export const tierRecord = signal<TierRecord>(start.rec);
 /** How far auto-adjust has lowered the picture this session. It is not saved: the next start tries the player's settings again. */
 export const autoStep = signal(0);
+/** The `?debug` overlay's lamp cap (1 is not a `lights` choice, so `setGraphic` cannot hold it). Null: none, `graphics.lights` applies. Not saved. */
+export const debugLights = signal<number | null>(null);
 /** What the renderers apply. */
-export const effective = computed(() => (graphics.value.auto ? lowered(graphics.value, autoStep.value) : graphics.value));
+export const effective = computed(() => {
+  const g = graphics.value.auto ? lowered(graphics.value, autoStep.value) : graphics.value;
+  const cap = debugLights.value;
+  return cap === null ? g : { ...g, lights: cap };
+});
 
 function commit(next: Graphics, rec: TierRecord) {
   graphics.value = next;

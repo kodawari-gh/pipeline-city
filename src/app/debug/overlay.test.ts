@@ -1,6 +1,6 @@
 import type { WebGLRenderer } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { graphics, setAutoTier, setPreset, tierRecord } from '../graphics';
+import { debugLights, effective, graphics, setAutoTier, setPreset, tierRecord } from '../graphics';
 import { mountDebug } from './overlay';
 
 // A stub DOM: enough of document and the elements the overlay makes (no DOM in node).
@@ -110,15 +110,27 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     expect(graphics.value.shadows).toBe(3);
   });
 
-  it('the Lights button cycles All and 4 through setGraphic', () => {
+  it('the Lights button cycles 4, 1 and All; Auto drops the 1', () => {
     setPreset('high');
+    debugLights.value = null;
     mountDebug({ renderer: rig(), canvas: cvs() });
     frame!(0);
     button('Lights All').handlers.click!();
-    expect(graphics.value.lights).toBe(4);
+    expect(effective.value.lights).toBe(4);
     frame!(1000);
     button('Lights 4').handlers.click!();
-    expect(graphics.value.lights).toBe(0);
+    expect(effective.value.lights).toBe(1);
+    expect(graphics.value.lights).toBe(4);
+    frame!(2000);
+    button('Lights 1').handlers.click!();
+    expect(effective.value.lights).toBe(0);
+    button('Lights All').handlers.click!();
+    button('Lights 4').handlers.click!();
+    expect(debugLights.value).toBe(1);
+    frame!(3000);
+    button('Auto').handlers.click!();
+    expect(debugLights.value).toBeNull();
+    expect(tierRecord.value.mode).toBe('auto');
   });
 
   it('Hide city hides only the city root, and Hide machine only the machine root; neither touches the saved settings', () => {

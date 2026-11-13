@@ -47,6 +47,9 @@ const PRESETS = {
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
 const presets = flag('presets', 'low,medium,high').split(',');
+// `--tier` sets that tier in every page (`setTier`), so each row is that tier whatever its preset label says (the page's boot-time build is the
+// preset's, its live settings and every Low cut are the tier's). Rows that differ by preset need no `--tier`: the stored presets already have the limit off.
+if (TIER && presets.length > 1) throw new Error('--tier runs every row at that tier: give one --presets value with it, or drop --tier to compare presets');
 const modes = flag('modes', 'menu,gallery,build').split(',');
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };

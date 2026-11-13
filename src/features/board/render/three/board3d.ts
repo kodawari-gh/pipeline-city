@@ -174,7 +174,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
       room.setShadows(effective.peek().shadows);
-      room.setLow(isLow(effective.peek()));
       room.setLights(effective.peek().lights, effective.peek().lightShadows > 0);
       shadows.reset();
       scene.add(room.root);
@@ -191,7 +190,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       next?.m.dispose();
       next = null;
       const m = new Machine3D(s, room.geo, bakes, chips);
-      m.setLow(isLow(effective.peek()));
       if (!machine || !warmed) install(m);
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
@@ -212,7 +210,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
   bootStage('Building the world', 0.14);
   await nextPaint();
-  prepareCity(renderer, effective.peek().shadows, isLow(effective.peek()));
+  prepareCity(renderer, effective.peek().shadows);
   rebuild();
 
   // ---- camera ----
@@ -571,12 +569,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const applyGraphics = (g: Graphics) => {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
-    room?.setLow(isLow(g));
     room?.setLights(g.lights, g.lightShadows > 0);
     // Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low
     if (isLow(g)) { for (const r of [room?.root, machine?.root, next?.m.root]) if (r) cheap(r); } else for (const root of [...cheaps.keys()]) uncheap(root);
-    // Low's lighter machine (`Machine3D.setLow`): no spill light, the stand-ins sooner; both machines, the one that shows and the one that links
-    for (const m of [machine, next?.m]) m?.setLow(isLow(g));
     for (const c of cheaps.values()) c.sync(); // (the tier's program-level state; the live values need none)
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;

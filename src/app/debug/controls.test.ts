@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHOICES, DEFAULTS, graphics, PRESETS, setAutoTier, setGraphic, setPreset, tierRecord } from '../graphics';
-import { backToAuto, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn } from './controls';
+import { CHOICES, DEFAULTS, debugLights, effective, graphics, PRESETS, setAutoTier, setGraphic, setPreset, tierRecord } from '../graphics';
+import { backToAuto, lightsNow, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn } from './controls';
 
 describe('SCALES', () => {
   it('lists the render scales the panel offers, all within the graphics range', () => {
@@ -153,21 +153,56 @@ describe('setShadowsOn', () => {
 });
 
 describe('nextLights', () => {
-  it('cycles 4 and All (0): 1 is not a lights choice, so it is never offered', () => {
-    expect(nextLights(4)).toBe(0);
+  it('cycles 4, 1, All (0), then 4; any other value goes to 4', () => {
+    expect(nextLights(4)).toBe(1);
+    expect(nextLights(1)).toBe(0);
     expect(nextLights(0)).toBe(4);
     expect(nextLights(8)).toBe(4);
-    expect(CHOICES.lights.map(([v]) => v)).not.toContain(1);
+  });
+
+  it('leaves the panel choices alone: 1 is not one of them', () => {
+    expect(CHOICES.lights.map(([v]) => v)).toEqual([4, 8, 0]);
   });
 });
 
 describe('setLights', () => {
-  beforeEach(() => setPreset('high'));
+  beforeEach(() => { setPreset('high'); debugLights.value = null; });
 
-  it('sets the lamp cap through setGraphic and makes the tier manual', () => {
+  it('4 and 0 go through setGraphic and make the tier manual', () => {
     setLights(4);
     expect(graphics.value.lights).toBe(4);
+    expect(effective.value.lights).toBe(4);
     expect(tierRecord.value.mode).toBe('manual');
+    setLights(0);
+    expect(graphics.value.lights).toBe(0);
+    expect(effective.value.lights).toBe(0);
+  });
+
+  it('1 reaches the renderers (effective) and leaves the saved setting as it was', () => {
+    setLights(4);
+    const before = graphics.value;
+    setLights(1);
+    expect(effective.value.lights).toBe(1);
+    expect(lightsNow()).toBe(1);
+    expect(graphics.value).toBe(before);
+    setLights(0);
+    expect(effective.value.lights).toBe(0);
+    expect(debugLights.value).toBeNull();
+  });
+
+  it('the toggle walks 4, 1, 0, 4 from the applied value', () => {
+    setLights(4);
+    const seen = [lightsNow()];
+    for (let i = 0; i < 3; i++) { setLights(nextLights(lightsNow())); seen.push(effective.value.lights); }
+    expect(seen).toEqual([4, 1, 0, 4]);
+  });
+
+  it('Auto drops the 1 and restores the tier lamp cap', () => {
+    setLights(1);
+    backToAuto({ tier: 'high', reason: 'test' });
+    expect(debugLights.value).toBeNull();
+    expect(effective.value.lights).toBe(PRESETS.high.lights);
+    expect(tierRecord.value.mode).toBe('auto');
   });
 });
 

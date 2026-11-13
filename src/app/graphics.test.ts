@@ -267,6 +267,27 @@ describe('tier persistence', () => {
       }
     });
   });
+  it('a bench start (stored preset, no tier record, or ?tier) is manual: no auto step can change it', () => {
+    const stored = { ...PRESETS.high, fps: 0, brightness: 1, auto: false, v: 2 };
+    for (const [saved, search] of [[stored, ''], [{ ...stored, ...PRESETS.low }, ''], [null, '?tier=low'], [stored, '?tier=high']] as const) {
+      const s = resolveStart(saved, null, search, detect('high'));
+      expect(s.rec.mode).toBe('manual');
+    }
+    setTier('low');
+    expect(stepTier('down', 'high')).toBe(false);
+    expect(stepTier('up', 'low')).toBe(false);
+    expect(tierRecord.value.tier).toBe('low');
+  });
+  it('setTier("low") on a High page makes the effective graphics Low (so every Low cut applies); setTier("high") takes them off', () => {
+    setPreset('high');
+    expect(isLow(effective.value)).toBe(false);
+    setTier('low'); // what bench-modes `--tier low` does in each page, whatever preset the page started with
+    expect(isLow(effective.value)).toBe(true);
+    setTier('high');
+    expect(isLow(effective.value)).toBe(false);
+    setPreset('medium');
+    expect(isLow(effective.value)).toBe(false);
+  });
   it('a manual choice always wins over an auto step', () => {
     setTier('high');
     expect(tierRecord.value.mode).toBe('manual');

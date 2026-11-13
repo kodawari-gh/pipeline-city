@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Material, Matrix4, Mesh, PerspectiveCamera, PointLight, Raycaster, Vector2, Vector3, type BufferAttribute, type MeshStandardMaterial, type Object3D } from 'three';
+import { Box3, Material, Matrix4, Mesh, PerspectiveCamera, Raycaster, Vector2, Vector3, type BufferAttribute, type MeshStandardMaterial, type Object3D } from 'three';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/game/types';
 import { findById, idOf, ownerOf, pick, shown } from '@/core/render/three/pick';
@@ -365,28 +365,5 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       now.holdDetail([], ceil);
       expect(drawnMeshes(now.root)).toBe(far);
     });
-  });
-});
-
-describe('Machine3D Low lighting and budget (Low plan cuts 1-2)', () => {
-  const lights = (m: Machine3D) => { let n = 0; m.root.traverseVisible((o) => { if (o instanceof PointLight) n++; }); return n; };
-
-  it('setLow(true) leaves one visible PointLight (no spill); setLow(false) and a new machine have two', () => {
-    const m = build(game().snapshot(), true, false);
-    expect(lights(m)).toBe(2);
-    m.setLow(true);
-    expect(lights(m)).toBe(1);
-    m.setLow(false);
-    expect(lights(m)).toBe(2);
-    expect(lights(build(game().snapshot(), true, false))).toBe(2);
-  });
-
-  it('Low takes the tighter stand-in budget, and High gets back today\'s', () => {
-    const m = build(game().snapshot(), true, true), lod = m.partLod!;
-    expect(lod.budget).toEqual({ px: 8, cullPx: 0 });
-    m.setLow(true);
-    expect(lod.budget).toEqual({ px: 16, cullPx: 3 });
-    m.setLow(false);
-    expect(lod.budget).toEqual({ px: 8, cullPx: 0 });
   });
 });

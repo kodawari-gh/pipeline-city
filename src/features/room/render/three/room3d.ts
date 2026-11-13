@@ -152,10 +152,9 @@ const theCity = (): OutsideView => (city ??= new OutsideView(WINDOW.x + WINDOW.w
  * Builds the city in the window before the room, its sun's shadow at `shadows` of the graphics settings, and starts linking its programs
  * (`compile.ts`): the driver links them while the page builds the room.
  */
-export function prepareCity(r: WebGLRenderer, shadows: number, low = false): void {
+export function prepareCity(r: WebGLRenderer, shadows: number): void {
   const c = theCity();
   c.setShadows(shadows);
-  c.setLow(low);
   c.startPrograms(r);
 }
 
@@ -873,9 +872,6 @@ export class Room3D {
     this.mixKey = '';
     this.setShadows(this.shadowLevel);
   }
-
-  /** The city in the window at Low's budget (`outside/budget.ts`), or High's. */
-  setLow(on: boolean): void { this.outside.setLow(on); }
 
   /**
    * The shadow maps at `level` of the graphics settings, for the lights that may cast (`setLights`). A new map is drawn on the next frame; no
