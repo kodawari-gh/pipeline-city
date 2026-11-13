@@ -2,6 +2,7 @@ import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type Insta
 import { describe, expect, it } from 'vitest';
 import { Fleet, parkCells, reach, within } from './cars';
 import type { HazeUniforms } from './haze';
+import { LOW_FLEET } from './detail';
 import { GRID, parked, rng, type Car } from './plan';
 import { Traffic } from './traffic';
 
@@ -76,6 +77,29 @@ describe('cars', () => {
       expect(turn[i * 2]).toBeCloseTo(Math.cos(c.rot), 12);
       expect(turn[i * 2 + 1]).toBeCloseTo(Math.sin(c.rot), 12);
     }
+  });
+
+  describe('fleet size', () => {
+    /** `Fleet` as the Low cut will build it (the count scale and the model cap do not exist yet). */
+    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+    const meshes = (f: Fleet): InstancedMesh[] => (f as unknown as Inside).moving;
+    const drawnCars = (f: Fleet): number => { f.update(0.1, 0, 0); return meshes(f).reduce((s, im) => s + im.count, 0); };
+
+    it('lock: the default fleet is every car, in several meshes', () => {
+      const tr = new Traffic(), light = { night: { value: 0 } }, a = new Fleet(tr, parked(), light, haze()), b = new Sized(tr, parked(), light, haze(), 1);
+      expect(drawnCars(a)).toBe(tr.cars.length);
+      expect(drawnCars(b)).toBe(tr.cars.length);
+      expect(meshes(b).length).toBe(meshes(a).length);
+      expect(meshes(a).length).toBeGreaterThan(1);
+      a.dispose(); b.dispose();
+    });
+
+    it('Low: one instanced mesh of moving cars, ceil(High * LOW_FLEET) of them', () => {
+      const tr = new Traffic(), low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      expect(meshes(low).length).toBe(1);
+      expect(drawnCars(low)).toBe(Math.ceil(tr.cars.length * LOW_FLEET));
+      low.dispose();
+    });
   });
 
   it('places just the cars the eye sees: moving and parked, their shadows, their pools at night', () => {

@@ -14,13 +14,14 @@ import {
   Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
 } from 'three';
-import { mergeStatic } from '@/core/render/three/merge';
+import { mergePalette, mergeStatic } from '@/core/render/three/merge';
 import { startPrograms, type Program } from '@/core/render/three/compile';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
 import { withCanyon } from './canyon';
 import { land } from './city';
+import { LOW_CELL, LOW_EVERY, LOW_FLEET, type CityDetail } from './detail';
 import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
@@ -216,10 +217,12 @@ export class OutsideView {
   private boxFrame = '';
   private age = 0;
   /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
-  get due(): boolean { return this.age >= EVERY; }
+  get due(): boolean { return this.age >= this.every; }
+  /** The ticks between two draws of a still eye (`EVERY`; `LOW_EVERY` at Low). */
+  private every = EVERY;
 
-  /** The window's quad (room units: its middle, its size, the depth of the glass). */
-  constructor(cx: number, cy: number, w: number, h: number, z: number) {
+  /** The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`). */
+  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high') {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
       uniforms: {
@@ -241,13 +244,22 @@ export class OutsideView {
 
     // the streets merged by material (their many small things in bearing order, cut by a sweep); the buildings on their facade's material,
     // ring by ring, the trees and the land in their own
+    const low = detail === 'low';
+    this.every = low ? LOW_EVERY : EVERY;
     const k = this.kit = makeKit(), ts = trees();
-    const still = new Group(), st = street(k, ts);
+    const still = new Group(), st = street(k, ts, detail);
     still.add(st.group);
-    this.sweeps.push(...sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb]));
+    // (at Low the plain materials, which differ only in colour and shine, are one palette mesh; only the glowing lenses are swept, in wide cells)
+    const palette: Material[] = [];
+    if (low) {
+      mergePalette(still);
+      still.traverse((o) => { if (o.name === 'merged') palette.push((o as Mesh).material as Material); });
+    }
+    this.sweeps.push(...(low ? sweptMerge(still, [k.lantern], LOW_CELL) : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb])));
     mergeStatic(still);
-    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = roofSteam(blocks, this.haze);
-    const mass = massGeometries(blocks, washes).map((r) => {
+    // (no steam at Low: a plume is a draw for a few roofs)
+    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = low ? null : roofSteam(blocks, this.haze);
+    const mass = massGeometries(blocks, washes, detail).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
       this.sweeps.push(new Sweep(r.balls, [{ mesh: m, at: r.at }]));
@@ -255,14 +267,15 @@ export class OutsideView {
     });
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
-    this.steam = steam.u;
-    this.scene.add(still, ...mass, land(k), steam.mesh, signLight);
-    const plants = plantTrees(ts, k);
+    this.steam = steam?.u ?? { stCol: { value: new Color() }, stLow: { value: new Color() } };
+    this.scene.add(still, ...mass, land(k), signLight);
+    if (steam) this.scene.add(steam.mesh);
+    const plants = plantTrees(ts, k, detail);
     this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
     // the cars, moving and parked, and the signals' lamps
-    this.fleet = new Fleet(this.traffic, parked(), this.carLight, this.haze);
+    this.fleet = low ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
 
@@ -272,10 +285,12 @@ export class OutsideView {
     this.scene.add(this.dome);
     this.envScene.add(skyDome(this.sky, 100));
     this.scene.environment = this.env.texture;
-    this.disposables.push(facade.mat, steam.mesh.material as Material, signLight.material as Material);
+    this.disposables.push(facade.mat, signLight.material as Material);
+    if (steam) this.disposables.push(steam.mesh.material as Material);
     // the lamps' pools on the ground, the haze on every material in place of fog
     for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
-    for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow]) withCanyon(m);
+    for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow, ...palette]) withCanyon(m);
+    this.disposables.push(...palette);
     this.scene.traverse((o) => { for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze); });
 
     // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
@@ -421,7 +436,7 @@ export class OutsideView {
     if (rr - rx < 1 || rb - ry < 1) { this.age = 0; return; }
     // the eye has held (nearly) still since the picture was drawn: it stands for a few ticks (`EVERY`, counted by `frame`)
     const b = this.box, drift = behind ? (moved ? Infinity : 0) : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) / 2;
-    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < EVERY) { this.live = camera; return; }
+    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < this.every) { this.live = camera; return; }
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;

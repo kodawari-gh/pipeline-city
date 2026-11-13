@@ -318,12 +318,18 @@ export class Fleet {
   private still: ({ im: InstancedMesh } & ReturnType<typeof parkCells>)[] = [];
   private parked: number;
 
-  constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms) {
-    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)), box = farGeometry();
+  /** The share of the moving cars that drive (1: all), and how many models there are (fewer than `MODELS`: one mesh of them, no far box). */
+  private scale: number;
+  private capped: boolean;
+
+  constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms, scale = 1, models: number = MODELS.length) {
+    this.scale = scale;
+    this.capped = models < MODELS.length;
+    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
-    const byModel = MODELS.map(() => [] as Car[]), boxed: Car[] = [];
-    for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR ? byModel[Math.floor(rng(c.seed)() * MODELS.length)]! : boxed).push(c);
+    const byModel = geos.map(() => [] as Car[]), boxed: Car[] = [];
+    for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR && !this.capped ? byModel[Math.min(Math.floor(rng(c.seed)() * MODELS.length), models - 1)]! : boxed).push(c);
     [...byModel, boxed].forEach((all, k) => {
       if (!all.length) return;
       const im = fleetMesh(geos[k] ?? box, mat, all.length);
@@ -335,7 +341,7 @@ export class Fleet {
     // the moving ones: each model near, the box far off
     this.near = geos.map((g) => fleetMesh(g, mat, n));
     this.far = fleetMesh(box, mat, n);
-    this.moving = [...this.near, this.far];
+    this.moving = this.capped ? [...this.near] : [...this.near, this.far];
     for (const im of this.moving) { im.receiveShadow = true; this.group.add(im); }
     // their pools of light, and the shadows under every car
     this.poolMat = new ShaderMaterial({
@@ -354,7 +360,8 @@ export class Fleet {
     this.shades.count = parked.length;
     this.shades.instanceMatrix.setUsage(DynamicDrawUsage);
     this.pools.renderOrder = this.shades.renderOrder = 1;
-    this.group.add(this.pools, this.shades);
+    // (the capped fleet of Low has no pools of light and no soft shadows: two draws fewer)
+    if (!this.capped) this.group.add(this.pools, this.shades);
   }
 
   /**
@@ -398,7 +405,7 @@ export class Fleet {
     for (const im of this.moving) im.count = 0;
     const pa = this.pools.instanceMatrix.array as Float32Array, pl = this.pools.geometry.attributes.lit!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
-    let n = 0;
+    let n = 0, seenN = 0;
     for (let ri = 0; ri < tr.lanes.length; ri++) {
       const rt = tr.routes[ri]!, lane = tr.lanes[ri]!;
       reach(rt, seen, 0, night ? POOL_R : SHADE_R, AROUND);
@@ -414,12 +421,14 @@ export class Fleet {
         if (c.s - c.len / 2 < AROUND[0]!) break;
         const m = tr.front(c, f) - c.len / 2;
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
-        const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
+        // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all)
+        if (this.scale < 1 && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
+        const x =rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
         turned(sa, P + n, x, z, cr, sr);
         if (night) { turned(pa, n, x, z, cr, sr); pl[n * 2] = 1; pl[n * 2 + 1] = brake; }
         n++;
         if (m < BODY[0]! || m > BODY[1]!) continue;
-        const ox = x - ex, oz = z - ez, im = ox * ox + oz * oz < NEAR * NEAR ? this.near[c.model]! : this.far, k = im.count++;
+        const ox = x - ex, oz = z - ez, im = this.capped ? this.near[Math.min(c.model, this.near.length - 1)]! : ox * ox + oz * oz < NEAR * NEAR ? this.near[c.model]! : this.far, k = im.count++;
         turned(im.instanceMatrix.array as Float32Array, k, x, z, cr, sr);
         paint(im.instanceColor!.array as Float32Array, k, c.colour);
         const la = im.geometry.attributes.lit!.array as Float32Array;
@@ -440,6 +449,7 @@ export class Fleet {
 
   dispose(): void {
     this.group.traverse((o) => { if ((o as InstancedMesh).isInstancedMesh) { (o as InstancedMesh).geometry.dispose(); (o as InstancedMesh).dispose(); } });
+    if (this.capped) for (const im of [this.pools, this.shades, this.far]) { im.geometry.dispose(); im.dispose(); }
     this.mat.dispose(); this.poolMat.dispose(); this.shadeMat.dispose();
   }
 }

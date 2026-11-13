@@ -38,6 +38,8 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
+import type { CityDetail } from './outside/detail';
+import { effective, isLow } from '@/app/graphics';
 import {
   OAK_TILE, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
   smokedOak, type Lantern,
@@ -147,7 +149,12 @@ const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBit
 export const preloadRoomBake = (): void => { void roomBake(); };
 /** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
 let city: OutsideView | null = null;
-const theCity = (): OutsideView => (city ??= new OutsideView(WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z));
+/** The city's detail now: Low graphics (`isLow`) build the cut city, any other settings the full one. */
+const wantedDetail = (): CityDetail => (isLow(effective.peek()) ? 'low' : 'high');
+const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
+  if (city && city.detail !== detail) { city.mesh.removeFromParent(); city.dispose(); city = null; }
+  return (city ??= new OutsideView(WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z, detail));
+};
 /**
  * Builds the city in the window before the room, its sun's shadow at `shadows` of the graphics settings, and starts linking its programs
  * (`compile.ts`): the driver links them while the page builds the room.
@@ -365,6 +372,9 @@ export class Room3D {
   /** The screen's glow on the keyboard and the desk: an area light on its face, lighting only what is in front of it. */
   private screenLight = new RectAreaLight(0xa8cfff, 0, 1, 1);
   private outside: OutsideView;
+  /** The detail of the city in the window (`setCityDetail`). */
+  cityDetail: CityDetail = 'high';
+  private window: Group;
   private blinds: Mesh[] = [];
   private blindK = 0;
   private sunKey = -1;
@@ -472,6 +482,8 @@ export class Room3D {
     const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
     this.outside = theCity();
+    this.cityDetail = this.outside.detail;
+    this.window = winG;
     winG.add(this.outside.mesh, glass);
     const cassette = mat(0x2a2d33, { roughness: 0.5 }), screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
     for (const b of bays) {
@@ -900,10 +912,24 @@ export class Room3D {
   }
 
   /**
+   * Swaps the city in the window for the one of `d`: the old view is freed at once, the new one is built now (it takes seconds). The swap
+   * is synchronous, so the window shows no old picture while the new one waits for its first draw.
+   */
+  setCityDetail(d: CityDetail): void {
+    if (d === this.cityDetail && this.outside.detail === d) return;
+    this.outside = theCity(d);
+    this.cityDetail = d;
+    this.window.add(this.outside.mesh);
+    this.outside.setShadows(this.shadowLevel);
+  }
+
+  /**
    * The window's view for this frame's camera, and the baked bounce for this frame's light (before the frame's draw); `scene`: the one the room
    * stands in; `samples`: the scene target's multisampling.
    */
   drawOutside(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, samples: number): void {
+    const want = wantedDetail();
+    if (want !== this.cityDetail) this.setCityDetail(want);
     this.mixLight(renderer);
     this.outside.draw(renderer, scene, camera, samples);
   }

@@ -3,6 +3,7 @@
 // the tree pits, the street lamps with their arms over the road, the traffic lights at the near crossings (their lamps lit by the traffic's
 // clock, `Signals`), and the stone sill under our own window. All on the kit's materials, merged by `view.ts`.
 import { BoxGeometry, Color, CylinderGeometry, DynamicDrawUsage, Group, InstancedMesh, Mesh, MeshBasicMaterial, Object3D, Vector3 } from 'three';
+import { LOW_FURNITURE_M, type CityDetail } from './detail';
 import type { Kit } from './kit';
 import { block } from './parts';
 import { CURB, DETAIL, GRID, LANES, PARKS, avenueX, blockRect, lamps, streetZ, toOutside, type Lamp, type Tree } from './plan';
@@ -65,16 +66,19 @@ export class Signals {
 }
 
 /** The streets' still things in one group (to merge), where the lamps' lights are, and the signal heads' lamps. */
-export function street(k: Kit, ts: readonly Tree[]): { group: Group; lights: Vector3[]; signals: SignalLamp[] } {
+export function street(k: Kit, ts: readonly Tree[], detail: CityDetail = 'high'): { group: Group; lights: Vector3[]; signals: SignalLamp[] } {
   const g = new Group();
+  // (at Low the small furniture stands only near the window; a metre inside the limit, as a pit's grille lies off its tree's middle)
+  const keep = (x: number, z: number): boolean => detail !== 'low' || Math.hypot(x, z) <= LOW_FURNITURE_M - 1;
   // the asphalt under the whole grid
   g.add(block(-REACH_X, -0.05, -REACH_Z, REACH_X, 0, 2, k.asphalt));
   // each block's pavement out to the kerbs; a park's lawn inside its pavement, two paths crossing it
   const w = GRID.walk;
   for (let j = 0; j < GRID.rows; j++) for (let i = -GRID.cols; i < GRID.cols; i++) {
     const b = blockRect(i, j), far = Math.hypot((b.x0 + b.x1) / 2, b.z1) > 1800;
-    g.add(block(b.x0 - w, 0, b.z0 - w, b.x1 + w, CURB, b.z1 + w, far ? k.kerb : k.paving));
-    if (PARKS.some(([a, c]) => a === i && c === j)) {
+    // (at Low the far pavement and the lawns take the paving's material: two draws fewer)
+    g.add(block(b.x0 - w, 0, b.z0 - w, b.x1 + w, CURB, b.z1 + w, far && detail !== 'low' ? k.kerb : k.paving));
+    if (detail !== 'low' && PARKS.some(([a, c]) => a === i && c === j)) {
       g.add(block(b.x0 + 1, CURB, b.z0 + 1, b.x1 - 1, CURB + 0.08, b.z1 - 1, k.grass));
       const mx = (b.x0 + b.x1) / 2, mz = (b.z0 + b.z1) / 2;
       g.add(block(mx - 2, CURB + 0.08, b.z0 + 1, mx + 2, CURB + 0.1, b.z1 - 1, k.paving), block(b.x0 + 1, CURB + 0.08, mz - 2, b.x1 - 1, CURB + 0.1, mz + 2, k.paving));
@@ -120,12 +124,13 @@ export function street(k: Kit, ts: readonly Tree[]): { group: Group; lights: Vec
   // the drains by the kerbs
   for (let i = -2; i <= 2; i++) for (let z = -30; z > -DETAIL; z -= 37) for (const s of [-1, 1]) {
     const x = avenueX(i) + s * (road - 0.25);
+    if (!keep(x, z + 0.3)) continue;
     g.add(block(x - 0.25, 0, z, x + 0.25, PAINT * 2, z + 0.6, k.iron));
   }
 
   // the street trees' pits: a square of soil in the paving, an iron grille round it
   for (const t of ts) {
-    if (t.kind === 'shrub') continue;
+    if (t.kind === 'shrub' || !keep(t.x, t.z)) continue;
     g.add(block(t.x - 0.7, CURB - 0.02, t.z - 0.7, t.x + 0.7, CURB + 0.004, t.z + 0.7, k.soil));
     for (const [a, b, c, d] of [[-0.8, -0.8, 0.8, -0.7], [-0.8, 0.7, 0.8, 0.8], [-0.8, -0.7, -0.7, 0.7], [0.7, -0.7, 0.8, 0.7]] as const) g.add(block(t.x + a, CURB - 0.02, t.z + b, t.x + c, CURB + 0.012, t.z + d, k.iron));
   }

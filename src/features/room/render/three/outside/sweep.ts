@@ -48,7 +48,7 @@ const CELL = 24;
  * and a uv), each cell of the ground (`CELL`) a piece, in bearing order; returns the sweeps that cut them. The originals leave the tree. Call
  * it before `mergeStatic`.
  */
-export function sweptMerge(root: Object3D, mats: readonly Material[]): Sweep[] {
+export function sweptMerge(root: Object3D, mats: readonly Material[], cell = CELL): Sweep[] {
   root.updateMatrixWorld(true);
   const toRoot = root.matrixWorld.clone().invert(), out: Sweep[] = [];
   for (const mat of mats) {
@@ -64,7 +64,7 @@ export function sweptMerge(root: Object3D, mats: readonly Material[]): Sweep[] {
       if (!g.attributes.uv) g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
       g.clearGroups();
       g.computeBoundingSphere();
-      const c = g.boundingSphere!.center, key = `${Math.floor(c.x / CELL)},${Math.floor(c.z / CELL)}`;
+      const c = g.boundingSphere!.center, key = `${Math.floor(c.x / cell)},${Math.floor(c.z / cell)}`;
       const s = cells.get(key) ?? { ms: [], gs: [], x: 0, z: 0, b: 0 };
       cells.set(key, s);
       s.ms.push(m); s.gs.push(g); s.x += c.x; s.z += c.z;

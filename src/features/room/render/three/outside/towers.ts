@@ -13,6 +13,7 @@
 // lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
 import { BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, MeshStandardMaterial, Vector3, type Sphere } from 'three';
+import { LOW_NEAR_RINGS, type CityDetail } from './detail';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 import type { SignWash } from './signlight';
 import { ballOf, bearing } from './sweep';
@@ -530,11 +531,25 @@ const RINGS = [150, 300, 600, CLUTTER, 1800, 3600, Infinity] as const;
 export interface MassRing { geometry: BufferGeometry; balls: Sphere[]; at: number[] }
 
 /** The buildings, one geometry for each ring round the window, each ring's buildings in their bearing's order. `washes` takes the signs that light a wall (`signlight.ts`). */
-export function massGeometries(bs: readonly Building[], washes: SignWash[] = []): MassRing[] {
+export function massGeometries(bs: readonly Building[], washes: SignWash[] = [], detail: CityDetail = 'high'): MassRing[] {
   const away = (b: Building): number => Math.hypot((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0, b.tiers[0]!.z1);
   const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
   const rings = RINGS.map(() => [] as Building[]);
   for (const b of bs) rings[RINGS.findIndex((r) => away(b) < r)]!.push(b);
+  if (detail === 'low') {
+    // the rings past the near ones merge into one mesh of plain blocks
+    const keep = rings.slice(0, LOW_NEAR_RINGS), far = rings.slice(LOW_NEAR_RINGS).flat();
+    return [...keep, far].filter((r) => r.length).map((ring, k, all) => {
+      const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = k === all.length - 1 && far.length > 0;
+      m.washes = washes;
+      for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
+        if (blocks) block(m, b); else building(m, b, Math.max(away(b), FINE));
+        balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
+        at.push(m.vertices);
+      }
+      return { geometry: m.geometry(), balls, at };
+    });
+  }
   return rings.filter((r) => r.length).map((ring) => {
     const m = new Mass(), balls: Sphere[] = [], at = [0];
     m.washes = washes;
@@ -544,6 +559,15 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [])
       at.push(m.vertices);
     }
     return { geometry: m.geometry(), balls, at };
+  });
+}
+
+/** A far building at Low: each tier a plain box in the facade's look, no roof, crown or sign (36 vertices a tier). */
+function block(m: Mass, b: Building): void {
+  const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
+  b.tiers.forEach((t, i) => {
+    m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
+    m.box(t, t.y0, t.y1, true, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
   });
 }
 
