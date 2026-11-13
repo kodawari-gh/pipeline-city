@@ -60,7 +60,7 @@ export type Preset = 'low' | 'medium' | 'high' | 'ultra';
 
 /** `high` is the look the game is tuned on: the default. */
 export const PRESETS: Record<Preset, PresetOptions> = {
-  low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
+  low: { scale: 0.75, msaa: 0, ao: 0, bloom: 0, shadows: 0, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
   medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
   high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
@@ -76,9 +76,9 @@ const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
 const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 
-/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off. */
+/** A tier is its preset, at 60 fps. The Low preset is the Low tier's picture too. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0 } : {}) };
+  return { ...base, ...PRESETS[tier], fps: 60 };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */
@@ -181,11 +181,28 @@ function freshMaxUp(rec: TierRecord, env: StartEnv): TierRecord {
 /** What `resolveStart` needs from the clock and the device. */
 export interface StartEnv { now: number; fp: () => string }
 
-// the touch default from before tiers: Low's values with scale 0.75, shadows 0, 30 fps, and no lamp keys
+/** Low's scale and sun shadows before save v4, when Low was 0.6 and 1. A save at that Low moves to the new Low (save v4). */
+const OLD_LOW = { scale: 0.6, shadows: 1 } as const;
+
+/**
+ * A save at the old Low (before v4) with its scale and shadows moved to the new Low's. Any other save comes back as it is: a v4 save, or a
+ * picture that is not the old Low. An old save with no lamp keys still matches, as those keys come from the preset later.
+ */
+function movedOldLow(saved: unknown): unknown {
+  if (!saved || typeof saved !== 'object') return saved;
+  const o = saved as Record<string, unknown>;
+  if (typeof o.v === 'number' && o.v >= 4) return saved;
+  if (o.scale !== OLD_LOW.scale || o.shadows !== OLD_LOW.shadows) return saved;
+  const same = (k: keyof PresetOptions) => o[k] === PRESETS.low[k] || (o[k] === undefined && (k === 'lights' || k === 'lightShadows'));
+  if (!presetKeys.every((k) => k === 'scale' || k === 'shadows' || same(k))) return saved;
+  return { ...o, scale: PRESETS.low.scale, shadows: PRESETS.low.shadows };
+}
+
+// the touch default from before tiers: Low's values (scale 0.75, shadows 0), 30 fps, and no lamp keys
 function isOldTouchDefault(raw: unknown): boolean {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   if (o.lights !== undefined || o.lightShadows !== undefined) return false;
-  const want: Record<string, number> = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1 };
+  const want: Record<string, number> = { ...PRESETS.low, fps: 30, brightness: 1 };
   delete want.lights; delete want.lightShadows;
   return Object.keys(want).every((k) => o[k] === want[k]);
 }
@@ -200,7 +217,8 @@ export function resolveStart(
   env: StartEnv = { now: Date.now(), fp: () => fingerprint(device()) },
 ): { g: Graphics; rec: TierRecord } {
   const hasSave = !!saved && typeof saved === 'object', stored = parseTierRecord(rec);
-  const base = parseGraphics(saved);
+  // an old Low save (before v4) takes the new Low's scale and shadows first, so the checks below see the new Low
+  const base = parseGraphics(movedOldLow(saved));
   const savedV = hasSave ? (saved as { v?: unknown }).v : undefined;
   const before = (n: number) => typeof savedV !== 'number' || savedV < n;
   // saves from before auto-adjust became opt-in (v1 and older) carry its old default: the player never chose it
@@ -276,7 +294,7 @@ export function nextStep(g: Graphics, step: number): number | null {
 }
 
 const KEY = 'pipeline-city.graphics';
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;
 
 const TIER_KEY = 'pipeline-city.graphics.tier';
 
@@ -335,7 +353,11 @@ const manual = (): TierRecord => ({ ...tierRecord.value, mode: 'manual' });
 
 /** Set one option. Auto-adjust starts over: the player has just chosen this picture. */
 export function setGraphic<K extends keyof Graphics>(key: K, value: Graphics[K]) { commit(parseGraphics({ ...graphics.value, [key]: value }), manual()); }
-export function setPreset(id: Preset) { commit({ ...graphics.value, ...PRESETS[id] }, manual()); }
+/** A preset keeps the frame limit. Low is the Low tier's picture (`tierGraphics`), at the player's own limit. */
+export function setPreset(id: Preset) {
+  if (id === 'low') commit({ ...tierGraphics('low', graphics.value), fps: graphics.value.fps }, manual());
+  else commit({ ...graphics.value, ...PRESETS[id] }, manual());
+}
 /** The player picks a tier: manual. */
 export function setTier(tier: Tier) { commit(tierGraphics(tier, graphics.value), { mode: 'manual', tier, reason: 'chosen' }); }
 /** Back to detection. */

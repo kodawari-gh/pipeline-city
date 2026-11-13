@@ -189,6 +189,38 @@ describe('tier persistence', () => {
       expect(JSON.parse(m.get('pipeline-city.graphics.tier')!)).toEqual({ mode: 'auto', tier: 'high', reason: '', maxUp: 'medium', maxUpAt: 5, maxUpFp: 'f' });
     });
   });
+  describe('the Low picture moves from 0.6 / shadows 1 to 0.75 / shadows 0 (save v4)', () => {
+    // the full old Low, hard-coded: PRESETS.low no longer holds it
+    const OLD_LOW = { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 };
+    const lowRec = { mode: 'manual', tier: 'low', reason: 'chosen' };
+    const high = () => ({ tier: 'high' as const, reason: '' });
+    it('a v3 save at the old Low parses to the new Low, which is Low', () => {
+      const s = resolveStart({ ...OLD_LOW, fps: 60, brightness: 1, auto: false, v: 3 }, lowRec, '', high);
+      expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 60, lights: 4 });
+      expect(presetOf(s.g)).toBe('low');
+    });
+    it('a v2 old Low at 30 fps moves to the new Low and to 60 fps', () => {
+      const s = resolveStart({ ...OLD_LOW, fps: 30, v: 2 }, null, '', high);
+      expect(s.rec.mode).toBe('manual');
+      expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, fps: 60 });
+      expect(presetOf(s.g)).toBe('low');
+    });
+    it('a v2 old Low with no lamp keys moves to the new Low, lamps included', () => {
+      const { lights: _l, lightShadows: _s, ...noLamps } = OLD_LOW;
+      const s = resolveStart({ ...noLamps, fps: 60, v: 2 }, null, '', high);
+      expect(s.g).toMatchObject({ scale: 0.75, shadows: 0, lights: 4, lightShadows: 0 });
+      expect(presetOf(s.g)).toBe('low');
+    });
+    it('a v4 Custom at 0.6 / shadows 1 stays the player\'s', () => {
+      const s = resolveStart({ ...OLD_LOW, fps: 60, v: 4 }, lowRec, '', high);
+      expect(s.g).toMatchObject({ scale: 0.6, shadows: 1 });
+      expect(presetOf(s.g)).toBeNull();
+    });
+    it('a v3 save at 0.6 with another shadow level stays the player\'s', () => {
+      const s = resolveStart({ ...OLD_LOW, shadows: 2, fps: 60, v: 3 }, lowRec, '', high);
+      expect(s.g).toMatchObject({ scale: 0.6, shadows: 2 });
+    });
+  });
   describe('the touch default from before tiers', () => {
     const old = { ...PRESETS.low, scale: 0.75, shadows: 0, fps: 30, brightness: 1, auto: true, v: 1 } as Record<string, unknown>;
     delete old.lights; delete old.lightShadows;
@@ -198,10 +230,11 @@ describe('tier persistence', () => {
       expect(s.g).toMatchObject({ lights: 4, lightShadows: 0, scale: 0.75, shadows: 0, fps: 60 });
     });
     it('a save that differs in any key stays manual', () => {
-      for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['fps', 60], ['msaa', 2], ['particles', 1], ['brightness', 1.1]] as const) {
+      // a picture key off the touch default makes it Custom: no lamps. fps and brightness are not picture keys, so the save keeps Low's 4 lamps
+      for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['msaa', 2], ['particles', 1], ['fps', 60], ['brightness', 1.1]] as const) {
         const s = resolveStart({ ...old, [k]: v }, null, '', detect('low'));
         expect(s.rec.mode, k).toBe('manual');
-        expect(s.g.lights, k).toBe(0);
+        expect(s.g.lights, k).toBe(['fps', 'brightness'].includes(k) ? 4 : 0);
       }
     });
   });
@@ -352,6 +385,23 @@ describe('the settings signal', () => {
     expect(effective.value.scale).toBe(1);
   });
 
+  it('setPreset and setTier give Low the same picture', () => {
+    setGraphic('auto', true);
+    setGraphic('brightness', 1.2);
+    setPreset('low');
+    const byPreset = graphics.value;
+    setTier('low');
+    expect(byPreset).toEqual(graphics.value);
+    expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 0, fps: 60, brightness: 1.2, auto: true });
+  });
+
+  it('setPreset gives Medium and High their own pictures, scale and shadows included', () => {
+    setPreset('medium');
+    expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 2, msaa: 2, ao: 0, bloom: 1, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 });
+    setPreset('high');
+    expect(graphics.value).toMatchObject({ scale: 1, shadows: 3, msaa: 4, ao: 2, bloom: 2, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 });
+  });
+
   it('auto-adjust off ignores the step', () => {
     setGraphic('auto', false);
     autoStep.value = 3;
@@ -415,7 +465,7 @@ describe('the frame limit', () => {
 
 describe('the watches at the Low limit', () => {
   const lowSave: Graphics = { ...DEFAULTS, ...PRESETS.low, fps: 60 }; // a Low save at 60 fps
-  const lowTier = tierGraphics('low', DEFAULTS); // the phone's Low tier: its scale and shadows differ from the preset
+  const lowTier = tierGraphics('low', DEFAULTS); // the phone's Low tier: the Low preset's picture at 60 fps
   /** Did `SlowWatch` ask for a step down in `secs` of steady `fps` frames, judged as board3d judges them? */
   const slowSteps = (fps: number, limit: number, g: Graphics, secs: number) => {
     const w = new SlowWatch();
