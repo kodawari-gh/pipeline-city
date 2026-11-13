@@ -29,7 +29,7 @@ const [W, H, DPR] = PHONE ? DEVICES[DEVICE] : [1920, 1080, 1];
 // `--keep-limit` (with `--tier`): keep that tier's own frame limit, so a cap shows in the FPS
 const TIER = flag('tier', '');
 const KEEP = has('keep-limit');
-// `--views idle,zoom,late`: the views to measure. `late`: the frames 40 s after the last input (the pointer pokes stop for it)
+// `--views idle,zoom,late`: the views to measure. `late`: the frames 40 s after the last input (the pointer pokes stop for it; a build with a no-input cap drops to 30 here, the current build does not)
 const VIEWS = flag('views', 'idle,zoom').split(',');
 for (const v of VIEWS) if (!['idle', 'zoom', 'late'].includes(v)) throw new Error('--views: one of idle, zoom, late');
 const poke = () => { window.__bmPoke = setInterval(() => window.dispatchEvent(new Event('pointermove')), 2000); };
@@ -174,7 +174,7 @@ try {
       const cdp = await ctx.newCDPSession(p);
       if (THROTTLE > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
       if (TIER) await p.evaluate(async ([t, keep]) => { const G = await import('/src/app/graphics.ts'); G.setTier(t); if (!keep) G.setGraphic('fps', 0); }, [TIER, KEEP]);
-      // (a pointer move each 2 s: with no input for 30 s the away limit holds the loop to 30 fps)
+      // (a pointer move each 2 s. Builds from before the no-input cap was dropped (e.g. 0305cab, AwayWatch) would hold the loop to 30 fps after 30 s with no input; the pokes keep old and new builds comparable)
       await p.evaluate(poke);
       if (mode === 'gallery') { await p.click('text=Gallery'); await p.waitForSelector('.gallery', { timeout: 20000 }); }
       if (mode === 'build') { await p.click('text=Build my PC'); await p.waitForSelector('.bld-bar', { timeout: 30000 }); }
