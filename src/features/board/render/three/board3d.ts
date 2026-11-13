@@ -277,12 +277,16 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   };
   /** The flight the tutorial asked for (`flyToId`): told whether the view arrived, or was cut short by the player or another flight. */
   let pending: ((arrived: boolean) => void) | null = null;
-  const cancelFlight = () => { const p = pending; pending = null; p?.(false); };
+  /** Dev only (`jumpRaw`, the case shot tool): the frame does not hold the eye in the room. Any flight, cut or input ends it. */
+  let unclamped = false;
+  const cancelFlight = () => { unclamped = false; const p = pending; pending = null; p?.(false); };
   /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
   let atOverview = false;
   const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); settle(); };
   /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
-  const jump = (v: OrbitView) => { view = goal = inRoom(v); rail = null; };
+  const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); rail = null; };
+  /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
+  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
   const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -643,7 +647,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
     if (menu !== !s) { menu = !s; canvas.style.pointerEvents = menu ? 'none' : ''; }
     if (menu && hover.peek()) hover.value = null;
-    view = inRoom(stepView(view, goal, dt), false);
+    view = unclamped ? stepView(view, goal, dt) : inRoom(stepView(view, goal, dt), false);
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
@@ -804,5 +808,17 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => jump(fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin)),
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => jump(clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z })) },
+    // the case shot tool (`tools/shot-case.mjs`): the eye as given, with no room clamp; `frameSpec` frames a device (its spec id, or its kind) from its
+    // own box in world units: its largest side fills `fill` of the view's height, turned by `yaw`, seen from `pitch` above. Null: no such device.
+    jumpRaw: (v: OrbitView) => jumpRaw(v),
+    frameSpec: (key: string, yaw = 0, pitch = 0.1, fill = 0.6): OrbitView | null => {
+      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key);
+      const o = d && machine ? findById(machine.root, d.id) : null;
+      if (!o) return null;
+      const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
+      const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
+      jumpRaw(v);
+      return v;
+    },
   };
 }
