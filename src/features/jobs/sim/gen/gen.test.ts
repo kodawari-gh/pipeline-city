@@ -44,24 +44,22 @@ describe("determinism and variety", () => {
 });
 
 describe("every generated program", () => {
-  it("assembles, halts at ecall, prints the expected readable text, stays in mapped memory", () => {
-    for (const t of TEMPLATE_NAMES) {
-      for (const scale of [1, 3]) {
-        for (let s = 0; s < 40; s++) {
-          const seed = s * 104729 + scale;
-          const g = generate(t, seed, { scale });
-          expect(() => assemble(g.asm)).not.toThrow();
-          const r = runReference(g, t.startsWith("gpu.") ? 3_000_000 : 30_000); // RefFault on unmapped access or step overrun
-          expect(r.cpu.halted).toBe(true);
-          expect(r.text.length).toBeGreaterThan(0);
-          expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
-          expect(r.text).toBe(g.meta.expectedText);
-          for (const line of r.text.split("\n")) expect(line.length).toBeLessThanOrEqual(DISPLAY_COLS);
-          expect(g.meta.kernels.length).toBeGreaterThan(0);
-        }
+  it.each(TEMPLATE_NAMES)("%s: assembles, halts at ecall, prints the expected readable text, stays in mapped memory", (t) => {
+    for (const scale of [1, 3]) {
+      for (let s = 0; s < 40; s++) {
+        const seed = s * 104729 + scale;
+        const g = generate(t, seed, { scale });
+        expect(() => assemble(g.asm)).not.toThrow();
+        const r = runReference(g, t.startsWith("gpu.") ? 3_000_000 : 30_000); // RefFault on unmapped access or step overrun
+        expect(r.cpu.halted).toBe(true);
+        expect(r.text.length).toBeGreaterThan(0);
+        expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
+        expect(r.text).toBe(g.meta.expectedText);
+        for (const line of r.text.split("\n")) expect(line.length).toBeLessThanOrEqual(DISPLAY_COLS);
+        expect(g.meta.kernels.length).toBeGreaterThan(0);
       }
     }
-  }, 60_000); // 40 seeds of every template, the gpu pictures among them
+  }, 30_000); // 80 requests (2 scales x 40 seeds) of one template
 
   it("honours row and jobId", () => {
     const g = generate("cli.calc", 5, { row: 3, jobId: 7 });
