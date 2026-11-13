@@ -76,9 +76,9 @@ const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
 const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 
-/** A tier is its preset. Low also draws at 0.75 scale, with the sun's shadows Off and 30 fps (what phones got); the other two run 60. */
+/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], ...(tier === 'low' ? { scale: 0.75, shadows: 0, fps: 30 } : { fps: 60 }) };
+  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0 } : {}) };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */
@@ -201,8 +201,12 @@ export function resolveStart(
 ): { g: Graphics; rec: TierRecord } {
   const hasSave = !!saved && typeof saved === 'object', stored = parseTierRecord(rec);
   const base = parseGraphics(saved);
-  // saves from before auto-adjust became opt-in carry its old default: the player never chose it
-  if (hasSave && (saved as { v?: unknown }).v !== SAVE_VERSION) base.auto = false;
+  const savedV = hasSave ? (saved as { v?: unknown }).v : undefined;
+  const before = (n: number) => typeof savedV !== 'number' || savedV < n;
+  // saves from before auto-adjust became opt-in (v1 and older) carry its old default: the player never chose it
+  if (hasSave && before(2)) base.auto = false;
+  // Low drew at 30 fps before v3 and runs at 60 now: an old Low save with 30 moves to 60. A v3 save at 30 is the player's choice
+  if (hasSave && before(3) && base.fps === 30 && (stored ? stored.tier === 'low' : presetOf(base) === 'low')) base.fps = 60;
   let out: { g: Graphics; rec: TierRecord };
   if (hasSave && !stored && isOldTouchDefault(saved)) {
     // never the player's choice: Low's cap, and auto
@@ -272,7 +276,7 @@ export function nextStep(g: Graphics, step: number): number | null {
 }
 
 const KEY = 'pipeline-city.graphics';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 const TIER_KEY = 'pipeline-city.graphics.tier';
 
@@ -402,21 +406,27 @@ export class FrameGate {
   }
 }
 
-/** The frame limit while the player is away, and how long without input (ms) means away. */
-const AWAY_FPS = 30, AWAY_AFTER_MS = 30000;
+/** The frame limit while the page has lost the focus. */
+const AWAY_FPS = 30;
 
-/** Lowers the frame limit while the player is away: the page has lost the focus, or no input came for a while and nothing moves that they started. The GPU and its fans rest. */
-export class AwayWatch {
-  private at = 0;
+/**
+ * The frame loop's limit, from the player's own `fps`: lowered to 30 only while the page has lost the focus, so the GPU and its fans rest. Time
+ * without input lowers nothing (owner decision): a player who watches the city run keeps the full rate. A frame with nothing new is skipped elsewhere.
+ */
+export function loopLimit(fps: number, focused: boolean): number {
+  if (focused) return fps;
+  return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
+}
 
-  /** The player did something at `now`. */
-  input(now: number) { this.at = now; }
+/** Low's frame limit before it moved to 60 (save v3): the auto-adjust watches still judge Low by it. */
+const LOW_WATCH_FPS = 30;
 
-  /** The frame limit at `now`, from the player's own `fps`. `busy`: the view or the player's hand is on its way, so frames still count. */
-  limit(fps: number, now: number, focused: boolean, busy: boolean): number {
-    if (focused && (busy || now - this.at < AWAY_AFTER_MS)) return fps;
-    return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
-  }
+/** Is `g` the Low tier: its preset, or the tier's own scale and shadows (`tierGraphics`)? */
+const isLow = (g: Graphics): boolean => presetOf(g) === 'low' || presetKeys.every((k) => g[k] === tierGraphics('low', g)[k]);
+
+/** The fps the auto-adjust watches judge by. A Low at 60 is judged as at 30, the thresholds it had, so phones switch tiers as before. Other limits: as is. */
+export function watchFps(g: Graphics, limit: number): number {
+  return isLow(g) && (!limit || limit >= 60) ? LOW_WATCH_FPS : limit;
 }
 
 /** Does the away limit hold the loop below the player's own `fps` (0: none)? Those frames say nothing to `TierWatch`. */
