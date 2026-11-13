@@ -54,3 +54,35 @@ it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' 
   near.position.x += 500;
   expect(frames()).toContain(bed);
 }, 60000);
+
+it('casting is false with the shadows off and true at a shadow level', () => {
+  const room = new Room3D();
+  room.setLights(4, false);
+  room.setShadows(0);
+  expect(room.casting).toBe(false);
+  room.setShadows(1);
+  expect(room.casting).toBe(true);
+});
+
+it('scanShadows does not scan with no caster, and scans once with one', () => {
+  const room = new Room3D(), scene = new Scene();
+  let calls = 0;
+  const cache = { scan: (_s: Object3D, _now: number) => { calls++; return false; } };
+  room.setLights(4, false);
+  room.setShadows(0);
+  expect(room.scanShadows(cache, scene, 0)).toBe(false);
+  expect(calls).toBe(0);
+  room.setShadows(1);
+  room.scanShadows(cache, scene, 16);
+  expect(calls).toBe(1);
+});
+
+it('scanShadows asks again while a map is pending, but not when no light casts', () => {
+  const room = new Room3D(), scene = new Scene();
+  const cache = { scan: () => false, pending: true };
+  room.setLights(4, false);
+  room.setShadows(0);
+  expect(room.scanShadows(cache, scene, 0)).toBe(false);
+  room.setShadows(1);
+  expect(room.scanShadows(cache, scene, 16)).toBe(true);
+});

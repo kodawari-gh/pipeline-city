@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
+import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -27,6 +27,7 @@ import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pi
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
+import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
@@ -142,11 +143,16 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let preview: { board: number; case: number } | null = null;
   /** The rail that holds the view (`rails.ts`) and how far a pan pulls past its part's edge; the rail the player last pulled off (it does not take the view again until the view leaves its part). */
   let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
+  /** Low's cheaper materials (`cheapMaterials`), by the root they were applied to: undone when the root goes or the tier leaves Low. */
+  const cheaps = new Map<Object3D, Cheap>();
+  const cheap = (root: Object3D) => { if (isLow(effective.peek()) && !cheaps.has(root)) cheaps.set(root, cheapMaterials(root)); };
+  const uncheap = (root: Object3D) => { cheaps.get(root)?.undo(); cheaps.delete(root); };
   /** Puts `m` in the scene in the machine's place. */
   const install = (m: Machine3D) => {
-    if (machine) { scene.remove(machine.root); machine.dispose(); }
+    if (machine) { uncheap(machine.root); scene.remove(machine.root); machine.dispose(); }
     machine = m;
     scene.add(m.root);
+    cheap(m.root);
     demand.ask();
     // the rail that holds the view stays if its part is still there
     const held = rail && m.rails.find((x) => x.id === rail!.r.id);
@@ -160,7 +166,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
-      if (room) { scene.remove(room.root); room.dispose(); disposeTree(room.root); }
+      if (room) { uncheap(room.root); scene.remove(room.root); room.dispose(); disposeTree(room.root); }
       room = new Room3D(studio);
       blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
@@ -169,6 +175,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       room.setLights(effective.peek().lights, effective.peek().lightShadows > 0);
       shadows.reset();
       scene.add(room.root);
+      cheap(room.root);
       machKey = '';
       // (the frame links the new room's programs before it draws it)
       warmed = false;
@@ -177,6 +184,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (mk !== machKey || !machine) {
       machKey = mk;
       // a machine that still links is out of date
+      if (next) uncheap(next.m.root);
       next?.m.dispose();
       next = null;
       const m = new Machine3D(s, room.geo, bakes, chips);
@@ -184,6 +192,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
         machine.root.visible = false;
+        cheap(m.root);
         const programs = startPrograms(renderer, m.root, camera, { scene, fades: m.fades });
         machine.root.visible = true;
         if (linked(programs)) install(m); else next = { m, programs };
@@ -192,6 +201,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
     chips.update(s);
     room.setKeys(s?.tray ?? []);
+    // the cables and keys this rebuild added or removed: a root in `cheaps` takes them in its sync (`cheap` skips it)
+    for (const r of [room.root, machine?.root, next?.m.root]) if (r) cheaps.get(r)?.sync();
     demand.ask(); // (a save loaded, a part fitted, a plug in or out)
   };
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
@@ -557,6 +568,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
     room?.setLights(g.lights, g.lightShadows > 0);
+    // Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low
+    if (isLow(g)) { for (const r of [room?.root, machine?.root, next?.m.root]) if (r) cheap(r); } else for (const root of [...cheaps.keys()]) uncheap(root);
+    for (const c of cheaps.values()) c.sync(); // (the tier's program-level state; the live values need none)
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;
     shadows.reset();
@@ -709,7 +723,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room && draw) {
       const key = `${room.lightKey}|${!!s?.powered}`;
-      if (!probe.busy && (bounces > 0 || (key !== probeKey && now - probeAt > PROBE_MS))) { probe.request(); probeKey = key; probeAt = now; bounces = Math.max(0, bounces - 1); }
+      const plan = probePlan({ low: isLow(g), probed, busy: probe.busy, bounces, keyChanged: key !== probeKey, waited: now - probeAt > PROBE_MS });
+      bounces = plan.bounces;
+      if (plan.request) { probe.request(); probeKey = key; probeAt = now; }
       // one light for all: the machine and the dies' art take the room's probe as the room's own materials do (`RoomEnv`), at every zoom
       if (probe.step(renderer, scene)) {
         roomEnv = pmrem.fromCubemap(probe.texture, roomEnv);
@@ -719,11 +735,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       }
     }
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
-    if (draw) {
-      const cast = shadows.scan(scene, now);
-      room?.redrawShadows(cast, now);
-      if (cast || shadows.pending) demand.ask();
-    }
+    // (no light casts: no map is drawn and the scan waits. The first scan after a map turns on sees every change made since)
+    if (draw && room && room.scanShadows(shadows, scene, now)) demand.ask();
     meter.tick(now, canvas.width, canvas.height);
     // auto tier: one decision from the first seconds of frames; manual mode never steps
     // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)

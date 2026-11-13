@@ -20,7 +20,7 @@ const GLOW_CAP = 0.08;
  * room's surfaces would come through the window's lift as flat pale shapes (a chrome hook, the hoodie, a lamp's pool on the wall). Only
  * uniforms change, so no shader compiles again. A mesh that only hides what is behind it (`hidesOnly`) takes its black (`blacks`) meanwhile.
  */
-function glowOnly(scene: Scene, blacks: readonly Material[]): () => void {
+export function glowOnly(scene: Scene, blacks: readonly Material[]): () => void {
   const lights: [Light, number][] = [], mats: [MeshStandardMaterial, number, number, number][] = [], seen = new Set<Material>(), hid: [Mesh, Material][] = [];
   scene.traverse((o) => {
     if ((o as Light).isLight) { const l = o as Light; lights.push([l, l.intensity]); l.intensity = 0; return; }
