@@ -4,8 +4,8 @@
  * rAF loop. Loaded only by `whenDebug` (`board3d.ts`): without `?debug` this module never runs.
  */
 import type { WebGLRenderer } from 'three';
-import { CHOICES, graphics, tierRecord } from '../graphics';
-import { backToAuto, lightsNow, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
+import { CHOICES, effective, tierRecord } from '../graphics';
+import { backToAuto, lightsNow, overridden, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
 import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
 
 /** A root the overlay can hide: its visibility only. */
@@ -49,13 +49,13 @@ export function mountDebug({ renderer, canvas, roots }: {
     return b;
   };
 
-  const postBtn = button('Post', () => { setPost(!postOn(graphics.peek())); show(); });
+  const postBtn = button('Post', () => { setPost(!postOn(effective.peek())); show(); });
   const scaleBtns = SCALES.map((v) => button(String(v), () => { setScale(v); show(); }));
-  const shadowBtn = button('Shadows', () => { setShadowsOn(!shadowsOn(graphics.peek())); show(); });
+  const shadowBtn = button('Shadows', () => { setShadowsOn(!shadowsOn(effective.peek())); show(); });
   const lightsBtn = button('Lights', () => { setLights(nextLights(lightsNow())); show(); });
   const cityBtn = button('Hide city', () => { hideRoot('city'); show(); });
   const machineBtn = button('Hide machine', () => { hideRoot('machine'); show(); });
-  const autoBtn = button('Auto', () => { backToAuto(); show(); });
+  const autoBtn = button('Auto', () => { backToAuto(); showRoots(); show(); });
   const copyBtn = button('Copy', () => { void copy(); });
   const controls = document.createElement('div');
   controls.append(postBtn, ...scaleBtns, shadowBtn, lightsBtn, cityBtn, machineBtn, autoBtn, copyBtn);
@@ -67,6 +67,16 @@ export function mountDebug({ renderer, canvas, roots }: {
     const root = roots?.()[k] ?? null;
     setRootHidden(root, hide[k]);
     applied[k] = root;
+  };
+  /** Auto: both hides off, and both roots shown now (Auto undoes every toggle). */
+  const showRoots = () => {
+    hide.city = false;
+    hide.machine = false;
+    const now = roots?.();
+    for (const k of ['city', 'machine'] as const) {
+      setRootHidden(now?.[k] ?? null, false);
+      applied[k] = now?.[k] ?? null;
+    }
   };
   /** Each frame: a hidden root that is new (the machine was rebuilt, the city was built after the hide) is hidden. A shown one is left to the game. */
   const syncHides = () => {
@@ -83,7 +93,7 @@ export function mountDebug({ renderer, canvas, roots }: {
   panel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 
   const snap = (): StatsSnapshot => {
-    const g = graphics.peek(), t = tierRecord.peek();
+    const g = effective.peek(), t = tierRecord.peek();
     return {
       fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
       dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
@@ -93,7 +103,7 @@ export function mountDebug({ renderer, canvas, roots }: {
   };
 
   const show = () => {
-    const s = snap(), g = graphics.peek();
+    const s = snap(), g = effective.peek();
     readout.textContent = statsText(s);
     postBtn.textContent = `Post ${s.post ? 'on' : 'off'}`;
     postBtn.style.cssText = BTN + (s.post ? ON : '');
@@ -108,7 +118,7 @@ export function mountDebug({ renderer, canvas, roots }: {
     lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === s.lights)?.[1] ?? s.lights}`;
     cityBtn.style.cssText = BTN + (hide.city ? ON : '');
     machineBtn.style.cssText = BTN + (hide.machine ? ON : '');
-    autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' ? ON : '');
+    autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' && !overridden() ? ON : '');
   };
 
   const copy = async () => {

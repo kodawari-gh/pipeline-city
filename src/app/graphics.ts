@@ -335,13 +335,16 @@ export const graphics = signal<Graphics>(start.g);
 export const tierRecord = signal<TierRecord>(start.rec);
 /** How far auto-adjust has lowered the picture this session. It is not saved: the next start tries the player's settings again. */
 export const autoStep = signal(0);
-/** The `?debug` overlay's lamp cap (1 is not a `lights` choice, so `setGraphic` cannot hold it). Null: none, `graphics.lights` applies. Not saved. */
-export const debugLights = signal<number | null>(null);
+/**
+ * The `?debug` overlay's toggles (scale, post, sun shadow, lamp cap; 1 lamp is not a `lights` choice). They sit on top of `graphics` in `effective`
+ * and are never written to it, so nothing can save them: not `commit`, not a panel change, not a tier step. Empty: none. Auto clears them.
+ */
+export const debugOverride = signal<Partial<Graphics>>({});
 /** What the renderers apply. */
 export const effective = computed(() => {
   const g = graphics.value.auto ? lowered(graphics.value, autoStep.value) : graphics.value;
-  const cap = debugLights.value;
-  return cap === null ? g : { ...g, lights: cap };
+  const o = debugOverride.value;
+  return Object.keys(o).length ? { ...g, ...o } : g;
 });
 
 function commit(next: Graphics, rec: TierRecord) {
@@ -380,7 +383,8 @@ export function resetTierSteps() { stepped = false; }
  */
 export function stepTier(dir: 'down' | 'up', detectedTier: Tier = detect().tier): boolean {
   const rec = tierRecord.peek();
-  if (rec.mode !== 'auto' || stepped) return false;
+  // (a debug toggle changes the frame time: a step read from it would be saved)
+  if (rec.mode !== 'auto' || stepped || Object.keys(debugOverride.peek()).length) return false;
   const at = TIERS.indexOf(rec.tier), top = rec.maxUp ? TIERS.indexOf(rec.maxUp) : 2;
   const to = dir === 'down' ? at - 1 : Math.min(at + 1, TIERS.indexOf(detectedTier) + 1, top);
   if (to < 0 || to === at) return false;
@@ -473,37 +477,37 @@ const SLOW_FPS = 30, SLOW_FOR_S = 2.5, SETTLE_MS = 5000, HITCH_S = 0.15;
 const TIER_WINDOW_S = 4, TIER_WORK_SHARE = 0.35, TIER_HOLD = 0.9;
 
 /**
- * Reads one window (4 s of wall time) of drawn frames after the settle time and makes one decision, then stops. The rate is drawn frames
- * over the gaps between them (idle ticks, which draw nothing, are part of the gap: a stall in one counts). Down: the rate is under 30 fps or
- * under 0.8 x the limit; a lone hitch counts at most 0.15 s there. Up: the unclamped rate holds 0.9 x the limit and the mean frame work
- * (CPU ms in the frame callback) is under 35% of the frame budget. A clamp never makes a frame look fast.
+ * Reads one window (4 s of frame time) of drawn frames after the settle time and makes one decision, then stops.
+ * Down: the rate over each drawn frame's own time (`rawDt`, at most 0.15 s each, so a lone hitch counts little) is under 30 fps or under 0.8 x the limit.
+ * An idle tick between two drawn frames adds nothing there: a screen that draws only on change (the title) on a fast device is not slow.
+ * Up: that rate and the wall rate (drawn frames over the unclamped gaps between them, idle ticks and stalls included) both hold 0.9 x the limit,
+ * and the mean frame work (CPU ms in the frame callback) is under 35% of the frame budget. The wall rate only blocks up, it never gives down.
  */
 export class TierWatch {
   private since = -Infinity;
   private prev = -1;
-  private wall = 0;   // ms between the counted drawn frames, unclamped
-  private time = 0;   // the same gaps, each at most HITCH_S (for down only)
+  private wall = 0;   // seconds between the counted drawn frames, unclamped (blocks up only)
+  private time = 0;   // each counted frame's own rawDt, at most HITCH_S (down, and the window)
   private work = 0;
   private n = 0;
   private done = false;
 
   reset(now: number) { this.since = now; this.prev = -1; this.wall = 0; this.time = 0; this.work = 0; this.n = 0; }
 
-  /** A drawn frame whose callback took `workMs`, at `now` (ms). Returns the one decision, once. */
-  tick(workMs: number, now: number, fps: number): 'down' | 'up' | null {
+  /** A drawn frame of `real` seconds (its own `rawDt`) whose callback took `workMs`, at `now` (ms). Returns the one decision, once. */
+  tick(real: number, workMs: number, now: number, fps: number): 'down' | 'up' | null {
     if (this.done || now - this.since < SETTLE_MS) return null;
     if (this.prev < 0) { this.prev = now; return null; }
-    const gap = (now - this.prev) / 1000;
+    this.wall += (now - this.prev) / 1000;
     this.prev = now;
-    this.wall += gap;
-    this.time += Math.min(gap, HITCH_S);
+    this.time += Math.min(real, HITCH_S);
     this.work += workMs;
     this.n++;
-    if (this.wall < TIER_WINDOW_S) return null;
+    if (this.time < TIER_WINDOW_S) return null;
     this.done = true;
-    const limit = fps || 60, budget = 1000 / limit;
-    if (this.n / this.time < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
-    if (this.n / this.wall >= limit * TIER_HOLD && this.work / this.n < budget * TIER_WORK_SHARE) return 'up';
+    const limit = fps || 60, rate = this.n / this.time, budget = 1000 / limit;
+    if (rate < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
+    if (rate >= limit * TIER_HOLD && this.n / this.wall >= limit * TIER_HOLD && this.work / this.n < budget * TIER_WORK_SHARE) return 'up';
     return null;
   }
 }

@@ -41,56 +41,45 @@ describe('TierWatch', () => {
   const run = (w: TierWatch, frameS: number, workMs: number, fps = 60, from = 5000) => {
     w.reset(0);
     let out: 'down' | 'up' | null = null;
-    for (let t = from, i = 0; i < 600 && !out; i++, t += frameS * 1000) out = w.tick(workMs, t, fps);
+    for (let t = from, i = 0; i < 600 && !out; i++, t += frameS * 1000) out = w.tick(frameS, workMs, t, fps);
     return out;
   };
   it('waits out the settle time', () => {
     const w = new TierWatch();
     w.reset(0);
-    for (let t = 0; t < 4900; t += 50) expect(w.tick(40, t, 60)).toBeNull();
+    for (let t = 0; t < 4900; t += 50) expect(w.tick(0.05, 40, t, 60)).toBeNull();
   });
   it('steps down on slow frames', () => expect(run(new TierWatch(), 1 / 20, 45)).toBe('down'));
   it('steps up when the limit holds and the work is small', () => expect(run(new TierWatch(), 1 / 60, 3)).toBe('up'));
   it('does not step up when the work is heavy, and stops after one window', () => {
     const w = new TierWatch();
     expect(run(w, 1 / 60, 10)).toBeNull();
-    expect(w.tick(45, 20000, 60)).toBeNull();
+    expect(w.tick(0.05, 45, 20000, 60)).toBeNull();
   });
   it('makes one decision and then stops', () => {
     const w = new TierWatch();
     expect(run(w, 1 / 20, 45)).toBe('down');
-    for (let t = 20000; t < 40000; t += 50) expect(w.tick(45, t, 60)).toBeNull();
+    for (let t = 20000; t < 40000; t += 50) expect(w.tick(0.05, 45, t, 60)).toBeNull();
   });
   it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
 
-  /** The one call per drawn frame. (The fail-first run swaps in the old `(rawDt, workMs, now, fps)` form to show the old result.) */
-  const feed = (w: TierWatch, _rawDtS: number, workMs: number, nowMs: number, fps: number) => w.tick(workMs, nowMs, fps);
-  /** Replay of this rAF sequence: an idle tick 84 ms after each drawn frame, then a drawn frame 16 ms after it. So drawn frames are 100 ms apart (10 fps). */
-  const alternating = (workMs: number, fps = 60) => {
-    const w = new TierWatch();
-    w.reset(0);
-    let out: 'down' | 'up' | null = null, now = 5000, last = now;
-    for (let i = 0; i < 300 && !out; i++) {
-      now += 84; last = now;                                    // idle tick: draws nothing
-      now += 16;                                                // drawn frame: its rawDt is 16 ms
-      out = feed(w, (now - last) / 1000, workMs, now, fps);
-    }
-    return out;
-  };
-  /** Feed drawn frames only, `gapMs` apart (idle ticks between them take their time in the gap). Returns the first decision. */
-  const replay = (gapMs: number, workMs: number, fps = 60) => {
+  /** Replay of drawn frames `gapMs` apart on the clock, each with its own `rawDtMs`. Idle ticks between them take their time in the gap. First decision. */
+  const replay = (gapMs: number, rawDtMs: number, workMs: number, fps = 60) => {
     const w = new TierWatch();
     w.reset(0);
     let out: 'down' | 'up' | null = null;
-    for (let t = 5000, i = 0; i < 600 && !out; i++, t += gapMs) out = w.tick(workMs, t, fps);
+    for (let t = 5000, i = 0; i < 2000 && !out; i++, t += gapMs) out = w.tick(rawDtMs / 1000, workMs, t, fps);
     return out;
   };
-  // (a) alternating 16 ms drawn and 84 ms idle ticks (about 10 fps drawn): not up; down is the right answer
-  it('alternating 16 ms drawn frames and 84 ms idle ticks is down, not up', () => expect(alternating(3)).toBe('down'));
+  // (a) 16 ms drawn frames 100 ms apart (84 ms idle between): a device that is not slow, on a screen that draws little. Neither up nor down.
+  it('16 ms drawn frames with 84 ms idle between are neither up nor down', () => expect(replay(100, 16, 3)).toBeNull());
+  // (new) a fast device on a screen that draws only on change (the title, about every 45 ms, each frame 8 ms): no tier decision. Fails on dbb6cb1 (down).
+  it('drawn frames 45 ms apart, 8 ms each, light work: no decision', () => expect(replay(45, 8, 3)).toBeNull());
   // (b) steady 60 fps drawn frames stay up
-  it('steady 60 fps drawn frames with light work are up', () => expect(replay(1000 / 60, 3)).toBe('up'));
+  it('steady 60 fps drawn frames with light work are up', () => expect(replay(1000 / 60, 1000 / 60, 3)).toBe('up'));
   // (c) 200 ms frames are never fast
-  it('200 ms frames are not up', () => expect(replay(200, 3)).not.toBe('up'));
+  it('200 ms frames are not up', () => expect(replay(200, 200, 3)).not.toBe('up'));
+  it('a real slow frame still steps down when idle ticks sit between them', () => expect(replay(100, 50, 40)).toBe('down'));
 
   it('ignores frames the away limit holds down', () => {
     const w2 = new TierWatch();
@@ -99,7 +88,7 @@ describe('TierWatch', () => {
     // unfocused: the limit is 30 against the player's 60; 30 fps frames must not count
     for (let t = 5000, i = 0; i < 600; i++, t += 1000 / 30) {
       const limit = loopLimit(60, false);
-      if (!awayHeld(limit, 60)) out = w2.tick(3, t, 60) ?? out;
+      if (!awayHeld(limit, 60)) out = w2.tick(1 / 30, 3, t, 60) ?? out;
     }
     expect(out).toBeNull();
   });
@@ -529,7 +518,7 @@ describe('the watches at the Low limit', () => {
     const w = new TierWatch();
     w.reset(0);
     let out: 'down' | 'up' | null = null;
-    for (let t = 5000, i = 0; i < 600 && !out; i++, t += 1000 / fps) out = w.tick(workMs, t, watchFps(g, limit));
+    for (let t = 5000, i = 0; i < 600 && !out; i++, t += 1000 / fps) out = w.tick(1 / fps, workMs, t, watchFps(g, limit));
     return out;
   };
 

@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
+import { autoStep, awayHeld, debugOverride, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { whenDebug } from '@/app/debugflag';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
@@ -37,6 +37,7 @@ import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/fe
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { Machine3D, machineKey } from './machine3d';
+import { whileHidden } from './whileHidden';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
@@ -193,10 +194,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       if (!machine || !warmed) install(m);
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
-        machine.root.visible = false;
         cheap(m.root);
-        const programs = startPrograms(renderer, m.root, camera, { scene, fades: m.fades });
-        machine.root.visible = true;
+        const programs = whileHidden(machine.root, () => startPrograms(renderer, m.root, camera, { scene, fades: m.fades }));
         if (linked(programs)) install(m); else next = { m, programs };
       }
     } else if (s) (next?.m ?? machine).syncCables(s, room.geo); // a plug in or out: only its cable hangs again
@@ -585,7 +584,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), tierWatch = new TierWatch();
   const resetWatches = (now: number) => { watch.reset(now); tierWatch.reset(now); };
   // a new choice of the player's starts the watch over, as a new picture bakes and compiles its way in
-  effect(() => { graphics.value; resetWatches(performance.now()); });
+  effect(() => { graphics.value; debugOverride.value; resetWatches(performance.now()); });
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
@@ -743,7 +742,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // auto tier: one decision from the first seconds of frames; manual mode never steps
     // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)
     if (draw && tierRecord.peek().mode === 'auto' && document.visibilityState === 'visible' && !awayHeld(fps, g.fps)) {
-      const dir = tierWatch.tick(performance.now() - t0, now, watchFps(g, g.fps));
+      const dir = tierWatch.tick(rawDt, performance.now() - t0, now, watchFps(g, g.fps));
       if (dir) stepTier(dir);
     }
     // a new case is a new room: frame it again

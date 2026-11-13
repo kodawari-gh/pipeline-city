@@ -22,7 +22,8 @@ const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').star
 // assumed the same). razr-ultra: razr ultra 2025, 1224x2992 panel, density not published (480 dpi, DPR 3, assumed). razr-fold: the razr fold's inner
 // screen unfolded, 1004x967 CSS px measured on the owner's phone; DPR 2.2 is an ASSUMPTION (2232 px panel width / 1004 is about 2.22; 2.625 would make
 // 2636 px, wider than the panel) until the real devicePixelRatio is reported. razr-fold-folded: the same phone folded (the cover screen), 485x997 CSS px
-// at DPR 2.225, from the owner's Chrome canvas (727x1495 at a pixel ratio of 1.5, so 485x997 CSS). Default phone: 412x915 at 2.6.
+// at DPR 2.225 (an ASSUMPTION: the owner's Chrome canvas is 727x1495 at 485x997 CSS, and `pixelRatio` caps dpr at 2, so any dpr of 2 or more gives that
+// same canvas; 2.225 is the unfolded razr-fold's value, assumed again until the real devicePixelRatio is reported). Default phone: 412x915 at 2.6.
 const DEVICES = { phone: [412, 915, 2.6], razr: [411, 914, 2.625], 'razr-plus': [411, 914, 2.625], 'razr-ultra': [408, 905, 3], 'razr-fold': [1004, 967, 2.2], 'razr-fold-folded': [485, 997, 2.225] };
 const DEVICE = flag('device', has('phone') ? 'phone' : '');
 const PHONE = !!DEVICE;
@@ -59,6 +60,9 @@ if (!(await up())) {
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
 const FF = has('firefox');
+// the CPU slow-down that is applied: Firefox has no CDP session, so none (the label says so)
+const CPU = FF ? 1 : THROTTLE;
+const CPU_LABEL = FF ? '1 (firefox: not throttled)' : String(THROTTLE);
 const browser = FF ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true, 'layout.frame_rate': 0 } }) : await chromium.launch({
   headless: true, channel: 'chrome',
   args: ['--enable-gpu', ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []), '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
@@ -164,7 +168,7 @@ const rows = [];
 let gpuTimer = false, disjoint = 0;
 try {
   const sizeCol = (s) => `${(s.pixels.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}Mpx/${s.contexts}ctx`;
-  console.log(`${W}x${H} @${DPR}x${DEVICE ? ` (${DEVICE})` : ''}, CPU /${THROTTLE}${TIER ? `, tier ${TIER}, frame limit ${KEEP ? 'kept' : 'off'}` : ''}; over16: % of drawn frames over ${BUDGET.toFixed(1)} ms`);
+  console.log(`${W}x${H} @${DPR}x${DEVICE ? ` (${DEVICE})` : ''}, CPU /${CPU_LABEL}${TIER ? `, tier ${TIER}, frame limit ${KEEP ? 'kept' : 'off'}` : ''}; over16: % of drawn frames over ${BUDGET.toFixed(1)} ms`);
   console.log('mode'.padEnd(9) + 'preset'.padEnd(8) + 'view'.padEnd(8) + 'FPS'.padStart(7) + 'p50'.padStart(7) + 'p95'.padStart(7) + 'max'.padStart(7) + 'dFPS'.padStart(7) + 'dp50'.padStart(7) + 'dp95'.padStart(7) + 'gpu'.padStart(7) + 'long'.padStart(7) + 'calls'.padStart(7) + 'ktri'.padStart(7) + '  px/contexts');
   let warm = false;
   for (const preset of presets) {
@@ -219,6 +223,6 @@ try {
       await ctx.close();
     }
   }
-  console.log(gpuTimer ? `GPU timer: EXT_disjoint_timer_query_webgl2${disjoint ? ` (${disjoint} disjoint results dropped)` : ''}${THROTTLE > 1 ? `; CPU /${THROTTLE}: the GPU ms hold its waits for the CPU, read them at --throttle 1` : ''}` : 'GPU timer: n/a');
-  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: THROTTLE, gpuTimer, rows }, null, 1));
+  console.log(gpuTimer ? `GPU timer: EXT_disjoint_timer_query_webgl2${disjoint ? ` (${disjoint} disjoint results dropped)` : ''}${CPU > 1 ? `; CPU /${CPU}: the GPU ms hold its waits for the CPU, read them at --throttle 1` : ''}` : 'GPU timer: n/a');
+  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: CPU, gpuTimer, rows }, null, 1));
 } finally { await stop(); }

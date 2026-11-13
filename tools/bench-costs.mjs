@@ -15,7 +15,7 @@ import { chromium } from 'playwright-core';
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
 const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').startsWith('--')) ?? '/tmp/bench-costs.json';
-// the device: razr-fold-folded from bench-modes.mjs (485x997 CSS px at DPR 2.225, the cover screen)
+// the device: razr-fold-folded from bench-modes.mjs (485x997 CSS px, the cover screen; DPR 2.225 is an ASSUMPTION: `pixelRatio` caps dpr at 2, so 2 or more gives the same canvas)
 const [W, H, DPR] = [485, 997, 2.225];
 const DEVICE = 'razr-fold-folded';
 const THROTTLE = Number(flag('throttle', 4));
