@@ -4,7 +4,7 @@
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
-import { instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -104,19 +104,19 @@ function pcbFace(color: string, L: number, notchU: number, pins: number): Textur
     for (let k = 0, u = m; k < pins; k++, u += pitch) { if (Math.abs(u + pitch / 2 - notchU) < 12) u += 24; c.fillRect(px(u + pitch * 0.18), py(SINK + 3), px(pitch * 0.64), py(4) - py(SINK + 3)); }
   });
   if (t) t.repeat.set(1 / L, 1 / PCB_H);
-  pcbTex.set(key, t);
+  pcbTex.set(key, shareTex(t));
   return t;
 }
 
 /** A DRAM chip's face: black epoxy, the pin-1 dot, a faint laser-etched mark. */
 function chipFace(): Texture | null {
   if (chipTex !== undefined) return chipTex;
-  return chipTex = paint(128, 128, (c, w, h) => {
+  return chipTex = shareTex(paint(128, 128, (c, w, h) => {
     c.fillStyle = '#16171c'; c.fillRect(0, 0, w, h);
     c.fillStyle = 'rgba(255,255,255,0.14)'; c.beginPath(); c.arc(w * 0.16, h * 0.16, 7, 0, Math.PI * 2); c.fill();
     c.fillStyle = 'rgba(200,210,230,0.12)';
     for (const [y, f] of [[0.42, 0.62], [0.56, 0.48], [0.7, 0.36]] as const) c.fillRect(w * 0.2, h * y, w * f, h * 0.07);
-  });
+  }));
 }
 
 // ------------------------------------------------------------------ the socket

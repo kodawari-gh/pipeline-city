@@ -3,7 +3,7 @@
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
-import { paint, place, rectBox, softBox } from '@/core/render/three/geometry';
+import { paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
@@ -19,7 +19,7 @@ const BANDS = 4, TILE = 64;
  */
 function braid(base: string, tint: string): Texture | null {
   const key = base + tint;
-  if (!braids.has(key)) braids.set(key, paint(TILE, TILE, (c, w, h) => {
+  if (!braids.has(key)) braids.set(key, shareTex(paint(TILE, TILE, (c, w, h) => {
     const img = c.createImageData(w, h), band = w / BANDS, rgb = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
     const gap = rgb(mix(base, '#000000', 0.55)), yarn = rgb(mix(base, tint, 0.14)), accent = rgb(mix(base, tint, 0.62));
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -34,7 +34,7 @@ function braid(base: string, tint: string): Texture | null {
       img.data[o + 3] = 255;
     }
     c.putImageData(img, 0, 0);
-  }, [1, 1]));
+  }, [1, 1])));
   return braids.get(key) ?? null;
 }
 

@@ -249,24 +249,40 @@ export function paint(w: number, h: number, draw: (c: CanvasRenderingContext2D, 
   return t;
 }
 
+/** Textures that outlive the rebuild that made them (the caches): `disposeTree` leaves them alive. */
+const shared = new WeakSet<Texture>();
+/** Marks a cached texture as shared (`shareTex(paint(...))`); a null passes through. */
+export function shareTex<T extends Texture | null | undefined>(t: T): T {
+  if (t) shared.add(t);
+  return t;
+}
+
 /** A soft dark blob: the baked contact shadow under a thing that stands on a surface. */
 let blobTex: Texture | null = null;
 export function shadowBlob(): Texture | null {
-  return blobTex ??= paint(128, 128, (c, w, h) => {
+  return blobTex ??= shareTex(paint(128, 128, (c, w, h) => {
     const g = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
     g.addColorStop(0, 'rgba(20,10,4,0.55)'); g.addColorStop(0.55, 'rgba(20,10,4,0.28)'); g.addColorStop(1, 'rgba(20,10,4,0)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
-  });
+  }));
 }
 
-/** Free the geometries and the materials under `root`. Textures shared between rebuilds stay alive unless `textures` is set. */
+/**
+ * Free the geometries and the materials under `root`, and every texture on them (each material slot: `map`, `normalMap`...) that is not shared
+ * (`shareTex`). `textures` frees the shared ones too. A render target's texture is never freed here, even with `textures`: the target
+ * belongs to its owner (a room probe is still the envMap of the scene that rebuilds), so the owner frees it.
+ */
 export function disposeTree(root: Object3D, textures = false): void {
   root.traverse((o) => {
     const m = o as Mesh;
     m.geometry?.dispose?.();
     const ms = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
     for (const x of ms) {
-      if (textures) (x as Material & { map?: Texture | null }).map?.dispose();
+      for (const v of Object.values(x)) {
+        const t = v as Texture | null;
+        if (t?.isRenderTargetTexture) continue;
+        if (t?.isTexture && (textures || !shared.has(t))) t.dispose();
+      }
       x.dispose();
     }
   });

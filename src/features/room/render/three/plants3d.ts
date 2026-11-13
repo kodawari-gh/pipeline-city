@@ -3,7 +3,7 @@
 // shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
 // All the leaves of a kind in one room share a few materials (`perRoom`), so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
 import { BufferGeometry, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, LatheGeometry, Matrix4, Mesh, Vector2, Vector3, type Material, type Texture } from 'three';
-import { paint, place, post, rod } from '@/core/render/three/geometry';
+import { paint, place, post, rod, shareTex } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { floorShadow, relief } from './furniture3d';
@@ -74,6 +74,8 @@ function ribs(c: CanvasRenderingContext2D, w: number, h: number, col: string, ve
  * A leaf's painted face (the canvas's top is its tip) and its relief: the ground, its midrib and side veins a shade toward `vein` (a small change
  * of colour, not a drawn line), `extra` on top; the veins sunk into the blade in the normal map.
  */
+/** A cached leaf's two sheets: they stay with the cache (`shareTex`). */
+const sharedLeaf = (l: { map: Texture | null; normalMap: Texture | null }) => { shareTex(l.map); shareTex(l.normalMap); return l; };
 function leafTex(ground: string, vein: string, veins: number, extra?: (c: CanvasRenderingContext2D, w: number, h: number) => void): { map: Texture | null; normalMap: Texture | null } {
   const map = paint(128, 256, (c, w, h) => {
     c.fillStyle = ground; c.fillRect(0, 0, w, h);
@@ -143,21 +145,21 @@ function perRoom<T extends Material | Material[]>(make: () => T): () => T {
 let stonewareTex: Texture | null = null;
 /** Every pot's dark stoneware: a matt glaze speckled with pale grog and dark iron. */
 const stoneware = perRoom(() => mat(0xffffff, {
-  map: stonewareTex ??= paint(128, 64, (c, w, h) => {
+  map: stonewareTex ??= shareTex(paint(128, 64, (c, w, h) => {
     c.fillStyle = STONEWARE; c.fillRect(0, 0, w, h);
     for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(${SPECKLE},${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
-  }, [2, 1]),
+  }, [2, 1])),
   roughness: 0.75,
 }));
 
 let soilTex: Texture | null = null;
 /** Potting soil: dark crumbs, a fleck of perlite. */
 function soil(): Material {
-  soilTex ??= paint(128, 128, (c, w, h) => {
+  soilTex ??= shareTex(paint(128, 128, (c, w, h) => {
     c.fillStyle = '#3a2a1e'; c.fillRect(0, 0, w, h);
     for (let k = 0; k < 900; k++) { c.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.3)' : 'rgba(120,90,60,0.25)'; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 3, 1 + rnd() * 2); }
     for (let k = 0; k < 40; k++) { c.fillStyle = 'rgba(235,230,215,0.8)'; c.beginPath(); c.arc(rnd() * w, rnd() * h, 0.8 + rnd() * 1.2, 0, Math.PI * 2); c.fill(); }
-  }, [2, 2]);
+  }, [2, 2]));
   return mat(0xffffff, { map: soilTex, roughness: 1 });
 }
 
@@ -220,13 +222,13 @@ export function floorPlant(x: number, z: number): Group {
 // ---------------------------------------------------------------- pothos
 let pothosTex: ReturnType<typeof leafTex> | null = null;
 /** Golden pothos: heart leaves, green marbled with a soft cream along the veins (broad and faint: a streak, not a line). */
-const pothosLeaves = perRoom(() => leafMats(pothosTex ??= leafTex('#4c8a3a', '#9cc77c', 6, (c, w, h) => {
+const pothosLeaves = perRoom(() => leafMats(pothosTex ??= sharedLeaf(leafTex('#4c8a3a', '#9cc77c', 6, (c, w, h) => {
   for (let k = 0; k < 14; k++) {
     const x = w * (0.2 + rnd() * 0.6), y = h * rnd();
     c.strokeStyle = `rgba(226,214,140,${(0.35 + rnd() * 0.35) * 0.3})`; c.lineWidth = (2 + rnd() * 5) * 2.5;
     c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (rnd() - 0.5) * 30, y - 20, x + (x < w / 2 ? -1 : 1) * (10 + rnd() * 30), y - 40 - rnd() * 30); c.stroke();
   }
-}), 0.45));
+})), 0.45));
 
 /** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room (+x). */
 export function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {
