@@ -73,4 +73,15 @@ describe('Low city facade bake', () => {
       expect(mat.emissive?.getHex() ?? 0, 'emissive colour on').toBeGreaterThan(0);
     }
   }, 180000);
+
+  it('Low: the live night glow keeps facadeMaterial\'s kinds (LED, flood, beacon, lantern, sign), scaled by the night, with no noise', () => {
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material);
+      for (const k of ['vLowKind == 5.0', 'vLowKind == 9.0', 'vLowKind == 3.0', 'vLowKind == 4.0', 'vLowKind == 8.0']) expect(sh.fragmentShader).toContain(k);
+      expect(sh.fragmentShader).toContain('* fNight;');
+      expect(sh.fragmentShader).not.toContain('fHash');
+      expect(sh.fragmentShader).not.toContain('fNoise');
+      expect(sh.vertexShader).toContain('uniform float fPixel;');
+    }
+  }, 180000);
 });

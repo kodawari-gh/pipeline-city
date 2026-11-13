@@ -54,6 +54,9 @@ class Mass {
   flY: [number, number] = [0, 0];
   /** The signs that light the wall they hang on. */
   washes: SignWash[] = [];
+  /** Only the night pieces: while on, a plain or roof vertex is dropped (a far Low block's lights, not its roof). */
+  lightsOnly = false;
+  private hidden = false;
 
   /** What the next vertices are: their frame colour, tint, look, seed, kind and reflection. */
   set(frame: number | Color, tint: number, kind: Kind, seed = 0, look: [number, number, number, number] = [1, 1, 0, 0], refl = 0): this {
@@ -61,6 +64,7 @@ class Mass {
     this.t.setHex(tint);
     this.lk = look;
     this.ax = [seed, kind, refl];
+    this.hidden = this.lightsOnly && (kind === Kind.Plain || kind === Kind.Roof);
     return this;
   }
 
@@ -72,6 +76,7 @@ class Mass {
   }
 
   private vert(p: V3, n: V3, u: number, v: number): void {
+    if (this.hidden) return;
     if (this.n === this.room) this.grow();
     const i = this.n++, i2 = 2 * i, i3 = 3 * i, i4 = 4 * i, { pos, nor, fuv, col, tint, look, aux, wash, washY, c, t, lk, ax, fl, flY } = this;
     pos[i3] = p[0]; pos[i3 + 1] = p[1]; pos[i3 + 2] = p[2];
@@ -356,8 +361,8 @@ function crown(m: Mass, b: Building, rand: () => number): void {
   }
   if (h < 110) return;
   m.set(0x400808, 0, Kind.Beacon, rand(), [cx, tip + 0.6, cz, Wide.All]).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
-  // a spire's corners hold its blades
-  if (b.crown === 'spire') return;
+  // a spire's corners hold its blades; a far block keeps its tip's beacon only
+  if (b.crown === 'spire' || m.lightsOnly) return;
   for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand(), [x, h + PARAPET + 0.4, z, Wide.All]).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
 }
 
@@ -444,19 +449,21 @@ function corners(m: Mass, t: Rect, y0: number, y1: number, w: number): void {
 /** A modern tower's LEDs: a band round the top of each tier under its parapet; on a few, a strip up each corner of the shaft. A landmark has them all, in its own light. */
 function leds(m: Mass, b: Building): void {
   const r = rng(b.seed ^ 0x5bd1);
+  // a far block (`lightsOnly`) keeps the top tier's band and no corner strips
   if (b.light) {
     m.set(b.light, 0, Kind.Led, b.seed % 991);
     for (const [i, t] of b.tiers.entries()) {
+      if (m.lightsOnly && i < b.tiers.length - 1) continue;
       band(m, t);
-      if (i > 0) corners(m, t, t.y0, t.y1 - 0.9, 0.5);
+      if (i > 0 && !m.lightsOnly) corners(m, t, t.y0, t.y1 - 0.9, 0.5);
     }
     return;
   }
   if (b.style === 'tile' || topOf(b) < 60 || r() > 0.55) return;
   m.set(LEDS[Math.floor(r() * LEDS.length)]!, 0, Kind.Led, b.seed % 991);
-  for (const t of b.tiers) band(m, t);
+  for (const t of m.lightsOnly ? b.tiers.slice(-1) : b.tiers) band(m, t);
   const s = b.tiers[1];
-  if (!s || r() > 0.3) return;
+  if (m.lightsOnly || !s || r() > 0.3) return;
   corners(m, s, s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, 0.36);
 }
 
@@ -495,7 +502,8 @@ function signs(m: Mass, b: Building, away: number): void {
     const s = b.tiers[Math.min(1, b.tiers.length - 1)]!, w = 3.5 + r() * 3, h = Math.min((s.y1 - s.y0) * 0.7, w * (4 + Math.floor(r() * 6))), x = s.x0 + w + r() * (s.x1 - s.x0 - 2 * w), y1 = s.y1 - 2 - r() * (s.y1 - s.y0 - h - 2);
     board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false, { fixed: 'z', at: s.z1, out: 1 });
   }
-  if (away > SIGN_FAR || t.y1 < 9) return;
+  // a far block keeps only its tower's tall board (above)
+  if (away > SIGN_FAR || t.y1 < 9 || m.lightsOnly) return;
   const onGrid = (v: number, pitch: number): boolean => Math.abs(v / pitch - Math.round(v / pitch)) < 1e-6;
   const y0 = storey + 0.6, tall = (w: number): number => Math.min(t.y1 - y0 - 0.8, w * (3 + Math.floor(r() * 6)));
   for (const [on, x, out] of [[onGrid(t.x1 - GRID.av0 + GRID.avenue / 2, GRID.px), t.x1, 1], [onGrid(t.x0 - GRID.av0 - GRID.avenue / 2, GRID.px), t.x0, -1]] as const) {
@@ -543,7 +551,7 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
       const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = k === all.length - 1 && far.length > 0;
       m.washes = washes;
       for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
-        if (blocks) block(m, b); else building(m, b, Math.max(away(b), FINE));
+        if (blocks) block(m, b, away(b)); else building(m, b, Math.max(away(b), FINE));
         balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
         at.push(m.vertices);
       }
@@ -562,13 +570,21 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
   });
 }
 
-/** A far building at Low: each tier a plain box in the facade's look, no roof, crown or sign (36 vertices a tier). */
-function block(m: Mass, b: Building): void {
+/**
+ * A far building at Low: each tier a plain box in the facade's look (36 vertices a tier), then only its night pieces: the crown's lights, the LED
+ * bands and the signs. No roof, parapet or clutter (`Mass.lightsOnly` drops those). `away`: from the window (m).
+ */
+function block(m: Mass, b: Building, away: number): void {
   const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
   b.tiers.forEach((t, i) => {
     m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
     m.box(t, t.y0, t.y1, true, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
   });
+  m.lightsOnly = true;
+  crown(m, b, rng(b.seed));
+  leds(m, b);
+  signs(m, b, away);
+  m.lightsOnly = false;
 }
 
 /** A building into `m`, `away` from the window (m). */

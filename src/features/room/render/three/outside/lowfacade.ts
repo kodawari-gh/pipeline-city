@@ -116,35 +116,71 @@ export function lowFacadeMaterial(): { mat: MeshLambertMaterial; u: FacadeUnifor
   const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissiveMap: night, emissive: new Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
+    sh.uniforms.fTime = u.time;
+    sh.uniforms.fPixel = u.pixel;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec2 fuv;
 attribute vec4 look;
 attribute vec3 aux;
-varying vec2 vLowBay;
+uniform float fPixel;
+varying vec2 vLowBay, vLowFuv;
+varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
-flat varying float vLowFac, vLowGlow;`)
+flat varying vec4 vLowLook;
+flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 int lowKind = int(aux.y + 0.5);
-// the wall in bays and storeys, and the atlas cell its seed picks
+// a thin thing far off holds a whole pixel's width, as facadeMaterial's does (plain, beacon, LED band)
+float lowWide = 1.0;
+if (look.w > 0.5 && (lowKind == 2 || lowKind == 3 || lowKind == 5)) {
+  vec3 wo = transformed - look.xyz, wa = abs(wo), wm = look.w < 1.5 ? vec3(1.0, 0.0, 1.0) : look.w < 2.5 ? vec3(0.0, 1.0, 0.0) : vec3(1.0);
+  vec3 wg = mix(wa, max(wa, vec3(distance(transformed, cameraPosition) * fPixel)), wm);
+  transformed += sign(wo) * (wg - wa);
+  lowWide = dot(wa / wg, wm) / dot(wm, wm);
+}
+// the wall in bays and storeys, and the atlas cell its seed picks; a seed also mirrors the wall across, so the cells do not repeat as one grid
 vLowBay = fuv / max(look.xy, vec2(0.1));
+if (fract(aux.x * 0.7548776662) > 0.5) vLowBay.x = -vLowBay.x;
+if (fract(aux.x * 0.4142135624) > 0.5) vLowBay.y = -vLowBay.y;
+// the building's own cell phase: whole cells, so the frame's edges still meet
 vLowOff = floor(vec2(fract(aux.x * 0.6180339), fract(aux.x * 0.3247)) * ${CELLS}.0);
+vLowFuv = fuv; vLowLook = look; vLowWide = lowWide; vLowY = (modelMatrix * vec4(transformed, 1.0)).y;
 vLowFac = lowKind == 0 || lowKind == 6 ? 1.0 : 0.0;
-vLowGlow = lowKind == 3 || lowKind == 4 || lowKind == 5 || lowKind == 8 || lowKind == 9 ? 1.0 : 0.0;`);
+vLowKind = float(lowKind);
+vLowSeed = aux.x;
+// each building's own night level, so the lit rooms do not all come up together
+vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float fNight;
-varying vec2 vLowBay;
+uniform float fNight, fTime;
+varying vec2 vLowBay, vLowFuv;
+varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
-flat varying float vLowFac, vLowGlow;`)
+flat varying vec4 vLowLook;
+flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;
+// the atlas cell of this bay: the building's phase, and a cell picked per bay by a hash, so no two bays repeat one grid
+vec2 lowAtlas() {
+  vec2 bay = floor(vLowBay) + vLowOff;
+  float h = fract(sin(dot(bay, vec2(12.9898, 78.233)) + vLowSeed * 3.1) * 43758.5453);
+  vec2 pick = floor(vec2(h, fract(h * 7.31)) * ${CELLS}.0);
+  return (mod(bay + pick, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0;
+}`)
       .replace('#include <map_fragment>', `{
-  vec2 lowUv = (mod(floor(vLowBay) + vLowOff, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0, lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
+  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
   diffuseColor.rgb *= mix(vec3(1.0), textureGrad(map, lowUv, lowDx, lowDy).rgb, vLowFac);
 }`)
       .replace('#include <emissivemap_fragment>', `{
-  vec2 lowUv = (mod(floor(vLowBay) + vLowOff, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0, lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
-  // the night map's lit rooms on the walls, and a sign, a lamp or a light band's own colour, all scaled by the night
-  totalEmissiveRadiance = emissive * (textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb * vLowFac + vColor.rgb * vLowGlow * 0.9) * fNight;
+  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
+  // the night map's lit rooms on the walls, and each kind's live glow at facadeMaterial's night strength (LED band, flood, beacon, lantern,
+  // sign). Both are scaled by the night, so nothing shows by day
+  vec3 lowGlow = vec3(0.0);
+  if (vLowKind == 5.0) lowGlow = vColor.rgb * 2.22 * pow(vLowWide, 0.6);
+  else if (vLowKind == 9.0) lowGlow = vColor.rgb * (0.12 + 1.5 * exp(-3.0 * clamp((vLowY - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
+  else if (vLowKind == 3.0) lowGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vLowWide * step(0.55, fract(fTime * 0.45 + vLowSeed));
+  else if (vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75 * (0.2 + 0.9 * exp(-3.0 * clamp((vLowFuv.y - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
+  else if (vLowKind == 8.0 && vLowLook.w > -0.5) lowGlow = vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0));
+  totalEmissiveRadiance = emissive * (textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb * vLowFac * vLowNight + lowGlow) * fNight;
 }`);
   };
   mat.customProgramCacheKey = () => 'outside-facade-low';
