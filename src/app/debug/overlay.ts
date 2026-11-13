@@ -11,6 +11,15 @@ import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats'
 /** A root the overlay can hide: its visibility only. */
 export type HideRoot = { visible: boolean };
 
+/** The city's layers the overlay can turn off, and the city's stats: `OutsideView` (the overlay does not import it). */
+export interface CityLayers { debugLayer(layer: string, off: boolean): void; debugStats(): { tris: number; calls: number } }
+
+/** The city's layer toggles: the layer's key (`OutsideView.debugLayer`) and its button's label. Each is its own button; lit when the layer is off. */
+export const CITY_LAYERS: readonly (readonly [string, string])[] = [
+  ['lights', 'No city lights'], ['buildings', 'No buildings'], ['freeze', 'Freeze city'], ['cars', 'No cars'],
+  ['sky', 'No city sky'], ['glow', 'No glow'], ['steam', 'No steam'], ['mirror', 'No mirror'], ['flat', 'City 1x'],
+];
+
 /** The readout is redrawn this often (ms). */
 const SHOW_MS = 250;
 
@@ -22,8 +31,11 @@ const ON = 'background:#3a7d44;';
  * `roots`: the city's and the machine's roots, now (the machine's changes when it is rebuilt). Without it the hides have nothing to hide.
  */
 export function mountDebug({ renderer, canvas, roots }: {
-  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null };
+  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null; layers?: CityLayers | null };
 }): void {
+  // the city's layers that are off, and the city they were last applied to. Not saved.
+  const layerOff = new Set<string>();
+  let layersAt: CityLayers | null = null;
   const drawn = new DrawnFrames();
   // the hides: on or off, and the root each was last applied to (a hidden root that is replaced is hidden again). Not saved.
   const hide = { city: false, machine: false };
@@ -55,11 +67,28 @@ export function mountDebug({ renderer, canvas, roots }: {
   const lightsBtn = button('Lights', () => { setLights(nextLights(lightsNow())); show(); });
   const cityBtn = button('Hide city', () => { hideRoot('city'); show(); });
   const machineBtn = button('Hide machine', () => { hideRoot('machine'); show(); });
-  const autoBtn = button('Auto', () => { backToAuto(); showRoots(); show(); });
+  const layerBtns = CITY_LAYERS.map(([k, label]) => button(label, () => { toggleLayer(k); show(); }));
+  const autoBtn = button('Auto', () => { backToAuto(); showRoots(); layersOn(); show(); });
   const copyBtn = button('Copy', () => { void copy(); });
   const controls = document.createElement('div');
-  controls.append(postBtn, ...scaleBtns, shadowBtn, lightsBtn, cityBtn, machineBtn, autoBtn, copyBtn);
+  controls.append(postBtn, ...scaleBtns, shadowBtn, lightsBtn, cityBtn, ...layerBtns, machineBtn, autoBtn, copyBtn);
   panel.append(controls);
+
+  /** Flips one city layer and applies it to the city now (a city not built yet gets it when it is: `syncHides`). */
+  const toggleLayer = (k: string) => {
+    const off = !layerOff.has(k);
+    if (off) layerOff.add(k); else layerOff.delete(k);
+    const now = roots?.().layers ?? null;
+    now?.debugLayer(k, off);
+    layersAt = now;
+  };
+  /** Auto: every city layer on again. */
+  const layersOn = () => {
+    const now = roots?.().layers ?? null;
+    for (const k of layerOff) now?.debugLayer(k, false);
+    layerOff.clear();
+    layersAt = now;
+  };
 
   /** Flips one hide and applies it to that root now. */
   const hideRoot = (k: 'city' | 'machine') => {
@@ -80,6 +109,11 @@ export function mountDebug({ renderer, canvas, roots }: {
   };
   /** Each frame: a hidden root that is new (the machine was rebuilt, the city was built after the hide) is hidden. A shown one is left to the game. */
   const syncHides = () => {
+    if (roots && layerOff.size) {
+      const l = roots().layers ?? null;
+      if (l && l !== layersAt) for (const k of layerOff) l.debugLayer(k, true);
+      layersAt = l;
+    }
     if (!roots || !(hide.city || hide.machine)) return;
     const now = roots();
     for (const k of ['city', 'machine'] as const) {
@@ -94,7 +128,9 @@ export function mountDebug({ renderer, canvas, roots }: {
 
   const snap = (): StatsSnapshot => {
     const g = effective.peek(), t = tierRecord.peek();
+    const city = roots?.().layers?.debugStats();
     return {
+      ...(city ? { cityTris: city.tris, cityCalls: city.calls } : {}),
       fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
       dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
       calls: drawCalls, scale: g.scale, post: postOn(g),
@@ -118,6 +154,7 @@ export function mountDebug({ renderer, canvas, roots }: {
     lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === s.lights)?.[1] ?? s.lights}`;
     cityBtn.style.cssText = BTN + (hide.city ? ON : '');
     machineBtn.style.cssText = BTN + (hide.machine ? ON : '');
+    CITY_LAYERS.forEach(([k], i) => { layerBtns[i]!.style.cssText = BTN + (layerOff.has(k) ? ON : ''); });
     autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' && !overridden() ? ON : '');
   };
 

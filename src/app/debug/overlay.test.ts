@@ -181,6 +181,65 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     expect(next.visible).toBe(false);
   });
 
+  /** A city stub: the layers that are off, and a fixed count. */
+  const cityStub = () => {
+    const off = new Set<string>();
+    return { off, debugLayer: (k: string, o: boolean) => { if (o) off.add(k); else off.delete(k); }, debugStats: () => ({ tris: 1234, calls: 7 }) };
+  };
+
+  it.each([
+    ['No city lights', 'lights'], ['No buildings', 'buildings'], ['Freeze city', 'freeze'], ['No cars', 'cars'],
+    ['No city sky', 'sky'], ['No glow', 'glow'], ['No steam', 'steam'], ['No mirror', 'mirror'], ['City 1x', 'flat'],
+  ])('the %s button turns off only the %s layer, lights up, and Auto turns it on again', (label, key) => {
+    const layers = cityStub(), city = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
+    frame!(0);
+    const lit = '#3a7d44';
+    button(label).handlers.click!();
+    expect([...layers.off]).toEqual([key]);
+    expect(city.visible).toBe(true);
+    frame!(1000);
+    expect(button(label).style.cssText).toContain(lit);
+    button('Auto').handlers.click!();
+    expect(layers.off.size).toBe(0);
+    frame!(2000);
+    expect(button(label).style.cssText).not.toContain(lit);
+    // a second tap on a layer turns it off again, a third on
+    button(label).handlers.click!();
+    button(label).handlers.click!();
+    expect(layers.off.size).toBe(0);
+  });
+
+  it('Hide city still hides the city root only, and leaves the layers as they were', () => {
+    const layers = cityStub(), city = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
+    frame!(0);
+    button('Hide city').handlers.click!();
+    expect(city.visible).toBe(false);
+    expect(layers.off.size).toBe(0);
+  });
+
+  it('a city built after a layer was turned off gets it at the next frame', () => {
+    let layers: ReturnType<typeof cityStub> | null = null;
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine: null, layers }) });
+    frame!(0);
+    button('No cars').handlers.click!();
+    layers = cityStub();
+    frame!(1000);
+    expect([...layers.off]).toEqual(['cars']);
+  });
+
+  it('the readout has the city tris line when the city is built, and not before', () => {
+    let layers: ReturnType<typeof cityStub> | null = null;
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine: null, layers }) });
+    frame!(0);
+    const pre = made.find((e) => e.tag === 'pre')!;
+    expect(pre.textContent).not.toContain('city tris');
+    layers = cityStub();
+    frame!(1000);
+    expect(pre.textContent).toContain('city tris 1234, calls 7');
+  });
+
   it('the readout has the viewport line: the window, the screen and the orientation', () => {
     vi.stubGlobal('window', { devicePixelRatio: 1, innerWidth: 485, innerHeight: 997, screen: { width: 485, height: 997 } });
     mountDebug({ renderer: rig(), canvas: cvs() });
