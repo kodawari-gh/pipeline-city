@@ -828,6 +828,9 @@ export class Room3D {
   }
 
   /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
+  /** Does any light of the room cast a shadow? With none, no map is drawn and the shadow scan has nothing to serve. */
+  get casting(): boolean { return this.casters.some((l) => l.castShadow); }
+
   private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light]; }
 
   /** The room's lights by their name in `LIGHT_ORDER` (roomlights.ts). */

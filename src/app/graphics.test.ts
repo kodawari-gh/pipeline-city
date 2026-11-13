@@ -97,7 +97,7 @@ describe('tier persistence', () => {
   it('a first start applies the detected tier, in auto mode', () => {
     const s = resolveStart(null, null, '', detect('low'));
     expect(s.rec).toEqual({ mode: 'auto', tier: 'low', reason: 'test' });
-    expect(s.g).toMatchObject({ ...PRESETS.low, scale: 0.75, shadows: 0, fps: 60 });
+    expect(s.g).toMatchObject({ ...PRESETS.low, scale: 0.75, shadows: 0, lights: 2, fps: 60 });
   });
   it('an old save with no tier record is manual and keeps the settings', () => {
     const s = resolveStart({ ...PRESETS.high, msaa: 8, fps: 120, v: 2 }, null, '', detect('low'));
@@ -195,7 +195,7 @@ describe('tier persistence', () => {
     it('reads as Low, auto, with 4 lamps', () => {
       const s = resolveStart(old, null, '', detect('high'));
       expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });
-      expect(s.g).toMatchObject({ lights: 4, lightShadows: 0, scale: 0.75, shadows: 0, fps: 60 });
+      expect(s.g).toMatchObject({ lights: 2, lightShadows: 0, scale: 0.75, shadows: 0, fps: 60 });
     });
     it('a save that differs in any key stays manual', () => {
       for (const [k, v] of [['scale', 0.8], ['shadows', 1], ['fps', 60], ['msaa', 2], ['particles', 1], ['brightness', 1.1]] as const) {
@@ -225,12 +225,27 @@ describe('tier persistence', () => {
     expect(resolveStart(null, null, '?tier=bogus', detect('medium')).rec.tier).toBe('medium');
     expect(store.size).toBe(0);
   });
+  describe('Low lights two lights (save v3)', () => {
+    const lowRec = { mode: 'manual', tier: 'low', reason: 'chosen' };
+    it('tierGraphics: Low has 2 lights, the other tiers keep their preset', () => {
+      expect(tierGraphics('low', DEFAULTS).lights).toBe(2);
+      for (const t of ['medium', 'high'] as const) expect(tierGraphics(t, DEFAULTS)).toEqual({ ...DEFAULTS, ...PRESETS[t], fps: 60 });
+    });
+    it('an old Low save with the preset lights moves to 2', () => {
+      expect(resolveStart({ ...PRESETS.low, fps: 30, v: 2 }, lowRec, '', detect('high')).g.lights).toBe(2);
+    });
+    it('a v3 Low save, or other lights, keep theirs', () => {
+      expect(resolveStart({ ...PRESETS.low, v: 3 }, lowRec, '', detect('high')).g.lights).toBe(PRESETS.low.lights);
+      expect(resolveStart({ ...PRESETS.low, lights: 8, v: 2 }, lowRec, '', detect('high')).g.lights).toBe(8);
+      expect(resolveStart({ ...PRESETS.high, v: 2 }, null, '', detect('high')).g.lights).toBe(PRESETS.high.lights);
+    });
+  });
   describe('the Low frame limit moves from 30 to 60 (save v3)', () => {
     const lowRec = { mode: 'manual', tier: 'low', reason: 'chosen' };
     it('a manual Low v2 save at 30 fps starts at 60', () => {
       const s = resolveStart({ ...PRESETS.low, fps: 30, brightness: 1, auto: false, v: 2 }, lowRec, '', detect('high'));
       expect(s.rec.mode).toBe('manual');
-      expect(s.g).toMatchObject({ ...PRESETS.low, fps: 60 });
+      expect(s.g).toMatchObject({ ...PRESETS.low, lights: 2, fps: 60 });
     });
     it('a Low v2 save at 30 fps with no tier record starts at 60', () => {
       const s = resolveStart({ ...PRESETS.low, fps: 30, v: 2 }, null, '', detect('high'));

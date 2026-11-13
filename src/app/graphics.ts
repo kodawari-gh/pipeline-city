@@ -76,9 +76,12 @@ const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
 const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 
-/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off. */
+/** Low lights the window's key and the sun only (`LIGHT_ORDER`): its lamps are off. */
+export const LOW_LIGHTS = 2;
+
+/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off and two lights. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0 } : {}) };
+  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0, lights: LOW_LIGHTS } : {}) };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */
@@ -206,13 +209,17 @@ export function resolveStart(
   // saves from before auto-adjust became opt-in (v1 and older) carry its old default: the player never chose it
   if (hasSave && before(2)) base.auto = false;
   // Low drew at 30 fps before v3 and runs at 60 now: an old Low save with 30 moves to 60. A v3 save at 30 is the player's choice
-  if (hasSave && before(3) && base.fps === 30 && (stored ? stored.tier === 'low' : presetOf(base) === 'low')) base.fps = 60;
+  const wasLow = hasSave && before(3) && (stored ? stored.tier === 'low' : presetOf(base) === 'low');
+  const preset = presetOf(base); // (before the lights move: Low's preset has 4)
+  if (wasLow && base.fps === 30) base.fps = 60;
+  // the same for its lights: Low's old 4 become 2. Any other count is the player's choice
+  if (wasLow && base.lights === PRESETS.low.lights) base.lights = LOW_LIGHTS;
   let out: { g: Graphics; rec: TierRecord };
   if (hasSave && !stored && isOldTouchDefault(saved)) {
     // never the player's choice: Low's cap, and auto
     out = { g: tierGraphics('low', base), rec: { mode: 'auto', tier: 'low', reason: 'phone default' } };
   } else if (hasSave && !stored) {
-    const p = presetOf(base);
+    const p = preset;
     out = { g: base, rec: { mode: 'manual', tier: p === 'low' || p === 'medium' ? p : 'high', reason: 'saved settings' } };
   } else if (stored) {
     // auto never starts above a tier it stepped down from, until that note expires
@@ -422,7 +429,7 @@ export function loopLimit(fps: number, focused: boolean, idleMs: number): number
 const LOW_WATCH_FPS = 30;
 
 /** Is `g` the Low tier: its preset, or the tier's own scale and shadows (`tierGraphics`)? */
-const isLow = (g: Graphics): boolean => presetOf(g) === 'low' || presetKeys.every((k) => g[k] === tierGraphics('low', g)[k]);
+export const isLow = (g: Graphics): boolean => presetOf(g) === 'low' || presetKeys.every((k) => g[k] === tierGraphics('low', g)[k]);
 
 /** The fps the auto-adjust watches judge by. A Low at 60 is judged as at 30, the thresholds it had, so phones switch tiers as before. Other limits: as is. */
 export function watchFps(g: Graphics, limit: number): number {

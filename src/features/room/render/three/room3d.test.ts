@@ -54,3 +54,12 @@ it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' 
   near.position.x += 500;
   expect(frames()).toContain(bed);
 }, 60000);
+
+it('casting is false with the shadows off and true at a shadow level', () => {
+  const room = new Room3D();
+  room.setLights(2, false);
+  room.setShadows(0);
+  expect(room.casting).toBe(false);
+  room.setShadows(1);
+  expect(room.casting).toBe(true);
+});
