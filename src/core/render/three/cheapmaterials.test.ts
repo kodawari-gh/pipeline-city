@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, ShaderMaterial, Texture } from 'three';
-import { cheapMaterials, probeWanted } from './cheapmaterials';
+import { cheapMaterials, probePlan } from './cheapmaterials';
 
 const geo = new BoxGeometry();
 
@@ -44,20 +44,20 @@ describe('cheapMaterials', () => {
     cheapMaterials(new Group().add(a, b, c));
     expect([a.material, b.material, c.material]).toEqual([basic, sh, std]);
   });
-  it('sync copies the game\'s writes on the source onto the Lambert', () => {
+  it('the Lambert follows the game\'s writes on the source live, with no sync call', () => {
     const src = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xff0000), emissiveIntensity: 0 });
     const a = new Mesh(geo, src), h = cheapMaterials(a), l = a.material as unknown as MeshLambertMaterial;
     src.emissiveIntensity = 3;
     src.color.set(0x00ff00);
     src.opacity = 0.25;
     src.visible = false;
-    expect(l.emissiveIntensity).toBe(0);
-    h.sync();
     expect(l.emissiveIntensity).toBe(3);
     expect(l.color.getHex()).toBe(0x00ff00);
+    expect(l.color).toBe(src.color);
     expect(l.opacity).toBe(0.25);
     expect(l.visible).toBe(false);
-    expect(l.emissive.getHex()).toBe(0xff0000);
+    expect(l.emissive).toBe(src.emissive);
+    h.undo();
   });
   it('sync asks for a new program only when transparent, side, alphaTest or a map changes', () => {
     const src = new MeshStandardMaterial(), a = new Mesh(geo, src), h = cheapMaterials(a), l = a.material as unknown as MeshLambertMaterial;
@@ -91,17 +91,25 @@ describe('cheapMaterials', () => {
   });
 });
 
-describe('probeWanted', () => {
+describe('probePlan', () => {
   const o = { low: false, probed: true, busy: false, bounces: 0, keyChanged: true, waited: true };
-  it('High keeps probing when the light changes', () => expect(probeWanted(o)).toBe(true));
-  it('Low asks for no more once it has an env', () => {
-    expect(probeWanted({ ...o, low: true })).toBe(false);
-    expect(probeWanted({ ...o, low: true, bounces: 3 })).toBe(false);
+  it('High keeps probing when the light changes', () => expect(probePlan(o)).toEqual({ request: true, bounces: 0 }));
+  it('High counts its bounces down, one capture each', () => {
+    expect(probePlan({ ...o, bounces: 3 })).toEqual({ request: true, bounces: 2 });
+    expect(probePlan({ ...o, bounces: 1, keyChanged: false })).toEqual({ request: true, bounces: 0 });
+    expect(probePlan({ ...o, bounces: 0, keyChanged: false })).toEqual({ request: false, bounces: 0 });
   });
-  it('Low takes its first probe', () => expect(probeWanted({ ...o, low: true, probed: false, bounces: 3 })).toBe(true));
+  it('Low, once probed, asks for no more and its bounces go to 0', () => {
+    expect(probePlan({ ...o, low: true })).toEqual({ request: false, bounces: 0 });
+    expect(probePlan({ ...o, low: true, bounces: 3 })).toEqual({ request: false, bounces: 0 });
+    expect(probePlan({ ...o, low: true, busy: true, bounces: 3 })).toEqual({ request: false, bounces: 0 });
+  });
+  it('Low takes its first probe, and counts its bounces down from it', () => {
+    expect(probePlan({ ...o, low: true, probed: false, bounces: 3 })).toEqual({ request: true, bounces: 2 });
+  });
   it('waits while busy, and for the key and the interval', () => {
-    expect(probeWanted({ ...o, busy: true })).toBe(false);
-    expect(probeWanted({ ...o, waited: false })).toBe(false);
-    expect(probeWanted({ ...o, keyChanged: false })).toBe(false);
+    expect(probePlan({ ...o, busy: true, bounces: 3 })).toEqual({ request: false, bounces: 3 });
+    expect(probePlan({ ...o, waited: false })).toEqual({ request: false, bounces: 0 });
+    expect(probePlan({ ...o, keyChanged: false })).toEqual({ request: false, bounces: 0 });
   });
 });

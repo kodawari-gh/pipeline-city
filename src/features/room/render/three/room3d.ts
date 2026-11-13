@@ -18,6 +18,7 @@ import {
   RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { LOW_CUTS } from '@/app/graphics';
 import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
@@ -939,7 +940,7 @@ export class Room3D {
    * frame asks for nothing. Else it returns whether a caster moved.
    */
   scanShadows(cache: { scan(scene: Object3D, now: number): boolean }, scene: Object3D, now: number): boolean {
-    if (!this.casting) return false;
+    if (!this.casting && LOW_CUTS.shadowSkip) return false;
     const cast = cache.scan(scene, now);
     this.redrawShadows(cast, now);
     return cast;

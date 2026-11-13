@@ -79,9 +79,13 @@ const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 /** Low lights the window's key and the sun only (`LIGHT_ORDER`): its lamps are off. */
 export const LOW_LIGHTS = 2;
 
+/** Bench toggles, set from the page before setTier. Each one turns a Low cut off: lamps (Low keeps the preset's lamps), probe (Low probes as High),
+ * lambert (no cheap materials), shadowSkip (the room scans its shadows with no caster). */
+export const LOW_CUTS = { lamps: true, probe: true, lambert: true, shadowSkip: true };
+
 /** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off and two lights. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0, lights: LOW_LIGHTS } : {}) };
+  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0, lights: LOW_CUTS.lamps ? LOW_LIGHTS : PRESETS.low.lights } : {}) };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */

@@ -14,7 +14,7 @@ import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
+import { autoStep, awayHeld, effective, FrameGate, FrameMeter, graphics, isLow, LOW_CUTS, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -27,7 +27,7 @@ import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pi
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
-import { cheapMaterials, probeWanted, type Cheap } from '@/core/render/three/cheapmaterials';
+import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
@@ -145,7 +145,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
   /** Low's cheaper materials (`cheapMaterials`), by the root they were applied to: undone when the root goes or the tier leaves Low. */
   const cheaps = new Map<Object3D, Cheap>();
-  const cheap = (root: Object3D) => { if (isLow(effective.peek()) && !cheaps.has(root)) cheaps.set(root, cheapMaterials(root)); };
+  const cheap = (root: Object3D) => { if (LOW_CUTS.lambert && isLow(effective.peek()) && !cheaps.has(root)) cheaps.set(root, cheapMaterials(root)); };
   const uncheap = (root: Object3D) => { cheaps.get(root)?.undo(); cheaps.delete(root); };
   /** Puts `m` in the scene in the machine's place. */
   const install = (m: Machine3D) => {
@@ -568,6 +568,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     room?.setLights(g.lights, g.lightShadows > 0);
     // Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low
     if (isLow(g)) { for (const r of [room?.root, machine?.root, next?.m.root]) if (r) cheap(r); } else for (const root of [...cheaps.keys()]) uncheap(root);
+    for (const c of cheaps.values()) c.sync(); // (the tier's program-level state; the live values need none)
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;
     shadows.reset();
@@ -693,7 +694,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       applyView(camera, ov, aspect());
       post.setReach(h);
       post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
-      for (const c of cheaps.values()) c.sync();
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
@@ -711,7 +711,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       || (near > 0 && Math.abs(Math.log(metered / seen)) > 1e-3) || shift.shift(camera, canvas.width, canvas.height, D / 2, D * 1.5) >= STILL_PX;
     const draw = demand.want(now, busy);
     if (draw) {
-      for (const c of cheaps.values()) c.sync(); // (the game writes to the source materials: lamps, LEDs, fades)
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       shift.mark(camera, canvas.width, canvas.height);
@@ -722,7 +721,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room && draw) {
       const key = `${room.lightKey}|${!!s?.powered}`;
-      if (probeWanted({ low: isLow(g), probed, busy: probe.busy, bounces, keyChanged: key !== probeKey, waited: now - probeAt > PROBE_MS })) { probe.request(); probeKey = key; probeAt = now; bounces = Math.max(0, bounces - 1); }
+      const plan = probePlan({ low: isLow(g) && LOW_CUTS.probe, probed, busy: probe.busy, bounces, keyChanged: key !== probeKey, waited: now - probeAt > PROBE_MS });
+      bounces = plan.bounces;
+      if (plan.request) { probe.request(); probeKey = key; probeAt = now; }
       // one light for all: the machine and the dies' art take the room's probe as the room's own materials do (`RoomEnv`), at every zoom
       if (probe.step(renderer, scene)) {
         roomEnv = pmrem.fromCubemap(probe.texture, roomEnv);

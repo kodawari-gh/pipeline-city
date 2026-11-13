@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
+  autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, LOW_CUTS, LOW_LIGHTS, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
   isLow, loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
 } from './graphics';
 
@@ -463,6 +463,14 @@ describe('the watches at the Low limit', () => {
   it('Medium and High at 60 fps keep their thresholds: a steady 27 fps steps down', () => {
     expect(slowSteps(27, 60, { ...DEFAULTS, ...PRESETS.medium }, 10)).toBeGreaterThan(0);
     expect(slowSteps(27, 60, DEFAULTS, 10)).toBeGreaterThan(0);
+  });
+});
+
+describe('LOW_CUTS: the bench toggles', () => {
+  it('lamps off: Low keeps the preset\'s lamps', () => {
+    LOW_CUTS.lamps = false;
+    try { expect(tierGraphics('low', DEFAULTS).lights).toBe(PRESETS.low.lights); } finally { LOW_CUTS.lamps = true; }
+    expect(tierGraphics('low', DEFAULTS).lights).toBe(LOW_LIGHTS);
   });
 });
 

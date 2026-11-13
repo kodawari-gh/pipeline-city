@@ -8,14 +8,20 @@ type Stripped = (typeof STRIPPED)[number];
 const isStandard = (m: Material): m is Std => (m as Std).isMeshStandardMaterial === true;
 const isPatched = (m: Material): boolean => m.onBeforeCompile !== Material.prototype.onBeforeCompile;
 
-/** A Lambert with the look of `m`: its color, maps, emissive, and the state that shows (side, blending flags, alpha). */
+/** The values a Lambert reads live from its source (no copy, no frame work). */
+const LIVE = ['emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap'] as const;
+
+/**
+ * A Lambert with the look of `m`. Its colors are the source's own Color objects, and its live values are getters on the source: a write to `m`
+ * shows on the Lambert at once. Only the program-level state (see `sync`) is copied.
+ */
 function lambertOf(m: Std): MeshLambertMaterial {
   const l = new MeshLambertMaterial({
-    color: m.color, map: m.map, emissive: m.emissive, emissiveMap: m.emissiveMap, emissiveIntensity: m.emissiveIntensity,
-    vertexColors: m.vertexColors, transparent: m.transparent, opacity: m.opacity, side: m.side, depthWrite: m.depthWrite,
-    alphaTest: m.alphaTest,
+    color: m.color, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, side: m.side, alphaTest: m.alphaTest,
   });
-  l.visible = m.visible;
+  l.color = m.color;
+  l.emissive = m.emissive;
+  for (const k of LIVE) Object.defineProperty(l, k, { configurable: true, enumerable: true, get: () => m[k], set() { /* the source owns it */ } });
   l.userData = m.userData;
   l.name = m.name;
   return l;
@@ -58,27 +64,24 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       if (c !== mesh.material) { swaps.push({ mesh, index: null, from: mesh.material }); mesh.material = c; }
     }
   });
-  const from: Std[] = [], to: MeshLambertMaterial[] = [];
-  for (const [m, l] of made) { from.push(m as Std); to.push(l); }
+  const from: Std[] = [], to: MeshLambertMaterial[] = [], prog: { map: boolean; emap: boolean }[] = [];
+  for (const [m, l] of made) { const s = m as Std; from.push(s); to.push(l); prog.push({ map: !!s.map, emap: !!s.emissiveMap }); }
   return {
-    /** Copy the source materials' live values (the game writes to those) onto the Lambert copies. Plain loops, no allocation. */
+    /**
+     * Copy the program-level state (transparent, side, alphaTest, map presence) onto the Lambert copies, and ask for a new program when one of
+     * them changed. Call it when the tier changes or a root is cheapened, not per frame: the live values need no sync (see `lambertOf`).
+     */
     sync() {
       for (let i = 0; i < from.length; i++) {
-        const s = from[i]!, l = to[i]!;
-        l.color.copy(s.color);
-        l.emissive.copy(s.emissive);
-        l.emissiveIntensity = s.emissiveIntensity;
-        l.opacity = s.opacity;
-        l.visible = s.visible;
-        l.depthWrite = s.depthWrite;
+        const s = from[i]!, l = to[i]!, p = prog[i]!;
+        const map = !!s.map, emap = !!s.emissiveMap;
         // (these change the program or the sorting: a new compile)
-        const dirty = l.transparent !== s.transparent || l.side !== s.side || (l.alphaTest > 0) !== (s.alphaTest > 0)
-          || !l.map !== !s.map || !l.emissiveMap !== !s.emissiveMap;
+        const dirty = l.transparent !== s.transparent || l.side !== s.side || (l.alphaTest > 0) !== (s.alphaTest > 0) || p.map !== map || p.emap !== emap;
         l.transparent = s.transparent;
         l.side = s.side;
         l.alphaTest = s.alphaTest;
-        l.map = s.map;
-        l.emissiveMap = s.emissiveMap;
+        p.map = map;
+        p.emap = emap;
         if (dirty) l.needsUpdate = true;
       }
     },
@@ -88,16 +91,20 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
       }
       for (const [m, was] of stripped) { Object.assign(m, was); m.needsUpdate = true; }
       for (const l of made.values()) l.dispose();
-      swaps.length = 0; stripped.clear(); made.clear(); from.length = to.length = 0;
+      swaps.length = 0; stripped.clear(); made.clear(); from.length = to.length = prog.length = 0;
     },
   };
 }
 
 export type Cheap = ReturnType<typeof cheapMaterials>;
 
-/** Does the probe want a capture this frame? Low takes the first one (an env to light with) and asks for no more; the env it has stays. */
-export function probeWanted(o: { low: boolean; probed: boolean; busy: boolean; bounces: number; keyChanged: boolean; waited: boolean }): boolean {
-  if (o.busy) return false;
-  if (o.low && o.probed) return false;
-  return o.bounces > 0 || (o.keyChanged && o.waited);
+/**
+ * What the probe does this frame: whether it takes a capture, and the bounces left. Low takes its first capture (an env to light with) and asks
+ * for no more: once `probed`, its bounces are 0 whatever the frame is. Else a capture is wanted while bounces are left, or the light changed.
+ */
+export function probePlan(o: { low: boolean; probed: boolean; busy: boolean; bounces: number; keyChanged: boolean; waited: boolean }): { request: boolean; bounces: number } {
+  if (o.low && o.probed) return { request: false, bounces: 0 };
+  if (o.busy) return { request: false, bounces: o.bounces };
+  const request = o.bounces > 0 || (o.keyChanged && o.waited);
+  return { request, bounces: request ? Math.max(0, o.bounces - 1) : o.bounces };
 }
