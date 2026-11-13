@@ -1,7 +1,7 @@
 // The Low city's facade bake (fail-first). At Low the buildings leave `facadeMaterial`'s per-pixel shader (`towers.ts`) for a cheap
 // material that samples baked day and night maps, with the night windows as live emissive in their own map, never in the albedo.
 // High keeps `facadeMaterial` unchanged. The building meshes are the ones with the facade's per-vertex attributes (`fuv`).
-import { LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
+import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
 import { LOW_ANISO, LOW_FAR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
@@ -184,4 +184,40 @@ describe('Low city facade bake', () => {
       expect(sh.vertexShader).toContain('uniform float fPixel;');
     }
   }, 180000);
+
+  it('Low: the glass takes each building\'s own tint (the atlas alpha is the glass mask; the map step tints by it)', () => {
+    const { day } = lowFacadeMaps();
+    const data = day.image.data as Uint16Array;
+    let glass = 0, other = 0;
+    for (let i = 3; i < data.length; i += 4) { if (DataUtils.fromHalfFloat(data[i]!) > 0.5) glass++; else other++; }
+    expect(glass, 'glass texels').toBeGreaterThan(0);
+    expect(other, 'frame and reveal texels').toBeGreaterThan(0);
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      expect(sh).toContain('vLowTint');
+      expect(sh).toContain('lowTex.a * vLowFac');
+      const vs = compiled(m.material as Material).vertexShader;
+      expect(vs).toContain('attribute vec3 tint;');
+    }
+  }, 180000);
+
+  it('Low: the buildings take the haze in place of fog, as High does (hzApply on their fragment colour)', () => {
+    for (const m of buildings(low)) {
+      const sh = withMapShader(m.material as Material);
+      expect(sh.fragmentShader).toContain('hzApply(gl_FragColor.rgb, vHzW)');
+      expect(sh.vertexShader).toContain('vHzW = (modelMatrix * hzP).xyz;');
+    }
+  }, 180000);
 });
+
+/** The material's shader with the fog chunks in place, as `withHaze` finds them: its own map step and the haze's fog include. */
+function withMapShader(m: Material): { vertexShader: string; fragmentShader: string } {
+  const sh = {
+    uniforms: {} as Record<string, unknown>,
+    vertexShader: '#include <common>\n#include <fog_pars_vertex>\n#include <begin_vertex>\n#include <fog_vertex>\n',
+    fragmentShader: '#include <common>\n#include <map_fragment>\n#include <fog_pars_fragment>\n#include <fog_fragment>\n',
+  };
+  const hook = (m as Material & { onBeforeCompile?: (s: typeof sh, r: unknown) => void }).onBeforeCompile;
+  if (typeof hook === 'function') hook(sh, null);
+  return sh;
+}

@@ -89,7 +89,7 @@ function bakeFacadeMaps(): LowFacadeMaps {
           if (!inW && v >= WIN.v1 && v < WIN.v1 + 0.07 && u > WIN.u0 - 0.03 && u < WIN.u1 + 0.03) ao = 0.6 + 0.4 * smooth(WIN.v1, WIN.v1 + 0.07, v);
           else if (!inW && v <= WIN.v0 && v > WIN.v0 - 0.06) ao = 0.92;
           else if (!inW && u > WIN.u0 - 0.04 && u < WIN.u1 + 0.04 && v > WIN.v0 && v < WIN.v1) ao = 0.78;
-          let r = frame * ao, g = frame * ao, b = frame * ao, nr = 0, ng = 0, nb = 0;
+          let r = frame * ao, g = frame * ao, b = frame * ao, nr = 0, ng = 0, nb = 0, glass = 0;
           if (inW) {
             // the glass: dark, its upper part mirroring the sky; the reveal's shade inside the edge; mullions and a transom in the frame's tone
             const d = Math.min(u - WIN.u0, WIN.u1 - u, v - WIN.v0, WIN.v1 - v);
@@ -100,6 +100,7 @@ function bakeFacadeMaps(): LowFacadeMaps {
             if (onMullion || onTransom) {
               r = g = b = frame * 0.7;
             } else {
+              glass = 1;
               const sky = smooth(0.5, 1, v) * 1.2;
               r = 0.06 * glassK * (1 + sky) * reveal;
               g = 0.07 * glassK * (1 + sky) * reveal;
@@ -116,7 +117,8 @@ function bakeFacadeMaps(): LowFacadeMaps {
             }
           }
           if (edge) { r = g = b = frame; nr = ng = nb = 0; }
-          day[o] = r; day[o + 1] = g; day[o + 2] = b; day[o + 3] = 1;
+          // the alpha is the glass's mask (not sampled as opacity): the shader tints the glass by its building's tint
+          day[o] = r; day[o + 1] = g; day[o + 2] = b; day[o + 3] = glass;
           night[o] = nr; night[o + 1] = ng; night[o + 2] = nb; night[o + 3] = 1;
         }
       }
@@ -145,11 +147,13 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMat
 attribute vec2 fuv;
 attribute vec4 look;
 attribute vec3 aux;
+attribute vec3 tint;
 uniform float fPixel;
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
+flat varying vec3 vLowTint;
 flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 int lowKind = int(aux.y + 0.5);
@@ -167,7 +171,7 @@ if (fract(aux.x * 0.7548776662) > 0.5) vLowBay.x = -vLowBay.x;
 if (fract(aux.x * 0.4142135624) > 0.5) vLowBay.y = -vLowBay.y;
 // the building's own cell phase: whole cells, so the frame's edges still meet
 vLowOff = floor(vec2(fract(aux.x * 0.6180339), fract(aux.x * 0.3247)) * ${CELLS}.0);
-vLowFuv = fuv; vLowLook = look; vLowWide = lowWide; vLowY = (modelMatrix * vec4(transformed, 1.0)).y;
+vLowFuv = fuv; vLowLook = look; vLowTint = tint; vLowWide = lowWide; vLowY = (modelMatrix * vec4(transformed, 1.0)).y;
 vLowFac = lowKind == 0 || lowKind == 6 ? 1.0 : 0.0;
 vLowKind = float(lowKind);
 vLowSeed = aux.x;
@@ -181,6 +185,7 @@ varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
+flat varying vec3 vLowTint;
 flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;
 // the atlas cell of this bay: the building's phase, and a cell picked per bay by a hash, so no two bays repeat one grid
 vec2 lowAtlas() {
@@ -211,7 +216,11 @@ if (fLampK > 0.0) {
 }`)
       .replace('#include <map_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
-  diffuseColor.rgb *= mix(vec3(1.0), textureGrad(map, lowUv, lowDx, lowDy).rgb, vLowFac);
+  vec4 lowTex = textureGrad(map, lowUv, lowDx, lowDy);
+  diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
+  // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
+  vec3 lowTn = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
+  diffuseColor.rgb *= mix(vec3(1.0), lowTn, lowTex.a * vLowFac);
   // at night the walls go cool and dark between the windows, as base's do (the lamps light the darker albedo too); by day fNight is 0
   diffuseColor.rgb *= mix(vec3(1.0), vec3(${LOW_NIGHT_WALL.join(', ')}), fNight * vLowFac);
 }`)

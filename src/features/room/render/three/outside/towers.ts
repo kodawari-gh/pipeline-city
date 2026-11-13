@@ -56,6 +56,8 @@ class Mass {
   washes: SignWash[] = [];
   /** Only the night pieces: while on, a plain or roof vertex is dropped (a far Low block's lights, not its roof). */
   lightsOnly = false;
+  /** While on (with `lightsOnly`), a plain vertex is kept: a far block's mast and spire, the silhouette a tip's beacon sits on. */
+  silhouette = false;
   private hidden = false;
 
   /** What the next vertices are: their frame colour, tint, look, seed, kind and reflection. */
@@ -64,7 +66,7 @@ class Mass {
     this.t.setHex(tint);
     this.lk = look;
     this.ax = [seed, kind, refl];
-    this.hidden = this.lightsOnly && (kind === Kind.Plain || kind === Kind.Roof);
+    this.hidden = this.lightsOnly && !this.silhouette && (kind === Kind.Plain || kind === Kind.Roof);
     return this;
   }
 
@@ -333,6 +335,8 @@ function screen(m: Mass, t: Tier, h: number, b: Building): void {
 function crown(m: Mass, b: Building, rand: () => number): void {
   const t = b.tiers[b.tiers.length - 1]!, h = topOf(b), cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
   let tip = h + PARAPET;
+  // a mast's and a spire's own pieces are the silhouette: a far block keeps them (`Mass.silhouette`), with the tip's beacon on top
+  m.silhouette = b.crown === 'mast' || b.crown === 'spire';
   if (b.crown === 'mast') {
     const mh = 25 + h * 0.12;
     if (b.light) m.set(b.light, 0, Kind.Flood, 0, [0, h, 6, 0]);
@@ -359,9 +363,10 @@ function crown(m: Mass, b: Building, rand: () => number): void {
     screen(m, t, sh, b);
     tip = h + sh;
   }
+  m.silhouette = false;
   if (h < 110) return;
   m.set(0x400808, 0, Kind.Beacon, rand(), [cx, tip + 0.6, cz, Wide.All]).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
-  // a spire's corners hold its blades; a far block keeps its tip's beacon only
+  // a spire's corners hold its blades; a far block keeps its mast or spire and the tip's beacon, not the roof's corner beacons
   if (b.crown === 'spire' || m.lightsOnly) return;
   for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand(), [x, h + PARAPET + 0.4, z, Wide.All]).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
 }
