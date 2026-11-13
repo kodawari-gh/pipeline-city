@@ -9,6 +9,7 @@ import {
   PlaneGeometry, Scene, ShaderChunk, ShaderMaterial, Texture, Vector3, WebGLRenderTarget,
   type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
+import { shareTex } from './geometry';
 import './arealoop';
 
 /** A receiver has at least this much surface (m²): a smaller thing only blocks light (a key, a cup's handle). */
@@ -79,7 +80,7 @@ export async function loadBake(base: string): Promise<Bake> {
     const t = new Texture(img);
     t.flipY = false; t.generateMipmaps = false; t.magFilter = NearestFilter; t.minFilter = NearestFilter; t.colorSpace = NoColorSpace;
     t.needsUpdate = true;
-    return [g.id, t];
+    return [g.id, shareTex(t)];
   }));
   return { manifest, uvs: await uvs, maps: new Map(await maps) };
 }

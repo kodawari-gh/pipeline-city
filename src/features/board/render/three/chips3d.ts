@@ -12,6 +12,7 @@ import { machineLive } from '@/core/render/fanmotor';
 import { DEVICE_LOD, TierBudget, deviceLod, seenZoom, smooth, type LodRect } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { DECODE_SRGB, rawSrgb, screenPx, shown, type Rect } from '@/core/render/three/artlod';
+import { shareTex } from '@/core/render/three/geometry';
 import { seeThrough } from '@/core/render/three/pick';
 import { planOf } from '@/features/cpu/render/die/dieart';
 import { gpuParts, gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -249,7 +250,7 @@ export class Chips3D {
     const size = `${canvas.width}x${canvas.height}`;
     if (!f.tex || f.size !== size) {
       f.tex?.dispose();
-      f.tex = rawSrgb(canvas);
+      f.tex = shareTex(rawSrgb(canvas));
       f.mat.map = f.tex;
       f.mat.defines = { ...DECODE_SRGB };
       f.mat.needsUpdate = true;

@@ -8,7 +8,7 @@
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
-import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
@@ -36,16 +36,16 @@ const radAlu = (c: number, rough: number) => mat(c, { metalness: 0.45, roughness
 let screwTex: Texture | null = null, brushedTex: Texture | null = null;
 
 /** A screw head seen from above: a lit dome and its slot. */
-const screwHead = () => screwTex ??= paint(64, 64, (c, w, h) => {
+const screwHead = () => screwTex ??= shareTex(paint(64, 64, (c, w, h) => {
   const g = c.createRadialGradient(w * 0.38, h * 0.35, 2, w / 2, h / 2, w / 2);
   g.addColorStop(0, '#9aa6c8'); g.addColorStop(1, '#2a3248');
   c.fillStyle = g; c.fillRect(0, 0, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 7; c.lineCap = 'round';
   c.beginPath(); c.moveTo(w * 0.2, h * 0.44); c.lineTo(w * 0.8, h * 0.56); c.stroke();
-});
+}));
 
 /** The pump cap's face: neutral aluminium brushed in rings, lit toward the north-west as in 2D, a turned groove round the polished boss. */
-const brushed = () => brushedTex ??= paint(512, 512, (c, w, h) => {
+const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   const g = c.createRadialGradient(w * 0.38, h * 0.32, 10, w / 2, h / 2, w / 2);
   g.addColorStop(0, '#a3a8b1'); g.addColorStop(1, '#4e535c');
   c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -54,7 +54,7 @@ const brushed = () => brushedTex ??= paint(512, 512, (c, w, h) => {
   for (let r = 4; r < w / 2; r += 1.5) { c.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.08})` : `rgba(0,0,0,${rnd() * 0.12})`; c.lineWidth = 1; c.beginPath(); c.arc(w / 2, h / 2, r, 0, Math.PI * 2); c.stroke(); }
   c.lineWidth = 3;
   for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
-});
+}));
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
 const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {

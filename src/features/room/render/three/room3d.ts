@@ -15,14 +15,14 @@
 // dark (`localeye.ts`). The sim knows nothing of it.
 import {
   BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+  RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type LightShadow, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
-import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
@@ -915,7 +915,21 @@ export class Room3D {
   get ambientDue(): boolean { return this.outside.due; }
 
   /** Free what is not under the root: the baked bounce's target. The city stays for the next room: call it before the root is freed. */
-  dispose(): void { this.gone = true; this.outside.mesh.removeFromParent(); this.lightmap?.dispose(); }
+  dispose(): void {
+    this.gone = true;
+    // the city first: it is not under the root, and the root's textures go next
+    this.outside.mesh.removeFromParent();
+    this.lightmap?.dispose();
+    this.ispText?.tex.dispose();
+    // each caster's shadow map and its depth texture: this room drew them
+    this.root.traverse((o) => {
+      const s = (o as { shadow?: LightShadow }).shadow;
+      if (!s?.map) return;
+      s.map.depthTexture?.dispose();
+      s.map.dispose();
+      s.map = null;
+    });
+  }
 
   private shadowTurn = 0;
   private shadowAt = 0;
