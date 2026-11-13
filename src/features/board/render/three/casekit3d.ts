@@ -5,7 +5,7 @@ import {
   BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { anisotropy, extrude, instanced, place, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, extrude, instanced, place, shareTex, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -225,7 +225,7 @@ export function tex(key: string, w: number, h: number, draw: (c: CanvasRendering
     t.anisotropy = anisotropy;
     t.wrapS = t.wrapT = RepeatWrapping;
   }
-  TEX.set(key, t);
+  TEX.set(key, shareTex(t));
   return t;
 }
 

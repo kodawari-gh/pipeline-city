@@ -22,7 +22,7 @@ import {
 } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { NO_PULL, holdOn, keeps, over, pullOn, railUnder, type Pull, type Rail } from '@/core/render/three/rails';
-import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
+import { anisotropy, disposeTree, refilter, shareTex } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
 import { HIGH_C, MID } from '@/core/render/three/localeye';
@@ -116,7 +116,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the title's room is drawn on demand (docs/render/load.md "Draw on demand"): a frame when its picture changes, none while it stands
   const demand = new DrawGate(), shift = new ViewWatch();
   // the studio's light: the scene's only until the room's probe is ready (the first frames)
-  const studio = scene.environment!;
+  const studio = shareTex(scene.environment!);
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
   // a few times over for a new room, as each capture holds the bounce of the one before; prefiltered, it is the scene's light at every zoom
   const probe = new Probe(200, 400000), { pmrem } = ctx;

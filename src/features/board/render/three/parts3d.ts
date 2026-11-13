@@ -3,7 +3,7 @@
 // the TPM module: tpm3d.ts).
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
 import { CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { drum, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { drum, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';
@@ -84,14 +84,14 @@ let cellTex: Texture | null | undefined;
 /** The coin cell's top: brushed steel, the + and the type stamped in it. */
 function cellTop(): Texture | null {
   if (cellTex !== undefined) return cellTex;
-  return cellTex = paint(256, 256, (c, w, h) => {
+  return cellTex = shareTex(paint(256, 256, (c, w, h) => {
     const g = c.createRadialGradient(w * 0.4, h * 0.35, 10, w / 2, h / 2, w / 2);
     g.addColorStop(0, '#dfe4ea'); g.addColorStop(1, '#8d96a2');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
     c.fillStyle = 'rgba(40,46,56,0.55)'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = '700 64px system-ui, sans-serif'; c.fillText('+', w / 2, h * 0.34);
     c.font = '600 40px system-ui, sans-serif'; c.fillText('CR2032', w / 2, h * 0.62);
-  });
+  }));
 }
 
 /** The board's coin cell over its 2D rect: a dark holder, the cell in it, the spring clip across its top. */

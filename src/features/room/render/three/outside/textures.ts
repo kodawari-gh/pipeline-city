@@ -4,7 +4,7 @@
 // (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
 import { CanvasTexture, NoColorSpace, RepeatWrapping, type Texture } from 'three';
 import { rawSrgb } from '@/core/render/three/artlod';
-import { anisotropy } from '@/core/render/three/geometry';
+import { anisotropy, shareTex } from '@/core/render/three/geometry';
 import { rng } from './plan';
 
 type Ctx = CanvasRenderingContext2D;
@@ -27,7 +27,7 @@ function tex(cv: HTMLCanvasElement, metres: readonly [number, number], colour: b
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(1 / metres[0], 1 / metres[1]);
   t.anisotropy = anisotropy;
-  return t;
+  return shareTex(t);
 }
 
 /** The normal map of a height picture (white is high), its slopes scaled by `k`. It wraps at the edges, as the picture tiles. */
