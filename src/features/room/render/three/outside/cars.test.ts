@@ -104,7 +104,11 @@ describe('cars', () => {
       const tr = new Traffic(), low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       expect(meshes(low).length).toBe(2);
       expect((low as unknown as Inside).near.length).toBe(1);
-      expect(drawnCars(low)).toBe(Math.ceil(tr.cars.length * LOW_FLEET));
+      // (the share is picked before the clip, so an eye sees at most that many: the clip of Low leaves some of the fleet out of reach of one eye)
+      low.update(0.1, GRID.av0, 0);
+      const seenNow = meshes(low).reduce((s, im) => s + im.count, 0);
+      expect(seenNow).toBeGreaterThan(0);
+      expect(seenNow).toBeLessThanOrEqual(Math.ceil(tr.cars.length * LOW_FLEET));
       low.dispose();
     });
   });
@@ -151,6 +155,40 @@ describe('cars', () => {
       expect(full).toBeGreaterThan(0);
       expect(box).toBeGreaterThan(0);
       expect(past100).toBeGreaterThan(0);
+      high.dispose();
+    });
+
+    // (the Low clip, as `CLIP_LOW` in cars.ts: a car past it is not drawn, moving or parked; one within it still is)
+    const CLIP = 350;
+    it('Low: no car past 350 m of the eye, moving or parked; those within it are drawn', () => {
+      const r = rng(14), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const bad: string[] = [];
+      let moving = 0, parkedIn = 0;
+      for (const [ex, ez] of eyes(r)) {
+        low.update(0.1, ex, ez);
+        low.park(undefined, ex, ez);
+        const i = low as unknown as Inside;
+        const mv = [...i.near.flatMap(spots), ...spots(i.far)], pk = i.still.flatMap(({ im }) => spots(im));
+        for (const [x, z] of [...mv, ...pk]) { const h = Math.hypot(x - ex, z - ez); if (h > CLIP) bad.push(`car at ${h}`); }
+        moving += mv.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
+        parkedIn += pk.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
+      }
+      expect(bad).toEqual([]);
+      expect(moving).toBeGreaterThan(0);
+      expect(parkedIn).toBeGreaterThan(0);
+      low.dispose();
+    });
+
+    it('High: no clip, so cars past 350 m of the eye are placed', () => {
+      const r = rng(15), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      let past = 0;
+      for (const [ex, ez] of eyes(r)) {
+        high.update(0.1, ex, ez);
+        high.park(undefined, ex, ez);
+        const i = high as unknown as Inside;
+        for (const [x, z] of [...i.near.flatMap(spots), ...spots(i.far), ...i.still.flatMap(({ im }) => spots(im))]) if (Math.hypot(x - ex, z - ez) > CLIP) past++;
+      }
+      expect(past).toBeGreaterThan(0);
       high.dispose();
     });
   });

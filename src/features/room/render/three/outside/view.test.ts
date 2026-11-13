@@ -199,8 +199,9 @@ describe('OutsideView detail', () => {
     expect(ticks(low)).toBe(LOW_EVERY);
   });
 
-  it('Low: the scene has at most 17 meshes', () => {
-    expect(meshes(low)).toBeLessThanOrEqual(17);
+  it('Low: the scene has at most 18 meshes', () => {
+    // (18: the Low fleet keeps the far car box past 100 m, one mesh more than the old 17-mesh lock)
+    expect(meshes(low)).toBeLessThanOrEqual(18);
   });
 
   it('lock: a High city is the same with the detail omitted, "high" or any citycuts', () => {

@@ -501,7 +501,7 @@ export class OutsideView {
     const seen = shadowNow ? undefined : this.seen;
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
       for (const s of this.sweeps) s.cut(seen);
-      this.fleet.park(seen);
+      this.fleet.park(seen, c.position.x, c.position.z);
       this.cutOf.copy(this.seenOf);
       this.cutAll = shadowNow;
     }

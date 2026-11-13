@@ -19,6 +19,8 @@ const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 const NEAR = 260;
 /** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
 const NEAR_LOW = 100;
+/** At Low, a car further than this from the eye (m) is not drawn at all, neither its full model nor its box: the far grid goes, the near avenue stays. */
+const CLIP_LOW = 350;
 /** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
 const CAR_R = 3;
 /**
@@ -325,11 +327,14 @@ export class Fleet {
   private capped: boolean;
   /** Within this distance of the eye (m) a moving car is its full model; further off, the far box. */
   private range: number;
+  /** Past this distance of the eye (m) a car is not drawn (`CLIP_LOW` at Low, none at High). */
+  private clip: number;
 
   constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms, scale = 1, models: number = MODELS.length) {
     this.scale = scale;
     this.capped = models < MODELS.length;
     this.range = this.capped ? NEAR_LOW : NEAR;
+    this.clip = this.capped ? CLIP_LOW : Infinity;
     const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
@@ -371,10 +376,12 @@ export class Fleet {
 
   /**
    * The parked cars in their meshes: those in `seen` (the eye's frustum), or all of them (for a frame that draws the sun's shadows, which they
-   * cast). They do not move: call it when the eye's frustum changes. A cell of them out of `seen` costs one test; in a cell across its side,
-   * a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball).
+   * cast). They do not move: call it when the eye's frustum or the eye (`ex`, `ez`) changes. A cell of them out of `seen` costs one test; in a
+   * cell across its side, a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball). With the eye, a car past
+   * `clip` of it is not placed (Low only).
    */
-  park(seen?: Frustum): void {
+  park(seen?: Frustum, ex?: number, ez?: number): void {
+    const clip2 = ex === undefined || ez === undefined ? Infinity : this.clip * this.clip;
     for (const { im, cars, turn, cells } of this.still) {
       const a = im.instanceMatrix.array as Float32Array, ca = im.instanceColor!.array as Float32Array;
       let k = 0;
@@ -383,6 +390,7 @@ export class Fleet {
         if (cut < 0) continue;
         next: for (let i = from; i < to; i++) {
           const c = cars[i]!;
+          if ((c.x - (ex ?? 0)) ** 2 + (c.z - (ez ?? 0)) ** 2 > clip2) continue;
           if (cut) for (let q = 0; q < 6; q++) {
             if (!(cut & (1 << q))) continue;
             const p = seen!.planes[q]!, n = p.normal;
@@ -411,6 +419,7 @@ export class Fleet {
     const pa = this.pools.instanceMatrix.array as Float32Array, pl = this.pools.geometry.attributes.lit!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
     let n = 0, seenN = 0;
+    const clip2 = this.clip * this.clip;
     for (let ri = 0; ri < tr.lanes.length; ri++) {
       const rt = tr.routes[ri]!, lane = tr.lanes[ri]!;
       reach(rt, seen, 0, night ? POOL_R : SHADE_R, AROUND);
@@ -429,6 +438,8 @@ export class Fleet {
         // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all)
         if (this.scale < 1 && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
         const x =rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
+        // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
+        if ((x - ex) ** 2 + (z - ez) ** 2 > clip2) continue;
         turned(sa, P + n, x, z, cr, sr);
         if (night) { turned(pa, n, x, z, cr, sr); pl[n * 2] = 1; pl[n * 2 + 1] = brake; }
         n++;
