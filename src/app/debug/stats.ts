@@ -31,6 +31,46 @@ export class FrameWindow {
   }
 }
 
+/** A gap longer than this (ms) with no drawn frame means the game was still: it is not a frame interval, and the readout reads 0. */
+const STILL_MS = 1000;
+
+/**
+ * Frame times of the frames that were drawn, not of every rAF: the game skips rAFs (its frame limit) and draws nothing when still.
+ * `tick` runs on every rAF with the draw calls since the last reset. A drawn frame pushes its gap to the last drawn frame, unless that gap is still.
+ */
+export class DrawnFrames {
+  private win = new FrameWindow();
+  /** The last drawn frame (ms); -Infinity until one is drawn. */
+  private anchor = -Infinity;
+  /** The last rAF (ms). */
+  private at = 0;
+
+  tick(now: number, calls: number): void {
+    this.at = now;
+    if (calls <= 0) return;
+    const gap = now - this.anchor;
+    if (gap > 0 && gap <= STILL_MS) this.win.push(gap);
+    this.anchor = now;
+  }
+
+  /** Nothing has drawn for over STILL_MS (or nothing ever drew). */
+  still(): boolean {
+    return !(this.at - this.anchor <= STILL_MS);
+  }
+
+  fps(): number {
+    return this.still() ? 0 : this.win.fps();
+  }
+
+  avg(): number {
+    return this.still() ? 0 : this.win.avg();
+  }
+
+  p95(): number {
+    return this.still() ? 0 : this.win.p95();
+  }
+}
+
 export interface StatsSnapshot {
   fps: number;
   avgMs: number;

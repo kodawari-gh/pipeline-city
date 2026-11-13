@@ -4,8 +4,8 @@
  */
 import type { WebGLRenderer } from 'three';
 import { graphics, tierRecord } from '../graphics';
-import { postOn, SCALES, setPost, setScale } from './controls';
-import { FrameWindow, statsText, type StatsSnapshot } from './stats';
+import { backToAuto, postOn, SCALES, setPost, setScale } from './controls';
+import { DrawnFrames, statsText, type StatsSnapshot } from './stats';
 
 /** The readout is redrawn this often (ms). */
 const SHOW_MS = 250;
@@ -15,7 +15,7 @@ const BTN = 'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font
 const ON = 'background:#3a7d44;';
 
 export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canvas: HTMLCanvasElement }): void {
-  const win = new FrameWindow();
+  const drawn = new DrawnFrames();
   // the draw calls are read and reset each frame by this loop (the game's own frames add up until then)
   renderer.info.autoReset = false;
   // the draw calls of the last frame that drew (a still frame draws nothing and keeps the last count)
@@ -39,9 +39,10 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
 
   const postBtn = button('Post', () => { setPost(!postOn(graphics.peek())); show(); });
   const scaleBtns = SCALES.map((v) => button(String(v), () => { setScale(v); show(); }));
+  const autoBtn = button('Auto', () => { backToAuto(); show(); });
   const copyBtn = button('Copy', () => { void copy(); });
   const controls = document.createElement('div');
-  controls.append(postBtn, ...scaleBtns, copyBtn);
+  controls.append(postBtn, ...scaleBtns, autoBtn, copyBtn);
   panel.append(controls);
 
   // the panel's own pointer and wheel never reach the game
@@ -51,7 +52,7 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
   const snap = (): StatsSnapshot => {
     const g = graphics.peek(), t = tierRecord.peek();
     return {
-      fps: win.fps(), avgMs: win.avg(), p95Ms: win.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
+      fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
       dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
       calls: drawCalls, scale: g.scale, post: postOn(g),
     };
@@ -66,6 +67,7 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
       const on = Math.abs(g.scale - v) < 1e-3;
       scaleBtns[i]!.style.cssText = BTN + (on ? ON : '');
     });
+    autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' ? ON : '');
   };
 
   const copy = async () => {
@@ -90,12 +92,12 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
 
   document.body.append(panel);
 
-  let last = -1, lastShow = -Infinity;
+  let lastShow = -Infinity;
   const frame = (now: number) => {
-    if (last >= 0) win.push(now - last);
-    last = now;
+    // the draw calls since the last reset: a game frame that drew (a skipped or still rAF draws none)
     const n = renderer.info.render.calls;
     renderer.info.reset();
+    drawn.tick(now, n);
     if (n > 0) drawCalls = n;
     if (now - lastShow >= SHOW_MS) { lastShow = now; show(); }
     requestAnimationFrame(frame);

@@ -1,5 +1,5 @@
 /** The overlay's controls: the render scale and the main post passes, set through the graphics settings (`setGraphic` saves them as the panel does). */
-import { graphics, PRESETS, presetOf, setGraphic, type Graphics } from '../graphics';
+import { graphics, PRESETS, setAutoTier, setGraphic, type Graphics, type Tier } from '../graphics';
 
 /** The render scales the overlay offers (within SCALE_MIN..SCALE_MAX). */
 export const SCALES = [0.5, 0.6, 0.75, 0.85, 1];
@@ -14,7 +14,7 @@ export const postOn = (g: Graphics): boolean => g.ao > 0 || g.bloom > 0 || g.msa
 /** The post values that `setPost(false)` took away, or null when none are held. */
 let held: { ao: number; bloom: number; msaa: number } | null = null;
 
-/** Post off: remember ao, bloom and msaa, then set them to 0. Post on: restore them, else the current preset's (High if none). */
+/** Post off: remember ao, bloom and msaa, then set them to 0. Post on: restore them, else Medium's post values. Nothing else changes. */
 export function setPost(on: boolean): void {
   const g = graphics.peek();
   if (!on) {
@@ -24,11 +24,15 @@ export function setPost(on: boolean): void {
     setGraphic('msaa', 0);
     return;
   }
-  // the current preset's post values, or Medium's when that preset has none on (Low): the switch always turns something on
-  const p = PRESETS[presetOf(g) ?? 'high'];
-  const v = held ?? (postOn({ ...g, ...p }) ? p : PRESETS.medium);
+  const v = held ?? PRESETS.medium;
   held = null;
   setGraphic('ao', v.ao);
   setGraphic('bloom', v.bloom);
   setGraphic('msaa', v.msaa);
+}
+
+/** Back to auto: re-detects the tier (or takes `d`, for tests) and leaves manual mode. */
+export function backToAuto(d?: { tier: Tier; reason: string }): void {
+  if (d) setAutoTier(d);
+  else setAutoTier();
 }

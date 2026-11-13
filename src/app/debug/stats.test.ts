@@ -1,5 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import { FrameWindow, statsText } from './stats';
+import { DrawnFrames, FrameWindow, statsText } from './stats';
+
+describe('DrawnFrames', () => {
+  const RAF = 1000 / 120;
+
+  it('counts only drawn frames: a draw every 4th rAF at 120 Hz is 30 fps', () => {
+    const d = new DrawnFrames();
+    for (let i = 0; i <= 240; i++) d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    expect(d.fps()).toBeCloseTo(30, 0);
+    expect(d.avg()).toBeCloseTo(33.3, 0);
+  });
+
+  it('a draw every 2nd rAF at 120 Hz is 60 fps', () => {
+    const d = new DrawnFrames();
+    for (let i = 0; i <= 240; i++) d.tick(i * RAF, i % 2 === 0 ? 5 : 0);
+    expect(d.fps()).toBeCloseTo(60, 0);
+    expect(d.avg()).toBeCloseTo(16.7, 0);
+  });
+
+  it('a 3 s still gap is not pushed: the readout reads still and 0, then resumes without the gap', () => {
+    const d = new DrawnFrames();
+    for (let i = 0; i <= 120; i++) d.tick(i * RAF, i % 4 === 0 ? 5 : 0);
+    const before = d.avg();
+    const t0 = 120 * RAF;
+    // nothing draws for 3 s while the rAFs go on
+    for (let i = 1; i <= 360; i++) d.tick(t0 + i * RAF, 0);
+    expect(d.still()).toBe(true);
+    expect([d.fps(), d.avg(), d.p95()]).toEqual([0, 0, 0]);
+    // the first draw after the gap restarts the anchor: the 3 s is not a frame interval
+    d.tick(t0 + 3000 + RAF, 5);
+    expect(d.still()).toBe(false);
+    expect(d.avg()).toBeCloseTo(before, 5);
+    expect(d.p95()).toBeLessThan(100);
+  });
+
+  it('reads still before anything has drawn', () => {
+    const d = new DrawnFrames();
+    d.tick(0, 0);
+    expect(d.still()).toBe(true);
+    expect(d.fps()).toBe(0);
+  });
+});
 
 describe('FrameWindow', () => {
   it('is empty: avg, p95 and fps are 0', () => {
