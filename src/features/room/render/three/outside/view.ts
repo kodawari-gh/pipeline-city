@@ -284,7 +284,7 @@ export class OutsideView {
     this.scene.add(this.fleet.group, this.signals.mesh);
 
     // the sky round the camera, and its small copy the environment sees
-    this.sky = skyMaterial();
+    this.sky = skyMaterial(this.detail === 'low');
     this.dome = skyDome(this.sky, 15000);
     this.scene.add(this.dome);
     this.envScene.add(skyDome(this.sky, 100));

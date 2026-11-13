@@ -5,6 +5,7 @@
 // is the land's haze. A small copy of the dome is what the view's environment sees (its sky light). The moon moves with the hour (`moonDir`,
 // set by `view.ts`): it rises in the east in the evening, is over the town near midnight and low in the west at dawn.
 import { BackSide, Color, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { NOISE_PERIOD, skyNoise } from './skynoise';
 
 /** The warm hour's sky low down (linear): the ember toward the sun, and the earth's shadow away from it. `view.ts` gives the haze the same. */
 export const EMBER = new Color(0.95, 0.33, 0.09), EARTH_SHADOW = new Color(0.13, 0.1, 0.18);
@@ -17,7 +18,18 @@ void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
-const FRAG = /* glsl */`
+/** The live fbm (High): five octaves of value noise per call. */
+const LIVE_FBM = `float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
+  return s;
+}`;
+/** Low's fbm: one texture read of the baked map (`skynoise.ts`), `NOISE_PERIOD` units to a repeat. */
+const LOW_FBM = `uniform sampler2D tNoise;
+float fbm(vec2 p) { return texture2D(tNoise, p * ${(1 / NOISE_PERIOD).toFixed(6)}).r; }`;
+
+/** The sky's fragment shader. `fbm` is the cloud and moon-sea noise: the live one at High, the baked map's at Low. */
+const frag = (fbm: string): string => /* glsl */`
 uniform vec3 top, hor, ground, sunDir, sunCol, moonDir, glow, mist;
 uniform float night, time, clouds, dusk, duskK;
 varying vec3 vDir;
@@ -30,11 +42,7 @@ float noise(vec2 p) {
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-float fbm(vec2 p) {
-  float s = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
-  return s;
-}
+${fbm}
 
 void main() {
   vec3 d = normalize(vDir);
@@ -135,13 +143,21 @@ export function moonDir(hour: number): Vector3 {
   return new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
 }
 
-export function skyMaterial(): ShaderMaterial {
+/** The fragment shader text: High's (`low` false, the live fbm) or Low's (the baked map). */
+export const skyFragment = (low: boolean): string => frag(low ? LOW_FBM : LIVE_FBM);
+
+/**
+ * The sky's material. High (`low` false): the live fbm, as before. Low: the same shader, its cloud and moon-sea noise read from the baked
+ * map (`skynoise.ts`), which is shared, so no pass of five octaves runs per pixel. Everything else is live at both.
+ */
+export function skyMaterial(low = false): ShaderMaterial {
   const uniforms: SkyUniforms = {
     top: { value: new Color() }, hor: { value: new Color() }, ground: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) },
     sunCol: { value: new Color() }, moonDir: { value: moonDir(23) }, glow: { value: new Color() }, mist: { value: new Color() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
     dusk: { value: 0 }, duskK: { value: 1 },
   };
-  return new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: uniforms as unknown as ShaderMaterial['uniforms'], side: BackSide, depthWrite: false, depthTest: false, fog: false });
+  const all = low ? { ...uniforms, tNoise: { value: skyNoise() } } : uniforms;
+  return new ShaderMaterial({ vertexShader: VERT, fragmentShader: skyFragment(low), uniforms: all as unknown as ShaderMaterial['uniforms'], side: BackSide, depthWrite: false, depthTest: false, fog: false });
 }
 
 /** The dome, `radius` round its middle (set it on the camera), drawn before all else. */
