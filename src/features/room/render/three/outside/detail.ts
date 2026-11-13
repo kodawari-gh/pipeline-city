@@ -11,3 +11,24 @@ export const LOW_EVERY = 6;
 export const LOW_FLEET = 0.5;
 /** At Low, street furniture (small things: drains, tree pits) is built only within this distance of the window (m). */
 export const LOW_FURNITURE_M = 150;
+
+/** The Low cuts, each by name: `?citycuts=` picks which apply (isolation, to find what a cut costs). */
+export const CITY_CUTS = ['cadence', 'far', 'streets', 'furniture', 'trees', 'steam', 'fleet', 'palette'] as const;
+export type CityCut = (typeof CITY_CUTS)[number];
+export type CityCuts = Readonly<Record<CityCut, boolean>>;
+
+const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
+  Object.fromEntries(CITY_CUTS.map((c) => [c, on === true || (on !== false && on.has(c))])) as CityCuts;
+
+/**
+ * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all. Low with `citycuts=a,b`: only those named
+ * (`none`, an empty list or unknown names: no cut).
+ */
+export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
+  if (detail !== 'low') return cuts(false);
+  const q = new URLSearchParams(search).get('citycuts');
+  return q === null ? cuts(true) : cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
+}
+
+/** The cuts of this page's query (`parseCityCuts` of `location.search`). */
+export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);

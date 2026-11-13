@@ -1,16 +1,46 @@
-import { DirectionalLight, type Material, type Mesh, type Scene } from 'three';
+import { DirectionalLight, Frustum, Matrix4, PerspectiveCamera, type InstancedMesh, type Material, type Mesh, type Scene } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { LOW_EVERY, type CityDetail } from './detail';
+import { CITY_CUTS, LOW_EVERY, parseCityCuts, type CityCuts, type CityDetail } from './detail';
+import { GRID } from './plan';
+import { drawn, type Sweep } from './sweep';
 import { OutsideView } from './view';
 
-/** `OutsideView` as the Low cut will build it (the detail parameter does not exist yet). */
-const Detailed = OutsideView as unknown as new (cx: number, cy: number, w: number, h: number, z: number, detail?: CityDetail) => OutsideView;
+const Detailed = OutsideView as unknown as new (cx: number, cy: number, w: number, h: number, z: number, detail?: CityDetail, cuts?: CityCuts) => OutsideView;
 const inner = (v: OutsideView): { scene: Scene; disposables: Material[] } => v as unknown as { scene: Scene; disposables: Material[] };
 const meshes = (v: OutsideView): number => { let n = 0; inner(v).scene.traverse((o) => { if ((o as Mesh).isMesh) n++; }); return n; };
 /** The ticks `frame` needs before the picture is due. */
 function ticks(v: OutsideView): number {
   for (let n = 1; n <= 20; n++) { v.frame(12, n); if (v.due) return n; }
   return Infinity;
+}
+
+const everyMesh = (v: OutsideView): Mesh[] => { const out: Mesh[] = []; inner(v).scene.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; };
+/** Mesh count, the indices drawn in all, and a checksum of every position. */
+function fingerprint(v: OutsideView): { meshes: number; drawn: number; sum: number } {
+  let drawnN = 0, sum = 0;
+  const ms = everyMesh(v);
+  for (const m of ms) {
+    drawnN += drawn(m.geometry);
+    const p = m.geometry.attributes.position!.array;
+    for (let i = 0; i < p.length; i++) sum += p[i]! * ((i % 7) + 1);
+  }
+  return { meshes: ms.length, drawn: drawnN, sum: Math.round(sum) };
+}
+/** The triangles the city draws for a camera at the window looking out (down the avenue), after the sweeps cut to its view. */
+function viewTriangles(v: OutsideView, fov: number): number {
+  const cam = new PerspectiveCamera(fov, 16 / 9, 1, 20000);
+  cam.position.set(GRID.av0, 100, 0);
+  cam.lookAt(GRID.av0, 100, -1000);
+  cam.updateMatrixWorld(true);
+  const seen = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+  for (const s of (v as unknown as { sweeps: Sweep[] }).sweeps) s.cut(seen);
+  let n = 0;
+  for (const m of everyMesh(v)) {
+    if (!m.visible) continue;
+    const g = m.geometry, r = g.drawRange, total = drawn(g), c = Math.min(r.count, total - r.start);
+    n += (c / 3) * ((m as InstancedMesh).isInstancedMesh ? (m as InstancedMesh).count : 1);
+  }
+  return Math.round(n);
 }
 
 describe('OutsideView detail', () => {
@@ -31,9 +61,30 @@ describe('OutsideView detail', () => {
     expect(ticks(low)).toBe(LOW_EVERY);
   });
 
-  it('Low: the scene has at most 14 meshes', () => {
-    expect(meshes(low)).toBeLessThanOrEqual(14);
+  it('Low: the scene has at most 17 meshes', () => {
+    expect(meshes(low)).toBeLessThanOrEqual(17);
   });
+
+  it('lock: a High city is the same with the detail omitted, "high" or any citycuts', () => {
+    const base = fingerprint(plain);
+    expect(fingerprint(high)).toEqual(base);
+    expect(fingerprint(new Detailed(0, 0, 10, 10, 0, 'high', parseCityCuts('?citycuts=none', 'high')))).toEqual(base);
+    expect(fingerprint(new Detailed(0, 0, 10, 10, 0, 'high', parseCityCuts('?citycuts=far,palette,fleet,steam', 'high')))).toEqual(base);
+    expect(base.meshes).toBeGreaterThan(14);
+  }, 180000);
+
+  it('Low zoom: no cut draws more triangles than the uncut city, for the same view', () => {
+    const none = new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=none', 'low'));
+    for (const fov of [20, 45, 70]) {
+      const base = viewTriangles(none, fov);
+      expect(base).toBeGreaterThan(0);
+      expect(viewTriangles(low, fov)).toBeLessThanOrEqual(base);
+      // (`streets` and `palette` trade triangles for draws: wide cells, and one mesh over materials of unlike reach, cut the view more coarsely;
+      // alone they may draw more, the sum of all cuts may not. The other cuts may never draw more: a merged ring that mixes near and far
+      // pieces draws every near piece in the far pieces' wide band, so rings of unlike reach stay apart.)
+      for (const cut of CITY_CUTS.filter((c) => c !== 'streets' && c !== 'palette')) expect(viewTriangles(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts(`?citycuts=${cut}`, 'low')), fov), `${cut} at ${fov}`).toBeLessThanOrEqual(base);
+    }
+  }, 300000);
 
   it('Low: a sun that lights at noon, and the buildings on the facade material', () => {
     low.frame(12, 1);

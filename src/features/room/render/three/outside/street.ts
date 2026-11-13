@@ -66,10 +66,10 @@ export class Signals {
 }
 
 /** The streets' still things in one group (to merge), where the lamps' lights are, and the signal heads' lamps. */
-export function street(k: Kit, ts: readonly Tree[], detail: CityDetail = 'high'): { group: Group; lights: Vector3[]; signals: SignalLamp[] } {
+export function street(k: Kit, ts: readonly Tree[], detail: CityDetail = 'high', furniture: CityDetail = detail): { group: Group; lights: Vector3[]; signals: SignalLamp[] } {
   const g = new Group();
   // (at Low the small furniture stands only near the window; a metre inside the limit, as a pit's grille lies off its tree's middle)
-  const keep = (x: number, z: number): boolean => detail !== 'low' || Math.hypot(x, z) <= LOW_FURNITURE_M - 1;
+  const keep = (x: number, z: number): boolean => furniture !== 'low' || Math.hypot(x, z) <= LOW_FURNITURE_M - 1;
   // the asphalt under the whole grid
   g.add(block(-REACH_X, -0.05, -REACH_Z, REACH_X, 0, 2, k.asphalt));
   // each block's pavement out to the kerbs; a park's lawn inside its pavement, two paths crossing it

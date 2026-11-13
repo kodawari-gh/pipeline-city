@@ -21,7 +21,7 @@ import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
 import { withCanyon } from './canyon';
 import { land } from './city';
-import { LOW_CELL, LOW_EVERY, LOW_FLEET, type CityDetail } from './detail';
+import { LOW_CELL, LOW_EVERY, LOW_FLEET, cityCuts, type CityCuts, type CityDetail } from './detail';
 import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
@@ -222,7 +222,7 @@ export class OutsideView {
   private every = EVERY;
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`). */
-  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high') {
+  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high', cuts: CityCuts = cityCuts(detail)) {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
       uniforms: {
@@ -244,22 +244,26 @@ export class OutsideView {
 
     // the streets merged by material (their many small things in bearing order, cut by a sweep); the buildings on their facade's material,
     // ring by ring, the trees and the land in their own
-    const low = detail === 'low';
-    this.every = low ? LOW_EVERY : EVERY;
+    // (each Low cut by its flag, `detail.ts`: High has none)
+    const on = (c: boolean): CityDetail => (c ? 'low' : 'high');
+    this.every = cuts.cadence ? LOW_EVERY : EVERY;
     const k = this.kit = makeKit(), ts = trees();
-    const still = new Group(), st = street(k, ts, detail);
+    const still = new Group(), st = street(k, ts, on(cuts.streets), on(cuts.furniture));
     still.add(st.group);
-    // (at Low the plain materials, which differ only in colour and shine, are one palette mesh; only the glowing lenses are swept, in wide cells)
+    // (with the palette cut the plain materials, which differ only in colour and shine, are palette meshes; each is swept like the plain ones, or it would draw whole)
     const palette: Material[] = [];
-    if (low) {
+    if (cuts.palette) {
       mergePalette(still);
       still.traverse((o) => { if (o.name === 'merged') palette.push((o as Mesh).material as Material); });
     }
-    this.sweeps.push(...(low ? sweptMerge(still, [k.lantern], LOW_CELL) : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb])));
+    const cell = cuts.streets ? LOW_CELL : undefined;
+    this.sweeps.push(...(cuts.palette
+      ? [...sweptMerge(still, palette, cell, ['_pc', '_prm']), ...sweptMerge(still, [k.lantern], cell)]
+      : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb], cell)));
     mergeStatic(still);
-    // (no steam at Low: a plume is a draw for a few roofs)
-    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = low ? null : roofSteam(blocks, this.haze);
-    const mass = massGeometries(blocks, washes, detail).map((r) => {
+    // (no steam with the steam cut: a plume is a draw for a few roofs)
+    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = cuts.steam ? null : roofSteam(blocks, this.haze);
+    const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
       this.sweeps.push(new Sweep(r.balls, [{ mesh: m, at: r.at }]));
@@ -268,14 +272,13 @@ export class OutsideView {
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
     this.steam = steam?.u ?? { stCol: { value: new Color() }, stLow: { value: new Color() } };
-    this.scene.add(still, ...mass, land(k), signLight);
-    if (steam) this.scene.add(steam.mesh);
-    const plants = plantTrees(ts, k, detail);
+    this.scene.add(still, ...mass, land(k), ...(steam ? [steam.mesh] : []), signLight);
+    const plants = plantTrees(ts, k, on(cuts.trees));
     this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
     // the cars, moving and parked, and the signals' lamps
-    this.fleet = low ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
+    this.fleet = cuts.fleet ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
 

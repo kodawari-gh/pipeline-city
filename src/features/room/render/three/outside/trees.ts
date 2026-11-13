@@ -270,7 +270,9 @@ export function plantTrees(list: readonly Tree[], k: Kit, city: CityDetail = 'hi
   // (at Low every ring is one mesh pair: the trees keep the coarse look their distance gives them, none finer than `Coarse`)
   const own = (t: Tree): Detail => (low ? Math.max(detailAt(Math.hypot(t.x - GRID.av0, t.z)), Detail.Coarse) : detailAt(Math.hypot(t.x - GRID.av0, t.z)));
   for (const t of list) {
-    const d = low ? Detail.Coarse : own(t);
+    // (a sweep draws one run of bearings, so a ring that mixes near and far trees draws every near tree in the far trees' wide band: Low merges
+    // only the two near rings, which share a narrow band, and keeps the far rings apart)
+    const raw = detailAt(Math.hypot(t.x - GRID.av0, t.z)), d = low && raw < Detail.Coarse ? Detail.Round : raw;
     let r = rings.get(d);
     if (!r) rings.set(d, (r = []));
     r.push(t);
