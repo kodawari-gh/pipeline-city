@@ -35,7 +35,7 @@ import { roofSteam, steamUniforms, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
-import { lowFacadeMaterial } from './lowfacade';
+import { lowFacadeMaterial, type LowLamps } from './lowfacade';
 import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
@@ -176,6 +176,8 @@ export class OutsideView {
   /** The moon's light at night, a faint blue from the sky (it casts no glints, which a moon as a light would on every roof). */
   private moon = new HemisphereLight(0x5a6fa8, 0x1c1e26, 0);
   lamps: PointLight[] = [];
+  /** Low's buildings' analytic lamp term (null at High, where the PointLights light the walls). */
+  lowLamps: LowLamps | null = null;
   private leaf: LeafUniforms;
   private facade: FacadeUniforms;
   private steam: SteamUniforms;
@@ -271,7 +273,11 @@ export class OutsideView {
       : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb], cell)));
     mergeStatic(still);
     // (no steam with the steam cut: a plume is a draw for a few roofs)
-    const blocks = buildings(), washes: SignWash[] = [], facade = this.detail === 'low' ? lowFacadeMaterial() : facadeMaterial(), steam = cuts.steam ? null : roofSteam(blocks, this.haze);
+    // the lamps the window looks at: the buildings take them as an analytic term at Low (`lowfacade.ts`), the street takes them as PointLights
+    const lampAt = [...st.lights].sort((a, b) => a.distanceTo(LAMPS_AT) - b.distanceTo(LAMPS_AT)).slice(0, LIT_LAMPS);
+    const lowFac = this.detail === 'low' ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
+    this.lowLamps = lowFac?.lamps ?? null;
+    const blocks = buildings(), washes: SignWash[] = [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
@@ -319,7 +325,7 @@ export class OutsideView {
     this.sun.target.position.copy(SHADOW_AT);
     this.bounce.position.set(0.15, 0.35, 1).multiplyScalar(300);
     this.scene.add(this.sun, this.sun.target, this.bounce, this.moon);
-    for (const p of [...st.lights].sort((a, b) => a.distanceTo(LAMPS_AT) - b.distanceTo(LAMPS_AT)).slice(0, LIT_LAMPS)) {
+    for (const p of lampAt) {
       const l = new PointLight(0xffc98a, 0, 45, 2);
       l.position.copy(p);
       this.lamps.push(l);
@@ -400,6 +406,7 @@ export class OutsideView {
     // the lamps, the cars' lights and the windows come on as the sky darkens; the room shows in the glass only once the daylight has gone
     const lights = this.off.has('lights') ? 0 : lightsAt(hour);
     for (const l of this.lamps) l.intensity = 70 * lights;
+    if (this.lowLamps) this.lowLamps.k.value = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
     this.facade.sun.value.set(sd[0], sd[1], sd[2]);

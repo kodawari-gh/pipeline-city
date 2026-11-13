@@ -2,8 +2,15 @@
 // atlas of bay × storey cells, linear albedo with the AO baked in (the window's reveals, the slab's shadow over it, the sill). Its night map is
 // its own map (the lit rooms' light, linear), the emissive, scaled live by the facade's night uniform. A cell repeats per bay; each wall picks
 // its cells by its seed. The maps are built once, in JS, so they exist without a canvas.
-import { ClampToEdgeWrapping, Color, DataTexture, DataUtils, HalfFloatType, LinearFilter, LinearMipmapLinearFilter, MeshLambertMaterial, NoColorSpace, RGBAFormat, Vector3 } from 'three';
+import { ClampToEdgeWrapping, Color, DataTexture, DataUtils, HalfFloatType, LinearFilter, LinearMipmapLinearFilter, MeshLambertMaterial, NoColorSpace, RGBAFormat, ShaderChunk, Vector3 } from 'three';
 import type { FacadeUniforms } from './towers';
+
+/** The city's lamps the buildings take their light from at Low: the view's eight PointLights, here as an analytic term. */
+export const LOW_LAMPS = 8;
+/** The lamps' reach (the view's PointLight distance). */
+const LAMP_REACH = 45;
+/** The lamps' live state: `k` is the lamps' intensity (0 by day), `col` their colour, `pos` their world positions (padded to LOW_LAMPS, far off). */
+export interface LowLamps { k: { value: number }; col: { value: Color }; pos: { value: Vector3[] } }
 
 /** The atlas: CELLS × CELLS cells of CELL texels; a cell is one bay across and one storey up, its outer EDGE texels the wall's frame (so the cells meet unseen). */
 const CELLS = 8, CELL = 32, SIZE = CELLS * CELL, EDGE = 2;
@@ -109,15 +116,21 @@ function bakeFacadeMaps(): LowFacadeMaps {
   return { day: atlas(day), night: atlas(night) };
 }
 
-/** The buildings' lambert material: the baked day map times the vertex colour, the night map as its emissive. Its uniforms are `facadeMaterial`'s, so the view's updates reach it. */
-export function lowFacadeMaterial(): { mat: MeshLambertMaterial; u: FacadeUniforms } {
+/** The buildings' lambert material: the baked day map times the vertex colour, the night map as its emissive. Its uniforms are `facadeMaterial`'s, so the view's updates reach it.
+ * The lamps do not light it as PointLights do (the scene's PointLights skip its fragments: the point loop is cut from its lights chunk); `lamps` gives the analytic lamp term instead. */
+export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMaterial; u: FacadeUniforms; lamps: LowLamps } {
   const { day, night } = lowFacadeMaps();
   const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 }, sun: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color(0, 0, 0) }, hor: { value: new Color(0, 0, 0) }, pixel: { value: 0 } };
+  const far = new Vector3(0, -1e5, 0);
+  const lamps: LowLamps = { k: { value: 0 }, col: { value: new Color(0xffc98a) }, pos: { value: Array.from({ length: LOW_LAMPS }, (_, i) => lampAt[i]?.clone() ?? far.clone()) } };
   const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissiveMap: night, emissive: new Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
     sh.uniforms.fTime = u.time;
     sh.uniforms.fPixel = u.pixel;
+    sh.uniforms.fLampK = lamps.k;
+    sh.uniforms.fLampCol = lamps.col;
+    sh.uniforms.fLampPos = lamps.pos;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec2 fuv;
@@ -153,7 +166,8 @@ vLowSeed = aux.x;
 vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float fNight, fTime;
+uniform float fNight, fTime, fLampK;
+uniform vec3 fLampCol, fLampPos[${LOW_LAMPS}];
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
@@ -165,6 +179,19 @@ vec2 lowAtlas() {
   float h = fract(sin(dot(bay, vec2(12.9898, 78.233)) + vLowSeed * 3.1) * 43758.5453);
   vec2 pick = floor(vec2(h, fract(h * 7.31)) * ${CELLS}.0);
   return (mod(bay + pick, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0;
+}`)
+      // the point lights' loop is cut from this wall's lights (`#if 0`): the scene's PointLights stay live for the street, cars and other meshes
+      .replace('#include <lights_fragment_begin>', ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'))
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+// the lamps at night, analytic per pixel (the PointLights' falloff and Lambert term, on the wall's view-space normal); off by day (fLampK 0)
+if (fLampK > 0.0) {
+  vec3 lowP = -vViewPosition, lowL = vec3(0.0);
+  for (int i = 0; i < ${LOW_LAMPS}; i++) {
+    vec3 d = (viewMatrix * vec4(fLampPos[i], 1.0)).xyz - lowP;
+    float dist = max(length(d), 0.001);
+    lowL += fLampCol * (saturate(1.0 - dist / ${LAMP_REACH}.0) / max(dist * dist, 0.01)) * max(dot(normal, d / dist), 0.0);
+  }
+  reflectedLight.directDiffuse += lowL * (fLampK * RECIPROCAL_PI) * diffuseColor.rgb;
 }`)
       .replace('#include <map_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
@@ -184,5 +211,5 @@ vec2 lowAtlas() {
 }`);
   };
   mat.customProgramCacheKey = () => 'outside-facade-low';
-  return { mat, u };
+  return { mat, u, lamps };
 }

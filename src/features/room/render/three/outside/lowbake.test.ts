@@ -26,11 +26,66 @@ function compiled(m: Material): { vertexShader: string; fragmentShader: string }
   return sh;
 }
 
+/** A shader that carries the lights chunks, as the built-in Lambert does: the walls' lights are cut or kept in these. */
+function lit(m: Material): { vertexShader: string; fragmentShader: string } {
+  const sh = {
+    uniforms: {} as Record<string, unknown>,
+    vertexShader: '#include <common>\n#include <begin_vertex>\n',
+    fragmentShader: '#include <common>\n#include <lights_fragment_begin>\n#include <lights_fragment_end>\n#include <emissivemap_fragment>\n#include <aomap_fragment>\n',
+  };
+  const hook = (m as Material & { onBeforeCompile?: (s: typeof sh, r: unknown) => void }).onBeforeCompile;
+  if (typeof hook === 'function') hook(sh, null);
+  return sh;
+}
+
+const POINT_LOOP = 'NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )';
+
 describe('Low city facade bake', () => {
   let high: OutsideView, low: OutsideView;
   beforeAll(() => {
     high = new OutsideView(0, 0, 10, 10, 0, 'high');
     low = new OutsideView(0, 0, 10, 10, 0, 'low');
+  }, 180000);
+
+  it('Low: the 8 PointLights skip the buildings (the point loop is cut from their lights chunk)', () => {
+    for (const m of buildings(low)) {
+      const sh = lit(m.material as Material).fragmentShader;
+      expect(sh, 'the point-light loop cut').toContain('#if 0');
+      expect(sh).not.toContain(POINT_LOOP);
+    }
+  }, 180000);
+
+  it('Low: the lamps still light the buildings, as an analytic term at night (lamp count and reach)', () => {
+    for (const m of buildings(low)) {
+      const sh = lit(m.material as Material);
+      expect(sh.fragmentShader).toContain('reflectedLight.directDiffuse += lowL');
+      expect(sh.fragmentShader).toContain('fLampK > 0.0');
+      expect(sh.fragmentShader).toContain('i < 8;');
+      expect(sh.fragmentShader).toContain('45.0');
+    }
+    const lamps = (low as unknown as { lowLamps: { k: { value: number }; pos: { value: unknown[] } } }).lowLamps;
+    expect(lamps.pos.value).toHaveLength(8);
+    low.frame(23, 1);
+    expect(lamps.k.value, 'the lamps at night').toBeGreaterThan(0);
+    low.frame(12, 1);
+    expect(lamps.k.value, 'the lamps by day').toBe(0);
+  }, 180000);
+
+  it('Low: the lamps stay live for the street, cars and other meshes (8 PointLights in the scene)', () => {
+    const lamps = (low as unknown as { lamps: unknown[] }).lamps;
+    expect(lamps).toHaveLength(8);
+  }, 180000);
+
+  it('High: the buildings keep facadeMaterial and the live PointLights (no lights chunk cut)', () => {
+    const hs = buildings(high);
+    for (const m of hs) {
+      const sh = lit(m.material as Material);
+      expect(sh.fragmentShader).toContain('#include <lights_fragment_begin>');
+      expect(sh.fragmentShader).not.toContain('#if 0');
+      expect(sh.fragmentShader).not.toContain('fLampK');
+    }
+    expect((high as unknown as { lowLamps: unknown }).lowLamps).toBeNull();
+    expect((high as unknown as { lamps: unknown[] }).lamps).toHaveLength(8);
   }, 180000);
 
   it('lock: High keeps facadeMaterial, its per-pixel shader with fHash and fNoise', () => {
