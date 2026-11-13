@@ -28,7 +28,13 @@ const haze = (): HazeUniforms => ({
   hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3() }, hzDensity: { value: 0 }, hzFall: { value: 0 },
   hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
 });
-type Inside = { moving: InstancedMesh[]; near: InstancedMesh[]; pools: InstancedMesh; shades: InstancedMesh; still: { im: InstancedMesh; cars: Car[] }[] };
+/** The (x, z) of a mesh's instances, as numbers. */
+const spots = (im: InstancedMesh): [number, number][] => {
+  const a = im.instanceMatrix.array, out: [number, number][] = [];
+  for (let i = 0; i < im.count; i++) out.push([a[i * 16 + 12]!, a[i * 16 + 14]!]);
+  return out;
+};
+type Inside = { moving: InstancedMesh[]; near: InstancedMesh[]; far: InstancedMesh; pools: InstancedMesh; shades: InstancedMesh; still: { im: InstancedMesh; cars: Car[] }[] };
 
 describe('cars', () => {
   it('tells a ball out of a frustum, wholly in it, or across the planes it cuts', () => {
@@ -94,11 +100,58 @@ describe('cars', () => {
       a.dispose(); b.dispose();
     });
 
-    it('Low: one instanced mesh of moving cars, ceil(High * LOW_FLEET) of them', () => {
+    it('Low: one full model and the far box for moving cars, ceil(High * LOW_FLEET) of them', () => {
       const tr = new Traffic(), low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
-      expect(meshes(low).length).toBe(1);
+      expect(meshes(low).length).toBe(2);
+      expect((low as unknown as Inside).near.length).toBe(1);
       expect(drawnCars(low)).toBe(Math.ceil(tr.cars.length * LOW_FLEET));
       low.dispose();
+    });
+  });
+
+  describe('near range', () => {
+    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+    /** After a draw from the eye (ex, ez): the spots of the full models and of the far box. */
+    const drawAt = (f: Fleet, ex: number, ez: number): { full: [number, number][]; box: [number, number][] } => {
+      f.update(0.1, ex, ez);
+      const i = f as unknown as Inside;
+      return { full: i.near.flatMap(spots), box: spots(i.far) };
+    };
+    /** Eyes spread over the street near the window. */
+    const eyes = (r: () => number): [number, number][] => Array.from({ length: 8 }, () => [GRID.av0 + (r() - 0.5) * 600, (r() - 0.5) * 600]);
+
+    it('Low: a full model only within 100 m of the eye, the far box past it', () => {
+      const r = rng(12), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const bad: string[] = [];
+      let full = 0, box = 0;
+      for (const [ex, ez] of eyes(r)) {
+        const d = drawAt(low, ex, ez);
+        for (const [x, z] of d.full) if (!(Math.hypot(x - ex, z - ez) < 100)) bad.push(`full at ${Math.hypot(x - ex, z - ez)}`);
+        for (const [x, z] of d.box) if (!(Math.hypot(x - ex, z - ez) >= 100)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
+        full += d.full.length; box += d.box.length;
+      }
+      // (a miss is counted, not expected one by one: an expect for each car took long)
+      expect(bad).toEqual([]);
+      expect(full).toBeGreaterThan(0);
+      expect(box).toBeGreaterThan(0);
+      low.dispose();
+    });
+
+    it('High: a full model within 260 m of the eye, the far box past it, full models past 100 m', () => {
+      const r = rng(13), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const bad: string[] = [];
+      let full = 0, box = 0, past100 = 0;
+      for (const [ex, ez] of eyes(r)) {
+        const d = drawAt(high, ex, ez);
+        for (const [x, z] of d.full) { const h = Math.hypot(x - ex, z - ez); if (!(h < 260)) bad.push(`full at ${h}`); if (h >= 100) past100++; }
+        for (const [x, z] of d.box) if (!(Math.hypot(x - ex, z - ez) >= 260)) bad.push(`box at ${Math.hypot(x - ex, z - ez)}`);
+        full += d.full.length; box += d.box.length;
+      }
+      expect(bad).toEqual([]);
+      expect(full).toBeGreaterThan(0);
+      expect(box).toBeGreaterThan(0);
+      expect(past100).toBeGreaterThan(0);
+      high.dispose();
     });
   });
 

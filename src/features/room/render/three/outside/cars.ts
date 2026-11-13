@@ -17,6 +17,8 @@ import { MODELS, type Route, type Traffic } from './traffic';
 const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 /** Within this distance of the eye (m) a car is its full model; further off, the box. */
 const NEAR = 260;
+/** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
+const NEAR_LOW = 100;
 /** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
 const CAR_R = 3;
 /**
@@ -318,13 +320,16 @@ export class Fleet {
   private still: ({ im: InstancedMesh } & ReturnType<typeof parkCells>)[] = [];
   private parked: number;
 
-  /** The share of the moving cars that drive (1: all), and how many models there are (fewer than `MODELS`: one mesh of them, no far box). */
+  /** The share of the moving cars that drive (1: all), and how many models there are (fewer than `MODELS`: one mesh of them, the range `NEAR_LOW`). */
   private scale: number;
   private capped: boolean;
+  /** Within this distance of the eye (m) a moving car is its full model; further off, the far box. */
+  private range: number;
 
   constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms, scale = 1, models: number = MODELS.length) {
     this.scale = scale;
     this.capped = models < MODELS.length;
+    this.range = this.capped ? NEAR_LOW : NEAR;
     const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
@@ -341,7 +346,7 @@ export class Fleet {
     // the moving ones: each model near, the box far off
     this.near = geos.map((g) => fleetMesh(g, mat, n));
     this.far = fleetMesh(box, mat, n);
-    this.moving = this.capped ? [...this.near] : [...this.near, this.far];
+    this.moving = [...this.near, this.far];
     for (const im of this.moving) { im.receiveShadow = true; this.group.add(im); }
     // their pools of light, and the shadows under every car
     this.poolMat = new ShaderMaterial({
@@ -394,7 +399,7 @@ export class Fleet {
   }
 
   /**
-   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `NEAR` of the eye (x, z), else the box.
+   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `range` of the eye (x, z), else the box.
    * `seen`: the eye's frustum. Each route is cut to it first (`reach`), so a car out of it costs nothing: not drawn, nor its soft shadow, nor
    * (at night) its lamps' pools, which reach into the view from a little further (`POOL_R`). The lamps' pools are drawn only at night.
    */
@@ -428,7 +433,7 @@ export class Fleet {
         if (night) { turned(pa, n, x, z, cr, sr); pl[n * 2] = 1; pl[n * 2 + 1] = brake; }
         n++;
         if (m < BODY[0]! || m > BODY[1]!) continue;
-        const ox = x - ex, oz = z - ez, im = this.capped ? this.near[Math.min(c.model, this.near.length - 1)]! : ox * ox + oz * oz < NEAR * NEAR ? this.near[c.model]! : this.far, k = im.count++;
+        const ox = x - ex, oz = z - ez, im = ox * ox + oz * oz < this.range * this.range ? this.near[Math.min(c.model, this.near.length - 1)]! : this.far, k = im.count++;
         turned(im.instanceMatrix.array as Float32Array, k, x, z, cr, sr);
         paint(im.instanceColor!.array as Float32Array, k, c.colour);
         const la = im.geometry.attributes.lit!.array as Float32Array;
@@ -449,7 +454,7 @@ export class Fleet {
 
   dispose(): void {
     this.group.traverse((o) => { if ((o as InstancedMesh).isInstancedMesh) { (o as InstancedMesh).geometry.dispose(); (o as InstancedMesh).dispose(); } });
-    if (this.capped) for (const im of [this.pools, this.shades, this.far]) { im.geometry.dispose(); im.dispose(); }
+    if (this.capped) for (const im of [this.pools, this.shades]) { im.geometry.dispose(); im.dispose(); }
     this.mat.dispose(); this.poolMat.dispose(); this.shadeMat.dispose();
   }
 }
