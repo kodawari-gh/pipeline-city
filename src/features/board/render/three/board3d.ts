@@ -743,7 +743,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // auto tier: one decision from the first seconds of frames; manual mode never steps
     // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)
     if (draw && tierRecord.peek().mode === 'auto' && document.visibilityState === 'visible' && !awayHeld(fps, g.fps)) {
-      const dir = tierWatch.tick(rawDt, performance.now() - t0, now, watchFps(g, g.fps));
+      const dir = tierWatch.tick(performance.now() - t0, now, watchFps(g, g.fps));
       if (dir) stepTier(dir);
     }
     // a new case is a new room: frame it again
