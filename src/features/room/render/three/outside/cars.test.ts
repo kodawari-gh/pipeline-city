@@ -1,6 +1,6 @@
-import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type InstancedMesh } from 'three';
+import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type InstancedMesh, type MeshPhysicalMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Fleet, parkCells, reach, within } from './cars';
+import { Fleet, carMaterial, parkCells, reach, within } from './cars';
 import type { HazeUniforms } from './haze';
 import { LOW_FLEET } from './detail';
 import { GRID, parked, rng, type Car } from './plan';
@@ -190,6 +190,32 @@ describe('cars', () => {
       }
       expect(past).toBeGreaterThan(0);
       high.dispose();
+    });
+  });
+
+  describe('material', () => {
+    const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
+
+    it('High: the car material keeps its clearcoat of 1', () => {
+      expect(carMaterial({ night: { value: 0 } }).clearcoat).toBe(1);
+      const high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      expect((high as unknown as { mat: MeshPhysicalMaterial }).mat.clearcoat).toBe(1);
+      high.dispose();
+    });
+
+    it('Low: the car material has no clearcoat', () => {
+      expect(carMaterial({ night: { value: 0 } }, false).clearcoat).toBe(0);
+      const low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      expect((low as unknown as { mat: MeshPhysicalMaterial }).mat.clearcoat).toBe(0);
+      low.dispose();
+    });
+
+    it('Low: the fleet has no light pools or soft shadows in the group', () => {
+      const low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const i = low as unknown as Inside;
+      expect(i.pools.parent).toBeNull();
+      expect(i.shades.parent).toBeNull();
+      low.dispose();
     });
   });
 

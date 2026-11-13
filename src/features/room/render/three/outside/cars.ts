@@ -142,9 +142,9 @@ function farGeometry(): BufferGeometry {
 /** The cars' light by the hour: 0 by day, 1 at full night. */
 export interface CarLight { night: { value: number } }
 
-/** The cars' one material: each part painted by its vertices' `part`, the paint from the instance's colour, the lamps lit by its `lit` (head lamps, brake). */
-export function carMaterial(u: CarLight): MeshPhysicalMaterial {
-  const mat = new MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.12 });
+/** The cars' one material: each part painted by its vertices' `part`, the paint from the instance's colour, the lamps lit by its `lit` (head lamps, brake). `coat` false (Low): no clearcoat, the paint is matt. */
+export function carMaterial(u: CarLight, coat = true): MeshPhysicalMaterial {
+  const mat = new MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3, clearcoat: coat ? 1 : 0, clearcoatRoughness: 0.12 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.cNight = u.night;
     sh.vertexShader = sh.vertexShader
@@ -335,7 +335,7 @@ export class Fleet {
     this.capped = models < MODELS.length;
     this.range = this.capped ? NEAR_LOW : NEAR;
     this.clip = this.capped ? CLIP_LOW : Infinity;
-    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
+    const mat = this.mat = carMaterial(light, !this.capped), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
     const byModel = geos.map(() => [] as Car[]), boxed: Car[] = [];
