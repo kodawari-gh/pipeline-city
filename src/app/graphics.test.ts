@@ -69,7 +69,7 @@ describe('TierWatch', () => {
     let out: 'down' | 'up' | null = null;
     // unfocused: the limit is 30 against the player's 60; 30 fps frames must not count
     for (let t = 5000, i = 0; i < 600; i++, t += 1000 / 30) {
-      const limit = loopLimit(60, false, 0);
+      const limit = loopLimit(60, false);
       if (!awayHeld(limit, 60)) out = w2.tick(1 / 30, 3, t, 60) ?? out;
     }
     expect(out).toBeNull();
@@ -379,7 +379,7 @@ describe('FrameGate', () => {
 });
 
 describe('the frame limit', () => {
-  // frames a 120 Hz screen lets draw in `s` seconds under the limit at each frame (the frame loop: `awayLimit`, then `FrameGate`)
+  // frames a 120 Hz screen lets draw in `s` seconds under the limit at each frame (the frame loop: `loopLimit`, then `FrameGate`)
   const drawnIn = (s: number, limitAt: (t: number) => number) => {
     const g = new FrameGate();
     let n = 0;
@@ -390,30 +390,27 @@ describe('the frame limit', () => {
   it('Low runs at 60, not held to 30', () => {
     setTier('low');
     expect(graphics.value.fps).toBe(60);
-    expect(drawnIn(1, () => loopLimit(graphics.value.fps, true, 0))).toBeGreaterThanOrEqual(59);
+    expect(drawnIn(1, () => loopLimit(graphics.value.fps, true))).toBeGreaterThanOrEqual(59);
     setTier('high');
   });
 
-  it('keeps the full rate at any time without input', () => {
-    // page focused: the limit is the player's at every idle time, from none to 5 minutes
-    for (const idleMs of [0, 10e3, 29e3, 31e3, 40e3, 5 * 60e3]) expect(loopLimit(60, true, idleMs)).toBe(60);
-    expect(loopLimit(0, true, 5 * 60e3)).toBe(0);
+  it('keeps the full rate with the page focused, at any time without input', () => {
+    expect(loopLimit(60, true)).toBe(60);
+    expect(loopLimit(0, true)).toBe(0);
   });
 
-  it('draws the full rate over 40 s of growing idle time', () => {
-    // idle time grows from 0 (no input since the start): every frame asks with the time since the last input
-    expect(drawnIn(40, (t) => loopLimit(60, true, t))).toBeGreaterThanOrEqual(60 * 40 - 2);
+  it('draws the full rate over 40 s and more with the page focused', () => {
+    // no input at all: the limit does not depend on how long the player has been idle
+    expect(drawnIn(40, () => loopLimit(60, true))).toBeGreaterThanOrEqual(60 * 40 - 2);
   });
 
   it('holds to 30 without the focus, at once', () => {
-    for (const idleMs of [0, 5 * 60e3]) {
-      expect(loopLimit(120, false, idleMs)).toBe(30);
-      expect(loopLimit(60, false, idleMs)).toBe(30);
-      expect(loopLimit(0, false, idleMs)).toBe(30);
-    }
+    expect(loopLimit(120, false)).toBe(30);
+    expect(loopLimit(60, false)).toBe(30);
+    expect(loopLimit(0, false)).toBe(30);
   });
 
-  it('never raises a lower limit', () => expect(loopLimit(24, false, 0)).toBe(24));
+  it('never raises a lower limit', () => expect(loopLimit(24, false)).toBe(24));
 });
 
 describe('the watches at the Low limit', () => {

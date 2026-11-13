@@ -541,10 +541,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value; else if (k === 'o') machine?.toggleDoor();
   };
   window.addEventListener('keydown', onKey);
-  // the last input (a press, a key, a wheel): the frame loop reads the time since it (`loopLimit`)
-  let inputAt = performance.now();
-  const touched = () => { inputAt = performance.now(); };
-  for (const type of ['pointerdown', 'keydown', 'wheel'] as const) window.addEventListener(type, touched, { passive: true });
 
   // ---- snapshot, theme, size ----
   effect(() => { snapshot.value; rebuild(); });
@@ -599,7 +595,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let wasCovered = false, outlineKey = '';
   const frame = (now: number) => {
     const t0 = performance.now(); // the frame work time (CPU in this callback) for `TierWatch`
-    const g = effective.peek(), fps = loopLimit(g.fps, document.hasFocus(), now - inputAt);
+    const g = effective.peek(), fps = loopLimit(g.fps, document.hasFocus());
     if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
     // (the frame rate the graphics settings show stays live: the page's, which the stage's draw sets)
     if (covered()) { wasCovered = true; last = now; meter.tick(now, canvas.width, canvas.height); requestAnimationFrame(frame); return; }

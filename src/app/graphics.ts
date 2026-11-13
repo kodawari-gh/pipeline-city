@@ -411,9 +411,9 @@ const AWAY_FPS = 30;
 
 /**
  * The frame loop's limit, from the player's own `fps`: lowered to 30 only while the page has lost the focus, so the GPU and its fans rest. Time
- * without input (`idleMs`) lowers nothing (owner decision): a player who watches the city run keeps the full rate. A frame with nothing new is skipped elsewhere.
+ * without input lowers nothing (owner decision): a player who watches the city run keeps the full rate. A frame with nothing new is skipped elsewhere.
  */
-export function loopLimit(fps: number, focused: boolean, idleMs: number): number {
+export function loopLimit(fps: number, focused: boolean): number {
   if (focused) return fps;
   return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
 }
