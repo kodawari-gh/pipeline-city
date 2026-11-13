@@ -84,7 +84,8 @@ export class Monitor {
    */
   readonly bias: RectAreaLight;
 
-  constructor(m: RectLike, screen: RectLike, deskY: number, z0: number) {
+  /** `toneMapped`: the face takes the tone mapping (the game room's: its picture is tone mapped by the post chain); off for the shop's showcase. */
+  constructor(m: RectLike, screen: RectLike, deskY: number, z0: number, { toneMapped = false }: { toneMapped?: boolean } = {}) {
     const R = this.root, cx = m.x + m.w / 2;
     // (its baked occlusion: the column into the back, the foot on the desk; `vertexao.ts`)
     R.userData.ao = 40 * MM;
@@ -101,7 +102,7 @@ export class Monitor {
       this.tex = rawSrgb(this.canvas);
       this.tex.anisotropy = anisotropy;
     }
-    const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), Object.assign(new MeshBasicMaterial({ map: this.tex, toneMapped: false }), { defines: { ...DECODE_SRGB } }));
+    const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), Object.assign(new MeshBasicMaterial({ map: this.tex, toneMapped }), { defines: { ...DECODE_SRGB } }));
     this.faceMat = face.material as MeshBasicMaterial;
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);
     // the panel's glass: no colour of its own, only what it mirrors (the window, the lamp, the room), added over the picture. The lights'

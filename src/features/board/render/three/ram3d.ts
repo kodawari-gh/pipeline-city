@@ -183,7 +183,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   root.add(instanced(new BoxGeometry(1, 1, 1), [top, top, side, side, side, side] as unknown as MeshStandardMaterial, items));
   // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
   const mapFaces = chips.slice(0, d.length).map((c) => {
-    const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
+    const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true }));
     f.position.set(cx + PCB_T / 2 + CHIP_T + 0.6, (wy(c.y) + wy(c.y + c.h)) / 2, (c.z0 + c.z1) / 2);
     f.visible = false;
     root.add(f);

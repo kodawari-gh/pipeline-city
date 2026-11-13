@@ -44,6 +44,48 @@ describe('startPrograms', () => {
     expect(target).toBe('screen');
   });
 
+  it('screen: links both the target\'s and the screen\'s variants, puts the old target back, and frees the 1x1 target', () => {
+    let target: unknown = 'screen';
+    const targets: unknown[] = [];
+    const freed: unknown[] = [];
+    let compiles = 0;
+    const r = {
+      getRenderTarget: () => target,
+      setRenderTarget: (t: unknown) => {
+        target = t; targets.push(t);
+        if ((t as { isWebGLRenderTarget?: boolean } | null)?.isWebGLRenderTarget) (t as { addEventListener: (e: string, f: () => void) => void }).addEventListener('dispose', () => freed.push(t));
+      },
+      // a fresh program per compile, so each variant's programs are told apart
+      compile: () => { compiles++; return new Set<Material>([new Material()]); },
+      properties: { get: () => ({ currentProgram: after(0) }) },
+    } as unknown as WebGLRenderer;
+    const out = startPrograms(r, new Scene(), null as never, { screen: true });
+    // the target's pass, then the screen's: each compiles once (no fade)
+    expect(targets.length).toBe(3);
+    expect((targets[0] as { isWebGLRenderTarget?: boolean }).isWebGLRenderTarget).toBe(true);
+    expect(targets[1]).toBeNull();
+    expect(targets[2]).toBe('screen');
+    expect(compiles).toBe(2);
+    expect(out).toHaveLength(2);
+    expect(freed).toEqual([targets[0]]);
+    expect(target).toBe('screen');
+  });
+
+  it('without screen: compiles into the 1x1 target only, as before', () => {
+    const targets: unknown[] = [];
+    let target: unknown = 'screen';
+    const r = {
+      getRenderTarget: () => target,
+      setRenderTarget: (t: unknown) => { target = t; targets.push(t); },
+      compile: () => new Set<Material>(),
+      properties: { get: () => ({}) },
+    } as unknown as WebGLRenderer;
+    startPrograms(r, new Scene(), null as never);
+    expect(targets.length).toBe(2);
+    expect((targets[0] as { isWebGLRenderTarget?: boolean }).isWebGLRenderTarget).toBe(true);
+    expect(target).toBe('screen');
+  });
+
   it('makes the see-through variant of a fade, each variant once, and leaves the fade opaque', () => {
     const lid = new Mesh(undefined, new Material()), seen: boolean[] = [];
     const progs = new Map<Material, Map<string, Program>>();

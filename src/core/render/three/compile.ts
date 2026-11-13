@@ -14,8 +14,11 @@ export interface Program { isReady(): boolean }
  * the see-through variant of each opaque material under `fades` (`fadeTree` makes it transparent: another program). The programs are made for
  * a render target (linear, not tone mapped), as the frame draws into the scene's own (`post.ts`). Set the lights as they will be drawn first: a light shown
  * or hidden, or one that casts a shadow or stops, makes every lit program again.
+ * `screen`: the root also draws to the screen (a direct draw, `post.ts`, at a frame that may come any time), so its programs are linked for the
+ * screen too (tone mapped, the screen's colour space) as well as for the 1x1 target (the chain's, linear, not tone mapped). Without it, the
+ * target's alone.
  */
-export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [] }: { scene?: Scene; fades?: readonly Object3D[] } = {}): Program[] {
+export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [], screen = false }: { scene?: Scene; fades?: readonly Object3D[]; screen?: boolean } = {}): Program[] {
   const flip = new Set<Material>();
   for (const f of fades) f.traverse((x) => {
     const m = (x as Mesh).material as Material | Material[] | undefined;
@@ -30,13 +33,19 @@ export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { s
       if (p.currentProgram) out.add(p.currentProgram);
     }
   };
-  r.setRenderTarget(rt);
-  try {
+  // one variant: the root as it draws into `target` (the 1x1 target, or null: the screen), and its see-through fades
+  const variant = (target: WebGLRenderTarget | null) => {
+    r.setRenderTarget(target);
     take(r.compile(root, cam, scene));
     if (flip.size) {
       for (const m of flip) { m.transparent = true; m.needsUpdate = true; }
       take(r.compile(root, cam, scene));
+      for (const m of flip) { m.transparent = false; m.needsUpdate = true; }
     }
+  };
+  try {
+    variant(rt);
+    if (screen) variant(null);
     return [...out];
   } finally {
     for (const m of flip) { m.transparent = false; m.needsUpdate = true; }

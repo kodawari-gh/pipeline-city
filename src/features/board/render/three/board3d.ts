@@ -82,6 +82,14 @@ const NIGHT_EYE = 1.4, EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
  * reads L .05 or more, `light.md` "Targets"), where by day it holds back the glass.
  */
 const NIGHT_KEY = 0.03, NIGHT_HIGH = 0.8;
+/**
+ * The exposure the local eye's lift is worth at Low (the direct draw has no lift of its own, `post.ts` `setEye`): by day and at night, a
+ * room view's factor over the base. 1: none. Tuned from Low shots on the razr fold's screen: the picture's mean (sRGB) at least the chain's in
+ * the game and the assembled machine, at noon and at 23:00; the darkest parts stay darker at night (a global exposure lifts all alike).
+ */
+const LOW_LIFT_DAY = 1.3, LOW_LIFT_NIGHT = 1.8;
+/** `LOW_LIFT_DAY` by day, `LOW_LIFT_NIGHT` by night, blended in log by the daylight `day` (0..1). */
+const lowLift = (day: number): number => LOW_LIFT_DAY ** day * LOW_LIFT_NIGHT ** (1 - day);
 /** Before a game (the title over the live room): the overview turns this far (rad) each side of its own, slowly, round its target, once in `MENU_S` × 2π s. */
 const MENU_SWAY = 0.07, MENU_S = 9;
 /** The boot screen goes at the latest this long (ms) after the programs have linked, if the room's light has not settled by then. */
@@ -104,7 +112,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
-  const post = new Post(renderer, scene, camera, W, H);
+  // (the game view may draw direct at Low; the screens that keep their chain do not, `post.ts`)
+  const post = new Post(renderer, scene, camera, W, H, { direct: true });
   // the shadow maps: a still picture per light, and only what moves drawn again (shadows.ts)
   const shadows = new ShadowCache(renderer);
   // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
@@ -184,7 +193,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
         machine.root.visible = false;
-        const programs = startPrograms(renderer, m.root, camera, { scene, fades: m.fades });
+        const programs = startPrograms(renderer, m.root, camera, { scene, fades: m.fades, screen: post.direct });
         machine.root.visible = true;
         if (linked(programs)) install(m); else next = { m, programs };
       }
@@ -667,11 +676,11 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
     const near = 1 - roomness(seenH);
     const day = daylight(hour);
-    post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day), lowLift(day));
     // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
     if (!warmed) {
       warmed = true;
-      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...(room?.startPrograms(renderer, scene) ?? []), ...post.startPrograms(renderer)];
+      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [], screen: post.direct }), ...(room?.startPrograms(renderer, scene) ?? []), ...post.startPrograms(renderer)];
       if (!linked(linking)) { requestAnimationFrame(frame); return; }
       drawn(now);
     }
@@ -682,13 +691,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const ov = overview(), h = heightAt(ov, LOOK_Z), nr = 1 - roomness(h);
       applyView(camera, ov, aspect());
       post.setReach(h);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day), lowLift(day));
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
       applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
       post.setReach(seenH);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day), lowLift(day));
     }
     // drawn on demand (docs/render/load.md "Draw on demand"): the game draws every frame. The title's room draws when its picture changes: the
     // sway moves it `STILL_PX` or more at the room's depths, the city's beat comes (its cars, the cup's steam, the hour's light), the machine

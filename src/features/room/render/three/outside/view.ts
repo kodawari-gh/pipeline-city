@@ -108,7 +108,7 @@ const SUPER = 2;
 const EVERY = 3, HOLD_PX = 1;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
-const QUAD_FRAG = /* glsl */`
+export const QUAD_FRAG = /* glsl */`
 uniform sampler2D tOut, tGlow, tMirror;
 uniform samplerCube tEnv;
 uniform vec2 off, inv, mirrorPx;
@@ -144,6 +144,9 @@ void main() {
   c *= tint;
   if (live > 0.5 && mirrorK > 0.0) c += inGlass();
   gl_FragColor = vec4(c, 1.0);
+  // (in the game scene at Low, drawn straight to the screen: the tone mapping and the screen's colour space, as the finish gives the chain; no-ops into a target)
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }`;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };

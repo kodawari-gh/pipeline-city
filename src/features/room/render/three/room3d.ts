@@ -546,7 +546,7 @@ export class Room3D {
     R.add(this.deskLed);
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, a tea cup on its saucer, a notebook ----
-    this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
+    this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z, { toneMapped: true });
     R.add(this.monitor.root, this.monitor.bias);
     const kx = MONITOR.x + MONITOR.w / 2, kz = MONITOR_Z + 3600;
     const felt = paint(512, 192, (c, w, h) => {
@@ -690,7 +690,7 @@ export class Room3D {
       const cv = document.createElement('canvas');
       cv.width = 512; cv.height = 128;
       const tex = rawSrgb(cv);
-      const face = new Mesh(new PlaneGeometry(ISP_PLATE.w * 0.84, ISP_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
+      const face = new Mesh(new PlaneGeometry(ISP_PLATE.w * 0.84, ISP_PLATE.h * 0.26), Object.assign(new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), { defines: { ...DECODE_SRGB } }));
       face.position.set(ISP_PLATE.x + ISP_PLATE.w / 2, -(ISP_PLATE.y + ISP_PLATE.h * 0.5), 82);
       this.ispText = { cv, tex, shown: '\u0000' };
       R.add(seeThrough(face));

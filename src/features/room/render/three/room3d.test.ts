@@ -1,10 +1,18 @@
 import { expect, it } from 'vitest';
-import { BoxGeometry, Mesh, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
+import { BoxGeometry, Mesh, MeshBasicMaterial, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { BEDSIDE_FAR, BEDSIDE_LAYER, Room3D } from './room3d';
 import { FLOOR_Y, NIGHTSTAND } from './roomplan';
 
 type Caster = Light & { shadow: LightShadow };
+
+it('the game room\'s monitor face is tone mapped: it is drawn in the post chain, which tone maps the picture', () => {
+  const monitor = (new Room3D() as unknown as { monitor: { root: Object3D } }).monitor;
+  let face: MeshBasicMaterial | null = null;
+  monitor.root.traverse((o) => { if (!face && (o as Mesh).isMesh && (o as Mesh).geometry instanceof BoxGeometry && (o as Mesh).material instanceof MeshBasicMaterial) face = (o as Mesh).material as MeshBasicMaterial; });
+  expect(face).not.toBeNull();
+  expect((face as unknown as MeshBasicMaterial).toneMapped).toBe(true);
+}, 30000); // (a room's first build is slow: the test waits on its geometry)
 
 it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' shadows off: only a caster on BEDSIDE_LAYER redraws it', () => {
   const room = new Room3D(), scene = new Scene();

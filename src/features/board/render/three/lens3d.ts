@@ -55,7 +55,7 @@ export class Lens3D {
   private readonly T = builtinTheme(true);
   private readonly power = new PowerLens();
   private readonly air = new AirflowLens();
-  private readonly mat = new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+  private readonly mat = new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private readonly both = new Container();
   private canvas: HTMLCanvasElement | null = null;

@@ -4,7 +4,9 @@
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 // Each full-screen pass writes a target that a phone's tile GPU sends out to memory and reads back (PERF21): the chain runs only the passes
 // that are on (`steps`), the AO and the outline draw on the scene's picture in one target, and the grade, the eye and the tone mapping are one
-// draw to the screen (`LocalEye.draw`). At Low with nothing picked: the scene, the eye's three small passes, the finish.
+// draw to the screen (`LocalEye.draw`). At Low (direct: no AO, no bloom, no multisampling) with nothing picked, at the full room view: the scene
+// drawn straight to the screen, which tone maps it (the renderer's own exposure); with the outline on, the scene, the copy, the outline and the
+// finish. Below the full room view the direct setting does nothing: the chain runs as at every setting (`drawsDirect`).
 import { DepthTexture, FloatType, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
@@ -107,6 +109,9 @@ class PickOutline extends OutlinePass {
 /** What the post chain takes from the graphics settings. */
 export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
 
+/** Direct: the settings leave the chain nothing but the eye and the finish (Low and its variants), so the scene can draw to the screen. */
+export const isDirect = (g: PostOptions): boolean => !g.ao && !g.bloom && !g.msaa;
+
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
 export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
 
@@ -128,15 +133,20 @@ const grade = (): Look => ({
   uniforms: { k: { value: 1 } },
 });
 
-/** A step of the post chain, in its order (`steps`). `eye`: the eye's three small passes (a quarter of the picture, its grid, the blur). */
-export type Step = 'scene' | 'ao' | 'copy' | 'outline' | 'bloom' | 'eye' | 'finish';
+/**
+ * A step of the post chain, in its order (`steps`). `eye`: the eye's three small passes (a quarter of the picture, its grid, the blur).
+ * `direct`: the scene drawn straight to the screen (no chain).
+ */
+export type Step = 'direct' | 'scene' | 'ao' | 'copy' | 'outline' | 'bloom' | 'eye' | 'finish';
 
 /**
  * The chain's steps for what is on. The scene's target holds its depth and its samples; the AO (which copies the picture as it blends), or a
  * copy where only the outline or the bloom runs, puts the picture in a target they can draw on. The finish draws to the screen. All but
- * `eye` are full-screen passes; `outline` and `bloom` each draw some smaller ones too.
+ * `eye` are full-screen passes; `outline` and `bloom` each draw some smaller ones too. Direct (a frame that `drawsDirect`): the scene alone to the
+ * screen, or with the outline, the chain without the eye.
  */
-export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: boolean }): Step[] {
+export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: boolean; direct: boolean }): Step[] {
+  if (on.direct) return on.outline ? ['scene', 'copy', 'outline', 'finish'] : ['direct'];
   const s: Step[] = ['scene'];
   if (on.ao) s.push('ao');
   else if (on.outline || on.bloom) s.push('copy');
@@ -194,6 +204,11 @@ export class Post {
   private reach = 900;
   private brightness = 1;
   private eye = 1;
+  /** The eye's lift per room-view step (`setEye`'s `lowLift`), and how far the view is a room view (`roomness`). */
+  private lowLift = 1;
+  private room = 0;
+  /** The direct setting: the settings allow the direct draw and the owner opted in (`opts.direct`). Its frames draw direct only at roomness 1. */
+  private directOn = false;
   private meterTarget = new WebGLRenderTarget(METER_W, METER_H, { type: FloatType, depthBuffer: false });
   private meterQuad = new FullScreenQuad(new ShaderMaterial({ ...METER, uniforms: UniformsUtils.clone(METER.uniforms) }));
   private meterCells = new Float32Array(METER_W * METER_H * 4);
@@ -202,7 +217,11 @@ export class Post {
   private meterRead: number | null = null;
   private gone = false;
 
-  constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
+  /**
+   * `opts.direct`: the owner allows the direct draw (the game view; a screen that keeps its chain, as Build my PC, leaves it off). Off, the chain
+   * runs at every setting.
+   */
+  constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number, private opts: { direct?: boolean } = {}) {
     this.scene = new ScenePass(scene, camera, w, h);
     this.work = new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false });
     const depth = this.scene.target.depthTexture!;
@@ -225,10 +244,33 @@ export class Post {
     this.setSize(w, h);
   }
 
-  /** The exposure the tone mapping applies: the base, the player's brightness and the eye's adaptation. The local eye's middle grey follows it. */
+  /**
+   * The exposure the tone mapping applies: the base, the player's brightness and the eye's adaptation, and on a direct frame (the full room view)
+   * the lift `setEye` gave. The local eye's middle grey follows it.
+   */
   private expose(): void {
-    this.renderer.toneMappingExposure = this.local.exposure = BASE_EXPOSURE * this.brightness * this.eye;
+    const lift = this.drawsDirect() ? this.lowLift : 1;
+    this.renderer.toneMappingExposure = this.local.exposure = BASE_EXPOSURE * this.brightness * this.eye * lift;
   }
+
+  /**
+   * Does this frame draw direct? The setting, and the full room view (roomness 1): below it the chain runs as at every setting, with the eye,
+   * the grade and the meter (the board view's metered eye needs them; `board3d.ts` meters only where `near > 0`).
+   */
+  private drawsDirect(): boolean { return this.directOn && this.room >= 1; }
+
+  /**
+   * The room's look and the local eye's lift follow the room view; on a direct frame they are off (the screen draw takes neither), so a picked
+   * frame looks like an unpicked one.
+   */
+  private grading(): void {
+    const k = this.drawsDirect() ? 0 : this.room;
+    this.look.uniforms.k!.value = k;
+    this.local.strength = k;
+  }
+
+  /** The direct setting (the game view may draw direct at Low, `opts.direct`). A frame draws direct only at the full room view (`drawsDirect`). */
+  get direct(): boolean { return this.directOn; }
 
   /** The graphics settings (`app/graphics.ts`): the passes, the multisampling and the pixels drawn. A new sample count frees the targets, so it costs a frame; the same one costs nothing. */
   apply(g: PostOptions, renderer: WebGLRenderer, w: number, h: number): void {
@@ -242,6 +284,9 @@ export class Post {
     if (t.samples !== g.msaa) { t.samples = g.msaa; t.dispose(); }
     const ratio = pixelRatio(g.scale);
     this.brightness = g.brightness;
+    const was = this.drawsDirect();
+    this.directOn = !!this.opts.direct && isDirect(g);
+    if (was !== this.drawsDirect()) this.grading();
     this.expose();
     if (ratio === renderer.getPixelRatio()) return;
     renderer.setPixelRatio(ratio);
@@ -256,8 +301,9 @@ export class Post {
    */
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
-    this.look.uniforms.k!.value = k;
-    this.local.strength = k;
+    this.room = k;
+    this.grading();
+    this.expose();
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
@@ -269,11 +315,15 @@ export class Post {
     this.ao.updatePdMaterial({ radius: 4 + k * 16 });
   }
 
-  /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
-  setEye(k: number, key = MID, high = HIGH_C): void {
+  /**
+   * The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`.
+   * `lowLift`: the factor a direct frame's exposure gains at the full room view (1: none); the direct draw has no grid, so the eye's lift is here.
+   */
+  setEye(k: number, key = MID, high = HIGH_C, lowLift = 1): void {
     this.eye = k;
     this.local.key = key;
     this.local.high = high;
+    this.lowLift = lowLift;
     this.expose();
   }
 
@@ -284,6 +334,8 @@ export class Post {
    * where a float target cannot be read back).
    */
   meter(): number | null {
+    // (a direct frame: the scene is not in its target, so there is nothing to read)
+    if (this.drawsDirect()) return null;
     const r = this.renderer;
     if (!(++this.meterFrame % 4) && !this.metering && !this.gone && r.extensions.has('EXT_color_buffer_float')) {
       const was = r.getRenderTarget();
@@ -324,7 +376,7 @@ export class Post {
 
   /** The steps a frame runs now, in their order. */
   steps(): Step[] {
-    return steps({ ao: this.ao.enabled, outline: this.outline.enabled, bloom: this.bloom.enabled, eye: this.local.on });
+    return steps({ ao: this.ao.enabled, outline: this.outline.enabled, bloom: this.bloom.enabled, eye: this.local.on, direct: this.drawsDirect() });
   }
 
   render(): void {
@@ -332,6 +384,8 @@ export class Post {
     let picture = this.scene.target;
     for (const s of this.steps()) {
       switch (s) {
+        // (the scene's own pass takes the camera and the scene; the screen's target is the renderer's own tone mapping and colour space)
+        case 'direct': { const p = this.scene; r.setRenderTarget(null); r.render(p.scene, p.camera); break; }
         case 'scene': this.scene.draw(r); break;
         case 'ao': this.ao.render(r, this.work, picture, 0, false); picture = this.work; break;
         case 'copy': this.scene.copyTo(r, this.work); picture = this.work; break;

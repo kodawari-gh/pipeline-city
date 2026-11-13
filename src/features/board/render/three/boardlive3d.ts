@@ -23,7 +23,7 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 export class BoardLive3D {
   private readonly T = builtinTheme(true);
   private live: Live | null = null;
-  private readonly mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  private readonly mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private canvas: HTMLCanvasElement | null = null;
   private tex: CanvasTexture | null = null;
