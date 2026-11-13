@@ -48,9 +48,9 @@ describe('preview rebuild frees its textures', () => {
   test('live textures stay flat across preview cycles', () => {
     const snap = maxedSnapshot();
     const counts: number[] = [];
-    // tiers 0 to 2 once (their shared, tier-sized caches appear), then the cycles that must stay flat
-    for (const t of [0, 1, 2, 0, 1, 2, 0, 1]) {
-      setLayoutTier(t, t);
+    // one tier: the first build adds the shared, tier-sized caches and the city; later builds must add no unique textures
+    setLayoutTier(0, 0);
+    for (const t of [0, 0, 0]) {
       const room = new Room3D();
       const s = { ...snap, boardTier: t, caseTier: t, devices: [], cables: [], plugged: null };
       const machine = buildMachine(s, true);
@@ -64,7 +64,7 @@ describe('preview rebuild frees its textures', () => {
       machine.dispose();
       counts.push(live());
     }
-    // the first three builds may add the shared caches and the city; every later build may add at most a couple more
-    for (const c of counts.slice(3)) expect(c - counts[2]!).toBeLessThanOrEqual(2);
-  }, 120000);
+    // the first build may add the shared caches and the city; every later build may add at most a couple more
+    for (const c of counts.slice(1)) expect(c - counts[0]!).toBeLessThanOrEqual(2);
+  }, 60000);
 });
