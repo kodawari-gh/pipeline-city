@@ -54,7 +54,7 @@ describe('TierWatch', () => {
   it('does not step up when the work is heavy, and stops after one window', () => {
     const w = new TierWatch();
     expect(run(w, 1 / 60, 10)).toBeNull();
-    expect(w.tick(1 / 20, 45, 20000, 60)).toBeNull();
+    expect(w.tick(0.05, 45, 20000, 60)).toBeNull();
   });
   it('makes one decision and then stops', () => {
     const w = new TierWatch();
@@ -62,6 +62,24 @@ describe('TierWatch', () => {
     for (let t = 20000; t < 40000; t += 50) expect(w.tick(0.05, 45, t, 60)).toBeNull();
   });
   it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
+
+  /** Replay of drawn frames `gapMs` apart on the clock, each with its own `rawDtMs`. Idle ticks between them take their time in the gap. First decision. */
+  const replay = (gapMs: number, rawDtMs: number, workMs: number, fps = 60) => {
+    const w = new TierWatch();
+    w.reset(0);
+    let out: 'down' | 'up' | null = null;
+    for (let t = 5000, i = 0; i < 2000 && !out; i++, t += gapMs) out = w.tick(rawDtMs / 1000, workMs, t, fps);
+    return out;
+  };
+  // (a) 16 ms drawn frames 100 ms apart (84 ms idle between): a device that is not slow, on a screen that draws little. Neither up nor down.
+  it('16 ms drawn frames with 84 ms idle between are neither up nor down', () => expect(replay(100, 16, 3)).toBeNull());
+  // (new) a fast device on a screen that draws only on change (the title, about every 45 ms, each frame 8 ms): no tier decision. Fails on dbb6cb1 (down).
+  it('drawn frames 45 ms apart, 8 ms each, light work: no decision', () => expect(replay(45, 8, 3)).toBeNull());
+  // (b) steady 60 fps drawn frames stay up
+  it('steady 60 fps drawn frames with light work are up', () => expect(replay(1000 / 60, 1000 / 60, 3)).toBe('up'));
+  // (c) 200 ms frames are never fast
+  it('200 ms frames are not up', () => expect(replay(200, 200, 3)).not.toBe('up'));
+  it('a real slow frame still steps down when idle ticks sit between them', () => expect(replay(100, 50, 40)).toBe('down'));
 
   it('ignores frames the away limit holds down', () => {
     const w2 = new TierWatch();
@@ -237,6 +255,27 @@ describe('tier persistence', () => {
         expect(s.g.lights, k).toBe(['fps', 'brightness'].includes(k) ? 4 : 0);
       }
     });
+  });
+  it('a bench start (stored preset, no tier record, or ?tier) is manual: no auto step can change it', () => {
+    const stored = { ...PRESETS.high, fps: 0, brightness: 1, auto: false, v: 2 };
+    for (const [saved, search] of [[stored, ''], [{ ...stored, ...PRESETS.low }, ''], [null, '?tier=low'], [stored, '?tier=high']] as const) {
+      const s = resolveStart(saved, null, search, detect('high'));
+      expect(s.rec.mode).toBe('manual');
+    }
+    setTier('low');
+    expect(stepTier('down', 'high')).toBe(false);
+    expect(stepTier('up', 'low')).toBe(false);
+    expect(tierRecord.value.tier).toBe('low');
+  });
+  it('setTier("low") on a High page makes the effective graphics Low (so every Low cut applies); setTier("high") takes them off', () => {
+    setPreset('high');
+    expect(isLow(effective.value)).toBe(false);
+    setTier('low'); // what bench-modes `--tier low` does in each page, whatever preset the page started with
+    expect(isLow(effective.value)).toBe(true);
+    setTier('high');
+    expect(isLow(effective.value)).toBe(false);
+    setPreset('medium');
+    expect(isLow(effective.value)).toBe(false);
   });
   it('a manual choice always wins over an auto step', () => {
     setTier('high');

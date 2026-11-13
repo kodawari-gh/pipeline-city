@@ -3,6 +3,9 @@
 // while the eye stands still: when the eye moves the city is drawn at once, and nothing pops. When a thing moves off the window the picture
 // drawn last still fits the eye, and the next is drawn as soon as the answer comes.
 
+/** Does the view draw the city at all? Not when the window is off the room, nor when its quad is hidden (the debug overlay's Hide city). */
+export const outsideDraws = (parent: boolean, visible: boolean): boolean => parent && visible;
+
 /** The part of WebGL2 a query takes. */
 export type QueryGL = Pick<WebGL2RenderingContext, 'createQuery' | 'beginQuery' | 'endQuery' | 'getQueryParameter' | 'ANY_SAMPLES_PASSED_CONSERVATIVE' | 'QUERY_RESULT' | 'QUERY_RESULT_AVAILABLE'>;
 

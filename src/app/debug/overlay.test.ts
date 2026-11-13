@@ -1,6 +1,6 @@
 import type { WebGLRenderer } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setAutoTier, tierRecord } from '../graphics';
+import { debugOverride, effective, graphics, PRESETS, setAutoTier, setPreset, tierRecord } from '../graphics';
 import { mountDebug } from './overlay';
 
 // A stub DOM: enough of document and the elements the overlay makes (no DOM in node).
@@ -79,14 +79,112 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const lit = '#3a7d44';
     expect(button('Auto').style.cssText).toContain(lit);
 
-    // a scale tap makes the tier manual: Auto is no longer lit
+    // a scale tap is a toggle on top of the picture: Auto is no longer lit
     button('0.5').handlers.click!();
-    expect(tierRecord.value.mode).toBe('manual');
+    expect(tierRecord.value.mode).toBe('auto');
     frame!(1000);
     expect(button('Auto').style.cssText).not.toContain(lit);
 
     button('Auto').handlers.click!();
     expect(tierRecord.value.mode).toBe('auto');
     expect(button('Auto').style.cssText).toContain(lit);
+  });
+
+  /** A renderer stub that draws nothing (the readout still runs). */
+  const rig = () => {
+    const render = { calls: 0 };
+    return { info: { autoReset: true, render, reset() { render.calls = 0; } }, getPixelRatio: () => 1 } as unknown as WebGLRenderer;
+  };
+  const cvs = () => ({ width: 1, height: 1 }) as unknown as HTMLCanvasElement;
+
+  it('the Shadows button turns the sun shadow off and back on, without touching the setting', () => {
+    setPreset('high');
+    debugOverride.value = {};
+    mountDebug({ renderer: rig(), canvas: cvs() });
+    frame!(0);
+    expect(button('Shadows on')).toBeDefined();
+    button('Shadows on').handlers.click!();
+    expect(effective.value.shadows).toBe(0);
+    expect(graphics.value.shadows).toBe(3);
+    frame!(1000);
+    button('Shadows off').handlers.click!();
+    expect(effective.value.shadows).toBe(3);
+  });
+
+  it('the Lights button cycles 4, 1 and All; Auto drops the toggle', () => {
+    setPreset('high');
+    debugOverride.value = {};
+    mountDebug({ renderer: rig(), canvas: cvs() });
+    frame!(0);
+    button('Lights All').handlers.click!();
+    expect(effective.value.lights).toBe(4);
+    frame!(1000);
+    button('Lights 4').handlers.click!();
+    expect(effective.value.lights).toBe(1);
+    expect(graphics.value.lights).toBe(PRESETS.high.lights);
+    frame!(2000);
+    button('Lights 1').handlers.click!();
+    expect(effective.value.lights).toBe(0);
+    button('Lights All').handlers.click!();
+    button('Lights 4').handlers.click!();
+    expect(effective.value.lights).toBe(1);
+    frame!(3000);
+    button('Auto').handlers.click!();
+    expect(debugOverride.value).toEqual({});
+    expect(tierRecord.value.mode).toBe('auto');
+  });
+
+  it('Auto shows the city and the machine again, and the hide buttons are off', () => {
+    const city = { visible: true }, machine = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
+    frame!(0);
+    button('Hide city').handlers.click!();
+    button('Hide machine').handlers.click!();
+    expect([city.visible, machine.visible]).toEqual([false, false]);
+    button('Auto').handlers.click!();
+    expect([city.visible, machine.visible]).toEqual([true, true]);
+    // and they stay shown: the per-frame sync does not hide them again
+    frame!(1000);
+    frame!(2000);
+    expect([city.visible, machine.visible]).toEqual([true, true]);
+    expect(button('Hide city').style.cssText).not.toContain('#3a7d44');
+    expect(button('Hide machine').style.cssText).not.toContain('#3a7d44');
+    // a new tap hides again (the hide flags were reset, not stuck)
+    button('Hide city').handlers.click!();
+    expect(city.visible).toBe(false);
+  });
+
+  it('Hide city hides only the city root, and Hide machine only the machine root; neither touches the saved settings', () => {
+    setPreset('high');
+    const city = { visible: true }, machine = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
+    frame!(0);
+    const before = graphics.value;
+    button('Hide city').handlers.click!();
+    expect([city.visible, machine.visible]).toEqual([false, true]);
+    button('Hide machine').handlers.click!();
+    expect([city.visible, machine.visible]).toEqual([false, false]);
+    expect(graphics.value).toBe(before);
+    button('Hide city').handlers.click!();
+    button('Hide machine').handlers.click!();
+    expect([city.visible, machine.visible]).toEqual([true, true]);
+  });
+
+  it('a machine root that is replaced while hidden is hidden too', () => {
+    let machine = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine }) });
+    frame!(0);
+    button('Hide machine').handlers.click!();
+    const next = { visible: true };
+    machine = next;
+    frame!(1000);
+    expect(next.visible).toBe(false);
+  });
+
+  it('the readout has the viewport line: the window, the screen and the orientation', () => {
+    vi.stubGlobal('window', { devicePixelRatio: 1, innerWidth: 485, innerHeight: 997, screen: { width: 485, height: 997 } });
+    mountDebug({ renderer: rig(), canvas: cvs() });
+    frame!(0);
+    expect(made.find((e) => e.tag === 'pre')!.textContent).toContain('view 485x997, screen 485x997, portrait (by size)');
   });
 });

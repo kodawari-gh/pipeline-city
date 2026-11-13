@@ -85,6 +85,28 @@ export interface StatsSnapshot {
   calls: number;
   scale: number;
   post: boolean;
+  /** The sun's shadow level and the room's lamp cap, as the graphics settings hold them. */
+  shadows: number;
+  lights: number;
+  vw: number;
+  vh: number;
+  sw: number;
+  sh: number;
+  orient: string;
+}
+
+/** The viewport: the window's inner size, the screen's size, and the orientation. */
+export interface ViewportInfo { vw: number; vh: number; sw: number; sh: number; orient: string }
+
+/**
+ * The viewport for the readout. The orientation is screen.orientation's type when the browser has it; else it is read from the window size, and the
+ * text says so ("by size").
+ */
+export function viewportOf(
+  win: Pick<Window, 'innerWidth' | 'innerHeight'>, scr: Partial<Pick<Screen, 'width' | 'height'>> & { orientation?: { type: string } },
+): ViewportInfo {
+  const orient = scr.orientation?.type ?? (win.innerWidth > win.innerHeight ? 'landscape (by size)' : 'portrait (by size)');
+  return { vw: win.innerWidth, vh: win.innerHeight, sw: scr.width ?? 0, sh: scr.height ?? 0, orient };
 }
 
 /** A number at most 3 decimals, without trailing zeros (2.200000047683716 -> 2.2). */
@@ -102,5 +124,8 @@ export function statsText(s: StatsSnapshot): string {
     `calls ${s.calls}`,
     `scale ${s.scale}`,
     `post ${s.post ? 'on' : 'off'}`,
+    `shadows ${s.shadows}`,
+    `lights ${s.lights}`,
+    `view ${s.vw}x${s.vh}, screen ${s.sw}x${s.sh}, ${s.orient}`,
   ].join('\n');
 }
