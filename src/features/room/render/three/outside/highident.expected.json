@@ -1,0 +1,178 @@
+{
+  "Group#0": {
+    "meshes": 12,
+    "draws": 12,
+    "tris": 194148,
+    "verts": 582420,
+    "instances": 0,
+    "sum": "b1dc8341"
+  },
+  "Group#19": {
+    "meshes": 10,
+    "draws": 10,
+    "tris": 275178,
+    "verts": 22362,
+    "instances": 1618,
+    "sum": "4d260385"
+  },
+  "Mesh#1": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 18682,
+    "verts": 56046,
+    "instances": 0,
+    "sum": "08191e8d"
+  },
+  "Mesh#10": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 920,
+    "verts": 1840,
+    "instances": 0,
+    "sum": "ff4aaf49"
+  },
+  "Mesh#11": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 11856,
+    "verts": 10374,
+    "instances": 0,
+    "sum": "2fe4341a"
+  },
+  "Mesh#12": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 853440,
+    "verts": 448056,
+    "instances": 0,
+    "sum": "064ded3b"
+  },
+  "Mesh#13": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 11808,
+    "verts": 10332,
+    "instances": 0,
+    "sum": "5e454bfb"
+  },
+  "Mesh#14": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 308000,
+    "verts": 161700,
+    "instances": 0,
+    "sum": "e7c32f7b"
+  },
+  "Mesh#15": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 168016,
+    "verts": 114924,
+    "instances": 0,
+    "sum": "5928f11d"
+  },
+  "Mesh#16": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 495540,
+    "verts": 253276,
+    "instances": 0,
+    "sum": "48789f65"
+  },
+  "Mesh#17": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 64032,
+    "verts": 43888,
+    "instances": 0,
+    "sum": "0872433d"
+  },
+  "Mesh#18": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 416400,
+    "verts": 218610,
+    "instances": 0,
+    "sum": "594695f5"
+  },
+  "Mesh#2": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 45854,
+    "verts": 137562,
+    "instances": 0,
+    "sum": "8fa33196"
+  },
+  "Mesh#20": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 864,
+    "verts": 24,
+    "instances": 72,
+    "sum": "a84f5b4e"
+  },
+  "Mesh#21": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 2208,
+    "verts": 1225,
+    "instances": 0,
+    "sum": "a4975d51"
+  },
+  "Mesh#3": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 117098,
+    "verts": 351294,
+    "instances": 0,
+    "sum": "670f1326"
+  },
+  "Mesh#4": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 120178,
+    "verts": 360534,
+    "instances": 0,
+    "sum": "fa784cc8"
+  },
+  "Mesh#5": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 123864,
+    "verts": 371592,
+    "instances": 0,
+    "sum": "0c8aa644"
+  },
+  "Mesh#6": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 298632,
+    "verts": 895896,
+    "instances": 0,
+    "sum": "a530923b"
+  },
+  "Mesh#7": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 98516,
+    "verts": 295548,
+    "instances": 0,
+    "sum": "9d5fcddb"
+  },
+  "Mesh#8": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 17920,
+    "verts": 9177,
+    "instances": 0,
+    "sum": "f31ef3ab"
+  },
+  "Mesh#9": {
+    "meshes": 1,
+    "draws": 1,
+    "tris": 2,
+    "verts": 4,
+    "instances": 0,
+    "sum": "dae5f054"
+  }
+}

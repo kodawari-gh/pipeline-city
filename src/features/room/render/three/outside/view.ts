@@ -35,6 +35,7 @@ import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
+import { lowFacadeMaterial } from './lowfacade';
 import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
@@ -262,7 +263,7 @@ export class OutsideView {
       : sweptMerge(still, [k.paint, k.yellow, k.iron, k.post, k.soil, k.lantern, k.trim, k.kerb], cell)));
     mergeStatic(still);
     // (no steam with the steam cut: a plume is a draw for a few roofs)
-    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = cuts.steam ? null : roofSteam(blocks, this.haze);
+    const blocks = buildings(), washes: SignWash[] = [], facade = this.detail === 'low' ? lowFacadeMaterial() : facadeMaterial(), steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
