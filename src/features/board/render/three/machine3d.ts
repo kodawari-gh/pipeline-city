@@ -48,7 +48,7 @@ import type { Chips3D } from './chips3d';
 import { caseModel, innerStrips, stripLight, type CaseModel } from './case3d';
 import { GROMMETS, rearFanScrews, SLOT_BLANK } from './casedetail3d';
 import { SINK_FAN_MID, sinkBody } from './sink3d';
-import { DOOR_SECONDS, doorPose } from './casedoor';
+import { DOOR_SECONDS, doorPose, stepDoor } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
 import { basementPlan, shroud } from './basement3d';
@@ -915,8 +915,8 @@ export class Machine3D {
   private swingDoor(dt: number) {
     const d = this.door!, cm = d.cm, open = d.zoom > DOOR_ZOOM[1] * d.board, shut = d.zoom < DOOR_ZOOM[0] * d.board;
     if ((open && !d.zoomOpen) || (shut && d.zoomOpen)) { d.zoomOpen = open; d.manual = null; }
-    const want = this.doorOpen ? 1 : 0, step = dt / DOOR_SECONDS[d.kind];
-    d.t = want ? Math.min(1, d.t + step) : Math.max(0, d.t - step); // (at rest it stays: a step back and forth would jiggle it every frame)
+    // (at rest it stays: a step back and forth would jiggle it every frame)
+    d.t = stepDoor(d.t, this.doorOpen ? 1 : 0, dt, DOOR_SECONDS[d.kind]);
     const p = doorPose(d.kind, d.t);
     cm.door.position.set(cm.px - p.slide, 0, FRONT + p.out);
     cm.door.rotation.y = p.swing;

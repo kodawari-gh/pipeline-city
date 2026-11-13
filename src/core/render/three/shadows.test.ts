@@ -79,6 +79,23 @@ describe('ShadowCache.scan', () => {
   });
 });
 
+/**
+ * One frame of a test: the renders (each draws the maps the budget allows), then the scan. The budget defers a map to the next render, so the
+ * frame draws on while a map is owed (`pending`). A move asks every map again. Returns the maps drawn over the frame, and whether a caster moved.
+ */
+function frameOf(cache: ShadowCache, r: WebGLRenderer, scene: Scene, lights: Light[], drawn: Light[], t: number): { drawn: Light[]; moved: boolean } {
+  const got: Light[] = [];
+  let moved = false;
+  do {
+    drawn.length = 0;
+    r.shadowMap.render(lights, scene, null as never);
+    got.push(...drawn);
+    scene.updateMatrixWorld(true);
+    if (cache.scan(scene, t)) { moved = true; for (const l of lights) catchUp(l); }
+  } while (cache.pending);
+  return { drawn: got, moved };
+}
+
 /** A scene with a still caster, a spinning rotor and two lights; the cache over a renderer that records each map it draws, as three does. */
 function lit() {
   const scene = new Scene(), caster = new Mesh(new BoxGeometry()), rotor = new Group(), blade = new Mesh(new BoxGeometry());
@@ -93,14 +110,7 @@ function lit() {
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
   /** One frame: the maps drawn for it, then the scan after its draw; a move asks every map again (as `Room3D.redrawShadows`). */
-  const frame = (t: number) => {
-    drawn.length = 0;
-    r.shadowMap.render([lamp, bulb], scene, null as never);
-    scene.updateMatrixWorld(true);
-    const moved = cache.scan(scene, t);
-    if (moved) { catchUp(lamp); catchUp(bulb); }
-    return { drawn: [...drawn], moved };
-  };
+  const frame = (t: number) => frameOf(cache, r, scene, [lamp, bulb], drawn, t);
   frame(0);
   frame(16);
   frame(5000); // settled
@@ -125,13 +135,7 @@ function ranged() {
   const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
   const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
   const cache = new ShadowCache(r);
-  const frame = (t: number) => {
-    drawn.length = 0;
-    r.shadowMap.render(lights, scene, null as never);
-    scene.updateMatrixWorld(true);
-    if (cache.scan(scene, t)) for (const l of lights) catchUp(l);
-    return [...drawn];
-  };
+  const frame = (t: number) => frameOf(cache, r, scene, lights, drawn, t).drawn;
   frame(0);
   frame(16);
   frame(5000); // settled
@@ -225,13 +229,7 @@ describe('ShadowCache layers', () => {
     const draw = (ls: PointLight[]) => { for (const l of ls) if (l.shadow.needsUpdate) { drawn.push(l); l.shadow.needsUpdate = false; } };
     const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
     const cache = new ShadowCache(r);
-    const frame = (t: number) => {
-      drawn.length = 0;
-      r.shadowMap.render(lights, scene, null as never);
-      scene.updateMatrixWorld(true);
-      if (cache.scan(scene, t)) for (const l of lights) catchUp(l);
-      return [...drawn];
-    };
+    const frame = (t: number) => frameOf(cache, r, scene, lights, drawn, t).drawn;
     frame(0); frame(16); frame(5000);
     return { plain, on, rotor, layered, dflt, frame };
   }
@@ -296,5 +294,139 @@ describe('ShadowCache maps', () => {
     lamp.intensity = 0;
     lamp.shadow.autoUpdate = true;
     expect(frame(6000).drawn).toEqual([lamp]);
+  });
+});
+
+/** Three spot lights (due at once) over a caster that does not move, and an autoUpdate light; the cache over a recording renderer, as three does. */
+function budget() {
+  const scene = new Scene(), caster = new Mesh(new BoxGeometry());
+  caster.castShadow = true;
+  scene.add(caster);
+  const lights = [new SpotLight(), new SpotLight(), new SpotLight()];
+  for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  const auto = new SpotLight();
+  auto.castShadow = true; auto.shadow.autoUpdate = true;
+  scene.add(...lights, auto);
+  const drawn: Light[] = [];
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.autoUpdate || l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
+  const cache = new ShadowCache(r);
+  const render = () => { drawn.length = 0; r.shadowMap.render([...lights, auto], scene, null as never); return [...drawn]; };
+  const frame = (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); return render(); };
+  return { lights, auto, cache, render, frame };
+}
+
+describe('ShadowCache budget', () => {
+  it('draws at most one full map in one render', () => {
+    const { lights, frame } = budget();
+    const first = frame(0).filter((l) => lights.includes(l as never));
+    expect(first).toHaveLength(1);
+  });
+  it('draws each due map once within as many frames as due lights, then none', () => {
+    const { lights, frame, render } = budget();
+    const seen: Light[] = [];
+    for (let i = 1; i <= 3; i++) seen.push(...frame(i * 16).filter((l) => lights.includes(l as never)));
+    expect(seen).toHaveLength(3);
+    expect(new Set(seen)).toEqual(new Set(lights));
+    expect(render().filter((l) => lights.includes(l as never))).toEqual([]);
+  });
+  it('is pending until every deferred map is drawn', () => {
+    const { cache, frame } = budget();
+    const c = cache as unknown as { pending: boolean };
+    frame(0);
+    expect(c.pending).toBe(true);
+    frame(16);
+    expect(c.pending).toBe(true);
+    frame(32);
+    expect(c.pending).toBe(false);
+  });
+  it('draws an autoUpdate light every render, whatever the budget', () => {
+    const { auto, frame, render } = budget();
+    expect(frame(0)).toContain(auto);
+    expect(frame(16)).toContain(auto);
+    expect(render()).toContain(auto);
+  });
+  it('draws no further full map in a second render of the same frame', () => {
+    const { lights, frame, render } = budget();
+    frame(0);
+    expect(render().filter((l) => lights.includes(l as never))).toEqual([]);
+  });
+});
+
+/**
+ * Three due spot lights over a still caster, as `budget`, but the renderer draws only the lights in the scene (as three does), so a light
+ * removed from it is not drawn. Returns the scene, the lights and the cache's `pending`.
+ */
+function removable(grouped = false) {
+  const scene = new Scene(), caster = new Mesh(new BoxGeometry());
+  caster.castShadow = true;
+  scene.add(caster);
+  const lights = [new SpotLight(), new SpotLight(), new SpotLight()];
+  for (const l of lights) { l.castShadow = true; l.shadow.autoUpdate = false; l.shadow.needsUpdate = true; }
+  // the lights under a group, the group in the scene (or the lights directly in the scene)
+  const group = new Group();
+  if (grouped) { scene.add(group); group.add(...lights); } else scene.add(...lights);
+  const drawn: Light[] = [];
+  const draw = (ls: (Light & { shadow?: LightShadow })[]) => { for (const l of ls) if (l.shadow!.needsUpdate) { drawn.push(l); l.shadow!.needsUpdate = false; } };
+  const r = { shadowMap: { render: draw } } as unknown as WebGLRenderer;
+  const cache = new ShadowCache(r);
+  const c = cache as unknown as { pending: boolean };
+  /** One scan, then the render of the frame (over the lights in the scene, as three's): the maps drawn. */
+  const frame = (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); drawn.length = 0; r.shadowMap.render(lights.filter((l) => inScene(l, scene)), scene, null as never); return [...drawn]; };
+  return { scene, group, lights, cache, c, frame, drawn, r, scan: (t: number) => { scene.updateMatrixWorld(true); cache.scan(scene, t); } };
+}
+
+/** Is `o` in `scene` (its parent chain reaches the scene)? */
+function inScene(o: Object3D, scene: Object3D): boolean {
+  for (let p: Object3D | null = o; p; p = p.parent) if (p === scene) return true;
+  return false;
+}
+
+describe('ShadowCache removed lights', () => {
+  it('is not pending on a deferred light removed from the scene, and never draws it', () => {
+    const { scene, lights, c, frame, scan, drawn } = removable();
+    expect(frame(0)).toEqual([lights[0]]);
+    expect(c.pending).toBe(true); // lights[1] and lights[2] are owed
+    scene.remove(lights[1]!); // deferred, not yet drawn
+    scan(16);
+    expect(c.pending).toBe(true); // lights[2] is still owed
+    expect(frame(32)).toEqual([lights[2]]);
+    expect(drawn).not.toContain(lights[1]);
+    expect(c.pending).toBe(false);
+  });
+  it('is not pending once every deferred light is removed from the scene', () => {
+    const { scene, lights, c, frame } = removable();
+    frame(0);
+    scene.remove(lights[1]!, lights[2]!);
+    expect(frame(16)).toEqual([]);
+    expect(c.pending).toBe(false);
+  });
+  it('is not pending on lights under a group removed from the scene, and never draws them', () => {
+    const { scene, group, lights, c, frame, drawn } = removable(true);
+    expect(frame(0)).toEqual([lights[0]]);
+    expect(c.pending).toBe(true); // lights[1] and lights[2] are owed
+    scene.remove(group);
+    expect(lights[1]!.parent).toBe(group); // still under the group, which is not in the scene
+    expect(frame(16)).toEqual([]);
+    expect(c.pending).toBe(false);
+    expect(drawn).not.toContain(lights[1]);
+    expect(drawn).not.toContain(lights[2]);
+  });
+  it('keeps a deferred light of another scene: a scan of this scene does not drop it', () => {
+    const { lights, c, frame, scan, r, drawn } = removable();
+    const other = new Scene(), x = new SpotLight();
+    x.castShadow = true; x.shadow.autoUpdate = false; x.shadow.needsUpdate = true;
+    other.add(x);
+    frame(0); // draws lights[0]: the budget is spent
+    drawn.length = 0;
+    r.shadowMap.render([x], other, null as never); // deferred: owed, in another scene
+    expect(drawn).toEqual([]);
+    frame(16); frame(32); // lights[1] and lights[2] are drawn, the board's scans run
+    expect(c.pending).toBe(true); // x is still owed
+    scan(48); // refills the budget
+    drawn.length = 0;
+    r.shadowMap.render([x], other, null as never);
+    expect(drawn).toEqual([x]);
+    expect(c.pending).toBe(false);
   });
 });

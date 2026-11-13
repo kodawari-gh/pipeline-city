@@ -7,7 +7,7 @@ import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
 import { anisotropy, refilter } from './geometry';
 import { disposeRenderContext } from './init';
-import { DrawGate, STILL_PX, ViewWatch } from './ondemand';
+import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
 
 export interface Viewer {
   /** Show another part (null: an empty stage). The old one is disposed. */
@@ -200,7 +200,7 @@ export function mountViewer(host: HTMLElement): Viewer {
     if (dead) return;
     raf = requestAnimationFrame(frame);
     if (!gate.ready(now, effective.peek().fps)) return;
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const dt = frameDt(now, last);
     last = now;
     idle += dt;
     if (auto && idle > 2) yaw += AUTO_SPEED * dt;

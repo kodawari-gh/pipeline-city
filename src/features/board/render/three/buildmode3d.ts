@@ -10,7 +10,7 @@ import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
-import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
+import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/ondemand';
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
@@ -288,7 +288,7 @@ export class BuildStage {
     if (this.dead) return;
     this.raf = requestAnimationFrame(this.frame);
     if (!this.gate.ready(now, effective.peek().fps)) return;
-    const dt = Math.min(0.1, (now - this.last) / 1000);
+    const dt = frameDt(now, this.last);
     this.last = now;
     const { scene, camera, renderer } = this.ctx;
     this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);

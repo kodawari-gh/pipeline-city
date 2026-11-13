@@ -13,6 +13,16 @@ export const DOOR_SECONDS: Record<CaseKind, number> = { oem: 1.6, matte: 1.0, ga
 export const SWING = (105 * Math.PI) / 180;
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
+
+/**
+ * The door's progress after `dt` seconds toward `want` (1 open, 0 shut), over `seconds` for a full opening. Always in [0, 1]: a `t` out of
+ * range is clamped first, and a negative or NaN `dt` is no step.
+ */
+export function stepDoor(t: number, want: 0 | 1, dt: number, seconds: number): number {
+  const u = Number.isNaN(t) ? 0 : clamp(t);
+  const step = dt > 0 ? dt / seconds : 0;
+  return want ? clamp(Math.min(1, u + step)) : clamp(Math.max(0, u - step));
+}
 /** The part of `t` between `a` and `b`, 0 to 1. */
 const span = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
 const inOut = (u: number) => u * u * (3 - 2 * u);
