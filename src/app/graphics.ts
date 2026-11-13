@@ -445,29 +445,37 @@ const SLOW_FPS = 30, SLOW_FOR_S = 2.5, SETTLE_MS = 5000, HITCH_S = 0.15;
 const TIER_WINDOW_S = 4, TIER_WORK_SHARE = 0.35, TIER_HOLD = 0.9;
 
 /**
- * Reads one window (4 s) of frames after the settle time and makes one decision, then stops. Down: the mean rate is under 30 fps or under 0.8 x the limit.
- * Up: the mean rate holds 0.9 x the limit and the mean frame work (CPU ms in the frame callback) is under 35% of the frame budget. A lone hitch counts at most 0.15 s.
+ * Reads one window (4 s of wall time) of drawn frames after the settle time and makes one decision, then stops. The rate is drawn frames
+ * over the gaps between them (idle ticks, which draw nothing, are part of the gap: a stall in one counts). Down: the rate is under 30 fps or
+ * under 0.8 x the limit; a lone hitch counts at most 0.15 s there. Up: the unclamped rate holds 0.9 x the limit and the mean frame work
+ * (CPU ms in the frame callback) is under 35% of the frame budget. A clamp never makes a frame look fast.
  */
 export class TierWatch {
   private since = -Infinity;
-  private time = 0;
+  private prev = -1;
+  private wall = 0;   // ms between the counted drawn frames, unclamped
+  private time = 0;   // the same gaps, each at most HITCH_S (for down only)
   private work = 0;
   private n = 0;
   private done = false;
 
-  reset(now: number) { this.since = now; this.time = 0; this.work = 0; this.n = 0; }
+  reset(now: number) { this.since = now; this.prev = -1; this.wall = 0; this.time = 0; this.work = 0; this.n = 0; }
 
-  /** A frame of `real` seconds whose callback took `workMs`. Returns the one decision, once. */
-  tick(real: number, workMs: number, now: number, fps: number): 'down' | 'up' | null {
+  /** A drawn frame whose callback took `workMs`, at `now` (ms). Returns the one decision, once. */
+  tick(workMs: number, now: number, fps: number): 'down' | 'up' | null {
     if (this.done || now - this.since < SETTLE_MS) return null;
-    this.time += Math.min(real, HITCH_S);
+    if (this.prev < 0) { this.prev = now; return null; }
+    const gap = (now - this.prev) / 1000;
+    this.prev = now;
+    this.wall += gap;
+    this.time += Math.min(gap, HITCH_S);
     this.work += workMs;
     this.n++;
-    if (this.time < TIER_WINDOW_S) return null;
+    if (this.wall < TIER_WINDOW_S) return null;
     this.done = true;
-    const limit = fps || 60, rate = this.n / this.time, budget = 1000 / limit;
-    if (rate < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
-    if (rate >= limit * TIER_HOLD && this.work / this.n < budget * TIER_WORK_SHARE) return 'up';
+    const limit = fps || 60, budget = 1000 / limit;
+    if (this.n / this.time < Math.min(SLOW_FPS, limit * SLOW_SHARE)) return 'down';
+    if (this.n / this.wall >= limit * TIER_HOLD && this.work / this.n < budget * TIER_WORK_SHARE) return 'up';
     return null;
   }
 }
