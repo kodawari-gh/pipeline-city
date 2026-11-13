@@ -154,7 +154,7 @@ varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
 flat varying vec3 vLowTint;
-flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;`)
+flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 int lowKind = int(aux.y + 0.5);
 // a thin thing far off holds a whole pixel's width, as facadeMaterial's does (plain, beacon, LED band)
@@ -175,6 +175,7 @@ vLowFuv = fuv; vLowLook = look; vLowTint = tint; vLowWide = lowWide; vLowY = (mo
 vLowFac = lowKind == 0 || lowKind == 6 ? 1.0 : 0.0;
 vLowKind = float(lowKind);
 vLowSeed = aux.x;
+vLowMetal = aux.z;
 // each building's own night level, so the lit rooms do not all come up together
 vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
@@ -186,7 +187,7 @@ varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
 flat varying vec3 vLowTint;
-flat varying float vLowFac, vLowKind, vLowNight, vLowSeed;
+flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;
 // the atlas cell of this bay: the building's phase, and a cell picked per bay by a hash, so no two bays repeat one grid
 vec2 lowAtlas() {
   vec2 bay = floor(vLowBay) + vLowOff;
@@ -223,6 +224,15 @@ if (fLampK > 0.0) {
   diffuseColor.rgb *= mix(vec3(1.0), lowTn, lowTex.a * vLowFac);
   // at night the walls go cool and dark between the windows, as base's do (the lamps light the darker albedo too); by day fNight is 0
   diffuseColor.rgb *= mix(vec3(1.0), vec3(${LOW_NIGHT_WALL.join(', ')}), fNight * vLowFac);
+}`)
+      // by day the non-facade kinds take facadeMaterial's daytime diffuse, not the vertex colour (a dark LED line, pale metal, a dark sign board);
+      // this runs after color_fragment, which multiplies the vertex colour in. Their glow stays on the emissive step, scaled by the night
+      .replace('#include <color_fragment>', `#include <color_fragment>
+if (vLowFac == 0.0) {
+  if (vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);
+  else if (vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
+  else if (vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
+  else if (vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
 }`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;

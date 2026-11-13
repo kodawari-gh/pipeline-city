@@ -44,7 +44,7 @@ function withMap(m: Material): string {
   const sh = {
     uniforms: {} as Record<string, unknown>,
     vertexShader: '#include <common>\n#include <begin_vertex>\n',
-    fragmentShader: '#include <common>\n#include <map_fragment>\n',
+    fragmentShader: '#include <common>\n#include <map_fragment>\n#include <color_fragment>\n',
   };
   const hook = (m as Material & { onBeforeCompile?: (s: typeof sh, r: unknown) => void }).onBeforeCompile;
   if (typeof hook === 'function') hook(sh, null);
@@ -182,6 +182,29 @@ describe('Low city facade bake', () => {
       expect(sh.fragmentShader).not.toContain('fHash');
       expect(sh.fragmentShader).not.toContain('fNoise');
       expect(sh.vertexShader).toContain('uniform float fPixel;');
+    }
+  }, 180000);
+
+  it('Low: by day the LED, flood, lantern and sign kinds take High\'s daytime diffuse, not the vertex colour; the glow stays scaled by the night', () => {
+    for (const m of buildings(low)) {
+      const mat = m.material as Material;
+      const sh = withMap(mat);
+      // after the vertex colour is multiplied in (color_fragment), so it replaces it, as High's per-kind diffuse does
+      const at = sh.indexOf('#include <color_fragment>');
+      expect(at, 'the day diffuse follows color_fragment').toBeGreaterThan(-1);
+      const day = sh.slice(at);
+      expect(day).toContain('vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);');
+      expect(day).toContain('vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);');
+      expect(day).toContain('vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);');
+      expect(day).toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      expect(day).toContain('if (vLowFac == 0.0)');
+      // the spire's metal flag comes from the vertex's aux.z, as High's does
+      expect(compiled(mat).vertexShader).toContain('vLowMetal = aux.z;');
+      // the glow is still the night's: each kind's glow scaled by fNight, not by the day diffuse
+      const full = compiled(mat).fragmentShader;
+      expect(full).toContain('totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;');
+      expect(full).toContain('vec3 lowGlow = vec3(0.0);');
+      expect(day).not.toContain('fGlow');
     }
   }, 180000);
 
