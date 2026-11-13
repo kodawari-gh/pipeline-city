@@ -19,9 +19,9 @@ const LIVE = [
 ] as const;
 
 /** A source at or under this metalness is paint or plastic: its Lambert keeps the source's own Color object. */
-const NON_METAL = 0.1;
+export const NON_METAL = 0.1;
 /** The dark metal a metal's Lambert reads toward, from the darkest to the lightest (by the source's own lightness). */
-const DARK_METAL = [new Color(0x2a2d32), new Color(0x4e5360)] as const;
+export const DARK_METAL = [new Color(0x2a2d32), new Color(0x4e5360)] as const;
 const HSL = { h: 0, s: 0, l: 0 };
 
 /**

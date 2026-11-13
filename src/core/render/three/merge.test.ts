@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, ShaderLib, Vector3, type Material } from 'three';
+import { DARK_METAL } from './cheapmaterials';
+import { setLowDetail } from './detail';
 import { own } from './materials';
 import { mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
@@ -144,6 +146,51 @@ describe('mergePalette', () => {
     expect(sh.fragmentShader).toContain('metalnessFactor = vPalRM.y;');
     expect(sh.fragmentShader).not.toContain('#include <roughnessmap_fragment>');
     expect(() => palettePatch({ vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: 'void main() {}' })).toThrow(/palette patch/);
+  });
+});
+
+describe('the Low palette material draws as a Lambert does', () => {
+  /** What a merged palette mesh of two black plastic parts compiles to, as three gives its fragment shader to `onBeforeCompile`. */
+  const compiled = (): string => {
+    const root = new Group(), par = new Group(), blk = () => new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
+    par.add(new Mesh(new BoxGeometry(), blk()), new Mesh(new BoxGeometry(), blk()));
+    root.add(par);
+    mergeSiblings(root);
+    const out = par.children[0] as Mesh, sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader };
+    (out.material as MeshStandardMaterial).onBeforeCompile(sh as never, undefined as never);
+    return sh.fragmentShader;
+  };
+  afterEach(() => { setLowDetail(false); });
+
+  it('has no specular at Low: a black plug stays black under a bright light (it turned tan with PBR)', () => {
+    setLowDetail(true);
+    const f = compiled();
+    expect(f).toContain('reflectedLight.directSpecular = vec3( 0.0 )');
+    expect(f).toContain('reflectedLight.indirectSpecular = vec3( 0.0 )');
+    expect(f.indexOf('indirectSpecular = vec3( 0.0 )')).toBeLessThan(f.indexOf('totalDiffuse')); // (before the light is summed)
+  });
+
+  it('reads a metal as the dark metal its Lambert shows, and takes its metalness off', () => {
+    setLowDetail(true);
+    const f = compiled();
+    expect(f).toContain('lowMetal( vPalC, vPalRM.y )');
+    expect(f).toContain('metalnessFactor = 0.0;');
+    expect(f).not.toContain('metalnessFactor = vPalRM.y;');
+    for (const c of DARK_METAL) expect(f).toContain(`vec3( ${c.r.toFixed(6)}, ${c.g.toFixed(6)}, ${c.b.toFixed(6)} )`);
+  });
+
+  it('is the PBR patch, as it was, at High', () => {
+    const f = compiled();
+    expect(f).not.toContain('directSpecular = vec3( 0.0 )');
+    expect(f).not.toContain('lowMetal');
+    expect(f).toContain('metalnessFactor = vPalRM.y;');
+    expect(f).toContain('vec4( vPalC, opacity )');
+  });
+
+  it('keeps the two tiers\' programs apart', () => {
+    const key = (): string => { const root = new Group(), p = new Group(); p.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()), new Mesh(new BoxGeometry(), new MeshStandardMaterial())); root.add(p); mergeSiblings(root); return ((p.children[0] as Mesh).material as MeshStandardMaterial).customProgramCacheKey(); };
+    const high = key(); setLowDetail(true);
+    expect(key()).not.toBe(high);
   });
 });
 
