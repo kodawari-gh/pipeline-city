@@ -76,16 +76,9 @@ const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 export const TIER_NAMES: readonly (readonly [Tier, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']];
 const tierName = (t: Tier) => TIER_NAMES.find(([id]) => id === t)![1];
 
-/** Low lights the window's key and the sun only (`LIGHT_ORDER`): its lamps are off. */
-export const LOW_LIGHTS = 2;
-
-/** Bench toggles, set from the page before setTier. Each one turns a Low cut off: lamps (Low keeps the preset's lamps), probe (Low probes as High),
- * lambert (no cheap materials), shadowSkip (the room scans its shadows with no caster). */
-export const LOW_CUTS = { lamps: true, probe: true, lambert: true, shadowSkip: true };
-
-/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off and two lights. */
+/** A tier is its preset, at 60 fps. Low also draws at 0.75 scale, with the sun's shadows Off. */
 export function tierGraphics(tier: Tier, base: Graphics): Graphics {
-  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0, lights: LOW_CUTS.lamps ? LOW_LIGHTS : PRESETS.low.lights } : {}) };
+  return { ...base, ...PRESETS[tier], fps: 60, ...(tier === 'low' ? { scale: 0.75, shadows: 0 } : {}) };
 }
 
 /** What `pickTier` reads. A field the browser hides is 0 or ''. */
@@ -213,17 +206,13 @@ export function resolveStart(
   // saves from before auto-adjust became opt-in (v1 and older) carry its old default: the player never chose it
   if (hasSave && before(2)) base.auto = false;
   // Low drew at 30 fps before v3 and runs at 60 now: an old Low save with 30 moves to 60. A v3 save at 30 is the player's choice
-  const wasLow = hasSave && before(3) && (stored ? stored.tier === 'low' : presetOf(base) === 'low');
-  const preset = presetOf(base); // (before the lights move: Low's preset has 4)
-  if (wasLow && base.fps === 30) base.fps = 60;
-  // the same for its lights: Low's old 4 become 2. Any other count is the player's choice
-  if (wasLow && base.lights === PRESETS.low.lights) base.lights = LOW_LIGHTS;
+  if (hasSave && before(3) && base.fps === 30 && (stored ? stored.tier === 'low' : presetOf(base) === 'low')) base.fps = 60;
   let out: { g: Graphics; rec: TierRecord };
   if (hasSave && !stored && isOldTouchDefault(saved)) {
     // never the player's choice: Low's cap, and auto
     out = { g: tierGraphics('low', base), rec: { mode: 'auto', tier: 'low', reason: 'phone default' } };
   } else if (hasSave && !stored) {
-    const p = preset;
+    const p = presetOf(base);
     out = { g: base, rec: { mode: 'manual', tier: p === 'low' || p === 'medium' ? p : 'high', reason: 'saved settings' } };
   } else if (stored) {
     // auto never starts above a tier it stepped down from, until that note expires

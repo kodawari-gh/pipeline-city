@@ -1,10 +1,8 @@
 import { expect, it } from 'vitest';
 import { BoxGeometry, Mesh, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
-import { LOW_CUTS } from '@/app/graphics';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { BEDSIDE_FAR, BEDSIDE_LAYER, Room3D } from './room3d';
 import { FLOOR_Y, NIGHTSTAND } from './roomplan';
-import { LIGHT_ORDER, type LightId } from './roomlights';
 
 type Caster = Light & { shadow: LightShadow };
 
@@ -64,26 +62,6 @@ it('casting is false with the shadows off and true at a shadow level', () => {
   expect(room.casting).toBe(false);
   room.setShadows(1);
   expect(room.casting).toBe(true);
-});
-
-it('Low\'s two lights are the window\'s key and the sun: every other light is invisible', () => {
-  const room = new Room3D();
-  room.setLights(2, false);
-  const byId = (room as unknown as { lightsOf(id: LightId): Light[] }).lightsOf.bind(room);
-  const visible = LIGHT_ORDER.filter((id) => byId(id).some((l) => l.visible));
-  expect(visible).toEqual(['key', 'sun']);
-  for (const id of LIGHT_ORDER) if (id !== 'key' && id !== 'sun') for (const l of byId(id)) expect(l.visible, id).toBe(false);
-});
-
-it('LOW_CUTS.shadowSkip off: scanShadows scans even with no caster', () => {
-  const room = new Room3D(), scene = new Scene();
-  let calls = 0;
-  const cache = { scan: (_s: Object3D, _now: number) => { calls++; return false; } };
-  room.setLights(2, false);
-  room.setShadows(0);
-  LOW_CUTS.shadowSkip = false;
-  try { room.scanShadows(cache, scene, 0); } finally { LOW_CUTS.shadowSkip = true; }
-  expect(calls).toBe(1);
 });
 
 it('scanShadows does not scan with no caster, and scans once with one', () => {
