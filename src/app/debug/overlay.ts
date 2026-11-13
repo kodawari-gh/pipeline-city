@@ -4,17 +4,16 @@
  * rAF loop. Loaded only by `whenDebug` (`board3d.ts`): without `?debug` this module never runs.
  */
 import type { WebGLRenderer } from 'three';
+import type { OutsideView } from '@/features/room/render/three/outside/view';
 import { CHOICES, effective, tierRecord } from '../graphics';
 import { backToAuto, lightsNow, overridden, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
+import { debugLayer, debugStats } from './city-layers';
 import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
 
 /** A root the overlay can hide: its visibility only. */
 export type HideRoot = { visible: boolean };
 
-/** The city's layers the overlay can turn off, and the city's stats: `OutsideView` (the overlay does not import it). */
-export interface CityLayers { debugLayer(layer: string, off: boolean): void; debugStats(): { tris: number; calls: number } }
-
-/** The city's layer toggles: the layer's key (`OutsideView.debugLayer`) and its button's label. Each is its own button; lit when the layer is off. */
+/** The city's layer toggles: the layer's key (`debugLayer`, `city-layers.ts`) and its button's label. Each is its own button; lit when the layer is off. */
 export const CITY_LAYERS: readonly (readonly [string, string])[] = [
   ['lights', 'No city lights'], ['buildings', 'No buildings'], ['freeze', 'Freeze city'], ['cars', 'No cars'],
   ['sky', 'No city sky'], ['glow', 'No glow'], ['steam', 'No steam'], ['mirror', 'No mirror'], ['flat', 'City 1x'],
@@ -22,6 +21,13 @@ export const CITY_LAYERS: readonly (readonly [string, string])[] = [
 
 /** The readout is redrawn this often (ms). */
 const SHOW_MS = 250;
+
+/**
+ * The panel's width cap. The main menu is centred (`.mainmenu`, ui.css) and its buttons are `clamp(13rem, 24vw, 17rem)` wide, so their left
+ * edge is at least 50vw - 8.5rem. The panel is border-box, so this cap includes its padding. Its right edge is at the cap plus its 0.25rem
+ * left offset: 50vw - 9.25rem, which leaves 0.75rem (12px at 16px) before the button. Any width of the window.
+ */
+export const PANEL_MAX_WIDTH = 'calc(50vw - 9.5rem)';
 
 // tap targets: 3rem is 44px or more at the smallest root font (15px, ui.css)
 const BTN = 'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font:inherit;color:#fff;background:#223;border:1px solid #889;border-radius:0.25rem;';
@@ -31,11 +37,11 @@ const ON = 'background:#3a7d44;';
  * `roots`: the city's and the machine's roots, now (the machine's changes when it is rebuilt). Without it the hides have nothing to hide.
  */
 export function mountDebug({ renderer, canvas, roots }: {
-  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null; layers?: CityLayers | null };
+  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null; layers?: OutsideView | null };
 }): void {
   // the city's layers that are off, and the city they were last applied to. Not saved.
   const layerOff = new Set<string>();
-  let layersAt: CityLayers | null = null;
+  let layersAt: OutsideView | null = null;
   const drawn = new DrawnFrames();
   // the hides: on or off, and the root each was last applied to (a hidden root that is replaced is hidden again). Not saved.
   const hide = { city: false, machine: false };
@@ -46,7 +52,7 @@ export function mountDebug({ renderer, canvas, roots }: {
   let drawCalls = 0;
 
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;top:4.5rem;left:0.25rem;z-index:10000;max-width:60vw;padding:0.4rem;border-radius:0.4rem;'
+  panel.style.cssText = `position:fixed;top:4.5rem;left:0.25rem;z-index:10000;box-sizing:border-box;max-width:${PANEL_MAX_WIDTH};padding:0.4rem;border-radius:0.4rem;`
     + 'background:rgba(0,0,0,0.6);color:#fff;font:0.8rem/1.35 ui-monospace,Menlo,Consolas,monospace;touch-action:manipulation;';
   const readout = document.createElement('pre');
   readout.style.cssText = 'margin:0 0 0.25rem;font:inherit;white-space:pre;';
@@ -79,13 +85,13 @@ export function mountDebug({ renderer, canvas, roots }: {
     const off = !layerOff.has(k);
     if (off) layerOff.add(k); else layerOff.delete(k);
     const now = roots?.().layers ?? null;
-    now?.debugLayer(k, off);
+    if (now) debugLayer(now, k, off);
     layersAt = now;
   };
   /** Auto: every city layer on again. */
   const layersOn = () => {
     const now = roots?.().layers ?? null;
-    for (const k of layerOff) now?.debugLayer(k, false);
+    for (const k of layerOff) if (now) debugLayer(now, k, false);
     layerOff.clear();
     layersAt = now;
   };
@@ -111,7 +117,7 @@ export function mountDebug({ renderer, canvas, roots }: {
   const syncHides = () => {
     if (roots && layerOff.size) {
       const l = roots().layers ?? null;
-      if (l && l !== layersAt) for (const k of layerOff) l.debugLayer(k, true);
+      if (l && l !== layersAt) for (const k of layerOff) debugLayer(l, k, true);
       layersAt = l;
     }
     if (!roots || !(hide.city || hide.machine)) return;
@@ -128,7 +134,8 @@ export function mountDebug({ renderer, canvas, roots }: {
 
   const snap = (): StatsSnapshot => {
     const g = effective.peek(), t = tierRecord.peek();
-    const city = roots?.().layers?.debugStats();
+    const v = roots?.().layers;
+    const city = v ? debugStats(v) : null;
     return {
       ...(city ? { cityTris: city.tris, cityCalls: city.calls } : {}),
       fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,

@@ -1,7 +1,14 @@
 import type { WebGLRenderer } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { OutsideView } from '@/features/room/render/three/outside/view';
 import { debugOverride, effective, graphics, PRESETS, setAutoTier, setPreset, tierRecord } from '../graphics';
-import { mountDebug } from './overlay';
+import { mountDebug, PANEL_MAX_WIDTH } from './overlay';
+
+// the city's layers are the module's (`city-layers.ts`, tested with the view): here, a stub city keeps the layers that are off
+vi.mock('./city-layers', () => ({
+  debugLayer: (v: { off: Set<string> }, k: string, o: boolean) => { if (o) v.off.add(k); else v.off.delete(k); },
+  debugStats: () => ({ tris: 1234, calls: 7 }),
+}));
 
 // A stub DOM: enough of document and the elements the overlay makes (no DOM in node).
 interface Fake {
@@ -181,11 +188,8 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     expect(next.visible).toBe(false);
   });
 
-  /** A city stub: the layers that are off, and a fixed count. */
-  const cityStub = () => {
-    const off = new Set<string>();
-    return { off, debugLayer: (k: string, o: boolean) => { if (o) off.add(k); else off.delete(k); }, debugStats: () => ({ tris: 1234, calls: 7 }) };
-  };
+  /** A city stub: the layers that are off (the module's `debugLayer` keeps them in `off`), and the module's fixed count. */
+  const cityStub = () => ({ off: new Set<string>() }) as unknown as OutsideView;
 
   it.each([
     ['No city lights', 'lights'], ['No buildings', 'buildings'], ['Freeze city', 'freeze'], ['No cars', 'cars'],
@@ -238,6 +242,30 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     layers = cityStub();
     frame!(1000);
     expect(pre.textContent).toContain('city tris 1234, calls 7');
+  });
+
+  it('at 1920x1080 the panel does not reach the main menu New game button (its left edge, ui.css .mm-btn)', () => {
+    vi.stubGlobal('window', { devicePixelRatio: 1, innerWidth: 1920, innerHeight: 1080, screen: { width: 1920, height: 1080 } });
+    const city = { visible: true };
+    mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers: cityStub() }) });
+    frame!(0);
+    const panel = made.find((e) => e.tag === 'div' && e.style.cssText.includes('position:fixed'))!;
+    expect(panel.style.cssText).toContain(`max-width:${PANEL_MAX_WIDTH};`);
+    expect(panel.style.cssText).toContain('box-sizing:border-box;');
+
+    // px at a 16px root: the panel's right edge at its widest, and the New game button's left edge (the .mainmenu is centred;
+    // .mm-btn is clamp(13rem, 24vw, 17rem) wide). Both use the same 1920px window.
+    const rem = 16, vw = 1920 / 100;
+    const left = 0.25 * rem;
+    const cap = 50 * vw - 9.5 * rem;
+    // the box model: a border-box cap includes the padding; a content-box cap adds it outside
+    const padding = 2 * 0.4 * rem;
+    const panelRight = left + (/box-sizing:border-box;/.test(panel.style.cssText) ? cap : cap + padding);
+    const btnWidth = Math.min(Math.max(13 * rem, 24 * vw), 17 * rem);
+    const newGameLeft = 1920 / 2 - btnWidth / 2;
+    expect(panelRight).toBeLessThan(newGameLeft);
+    // and a few pixels of clearance, not a touch
+    expect(newGameLeft - panelRight).toBeGreaterThanOrEqual(8);
   });
 
   it('the readout has the viewport line: the window, the screen and the orientation', () => {

@@ -12,7 +12,7 @@
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
   Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
-  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type InstancedMesh, type Material, type Object3D, type WebGLRenderer,
+  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type Object3D, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
 import { startPrograms, type Program } from '@/core/render/three/compile';
@@ -33,7 +33,7 @@ import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
 import { SunMap } from './sunmap';
-import { Sweep, drawn, sweptMerge } from './sweep';
+import { Sweep, sweptMerge } from './sweep';
 import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
@@ -105,9 +105,7 @@ const SUPER = 2;
  * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
-const EVERY = 3, HOLD_PX = 1;
-/** The layer of what the `?debug` overlay hides (no camera draws it). */
-const HIDDEN_LAYER = 30;
+export const EVERY = 3, HOLD_PX = 1;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
@@ -156,9 +154,12 @@ export class OutsideView {
   /** The quad in the window's opening (room units). */
   readonly mesh: Mesh;
   private quad: ShaderMaterial;
-  private scene = new Scene();
+  /** Read and set by the `?debug` layers (`app/debug/city-layers.ts`), not by other callers. */
+  scene = new Scene();
   private cam = new PerspectiveCamera();
   private target: WebGLRenderTarget | null = null;
+  /** The scale (`SUPER` or 1) the target was made at. */
+  private targetSS = 1;
   private kit: Kit;
   private sky: ShaderMaterial;
   private dome: Mesh;
@@ -170,7 +171,7 @@ export class OutsideView {
   private bounce = new DirectionalLight(0xfff1e2, 0);
   /** The moon's light at night, a faint blue from the sky (it casts no glints, which a moon as a light would on every roof). */
   private moon = new HemisphereLight(0x5a6fa8, 0x1c1e26, 0);
-  private lamps: PointLight[] = [];
+  lamps: PointLight[] = [];
   private leaf: LeafUniforms;
   private facade: FacadeUniforms;
   private steam: SteamUniforms;
@@ -192,7 +193,7 @@ export class OutsideView {
   private ran = -1;
   /** Materials of the view's own, outside the kit. */
   private disposables: Material[] = [];
-  private key = -1;
+  key = -1;
   /** When the sun's shadow map is drawn: on its steps, and not while it is at 0 (`sunmap.ts`). */
   private sunMap = new SunMap();
   /** The camera the window's picture is drawn for this frame: the quad shows the picture only to it. */
@@ -216,10 +217,10 @@ export class OutsideView {
   /** The window's box (its corners in the frame, -1 to 1) and the frame, at the picture's last draw, and the ticks (`frame`) it has stood since. */
   private box = new Vector4();
   private boxFrame = '';
-  private age = 0;
-  /** The `?debug` overlay's layers that are off (`debugLayer`), and the objects of those that hide objects. Empty unless the overlay turns one off. */
-  private off = new Set<string>();
-  private parts: Record<string, Object3D[]> = {};
+  age = 0;
+  /** `?debug` only (`app/debug/city-layers.ts`): the layers that are off, and the objects of those that hide objects. Empty unless the overlay turns one off. */
+  off = new Set<string>();
+  parts: Record<string, Object3D[]> = {};
   /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
   get due(): boolean { return this.age >= EVERY; }
 
@@ -436,13 +437,16 @@ export class OutsideView {
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;
-    // the picture's target, supersampled (then fewer samples each): it only grows, so a flight does not make a new one each frame
-    const ss = samples > 0 && !this.off.has('flat') ? SUPER : 1, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
+    // the picture's target, supersampled (then at most 2 samples each; City 1x draws it at 1 pixel, the same samples): within one scale it only
+    // grows, so a flight does not make a new one each frame; a change of scale (the `flat` toggle) takes the size it needs, and frees the old
+    const ss = samples > 0 && !this.off.has('flat') ? SUPER : 1, ms = Math.min(samples, 2), rw = (rr - rx) * ss, rh = (rb - ry) * ss;
     let t = this.target;
-    if (!t || t.width < rw || t.height < rh || t.samples !== ms) {
-      const w = Math.max(rw, t?.width ?? 0), h = Math.max(rh, t?.height ?? 0);
+    if (!t || this.targetSS !== ss || t.width < rw || t.height < rh || t.samples !== ms) {
+      const same = !!t && this.targetSS === ss;
+      const w = same ? Math.max(rw, t!.width) : rw, h = same ? Math.max(rh, t!.height) : rh;
       t?.dispose();
       t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: ms });
+      this.targetSS = ss;
       this.quad.uniforms.tOut!.value = t.texture;
     }
     // the camera outside: the room camera's place in metres, its turn, its lens, cropped to the box
@@ -513,43 +517,6 @@ export class OutsideView {
     this.quad.uniforms.ss!.value = ss;
     this.quad.uniforms.inv!.value.set(1 / t.width, 1 / t.height);
     this.live = camera;
-  }
-
-  /**
-   * `?debug` only: turns one layer of the city off or on (never saved; the overlay's Auto turns all on). `lights`: the lamps' light, the windows,
-   * the signs' light, the glow and every emissive at 0. `buildings`: the streets, the buildings, the land and the trees. `freeze`: the clock, so
-   * the traffic, the leaves, the clouds and the steam stand. `cars`: the cars and the signals. `sky`, `steam`, `glow` (the glow chain), `mirror`
-   * (the room in the glass), `flat` (the picture at 1 pixel per screen pixel, not `SUPER`). With none off, the view is as it is without `?debug`.
-   */
-  debugLayer(layer: string, off: boolean): void {
-    if (off) this.off.add(layer); else this.off.delete(layer);
-    // (the hour's light is set again at the next `frame`)
-    if (layer === 'lights' || layer === 'glow' || layer === 'mirror') this.key = -1;
-    const hide = (list: Object3D[] | undefined) => list?.forEach((o) => o.traverse((n) => {
-      // (layers, not `visible`: a sweep sets that on each cut)
-      if (off) n.layers.set(HIDDEN_LAYER); else n.layers.set(0);
-    }));
-    if (layer === 'lights') {
-      for (const l of this.lamps) l.visible = !off;
-      hide(this.parts.signs);
-    } else if (layer === 'buildings') hide(this.parts.buildings);
-    else if (layer === 'cars') hide(this.parts.cars);
-    else if (layer === 'sky') hide(this.parts.sky);
-    else if (layer === 'steam') hide(this.parts.steam);
-    this.age = EVERY;
-  }
-
-  /** `?debug` only: what the city's own picture draws, by its meshes now (the triangles from their draw ranges and instances; the calls a mesh each, and a group of a mesh more). Not the room's. */
-  debugStats(): { tris: number; calls: number } {
-    let tris = 0, calls = 0;
-    this.scene.traverseVisible((o) => {
-      const m = o as Mesh;
-      if (!m.isMesh || !o.layers.isEnabled(0)) return;
-      const g = m.geometry, { start, count } = g.drawRange, n = Math.max(0, Math.min(count, drawn(g) - start)) / 3;
-      tris += n * ((m as InstancedMesh).isInstancedMesh ? (m as InstancedMesh).count : 1);
-      calls += Array.isArray(m.material) ? Math.max(1, g.groups.length) : 1;
-    });
-    return { tris: Math.round(tris), calls };
   }
 
   /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, and with the `room` it stands in, its glass's. */
