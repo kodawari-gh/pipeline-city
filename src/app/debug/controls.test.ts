@@ -90,14 +90,14 @@ describe('setPost', () => {
 
     it('post on gives Medium\'s ao, bloom and msaa and leaves every other setting as it was', () => {
       const before = { ...graphics.value };
-      expect([before.scale, before.shadows, before.fps]).toEqual([0.75, 0, 30]);
+      expect([before.scale, before.shadows, before.fps]).toEqual([0.75, 0, 60]);
       setPost(true);
       const after = graphics.value;
       expect([after.ao, after.bloom, after.msaa]).toEqual([PRESETS.medium.ao, PRESETS.medium.bloom, PRESETS.medium.msaa]);
       // every other setting: the same before and after (the post values blanked on both sides)
       const others = (g: typeof after) => ({ ...g, ao: 0, bloom: 0, msaa: 0 });
       expect(others(after)).toEqual(others(before));
-      expect([after.scale, after.shadows, after.fps]).toEqual([0.75, 0, 30]);
+      expect([after.scale, after.shadows, after.fps]).toEqual([0.75, 0, 60]);
     });
   });
 });
