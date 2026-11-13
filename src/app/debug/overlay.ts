@@ -1,11 +1,15 @@
 /**
- * The `?debug` overlay: frame rate, frame times, the tier, the pixel ratio, the canvas size, the draw calls, and the controls for the render
- * scale and the post passes. Plain DOM, its own rAF loop. Loaded only by `whenDebug` (`board3d.ts`): without `?debug` this module never runs.
+ * The `?debug` overlay: frame rate, frame times, the tier, the pixel ratio, the canvas size, the draw calls, the viewport, and the controls for the
+ * render scale, the post passes, the sun's shadow, the lamp cap, and the hides of the city and the machine (visibility only). Plain DOM, its own
+ * rAF loop. Loaded only by `whenDebug` (`board3d.ts`): without `?debug` this module never runs.
  */
 import type { WebGLRenderer } from 'three';
-import { graphics, tierRecord } from '../graphics';
-import { backToAuto, postOn, SCALES, setPost, setScale } from './controls';
-import { DrawnFrames, statsText, type StatsSnapshot } from './stats';
+import { CHOICES, graphics, tierRecord } from '../graphics';
+import { backToAuto, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn, shadowsOn } from './controls';
+import { DrawnFrames, statsText, viewportOf, type StatsSnapshot } from './stats';
+
+/** A root the overlay can hide: its visibility only. */
+export type HideRoot = { visible: boolean };
 
 /** The readout is redrawn this often (ms). */
 const SHOW_MS = 250;
@@ -14,8 +18,16 @@ const SHOW_MS = 250;
 const BTN = 'min-width:3rem;min-height:3rem;padding:0 0.5rem;margin:0.15rem;font:inherit;color:#fff;background:#223;border:1px solid #889;border-radius:0.25rem;';
 const ON = 'background:#3a7d44;';
 
-export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canvas: HTMLCanvasElement }): void {
+/**
+ * `roots`: the city's and the machine's roots, now (the machine's changes when it is rebuilt). Without it the hides have nothing to hide.
+ */
+export function mountDebug({ renderer, canvas, roots }: {
+  renderer: WebGLRenderer; canvas: HTMLCanvasElement; roots?: () => { city: HideRoot | null; machine: HideRoot | null };
+}): void {
   const drawn = new DrawnFrames();
+  // the hides: on or off, and the root each was last applied to (a hidden root that is replaced is hidden again). Not saved.
+  const hide = { city: false, machine: false };
+  const applied: Record<'city' | 'machine', HideRoot | null> = { city: null, machine: null };
   // the draw calls are read and reset each frame by this loop (the game's own frames add up until then)
   renderer.info.autoReset = false;
   // the draw calls of the last frame that drew (a still frame draws nothing and keeps the last count)
@@ -39,11 +51,32 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
 
   const postBtn = button('Post', () => { setPost(!postOn(graphics.peek())); show(); });
   const scaleBtns = SCALES.map((v) => button(String(v), () => { setScale(v); show(); }));
+  const shadowBtn = button('Shadows', () => { setShadowsOn(!shadowsOn(graphics.peek())); show(); });
+  const lightsBtn = button('Lights', () => { setLights(nextLights(graphics.peek().lights)); show(); });
+  const cityBtn = button('Hide city', () => { hideRoot('city'); show(); });
+  const machineBtn = button('Hide machine', () => { hideRoot('machine'); show(); });
   const autoBtn = button('Auto', () => { backToAuto(); show(); });
   const copyBtn = button('Copy', () => { void copy(); });
   const controls = document.createElement('div');
-  controls.append(postBtn, ...scaleBtns, autoBtn, copyBtn);
+  controls.append(postBtn, ...scaleBtns, shadowBtn, lightsBtn, cityBtn, machineBtn, autoBtn, copyBtn);
   panel.append(controls);
+
+  /** Flips one hide and applies it to that root now. */
+  const hideRoot = (k: 'city' | 'machine') => {
+    hide[k] = !hide[k];
+    const root = roots?.()[k] ?? null;
+    setRootHidden(root, hide[k]);
+    applied[k] = root;
+  };
+  /** Each frame: a hidden root that is new (the machine was rebuilt, the city was built after the hide) is hidden. A shown one is left to the game. */
+  const syncHides = () => {
+    if (!roots || !(hide.city || hide.machine)) return;
+    const now = roots();
+    for (const k of ['city', 'machine'] as const) {
+      if (hide[k] && now[k] !== applied[k]) setRootHidden(now[k], true);
+      applied[k] = now[k];
+    }
+  };
 
   // the panel's own pointer and wheel never reach the game
   panel.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -55,6 +88,7 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
       fps: drawn.fps(), avgMs: drawn.avg(), p95Ms: drawn.p95(), tier: t.tier, reason: t.reason, mode: t.mode,
       dpr: window.devicePixelRatio || 1, ratio: renderer.getPixelRatio(), w: canvas.width, h: canvas.height,
       calls: drawCalls, scale: g.scale, post: postOn(g),
+      shadows: g.shadows, lights: g.lights, ...viewportOf(window, window.screen ?? {}),
     };
   };
 
@@ -67,6 +101,13 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
       const on = Math.abs(g.scale - v) < 1e-3;
       scaleBtns[i]!.style.cssText = BTN + (on ? ON : '');
     });
+    const shadowOn = shadowsOn(g);
+    shadowBtn.textContent = `Shadows ${shadowOn ? 'on' : 'off'}`;
+    shadowBtn.style.cssText = BTN + (shadowOn ? ON : '');
+    // (the lamp cap's name as the panel shows it: 4, All for 0)
+    lightsBtn.textContent = `Lights ${CHOICES.lights.find(([v]) => v === g.lights)?.[1] ?? g.lights}`;
+    cityBtn.style.cssText = BTN + (hide.city ? ON : '');
+    machineBtn.style.cssText = BTN + (hide.machine ? ON : '');
     autoBtn.style.cssText = BTN + (tierRecord.peek().mode === 'auto' ? ON : '');
   };
 
@@ -99,6 +140,7 @@ export function mountDebug({ renderer, canvas }: { renderer: WebGLRenderer; canv
     renderer.info.reset();
     drawn.tick(now, n);
     if (n > 0) drawCalls = n;
+    syncHides();
     if (now - lastShow >= SHOW_MS) { lastShow = now; show(); }
     requestAnimationFrame(frame);
   };

@@ -22,8 +22,16 @@ export const sizeClass = (radius: number): number => LOD_RADII.findIndex((r) => 
  * limit, off over the limit plus the dead band, as it was between the two. `ceil`: a zoom from which no class is ever far (a view the
  * player works in, Build my PC's own); the limits and their dead bands stay under it.
  */
-export function farClasses(zoom: number, was: readonly boolean[] = [], ceil = Infinity): boolean[] {
-  return LOD_RADII.map((r, i) => { const at = Math.min(LOD_PX / r, ceil / (1 + LOD_BAND)); return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
+export function farClasses(zoom: number, was: readonly boolean[] = [], ceil = Infinity, px = LOD_PX): boolean[] {
+  return LOD_RADII.map((r, i) => { const at = Math.min(px / r, ceil / (1 + LOD_BAND)); return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
+}
+
+/**
+ * Which classes are culled (not drawn at all, parts and stand-in) at `zoom`: under `cullPx` on the screen, with the same dead band as
+ * `farClasses`. `cullPx` 0 (the default, today's) culls nothing.
+ */
+export function culledClasses(zoom: number, was: readonly boolean[] = [], cullPx = 0): boolean[] {
+  return LOD_RADII.map((r, i) => { if (cullPx <= 0) return false; const at = cullPx / r; return zoom < at ? true : zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
 }
 
 /** Is `o` held in full detail: it, or an object above it, is one of `holds` (a part the player points at, selects or drags, a part a step moves). */
@@ -109,6 +117,11 @@ export class PartLod {
   /** By anchor: the palette materials made for its stand-ins, kept over a rebuild (their programs stay linked). */
   private pals = new Map<Object3D, Map<string, MeshStandardMaterial>>();
   private far: boolean[] = LOD_RADII.map(() => false);
+  /** The classes culled now (`culledClasses`): not drawn at all, far or not (`swap`). */
+  private cull: boolean[] = LOD_RADII.map(() => false);
+  /** The limits the switch uses (`setBudget`): the stand-ins' screen size, and the size under which a class is culled. */
+  private px = LOD_PX;
+  private cullPx = 0;
   /** What stays in full detail (`hold`), and the zoom from which all does. */
   private holds: ReadonlySet<Object3D> = new Set();
   private ceil = Infinity;
@@ -120,10 +133,14 @@ export class PartLod {
   get standIns(): readonly Mesh[] { return this.built.map((b) => b.mesh); }
   /** Which classes draw as stand-ins now. */
   get farNow(): readonly boolean[] { return this.far; }
+  /** The limits the switch uses now: the stand-ins' screen size in pixels, and the size under which a class is culled (0: none). */
+  get budget(): { px: number; cullPx: number } { return { px: this.px, cullPx: this.cullPx }; }
+  /** Set the limits (`px`, `cullPx`); the next `update` takes them. The default is `LOD_PX` and no cull. */
+  setBudget(b: { px: number; cullPx: number }): void { this.px = b.px; this.cullPx = b.cullPx; }
   /** The meshes a stand-in draws for, or none. */
   sourcesOf(standIn: Object3D): readonly Mesh[] { return this.built.find((b) => b.mesh === standIn)?.sources ?? []; }
   /** Does this stand-in draw now (its parts do not)? */
-  draws(standIn: Object3D): boolean { const b = this.built.find((x) => x.mesh === standIn); return !!b && this.far[b.cls]! && !b.held; }
+  draws(standIn: Object3D): boolean { const b = this.built.find((x) => x.mesh === standIn); return !!b && this.far[b.cls]! && !b.held && !this.cull[b.cls]!; }
 
   /**
    * Hold these objects in full detail, each with all under it (`standInDraws`), and all of the model from the zoom `ceil` in (`farClasses`).
@@ -184,18 +201,24 @@ export class PartLod {
    * draws itself when it shows again). No class crossed and nothing hidden: a few compares and one read per guard, no other work.
    */
   update(zoom: number): void {
-    const far = farClasses(zoom, this.far, this.ceil), was = this.far;
+    const far = farClasses(zoom, this.far, this.ceil, this.px), was = this.far;
+    const cull = culledClasses(zoom, this.cull, this.cullPx), wasCull = this.cull;
     this.far = far;
+    this.cull = cull;
     if (far.some(Boolean)) {
       const stale = [...this.guards].filter(([, nodes]) => nodes.some((o) => !o.visible)).map(([anchor]) => anchor);
       for (const anchor of stale) this.build(anchor);
     }
-    far.forEach((f, cls) => { if (f !== was[cls]) for (const b of this.built) if (b.cls === cls) this.swap(b); });
+    far.forEach((f, cls) => { if (f !== was[cls] || cull[cls] !== wasCull[cls]) for (const b of this.built) if (b.cls === cls) this.swap(b); });
   }
 
-  /** Put a stand-in and its parts on the layers of the side that draws (`far`: default as the class and the holds say). */
+  /**
+   * Put a stand-in and its parts on the layers of the side that draws (`far`: default as the class and the holds say). A culled class's
+   * stand-in goes too; its parts go with the rest of the far side (they are undrawn while it is far).
+   */
   private swap(b: Built, far = this.far[b.cls]! && !b.held): void {
-    b.mesh.layers.mask = far ? b.mask : 1 << UNDRAWN;
+    const gone = far && this.cull[b.cls]!;
+    b.mesh.layers.mask = far && !gone ? b.mask : 1 << UNDRAWN;
     for (const s of b.sources) s.layers.mask = far ? 1 << UNDRAWN : b.mask;
   }
 

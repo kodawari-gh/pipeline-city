@@ -31,7 +31,7 @@ import { Probe } from '@/core/render/three/probe';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
-import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
+import { PROBE_K, Room3D, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
@@ -105,7 +105,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
-  void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas });
+  void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots: () => ({ city: cityMesh(), machine: machine?.root ?? null }) });
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
   // the shadow maps: a still picture per light, and only what moves drawn again (shadows.ts)
@@ -174,6 +174,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
       room.setShadows(effective.peek().shadows);
+      room.setLow(isLow(effective.peek()));
       room.setLights(effective.peek().lights, effective.peek().lightShadows > 0);
       shadows.reset();
       scene.add(room.root);
@@ -190,6 +191,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       next?.m.dispose();
       next = null;
       const m = new Machine3D(s, room.geo, bakes, chips);
+      m.setLow(isLow(effective.peek()));
       if (!machine || !warmed) install(m);
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
@@ -210,7 +212,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
   bootStage('Building the world', 0.14);
   await nextPaint();
-  prepareCity(renderer, effective.peek().shadows);
+  prepareCity(renderer, effective.peek().shadows, isLow(effective.peek()));
   rebuild();
 
   // ---- camera ----
@@ -569,9 +571,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const applyGraphics = (g: Graphics) => {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
+    room?.setLow(isLow(g));
     room?.setLights(g.lights, g.lightShadows > 0);
     // Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low
     if (isLow(g)) { for (const r of [room?.root, machine?.root, next?.m.root]) if (r) cheap(r); } else for (const root of [...cheaps.keys()]) uncheap(root);
+    // Low's lighter machine (`Machine3D.setLow`): no spill light, the stand-ins sooner; both machines, the one that shows and the one that links
+    for (const m of [machine, next?.m]) m?.setLow(isLow(g));
     for (const c of cheaps.values()) c.sync(); // (the tier's program-level state; the live values need none)
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;

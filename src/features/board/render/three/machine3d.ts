@@ -18,7 +18,7 @@ import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/rende
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
-import { PartLod, type LodScope } from '@/core/render/three/partlod';
+import { LOD_PX, PartLod, type LodScope } from '@/core/render/three/partlod';
 import { tag } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
@@ -253,6 +253,15 @@ export class Machine3D {
    * per world unit): Build my PC holds what the player points at or what a step moves, and swaps nothing at its own view or closer.
    */
   holdDetail(held: readonly Object3D[], ceil = Infinity): void { this.partLod?.hold(held, ceil); }
+
+  /**
+   * Low's lighter look (`isLow`, set by the caller on each build and graphics change): no spill light out through the glass (the RGB light
+   * and the strips stay), and the small parts become stand-ins sooner and the tiniest are culled (`partLod`). Off: today's.
+   */
+  setLow(on: boolean): void {
+    this.spill.visible = !on;
+    this.partLod?.setBudget(on ? { px: 16, cullPx: 3 } : { px: LOD_PX, cullPx: 0 });
+  }
 
   /**
    * Fewer draws and materials (PERF22, docs/GRAPHICS_3D_OVERHAUL.md "Shared materials"): the still meshes of each parent as one palette mesh

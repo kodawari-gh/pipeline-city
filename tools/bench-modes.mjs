@@ -19,8 +19,9 @@ const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').star
 // DPR 2.625 and a 411x1006 CSS screen, less about 92 px of status, address and gesture bars). razr-plus: razr+ 2025, the same panel (its density
 // assumed the same). razr-ultra: razr ultra 2025, 1224x2992 panel, density not published (480 dpi, DPR 3, assumed). razr-fold: the razr fold's inner
 // screen unfolded, 1004x967 CSS px measured on the owner's phone; DPR 2.2 is an ASSUMPTION (2232 px panel width / 1004 is about 2.22; 2.625 would make
-// 2636 px, wider than the panel) until the real devicePixelRatio is reported. Default phone: 412x915 at 2.6.
-const DEVICES = { phone: [412, 915, 2.6], razr: [411, 914, 2.625], 'razr-plus': [411, 914, 2.625], 'razr-ultra': [408, 905, 3], 'razr-fold': [1004, 967, 2.2] };
+// 2636 px, wider than the panel) until the real devicePixelRatio is reported. razr-fold-folded: the same phone folded (the cover screen), 485x997 CSS px
+// at DPR 2.225, from the owner's Chrome canvas (727x1495 at a pixel ratio of 1.5, so 485x997 CSS). Default phone: 412x915 at 2.6.
+const DEVICES = { phone: [412, 915, 2.6], razr: [411, 914, 2.625], 'razr-plus': [411, 914, 2.625], 'razr-ultra': [408, 905, 3], 'razr-fold': [1004, 967, 2.2], 'razr-fold-folded': [485, 997, 2.225] };
 const DEVICE = flag('device', has('phone') ? 'phone' : '');
 const PHONE = !!DEVICE;
 if (DEVICE && !DEVICES[DEVICE]) throw new Error(`--device: one of ${Object.keys(DEVICES).join(', ')}`);

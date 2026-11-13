@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULTS, graphics, PRESETS, setAutoTier, setPreset, tierRecord } from '../graphics';
-import { backToAuto, postOn, SCALES, setPost, setScale } from './controls';
+import { CHOICES, DEFAULTS, graphics, PRESETS, setAutoTier, setGraphic, setPreset, tierRecord } from '../graphics';
+import { backToAuto, nextLights, postOn, SCALES, setLights, setPost, setRootHidden, setScale, setShadowsOn } from './controls';
 
 describe('SCALES', () => {
   it('lists the render scales the panel offers, all within the graphics range', () => {
@@ -118,5 +118,76 @@ describe('backToAuto', () => {
     expect(graphics.value.scale).toBe(0.75);
     expect(postOn(graphics.value)).toBe(false);
     expect(tierRecord.value.mode).toBe('auto');
+  });
+});
+
+describe('setShadowsOn', () => {
+  beforeEach(() => setPreset('high'));
+
+  it('off sets the sun shadow to 0, on puts the value back', () => {
+    setShadowsOn(false);
+    expect(graphics.value.shadows).toBe(0);
+    setShadowsOn(true);
+    expect(graphics.value.shadows).toBe(PRESETS.high.shadows);
+  });
+
+  it('on restores the value the player had, not the preset', () => {
+    setGraphic('shadows', 1);
+    setShadowsOn(false);
+    setShadowsOn(true);
+    expect(graphics.value.shadows).toBe(1);
+  });
+
+  it('goes through setGraphic: the tier is manual', () => {
+    setAutoTier({ tier: 'low', reason: 'test' });
+    setShadowsOn(false);
+    expect(tierRecord.value.mode).toBe('manual');
+  });
+
+  it("Auto puts the shadows back to the tier's value", () => {
+    setShadowsOn(false);
+    backToAuto({ tier: 'high', reason: 'test' });
+    expect(graphics.value.shadows).toBe(PRESETS.high.shadows);
+    expect(tierRecord.value.mode).toBe('auto');
+  });
+});
+
+describe('nextLights', () => {
+  it('cycles 4 and All (0): 1 is not a lights choice, so it is never offered', () => {
+    expect(nextLights(4)).toBe(0);
+    expect(nextLights(0)).toBe(4);
+    expect(nextLights(8)).toBe(4);
+    expect(CHOICES.lights.map(([v]) => v)).not.toContain(1);
+  });
+});
+
+describe('setLights', () => {
+  beforeEach(() => setPreset('high'));
+
+  it('sets the lamp cap through setGraphic and makes the tier manual', () => {
+    setLights(4);
+    expect(graphics.value.lights).toBe(4);
+    expect(tierRecord.value.mode).toBe('manual');
+  });
+});
+
+describe('setRootHidden', () => {
+  it('hides a root and shows it again', () => {
+    const root = { visible: true };
+    setRootHidden(root, true);
+    expect(root.visible).toBe(false);
+    setRootHidden(root, false);
+    expect(root.visible).toBe(true);
+  });
+
+  it('touches no saved setting', () => {
+    const before = graphics.value, tier = tierRecord.value;
+    setRootHidden({ visible: true }, true);
+    expect(graphics.value).toBe(before);
+    expect(tierRecord.value).toBe(tier);
+  });
+
+  it('a missing root is a no-op', () => {
+    expect(() => setRootHidden(null, true)).not.toThrow();
   });
 });

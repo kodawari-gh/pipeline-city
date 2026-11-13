@@ -21,13 +21,14 @@ import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
 import { withCanyon } from './canyon';
 import { land } from './city';
+import { cityBudget, type CityBudget } from './budget';
 import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
-import { Sight, type QueryGL } from './sight';
+import { Sight, outsideDraws, type QueryGL } from './sight';
 import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
@@ -105,7 +106,7 @@ const SUPER = 2;
  * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
-const EVERY = 3, HOLD_PX = 1;
+const HOLD_PX = 1;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
@@ -215,8 +216,12 @@ export class OutsideView {
   private box = new Vector4();
   private boxFrame = '';
   private age = 0;
-  /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
-  get due(): boolean { return this.age >= EVERY; }
+  /** What the city may spend (`budget.ts`): High's until `setLow(true)`. */
+  private budget: CityBudget = cityBudget(false);
+  /** Low's cheaper city, or High's. */
+  setLow(on: boolean): void { this.budget = cityBudget(on); }
+  /** The picture is due for its next draw (each `budget.every` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
+  get due(): boolean { return this.age >= this.budget.every; }
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). */
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
@@ -386,7 +391,7 @@ export class OutsideView {
    * the multisampling of the frame's scene target.
    */
   draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    if (!this.mesh.parent) { this.live = null; this.age = 0; return; }
+    if (!outsideDraws(!!this.mesh.parent, this.mesh.visible)) { this.live = null; this.age = 0; return; }
     camera.updateMatrixWorld();
     this.mesh.updateWorldMatrix(true, false);
     const size = renderer.getDrawingBufferSize(new Vector2()), fw = size.x, fh = size.y;
@@ -416,17 +421,19 @@ export class OutsideView {
       x0 = Math.min(x0, nx); x1 = Math.max(x1, nx); y0 = Math.min(y0, ny); y1 = Math.max(y1, ny);
     }
     if (behind) { x0 = y0 = -1; x1 = y1 = 1; nearest = 0; }
-    const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
-    const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
+    let rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr =Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
+    let ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb =Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
+    // (a smaller picture: the box on even pixels, so its size stays whole)
+    if (this.budget.scale < 1) { rx = Math.floor(rx / 2) * 2; ry = Math.floor(ry / 2) * 2; rr = Math.min(fw - (fw % 2), Math.ceil(rr / 2) * 2); rb = Math.min(fh - (fh % 2), Math.ceil(rb / 2) * 2); }
     if (rr - rx < 1 || rb - ry < 1) { this.age = 0; return; }
-    // the eye has held (nearly) still since the picture was drawn: it stands for a few ticks (`EVERY`, counted by `frame`)
+    // the eye has held (nearly) still since the picture was drawn: it stands for a few ticks (`budget.every`, counted by `frame`)
     const b = this.box, drift = behind ? (moved ? Infinity : 0) : Math.max(Math.abs(x0 - b.x) * fw, Math.abs(x1 - b.z) * fw, Math.abs(y0 - b.y) * fh, Math.abs(y1 - b.w) * fh) / 2;
-    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < EVERY) { this.live = camera; return; }
+    if (shown && frame === this.boxFrame && drift < HOLD_PX && this.age < this.budget.every) { this.live = camera; return; }
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;
     // the picture's target, supersampled (then fewer samples each): it only grows, so a flight does not make a new one each frame
-    const ss = samples > 0 ? SUPER : 1, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
+    const ss = (samples > 0 ? SUPER : 1) * this.budget.scale, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
     let t = this.target;
     if (!t || t.width < rw || t.height < rh || t.samples !== ms) {
       const w = Math.max(rw, t?.width ?? 0), h = Math.max(rh, t?.height ?? 0);
@@ -474,13 +481,13 @@ export class OutsideView {
     renderer.setRenderTarget(t);
     renderer.clear();
     renderer.render(this.scene, c);
-    if (this.quad.uniforms.glowK!.value > 0) {
+    if (this.budget.glow && this.quad.uniforms.glowK!.value > 0) {
       this.glow.run(renderer, t, rw, rh);
       this.quad.uniforms.tGlow!.value = this.glow.texture;
-    }
+    } else this.quad.uniforms.glowK!.value = 0;
     // the room in the glass (it does not see the window's own quad, whose back is to it); the eye still, only each few frames: it is a faint ghost
     const qu = this.quad.uniforms;
-    if (this.mirrorAt <= 0) this.mirrorShown = false;
+    if (!this.budget.mirror || this.mirrorAt <= 0) this.mirrorShown = false;
     else if (moved || !this.mirrorShown || ++this.mirrorAge >= MIRROR_EVERY) {
       this.mirrorAge = 0;
       const n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);

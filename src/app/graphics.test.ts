@@ -63,6 +63,20 @@ describe('TierWatch', () => {
   });
   it('reads a 30 fps limit against the limit, not 60', () => expect(run(new TierWatch(), 1 / 30, 3, 30)).toBe('up'));
 
+  /** The one call per drawn frame. (The fail-first run swaps in the old `(rawDt, workMs, now, fps)` form to show the old result.) */
+  const feed = (w: TierWatch, _rawDtS: number, workMs: number, nowMs: number, fps: number) => w.tick(workMs, nowMs, fps);
+  /** Replay of this rAF sequence: an idle tick 84 ms after each drawn frame, then a drawn frame 16 ms after it. So drawn frames are 100 ms apart (10 fps). */
+  const alternating = (workMs: number, fps = 60) => {
+    const w = new TierWatch();
+    w.reset(0);
+    let out: 'down' | 'up' | null = null, now = 5000, last = now;
+    for (let i = 0; i < 300 && !out; i++) {
+      now += 84; last = now;                                    // idle tick: draws nothing
+      now += 16;                                                // drawn frame: its rawDt is 16 ms
+      out = feed(w, (now - last) / 1000, workMs, now, fps);
+    }
+    return out;
+  };
   /** Feed drawn frames only, `gapMs` apart (idle ticks between them take their time in the gap). Returns the first decision. */
   const replay = (gapMs: number, workMs: number, fps = 60) => {
     const w = new TierWatch();
@@ -71,8 +85,8 @@ describe('TierWatch', () => {
     for (let t = 5000, i = 0; i < 600 && !out; i++, t += gapMs) out = w.tick(workMs, t, fps);
     return out;
   };
-  // (a) drawn frames alternate with idle ticks: the drawn frames come every 100 ms (10 fps drawn), each with an idle tick before it
-  it('a drawn rate of 10 fps with idle ticks between is down, not up', () => expect(replay(100, 3)).toBe('down'));
+  // (a) alternating 16 ms drawn and 84 ms idle ticks (about 10 fps drawn): not up; down is the right answer
+  it('alternating 16 ms drawn frames and 84 ms idle ticks is down, not up', () => expect(alternating(3)).toBe('down'));
   // (b) steady 60 fps drawn frames stay up
   it('steady 60 fps drawn frames with light work are up', () => expect(replay(1000 / 60, 3)).toBe('up'));
   // (c) 200 ms frames are never fast
