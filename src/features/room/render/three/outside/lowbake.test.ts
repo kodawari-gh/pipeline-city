@@ -224,6 +224,24 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
+  it('Low: each facade maps its own window share (look.zw) onto the atlas window, so a band keeps its ribbon (not one baked rect for all)', () => {
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      // the facade's share, read per vertex, sets where the window sits in its bay and storey
+      expect(sh, 'the facade share from look.zw').toContain('max(vLowLook.zw, vec2(0.05))');
+      expect(sh).toContain('(1.0 - win.y) * 0.6');
+      expect(sh).toContain('vec2 lowLocal()');
+      // the atlas lookup and its mip derivatives both follow that map
+      expect(sh).toContain('clamp(lowLocal(), 0.0, 1.0)');
+      expect(sh).toContain('dFdx(vLowBay) * lowScale()');
+      // the old lookup, one baked window for every facade, is gone
+      expect(sh).not.toContain('+ fract(vLowBay)) / 8.0');
+    }
+    const vs = compiled(buildings(low)[0]!.material as Material).vertexShader;
+    expect(vs).toContain('attribute vec4 look;');
+    expect(vs).toContain('vLowLook = look;');
+  }, 180000);
+
   it('Low: the buildings take the haze in place of fog, as High does (hzApply on their fragment colour)', () => {
     for (const m of buildings(low)) {
       const sh = withMapShader(m.material as Material);

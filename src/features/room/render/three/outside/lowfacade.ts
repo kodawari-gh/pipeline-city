@@ -21,7 +21,7 @@ export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
  * so the lit rooms stay discrete and get sparser with distance (no mean wash). */
 export const LOW_FAR = { near: 150, far: 450, keep: 0.35 };
-/** The window in its cell (a fraction of the bay across and the storey up), and its rooms: three across, two up. */
+/** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its rooms: three across, two up. */
 const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
 
 /** A seeded generator (mulberry32): the bake is the same every time. */
@@ -188,16 +188,25 @@ flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
 flat varying vec3 vLowTint;
 flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;
+// the facade's own window (look.zw, as base's towers.ts sets it: centred across, win.y tall from a sill up) mapped onto the atlas's window,
+// so a band keeps its ribbon and a glass front its pane. lowLocal is the pixel's place in the atlas cell, unclamped
+vec2 lowWin() { return max(vLowLook.zw, vec2(0.05)); }
+vec2 lowLocal() {
+  vec2 win = lowWin(), lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6);
+  return vec2(${WIN.u0}, ${WIN.v0}) + (fract(vLowBay) - lo) / win * vec2(${WIN.u1 - WIN.u0}, ${WIN.v1 - WIN.v0});
+}
+// the atlas's window per facade window: how far the cell's derivatives stretch (the mip follows the remapped pixel)
+vec2 lowScale() { return vec2(${WIN.u1 - WIN.u0}, ${WIN.v1 - WIN.v0}) / lowWin(); }
 // the atlas cell of this bay: the building's phase, and a cell picked per bay by a hash, so no two bays repeat one grid
 vec2 lowAtlas() {
   vec2 bay = floor(vLowBay) + vLowOff;
   float h = fract(sin(dot(bay, vec2(12.9898, 78.233)) + vLowSeed * 3.1) * 43758.5453);
   vec2 pick = floor(vec2(h, fract(h * 7.31)) * ${CELLS}.0);
-  return (mod(bay + pick, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0;
+  return (mod(bay + pick, ${CELLS}.0) + clamp(lowLocal(), 0.0, 1.0)) / ${CELLS}.0;
 }
 // a hash per lit room (this bay, this room of the window's grid): far off, a room stays lit only if its hash clears the distance threshold
 float lowRoomHash() {
-  vec2 wc = (fract(vLowBay) - vec2(${WIN.u0}, ${WIN.v0})) / vec2(${WIN.u1 - WIN.u0}, ${WIN.v1 - WIN.v0}) * vec2(${COLS}.0, ${ROWS}.0);
+  vec2 wc = (lowLocal() - vec2(${WIN.u0}, ${WIN.v0})) / vec2(${WIN.u1 - WIN.u0}, ${WIN.v1 - WIN.v0}) * vec2(${COLS}.0, ${ROWS}.0);
   float room = clamp(floor(wc.y), 0.0, ${ROWS - 1}.0) * ${COLS}.0 + clamp(floor(wc.x), 0.0, ${COLS - 1}.0);
   vec2 bay = floor(vLowBay) + vLowOff;
   return fract(sin(dot(bay + room * vec2(0.371, 0.713), vec2(127.1, 311.7)) + vLowSeed * 2.3) * 43758.5453);
@@ -216,7 +225,7 @@ if (fLampK > 0.0) {
   reflectedLight.directDiffuse += lowL * (fLampK * RECIPROCAL_PI) * diffuseColor.rgb;
 }`)
       .replace('#include <map_fragment>', `{
-  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
+  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
   vec4 lowTex = textureGrad(map, lowUv, lowDx, lowDy);
   diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
@@ -235,7 +244,7 @@ if (vLowFac == 0.0) {
   else if (vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
 }`)
       .replace('#include <emissivemap_fragment>', `{
-  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
+  vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
   // the night map's lit rooms on the walls, and each kind's live glow at facadeMaterial's night strength (LED band, flood, beacon, lantern,
   // sign). Both are scaled by the night, so nothing shows by day
   vec3 lowGlow = vec3(0.0);
