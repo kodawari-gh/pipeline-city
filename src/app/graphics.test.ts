@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
-  loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
+  isLow, loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
 } from './graphics';
 
 const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
@@ -466,6 +466,18 @@ describe('the watches at the Low limit', () => {
   it('Medium and High at 60 fps keep their thresholds: a steady 27 fps steps down', () => {
     expect(slowSteps(27, 60, { ...DEFAULTS, ...PRESETS.medium }, 10)).toBeGreaterThan(0);
     expect(slowSteps(27, 60, DEFAULTS, 10)).toBeGreaterThan(0);
+  });
+});
+
+describe('isLow: Low alone takes the cheap materials, probe and shadows', () => {
+  it('a Low tier and a migrated old Low save are Low', () => {
+    expect(isLow(tierGraphics('low', DEFAULTS))).toBe(true);
+    const old = resolveStart({ ...PRESETS.low, fps: 30, v: 2 }, { mode: 'manual', tier: 'low', reason: 'chosen' }, '', () => ({ tier: 'high', reason: '' }));
+    expect(isLow(old.g)).toBe(true);
+  });
+  it('Medium, High and the defaults are not Low', () => {
+    for (const t of ['medium', 'high'] as const) expect(isLow(tierGraphics(t, DEFAULTS)), t).toBe(false);
+    expect(isLow(DEFAULTS)).toBe(false);
   });
 });
 

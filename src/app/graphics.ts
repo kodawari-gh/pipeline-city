@@ -428,8 +428,10 @@ export function loopLimit(fps: number, focused: boolean, idleMs: number): number
 /** Low's frame limit before it moved to 60 (save v3): the auto-adjust watches still judge Low by it. */
 const LOW_WATCH_FPS = 30;
 
-/** Is `g` the Low tier: its preset, or the tier's own scale and shadows (`tierGraphics`)? */
-export const isLow = (g: Graphics): boolean => presetOf(g) === 'low' || presetKeys.every((k) => g[k] === tierGraphics('low', g)[k]);
+/** Is `g` Low: the Low preset's picture (AO, bloom, MSAA, textures, filtering, live, particles), at any light count, scale or sun shadows? */
+/** (the light count, the lamps' shadows, the scale and the sun's shadows aside: the Low tier and Low saves old and new differ there) */
+const LOW_FREE: readonly (keyof PresetOptions)[] = ['lights', 'lightShadows', 'scale', 'shadows'];
+export const isLow = (g: Graphics): boolean => presetKeys.every((k) => LOW_FREE.includes(k) || g[k] === PRESETS.low[k]);
 
 /** The fps the auto-adjust watches judge by. A Low at 60 is judged as at 30, the thresholds it had, so phones switch tiers as before. Other limits: as is. */
 export function watchFps(g: Graphics, limit: number): number {

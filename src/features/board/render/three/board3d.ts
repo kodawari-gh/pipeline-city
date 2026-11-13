@@ -737,11 +737,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
     // (no light casts: no map is drawn and the scan waits. The first scan after a map turns on sees every change made since)
-    if (draw && room?.casting) {
-      const cast = shadows.scan(scene, now);
-      room.redrawShadows(cast, now);
-      if (cast) demand.ask();
-    }
+    if (draw && room && room.scanShadows(shadows, scene, now)) demand.ask();
     meter.tick(now, canvas.width, canvas.height);
     // auto tier: one decision from the first seconds of frames; manual mode never steps
     // (only frames the renderer drew count: an idle frame is cheap on any device; so is a frame the away limit holds down)
