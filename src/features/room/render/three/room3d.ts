@@ -168,6 +168,9 @@ export function prepareCity(r: WebGLRenderer, shadows: number): void {
 /** The city's quad in the window (its root in the room), for the debug overlay's hide. Null until `prepareCity` has built the city. */
 export const cityMesh = (): Mesh | null => city?.mesh ?? null;
 
+/** The city's view, for the debug overlay's layer toggles and its triangle count (`app/debug/city-layers.ts`). Null until the city is built. */
+export const cityLayers = (): OutsideView | null => city;
+
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
 

@@ -88,6 +88,9 @@ export interface StatsSnapshot {
   /** The sun's shadow level and the room's lamp cap, as the graphics settings hold them. */
   shadows: number;
   lights: number;
+  /** What the city's own picture draws (an estimate from its meshes' draw ranges; not the room's). Absent until the city is built. */
+  cityTris?: number;
+  cityCalls?: number;
   vw: number;
   vh: number;
   sw: number;
@@ -126,6 +129,7 @@ export function statsText(s: StatsSnapshot): string {
     `post ${s.post ? 'on' : 'off'}`,
     `shadows ${s.shadows}`,
     `lights ${s.lights}`,
+    ...(s.cityTris === undefined ? [] : [`city tris ${s.cityTris}, calls ${s.cityCalls ?? 0}`]),
     `view ${s.vw}x${s.vh}, screen ${s.sw}x${s.sh}, ${s.orient}`,
   ].join('\n');
 }
