@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autoStep, awayHeld, awayLimit, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
-  loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Tier,
+  autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
+  loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
 } from './graphics';
 
 const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
@@ -69,7 +69,7 @@ describe('TierWatch', () => {
     let out: 'down' | 'up' | null = null;
     // unfocused: the limit is 30 against the player's 60; 30 fps frames must not count
     for (let t = 5000, i = 0; i < 600; i++, t += 1000 / 30) {
-      const limit = awayLimit(60, false);
+      const limit = loopLimit(60, false, 0);
       if (!awayHeld(limit, 60)) out = w2.tick(1 / 30, 3, t, 60) ?? out;
     }
     expect(out).toBeNull();
@@ -225,6 +225,31 @@ describe('tier persistence', () => {
     expect(resolveStart(null, null, '?tier=bogus', detect('medium')).rec.tier).toBe('medium');
     expect(store.size).toBe(0);
   });
+  describe('the Low frame limit moves from 30 to 60 (save v3)', () => {
+    const lowRec = { mode: 'manual', tier: 'low', reason: 'chosen' };
+    it('a manual Low v2 save at 30 fps starts at 60', () => {
+      const s = resolveStart({ ...PRESETS.low, fps: 30, brightness: 1, auto: false, v: 2 }, lowRec, '', detect('high'));
+      expect(s.rec.mode).toBe('manual');
+      expect(s.g).toMatchObject({ ...PRESETS.low, fps: 60 });
+    });
+    it('a Low v2 save at 30 fps with no tier record starts at 60', () => {
+      const s = resolveStart({ ...PRESETS.low, fps: 30, v: 2 }, null, '', detect('high'));
+      expect(s.rec.mode).toBe('manual');
+      expect(s.g.fps).toBe(60);
+    });
+    it('a v3 Low save at 30 fps stays at 30', () => {
+      const s = resolveStart({ ...PRESETS.low, fps: 30, v: 3 }, lowRec, '', detect('high'));
+      expect(s.g.fps).toBe(30);
+    });
+    it('a v2 High save at 30 fps stays at 30', () => {
+      const s = resolveStart({ ...PRESETS.high, fps: 30, v: 2 }, null, '', detect('high'));
+      expect(s.g.fps).toBe(30);
+    });
+    it('a v2 save keeps its auto flag', () => {
+      const s = resolveStart({ ...PRESETS.high, fps: 60, auto: true, v: 2 }, { mode: 'manual', tier: 'high', reason: 'chosen' }, '', detect('high'));
+      expect(s.g.auto).toBe(true);
+    });
+  });
 });
 
 describe('presets', () => {
@@ -365,22 +390,68 @@ describe('the frame limit', () => {
   it('Low runs at 60, not held to 30', () => {
     setTier('low');
     expect(graphics.value.fps).toBe(60);
-    expect(drawnIn(1, () => awayLimit(graphics.value.fps, true))).toBeGreaterThanOrEqual(59);
+    expect(drawnIn(1, () => loopLimit(graphics.value.fps, true, 0))).toBeGreaterThanOrEqual(59);
     setTier('high');
   });
 
-  it('keeps the full rate after minutes without input', () => {
-    // no input for 5 minutes, page focused: every second of it draws at the player's limit
-    for (const fps of [60, 0]) expect(awayLimit(fps, true)).toBe(fps);
-    expect(drawnIn(300, () => awayLimit(60, true))).toBeGreaterThanOrEqual(299 * 60);
+  it('keeps the full rate at any time without input', () => {
+    // page focused: the limit is the player's at every idle time, from none to 5 minutes
+    for (const idleMs of [0, 10e3, 29e3, 31e3, 40e3, 5 * 60e3]) expect(loopLimit(60, true, idleMs)).toBe(60);
+    expect(loopLimit(0, true, 5 * 60e3)).toBe(0);
+  });
+
+  it('draws the full rate over 40 s of growing idle time', () => {
+    // idle time grows from 0 (no input since the start): every frame asks with the time since the last input
+    expect(drawnIn(40, (t) => loopLimit(60, true, t))).toBeGreaterThanOrEqual(60 * 40 - 2);
   });
 
   it('holds to 30 without the focus, at once', () => {
-    expect(awayLimit(120, false)).toBe(30);
-    expect(awayLimit(0, false)).toBe(30);
+    for (const idleMs of [0, 5 * 60e3]) {
+      expect(loopLimit(120, false, idleMs)).toBe(30);
+      expect(loopLimit(60, false, idleMs)).toBe(30);
+      expect(loopLimit(0, false, idleMs)).toBe(30);
+    }
   });
 
-  it('never raises a lower limit', () => expect(awayLimit(24, false)).toBe(24));
+  it('never raises a lower limit', () => expect(loopLimit(24, false, 0)).toBe(24));
+});
+
+describe('the watches at the Low limit', () => {
+  const lowSave: Graphics = { ...DEFAULTS, ...PRESETS.low, fps: 60 }; // a Low save at 60 fps
+  const lowTier = tierGraphics('low', DEFAULTS); // the phone's Low tier: its scale and shadows differ from the preset
+  /** Did `SlowWatch` ask for a step down in `secs` of steady `fps` frames, judged as board3d judges them? */
+  const slowSteps = (fps: number, limit: number, g: Graphics, secs: number) => {
+    const w = new SlowWatch();
+    w.reset(0);
+    let fired = 0;
+    for (let t = 5000, i = 0; t < 5000 + secs * 1000; i++, t += 1000 / fps) if (w.tick(1 / fps, t, watchFps(g, limit))) fired++;
+    return fired;
+  };
+  /** The one decision `TierWatch` makes from steady frames, judged as board3d judges them. */
+  const tierDecision = (fps: number, workMs: number, limit: number, g: Graphics) => {
+    const w = new TierWatch();
+    w.reset(0);
+    let out: 'down' | 'up' | null = null;
+    for (let t = 5000, i = 0; i < 600 && !out; i++, t += 1000 / fps) out = w.tick(1 / fps, workMs, t, watchFps(g, limit));
+    return out;
+  };
+
+  it('a Low save at 60 fps does not step down at a steady 27 fps', () => {
+    expect(slowSteps(27, 60, lowSave, 10)).toBe(0);
+    expect(slowSteps(27, 60, lowTier, 10)).toBe(0);
+  });
+  it('a Low save at 60 fps steps down at a steady 22 fps', () => {
+    expect(slowSteps(22, 60, lowSave, 10)).toBeGreaterThan(0);
+    expect(slowSteps(22, 60, lowTier, 10)).toBeGreaterThan(0);
+  });
+  it('a Low tier at 60 fps steps up at a steady 28 fps with light work', () => {
+    expect(tierDecision(28, 5, 60, lowTier)).toBe('up');
+    expect(tierDecision(28, 5, 60, lowSave)).toBe('up');
+  });
+  it('Medium and High at 60 fps keep their thresholds: a steady 27 fps steps down', () => {
+    expect(slowSteps(27, 60, { ...DEFAULTS, ...PRESETS.medium }, 10)).toBeGreaterThan(0);
+    expect(slowSteps(27, 60, DEFAULTS, 10)).toBeGreaterThan(0);
+  });
 });
 
 describe('SlowWatch', () => {
