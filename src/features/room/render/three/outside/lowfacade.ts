@@ -14,6 +14,13 @@ export interface LowLamps { k: { value: number }; col: { value: Color }; pos: { 
 
 /** The atlas: CELLS × CELLS cells of CELL texels; a cell is one bay across and one storey up, its outer EDGE texels the wall's frame (so the cells meet unseen). */
 const CELLS = 8, CELL = 32, SIZE = CELLS * CELL, EDGE = 2;
+/** The atlas's anisotropic taps (the renderer clamps them to its maximum). */
+export const LOW_ANISO = 8;
+/** Night walls: the day albedo times this tint at full night. Cool and dark, as base's unlit walls read (a warm grey reads brown under the lamps). */
+export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
+/** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
+ * so the lit rooms stay discrete and get sparser with distance (no mean wash). */
+export const LOW_FAR = { near: 150, far: 450, keep: 0.35 };
 /** The window in its cell (a fraction of the bay across and the storey up), and its rooms: three across, two up. */
 const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
 
@@ -53,6 +60,8 @@ function atlas(data: Float32Array): DataTexture {
   t.minFilter = LinearMipmapLinearFilter;
   t.magFilter = LinearFilter;
   t.generateMipmaps = true;
+  // a wall seen at a grazing angle squashes its bays along one axis: anisotropic taps keep its windows from smearing into one band
+  t.anisotropy = LOW_ANISO;
   t.needsUpdate = true;
   return t;
 }
@@ -179,6 +188,13 @@ vec2 lowAtlas() {
   float h = fract(sin(dot(bay, vec2(12.9898, 78.233)) + vLowSeed * 3.1) * 43758.5453);
   vec2 pick = floor(vec2(h, fract(h * 7.31)) * ${CELLS}.0);
   return (mod(bay + pick, ${CELLS}.0) + fract(vLowBay)) / ${CELLS}.0;
+}
+// a hash per lit room (this bay, this room of the window's grid): far off, a room stays lit only if its hash clears the distance threshold
+float lowRoomHash() {
+  vec2 wc = (fract(vLowBay) - vec2(${WIN.u0}, ${WIN.v0})) / vec2(${WIN.u1 - WIN.u0}, ${WIN.v1 - WIN.v0}) * vec2(${COLS}.0, ${ROWS}.0);
+  float room = clamp(floor(wc.y), 0.0, ${ROWS - 1}.0) * ${COLS}.0 + clamp(floor(wc.x), 0.0, ${COLS - 1}.0);
+  vec2 bay = floor(vLowBay) + vLowOff;
+  return fract(sin(dot(bay + room * vec2(0.371, 0.713), vec2(127.1, 311.7)) + vLowSeed * 2.3) * 43758.5453);
 }`)
       // the point lights' loop is cut from this wall's lights (`#if 0`): the scene's PointLights stay live for the street, cars and other meshes
       .replace('#include <lights_fragment_begin>', ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'))
@@ -196,6 +212,8 @@ if (fLampK > 0.0) {
       .replace('#include <map_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
   diffuseColor.rgb *= mix(vec3(1.0), textureGrad(map, lowUv, lowDx, lowDy).rgb, vLowFac);
+  // at night the walls go cool and dark between the windows, as base's do (the lamps light the darker albedo too); by day fNight is 0
+  diffuseColor.rgb *= mix(vec3(1.0), vec3(${LOW_NIGHT_WALL.join(', ')}), fNight * vLowFac);
 }`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) / ${CELLS}.0, lowDy = dFdy(vLowBay) / ${CELLS}.0;
@@ -207,7 +225,12 @@ if (fLampK > 0.0) {
   else if (vLowKind == 3.0) lowGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vLowWide * step(0.55, fract(fTime * 0.45 + vLowSeed));
   else if (vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75 * (0.2 + 0.9 * exp(-3.0 * clamp((vLowFuv.y - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
   else if (vLowKind == 8.0 && vLowLook.w > -0.5) lowGlow = vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0));
-  totalEmissiveRadiance = emissive * (textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb * vLowFac * vLowNight + lowGlow) * fNight;
+  // the lit rooms stay discrete at every range (the atlas's own mips, no mean wash). Far off, each lit room is kept only if its hash
+  // clears a threshold that rises with distance, so the far towers get sparser windows, not a warm average
+  vec3 lowLit = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb;
+  float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
+  lowLit *= step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+  totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;
 }`);
   };
   mat.customProgramCacheKey = () => 'outside-facade-low';
