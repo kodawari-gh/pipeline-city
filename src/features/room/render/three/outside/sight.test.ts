@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { Sight, type QueryGL } from './sight';
+import { Sight, outsideDraws, type QueryGL } from './sight';
+
+describe('outsideDraws', () => {
+  it('draws the city only when the window is in the room and visible', () => {
+    expect(outsideDraws(true, false)).toBe(false); // a hidden window quad: the city is not drawn
+    expect(outsideDraws(true, true)).toBe(true);
+    expect(outsideDraws(false, true)).toBe(false); // no parent: nothing to show it on
+  });
+});
 
 /** A query that answers `samples`, `delay` frames after it ended. */
 function fakeGl(samples: () => boolean, delay = 0) {

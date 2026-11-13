@@ -6,10 +6,12 @@
 // as a shadow map or the city, is not one). `gpu`: GPU ms per drawn frame from EXT_disjoint_timer_query_webgl2, "n/a" where Chrome does not offer it; with
 // the CPU slowed it also holds the GPU's waits for the slow CPU's commands, so read it at `--throttle 1`. `--phone`: a 412x915 screen at dpr 2.6
 // with the CPU slowed by `--throttle` (default 4): the desktop GPU is far faster than a phone's, so read the draw counts and pixels as the GPU cost and
-// the frame time as the CPU cost. It reports; nothing here passes or fails. Dev server on PORT (5196).
+// the frame time as the CPU cost. `--firefox`: the same run in Firefox (playwright's firefox, headless, WebGL forced on, the frame rate not capped);
+// the default is Chrome. Chrome's launch forces ANGLE d3d11 on Windows only: on Linux it is not forced (that flag made the GPU process fall back to
+// SwiftShader on the box). Firefox never gets d3d11. It reports; nothing here passes or fails. Dev server on PORT (5196).
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -19,8 +21,10 @@ const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').star
 // DPR 2.625 and a 411x1006 CSS screen, less about 92 px of status, address and gesture bars). razr-plus: razr+ 2025, the same panel (its density
 // assumed the same). razr-ultra: razr ultra 2025, 1224x2992 panel, density not published (480 dpi, DPR 3, assumed). razr-fold: the razr fold's inner
 // screen unfolded, 1004x967 CSS px measured on the owner's phone; DPR 2.2 is an ASSUMPTION (2232 px panel width / 1004 is about 2.22; 2.625 would make
-// 2636 px, wider than the panel) until the real devicePixelRatio is reported. Default phone: 412x915 at 2.6.
-const DEVICES = { phone: [412, 915, 2.6], razr: [411, 914, 2.625], 'razr-plus': [411, 914, 2.625], 'razr-ultra': [408, 905, 3], 'razr-fold': [1004, 967, 2.2] };
+// 2636 px, wider than the panel) until the real devicePixelRatio is reported. razr-fold-folded: the same phone folded (the cover screen), 485x997 CSS px
+// at DPR 2.225 (an ASSUMPTION: the owner's Chrome canvas is 727x1495 at 485x997 CSS, and `pixelRatio` caps dpr at 2, so any dpr of 2 or more gives that
+// same canvas; 2.225 is the unfolded razr-fold's value, assumed again until the real devicePixelRatio is reported). Default phone: 412x915 at 2.6.
+const DEVICES = { phone: [412, 915, 2.6], razr: [411, 914, 2.625], 'razr-plus': [411, 914, 2.625], 'razr-ultra': [408, 905, 3], 'razr-fold': [1004, 967, 2.2], 'razr-fold-folded': [485, 997, 2.225] };
 const DEVICE = flag('device', has('phone') ? 'phone' : '');
 const PHONE = !!DEVICE;
 if (DEVICE && !DEVICES[DEVICE]) throw new Error(`--device: one of ${Object.keys(DEVICES).join(', ')}`);
@@ -44,6 +48,9 @@ const PRESETS = {
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
 const presets = flag('presets', 'low,medium,high').split(',');
+// `--tier` sets that tier in every page (`setTier`), so each row is that tier whatever its preset label says (the page's boot-time build is the
+// preset's, its live settings and every Low cut are the tier's). Rows that differ by preset need no `--tier`: the stored presets already have the limit off.
+if (TIER && presets.length > 1) throw new Error('--tier runs every row at that tier: give one --presets value with it, or drop --tier to compare presets');
 const modes = flag('modes', 'menu,gallery,build').split(',');
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
@@ -52,9 +59,13 @@ if (!(await up())) {
   server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const browser = await chromium.launch({
+const FF = has('firefox');
+// the CPU slow-down that is applied: Firefox has no CDP session, so none (the label says so)
+const CPU = FF ? 1 : THROTTLE;
+const CPU_LABEL = FF ? '1 (firefox: not throttled)' : String(THROTTLE);
+const browser = FF ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true, 'layout.frame_rate': 0 } }) : await chromium.launch({
   headless: true, channel: 'chrome',
-  args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
+  args: ['--enable-gpu', ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []), '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
 });
 const stop = async () => { await browser.close().catch(() => {}); try { server?.kill(); } catch { /* gone */ } };
 
@@ -157,7 +168,7 @@ const rows = [];
 let gpuTimer = false, disjoint = 0;
 try {
   const sizeCol = (s) => `${(s.pixels.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}Mpx/${s.contexts}ctx`;
-  console.log(`${W}x${H} @${DPR}x${DEVICE ? ` (${DEVICE})` : ''}, CPU /${THROTTLE}${TIER ? `, tier ${TIER}, frame limit ${KEEP ? 'kept' : 'off'}` : ''}; over16: % of drawn frames over ${BUDGET.toFixed(1)} ms`);
+  console.log(`${W}x${H} @${DPR}x${DEVICE ? ` (${DEVICE})` : ''}, CPU /${CPU_LABEL}${TIER ? `, tier ${TIER}, frame limit ${KEEP ? 'kept' : 'off'}` : ''}; over16: % of drawn frames over ${BUDGET.toFixed(1)} ms`);
   console.log('mode'.padEnd(9) + 'preset'.padEnd(8) + 'view'.padEnd(8) + 'FPS'.padStart(7) + 'p50'.padStart(7) + 'p95'.padStart(7) + 'max'.padStart(7) + 'dFPS'.padStart(7) + 'dp50'.padStart(7) + 'dp95'.padStart(7) + 'gpu'.padStart(7) + 'long'.padStart(7) + 'calls'.padStart(7) + 'ktri'.padStart(7) + '  px/contexts');
   let warm = false;
   for (const preset of presets) {
@@ -171,8 +182,9 @@ try {
       await p.goto(PHONE && preset === 'default' ? `${url}${url.includes('?') ? '&' : '?'}tier=low` : url); // the tier, not touch, picks the phone's settings
       await p.waitForSelector('text=Build my PC', { timeout: warm ? 60000 : 180000 });
       warm = true;
-      const cdp = await ctx.newCDPSession(p);
-      if (THROTTLE > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
+      // (the CDP session is Chrome's: under `--firefox` the CPU slow-down is not set)
+      const cdp = FF ? null : await ctx.newCDPSession(p);
+      if (THROTTLE > 1 && cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
       if (TIER) await p.evaluate(async ([t, keep]) => { const G = await import('/src/app/graphics.ts'); G.setTier(t); if (!keep) G.setGraphic('fps', 0); }, [TIER, KEEP]);
       // (a pointer move each 2 s. Builds from before the no-input cap was dropped (e.g. 0305cab, AwayWatch) would hold the loop to 30 fps after 30 s with no input; the pokes keep old and new builds comparable)
       await p.evaluate(poke);
@@ -211,6 +223,6 @@ try {
       await ctx.close();
     }
   }
-  console.log(gpuTimer ? `GPU timer: EXT_disjoint_timer_query_webgl2${disjoint ? ` (${disjoint} disjoint results dropped)` : ''}${THROTTLE > 1 ? `; CPU /${THROTTLE}: the GPU ms hold its waits for the CPU, read them at --throttle 1` : ''}` : 'GPU timer: n/a');
-  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: THROTTLE, gpuTimer, rows }, null, 1));
+  console.log(gpuTimer ? `GPU timer: EXT_disjoint_timer_query_webgl2${disjoint ? ` (${disjoint} disjoint results dropped)` : ''}${CPU > 1 ? `; CPU /${CPU}: the GPU ms hold its waits for the CPU, read them at --throttle 1` : ''}` : 'GPU timer: n/a');
+  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: CPU, gpuTimer, rows }, null, 1));
 } finally { await stop(); }

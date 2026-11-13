@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { DrawnFrames, FrameWindow, statsText } from './stats';
+import { DrawnFrames, FrameWindow, statsText, viewportOf } from './stats';
+
+describe('viewportOf', () => {
+  it('reads the window and screen sizes and the orientation the screen reports', () => {
+    const v = viewportOf({ innerWidth: 485, innerHeight: 997 }, { width: 485, height: 997, orientation: { type: 'portrait-primary' } });
+    expect(v).toEqual({ vw: 485, vh: 997, sw: 485, sh: 997, orient: 'portrait-primary' });
+  });
+
+  it('without screen.orientation, the orientation comes from the window size', () => {
+    expect(viewportOf({ innerWidth: 997, innerHeight: 485 }, { width: 997, height: 485 }).orient).toBe('landscape (by size)');
+    expect(viewportOf({ innerWidth: 485, innerHeight: 997 }, { width: 485, height: 997 }).orient).toBe('portrait (by size)');
+  });
+});
 
 describe('DrawnFrames', () => {
   const RAF = 1000 / 120;
@@ -98,13 +110,13 @@ describe('statsText', () => {
   it('rounds dpr and ratio to 3 decimals without trailing zeros', () => {
     const text = statsText({
       fps: 60, avgMs: 16.7, p95Ms: 20, tier: 'high', reason: 'x', mode: 'auto', dpr: 2.200000047683716, ratio: 2.625,
-      w: 1, h: 1, calls: 0, scale: 1, post: false,
+      w: 1, h: 1, calls: 0, scale: 1, post: false, shadows: 3, lights: 0, vw: 1, vh: 1, sw: 1, sh: 1, orient: 'x',
     });
     expect(text).toContain('dpr 2.2 ratio 2.625');
     expect(text).not.toContain('0000');
     const half = statsText({
       fps: 60, avgMs: 16.7, p95Ms: 20, tier: 'high', reason: 'x', mode: 'auto', dpr: 1.5, ratio: 1.5,
-      w: 1, h: 1, calls: 0, scale: 1, post: false,
+      w: 1, h: 1, calls: 0, scale: 1, post: false, shadows: 3, lights: 0, vw: 1, vh: 1, sw: 1, sh: 1, orient: 'x',
     });
     expect(half).toContain('dpr 1.5 ratio 1.5');
   });
@@ -112,11 +124,23 @@ describe('statsText', () => {
   it('holds the numbers of the snapshot', () => {
     const text = statsText({
       fps: 58.4, avgMs: 17.1, p95Ms: 24.6, tier: 'medium', reason: 'integrated GPU', mode: 'auto', dpr: 3, ratio: 1.5,
-      w: 1170, h: 2532, calls: 312, scale: 0.75, post: true,
+      w: 1170, h: 2532, calls: 312, scale: 0.75, post: true, shadows: 2, lights: 4,
+      vw: 390, vh: 844, sw: 390, sh: 844, orient: 'portrait-primary',
     });
     expect(text.split('\n').length).toBeGreaterThan(3);
     for (const want of ['58.4', '17.1', '24.6', 'medium', 'integrated GPU', 'auto', '3', '1.5', '1170', '2532', '312', '0.75']) {
       expect(text).toContain(want);
     }
+  });
+
+  it('shows the shadows and lights values and the viewport line', () => {
+    const text = statsText({
+      fps: 60, avgMs: 16.7, p95Ms: 20, tier: 'high', reason: 'x', mode: 'auto', dpr: 2.225, ratio: 1.5,
+      w: 727, h: 1495, calls: 0, scale: 1, post: false, shadows: 0, lights: 4,
+      vw: 485, vh: 997, sw: 485, sh: 997, orient: 'portrait-primary',
+    });
+    expect(text).toContain('shadows 0');
+    expect(text).toContain('lights 4');
+    expect(text).toContain('view 485x997, screen 485x997, portrait-primary');
   });
 });

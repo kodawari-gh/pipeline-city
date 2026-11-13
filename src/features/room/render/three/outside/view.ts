@@ -28,7 +28,7 @@ import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
-import { Sight, type QueryGL } from './sight';
+import { Sight, outsideDraws, type QueryGL } from './sight';
 import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
@@ -401,7 +401,7 @@ export class OutsideView {
    * the multisampling of the frame's scene target.
    */
   draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    if (!this.mesh.parent) { this.live = null; this.age = 0; return; }
+    if (!outsideDraws(!!this.mesh.parent, this.mesh.visible)) { this.live = null; this.age = 0; return; }
     camera.updateMatrixWorld();
     this.mesh.updateWorldMatrix(true, false);
     const size = renderer.getDrawingBufferSize(new Vector2()), fw = size.x, fh = size.y;

@@ -80,7 +80,7 @@ describe('the debug overlay is only loaded dynamically', () => {
 
   it('board3d.ts loads the overlay by a dynamic import behind whenDebug', () => {
     const text = fs.readFileSync(path.join(SRC, 'features', 'board', 'render', 'three', 'board3d.ts'), 'utf8') as string;
-    expect(text).toContain("void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas });");
+    expect(text).toContain("void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots:");
   });
 
   it('debugflag.ts has no top-level statements besides its exports and imports', () => {
