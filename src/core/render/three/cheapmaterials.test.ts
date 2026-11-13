@@ -32,6 +32,35 @@ describe('cheapMaterials', () => {
     cheapMaterials(phys);
     expect((phys.material as unknown as MeshLambertMaterial).isMeshLambertMaterial).toBe(true);
   });
+  it('a metal source gives a darker Lambert colour (toward dark metal), a non-metal keeps its own hex, and the source colour is not changed', () => {
+    const lum = (c: Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const lambertOfSource = (m: MeshStandardMaterial) => { const a = new Mesh(geo, m); cheapMaterials(a); return a.material as unknown as MeshLambertMaterial; };
+    const teal = new MeshStandardMaterial({ color: 0x3ea486, metalness: 0.9 });
+    const lt = lambertOfSource(teal);
+    expect(lum(lt.color)).toBeLessThan(lum(new Color(0x3ea486)));
+    expect(lt.color.getHex()).not.toBe(0x3ea486);
+    expect(teal.color.getHex()).toBe(0x3ea486); // (High draws with the source colour)
+    const alu = new MeshStandardMaterial({ color: 0xb4bccb, metalness: 0.75 });
+    expect(lum(lambertOfSource(alu).color)).toBeLessThan(lum(new Color(0xb4bccb)));
+    for (const metalness of [0, 0.05, 0.1]) {
+      const plain = new MeshStandardMaterial({ color: 0x3ea486, metalness });
+      expect(lambertOfSource(plain).color.getHex(), `metalness ${metalness}`).toBe(0x3ea486);
+    }
+    // copper and gold keep their own colour
+    expect(lambertOfSource(new MeshStandardMaterial({ color: 0xc0793a, metalness: 0.9 })).color.getHex()).toBe(0xc0793a);
+    expect(lambertOfSource(new MeshStandardMaterial({ color: 0xd9b25e, metalness: 1 })).color.getHex()).toBe(0xd9b25e);
+    // it follows the source's tint live
+    teal.color.set(0xffffff);
+    expect(lum(lt.color)).toBeLessThan(1);
+    expect(lum(lt.color)).toBeGreaterThan(lum(new Color(0x2a2d32)) - 1e-6);
+  });
+  it('the Lambert reads the source\'s polygon offset live (a label draws over its decal)', () => {
+    const src = new MeshStandardMaterial({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const a = new Mesh(geo, src);
+    cheapMaterials(a);
+    const l = a.material as unknown as MeshLambertMaterial;
+    expect([l.polygonOffset, l.polygonOffsetFactor, l.polygonOffsetUnits]).toEqual([true, -4, -4]);
+  });
   it('strips the PBR maps of a patched one and keeps it; a light map counts as patched', () => {
     const n = new Texture(), r = new Texture(), m = new MeshStandardMaterial({ normalMap: n, roughnessMap: r, metalnessMap: r, aoMap: r, bumpMap: r });
     m.onBeforeCompile = () => undefined;

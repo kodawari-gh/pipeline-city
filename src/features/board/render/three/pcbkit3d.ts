@@ -272,10 +272,21 @@ export interface Bump { r: RectLike; top: number; fall: number }
 /**
  * A sticker over the layout rect `r` that lies on the board at depth `base` and drapes over the parts under it (`bumps`): it rides on each
  * part's top and comes down past its edges, so the packages show through it as real labels do. `step`: the mesh's grain (layout units).
+ * `flat` (Low): one quad, over the top of the highest part, so no part pokes through it and its picture keeps its whole rect (a coarse grain
+ * would cut the packages through the label and tear its edge).
  */
-export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Material, step = 7): Mesh {
-  const nx = Math.max(2, Math.round(r.w / step)), ny = Math.max(2, Math.round(r.h / step)), geo = new PlaneGeometry(r.w, r.h, nx, ny);
+export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Material, step = 7, flat = false): Mesh {
+  const nx = flat ? 1 : Math.max(2, Math.round(r.w / step)), ny = flat ? 1 : Math.max(2, Math.round(r.h / step)), geo = new PlaneGeometry(r.w, r.h, nx, ny);
   const p = geo.attributes.position!, cx = r.x + r.w / 2, cy = r.y + r.h / 2, lift = 3;
+  if (flat) {
+    const z = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
+    for (let i = 0; i < p.count; i++) p.setZ(i, z);
+    geo.computeVertexNormals();
+    const o = new Mesh(geo, m);
+    o.position.set(cx, -cy, 0);
+    o.receiveShadow = true;
+    return o;
+  }
   for (let i = 0; i < p.count; i++) {
     const x = cx + p.getX(i), y = cy - p.getY(i);
     let z = base + lift;

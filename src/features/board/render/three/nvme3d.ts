@@ -7,7 +7,7 @@
 import { Group, type MeshStandardMaterial, type Texture } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
-import { byDetail } from '@/core/render/three/detail';
+import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { NVME_FINGERS } from '@/features/storage/render/drives';
@@ -122,7 +122,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
   ];
   // (drawn over the mask's decal where it lies on the board)
   const label = mat(0xffffff, { map: labelTex(look), roughness: 0.46, metalness: 0.15, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  g.add(drape(L, z1, bumps, label, byDetail(7, 40)));
+  g.add(drape(L, z1, bumps, label, 7, lowDetail())); // (Low: one flat quad over the packages, its whole picture, no part through it)
   return label;
 }
 

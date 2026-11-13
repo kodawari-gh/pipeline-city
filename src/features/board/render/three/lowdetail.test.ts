@@ -14,12 +14,15 @@ const meshes = (o: Object3D) => { const out: Mesh[] = []; o.traverse((c) => { if
 const tubes = (o: Object3D) => meshes(o).flatMap((m) => (m.geometry instanceof TubeGeometry ? [m.geometry.parameters] : []));
 /** The tower's tubes as `tubular x radial`, sorted: the four heat pipes and the two thread coils. */
 const shapes = () => { setLayoutTier(3, 3); return tubes(coolerModel('cooler-tower').root).map((p) => `${p.tubularSegments}x${p.radialSegments}`).sort(); };
-const label = (): PlaneGeometry => {
+/** The label's mesh: the plane with the label's picture on it (its material draws over the decals with an offset of -4), in the stick's group. */
+const labelMesh = (): Mesh => {
   const g = new Group();
   nvmeStick(g, driveBody('ssd-nvme', 'm20'), { name: 'NVMe SSD 128K', capacityBytes: 128 * 1024, heatsink: false });
-  const planes = meshes(g).filter((m) => m.geometry instanceof PlaneGeometry).map((m) => m.geometry as PlaneGeometry);
-  return planes.sort((a, b) => b.parameters.widthSegments * b.parameters.heightSegments - a.parameters.widthSegments * a.parameters.heightSegments)[0]!;
+  const planes = meshes(g).filter((m) => m.geometry instanceof PlaneGeometry && !Array.isArray(m.material) && (m.material as { polygonOffsetFactor?: number }).polygonOffsetFactor === -4);
+  expect(planes).toHaveLength(1);
+  return planes[0]!;
 };
+const label = (): PlaneGeometry => labelMesh().geometry as PlaneGeometry;
 
 describe('Low builds coarser machine parts', () => {
   it('byDetail picks by the flag, and setLowDetail says when it changed', () => {
@@ -36,13 +39,17 @@ describe('Low builds coarser machine parts', () => {
   it('the tower cooler at High keeps its 220x16 heat pipes and 339x6 thread coils', () => {
     expect(shapes()).toEqual(['220x16', '220x16', '220x16', '220x16', '339x6', '339x6']);
   });
-  it('the NVMe label drape is about 40 units a quad at Low, 7 at High', () => {
+  it('the NVMe label drape is about 7 units a quad at High, and one flat quad of the whole picture at Low', () => {
     const high = label().parameters;
     expect([high.widthSegments, high.heightSegments]).toEqual([Math.round(high.width / 7), Math.round(high.height / 7)]);
     setLowDetail(true);
-    const low = label().parameters;
-    expect([low.widthSegments, low.heightSegments]).toEqual([Math.round(low.width / 40), Math.round(low.height / 40)]);
-    expect(low.widthSegments * low.heightSegments).toBeLessThan((high.widthSegments * high.heightSegments) / 20);
+    const lowMesh = labelMesh(), low = (lowMesh.geometry as PlaneGeometry).parameters;
+    expect([low.widthSegments, low.heightSegments, low.width, low.height]).toEqual([1, 1, high.width, high.height]);
+    // its picture keeps the whole rect (uv 0 to 1), and the quad lies at one depth, over the packages
+    const uv = lowMesh.geometry.attributes.uv!, z = lowMesh.geometry.attributes.position!;
+    const us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)), vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
+    expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
+    expect(new Set(Array.from({ length: z.count }, (_, i) => z.getZ(i))).size).toBe(1);
   });
   it('the machine key changes when the detail does (so the machine is built again) and is unchanged at High', () => {
     const s = { boardTier: 1, caseTier: 1, devices: [] } as unknown as Snapshot;

@@ -263,7 +263,7 @@ export class Machine3D {
    */
   private share(): void {
     const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
-    mergeSiblings(this.root, { skip, apart });
+    mergeSiblings(this.root, { skip, apart, byLook: lowDetail() });
     shareMaterials(this.root, { skip, apart });
   }
 
