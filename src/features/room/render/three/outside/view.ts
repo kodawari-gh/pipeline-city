@@ -12,7 +12,7 @@
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
   Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
-  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
+  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type Object3D, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
 import { startPrograms, type Program } from '@/core/render/three/compile';
@@ -105,7 +105,7 @@ const SUPER = 2;
  * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
-const EVERY = 3, HOLD_PX = 1;
+export const EVERY = 3, HOLD_PX = 1;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
@@ -154,9 +154,12 @@ export class OutsideView {
   /** The quad in the window's opening (room units). */
   readonly mesh: Mesh;
   private quad: ShaderMaterial;
-  private scene = new Scene();
+  /** Read and set by the `?debug` layers (`app/debug/city-layers.ts`), not by other callers. */
+  scene = new Scene();
   private cam = new PerspectiveCamera();
   private target: WebGLRenderTarget | null = null;
+  /** The scale (`SUPER` or 1) the target was made at. */
+  private targetSS = 1;
   private kit: Kit;
   private sky: ShaderMaterial;
   private dome: Mesh;
@@ -168,7 +171,7 @@ export class OutsideView {
   private bounce = new DirectionalLight(0xfff1e2, 0);
   /** The moon's light at night, a faint blue from the sky (it casts no glints, which a moon as a light would on every roof). */
   private moon = new HemisphereLight(0x5a6fa8, 0x1c1e26, 0);
-  private lamps: PointLight[] = [];
+  lamps: PointLight[] = [];
   private leaf: LeafUniforms;
   private facade: FacadeUniforms;
   private steam: SteamUniforms;
@@ -190,7 +193,7 @@ export class OutsideView {
   private ran = -1;
   /** Materials of the view's own, outside the kit. */
   private disposables: Material[] = [];
-  private key = -1;
+  key = -1;
   /** When the sun's shadow map is drawn: on its steps, and not while it is at 0 (`sunmap.ts`). */
   private sunMap = new SunMap();
   /** The camera the window's picture is drawn for this frame: the quad shows the picture only to it. */
@@ -214,7 +217,10 @@ export class OutsideView {
   /** The window's box (its corners in the frame, -1 to 1) and the frame, at the picture's last draw, and the ticks (`frame`) it has stood since. */
   private box = new Vector4();
   private boxFrame = '';
-  private age = 0;
+  age = 0;
+  /** `?debug` only (`app/debug/city-layers.ts`): the layers that are off, and the objects of those that hide objects. Empty unless the overlay turns one off. */
+  off = new Set<string>();
+  parts: Record<string, Object3D[]> = {};
   /** The picture is due for its next draw (each `EVERY` ticks): a frame drawn on demand (docs/render/load.md) draws on this beat. */
   get due(): boolean { return this.age >= EVERY; }
 
@@ -256,20 +262,24 @@ export class OutsideView {
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
     this.steam = steam.u;
-    this.scene.add(still, ...mass, land(k), steam.mesh, signLight);
+    const ground = land(k);
+    this.scene.add(still, ...mass, ground, steam.mesh, signLight);
     const plants = plantTrees(ts, k);
     this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
+    this.parts = { buildings: [still, ...mass, ground, ...plants.meshes], steam: [steam.mesh], signs: [signLight] };
     // the cars, moving and parked, and the signals' lamps
     this.fleet = new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
+    this.parts.cars = [this.fleet.group, this.signals.mesh];
 
     // the sky round the camera, and its small copy the environment sees
     this.sky = skyMaterial();
     this.dome = skyDome(this.sky, 15000);
     this.scene.add(this.dome);
+    this.parts.sky = [this.dome];
     this.envScene.add(skyDome(this.sky, 100));
     this.scene.environment = this.env.texture;
     this.disposables.push(facade.mat, steam.mesh.material as Material, signLight.material as Material);
@@ -311,6 +321,8 @@ export class OutsideView {
   /** The hour's sky and light (a few times a game hour), the clouds' drift and the wind every frame. */
   frame(hour: number, t: number): void {
     this.age++;
+    // (debug: frozen animations keep the clock where the toggle found it)
+    if (this.off.has('freeze')) t = this.clock;
     const u = this.sky.uniforms as unknown as SkyUniforms;
     u.time.value = t;
     this.leaf.time.value = t;
@@ -362,7 +374,7 @@ export class OutsideView {
     u.ground.value.copy(hor).lerp(new Color(0x4a5242), 0.55).multiplyScalar(0.45).lerp(hz.hzCol.value, dusk);
     this.leaf.glow.value.copy(sunCol).multiplyScalar(this.sun.intensity * 0.22);
     // the lamps, the cars' lights and the windows come on as the sky darkens; the room shows in the glass only once the daylight has gone
-    const lights = lightsAt(hour);
+    const lights = this.off.has('lights') ? 0 : lightsAt(hour);
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
@@ -375,8 +387,8 @@ export class OutsideView {
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
-    this.quad.uniforms.glowK!.value = GLOW * lights * lights;
-    this.mirrorAt = MIRROR * smooth(MIRROR_FROM, 1, gone);
+    this.quad.uniforms.glowK!.value = this.off.has('glow') ? 0 : GLOW * lights * lights;
+    this.mirrorAt = this.off.has('mirror') ? 0 : MIRROR * smooth(MIRROR_FROM, 1, gone);
     this.sunMap.frame(hour);
   }
 
@@ -425,13 +437,16 @@ export class OutsideView {
     this.age = 0;
     b.set(x0, y0, x1, y1);
     this.boxFrame = frame;
-    // the picture's target, supersampled (then fewer samples each): it only grows, so a flight does not make a new one each frame
-    const ss = samples > 0 ? SUPER : 1, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
+    // the picture's target, supersampled (then at most 2 samples each; City 1x draws it at 1 pixel, the same samples): within one scale it only
+    // grows, so a flight does not make a new one each frame; a change of scale (the `flat` toggle) takes the size it needs, and frees the old
+    const ss = samples > 0 && !this.off.has('flat') ? SUPER : 1, ms = Math.min(samples, 2), rw = (rr - rx) * ss, rh = (rb - ry) * ss;
     let t = this.target;
-    if (!t || t.width < rw || t.height < rh || t.samples !== ms) {
-      const w = Math.max(rw, t?.width ?? 0), h = Math.max(rh, t?.height ?? 0);
+    if (!t || this.targetSS !== ss || t.width < rw || t.height < rh || t.samples !== ms) {
+      const same = !!t && this.targetSS === ss;
+      const w = same ? Math.max(rw, t!.width) : rw, h = same ? Math.max(rh, t!.height) : rh;
       t?.dispose();
       t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: ms });
+      this.targetSS = ss;
       this.quad.uniforms.tOut!.value = t.texture;
     }
     // the camera outside: the room camera's place in metres, its turn, its lens, cropped to the box
