@@ -6,10 +6,12 @@
 // as a shadow map or the city, is not one). `gpu`: GPU ms per drawn frame from EXT_disjoint_timer_query_webgl2, "n/a" where Chrome does not offer it; with
 // the CPU slowed it also holds the GPU's waits for the slow CPU's commands, so read it at `--throttle 1`. `--phone`: a 412x915 screen at dpr 2.6
 // with the CPU slowed by `--throttle` (default 4): the desktop GPU is far faster than a phone's, so read the draw counts and pixels as the GPU cost and
-// the frame time as the CPU cost. It reports; nothing here passes or fails. Dev server on PORT (5196).
+// the frame time as the CPU cost. `--firefox`: the same run in Firefox (playwright's firefox, headless, WebGL forced on, the frame rate not capped);
+// the default is Chrome. Chrome's launch forces ANGLE d3d11 on Windows only: on Linux it is not forced (that flag made the GPU process fall back to
+// SwiftShader on the box). Firefox never gets d3d11. It reports; nothing here passes or fails. Dev server on PORT (5196).
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -53,9 +55,10 @@ if (!(await up())) {
   server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
-const browser = await chromium.launch({
+const FF = has('firefox');
+const browser = FF ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true, 'layout.frame_rate': 0 } }) : await chromium.launch({
   headless: true, channel: 'chrome',
-  args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
+  args: ['--enable-gpu', ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []), '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
 });
 const stop = async () => { await browser.close().catch(() => {}); try { server?.kill(); } catch { /* gone */ } };
 
@@ -172,8 +175,9 @@ try {
       await p.goto(PHONE && preset === 'default' ? `${url}${url.includes('?') ? '&' : '?'}tier=low` : url); // the tier, not touch, picks the phone's settings
       await p.waitForSelector('text=Build my PC', { timeout: warm ? 60000 : 180000 });
       warm = true;
-      const cdp = await ctx.newCDPSession(p);
-      if (THROTTLE > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
+      // (the CDP session is Chrome's: under `--firefox` the CPU slow-down is not set)
+      const cdp = FF ? null : await ctx.newCDPSession(p);
+      if (THROTTLE > 1 && cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
       if (TIER) await p.evaluate(async ([t, keep]) => { const G = await import('/src/app/graphics.ts'); G.setTier(t); if (!keep) G.setGraphic('fps', 0); }, [TIER, KEEP]);
       // (a pointer move each 2 s. Builds from before the no-input cap was dropped (e.g. 0305cab, AwayWatch) would hold the loop to 30 fps after 30 s with no input; the pokes keep old and new builds comparable)
       await p.evaluate(poke);
