@@ -36,6 +36,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, day
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
+import { setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue } from '@/core/render/three/artlod';
@@ -211,6 +212,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   bootStage('Building the world', 0.14);
   await nextPaint();
   prepareCity(renderer, effective.peek().shadows);
+  setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   rebuild();
 
   // ---- camera ----
@@ -567,6 +569,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   // ---- the graphics settings (app/graphics.ts) ----
   const applyGraphics = (g: Graphics) => {
+    // Low's coarser parts: crossing the Low line builds the machine again (`machineKey` carries it)
+    if (setLowDetail(isLow(g))) rebuild();
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
     room?.setLights(g.lights, g.lightShadows > 0);

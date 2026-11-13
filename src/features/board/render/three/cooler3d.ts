@@ -9,6 +9,7 @@
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { byDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
@@ -113,7 +114,7 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
 const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), 220, r, 16), m));
+  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(220, 40), r, byDetail(16, 8)), m));
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a
@@ -227,12 +228,12 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   for (const sx of [-1, 1]) g.add(softBox({ x: sx * 920 - 100, y: -960, w: 200, h: 1920 }, BOARD_Z + 200, BOARD_Z + 260, m, 14));
   g.add(softBox({ x: -1000, y: -110, w: 2000, h: 220 }, L + 300, L + 340, m, 12));
   for (const px of [-920, 920]) {
-    const z0 = BOARD_Z + 264, z1 = L + 296, k = 7 * 16;
+    const z0 = BOARD_Z + 264, z1 = L + 296, k = byDetail(7 * 16, 48);
     g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, 12));
     g.add(tube(Array.from({ length: k + 1 }, (_, i): [number, number, number] => {
       const a = (i / k) * 7 * Math.PI * 2;
       return [px + Math.cos(a) * 54, Math.sin(a) * 54, z0 + ((z1 - z0) * i) / k];
-    }), 10, m, 6));
+    }), 10, m, 6, byDetail(339, 48)));
   }
   screws(g, [[-920, 0], [920, 0]], L + 340, 60);
   // the base: a copper contact plate on the lid, the aluminium block the pipes run through

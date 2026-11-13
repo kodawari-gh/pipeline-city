@@ -469,14 +469,14 @@ export class BuildStage {
 
   /** The device under a client point (its id), when the side panel is open; else null. */
   partAt(x: number, y: number): string | null {
-    if (!this.machine.doorOpen) return null;
+    if (this.dead || !this.machine.doorOpen) return null; // (a pointer event can land after the close)
     const id = this.hitId(x, y);
     return id && this.board.devices.some((d) => d.id === id) ? id : null;
   }
 
   /** The socket under a client point: a part's slot, or an empty socket's id; null off the board or with the panel shut. */
   slotAt(x: number, y: number): string | null {
-    if (!this.machine.doorOpen) return null;
+    if (this.dead || !this.machine.doorOpen) return null;
     const id = this.hitId(x, y);
     if (!id) return null;
     const d = this.board.devices.find((v) => v.id === id);
@@ -633,7 +633,7 @@ export class BuildStage {
   }
 
   /** The nodes to take out for a target, in order (the target last). */
-  plan(node: string): string[] { return removalPlan(buildGraph(this.board, this.cables), node); }
+  plan(node: string): string[] { return this.dead ? [] : removalPlan(buildGraph(this.board, this.cables), node); }
 
   /** Take a part out with everything in its way, then put the others back. The part goes to the bin (the game's inventory). */
   remove(node: string): Promise<void> {
@@ -773,7 +773,7 @@ export class BuildStage {
 
   /** Run the benchmark on the machine as it is (a copy runs; the stage's game is not changed). */
   async runBenchmark(): Promise<void> {
-    if (this.benching.peek() || this.status.peek().busy) return;
+    if (this.dead || this.benching.peek() || this.status.peek().busy) return;
     this.benching.value = 'start';
     try {
       const { runBench } = await import('@/features/sandbox/sim/pcbench');

@@ -106,10 +106,10 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
   return place(o);
 }
 
-/** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. */
-export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides = 7): Mesh {
+/** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
+export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides = 7, segs = Math.max(8, points.length * 3)): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
-  const o = new Mesh(new TubeGeometry(curve, Math.max(8, points.length * 3), radius, sides, false), m);
+  const o = new Mesh(new TubeGeometry(curve, segs, radius, sides, false), m);
   return place(o);
 }
 
