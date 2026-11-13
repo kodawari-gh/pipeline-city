@@ -31,7 +31,7 @@ import { Probe } from '@/core/render/three/probe';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
-import { PROBE_K, Room3D, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
+import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
@@ -107,7 +107,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
-  void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots: () => ({ city: cityMesh(), machine: machine?.root ?? null }) });
+  void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots: () => ({ city: cityMesh(), machine: machine?.root ?? null, layers: cityLayers() }) });
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
   // the shadow maps: a still picture per light, and only what moves drawn again (shadows.ts)
