@@ -24,20 +24,27 @@ void main() {
 
 const FRAG = /* glsl */`
 uniform vec3 stCol, stLow;
+uniform float stTime;
 varying vec2 vP;
 varying float vSeed;
 varying vec3 vW;
 ${HAZE_FN}
 void main() {
-  float t = hzTime * 0.16, y = clamp(vP.y, 0.0, 1.0);
+  float t = stTime * 0.16, y = clamp(vP.y, 0.0, 1.0);
   float n = 0.6 * hzBank(vec2(vP.x * 2.0 + vSeed, y * 8.0 - t + vSeed)) + 0.4 * hzBank(vec2(vP.x * 5.0 - vSeed, y * 19.0 - t * 2.1));
   float w = 0.1 + 0.62 * y, body = smoothstep(w, w * 0.2, abs(vP.x + (n - 0.5) * 1.1 * y));
   float a = body * smoothstep(0.0, 0.05, y) * pow(1.0 - y, 2.0) * smoothstep(0.26, 0.66, n + 0.32 * (1.0 - y));
   gl_FragColor = vec4(hzApply(mix(stLow, stCol, smoothstep(0.0, 0.7, y)), vW), a * 0.34);
 }`;
 
-/** The plumes' colours, set with the hour: high up, and low down where the streets light them at night. */
-export interface SteamUniforms { stCol: { value: Color }; stLow: { value: Color } }
+/**
+ * The plumes' colours, set with the hour: high up, and low down where the streets light them at night. `time`: the plumes' own clock (s), set
+ * each frame by the view (`view.ts`, frozen at Low); the haze's clock stays with the mist, so the plumes can stand still without it.
+ */
+export interface SteamUniforms { stCol: { value: Color }; stLow: { value: Color }; time: { value: number } }
+
+/** The plumes' uniforms, all at zero, for a view with no plumes in it. */
+export const steamUniforms = (): SteamUniforms => ({ stCol: { value: new Color() }, stLow: { value: new Color() }, time: { value: 0 } });
 
 /** The plumes over these buildings, in one mesh. */
 export function roofSteam(all: readonly Building[], haze: HazeUniforms): { mesh: Mesh; u: SteamUniforms } {
@@ -53,8 +60,8 @@ export function roofSteam(all: readonly Building[], haze: HazeUniforms): { mesh:
   g.setAttribute('plume', new InstancedBufferAttribute(new Float32Array(plumes), 4));
   g.setAttribute('seed', new InstancedBufferAttribute(new Float32Array(seeds), 1));
   g.instanceCount = seeds.length;
-  const u: SteamUniforms = { stCol: { value: new Color() }, stLow: { value: new Color() } };
-  const mesh = new Mesh(g, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: { ...haze, ...u }, transparent: true, depthWrite: false }));
+  const u = steamUniforms();
+  const mesh = new Mesh(g, new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: { ...haze, stCol: u.stCol, stLow: u.stLow, stTime: u.time }, transparent: true, depthWrite: false }));
   mesh.frustumCulled = false;
   return { mesh, u };
 }

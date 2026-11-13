@@ -100,3 +100,47 @@ describe('OutsideView detail', () => {
     expect(meshes(low)).toBeLessThan(meshes(high));
   });
 });
+
+describe('OutsideView ambient motion', () => {
+  type Clocked = {
+    leaf: { time: { value: number } }; steam: { time: { value: number } }; facade: { time: { value: number } };
+    haze: { hzTime: { value: number } }; sky: { uniforms: { time: { value: number } } }; traffic: { t: number };
+    fleet: { update(dt: number, ex: number, ez: number): void };
+  };
+  const clocks = (v: OutsideView): Clocked => v as unknown as Clocked;
+  let high: OutsideView, low: OutsideView;
+  beforeAll(() => {
+    high = new Detailed(0, 0, 10, 10, 0, 'high');
+    low = new Detailed(0, 0, 10, 10, 0, 'low');
+  }, 180000);
+
+  it('High: the steam and the leaves advance with the clock', () => {
+    high.frame(12, 1);
+    expect([clocks(high).leaf.time.value, clocks(high).steam.time.value]).toEqual([1, 1]);
+    high.frame(12, 2.5);
+    expect([clocks(high).leaf.time.value, clocks(high).steam.time.value]).toEqual([2.5, 2.5]);
+  });
+
+  it('Low: the steam and the leaves do not advance with the clock', () => {
+    low.frame(12, 1);
+    const a = [clocks(low).leaf.time.value, clocks(low).steam.time.value];
+    low.frame(12, 2.5);
+    low.frame(12, 40);
+    expect([clocks(low).leaf.time.value, clocks(low).steam.time.value]).toEqual(a);
+    expect(a[0]).toBe(a[1]);
+  });
+
+  it('Low: the sky, the facade beacons and the haze keep the clock', () => {
+    low.frame(12, 7);
+    const c = clocks(low);
+    expect(c.sky.uniforms.time.value).toBe(7);
+    expect(c.facade.time.value).toBe(7);
+    expect(c.haze.hzTime.value).toBe(7);
+  });
+
+  it('Low: the traffic (and so the signals) still runs on each frame', () => {
+    const c = clocks(low), t0 = c.traffic.t;
+    c.fleet.update(1, 0, 0);
+    expect(c.traffic.t).toBeGreaterThan(t0);
+  });
+});

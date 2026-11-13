@@ -31,7 +31,7 @@ import { GRID, M, buildings, parked, toOutside, trees } from './plan';
 import { Sight, outsideDraws, type QueryGL } from './sight';
 import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
-import { roofSteam, type SteamUniforms } from './steam';
+import { roofSteam, steamUniforms, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
@@ -108,6 +108,8 @@ const SUPER = 2;
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
 const EVERY = 3, HOLD_PX = 1;
+/** At Low the steam and the leaves' sway stand at this clock (s): their poses at that instant, for good. */
+const STILL_T = 0;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
@@ -272,7 +274,7 @@ export class OutsideView {
     });
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
-    this.steam = steam?.u ?? { stCol: { value: new Color() }, stLow: { value: new Color() } };
+    this.steam = steam?.u ?? steamUniforms();
     this.scene.add(still, ...mass, land(k), ...(steam ? [steam.mesh] : []), signLight);
     const plants = plantTrees(ts, k, on(cuts.trees));
     this.sweeps.push(...plants.sweeps);
@@ -332,7 +334,10 @@ export class OutsideView {
     this.age++;
     const u = this.sky.uniforms as unknown as SkyUniforms;
     u.time.value = t;
-    this.leaf.time.value = t;
+    // at Low the steam and the leaves hold still (their clock stands at `STILL_T`); the sky, the facade's beacons and the haze keep the clock
+    const still = this.detail === 'low' ? STILL_T : t;
+    this.leaf.time.value = still;
+    this.steam.time.value = still;
     this.facade.time.value = t;
     this.haze.hzTime.value = t;
     this.clock = t;
