@@ -4,6 +4,8 @@
 // the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
 // seated: loose or held, the plug goes only as far as that reaches.
 import { Group, Quaternion, Vector3, type Object3D } from 'three';
+import { lowDetail } from '@/core/render/three/detail';
+import { mergeWithin } from '@/core/render/three/merge';
 import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
 import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
 
@@ -190,6 +192,9 @@ export function looseState(rig: CableRig, exits: readonly RopeEnd[], rest: Rest 
   return { rest: r, strands };
 }
 
+/** Low: the plug's still parts in a few draws (the plug's group and the strands' mesh keep their places, ids and flags). */
+function lowMerged(g: Group): Group { mergeWithin(g); return g; }
+
 /**
  * The rig's cable as it stands (Machine3D adds it to the cable's tagged group; the hand hides it while it holds the cable): the plug in its
  * socket with the seated strands, or loose at its rest pose.
@@ -201,13 +206,13 @@ export function rigStatic(rig: CableRig, seated: boolean, rest: Rest | undefined
     m.root.userData.plug = true;
     g.add(m.root, cableMesh(rig.seated(m.strands), rig.look));
     if (rig.extra) g.add(rig.extra());
-    return g;
+    return lowDetail() ? lowMerged(g) : g;
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
   pivot.userData.plug = true;
   g.add(pivot, cableMesh(l.strands, rig.look));
-  return g;
+  return lowDetail() ? lowMerged(g) : g;
 }
 
 /** `pts` resampled to `n` points evenly along its length. */

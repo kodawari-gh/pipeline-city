@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, ShaderLib, Vector3, type Material } from 'three';
 import { own } from './materials';
-import { mergePalette, mergeSiblings, mergeStatic, palettePatch, partsOf } from './merge';
+import { mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
 
 describe('mergeStatic', () => {
@@ -144,6 +144,28 @@ describe('mergePalette', () => {
     expect(sh.fragmentShader).toContain('metalnessFactor = vPalRM.y;');
     expect(sh.fragmentShader).not.toContain('#include <roughnessmap_fragment>');
     expect(() => palettePatch({ vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: 'void main() {}' })).toThrow(/palette patch/);
+  });
+});
+
+describe('mergeWithin', () => {
+  it('merges the loose meshes of one group, keeps the group in its parent, and tells twin of the palette material', () => {
+    const root = new Group(), prop = tag(new Group(), 'prop'), twins: Material[] = [];
+    const a = new Mesh(new BoxGeometry(10, 10, 10), new MeshStandardMaterial({ color: 0x112233 })), b = new Mesh(new BoxGeometry(5, 5, 5), new MeshStandardMaterial({ color: 0x445566 }));
+    b.position.set(0, 20, 0);
+    prop.add(a, b);
+    root.add(prop);
+    expect(mergeWithin(prop, { twin: (_s, c) => twins.push(c) })).toBe(2);
+    expect(prop.parent).toBe(root);
+    expect(prop.children).toHaveLength(1);
+    expect(twins).toHaveLength(1);
+    expect(prop.children[0]!.parent).toBe(prop);
+  });
+  it('merges a group that has no parent yet', () => {
+    const prop = new Group();
+    prop.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()), new Mesh(new BoxGeometry(), new MeshStandardMaterial()));
+    expect(mergeWithin(prop)).toBe(2);
+    expect(prop.parent).toBeNull();
+    expect(prop.children).toHaveLength(1);
   });
 });
 

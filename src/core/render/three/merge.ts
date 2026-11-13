@@ -241,6 +241,8 @@ export interface SiblingOptions {
   skip?: readonly Object3D[];
   /** Subtrees that fade alone (`fadeTree`: a lid, a cooler, a spreader): a palette material is shared only inside one of them. */
   apart?: readonly Object3D[];
+  /** Hears of each palette material made from a source material (the room keeps the reflections' register, as `mergePalette`'s `twin`). */
+  twin?: (src: Material, copy: Material) => void;
 }
 
 /** May this mesh join a merge with its siblings: a plain shown mesh, one opaque material that no writer changes, nothing that code finds it by. */
@@ -293,6 +295,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     const parent = meshes[0]!.parent!, pal = pals.get(k) ?? paletteOf(meshes[0]!.material as MeshStandardMaterial);
     const out = paletteMesh(meshes, inv.copy(parent.matrixWorld).invert(), pal);
     if (!out) { if (!pals.has(k)) pal.dispose(); continue; }
+    if (!pals.has(k)) o.twin?.(meshes[0]!.material as Material, pal);
     pals.set(k, pal);
     for (const m of meshes) { parent.remove(m); gone.push(m); }
     parent.add(out);
@@ -300,6 +303,18 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     n += meshes.length;
   }
   freeGone(root, gone);
+  return n;
+}
+
+/**
+ * `mergeSiblings` inside one group: the loose meshes of `group` and of each group under it merge by parent, as in a built model. For a prop or a
+ * plug built on its own (callers use it in the Low build only). The group keeps its place under its parent.
+ */
+export function mergeWithin(group: Object3D, o: SiblingOptions = {}): number {
+  const parent = group.parent, holder = new Object3D();
+  holder.add(group);
+  const n = mergeSiblings(holder, o);
+  if (parent) parent.add(group); else holder.remove(group);
   return n;
 }
 

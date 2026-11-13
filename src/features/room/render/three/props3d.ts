@@ -8,7 +8,9 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { anisotropy, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
+import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
+import { mergeWithin } from '@/core/render/three/merge';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { oak } from './furniture3d';
@@ -89,7 +91,9 @@ export class Monitor {
     // (its baked occlusion: the column into the back, the foot on the desk; `vertexao.ts`)
     R.userData.ao = 40 * MM;
     // the body: the panel, the back housing, the bracket, the stand, the ports (monitor3d.ts)
-    R.add(monitorBody(m, screen, deskY, z0));
+    const body = monitorBody(m, screen, deskY, z0);
+    if (lowDetail()) mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
+    R.add(body);
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
     this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
     const led = new Mesh(new CylinderGeometry(28, 28, 20, 10), this.led);

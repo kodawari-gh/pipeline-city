@@ -811,6 +811,8 @@ export class Machine3D {
     this.cableIds = s.cables.map((c) => c.id).join(',');
     this.videoKey = videoKey(s);
     this.buildCables(s, geo);
+    // Low: the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
+    if (lowDetail()) mergeSiblings(this.wires);
     this.partLod?.build(this.wires); // (the still parts of the new cables; a draggable end, `userData.rig`, and the key stay out)
     this.setKey(s.plugged?.id ?? null);
   }
