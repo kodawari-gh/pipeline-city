@@ -631,7 +631,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const step = nextStep(graphics.peek(), autoStep.peek());
       if (step !== null) autoStep.value = step;
     }
-    const rawDt = (now - last) / 1000, dt = Math.min(0.1, rawDt), ratio = renderer.getPixelRatio();
+    const rawDt = Math.max(0, (now - last) / 1000), dt = Math.min(0.1, rawDt), ratio = renderer.getPixelRatio();
     last = now;
     gt += dt * 1000 * speed.value;
     // a new machine whose programs have linked takes the old one's place

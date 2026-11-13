@@ -76,3 +76,13 @@ it('scanShadows does not scan with no caster, and scans once with one', () => {
   room.scanShadows(cache, scene, 16);
   expect(calls).toBe(1);
 });
+
+it('scanShadows asks again while a map is pending, but not when no light casts', () => {
+  const room = new Room3D(), scene = new Scene();
+  const cache = { scan: () => false, pending: true };
+  room.setLights(4, false);
+  room.setShadows(0);
+  expect(room.scanShadows(cache, scene, 0)).toBe(false);
+  room.setShadows(1);
+  expect(room.scanShadows(cache, scene, 16)).toBe(true);
+});

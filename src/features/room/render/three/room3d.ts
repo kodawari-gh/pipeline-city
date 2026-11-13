@@ -936,13 +936,14 @@ export class Room3D {
 
   /**
    * The frame's shadow scan (`ShadowCache.scan`) and the redraw it asks for. With no light casting it does not scan: it returns false, and the
-   * frame asks for nothing. Else it returns whether a caster moved.
+   * frame asks for nothing (a deferred map is not owed until a light casts again). Else it returns whether a caster moved, or a map is still
+   * owed (`pending`).
    */
-  scanShadows(cache: { scan(scene: Object3D, now: number): boolean }, scene: Object3D, now: number): boolean {
+  scanShadows(cache: { scan(scene: Object3D, now: number): boolean; pending?: boolean }, scene: Object3D, now: number): boolean {
     if (!this.casting) return false;
     const cast = cache.scan(scene, now);
     this.redrawShadows(cast, now);
-    return cast;
+    return cast || !!cache.pending;
   }
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */

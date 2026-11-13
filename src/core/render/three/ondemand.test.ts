@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera } from 'three';
-import { BATCH_MS, DrawGate, ViewWatch, sceneChanged } from './ondemand';
+import { BATCH_MS, DrawGate, ViewWatch, frameDt, sceneChanged } from './ondemand';
 
 describe('DrawGate', () => {
   it('draws the first tick, then waits', () => {
@@ -137,5 +137,19 @@ describe('ViewWatch', () => {
     expect(s).toBeLessThan(1);
     c.rotation.y = Math.PI;
     expect(w.shift(c, W, H, 100, 300)).toBe(Infinity);
+  });
+});
+
+describe('frameDt', () => {
+  it('is the seconds from last to now', () => {
+    expect(frameDt(1016, 1000)).toBeCloseTo(0.016, 9);
+  });
+  it('is never negative when the timestamp is earlier than the stored last', () => {
+    expect(frameDt(1000, 1016)).toBe(0);
+    expect(frameDt(0, 5000)).toBe(0);
+  });
+  it('is capped', () => {
+    expect(frameDt(60000, 0)).toBe(0.1);
+    expect(frameDt(60000, 0, 0.25)).toBe(0.25);
   });
 });

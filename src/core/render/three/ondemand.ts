@@ -48,6 +48,14 @@ export class DrawGate {
   }
 }
 
+/**
+ * The seconds from `last` to `now` (both ms), clamped to [0, cap]. A frame's timestamp can be earlier than a `performance.now()` stored as
+ * `last`, so a negative step is no step.
+ */
+export function frameDt(now: number, last: number, cap = 0.1): number {
+  return Math.min(cap, Math.max(0, (now - last) / 1000));
+}
+
 const GRID = [-1, 0, 1];
 
 /** How far, in device pixels, the camera moved the picture since the last drawn frame: a 3x3 screen grid at two depths, reprojected. */

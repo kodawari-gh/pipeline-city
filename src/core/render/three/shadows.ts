@@ -19,6 +19,12 @@ type Light = AnyLight & { shadow?: LightShadow };
 /** Nothing moved for this long (ms): the movers join the still casters again. */
 const SETTLE_MS = 1000;
 
+/**
+ * Whole-scene map draws per frame (a light's map drawn from scratch: the no-movers path, a point light, a light whose still picture is out
+ * of date). A `scan` (one per drawn frame) refills the budget. A deferred light waits: its request stays, oldest first.
+ */
+const MAX_FULL = 1;
+
 /** `userData` key of a light's catch-up request (`catchUp`). */
 const CATCH_UP = 'shadowCatchUp';
 
@@ -103,8 +109,14 @@ function rangeOf(l: Light, out: Sphere): void {
   out.radius = (p.distance || (sh.camera as Camera & { far: number }).far) * Math.sqrt(1 + (1 + aspect * aspect) * t * t);
 }
 
+/** Is `o` in some scene (its parent chain reaches a `Scene`)? A light under a group that is no longer in a scene is not. */
+function inAScene(o: Object3D): boolean {
+  for (let p: Object3D | null = o; p; p = p.parent) if ((p as { isScene?: boolean }).isScene) return true;
+  return false;
+}
+
 /** A light the cache has drawn for: its range, its map's layers, and whether a caster in both changed since its map's last draw. */
-type Lit = { l: Light; range: Sphere; layers: number; dirty: boolean };
+type Lit = { l: Light; range: Sphere; layers: number; dirty: boolean; since: number };
 
 type ShadowDraw = (lights: Light[], scene: Object3D, camera: Camera) => void;
 
@@ -133,6 +145,10 @@ export class ShadowCache {
   private ranged = false;
   /** The lights whose maps this render draws. */
   private readonly due: Light[] = [];
+  /** Full map draws left in this frame (`MAX_FULL`, refilled by `scan`). */
+  private budget = MAX_FULL;
+  /** Orders deferred lights: a light deferred earlier has a smaller `since`, so it is served first. */
+  private deferSeq = 0;
   private readonly top = new Group();
   private readonly draw: ShadowDraw;
 
@@ -150,6 +166,8 @@ export class ShadowCache {
    */
   scan(root: Object3D, now: number): boolean {
     const { seen, next, spins, nextSpins } = this;
+    this.budget = MAX_FULL;
+    if (this.lights.some((r) => !inAScene(r.l))) this.prune();
     next.clear();
     nextSpins.clear();
     const fresh: Object3D[] = [];
@@ -196,6 +214,23 @@ export class ShadowCache {
     return true;
   }
 
+  /** A light's map is owed and was deferred by the budget (`render`): a frame must draw it. A light at 0 is not owed (it waits, unlit). */
+  get pending(): boolean {
+    for (const r of this.lights) if (r.since !== Infinity && r.l.shadow?.needsUpdate && r.l.intensity > 0) return true;
+    return false;
+  }
+
+  /** Drop the lights in no scene (removed, or under a group removed): their owed maps will not be drawn, so they must not keep `pending`, nor their still pictures. */
+  private prune(): void {
+    for (const r of this.lights) {
+      if (inAScene(r.l)) continue;
+      const s = this.still.get(r.l);
+      if (s) { s.rt.depthTexture?.dispose(); s.rt.dispose(); this.still.delete(r.l); }
+      this.lit.delete(r.l);
+    }
+    this.lights = this.lights.filter((r) => inAScene(r.l));
+  }
+
   /** Drop the still pictures (the maps were resized, or the lights are new). */
   reset(): void {
     for (const s of this.still.values()) { s.rt.depthTexture?.dispose(); s.rt.dispose(); }
@@ -227,8 +262,17 @@ export class ShadowCache {
   private render(lights: Light[], scene: Object3D, camera: Camera): void {
     const due = this.due;
     due.length = 0;
-    for (const l of lights) if (this.isDue(l)) due.push(l);
+    const full: Light[] = [];
+    for (const l of lights) if (this.isDue(l)) (this.isFull(l) ? full : due).push(l);
+    if (!due.length && !full.length) return;
+    // the budget goes to the oldest deferred lights first; the rest wait, their requests and dirty flags kept
+    full.sort((a, b) => this.lit.get(a)!.since - this.lit.get(b)!.since);
+    const served = full.splice(0, this.budget);
+    this.budget -= served.length;
+    for (const l of full) { const r = this.lit.get(l)!; if (r.since === Infinity) r.since = ++this.deferSeq; }
+    due.push(...served);
     if (!due.length) return;
+    for (const l of due) { const r = this.lit.get(l); if (r) { r.dirty = false; r.since = Infinity; } }
     if (!this.movers.length) { this.draw(due, scene, camera); due.length = 0; return; }
     for (const l of due) {
       const sh = l.shadow;
@@ -237,6 +281,23 @@ export class ShadowCache {
       else this.redraw(l, scene, camera);
     }
     due.length = 0;
+  }
+
+  /**
+   * Is `l`'s map a whole-scene draw this render (budgeted)? Not so for an autoUpdate light, nor a cheap redraw: a still picture valid, copied in
+   * with the movers drawn over it.
+   */
+  private isFull(l: Light): boolean {
+    const sh = l.shadow;
+    if (!sh || sh.autoUpdate) return false;
+    if (!this.movers.length || (l as { isPointLight?: boolean }).isPointLight) return true;
+    return !this.cheap(l);
+  }
+
+  /** Can `l`'s map be a copy of its still picture now: a picture of this epoch and the map's size, and a caster moved (a move's redraw). */
+  private cheap(l: Light): boolean {
+    const s = this.still.get(l), map = l.shadow?.map;
+    return this.moved && !!s && !!map && s.epoch === this.epoch && s.rt.width === map.width && s.rt.height === map.height;
   }
 
   /**
@@ -249,20 +310,19 @@ export class ShadowCache {
     if (!sh) return true;
     let r = this.lit.get(l);
     // (a new light is dirty: its map is not drawn yet)
-    if (!r) { r = { l, range: new Sphere(), layers: -1, dirty: true }; this.lit.set(l, r); this.lights.push(r); }
+    if (!r) { r = { l, range: new Sphere(), layers: -1, dirty: true, since: Infinity }; this.lit.set(l, r); this.lights.push(r); }
     if (l.userData[CATCH_UP]) { l.userData[CATCH_UP] = false; if (r.dirty) sh.needsUpdate = true; }
     if (!sh.autoUpdate) {
       if (!sh.needsUpdate) return false;
       if (l.intensity <= 0) { const s = this.still.get(l); if (s) s.epoch = -1; return false; }
     }
-    r.dirty = false;
     return true;
   }
 
   /** One light's map: its still picture (drawn again if out of date), then the movers over it. */
   private redraw(l: Light, scene: Object3D, camera: Camera): void {
     const sh = l.shadow!, s = this.still.get(l), map = sh.map;
-    if (this.moved && s && s.epoch === this.epoch && map && s.rt.width === map.width && s.rt.height === map.height) this.copy(s.rt, map);
+    if (this.cheap(l)) this.copy(s!.rt, map!);
     else {
       const was = this.movers.map((o) => o.visible);
       for (const o of this.movers) o.visible = false;
