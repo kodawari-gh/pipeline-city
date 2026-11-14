@@ -96,7 +96,18 @@ Open items moved from the retired overhaul plan, and the follow-ups from the doc
 
 ## Asset standard redo order (2026-11-14)
 
-Blocked on the owner: the asset standard is not approved. Run these in order once it is. Order and reasons: Art Director draft §5 (the Art Director's draft, a file outside this repo). Asset Maker owns ASR1, ASR2 and ASR5 (the Asset Maker's notes, a file outside this repo). The standard is not a doc in this repo.
+The standard is approved (LPC1, docs/3D_STYLE.md "Asset standard"). Each task below still needs the owner to accept its before and after shot.
+
+State on 2026-11-14 (branch `gfx/look-per-cost`). High: 942 draws, vertices 2,216,520 -> 1,181,936, city triangles 3,643,156 -> 2,103,386 (`budget.test.ts` rows lowered).
+- ASR1: work done in part (996f5a4, 625c63e). One hole method in the shroud and drive cage (`perforatedFlatRun`). Distinct looks per case 30–41 -> 20–26 by `foldCaseLooks`; the cap of 16 is not reached; `casemat.test.ts` holds the ceiling. Left: the cage side-wall windows, the LOD1 cap of 4.
+- ASR2: work done (a99fbdd). Caps and rings in `trees.test.ts`. Left: the cards past 300 m.
+- ASR3: work done (ae6dd2e). Label drape about 2,000 triangles; small parts are plain boxes.
+- ASR4: work done (6b6d29f). `fanSides(mm)` sets each fan round and the flange.
+- ASR5: work done (6b6d29f). Joint: 6 sides, 3 rings, about 36 triangles.
+- ASR6: work done (ae6dd2e). Heat pipes 96 × 12 at High (was 220 × 16). The dark variant stays on hold.
+- ASR7: work done (6b6d29f). Lathes: 28 sides, 12 profile points, about 616 triangles each.
+- ASR10: work done in part (7d9f49e, 6b6d29f). `SEG` in `geometry.ts`; the shared helpers, monitor, plugs, RAM, fans, joints and lathes read it. Other builders still hold literals.
+- ASR8 (on hold) and ASR9 (palette fold): not started.
 
 - [ ] ASR1 [owner] Case shell and kit: one perforation method (the alpha texture). Remove the holes cut as geometry in the drive cage and PSU shroud. Families 1–5 only, at most 16 materials at LOD0 and 4 at LOD1. Also the off-palette `case0` cream (`case3d.ts:38`). Today 163–230 materials per case; 462 of about 950 Build my PC draws. Files: src/features/board/render/three/casekit3d.ts, drivecage3d.ts, basement3d.ts, case3d.ts. Docs: docs/render/case.md. Done when: one hole method is left, the material cap holds, and the owner accepts a before and after shot.
 - [ ] ASR2 [owner] City trees: caps of 5,000 / 1,450 / 430 / 170 triangles per tree; detail rings on 150 / 300 / 900 m; cards past 300 m (Asset Maker makes the cards). Today 2.33 M of 3.64 M city triangles. Files: src/features/room/render/three/outside/trees.ts. Docs: docs/render/lod.md. Done when: the caps are in a test and the owner accepts a Razr shot past 300 m.

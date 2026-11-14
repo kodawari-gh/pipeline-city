@@ -361,8 +361,8 @@ Ceilings are today's **High** counts (`budget.test.ts`, `BUDGET`). The test fail
 
 | View | Draws | Vertices | Triangles | Note |
 |---|---|---|---|---|
-| Machine and room (layer 0) | 924 | 2,216,520 | — | Test: `budget.test.ts` |
-| City (instances counted) | — | — | 3,643,156 | Test: `budget.test.ts` |
+| Machine and room (layer 0) | 924 | 1,181,936 | — | Test: `budget.test.ts` (was 2,216,520 before ASR1–ASR10) |
+| City (instances counted) | — | — | 2,103,386 | Test: `budget.test.ts` (was 3,643,156 before ASR2) |
 | Room alone | — | — | 237,638 | Measured, no test yet |
 | Maxed machine alone | — | — | 845,840 | Measured, no test yet |
 | Board view | to set | to set | to set | Owner (J) after LPC4 |
