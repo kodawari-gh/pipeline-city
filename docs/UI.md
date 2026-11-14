@@ -24,32 +24,34 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 ## Files
 
+Paths are from the repo root. `src/core/ui/` holds the shared UI; the shop, tutorial, sandbox and board UI sit in their feature folders.
+
 | File | Role |
 |---|---|
-| `logic.ts` (+ `logic.test.ts`) | Pure: formatting, stats helpers, hint triggers, `describeId`, `statusChip` (HUD phase text), `queueReadout`, `friendlyError` (refusal wording), `clockWarning`. |
-| `picker.ts` (+ `picker.test.ts`) | Pure: `pickerFor(id, snapshot)` builds the card model (title, lines, actions, the upgrade **ladder**, the `current` and `focus` parts). Also `statsOf` (numeric stats per part), `goodness` and `compareRows` (before/after bars), `clockZones` / `estTempC` / `zoneOf` (overclock zones). |
-| `vrm.ts` (+ `vrm.test.ts`) | Pure: the VRM readout and its zones (`vrmReadout`, `vrmZone`, `vrmLines`), the motherboard tier cards (`boardCards`), `cpuVrmWarning` (a CPU the planned board's VRM cannot feed) and `liquidVrmNote` (a liquid cooler with no VRM heatsink). |
-| `tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (welcome card, 14 steps before the OS lesson, last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
-| `regions.ts` | Plain + nerd text for region ids, world ids and die stages. `JOB_TYPES` for key jobs. |
-| `state.ts` | UI signals: theme, stats drawer, the inventory shelf, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
-| `testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
-| `Hud.tsx` | Top bar, Start / Continue modal, the menu (with the UI size slider), the stats drawer, the bottom `.stack` (notices, toasts, tutorial, inventory shelf), inset reporting for the camera. |
-| `NewGame.tsx`, `SandboxTools.tsx`, `SandboxJobs.tsx` | New game dialog (Campaign or Sandbox), the sandbox chip with its tools and the sandbox-only LEVEL / JOBS button (level grid, a switch per kind of job) (src/features/sandbox/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Both keep their styles in `ui.css` (no inline `<style>`). |
-| `ladder.test.ts` | Heatsink and upgrade rows: the next tier line, and "Nothing better" only at the top tier. |
-| `place.ts` (+ `place.test.ts`) | Pure: `placePopup` (right, left, below, above, else dock; flipped, clamped, tail offset), `liftAbove` (tutorial card vs target), `comfortablyVisible`. |
-| `anchor.ts`, `units.ts` | Re-export of the renderer's `anchorOf`, `flyTo`, `hasTarget`; the `rem(units)` helper. |
-| `scaling.test.ts` | The scaling enforcement test. |
-| `Inventory.tsx` | `InventoryButton` (HUD, count badge, pulses for tutorial steps) and `InventoryPanel` (the shelf: tiles grouped by kind). |
-| `PickerCard.tsx` | The contextual popup next to the selected object: header with art and live readings, PSU load, lines, the upgrade ladder, before/after bars, the CPU clock dial, actions, details. Escape and the x close it. |
-| `PartArt.tsx` | Inline SVG illustration of a part or a board tier (`PartArt({id, size})`). |
-| `Icons.tsx` | The icon set (`Icon({name, size})`). `IconName` is defined in `picker.ts`. |
-| `worldDrag.ts` | `beginPartDrag(invId, event)`: a thin wrapper over the renderer's hook (`src/features/board/render/board.ts`). |
-| `TutorialCard.tsx` | The tutorial: welcome and next-lesson modals, the bottom-centre card, the camera glide, the animated pointer, the card lift. Writes `highlight`. Opens the shelf on install steps. |
-| `Hover.tsx` | `Tooltip` (follows `hover`). |
-| `Toasts.tsx` | `Notice` (a refused action, plain words, dismissible, clears after 6 s) and hint toasts. |
-| `Stats.tsx`, `Meter.tsx` | Nerd stats drawer (CPI/IPC, stalls, cache, power, device temps, sparkline) and the small bar. |
-| `panels/Graphics.tsx` | The graphics drawer: presets and each option (see "Graphics panel"). |
-| `ui.css` | All styles. Root size rule, glass tokens, the part-art classes, the ladder, the dial, the shelf, popups, modals. Below 48em the stats drawer becomes a bottom sheet. |
+| `src/core/ui/logic.ts` (+ `logic.test.ts`) | Pure: formatting, stats helpers, hint triggers, `describeId`, `statusChip` (HUD phase text), `friendlyError` (refusal wording), `clockWarning`. |
+| `src/features/economy/ui/shop/picker.ts` (+ `picker.test.ts`) | Pure: `pickerFor(id, snapshot)` builds the card model (title, lines, actions, the upgrade **ladder**, the `current` and `focus` parts). Also `statsOf` (numeric stats per part), `goodness` and `compareRows` (before/after bars), `clockZones` / `estTempC` (overclock zones). |
+| `src/features/board/ui/vrm.ts` (+ `vrm.test.ts`) | Pure: the VRM readout and its zones (`vrmReadout`, `vrmZone`, `vrmLines`), the motherboard tier cards (`boardCards`), `cpuVrmWarning` (a CPU the planned board's VRM cannot feed) and `liquidVrmNote` (a liquid cooler with no VRM heatsink). |
+| `src/features/tutorial/ui/tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (39 in all: the welcome card, then the chapters Build 8, First jobs 8, The OS 10, The network 11, and the last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
+| `src/core/ui/regions.ts` | Plain + nerd text for region ids, world ids and die stages. `JOB_TYPES` for key jobs. |
+| `src/core/ui/state.ts` | UI signals: theme, stats drawer, the inventory shelf, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
+| `src/core/ui/testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
+| `src/core/ui/Hud.tsx` | Top bar, Start / Continue modal, the menu (with the UI size slider), the stats drawer, the bottom `.stack` (notices, toasts, tutorial, inventory shelf), inset reporting for the camera. |
+| `src/core/ui/panels/NewGame.tsx`, `src/features/sandbox/ui/SandboxTools.tsx`, `src/features/sandbox/ui/SandboxJobs.tsx` | New game dialog (Campaign or Sandbox), the sandbox chip with its tools and the sandbox-only LEVEL / JOBS button (level grid, a switch per kind of job) (src/features/sandbox/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Styles stay in `ui.css` (no inline `<style>`). |
+| `src/features/economy/ui/shop/ladder.test.ts` | Heatsink and upgrade rows: the next tier line, and "Nothing better" only at the top tier. |
+| `src/core/ui/place.ts` (+ `place.test.ts`) | Pure: `placePopup` (right, left, below, above, else dock; flipped, clamped, tail offset), `liftAbove` (tutorial card vs target), `comfortablyVisible`. |
+| `src/features/tutorial/ui/anchor.ts`, `src/core/ui/kit/units.ts` | Re-export of the renderer's `anchorOf`, `flyTo`, `hasTarget`; the `rem(units)` helper. |
+| `src/core/ui/scaling.test.ts` | The scaling enforcement test. |
+| `src/features/economy/ui/shop/Inventory.tsx` | `InventoryButton` (HUD, count badge, pulses for tutorial steps; a local component) and `InventoryPanel` (the shelf: tiles grouped by kind). |
+| `src/features/economy/ui/shop/PickerCard.tsx` | The contextual popup next to the selected object: header with art and live readings, PSU load, lines, the upgrade ladder, before/after bars, the CPU clock dial, actions, details. Escape closes it. |
+| `src/features/economy/ui/shop/PartArt.tsx` | Inline SVG illustration of a part or a board tier (`PartArt({id, size})`). |
+| `src/core/ui/kit/Icons.tsx` | The icon set (`Icon({name, size})`). `IconName` is defined in `src/features/economy/ui/shop/picker.ts`. |
+| `src/core/ui/worldDrag.ts` | `beginPartDrag(invId, event)`: a thin wrapper over the renderer's hook (`src/features/board/render/board.ts`). |
+| `src/features/tutorial/ui/TutorialCard.tsx` | The tutorial: welcome and next-lesson modals, the bottom-centre card, the camera glide, the animated pointer, the card lift. Writes `highlight`. Opens the shelf on install steps. |
+| `src/core/ui/kit/Hover.tsx` | `Tooltip` (follows `hover`). |
+| `src/core/ui/panels/Toasts.tsx` | `Notice` (a refused action, plain words, dismissible, clears after 6 s) and hint toasts. |
+| `src/core/ui/panels/Stats.tsx`, `src/core/ui/kit/Meter.tsx` | Nerd stats drawer (CPI/IPC, stalls, cache, power, device temps, sparkline) and the small bar. |
+| `src/core/ui/panels/Graphics.tsx` | The graphics drawer: presets and each option (see "Graphics panel"). |
+| `src/core/ui/ui.css` | All styles. Root size rule, glass tokens, the part-art classes, the ladder, the dial, the shelf, popups, modals. Below 48em the stats drawer becomes a bottom sheet. |
 
 ## Selection and highlight contract
 
