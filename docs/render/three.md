@@ -78,6 +78,15 @@ Measured:
 - Menu at Low, machine: 487 meshes to 238, 239 materials to 102 (same doc).
 - Per-part and per-case draws after merge: not measured at `03fe0bc`. The case had 462 meshes and about 950 draws in Build my PC (geo run at `bfe11c6`).
 
+**Repeated meshes left after the merges (LPC3 count, 2026-11-14, `repeats.test.ts`, `REPEATS_DUMP=1` lists them).** Equal meshes (same vertices, size and look) that draw more than 4 times, High, maxed machine plus room, 942 draws in all:
+
+| Where | Sets | Draws to save | Largest sets |
+|---|---|---|---|
+| Machine | 16 | 108 | 18 see-through quads on the case, 16 + 7 + 6 + 6 merged case pieces, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
+| Room | 3 | 18 | 10 meshes under `tray`, 6 under `router` |
+
+So instancing can save at most 126 draws (13 %). The six fans carry the most vertices (24,288 each, merged); they are in six part scopes (`userData.id`), which fade and outline alone, so an instanced set needs a per-instance fade first. The test holds the count: it may only fall.
+
 ## Cheap materials (Low)
 
 `cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only.
