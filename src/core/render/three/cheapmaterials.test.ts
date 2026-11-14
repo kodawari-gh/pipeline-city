@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BoxGeometry, Color, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D, ShaderMaterial, Texture } from 'three';
 import { fadeTree } from './artlod';
 import { cheapMaterials, probePlan } from './cheapmaterials';
+import { KEEP_SPEC } from './materials';
 
 const geo = new BoxGeometry();
 /** The distinct Lamberts under `o` (a Lambert shared by two meshes counts once). */
@@ -72,6 +73,15 @@ describe('cheapMaterials', () => {
     expect(b.material).toBe(lit);
     expect(lit.normalMap).toBeNull();
     expect(lit.lightMap).toBe(r);
+  });
+  it('a KEEP_SPEC part keeps its PBR material at Low: no Lambert, no dark-metal mix, its maps and metalness as they are', () => {
+    const map = new Texture(), kept = new MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.3, map });
+    kept.userData[KEEP_SPEC] = true;
+    const a = new Mesh(geo, kept), h = cheapMaterials(a);
+    expect(a.material).toBe(kept);
+    expect([kept.metalness, kept.roughness, kept.map]).toEqual([0.8, 0.3, map]);
+    h.undo();
+    expect(a.material).toBe(kept);
   });
   it('leaves Basic, Shader and stand-ins alone', () => {
     const basic = new MeshBasicMaterial(), sh = new ShaderMaterial(), std = new MeshStandardMaterial();

@@ -1,5 +1,6 @@
 // The Low tier's cheaper material model: a Lambert program (no specular, no PBR maps) for the room's standard materials.
 import { Color, Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D, type Side } from 'three';
+import { KEEP_SPEC } from './materials';
 
 type Std = MeshStandardMaterial & { isMeshStandardMaterial: true };
 const STRIPPED = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'] as const;
@@ -96,6 +97,8 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   const prog = new Map<Std, Prog>();
   const cheap = (m: Material): Material => {
     if (!isStandard(m)) return m;
+    // (a part flagged `KEEP_SPEC` keeps its PBR look at Low: no Lambert, no maps stripped)
+    if (m.userData[KEEP_SPEC] === true) return m;
     if (isPatched(m) || m.lightMap) {
       if (!stripped.has(m)) {
         const was: Partial<Record<Stripped, unknown>> = {};

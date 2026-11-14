@@ -3,9 +3,12 @@ import { Group, Mesh, PlaneGeometry, TubeGeometry, type Object3D } from 'three';
 import { byDetail, lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { driveBody } from '@/features/storage/render/drives';
 import { setLayoutTier } from '../layout/layout';
+import { NON_METAL } from '@/core/render/three/cheapmaterials';
 import { coolerModel } from './cooler3d';
 import { machineKey } from './machine3d';
 import { nvmeStick } from './nvme3d';
+import { sinkBody } from './sink3d';
+import { builtinTheme } from '@/core/render/theme';
 import type { Snapshot } from '@/worker/protocol';
 
 afterEach(() => { setLowDetail(false); });
@@ -50,6 +53,22 @@ describe('Low builds coarser machine parts', () => {
     const us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)), vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
     expect(new Set(Array.from({ length: z.count }, (_, i) => z.getZ(i))).size).toBe(1);
+  });
+  it('the pump cap and the sink casting read as a Lambert metal at Low (no dark metal, no PBR without reflections), as they were at High', () => {
+    type M = { metalness: number; roughness: number; color: { getHex(): number } };
+    const mats = (g: Object3D, keep: (m: M) => boolean) => meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => keep(m as unknown as M)) as unknown as M[];
+    const cap = () => { setLayoutTier(3, 3); return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xffffff && m.roughness === 0.3); };
+    const sink = () => { const g = new Group(); sinkBody(g, builtinTheme(true), 'vrm-sink', 'vrm-sink'); return mats(g, (m) => m.roughness === 0.46); };
+    for (const build of [cap, sink]) {
+      setLowDetail(false);
+      const high = build();
+      expect(high.some((m) => m.metalness > 0.4)).toBe(true);
+      setLowDetail(true);
+      const low = build();
+      expect(low.length).toBe(high.length);
+      expect(high.length).toBeGreaterThan(0);
+      expect(low.every((m) => m.metalness <= NON_METAL)).toBe(true);
+    }
   });
   it('the machine key changes when the detail does (so the machine is built again) and is unchanged at High', () => {
     const s = { boardTier: 1, caseTier: 1, devices: [] } as unknown as Snapshot;
