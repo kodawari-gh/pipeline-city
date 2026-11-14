@@ -56,7 +56,7 @@ These are drawn-triangle counts from a headless build of the showcase models, th
 | radiator | 3 | 5,028 | 5,028 | 5,028 |
 | cpu | 16 | 4,000 | 4,284 | 4,284 |
 
-The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes) and `nvme2` (34,588: a 179×68 draped-label plane). Fan housing cost is dominated by two `fanFlange` extrusions at `curveSegments: 48` (10,432 tris each).
+The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes; High only, Low uses 40×8) and `nvme2` (34,588: a 179×68 draped-label plane; Low draws one flat label). Fan housing cost is dominated by two `fanFlange` extrusions at `curveSegments: 48` (10,432 tris each).
 
 **Scenes and imports:**
 

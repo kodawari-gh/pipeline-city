@@ -28,10 +28,10 @@ Three steps cut the meshes and the material changes a frame draws. None changes 
 - **By material** (`mergeStatic`, at build): still meshes of one material become one mesh. The light bake finds its receivers by these meshes' hashes, so change this step only with a new bake.
 - **Equal materials** (`shareMaterials`, PERF22): see "Shared materials" in [GRAPHICS_3D_OVERHAUL.md](../../../docs/GRAPHICS_3D_OVERHAUL.md).
 - **By palette** (`mergePalette`, PERF3), once the bake is in (`mergeByPalette`): still meshes whose materials differ only in colour, roughness and metalness become one mesh per 2 m cell of space (`PALETTE_CELL`, so frustum culling still works). Each vertex holds its mesh's colour (`_pc`) and its roughness and metalness (`_prm`). The palette material (`|pal` on the source's program key) reads them through flat varyings (`palettePatch`) and keeps the source's patches. A set holds one material key, so one light map; each part keeps its `uv1` and `_ao`.
-- **Left as they are:** what answers a click (an `id` over it: lamp, blind, tray, router, mail, clock, socket, monitor), what moves, fades or glows, a material a writer owns (`own`), a material outside the room's reflections (`RoomEnv`), the key rack (rebuilt per key), the mouse (its stand-in hides when the model loads), transparent, instanced and see-through meshes, and lone meshes.
+- **Left as they are:** what answers a click (an `id` over it: lamp, blind, tray, router, mail, clock, socket, monitor), what moves, fades or glows, a material a writer owns (`own`), a material outside the room's reflections (`RoomEnv`), the mouse (its stand-in hides when the model loads), transparent, instanced and see-through meshes, and lone meshes.
 - **The bake's export** (`tools/bake/scene.ts`) reads each palette mesh's parts (`partsOf`), so a new bake sees the same meshes, colours and hashes as before.
 - **Casters:** at Low all six room lights cast, so no mesh stops casting. A caster set that changes (the merge) redraws the shadow maps once (`ShadowCache`).
-- **Result** (menu, phone Low): room meshes 272 to 215, casters 204 to 148, materials 168 to 124; main-pass room draws 164 to 143 a frame.
+- **Low only, per parent:** the key rack, the router, the mailbox and the monitor housing merge with `mergeWithin` (the room's `lowDetail()` gate). See [GRAPHICS_3D_OVERHAUL.md](../../../docs/GRAPHICS_3D_OVERHAUL.md) "Low tier: cheap materials and merges".
 
 ## The wall cords
 
