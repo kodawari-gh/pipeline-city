@@ -8,7 +8,7 @@ The assembly side (inventory, install, cables, power, phases, boot ROM, USB keys
 
 ```ts
 const g = new Game({ seed, economy?: Partial<EconomyConfig>, preassembled?: boolean });
-g.advanceBaseTick();            // one base tick = 1 s at 1x
+g.advanceBaseTick();            // one base tick; at 1x the host runs 4 per second (0.25 s each)
 g.purchase("cpu1");             // { ok: true, invId } | { ok: false, reason }: buys into the inventory
 g.install(invId, slotId?);      // parts: only while the machine is off
 g.powerButton(); g.plugKey(id); g.ejectKey();   // see ASSEMBLY.md
@@ -95,9 +95,13 @@ Storage drives and OS tiers are purchasable items too (`hdd0`, `ssd1`, `nvme2`, 
 
 Assembly and key fields are listed in ASSEMBLY.md. The economy fields: `money, cycle` (total CPU cycles), `baseTick, queueLength` (keys in the tray), `queueCap, request` (the plugged key's job: `{id, template, arrivalTick, deadlineTick, payoutEstimate, engineCycle, attempts}` or null), `boardTier`, `board` (tier name, burnt, features, slots, VRM state, heatsink: see VRM.md), `pipe` (pipeline stages while powered), `display` (the monitor text), `counters` (engine view counters by name since power-on), `completed, errors, dropped, lastCompleted` (`{id, template, payout, turnaround, execTicks, late, attempts, completedAt}`; `execTicks` = plug to result, `completedAt` = removal tick), `avgTurnaround, reputation, demandRate`, `devices[]` (installed parts), `power` (`totalW, budgetW, psuFactor, off, tripped`), `cpuClock` (`{value, min, max}`), `purchases[]` (`id, name, kind, price, affordable, blocked?, locked?: {level, name}`), `energy` (`wallW, wh`) and `bill` (see "The power bill").
 
-## Pacing: the "1 tick = 1 second" caveat
+## Pacing: ticks versus seconds
 
-The CPU domain runs `cpuCyclesPerClock` = **36** engine cycles per spec clock unit per base tick (`syncRates`; the display domain too). The starting CPU therefore does 36 cycles/s, `cpu1` (clock 2) 72, `cpu2` (clock 3) 108. The world clock is unchanged (1 base tick = 1 s at 1x). It was 4 when a job was a 22-instruction program; now every job also pays for the boot ROM (about 320 instructions for a small job, 5 cycles each on the unpipelined CPU), so the factor was raised until the first complete job (power-on, POST, plug, load, run, write, remove) takes 45-48 s.
+The host runs 4 base ticks per real second at 1x (`advance` in `src/worker/host.ts`; `speedLabel` shows `s/4 x`). One base tick is therefore 0.25 s at 1x, not 1 s.
+
+The CPU domain runs `cpuCyclesPerClock` = **36** engine cycles per spec clock unit per base tick (`syncRates`; the display domain too). The starting CPU therefore does 36 cycles per tick, `cpu1` (clock 2) 72, `cpu2` (clock 3) 108. It was 4 when a job was a 22-instruction program; now every job also pays for the boot ROM (about 320 instructions for a small job, 5 cycles each on the unpipelined CPU), so the factor was raised until the first complete job (power-on, POST, plug, load, run, write, remove) takes 45-48 **ticks**.
+
+**Open:** the 45-48 figure was set when one tick was treated as one second. At 1x that job now takes about 11-12 real seconds, not 45-48. Tick-based numbers in this file (the tick counts, `billPeriodTicks` 600, `rampTicks`, the 60-tick target turnaround) are unchanged. The power rate (`CAMPAIGN_POWER_RATE`, "one game tick counts as one second") and the job timing need an owner decision on the intended real-time pace.
 
 Measured at 1x on the starting machine (`game.test.ts`, 30 seeds, bot with 2 s reaction per manual step): power-on to the first payout **45-48 s**, first payout **$49-50** (a `cli.log` job: `payBase` 20 + 1.2 x ~24 instructions, speed ~1.1), cheapest part ($50 cooler) affordable right after, `ram1` ($100) at 105-323 s (median ~165 s) in a no-spend run, `cpu1` ($200) a few minutes later. Plugging the key to its result: `cli.log` 35 s, `cli.scan` (scale 4) 182 s.
 
