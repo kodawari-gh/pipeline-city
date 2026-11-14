@@ -44,6 +44,9 @@ export function partLook(s: PartState): PartLook {
 export const FAMILY: readonly number[] = [0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0x16294d, 0x173d29, 0xd4af5f, 0xc0793a];
 /** A colour nearer than this to a family colour (sum of the channel differences) is that family colour: the eye sees no difference. */
 export const FAMILY_SNAP = 30;
+// the first 7 family colours are the grey ladder; a grey is a colour of at most this chroma, no warmer than neutral, no lighter than this
+const GREYS = 7, GREY_CHROMA = 28, GREY_TOP = 0xd8;
+const GOLD = 0xd4af5f, GOLD_SNAP = 60;
 const snapped = new Map<number, number>();
 
 /** `color`, or the family colour it nearly is (ASR9): near-duplicates of one tone become one tone. */
@@ -51,9 +54,14 @@ export function familyHex(color: number): number {
   let out = snapped.get(color);
   if (out !== undefined) return out;
   out = color;
-  let best = FAMILY_SNAP + 1;
-  for (const f of FAMILY) {
-    const d = Math.abs((f >> 16) - (color >> 16)) + Math.abs(((f >> 8) & 255) - ((color >> 8) & 255)) + Math.abs((f & 255) - (color & 255));
+  const r = color >> 16, g = (color >> 8) & 255, b = color & 255, hi = Math.max(r, g, b);
+  // a neutral or cool grey below paper white has no tone of its own: it takes the nearest step of the grey ladder, however far
+  const grey = hi - Math.min(r, g, b) <= GREY_CHROMA && b >= r - 4 && hi <= GREY_TOP;
+  let best = grey ? Infinity : FAMILY_SNAP + 1;
+  for (let i = 0; i < (grey ? GREYS : FAMILY.length); i++) {
+    const f = FAMILY[i]!, far = Math.abs((f >> 16) - r) + Math.abs(((f >> 8) & 255) - g) + Math.abs((f & 255) - b);
+    // (a brass or a pale gold is the one gold: it snaps from farther)
+    const d = f === GOLD ? far - (GOLD_SNAP - FAMILY_SNAP) : far;
     if (d < best) { best = d; out = f; }
   }
   snapped.set(color, out);

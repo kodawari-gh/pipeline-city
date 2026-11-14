@@ -39,7 +39,7 @@ const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** The ceilings of distinct base colours: the machine, the room. */
-const CEILING = { machine: 79, room: 38 };
+const CEILING = { machine: 45, room: 30 };
 
 describe('the base colours', () => {
   it('stay under the ceiling', () => {
