@@ -1,7 +1,7 @@
 // Mesh builders of the 3D scene. The layout is 2D with y down (`layout.ts`): a rect of it plus a depth range is a box in the world, x east, y up, z out of the wall.
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, Object3D, Path, PlaneGeometry,
-  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
+  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector2, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -228,20 +228,16 @@ export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
  * each corner. A case's fan mount is the same plate, `w` wide, so its holes meet the fan's.
  */
 export function fanFlange(d: number, t: number, w = d): BufferGeometry {
-  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006), s = new Shape();
-  s.moveTo(-h + c, -h).lineTo(h - c, -h).absarc(h - c, -h + c, c, -Math.PI / 2, 0, false);
-  s.lineTo(h, h - c).absarc(h - c, h - c, c, 0, Math.PI / 2, false);
-  s.lineTo(-h + c, h).absarc(-h + c, h - c, c, Math.PI / 2, Math.PI, false);
-  s.lineTo(-h, -h + c).absarc(-h + c, -h + c, c, Math.PI, Math.PI * 1.5, false);
-  const throat = new Path();
-  throat.absarc(0, 0, d * FAN_THROAT, 0, Math.PI * 2, true);
-  s.holes.push(throat);
-  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-    const p = new Path();
-    p.absarc(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 0, Math.PI * 2, true);
-    s.holes.push(p);
-  }
-  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 48 }).translate(0, 0, -t / 2 + b);
+  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006);
+  // each round takes its sides from the fan's size (the segment table): the throat a full `fanSides`, a corner a quarter of it, a screw hole 8
+  const n = fanSides(d / 23), arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
+    Array.from({ length: k + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / k; return new Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
+  const q = Math.max(2, n / 4), P = Math.PI;
+  const s = new Shape([...arc(h - c, -h + c, c, -P / 2, 0, q), ...arc(h - c, h - c, c, 0, P / 2, q), ...arc(-h + c, h - c, c, P / 2, P, q), ...arc(-h + c, -h + c, c, P, P * 1.5, q)]);
+  const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
+  s.holes.push(round(0, 0, d * FAN_THROAT, n));
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 8));
+  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: 1 }).translate(0, 0, -t / 2 + b);
 }
 
 /**

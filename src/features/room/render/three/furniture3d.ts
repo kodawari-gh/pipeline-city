@@ -15,7 +15,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
-import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
@@ -326,6 +326,24 @@ function lanternProfile(R: number, H: number, rBottom: number, rTop: number): Ve
   return out;
 }
 
+/**
+ * The indices of the `keep` profile points that bend the line most: each step drops the point whose triangle with its two neighbours is
+ * smallest (a near-straight run), so the two ends (the rims) always stay.
+ */
+function thinIndices(pts: Vector2[], keep: number): number[] {
+  const idx = pts.map((_, i) => i);
+  while (idx.length > keep) {
+    let best = 1, bestArea = Infinity;
+    for (let k = 1; k < idx.length - 1; k++) {
+      const a = pts[idx[k - 1]!]!, b = pts[idx[k]!]!, c = pts[idx[k + 1]!]!;
+      const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
+      if (area < bestArea) { bestArea = area; best = k; }
+    }
+    idx.splice(best, 1);
+  }
+  return idx;
+}
+
 /** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on a black wire stand, a book and a phone. */
 export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, cx = x + w / 2, cz = (z0 + z1) / 2;
@@ -339,8 +357,12 @@ export function nightstand(): Bedside {
   const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, R = lamp.r, rb = 0.5 * R, rt = 0.42 * R;
   const paper = washiTex();
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: paper, emissiveIntensity: 0 });
-  const prof = lanternProfile(R, sh, rb, rt), y0 = -top + legH;
-  const lantern = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  // the side keeps its ends and its bends (at most `SEG.latheProfile` points); the paper's rings keep their place on it: each point's v is
+  // its place along the full side
+  const full = lanternProfile(R, sh, rb, rt), kept = thinIndices(full, SEG.latheProfile), prof = kept.map((i) => full[i]!), y0 = -top + legH;
+  const lanternGeo = new LatheGeometry(prof, SEG.lathe), luv = lanternGeo.attributes.uv!;
+  for (let k = 0; k < luv.count; k++) luv.setY(k, kept[k % kept.length]! / (full.length - 1));
+  const lantern = place(new Mesh(lanternGeo, shade));
   lantern.position.set(lx, y0, lz);
   g.add(lantern);
   const yb = y0 + prof[0]!.y, yt = y0 + prof[prof.length - 1]!.y;

@@ -184,9 +184,9 @@
   "machine/case": {
     "meshes": 190,
     "draws": 190,
-    "verts": 295420,
+    "verts": 162940,
     "instances": 1230,
-    "sum": "a2a02399"
+    "sum": "90115b69"
   },
   "machine/case.side": {
     "meshes": 1,
@@ -247,58 +247,58 @@
   "machine/dev15": {
     "meshes": 5,
     "draws": 5,
-    "verts": 83557,
+    "verts": 28453,
     "instances": 0,
-    "sum": "ed92b302"
+    "sum": "5ec93cb6"
   },
   "machine/dev16": {
     "meshes": 5,
     "draws": 5,
-    "verts": 83557,
+    "verts": 28453,
     "instances": 0,
-    "sum": "ceb4caa9"
+    "sum": "0288ce98"
   },
   "machine/dev17": {
     "meshes": 5,
     "draws": 5,
-    "verts": 83557,
+    "verts": 28453,
     "instances": 0,
-    "sum": "b35d351f"
+    "sum": "ba41300f"
   },
   "machine/dev18": {
     "meshes": 5,
     "draws": 5,
-    "verts": 83557,
+    "verts": 28453,
     "instances": 0,
-    "sum": "31653134"
+    "sum": "7591d256"
   },
   "machine/dev19": {
     "meshes": 5,
     "draws": 5,
-    "verts": 83557,
+    "verts": 28453,
     "instances": 0,
-    "sum": "8600e1d2"
+    "sum": "1ef1c614"
   },
   "machine/dev20": {
     "meshes": 7,
     "draws": 7,
-    "verts": 83710,
+    "verts": 28606,
     "instances": 8,
-    "sum": "58d2b8be"
+    "sum": "55aa0b12"
   },
   "machine/dev21": {
     "meshes": 4,
     "draws": 4,
-    "verts": 78964,
+    "verts": 11692,
     "instances": 0,
-    "sum": "5efd74a3"
+    "sum": "404e90cd"
   },
   "machine/dev22": {
     "meshes": 4,
     "draws": 4,
-    "verts": 78964,
+    "verts": 11692,
     "instances": 0,
-    "sum": "d7a892b1"
+    "sum": "63b7ed10"
   },
   "machine/dev23": {
     "meshes": 13,
@@ -380,9 +380,9 @@
   "machine/dev34": {
     "meshes": 34,
     "draws": 28,
-    "verts": 96363,
+    "verts": 52480,
     "instances": 383,
-    "sum": "98849042"
+    "sum": "fd5c044c"
   },
   "machine/io": {
     "meshes": 8,
@@ -590,9 +590,9 @@
   "room/Group#35": {
     "meshes": 3,
     "draws": 3,
-    "verts": 6785,
+    "verts": 1376,
     "instances": 0,
-    "sum": "39478484"
+    "sum": "3db9c73a"
   },
   "room/Group#6": {
     "meshes": 1,
@@ -611,9 +611,9 @@
   "room/Group#8": {
     "meshes": 7,
     "draws": 7,
-    "verts": 8420,
+    "verts": 2447,
     "instances": 0,
-    "sum": "11e5c866"
+    "sum": "1d912892"
   },
   "room/Group#9": {
     "meshes": 11,
@@ -779,9 +779,9 @@
   "room/monitor": {
     "meshes": 32,
     "draws": 32,
-    "verts": 48023,
+    "verts": 38039,
     "instances": 8,
-    "sum": "233a03ce"
+    "sum": "29c6ff94"
   },
   "room/router": {
     "meshes": 25,

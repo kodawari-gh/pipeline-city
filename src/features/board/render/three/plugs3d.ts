@@ -6,7 +6,7 @@
 // proportion to the cable, which stays as thick as at the far end.
 import { BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh, Path, Shape, Vector2, type BufferGeometry, type Material } from 'three';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
-import { extrude, instanced, place, softBox } from '@/core/render/three/geometry';
+import { extrude, instanced, place, SEG, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { IO_HALF, IO_Z } from './boardhw3d';
 
@@ -73,7 +73,7 @@ function roundRect(p: Path, x0: number, y0: number, x1: number, y1: number, k: n
 function taper(w0: number, h0: number, w1: number, h1: number, z0: number, z1: number, r: number, bev: number, m: Material): Mesh {
   const sh = new Shape(), d = Math.max(1, z1 - z0 - 2 * bev);
   roundRect(sh, -w0 / 2 + bev, -h0 / 2 + bev, w0 / 2 - bev, h0 / 2 - bev, r - bev);
-  const g = extrude(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 4, curveSegments: 6 }), p = g.attributes.position!;
+  const g = extrude(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: SEG.plug, curveSegments: 6 }), p = g.attributes.position!;
   for (let i = 0; i < p.count; i++) {
     const t = (p.getZ(i) + bev) / (d + 2 * bev);
     p.setXYZ(i, p.getX(i) * (1 + (w1 / w0 - 1) * t), p.getY(i) * (1 + (h1 / h0 - 1) * t), z0 + bev + p.getZ(i));

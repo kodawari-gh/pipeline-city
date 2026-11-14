@@ -5,7 +5,7 @@
 // screws to); the video socket and the power cord's strain relief at the bottom edge, where the cables leave (`monitorSeats`); five buttons under
 // the chin's east end; a height-adjustable column with a cable hole through it; a rounded foot on four rubber pads.
 import { BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh, Path, PlaneGeometry, Quaternion, Shape, Vector2, Vector3, type BufferGeometry, type Material } from 'three';
-import { extrude, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, paint, place, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 
 /** The machine's scale: units a mm (the case and its parts are built at it too). */
@@ -64,7 +64,7 @@ export const MONITOR_PLUG = { w: 21 * MM, h: 10.5 * MM, l: 32 * MM };
 function slab(w: number, h: number, d: number, t: number, s: number, rad: number): BufferGeometry {
   const iw = w - 2 * s, ih = h - 2 * s, sh = new Shape();
   roundRect(sh, -iw / 2, -ih / 2, iw / 2, ih / 2, rad - s);
-  return extrude(sh, { depth: Math.max(1, d), bevelEnabled: true, bevelThickness: t, bevelSize: s, bevelSegments: 10, curveSegments: 12 });
+  return extrude(sh, { depth: Math.max(1, d), bevelEnabled: true, bevelThickness: t, bevelSize: s, bevelSegments: SEG.monitorBevel, curveSegments: 12 });
 }
 
 /** A rounded rectangle drawn into a path, its corners `k` (capped by the sides). */
@@ -175,7 +175,7 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   const hole = new Path();
   roundRect(hole, cx - hw - S, -hy1 - S, cx + hw + S, -hy0 + S, hw + S);
   col.holes.push(hole);
-  const cg = extrude(col, { depth: cz1 - c.z0 - 2 * S, bevelEnabled: true, bevelThickness: S, bevelSize: S, bevelSegments: 6, curveSegments: 12 });
+  const cg = extrude(col, { depth: cz1 - c.z0 - 2 * S, bevelEnabled: true, bevelThickness: S, bevelSize: S, bevelSegments: SEG.monitorBevel, curveSegments: 12 });
   const column = new Mesh(cg, shell);
   column.position.z = c.z0 + S;
   R.add(place(column));

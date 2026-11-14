@@ -3,10 +3,10 @@
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, LatheGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
+  NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { anisotropy, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, anisotropy, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -218,19 +218,15 @@ function glazeEdge(a: number): number {
 }
 
 /**
- * The yunomi's side, a lathe profile in mm: the recess under the foot and the foot ring (unglazed), the wall turned up from it (a full
- * belly, throwing rings on it), the rounded lip, the inside down to its floor. `outer` is the wall's first and last index (for the glaze map).
+ * The yunomi's side, a lathe profile in mm, at most `SEG.latheProfile` points: the foot (the recess's centre, the foot ring's edge and
+ * corner), the wall turned up from it (its shoulder, the full belly, the top), the rim, the inside down to its floor. The points sit where
+ * the curve bends and at the rim and the foot; the near-straight runs between them are dropped. `outer` is the wall's first and last index
+ * (for the glaze map).
  */
 function cupProfile(): { pts: Vector2[]; outer: [number, number] } {
-  const pts = [[0, 3], [17.5, 3], [18.6, 2.2], [19.3, 0.6], [20.2, 0], [23, 0], [23.9, 0.6], [24.2, 2]].map(([r, y]) => new Vector2(r, y));
-  const wall = new SplineCurve([[24.2, 5.2], [26.6, 6.9], [29.6, 9.6], [32, 14], [33.3, 22], [34, 34], [34.2, 46], [33.9, 60], [33.4, 72], [33.3, 77]].map(([r, y]) => new Vector2(r, y)));
-  const first = pts.length;
-  for (const p of wall.getPoints(56)) pts.push(new Vector2(p.x + (p.y > 13 && p.y < 75 ? 0.2 * Math.sin((2 * Math.PI * p.y) / 6.5) : 0), p.y));
-  const last = pts.length - 1;
-  for (const [r, y] of [[33.1, 78], [32.5, 78.7], [31.7, 78.8], [31, 78.2], [30.6, 77]]) pts.push(new Vector2(r, y));
-  const inside = new SplineCurve([[30.6, 76], [30.9, 66], [31.1, 52], [30.8, 38], [29.8, 26], [27.6, 17], [23.5, 12.2], [15, 10.4], [0, 10]].map(([r, y]) => new Vector2(r, y)));
-  pts.push(...inside.getPoints(30));
-  return { pts, outer: [first, last] };
+  const pts = [[0, 3], [18.6, 2.2], [20.2, 0], [24.2, 2], [29.6, 9.6], [33.3, 22], [34.2, 46], [33.3, 77], [31.7, 78.8], [30.6, 77], [27.6, 17], [0, 10]]
+    .map(([r, y]) => new Vector2(r, y));
+  return { pts, outer: [4, 7] };
 }
 
 /** A walnut chataku under the cup: a shallow well for its foot, a broad flat, a raised rim, a foot ring under it. In mm. */
@@ -264,7 +260,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
     }
     if (rough) return;
     // the lip, where the glaze thins over the edge, and the iron in the clay speckling through
-    const lip0 = row(vAt(74)), lip1 = row((outer[1] + 6) / n), lg = c.createLinearGradient(0, lip0, 0, lip1);
+    const lip0 = row(vAt(74)), lip1 = row((outer[1] + 2) / n), lg = c.createLinearGradient(0, lip0, 0, lip1);
     lg.addColorStop(0, 'rgba(138,104,74,0)'); lg.addColorStop(0.6, 'rgba(138,104,74,0.55)'); lg.addColorStop(1, 'rgba(138,104,74,0.2)');
     c.fillStyle = lg; c.fillRect(0, lip1, w, lip0 - lip1);
     for (let k = 0; k < 260; k++) { c.fillStyle = `rgba(70,48,30,${0.25 + 0.4 * Math.abs(Math.sin(k * 7.3))})`; const s = 0.6 + Math.abs(Math.sin(k * 3.1)) * 1.4; c.fillRect(Math.abs(Math.sin(k * 12.9898)) * w, Math.abs(Math.sin(k * 78.233)) * h * 0.92, s, s); }
@@ -272,7 +268,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   const map = paint(512, 256, glazeMap(false)), roughMap = paint(512, 256, glazeMap(true));
   if (roughMap) roughMap.colorSpace = NoColorSpace;
   const glaze = mat(0xffffff, { map, roughnessMap: roughMap, roughness: 1 });
-  const cup = place(new Mesh(new LatheGeometry(pts, 56), glaze));
+  const cup = place(new Mesh(new LatheGeometry(pts, SEG.lathe), glaze));
   // (thrown by hand: a touch out of round)
   cup.scale.set(1.012, 1, 0.99);
   cup.rotation.y = 2.1;

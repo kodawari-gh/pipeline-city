@@ -4,7 +4,7 @@
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
-import { instanced, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -46,7 +46,7 @@ const RGB_PLATE = 70;
 
 /** A shape drawn in the stick's plane (u along it, v up from the PCB's bottom edge), extruded `t` thick, turned to stand at `x` (its near face) from its south end `y`. */
 function standing(s: Shape, t: number, x: number, y: number, bevel = 0): BufferGeometry {
-  const g = new ExtrudeGeometry(s, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 10 });
+  const g = new ExtrudeGeometry(s, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: SEG.ramCurve });
   // (u, v, depth) to world (x + depth, y + u, Z0 + v): a turn, so the normals hold
   return g.applyMatrix4(new Matrix4().set(0, 0, 1, x, 1, 0, 0, y, 0, 1, 0, Z0, 0, 0, 0, 1));
 }

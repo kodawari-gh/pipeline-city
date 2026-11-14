@@ -6,7 +6,7 @@
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen.
 import { BoxGeometry, Group, LatheGeometry, Vector2, type Material } from 'three';
-import { drum, instanced, rectBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { drum, instanced, rectBox, SEG, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
@@ -29,6 +29,17 @@ const CTRL: Record<string, { chip: number; sink: number; sinkHex: number; pinHex
 };
 /** The sink's height off the PCB, under the jacks' (`JACK.h`). */
 const SINK_H = 12 * MM;
+
+/**
+ * A solder joint: the fillet from the pad up to the tail's rounded tip (tpm3d's), lathed on `SEG.joint` sides. Its profile is sampled to
+ * `SEG.jointRings` bands (the base and the tip kept), so the outer size stays the same.
+ */
+function solderFillet(): LatheGeometry {
+  const P: [number, number][] = [[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]];
+  const last = P.length - 1;
+  const pts = Array.from({ length: SEG.jointRings + 1 }, (_, k) => P[Math.round((k * last) / SEG.jointRings)]!);
+  return new LatheGeometry(pts.map(([r, z]) => new Vector2(r, z)), SEG.joint).rotateX(Math.PI / 2);
+}
 
 /** A span of a wall across x as its outline (`wallPt` points). */
 const spanPts = (s: Span): Vector2[] => outlinePts({ x: s.z0, y: s.y0, w: s.z1 - s.z0, h: s.y1 - s.y0 }, s.r ?? 0);
@@ -247,9 +258,8 @@ export function nicBack(g: Group, visual: string, f: CardFrame, Z: number, cu: N
   g.add(maskTop(`nic-back:${cu.key}`, board, Z, { ...MASK, text, seed: 0, copper: copperOf(cu, 'bottom'), pads: cu.pads.filter((p) => p.face === 'bottom' && !p.edge).map((p) => p.r) }, { px: 24 }));
   g.add(tabMask(cu, f, 'bottom', Z - 1));
   passives(g, cu.parts.filter((p) => p.face === 'bottom').map((p): Passive => ({ x: p.x, y: p.y, pkg: p.pkg, kind: p.kind, turn: p.turn })), Z);
-  // the through-hole pins' tails cut short in their solder: a fillet over each ring climbing to its rounded tip (tpm3d's), sized to the ring
-  const joint = new LatheGeometry([[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]].map(([r, z]) => new Vector2(r, z)), 20).rotateX(Math.PI / 2);
-  g.add(instanced(joint, mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
+  // the through-hole pins' tails cut short in their solder: a fillet over each ring climbing to its rounded tip, sized to the ring
+  g.add(instanced(solderFillet(), mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
   // the jacks' plastic pegs, split, just through the board; a BGA's push pins' barbed tips, split, through the sink's corners
   const C = CTRL[visual] ?? CTRL['nic-gbe']!, peg = mat(0x121316, { roughness: 0.6 }), slit = mat(0x050506, { roughness: 0.9 });
   const sinkPins = a.sink ? cu.npth.slice(-2) : [];

@@ -8,7 +8,7 @@
 // bare); the LED is lit red there while protected mode is on.
 import { BoxGeometry, Group, LatheGeometry, Matrix4, Shape, Vector2, type MeshStandardMaterial } from 'three';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
-import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { CU, tpmCopper, type Layer } from '@/features/tpm/render/tpmcopper';
@@ -22,6 +22,17 @@ export const TPM_Z = { mate: BOARD_Z + 120, pcb: BOARD_Z + 290, top: BOARD_Z + 3
 
 const tin = () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.3 });
 const solder = () => mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 });
+
+/**
+ * A solder joint: the fillet from the pad up to the tail's rounded tip, lathed on `SEG.joint` sides. Its profile is sampled to `SEG.jointRings`
+ * bands (the base and the tip kept), so the outer size stays the same.
+ */
+function solderFillet(): LatheGeometry {
+  const P: [number, number][] = [[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]];
+  const last = P.length - 1;
+  const pts = Array.from({ length: SEG.jointRings + 1 }, (_, k) => P[Math.round((k * last) / SEG.jointRings)]!);
+  return new LatheGeometry(pts.map(([r, z]) => new Vector2(r, z)), SEG.joint).rotateX(Math.PI / 2);
+}
 
 /**
  * A board's look by module: its mask, the copper under it, its pads' finish, the chip's marking, the generation on its silkscreen and its
@@ -99,8 +110,7 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
   led(g, L.x, L.y, z1);
 
   // the contacts' tails, cut short in their solder: a concave fillet over the pad climbing the tail to its rounded tip, 0.9 mm over the board
-  const joint = new LatheGeometry([[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]].map(([r, z]) => new Vector2(r, z)), 20).rotateX(Math.PI / 2);
-  g.add(instanced(joint, solder(), pins.map(([x, y]) => ({ x, y: -y, z: z1 }))));
+  g.add(instanced(solderFillet(), solder(), pins.map(([x, y]) => ({ x, y: -y, z: z1 }))));
 
   // the mask over the routed copper (`tpmCopper`) and its ground pours, on both faces; the pads in the board's finish; the silkscreen (the
   // maker, the module and its bus south of the contacts, contact 1, the chip's designator and its pin-1 dot, the bulk cap's designator)
