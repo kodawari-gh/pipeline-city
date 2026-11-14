@@ -20,7 +20,7 @@ describe('Low keeps what must read as metal or weave (KEEP_SPEC, the pump cap, t
     const far = { at: [400, 0, 0] as [number, number, number], dir: [0, -1, 0] as [number, number, number] };
     for (const low of [false, true]) {
       setLowDetail(low);
-      const ferrules = mats(hose(end, far, { planes: [], solids: [] })).filter((m) => m.color.getHex() === 0x2a3048);
+      const ferrules = mats(hose(end, far, { planes: [], solids: [] })).filter((m) => m.color.getHex() === 0x2a2d32);
       expect(ferrules.length, `ferrules at Low ${low}`).toBeGreaterThan(0);
       for (const m of ferrules) expect(m.userData[KEEP_SPEC] === true, `ferrule at Low ${low}`).toBe(low);
     }

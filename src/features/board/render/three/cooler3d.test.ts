@@ -34,7 +34,8 @@ describe('the 3D coolers', () => {
     setLayoutTier(3, 3);
     const mats = (o: Object3D) => { const out: MeshStandardMaterial[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(...[(c as Mesh).material].flat() as MeshStandardMaterial[]); }); return out; };
     // the frame and the blades of a fan (basic and high-airflow), and the G1/4 fittings' chrome
-    const FAN = [0x1d1e22, 0x2c2e34, 0x3a3c46], CHROME = 0x3a3f4c;
+    // (the frames' charcoal is a family colour that other parts share since ASR9: the blades' grey names the fans)
+    const FAN = [0x3a3c46], CHROME = 0x3a3f4c;
     const fans = [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')];
     for (const low of [false, true]) {
       setLowDetail(low);
