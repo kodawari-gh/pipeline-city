@@ -54,6 +54,8 @@ Phone (412x915 at dpr 2.6, CPU /4, `npm run bench:modes -- --phone`), frames dra
 
 The menu cannot draw less than the city's beat: the cars never stop (10 Hz at 30 fps, a third of the ticks when the fps is unlimited). The sway adds the frames it moves the picture by (about 11 a second). The cup's steam steps on the beat: at the menu's distance a wisp moves under 0.5 px a beat.
 
+**The still view's refinement (LPC10, `Post.refine`).** Build my PC uses its ticks with no draw: each of the first 16 draws the chain once more with the projection moved by a part of a pixel (`jitter`: a Halton point; the first has no offset, so the picture does not jump), mixes the finished frame into a half-float mean (weight 1/n) and shows the mean. After 16 ticks each pixel holds 16 samples: smooth edges at Low, which has no multisampling, and finer ones above. Then the view draws nothing again. Any real frame (`Post.render`) starts it over, so nothing that moves can leave a trail. Checked on a Low shot (the RAM, the ATX lead and the case's edges read smooth; they were stepped). Cost: 16 more frames after each stop, and one half-float target of the picture's size. Not used where the picture never stands: the game draws every frame, and the menu draws on the city's beat, so a mean there would start over 10 times a second. Those views need motion vectors first (not planned).
+
 ## Rules for the programs
 
 A program first drawn before it has linked holds the frame and the page. On ANGLE D3D11 a lit program of the room takes about 0.3 s. These rules keep each program linked once, before its first draw:

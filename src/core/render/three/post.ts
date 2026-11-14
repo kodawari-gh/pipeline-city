@@ -214,6 +214,11 @@ const AO_UPSAMPLE = /* glsl */`
     if (any(isnan(texel)) || any(isinf(texel))) texel = vec4(1.0);
     gl_FragColor = vec4(mix(vec3(1.0), texel.rgb, intensity), texel.a);
   }`;
+/** The frames a still view adds up (`Post.refine`). */
+export const REFINE = 16;
+const halton = (i: number, b: number): number => { let f = 1, v = 0; for (let n = i; n > 0; n = Math.floor(n / b)) { f /= b; v += f * (n % b); } return v; };
+/** The projection's offset, in pixels, of a still view's frame `n`: none for the first (it is the picture on the screen), then a Halton (2, 3) point in the pixel. */
+export const jitter = (n: number): [number, number] => (n ? [halton(n, 2) - 0.5, halton(n, 3) - 0.5] : [0, 0]);
 /** The bloom's strength at each level (0: the pass is off). */
 const BLOOM_LEVELS = [0, 0.12, 0.2];
 
@@ -239,6 +244,10 @@ export class Post {
   private metering = false;
   private meterRead: number | null = null;
   private gone = false;
+  /** The still view's refinement (`refine`): the mean of its frames so far, the quad that shows it, the frames in it. */
+  private mean: WebGLRenderTarget | null = null;
+  private meanQuad: FullScreenQuad | null = null;
+  private refined = 0;
 
   constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     this.camera = camera;
@@ -365,6 +374,8 @@ export class Post {
     const ratio = this.renderer.getPixelRatio(), pw = w * ratio, ph = h * ratio;
     this.scene.setSize(pw, ph);
     this.work.setSize(pw, ph);
+    this.mean?.setSize(pw, ph);
+    this.refined = 0;
     const aw = Math.ceil(pw * AO_SCALE), ah = Math.ceil(ph * AO_SCALE);
     this.ao.setSize(aw, ah);
     (this.ao.blendMaterial.uniforms.aoSize!.value as Vector2).set(aw, ah);
@@ -380,7 +391,35 @@ export class Post {
     return steps({ ao: this.ao.enabled, outline: this.outline.enabled, bloom: this.bloom.enabled, eye: this.local.on });
   }
 
+  /**
+   * One more frame of a still view (LPC10): the same picture, the projection moved by a part of a pixel (`jitter`), mixed into the mean of
+   * the frames before it, and the mean shown. After `REFINE` frames each pixel holds that many samples: smooth edges with no multisampling.
+   * A view calls it only on a tick with no draw of its own (nothing moves, so nothing leaves a trail); any `render` starts it again.
+   * False: the picture is done, nothing was drawn.
+   */
+  refine(): boolean {
+    if (this.refined >= REFINE) return false;
+    const r = this.renderer, cam = this.camera, s = this.scene.target, n = this.refined++, [jx, jy] = jitter(n), was = r.getRenderTarget();
+    if (!this.mean) {
+      this.mean = new WebGLRenderTarget(s.width, s.height, { type: HalfFloatType, depthBuffer: false });
+      this.meanQuad = new FullScreenQuad(new ShaderMaterial({ ...CopyShader, uniforms: UniformsUtils.clone(CopyShader.uniforms), blending: NoBlending, depthTest: false, depthWrite: false }));
+    }
+    cam.setViewOffset(s.width, s.height, jx, jy, s.width, s.height);
+    this.draw(this.mean, 1 / (n + 1));
+    cam.clearViewOffset();
+    (this.meanQuad!.material as ShaderMaterial).uniforms.tDiffuse!.value = this.mean.texture;
+    r.setRenderTarget(null);
+    this.meanQuad!.render(r);
+    r.setRenderTarget(was);
+    return true;
+  }
+
   render(): void {
+    this.refined = 0;
+    this.draw(null, 1);
+  }
+
+  private draw(to: WebGLRenderTarget | null, weight: number): void {
     const r = this.renderer, was = r.getRenderTarget();
     let picture = this.scene.target;
     this.nearFar.value.set(this.camera.near, this.camera.far);
@@ -393,7 +432,13 @@ export class Post {
         case 'outline': this.outline.render(r, this.work, picture, 0, false); break;
         case 'bloom': this.bloom.render(r, this.work, picture, 0, false); break;
         case 'eye': this.local.adapt(r, picture.texture); break;
-        case 'finish': this.local.draw(r, picture.texture, null); break;
+        case 'finish': {
+          const auto = r.autoClear;
+          if (weight < 1) r.autoClear = false; // (the finish mixes into what `to` holds: a clear would empty it)
+          this.local.draw(r, picture.texture, to, weight);
+          r.autoClear = auto;
+          break;
+        }
       }
     }
     r.setRenderTarget(was);
@@ -406,6 +451,9 @@ export class Post {
     // (three's own dispose leaves these)
     for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) m.dispose();
     this.work.dispose();
+    this.mean?.dispose();
+    (this.meanQuad?.material as ShaderMaterial | undefined)?.dispose();
+    this.meanQuad?.dispose();
     this.meterTarget.dispose();
     (this.meterQuad.material as ShaderMaterial).dispose();
     this.meterQuad.dispose();

@@ -315,7 +315,8 @@ export class BuildStage {
       || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
     // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
     this.drew = this.demand.want(now, busy, this.bakes.size > 0);
-    if (!this.drew) return;
+    // (a still view adds jittered frames to its picture until its edges are smooth: `Post.refine`)
+    if (!this.drew) { this.post.refine(); return; }
     syncWorld(scene);
     this.post.render();
     this.moved.mark(camera, w, h);

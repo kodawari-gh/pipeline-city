@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
 
 // the controllable parts: what the meter says, and the draws
-const rig = vi.hoisted(() => ({ lum: null as number | null, render: vi.fn() }));
+const rig = vi.hoisted(() => ({ lum: null as number | null, render: vi.fn(), refine: vi.fn(() => false) }));
 
 vi.mock('@/core/render/three/init', async (orig) => {
   const actual = await orig<typeof import('@/core/render/three/init')>();
@@ -22,6 +22,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
     render = rig.render;
+    refine = rig.refine;
     meter = () => null;
     metered = () => rig.lum;
     setEye() {} setReach() {} apply() {} setSize() {}
@@ -60,6 +61,12 @@ describe('BuildStage.frame when idle', () => {
 
   it('draws nothing when idle', () => {
     expect(draws(120)).toBe(0);
+  });
+
+  it('offers each idle tick to the still view\'s refinement (the chain bounds its frames)', () => {
+    rig.refine.mockClear();
+    tick(5);
+    expect(rig.refine.mock.calls.length).toBe(5);
   });
 
   it('wakes on a late meter reading', () => {

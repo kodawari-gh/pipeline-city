@@ -12,8 +12,8 @@
 // mapping and the screen's colour space (as three's OutputPass). Each was a full-screen pass of its own, into a half-float target; a phone's
 // tile GPU writes each such target out to memory and reads it back. The math and its order are as they were; only the half-float steps between are gone.
 import {
-  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping, NearestFilter, NeutralToneMapping,
-  RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
+  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, ConstantAlphaFactor, CustomBlending, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping,
+  NearestFilter, NeutralToneMapping, NoBlending, OneMinusConstantAlphaFactor, RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
@@ -251,10 +251,14 @@ export class LocalEye {
 
   /**
    * Draws `picture` to `to` (null: the screen) with the look, the lift (from the grid `adapt` made, while the eye is `on`) and the tone
-   * mapping, in one full-screen pass.
+   * mapping, in one full-screen pass. `weight` under 1 mixes it into what `to` holds (the still view's refinement, `Post.refine`): the caller
+   * keeps the renderer from clearing `to`.
    */
-  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null): void {
+  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null, weight = 1): void {
     this.output(renderer);
+    const f = this.finish;
+    f.blending = weight < 1 ? CustomBlending : NoBlending;
+    f.blendSrc = ConstantAlphaFactor; f.blendDst = OneMinusConstantAlphaFactor; f.blendAlpha = weight;
     const a = this.finish.uniforms;
     a.tDiffuse!.value = picture;
     a.midLog!.value = Math.log2(this.key / this.exposure);
