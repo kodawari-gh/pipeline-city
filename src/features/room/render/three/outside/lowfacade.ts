@@ -18,6 +18,8 @@ const CELLS = 8, CELL = 32, SIZE = CELLS * CELL, EDGE = 2;
 export const LOW_ANISO = 2;
 /** Night walls: the day albedo times this tint at full night. Cool and dark, as base's unlit walls read (a warm grey reads brown under the lamps). */
 export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
+/** By day a glass pane takes its building's raw tint (linear) times this, lit as base's glass is; the frame keeps the tower's own colour. */
+export const LOW_DAY_GLASS = 1.5;
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
  * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
  * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
@@ -192,6 +194,9 @@ flat varying vec2 vLowOff;
 flat varying vec4 vLowLook;
 flat varying vec3 vLowTint;
 flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;
+// the day wall's parts, set by the map step and read after the vertex colour: the atlas shade (the frame's tone, the glass mixed in by its mask) and the glass mask
+vec3 lowShade = vec3(1.0);
+float lowGlassM = 0.0;
 // the facade's own window (look.zw, as base's towers.ts sets it: centred across, win.y tall from a sill up) mapped onto the atlas's window,
 // so a band keeps its ribbon and a glass front its pane. lowLocal is the pixel's place in the atlas cell, unclamped
 vec2 lowWin() { return max(vLowLook.zw, vec2(0.05)); }
@@ -237,6 +242,9 @@ if (fLampK > 0.0) {
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
   vec3 lowTn = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
   diffuseColor.rgb *= mix(vec3(1.0), lowTn, lowTex.a * vLowFac);
+  // the day parts for the colour step: the frame's shade (the glass mask's mean at a distance counts as the frame's own tone), the glass mask
+  lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);
+  lowGlassM = lowTex.a * vLowFac;
   // at night the walls go cool and dark between the windows, as base's do (the lamps light the darker albedo too); by day fNight is 0
   diffuseColor.rgb *= mix(vec3(1.0), vec3(${LOW_NIGHT_WALL.join(', ')}), fNight * vLowFac);
 }`)
@@ -254,7 +262,11 @@ if (vLowFac == 0.0) {
     float sl = mix(max(smoothstep(0.44 - sw.x, 0.44 + sw.x, sd.x), smoothstep(0.44 - sw.y, 0.44 + sw.y, sd.y)), 0.2, smoothstep(0.2, 0.6, max(sw.x, sw.y)));
     diffuseColor.rgb = mix(vec3(0.012, 0.022, 0.06), vec3(0.3, 0.32, 0.34), sl * 0.6);
   }
-}`)
+}
+// by day a wall takes its own colour: its frame is the tower's vertex colour shaded by the atlas, its glass its raw tint, lit (not the frame's
+// colour dimmed by the glass). At night (fNight 1) the diffuse is what the map step left, as before; between, they mix
+vec3 lowDayWall = mix(vColor.rgb * lowShade, vLowTint * ${LOW_DAY_GLASS}, lowGlassM);
+diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
   // the night map's lit rooms on the walls, and each kind's live glow at facadeMaterial's night strength (LED band, flood, beacon, lantern,

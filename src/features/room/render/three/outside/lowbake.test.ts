@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_FAR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -304,6 +304,39 @@ describe('Low city facade bake', () => {
       expect(sh).toContain('lowTex.a * vLowFac');
       const vs = compiled(m.material as Material).vertexShader;
       expect(vs).toContain('attribute vec3 tint;');
+    }
+  }, 180000);
+
+  it('Low: by day a wall keeps its own frame colour (the tower\'s vertex colour, shaded by the atlas), not one dark slate from the glass', () => {
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      const at = sh.indexOf('vec3 lowDayWall');
+      expect(at, 'the day wall after the colour step').toBeGreaterThan(sh.indexOf('#include <color_fragment>'));
+      const day = sh.slice(at);
+      // the frame: the vertex colour (each tower's own frame) times the atlas shade
+      expect(day).toContain('vec3 lowDayWall = mix(vColor.rgb * lowShade, vLowTint * 1.5, lowGlassM);');
+      // the glass: the raw tint, lit by the constant (not normalised to its brightest channel, which made every tint one slate)
+      // the normalised tint stays in the night chain of the map step only, never in the day wall
+      expect(day).not.toContain('lowTn');
+      expect(day).not.toContain('vLowTint / max(');
+      expect(sh).toContain('lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);');
+      expect(sh).toContain('lowGlassM = lowTex.a * vLowFac;');
+    }
+    expect(LOW_DAY_GLASS).toBeGreaterThan(1);
+    expect(LOW_DAY_GLASS).toBeLessThan(3);
+  }, 180000);
+
+  it('Low: the day wall mixes into the night path by fNight, so at full night the diffuse is the old one (item 1 untouched)', () => {
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      // at fNight 1 the mix returns the diffuse the map step left (the night wall tint and the night glass)
+      expect(sh).toContain('diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);');
+      // the night wall tint is still in the map step, unchanged
+      expect(sh).toContain('mix(vec3(1.0), vec3(0.36, 0.44, 0.58), fNight * vLowFac)');
+      // the night read and its guard are untouched
+      const full = compiled(m.material as Material).fragmentShader;
+      expect(full).toContain('if (fNight > 0.0) {');
+      expect(full).toContain('textureGrad(emissiveMap, lowUv, lowDx, lowDy)');
     }
   }, 180000);
 
