@@ -153,6 +153,17 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
+  it('Low: by day the night map is not read and the room hash does not run (one uniform branch); the atlas taps stay at the tier\'s 2', () => {
+    expect(LOW_ANISO).toBeLessThanOrEqual(2);
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      const guard = sh.indexOf('if (fNight > 0.0) {');
+      expect(guard, 'the guard').toBeGreaterThan(-1);
+      expect(sh.indexOf('textureGrad(emissiveMap'), 'the night read is inside it').toBeGreaterThan(guard);
+      expect(sh.indexOf('lowRoomHash());')).toBeGreaterThan(guard);
+    }
+  }, 180000);
+
   it('Low: far walls thin their lit rooms per room (discrete, sparser with distance), with no mean wash', () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;

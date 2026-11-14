@@ -15,7 +15,7 @@ export interface LowLamps { k: { value: number }; col: { value: Color }; pos: { 
 /** The atlas: CELLS × CELLS cells of CELL texels; a cell is one bay across and one storey up, its outer EDGE texels the wall's frame (so the cells meet unseen). */
 const CELLS = 8, CELL = 32, SIZE = CELLS * CELL, EDGE = 2;
 /** The atlas's anisotropic taps (the renderer clamps them to its maximum). */
-export const LOW_ANISO = 8;
+export const LOW_ANISO = 2;
 /** Night walls: the day albedo times this tint at full night. Cool and dark, as base's unlit walls read (a warm grey reads brown under the lamps). */
 export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
@@ -261,9 +261,13 @@ if (vLowFac == 0.0) {
   else if (vLowKind == 8.0 && vLowLook.w > -0.5) lowGlow = vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0));
   // the lit rooms stay discrete at every range (the atlas's own mips, no mean wash). Far off, each lit room is kept only if its hash
   // clears a threshold that rises with distance, so the far towers get sparser windows, not a warm average
-  vec3 lowLit = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb;
-  float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
-  lowLit *= step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+  // (by day fNight is 0 and the whole term is 0: the night map's read and the room hash are skipped, one uniform branch)
+  vec3 lowLit = vec3(0.0);
+  if (fNight > 0.0) {
+    lowLit = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb;
+    float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
+    lowLit *= step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+  }
   totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;
 }`);
   };
