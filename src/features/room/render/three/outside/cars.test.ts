@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Fleet, carMaterial, parkCells, reach, within } from './cars';
 import type { HazeUniforms } from './haze';
 import { LOW_FLEET } from './detail';
-import { GRID, parked, rng, type Car } from './plan';
+import { GRID, buildings, parked, rng, type Building, type Car } from './plan';
 import { Traffic } from './traffic';
 
 /** A camera somewhere over the street near the window, turned at random (`r`), and its frustum. */
@@ -158,9 +158,12 @@ describe('cars', () => {
       high.dispose();
     });
 
-    // (the Low clip, as `CLIP_LOW` in cars.ts: a car past it is not drawn, moving or parked; one within it still is)
-    const CLIP = 350;
-    it('Low: no car past 350 m of the eye, moving or parked; those within it are drawn', () => {
+    // (the Low clip, as `CLIP_LOW` in cars.ts: a car past it is not drawn, moving or parked; one within it still is. On the window's avenue
+    // the clip is `CLIP_AVENUE_LOW`)
+    const CLIP = 350, CLIP_AVENUE = 1000;
+    /** Whether Low may draw a car at `x`, `h` m from the eye. */
+    const kept = (x: number, h: number): boolean => h <= CLIP || (Math.abs(x - GRID.av0) <= GRID.avenue / 2 && h <= CLIP_AVENUE);
+    it('Low: no car past 350 m of the eye, moving or parked, but on the window\'s avenue (to 1000 m); those within it are drawn', () => {
       const r = rng(14), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const bad: string[] = [];
       let moving = 0, parkedIn = 0;
@@ -169,7 +172,7 @@ describe('cars', () => {
         low.park(undefined, ex, ez);
         const i = low as unknown as Inside;
         const mv = [...i.near.flatMap(spots), ...spots(i.far)], pk = i.still.flatMap(({ im }) => spots(im));
-        for (const [x, z] of [...mv, ...pk]) { const h = Math.hypot(x - ex, z - ez); if (h > CLIP) bad.push(`car at ${h}`); }
+        for (const [x, z] of [...mv, ...pk]) { const h = Math.hypot(x - ex, z - ez); if (!kept(x, h)) bad.push(`car at ${h}`); }
         moving += mv.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
         parkedIn += pk.filter(([x, z]) => Math.hypot(x - ex, z - ez) <= CLIP).length;
       }
@@ -189,7 +192,7 @@ describe('cars', () => {
     };
     const dist = (s: [number, number][], ex: number, ez: number): number[] => s.map(([x, z]) => Math.hypot(x - ex, z - ez));
 
-    it('Low: from a window eye, moving cars 100 to 350 m off are the far box, not the full model', () => {
+    it('Low: from a window eye, moving cars past 100 m (and within the clip) are the far box, not the full model', () => {
       const r = rng(21), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const i = low as unknown as Inside;
       let box = 0, full = 0;
@@ -198,7 +201,7 @@ describe('cars', () => {
         const { ex, ez, seen } = windowEye(r);
         for (let q = 0; q < 20; q++) { low.update(0.1, ex, ez, seen); low.park(seen, ex, ez); }
         const far = dist(spots(i.far), ex, ez), near = dist(i.near.flatMap(spots), ex, ez);
-        for (const h of far) if (!(h >= 100 && h <= 350)) bad.push(`box at ${h}`);
+        spots(i.far).forEach(([x], j) => { const h = far[j]!; if (!(h >= 100 && kept(x, h))) bad.push(`box at ${h}`); });
         for (const h of near) if (!(h < 100)) bad.push(`full at ${h}`);
         box += far.filter((h) => h >= 100).length; full += near.length;
       }
@@ -209,7 +212,7 @@ describe('cars', () => {
       low.dispose();
     });
 
-    it('Low: from a window eye, the parked cars 100 to 350 m off are instanced in the box mesh', () => {
+    it('Low: from a window eye, the parked cars past 100 m (and within the clip) are instanced in the box mesh', () => {
       const r = rng(22), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const i = low as unknown as Inside;
       let inRange = 0;
@@ -219,8 +222,8 @@ describe('cars', () => {
         low.update(0.1, ex, ez, seen); low.park(seen, ex, ez);
         // (every parked car at Low is a box: its one mesh of them, with the cars it places)
         expect(i.still.length).toBe(1);
-        const h = dist(spots(i.still[0]!.im), ex, ez);
-        for (const d of h) if (d > 350) bad.push(`parked at ${d}`);
+        const at = spots(i.still[0]!.im), h = dist(at, ex, ez);
+        h.forEach((d, j) => { if (!kept(at[j]![0], d)) bad.push(`parked at ${d}`); });
         inRange += h.filter((d) => d >= 100).length;
       }
       expect(bad).toEqual([]);
@@ -242,6 +245,52 @@ describe('cars', () => {
       expect(bad).toEqual([]);
       expect(midFull).toBeGreaterThan(0);
       high.dispose();
+    });
+
+    /**
+     * The live window eye (flyToRoom, 485×997: the camera outside at (-0.59, 46.49, 3.69)). From it the near block east of the avenue hides
+     * the avenue to the crossing at z ≈ -348, so the stretch the window shows runs from about 340 m to 720 m (past it the blocks close it).
+     * Low clipped every car past 350 m, and the window's avenue was empty: shots/ad7/diag-day.png against base's ~20 cars in
+     * shots/official-gpu-final/compare-day-street.png. Each car is tested on its line of sight against the real buildings.
+     */
+    const LIVE = new Vector3(-0.59, 46.49, 3.69);
+    const hidden = (bs: Building[], x: number, z: number): boolean => {
+      const d = [x - LIVE.x, 0.8 - LIVE.y, z - LIVE.z], o = [LIVE.x, LIVE.y, LIVE.z];
+      return bs.some((b) => b.tiers.some((t) => {
+        const box = [[t.x0, t.x1], [t.y0, t.y1], [t.z0, t.z1]];
+        let lo = 0, hi = 0.999;
+        for (let a = 0; a < 3; a++) {
+          let u = (box[a]![0]! - o[a]!) / d[a]!, v = (box[a]![1]! - o[a]!) / d[a]!;
+          if (u > v) [u, v] = [v, u];
+          lo = Math.max(lo, u); hi = Math.min(hi, v);
+        }
+        return lo <= hi;
+      }));
+    };
+    /** The cars on the window's avenue in the stretch it shows, in sight of the live eye, summed over a run of draws. */
+    const inSight = (f: Fleet, bs: Building[]): number => {
+      const i = f as unknown as Inside;
+      let n = 0;
+      for (let q = 0; q < 8; q++) {
+        f.update(2, LIVE.x, LIVE.z);
+        f.park(undefined, LIVE.x, LIVE.z);
+        for (const [x, z] of [...i.moving.flatMap(spots), ...i.still.flatMap(({ im }) => spots(im))]) {
+          const h = Math.hypot(x - LIVE.x, z - LIVE.z);
+          if (Math.abs(x - GRID.av0) <= GRID.avenue / 2 && h >= 340 && h <= 720 && !hidden(bs, x, z)) n++;
+        }
+      }
+      return n;
+    };
+
+    it('Low: from the live window eye, about half of High\'s cars show on the avenue past the near block', () => {
+      const bs = buildings();
+      const high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const h = inSight(high, bs), l = inSight(low, bs);
+      expect(h).toBeGreaterThan(20);
+      expect(l).toBeGreaterThanOrEqual(h * 0.4);
+      expect(l).toBeLessThan(h);
+      high.dispose(); low.dispose();
     });
 
     it('High: no clip, so cars past 350 m of the eye are placed', () => {
