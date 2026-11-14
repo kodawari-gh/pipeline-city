@@ -247,6 +247,13 @@ describe('OutsideView detail', () => {
     expect(meshes(low)).toBeLessThan(meshes(high));
   });
 
+  it('Low: the sky is the cheap shader (with the noise texture), High and the uncut city keep the full one', () => {
+    const noiseSky = (v: OutsideView): boolean => everyMesh(v).some((m) => 'tNoise' in ((m.material as unknown as { uniforms?: object }).uniforms ?? {}));
+    expect(noiseSky(low)).toBe(true);
+    expect(noiseSky(high)).toBe(false);
+    expect(noiseSky(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=none', 'low')))).toBe(false);
+  }, 300000);
+
   it('Low: the streets cut draws fewer meshes, and the furniture cut fewer triangles, than the uncut city', () => {
     // (`streets` trades triangles for draws: its wide cells add triangles, so it is checked by mesh count. `furniture` keeps every mesh,
     // so it is checked by triangles.)
