@@ -181,7 +181,7 @@ export class CordsView {
     const [x, y] = at;
     // a Swiss plug (type J), white (`swiss.ts`). Seated, it is seen from behind: the cap with the cord boot at its top (the screw that holds the cover) over the pin face
     // that fills the outlet's recess. Out (lying, hanging, in the hand) it shows its pin face: the shield with three round pins, a black sleeve at the base of each and a bright tip.
-    const white = T.dark ? '#dcdde2' : '#f4f3ee', shade = T.dark ? '#a9adba' : '#cfd0d6';
+    const white = '#dcdde2', shade = '#a9adba';
     if (seated) {
       g.poly(plugPoly(x + 14, y + 20)).fill({ color: '#000000', alpha: 0.3 });
       g.poly(plugPoly(x, y)).fill({ color: white }).stroke({ width: 6, color: shade, alpha: 0.95 });

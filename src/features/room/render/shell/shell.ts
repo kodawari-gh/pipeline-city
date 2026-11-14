@@ -28,9 +28,7 @@ export interface ShellLook {
   trim: string; trimLo: string; trimHi: string;
 }
 
-export const shellLook = (T: Theme): ShellLook => T.dark
-  ? { ceilNear: '#0c1122', ceilFar: '#04060e', floorNear: '#2a1f22', floorFar: '#07080f', boardA: '#2d2125', boardB: '#251b1f', seam: '#07090f', trim: '#3d3036', trimLo: '#241b20', trimHi: '#5a4a50' }
-  : { ceilNear: '#e9eff4', ceilFar: '#b9c6d3', floorNear: '#c9a47f', floorFar: '#988b88', boardA: '#c9a47f', boardB: '#bf9a76', seam: '#8e6f55', trim: '#e9e4da', trimLo: '#bdb5a6', trimHi: '#f8f5ee' };
+export const shellLook = (T: Theme): ShellLook => ({ ceilNear: '#0c1122', ceilFar: '#04060e', floorNear: '#2a1f22', floorFar: '#07080f', boardA: '#2d2125', boardB: '#251b1f', seam: '#07090f', trim: '#3d3036', trimLo: '#241b20', trimHi: '#5a4a50' });
 
 /** The depth below the floor line (world units) of the top of floorboard `k` (0 is the first seam, where the first board begins), for an eye `h` above the floor line: the seam is `k` steps of the way to the viewer, so it is at the scale `1 / (1 - k step)` of the floor plane. */
 export function boardTop(k: number, h: number): number {
@@ -53,7 +51,7 @@ export function drawCeiling(g: Graphics, T: Theme, B: ShellBox & Persp) {
   for (let k = 0; k < BOARD.count; k++) {
     const ya = B.ceil - boardTop(k, hc), yb = B.ceil - boardTop(k + 1, hc), sa = (B.yH - ya) / hc, sb = (B.yH - yb) / hc, a = 1 - (B.ceil - ya) / FADE.ceil;
     if (a <= 0) break;
-    g.rect(-BIG, yb, 2 * BIG, ya - yb).fill({ color: L.trimLo, alpha: (k % 2 ? 0.05 : 0.02) * a * (T.dark ? 2 : 1) });
+    g.rect(-BIG, yb, 2 * BIG, ya - yb).fill({ color: L.trimLo, alpha: (k % 2 ? 0.05 : 0.02) * a * 2 });
     g.rect(-BIG, ya - 5, 2 * BIG, 7).fill({ color: L.seam, alpha: 0.35 * a });
     const off = ((Math.sin(k * 7.13 + 2.1) * 43758.5453) % 1 + 1) % 1;
     for (let x = B.vx - 60000 + off * BOARD.length; x < B.vx + 60000; x += BOARD.length * 1.3) g.poly([spreadX(B, x, sa), ya, spreadX(B, x, sa) + 6, ya, spreadX(B, x, sb) + 6 * sb, yb, spreadX(B, x, sb), yb]).fill({ color: L.seam, alpha: 0.28 * a });
@@ -66,7 +64,7 @@ export function drawCrown(g: Graphics, T: Theme, B: ShellBox) {
   g.rect(-BIG, y, 2 * BIG, h).fill({ color: L.trim });
   g.rect(-BIG, y, 2 * BIG, h * 0.22).fill({ color: L.trimHi, alpha: 0.5 });
   g.rect(-BIG, y + h * 0.72, 2 * BIG, h * 0.28).fill({ color: L.trimLo, alpha: 0.75 });
-  g.rect(-BIG, y + h, 2 * BIG, 150).fill({ color: '#000000', alpha: T.dark ? 0.35 : 0.14 }); // the shadow it throws on the wall
+  g.rect(-BIG, y + h, 2 * BIG, 150).fill({ color: '#000000', alpha: 0.35 }); // the shadow it throws on the wall
 }
 
 /** The baseboard over the foot of the wall, and the floor: boards that widen away from the wall, each with its seam and some butt joints, darkening to the far colour. */
@@ -92,5 +90,5 @@ export function drawFloor(g: Graphics, T: Theme, B: ShellBox & Persp) {
   g.rect(-BIG, y0 - TRIM.base, 2 * BIG, TRIM.base).fill({ color: L.trim });
   g.rect(-BIG, y0 - TRIM.base, 2 * BIG, TRIM.base * 0.2).fill({ color: L.trimHi, alpha: 0.4 });
   g.rect(-BIG, y0 - TRIM.base * 0.28, 2 * BIG, TRIM.base * 0.28).fill({ color: L.trimLo, alpha: 0.7 });
-  g.rect(-BIG, y0, 2 * BIG, 260).fill({ color: '#000000', alpha: T.dark ? 0.5 : 0.22 });
+  g.rect(-BIG, y0, 2 * BIG, 260).fill({ color: '#000000', alpha: 0.5 });
 }

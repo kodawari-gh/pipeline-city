@@ -214,10 +214,10 @@ export class Interact {
     const T = this.T;
     const [sx, sy] = this.canvasXY(cx, cy);
     const c = new Container();
-    const t = new Text({ text, style: { fontFamily: MONO, fontSize: 13, fontWeight: '600', fill: T.dark ? '#f2f6ff' : '#14203a', wordWrap: true, wordWrapWidth: 250 }, resolution: 2 });
+    const t = new Text({ text, style: { fontFamily: MONO, fontSize: 13, fontWeight: '600', fill: '#f2f6ff', wordWrap: true, wordWrapWidth: 250 }, resolution: 2 });
     t.position.set(10, 7);
     const bg = new Graphics();
-    box(bg, 0, 0, t.width + 20, t.height + 14, 8, { fill: T.dark ? '#0b1226' : '#ffffff', fa: 0.96, stroke: tone === 'bad' ? T.bad : T.alu, lw: 2 });
+    box(bg, 0, 0, t.width + 20, t.height + 14, 8, { fill: '#0b1226', fa: 0.96, stroke: tone === 'bad' ? T.bad : T.alu, lw: 2 });
     c.addChild(bg, t);
     const w = t.width + 20, h = t.height + 14;
     const x = clamp(sx - w / 2, 8, Math.max(8, this.camera.w - w - 8)), y = clamp(sy - h - 26, 8, Math.max(8, this.camera.h - h - 8));
@@ -655,7 +655,7 @@ export class Interact {
     const s = this.snap();
 
     // ---- hover amounts (lift, scale, outline) ----
-    const hoverCol = this.T.dark ? '#eef3ff' : '#0f1830'; // neutral: cyan is selection, yellow is the tutorial target
+    const hoverCol = '#eef3ff'; // neutral: cyan is selection, yellow is the tutorial target
     const k = 1 - Math.exp(-dt * 14);
     const ids = new Set<string>([...this.amt.keys()]);
     if (this.hoverId) ids.add(this.hoverId);
@@ -740,7 +740,7 @@ export class Interact {
     const beat = 0.5 + 0.5 * Math.sin(gt * 0.005);
     if (p.replacesId) {
       const trace = this.scene.shapes.get(p.replacesId)?.outline(4);
-      const veil = { color: T.dark ? '#0b0e14' : '#dfe3ea', alpha: T.dark ? 0.6 : 0.68 };
+      const veil = { color: '#0b0e14', alpha: 0.6 };
       if (trace) for (const poly of trace) g.poly(poly.flatMap(([x, y]) => [x, y]), true).fill(veil);
       else box(g, r.x, r.y, r.w, r.h, 16, { fill: veil.color, fa: veil.alpha });
     }
@@ -878,13 +878,13 @@ export class Interact {
     const [sx, sy] = this.canvasXY(cx, cy);
     const t = this.noteText;
     if (t.text !== text) t.text = text;
-    t.style.fill = color === this.T.mute ? (this.T.dark ? '#cfd8f5' : '#26324f') : color;
+    t.style.fill = color === this.T.mute ? '#cfd8f5' : color;
     t.anchor.set(0, 0);
     t.position.set(clamp(sx + 24, 14, Math.max(14, this.camera.w - t.width - 14)), clamp(sy + 28, 12, Math.max(12, this.camera.h - t.height - 14)));
     t.visible = true;
     this.noteSet = true;
     this.noteBg.clear();
-    box(this.noteBg, t.x - 8, t.y - 5, t.width + 16, t.height + 10, 7, { fill: this.T.dark ? '#0b1226' : '#ffffff', fa: 0.92, stroke: color === this.T.bad ? this.T.bad : this.T.line, lw: 1.5 });
+    box(this.noteBg, t.x - 8, t.y - 5, t.width + 16, t.height + 10, 7, { fill: '#0b1226', fa: 0.92, stroke: color === this.T.bad ? this.T.bad : this.T.line, lw: 1.5 });
   }
 
   // ------------------------------------------------------------------ tutorial highlight rings and edge arrows
@@ -920,7 +920,7 @@ export class Interact {
         const px = fx + dx * kk, py = fy + dy * kk, a = Math.atan2(dy, dx);
         const R = 19 + 3 * beat;
         hg.circle(px, py, R + 7).fill({ color: col, alpha: 0.18 + 0.15 * beat });
-        hg.circle(px, py, R).fill({ color: T.dark ? '#0b1226' : '#ffffff', alpha: 0.95 }).stroke({ width: 2.5, color: col });
+        hg.circle(px, py, R).fill({ color: '#0b1226', alpha: 0.95 }).stroke({ width: 2.5, color: col });
         const ca = Math.cos(a), sa = Math.sin(a);
         hg.poly([px + ca * 15, py + sa * 15, px - ca * 8 - sa * 11, py - sa * 8 + ca * 11, px - ca * 3, py - sa * 3, px - ca * 8 + sa * 11, py - sa * 8 - ca * 11]).fill({ color: col });
         this.edge.push({ id, x: px, y: py });

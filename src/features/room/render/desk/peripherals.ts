@@ -35,8 +35,8 @@ const flat = (pts: Pt[]) => pts.flat();
 /** The mat: a rectangle on the desk top, with a lit front edge. */
 export function drawMat(o: Graphics, T: Theme, D: DeskGeo, monitorCx: number) {
   const p = placer(D, monitorCx - 50, D.ys + 120, 0), w = KEYBOARD.w + 4200, d = 4800;
-  o.poly(flat([p(-w / 2, -d / 2), p(w / 2, -d / 2), p(w / 2, d / 2), p(-w / 2, d / 2)])).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2, join: 'round' });
-  o.poly(flat([p(-w / 2, d / 2), p(w / 2, d / 2), p(w / 2, d / 2 - 380), p(-w / 2, d / 2 - 380)])).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
+  o.poly(flat([p(-w / 2, -d / 2), p(w / 2, -d / 2), p(w / 2, d / 2), p(-w / 2, d / 2)])).fill({ color: '#141c36' }).stroke({ width: 5, color: '#000000', alpha: 0.2, join: 'round' });
+  o.poly(flat([p(-w / 2, d / 2), p(w / 2, d / 2), p(w / 2, d / 2 - 380), p(-w / 2, d / 2 - 380)])).fill({ color: '#ffffff', alpha: 0.06 });
 }
 
 /** A soft shadow of a footprint on the desk top: the outline pushed east and toward the viewer (away from the lamp and the window), three times, a little larger and fainter each. */
@@ -47,14 +47,14 @@ function contact(o: Graphics, p: ReturnType<typeof placer>, outline: Pt[], a: nu
 /** The keyboard: a box turned a few degrees, its front and the side that faces the vanishing point, and a top of five rows of keycaps (the space bar in the front row) with a pair of lamps at the back. */
 export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = keyboardPlacer(D, monitorCx), { w, d, h } = KEYBOARD, hw = w / 2, hd = d / 2;
-  const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8', side = mix(L.plasticLo, '#000000', 0.2), eastSide = monitorCx - 800 < D.P.vx;
-  contact(o, p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], T.dark ? 0.5 : 0.35);
+  const capCol = '#b8c2e4', capEdge = '#4a5679', side = mix(L.plasticLo, '#000000', 0.2), eastSide = monitorCx - 800 < D.P.vx;
+  contact(o, p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], 0.5);
   // the faces: the front, the end that faces the vanishing point, the top
   o.poly(flat([p(-hw, hd), p(hw, hd), p(hw, hd, h), p(-hw, hd, h)])).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
   const e = eastSide ? hw : -hw;
   o.poly(flat([p(e, hd), p(e, -hd), p(e, -hd, h), p(e, hd, h)])).fill({ color: side }).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
   o.poly(flat([p(-hw, hd, h), p(hw, hd, h), p(hw, -hd, h), p(-hw, -hd, h)])).fill({ color: L.plastic }).stroke({ width: 5, color: L.line, join: 'round' });
-  o.poly(flat([p(-hw, hd, h), p(hw, hd, h), p(hw, hd - 300, h), p(-hw, hd - 300, h)])).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.35 });
+  o.poly(flat([p(-hw, hd, h), p(hw, hd, h), p(hw, hd - 300, h), p(-hw, hd - 300, h)])).fill({ color: '#ffffff', alpha: 0.06 });
   // the keycaps: rows from the front; each cap is a little proud of the top (a dark front face, a lit top)
   const rows = 5, inset = 260, ix0 = -hw + inset, ix1 = hw - inset, rd = (d - 2 * 300) / rows, lift = 28;
   for (let r = 0; r < rows; r++) {
@@ -62,11 +62,11 @@ export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, m
     const n = r === 4 ? 14 : 15, caps: [number, number][] = r === 0 ? [[0, 0.1], [0.11, 0.2], [0.21, 0.3], [0.31, 0.69], [0.7, 0.79], [0.8, 0.89], [0.9, 1]] : Array.from({ length: n }, (_, k) => [k / n + 0.004, (k + 1) / n - 0.004] as [number, number]);
     for (const [a, b] of caps) {
       const x0 = ix0 + (ix1 - ix0) * a, x1 = ix0 + (ix1 - ix0) * b;
-      o.poly(flat([p(x0, z1, h), p(x1, z1, h), p(x1, z1, h + lift), p(x0, z1, h + lift)])).fill({ color: mix(capCol, '#000000', 0.18), alpha: T.dark ? 0.78 : 0.97 });
-      o.poly(flat([p(x0, z1, h + lift), p(x1, z1, h + lift), p(x1, z0, h + lift), p(x0, z0, h + lift)])).fill({ color: capCol, alpha: T.dark ? 0.78 : 0.97 }).stroke({ width: 3, color: capEdge, alpha: 0.7 });
+      o.poly(flat([p(x0, z1, h), p(x1, z1, h), p(x1, z1, h + lift), p(x0, z1, h + lift)])).fill({ color: mix(capCol, '#000000', 0.18), alpha: 0.78 });
+      o.poly(flat([p(x0, z1, h + lift), p(x1, z1, h + lift), p(x1, z0, h + lift), p(x0, z0, h + lift)])).fill({ color: capCol, alpha: 0.78 }).stroke({ width: 3, color: capEdge, alpha: 0.7 });
     }
   }
-  for (const [dx, col] of [[hw - 700, '#6dffa6'], [hw - 520, T.dark ? '#33406e' : '#aebbd6']] as const) { const q = p(dx, -hd + 150, h); o.circle(q[0], q[1], 14).fill({ color: col, alpha: 0.9 }); }
+  for (const [dx, col] of [[hw - 700, '#6dffa6'], [hw - 520, '#33406e']] as const) { const q = p(dx, -hd + 150, h); o.circle(q[0], q[1], 14).fill({ color: col, alpha: 0.9 }); }
 }
 
 /** How wide the mouse is at `u` along its length (0 at the buttons, 1 at the palm), as a part of its full width, read off a top-down photo of a gaming mouse: a nearly square front with rounded corners, a slight waist, the widest a little behind the middle, and a round rear. */
@@ -108,8 +108,8 @@ const heightAt = (u: number) => {
 /** The mouse, from the owner's wireframe: a body turned a few degrees on the mat, made of cross-sections along its length (the plan from a top-down photo, the top line from a side drawing, the dome section from a back photo), lit tile by tile, on a dark skirt, with a scroll wheel in a slot. It has no cord or buttons yet. */
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx), { l, h } = MOUSE;
-  const shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff', skirt = T.dark ? '#0d1122' : '#7e879c';
-  contact(o, p, mouseOutline(1), T.dark ? 0.55 : 0.4);
+  const shade = mix(L.plasticLo, '#000000', 0.1), crown = mix(L.plastic, '#9fb0e0', 0.4), skirt = '#0d1122';
+  contact(o, p, mouseOutline(1), 0.55);
   // the surface is built from cross-sections: at each station along the length (u) the section across the width is the dome's profile `prof` (k of the half width at that station, f of the height there), and the top line along the length is the owner's side drawing, so the side view matches it exactly
   // from the owner's back view: a short dark skirt a little inset, then a dome that is widest at its foot and rounds in all the way up (a superellipse of exponent 2.2 in section)
   const prof: [number, number][] = [[0.93, 0], [0.93, SK], ...Array.from({ length: 13 }, (_, j) => { const u = (j / 12) * (Math.PI / 2) * 0.985; return [Math.max(0.12, 0.995 * Math.cos(u) ** (2 / 2.2)), SK + (1 - SK) * Math.sin(u) ** (2 / 2.2)] as [number, number]; })];
@@ -140,7 +140,7 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
   for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l >= zNearEnd) tile(i);
   // the skirt's top edge, on the half toward the viewer only (the far half is behind the body)
   const near = [...grid.slice(NZ >> 1).map((st) => st[1]![0]), ...grid.slice(NZ >> 1).reverse().map((st) => st[1]![1])];
-  o.poly(flat(near), false).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' });
+  o.poly(flat(near), false).stroke({ width: 3, color: '#ffffff', alpha: 0.12, join: 'round' });
   o.poly(flat(hull(all))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
 }
 
@@ -169,9 +169,9 @@ function wheelGeom(D: DeskGeo, monitorCx: number) {
 }
 function drawWheel(o: Graphics, T: Theme, p: ReturnType<typeof placer>, g: ReturnType<typeof wheelGeom>) {
   const { hw, e, cz, ch, ex, aLo, aHi, zNear, zFar } = g, sw = hw + 14, z0 = zFar - 14, z1 = zNear + 14, zs = Array.from({ length: 9 }, (_, i) => z0 + (i / 8) * (z1 - z0));
-  const dark = T.dark ? '#141a30' : '#39405a', lite = T.dark ? '#7f8db8' : '#aab3cf';
+  const dark = '#141a30', lite = '#7f8db8';
   // the dark opening in the shell around the wheel
-  o.poly(flat([...zs.map((z) => p(-sw, z, shellH(sw, z))), ...[...zs].reverse().map((z) => p(sw, z, shellH(sw, z)))])).fill({ color: T.dark ? '#02030a' : '#262b3d', alpha: 0.75 });
+  o.poly(flat([...zs.map((z) => p(-sw, z, shellH(sw, z))), ...[...zs].reverse().map((z) => p(sw, z, shellH(sw, z)))])).fill({ color: '#02030a', alpha: 0.75 });
   // the wall at the end that faces the vanishing point (closed below along the shell), then the tread in strips from the far side to the near one, each cut below along the shell at the centre and at both edges
   const n = 14, arc = Array.from({ length: n + 1 }, (_, k) => aHi - (k / n) * (aHi - aLo)), xs = [-hw, 0, hw] as const;
   o.poly(flat([...arc.map((a) => p(e, cz(a), ch(a))), ...Array.from({ length: 7 }, (_, i) => zNear + ((i + 1) / 8) * (zFar - zNear)).map((z) => p(e, z, shellH(e, z)))])).fill({ color: mix(dark, lite, 0.18) }).stroke({ width: 3, color: '#000000', alpha: 0.4, join: 'round' });

@@ -168,7 +168,7 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK, fanR
   const g = new Graphics();
   root.addChild(g);
   const r = rect, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
-  const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
+  const metal = '#3b4663', metalHi = '#56628a', metalLo = '#222a41';
   // base plate and drop shadow
   box(g, r.x + 8, r.y + 12, r.w, r.h, 18, { fill: '#000000', fa: 0.3 });
   box(g, r.x, r.y, r.w, r.h, 18, { fill: metalLo, stroke: mix(T.line, metal, 0.5), lw: 6 });
@@ -244,7 +244,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   root.addChild(g);
   const r = PSU, u = PSU_UNIT;
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
-  const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
+  const body = mix(T.sub, T.tile, 0.45);
   const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer';
   // the shroud is part of the case: cream pressed steel in the OEM tower, black in the matte case, charcoal with an RGB strip in the
   // gaming case, a dark plate with a silver rim and a honeycomb in the showcase
@@ -256,20 +256,20 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   box(g, sh.x + 8, sh.y + 14, sh.w, sh.h, 50, { fill: '#000000', fa: kind === 'oem' ? 0.12 : 0.22 });
   if (kind === 'gamer') g.poly([sh.x + 160, sh.y, sh.x + sh.w, sh.y, sh.x + sh.w, sh.y + sh.h, sh.x, sh.y + sh.h, sh.x, sh.y + 160]).fill(shroud).stroke({ width: 8, color: rim, alpha: 0.9 });
   else box(g, sh.x, sh.y, sh.w, sh.h, kind === 'oem' ? 20 : 50, { fill: shroud, stroke: rim, lw: kind === 'show' ? 12 : 8, sa: 0.9 });
-  if (kind !== 'oem') g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.28 });
+  if (kind !== 'oem') g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: 0.06 });
   if (kind === 'gamer') for (const [k, col] of ['#ff4d6d', '#ffb84d', '#7dff4d', '#4dd2ff', '#6a4dff', '#ff4dd2'].entries()) g.rect(sh.x + 200 + (k * (sh.w - 400)) / 6, sh.y + sh.h - 30, (sh.w - 400) / 6 + 1, 8).fill(col);
   else if (kind === 'show') g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
   for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: kind === 'show' ? '#c9d1de' : kind === 'oem' ? '#b7b08f' : T.line, stroke: T.mute, lw: 4, sa: 0.4 });
   {
     const v = VENTS;
     if (v.w >= 300) {
-      const dark = kind === 'oem' ? mix(shroud, '#000000', 0.35) : T.dark ? '#02040a' : mix(shroud, '#000000', 0.4);
+      const dark = kind === 'oem' ? mix(shroud, '#000000', 0.35) : '#02040a';
       box(g, v.x, v.y, v.w, v.h, 24, { fill: dark, fa: kind === 'oem' ? 0.5 : 0.55, stroke: rim, lw: 4, sa: 0.5 });
       if (kind === 'show') hexes(g, { x: v.x + 30, y: v.y + 30, w: v.w - 60, h: v.h - 60 }, 36, 8);
       else if (kind === 'gamer') slots(g, { x: v.x + 40, y: v.y + 50, w: v.w - 100, h: v.h - 100 }, Math.max(4, Math.floor(v.w / 110)), 60);
       else if (kind === 'matte') for (let y = v.y + 70; y < v.y + v.h - 50; y += 90) g.roundRect(v.x + 60, y, v.w - 120, 26, 13);
       else for (let y = v.y + 50; y < v.y + v.h - 30; y += 56) for (let x = v.x + 50 + (Math.round((y - v.y) / 56) % 2) * 28; x < v.x + v.w - 30; x += 56) g.circle(x, y, 13);
-      g.fill({ color: T.dark || kind === 'oem' ? '#000000' : mix(shroud, '#000000', 0.55), alpha: 0.8 });
+      g.fill({ color: '#000000', alpha: 0.8 });
     }
   }
   // readout panel frame (live content is drawn by Live)
@@ -287,7 +287,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   // the PSU unit: its own box, bolted to the case, with a seam between it and the shroud
   box(g, u.x + 10, u.y + 18, u.w, u.h, 40, { fill: '#000000', fa: 0.25 });
   box(g, u.x, u.y, u.w, u.h, 40, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
-  g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
+  g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: 0.07 });
   for (const sx of [u.x + 56, u.x + u.w - 56]) for (const sy of [u.y + 56, u.y + u.h - 56]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.5 });
   // the intake fan: it sits in the unit's bottom face, so this side view shows it edge-on (a housing along the floor); the blades slide along it.
   // The two cheapest PSUs are passive: a plain vent slit there instead.
@@ -302,11 +302,11 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
     if (PSU_REAR_FAN) { rearFan = new EdgeFan(PSU_REAR_FAN, T); root.addChild(rearFan); }
   } else {
     for (let k = 0; k < 6; k++) g.moveTo(slab.x + 60, slab.y + k * 18).lineTo(slab.x + slab.w - 60, slab.y + k * 18);
-    g.stroke({ width: 8, color: T.dark ? '#02040a' : mix(body, '#000000', 0.4), cap: 'round', alpha: 0.7 });
+    g.stroke({ width: 8, color: '#02040a', cap: 'round', alpha: 0.7 });
   }
   // the rest of the unit above it is closed metal: a few slits on its upper half, and the intake arrows below
   for (let k = 0; k < 5; k++) g.moveTo(u.x + 330, u.y + 110 + k * 60).lineTo(u.x + 1130, u.y + 110 + k * 60);
-  g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.6 });
+  g.stroke({ width: 14, color: '#02040a', cap: 'round', alpha: 0.6 });
   // label plate: model and rated capacity, and the efficiency badge
   {
     const l = PSU_LABEL;
@@ -344,10 +344,10 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
   root.addChild(g);
   const W = 2100, H = 1500;
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
-  const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
+  const body = mix(T.sub, T.tile, 0.45);
   box(g, 18, 26, W, H, 80, { fill: '#000000', fa: 0.28 });
   box(g, 0, 0, W, H, 80, { fill: body, stroke: accent, lw: 12, sa: 0.9 });
-  g.rect(40, 24, W - 80, 16).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
+  g.rect(40, 24, W - 80, 16).fill({ color: '#ffffff', alpha: 0.07 });
   // fan grill
   const fx = 640, fy = H / 2, fr = 470;
   disc(g, fx, fy, fr + 70, { fill: T.die, stroke: T.line, lw: 10 });
@@ -368,7 +368,7 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
   root.addChild(label('WATTS', l.x + l.w - 40, l.y + 560, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
   // vents and the output sockets along the bottom edge
   for (let y = 880; y < 1180; y += 56) g.moveTo(1250, y).lineTo(1990, y);
-  g.stroke({ width: 16, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
+  g.stroke({ width: 16, color: '#02040a', cap: 'round', alpha: 0.7 });
   for (const [x, w] of [[1260, 200], [1500, 230], [1780, 200]] as const) {
     box(g, x, H - 170, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
     for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x + 24 + k * 26, H - 150, 14, 38);
@@ -386,7 +386,7 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
   root.position.set(MONITOR.x, MONITOR.y); root.scale.set(MONITOR_K);
   const m = { x: 0, y: 0, w: 3300, h: 1995 }, s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
-  const shell = gfx ? (T.dark ? '#141c30' : '#26334a') : T.dark ? '#171d2b' : '#2a313f', shellHi = mix(shell, '#ffffff', T.dark ? 0.1 : 0.14), shellLo = mix(shell, '#000000', 0.35);
+  const shell = gfx ? '#141c30' : '#171d2b', shellHi = mix(shell, '#ffffff', 0.1), shellLo = mix(shell, '#000000', 0.35);
   const cx = m.x + m.w / 2, by = m.y + m.h;
   // ---- the stand: a flat oval base on a rubber strip, a neck that fans out to a hinge under the bezel (lit on the left, shaded on the right) ----
   box(g, cx - 780, by + 345, 1560, 90, 45, { fill: '#000000', fa: 0.22 });
@@ -402,7 +402,7 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   box(g, m.x, m.y, m.w, m.h, 80, { fill: shell, stroke: T.line, lw: 7 });
   box(g, m.x + 8, m.y + 8, m.w - 16, m.h * 0.46, 72, { fill: shellHi, fa: 0.4 });
   box(g, m.x + 8, m.y + m.h * 0.72, m.w - 16, m.h * 0.28 - 8, 72, { fill: '#000000', fa: 0.18 });
-  g.roundRect(m.x + 4, m.y + 4, m.w - 8, m.h - 8, 76).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.12 : 0.18 });
+  g.roundRect(m.x + 4, m.y + 4, m.w - 8, m.h - 8, 76).stroke({ width: 5, color: '#ffffff', alpha: 0.12 });
   box(g, s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38, { fill: '#020406' });
   g.roundRect(s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38).stroke({ width: 4, color: '#000000', alpha: 0.6 });
   box(g, s.x, s.y, s.w, s.h, 14, { fill: SCREEN_BG });
@@ -443,7 +443,7 @@ export function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: b
   if (shape === 'hdmi') return hdmiPlug(g, T, p, accent);
   if (shape === 'rj45') return rj45Plug(g, T, p, accent);
   const r = plugRect(p);
-  const body = T.dark ? '#1b2230' : '#2c3442';
+  const body = '#1b2230';
   box(g, r.x + 6, r.y + 10, r.w, r.h, 16, { fill: '#000000', fa: 0.25 });
   box(g, r.x, r.y, r.w, r.h, 16, { fill: body, stroke: accent, lw: 6, sa: 0.9 });
   const horiz = p.dx !== 0;

@@ -17,12 +17,12 @@ const quad = (g: Graphics, pts: [number, number][], color: string, alpha = 1) =>
 /** The wall and the floor in the desk's shadow: darkest under the slab, easing toward the floor; the floor is darker under the desk too. Drawn before the floor and the desk. */
 export function drawUnderDesk(g: Graphics, T: Theme, D: DeskGeo, x0: number, x1: number) {
   const a0 = D.xAt(x0, 1), a1 = D.xAt(x1, 1), n = 14, h = (D.floor - D.yBack) / n;
-  for (let k = 0; k < n; k++) g.rect(a0, D.yBack + k * h, a1 - a0, h + 2).fill({ color: '#000000', alpha: (T.dark ? 0.62 : 0.34) * (1 - 0.45 * (k / (n - 1))) });
+  for (let k = 0; k < n; k++) g.rect(a0, D.yBack + k * h, a1 - a0, h + 2).fill({ color: '#000000', alpha: 0.62 * (1 - 0.45 * (k / (n - 1))) });
 }
 
 /** The desk's shadow on the floor (drawn over the floor and the rug, under the desk's legs): a soft footprint from the baseboard to the front. */
 export function drawDeskShadow(g: Graphics, T: Theme, D: DeskGeo, x0: number, x1: number) {
-  const a = T.dark ? 0.2 : 0.1;
+  const a = 0.2;
   for (let k = 0; k < 4; k++) {
     const grow = (3 - k) * 170, sx0 = D.xAt(x0, S_FRONT) - grow, sx1 = D.xAt(x1, S_FRONT) + grow, bx0 = D.xAt(x0, 1) - grow, bx1 = D.xAt(x1, 1) + grow, fy = D.floorFront + grow * 0.6;
     quad(g, [[bx0, D.floor], [bx1, D.floor], [sx1, fy], [sx0, fy]], '#000000', a);
@@ -37,7 +37,7 @@ function sideFace(g: Graphics, D: DeskGeo, xf: number, yTop: number, yBot: numbe
 
 export function drawDesk(g: Graphics, T: Theme, L: DeskLook, D: DeskGeo, x0: number, x1: number) {
   const P = D.P, xf0 = D.xAt(x0, S_FRONT), xf1 = D.xAt(x1, S_FRONT), yF = D.yFront, yB = D.yBottom, yFl = D.floorFront;
-  const side = mix(L.woodLo, '#000000', T.dark ? 0.35 : 0.22), sideLit = mix(L.wood, '#ffffff', T.dark ? 0.06 : 0.12);
+  const side = mix(L.woodLo, '#000000', 0.35), sideLit = mix(L.wood, '#ffffff', 0.06);
 
   // the side panel at the west end: its east face recedes to the wall, its front stands on the floor
   const pnX = xf0 + 60;
@@ -64,10 +64,10 @@ export function drawDesk(g: Graphics, T: Theme, L: DeskLook, D: DeskGeo, x0: num
   g.rect(xf0 + 8, yF + 8, xf1 - xf0 - 16, 60).fill({ color: L.woodHi, alpha: 0.7 }); // the bevel the top turns down over
   g.rect(xf0 + 8, yF + D.slab - 60, xf1 - xf0 - 16, 52).fill({ color: L.woodLo, alpha: 0.7 });
   const n = 10;
-  for (let k = 0; k < n; k++) g.rect(xf0, yB + k * 70, xf1 - xf0, 74).fill({ color: '#000000', alpha: (T.dark ? 0.3 : 0.16) * (1 - k / n) ** 2 });
+  for (let k = 0; k < n; k++) g.rect(xf0, yB + k * 70, xf1 - xf0, 74).fill({ color: '#000000', alpha: 0.3 * (1 - k / n) ** 2 });
 
   // the top: a trapezoid from the wall to the front edge, its sides running to the vanishing point; lighter toward the viewer, a grain along it
-  const top = mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.2), far = mix(L.wood, '#000000', T.dark ? 0.3 : 0.12), rows = 12;
+  const top = mix(L.wood, '#ffffff', 0.1), far = mix(L.wood, '#000000', 0.3), rows = 12;
   const at = (x: number, t: number) => D.xAt(x, 1 + (S_FRONT - 1) * t), ay = (t: number) => spreadY(P, D.yBack, 1 + (S_FRONT - 1) * t);
   for (let j = 0; j < rows; j++) {
     const t0 = j / rows, t1 = (j + 1) / rows;
@@ -78,6 +78,6 @@ export function drawDesk(g: Graphics, T: Theme, L: DeskLook, D: DeskGeo, x0: num
     g.moveTo(at(xa, t), ay(t)).lineTo(at(Math.min(xb, x1), t), ay(t)).stroke({ width: 7, color: L.woodLo, alpha: 0.2 });
   }
   g.moveTo(at(x0, 0), ay(0)).lineTo(at(x1, 0), ay(0)).stroke({ width: 12, color: '#000000', alpha: 0.35 }); // the crease against the wall
-  quad(g, [[at(x0, 0.9), ay(0.9)], [at(x1, 0.9), ay(0.9)], [xf1, yF], [xf0, yF]], '#ffffff', T.dark ? 0.06 : 0.16); // the front edge catches more light
+  quad(g, [[at(x0, 0.9), ay(0.9)], [at(x1, 0.9), ay(0.9)], [xf1, yF], [xf0, yF]], '#ffffff', 0.06); // the front edge catches more light
   for (const x of [x0, x1]) g.moveTo(at(x, 0), ay(0)).lineTo(at(x, 1), ay(1)).stroke({ width: 8, color: L.edge, alpha: 0.35 }); // its two side edges
 }

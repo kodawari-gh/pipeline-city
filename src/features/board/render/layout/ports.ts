@@ -13,27 +13,25 @@ import type { Theme } from '@/core/render/theme';
 
 /** Metals and rubber for a theme: dimmer in the dark theme so a port never outshines the board. */
 export function metalOf(T: Theme) {
-  return T.dark
-    ? { hi: '#93a0be', mid: '#5f6b88', lo: '#384259', rim: '#aab6d4', hole: '#04060b', rubber: '#0a0e17' }
-    : { hi: '#f3f6fb', mid: '#bcc7d9', lo: '#8794ad', rim: '#56648a', hole: '#1c2332', rubber: '#2a3142' };
+  return { hi: '#93a0be', mid: '#5f6b88', lo: '#384259', rim: '#aab6d4', hole: '#04060b', rubber: '#0a0e17' };
 }
 
-const shadowA = (T: Theme) => (T.dark ? 0.42 : 0.24);
+const shadowA = () => 0.42;
 
 /** A lit metal block: contact shadow, body, a bright band along the top and a shaded band along the bottom. */
 export function metalBlock(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, r: number, o: { fill?: string; shadow?: boolean } = {}) {
   const m = metalOf(T), band = Math.max(4, h * 0.2);
-  if (o.shadow !== false) box(g, x + 4, y + 9, w, h, r, { fill: '#000000', fa: shadowA(T) });
+  if (o.shadow !== false) box(g, x + 4, y + 9, w, h, r, { fill: '#000000', fa: shadowA() });
   box(g, x, y, w, h, r, { fill: o.fill ?? m.mid, stroke: m.rim, lw: 4, sa: 0.85 });
-  g.rect(x + r * 0.6, y + 4, w - r * 1.2, band).fill({ color: m.hi, alpha: T.dark ? 0.55 : 0.8 });
+  g.rect(x + r * 0.6, y + 4, w - r * 1.2, band).fill({ color: m.hi, alpha: 0.55 });
   g.rect(x + r * 0.6, y + h - band - 4, w - r * 1.2, band).fill({ color: m.lo, alpha: 0.55 });
 }
 
 /** The wall's inner shield sheet: a metal strip in the wall's plane, the opening every rear connector passes through. */
 export function shieldSheet(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
   const m = metalOf(T);
-  box(g, x, y, w, h, 20, { fill: mix(m.mid, T.bg, T.dark ? 0.45 : 0.3), stroke: m.rim, lw: 5, sa: 0.55 });
-  g.rect(x + 8, y + 12, 10, h - 24).fill({ color: m.hi, alpha: T.dark ? 0.18 : 0.4 });         // the lit rear edge
+  box(g, x, y, w, h, 20, { fill: mix(m.mid, T.bg, 0.45), stroke: m.rim, lw: 5, sa: 0.55 });
+  g.rect(x + 8, y + 12, 10, h - 24).fill({ color: m.hi, alpha: 0.18 });         // the lit rear edge
   g.rect(x + w - 18, y + 12, 10, h - 24).fill({ color: m.lo, alpha: 0.35 });                  // the shaded inner edge
 }
 
@@ -87,9 +85,9 @@ export function portProfile(g: Graphics, T: Theme, p: IoPort, fitted: boolean, o
       const pts = up
         ? [x, y0 + cc, x + cc, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc]
         : [x, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc];
-      box(g, x + 4, y0 + 9, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+      box(g, x + 4, y0 + 9, w, h, 8, { fill: '#000000', fa: shadowA() });
       g.poly(pts).fill({ color: m.mid }).stroke({ width: 5, color: m.rim, alpha: 0.85 });                        // the D-shaped shell
-      g.rect(x + cc, y0 + 5, w - cc - 8, h * 0.2).fill({ color: m.hi, alpha: T.dark ? 0.55 : 0.8 });
+      g.rect(x + cc, y0 + 5, w - cc - 8, h * 0.2).fill({ color: m.hi, alpha: 0.55 });
       g.rect(x + cc, y0 + h - h * 0.2 - 5, w - cc - 8, h * 0.2).fill({ color: m.lo, alpha: 0.55 });
       g.rect(x + 36, p.y - 3, w - 100, 6).fill({ color: m.lo, alpha: 0.7 });                                       // the seam
       if (w > 200) box(g, x + w - 56, y0 + 8, 56, h - 16, 5, { fill: mix(m.rubber, m.mid, 0.3), stroke: m.rim, lw: 3, sa: 0.5 }); // the plastic insulator at the back
@@ -128,20 +126,20 @@ function local(p: PlugPose) {
 function lit(g: Graphics, T: Theme, L: ReturnType<typeof local>, u0: number, v0: number, u1: number, v1: number, r: number, fill: string, edge: string, sa = 0.85) {
   const [x, y, w, h] = L.rect(u0, v0, u1, v1);
   box(g, x, y, w, h, r, { fill, stroke: edge, lw: 4, sa });
-  g.rect(x + r * 0.5, y + 3, Math.max(0, w - r), Math.max(3, h * 0.16)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.32 });
+  g.rect(x + r * 0.5, y + 3, Math.max(0, w - r), Math.max(3, h * 0.16)).fill({ color: '#ffffff', alpha: 0.1 });
 }
 
 /** The HDMI plug: a D-shaped metal shell at the nose, a plastic overmould with grip ridges and a coloured band, and a tapered boot onto the cable. */
 export function hdmiPlug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
   const m = metalOf(T), L = local(p), hs = p.w * 0.37, cc = 22;
-  const body = T.dark ? '#1b2230' : '#2c3442';
+  const body = '#1b2230';
   // contact shadow of the whole plug, below and to the right
   const [sx, sy, sw, sh] = L.rect(0, -p.w / 2, p.l, p.w / 2);
-  box(g, sx + 6, sy + 10, sw, sh, 16, { fill: '#000000', fa: shadowA(T) * 0.7 });
+  box(g, sx + 6, sy + 10, sw, sh, 16, { fill: '#000000', fa: shadowA() * 0.7 });
   // the shell
   g.poly(L.poly([[0, -hs + cc], [cc, -hs], [p.l * 0.5, -hs], [p.l * 0.5, hs], [cc, hs], [0, hs - cc]])).fill({ color: m.mid }).stroke({ width: 5, color: m.rim, alpha: 0.85 });
   const bt = hs * 0.4, [bx, by, bw, bh] = L.rect(cc, -hs + 5, p.l * 0.5 - 6, -hs + 5 + bt);
-  g.rect(bx, by, bw, bh).fill({ color: m.hi, alpha: T.dark ? 0.5 : 0.8 });
+  g.rect(bx, by, bw, bh).fill({ color: m.hi, alpha: 0.5 });
   const [cx, cy, cw, ch] = L.rect(cc, hs - 5 - bt, p.l * 0.5 - 6, hs - 5);
   g.rect(cx, cy, cw, ch).fill({ color: m.lo, alpha: 0.5 });
   // the overmould, its grip ridges and the colour band
@@ -160,9 +158,9 @@ export function hdmiPlug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
 
 /** The RJ45 plug: clear plastic body with its gold blades and latch at the nose, a coloured boot behind. */
 export function rj45Plug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
-  const m = metalOf(T), L = local(p), body = T.dark ? '#aeb9d6' : '#dfe6f3';
+  const m = metalOf(T), L = local(p), body = '#aeb9d6';
   const [sx, sy, sw, sh] = L.rect(0, -p.w / 2, p.l, p.w / 2);
-  box(g, sx + 5, sy + 9, sw, sh, 10, { fill: '#000000', fa: shadowA(T) * 0.7 });
+  box(g, sx + 5, sy + 9, sw, sh, 10, { fill: '#000000', fa: shadowA() * 0.7 });
   const clear = mix(body, T.bg, 0.2), hw = p.w / 2;
   lit(g, T, L, 0, -hw, p.l * 0.64, hw, 8, clear, m.rim);
   const [cx, cy, cw, ch] = L.rect(p.l * 0.34, -hw + 10, p.l * 0.62, hw - 10);                                          // the dark cavity where the wires end
@@ -189,12 +187,12 @@ export function rj45Plug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
  * latch bump on top and the cable leaving the boot downwards. (x, y) is the middle of the socket; returns the y where the cable leaves.
  */
 export function rj45PlugEnd(g: Graphics, T: Theme, x: number, y: number, w: number, accent: string): number {
-  const m = metalOf(T), h = w * 0.74, x0 = x - w / 2, y0 = y - h / 2, clear = mix(T.dark ? '#aeb9d6' : '#dfe6f3', T.bg, 0.2), boot = sleeveOf(T);
-  box(g, x0 + 5, y0 + 9, w, h, 12, { fill: '#000000', fa: shadowA(T) * 0.8 });
+  const m = metalOf(T), h = w * 0.74, x0 = x - w / 2, y0 = y - h / 2, clear = mix('#aeb9d6', T.bg, 0.2), boot = sleeveOf(T);
+  box(g, x0 + 5, y0 + 9, w, h, 12, { fill: '#000000', fa: shadowA() * 0.8 });
   box(g, x - w * 0.2, y0 - 9, w * 0.4, 14, 4, { fill: clear, stroke: m.rim, lw: 3, sa: 0.8 });                          // the latch bump
   box(g, x0, y0, w, h, 12, { fill: clear, stroke: m.rim, lw: 4, sa: 0.85 });                                           // the clear body
   box(g, x0 + w * 0.1, y0 + h * 0.14, w * 0.8, h * 0.72, 10, { fill: boot, stroke: accent, lw: 4, sa: 0.9 });          // the boot
-  g.rect(x0 + w * 0.16, y0 + h * 0.2, w * 0.68, Math.max(3, h * 0.1)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  g.rect(x0 + w * 0.16, y0 + h * 0.2, w * 0.68, Math.max(3, h * 0.1)).fill({ color: '#ffffff', alpha: 0.1 });
   box(g, x - w * 0.19, y0 + h * 0.8, w * 0.38, h * 0.32, 8, { fill: boot, stroke: accent, lw: 3, sa: 0.8 });           // the cable's strain relief
   return y0 + h * 1.1;
 }
@@ -202,27 +200,27 @@ export function rj45PlugEnd(g: Graphics, T: Theme, x: number, y: number, w: numb
 /** The socket in the monitor's flank that the HDMI plug enters: a metal stub standing out of the bezel, its opening facing east. */
 export function monitorSocket(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
   const m = metalOf(T), cc = 14;
-  box(g, x + 4, y - h / 2 + 9, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+  box(g, x + 4, y - h / 2 + 9, w, h, 8, { fill: '#000000', fa: shadowA() });
   g.poly([x, y - h / 2, x + w - cc, y - h / 2, x + w, y - h / 2 + cc, x + w, y + h / 2 - cc, x + w - cc, y + h / 2, x, y + h / 2]).fill({ color: m.mid }).stroke({ width: 4, color: m.rim, alpha: 0.85 });
-  g.rect(x + 6, y - h / 2 + 4, w - cc - 6, Math.max(4, h * 0.18)).fill({ color: m.hi, alpha: T.dark ? 0.5 : 0.8 });
+  g.rect(x + 6, y - h / 2 + 4, w - cc - 6, Math.max(4, h * 0.18)).fill({ color: m.hi, alpha: 0.5 });
   g.rect(x + 6, y + h / 2 - Math.max(4, h * 0.18) - 4, w - cc - 6, Math.max(4, h * 0.18)).fill({ color: m.lo, alpha: 0.5 });
 }
 
 /** The socket in the monitor's underside that the HDMI plug enters from below: a metal stub standing out of the bezel, its opening facing down (x is its centre, y the bezel's lower edge). */
 export function monitorSocketDown(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
   const m = metalOf(T), cc = 14, x0 = x - w / 2, band = Math.max(4, w * 0.16);
-  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA() });
   g.poly([x0, y, x0 + w, y, x0 + w, y + h - cc, x0 + w - cc, y + h, x0 + cc, y + h, x0, y + h - cc]).fill({ color: m.mid }).stroke({ width: 4, color: m.rim, alpha: 0.85 });
-  g.rect(x0 + 4, y + 6, band, h - cc - 6).fill({ color: m.hi, alpha: T.dark ? 0.5 : 0.8 });
+  g.rect(x0 + 4, y + 6, band, h - cc - 6).fill({ color: m.hi, alpha: 0.5 });
   g.rect(x0 + w - band - 4, y + 6, band, h - cc - 6).fill({ color: m.lo, alpha: 0.5 });
 }
 
 /** The monitor's mains inlet in its underside (a black plastic block with a metal lip, opening down): the same placement as `monitorSocketDown`. */
 export function monitorInlet(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
   const m = metalOf(T), x0 = x - w / 2;
-  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA() });
   box(g, x0, y - 2, w, h + 2, 8, { fill: m.rubber, stroke: m.rim, lw: 4, sa: 0.8 });
-  g.rect(x0 + 8, y + 3, w - 16, Math.max(4, h * 0.2)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  g.rect(x0 + 8, y + 3, w - 16, Math.max(4, h * 0.2)).fill({ color: '#ffffff', alpha: 0.1 });
   metalBlock(g, T, x0 - 5, y + h - 8, w + 10, 14, 5);
 }
 
@@ -231,16 +229,16 @@ export function acInlet(g: Graphics, T: Theme, p: { x: number; y: number }, o: {
   const m = metalOf(T), h = 250, y0 = p.y - h / 2, w = o.wallW - 24;
   wallHole(g, T, o.wallX, o.wallW, y0, h);
   box(g, p.x + 4, y0 + 8, w, h - 16, 10, { fill: m.rubber, stroke: m.rim, lw: 4, sa: 0.8 });
-  g.rect(p.x + 18, y0 + 14, w - 30, Math.max(4, h * 0.12)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  g.rect(p.x + 18, y0 + 14, w - 30, Math.max(4, h * 0.12)).fill({ color: '#ffffff', alpha: 0.1 });
   metalBlock(g, T, p.x - 6, y0 - 5, 22, h + 10, 6);                                                              // the lip
   for (const dy of [-60, 0, 60]) g.rect(p.x + 24, p.y + dy - 7, w - 60, 14).fill({ color: m.hole, alpha: 0.7 }); // the pin slots, seen through the cut-away
 }
 
 /** An IEC C13 power plug in side profile, like the signal plugs (nose at (x, y), the body running away along (dx, dy)): a black overmould with grip ridges and a tapered boot. */
 export function acPlug(g: Graphics, T: Theme, p: PlugPose) {
-  const m = metalOf(T), L = local(p), body = T.dark ? '#141a26' : '#262d3a';
+  const m = metalOf(T), L = local(p), body = '#141a26';
   const [sx, sy, sw, sh] = L.rect(0, -p.w / 2, p.l, p.w / 2);
-  box(g, sx + 6, sy + 10, sw, sh, 14, { fill: '#000000', fa: shadowA(T) * 0.7 });
+  box(g, sx + 6, sy + 10, sw, sh, 14, { fill: '#000000', fa: shadowA() * 0.7 });
   lit(g, T, L, 0, -p.w * 0.42, p.l * 0.22, p.w * 0.42, 8, mix(body, m.mid, 0.25), m.rim);                      // the nose, a shade lighter
   lit(g, T, L, p.l * 0.2, -p.w / 2, p.l * 0.8, p.w / 2, 14, body, m.rim, 0.8);                                  // the body
   for (let k = 0; k < 4; k++) {

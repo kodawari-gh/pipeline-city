@@ -73,10 +73,10 @@ export function routerArt(T: Theme, visual: string, name: string): Container {
   root.addChild(g);
   root.pivot.set(ROUTER_EAST, SHELF_Y); root.position.set(ROUTER_EAST, SHELF_Y); root.scale.set(NET_K);
   const r = designRect(visual), geo = geom(visual), tone = BODY[visual] ?? BODY['router-home']!;
-  const [hi, lo] = T.dark ? tone.dark : tone.light;
+  const [hi, lo] = tone.dark;
   const brightBody = visual === 'router-home' || (visual === 'router-10g');
-  const ink = brightBody ? (T.dark && visual === 'router-10g' ? '#1a2238' : '#3a4560') : '#9eacd2';
-  box(g, r.x + 10, r.y + 18, r.w, r.h, tone.rad, { fill: '#000000', fa: T.dark ? 0.34 : 0.16 });
+  const ink = brightBody ? (visual === 'router-10g' ? '#1a2238' : '#3a4560') : '#9eacd2';
+  box(g, r.x + 10, r.y + 18, r.w, r.h, tone.rad, { fill: '#000000', fa: 0.34 });
   if (visual === 'router-core') {
     // rack unit: mounting ears with screw holes
     for (const ex of [r.x - 70, r.x + r.w]) {
@@ -85,7 +85,7 @@ export function routerArt(T: Theme, visual: string, name: string): Container {
     }
   }
   g.roundRect(r.x, r.y, r.w, r.h, tone.rad).fill(vgrad(hi, lo)).stroke({ width: 6, color: T.line, alpha: 0.9 });
-  g.roundRect(r.x + 18, r.y + 8, r.w - 36, 12, 6).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.55 });
+  g.roundRect(r.x + 18, r.y + 8, r.w - 36, 12, 6).fill({ color: '#ffffff', alpha: 0.12 });
   if (visual === 'router-10g') for (let y = r.y + 30; y < r.y + r.h - 20; y += 26) g.moveTo(r.x + 14, y).lineTo(r.x + r.w - 14, y);
   if (visual === 'router-10g') g.stroke({ width: 3, color: '#ffffff', alpha: 0.07 });
   if (visual === 'router-gbe') g.rect(r.x + 40, r.y + r.h - 18, r.w - 80, 5).fill({ color: T.alu, alpha: 0.55 });
@@ -125,9 +125,9 @@ export function wallArt(T: Theme, isp: { id: string; name: string; downMbps: num
   // drawn at design size (460 x 420) with its bottom-left corner on the plate's baseline (`WALL_Y`, under the desk), then scaled about that corner
   root.position.set(WALL_PLATE.x, WALL_Y); root.scale.set(NET_K);
   const p = { x: 0, y: -420, w: 460, h: 420 }, cx = p.x + p.w / 2;
-  const [hi, lo] = T.dark ? ['#3a4560', '#252d44'] : ['#f1f4f9', '#cbd4e4'];
-  const ink = T.dark ? '#dfe7ff' : '#26324f';
-  box(g, p.x + 10, p.y + 16, p.w, p.h, 36, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
+  const [hi, lo] = ['#3a4560', '#252d44'];
+  const ink = '#dfe7ff';
+  box(g, p.x + 10, p.y + 16, p.w, p.h, 36, { fill: '#000000', fa: 0.32 });
   g.roundRect(p.x, p.y, p.w, p.h, 36).fill(vgrad(hi, lo)).stroke({ width: 6, color: T.line, alpha: 0.9 });
   for (const sx of [p.x + 48, p.x + p.w - 48]) { disc(g, sx, p.y + 46, 14, { fill: mix(lo, '#000000', 0.25) }); g.moveTo(sx - 8, p.y + 46).lineTo(sx + 8, p.y + 46).stroke({ width: 3, color: '#000000', alpha: 0.4 }); }
   const tier = isp ? Number(/\d+$/.exec(isp.id)?.[0] ?? 0) : 0;
@@ -149,7 +149,7 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
   root.addChild(g);
   const r = nicRect(i, visual), y = nicY(i), jack = nicJack(i), L = NIC_LEN[visual] ?? 1500;
   const x0 = BD.x;
-  const pcb = T.dark ? '#103848' : '#8fc7c2';
+  const pcb = '#103848';
   box(g, x0 + 10, y - 98 + 16, L, 196, 14, { fill: '#000000', fa: 0.3 });
   box(g, x0, y - 98, L, 196, 14, { fill: pcb, stroke: T.alu, lw: 6, sa: 0.55 });
   // gold edge fingers over the slot
@@ -163,20 +163,20 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
   if (visual !== 'nic-gbe') {
     const big = visual === 'nic-40g';
     const hs = big ? { x: x0 + 560, y: y - 86, w: 820, h: 172 } : { x: x0 + 560, y: y - 76, w: 520, h: 152 };
-    const metal = T.dark ? '#7d89a4' : '#b9c3d8';
+    const metal = '#7d89a4';
     box(g, hs.x, hs.y, hs.w, hs.h, 8, { fill: metal, stroke: T.line, lw: 4 });
     for (let x = hs.x + 22; x < hs.x + hs.w - 14; x += 26) g.moveTo(x, hs.y + 10).lineTo(x, hs.y + hs.h - 10);
     g.stroke({ width: 7, color: '#000000', alpha: 0.28 });
     if (big) {
       // heat pipe to the controller, and a second small sink at the end
-      g.moveTo(chip.x + chip.w, y).lineTo(hs.x, y).stroke({ width: 16, color: T.dark ? '#c4864a' : '#b4712f', cap: 'round' });
+      g.moveTo(chip.x + chip.w, y).lineTo(hs.x, y).stroke({ width: 16, color: '#c4864a', cap: 'round' });
       box(g, hs.x + hs.w + 40, y - 56, 300, 112, 8, { fill: metal, stroke: T.line, lw: 4 });
       for (let x = hs.x + hs.w + 62; x < hs.x + hs.w + 330; x += 24) g.moveTo(x, y - 46).lineTo(x, y + 46);
       g.stroke({ width: 6, color: '#000000', alpha: 0.28 });
     }
   }
   // bracket on the board edge and the jack that pokes out of it (mouth faces west)
-  box(g, NIC_BRACKET_X, y - 120, 30, 240, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
+  box(g, NIC_BRACKET_X, y - 120, 30, 240, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
   portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: jack.x, y, w: jack.w, h: jack.h }, true, { wallX: IO_X, wallW: WALL_T }); // the jack, in the same side profile as the board's own
   for (const w of nicLeds(i)) disc(g, w.x, w.y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
   root.addChild(label(visual === 'nic-gbe' ? 'GbE' : visual === 'nic-10g' ? '10G' : '40G', x0 + 90, y - 50, 44, T.alu, { head: true, a: 0.85 }));

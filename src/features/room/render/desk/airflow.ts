@@ -372,7 +372,7 @@ export class AirflowLens {
     const m = this.model!, T = this.T, z = v.z, px = (n: number) => n / z;
     this.t += dt;
     const left = v.x - v.cx / z, top = v.y - v.cy / z, w = v.w / z, h = v.h / z, g = this.g;
-    this.dim.clear().rect(left, top, w, h).fill({ color: T.dark ? '#02040a' : '#10182b', alpha: T.dark ? 0.78 : 0.62 });
+    this.dim.clear().rect(left, top, w, h).fill({ color: '#02040a', alpha: 0.78 });
     g.clear();
 
     // the glow of every warm part follows its own outline: soft rounded halos grow out of the part's rect (a stick of RAM glows long and thin,

@@ -56,37 +56,37 @@ export interface Palette {
 /** `mask`: the solder mask's own colour (a board tier's skin); the rest of the palette is mixed from it. */
 export function makePalette(T: Theme, mask?: string): Palette {
   const mix = (a: string, b: string, t: number) => mixHex(a, b, t);
-  const board = mask ?? (T.dark ? mix(T.board, T.bg, 0.3) : mix(mix(T.board, '#ffffff', 0.12), '#c9ddd0', 0.3)); // the light board is a calm sage, not a teal wash
+  const board = mask ?? mix(T.board, T.bg, 0.3);
   if (mask) {
     // a real board's colours: copper under the mask is the mask a shade lighter (a pale mask a shade deeper, or it would not show), a black mask needs the most;
     // the parts are black plastic whatever the mask
-    const ink = T.dark ? '#0d0f13' : '#1c1f25', v = rgb(board) ?? [0, 0, 0], lum = (0.3 * v[0]! + 0.59 * v[1]! + 0.11 * v[2]!) / 255;
+    const ink = '#0d0f13', v = rgb(board) ?? [0, 0, 0], lum = (0.3 * v[0]! + 0.59 * v[1]! + 0.11 * v[2]!) / 255;
     const tone = (k: number) => (lum > 0.5 ? mix(board, '#000000', k * 0.7) : mix(board, '#ffffff', lum < 0.12 ? k * 1.4 : k));
     return {
       board,
-      edge: mix(board, '#000000', T.dark ? 0.42 : 0.3),
+      edge: mix(board, '#000000', 0.42),
       trace: tone(0.2), pour: tone(0.1), tent: tone(0.3),
-      copper: mix(board, T.pin, T.dark ? 0.32 : 0.45),
+      copper: mix(board, T.pin, 0.32),
       via: mix(board, T.pin, 0.5),
       sub: mix(ink, board, 0.2),
       dark: mix(board, '#000000', 0.62),
-      silk: mix(board, T.ink, T.dark ? 0.3 : 0.55),
-      silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.75),
+      silk: mix(board, T.ink, 0.3),
+      silkHi: mix(board, T.ink, 0.5),
       panel: mix(ink, board, 0.28),
     };
   }
   return {
     board,
-    edge: mix(board, T.line, T.dark ? 0.9 : 0.55),
-    trace: mix(board, T.trace, T.dark ? 0.5 : 0.62),
+    edge: mix(board, T.line, 0.9),
+    trace: mix(board, T.trace, 0.5),
     pour: mix(board, T.trace, 0.25), tent: mix(board, T.trace, 0.7),
-    copper: mix(board, T.pin, T.dark ? 0.32 : 0.45),
+    copper: mix(board, T.pin, 0.32),
     via: mix(board, T.pin, 0.5),
-    sub: mix(board, T.sub, T.dark ? 0.75 : 0.7),
-    dark: T.dark ? mix(board, T.bg, 0.55) : mix(board, T.ink, 0.3),
-    silk: mix(board, T.ink, T.dark ? 0.3 : 0.55),
-    silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.75),
-    panel: mix(board, T.tile, T.dark ? 0.55 : 0.5),
+    sub: mix(board, T.sub, 0.75),
+    dark: mix(board, T.bg, 0.55),
+    silk: mix(board, T.ink, 0.3),
+    silkHi: mix(board, T.ink, 0.5),
+    panel: mix(board, T.tile, 0.55),
   };
 }
 

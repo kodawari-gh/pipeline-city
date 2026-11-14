@@ -188,15 +188,10 @@ interface Look {
   wall: string; wallLo: string; wood: string; woodHi: string; woodLo: string; edge: string; line: string;
   paper: string; ink: string; cork: string; metal: string; metalLo: string; plastic: string; plasticLo: string; cloth: string;
 }
-const look = (T: Theme): Look => T.dark
-  ? {
+const look = (T: Theme): Look => ({
     wall: '#121a31', wallLo: '#0d1327', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
     paper: '#aeb8d4', ink: '#2b3560', cork: '#5a4634', metal: '#7d8bb0', metalLo: '#4a5679', plastic: '#2a3252', plasticLo: '#1b2140', cloth: '#5a4a86',
-  }
-  : {
-    wall: '#d3e3ea', wallLo: '#c0d3de', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
-    paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', cloth: '#7a63c4',
-  };
+  });
 
 /** A soft shadow of a thing standing on the desk top, on the top (three ellipses, each smaller and darker; a little toward the viewer and the east, away from the lamp and the window). */
 const shadow = (g: Graphics, x: number, y: number, w: number, a = 0.3) => {
@@ -204,7 +199,7 @@ const shadow = (g: Graphics, x: number, y: number, w: number, a = 0.3) => {
 };
 
 /** The clock's LED colour. */
-const ledColor = (T: Theme) => (T.dark ? '#ffa54a' : '#d9421f');
+const ledColor = (T: Theme) => '#ffa54a';
 /** The four digits' top-left corners (world), a colon between the second and the third. */
 const clockDigits = (c: Rect): [number, number][] => [310, 930, 1630, 2250].map((dx) => [c.x + dx, c.y + 160] as [number, number]);
 const DIGIT_W = 480, DIGIT_H = 780;
@@ -231,16 +226,16 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
   const pcPlug = { x: PC_POWER.x - 6, y: PC_POWER.y, dx: -1, dy: 0, w: 190, l: 330 };
   acPlug(back, T, pcPlug); // (the cord itself, and the plugs in the wall, are live: `cords.ts`)
   // the socket: two Swiss outlets (`swiss.ts`), each on its own square white plate with rounded corners, a round collar, the shield-shaped recess with its three round holes and the fixing screw
-  const plate = T.dark ? '#e6e8ee' : '#f6f6f2', edge = T.dark ? '#f5f6fa' : '#cfd1d6', hollow = T.dark ? '#c8ccd7' : '#e6e6e2', hole = '#1a1d25';
+  const plate = '#e6e8ee', edge = '#f5f6fa', hollow = '#c8ccd7', hole = '#1a1d25';
   for (const o of [s.mon, s.pc]) {
     const q = PLATE_Q;
     front.roundRect(o.x - q + 14, o.y - q + 22, 2 * q, 2 * q, 70).fill({ color: '#000000', alpha: 0.3 });
     front.roundRect(o.x - q, o.y - q, 2 * q, 2 * q, 70).fill({ color: plate }).stroke({ width: 6, color: edge, alpha: 0.9 });
-    front.roundRect(o.x - q + 22, o.y - q + 12, 2 * q - 44, 30, 15).fill({ color: '#ffffff', alpha: T.dark ? 0.3 : 0.7 }); // the lit top edge
+    front.roundRect(o.x - q + 22, o.y - q + 12, 2 * q - 44, 30, 15).fill({ color: '#ffffff', alpha: 0.3 }); // the lit top edge
     front.circle(o.x + 10, o.y + 14, COLLAR_R).fill({ color: '#000000', alpha: 0.16 }); // the collar stands proud: a soft shadow below right
     front.circle(o.x, o.y, COLLAR_R).fill({ color: mix(plate, '#ffffff', 0.35) }).stroke({ width: 5, color: mix(plate, '#000000', 0.2), alpha: 0.55 });
-    front.circle(o.x, o.y, COLLAR_R - 14).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.25 : 0.8 });
-    front.poly(recessPoly(o.x + 4, o.y + 5)).fill({ color: '#ffffff', alpha: T.dark ? 0.3 : 0.8 }); // the recess's lit lower edge
+    front.circle(o.x, o.y, COLLAR_R - 14).stroke({ width: 3, color: '#ffffff', alpha: 0.25 });
+    front.poly(recessPoly(o.x + 4, o.y + 5)).fill({ color: '#ffffff', alpha: 0.3 }); // the recess's lit lower edge
     front.poly(recessPoly(o.x, o.y)).fill({ color: hollow }).stroke({ width: 5, color: mix(hollow, '#000000', 0.38), alpha: 0.7 });
     for (const [dx, dy] of HOLES) { front.circle(o.x + dx, o.y + dy, 20).fill({ color: hole }); front.circle(o.x + dx - 5, o.y + dy - 6, 7).fill({ color: '#000000', alpha: 0.5 }); }
     const [sx, sy] = SCREW;
@@ -337,16 +332,15 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   drawWallShade(g, T, shell, geo.persp.vx);
   drawCrown(g, T, shell);
   // the desk's top meets the wall at its far edge: the wall just above it is a little in shadow, easing out upward (24 fine bands: a gradient, not a stripe)
-  // (in the light theme the wall's own pale blue over the tan slats read as a haze: the shadow is a warm dark there)
-  const dusk = T.dark ? L.wallLo : '#4a3a30', dk = T.dark ? 1 : 0.4, D = deskGeo(geo.persp, ys, geo.floor);
-  for (let k = 0; k < 24; k++) g.rect(-90000, D.yBack - 1700 + k * 71, 180000, 75).fill({ color: dusk, alpha: 0.5 * dk * ((k + 1) / 24) ** 2.2 });
+  const dusk = L.wallLo, D = deskGeo(geo.persp, ys, geo.floor);
+  for (let k = 0; k < 24; k++) g.rect(-90000, D.yBack - 1700 + k * 71, 180000, 75).fill({ color: dusk, alpha: 0.5 * ((k + 1) / 24) ** 2.2 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
   const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60, cuts?: Cuts) => {
     const n = 16; // enough nested rects that no ring shows
     for (let k = 0; k < n; k++) {
       const e = spread * (1 - k / (n - 1));
       if (cuts) g.poly(cutRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, growCuts(cuts, e))); else g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e);
-      g.fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / n });
+      g.fill({ color: '#000000', alpha: a / n });
     }
   };
   cast(MONITOR, 520, 420, 460, 0.42, 300);
@@ -358,10 +352,10 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   // what stands on the desk throws its shadow on the wall behind it too: the plant, the mug and the lamp's arms and hood
   cast({ x: geo.mug - MUG.r, y: ys - MUG.h, w: MUG.r * 2, h: MUG.h }, 300, 220, 200, 0.3, 200);
   {
-    const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth, dx = 520, dy = 380, k = T.dark ? 1 : 0.6;
+    const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth, dx = 520, dy = 380;
     const nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
-    for (const [w, a] of [[420, 0.07], [300, 0.08], [190, 0.1]] as const) g.moveTo(p0.x + dx, p0.y + dy).lineTo(el.x + dx, el.y + dy).lineTo(hd.x + dx, hd.y + dy).stroke({ width: w, color: '#000000', alpha: a * k, cap: 'round', join: 'round' });
-    for (const grow of [1.5, 1.25, 1]) g.poly([hd.x + nx * nk * grow + dx, hd.y + ny * nk * grow + dy, mo.x + nx * hw * grow + dx, mo.y + ny * hw * grow + dy, mo.x - nx * hw * grow + dx, mo.y - ny * hw * grow + dy, hd.x - nx * nk * grow + dx, hd.y - ny * nk * grow + dy]).fill({ color: '#000000', alpha: 0.05 * k });
+    for (const [w, a] of [[420, 0.07], [300, 0.08], [190, 0.1]] as const) g.moveTo(p0.x + dx, p0.y + dy).lineTo(el.x + dx, el.y + dy).lineTo(hd.x + dx, hd.y + dy).stroke({ width: w, color: '#000000', alpha: a, cap: 'round', join: 'round' });
+    for (const grow of [1.5, 1.25, 1]) g.poly([hd.x + nx * nk * grow + dx, hd.y + ny * nk * grow + dy, mo.x + nx * hw * grow + dx, mo.y + ny * hw * grow + dy, mo.x - nx * hw * grow + dx, mo.y - ny * hw * grow + dy, hd.x - nx * nk * grow + dx, hd.y - ny * nk * grow + dy]).fill({ color: '#000000', alpha: 0.05 });
   }
 
   // the router shelf: a plank on two brackets, the wall plate above it on the left (both drawn by the network layer)
@@ -370,7 +364,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   g.rect(sx0 + 14, sy + 14, sx1 - sx0 - 28, 16).fill({ color: L.woodHi, alpha: 0.8 });
   // (two braces under the plank, seen from the front: a slim metal strip each with a lit edge and two screws, and the dark under the plank on the wall)
   for (const bx of [sx0 + 360, sx1 - 440]) {
-    g.rect(bx + 22, sy + 170, 90, 320).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.14 });
+    g.rect(bx + 22, sy + 170, 90, 320).fill({ color: '#000000', alpha: 0.3 });
     g.rect(bx, sy + 170, 90, 300).fill({ color: L.metalLo }).stroke({ width: 5, color: L.edge, alpha: 0.5 });
     g.rect(bx + 6, sy + 176, 26, 288).fill({ color: '#ffffff', alpha: 0.22 });
     for (const dy of [70, 230]) g.circle(bx + 45, sy + 170 + dy, 15).fill({ color: L.metal }).stroke({ width: 3, color: L.metalLo });
@@ -379,9 +373,9 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
 
   // the window: a recess in the wall, the glass (live sky goes here), a frame with a cross bar and a transom, a sill
   const w = geo.window;
-  const frameCol = mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.45);
+  const frameCol = mix(L.wood, '#ffffff', 0.1);
   g.rect(w.x - 230, w.y - 230, w.w + 460, w.h + 460).fill({ color: L.wallLo }).stroke({ width: 10, color: L.line, alpha: 0.6 });
-  g.rect(w.x - 150, w.y - 150, w.w + 300, w.h + 150).fill({ color: mix(L.wood, '#ffffff', T.dark ? 0.08 : 0.4) }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
+  g.rect(w.x - 150, w.y - 150, w.w + 300, w.h + 150).fill({ color: mix(L.wood, '#ffffff', 0.08) }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
   g.rect(w.x, w.y, w.w, w.h).fill({ color: '#0a0f24' });
   const gf = new Graphics(); // the frame over the glass and the live sky
   gf.rect(w.x + w.w / 2 - 65, w.y, 130, w.h).fill({ color: frameCol });
@@ -394,8 +388,8 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   {
     const P = geo.persp, k = 0.97, gx = (x: number) => P.vx + (x - P.vx) * k, gy = (y: number) => P.yH + (y - P.yH) * k, x1 = w.x + w.w, y1 = w.y + w.h;
     const face = (pts: [number, number][], col: string, a = 0.96) => gf.poly(pts.flat()).fill({ color: col, alpha: a });
-    if (gx(w.x) > w.x) face([[w.x, w.y], [w.x, y1], [gx(w.x), gy(y1)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', T.dark ? 0.2 : 0.32));
-    if (gy(w.y) > w.y) face([[w.x, w.y], [x1, w.y], [Math.min(x1, gx(x1)), gy(w.y)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', T.dark ? 0.45 : 0.4)); // (the glass is set back: the opening's far side clips it)
+    if (gx(w.x) > w.x) face([[w.x, w.y], [w.x, y1], [gx(w.x), gy(y1)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', 0.2));
+    if (gy(w.y) > w.y) face([[w.x, w.y], [x1, w.y], [Math.min(x1, gx(x1)), gy(w.y)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', 0.45)); // (the glass is set back: the opening's far side clips it)
     if (gx(x1) < x1) face([[x1, w.y], [x1, y1], [gx(x1), gy(y1)], [gx(x1), gy(w.y)]], mix(L.wallLo, '#ffffff', 0.1));
     if (gy(y1) < y1) face([[w.x, y1], [x1, y1], [Math.min(x1, gx(x1)), gy(y1)], [gx(w.x), gy(y1)]], mix(frameCol, '#ffffff', 0.15));
   }
@@ -414,7 +408,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   // the digital clock on the wall above the case: a dark case, a dimmed "88:88" behind the lit digits (the digits are live)
   const c = geo.clock, led = ledColor(T);
   g.roundRect(c.x + 26, c.y + 40, c.w, c.h, 90).fill({ color: '#000000', alpha: 0.22 });
-  g.roundRect(c.x, c.y, c.w, c.h, 90).fill({ color: T.dark ? '#141a26' : '#262d3a' }).stroke({ width: 10, color: L.edge, alpha: 0.7 });
+  g.roundRect(c.x, c.y, c.w, c.h, 90).fill({ color: '#141a26' }).stroke({ width: 10, color: L.edge, alpha: 0.7 });
   g.roundRect(c.x + 60, c.y + 60, c.w - 120, c.h - 120, 50).fill({ color: '#06080d' });
   for (const [x, y] of clockDigits(c)) segDigit(g, x, y, 8, led, 0.1);
   g.roundRect(c.x + 80, c.y + 74, c.w - 160, 18, 9).fill({ color: '#ffffff', alpha: 0.05 });
@@ -433,7 +427,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const kr = geo.keyRack;
   for (let row = 0; row < TRAY_ROWS; row++) {
     const ry = kr.y + row * ROW_DROP, rw = kr.w - (row ? 0 : 0);
-    g.roundRect(kr.x + 16, ry + 26, rw, 360, 30).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.16 });
+    g.roundRect(kr.x + 16, ry + 26, rw, 360, 30).fill({ color: '#000000', alpha: 0.3 });
     g.roundRect(kr.x, ry, rw, 360, 30).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.85 });
     g.roundRect(kr.x + 14, ry + 12, rw - 28, 20, 10).fill({ color: L.woodHi, alpha: 0.8 });
     for (let k = 0; k < 4; k++) g.rect(kr.x + 40, ry + 70 + ((k * 2654435761 + row * 977) % 1000) / 1000 * 230, rw - 80, 6).fill({ color: L.woodLo, alpha: 0.22 });
@@ -442,21 +436,21 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (let i = 0; i < TRAY_COLS * TRAY_ROWS; i++) {
     const h = trayHook(i);
     // a peg in the rail seen end-on: a grey dot (the lanyard hangs from it); a hook's bend would not read at this distance
-    const peg = T.dark ? '#8b93a6' : '#8a919f';
+    const peg = '#8b93a6';
     g.circle(h.x + 8, h.y + 10, 30).fill({ color: '#000000', alpha: 0.25 });
     g.circle(h.x, h.y, 30).fill({ color: peg }).stroke({ width: 5, color: mix(peg, '#000000', 0.35) });
     g.circle(h.x - 8, h.y - 9, 9).fill({ color: '#ffffff', alpha: 0.4 });
   }
   // ---- the letterbox: a red wall box with a slot in its top, between the router's shelf and the case ----
-  const ob = OUTBOX, red = T.dark ? '#8e2f38' : '#c24c55', redHi = mix(red, '#ffffff', T.dark ? 0.22 : 0.3), redLo = mix(red, '#000000', 0.35);
-  g.roundRect(ob.x + 18, ob.y + 28, ob.w, ob.h, 40).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.16 });
+  const ob = OUTBOX, red = '#8e2f38', redHi = mix(red, '#ffffff', 0.22), redLo = mix(red, '#000000', 0.35);
+  g.roundRect(ob.x + 18, ob.y + 28, ob.w, ob.h, 40).fill({ color: '#000000', alpha: 0.3 });
   g.roundRect(ob.x, ob.y, ob.w, ob.h, 40).fill({ color: red }).stroke({ width: 8, color: redLo, alpha: 0.9 });
   g.roundRect(ob.x + 16, ob.y + 14, ob.w - 32, 26, 13).fill({ color: redHi, alpha: 0.7 });
   g.roundRect(ob.x + 150, ob.y + 80, ob.w - 300, 56, 20).fill({ color: '#05070c' }).stroke({ width: 6, color: redLo, alpha: 0.9 }); // the slot
   g.roundRect(ob.x + 130, ob.y + 54, ob.w - 260, 30, 12).fill({ color: redLo }); // its hood
   g.roundRect(ob.x + 80, ob.y + 330, ob.w - 160, 250, 24).fill({ color: redLo, alpha: 0.55 }); // the plate under the slot
   for (const sx of [ob.x + 60, ob.x + ob.w - 60]) for (const sy of [ob.y + 60, ob.y + ob.h - 60]) g.circle(sx, sy, 14).fill({ color: L.metal }).stroke({ width: 3, color: L.metalLo });
-  back.addChild(label('OUT', ob.x + ob.w / 2, ob.y + 455, 130, T.dark ? '#f0d9d9' : '#fff1f1', { head: true, anchor: [0.5, 0.5], a: 0.9 }));
+  back.addChild(label('OUT', ob.x + ob.w / 2, ob.y + 455, 130, '#f0d9d9', { head: true, anchor: [0.5, 0.5], a: 0.9 }));
   g.circle(ob.x + ob.w - 130, ob.y + ob.h - 100, 22).fill({ color: '#05070c' }).stroke({ width: 4, color: redLo }); // the lamp that lights when a letter goes in
   // the monitor's foot casts a little shadow on the desk
   shadow(f, MONITOR.x + MONITOR.w / 2, ys + 44, 5600, 0.32);
@@ -481,7 +475,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
  * above the things, under the light layer's dark, so the night dims it with them.
  */
 function rimArt(T: Theme, geo: RoomGeo): Graphics {
-  const g = new Graphics(), ys = geo.ys, col = T.dark ? '#e0b060' : '#a8803a', hi = mix(col, '#ffffff', 0.35), w1 = 16, w2 = 11;
+  const g = new Graphics(), ys = geo.ys, col = '#e0b060', hi = mix(col, '#ffffff', 0.35), w1 = 16, w2 = 11;
   const edge = (r: Rect, rad: number, a = 0.8, cuts?: Cuts) => {
     if (cuts) { // a chamfered box: the hairline follows the cut corners (the top, the cut top west corner and the west side are lit)
       const [tl, tr, , bl] = cuts;
@@ -723,7 +717,7 @@ export class RoomView {
     const b = this.blindG; b.clear();
     if (this.blind > 0.002) {
       const bh = w.h * this.blind;
-      b.rect(w.x, w.y, w.w, bh).fill({ color: mix(look(this.T).paper, '#6b7aa8', this.T.dark ? 0.55 : 0.18) });
+      b.rect(w.x, w.y, w.w, bh).fill({ color: mix(look(this.T).paper, '#6b7aa8', 0.55) });
       for (let y = w.y + 120; y < w.y + bh - 60; y += 160) b.rect(w.x, y, w.w, 10).fill({ color: '#000000', alpha: 0.16 });
       b.rect(w.x, w.y + bh - 60, w.w, 60).fill({ color: look(this.T).metal });
       b.rect(w.x + w.w / 2 - 36, w.y + bh - 60, 72, 140).fill({ color: look(this.T).metalLo });
@@ -731,9 +725,9 @@ export class RoomView {
   }
 
   private drawGlow(h: number) {
-    const g = this.glow, geo = this.geo, night = nightAt(h), on = this.lamp, d = this.T.dark;
+    const g = this.glow, geo = this.geo, night = nightAt(h), on = this.lamp;
     g.clear();
-    const I = on * (d ? 0.4 + 0.6 * night : 0.2 + 0.5 * night);
+    const I = on * (0.4 + 0.6 * night);
     if (I < 0.01) return;
     const mo = geo.lamp.mouth;
     // the bulb in the hood's opening and the inside it lights, all inside the lip (the light it gives, the pool and the cone, is the light layer's)

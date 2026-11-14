@@ -9,7 +9,7 @@ import type { Theme } from './theme';
 export type Pt = [number, number];
 
 /** The sleeve colour. Over the wall (dark theme) it is paler, with a halo, so it stays readable on the dark slats. */
-export const sleeveOf = (T: Theme, wall = false) => (wall && T.dark ? '#36457a' : T.dark ? '#171d29' : '#2a313d');
+export const sleeveOf = (T: Theme, wall = false) => (wall ? '#36457a' : '#171d29');
 const HALO = '#8fa3d6';
 
 export interface CableLook {
@@ -45,7 +45,7 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
   if (pts.length < 2) return;
   const { w, accent } = look, wall = !!look.wall;
   if (look.shadow !== false) { trace(g, pts, w * 0.14, w * 0.2); g.stroke({ width: w + Math.max(4, w * 0.08), color: '#000000', alpha: 0.28, cap: 'round', join: 'round' }); }
-  if (wall && T.dark && look.halo !== false) {
+  if (wall && look.halo !== false) {
     trace(g, pts); g.stroke({ width: w * 2.2, color: HALO, alpha: 0.12, cap: 'round', join: 'round' });
     trace(g, pts); g.stroke({ width: w * 1.5, color: HALO, alpha: 0.28, cap: 'round', join: 'round' });
   }
@@ -57,10 +57,10 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
       const nx = -dy / l, ny = dx / l, tx = dx / l, ty = dy / l, h = w * 0.46;
       g.moveTo(pts[i]![0] + nx * h - tx * w * 0.16, pts[i]![1] + ny * h - ty * w * 0.16).lineTo(pts[i]![0] - nx * h + tx * w * 0.16, pts[i]![1] - ny * h + ty * w * 0.16);
     }
-    g.stroke({ width: Math.max(3, w * 0.05), color: '#ffffff', alpha: T.dark ? 0.1 : 0.14 });
+    g.stroke({ width: Math.max(3, w * 0.05), color: '#ffffff', alpha: 0.1 });
   }
   if (w >= 20) {
-    trace(g, shifted(pts, -w * 0.24)); g.stroke({ width: Math.max(3, w * 0.12), color: '#ffffff', alpha: T.dark ? 0.12 : 0.16, cap: 'round', join: 'round' });
+    trace(g, shifted(pts, -w * 0.24)); g.stroke({ width: Math.max(3, w * 0.12), color: '#ffffff', alpha: 0.12, cap: 'round', join: 'round' });
     if (w >= 40) { trace(g, shifted(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' }); }
   }
 }
@@ -188,9 +188,9 @@ export function paintTie(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number, acce
     const cx = at[0] + tx * o, cy = at[1] + ty * o;
     g.poly([cx + nx * h - tx * th, cy + ny * h - ty * th, cx + nx * h + tx * th, cy + ny * h + ty * th, cx - nx * h + tx * th, cy - ny * h + ty * th, cx - nx * h - tx * th, cy - ny * h - ty * th]);
   };
-  quad(0, t); g.fill({ color: T.dark ? '#0b0f18' : '#1b2230' });
+  quad(0, t); g.fill({ color: '#0b0f18' });
   quad(0, t); g.stroke({ width: 3, color: accent, alpha: 0.7 });
-  quad(-t * 0.2, t * 0.28); g.fill({ color: '#ffffff', alpha: T.dark ? 0.16 : 0.22 });
+  quad(-t * 0.2, t * 0.28); g.fill({ color: '#ffffff', alpha: 0.16 });
 }
 
 /** Ties along a dense path: one at every sharp bend (where the cable would spring away) and one every `every` units on a long run. */
@@ -289,7 +289,7 @@ export function paintClip(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number) {
   const l = Math.hypot(dir[0], dir[1]) || 1, tx = dir[0] / l, ty = dir[1] / l, nx = -ty, ny = tx, h = w * 0.78 + 10, t = Math.max(10, w * 0.32);
   const q = (ox: number, oy: number, hh: number, tt: number) => g.poly([at[0] + ox + nx * hh - tx * tt, at[1] + oy + ny * hh - ty * tt, at[0] + ox + nx * hh + tx * tt, at[1] + oy + ny * hh + ty * tt, at[0] + ox - nx * hh + tx * tt, at[1] + oy - ny * hh + ty * tt, at[0] + ox - nx * hh - tx * tt, at[1] + oy - ny * hh - ty * tt]);
   q(w * 0.1, w * 0.16, h, t); g.fill({ color: '#000000', alpha: 0.28 });
-  q(0, 0, h, t); g.fill({ color: T.dark ? '#7c8db8' : '#7d889f' });
-  q(-t * 0.25, 0, h, t * 0.3); g.fill({ color: '#ffffff', alpha: T.dark ? 0.2 : 0.3 });
-  g.circle(at[0] + nx * h * 0.82, at[1] + ny * h * 0.82, Math.max(4, w * 0.09)).circle(at[0] - nx * h * 0.82, at[1] - ny * h * 0.82, Math.max(4, w * 0.09)).fill({ color: T.dark ? '#10151f' : '#4a5468' });
+  q(0, 0, h, t); g.fill({ color: '#7c8db8' });
+  q(-t * 0.25, 0, h, t * 0.3); g.fill({ color: '#ffffff', alpha: 0.2 });
+  g.circle(at[0] + nx * h * 0.82, at[1] + ny * h * 0.82, Math.max(4, w * 0.09)).circle(at[0] - nx * h * 0.82, at[1] - ny * h * 0.82, Math.max(4, w * 0.09)).fill({ color: '#10151f' });
 }

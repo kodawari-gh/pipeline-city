@@ -10,9 +10,9 @@ export const PLANT = { w: 760, h: 1500, pot: 520 };
 
 /** A little potted plant standing on the desk top at `x` (its centre), whose top is at `ys`. */
 export function drawPlant(g: Graphics, T: Theme, x: number, ys: number) {
-  const d = T.dark, pot = d ? '#7a4a3a' : '#c8744f', potHi = d ? '#965c49' : '#dd8c66', potLo = d ? '#4a2c25' : '#a05a3a', soil = d ? '#1a1210' : '#4a3626';
-  const leaf = d ? '#2f7a5a' : '#4fa876', leafHi = d ? '#3f9a72' : '#6fc794', leafLo = d ? '#1d5240' : '#2f7c56';
-  g.ellipse(x, ys + 12, PLANT.w * 0.5, 36).fill({ color: '#000000', alpha: d ? 0.35 : 0.2 });
+  const pot = '#c8744f', potHi = '#dd8c66', potLo = '#a05a3a', soil = '#4a3626';
+  const leaf = '#4fa876', leafHi = '#6fc794', leafLo = '#2f7c56';
+  g.ellipse(x, ys + 12, PLANT.w * 0.5, 36).fill({ color: '#000000', alpha: 0.2 });
   // the leaves: curved blades fanning out of the pot, each a lit side and a shaded side
   const top = ys - PLANT.pot, blades: [number, number, number][] = [[-0.62, 1.0, 0], [-0.34, 1.35, 1], [-0.1, 1.55, 0], [0.18, 1.45, 1], [0.44, 1.2, 0], [0.7, 0.9, 1], [-0.85, 0.7, 1]];
   for (const [ang, len, alt] of blades) {
@@ -34,12 +34,12 @@ export interface RugBox extends Persp { x0: number; x1: number; floor: number }
 
 /** A rug on the floor under the desk, in the room's perspective: its sides run to the vanishing point, and it has a border, stripes and a fringe. */
 export function drawRug(g: Graphics, T: Theme, B: RugBox) {
-  const d = T.dark, base = d ? '#1f3d4d' : '#6f98a8', band = d ? '#8a5a3a' : '#c98f5a', stripe = d ? '#2d5a6e' : '#8fb7c6', edge = d ? '#0e1f28' : '#4a6e7e';
+  const base = '#6f98a8', band = '#c98f5a', stripe = '#8fb7c6', edge = '#4a6e7e';
   const h = B.floor - B.yH, s0 = 1.075, s1 = 1.4, w = B.x1 - B.x0, c = (B.x0 + B.x1) / 2, half = w * 0.36;
   // a point of the rug: `t` from the wall to the viewer (0 to 1), `u` across it (-1 to 1)
   const pt = (t: number, u: number): [number, number] => { const s = s0 + (s1 - s0) * t; return [spreadX(B, c + half * u, s), spreadY(B, B.floor, s)]; };
   const quad = (a: number, b: number, color: string, alpha = 1, u = 1) => g.poly([...pt(a, -u), ...pt(a, u), ...pt(b, u), ...pt(b, -u)]).fill({ color, alpha });
-  g.poly([...pt(-0.02, -1.03), ...pt(-0.02, 1.03), ...pt(1.05, 1.06), ...pt(1.05, -1.06)]).fill({ color: '#000000', alpha: d ? 0.4 : 0.18 }); // its shadow
+  g.poly([...pt(-0.02, -1.03), ...pt(-0.02, 1.03), ...pt(1.05, 1.06), ...pt(1.05, -1.06)]).fill({ color: '#000000', alpha: 0.18 }); // its shadow
   quad(0, 1, base);
   quad(0, 0.07, band); quad(0.93, 1, band);
   for (const t of [0.22, 0.5, 0.78]) quad(t, t + 0.05, stripe);

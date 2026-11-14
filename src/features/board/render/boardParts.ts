@@ -27,7 +27,7 @@ export type Solid =
 
 /** A soft drop shadow under a part that stands off the board. */
 export function shadow(c: Ctx, x: number, y: number, w: number, h: number, r: number, off = 12, a = 0.28) {
-  const k = c.T.dark ? 1 : 0.5, s = off * 0.9;
+  const k = 1, s = off * 0.9;
   box(c.g, x + off * 0.6 - s, y + off * 1.1 - s, w + 2 * s, h + 2 * s, r + s, { fill: '#000000', fa: a * 0.4 * k }); // the soft penumbra
   box(c.g, x + off, y + off * 1.3, w, h, r, { fill: '#000000', fa: a * k });                                       // the tight core
 }
@@ -45,27 +45,27 @@ export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: num
 
 /** A mounting hole with its screw: a copper-ringed pad, the washer, a pan head with a cross slot (it threads into the case's standoff below). */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
-  const { g, P, T } = c;
+  const { g, P } = c;
   c.solid?.({ kind: 'screw', x, y, r });
   disc(g, x, y, r + 34, { fill: P.board }); // the keepout: bare board round the screw, whatever was drawn under it
   disc(g, x, y, r, { fill: P.panel, stroke: P.edge, lw: 8 });
   disc(g, x, y, r + 26, { stroke: P.silk, lw: 4, sa: 0.35 });
-  const head = mix(P.panel, '#ffffff', T.dark ? 0.3 : 0.55), rim = mix(P.edge, '#ffffff', 0.25);
-  disc(g, x + 4, y + 7, r * 0.78, { fill: '#000000', fa: T.dark ? 0.35 : 0.18 });                 // its shadow
-  disc(g, x, y, r * 0.78, { fill: mix(P.panel, '#ffffff', T.dark ? 0.16 : 0.35), stroke: rim, lw: 3, sa: 0.8 }); // the washer
+  const head = mix(P.panel, '#ffffff', 0.3), rim = mix(P.edge, '#ffffff', 0.25);
+  disc(g, x + 4, y + 7, r * 0.78, { fill: '#000000', fa: 0.35 });                 // its shadow
+  disc(g, x, y, r * 0.78, { fill: mix(P.panel, '#ffffff', 0.16), stroke: rim, lw: 3, sa: 0.8 }); // the washer
   disc(g, x, y, r * 0.58, { fill: head, stroke: rim, lw: 3, sa: 0.9 });                           // the head
   const k = r * 0.36;
   g.moveTo(x - k, y).lineTo(x + k, y).moveTo(x, y - k).lineTo(x, y + k).stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
-  g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46).arc(x, y, r * 0.46, 3.6, 5.0).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.35 : 0.7 }); // a highlight
+  g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46).arc(x, y, r * 0.46, 3.6, 5.0).stroke({ width: 4, color: '#ffffff', alpha: 0.35 }); // a highlight
 }
 
 /** A cooler's mounting hole: a bare plated ring round the drill, a printed circle round it (the backplate's standoff threads through; `cooler3d.ts`). */
 export function coolerHole(c: Ctx, x: number, y: number, r: number, ring: number) {
-  const { g, P, T } = c;
+  const { g, P } = c;
   disc(g, x, y, ring + 6, { fill: P.board });
   disc(g, x, y, ring, { fill: mix(P.via, '#c9a65a', 0.5), stroke: P.edge, lw: 4, sa: 0.6 });
   disc(g, x, y, r, { fill: '#05070b' });
-  g.moveTo(x + Math.cos(3.7) * r, y + Math.sin(3.7) * r).arc(x, y, r, 3.7, 5.2).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.18 : 0.4 }); // the drill's lit wall
+  g.moveTo(x + Math.cos(3.7) * r, y + Math.sin(3.7) * r).arc(x, y, r, 3.7, 5.2).stroke({ width: 3, color: '#ffffff', alpha: 0.18 }); // the drill's lit wall
 }
 
 /** A square-ish IC with `legs` legs on every side (centred, `pitch` apart: the same positions `legAt` gives the router), a pin-1 dot and an optional label. */
@@ -77,7 +77,7 @@ export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?:
   legRects(c, r, legs, pitch);
   g.fill({ color: P.silkHi, alpha: 0.55 });
   box(g, r.x, r.y, r.w, r.h, o.round ?? 8, { fill: tone, stroke: o.accent ?? P.edge, lw: 4, sa: o.accent ? 0.55 : 0.9 });
-  g.rect(r.x + 6, r.y + 6, r.w - 12, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.22 });
+  g.rect(r.x + 6, r.y + 6, r.w - 12, 5).fill({ color: '#ffffff', alpha: 0.07 });
   disc(g, r.x + 22, r.y + 22, 8, { fill: P.silk, fa: 0.5 });
   if (o.text) c.labels.addChild(label(o.text, r.x + r.w / 2, r.y + r.h / 2, o.size ?? 44, o.accent ?? T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
 }
@@ -90,29 +90,29 @@ export function legRects(c: Ctx, r: Rect, n: number, pitch = LEG_PITCH) {
 
 /** An electrolytic or polymer capacitor seen from above: a can with a polarity band and a vent cross. */
 export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
-  const { g, P, T } = c;
+  const { g, P } = c;
   c.solid?.({ kind: 'cap', x, y, r });
-  disc(g, x + 6, y + 9, r, { fill: '#000000', fa: T.dark ? 0.3 : 0.15 });
+  disc(g, x + 6, y + 9, r, { fill: '#000000', fa: 0.3 });
   disc(g, x, y, r, { fill: P.panel, stroke: accent ?? P.via, lw: 5, sa: 0.75 });
-  disc(g, x, y, r * 0.66, { fill: mix(P.panel, '#ffffff', T.dark ? 0.06 : 0.25), stroke: P.edge, lw: 3, sa: 0.8 });
+  disc(g, x, y, r * 0.66, { fill: mix(P.panel, '#ffffff', 0.06), stroke: P.edge, lw: 3, sa: 0.8 });
   g.moveTo(x + Math.cos(2.2) * r * 0.84, y + Math.sin(2.2) * r * 0.84).arc(x, y, r * 0.84, 2.2, 4.1).stroke({ width: Math.max(5, r * 0.2), color: P.silkHi, alpha: 0.55 });
   g.moveTo(x - r * 0.28, y - r * 0.1).lineTo(x + r * 0.28, y + r * 0.1).moveTo(x - r * 0.28, y + r * 0.1).lineTo(x + r * 0.28, y - r * 0.1).stroke({ width: 3, color: P.edge, alpha: 0.7 });
 }
 
 /** A power inductor (metal-alloy choke): block, bevel, a winding cut across it. */
 export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
-  const { g, P, T } = c;
+  const { g, P } = c;
   c.solid?.({ kind: 'choke', x: x + w / 2, y: y + h / 2, w, h });
   shadow(c, x, y, w, h, 14, 12, 0.32);
   box(g, x, y, w, h, 14, { fill: mix(P.dark, P.panel, 0.2), stroke: P.edge, lw: 5 });
   box(g, x + 12, y + 12, w - 24, h - 24, 8, { fill: mix(P.dark, P.panel, 0.45), stroke: P.copper, lw: 6, sa: 0.7 });
   g.moveTo(x + w * 0.5, y + 16).lineTo(x + w * 0.5, y + h - 16).stroke({ width: 5, color: P.copper, alpha: 0.55 });
-  g.rect(x + 8, y + 6, w - 16, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.08 : 0.25 });
+  g.rect(x + 8, y + 6, w - 16, 5).fill({ color: '#ffffff', alpha: 0.08 });
 }
 
 /** A DrMOS power stage: a square package with a heat pad and legs on three sides. */
 export function powerStage(c: Ctx, x: number, y: number, s: number) {
-  const { g, P, T } = c;
+  const { g, P } = c;
   c.solid?.({ kind: 'stage', x: x + s / 2, y: y + s / 2, w: s, h: s });
   for (let i = 0; i < 7; i++) {
     const t = (i + 0.7) * (s / 7.4);
@@ -122,7 +122,7 @@ export function powerStage(c: Ctx, x: number, y: number, s: number) {
   box(g, x, y, s, s, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
   box(g, x + s * 0.18, y + s * 0.18, s * 0.64, s * 0.64, 4, { fill: mix(P.dark, P.copper, 0.35), fa: 0.9 });
   disc(g, x + 18, y + 18, 7, { fill: P.silk, fa: 0.5 });
-  g.rect(x + 6, y + 5, s - 12, 4).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.2 });
+  g.rect(x + 6, y + 5, s - 12, 4).fill({ color: '#ffffff', alpha: 0.06 });
 }
 
 /** A strip of small SMD passives (capacitors, resistors) in a line. */
@@ -225,7 +225,7 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
   }
   g.fill({ color: P.via, alpha: 0.5 });
   box(g, r.x + r.w - 6, r.y + 6, 50, r.h - 12, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
-  if (armor) g.rect(r.x + 14, r.y + 4, r.w - 28, 4).fill({ color: '#ffffff', alpha: c.T.dark ? 0.12 : 0.35 });
+  if (armor) g.rect(r.x + 14, r.y + 4, r.w - 28, 4).fill({ color: '#ffffff', alpha: 0.12 });
   c.labels.addChild(label(name, r.x, r.y - 36, big ? 38 : 34, P.silk));
 }
 
