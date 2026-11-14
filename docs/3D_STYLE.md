@@ -308,9 +308,83 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 4. **Test load**: `loadModel()` succeeds, no console errors.
 5. **Visual test**: `npm run shot` in the room or board view (`CLAUDE.md`).
 
+## Asset standard
+
+**Status: draft for owner approval (LPC1, 2026-11-14).** Tasks ASR1–ASR10, ASK1–ASK3, LOD1 and LODD1–LODD3 cite a section of this standard. Items marked (J) are judgements, not measurements. Until the owner approves, a cited value is a proposal.
+
+### 1. Material families
+
+Real material families only. A part uses these hexes, plus pure black or white at alpha below 1 for shading. Source: [art-style.md](art-style.md) §2 and §4.
+
+| Family | Hex | Use |
+|---|---|---|
+| 1. Charcoal and graphite | `#1d1e22`, `#2a2d32`, `#4e5360` | Plastic, anodised cases, dark drives and coolers |
+| 2. Satin and bright metal | `#959aa3`, `#b9babf` | Brushed and polished metal |
+| 3. PCB masks | `#131518`, `#16294d`, `#173d29` | Board and card substrate |
+| 4. Gold | `#d4af5f` | One gold: contacts and pins |
+| 5. Copper | `#c0793a` | One copper: heat pipes and the cooler |
+
+Neon is not a family. Neon comes from emissive light only, from the status and instruction roles in art-style §2. A base colour must never be neon (art-style C1).
+
+### 2. Material cap per case
+
+- LOD0: at most **16** materials for the case shell and kit.
+- LOD1: at most **4** materials.
+- Today: 163–230 materials per case (ASR1). The cap is a test to add with ASR1.
+
+### 3. Hole method
+
+One method only: a perforation **alpha texture** (`perforation`, 256 × 444, UASTC, alpha edges). Holes are never cut as geometry. This covers the drive cage and the PSU shroud (ASR1). Texture rules: [§6](#6-textures).
+
+### 4. Segment table (ASR10)
+
+Round parts: one side per **4–8 px** of on-screen circumference. Use **6 px** per side (J) as the design value, and clamp to the range below. Features under 2 px on screen are left out (LPC4).
+
+| Zone | Rule or target | Source |
+|---|---|---|
+| Round fan flanges and housings | 16 to 48 sides, by diameter; the 40 mm housing at 16 (J; was 25,088 tris, 16.5× cap) | ASR4 |
+| Flange next to case walls | 6 sides | ASR4 |
+| Teacup and bedside lantern (lathe) | 24 to 32 sides, fewer profile points | ASR7 |
+| Solder joint | 6 sides, 3 rings (about 36 tris, was 400) | ASR5 |
+| Heat pipes (`TubeGeometry`) | Under the cap; today 220 × 16, four tubes | ASR6 |
+| Monitor bevels | 10 and 6 today; one value for the room overview (J) | ASR10 |
+| Case and card edge bevels | 1 to 2 segments (`softBox`) | ASR10 |
+| Plugs | 4 today; kept | ASR10 |
+| Default `post` / `drum` / `tube` | 16 / 24 / 7 today; set one table in `geometry.ts` | ASR10 |
+| RAM `curveSegments` | 10 today; set from the table | ASR10 |
+
+Each builder reads its count from this table. A builder does not hard-code its own count.
+
+### 5. Budgets per view
+
+Ceilings are today's **High** counts (`budget.test.ts`, `BUDGET`). The test fails above +5 %. A rise needs a reason in the commit.
+
+| View | Draws | Vertices | Triangles | Note |
+|---|---|---|---|---|
+| Machine and room (layer 0) | 924 | 2,216,520 | — | Test: `budget.test.ts` |
+| City (instances counted) | — | — | 3,643,156 | Test: `budget.test.ts` |
+| Room alone | — | — | 237,638 | Measured, no test yet |
+| Maxed machine alone | — | — | 845,840 | Measured, no test yet |
+| Board view | to set | to set | to set | Owner (J) after LPC4 |
+| Part close-up | to set | to set | to set | Owner (J) after LPC4 |
+
+Phones: the mobile targets in [TODO.md](TODO.md) (PERF9, Review against mobile budgets) govern the draw count. Those figures are reference values, not measured limits for this game. The owner sets the phone limit (PERF9).
+
+### 6. Textures
+
+- City surfaces (ASK1): colour in ETC1S sRGB, normal in UASTC; the painted sizes stay.
+- Tiling maps (ASK2): colour and normal maps in KTX2 after the bake; `brushed` and `grain` take a fixed seed.
+- Small maps, spec-keyed labels, live canvases and `artlod` tiles stay RGBA8.
+- Texture memory: the 16 MB material budget stays TBD until PERF11 reports MB.
+
+### 7. Approval
+
+- [ ] Owner approves this section. Until then, each blocked task marks its value as a proposal.
+- Each blocked task cites the section it uses, for example "docs/3D_STYLE.md §4".
+
 ## Performance Targets
 
-**Pending Dev Lead.** The previous table (board view 50–100K tris, texture memory < 16 MB, 5 ms/frame, and so on) was not re-checked in this update and the poly-count line is not meaningful against today's measurements: a maxed machine alone draws 845,840 tris, the room 237,638, the city 3,643,156. Use `npm run bench:*` and `src/features/room/light.md` for performance work. This guide does not set a new triangle budget.
+Budgets for this build are in [§ Asset standard, 5](#5-budgets-per-view). This section stays pending the Dev Lead. The previous table (board view 50–100K tris, texture memory < 16 MB, 5 ms/frame, and so on) was not re-checked and does not match today's measurements: a maxed machine alone draws 845,840 tris, the room 237,638, the city 3,643,156. Use `npm run bench:*` and `src/features/room/light.md` for performance work.
 
 ## Future Enhancements
 
