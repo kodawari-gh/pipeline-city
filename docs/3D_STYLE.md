@@ -122,7 +122,7 @@ Each part must be **instantly recognizable** from any angle, including at shop-t
 | Cooler | Aluminium, satin blue-grey | `#adb2bd` (cooler1, current exception, measured), pump `#647293` (cooler2). Target (art-style.md §4, rework item 4, on hold): dark anodised fins `#2a2d32`–`#4e5360` |
 | Radiator | Satin aluminium → **to rework** dark | now `#9da2ac`, `#818695`. Target (art-style.md §4, rework item 9, on hold): mean luminance 60–100 |
 | NIC | Teal PCB | `#3a829e` |
-| Fans | Dark plastic | `#3a3a3e`; violet pads `#c19ce7` on `*x` (not in art-style §2; target brand violet `#a68bff`, rework item 8, on hold) |
+| Fans | Dark plastic | `#3a3a3e`; violet pads `#7a5cc8` on `*x` (current, `fans3d.ts`; not in art-style §2; target brand violet `#a68bff`, rework item 8, on hold) |
 | Cables | Dark grey | not in stills (rule to set) |
 
 Saturated colour belongs to a PCB, the die art, or one small accent per part (a stripe, pads, a band).
