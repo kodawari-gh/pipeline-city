@@ -359,30 +359,30 @@
   "machine/dev31": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "b81a25aa"
+    "sum": "7f10709d"
   },
   "machine/dev32": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "6bd48767"
+    "sum": "039391e7"
   },
   "machine/dev33": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "b81a25aa"
+    "sum": "7f10709d"
   },
   "machine/dev34": {
     "meshes": 34,
     "draws": 28,
-    "verts": 52480,
+    "verts": 50752,
     "instances": 383,
-    "sum": "fd5c044c"
+    "sum": "55ea073b"
   },
   "machine/io": {
     "meshes": 8,

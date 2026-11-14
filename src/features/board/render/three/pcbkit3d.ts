@@ -2,12 +2,23 @@
 // packages with their laser marking and pin-1 dimple, solder-mask tops painted with traces, vias, pads and silkscreen, gold edge fingers. Sizes are
 // real (23 layout units a mm); a part stands on a PCB top at depth z, its rect in layout coordinates (y down).
 import { BoxGeometry, Group, Mesh, PlaneGeometry, RingGeometry, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { extrude, instanced, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, shapeOf, tex } from './casekit3d';
 
 /** Layout units a millimetre (the case's scale). */
 export const MM = 23;
+
+/** A footprint with a side under this (3 mm) is a small part: a plain box, its rounded edge too small to read. */
+const SMALL = 3 * MM;
+/** A part's body: a plain box for a small footprint, else a box with rounded edges (`radius`). */
+const body = (r: RectLike, z0: number, z1: number, m: Material, radius: number): Mesh =>
+  Math.min(r.w, r.h) < SMALL ? rectBox(r, z0, z1, m) : softBox(r, z0, z1, m, radius);
+/**
+ * A part's material, named by its look. Each call makes its own: a part's fade and its disposal write to its materials, and a scene must not
+ * share one with another scene (`buildmode3d.shared.test.ts`). The machine's material share (`shareMaterials`) folds the equal ones in a tree.
+ */
+const once = <T extends Material>(_key: string, make: () => T): T => make();
 
 // ------------------------------------------------------------------ passives
 /** A chip passive's body by package (mm: length, width, height). */
@@ -16,9 +27,9 @@ export type PassivePkg = keyof typeof PASSIVE;
 /** One passive: its centre, its package, a capacitor (tan ceramic) or a resistor (black top), turned to run along y. */
 export interface Passive { x: number; y: number; pkg: PassivePkg; kind: 'cap' | 'res'; turn?: boolean }
 
-const capM = () => mat(0x9a7a52, { roughness: 0.55 });
-const resM = () => mat(0x15171b, { roughness: 0.5 });
-const tinM = () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.32 });
+const capM = () => once('cap', () => mat(0x9a7a52, { roughness: 0.55 }));
+const resM = () => once('res', () => mat(0x15171b, { roughness: 0.5 }));
+const tinM = () => once('tin', () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.32 }));
 
 /** Passives on a PCB top at depth z: each body between its two tinned ends (a resistor's top black, a capacitor tan all over). */
 export function passives(g: Group, items: readonly Passive[], z: number): void {
@@ -76,30 +87,30 @@ export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly
   const wMm = r.w / MM, hMm = r.h / MM;
   if (o.lid) {
     const sub = mat(0x3d4a2e, { roughness: 0.55 }), t = Math.min(h * 0.35, 18);
-    g.add(softBox(r, z, z + t, sub, 2));
+    g.add(body(r, z, z + t, sub, 2));
     const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 }, m = mat(0x9ca2aa, { metalness: 0.8, roughness: 0.4 });
-    g.add(softBox(lid, z + t, z + h, m, 6));
+    g.add(body(lid, z + t, z + h, m, 6));
     if (lines.length) g.add(decal(lid, z + h + 0.4, decalMat(markTex(lines, wMm * 0.88, hMm * 0.88, '#9ca2aa', '#5a5f68', false), { metal: 0.75, rough: 0.42 })));
     return m;
   }
-  const mould = o.mould ?? 0x17191d, hexs = `#${mould.toString(16).padStart(6, '0')}`, m = mat(mould, { roughness: 0.58, metalness: 0.08 });
-  g.add(softBox(r, z, z + h, m, o.bevel ?? Math.min(6, h * 0.3)));
+  const mould = o.mould ?? 0x17191d, hexs = `#${mould.toString(16).padStart(6, '0')}`, m = once(`mould:${mould}`, () => mat(mould, { roughness: 0.58, metalness: 0.08 }));
+  g.add(body(r, z, z + h, m, o.bevel ?? Math.min(6, h * 0.3)));
   if (lines.length) g.add(decal({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, z + h + 0.4, decalMat(markTex(lines, wMm, hMm, hexs, '#7b8089', o.dot !== false, o.pin1, o.flip), { rough: 0.6, metal: 0.05 })));
   return m;
 }
 
 /** A crystal in its seam-sealed metal can (the controller's clock): a nickel lid on a ceramic base, its frequency stamped on it. */
 export function crystal(g: Group, r: RectLike, z: number, h: number, value = '40.000'): void {
-  g.add(softBox(r, z, z + h * 0.35, mat(0xcfc6b2, { roughness: 0.7 }), 2));
+  g.add(body(r, z, z + h * 0.35, mat(0xcfc6b2, { roughness: 0.7 }), 2));
   const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.08, w: r.w * 0.88, h: r.h * 0.84 };
-  g.add(softBox(lid, z + h * 0.35, z + h, mat(0xc9ced6, { metalness: 0.9, roughness: 0.28 }), 3));
+  g.add(body(lid, z + h * 0.35, z + h, mat(0xc9ced6, { metalness: 0.9, roughness: 0.28 }), 3));
   g.add(decal(lid, z + h + 0.3, decalMat(markTex([value], lid.w / MM, lid.h / MM, '#c9ced6', '#6a6f78', false), { metal: 0.85, rough: 0.3 })));
 }
 
 /** A shielded power inductor (a grey ferrite block with its value printed), as next to a regulator. */
 export function inductor(g: Group, r: RectLike, z: number, h: number, value = 'R47'): void {
-  const m = mat(0x5b6068, { roughness: 0.62, metalness: 0.15 });
-  g.add(softBox(r, z, z + h, m, Math.min(5, h * 0.25)));
+  const m = once('ind', () => mat(0x5b6068, { roughness: 0.62, metalness: 0.15 }));
+  g.add(body(r, z, z + h, m, Math.min(5, h * 0.25)));
   g.add(decal({ x: r.x + 2, y: r.y + 2, w: r.w - 4, h: r.h - 4 }, z + h + 0.4, decalMat(markTex([value], r.w / MM, r.h / MM, '#5b6068', '#2a2d33', false), { rough: 0.62 })));
 }
 
@@ -315,12 +326,12 @@ export const gold = () => mat(0xd8b264, { metalness: 1, roughness: 0.24 });
  */
 export function fingers(g: Group, x: number, len: number, top: readonly number[], bottom: readonly number[], width: number, z0: number, z1: number): void {
   const items: Box[] = [...top.map((y) => ({ x: x + len / 2, y: -y, z: z1 + 0.4, sx: len, sy: width, sz: 0.8 })), ...bottom.map((y) => ({ x: x + len / 2, y: -y, z: z0 - 0.4, sx: len, sy: width, sz: 0.8 }))];
-  g.add(instanced(new BoxGeometry(1, 1, 1), gold(), items));
+  g.add(instanced(new BoxGeometry(1, 1, 1), once('gold', gold), items));
 }
 
 /** A gold ring round a mounting hole or a notch (the ground pad), on a PCB face at depth z: `half` keeps the west half (a notch on the east edge). */
 export function padRing(x: number, y: number, z: number, r0: number, r1: number, half = false, under = false): Mesh {
-  const ring = new Mesh(new RingGeometry(r0, r1, 32, 1, half ? Math.PI / 2 : 0, half ? Math.PI : Math.PI * 2), gold() as Material);
+  const ring = new Mesh(new RingGeometry(r0, r1, 32, 1, half ? Math.PI / 2 : 0, half ? Math.PI : Math.PI * 2), once('gold', gold) as Material);
   ring.position.set(x, -y, under ? z - 0.5 : z + 0.5);
   if (under) ring.rotation.x = Math.PI;
   return ring;

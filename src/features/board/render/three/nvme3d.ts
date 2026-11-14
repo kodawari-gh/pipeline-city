@@ -4,8 +4,7 @@
 // two NAND packages, each with its decoupling. The notch at the east end is screwed down into the standoff, its gold ring round it. A plain stick
 // wears its maker's label draped over the DRAM and the NAND; a premium one wears a black anodised heat sink on a thermal pad instead (fins,
 // a raised plateau with a brushed silver insert, skirts that clip it to the board's edges). The underside carries its own mask and the serial sticker.
-import { Group, type MeshStandardMaterial, type Texture } from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { BoxGeometry, Group, type MeshStandardMaterial, type Texture } from 'three';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -122,7 +121,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
   ];
   // (drawn over the mask's decal where it lies on the board)
   const label = mat(0xffffff, { map: labelTex(look), roughness: 0.46, metalness: 0.15, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  g.add(drape(L, z1, bumps, label, 7, lowDetail())); // (Low: one flat quad over the packages, its whole picture, no part through it)
+  g.add(drape(L, z1, bumps, label, 24, lowDetail())); // (ASR3: about 1 mm a quad, some 2,000 triangles, was 24,344; Low: one flat quad over the packages, its whole picture, no part through it)
   return label;
 }
 
@@ -143,7 +142,7 @@ function heatsink(g: Group, X0: number, X1: number, Y0: number, Y1: number, zc: 
     const n = Math.floor((e - a - ft) / pitch) + 1, off = (e - a - ft - (n - 1) * pitch) / 2;
     for (let k = 0; k < n; k++) items.push({ x: a + off + ft / 2 + k * pitch, y: -(hs.y + hs.h / 2), z: zb1 + fh / 2 });
   }
-  g.add(instanced(new RoundedBoxGeometry(ft, hs.h - 28, fh, 2, 4), anod, items));
+  g.add(instanced(new BoxGeometry(ft, hs.h - 28, fh), anod, items)); // (plain boxes: a fin is under 3 mm thick)
   // the plateau and its insert, the insert's edges diamond-cut (bright chamfers)
   const P = { x: px, y: hs.y + 14, w: pl, h: hs.h - 28 }, I = grow(P, -23), silver = mat(0xd0d4da, { metalness: 0.9, roughness: 0.26, map: tiled(brushed(), 2, 1) });
   g.add(slab(shapeOf(outlinePts(P, 0, [30, 30, 30, 30])), zb1 - 2, zt - 20, anod, 4));

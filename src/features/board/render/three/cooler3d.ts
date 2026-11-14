@@ -122,7 +122,7 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
 const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(220, 40), r, byDetail(16, 8)), m));
+  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(96, 40), r, byDetail(12, 8)), m)); // (ASR6: was 220 x 16 at High)
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a

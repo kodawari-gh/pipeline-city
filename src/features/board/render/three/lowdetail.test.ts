@@ -40,12 +40,12 @@ describe('Low builds coarser machine parts', () => {
     setLowDetail(true);
     expect(shapes()).toEqual(['40x8', '40x8', '40x8', '40x8', '48x6', '48x6']);
   });
-  it('the tower cooler at High keeps its 220x16 heat pipes and 339x6 thread coils', () => {
-    expect(shapes()).toEqual(['220x16', '220x16', '220x16', '220x16', '339x6', '339x6']);
+  it('the tower cooler at High has 96x12 heat pipes (ASR6) and 339x6 thread coils', () => {
+    expect(shapes()).toEqual(['339x6', '339x6', '96x12', '96x12', '96x12', '96x12']); // (sorted as text)
   });
-  it('the NVMe label drape is about 7 units a quad at High, and one flat quad of the whole picture at Low', () => {
+  it('the NVMe label drape is about 24 units a quad at High (ASR3), and one flat quad of the whole picture at Low', () => {
     const high = label().parameters;
-    expect([high.widthSegments, high.heightSegments]).toEqual([Math.round(high.width / 7), Math.round(high.height / 7)]);
+    expect([high.widthSegments, high.heightSegments]).toEqual([Math.round(high.width / 24), Math.round(high.height / 24)]);
     setLowDetail(true);
     const lowMesh = labelMesh(), low = (lowMesh.geometry as PlaneGeometry).parameters;
     expect([low.widthSegments, low.heightSegments, low.width, low.height]).toEqual([1, 1, high.width, high.height]);
