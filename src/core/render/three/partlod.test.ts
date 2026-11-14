@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, Raycaster, Vector3 } from 'three';
 import { mat, own } from './materials';
-import { LOD_BAND, LOD_PX, LOD_RADII, PartLod, drawnMeshes, farClasses, heldBy, lodSources, sizeClass, standInDraws } from './partlod';
+import { LOD_BAND, LOD_OVERVIEW, LOD_PX, LOD_RADII, PartLod, drawnMeshes, farClasses, heldBy, lodSources, sizeClass, standInDraws } from './partlod';
 import { UNDRAWN } from './pick';
 
 const box = (s: number, m = mat(0x808080), x = 0) => { const o = new Mesh(new BoxGeometry(s, s, s), m); o.position.x = x; return o; };
@@ -22,7 +22,10 @@ function model() {
 
 describe('the distance LOD rule (PERF6)', () => {
   it('sorts by world radius and switches each class with a dead band', () => {
-    expect([10, 25, 26, 200, 201].map(sizeClass)).toEqual([0, 0, 1, 3, -1]);
+    // (a mesh over the last radius is in the overview's class, LPC5)
+    expect([10, 25, 26, 200, 201].map(sizeClass)).toEqual([0, 0, 1, 3, 4]);
+    expect(farClasses(LOD_OVERVIEW * 0.99)[4]).toBe(true);
+    expect(farClasses(LOD_OVERVIEW * (1 + LOD_BAND) * 1.01, [true, true, true, true, true])[4]).toBe(false);
     const at = LOD_PX / LOD_RADII[0];
     expect(farClasses(at * 0.99)[0]).toBe(true);
     expect(farClasses(at * 1.1, [false])[0]).toBe(false);
@@ -35,9 +38,10 @@ describe('the distance LOD rule (PERF6)', () => {
 
   it('takes the small still meshes, by anchor, and leaves the rest', () => {
     const { root, fade } = model(), src = lodSources(root, { anchors: [fade] });
-    expect(src.length).toBe(10); // (not the rotor's two, not the panel)
+    expect(src.length).toBe(11); // (not the rotor's two; the panel is in the overview's class)
+    expect(src.filter((s) => s.cls === 4).length).toBe(1);
     expect(src.filter((s) => s.anchor === fade).length).toBe(2);
-    expect(lodSources(root, { skip: [fade] }).length).toBe(8);
+    expect(lodSources(root, { skip: [fade] }).length).toBe(9);
   });
 
   it('switches with a dead band, never flips at a steady zoom, and does no work at an unchanged zoom', () => {
