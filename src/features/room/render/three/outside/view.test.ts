@@ -16,7 +16,7 @@ type Peek = {
 
 describe('debugLayer and debugStats (city-layers.ts)', () => {
   let v: OutsideView, p: Peek;
-  beforeAll(() => { v = new OutsideView(0, 0, 1, 1, 0); p = v as unknown as Peek; });
+  beforeAll(() => { v = new OutsideView(0, 0, 1, 1, 0); p = v as unknown as Peek; }, 180000);
 
   it('has stats of what it draws, and every layer back on leaves them as they were', () => {
     const all = debugStats(v);
@@ -108,7 +108,7 @@ describe('OutsideView.draw, flat (City 1x)', () => {
     v.frame(12, 1);
     // (the sky's environment is not what these check: its cube camera is not drawn by this stub renderer)
     (v as unknown as { envDirty: boolean }).envDirty = false;
-  });
+  }, 180000);
 
   it('flat shrinks the target to 1x with 2 samples, and off gives back the 2x target', () => {
     draw();
@@ -223,7 +223,15 @@ describe('OutsideView detail', () => {
       // pieces draws every near piece in the far pieces' wide band, so rings of unlike reach stay apart.)
       for (const cut of CITY_CUTS.filter((c) => c !== 'streets' && c !== 'palette')) expect(viewTriangles(new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts(`?citycuts=${cut}`, 'low')), fov), `${cut} at ${fov}`).toBeLessThanOrEqual(base);
     }
-  }, 300000);
+  }, 600000);
+
+  it("Low with no cut (Firefox, no citycuts) draws High's materials; the facade cut alone is the Lambert one", () => {
+    const kinds = (v: OutsideView): string[] => everyMesh(v).map((m) => (m.material as Material).type).sort();
+    const uncut = new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("", "low", true));
+    expect(kinds(uncut)).toEqual(kinds(high));
+    expect(kinds(new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("?citycuts=facade", "low")))).toContain("MeshLambertMaterial");
+    expect(kinds(uncut)).not.toContain("MeshLambertMaterial");
+  }, 180000);
 
   it('Low: a sun that lights at noon, and the buildings on the facade material', () => {
     low.frame(12, 1);

@@ -19,6 +19,15 @@ const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 const NEAR = 260;
 /** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
 const NEAR_LOW = 100;
+/**
+ * A car's share key in [0, 1): a hash of its lane and its place in the lane, so it is the same on every frame and does not depend on the
+ * other cars. A far car drives at a share `s` when `share < s`; the lanes and places are fixed for the traffic's life.
+ */
+export function share(lane: number, place: number): number {
+  let h = Math.imul(lane + 1, 0x9e3779b1) ^ Math.imul(place + 1, 0x85ebca77);
+  h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
 /** At Low, a car further than this from the eye (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
 const CLIP_LOW = 350;
 /**
@@ -429,7 +438,7 @@ export class Fleet {
     for (const im of this.moving) im.count = 0;
     const pa = this.pools.instanceMatrix.array as Float32Array, pl = this.pools.geometry.attributes.lit!.array as Float32Array;
     const sa = this.shades.instanceMatrix.array as Float32Array;
-    let n = 0, seenN = 0;
+    let n = 0;
     for (let ri = 0; ri < tr.lanes.length; ri++) {
       const rt = tr.routes[ri]!, lane = tr.lanes[ri]!;
       reach(rt, seen, 0, night ? POOL_R : SHADE_R, AROUND);
@@ -446,9 +455,9 @@ export class Fleet {
         const m = tr.front(c, f) - c.len / 2;
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
         const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
-        // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all;
-        // a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic, and it is not counted)
-        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
+        // (a fleet of a share: a car drives when its own key (`share`, by lane and place in it) is under the scale, so a car's bit does not
+        // move when its neighbours enter or leave the view; a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic)
+        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && share(ri, q) >= this.scale) continue;
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
         if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
         turned(sa, P + n, x, z, cr, sr);

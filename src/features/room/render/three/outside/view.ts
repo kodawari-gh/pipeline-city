@@ -11,7 +11,7 @@
 // itself shows faintly in the glass (`mirror.ts`), only its lit screen and lamps over the dark city.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
-  Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
+  Color, CubeCamera, DirectionalLight, Frustum, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PMREMGenerator, PointLight, Scene, ShaderMaterial,
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type Object3D, type WebGLRenderer,
 } from 'three';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
@@ -171,6 +171,9 @@ export class OutsideView {
   private envCam = new CubeCamera(0.5, 1000, this.env);
   private envScene = new Scene();
   private envDirty = true;
+  // (the sky's environment, filtered: made here and freed in `dispose`; a scene's own cube target would keep its filtered copy for good)
+  private pmrem: PMREMGenerator | null = null;
+  private envMap: WebGLCubeRenderTarget | null = null;
   private sun = new DirectionalLight(0xffffff, 0);
   private bounce = new DirectionalLight(0xfff1e2, 0);
   /** The moon's light at night, a faint blue from the sky (it casts no glints, which a moon as a light would on every roof). */
@@ -231,6 +234,8 @@ export class OutsideView {
   get due(): boolean { return this.age >= this.every; }
   /** The ticks between two draws of a still eye (`EVERY`; `LOW_EVERY` at Low). */
   private every = EVERY;
+  /** The Low cut of the steam and leaves' clock (`clock`, `detail.ts`): they stand at `STILL_T`. */
+  private clockCut = false;
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`). */
   constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high', cuts: CityCuts = cityCuts(detail)) {
@@ -258,6 +263,7 @@ export class OutsideView {
     // (each Low cut by its flag, `detail.ts`: High has none)
     const on = (c: boolean): CityDetail => (c ? 'low' : 'high');
     this.every = cuts.cadence ? LOW_EVERY : EVERY;
+    this.clockCut = cuts.clock;
     const k = this.kit = makeKit(), ts = trees();
     const still = new Group(), st = street(k, ts, on(cuts.streets), on(cuts.furniture));
     still.add(st.group);
@@ -275,7 +281,7 @@ export class OutsideView {
     // (no steam with the steam cut: a plume is a draw for a few roofs)
     // the lamps the window looks at: the buildings take them as an analytic term at Low (`lowfacade.ts`), the street takes them as PointLights
     const lampAt = [...st.lights].sort((a, b) => a.distanceTo(LAMPS_AT) - b.distanceTo(LAMPS_AT)).slice(0, LIT_LAMPS);
-    const lowFac = this.detail === 'low' ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
+    const lowFac = cuts.facade ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
     this.lowLamps = lowFac?.lamps ?? null;
     const blocks = buildings(), washes: SignWash[] = [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
@@ -301,12 +307,11 @@ export class OutsideView {
     this.parts.cars = [this.fleet.group, this.signals.mesh];
 
     // the sky round the camera, and its small copy the environment sees
-    this.sky = skyMaterial(this.detail === 'low');
+    this.sky = skyMaterial(cuts.sky);
     this.dome = skyDome(this.sky, 15000);
     this.scene.add(this.dome);
     this.parts.sky = [this.dome];
     this.envScene.add(skyDome(this.sky, 100));
-    this.scene.environment = this.env.texture;
     this.disposables.push(facade.mat, signLight.material as Material);
     if (steam) this.disposables.push(steam.mesh.material as Material);
     // the lamps' pools on the ground, the haze on every material in place of fog
@@ -353,7 +358,7 @@ export class OutsideView {
     const u = this.sky.uniforms as unknown as SkyUniforms;
     u.time.value = t;
     // at Low the steam and the leaves hold still (their clock stands at `STILL_T`); the sky, the facade's beacons and the haze keep the clock
-    const still = this.detail === 'low' ? STILL_T : t;
+    const still = this.clockCut ? STILL_T : t;
     this.leaf.time.value = still;
     this.steam.time.value = still;
     this.facade.time.value = t;
@@ -511,7 +516,14 @@ export class OutsideView {
     // the leaves' light from behind, in the camera's frame
     const sd = sunOutside(this.key / 30);
     this.leaf.sunView.value.set(sd[0], sd[1], sd[2]).transformDirection(c.matrixWorldInverse);
-    if (this.envDirty) { this.envDirty = false; this.envCam.update(renderer, this.envScene); this.env.texture.needsPMREMUpdate = true; }
+    if (this.envDirty) {
+      this.envDirty = false;
+      this.envCam.update(renderer, this.envScene);
+      // (the filtered copy reuses its target: `fromCubemap` fills `envMap` in place)
+      this.pmrem ??= new PMREMGenerator(renderer);
+      this.envMap = this.pmrem.fromCubemap(this.env.texture, this.envMap);
+      this.scene.environment = this.envMap.texture;
+    }
     const was = renderer.getRenderTarget();
     this.sun.shadow.autoUpdate = shadowNow;
     t.viewport.set(0, 0, rw, rh);
@@ -557,6 +569,8 @@ export class OutsideView {
 
   dispose(): void {
     this.target?.dispose();
+    this.envMap?.dispose();
+    this.pmrem?.dispose();
     this.env.dispose();
     this.sun.shadow.map?.dispose();
     this.fleet.dispose();
@@ -564,7 +578,8 @@ export class OutsideView {
     this.mirror.dispose();
     this.signals.mesh.dispose();
     (this.signals.mesh.material as Material).dispose();
-    this.scene.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
+    for (const s of [this.scene, this.envScene]) s.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
+    this.mesh.geometry.dispose();
     this.sky.dispose();
     for (const m of this.disposables) m.dispose();
     disposeKit(this.kit);

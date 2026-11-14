@@ -13,7 +13,7 @@ export const LOW_FLEET = 0.5;
 export const LOW_FURNITURE_M = 150;
 
 /** The Low cuts, each by name: `?citycuts=` picks which apply (isolation, to find what a cut costs). */
-export const CITY_CUTS = ['cadence', 'far', 'streets', 'furniture', 'trees', 'steam', 'fleet', 'palette'] as const;
+export const CITY_CUTS = ['cadence', 'far', 'streets', 'furniture', 'trees', 'steam', 'fleet', 'palette', 'facade', 'sky', 'clock'] as const;
 export type CityCut = (typeof CITY_CUTS)[number];
 export type CityCuts = Readonly<Record<CityCut, boolean>>;
 
@@ -22,7 +22,8 @@ const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
 
 /**
  * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all, or none on Firefox (`ff`: Firefox Low idle ran
- * slower with the cuts than without, bisect 7a64e36, so it gets main's city path). Low with `citycuts=a,b`: only those named, on any
+ * slower with the cuts than without, bisect 7a64e36, so it gets main's city path: its facade, sky and clock are the High ones too,
+ * as each of those is a cut of its own). Low with `citycuts=a,b`: only those named, on any
  * browser (`none`, an empty list or unknown names: no cut).
  */
 export function parseCityCuts(search: string, detail: CityDetail, ff = false): CityCuts {

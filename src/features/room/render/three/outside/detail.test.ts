@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { CITY_CUTS, parseCityCuts } from './detail';
+import { describe, expect, it, vi } from 'vitest';
+import { CITY_CUTS, cityCuts, firefox, parseCityCuts } from './detail';
 
 const on = (s: string, d: 'low' | 'high' = 'low', ff = false): string[] => Object.entries(parseCityCuts(s, d, ff)).filter(([, v]) => v).map(([k]) => k);
 
@@ -31,5 +31,24 @@ describe('parseCityCuts', () => {
   });
   it('High ignores the flag', () => {
     for (const s of ['', '?citycuts=far', '?citycuts=none', '?citycuts=cadence,far,streets,furniture,trees,steam,fleet,palette']) expect(on(s, 'high')).toEqual([]);
+  });
+});
+
+describe('the browser gate (cityCuts, firefox)', () => {
+  const agent = (ua: string) => vi.stubGlobal('navigator', { userAgent: ua });
+  it('Firefox is told by its user agent, and Low takes the Firefox cuts only there', () => {
+    agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0');
+    expect(firefox()).toBe(true);
+    expect(cityCuts('low')).toEqual(parseCityCuts('', 'low', true));
+    agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36');
+    expect(firefox()).toBe(false);
+    expect(cityCuts('low')).toEqual(parseCityCuts('', 'low', false));
+    vi.unstubAllGlobals();
+  });
+  it('the facade, sky and clock cuts are off on Firefox with no flag', () => {
+    agent('Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0');
+    const c = cityCuts('low');
+    expect(c.facade || c.sky || c.clock).toBe(false);
+    vi.unstubAllGlobals();
   });
 });

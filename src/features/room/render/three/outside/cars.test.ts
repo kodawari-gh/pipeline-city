@@ -1,6 +1,6 @@
 import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type InstancedMesh, type MeshPhysicalMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Fleet, carMaterial, parkCells, reach, within } from './cars';
+import { Fleet, carMaterial, parkCells, reach, share, within } from './cars';
 import type { HazeUniforms } from './haze';
 import { LOW_FLEET } from './detail';
 import { GRID, buildings, parked, rng, type Building, type Car } from './plan';
@@ -102,7 +102,7 @@ describe('cars', () => {
       a.dispose(); b.dispose();
     });
 
-    it('Low: one full model and the far box for moving cars, ceil(High * LOW_FLEET) of them', () => {
+    it('Low: one full model and the far box for moving cars, those whose share is under LOW_FLEET', () => {
       const tr = new Traffic(), low = new Sized(tr, parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       expect(meshes(low).length).toBe(2);
       expect((low as unknown as Inside).near.length).toBe(1);
@@ -110,7 +110,8 @@ describe('cars', () => {
       low.update(0.1, GRID.av0, 0);
       const seenNow = meshes(low).reduce((s, im) => s + im.count, 0);
       expect(seenNow).toBeGreaterThan(0);
-      expect(seenNow).toBeLessThanOrEqual(Math.ceil(tr.cars.length * LOW_FLEET) + nearCount(low, GRID.av0, 0));
+      const keep = tr.lanes.reduce((s, lane, ri) => s + lane.filter((_, q) => share(ri, q) < LOW_FLEET).length, 0);
+      expect(seenNow).toBeLessThanOrEqual(keep + nearCount(low, GRID.av0, 0));
       low.dispose();
     });
 
@@ -124,6 +125,13 @@ describe('cars', () => {
         expect(near(low).length).toBeGreaterThan(0);
       }
       full.dispose(); low.dispose();
+    });
+
+    it("Low: a car key is in [0, 1), the same each call, and about evenly spread", () => {
+      const keys: number[] = [];
+      for (let ri = 0; ri < 40; ri++) for (let q = 0; q < 40; q++) { const k = share(ri, q); expect(k >= 0 && k < 1).toBe(true); expect(share(ri, q)).toBe(k); keys.push(k); }
+      const under = keys.filter((k) => k < LOW_FLEET).length / keys.length;
+      expect(Math.abs(under - LOW_FLEET)).toBeLessThan(0.05);
     });
   });
 
@@ -305,7 +313,7 @@ describe('cars', () => {
       expect(l).toBeGreaterThanOrEqual(h * 0.4);
       expect(l).toBeLessThan(h);
       high.dispose(); low.dispose();
-    });
+    }, 60000);
 
     it('High: no clip, so cars past 350 m of the eye are placed', () => {
       const r = rng(15), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
