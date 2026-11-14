@@ -111,7 +111,7 @@ export function npuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   g.add(holder);
   spins.push({ rotor, ring: null, needs: null });
   // ---- the vapour chamber over the die and its fin block: plates along the card, 1.8 mm apart, the air runs between them to the bracket
-  const F = P.fins, base = Zp - 2.8 * MM, copper = mat(0xc07a4e, { metalness: 0.9, roughness: 0.3 }), finM = mat(0xb9c1cb, { metalness: 0.8, roughness: 0.32 });
+  const F = P.fins, base = Zp - 2.8 * MM, copper = mat(0xc0793a, { metalness: 0.9, roughness: 0.3 }), finM = mat(0xb9c1cb, { metalness: 0.8, roughness: 0.32 });
   g.add(rectBox({ x: F.x0, y: F.y0, w: F.x1 - F.x0, h: F.y1 - F.y0 }, base, zTop, copper));
   const plates = [];
   for (let y = F.y0 + 0.4 * MM; y < F.y1 - 0.2 * MM; y += 1.8 * MM) plates.push({ x: (F.x0 + F.x1) / 2, y: -y, z: (zI + 0.3 * MM + base) / 2, sx: F.x1 - F.x0, sy: 0.3 * MM, sz: base - zI - 0.3 * MM });

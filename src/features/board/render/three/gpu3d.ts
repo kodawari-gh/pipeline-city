@@ -40,7 +40,7 @@ const socketsAt = (visual: string, f: CardFrame): number[] => (visual === 'gpu-3
 
 /** Each tier's finish: the shroud, the bezels and lips, the backplate, the heat pipes (copper on the entry card), the fans' blades. */
 const LOOK: Record<string, { shroud: number; bezel: number; bezelMetal: boolean; back: number; backMetal: boolean; pipe: number; blades: number; rim: boolean; lips: boolean }> = {
-  'gpu-1': { shroud: 0x15171b, bezel: 0x23262c, bezelMetal: false, back: 0x15171a, backMetal: false, pipe: 0xb8774a, blades: 9, rim: false, lips: false },
+  'gpu-1': { shroud: 0x15171b, bezel: 0x23262c, bezelMetal: false, back: 0x15171a, backMetal: false, pipe: 0xc0793a, blades: 9, rim: false, lips: false },
   'gpu-2': { shroud: 0x262a31, bezel: 0x9aa2ad, bezelMetal: true, back: 0x2a2f37, backMetal: true, pipe: 0xc3cad2, blades: 11, rim: false, lips: true },
   'gpu-3': { shroud: 0x1a1d23, bezel: 0xb4bcc6, bezelMetal: true, back: 0x3a4049, backMetal: true, pipe: 0xc3cad2, blades: 11, rim: true, lips: true },
 };
