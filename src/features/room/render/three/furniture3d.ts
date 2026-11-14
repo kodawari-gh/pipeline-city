@@ -367,7 +367,7 @@ export function nightstand(): Bedside {
   g.add(lantern);
   const yb = y0 + prof[0]!.y, yt = y0 + prof[prof.length - 1]!.y;
   for (const [r, y] of [[rb, yb], [rt, yt]] as const) {
-    const ring = place(new Mesh(new TorusGeometry(r, 26, 6, 40), black));
+    const ring = place(new Mesh(new TorusGeometry(r, 26, SEG.tube, SEG.lathe), black));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(lx, y, lz);
     g.add(ring);
@@ -408,11 +408,11 @@ export function floorLantern(): Lantern {
   // the side, bottom to top: fullest at the middle, the paper sagging a little between each two ribs
   const n = RIBS * 8, prof: Vector2[] = [];
   for (let k = 0; k <= n; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / n)) * (1 - 0.012 * Math.sin((Math.PI * (k % 8)) / 8)), (H * k) / n));
-  const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, SEG.lathe), shade));
   col.position.set(x, y0, z);
   g.add(col);
   for (const [r, y] of [[r0, y0], [prof[n]!.x, y0 + H]] as const) {
-    const ring = place(new Mesh(new TorusGeometry(r, 30, 6, 48), black));
+    const ring = place(new Mesh(new TorusGeometry(r, 30, SEG.tube, SEG.lathe), black));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(x, y, z);
     g.add(ring);
@@ -759,14 +759,14 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
   for (let k = 0; k <= RIBS * 2; k++) { const t = (k / (RIBS * 2)) * (Math.PI / 2 - 0.12); prof.push(new Vector2(R * Math.cos(t), H * Math.sin(t))); }
   const paper = washiTex(undefined, stream(53)), lit = washiTex((v) => 0.45 + 0.55 * Math.exp(-(((v - 0.3) / 0.4) ** 2)), stream(53));
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
-  const rim = new Mesh(new TorusGeometry(R, 30, 6, 48), black);
+  const rim = new Mesh(new TorusGeometry(R, 30, SEG.tube, SEG.lathe), black);
   rim.rotation.x = Math.PI / 2;
   const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
-  const disc = new Mesh(new CircleGeometry(R * 0.8, 40), glow);
+  const disc = new Mesh(new CircleGeometry(R * 0.8, SEG.lathe), glow);
   disc.rotation.x = Math.PI / 2;
   disc.position.y = 500;
   // (the paper lets the light through: it casts no shadow)
-  dome.add(new Mesh(new LatheGeometry(prof, 48), shade), place(rim), seeThrough(disc));
+  dome.add(new Mesh(new LatheGeometry(prof, SEG.lathe), shade), place(rim), seeThrough(disc));
   dome.position.copy(mouth);
   g.add(dome);
   // (the bulb sits just inside the mouth: the paper lets it light nearly a half sphere, fading out to its edge)

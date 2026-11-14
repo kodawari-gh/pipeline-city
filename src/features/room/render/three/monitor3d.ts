@@ -162,7 +162,7 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   // the VESA 100 bracket: a 120 mm plate on the boss, four screws on the 100 mm square, the hinge block to the column's slider
   const v = p.vesa, plateZ = z0 - 32.1 * MM;
   R.add(softBox({ x: v.x - 60 * MM, y: v.y - 60 * MM, w: 120 * MM, h: 120 * MM }, plateZ - 3.2 * MM, plateZ + 4, shell, 1.6 * MM));
-  const head = new CylinderGeometry(5.1 * MM, 5.1 * MM, 1.4 * MM, 16);
+  const head = new CylinderGeometry(5.1 * MM, 5.1 * MM, 1.4 * MM, SEG.post);
   head.rotateX(Math.PI / 2);
   for (const dx of [-VESA, VESA]) for (const dy of [-VESA, VESA]) { const s = new Mesh(head, steel); s.position.set(v.x + dx, -(v.y + dy), plateZ - 3.7 * MM); R.add(place(s)); }
   const c = p.column;

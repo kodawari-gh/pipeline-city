@@ -47,13 +47,13 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const shade = new Group(), L = 1500;
   shade.position.set(...hd);
   shade.rotation.z = Math.atan2(ux, -uy);
-  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, 32, 1, true), coat));
+  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, SEG.drum, 1, true), coat));
   const inner = mat(0xfff4dc, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
-  const innerM = new Mesh(new CylinderGeometry(296, 812, L, 32, 1, true), inner);
+  const innerM = new Mesh(new CylinderGeometry(296, 812, L, SEG.drum, 1, true), inner);
   const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
   // the mouth's rolled lip, the head's knob that sets the shade's tilt
-  const lip = place(new Mesh(new TorusGeometry(816, 40, 8, 48), coat));
+  const lip = place(new Mesh(new TorusGeometry(816, 40, SEG.rod, SEG.lathe), coat));
   lip.rotation.x = Math.PI / 2; lip.position.y = -L;
   const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, 18), joint));
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
@@ -273,10 +273,10 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   cup.scale.set(1.012, 1, 0.99);
   cup.rotation.y = 2.1;
   cup.position.y = 4.5;
-  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, 40), mat(0x8d8a34, { roughness: 0.04 }));
+  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, SEG.lathe), mat(0x8d8a34, { roughness: 0.04 }));
   tea.position.y = 4.5 + 70;
   // the saucer, its grain straight across it
-  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), 48);
+  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), SEG.lathe);
   const sp = sg.attributes.position!, suv = sg.attributes.uv!;
   // (the grain runs along x; up the rim's side it climbs across the grain, as on a turned block)
   for (let i = 0; i < sp.count; i++) suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
@@ -398,7 +398,7 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
  */
 export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void): Group {
   const g = new Group(), prim = new Group(), shell = mat(0x9d9b96, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
-  const geo = new SphereGeometry(1, 28, 16), p = geo.attributes.position!;
+  const geo = new SphereGeometry(1, SEG.drum, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
   for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + 0.08 * p.getZ(i)), lift(p.getY(i), p.getZ(i)), p.getZ(i));

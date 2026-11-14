@@ -8,7 +8,7 @@
 // long card's flow-through window. The 8-pin power sockets, keyed 2 x 4 Mini-Fit housings on the top edge; the display outputs at their real
 // size through the bracket, an HDMI and three DisplayPorts in their keyed shells.
 import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, SphereGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { drum, extrude, fanRotor, instanced, place, rectBox, rounded, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, extrude, fanRotor, fanSides, instanced, place, rectBox, rounded, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { NIC_BRACKET_X } from '../layout/layout';
@@ -106,19 +106,19 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   const root = new Group(), body = new Group();
   body.position.z = -depth / 2;
   root.add(body);
-  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, 64, 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
+  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
   body.add(duct);
   motor(body, r, depth, 4);
   const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45 });
   const rotor = fanRotor(r * 0.97, blades, bladeM, hubM, { chord: blades > 9 ? 0.5 : 0.6, pitch: 0.72 });
   // (a thin fan: the blades and the hub stay inside the duct's depth)
   rotor.scale.z = Math.min(1, (depth * 0.44) / (r * 0.22));
-  const sticker = place(new Mesh(new CylinderGeometry(r * 0.27, r * 0.27, r * 0.012, 40).rotateX(Math.PI / 2), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM]));
+  const sticker = place(new Mesh(new CylinderGeometry(r * 0.27, r * 0.27, r * 0.012, SEG.drum).rotateX(Math.PI / 2), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM]));
   sticker.position.z = r * 0.212;
   rotor.add(sticker);
   if (rim) {
     // the barrier ring tying the blade tips together
-    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, 96, 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
+    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
     rotor.add(ring);
   }
   body.add(rotor);

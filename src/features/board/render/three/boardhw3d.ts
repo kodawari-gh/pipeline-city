@@ -2,7 +2,7 @@
 // (where each port sits in the shield, the connectors behind it and their cover by the tier's skin), and the slot hardware (PCIe armour and
 // latches, the CPU socket's load frame and lever).
 import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape, type Material, type MeshStandardMaterial } from 'three';
-import { extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -181,7 +181,7 @@ export function slotHardware(): Group {
     g.add(plate);
     const lx = o.x + o.w + 40, ys = o.y + o.h + 50, zl = BOARD_Z + 46;
     g.add(tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, 5), 13, steel, 10));
-    const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, 14).rotateZ(Math.PI / 2), latchM));
+    const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, SEG.post).rotateZ(Math.PI / 2), latchM));
     cap.position.set(lx + 200, -ys, zl);
     g.add(cap);
     g.add(rectBox({ x: lx - 30, y: ys - 70, w: 60, h: 40 }, BOARD_Z, BOARD_Z + 70, steel), rectBox({ x: lx - 26, y: o.y + 10, w: 52, h: 70 }, BOARD_Z, BOARD_Z + 64, steel));

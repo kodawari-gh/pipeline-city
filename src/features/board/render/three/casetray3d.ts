@@ -3,7 +3,7 @@
 // beads, tie-down bridges, Velcro straps, and rubber cable holes where the leads come through. The frame: riveted flanges round the tray, a rolled lip
 // round the side opening with rubber bumpers and the receivers of the door's hooks, and the door's own hem and hooks. All at real scale, by kind.
 import { Color, CylinderGeometry, Group, Shape, Vector2, type Material } from 'three';
-import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
@@ -162,7 +162,7 @@ export function trayDetail(f: Frame, inner: Material): Group {
     perforated(g, c, zc, 'hex', 60, 0x2a2d33, { metal: 0.55, rough: 0.45 });
     const posts: Spot[] = [];
     for (const yy of [c.y + 80, c.y + c.h - 80]) for (const xx of [c.x + 60, c.x + c.w - 60]) posts.push({ x: xx, y: -yy, z: TRAY_Z });
-    g.add(instanced(new CylinderGeometry(26, 26, 90, 10).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x24262c, { metalness: 0.55, roughness: 0.4 }), posts));
+    g.add(instanced(new CylinderGeometry(26, 26, 90, SEG.rod).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x24262c, { metalness: 0.55, roughness: 0.4 }), posts));
     g.add(screws(posts.map((p) => ({ ...p, z: zc + 8 })), 'z+', 40, screwM(k)));
   }
   return g;

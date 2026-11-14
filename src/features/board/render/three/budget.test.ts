@@ -15,7 +15,7 @@ export const BUDGET = {
   /** Machine and room: the draw calls a camera on layer 0 makes. */
   machineRoomDraws: 924,
   /** Machine and room: the vertices of the meshes drawn. */
-  machineRoomVerts: 1181936, // (was 2,216,520 before the asset standard's redo, ASR1–ASR10)
+  machineRoomVerts: 1172752, // (was 2,216,520 before the asset standard's redo, ASR1–ASR10)
   /** City: the triangles drawn (instances counted). */
   cityTris: 2103386, // (was 3,643,156 before the tree caps, ASR2)
 } as const;

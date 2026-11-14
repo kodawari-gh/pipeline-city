@@ -98,7 +98,7 @@ Open items moved from the retired overhaul plan, and the follow-ups from the doc
 
 The standard is approved (LPC1, docs/3D_STYLE.md "Asset standard"). Each task below still needs the owner to accept its before and after shot.
 
-State on 2026-11-14 (branch `gfx/look-per-cost`). High: 942 draws, vertices 2,216,520 -> 1,181,936, city triangles 3,643,156 -> 2,103,386 (`budget.test.ts` rows lowered).
+State on 2026-11-14 (branch `gfx/look-per-cost`). High: 942 draws, vertices 2,216,520 -> 1,172,752, city triangles 3,643,156 -> 2,103,386 (`budget.test.ts` rows lowered).
 - ASR1: work done in part (996f5a4, 625c63e). One hole method in the shroud and drive cage (`perforatedFlatRun`). Distinct looks per case 30–41 -> 16 / 11 / 16 / 16 by `foldCaseLooks` (12a9b18): the cap of 16 holds; `casemat.test.ts` holds the ceiling. Left: the cage side-wall windows, the LOD1 cap of 4.
 - ASR2: work done (a99fbdd). Caps and rings in `trees.test.ts`. Left: the cards past 300 m.
 - ASR3: work done (ae6dd2e). Label drape about 2,000 triangles; small parts are plain boxes.
@@ -106,7 +106,7 @@ State on 2026-11-14 (branch `gfx/look-per-cost`). High: 942 draws, vertices 2,21
 - ASR5: work done (6b6d29f). Joint: 6 sides, 3 rings, about 36 triangles.
 - ASR6: work done (ae6dd2e). Heat pipes 96 × 12 at High (was 220 × 16). The dark variant stays on hold.
 - ASR7: work done (6b6d29f). Lathes: 28 sides, 12 profile points, about 616 triangles each.
-- ASR10: work done in part (7d9f49e, 6b6d29f). `SEG` in `geometry.ts`; the shared helpers, monitor, plugs, RAM, fans, joints and lathes read it. Other builders still hold literals.
+- ASR10: work done in part (7d9f49e, 6b6d29f). `SEG` in `geometry.ts`; the shared helpers, monitor, plugs, RAM, fans, joints and lathes read it. Second pass: 43 more literals in 16 board and room builders read `SEG` or `fanSides`; the pump's rounds share one count. Left: literals with no role in the table (screw heads of 20, lathes of 16–20, `drum(...)` calls with a count), the city.
 - ASR8 (on hold): not started.
 - ASR9: work done in part. `mat()` snaps a colour nearer than 30 to a family colour (`familyHex`, `materials.ts`). A neutral or cool grey below `#d8` takes the nearest step of the grey ladder; a brass takes the one gold. Base colours: machine 175 -> 45, room 81 -> 30; `palette.test.ts` holds the ceiling (`PALETTE_DUMP=1` lists them). Left: the literals in the source (codemod), the blues and warm creams, materials not made by `mat()`. Needs the owner's shot acceptance (mid greys are now `#2a2d32` or `#4e5360`).
 

@@ -4,7 +4,7 @@
 // the top controls (the power button and the status lights of each kind, the front ports). The inside of the case is casetray3d.ts. Airflow reads
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { FAN_SCREW, fanFlange, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
@@ -80,7 +80,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     g.add(thumbscrews(Array.from({ length: slots }, (_, i) => ({ x: x0 - 14, y: -(slotY(i) + 30), z: (za + zb) / 2 })), 'x-', 56, 64, steel()));
   }
   // over the round opening: a honeycomb grille where the case has a mount (its four screw holes go with it), the Mini's punched grille where it has none
-  const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
+  const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, fanSides(fan.d / 23)), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
   grille.rotation.y = -Math.PI / 2;
   grille.position.set(x0 - 2, -fan.cy, REAR_ZC);
   g.add(grille);
@@ -345,7 +345,7 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
     g.add(drumX(x - 12, -y, zc, 40, 8, mat(tone, { roughness: 0.5 })), drumX(x - 15, -y, zc, 27, 8, hole), boxW(x - 16, x - 12, -y - 4, -y + 4, zc + 14, zc + 27, mat(tone, { roughness: 0.5 })));
     // (a combo port's ring is half each colour: the half over the ring's face, the mouth in front of it)
     if (half !== undefined) {
-      const o = new Mesh(new CylinderGeometry(40, 40, 0.8, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), mat(half, { roughness: 0.5 }));
+      const o = new Mesh(new CylinderGeometry(40, 40, 0.8, SEG.post, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), mat(half, { roughness: 0.5 }));
       o.position.set(x - 16.6, -y, zc);
       g.add(place(o));
     }
@@ -450,7 +450,7 @@ export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491,
 /** Two hinge barrels on the front edge of a glass door (the Mid and the Full tower). */
 export function hinges(ex: number, yTop: number, yBot: number): Group {
   const g = new Group(), m = mat(0x2b2f38, { metalness: 0.7, roughness: 0.35 });
-  for (const y of [yTop + 500, yBot - 900]) { const o = place(new Mesh(new CylinderGeometry(24, 24, 320, 16), m)); o.position.set(ex + 6, -y, FRONT - 6); g.add(o); }
+  for (const y of [yTop + 500, yBot - 900]) { const o = place(new Mesh(new CylinderGeometry(24, 24, 320, SEG.post), m)); o.position.set(ex + 6, -y, FRONT - 6); g.add(o); }
   return g;
 }
 

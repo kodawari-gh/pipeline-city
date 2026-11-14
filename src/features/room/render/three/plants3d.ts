@@ -3,7 +3,7 @@
 // shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
 // All the leaves of a kind in one room share a few materials (`perRoom`), so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
 import { BufferGeometry, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, LatheGeometry, Matrix4, Mesh, Vector2, Vector3, type Material, type Texture } from 'three';
-import { paint, place, post, rod, shareTex } from '@/core/render/three/geometry';
+import { SEG, paint, place, post, rod, shareTex } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { floorShadow, relief } from './furniture3d';
@@ -112,7 +112,7 @@ const UP = new Vector3(0, 1, 0);
 // ---------------------------------------------------------------- pots
 /** A pot turned on a lathe from its profile ([radius, height] up from its foot), at the layout point (x, y). `ribs` flutes its body. */
 function lathePot(x: number, y: number, z: number, profile: readonly (readonly [number, number])[], m: Material, o: { ribs?: number; from?: number; to?: number } = {}): Mesh {
-  const ribs = o.ribs ?? 0, g = new LatheGeometry(profile.map(([r, h]) => new Vector2(r, h)), ribs ? ribs * 4 : 32);
+  const ribs = o.ribs ?? 0, g = new LatheGeometry(profile.map(([r, h]) => new Vector2(r, h)), ribs ? ribs * 4 : SEG.lathe);
   if (ribs) {
     const p = g.attributes.position!;
     for (let i = 0; i < p.count; i++) {

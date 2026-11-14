@@ -3,7 +3,7 @@
 // the TPM module: tpm3d.ts).
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
 import { CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { drum, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';
@@ -32,7 +32,7 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
 export function m2Standoff(m: RectLike): Group {
   const [x, y] = m2Standoffs(m)[2]!, g = new Group();
   g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), 6));
-  const hole = new Mesh(new CylinderGeometry(20, 20, 0.6, 16).rotateX(Math.PI / 2), mat(0x2a2418, { roughness: 0.8 }));
+  const hole = new Mesh(new CylinderGeometry(20, 20, 0.6, SEG.post).rotateX(Math.PI / 2), mat(0x2a2418, { roughness: 0.8 }));
   hole.position.set(x, -y, BOARD_Z + 41.7);
   g.add(hole);
   return g;
@@ -99,7 +99,7 @@ export function coinCell(r: RectLike): Group {
   const g = new Group(), cx = r.x + r.w / 2, cy = r.y + r.h / 2, R = Math.min(r.w, r.h) / 2;
   g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1a1d24, { roughness: 0.55 }), 32));
   // (a satin top: a mirror one flares white under the lamp up close)
-  const side = mat(0xaab2bc, { metalness: 0.8, roughness: 0.4 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, 40).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }), side]));
+  const side = mat(0xaab2bc, { metalness: 0.8, roughness: 0.4 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }), side]));
   cell.position.set(cx, -cy, BOARD_Z + 34);
   cell.rotation.z = -Math.PI / 2; // the stamp reads across, as the board's text does
   g.add(cell);

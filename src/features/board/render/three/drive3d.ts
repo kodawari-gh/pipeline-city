@@ -6,7 +6,7 @@
 // its label, two holes along each side and four under it, the receptacles at its back. Each is built lying flat in its own frame: x across,
 // y up, z along it from the connector end (0) to its front; a tray of the cage (drivecage3d.ts) carries it in the case.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { extrude, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
+import { SEG, extrude, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
 import { brushed, decalTop, outlinePts, screws, shapeOf, slab, tex, tiled, turned, type Facing, type Spot } from './casekit3d';
@@ -120,7 +120,7 @@ export function hddModel(look: DriveLook): DriveModel {
   // its board on the underside, screwed into the casting, the spindle motor's boss beside it
   g.add(flat(xz(m(5.2), m(1.0), W - m(5.2), m(81), m(1.6)), m(0.5), foot, mat(0x12301f, { roughness: 0.55, metalness: 0.1 }), m(0.2)));
   g.add(screws([[m(8), m(6)], [W - m(8), m(6)], [m(8), m(77)], [W - m(8), m(77)], [W / 2, m(44)]].map(([x, z]) => ({ x: x!, y: m(0.5), z: z! })), 'y-', m(1.6), screwM));
-  g.add(place(new Mesh(new CylinderGeometry(m(13), m(13.6), m(1.3), 40).translate(spin.x, foot - m(0.65), spin.z), mat(0xaeb3b8, { metalness: 0.85, roughness: 0.35 }))));
+  g.add(place(new Mesh(new CylinderGeometry(m(13), m(13.6), m(1.3), SEG.drum).translate(spin.x, foot - m(0.65), spin.z), mat(0xaeb3b8, { metalness: 0.85, roughness: 0.35 }))));
   // the receptacles in the pocket: power, then data, then the jumper pins
   const y0 = m(2.4), power = receptacle(g, 15, m(8.2), y0, s), dx = m(8.2) + socketW(15) + m(1.9), data = receptacle(g, 7, dx, y0, s);
   const jx = dx + socketW(7) + m(1.6);

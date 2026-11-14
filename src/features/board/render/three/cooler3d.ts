@@ -8,7 +8,7 @@
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
-import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { byDetail, lowDetail } from '@/core/render/three/detail';
 import { NON_METAL } from '@/core/render/three/cheapmaterials';
 import { KEEP_SPEC, mat } from '@/core/render/three/materials';
@@ -97,13 +97,13 @@ function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vect
 /** A G1/4 fitting screwed into a port at the world point `p`, pointing along `dir` (a unit vector): its hex, then the collar with two ridges round it. */
 function fitting(g: Group, p: Vector3, dir: Vector3, m: Material) {
   along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, 6), m, p, dir, FIT.hexLen / 2);
-  along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, 32), m, p, dir, (FIT.hexLen + FIT.len) / 2);
+  along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, SEG.drum), m, p, dir, (FIT.hexLen + FIT.len) / 2);
   for (const at of [FIT.hexLen + 60, FIT.len - 30]) along(g, new TorusGeometry(FIT.collar + 6, 10, 8, 32), m, p, dir, at, new Vector3(0, 0, 1));
 }
 
 /** A G1/4 plug in a port at `p` facing `dir`: a flat round head, a hex socket in it. */
 function plug(g: Group, p: Vector3, dir: Vector3, m: Material) {
-  along(g, new CylinderGeometry(190, 200, 60, 32), m, p, dir, 30);
+  along(g, new CylinderGeometry(190, 200, 60, SEG.drum), m, p, dir, 30);
   along(g, new CylinderGeometry(70, 70, 8, 6), mat(0x07080b, { roughness: 0.8 }), p, dir, 62);
 }
 
@@ -307,9 +307,11 @@ const PUMP = { R: 745, R0: 770, top: L + 1100, portX: 260, portZ: L + 780 };
 /** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
 const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
 
+/** The sides of each round of the pump: one count, so its bands, foot and cap meet edge to edge. The polished chamfer shows each side, so it takes a 120 mm fan's count. */
+const PUMP_SIDES = fanSides(120);
 /** A round band standing along z, open at both ends, from depth `z0` (radius `r0`) to `z1` (radius `r1`): a body's side, a chamfer, a light ring. */
 function band3(r0: number, r1: number, z0: number, z1: number, m: Material): Mesh {
-  const o = place(new Mesh(new CylinderGeometry(r1, r0, z1 - z0, 96, 1, true).rotateX(Math.PI / 2), m));
+  const o = place(new Mesh(new CylinderGeometry(r1, r0, z1 - z0, PUMP_SIDES, 1, true).rotateX(Math.PI / 2), m));
   o.position.z = (z0 + z1) / 2;
   return o;
 }
@@ -331,7 +333,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   // it meets the base
   const side = mat(0x3a3f48, { metalness: 0.45, roughness: 0.4 }), z1 = top - 126;
   g.add(band3(R0, R, L + 250, z1, side));
-  g.add(drum(0, 0, L + 250, L + 262, R0 + 6, black, 96));
+  g.add(drum(0, 0, L + 250, L + 262, R0 + 6, black, PUMP_SIDES));
   // a thin light ring under the cap, set a little in: smoked when off (a dark line between the body and the cap), lit in the case's colour with
   // the fans
   const ringM = glowMat(0xffffff, 0x14161b);
@@ -343,9 +345,9 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   const polished = mat(0xc4c9d1, { metalness: 0.95, roughness: 0.14 });
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
-  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), 96));
+  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), PUMP_SIDES));
   g.add(band3(140, 118, top, top + 8, polished));
-  g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), 64));
+  g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), PUMP_SIDES));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from
   // them once every part is in: `hose`, machine3d.ts)
   const north = new Vector3(0, 1, 0), y0 = PUMP.R * 0.6;
@@ -399,7 +401,7 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
   for (const [za, zb] of [[z0, z0 + fold], [z1 - fold, z1]] as const) for (const va of [v0 - 6, v1]) plates.push(item(fr.rect(0, va, L, 6), za, zb));
   root.add(instanced(unit, plateM, plates));
   // the fans' screw holes in the folds, on both faces
-  const holeGeo = new CylinderGeometry(42, 42, 4, 16);
+  const holeGeo = new CylinderGeometry(42, 42, 4, SEG.post);
   if (side === 'front') holeGeo.rotateZ(Math.PI / 2);
   const holes: { x: number; y: number; z: number }[] = [];
   for (const u of radiatorFanUs(L, ids.length)) for (const du of [-hole, hole]) for (const dz of [-hole, hole]) for (const v of [v0 - 7, v1 + 7]) {

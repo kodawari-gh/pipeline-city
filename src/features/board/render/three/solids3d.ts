@@ -2,7 +2,7 @@
 // boardParts.ts) while the board art is built for the texture, so the 3D parts sit exactly on their drawings: capacitor cans, SMD passives with
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';
-import { instanced, paint } from '@/core/render/three/geometry';
+import { SEG, instanced, paint } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import type { Solid } from '../boardParts';
@@ -74,7 +74,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
       default: break; // chokes and power stages are raised with their own art (machine3d.ts)
     }
   }
-  const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, 22).rotateX(Math.PI / 2);
+  const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2);
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
   const tinned = mat(0xc2c8d0, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };

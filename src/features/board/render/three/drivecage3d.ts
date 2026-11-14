@@ -8,7 +8,7 @@
 // to the tray sheet. An empty bay keeps its empty tray; a fitted drive's tray goes with the drive (it slides out with it, buildmotion.ts).
 // The 2D keeps its column of cells (`BAY_CELLS`) at the cage's west end.
 import { CylinderGeometry, Group, Mesh, Vector2 } from 'three';
-import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
@@ -104,7 +104,7 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   const win: Span = { y0: -(H - 70), y1: -(F + 80), z0: PIN_Z[0]! + 260, z1: PIN_Z[1]! - 260, r: 40 };
   for (const x of [0, W - R]) g.add(wallX(x, x + R, { y0: -H, y1: 0, z0: 40, z1: L - 26 }, [win], steel, 3));
   // the pins, through a rubber ring on each rail's inner face, pointing at the drive's side holes
-  const pin = (dir: 1 | -1) => new CylinderGeometry(1.5 * MM, 1.5 * MM, 4 * MM, 14).rotateZ(Math.PI / 2).translate((dir * 4 * MM) / 2, 0, 0);
+  const pin = (dir: 1 | -1) => new CylinderGeometry(1.5 * MM, 1.5 * MM, 4 * MM, SEG.post).rotateZ(Math.PI / 2).translate((dir * 4 * MM) / 2, 0, 0);
   const ring = (dir: 1 | -1) => new CylinderGeometry(4 * MM, 4 * MM, 1.2 * MM, 20).rotateZ(Math.PI / 2).translate((dir * 1.2 * MM) / 2, 0, 0);
   for (const [x, dir] of [[R, 1], [W - R, -1]] as const) {
     const at = PIN_Z.map((z) => ({ x, y: PIN_Y, z }));
@@ -113,7 +113,7 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   // the handle across the front: a plate with a finger hole, the latch's grip at its east end with its ribs
   g.add(slab(shapeOf(xy(0, 0, W, HH, 30), [xy(W / 2 - 420, 120, W / 2 + 420, 245, 62)]), L - 26, L, steel, 4));
   g.add(box(W - 430, W - 90, 60, 270, L, L + 22, latch));
-  g.add(instanced(new CylinderGeometry(9, 9, 160, 8), latch, [0, 1, 2, 3].map((i) => ({ x: W - 380 + i * 80, y: 165, z: L + 26 }))));
+  g.add(instanced(new CylinderGeometry(9, 9, 160, SEG.rod), latch, [0, 1, 2, 3].map((i) => ({ x: W - 380 + i * 80, y: 165, z: L + 26 }))));
   if (fitted === 'ssd') g.add(screws(ssdScrews().map((s): Spot => ({ x: s.x, y: 0, z: s.z })), 'y-', 2.4 * MM, mat(0x2b2e33, { metalness: 0.7, roughness: 0.4 })));
   return g;
 }

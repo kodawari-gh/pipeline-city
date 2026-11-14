@@ -5,7 +5,7 @@
 // block over the die between the fan and the bracket; the air goes out through the bracket's honeycomb. Over the PCB's face, a brushed backplate
 // with the die's cut-out (its capacitor array and X bracket) and vents over the power stage. The top edge carries the name and the violet line.
 import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, type Material, type MeshStandardMaterial, type Vector2 } from 'three';
-import { extrude, instanced, place, rectBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, fanSides, instanced, place, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { brushed, decal, outlinePts, screws, shapeOf, slab, wallPt, wallX, type Span, type Spot } from './casekit3d';
 import type { Spin } from './fans3d';
@@ -47,11 +47,11 @@ export function npuPlan(f: CardFrame) {
 function impeller(r: number, h: number): Group {
   const rotor = new Group(), discM = mat(0x15171b, { roughness: 0.5 }), bladeM = mat(0x1c1e23, { roughness: 0.44, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.42 });
   const t = 0.8 * MM;
-  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.99, r * 0.99, t, 72).rotateX(Math.PI / 2).translate(0, 0, t / 2), discM)));
+  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.99, r * 0.99, t, fanSides(2 * r / MM)).rotateX(Math.PI / 2).translate(0, 0, t / 2), discM)));
   // the motor's cup and its sticker
   const cup = h * 0.72;
-  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.5, r * 0.53, cup, 56).rotateX(Math.PI / 2).translate(0, 0, cup / 2), hubM)));
-  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.43, r * 0.43, 0.15 * MM, 48).rotateX(Math.PI / 2).translate(0, 0, cup + 0.07 * MM), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM])));
+  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.5, r * 0.53, cup, SEG.drum).rotateX(Math.PI / 2).translate(0, 0, cup / 2), hubM)));
+  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.43, r * 0.43, 0.15 * MM, SEG.drum).rotateX(Math.PI / 2).translate(0, 0, cup + 0.07 * MM), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM])));
   // the blades: straight vanes from the cup's rim to the tips, leaned back from the radius
   const n = 33, r0 = r * 0.62, r1 = r * 0.97, rm = (r0 + r1) / 2, bh = h - t - 0.5 * MM;
   rotor.add(instanced(new BoxGeometry(1, 1, 1), bladeM, Array.from({ length: n }, (_, k) => {
