@@ -246,6 +246,16 @@ describe('OutsideView detail', () => {
     // (the cut is real: fewer meshes than High)
     expect(meshes(low)).toBeLessThan(meshes(high));
   });
+
+  it('Low: the streets cut draws fewer meshes, and the furniture cut fewer triangles, than the uncut city', () => {
+    // (`streets` trades triangles for draws: its wide cells add triangles, so it is checked by mesh count. `furniture` keeps every mesh,
+    // so it is checked by triangles.)
+    const none = new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=none', 'low'));
+    const streets = new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=streets', 'low'));
+    const furniture = new Detailed(0, 0, 10, 10, 0, 'low', parseCityCuts('?citycuts=furniture', 'low'));
+    expect(meshes(streets)).toBeLessThan(meshes(none));
+    expect(viewTriangles(furniture, 45)).toBeLessThan(viewTriangles(none, 45));
+  }, 300000);
 });
 
 describe('OutsideView ambient motion', () => {
