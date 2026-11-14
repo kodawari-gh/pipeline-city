@@ -82,12 +82,12 @@ Measured:
 
 | Where | Sets | Draws to save | Largest sets |
 |---|---|---|---|
-| Machine | 14 | 76 | 7 + 6 + 6 merged case pieces, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
+| Machine | 11 | 60 | 6 perforated tray floors, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
 | Room | 3 | 18 | 10 meshes under `tray`, 6 under `router` |
 
-A set of 16 merged case pieces is gone: each mesh that no ray stops at (`seeThrough`) had its own ray function, and `mergeSiblings` keeps different ray functions apart, so none of them merged. They now share `NO_RAY` (`pick.ts`): the maxed machine draws 640 meshes near, was 678. Any new "no ray" mesh must use `seeThrough` or `NO_RAY`, never a new function. The 18 standoff marks of the tray were one quad a position; they are now one mesh a word (`mounts`, `casetray3d.ts`): 628 draws near.
+A set of 16 merged case pieces is gone: each mesh that no ray stops at (`seeThrough`) had its own ray function, and `mergeSiblings` keeps different ray functions apart, so none of them merged. They now share `NO_RAY` (`pick.ts`): the maxed machine draws 640 meshes near, was 678. Any new "no ray" mesh must use `seeThrough` or `NO_RAY`, never a new function. The 18 standoff marks of the tray were one quad a position; they are now one mesh a word (`mounts`, `casetray3d.ts`): 628 draws near. The empty drive trays and the Velcro straps were groups of their own, and `mergeSiblings` merges by parent; their meshes now go straight into the cage and the tray group (`driveCage`, `trayDetail`): 611 draws near. Rule: a still sub-assembly that nothing finds, moves or fades alone adds its meshes to its parent, not a group.
 
-So instancing can save at most 94 draws. The six fans carry the most vertices (24,288 each, merged); they are in six part scopes (`userData.id`), which fade and outline alone, so an instanced set needs a per-instance fade first. The test holds the count: it may only fall.
+So instancing can save at most 78 draws. The six fans carry the most vertices (24,288 each, merged); they are in six part scopes (`userData.id`), which fade and outline alone, so an instanced set needs a per-instance fade first. The test holds the count: it may only fall.
 
 ## Cheap materials (Low)
 

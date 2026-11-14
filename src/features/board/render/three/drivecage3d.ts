@@ -99,7 +99,7 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   const fp = { metal: sheet(kind).metalness, rough: sheet(kind).roughness }, ft = TRAY_TONE[kind];
   const rows: [number, number, number, number][] = [[700, W - 700, 420, 1780], [700, W - 700, 2240, 3180]];
   for (let z = 520; z + 260 < L - 300; z += 420) rows.push([150, 330, z, z + 260], [W - 330, W - 150, z, z + 260]);
-  g.add(perforatedFlatRun(F, rows, 'slot', 110, ft, fp));
+  g.add(...perforatedFlatRun(F, rows, 'slot', 110, ft, fp).children); // (its two meshes, not their group: they merge with the other trays')
   // the rails, folded up from the floor, a long window in each between its pins
   const win: Span = { y0: -(H - 70), y1: -(F + 80), z0: PIN_Z[0]! + 260, z1: PIN_Z[1]! - 260, r: 40 };
   for (const x of [0, W - R]) g.add(wallX(x, x + R, { y0: -H, y1: 0, z0: 40, z1: L - 26 }, [win], steel, 3));
@@ -147,7 +147,13 @@ export function driveCage(p: CagePlan, kind: CaseKind = 'gamer', filled: Readonl
   g.add(flange(p.top), flange(p.bottom - 130));
   const heads: Spot[] = [p.top + 65, p.bottom - 65].flatMap((y) => [p.x0 + 120, (p.x0 + p.x1) / 2, p.x1 - 120].map((x) => ({ x, y: -y, z: p.z0 + SHEET })));
   g.add(screws(heads, 'z+', 2.8 * MM, bolt));
-  for (const t of p.trays) if (!filled.has(`sata${t.slot}`)) g.add(trayAt(kind, t));
+  // (an empty tray's meshes go straight into the cage, in its frame: the still ones of all the trays then merge with the cage's, `mergeSiblings`)
+  for (const t of p.trays) {
+    if (filled.has(`sata${t.slot}`)) continue;
+    const tray = trayAt(kind, t);
+    tray.updateMatrix();
+    for (const c of [...tray.children]) { c.applyMatrix4(tray.matrix); g.add(c); }
+  }
   return g;
 }
 

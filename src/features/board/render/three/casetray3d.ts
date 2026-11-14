@@ -164,7 +164,9 @@ export function trayDetail(f: Frame, inner: Material): Group {
       o.rotation.z = lean;
       o.add(rectBox({ x: -40, y: -40, w: 80, h: 400 }, 16, 24, band), rectBox({ x: -40, y: 360, w: 80, h: 44 }, 16, 25, tab));
       o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x191a1e, { roughness: 1 })));
-      g.add(o);
+      // (its meshes go straight into the tray's group, in its frame: the straps then merge with the tray's still meshes, `mergeSiblings`)
+      o.updateMatrix();
+      for (const c of [...o.children]) { c.applyMatrix4(o.matrix); g.add(c); }
     });
   }
 

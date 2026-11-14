@@ -35,7 +35,7 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. */
-const CEILING = { machine: 76, room: 18 };
+const CEILING = { machine: 60, room: 18 };
 
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {
