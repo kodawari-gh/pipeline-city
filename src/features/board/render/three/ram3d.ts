@@ -6,7 +6,7 @@
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough } from '@/core/render/three/pick';
+import { seeThrough, unseen } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
 import { ramChips, ramNotch } from '../devices';
@@ -266,7 +266,5 @@ function faceLabel(text: string, sticker: boolean, x: number, y: number, z: numb
 
 /** The unseen box a click hits: the whole 2D rect, up to the stick's top. */
 function hitBox(r: RectLike, look: StickLook): Mesh {
-  const o = rectBox(r, BOARD_Z, stickTop(look), mat(0, { transparent: true, opacity: 0, depthWrite: false }));
-  o.castShadow = o.receiveShadow = false;
-  return o;
+  return unseen(rectBox(r, BOARD_Z, stickTop(look), mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 }

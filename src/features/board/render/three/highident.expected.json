@@ -141,17 +141,17 @@
   },
   "machine/cable.monmains": {
     "meshes": 4,
-    "draws": 4,
+    "draws": 3,
     "verts": 9964,
     "instances": 0,
-    "sum": "ec54bcc6"
+    "sum": "93edf69e"
   },
   "machine/cable.pcmains": {
     "meshes": 4,
-    "draws": 4,
+    "draws": 3,
     "verts": 9964,
     "instances": 0,
-    "sum": "425dd618"
+    "sum": "2ddb2957"
   },
   "machine/cable.ramfan": {
     "meshes": 2,
@@ -190,10 +190,10 @@
   },
   "machine/case.side": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "45ebb271"
+    "sum": "c0fe73d0"
   },
   "machine/chipset": {
     "meshes": 2,
@@ -302,59 +302,59 @@
   },
   "machine/dev23": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "edd94e28"
+    "sum": "ab597302"
   },
   "machine/dev24": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "cd77dfb9"
+    "sum": "9838ae39"
   },
   "machine/dev25": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "9ecd6774"
+    "sum": "530d282f"
   },
   "machine/dev26": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "6a534311"
+    "sum": "1815a6a7"
   },
   "machine/dev27": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev28": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev29": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev30": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev31": {
     "meshes": 14,
@@ -407,10 +407,10 @@
   },
   "machine/power": {
     "meshes": 2,
-    "draws": 2,
+    "draws": 1,
     "verts": 168,
     "instances": 0,
-    "sum": "e2a93ae1"
+    "sum": "4563e3c3"
   },
   "machine/psu": {
     "meshes": 32,
@@ -421,45 +421,45 @@
   },
   "machine/sata0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "9f86aa0b"
+    "sum": "336af5ca"
   },
   "machine/sata1": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "5c8f1596"
+    "sum": "5167958e"
   },
   "machine/sata2": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "7d2f38b3"
+    "sum": "704b4926"
   },
   "machine/sata3": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "a8e8d252"
+    "sum": "e334b0ad"
   },
   "machine/sata4": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "fba2acf8"
+    "sum": "95389e99"
   },
   "machine/sata5": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "9c64f895"
+    "sum": "14a9fabb"
   },
   "machine/standin": {
     "meshes": 7,
@@ -470,17 +470,17 @@
   },
   "machine/tpm0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "55ee1e24"
+    "sum": "4b38adc7"
   },
   "machine/usb": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "565dd592"
+    "sum": "6dc48aab"
   },
   "machine/vrm": {
     "meshes": 8,
@@ -750,10 +750,10 @@
   },
   "room/display0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "77f91138"
+    "sum": "e6fd2945"
   },
   "room/lamp": {
     "meshes": 16,
@@ -785,10 +785,10 @@
   },
   "room/router": {
     "meshes": 25,
-    "draws": 25,
+    "draws": 24,
     "verts": 4446,
     "instances": 17,
-    "sum": "2161ff45"
+    "sum": "d79c8fbb"
   },
   "room/socket": {
     "meshes": 3,

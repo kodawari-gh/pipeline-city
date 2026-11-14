@@ -20,7 +20,7 @@ import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
-import { tag } from '@/core/render/three/pick';
+import { tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -365,8 +365,8 @@ export class Machine3D {
     this.small = b.small;
     this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
-    const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
-    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
+    const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { this.root.add(unseen(tag(rectBox(r, z0, z1, clear), id))); };
     pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
     GEO.dimm.forEach((d, i) => { if (!filled.has(`dimm${i}`)) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, `dimm${i}`); });
     M2_SLOTS.forEach((m, i) => { if (!filled.has(`m2${i}`)) pickBox(m, BOARD_Z, BOARD_Z + 40, `m2${i}`); });
@@ -719,8 +719,8 @@ export class Machine3D {
       g.add(cableMesh(run, cord));
       // (a thin cord seen from afar is a pixel wide: an unseen sleeve three times as thick round it is what the pointer finds)
       const grab = cableMesh(run, { ...cord, r: cord.r * 3 });
-      grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false }); grab.castShadow = grab.receiveShadow = false;
-      g.add(grab);
+      grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+      g.add(unseen(grab));
       this.addRig(g, {
         id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
         engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],

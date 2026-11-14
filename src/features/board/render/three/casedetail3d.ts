@@ -6,7 +6,7 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
 import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
+import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { fanMounts, frontFanRects } from '@/features/room/render/desk/props/case';
@@ -375,9 +375,7 @@ const pip = (c: number) => mat(0x0c0c0e, { emissive: c, emissiveIntensity: 0, ro
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
 const hitPlate = (x: number, y: number, z: number): Mesh => {
-  const o = rectBox({ x: x - 210, y: y - 260, w: 420, h: 260 }, z - 210, z + 210, mat(0, { transparent: true, opacity: 0, depthWrite: false }));
-  o.castShadow = o.receiveShadow = false;
-  return o;
+  return unseen(rectBox({ x: x - 210, y: y - 260, w: 420, h: 260 }, z - 210, z + 210, mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 };
 
 /**

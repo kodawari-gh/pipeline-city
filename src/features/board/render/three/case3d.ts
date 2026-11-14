@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { instanced, place, post, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
+import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { builtinTheme, type Theme } from '@/core/render/theme';
 import { CASE_D, CASE_Z, FAN_MAX } from '@/features/room/render/three/roomplan';
 import { CASE_LOOK } from '@/features/room/render/desk/props/case';
@@ -311,8 +311,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   side.traverse(seeThrough);
   // a click on the shut side opens the case: an unseen plate over it (machine3d.ts lets rays at it only while the panel is shut)
   const hit = tag(rectBox(kind === 'oem' ? { ...C, w: C.w - OEM_BEZEL } : C, FRONT, FRONT + 4, mat(0, { transparent: true, opacity: 0, depthWrite: false })), 'case.side');
-  hit.castShadow = hit.receiveShadow = false;
-  side.add(hit);
+  side.add(unseen(hit));
   // the panel hangs from its front edge (the Mini's from the edge of its sheet, under the plastic front)
   const px = kind === 'oem' ? ex - OEM_BEZEL : ex, door = new Group();
   door.position.set(px, 0, FRONT);

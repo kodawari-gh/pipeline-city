@@ -32,6 +32,12 @@ export function findById(root: Object3D, id: string): Object3D | null {
  */
 export const UNDRAWN = 1;
 
+/**
+ * An unseen box that only answers a ray (an empty socket, a thin part easy to click): on the undrawn layer it costs no draw. With a clear
+ * material alone it was a blended draw of the full light shader over all it covers, for no pixel.
+ */
+export const unseen = <T extends Object3D>(o: T): T => { o.layers.set(UNDRAWN); o.castShadow = o.receiveShadow = false; return o; };
+
 const ray = new Raycaster(), at = new Vector2();
 ray.layers.enable(UNDRAWN);
 

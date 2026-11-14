@@ -31,7 +31,7 @@ import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type B
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
+import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
@@ -684,8 +684,7 @@ export class Room3D {
     // the router's empty place: an unseen box a router dragged from the inventory lands on (`router`), there while no router stands
     this.routerBody = router;
     this.routerSpot = tag(rectBox(ROUTER_SPOT, 300, 1400, new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false })), 'router');
-    this.routerSpot.castShadow = this.routerSpot.receiveShadow = false;
-    R.add(this.routerSpot);
+    R.add(unseen(this.routerSpot));
     // (the LAN lead is the machine's: a cable with a plug to move, `Machine3D.buildRoomCords`)
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
@@ -765,8 +764,7 @@ export class Room3D {
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
     const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
     this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
-    this.monitorSpot.castShadow = this.monitorSpot.receiveShadow = false;
-    R.add(this.monitorSpot);
+    R.add(unseen(this.monitorSpot));
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's. Then the still scenery by palette
     this.ready = roomBake().then((b) => { if (this.gone) return; if (b) this.takeBake(b); this.mergeByPalette(); });
   }

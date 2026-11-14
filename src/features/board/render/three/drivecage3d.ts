@@ -10,6 +10,7 @@
 import { CylinderGeometry, Group, Mesh, Vector2 } from 'three';
 import { SEG, instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
+import { unseen } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { BASE_BAYS, BAY_CELLS, CAGE_W, CELL_H, PSU } from '../layout/layout';
@@ -162,9 +163,7 @@ export const cageBox = (p: CagePlan) => ({ min: [p.x0, -p.bottom, p.z0] as [numb
 
 /** The unseen box an empty bay is picked by: its tray and the room over it. */
 export function trayHit(t: TraySpot): Mesh {
-  const o = rectBox({ x: t.x, y: -(t.y + CELL_H - 40), w: TRAY.w, h: CELL_H - 40 }, t.z, t.z + TRAY.l + 30, mat(0, { transparent: true, opacity: 0, depthWrite: false }));
-  o.castShadow = o.receiveShadow = false;
-  return o;
+  return unseen(rectBox({ x: t.x, y: -(t.y + CELL_H - 40), w: TRAY.w, h: CELL_H - 40 }, t.z, t.z + TRAY.l + 30, mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 }
 
 /** The rubber-lined slot in the tray sheet behind the cage the drives' cables go back through: by their plugs, clear of the sheet's beads and lacing slots. */
