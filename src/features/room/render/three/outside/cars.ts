@@ -19,6 +19,8 @@ const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 const NEAR = 260;
 /** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
 const NEAR_LOW = 100;
+/** At Low, every moving car within this distance of the eye (m) drives, as at High: the near lanes keep their full traffic (the share thins only past it). */
+export const DRIVE_LOW = NEAR;
 /** At Low, a car further than this from the eye (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
 const CLIP_LOW = 350;
 /**
@@ -447,8 +449,8 @@ export class Fleet {
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
         const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
         // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all;
-        // a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic, and it is not counted)
-        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
+        // a car within `DRIVE_LOW` of the eye always drives, so the near lanes keep their full traffic, and it is not counted)
+        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= DRIVE_LOW * DRIVE_LOW && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
         if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
         turned(sa, P + n, x, z, cr, sr);

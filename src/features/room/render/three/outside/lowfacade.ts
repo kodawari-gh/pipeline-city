@@ -23,6 +23,8 @@ export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.
 export const LOW_DAY_GLASS = 1.5;
 /** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
 export const LOW_FAR_HUE = 0.35;
+/** By day a pane takes the frame's grey (with `LOW_FAR_HUE` of its hue) from `near` to `far` m: a mid-distance wall reads grey, not the tint's navy. */
+export const LOW_GLASS_DAY = { near: 60, far: 220 };
 /** By day a far wall (past `LOW_FAR`, as `lowFarD`) takes less of its atlas's contrast (`flat`: toward the frame's tone) and lifts its value with the
  * horizon's colour (`sky`, base's `fHor`), so the row reads pale and hazed as base's does, not dark and cut. Near walls are unchanged. */
 export const LOW_FAR_DAY = { flat: 0.5, sky: 0.3 };
@@ -308,9 +310,10 @@ if (vLowFac == 0.0) {
 // far off a pane is not resolved: its glass reads as the frame's brightness with the tower's hue (a dark tint would wall the building navy)
 vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
+float lowGlassF = smoothstep(${LOW_GLASS_DAY.near}.0, ${LOW_GLASS_DAY.far}.0, length(vViewPosition));
 // far off the atlas's contrast flattens toward the frame's tone, and the horizon's colour lifts the value (base's far wall reads so; the haze then goes on)
 vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * ${LOW_FAR_DAY.flat}) + fHor * (lowFarD * ${LOW_FAR_DAY.sky});
-vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowFarD);
+vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowGlassF);
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
       .replace('#include <emissivemap_fragment>', `{

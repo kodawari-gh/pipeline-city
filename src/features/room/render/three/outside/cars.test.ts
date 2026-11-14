@@ -1,6 +1,6 @@
 import { Color, Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3, type InstancedMesh, type MeshPhysicalMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Fleet, carMaterial, parkCells, reach, within } from './cars';
+import { DRIVE_LOW, Fleet, carMaterial, parkCells, reach, within } from './cars';
 import type { HazeUniforms } from './haze';
 import { LOW_FLEET } from './detail';
 import { GRID, buildings, parked, rng, type Building, type Car } from './plan';
@@ -90,8 +90,8 @@ describe('cars', () => {
     const Sized = Fleet as unknown as new (t: Traffic, p: Car[], l: { night: { value: number } }, h: HazeUniforms, scale?: number, models?: number) => Fleet;
     const meshes = (f: Fleet): InstancedMesh[] => (f as unknown as Inside).moving;
     const drawnCars = (f: Fleet): number => { f.update(0.1, 0, 0); return meshes(f).reduce((s, im) => s + im.count, 0); };
-    /** The moving cars drawn within 100 m of the eye (ex, ez): they always drive at Low. */
-    const nearCount = (f: Fleet, ex: number, ez: number): number => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < 100).length;
+    /** The moving cars drawn within `DRIVE_LOW` of the eye (ex, ez): they always drive at Low. */
+    const nearCount = (f: Fleet, ex: number, ez: number): number => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < DRIVE_LOW).length;
 
     it('lock: the default fleet is every car, in several meshes', () => {
       const tr = new Traffic(), light = { night: { value: 0 } }, a = new Fleet(tr, parked(), light, haze()), b = new Sized(tr, parked(), light, haze(), 1);
@@ -114,12 +114,13 @@ describe('cars', () => {
       low.dispose();
     });
 
-    it('Low: every car within 100 m of the eye drives, the share thins only the rest', () => {
+    it('Low: every car within DRIVE_LOW of the eye drives as at High, the share thins only the rest', () => {
       const light = { night: { value: 0 } }, full = new Sized(new Traffic(), parked(), light, haze(), 1, 1), low = new Sized(new Traffic(), parked(), light, haze(), LOW_FLEET, 1);
+      expect(DRIVE_LOW).toBeGreaterThan(100);
       for (const [ex, ez] of [[GRID.av0, 0], [GRID.av0 + 40, 120], [GRID.av0 - 90, -60]] as const) {
         full.update(0.1, ex, ez);
         low.update(0.1, ex, ez);
-        const near = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < 100).map(([x, z]) => key(x, z)).sort();
+        const near = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.hypot(x - ex, z - ez) < DRIVE_LOW).map(([x, z]) => key(x, z)).sort();
         expect(near(low)).toEqual(near(full));
         expect(near(low).length).toBeGreaterThan(0);
       }

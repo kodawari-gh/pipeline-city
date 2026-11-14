@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_BAND_FRAME, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_DAY, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_BAND_FRAME, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_DAY, LOW_FAR_HUE, LOW_GLASS_DAY, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 import { STYLES } from './plan';
 
@@ -320,7 +320,9 @@ describe('Low city facade bake', () => {
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
       // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
       // (a full dark tint at range would wall the building navy)
-      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35), lowFarD)');
+      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35), lowGlassF)');
+      expect(sh).toContain(`float lowGlassF = smoothstep(${LOW_GLASS_DAY.near}.0, ${LOW_GLASS_DAY.far}.0, length(vViewPosition));`);
+      expect(sh.indexOf('float lowGlassF')).toBeLessThan(sh.indexOf('vec3 lowGlassD'));
       expect(day).not.toContain('lowTn');
       expect(sh).toContain('lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);');
       expect(sh).toContain('lowGlassM = lowTex.a * vLowFac;');
@@ -329,6 +331,10 @@ describe('Low city facade bake', () => {
     expect(LOW_DAY_GLASS).toBeLessThan(3);
     expect(LOW_FAR_HUE).toBeGreaterThan(0);
     expect(LOW_FAR_HUE).toBeLessThan(1);
+    // the glass goes grey from mid-distance, starting before the frame's own far ramp: a 100 m wall is not the tint's navy
+    expect(LOW_GLASS_DAY.near).toBeLessThan(LOW_FAR.near);
+    expect(LOW_GLASS_DAY.far).toBeGreaterThan(LOW_GLASS_DAY.near);
+    expect(LOW_GLASS_DAY.far).toBeLessThanOrEqual(LOW_FAR.far);
   }, 180000);
 
   it('Low: by day a far wall lifts its value with the horizon colour (base\'s fHor) and flattens its atlas contrast; near walls take neither', () => {
