@@ -4,8 +4,9 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_DAY, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_BAND_FRAME, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_DAY, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
+import { STYLES } from './plan';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
 
@@ -397,8 +398,12 @@ describe('Low city facade bake', () => {
       expect(full).toMatch(/float lowRibGlass\(\)/);
       // the mullion (1 - 0.97) / 2 and the sill (1 - 0.5) * 0.6, as the band's window gives them
       expect(full).toMatch(/vec2\(0\.01[0-9]*, 0\.3[0-9]*\)/);
-      // the frame is the beige tone; the glass its dark pane
-      expect(sh).toContain('mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG)');
+      // the frame is base's warm beige; the glass its dark pane
+      expect(sh).toContain(`mix(vec3(${LOW_BAND_FRAME.join(', ')}), vec3(0.09, 0.1, 0.12), lowG)`);
+      expect(LOW_BAND_FRAME[0]).toBeGreaterThan(LOW_BAND_FRAME[1]);
+      expect(LOW_BAND_FRAME[1]).toBeGreaterThan(LOW_BAND_FRAME[2]);
+      // a mullion finer than the pixel fades to the glass's share of the bay (one continuous ribbon at range)
+      expect(full).toMatch(new RegExp(`m\\.x = mix\\(m\\.x, ${STYLES.band.win[0]}, smoothstep\\(0\\.03\\d*, 0\\.09\\d*, fw\\.x\\)\\);`));
       // the ribbon's glass replaces the atlas read on a band wall, and far off the top mip still takes over
       expect(sh).toContain('vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy)');
       expect(sh).toContain('vec4 lowTex = mix(lowNear, textureLod(map, lowUv, 8.0), lowFarM);');
