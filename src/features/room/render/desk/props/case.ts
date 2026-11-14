@@ -8,7 +8,7 @@ import {
 import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
 import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
-import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, hexes, isCut, outline, pillar, showPillars, type CaseKind } from '@/features/room/render/shell/casedecor';
+import { CASE_CUTS, CASE_KIND, caseWindow, hexes, isCut, outline, type CaseKind } from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';
 import { paintCable, paintTie, sleeveOf, tiePoints } from '@/core/render/cable';
 
@@ -52,7 +52,7 @@ export function caseBack(T: Theme): Container {
   // feet
   for (const fx of [c.x + 300, c.x + c.w - 700]) box(g, fx, c.y + c.h - 30, 400, 130, 30, { fill: mix(wall, T.bg, 0.4), stroke: edge, lw: 6, sa: 0.7 });
   // soft shadow and body
-  const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // the showcase's body is chamfered, inside as outside
+  const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // (no kind has cut corners now: the body is a box with its radius)
   outline(g, c.x + 20, c.y + 34, c.w, c.h, 110, bc).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.12 });
   outline(g, c.x, c.y, c.w, c.h, 110, bc).fill(wall).stroke({ width: 10, color: edge, alpha: 0.9 });
   // top panel
@@ -60,7 +60,7 @@ export function caseBack(T: Theme): Container {
   g.rect(p.x + 40, p.y + 8, p.w - 80, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.5 });
   // vents on the panel: a quiet row of slots
   for (let k = 0; k < look.vents; k++) box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
-  if (kind === 'gamer' || kind === 'show') g.rect(p.x + 40, p.y + p.h - 12, p.w - 80, 5).fill({ color: kind === 'gamer' ? T.mul : T.alu, alpha: 0.5 });
+  if (kind === 'gamer' || kind === 'show') g.rect(p.x + 40, p.y + p.h - 12, p.w - 80, 5).fill({ color: T.mul, alpha: 0.5 });
   // cavity (behind the glass) and the PSU compartment
   g.roundRect(i.x, i.y, i.w, i.h, 36).fill(lgrad(mix(cav, '#ffffff', T.dark ? 0.07 : 0.12), mix(cav, '#000000', T.dark ? 0.3 : 0.1))).stroke({ width: 6, color: edge, alpha: 0.8 });
   // the back panel's stamped ribs, and an inner shadow where the walls turn in (the cavity is a box, not a flat sheet)
@@ -102,16 +102,6 @@ export function caseBack(T: Theme): Container {
   rearWall(g, T, cav, wall, edge);
   topFans(g, T, cav, wall, edge);
   fanHub(root, g, T, cav, wall, edge);
-  if (kind === 'show') { // the silver pillars either side of the glass, as on the outside (`exterior.ts`)
-    const hi = '#444851', lo = mix('#444851', cav, 0.55), acc = T.br;
-    for (const r of showPillars(caseWindow(kind))) {
-      pillar(g, r, hi, lo, edge);
-      const px = r.x + r.w / 2 + r.w * 0.2, sh = r.h - 520; // the same lit slot as outside
-      g.roundRect(px - 24, r.y + 260, 48, sh, 24).fill({ color: acc, alpha: 0.18 });
-      g.roundRect(px - 8, r.y + 270, 16, sh - 20, 8).fill({ color: '#04060a' }).stroke({ width: 3, color: hi, alpha: 0.5 });
-      g.roundRect(px - 4, r.y + 280, 8, sh - 40, 4).fill(acc);
-    }
-  }
   // labels
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
@@ -418,15 +408,12 @@ export function caseGlass(T: Theme): Container {
     return root;
   }
   const gx = BR.io.x + BR.io.w + 60, a = T.dark ? 0.024 : 0.14;
-  // the glass is the window of the outside: the upper part on the matte case, between the pillars on the showcase
+  // the glass is the window of the outside: the upper part on the matte case, the full smoked pane on the showcase
   const win = caseWindow(kind), r = kind === 'matte' || kind === 'show' ? win : { ...CASE_GLASS, x: gx, w: CASE_GLASS.w - (gx - CASE_GLASS.x) };
   if (kind === 'matte') g.roundRect(win.x, win.y, win.w, win.h, 50).fill({ color: '#000000', alpha: T.dark ? 0.2 : 0.14 }); // the tint
   const band = (x0: number, x1: number) => g.poly([r.x + x0, r.y + 6, r.x + x1, r.y + 6, r.x + x1 - 1500, r.y + r.h - 6, r.x + x0 - 1500, r.y + r.h - 6]).fill({ color: '#ffffff', alpha: a });
   for (const [a, b] of [[2600, 3300], [3700, 3860], [6900, 7500]] as const) if (b - 1500 < r.w - 200) band(a, Math.min(b, r.w + 1500 - 200));
-  if (kind === 'show' && isCut(WINDOW_CUTS.show)) { // the glass has the cut corners of the outside window
-    const cuts = WINDOW_CUTS.show;
-    outline(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, [cuts[0] - 8, cuts[1] - 8, cuts[2] - 8, cuts[3] - 8]).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.07 : 0.4 });
-  } else box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
+  box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
   // corner screws
   for (const [x, y] of [[r.x - 80, r.y + 60], [r.x + r.w + 80, r.y + 60], [r.x - 80, r.y + r.h - 60], [r.x + r.w + 80, r.y + r.h - 60]] as const) {
     disc(g, x, y, 24, { fill: mix(wallTone(T), T.bg, 0.4), stroke: edgeTone(T), lw: 4, sa: 0.7 });
@@ -450,15 +437,15 @@ export function caseShade(T: Theme): Container {
   warm.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#ffb26a', '#ffb26a00', [0.0, 0.0], 0.8));
   warm.alpha = T.dark ? 0.05 : 0.04;
   root.addChild(vig, warm);
-  // the cases with lights wash the inside: a violet and pink glow from the floor in the gaming case, a cold glow from the front edge in the showcase
+  // the cases with lights wash the inside: a violet and pink glow from the floor in the gaming case, a violet glow from the front edge in the showcase
   const kind = kindNow();
   if (kind === 'gamer' || kind === 'show') {
     const glow = new Graphics();
     if (kind === 'gamer') {
       glow.roundRect(r.x, r.y + r.h * 0.6, r.w, r.h * 0.4, 30).fill(lgrad('#a04dff00', '#a04dff', [0, 1]));
     } else {
-      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(T.br + '00', T.br, [1, 0]));
-      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.br, T.br + '00')); // the top rail's fans light the inside from above
+      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(T.mul + '00', T.mul, [1, 0]));
+      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.mul, T.mul + '00'));
     }
     glow.alpha = T.dark ? 0.1 : 0.06;
     root.addChild(glow);

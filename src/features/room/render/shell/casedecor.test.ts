@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, cutRect, growCuts, isCut, showPillars } from './casedecor';
+import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, cutRect, growCuts, isCut } from './casedecor';
 
 describe('case decoration shapes', () => {
   it('a square corner list gives the four corners', () => {
@@ -18,16 +18,12 @@ describe('case decoration shapes', () => {
 });
 
 describe('the showcase shapes', () => {
-  it('only the showcase body has chamfered corners', () => {
-    expect(CASE_KIND.filter((k) => isCut(CASE_CUTS[k]))).toEqual(['show']);
+  it('no case body has chamfered corners (the showcase is a plain box)', () => {
+    expect(CASE_KIND.filter((k) => isCut(CASE_CUTS[k]))).toEqual([]);
   });
 
-  it('the showcase window cuts fit inside the window, and its pillars flank the window without touching it', () => {
-    const win = caseWindow('show');
-    for (const c of WINDOW_CUTS.show) expect(c * 2).toBeLessThan(Math.min(win.w, win.h));
-    const [west, east] = showPillars(win);
-    expect(west.x + west.w).toBeLessThanOrEqual(win.x);
-    expect(east.x).toBeGreaterThanOrEqual(win.x + win.w);
+  it('the showcase window is square-cornered', () => {
+    expect(isCut(WINDOW_CUTS.show)).toBe(false);
   });
 
   it('growing a cut keeps a square corner square', () => {
@@ -41,10 +37,11 @@ describe('case kinds and windows', () => {
     expect(CASE_KIND).toEqual(['oem', 'matte', 'gamer', 'show']);
   });
 
-  it('the matte window is shorter than the gaming one and the showcase one is narrower, so they match their exteriors', () => {
+  it('the matte window is shorter than the gaming one, and the showcase window is the same size as the gaming one', () => {
     const matte = caseWindow('matte'), gamer = caseWindow('gamer'), show = caseWindow('show');
     expect(matte.h).toBeLessThan(gamer.h);
-    expect(show.w).toBeLessThan(gamer.w);
+    expect(show.w).toBe(gamer.w);
+    expect(show.h).toBe(gamer.h);
     expect(show.x).toBe(gamer.x);
   });
 });
