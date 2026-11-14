@@ -1,6 +1,6 @@
 # Pipeline City 3D modelling and rendering guide
 
-> Updated 2026-11-12 against `bfe11c6`, to match approved [`docs/art-style.md`](art-style.md) v3. This file replaces `docs/LOWPOLY_STYLE.md`. **The code is the source of truth**: each value below cites the file it comes from. Where the code still does the old look, this guide describes current behaviour and marks the target from art-style.md (the rework is on hold). Where the repo sets no rule, the guide says "Rule to set". Still measurements come from `public/stills/*.webp`. Triangle counts and on-screen sizes were measured headless from the models and cameras at this commit; they are today's measurements, not budgets or targets.
+> Updated 2026-11-12 against `bfe11c6`; line citations re-checked 2026-11-14 against `b4caec1` (code changed since `bfe11c6`, so the measured counts below stay at `bfe11c6`). To match approved [`docs/art-style.md`](art-style.md) v3. This file replaces `docs/LOWPOLY_STYLE.md`. **The code is the source of truth**: each value below cites the file it comes from. Where the code still does the old look, this guide describes current behaviour and marks the target from art-style.md (the rework is on hold). Where the repo sets no rule, the guide says "Rule to set". Still measurements come from `public/stills/*.webp`. Triangle counts and on-screen sizes were measured headless from the models and cameras at this commit; they are today's measurements, not budgets or targets.
 
 ## Aesthetic Goals
 
@@ -75,9 +75,9 @@ The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes)
 These match the code as it is built today. Detail should go where it reads: the **silhouette**, and **edges that catch rim light or neon**. It should not go into tessellation on flat faces, or into high segment counts on features that are a few pixels across.
 
 - **Soft edges.** Boxes are `softBox` = `RoundedBoxGeometry(w, h, d, 2 segments, radius 40 default)` (`src/core/render/three/geometry.ts:71-79`). Furniture boards use the same idea at a larger radius: `EDGE_R = 120`, `EDGE_STEPS = 4` (`furniture3d.ts:137-143`). Part extrusions typically bevel with `bevelSegments: 1` (e.g. `gpu3d.ts:66`). No hard 90° box edges on parts. A fillet that is narrower than about 2 px on screen does not need more than one or two segments.
-- **Round parts need enough sides to look round at their typical on-screen size.** A circle looks round at about **one side per 4–8 px of circumference** (the silhouette still facets even when normals are smooth). Examples of what the code uses today: fan flanges `curveSegments: 48` and a venturi lathe of 72 (`geometry.ts:222`, `fans3d.ts:64`); fan RGB rings `TorusGeometry(..., 8, 72)`; GPU fan ducts 64 sides and rim rings 96 sides (`gpu3d.ts:109,121`); default cylinders `post` 16 / `drum` 24 (`geometry.ts:86-93`); cooler heatpipes `TubeGeometry` tubular 220, radial 16 (`cooler3d.ts:116`). Several of those counts are denser than the pixels at board and room size — see the visible-detail assessment. New round parts should be sized for the views in Camera & Framing, not for an unmeasured "high poly" or "low poly" budget.
-- **Fine flat detail is baked 2D, not modelled.** Traces, vias, labels and die floorplans are drawn onto the surface by the Pixi baker (`bake.ts`), not built as geometry. Real 3D detail, not 2D art, belongs on box sides (`docs/PC_PARTS.md` pass 4). A tessellated plane used only to drape a label (`drape(..., step=7)` in `pcbkit3d.ts:276`, 24,344 tris on `nvme2`) is the wrong tool for this: the same idea should use a step large enough that a quad is a few pixels in a close-up, or a normal map, not a 179×68 mesh.
-- **Smooth normals.** Parts and imported models use smooth vertex normals (`MeshStandardMaterial` default; both glbs carry `NORMAL`). **Flat shading is only for the tiny exceptions that already exist:** the cooler's hex standoffs and knurled nuts (`steel(true)`, `cooler3d.ts:104,128-129`) and the plant-pot soil icosahedron (`plants3d.ts:312`). Do not introduce new flat-shaded hardware.
+- **Round parts need enough sides to look round at their typical on-screen size.** A circle looks round at about **one side per 4–8 px of circumference** (the silhouette still facets even when normals are smooth). Examples of what the code uses today: fan flanges `curveSegments: 48` and a venturi lathe of 72 (`geometry.ts:222`, `fans3d.ts:67`); fan RGB rings `TorusGeometry(..., 8, 72)`; GPU fan ducts 64 sides and rim rings 96 sides (`gpu3d.ts:109`); default cylinders `post` 16 / `drum` 24 (`geometry.ts:86-93`); cooler heatpipes `TubeGeometry` tubular 220, radial 16 (`cooler3d.ts:125`). Several of those counts are denser than the pixels at board and room size — see the visible-detail assessment. New round parts should be sized for the views in Camera & Framing, not for an unmeasured "high poly" or "low poly" budget.
+- **Fine flat detail is baked 2D, not modelled.** Traces, vias, labels and die floorplans are drawn onto the surface by the Pixi baker (`bake.ts`), not built as geometry. Real 3D detail, not 2D art, belongs on box sides (`docs/PC_PARTS.md` pass 4). A tessellated plane used only to drape a label (`drape(..., step=7)` in `pcbkit3d.ts:278`, 24,344 tris on `nvme2`) is the wrong tool for this: the same idea should use a step large enough that a quad is a few pixels in a close-up, or a normal map, not a 179×68 mesh.
+- **Smooth normals.** Parts and imported models use smooth vertex normals (`MeshStandardMaterial` default; both glbs carry `NORMAL`). **Flat shading is only for the tiny exceptions that already exist:** the cooler's hex standoffs and knurled nuts (`steel(true)`, `cooler3d.ts:137-138`) and the plant-pot bark chips on the soil (`plants3d.ts`). Do not introduce new flat-shaded hardware.
 - Simplify sub-parts only below what reads at the size they appear; real fixings stay (screws, standoffs, fan clips, push pins; `docs/PC_PARTS.md` pass 3). Keep the PCB rectangular; flatten diagonal components.
 
 ### Per-tier detail and LoD (placeholder)
@@ -127,7 +127,7 @@ Each part must be **instantly recognizable** from any angle, including at shop-t
 
 Saturated colour belongs to a PCB, the die art, or one small accent per part (a stripe, pads, a band).
 
-**Gold and copper (material inputs, not still measurements):** Current gold literals are `#d9b25e` (`boardmodel3d.ts:31`, `ram3d.ts:126`, `wires3d.ts:159`, also `casedetail3d.ts:256`, `rj45jack3d.ts:23`) and `#d8b264` (`pcbkit3d.ts:299`). Target (art-style.md §2, rework item 8, on hold): one gold `#d4af5f` (`--pin`). Copper is already one value: `#c0793a` (`COPPER`, `cooler3d.ts:24`).
+**Gold and copper (material inputs, not still measurements):** Current gold literals are `#d9b25e` (`boardmodel3d.ts:31`, `rj45jack3d.ts:23`) and `#d8b264` (`pcbkit3d.ts:310`). Target (art-style.md §2, rework item 8, on hold): one gold `#d4af5f` (`--pin`). Copper is already one value: `#c0793a` (`COPPER`, `cooler3d.ts:26`).
 
 ### Material Properties
 
@@ -136,7 +136,7 @@ Saturated colour belongs to a PCB, the die art, or one small accent per part (a 
 ```
 Default (materials.ts `mat`): metalness 0.05, roughness 0.65
 Range in use on parts: metalness 0.0–1.0, roughness 0.03–1.0
-  e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:299), polished cap 0.95 / 0.14 (cooler3d.ts:332),
+  e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:310), polished cap 0.95 / 0.14 (cooler3d.ts:61),
   radiator satin alu 0.45 / 0.28–0.42 (cooler3d.ts `radAlu`), case glass 0 / 0.03 (case3d.ts:50), printed art 0 / 1.0 (artlod.ts:170)
 Cloth (materials.ts `cloth`): MeshPhysicalMaterial, roughness 0.92, sheen 1
 Emissive: 0x000000 (overridden by state: powered, active, throttled, burnt)
@@ -150,7 +150,7 @@ From `src/core/render/three/materials.ts` (`GLOW`, `partLook`):
 
 **Powered Off:** emissive 0; base colour × 0.5 (darken, not desaturate).
 
-**Active (running job, bus lit):** emissive 0.4, cyan `#3be3ff` (`GLOW.active`, `materials.ts:8`).
+**Active (running job, bus lit):** emissive 0.4, cyan `#3be3ff` (`GLOW.active`, `materials.ts:15`).
 
 **Throttled:** emissive 0.2, amber `#ffc247`; base × 0.8.
 
@@ -162,18 +162,18 @@ A part's glow scales by its `gain` (wide faces glow softer). `GLOW.hot` `#ff5a30
 
 **RGB and accents (in-game; stills are currently unpowered — see Animation):**
 - GPU fan ring: `glowMat(0x3be3ff, 0x1d6f80)`, `fixed: 0x3be3ff` (`gpu3d.ts:212-214`).
-- Tower cooler accent `ACCENT.tower = 0x3be3ff`: two accent lines on the top cover (`cooler3d.ts:254`) and its fans' fixed ring (`:262`).
+- Tower cooler accent `ACCENT.tower = 0x3be3ff`: two accent lines on the top cover (`cooler3d.ts:263`) and its fans' fixed ring.
 - Case strip by machine state: idle/working `T.alu` (cyan; working breathes), halt `T.ld` amber, error/dead `T.bad` red (`case3d.ts:98`).
 - Case accent by kind: gamer `T.mul` violet, show `T.br` magenta, other kinds `T.alu` cyan (`case3d.ts:133`).
 - Board RGB strip: 44 LEDs fading `T.alu` cyan → `T.br` magenta (`boardmodel3d.ts:68`).
 - Tier-3 part glow: base `0x1a1430`, emissive the skin's accent, 0.9 (`parts3d.ts:75`).
-- Brand / RGB (current): `#8b5cff` on the RGB point light, the spill and the accent colour (`machine3d.ts:115,120,123`) and on the fan ring (`fans3d.ts:106`). Target (art-style.md §2, rework item 8, on hold): `#a68bff`.
+- Brand / RGB (current): `#8b5cff` on the RGB point light, the spill and the accent colour (`machine3d.ts:117,122,125`) and on the fan ring. Target (art-style.md §2, rework item 8, on hold): `#a68bff`.
 
 `T.ld` is also the load instruction-class token, and the POST display uses it as "the theme's amber" (`boardmodel3d.ts:54-56`). Target (art-style.md §2, rework item 3, on hold): load becomes `#9ab8ff`. A token-only swap would recolour the halt strip and the POST digits, and the many 2D `T.ld` warn/activity uses (die, uncore, disk, …), unless those move to status `--warn` `#ffc247`. The same applies to `T.st` where it is used as a status-like green rather than the store class.
 
 ### Outline / Selection
 
-**When selected or hovered** (`src/core/render/three/post.ts:200-203`):
+**When selected or hovered** (`src/core/render/three/post.ts:66,212`):
 - three.js `OutlinePass` (`PickOutline`, with the scene depth so hidden edges show dimmer)
 - Visible edge `#ffff00`, hidden edge `#8a7a00`
 - `edgeThickness` **1.5**, `edgeStrength` 4
@@ -187,10 +187,10 @@ The room is lit from its window, as a real room is (`src/features/room/light.md`
 - **Bounce:** the bake's lightmaps (`LightmapMix`, each light group by its live level) on the still meshes; a light probe of the room on what moves, and the reflections. No flat fill lights a face from nowhere.
 - **The eye:** it adapts to the room (`src/features/room/light.md` "The eye"): the exposure, and a local adaptation that lifts the dark parts and holds back the window.
 - **One rule:** in the room view every part takes the same light. Only real emitters glow (the screen, the lamps, the RGB), and they light what is near them.
-- **Lamps:** Current: at night, warm lamps (2700 to 3000 K; `LANTERN = kelvin(2700)`, `palette.ts:49`; some fixtures `kelvin(3000)`, e.g. `room3d.ts:363`, `furniture3d.ts:678,681`) and a few cyan accents (`NEON #3be3ff`, wash `NEON_WASH #8fd9e6`) light the room. The lamp cap follows `LIGHT_ORDER` (`roomlights.ts:18`): key, sun, arc, desk, floor, bedside, sconces, screen, then the neon fixtures last (`deskLed`, `picture`, `ledHalo`, `ledUnder`, `bias`, `strips`). At cap 4 (Low) and cap 8 every neon light is capped; their fixtures still glow and their baked bounce shows ×2.5 (`CAPPED_BOUNCE`, `roomlights.ts:36`). The lamp cap: `src/features/room/light.md` "The lamp cap". Target (art-style.md §3, rework item 1, on hold): the window (moon, city) and the neon fixtures define the room; warm lamps are practical pools, not the fill; order neon fixtures before the warm lamps in `LIGHT_ORDER`. `LANTERN = kelvin(2700)` stays for practical bulbs only.
-- **Room surfaces:** Current: smoked oak and ash veneer. `OAK #665540` / `OAK_GRAIN #38291c` (`palette.ts:15`), `smokedOak` (roughness `OAK_ROUGH` 0.68, `furniture3d.ts:94,111`) for the floor (`room3d.ts:284`), the desk top (`room3d.ts:292`) and the bookcase (`furniture3d.ts:518`); `VENEER #2f2a26` / `VENEER_GRAIN #1c1815` (`palette.ts:10`) at roughness 0.5 (`furniture3d.ts:208,332,764`) for the bed, nightstand, shelf and drawer unit; walls `WALL #3a404c` at roughness 0.92 (`palette.ts:8`, `room3d.ts:425`); ceiling `CEILING 0x4a4f59` at roughness 0.95 (`room3d.ts:438`); trim `TRIM 0x3d424c` (`palette.ts:8`). Target (art-style.md §3, rework item 1, on hold): charcoal and graphite, not wood. Floor / desk / bookcase `#1d1e22` (grain `#04060f`); veneer furniture `#2a2d32` (grain `#1d1e22`); walls and trim `#2a2d32`; ceiling `#4e5360`. Specs in art-style.md §3. The terracotta runner (`RUNNER #7a4434`, `palette.ts:19`) may remain as a small warm practical.
+- **Lamps:** Current: at night, warm lamps (2700 to 3000 K; `LANTERN = kelvin(2700)`, `palette.ts:49`; some fixtures `kelvin(3000)`, e.g. `room3d.ts:370`, `furniture3d.ts:678,681`) and a few cyan accents (`NEON #3be3ff`, wash `NEON_WASH #8fd9e6`) light the room. The lamp cap follows `LIGHT_ORDER` (`roomlights.ts:18`): key, sun, arc, desk, floor, bedside, sconces, screen, then the neon fixtures last (`deskLed`, `picture`, `ledHalo`, `ledUnder`, `bias`, `strips`). At cap 4 (Low) and cap 8 every neon light is capped; their fixtures still glow and their baked bounce shows ×2.5 (`CAPPED_BOUNCE`, `roomlights.ts:36`). The lamp cap: `src/features/room/light.md` "The lamp cap". Target (art-style.md §3, rework item 1, on hold): the window (moon, city) and the neon fixtures define the room; warm lamps are practical pools, not the fill; order neon fixtures before the warm lamps in `LIGHT_ORDER`. `LANTERN = kelvin(2700)` stays for practical bulbs only.
+- **Room surfaces:** Current: smoked oak and ash veneer. `OAK #665540` / `OAK_GRAIN #38291c` (`palette.ts:15`), `smokedOak` (roughness `OAK_ROUGH` 0.68, `furniture3d.ts:94,111`) for the floor (`room3d.ts:291`), the desk top (`room3d.ts:299`) and the bookcase (`furniture3d.ts:518`); `VENEER #2f2a26` / `VENEER_GRAIN #1c1815` (`palette.ts:10`) at roughness 0.5 (`furniture3d.ts:208,332,764`) for the bed, nightstand, shelf and drawer unit; walls `WALL #3a404c` at roughness 0.92 (`palette.ts:8`); ceiling `CEILING 0x4a4f59` at roughness 0.95 (`palette.ts:8`); trim `TRIM 0x3d424c` (`palette.ts:8`). Target (art-style.md §3, rework item 1, on hold): charcoal and graphite, not wood. Floor / desk / bookcase `#1d1e22` (grain `#04060f`); veneer furniture `#2a2d32` (grain `#1d1e22`); walls and trim `#2a2d32`; ceiling `#4e5360`. Specs in art-style.md §3. The terracotta runner (`RUNNER #7a4434`, `palette.ts:19`) may remain as a small warm practical.
 - **Board view:** the same light as the room; no studio light.
-- **Post:** GTAO (blend 0.85, `post.ts:198`), bloom (radius 0.4, threshold 1.2, strength 0.5 at the top level; `BLOOM_LEVELS` `[0, 0.3, 0.5]`, `post.ts:173,205`), ACES (`init.ts:21`).
+- **Post:** GTAO (blend 0.85, `post.ts:211`), bloom (radius 0.4, threshold 1.2, strength 0.5 at the top level; `BLOOM_LEVELS` `[0, 0.3, 0.5]`, `post.ts:183,218`), ACES (`init.ts:21`).
 
 ### Studio (shop stills and the gallery viewer)
 
@@ -200,25 +200,25 @@ From `src/core/render/three/viewer.ts` `studio` / `renderStill`:
 - ACES filmic, exposure 1.6; `RoomEnvironment` reflections at intensity 0.55; ambient `#ffffff` 0.25.
 - Key `#fff0dc` × 2.4 at (+1.5r, +2r, +1.2r) from the part's centre, PCF shadows (2048² for stills); rim `#9ab8ff` × 1.2 at (−2r, +r, −1.5r).
 - Floor disc `#1a1d26` in the gallery; hidden in stills (transparent background, no ground shadow).
-- Build mode uses a dimmer copy: ambient 0.12, hemisphere `#bfd0ff`/`#1a1410` 0.3, key `#fff0dc` 0.9, rim `#8fb0ff` 0.45, and a warm point `#fff1dd` × 1.0 (`buildmode3d.ts:150-155`).
+- Build mode uses a dimmer copy: ambient 0.12, hemisphere `#bfd0ff`/`#1a1410` 0.3, key `#fff0dc` 0.9, rim `#8fb0ff` 0.45, and a warm point `#fff1dd` × 1.0 (`buildmode3d.ts:157-162`).
 
 **Target (art-style.md §3, rework item 5, on hold):** a cool white key (`#9ab8ff` family) replaces `#fff0dc`; the rim is neon, cyan `#3be3ff` or violet `#a68bff`, one per shot. Exposure and ACES stay. Build mode follows the same cool key; the hemisphere ground goes toward `#04060f`.
 
 ## Camera & Framing
 
-The 3D camera is a perspective orbit whose **distance follows from the world height it shows and the FOV** (`src/core/render/three/camera.ts:1-14`, `distanceOf`). `init.ts:39` constructs the camera at FOV 30°, near 50, far 200,000; **every game view then overwrites FOV via `applyView`**. The live values are below. Heights were measured at 1920 × 1080 with `viewInset` 0 (the title screen, and the exact `fitRect` / `inFree` math). In a running game the HUD sets `viewInset` (`Hud.tsx` `InsetReporter`) and the same rect is fitted to a smaller free area, so a given object is slightly smaller on the full 1920 × 1080 frame; those inset pixels were not measured.
+The 3D camera is a perspective orbit whose **distance follows from the world height it shows and the FOV** (`src/core/render/three/camera.ts:14`, `distanceOf`). `init.ts:39` constructs the camera at FOV 30°, near 50, far 200,000; **every game view then overwrites FOV via `applyView`**. The live values are below. Heights were measured at 1920 × 1080 with `viewInset` 0 (the title screen, and the exact `fitRect` / `inFree` math). In a running game the HUD sets `viewInset` (`Hud.tsx` `InsetReporter`) and the same rect is fitted to a smaller free area, so a given object is slightly smaller on the full 1920 × 1080 frame; those inset pixels were not measured.
 
 ### Room overview
 
-`board3d.ts:54` `ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 }`; `:60` `LOOK_Z = 5000`; `:206-209` `roomRect()`; `:229` `overview = inRoom(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9))`. `keepInside` (`:214`, `camera.ts:114-126`) may widen FOV from 26 up to 40 to hold the height from closer. Measured: FOV **28.73°**, height **31,578**, distance **61,650**, **0.034 px per world unit** at the target plane. The mid-tower case (after `setLayoutTier(2)`) is 11,890 × 10,720, depth 4,500; a 120 mm fan (2,760 units) is **97 px** across at the front of the case in this view.
+`board3d.ts:58` `ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 }`; `:64` `LOOK_Z = 5000`; `:221` `roomRect()`; `:246` `overview = inRoom(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9))`. `keepInside` (`board3d.ts:231`, `camera.ts:114-126`) may widen FOV from 26 up to 40 to hold the height from closer. Measured: FOV **28.73°**, height **31,578**, distance **61,650**, **0.034 px per world unit** at the target plane. The mid-tower case (after `setLayoutTier(2)`) is 11,890 × 10,720, depth 4,500; a 120 mm fan (2,760 units) is **97 px** across at the front of the case in this view.
 
 ### Machine mid-shot
 
-There is no separate sandbox camera. `board3d.ts:787` `caseView(yaw=0, pitch=0.09, margin=0.85)` frames `CASE` at `CASE_Z + CASE_D/2` with FOV 26. It is a shot-tool helper, not a named player preset, but it is the natural mid-shot between the room and the board (the player can zoom to it continuously). Measured: FOV **26°**, height **12,612**, distance **27,314**, **0.086 px/unit** at the case mid-plane. The same 120 mm fan is **258 px** across at the front of the case.
+There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.09, margin=0.85)` frames `CASE` at `CASE_Z + CASE_D/2` with FOV 26. It is a shot-tool helper, not a named player preset, but it is the natural mid-shot between the room and the board (the player can zoom to it continuously). Measured: FOV **26°**, height **12,612**, distance **27,314**, **0.086 px/unit** at the case mid-plane. The same 120 mm fan is **258 px** across at the front of the case.
 
 ### Board view
 
-`board3d.ts:55` `FLAT = { yaw: 0, pitch: 0, fov: 14 }`; `:233` `boardView = inFree(CASE_IN, BOARD_Z, FLAT, 0.95)`. Measured: FOV **14°**, height **10,589**, distance **43,122**, **0.102 px/unit** at the board (`BOARD_Z = 2,460`). `CASE_IN` is 11,560 × 10,060. The same 120 mm fan is **312 px** across at the front of the case. A CPU-die close-up (`:235` `cpuView`, frames `DIE` at `BOARD_Z + 200`) has height **833** and **1.30 px/unit**.
+`board3d.ts:59` `FLAT = { yaw: 0, pitch: 0, fov: 14 }`; `:250` `boardView = inFree(CASE_IN, BOARD_Z, FLAT, 0.95)`. Measured: FOV **14°**, height **10,589**, distance **43,122**, **0.102 px/unit** at the board (`BOARD_Z = 2,460`). `CASE_IN` is 11,560 × 10,060. The same 120 mm fan is **312 px** across at the front of the case. A CPU-die close-up (`:235` `cpuView`, frames `DIE` at `BOARD_Z + 200`) has height **833** and **1.30 px/unit**.
 
 ### Studio / stills and the gallery
 
@@ -234,7 +234,7 @@ There is no separate sandbox camera. `board3d.ts:787` `caseView(yaw=0, pitch=0.0
 ### Baked Elements
 
 - **PCB traces, labels, die floorplans:** 2D art drawn by the Pixi baker (`src/features/board/render/three/bake.ts`, `src/core/render/three/artlod.ts`) onto the part's faces at runtime, in the dark theme's palette (`theme.ts` `builtinTheme`).
-- **Small tiling maps:** procedural canvas textures (e.g. radiator fin ladder 64 × 64, `cooler3d.ts:60`; hoodie rib 64 × 64, `chair3d.ts:22`).
+- **Small tiling maps:** procedural canvas textures (e.g. radiator fin ladder 64 × 64, `cooler3d.ts:64`; hoodie rib 64 × 64, `chair3d.ts:22`).
 - **Room light:** baked lightmaps, 994 × 1152 per light group (`public/bake/room/`, `tools/bake/`).
 - **Shop stills:** `npm run stills` (`tools/stills.mjs`) → `public/stills/<id>.webp` + `manifest.json`; bake again after a part's model changes.
 
@@ -251,7 +251,7 @@ There is no separate sandbox camera. `board3d.ts:787` `caseView(yaw=0, pitch=0.0
 
 - **Fans**: constant spin (RPM → rotation speed, scaled by load/temp)
 - **Cables**: static
-- **Glow (in-game, powered idle):** no state glow (`partLook` returns emissive 0 when powered and not active / throttled / hot, `materials.ts:33`). Built-in RGB, strips and rings still emit.
+- **Glow (in-game, powered idle):** no state glow (`partLook` returns emissive 0 when powered and not active / throttled / hot, `materials.ts:31`). Built-in RGB, strips and rings still emit.
 - **Stills:** Current: `renderStill` does not power the part (`viewer.ts:110-137`); stills are unpowered and show no state glow. Target (art-style.md §4, rework item 6, on hold): stills show powered-on idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
 ### Active/Computation
