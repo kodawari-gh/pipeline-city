@@ -210,7 +210,7 @@ A drawer and not a modal: the picture stays in view and each change applies at o
 
 ## Theme
 
-Dark is the only theme (art-style §7, approved v3). Target: no theme switch and no `'light'` value. The current code still has a light path: `data-theme="dark" | "light"` on `<html>`, from `state.ts` (saved choice, else dark), a HUD toggle and a Light choice in the menu's Theme row. Removing it is TODO THEME1. Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
+Dark only (art-style §7, approved v3). There is no theme switch, no Light choice and no `light` value. `state.ts` always sets `data-theme="dark"` on `<html>`. A saved `light` choice in localStorage (`pipeline-city.theme`, now unused) is ignored. `theme.ts` returns the dark palette always; `builtinTheme(dark)` ignores its argument. The CSS has one `:root` token block (dark). Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
 
 ## Tests
 

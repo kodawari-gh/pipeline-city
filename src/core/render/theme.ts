@@ -1,7 +1,6 @@
 // Theme tokens shared with the UI. Pixi has no CSS, so we read CSS custom properties from :root
 // (the legacy token names: --bg --board --trace ...) and fall back to built-in palettes when a
-// variable is not defined. Dark/light comes from `data-theme` on <html> ("dark" | "light"),
-// else from prefers-color-scheme. Call `onThemeChange` to react to either changing.
+// variable is not defined. The game is dark only: the palette is always DARK.
 
 export interface Theme {
   dark: boolean;
@@ -16,30 +15,21 @@ const DARK: Omit<Theme, 'dark'> = {
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
-const LIGHT: Omit<Theme, 'dark'> = {
-  bg: '#eaeff6', board: '#9ccdbd', trace: '#2c7a72', sub: '#c4d0e4', die: '#dde6f4', pin: '#b3801c', tile: '#ffffff',
-  ink: '#0f1830', mute: '#475372', line: '#9aabc8', dot: '#c3cfe3', on: '#ffffff',
-  alu: '#0786ab', mul: '#6a49e0', ld: '#c47600', st: '#0f9a53', br: '#c4259f', bad: '#c81e3e',
-};
 
+/** The game is dark only. Kept so the callers read the same as before. */
 export function isDark(): boolean {
-  const t = document.documentElement.dataset.theme;
-  if (t === 'dark') return true;
-  if (t === 'light') return false;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
+  return true;
 }
 
-/** A built-in palette without the CSS overrides (the 3D world's baked art always uses the dark one: the reference's black board under neon). */
-export const builtinTheme = (dark: boolean): Theme => ({ dark, ...(dark ? DARK : LIGHT) });
+/** The built-in dark palette. The argument is ignored: there is no light theme. The 3D world's baked art always uses this one (the reference's black board under neon). */
+export const builtinTheme = (_dark: boolean = true): Theme => ({ dark: true, ...DARK });
 
 export function readTheme(): Theme {
-  const dark = isDark();
-  const base = dark ? DARK : LIGHT;
   const cs = getComputedStyle(document.documentElement);
-  const out = { dark } as Theme;
-  for (const k of Object.keys(base) as (keyof typeof base)[]) {
+  const out = { dark: true } as Theme;
+  for (const k of Object.keys(DARK) as (keyof typeof DARK)[]) {
     const v = cs.getPropertyValue('--' + k).trim();
-    out[k] = v || base[k];
+    out[k] = v || DARK[k];
   }
   return out;
 }
