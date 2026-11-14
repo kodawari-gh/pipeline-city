@@ -77,7 +77,7 @@ These match the code as it is built today. Detail should go where it reads: the 
 - **Soft edges.** Boxes are `softBox` = `RoundedBoxGeometry(w, h, d, 2 segments, radius 40 default)` (`src/core/render/three/geometry.ts:71-79`). Furniture boards use the same idea at a larger radius: `EDGE_R = 120`, `EDGE_STEPS = 4` (`furniture3d.ts:137-143`). Part extrusions typically bevel with `bevelSegments: 1` (e.g. `gpu3d.ts:66`). No hard 90° box edges on parts. A fillet that is narrower than about 2 px on screen does not need more than one or two segments.
 - **Round parts need enough sides to look round at their typical on-screen size.** A circle looks round at about **one side per 4–8 px of circumference** (the silhouette still facets even when normals are smooth). Examples of what the code uses today: fan flanges `curveSegments: 48` and a venturi lathe of 72 (`geometry.ts:222`, `fans3d.ts:67`); fan RGB rings `TorusGeometry(..., 8, 72)`; GPU fan ducts 64 sides and rim rings 96 sides (`gpu3d.ts:109`); default cylinders `post` 16 / `drum` 24 (`geometry.ts:86-93`); cooler heatpipes `TubeGeometry` tubular 220, radial 16 (`cooler3d.ts:125`). Several of those counts are denser than the pixels at board and room size — see the visible-detail assessment. New round parts should be sized for the views in Camera & Framing, not for an unmeasured "high poly" or "low poly" budget.
 - **Fine flat detail is baked 2D, not modelled.** Traces, vias, labels and die floorplans are drawn onto the surface by the Pixi baker (`bake.ts`), not built as geometry. Real 3D detail, not 2D art, belongs on box sides (`docs/PC_PARTS.md` pass 4). A tessellated plane used only to drape a label (`drape(..., step=7)` in `pcbkit3d.ts:278`, 24,344 tris on `nvme2`) is the wrong tool for this: the same idea should use a step large enough that a quad is a few pixels in a close-up, or a normal map, not a 179×68 mesh.
-- **Smooth normals.** Parts and imported models use smooth vertex normals (`MeshStandardMaterial` default; both glbs carry `NORMAL`). **Flat shading is only for the tiny exceptions that already exist:** the cooler's hex standoffs and knurled nuts (`steel(true)`, `cooler3d.ts:137-138`) and the plant-pot bark chips on the soil (`plants3d.ts`). Do not introduce new flat-shaded hardware.
+- **Smooth normals.** Parts and imported models use smooth vertex normals (`MeshStandardMaterial` default; both glbs carry `NORMAL`). **Flat shading is only for the tiny exceptions that already exist:** the cooler's hex standoffs and knurled nuts (`steel(true)`, `cooler3d.ts:137-138`) and the plant-pot bark chips on the soil (`plants3d.ts:314`). Do not introduce new flat-shaded hardware.
 - Simplify sub-parts only below what reads at the size they appear; real fixings stay (screws, standoffs, fan clips, push pins; `docs/PC_PARTS.md` pass 3). Keep the PCB rectangular; flatten diagonal components.
 
 ### Per-tier detail and LoD (placeholder)
@@ -127,7 +127,7 @@ Each part must be **instantly recognizable** from any angle, including at shop-t
 
 Saturated colour belongs to a PCB, the die art, or one small accent per part (a stripe, pads, a band).
 
-**Gold and copper (material inputs, not still measurements):** Current gold literals are `#d9b25e` (`boardmodel3d.ts:31`, `rj45jack3d.ts:23`) and `#d8b264` (`pcbkit3d.ts:310`). Target (art-style.md §2, rework item 8, on hold): one gold `#d4af5f` (`--pin`). Copper is already one value: `#c0793a` (`COPPER`, `cooler3d.ts:26`).
+**Gold and copper (material inputs, not still measurements):** Current gold literals are `#d9b25e` (`boardmodel3d.ts:31`, `ram3d.ts:126`, `wires3d.ts:159`, also `casedetail3d.ts:256`, `rj45jack3d.ts:23`) and `#d8b264` (`pcbkit3d.ts:310`). Target (art-style.md §2, rework item 8, on hold): one gold `#d4af5f` (`--pin`). Copper is already one value: `#c0793a` (`COPPER`, `cooler3d.ts:26`).
 
 ### Material Properties
 
@@ -136,7 +136,7 @@ Saturated colour belongs to a PCB, the die art, or one small accent per part (a 
 ```
 Default (materials.ts `mat`): metalness 0.05, roughness 0.65
 Range in use on parts: metalness 0.0–1.0, roughness 0.03–1.0
-  e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:310), polished cap 0.95 / 0.14 (cooler3d.ts:61),
+  e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:310), polished cap 0.95 / 0.14 (cooler3d.ts:343),
   radiator satin alu 0.45 / 0.28–0.42 (cooler3d.ts `radAlu`), case glass 0 / 0.03 (case3d.ts:50), printed art 0 / 1.0 (artlod.ts:170)
 Cloth (materials.ts `cloth`): MeshPhysicalMaterial, roughness 0.92, sheen 1
 Emissive: 0x000000 (overridden by state: powered, active, throttled, burnt)
