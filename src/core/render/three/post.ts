@@ -1,5 +1,5 @@
-// The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
-// the picked part, 3D_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
+// The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), bloom (the RGB, the screen, the lamp glow),
+// the selection outline (a thin cyan edge round the picked part, 3D_STYLE.md "Outline"; after the bloom, so the edge never glows), the room's grade, the eye's local adaptation (`localeye.ts`:
 // the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 // Each full-screen pass writes a target that a phone's tile GPU sends out to memory and reads back (PERF21): the chain runs only the passes
@@ -133,15 +133,16 @@ export type Step = 'scene' | 'ao' | 'copy' | 'outline' | 'bloom' | 'eye' | 'fini
 
 /**
  * The chain's steps for what is on. The scene's target holds its depth and its samples; the AO (which copies the picture as it blends), or a
- * copy where only the outline or the bloom runs, puts the picture in a target they can draw on. The finish draws to the screen. All but
- * `eye` are full-screen passes; `outline` and `bloom` each draw some smaller ones too.
+ * copy where only the outline or the bloom runs, puts the picture in a target they can draw on. The bloom comes before the outline, so the
+ * bright edge does not feed the bloom. The finish draws to the screen. All but `eye` are full-screen passes; `outline` and `bloom` each draw
+ * some smaller ones too.
  */
 export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: boolean }): Step[] {
   const s: Step[] = ['scene'];
   if (on.ao) s.push('ao');
   else if (on.outline || on.bloom) s.push('copy');
-  if (on.outline) s.push('outline');
   if (on.bloom) s.push('bloom');
+  if (on.outline) s.push('outline');
   if (on.eye) s.push('eye');
   s.push('finish');
   return s;
@@ -210,10 +211,12 @@ export class Post {
     this.ao.updateGtaoMaterial({ radius: 900, distanceExponent: 1.4, thickness: 600, scale: 1.2 });
     this.ao.blendIntensity = 0.85;
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
-    this.outline.visibleEdgeColor.set(0xffff00);
-    this.outline.hiddenEdgeColor.set(0x8a7a00);
-    this.outline.edgeStrength = 4;
-    this.outline.edgeThickness = 1.5;
+    // the information colour (docs/art-style.md): a thin cyan edge, a dim one where the part is hidden, no glow and no pulse
+    this.outline.visibleEdgeColor.set(0x3be3ff);
+    this.outline.hiddenEdgeColor.set(0x0d4452);
+    this.outline.edgeStrength = 1.5;
+    this.outline.edgeGlow = 0;
+    this.outline.pulsePeriod = 0;
     this.outline.enabled = false;
     this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
     // A lamp's glint at some angles overflows the half-float target (Inf, then NaN in the blur): one such pixel blanks the whole frame. The
@@ -317,6 +320,8 @@ export class Post {
     this.scene.setSize(pw, ph);
     this.work.setSize(pw, ph);
     this.ao.setSize(pw, ph);
+    // the outline's edge is found at half size (the pass's default), so 0.5 texel there is about 1 pixel of the screen
+    this.outline.edgeThickness = 0.5 * ratio;
     this.outline.setSize(pw, ph);
     this.bloom.setSize(pw, ph);
     this.local.setSize(pw, ph);

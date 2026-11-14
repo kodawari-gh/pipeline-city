@@ -28,7 +28,9 @@ describe('the post chain', () => {
   it('copies the picture for the outline or the bloom, and the AO copies it as it blends', () => {
     expect(steps({ ao: false, outline: true, bloom: false, eye: true })).toEqual(['scene', 'copy', 'outline', 'eye', 'finish']);
     expect(steps({ ao: false, outline: false, bloom: true, eye: true })).toEqual(['scene', 'copy', 'bloom', 'eye', 'finish']);
-    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual(['scene', 'ao', 'outline', 'bloom', 'eye', 'finish']);
+    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual(['scene', 'ao', 'bloom', 'outline', 'eye', 'finish']);
+    // the outline after the bloom: its bright edge never feeds the bloom
+    expect(steps({ ao: false, outline: true, bloom: true, eye: false })).toEqual(['scene', 'copy', 'bloom', 'outline', 'finish']);
   });
 
   it('follows the settings, the pick and the view', () => {
