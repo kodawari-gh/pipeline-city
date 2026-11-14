@@ -273,6 +273,7 @@ export function shadowBlob(): Texture | null {
  * belongs to its owner (a room probe is still the envMap of the scene that rebuilds), so the owner frees it.
  */
 export function disposeTree(root: Object3D, textures = false): void {
+  root.userData.disposed = true; // (a late load of a part under it finds it thrown away, see `tornDown`)
   root.traverse((o) => {
     const m = o as Mesh;
     // (an instanced mesh frees its instance buffers on its own 'dispose' event; the geometry's dispose leaves them)
@@ -288,4 +289,14 @@ export function disposeTree(root: Object3D, textures = false): void {
       x.dispose();
     }
   });
+}
+
+/**
+ * True once the tree `o` stands in was thrown away (`disposeTree` on its root). A part that loads late checks this, not `parent`: a thrown-away
+ * tree keeps its parent, so `parent` alone would let the late part into it, its geometry never freed.
+ */
+export function tornDown(o: Object3D): boolean {
+  let top = o;
+  while (top.parent) top = top.parent;
+  return !!top.userData.disposed;
 }
