@@ -30,8 +30,8 @@ describe('the machine at the room overview', () => {
         let moving = ''; for (let p: Object3D | null = o; p; p = p.parent) for (const k of ['spin', 'live', 'rig']) if (p.userData[k]) moving = `${k} ${p.name}`;
         if (m.userData.standIn) add(`stand-in`);
         else if (moving) add(`moving: ${moving} ${anchor.replace(/\d+$/, '#')}`);
-        else if (Array.isArray(mat)) add('multi-material');
-        else if (mat.transparent || mat.opacity !== 1) add('see-through');
+        else if (Array.isArray(mat)) add(`multi-material: ${anchor || 'case'} x${mat.length} ${m.geometry.type} ${m.geometry.attributes.position?.count} under "${m.parent?.name}" maps ${(mat as MeshStandardMaterial[]).filter((x) => x.map).length}`);
+        else if (mat.transparent || mat.opacity !== 1) add(`see-through: ${anchor.replace(/\d+$/, '#') || 'case'} ${mat.emissiveIntensity > 0 && mat.emissive.getHex() ? 'glow' : 'glass'} ${m.geometry.type}`);
         else if ((m as { isInstancedMesh?: boolean }).isInstancedMesh) add('instanced, left out');
         else add(`other: ${anchor || 'case'} ${m.name} ${m.geometry.attributes.position?.count}`);
       });

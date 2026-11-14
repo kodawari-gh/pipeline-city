@@ -180,7 +180,10 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   chips.push({ y: gy - 11, h: 22, z0: Zc0 - 170, z1: Zc0 - 140 });
   const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x101115, { roughness: 0.6 });
   const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
-  root.add(instanced(new BoxGeometry(1, 1, 1), [top, top, side, side, side, side] as unknown as MeshStandardMaterial, items));
+  // (two draws, not six: the box's two x faces are one group for the printed top, its four other faces one group for the sides)
+  const chipBox = new BoxGeometry(1, 1, 1);
+  chipBox.clearGroups(); chipBox.addGroup(0, 12, 0); chipBox.addGroup(12, 24, 1);
+  root.add(instanced(chipBox, [top, side] as unknown as MeshStandardMaterial, items));
   // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
   const mapFaces = chips.slice(0, d.length).map((c) => {
     const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
