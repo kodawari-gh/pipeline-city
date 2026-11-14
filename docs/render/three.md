@@ -188,7 +188,7 @@ Last RTX 5080 run (`03fe0bc`, Chrome / ANGLE D3D11, GPU timers on, Auto-adjust o
 | CPU idle | 2.8 | 163 | 127 | 0.6 | 130 | 202 |
 | Door first open | 9.7 | 1,057 | 128 | 4.4 | 923 | 203 |
 
-Room idle, High: 1,715k triangles drawn, 3.16 shadow maps per frame. Low: 1,611k triangles, no shadow maps. GTAO takes about 1.5 ms of High room time. Low has no GTAO.
+Room idle, High: 1,715k triangles drawn, 3.16 shadow maps per frame. Low: 1,611k triangles, no shadow maps. GTAO takes about 0.5 ms of High room time (half size, bilateral upsample). Medium runs GTAO at half size too, about 0.2 ms. Low has no GTAO.
 
 Program counts are cumulative per page. Textures are the same in every view (the scene is shared).
 

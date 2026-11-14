@@ -61,7 +61,7 @@ export type Preset = 'low' | 'medium' | 'high' | 'ultra';
 /** `high` is the look the game is tuned on: the default. */
 export const PRESETS: Record<Preset, PresetOptions> = {
   low: { scale: 0.75, msaa: 0, ao: 0, bloom: 0, shadows: 0, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
-  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
+  medium: { scale: 0.75, msaa: 2, ao: 1, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
   high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };

@@ -436,7 +436,7 @@ describe('the settings signal', () => {
 
   it('setPreset gives Medium and High their own pictures, scale and shadows included', () => {
     setPreset('medium');
-    expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 2, msaa: 2, ao: 0, bloom: 1, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 });
+    expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 2, msaa: 2, ao: 1, bloom: 1, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 });
     setPreset('high');
     expect(graphics.value).toMatchObject({ scale: 1, shadows: 3, msaa: 4, ao: 2, bloom: 2, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 });
   });

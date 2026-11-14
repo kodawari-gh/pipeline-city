@@ -180,6 +180,40 @@ export function meterMean(cells: ArrayLike<number>, w: number, h: number): numbe
 
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
+/** The occlusion's size against the picture's, each axis: a quarter of the pixels. Its radii are in its own texels, so they scale with it. */
+const AO_SCALE = 0.5;
+/**
+ * The occlusion's blend at full size. The half-size occlusion is read at the four texels round each pixel, each weighed by its bilinear share and
+ * by how near its depth is to the pixel's (`tDepth`: the scene's depth, full size), so no occlusion bleeds over an edge. Where no texel's depth
+ * is near (a sharp edge), the bilinear share alone keeps the blend whole. `intensity` mixes it toward white, as three's blend does.
+ * A NaN or Inf sum gives white (no occlusion) for that pixel: one bad value would otherwise blank the frame (Medium, 0.75 scale).
+ */
+const AO_UPSAMPLE = /* glsl */`
+  #include <packing>
+  uniform sampler2D tDiffuse;
+  uniform sampler2D tDepth;
+  uniform vec2 aoSize;
+  uniform vec2 cameraNearFar;
+  uniform float intensity;
+  varying vec2 vUv;
+  float viewZ(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).r, cameraNearFar.x, cameraNearFar.y); }
+  void main() {
+    float z0 = viewZ(vUv);
+    vec2 q = vUv * aoSize - 0.5, b = floor(q), f = q - b;
+    vec4 sum = vec4(0.0);
+    float wsum = 0.0;
+    for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
+      vec2 uv = (b + vec2(float(i), float(j)) + 0.5) / aoSize;
+      float wb = (i == 0 ? 1.0 - f.x : f.x) * (j == 0 ? 1.0 - f.y : f.y);
+      float dz = abs(viewZ(uv) - z0) / max(z0, 1e-3);
+      float w = wb * (max(1.0 - dz * 50.0, 0.0) + 1e-3);
+      sum += w * texture2D(tDiffuse, uv);
+      wsum += w;
+    }
+    vec4 texel = sum / wsum;
+    if (any(isnan(texel)) || any(isinf(texel))) texel = vec4(1.0);
+    gl_FragColor = vec4(mix(vec3(1.0), texel.rgb, intensity), texel.a);
+  }`;
 /** The bloom's strength at each level (0: the pass is off). */
 const BLOOM_LEVELS = [0, 0.12, 0.2];
 
@@ -188,6 +222,9 @@ export class Post {
   private outline: PickOutline;
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
+  /** The blend's uniform for the camera's near and far planes (the camera moves them with the distance), and the camera it reads. */
+  private nearFar: { value: Vector2 };
+  private camera: PerspectiveCamera;
   private look = grade();
   private local: LocalEye;
   /** The picture the AO, the outline and the bloom draw on. */
@@ -204,12 +241,19 @@ export class Post {
   private gone = false;
 
   constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
+    this.camera = camera;
     this.scene = new ScenePass(scene, camera, w, h);
     this.work = new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false });
     const depth = this.scene.target.depthTexture!;
     this.ao = new GTAOPass(scene, camera, w, h, { depthTexture: depth }); // no normals given: it works them out from the depth, so it draws no scene
     this.ao.updateGtaoMaterial({ radius: 900, distanceExponent: 1.4, thickness: 600, scale: 1.2 });
+    this.ao.updatePdMaterial({ radius: 4 * AO_SCALE });
     this.ao.blendIntensity = 0.85;
+    const blend = this.ao.blendMaterial;
+    blend.fragmentShader = AO_UPSAMPLE;
+    blend.uniforms.tDepth = { value: depth };
+    blend.uniforms.aoSize = { value: new Vector2(1, 1) };
+    this.nearFar = blend.uniforms.cameraNearFar = { value: new Vector2(camera.near, camera.far) };
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
     // the information colour (docs/art-style.md): a thin cyan edge, a dim one where the part is hidden, no glow and no pulse
     this.outline.visibleEdgeColor.set(0x3be3ff);
@@ -271,7 +315,7 @@ export class Post {
     // rebuild it every frame, slow enough for auto-adjust to drop the AO.
     this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4 });
     this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
-    this.ao.updatePdMaterial({ radius: 4 + k * 16 });
+    this.ao.updatePdMaterial({ radius: (4 + k * 16) * AO_SCALE });
   }
 
   /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
@@ -321,7 +365,9 @@ export class Post {
     const ratio = this.renderer.getPixelRatio(), pw = w * ratio, ph = h * ratio;
     this.scene.setSize(pw, ph);
     this.work.setSize(pw, ph);
-    this.ao.setSize(pw, ph);
+    const aw = Math.ceil(pw * AO_SCALE), ah = Math.ceil(ph * AO_SCALE);
+    this.ao.setSize(aw, ah);
+    (this.ao.blendMaterial.uniforms.aoSize!.value as Vector2).set(aw, ah);
     // the outline's edge is found at half size (the pass's default), so 0.5 texel there is about 1 pixel of the screen
     this.outline.edgeThickness = 0.5 * ratio;
     this.outline.setSize(pw, ph);
@@ -337,6 +383,7 @@ export class Post {
   render(): void {
     const r = this.renderer, was = r.getRenderTarget();
     let picture = this.scene.target;
+    this.nearFar.value.set(this.camera.near, this.camera.far);
     for (const s of this.steps()) {
       switch (s) {
         case 'scene': this.scene.draw(r); break;
