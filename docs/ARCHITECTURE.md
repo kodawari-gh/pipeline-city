@@ -36,24 +36,24 @@ Data flows one way: the worker posts `Snapshot`s (see `src/worker/protocol.ts`),
 - **Toy ISA, toy hardware that "kinda makes sense".** No real ISA or emulator. The ISA grows as programs need it.
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
-- **Final ISA spec: [`src/features/cpu/ISA.md`](ISA.md).**
-- **Machine, bus, clocks and engine interface: [`src/core/MACHINE.md`](MACHINE.md). How the CPU is driven, what it sees, and interrupts: [`src/features/cpu/CPU.md`](CPU.md).**
-- **Timed engines (unpipelined, 5-stage in-order), options, observability view: [`src/features/cpu/ENGINES.md`](ENGINES.md).**
-- **Device specs, board slots, power and thermal: [`src/features/board/BOARD.md`](BOARD.md).**
-- **Program generator (kernels, templates, seeds): [`src/features/jobs/GEN.md`](GEN.md).**
-- **Game loop, economy, snapshot shape, pacing: [`src/features/economy/GAME.md`](GAME.md).**
-- **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`src/features/sandbox/SANDBOX.md`](SANDBOX.md).**
-- **Save format, versioning, worker protocol: [`src/worker/SAVE.md`](SAVE.md).**
+- **Final ISA spec: [`src/features/cpu/ISA.md`](../src/features/cpu/ISA.md).**
+- **Machine, bus, clocks and engine interface: [`src/core/MACHINE.md`](../src/core/MACHINE.md). How the CPU is driven, what it sees, and interrupts: [`src/features/cpu/CPU.md`](../src/features/cpu/CPU.md).**
+- **Timed engines (unpipelined, 5-stage in-order), options, observability view: [`src/features/cpu/ENGINES.md`](../src/features/cpu/ENGINES.md).**
+- **Device specs, board slots, power and thermal: [`src/features/board/BOARD.md`](../src/features/board/BOARD.md).**
+- **Program generator (kernels, templates, seeds): [`src/features/jobs/GEN.md`](../src/features/jobs/GEN.md).**
+- **Game loop, economy, snapshot shape, pacing: [`src/features/economy/GAME.md`](../src/features/economy/GAME.md).**
+- **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`src/features/sandbox/SANDBOX.md`](../src/features/sandbox/SANDBOX.md).**
+- **Save format, versioning, worker protocol: [`src/worker/SAVE.md`](../src/worker/SAVE.md).**
 - **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md) (hub and topic table), [`docs/render/interact.md`](render/interact.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
-- **Assembly, inventory, boot loop, USB-key queue, progress flags: [`src/features/cpu/ASSEMBLY.md`](ASSEMBLY.md).**
-- **Storage, OS v1 (resident kernel, key ingest and output step): [`src/features/os/OS.md`](OS.md). Planned tech ladders for every device: [`src/features/economy/TECHTREE.md`](TECHTREE.md).**
-- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`src/features/economy/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`src/features/network/NETWORK.md`](NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`src/features/network/NETSTACK.md`](NETSTACK.md).**
+- **Assembly, inventory, boot loop, USB-key queue, progress flags: [`src/features/cpu/ASSEMBLY.md`](../src/features/cpu/ASSEMBLY.md).**
+- **Storage, OS v1 (resident kernel, key ingest and output step): [`src/features/os/OS.md`](../src/features/os/OS.md). Planned tech ladders for every device: [`src/features/economy/TECHTREE.md`](../src/features/economy/TECHTREE.md).**
+- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`src/features/economy/PROGRESSION.md`](../src/features/economy/PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`src/features/network/NETWORK.md`](../src/features/network/NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`src/features/network/NETSTACK.md`](../src/features/network/NETSTACK.md).**
 - **Hover/selected ids, drag and drop, camera helpers: see [`docs/render/interact.md`](render/interact.md).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
 - **Calls:** a link register and a stack pointer register with a minimal convention, so stack traffic is real and visible in the memory view and kernels compose as functions.
-- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. **Interrupts exist** (a controller on the bus, `iret`, taken between instructions on every engine: [`src/features/cpu/CPU.md`](CPU.md)); **DMA** is designed for the NIC ([`src/features/network/NETSTACK.md`](NETSTACK.md)) and not built.
+- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. **Interrupts exist** (a controller on the bus, `iret`, taken between instructions on every engine: [`src/features/cpu/CPU.md`](../src/features/cpu/CPU.md)); **DMA** is designed for the NIC ([`src/features/network/NETSTACK.md`](../src/features/network/NETSTACK.md)) and not built.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
 - **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/features/board/sim/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2`, `cpu4` `ooo` (ROB 8, 4-wide commit; ROB 16/32 deferred). cpu3/cpu4 price/power are placeholders.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
@@ -90,7 +90,7 @@ Players can overclock or underclock each supported device. The ladder is: more c
 - **Devices are declarative specs** (data, not classes): slot and bus type, power draw, heat, clock range, per-tier stats, and visual hooks. The sim and the renderer read the same record, so adding a device is mostly adding data.
 - **The board is fixed with typed slots and ports that fill up** (DIMM, PCIe, SATA, USB, power connectors). A device only fits a matching free slot, and the PSU needs a matching connector and enough watts. Board and PSU tiers are part of the tree.
 - **Each device has a stylised-but-recognisable internal view** showing its real structure in simplified form (pipeline, DRAM banks and rows, GPU SMs, disk platter or flash channels), animated from sim state.
-- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template. Design: [`src/features/cpu/MULTICORE.md`](MULTICORE.md).
+- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template. Design: [`src/features/cpu/MULTICORE.md`](../src/features/cpu/MULTICORE.md).
 - **Security:** secure workloads need a TPM or secure enclave device to be accepted, and run in a protected mode with real, visible cycle costs (attestation steps, encrypted memory traffic, extra latency).
 
 ## Progression
@@ -123,7 +123,7 @@ A CPU "engine" is the pipeline logic (unpipelined, in-order, 2-wide, out-of-orde
 
 The **GPU runs its own simplified ISA**, using the same assembler framework as the CPU with a second instruction set, and kernels come from the same template system. A "render frame" scenario emits CPU code that prepares and launches a GPU kernel, plus the kernel itself. The CPU hands work over through MMIO (a command descriptor) and polls for completion.
 
-GPU model: 8 to 32 lanes with a banked memory of its own, as three engines (a lockstep SIMD unit, a two-warp pipelined SM, a two-SM card with caches) that show SIMD, divergence, latency hiding and memory-bound behaviour; see [`GPU.md`](GPU.md). The NPU and TPM are in [`ACCEL.md`](ACCEL.md). Note this roughly doubles the emulation scope, which was a deliberate choice.
+GPU model: 8 to 32 lanes with a banked memory of its own, as three engines (a lockstep SIMD unit, a two-warp pipelined SM, a two-SM card with caches) that show SIMD, divergence, latency hiding and memory-bound behaviour; see [`GPU.md`](../src/features/gpu/GPU.md). The NPU and TPM are in [`ACCEL.md`](../src/features/gpu/ACCEL.md). Note this roughly doubles the emulation scope, which was a deliberate choice.
 
 ## Snapshots and threading
 

@@ -18,7 +18,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | the 3D renderer (Three.js, the game's view): presets and tiers, merges, cheap materials, city culling and the occlusion gate, `?debug` toggles, bench and shot tools | [`render/three.md`](render/three.md) |
 | 3D room cloth (the hoodie): pattern pieces, the offline cloth solver, how to bake a model | [`render/cloth.md`](render/cloth.md) |
 | the 3D world's load: boot screen, shader link rules, menu, flight into the game | [`render/load.md`](render/load.md) |
-| the CPU die and the memory map | [`DIE.md`](DIE.md) |
+| the CPU die and the memory map | [`DIE.md`](../src/features/cpu/DIE.md) |
 
 ## Files
 
@@ -28,7 +28,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | `theme.ts` | theme tokens (below) |
 | `layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
 | `thumbs.ts` | pictures of parts for the shop, inventory and picker: the baked 3D stills (`public/stills/`, `npm run stills`: `tools/stills.mjs`, `renderStill` in `viewer.ts`), else the real art (`thumbart.ts`) rendered in a worker (`thumbs.worker.ts`) to cached image URLs |
-| `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](DIE.md) |
+| `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](../src/features/cpu/DIE.md) |
 | `dieart.ts` | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names) |
 | `dieview.ts` | the die in motion (`DieView`): instruction chips in their blocks per lane and unit, the out-of-order structures as cells coloured by state, event flashes and link pulses, the levels of detail by zoom |
 | `ink.ts` | small Graphics / Text helpers |
