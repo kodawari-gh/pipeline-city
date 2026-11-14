@@ -181,7 +181,7 @@ export function meterMean(cells: ArrayLike<number>, w: number, h: number): numbe
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
 /** The bloom's strength at each level (0: the pass is off). */
-const BLOOM_LEVELS = [0, 0.3, 0.5];
+const BLOOM_LEVELS = [0, 0.12, 0.2];
 
 export class Post {
   private scene: ScenePass;
@@ -218,11 +218,13 @@ export class Post {
     this.outline.edgeGlow = 0;
     this.outline.pulsePeriod = 0;
     this.outline.enabled = false;
-    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
+    // a tight halo (radius 0.3) and a high threshold (1.6): only the real emitters pass it, not the lit walls and the shades
+    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.3, 1.6);
     // A lamp's glint at some angles overflows the half-float target (Inf, then NaN in the blur): one such pixel blanks the whole frame. The
-    // high-pass reads a sane, capped colour.
+    // high-pass reads a sane colour: a NaN or Inf becomes black, and a bright pixel is capped at 4 (a tiny very bright pixel flickers and
+    // blooms into a firefly).
     const hp = this.bloom.materialHighPassFilter;
-    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 32.0 ) );');
+    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 4.0 ) );');
     this.local = new LocalEye(w, h, this.look);
     this.local.output(renderer);
     this.setSize(w, h);
