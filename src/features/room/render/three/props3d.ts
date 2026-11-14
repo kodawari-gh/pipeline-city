@@ -6,7 +6,7 @@ import {
   NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { anisotropy, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, paint, place, post, rectBox, rod, softBox, tornDown, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -424,7 +424,7 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
   g.add(prim);
   // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat
   void loadModel(MOUSE_MODEL).then((m) => {
-    if (!m || !g.parent) return;
+    if (!m || tornDown(g)) return;
     const model = m.clone(true);
     model.rotation.y = Math.PI / 2;
     const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), mid = box.getCenter(new Vector3());

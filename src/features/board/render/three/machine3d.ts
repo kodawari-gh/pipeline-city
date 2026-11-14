@@ -15,7 +15,7 @@ import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
 import { lowDetail } from '@/core/render/three/detail';
-import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
@@ -517,7 +517,7 @@ export class Machine3D {
     const model = modelOf(visual, spec.kind), fit = model ? this.rects.get(d.slot) : undefined;
     if (model && fit) {
       this.keep.push(g); // (the model hides the children it replaces: they stay as they are)
-      useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !!g.parent, model.stretch);
+      useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !tornDown(g), model.stretch);
     }
     this.root.add(g);
   }
