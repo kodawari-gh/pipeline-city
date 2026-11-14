@@ -85,7 +85,7 @@ function pads(d: number, depth: number): BufferGeometry {
 
 /** The maker's label on the hub: its colour tells the grade. */
 function hubLabel(R: number, fast: boolean): Mesh {
-  const edge = mat(0x24262c, { roughness: 0.4 }), face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, '', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a98bff' : '#8a8f99', fast ? '#1d1830' : '#191a1e'), roughness: 0.55 });
+  const edge = mat(0x24262c, { roughness: 0.4 }), face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, '', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a68bff' : '#8a8f99', fast ? '#1d1830' : '#191a1e'), roughness: 0.55 });
   const o = new Mesh(new CylinderGeometry(R * 0.18, R * 0.18, R * 0.03, 28).rotateX(Math.PI / 2), [edge, face, edge]);
   o.position.z = R * 0.203;
   return place(o);
@@ -102,7 +102,7 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
   // (Low: the frame's warm brown rim light is the room's key, not a Lambert)
   if (lowDetail()) frame.userData[KEEP_SPEC] = true;
   root.add(place(new Mesh(housing(d, depth), frame)));
-  if (fast) root.add(place(new Mesh(pads(d, depth), mat(0x7a5cc8, { roughness: 0.85 }))));
+  if (fast) root.add(place(new Mesh(pads(d, depth), mat(0x7d68bf, { roughness: 0.85 }))));
   motor(root, d * 0.47, depth, 4);
   const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hubM(), fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 });
   rotor.add(hubLabel(R, fast));
@@ -112,7 +112,7 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
   root.add(rotor);
   let ring: MeshStandardMaterial | null = null;
   if (spec.size > 40) {
-    ring = glowMat(0x8b5cff);
+    ring = glowMat(0xa68bff);
     const t = new Mesh(new TorusGeometry(d * (FAN_THROAT + 0.006), d * 0.011, 8, 72), ring);
     t.position.z = (ringSide * depth) / 2;
     root.add(seeThrough(t));

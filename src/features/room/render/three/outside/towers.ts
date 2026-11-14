@@ -27,7 +27,7 @@ const enum Wide { Across = 1, Up = 2, All = 3 }
 const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
 
 /** The signs' colours: cyan, amber, terracotta red (the room's accents) and a rare magenta, and how far from the window a low block has any, a tower. */
-const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3f9e] as const, SIGN_FAR = 1500, SIGN_TOWER = 3400;
+const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xa68bff, 0xa68bff, 0xff55dc] as const, SIGN_FAR = 1500, SIGN_TOWER = 3400;
 
 /** A parapet's height over its roof (m), how far from the window a roof gets its plant and tanks, and its smallest things. */
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;

@@ -78,7 +78,7 @@ export class Monitor {
   private liveTex: Texture | null = null;
   private liveRev: number | undefined;
   private liveSize = '';
-  private led = mat(0x111111, { emissive: new Color(0x4cff8a), emissiveIntensity: 0 });
+  private led = mat(0x111111, { emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
    * column); the room sets its level while the screen is on. The room holds it, not this root: hidden with an absent monitor, it would change
@@ -372,7 +372,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
       u += wu;
     }
   });
-  [0x3b4048, 0x2b2f36, 0xc8643c].forEach((col, k) => {
+  [0x3b4048, 0x2b2f36, 0x8f7bd6].forEach((col, k) => {
     const geo = mergeGeometries(parts[k]!, false);
     if (geo) board.add(place(new Mesh(geo, mat(col, { roughness: 0.55 }))));
   });

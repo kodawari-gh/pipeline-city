@@ -32,8 +32,10 @@ const PIN_Y = HDD_LIFT + 6.35 * MM;
 const PIN_Z = [HDD_MM.l - 130.1, HDD_MM.l - 28.5].map((v) => DRIVE_Z + v * MM);
 
 /** Each kind's cage (its case's paint, bare zinc in the Mini) and its trays (a shade lighter). */
-const CAGE_TONE: Record<CaseKind, number> = { oem: 0xa9aca4, matte: 0x1b1c20, gamer: 0x232838, show: 0x2a2d33 };
-const TRAY_TONE: Record<CaseKind, number> = { oem: 0xc3c5bd, matte: 0x2f3136, gamer: 0x3a4050, show: 0x3c3f46 };
+const CAGE_TONE: Record<CaseKind, number> = { oem: 0xa9aca4, matte: 0x1b1c20, gamer: 0x232838, show: 0x17181b };
+const TRAY_TONE: Record<CaseKind, number> = { oem: 0xc3c5bd, matte: 0x2f3136, gamer: 0x3a4050, show: 0x222328 };
+/** The sheet's finish: bare zinc in the Mini, paint in the Micro and Mid, black powder coat in the Full (matt, so it does not take the room's warm light as tan). */
+const sheet = (kind: CaseKind) => (kind === 'oem' ? { metalness: 0.6, roughness: 0.45 } : kind === 'show' ? { metalness: 0.1, roughness: 0.7 } : { metalness: 0.3, roughness: 0.45 });
 
 /** A tray's place: its west edge, its floor's bottom (world y), its back (z); slot sata<slot>. */
 export interface TraySpot { slot: number; x: number; y: number; z: number }
@@ -88,7 +90,7 @@ function ssdScrews(): { x: number; z: number }[] {
  * fixings its drive takes: the SSD's four screws under the floor.
  */
 export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): Group {
-  const g = new Group(), steel = mat(TRAY_TONE[kind], { metalness: kind === 'oem' ? 0.6 : 0.3, roughness: 0.45 }), rubber = mat(0x101113, { roughness: 0.9 });
+  const g = new Group(), steel = mat(TRAY_TONE[kind], sheet(kind)), rubber = mat(0x101113, { roughness: 0.9 });
   const pinM = mat(0xb9bec4, { metalness: 0.88, roughness: 0.3 }), latch = mat(0x141518, { roughness: 0.55 });
   const { w: W, l: L, floor: F, rail: R, railH: H, handleH: HH } = TRAY;
   // the floor: two air windows clear of the SSD's screw holes, the holes themselves, a row of slots by each rail
@@ -125,7 +127,7 @@ export function trayAt(kind: CaseKind, spot: TraySpot, fitted: 'hdd' | 'ssd' | n
  * the bottom with their slots, the folds at the front, the flanges screwed to the tray sheet at the back; and an empty tray in each bay not in `filled`.
  */
 export function driveCage(p: CagePlan, kind: CaseKind = 'gamer', filled: ReadonlySet<string> = new Set()): Group {
-  const g = new Group(), steel = mat(CAGE_TONE[kind], { metalness: kind === 'oem' ? 0.6 : 0.3, roughness: 0.45 }), bolt = mat(kind === 'oem' ? 0xc9cbc3 : 0x62666e, { metalness: 0.8, roughness: 0.35 });
+  const g = new Group(), steel = mat(CAGE_TONE[kind], sheet(kind)), bolt = mat(kind === 'oem' ? 0xc9cbc3 : 0x62666e, { metalness: 0.8, roughness: 0.35 });
   const wins: Span[] = p.trays.map((t) => ({ y0: -t.y - CELL_H + 90, y1: -t.y - 100, z0: p.z0 + 300, z1: p.z1 - 240, r: 60 }));
   for (const x of [p.x0, p.x1 - SHEET]) g.add(wallX(x, x + SHEET, { y0: p.top, y1: p.bottom, z0: p.z0, z1: p.z1 }, wins, steel, 2));
   // the guides under each tray's rails

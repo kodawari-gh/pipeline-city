@@ -23,7 +23,7 @@ const PANEL = 10;
 const BACK_T = 16;
 
 /** A kind's fixings: bare zinc in the Mini, black in the Micro and the Mid, polished in the Full tower; its rivets take the paint of the sheet. */
-export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0xb4b9c1, { metalness: 0.85, roughness: 0.28 }) : mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 }));
+export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 }));
 export const rivetM = (k: CaseKind): Material => mat(({ oem: 0xc6bd9c, matte: 0x25262c, gamer: 0x2b3142, show: 0x34373e })[k], { metalness: 0.45, roughness: 0.42 });
 
 /** A keyhole: a round hole with a slot rising from it (layout centre of the round part), as a world outline. */
