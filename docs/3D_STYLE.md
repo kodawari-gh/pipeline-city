@@ -310,7 +310,7 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 
 ## Asset standard
 
-**Status: draft for owner approval (LPC1, 2026-11-14).** Tasks ASR1–ASR10, ASK1–ASK3, LOD1 and LODD1–LODD3 cite a section of this standard. Items marked (J) are judgements, not measurements. Until the owner approves, a cited value is a proposal.
+**Status: approved by Khalil, 2026-11-14 (LPC1), as drafted.** Tasks ASR1–ASR10, ASK1–ASK3, LOD1 and LODD1–LODD3 cite a section of this standard. Items marked (J) are judgements, not measurements. Until the owner approves, a cited value is a proposal.
 
 ### 1. Material families
 
