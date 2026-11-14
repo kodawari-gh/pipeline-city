@@ -26,7 +26,7 @@ Figures are for `03fe0bc` (origin/main, 2026-11-14), on an RTX 5080 at 1920x1080
 
 Rules:
 
-- **No tier changes geometry.** Low, Medium, High and Ultra use the same triangles. `docs/3D_STYLE.md` says the same. The part and city builders read no tier. The only graphics reads are shadow levels and the material swap.
+- **Low builds coarser geometry.** Medium, High and Ultra use the same triangles. Low reads `lowDetail()` (`core/render/three/detail.ts`) in the part builders: heat pipes and coils with fewer segments, a flat NVMe label, merged parts (see Merges and Cheap materials). `docs/3D_STYLE.md` says the same. The city builders read no tier. The shadow levels and the material swap are the other graphics reads.
 - A tier changes: render scale, MSAA, AO, bloom, shadow maps, the room lamp cap, the Lambert swap (Low only, see below), and texture filtering.
 - The preset does not change frame limit, brightness or auto-adjust.
 - Medium was not benched on the RTX. Only High and Low have numbers.
@@ -64,6 +64,7 @@ Parts, the room and the city each use a different method. Full bands are in [`lo
 | `mergeStatic` | room, at build (`room3d.ts:742`, `merge.ts:47`) | one mesh per material |
 | `mergePalette` | room (`PALETTE_CELL` 2 m, `room3d.ts:138`) | per-cell meshes, so the frustum can still cull them |
 | `mergeSiblings` + `shareMaterials` | machine, once at build (`machine3d.ts:262-266`) | still meshes of one parent become one palette mesh; gated by the `merge` flag only, not by tier |
+| `mergeWithin` | Low only: room key rack, router, mailbox and monitor housing (`room3d.ts`, `props3d.ts`); cable plugs, cord ends and grommets (`cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `|low` and the room's key carries it too (`rebuild` in `board3d.ts`), so a tier change across the Low line rebuilds both |
 | stand-ins (`standIns`, `merge.ts`) | far machine parts | a stand-in set of merged meshes |
 | `Sweep` | city buildings and trees (`sweep.ts`) | one draw per ring, cut to the camera's frustum |
 | `sweptMerge` | city street (`CELL` 24 m, `sweep.ts`) | street pieces merged per material, in bearing order |
@@ -86,6 +87,12 @@ Measured:
 - The source Standard is not disposed (`cheapmaterials.ts:60-74`). Three.js drops a program only when its material is disposed or rebuilt.
 - The room probe is captured once at Low and not again (`probePlan`, `cheapmaterials.ts:119-120`).
 - Mesh counts do not change. The swap changes programs. Its effect on material counts is not checked.
+- **KEEP_SPEC** (`userData.lowKeepSpec` in `materials.ts`): a flagged part keeps its High PBR material at Low. `cheapMaterials` returns it unchanged (no Lambert, no maps stripped). `palettePatch` also takes a `keep` flag and leaves the High PBR patch on a flagged palette mesh. Flagged on the sleeve at both tiers, the rest at Low only: the AIO braid sleeve (`cables3d.ts`, `sleeveMat`; High reads no flag, so this is harmless), the VRM sink's anodised casting and fins (`sink3d.ts`), the side-fan frame and blades (`fans3d.ts`), and the loop's G1/4 chrome fittings and hose ferrules (`cooler3d.ts`). At High a flagged part and its plain twin merge alike.
+- **Metals** (metalness above `NON_METAL`, 0.1): the Lambert reads `metalColor`, mixed toward the dark-metal range (`DARK_METAL`, `#2a2d32` to `#4e5360`) by the metalness. Warm metals (`warmMetal`: copper, brass, gold) keep their colour. Paint and plastic keep theirs. The pump cap uses `NON_METAL` at Low instead of a dark metal, so the brushed face stays a Lambert of its colour.
+- **Palette meshes at Low** (`palettePatch(sh, low, keep)`, `LOW_FRAG` in `merge.ts`): a merged palette mesh also draws as a Lambert: no specular, colour `lowMetal` (the dark-metal mix, warm metals kept), metalness 0. A black plug stays black. High keeps the PBR patch.
+- **Merge guard at Low**: `mergeSiblings` takes `byLook` at Low, so a warm metal (`lookOf`: metalness above 0.5 and warm) merges only with another warm metal.
+- **Coarser meshes** (`byDetail`): the cooler's heat pipes go from 220×16 to 40×8 segments and its coils from 339×6 to 48×6 (`cooler3d.ts`). The NVMe label is one flat quad over the packages at Low (`nvme3d.ts`).
+- **Tests**: `cheapmaterials.test.ts`, `merge.test.ts`, `mergelook.test.ts`, `lowdetail.test.ts`, `materials.test.ts`, `buildmode3d.shared.test.ts`. High's geometry and placement are pinned by `highident.test.ts` against `highident.expected.json`. Its materials are not. The Low cuts that matter for keeping metal or weave are pinned by `lowkeep.test.ts`.
 
 Effect, measured on the RTX 5080:
 
@@ -165,6 +172,8 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 | `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--2d`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
 | `npm run stills` | `tools/stills.mjs` | Renders parts headless to `public/stills/` with a hash manifest. |
 | (no npm script) | `tools/bench-costs.mjs` | Phone sweeps (Razr, Low) used for the toggle numbers above. |
+| (no npm script) | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code. |
+| (no npm script) | `tools/shot-case.mjs` | Opens the sandbox with the assembled machine and frames one device from its own box (`--part cooler\|nvme2\|ram`, plus `--preset`, `--yaw`, `--pitch`, `--fill`). Uses the dev hook `__board.frameSpec` (`board3d.ts`), which sets the view with `jumpRaw` and skips the room clamp. Any flight or input turns the clamp back on. The hook is dev only: `devhook.test.ts` checks that the prod source has no `jumpRaw` or `frameSpec` outside the DEV object. |
 
 `bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--2d`, `--lowpower`. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
 
@@ -211,5 +220,6 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 - Phone triangle cost with the same draws is not measured.
 - Per-ring city cost is not measured.
 - The cause of Low's extra programs is not known.
+- GL textures rise 5 to 7 about 50 s after boot (218 to 223 to 229). This is not a tier-switch leak: a run with no switch shows the same steps, and `main` does too. Targets are made on first use as game time passes (the `CityGlow` chain of 5 levels starts at night; shadow and depth targets). Not traced further. A long run to check that it levels off is not done. GL buffers stay flat (1567).
 - The Razr sessions on `03fe0bc` read 45.8 fps and 16.8 fps. The cause is not known.
 - Parked cars take the distance from the window (`cars.ts:326`). Moving cars take it from the eye (`cars.ts:422`).

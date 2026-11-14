@@ -6,50 +6,52 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 ## Look
 
-- **Studio look (2026-11-09)**: the glass rule also adds a top sheen, blur 1.1rem + saturate, a 1rem radius and a soft shadow; buttons have a faint fill and an accent-tinted hover; `kbd` is global; section labels are 0.18em spaced; selected tiles glow. Gallery and Build my PC (`.mode`) keep their own always-dark tokens. Checked on the board HUD in dark only; shop, almanac and narrow screens are not checked.
-- **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(0.67rem)`, a 1px hairline (`--glass-line`), a 0.67rem radius and no shadow. Tokens are on `:root[data-theme="dark"]`; the page starts with `data-theme="dark"`. Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in dark.
-- **Small type** (all rem): 0.8rem body, 0.65rem uppercase labels, 0.95rem titles.
+- **Studio look (2026-11-09)**: the glass rule also adds a top sheen, blur 1.1rem + saturate, a 1rem radius and a soft shadow; buttons have a faint fill and an accent-tinted hover; `kbd` is global; section labels are 0.09 to 0.1em spaced (`.pblock h3`, `.dock h3`, `.stat .label`); the shelf and almanac heads and `.menu-h` are 0.18em (the last block of `ui.css`, line 1243 overrides the earlier 0.09em of `.menu-h`); selected tiles glow. Gallery and Build my PC (`.mode`) keep their own always-dark tokens. Checked on the board HUD in dark only; shop, almanac and narrow screens are not checked.
+- **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(1.1rem) saturate(130%)`, a 1px hairline (`--glass-line`), a 1rem radius and a soft shadow (`0 1.2rem 2.6rem rgba(0,0,0,.32)`). Tokens are on `:root[data-theme="dark"]`; the page starts with `data-theme="dark"`. Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in dark.
+- **Small type** (all rem): 0.8rem body (`--fs-body`), 0.667rem uppercase labels (`--fs-label`; section heads 0.633rem, table heads and eyebrows 0.65rem), 1rem titles (`--fs-title`).
 - **Shared panel look** (end of `ui.css`): tokens `--fs-label`, `--fs-body`, `--fs-title`, `--r-tile`; one tile corner, one hover and selected state (`.rung`, `.tile`, `.os-tile`), one section label, one title size. Mono is for numbers and code only. Hover ring on the board is neutral (cyan = selected, yellow = tutorial target).
-- **Pause**: at speed 0 the root gets `class="paused"` (`state.ts`, from the speed signal). `ui.css` stops every animation that shows sim activity: the OS chip pulse (`.chip.live`) and anything marked `.sim-anim`. Hover transitions, panels, toasts and notices keep running. The tutorial's target pulse is guidance, not sim activity, so it keeps running. New sim-activity animations must use one of those hooks.
-- **Fewer always-visible things**: the HUD shows money, time, reputation, the machine chip, speed and theme (the level pill sits at the top centre, the inventory and shop buttons at the bottom). Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
+- **Pause**: at speed 0 the root gets `class="paused"` (`state.ts`, from the speed signal). `ui.css` pauses (`animation-play-state`) every animation that shows sim activity: the OS chip pulse (`.chip.live`) and anything marked `.sim-anim`. Hover transitions, panels, toasts and notices keep running. The tutorial's target pulse is guidance, not sim activity, so it keeps running. New sim-activity animations must use one of those hooks.
+- **Fewer always-visible things**: the HUD shows money, time, reputation, the machine chip, speed and theme (the theme toggle goes with THEME1, art-style §7; the level pill sits at the top centre, the inventory and shop buttons at the bottom). Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
 - **Part pictures** (`PartArt.tsx`, `src/features/board/render/thumbs.ts`, see RENDER.md): a part with a 3D model shows a baked still of it, the same model as the gallery and the shop's 3D view (`npm run stills` writes `public/stills/`; bake again after a model changes, `stills.test.ts` checks the list). The others (a router, a plan plate) show the image the renderer makes of their board art. Until one arrives, and for what has no hardware art (an OS), the drawn icons below are shown: inline SVG drawn from the spec, classes only (`.art .ink`, `.art .plate`...), so they read the tokens. CPU die with the pipeline per tier (one block for unpipelined, five stages for in-order, forwarding arcs and a cache row for tier 2); RAM sticks (count from the size) with a latency gauge; cooler (fins for the stock heatsink, fan for the tower, tubes and radiator for the liquid loop); PSU with a wattage dial; board with its slot counts; monitor.
 - **Icons** (`Icons.tsx`): bolt for power, flame for heat, clock for speed and latency, dollar for price, lock for blocked or later, check for fitted, box for the inventory. Each is a stroke icon in `currentColor`, sized in rem.
 
 ## Scaling (every size is relative; the test fails the build otherwise)
 
-- **Root rule** (the only place a pixel bound appears, top of `ui.css`): `html { font-size: calc(var(--ui-scale, 1) * clamp(15px, min(0.85vw, 1.5vmin), 64px)); }`. 1rem is 0.85vw or 1.5vmin, whichever is smaller: 16.2 px at 1920x1080, 21.6 px at 2560x1440, 32 px at 4K, never below 15 px (small laptops, phones) and never above 64 px. At 1080p and 1440p every panel is the same fraction of the viewport (measured: tutorial card height 9.6 percent of the viewport height at both).
+- **Root rule** (the only place a pixel bound appears, top of `ui.css`): `html { font-size: calc(var(--ui-scale, 1) * clamp(15px, min(0.85vw, 1.5vmin), 64px)); }`. 1rem is 0.85vw or 1.5vmin, whichever is smaller: 16.2 px at 1920x1080, 21.6 px at 2560x1440, 32.4 px at 4K, never below 15 px (small laptops, phones) and never above 64 px. At 1080p and 1440p every panel is the same fraction of the viewport (measured: tutorial card height 9.6 percent of the viewport height at both).
 - **UI size setting**: the menu's slider (80 to 150 percent, step 5) sets `--ui-scale` (`state.ts`, `uiScale`, persisted in `localStorage['pipeline-city.uiScale']` in try/catch), which multiplies the root size.
 - **Everything else** is rem/em/%/vw/vh/vmin/clamp(): panels, tiles, buttons, gaps, radii, fonts, hit targets. Inline SVG has no numeric `width`/`height` on `<svg>`: `Icon` and `PartArt` take a size in design units (1/15 rem, `units.ts`, `rem(n)`) and set it in CSS; the drawing scales through its `viewBox`; SVG text sizes are `font-size` attributes in viewBox units. Media queries use em (`@media (max-width: 48em)`, plus `max-aspect-ratio`).
 - **Allowlist** (`scaling.test.ts`): `1px` / `0px` (hairline borders, outlines, strokes), and the root clamp above. Positions computed at runtime from measurements (`translate(${x}px, ...)`, an element height copied from its content) are built from variables, contain no literal pixel number and are not matched. The test scans every `.css`, `.ts` and `.tsx` under `src/core/ui` (tests and fixtures excluded), `src/app/main.tsx` and `index.html`, strips comments, and fails on a number followed by `px`, a numeric `width`/`height` on an `<svg>`, and a numeric dimension in a `style={{}}` object (Preact turns it into px). Add new components in rem and the test stays green.
 
 ## Files
 
+Paths are from the repo root. `src/core/ui/` holds the shared UI; the shop, tutorial, sandbox and board UI sit in their feature folders.
+
 | File | Role |
 |---|---|
-| `logic.ts` (+ `logic.test.ts`) | Pure: formatting, stats helpers, hint triggers, `describeId`, `statusChip` (HUD phase text), `queueReadout`, `friendlyError` (refusal wording), `clockWarning`. |
-| `picker.ts` (+ `picker.test.ts`) | Pure: `pickerFor(id, snapshot)` builds the card model (title, lines, actions, the upgrade **ladder**, the `current` and `focus` parts). Also `statsOf` (numeric stats per part), `goodness` and `compareRows` (before/after bars), `clockZones` / `estTempC` / `zoneOf` (overclock zones). |
-| `vrm.ts` (+ `vrm.test.ts`) | Pure: the VRM readout and its zones (`vrmReadout`, `vrmZone`, `vrmLines`), the motherboard tier cards (`boardCards`), `cpuVrmWarning` (a CPU the planned board's VRM cannot feed) and `liquidVrmNote` (a liquid cooler with no VRM heatsink). |
-| `tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (welcome card, 14 steps before the OS lesson, last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
-| `regions.ts` | Plain + nerd text for region ids, world ids and die stages. `JOB_TYPES` for key jobs. |
-| `state.ts` | UI signals: theme, stats drawer, the inventory shelf, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
-| `testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
-| `Hud.tsx` | Top bar, Start / Continue modal, the menu (with the UI size slider), the stats drawer, the bottom `.stack` (notices, toasts, tutorial, inventory shelf), inset reporting for the camera. |
-| `NewGame.tsx`, `SandboxTools.tsx`, `SandboxJobs.tsx` | New game dialog (Campaign or Sandbox), the sandbox chip with its tools and the sandbox-only LEVEL / JOBS button (level grid, a switch per kind of job) (src/features/sandbox/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Both keep their styles in `ui.css` (no inline `<style>`). |
-| `ladder.test.ts` | Heatsink and upgrade rows: the next tier line, and "Nothing better" only at the top tier. |
-| `place.ts` (+ `place.test.ts`) | Pure: `placePopup` (right, left, below, above, else dock; flipped, clamped, tail offset), `liftAbove` (tutorial card vs target), `comfortablyVisible`. |
-| `anchor.ts`, `units.ts` | Re-export of the renderer's `anchorOf`, `flyTo`, `hasTarget`; the `rem(units)` helper. |
-| `scaling.test.ts` | The scaling enforcement test. |
-| `Inventory.tsx` | `InventoryButton` (HUD, count badge, pulses for tutorial steps) and `InventoryPanel` (the shelf: tiles grouped by kind). |
-| `PickerCard.tsx` | The contextual popup next to the selected object: header with art and live readings, PSU load, lines, the upgrade ladder, before/after bars, the CPU clock dial, actions, details. Escape and the x close it. |
-| `PartArt.tsx` | Inline SVG illustration of a part or a board tier (`PartArt({id, size})`). |
-| `Icons.tsx` | The icon set (`Icon({name, size})`). `IconName` is defined in `picker.ts`. |
-| `worldDrag.ts` | `beginPartDrag(invId, event)`: a thin wrapper over the renderer's hook (`src/features/board/render/board.ts`). |
-| `TutorialCard.tsx` | The tutorial: welcome and next-lesson modals, the bottom-centre card, the camera glide, the animated pointer, the card lift. Writes `highlight`. Opens the shelf on install steps. |
-| `Hover.tsx` | `Tooltip` (follows `hover`). |
-| `Toasts.tsx` | `Notice` (a refused action, plain words, dismissible, clears after 6 s) and hint toasts. |
-| `Stats.tsx`, `Meter.tsx` | Nerd stats drawer (CPI/IPC, stalls, cache, power, device temps, sparkline) and the small bar. |
-| `panels/Graphics.tsx` | The graphics drawer: presets and each option (see "Graphics panel"). |
-| `ui.css` | All styles. Root size rule, glass tokens, the part-art classes, the ladder, the dial, the shelf, popups, modals. Below 48em the stats drawer becomes a bottom sheet. |
+| `src/core/ui/logic.ts` (+ `logic.test.ts`) | Pure: formatting, stats helpers, hint triggers, `describeId`, `statusChip` (HUD phase text), `friendlyError` (refusal wording), `clockWarning`. |
+| `src/features/economy/ui/shop/picker.ts` (+ `picker.test.ts`) | Pure: `pickerFor(id, snapshot)` builds the card model (title, lines, actions, the upgrade **ladder**, the `current` and `focus` parts). Also `statsOf` (numeric stats per part), `goodness` and `compareRows` (before/after bars), `clockZones` / `estTempC` (overclock zones). |
+| `src/features/board/ui/vrm.ts` (+ `vrm.test.ts`) | Pure: the VRM readout and its zones (`vrmReadout`, `vrmZone`, `vrmLines`), the motherboard tier cards (`boardCards`), `cpuVrmWarning` (a CPU the planned board's VRM cannot feed) and `liquidVrmNote` (a liquid cooler with no VRM heatsink). |
+| `src/features/tutorial/ui/tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (39 in all: the welcome card, then the chapters Build 8, First jobs 8, The OS 10, The network 11, and the last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
+| `src/core/ui/regions.ts` | Plain + nerd text for region ids, world ids and die stages. `JOB_TYPES` for key jobs. |
+| `src/core/ui/state.ts` | UI signals: theme, stats drawer, the inventory shelf, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
+| `src/core/ui/testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
+| `src/core/ui/Hud.tsx` | Top bar, Start / Continue modal, the menu (with the UI size slider), the stats drawer, the bottom `.stack` (notices, toasts, tutorial, inventory shelf), inset reporting for the camera. |
+| `src/core/ui/panels/NewGame.tsx`, `src/features/sandbox/ui/SandboxTools.tsx`, `src/features/sandbox/ui/SandboxJobs.tsx` | New game dialog (Campaign or Sandbox), the sandbox chip with its tools and the sandbox-only LEVEL / JOBS button (level grid, a switch per kind of job) (src/features/sandbox/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Styles stay in `ui.css` (no inline `<style>`). |
+| `src/features/economy/ui/shop/ladder.test.ts` | Heatsink and upgrade rows: the next tier line, and "Nothing better" only at the top tier. |
+| `src/core/ui/place.ts` (+ `place.test.ts`) | Pure: `placePopup` (right, left, below, above, else dock; flipped, clamped, tail offset), `liftAbove` (tutorial card vs target), `comfortablyVisible`. |
+| `src/features/tutorial/ui/anchor.ts`, `src/core/ui/kit/units.ts` | Re-export of the renderer's `anchorOf`, `flyTo`, `hasTarget`; the `rem(units)` helper. |
+| `src/core/ui/scaling.test.ts` | The scaling enforcement test. |
+| `src/features/economy/ui/shop/Inventory.tsx` | `InventoryButton` (HUD, count badge, pulses for tutorial steps; a local component) and `InventoryPanel` (the shelf: tiles grouped by kind). |
+| `src/features/economy/ui/shop/PickerCard.tsx` | The contextual popup next to the selected object: header with art and live readings, PSU load, lines, the upgrade ladder, before/after bars, the CPU clock dial, actions, details. Escape closes it. |
+| `src/features/economy/ui/shop/PartArt.tsx` | Inline SVG illustration of a part or a board tier (`PartArt({id, size})`). |
+| `src/core/ui/kit/Icons.tsx` | The icon set (`Icon({name, size})`). `IconName` is defined in `src/features/economy/ui/shop/picker.ts`. |
+| `src/core/ui/worldDrag.ts` | `beginPartDrag(invId, event)`: a thin wrapper over the renderer's hook (`src/features/board/render/board.ts`). |
+| `src/features/tutorial/ui/TutorialCard.tsx` | The tutorial: welcome and next-lesson modals, the bottom-centre card, the camera glide, the animated pointer, the card lift. Writes `highlight`. Opens the shelf on install steps. |
+| `src/core/ui/kit/Hover.tsx` | `Tooltip` (follows `hover`). |
+| `src/core/ui/panels/Toasts.tsx` | `Notice` (a refused action, plain words, dismissible, clears after 6 s) and hint toasts. |
+| `src/core/ui/panels/Stats.tsx`, `src/core/ui/kit/Meter.tsx` | Nerd stats drawer (CPI/IPC, stalls, cache, power, device temps, sparkline) and the small bar. |
+| `src/core/ui/panels/Graphics.tsx` | The graphics drawer: presets and each option (see "Graphics panel"). |
+| `src/core/ui/ui.css` | All styles. Root size rule, glass tokens, the part-art classes, the ladder, the dial, the shelf, popups, modals. Below 48em the stats drawer becomes a bottom sheet. |
 
 ## Selection and highlight contract
 
@@ -73,7 +75,7 @@ Near full-screen modal, three fixed zones: category rail (counts), tiles of the 
 
 Opens only when `selected` is set. Escape, the x, or a click on empty space (the renderer writes `selected = null`) closes it. It is a **popup next to the object**: `anchorOf(id)` gives the object's live screen rect, recomputed on `cameraRev` (and on size and inset changes); `placePopup` prefers the right, then left, below, above, flips and clamps inside the free area (the screen minus `viewInset`), so it never leaves the viewport or covers the object, and a small accent tail points at the object. It follows the object as the camera pans and zooms (short transition) and **glides** (position and height) when the selection changes, because the popup shell persists and only its content is keyed. For an id without a world rect (hidden at far zoom, off screen) it docks at the bottom right of the free area, next to the shelf; for `inv:<id>` it anchors to the tile in the shelf. While it is open the tutorial card and pointer fade out. Width 22rem; the content scrolls when taller than the free area. For a part it shows, top to bottom:
 
-- **Header**: the part's illustration (80 px), its name and one plain line.
+- **Header**: the part's illustration (`.phead .part`, 6.667rem wide; `PartArt` gets size 104 units), its name and one plain line.
 - **Live readings** (installed parts): temperature, power and effective clock as small icon chips; `slow` or `unstable` as a warning chip. For the PSU, a load bar against its budget.
 - **Lines**: the socket's hint (empty socket, or "drag it onto its socket" for a spare), the PSU load, the sim's own reasons. The CPU's overclock warnings are not repeated as text: the dial shows the zone.
 - **Cable cards** (`cable.<id>`, any cord or lead): the title and tip come from `describeId(id, s)` (fixed text in `logic.ts` `FAN_CABLE_TIPS` for `cable.cpufan`, `vrmfan`, `ramfan`, `sysfan`; `cable.fan:<mount>` is worded as the radiator's fan when the radiator on that mount's side (`rad-front` / `rad-top`) is fitted, otherwise as a case fan, so the snapshot must be passed), and one line says connected, the sim's `blocked` reason, or "drag its end to the socket". A missing CPU fan cable also shows as `POST error: the CPU fan cable is not connected...` (`NO CPU FAN`) on the power card, the monitor and the tutorial.
@@ -148,7 +150,7 @@ Left to right: **money** (with game time next to it), **rep** (reputation; deman
 
 ## Hints (`logic.ts`, `state.ts`)
 
-Shown once each as a small dismissible toast, remembered in `localStorage['pipeline-city.hints']`. At most two are visible (bottom centre). The rest wait in a queue and appear when one is dismissed or auto-expires after 8 s. Hints are suppressed while a tutorial card is active; the menu's **Show hints again** clears the seen list.
+Shown once each as a small dismissible toast, remembered in `localStorage['pipeline-city.hints']`. At most one is visible (`MAX_TOASTS` = 1 in `logic.ts`, bottom centre). The rest wait in a queue and appear when the visible one is dismissed or auto-expires after 8 s (`TOAST_MS` in `state.ts`). Hints are suppressed while a tutorial card is active; the menu's **Show hints again** clears the seen list.
 
 | id | fires when |
 |---|---|
@@ -156,7 +158,7 @@ Shown once each as a small dismissible toast, remembered in `localStorage['pipel
 | `throttle` | a working device has `throttle < 1` |
 | `overheat` | a working device is `unstable` |
 | `queue` | 3 or more keys waiting in the tray |
-| `keyIgnored` | `snapshot.keyIgnored`: a key sits in the port of a halted no-OS machine ("the machine only looks for a program at boot: power it off and on to load it") |
+| `keyIgnored` | `snapshot.keyIgnored`: a key sits in the port of a halted no-OS machine ("Without an OS the machine only looks for a program at boot: power off and on to load this key.") |
 | `burnt` | a device is burnt |
 | `trip` | the PSU has hard-tripped |
 | `brownout` | PSU overloaded (`psuFactor < 1`) but not tripped |
@@ -186,7 +188,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 
 ## OS panel (`OsPanel.tsx`, `osui.ts`; src/features/os/OS.md "OS menu")
 
-`OsModal` (a modal on the almanac frame, Esc and backdrop close it) is mounted in `Hud.tsx`; `osOpen` / `toggleOs` / `closeOs` live in `state.ts`. The bottom-bar OS button (`Inventory.tsx`, once an OS is installed), the HUD chip `OsChipButton` and the menu entry open it. Tabs: Resources (monitor and bottleneck), Spool (slot slider, per-drive switches), Apps (work in progress). The model is pure and tested in `osui.test.ts`.
+`OsModal` (a modal on the almanac frame, Esc and backdrop close it) is mounted in `Hud.tsx`; `osOpen` / `toggleOs` / `closeOs` live in `state.ts`. The bottom-bar OS button (`Inventory.tsx`, once an OS is installed), the HUD chip `OsChipButton` and the menu entry open it. Tabs (`TABS`): Performance (monitor and bottleneck), Processes, Disk allocation, Apps (work in progress). The model is pure and tested in `osui.test.ts`.
 
 ## Graphics panel (`panels/Graphics.tsx`; the model is `app/graphics.ts`)
 
@@ -208,7 +210,7 @@ A drawer and not a modal: the picture stays in view and each change applies at o
 
 ## Theme
 
-Dark is the only theme the design supports. The code still has a light path: `data-theme="dark" | "light"` on `<html>`, from `state.ts` (saved choice, else dark), a HUD toggle and a Light choice in the menu's Theme row. Removing it is TODO THEME1. Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
+Dark is the only theme (art-style §7, approved v3). Target: no theme switch and no `'light'` value. The current code still has a light path: `data-theme="dark" | "light"` on `<html>`, from `state.ts` (saved choice, else dark), a HUD toggle and a Light choice in the menu's Theme row. Removing it is TODO THEME1. Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
 
 ## Tests
 
@@ -218,7 +220,7 @@ Dark is the only theme the design supports. The code still has a light path: `da
 
 The main menu (`panels/MainMenu.tsx`) shows over the live room before a game: Continue (with an autosave), New game, Sandbox (the dialog on the sandbox choice), Gallery, Load game, Settings. New game opens the dialog, whose Cancel returns to it. Gallery (`shop/Gallery.tsx`) is the shop's 3D view, large, for every part with a model. The room behind the menu takes no hover, click, key or zoom (the canvas has `pointer-events: none` while no game runs).
 
-Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
+Notices (refusals) and hint toasts (capped at 1) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
 
 **Keyboard and names (new dialogs and tools).** The New game dialog is `role="dialog"` with `aria-labelledby`; its two choices are a `radiogroup` of `role="radio"` cards (roving `tabindex`: Arrow keys move, Enter or Space picks). It opens focused on the chosen card, Tab and Shift+Tab wrap inside it, and Escape closes it only when a game can be fallen back on; focus returns to where it was. The sandbox chip is a button named `SANDBOX` (`aria-expanded`, `aria-controls`); its popover is a `role="dialog"`, Escape closes it and gives focus back to the chip, and every control has a name (the job template, the work multiplier, the reputation slider with `aria-valuetext`). Focus rings: `:focus-visible` outlines on buttons, inputs, `[role="button"]` and the new radio cards (rem offsets). Picker: Escape or the x closes it, the rungs are `role="button"` with Enter and Space, and the popup is an `aside` with its title as the label.
 
@@ -228,7 +230,7 @@ Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `
 
 ## Verification
 
-Checked in headless Chrome (playwright-core, software GL, dev server, screenshots read): 1360x800, 1920x1080, 2560x1440, 1024x640 and 390x844, dark and light across them: HUD, the welcome modal, the tutorial card with the pointer on a target and lifted off covered targets, the picker popup next to the CPU, a DIMM and the PSU (left of the object near the right edge, docked on a phone), the inventory shelf with parts, and a real mouse drag from a tile (shelf collapses, `dragging` set, inset kept). Measured: at 1920x1080 and 2560x1440 the tutorial card is 9.6 percent and the picker about 41 percent of the viewport height and the welcome modal 21.9 percent of its width, both times; every checked popup stayed inside the viewport. VRM and board UI (headless Chrome, software GL, 1360x800 and 390x844, dark and light): the board cards, the CPU warning and the liquid-cooler note, the heatsink rows, the VRM card and the stats VRM section, the dead-board chip and picker; no horizontal scroll at either size. A popup anchored to an inventory tile now stays above the shelf (the bottom inset is respected). Not verified: touch, a real GPU.
+Results below are from earlier runs. They were not re-run in the 2026-11 docs check. Checked in headless Chrome (playwright-core, software GL, dev server, screenshots read): 1360x800, 1920x1080, 2560x1440, 1024x640 and 390x844, dark and light across them: HUD, the welcome modal, the tutorial card with the pointer on a target and lifted off covered targets, the picker popup next to the CPU, a DIMM and the PSU (left of the object near the right edge, docked on a phone), the inventory shelf with parts, and a real mouse drag from a tile (shelf collapses, `dragging` set, inset kept). Measured: at 1920x1080 and 2560x1440 the tutorial card is 9.6 percent and the picker about 41 percent of the viewport height and the welcome modal 21.9 percent of its width, both times; every checked popup stayed inside the viewport. VRM and board UI (headless Chrome, software GL, 1360x800 and 390x844, dark and light): the board cards, the CPU warning and the liquid-cooler note, the heatsink rows, the VRM card and the stats VRM section, the dead-board chip and picker; no horizontal scroll at either size. A popup anchored to an inventory tile now stays above the shelf (the bottom inset is respected). Not verified: touch, a real GPU.
 
 **Sandbox playthrough (headless Chrome, playwright-core kept outside the repo, real mouse and keyboard, 1360x800, dark):** the New game dialog from a fresh load (Tab and arrow keys, Sandbox, Assembled or Bare board, Start with Enter); the menu's New game asks "This discards the game you are playing." before a running game is replaced (Cancel keeps it), and Campaign then starts the tutorial (welcome card). Bare board: the starter CPU, cooler, RAM, PSU and monitor dragged from the shelf onto their sockets. Assembled: the Enthusiast board bought from the board picker and dragged onto the board; a better CPU bought from its picker and dropped on the socket (swap); the RAM upgrade dropped in a free DIMM slot; the liquid cooler bought and swapped in; the top VRM heatsink bought and dropped on its socket; the power object clicked (POST, then a job ran). The sandbox popover by keyboard (Enter on the chip, Escape closes and returns focus), a scan key spawned at x4, Repair all, the reputation slider (1.00 to 1.40 by eight Arrow presses, matching the sim), Run at 64x (about 210 ticks in 3 s, back to 1x), and 16x with a job done. Board sizes measured at 1280x720, 1360x800, 1366x768, 1024x640 and 1920x1080 with the shelf open: no scrolling in the board picker. **Not reached with the mouse:** drives and the OS (see Known gaps).
 
@@ -262,7 +264,7 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - **Tooltip.** The name and the first sentence only, and none while a card is open or something is being dragged.
 - **Hints.** One toast at a time, short, an icon to dismiss. `MAX_TOASTS = 1`.
 - **Level-up** (`LevelUpModal` in `Levels.tsx`): a modal over everything (z-index above the other modals) that waits for **Next** (or "All levels"). The new level swells in with rings, then each unlock pops in one after the other. It shows whatever else is on screen, the tutorial included.
-- **Bar.** Money, time, reputation (star icon), the machine chip, speed, theme, menu. The level bar sits alone at the top centre (`.hud-center`); the tray count was dropped as redundant. The inventory button moved to the bottom bar (`.invbar`), next to the shelf it opens. A new game starts at 1x (`DEFAULT_SPEED` 4 in `store.ts`).
+- **Bar.** Money, time, reputation (star icon), the machine chip, speed, theme (the toggle goes with THEME1), menu. The level bar sits alone at the top centre (`.hud-center`); the tray count was dropped as redundant. The inventory button moved to the bottom bar (`.invbar`), next to the shelf it opens. A new game starts at 1x (`DEFAULT_SPEED` 4 in `store.ts`).
 - **Inventory shelf.** Identical spares are one tile with a count (`stackItems`); kind chips filter the shelf; selecting a socket, an installed part, the PSU, the monitor or the drive bay on the PC opens the shelf with only the parts that fit there (`fitFilterFor`, `fitsFilter`, the `fitTarget` signal) and a **Show all** link.
 - **Glow.** Hover is one thin outline; a selection adds none; the tutorial ring is the single yellow ring above.
 - **Space** pauses and resumes at the speed the game ran at (`togglePause` in `store.ts`, `PauseKey` in `Hud.tsx`); a "Paused" pill shows. Text fields, sliders and open dialogs keep their own Space.
@@ -277,7 +279,7 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 
 ## Tutorial help for someone who is lost (2026-10-25)
 
-- **Done pill.** When a step finishes, a green pill "Install the processor: done" sits above the card for about 2.5 s (`.tut-praise`), so progress is felt.
+- **Done pill.** When a step finishes, a green pill "Install the processor: done" sits above the card for about 2.6 s (`.tut-praise`, timer in `TutorialCard.tsx`), so progress is felt.
 - **Ghost hand.** After 8 s without a drag on a drag step (a shelf tile to its socket, or a key to the USB port), a ring presses on the tile, glides to the target and lets go, over and over (`ghostPath`, `.ptr-ghost`, drawn in the pointer layer). Any drag by the player hides it; reduced motion turns it off.
 - **Tip.** After 22 s on a drag step a plain-words tip bubble appears above the card ("press and hold the glowing part, move it to the glowing spot, then let go"). It floats, so the card does not grow and the camera does not re-frame.
 - **Quiet shelf.** The shelf opens for steps that use it and tucks away on the others (never during a drag).

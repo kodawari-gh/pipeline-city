@@ -1,5 +1,6 @@
 // The Low tier's cheaper material model: a Lambert program (no specular, no PBR maps) for the room's standard materials.
-import { Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D, type Side } from 'three';
+import { Color, Material, MeshLambertMaterial, type Mesh, type MeshStandardMaterial, type Object3D, type Side } from 'three';
+import { KEEP_SPEC } from './materials';
 
 type Std = MeshStandardMaterial & { isMeshStandardMaterial: true };
 const STRIPPED = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'] as const;
@@ -12,17 +13,61 @@ const isPatched = (m: Material): boolean => m.onBeforeCompile !== Material.proto
  * The values a Lambert reads live from its source (no copy, no frame work). A write through the Lambert lands on the source, so a fade
  * (`fadeTree`) or a glow cap (`glowOnly`) reaches the material the game owns. `transparent` is among them: `sync` sees its change.
  */
-const LIVE = ['emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap', 'transparent'] as const;
+const LIVE = [
+  'emissiveIntensity', 'opacity', 'visible', 'depthWrite', 'map', 'emissiveMap', 'transparent',
+  // (a decal or a label draws over the surface under it by its offset: a Lambert without it tears against that surface)
+  'polygonOffset', 'polygonOffsetFactor', 'polygonOffsetUnits',
+] as const;
+
+/** A source at or under this metalness is paint or plastic: its Lambert keeps the source's own Color object. */
+export const NON_METAL = 0.1;
+/** The dark metal a metal's Lambert reads toward, from the darkest to the lightest (by the source's own lightness). */
+export const DARK_METAL = [new Color(0x2a2d32), new Color(0x4e5360)] as const;
+const HSL = { h: 0, s: 0, l: 0 };
 
 /**
- * A Lambert with the look of `m`. Its colors are the source's own Color objects, and its live values are accessors on the source (see `LIVE`).
- * Only the program-level state (see `sync`) is copied.
+ * Is `c` a warm, saturated metal (copper, brass, gold)? Its colour is the metal's own, as seen in its reflections: a Lambert keeps it, where it
+ * would turn a grey metal dark.
+ */
+export const warmMetal = (c: Color): boolean => { c.getHSL(HSL); return HSL.s > 0.35 && (HSL.h < 0.18 || HSL.h > 0.97); };
+
+/**
+ * What a Lambert of a metal reads as its colour: `src` mixed toward the dark metal range by `metalness`, as a metal has no diffuse of its own and
+ * its look is the reflection that a Lambert cannot draw. The source's colour is not changed (High draws with it). Copper and gold keep theirs.
+ */
+export function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
+  const k = Math.min(1, Math.max(0, metalness));
+  out.copy(src);
+  if (k <= 0 || warmMetal(src)) return out;
+  const t = Math.min(1, Math.pow(0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b, 1 / 2.2));
+  return out.lerp(new Color().copy(DARK_METAL[0]).lerp(DARK_METAL[1], t), k);
+}
+
+/**
+ * A Color that reads `m`'s colour mixed by its metalness (`metalColor`) on each read, so a writer that tints the source (a part's state look)
+ * still reaches the Lambert with no sync. A write to one channel lands on the source.
+ */
+function metalLive(m: Std): Color {
+  const c = new Color(), seen = [NaN, NaN, NaN, NaN], mix = new Color();
+  const fresh = (): Color => {
+    const s = m.color, k = m.metalness;
+    if (s.r !== seen[0] || s.g !== seen[1] || s.b !== seen[2] || k !== seen[3]) { seen[0] = s.r; seen[1] = s.g; seen[2] = s.b; seen[3] = k; metalColor(s, k, mix); }
+    return mix;
+  };
+  for (const ch of ['r', 'g', 'b'] as const) Object.defineProperty(c, ch, { configurable: true, enumerable: true, get: () => fresh()[ch], set(v: number) { m.color[ch] = v; } });
+  return c;
+}
+
+/**
+ * A Lambert with the look of `m`. Its colors are the source's own Color objects (a metal's is read from the source's through `metalLive`), and its
+ * live values are accessors on the source (see `LIVE`). Only the program-level state (see `sync`) is copied.
  */
 function lambertOf(m: Std): MeshLambertMaterial {
+  const color = m.metalness > NON_METAL ? metalLive(m) : m.color;
   const l = new MeshLambertMaterial({
-    color: m.color, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, side: m.side, alphaTest: m.alphaTest,
+    color, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, side: m.side, alphaTest: m.alphaTest,
   });
-  l.color = m.color;
+  l.color = color;
   l.emissive = m.emissive;
   const src = m as unknown as Record<string, unknown>;
   for (const k of LIVE) Object.defineProperty(l, k, { configurable: true, enumerable: true, get: () => src[k], set(v: unknown) { src[k] = v; } });
@@ -52,6 +97,8 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   const prog = new Map<Std, Prog>();
   const cheap = (m: Material): Material => {
     if (!isStandard(m)) return m;
+    // (a part flagged `KEEP_SPEC` keeps its PBR look at Low: no Lambert, no maps stripped)
+    if (m.userData[KEEP_SPEC] === true) return m;
     if (isPatched(m) || m.lightMap) {
       if (!stripped.has(m)) {
         const was: Partial<Record<Stripped, unknown>> = {};

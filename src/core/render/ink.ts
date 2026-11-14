@@ -4,6 +4,16 @@ import { currentTextResolution, registerLabel } from './camera';
 
 // Small drawing helpers shared by the art builders.
 
+/** The gradients made while `collectGradients` runs (null outside one): their textures belong to the art that was built with them. */
+let owned: FillGradient[] | null = null;
+/** Runs `build` and returns what it made with the gradients it made (a baker frees them with its art: `ArtBaker`). */
+export function collectGradients<T>(build: () => T): [T, FillGradient[]] {
+  const prev = owned, mine: FillGradient[] = [];
+  owned = mine;
+  try { return [build(), mine]; } finally { owned = prev; }
+}
+const track = <G extends FillGradient>(g: G): G => { owned?.push(g); return g; };
+
 export const MONO = '"JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace';
 export const HEAD = '"Chakra Petch", system-ui, sans-serif';
 
@@ -59,11 +69,11 @@ export function label(
 
 /** A linear gradient over the shape it fills (local space): `a` at the start, `b` at the end; (0,0) to (0,1) runs top to bottom. */
 export const lgrad = (a: string, b: string, to: [number, number] = [0, 1], from: [number, number] = [0, 0]) =>
-  new FillGradient({ type: 'linear', start: { x: from[0], y: from[1] }, end: { x: to[0], y: to[1] }, colorStops: [{ offset: 0, color: a }, { offset: 1, color: b }], textureSpace: 'local' });
+  track(new FillGradient({ type: 'linear', start: { x: from[0], y: from[1] }, end: { x: to[0], y: to[1] }, colorStops: [{ offset: 0, color: a }, { offset: 1, color: b }], textureSpace: 'local' }));
 
 /** A radial gradient over the shape it fills (local space, stretched to its box): `inner` at the centre, `outer` at the edge. */
 export const rgrad = (inner: string, outer: string, centre: [number, number] = [0.5, 0.5], radius = 0.5) =>
-  new FillGradient({ type: 'radial', center: { x: centre[0], y: centre[1] }, innerRadius: 0, outerCenter: { x: centre[0], y: centre[1] }, outerRadius: radius, colorStops: [{ offset: 0, color: inner }, { offset: 1, color: outer }], textureSpace: 'local' });
+  track(new FillGradient({ type: 'radial', center: { x: centre[0], y: centre[1] }, innerRadius: 0, outerCenter: { x: centre[0], y: centre[1] }, outerRadius: radius, colorStops: [{ offset: 0, color: inner }, { offset: 1, color: outer }], textureSpace: 'local' }));
 
 export function clear(c: Container): void {
   for (const ch of c.removeChildren()) ch.destroy({ children: true });

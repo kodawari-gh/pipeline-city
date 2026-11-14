@@ -2,7 +2,8 @@
 import { BoxGeometry, Vector2, type Group } from 'three';
 import type { Theme } from '@/core/render/theme';
 import { drum, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { lowDetail } from '@/core/render/three/detail';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { GEO, RAM_SINK, VRM_SINK } from '../layout/layout';
 import { SINK_FAN_RIM } from '../layout/boardlayout';
@@ -56,6 +57,8 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   const sk = skinOf(GEO.tier), top = big ? TOP.big : fan ? HEAD.cover : TOP.fins;
   const H = spot && { x: spot.x - SINK_FAN_RIM, y: spot.y - SINK_FAN_RIM, w: spot.w + 2 * SINK_FAN_RIM, h: spot.h + 2 * SINK_FAN_RIM };
   const anod = mat(hexNum(sk.sink), { metalness: 0.5, roughness: 0.46, map: tiled(brushed(), 6, 1) });
+  // (Low: the casting and its fins keep High's PBR, as the silver is the room's reflection: a Lambert of this dark colour draws near black)
+  if (lowDetail()) anod.userData[KEEP_SPEC] = true;
   const [f0, f1] = FOOT[kind], foot = { x: r.x + 10, y: r.y + f0, w: r.w - 20, h: f1 - f0 };
   g.add(rectBox({ x: foot.x + 14, y: foot.y + 8, w: foot.w - 28, h: foot.h - 16 }, Z.pad, Z.foot, mat(0x8e98a8, { roughness: 0.85 })));
   g.add(slab(shapeOf(outlinePts(foot, 0, [24, 24, 24, 24])), Z.foot, Z.block + 2, anod, 6));

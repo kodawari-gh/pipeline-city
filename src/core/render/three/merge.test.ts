@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, ShaderLib, Vector3, type Material } from 'three';
-import { own } from './materials';
-import { mergePalette, mergeSiblings, mergeStatic, palettePatch, partsOf } from './merge';
+import { DARK_METAL } from './cheapmaterials';
+import { setLowDetail } from './detail';
+import { KEEP_SPEC, own } from './materials';
+import { mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
 
 describe('mergeStatic', () => {
@@ -144,6 +146,99 @@ describe('mergePalette', () => {
     expect(sh.fragmentShader).toContain('metalnessFactor = vPalRM.y;');
     expect(sh.fragmentShader).not.toContain('#include <roughnessmap_fragment>');
     expect(() => palettePatch({ vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: 'void main() {}' })).toThrow(/palette patch/);
+  });
+});
+
+describe('the Low palette material draws as a Lambert does', () => {
+  /** What a merged palette mesh of two black plastic parts compiles to, as three gives its fragment shader to `onBeforeCompile`. */
+  const compiled = (keep = false): string => {
+    const root = new Group(), par = new Group(), blk = () => new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
+    par.add(new Mesh(new BoxGeometry(), blk()), new Mesh(new BoxGeometry(), blk()));
+    if (keep) for (const m of par.children) (m as Mesh).material = Object.assign(blk(), { userData: { [KEEP_SPEC]: true } });
+    root.add(par);
+    mergeSiblings(root);
+    const out = par.children[0] as Mesh, sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader };
+    (out.material as MeshStandardMaterial).onBeforeCompile(sh as never, undefined as never);
+    return sh.fragmentShader;
+  };
+  afterEach(() => { setLowDetail(false); });
+
+  it('has no specular at Low: a black plug stays black under a bright light (it turned tan with PBR)', () => {
+    setLowDetail(true);
+    const f = compiled();
+    expect(f).toContain('reflectedLight.directSpecular = vec3( 0.0 )');
+    expect(f).toContain('reflectedLight.indirectSpecular = vec3( 0.0 )');
+    expect(f.indexOf('indirectSpecular = vec3( 0.0 )')).toBeLessThan(f.indexOf('totalDiffuse')); // (before the light is summed)
+  });
+
+  it('reads a metal as the dark metal its Lambert shows, and takes its metalness off', () => {
+    setLowDetail(true);
+    const f = compiled();
+    expect(f).toContain('lowMetal( vPalC, vPalRM.y )');
+    expect(f).toContain('metalnessFactor = 0.0;');
+    expect(f).not.toContain('metalnessFactor = vPalRM.y;');
+    for (const c of DARK_METAL) expect(f).toContain(`vec3( ${c.r.toFixed(6)}, ${c.g.toFixed(6)}, ${c.b.toFixed(6)} )`);
+  });
+
+  it('keeps the specular and the PBR metal of a part flagged to keep it (the braid sleeve, the pump cap)', () => {
+    setLowDetail(true);
+    const f = compiled(true);
+    expect(f).not.toContain('directSpecular = vec3( 0.0 )');
+    expect(f).not.toContain('indirectSpecular = vec3( 0.0 )');
+    expect(f).not.toContain('lowMetal');
+    expect(f).toContain('metalnessFactor = vPalRM.y;');
+    expect(f).toContain('vec4( vPalC, opacity )');
+  });
+
+  it('splits a flagged part from a plain one at Low, each with its own palette program', () => {
+    setLowDetail(true);
+    const root = new Group(), par = new Group(), mk = (keep: boolean): MeshStandardMaterial => {
+      const m = new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
+      if (keep) m.userData[KEEP_SPEC] = true;
+      return m;
+    };
+    par.add(new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(true)), new Mesh(new BoxGeometry(), mk(true)));
+    root.add(par);
+    expect(mergeSiblings(root, { byLook: true })).toBe(4);
+    expect(par.children).toHaveLength(2);
+    const [a, b] = par.children.map((m) => (m as Mesh).material as MeshStandardMaterial);
+    expect(a!.customProgramCacheKey()).not.toBe(b!.customProgramCacheKey());
+  });
+
+  it('is the PBR patch, as it was, at High', () => {
+    const f = compiled();
+    expect(f).not.toContain('directSpecular = vec3( 0.0 )');
+    expect(f).not.toContain('lowMetal');
+    expect(f).toContain('metalnessFactor = vPalRM.y;');
+    expect(f).toContain('vec4( vPalC, opacity )');
+  });
+
+  it('keeps the two tiers\' programs apart', () => {
+    const key = (): string => { const root = new Group(), p = new Group(); p.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()), new Mesh(new BoxGeometry(), new MeshStandardMaterial())); root.add(p); mergeSiblings(root); return ((p.children[0] as Mesh).material as MeshStandardMaterial).customProgramCacheKey(); };
+    const high = key(); setLowDetail(true);
+    expect(key()).not.toBe(high);
+  });
+});
+
+describe('mergeWithin', () => {
+  it('merges the loose meshes of one group, keeps the group in its parent, and tells twin of the palette material', () => {
+    const root = new Group(), prop = tag(new Group(), 'prop'), twins: Material[] = [];
+    const a = new Mesh(new BoxGeometry(10, 10, 10), new MeshStandardMaterial({ color: 0x112233 })), b = new Mesh(new BoxGeometry(5, 5, 5), new MeshStandardMaterial({ color: 0x445566 }));
+    b.position.set(0, 20, 0);
+    prop.add(a, b);
+    root.add(prop);
+    expect(mergeWithin(prop, { twin: (_s, c) => twins.push(c) })).toBe(2);
+    expect(prop.parent).toBe(root);
+    expect(prop.children).toHaveLength(1);
+    expect(twins).toHaveLength(1);
+    expect(prop.children[0]!.parent).toBe(prop);
+  });
+  it('merges a group that has no parent yet', () => {
+    const prop = new Group();
+    prop.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()), new Mesh(new BoxGeometry(), new MeshStandardMaterial()));
+    expect(mergeWithin(prop)).toBe(2);
+    expect(prop.parent).toBeNull();
+    expect(prop.children).toHaveLength(1);
   });
 });
 

@@ -1,8 +1,9 @@
 // The bridge from the 2D art to the 3D world: an offscreen Pixi renderer draws the same containers the board draws (`buildBoard`, `cpuArt`,
 // `ramArt`, `cardArt`, the die floorplans...) into a canvas that three.js uses as a texture (`ArtSurface`, core/render/three/artlod.ts). Nothing is
 // redrawn for 3D. The renderer also feeds the shop's part pictures (`initThumbs`), which the 3D view had no renderer for.
-import { autoDetectRenderer, BatchableGraphics, BigPool, Container, GraphicsContextRenderData, Matrix, TexturePool, type Renderer } from 'pixi.js';
+import { autoDetectRenderer, BatchableGraphics, BigPool, Container, FillGradient, GraphicsContextRenderData, Matrix, TexturePool, type Renderer } from 'pixi.js';
 import type { Rect } from '@/core/render/three/artlod';
+import { collectGradients } from '@/core/render/ink';
 import { initThumbs } from '../thumbs';
 
 let renderer: Renderer | null = null;
@@ -72,10 +73,15 @@ export function drawLive(c: Container, frame: Rect, px: number, out: HTMLCanvasE
 export class ArtBaker {
   private art: Container;
 
+  /** The gradients the art was built with: their textures are this baker's, freed with the art (`dispose`). */
+  private gradients: FillGradient[];
+
   constructor(build: () => Container) {
     // wrapped: the art may carry its own position and scale, which only a parent's frame includes
     this.art = new Container();
-    this.art.addChild(build());
+    const [built, gradients] = collectGradients(build);
+    this.gradients = gradients;
+    this.art.addChild(built);
   }
 
   /**
@@ -98,5 +104,10 @@ export class ArtBaker {
    * Destroys the art and each Graphics' own context. Pixi destroys an owned context only without options (or with `context`): the baker's
    * renderer kept every context it had drawn, about 50 MB per closed Build my PC (PERF12). The textures stay: the art may share them.
    */
-  dispose(): void { if (!this.art.destroyed) this.art.destroy({ children: true, context: true }); }
+  dispose(): void {
+    if (!this.art.destroyed) this.art.destroy({ children: true, context: true });
+    // (each gradient's texture is a canvas on the GPU: it goes with the art that drew it, once)
+    for (const g of this.gradients) g.destroy();
+    this.gradients = [];
+  }
 }

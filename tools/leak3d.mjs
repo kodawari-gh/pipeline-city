@@ -26,7 +26,7 @@ await p.addInitScript(() => {
 
 await p.goto(url);
 await p.waitForTimeout(1500);
-await p.click('text=Sandbox');
+await p.waitForSelector('text=Sandbox', { timeout: 120000 }); await p.click('text=Sandbox');
 await p.click('button:has-text("Start")');
 await p.waitForFunction(() => !!window.__board, null, { timeout: 30000 });
 await p.waitForTimeout(4000);

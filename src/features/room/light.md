@@ -1,6 +1,6 @@
 # Rendering: the room's window, time of day and light
 
-Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/shell/skyline.ts`, `room/light.ts`, `room/room.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/shell/skyline.ts`, `src/features/room/render/shell/light.ts`, `src/features/room/render/shell/room.ts`.
 
 ## Files
 
@@ -23,23 +23,25 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 
 ## 3D room light
 
-A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, the machine's light), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `src/features/room/render/three/room3d.ts` (the room's lights and their hours), `src/features/room/render/three/outside/view.ts` (the city, its own lights, the glass's tint), `src/features/board/render/three/machine3d.ts` (the case's lights), `src/features/board/render/three/board3d.ts` (the probe, the machine's light), `src/features/room/render/three/roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
 
 ### The owner's call
 
-The light is realistic. No studio map and no work light make the machine read. If the machine is unreadable at night, the room gets more lights: RGB accents, mood light, many lamps. The room is warm and cozy, "almost like an Instagram showroom" (T149, 2026-11-05). This adds to the earlier calls: uniformity above all (one palette, one level of detail, one light), offline bakes over live tricks, performance second.
+The light is realistic. No studio map and no work light make the machine read. If the machine is unreadable at night, the room gets more real light: RGB and neon accents, mood light, a few warm practicals. This adds to the earlier calls: uniformity above all (one palette, one level of detail, one light), offline bakes over live tricks, performance second.
 
-### What is wrong today (measured)
+**Aligned 2026-11-12 with [`docs/art-style.md`](../../../docs/art-style.md) v3 (the approved direction).** The T149 call (2026-11-05) said "warm and cozy, almost like an Instagram showroom" and "many lamps". That is superseded: the room is a dark neon-led room (§1 "not a cozy warm desk scene"). Warm light is one or two practicals and pools, not the fill (§3, §10 item 1). Neon fixtures (strips, bias light, LED halo) define the room's night light. Kept from the call: realistic light only, no fill or fake work light, RGB accents, and the case lit by the room's light from outside, never from inside. Cutting the warm lamp count is part of rework item 1 (on hold until Khalil's go).
+
+### What was wrong (historical measurements, T178–T181; not re-run, fixes marked)
 
 Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 
 - 14:00: the sky in the glass is 70 times the wall (L .33 against .0047). The band at the foot of the glass is .36, the wall beside it .0055. The door, the east wall and the bookcase almost vanish. Fixed in T180: see "The eye".
 - 23:00: the room is black (0 to 1 in sRGB) between the lamps' pools. Fixed in T180. The city keeps 65% of its day level, so it outshines the room. Fixed in T181: the night out there is in the room's units.
 - `fill` (a directional light from the viewer's side) and `hemi` light faces from nowhere. The style guide forbids that. Removed in T180.
-- The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass.
-- The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint.
+- The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass. Not re-measured since T181.
+- The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint. Fixed: `TINT` and `TINT_CUT` are gone; one neutral tint (`GLASS_T`).
 - Baked AO is only on the chair, the hoodie and the city. Fixed in T178 for the desk's props and the plants (`vertexao.ts`).
-- The machine read at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). Fixed in T149: see "How the case reads".
+- The machine read at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). Fixed in T149 (all three removed): see "How the case reads".
 
 ### Targets
 
@@ -86,7 +88,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 |---|---|---|---|---|---|
 | Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle. It keeps its aim on the keyboard: aimed to graze the case (T177), the monitor shades the case and the desk's pool halves |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
-| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome hung level over the desk's front edge, east of the case's middle and west of its hinge (`arcLamp`) | the desk's overhead cozy light: a wide spot straight down (half-angle 1.25, a soft edge), 1600 lm (a 100 W-equivalent behind the paper) | 2700 | yes: the case's frame, the board's parts | built in T177; on at every hour since T149 (the glass looks north and the case faces away from it: by day the board had only the bounce, L .004). Level since 2026-11-06 (the owner: "just keep it as an overhead cozy light, not super bright"); 75 cm over the desk and 80 cm out from the case's glass, so the case's top shades only the board's top edge and the glass does not mirror it in the views |
+| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome hung level over the desk's front edge, east of the case's middle and west of its hinge (`arcLamp`) | the desk's overhead light (current wording "cozy"; target: a practical pool, art-style §3): a wide spot straight down (half-angle 1.25, a soft edge), 1600 lm (a 100 W-equivalent behind the paper) | 2700 | yes: the case's frame, the board's parts | built in T177; on at every hour since T149 (the glass looks north and the case faces away from it: by day the board had only the bounce, L .004). Level since 2026-11-06 (the owner: "just keep it as an overhead cozy light, not super bright"); 75 cm over the desk and 80 cm out from the case's glass, so the case's top shades only the board's top edge and the glass does not mirror it in the views |
 | Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
 | Bookcase shelf lights | under each board's front edge, tilted back to the books (`shelfStrips`) | strips (area), 450 lm/m | 2700 | no | built in T174: on at dusk; the books' face L .021 at 23:00 |
 | Picture light | a black bar on an arm over the print (`pictureLight`) | strip (area), 220 lm, down and back onto the print | 3000 | no | built in T175: the print L .031 at 23:00 |
@@ -94,13 +96,13 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | East shelf light | under the east wall's shelf (`SHELF`), tilted to the wall | strip (area), 450 lm/m | 2700 | no | built in T174: a wash down the east wall |
 | Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
 
-At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle; the arc lamp stays on at every hour (T149). Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. After T180 (the bake's bounce and the local eye) they read L .0067.
+At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. (Current. Target, art-style.md §3, rework item 1, on hold: the window and the neon fixtures define the room, and the warm lamps are one or two practical pools, not the fill.) The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle; the arc lamp stays on at every hour (T149). Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. After T180 (the bake's bounce and the local eye) they read L .0067.
 
 ### The lamp cap
 
 The 4K room is CPU-bound: about 2,000 draws each upload the uniforms of every light in the scene, also a light at 0. The graphics options `lights` (4, 8, 0 = all) and `lightShadows` cut that (`Room3D.setLights`, the pure choice in `roomlights.ts`).
 
-- **The cap counts all the room's lights**, the window's `key` and `sun` included (20 in all; the machine's own lights are not in it). `LIGHT_ORDER` gives the order and the reason for each place. Cap 4: the window, the arc lamp, the desk lamp. Cap 8: also the two lanterns and the sconce's two spots.
+- **The cap counts all the room's lights**, the window's `key` and `sun` included (every id in `LIGHT_ORDER`, 15 ids; the machine's own lights are not in it). `LIGHT_ORDER` gives the order and the reason for each place. Cap 4: the window, the arc lamp, the desk lamp. Cap 8: also the two lanterns and the sconce's two spots.
 - **The choice depends on the cap alone**, not on the hour or a switch. A lamp that is off keeps its place, so the count of lights (and each lit program) holds through the evening. Programs link again only when the option changes.
 - **A capped lamp** leaves the scene (`visible = false`). Its fixture still glows, the frame still sets its level, and its baked bounce shows `CAPPED_BOUNCE` (2.5) times over, for the pool it lost. A group with a share of its lights capped takes that share of the lift.
 - **`lightShadows` off**: the lamps cast no shadow and their maps are freed. The window's shadows follow `shadows` alone.
@@ -115,7 +117,7 @@ The 4K room is CPU-bound: about 2,000 draws each upload the uniforms of every li
 Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
 
 - The bed's strips (under the frame, behind the headboard) and the desk's strip: they exist.
-- A bias light behind the monitor (built in T176, `Monitor.bias`; the room holds it, at 0 without a monitor, so the count of lights stays, [load.md](../../docs/render/load.md)): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
+- A bias light behind the monitor (built in T176, `Monitor.bias`; the room holds it, at 0 without a monitor, so the count of lights stays, [load.md](../../../docs/render/load.md)): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
 - The case's RGB (`rgb`, `spill` in `machine3d.ts`): its accent colour, its spill through the glass on the desk and the wall.
 
 Accents outside the palette (the case's purple next to the room's cyan) are the owner's call in T170.

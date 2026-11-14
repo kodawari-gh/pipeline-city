@@ -5,11 +5,13 @@
 // each parent of a built model (the machine): its parts keep their ids, fades, motion and picks. `standIns` merges across parents for a
 // distance (`partlod.ts`): the meshes stay in the tree, and a stand-in draws in their place.
 import {
-  Box3, BufferAttribute, Float32BufferAttribute, Matrix4, Mesh, Object3D, ShaderChunk, Vector3, type BufferGeometry, type Material,
+  Box3, BufferAttribute, Color, Float32BufferAttribute, Matrix4, Mesh, Object3D, ShaderChunk, Vector3, type BufferGeometry, type Material,
   type MeshStandardMaterial, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { materialKey, stillMaterial } from './materials';
+import { DARK_METAL, NON_METAL, warmMetal } from './cheapmaterials';
+import { lowDetail } from './detail';
+import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
 
 const KEEP = new Set(['position', 'normal', 'uv']);
 
@@ -88,20 +90,41 @@ const ON_VERTEX: ReadonlySet<string> = new Set(['color', 'roughness', 'metalness
 const PAL_VERT = 'attribute vec3 _pc;\nattribute vec2 _prm;\nflat varying vec3 vPalC;\nflat varying vec2 vPalRM;';
 const PAL_FRAG = 'flat varying vec3 vPalC;\nflat varying vec2 vPalRM;';
 const DIFFUSE = 'vec4 diffuseColor = vec4( diffuse, opacity );';
+/**
+ * Low: a palette mesh draws as the Lambert of its source does (cheapmaterials.ts), not as PBR. A PBR program lights a black plug with a
+ * specular of the sun and the room (a black cord's plug turned tan, its top edge light grey); a Lambert has none. So no specular, direct or
+ * from the environment, and a metal's colour is `metalColor` (mixed toward the dark metals by its metalness, copper and gold kept), then
+ * its metalness is 0. The vertices still hold the source's own values; this reads them.
+ */
+const dark = (c: Color): string => `vec3( ${c.r.toFixed(6)}, ${c.g.toFixed(6)}, ${c.b.toFixed(6)} )`;
+export const LOW_FRAG = `
+vec3 lowMetal( vec3 c, float k ) {
+  if ( k <= ${NON_METAL.toFixed(3)} ) return c;
+  float mx = max( c.r, max( c.g, c.b ) ), mn = min( c.r, min( c.g, c.b ) ), d = mx - mn, l = 0.5 * ( mx + mn ), h = 0.0;
+  float s = d < 1e-6 ? 0.0 : d / max( 1e-6, 1.0 - abs( 2.0 * l - 1.0 ) );
+  if ( d > 1e-6 ) h = ( mx == c.r ? mod( ( c.g - c.b ) / d, 6.0 ) : mx == c.g ? ( c.b - c.r ) / d + 2.0 : ( c.r - c.g ) / d + 4.0 ) / 6.0;
+  if ( s > 0.35 && ( h < 0.18 || h > 0.97 ) ) return c;
+  float t = min( 1.0, pow( max( 1e-6, dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ) ), 1.0 / 2.2 ) );
+  return mix( c, mix( ${dark(DARK_METAL[0])}, ${dark(DARK_METAL[1])}, t ), min( 1.0, k ) );
+}`;
+const LOW_SPEC = 'reflectedLight.directSpecular = vec3( 0.0 );\nreflectedLight.indirectSpecular = vec3( 0.0 );';
 const ROUGH = ShaderChunk.roughnessmap_fragment.replace('= roughness;', '= vPalRM.x;');
 const METAL = ShaderChunk.metalnessmap_fragment.replace('= metalness;', '= vPalRM.y;');
 
 /**
  * Patches a shader to read the colour, the roughness and the metalness from the mesh's `_pc` and `_prm` (flat: each triangle keeps its
  * mesh's values exactly). Throws when three's shader no longer has a place it patches (the mesh would draw white).
+ * `keep` (Low only): the part keeps its PBR look (`KEEP_SPEC`), so it takes the High patch as it is.
  */
-export function palettePatch(sh: { vertexShader: string; fragmentShader: string }): void {
+export function palettePatch(sh: { vertexShader: string; fragmentShader: string }, low = false, keep = false): void {
+  const lowPatch = low && !keep;
   const sub = (s: string, a: string, b: string) => { if (!s.includes(a)) throw new Error(`palette patch: no ${a}`); return s.replace(a, b); };
   sh.vertexShader = sub(sub(sh.vertexShader, '#include <common>', `#include <common>\n${PAL_VERT}`), '#include <begin_vertex>', '#include <begin_vertex>\nvPalC = _pc;\nvPalRM = _prm;');
-  let f = sub(sh.fragmentShader, '#include <common>', `#include <common>\n${PAL_FRAG}`);
-  f = sub(f, DIFFUSE, 'vec4 diffuseColor = vec4( vPalC, opacity );');
+  let f = sub(sh.fragmentShader, '#include <common>', `#include <common>\n${PAL_FRAG}${lowPatch ? LOW_FRAG : ''}`);
+  f = sub(f, DIFFUSE, lowPatch ? 'vec4 diffuseColor = vec4( lowMetal( vPalC, vPalRM.y ), opacity );' : 'vec4 diffuseColor = vec4( vPalC, opacity );');
   f = sub(f, '#include <roughnessmap_fragment>', ROUGH);
-  sh.fragmentShader = sub(f, '#include <metalnessmap_fragment>', METAL);
+  f = sub(f, '#include <metalnessmap_fragment>', lowPatch ? METAL.replace('= vPalRM.y;', '= 0.0;') : METAL);
+  sh.fragmentShader = lowPatch ? sub(f, '#include <aomap_fragment>', `${LOW_SPEC}\n#include <aomap_fragment>`) : f;
 }
 
 /** What a palette material draws as, less the fields on the vertices (`materialKey` of its source): two with one key draw a mesh alike. */
@@ -109,9 +132,10 @@ const palKeys = new WeakMap<Material, string>();
 
 /** A copy of `src` that reads its colour, roughness and metalness from the vertices; it keeps the source's patches. */
 function paletteOf(src: MeshStandardMaterial): MeshStandardMaterial {
-  const m = src.clone(), prev = src.onBeforeCompile, key = `${src.customProgramCacheKey()}|pal`;
+  const low = lowDetail(), keep = low && src.userData[KEEP_SPEC] === true, m = src.clone(), prev = src.onBeforeCompile;
+  const key = `${src.customProgramCacheKey()}|pal${low ? '|low' : ''}${keep ? '|keep' : ''}`;
   m.color.setRGB(1, 1, 1);
-  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh); };
+  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh, low, keep); };
   m.customProgramCacheKey = () => key;
   const pk = materialKey(src, ON_VERTEX);
   if (pk !== null) palKeys.set(m, pk);
@@ -197,12 +221,16 @@ export function mergePalette(root: Object3D, o: PaletteOptions = {}): number {
  */
 function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshStandardMaterial): Mesh | null {
   const parts = meshes.map((m) => ({ mesh: m, inMesh: new Matrix4().multiplyMatrices(toFrame, m.matrixWorld) }));
+  // (the copies are temporary: `mergeGeometries` copies their data, so each is freed once it has merged, the null result too)
+  const temps: BufferGeometry[] = [];
   const g = mergeGeometries(parts.map(({ mesh, inMesh }) => {
     let x = mesh.geometry.clone().applyMatrix4(inMesh);
-    if (x.index) x = x.toNonIndexed();
+    temps.push(x);
+    if (x.index) { x = x.toNonIndexed(); temps.push(x); }
     x.clearGroups();
     return painted(x, mesh.material as MeshStandardMaterial);
   }), false);
+  for (const t of temps) t.dispose();
   if (!g) return null;
   const first = meshes[0]!, out = new Mesh(g, material);
   out.castShadow = first.castShadow; out.receiveShadow = first.receiveShadow;
@@ -241,7 +269,17 @@ export interface SiblingOptions {
   skip?: readonly Object3D[];
   /** Subtrees that fade alone (`fadeTree`: a lid, a cooler, a spreader): a palette material is shared only inside one of them. */
   apart?: readonly Object3D[];
+  /** Hears of each palette material made from a source material (the room keeps the reflections' register, as `mergePalette`'s `twin`). */
+  twin?: (src: Material, copy: Material) => void;
+  /** Low: a warm metal (copper, gold) merges only with warm metals, so its palette never mixes it with the grey metals and the blacks. Off at High. */
+  byLook?: boolean;
 }
+
+/** The look class a Low merge keeps apart (`SiblingOptions.byLook`): a warm metal, or none. */
+const lookOf = (m: Material): string => {
+  const s = m as MeshStandardMaterial;
+  return s.metalness > 0.5 && warmMetal(s.color) ? '|warm' : '';
+};
 
 /** May this mesh join a merge with its siblings: a plain shown mesh, one opaque material that no writer changes, nothing that code finds it by. */
 function loose(m: Mesh): boolean {
@@ -273,7 +311,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     if (x.parent && x.parent !== root && loose(m)) {
       const key = materialKey(m.material as Material, ON_VERTEX), attrs = attrsKey(m.geometry);
       if (key !== null && attrs !== null) {
-        const prog = `${attrs}|${key}`;
+        const prog = `${attrs}|${key}${o.byLook ? lookOf(m.material as Material) : ''}`;
         const at = `${idOf(x.parent)}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.frustumCulled}|${m.layers.mask}|${idOf(m.raycast)}|${prog}`;
         let set = sets.get(at);
         if (!set) sets.set(at, (set = { scope: s, prog, meshes: [] }));
@@ -293,6 +331,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     const parent = meshes[0]!.parent!, pal = pals.get(k) ?? paletteOf(meshes[0]!.material as MeshStandardMaterial);
     const out = paletteMesh(meshes, inv.copy(parent.matrixWorld).invert(), pal);
     if (!out) { if (!pals.has(k)) pal.dispose(); continue; }
+    if (!pals.has(k)) o.twin?.(meshes[0]!.material as Material, pal);
     pals.set(k, pal);
     for (const m of meshes) { parent.remove(m); gone.push(m); }
     parent.add(out);
@@ -300,6 +339,18 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     n += meshes.length;
   }
   freeGone(root, gone);
+  return n;
+}
+
+/**
+ * `mergeSiblings` inside one group: the loose meshes of `group` and of each group under it merge by parent, as in a built model. For a prop or a
+ * plug built on its own (callers use it in the Low build only). The group keeps its place under its parent.
+ */
+export function mergeWithin(group: Object3D, o: SiblingOptions = {}): number {
+  const parent = group.parent, holder = new Object3D();
+  holder.add(group);
+  const n = mergeSiblings(holder, o);
+  if (parent) parent.add(group); else holder.remove(group);
   return n;
 }
 

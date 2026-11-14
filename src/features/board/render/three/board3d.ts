@@ -1,4 +1,4 @@
-// The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
+// The 3D world's mount (docs/render/three.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
@@ -36,6 +36,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, day
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
+import { lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
 import { whileHidden } from './whileHidden';
 import { RAM_LEAN } from './ram3d';
@@ -165,7 +166,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const live = snapshot.peek();
     const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
     const tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
-    const rk = `${tier}|${caseTier}`;
+    // (the room's parts are built coarser at Low and merged there: a tier change across the Low line rebuilds it, as the machine's key does)
+    const rk = `${tier}|${caseTier}|${lowDetail() ? 'low' : 'high'}`;
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
@@ -210,6 +212,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   bootStage('Building the world', 0.14);
   await nextPaint();
   prepareCity(renderer, effective.peek().shadows);
+  setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   rebuild();
 
   // ---- camera ----
@@ -223,7 +226,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * A view with its eye in the room (the walls hide all outside it) and out of the furniture: a goal may narrow its fov back (`restore`), the
    * eased view only widens.
    */
-  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks });
+  /** Dev only: while the shot tool holds its eye (`unclamped`), the view is as given; the prod build has no such branch. */
+  let unclamped = false;
+  const inRoom = (v: OrbitView, restore = true): OrbitView => (import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks }));
   /** A pan that would push the eye through a wall or into the furniture slides along it (one axis), or stops. */
   const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
     for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
@@ -275,12 +280,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   };
   /** The flight the tutorial asked for (`flyToId`): told whether the view arrived, or was cut short by the player or another flight. */
   let pending: ((arrived: boolean) => void) | null = null;
-  const cancelFlight = () => { const p = pending; pending = null; p?.(false); };
+  /** Any flight, cut or input ends the dev-only unclamped view. */
+  const cancelFlight = () => { unclamped = false; const p = pending; pending = null; p?.(false); };
   /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
   let atOverview = false;
   const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); settle(); };
   /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
-  const jump = (v: OrbitView) => { view = goal = inRoom(v); rail = null; };
+  const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); rail = null; };
   const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -566,6 +572,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   // ---- the graphics settings (app/graphics.ts) ----
   const applyGraphics = (g: Graphics) => {
+    // Low's coarser parts: crossing the Low line builds the machine again (`machineKey` carries it)
+    if (setLowDetail(isLow(g))) rebuild();
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
     room?.setLights(g.lights, g.lightShadows > 0);
@@ -760,7 +768,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   await shown;
   bootDone();
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
+  if (import.meta.env.DEV) {
+  /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
+  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
+  (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
     parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
@@ -800,5 +811,18 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => jump(fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin)),
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => jump(clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z })) },
+    // the case shot tool (`tools/shot-case.mjs`): the eye as given, with no room clamp; `frameSpec` frames a device (its spec id, or its kind) from its
+    // own box in world units: its largest side fills `fill` of the view's height, turned by `yaw`, seen from `pitch` above. Null: no such device.
+    jumpRaw: (v: OrbitView) => jumpRaw(v),
+    frameSpec: (key: string, yaw = 0, pitch = 0.1, fill = 0.6): OrbitView | null => {
+      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key);
+      const o = d && machine ? findById(machine.root, d.id) : null;
+      if (!o) return null;
+      const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
+      const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
+      jumpRaw(v);
+      return v;
+    },
   };
+  }
 }

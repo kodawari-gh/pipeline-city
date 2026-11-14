@@ -1,7 +1,7 @@
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture, type Material } from 'three';
 import { describe, expect, it } from 'vitest';
 import { boxEnv, boxProjected } from './boxenv';
-import { GLOW, HOT_FROM_C, HOT_FULL_C, PartSkin, cloth, heatColor, mat, materialKey, own, partLook, shareMaterials, writable, type PartState } from './materials';
+import { GLOW, HOT_FROM_C, HOT_FULL_C, PartSkin, cloth, heatColor, mat, materialKey, own, partLook, shareMaterials, type PartState } from './materials';
 
 const ON: PartState = { powered: true, active: false, burnt: false, throttled: false, tempC: 30 };
 
@@ -161,27 +161,11 @@ describe('shared materials', () => {
     expect(b.material.emissive.getHex()).toBe(0);
   });
 
-  it('copies a shared material on write: only that mesh changes', () => {
+  it('shares equal box-projected materials: every mesh takes the first', () => {
     const root = new Group(), b = boxEnv([0, 0, 0], [1, 1, 1], [0, 0, 0]);
     const meshes = [0, 1, 2].map(() => { const m = mat(0x223344); boxProjected(m, b); return new Mesh(box(), m); });
     root.add(...meshes);
     shareMaterials(root);
-    const [a, x, y] = meshes as [Mesh<BoxGeometry, ReturnType<typeof mat>>, Mesh<BoxGeometry, ReturnType<typeof mat>>, Mesh<BoxGeometry, ReturnType<typeof mat>>];
-    expect(x.material).toBe(a.material);
-    const twins: Material[] = [];
-    const w = writable(x, (_src, c) => twins.push(c));
-    expect(w).not.toBe(a.material);
-    expect(twins).toEqual([w]);
-    expect(w.customProgramCacheKey()).toBe(a.material.customProgramCacheKey());
-    w.emissive.setHex(0xff0000);
-    w.color.setHex(0x00ff00);
-    expect(a.material.emissive.getHex()).toBe(0);
-    expect(y.material.color.getHex()).toBe(0x223344);
-    // its own now: a second write takes no copy, and a later share leaves it
-    expect(writable(x)).toBe(w);
-    w.emissive.setHex(0);
-    shareMaterials(root);
-    expect(x.material).toBe(w);
-    expect(y.material).toBe(a.material);
+    expect(new Set(meshes.map((m) => m.material)).size).toBe(1);
   });
 });

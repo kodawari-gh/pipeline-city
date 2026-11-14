@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { Box3, type Mesh, Vector3 } from 'three';
+import { afterEach, describe, expect, it } from 'vitest';
+import { Box3, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { setLowDetail } from '@/core/render/three/detail';
+import { KEEP_SPEC } from '@/core/render/three/materials';
 import { radiatorBay, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { radiatorCore, radiatorFit, radiatorRect } from '../cooler';
@@ -26,6 +28,24 @@ const inRoom = (visual: string, b: Box3) => {
 };
 
 describe('the 3D coolers', () => {
+  afterEach(() => { setLowDetail(false); });
+
+  it('keeps the side fans\' frame and blades and the fittings\' chrome on their PBR at Low (KEEP_SPEC), and leaves High unflagged', () => {
+    setLayoutTier(3, 3);
+    const mats = (o: Object3D) => { const out: MeshStandardMaterial[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(...[(c as Mesh).material].flat() as MeshStandardMaterial[]); }); return out; };
+    // the frame and the blades of a fan (basic and high-airflow), and the G1/4 fittings' chrome
+    const FAN = [0x1d1e22, 0x2c2e34, 0x3a3c46], CHROME = 0x3a3f4c;
+    const fans = [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')];
+    for (const low of [false, true]) {
+      setLowDetail(low);
+      const fanMats = [...mats(coolerModel('cooler-stock', [fit('fan92', 'cooler0.fan0')]).root), ...mats(coolerModel('cooler-tower', fans).root)].filter((m) => FAN.includes(m.color.getHex()));
+      const chromeMats = mats(coolerModel('cooler-liquid').root).filter((m) => m.color.getHex() === CHROME);
+      expect(fanMats.length, `fans at Low ${low}`).toBeGreaterThan(0);
+      expect(chromeMats.length, `chrome at Low ${low}`).toBeGreaterThan(0);
+      for (const m of [...fanMats, ...chromeMats]) expect(m.userData[KEEP_SPEC] === true, `low ${low}`).toBe(low);
+    }
+  });
+
   it('mounts every cooler on the board\'s cooler holes over the CPU, a bare heatsink with nothing to spin (and on the loop the pump\'s light ring)', () => {
     for (const t of [0, 3]) {
       setLayoutTier(t, t);

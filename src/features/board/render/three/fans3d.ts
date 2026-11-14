@@ -1,11 +1,12 @@
-// The fans of the 3D machine (docs/GRAPHICS_3D_OVERHAUL.md "Solids"): each is built round its own z axis (a frame or a shroud, the motor on its
+// The fans of the 3D machine (docs/render/three.md): each is built round its own z axis (a frame or a shroud, the motor on its
 // struts, a rotor of curved blades), then turned into place. The live frame spins the rotor round its z and drives the light (`Spin`).
 // A fan part (`fanPart`) has one model: the case, a heatsink, a radiator and the shop all show it, each at the size its spot gives. Its air goes in at
 // its +z face (the rotor's hub) and out at its -z face (the motor's struts).
 import { BoxGeometry, Color, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh, TorusGeometry, Vector2, type BufferGeometry, type MeshStandardMaterial, type Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FAN_SCREW, FAN_THROAT, fanFlange, fanRotor, place, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { lowDetail } from '@/core/render/three/detail';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { FanSpec } from '@/features/board/sim/specs';
 import { badgeTex } from './casekit3d';
@@ -26,7 +27,12 @@ export const light = (ring: MeshStandardMaterial, fixed?: number, gain?: number)
 /** An emissive part that is dark until the machine runs. `base`: the colour it shows switched off. */
 export const glowMat = (color: number, base = 0x111111): MeshStandardMaterial => mat(base, { emissive: new Color(color), emissiveIntensity: 0, roughness: 0.4 });
 
-const blades = (tone = 0x2c2e34) => mat(tone, { roughness: 0.45, side: DoubleSide });
+const blades = (tone = 0x2c2e34) => {
+  const m = mat(tone, { roughness: 0.45, side: DoubleSide });
+  // (Low: the white-blue blade highlights are the room's key, not a Lambert)
+  if (lowDetail()) m.userData[KEEP_SPEC] = true;
+  return m;
+};
 const hubM = () => mat(0x24262c, { roughness: 0.4 });
 
 /** A fan's motor mount behind its rotor (round z, `depth` deep): a hub plate on `n` struts to the frame. */
@@ -92,7 +98,10 @@ function hubLabel(R: number, fast: boolean): Mesh {
  */
 export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: number, ringSide: 1 | -1 = 1): { root: Group; spin: Spin } {
   const root = new Group(), fast = spec.tier > 0, R = d * 0.462;
-  root.add(place(new Mesh(housing(d, depth), mat(0x1d1e22, { roughness: 0.62 }))));
+  const frame = mat(0x1d1e22, { roughness: 0.62 });
+  // (Low: the frame's warm brown rim light is the room's key, not a Lambert)
+  if (lowDetail()) frame.userData[KEEP_SPEC] = true;
+  root.add(place(new Mesh(housing(d, depth), frame)));
   if (fast) root.add(place(new Mesh(pads(d, depth), mat(0x7a5cc8, { roughness: 0.85 }))));
   motor(root, d * 0.47, depth, 4);
   const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hubM(), fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 });
