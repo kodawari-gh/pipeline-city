@@ -38,6 +38,18 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 ## The 3D room
 Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level: at Low all six room lights still cast.
 
+## The city at Low (`outside/`)
+Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High builds and draws the full city, and its picture does not change: `highident.test.ts` fingerprints High's city groups against `highident.expected.json` (refresh on purpose with `UPDATE_HIGH_GOLDEN=1`).
+- **Swap.** `setCityDetail` (`room3d.ts`) replaces the window's city when the tier changes. One city is alive at a time: the old one is disposed, the new one built.
+- **Far rings.** `towers.ts` keeps the two near rings of buildings (`LOW_NEAR_RINGS`) and merges the rest into one mesh of plain blocks. The streets are cut by 96 m cells (`LOW_CELL`, `detail.ts`). Small street furniture (drains, tree pits) is built only within 150 m of the window (`LOW_FURNITURE_M`, `street.ts`). Trees keep at least the `Coarse` detail, one mesh pair per ring (`trees.ts`).
+- **Facade.** `lowfacade.ts` replaces the per-pixel facade shader with a Lambert. Its day and night maps are baked once (AO in the day map, the lit rooms in the night map, scaled live by the night). Far walls (150 to 450 m, `LOW_FAR`) keep only a share of their lit rooms (35 % at the far end). The eight lamps are an analytic term on the walls (`LOW_LAMPS`, reach 45 m); the PointLights stay for the street and the cars.
+- **Sky.** `skynoise.ts` bakes the cloud and moon-sea noise once into a periodic 256 px map. `skyMaterial(true)` reads it, so the sky runs no live fbm loop.
+- **Still steam and sway.** The steam and the leaves hold at `STILL_T` (0 s, `view.ts`). The sky, the facade's beacons and the haze keep the clock.
+- **Fleet.** Half the cars drive (`LOW_FLEET` 0.5). A car is its full model within 100 m (`NEAR_LOW`) and the far box beyond. None is drawn past 350 m (`CLIP_LOW`), except on the window's avenue, which is kept out to 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). The car paint has no clearcoat (`carMaterial(…, false)`): matt.
+- **Cadence.** The city is drawn each `LOW_EVERY` (6) frames of a still eye at Low, `EVERY` (3) at High (`view.ts`, `detail.ts`).
+- **Isolation.** `?citycuts=a,b` keeps only the named cuts (`cadence`, `far`, `streets`, `furniture`, `trees`, `steam`, `fleet`, `palette`), to measure what each costs. Without the query all cuts apply at Low. High has none.
+- **Left.** Chrome at Low game max on the razr-fold-folded profile is still short of about 60 fps. Far-block merge and impostors are not in these cuts (`docs/TODO.md`, PERF27).
+
 ## The machine's stand-ins
 PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of the machine is CPU per draw, not pixels. Far away, its small parts draw as a few merged meshes.
 - A stand-in holds the same triangles with the same materials. The picture, the shadows and the state looks do not change. Only the draw count falls. Hiding the small parts was tried and rejected: it removed visible parts.
