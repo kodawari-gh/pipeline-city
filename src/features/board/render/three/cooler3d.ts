@@ -9,9 +9,9 @@
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
-import { byDetail } from '@/core/render/three/detail';
+import { byDetail, lowDetail } from '@/core/render/three/detail';
 import { NON_METAL } from '@/core/render/three/cheapmaterials';
-import { mat } from '@/core/render/three/materials';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
@@ -79,7 +79,12 @@ const HOSE_R = 140;
 /** A G1/4 fitting along its axis from its port: the hex it screws in by, the collar the hose's ferrule pushes over, its length; the hose starts `FIT.len - 40` out. */
 const FIT = { hex: 220, hexLen: 110, collar: HOSE_R + 30, len: 330 } as const;
 /** The loop's fittings and plugs: black chrome. */
-const chrome = () => mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
+const chrome = () => {
+  const m = mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
+  // (Low: the fittings keep their black chrome and a cool highlight, not a darkened Lambert that leaves only the sleeve's brown)
+  if (lowDetail()) m.userData[KEEP_SPEC] = true;
+  return m;
+};
 
 /** A part of a fitting: `geo` built along `axis`, turned to point along `dir` and set `at` that far out of the port at `p`. */
 function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vector3, at: number, axis = new Vector3(0, 1, 0)) {
@@ -287,6 +292,8 @@ export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Sol
   const g = new Group(), gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
   const pts = hang({ a, b, length: gap * 1.12 + 300, r: HOSE_R, stiff: 0.95, n: 30, lead: 220, ...env });
   const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), HOSE_R, '#0c1226', '#464078'), L = curve.getLength(), ferrule = alu(0x2a3048, 0.32);
+  // (Low: the crimped collars stay dark navy metal, a separate material from the braid)
+  if (lowDetail()) ferrule.userData[KEEP_SPEC] = true;
   g.add(mesh);
   for (const s of [70, L - 70]) g.add(band(curve, s, HOSE_R + 20, 140, ferrule));
   return g;
