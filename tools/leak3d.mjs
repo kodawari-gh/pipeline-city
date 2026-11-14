@@ -32,6 +32,9 @@ await p.waitForFunction(() => !!window.__board, null, { timeout: 30000 });
 await p.waitForTimeout(4000);
 await p.evaluate(() => window.__board.flyToRoom?.());
 await p.waitForTimeout(8000);
+// pin a night hour: the lamps' maps, the city's glow and the mirror exist only after dusk, so the baseline and the cycles see the same set
+await p.evaluate(async () => { (await import('/src/features/room/render/shell/room.ts')).roomDebug.hour = 21; });
+await p.waitForTimeout(6000);
 
 const snap = () => p.evaluate(() => Object.fromEntries(Object.entries(window.__live).map(([k, s]) => [k, s.size])));
 const tier = (t) => p.evaluate(async (t) => { (await import('/src/app/graphics.ts')).setTier(t); }, t);
