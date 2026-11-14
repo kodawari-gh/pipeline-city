@@ -904,7 +904,7 @@ if (fKind == 0 || fKind == 6) {
   float sunFace = smoothstep(0.0, 0.15, dot(vFN, fSun));
   if (sunFace > 0.0 && refl > 0.2) {
     float gS = max(dot(reflect(fV, normalize(vFN + (vec3(h, h2, h3) - 0.5) * 0.16 * (1.0 - cf))), fSun), 0.0);
-    float flash = step(0.96, h3) * step(0.6, refl) * pow(abs(fract(h2 * 17.0 + fTime * 0.02 + (cameraPosition.x + cameraPosition.y) * 0.013) * 2.0 - 1.0), 40.0);
+    float flash = step(0.96, h3) * step(0.6, refl) * pow(abs(fract(h2 * 17.0 + (cameraPosition.x + cameraPosition.y) * 0.013) * 2.0 - 1.0), 40.0);
     fGlow += fSunCol * m * sunFace * (refl * (0.16 * pow(gS, 10.0) + 1.2 * pow(gS, 90.0)) + (1.0 - cf) * 0.6 * flash * (0.25 + 0.75 * o.y * o.y));
   }
 } else if (fKind == 5) {
@@ -969,7 +969,8 @@ if (fKind == 0 || fKind == 6) {
   fAo = max(fAo, 0.72);
 } else if (fKind == 3) {
   diffuseColor.rgb = vColor.rgb;
-  fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vWide * step(0.55, fract(fTime * 0.45 + vAux.x)) * fNight;
+  // a roof's warning beacon: a slow smooth pulse (3.5 s) on its own phase, never a hard on or off
+  fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vWide * mix(0.55, 1.0, 0.5 + 0.5 * sin(6.2831853 * (fTime / 3.5 + vAux.x))) * fNight;
 } else if (fKind == 4) {
   // a lit lantern: panes on slim ribs, brightest at the foot where its lamps stand, fading up
   vec2 g = vec2(vFuv.x / vLook.x, (vFuv.y - vLook.y) / 3.0), w = fwidth(g), d = abs(fract(g) - 0.5);
@@ -979,7 +980,7 @@ if (fKind == 0 || fKind == 6) {
   fGlow = vColor.rgb * pane * (1.0 + vLook.w) * (0.2 + 0.9 * exp(-3.0 * clamp((vFuv.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
 } else if (fKind == 8) {
   // a sign: its glyphs in a stack or a row, neon tubes on a dark board (a white core, a halo on the board), or dark on a lit box. A few
-  // stutter, a few glyphs are dead. By day they are paint. Far off, their average. vLook: its size, its foot, lit or not (under 0: its case)
+  // are dead; none stutter (a still eye sees no change). By day they are paint. Far off, their average. vLook: its size, its foot, lit or not (under 0: its case)
   diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
   fRough = 0.45;
   if (vLook.w > -0.5) {
@@ -987,13 +988,13 @@ if (fKind == 0 || fKind == 6) {
     float seed = vAux.x, cell = min(sz.x, sz.y), box = vLook.w;
     vec2 cnt = floor(sz / cell + 0.001), q = (p - (sz - cnt * cell) * 0.5) / cell, gid = clamp(floor(q), vec2(0.0), cnt - 1.0), c = (q - gid - 0.15) / 0.7;
     float px = max(pw.x, pw.y) / (cell * 0.7), far = smoothstep(0.12, 0.45, px), d = fGlyph(c, fHash(gid + seed * 1.31));
-    float dead = step(0.94, fHash(gid * 3.7 + seed)), stutter = 1.0 - step(fHash(vec2(seed, 31.7)), 0.16) * 0.65 * step(0.7, fHash(vec2(floor(fTime * 9.0), seed)));
+    float dead = step(0.94, fHash(gid * 3.7 + seed));
     float th = mix(0.05, 0.085, box), tube = mix(smoothstep(th + px, th - px, d), 0.3, far), halo = mix(exp(-d * d * 30.0), 0.55, far) * (1.0 - tube);
     float edge = min(min(p.x, sz.x - p.x), min(p.y, sz.y - p.y)), rim = smoothstep(0.05 - pw.x, 0.05 + pw.x, edge);
     vec3 col = vColor.rgb, neon = (col * 1.75 + vec3(0.22)) * tube * (1.0 - dead) + col * 0.3 * halo * (1.0 - dead);
     vec3 boxed = col * 0.72 * (1.0 - tube) * (0.72 + 0.28 * smoothstep(0.0, cell * 0.5, edge));
     diffuseColor.rgb = mix(mix(diffuseColor.rgb, col * 0.5, tube * (1.0 - dead)), mix(col * 0.62 + 0.1, vec3(0.03), tube), box) * mix(0.3, 1.0, rim);
-    fGlow = mix(neon, boxed, box) * rim * stutter * fNight;
+    fGlow = mix(neon, boxed, box) * rim * fNight;
     fRough = mix(0.5, 0.3, box);
   }
 }`)
