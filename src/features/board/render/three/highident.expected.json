@@ -14,11 +14,11 @@
     "sum": "d4ca1244"
   },
   "machine/Group#47": {
-    "meshes": 42,
-    "draws": 38,
-    "verts": 38452,
+    "meshes": 23,
+    "draws": 19,
+    "verts": 45660,
     "instances": 186,
-    "sum": "0d01e324"
+    "sum": "d0eaaf57"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -70,25 +70,25 @@
     "sum": "5b6eebb1"
   },
   "machine/cable.atx": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 12648,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 12660,
     "instances": 0,
-    "sum": "26e26938"
+    "sum": "49f91f09"
   },
   "machine/cable.cpu": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 6692,
-    "instances": 0,
-    "sum": "05be9752"
-  },
-  "machine/cable.cpufan": {
     "meshes": 3,
     "draws": 3,
-    "verts": 1826,
+    "verts": 6704,
     "instances": 0,
-    "sum": "2c0e5dbe"
+    "sum": "386b1926"
+  },
+  "machine/cable.cpufan": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
+    "instances": 0,
+    "sum": "cb76fbbf"
   },
   "machine/cable.fan:front0": {
     "meshes": 2,
@@ -133,53 +133,53 @@
     "sum": "3f8c9184"
   },
   "machine/cable.lan": {
-    "meshes": 35,
-    "draws": 35,
-    "verts": 7540,
+    "meshes": 15,
+    "draws": 15,
+    "verts": 14736,
     "instances": 32,
-    "sum": "a77b14a5"
+    "sum": "58e3d48b"
   },
   "machine/cable.monmains": {
-    "meshes": 6,
-    "draws": 6,
-    "verts": 5676,
-    "instances": 0,
-    "sum": "fb83752b"
-  },
-  "machine/cable.pcmains": {
-    "meshes": 6,
-    "draws": 6,
-    "verts": 5676,
-    "instances": 0,
-    "sum": "0ba771c7"
-  },
-  "machine/cable.ramfan": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1826,
-    "instances": 0,
-    "sum": "77f9022a"
-  },
-  "machine/cable.sysfan": {
     "meshes": 4,
     "draws": 4,
-    "verts": 2278,
+    "verts": 9964,
     "instances": 0,
-    "sum": "f102e2c5"
+    "sum": "ec54bcc6"
+  },
+  "machine/cable.pcmains": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 9964,
+    "instances": 0,
+    "sum": "425dd618"
+  },
+  "machine/cable.ramfan": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
+    "instances": 0,
+    "sum": "5dacf6ab"
+  },
+  "machine/cable.sysfan": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 8160,
+    "instances": 0,
+    "sum": "2fa0527d"
   },
   "machine/cable.video": {
-    "meshes": 24,
-    "draws": 24,
-    "verts": 9322,
+    "meshes": 8,
+    "draws": 8,
+    "verts": 24960,
     "instances": 62,
-    "sum": "ea11b1ff"
+    "sum": "2330259a"
   },
   "machine/cable.vrmfan": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1826,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
     "instances": 0,
-    "sum": "5f6239d0"
+    "sum": "5f5faa75"
   },
   "machine/case": {
     "meshes": 140,
