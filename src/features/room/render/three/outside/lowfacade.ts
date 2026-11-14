@@ -32,7 +32,7 @@ export const LOW_FAR_DAY = { flat: 0.5, sky: 0.3 };
  * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
  * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
  * (`1 - band` of each pitch lit, at `glow`), so a far tower reads as dark graphite with a few lit floors. */
-export const LOW_FAR = { near: 150, far: 300, keep: 0.35, share: 0.5, pitch: 36, band: 0.7, glow: 0.5 };
+export const LOW_FAR = { near: 150, far: 300, keep: 0.35, share: 0.3, pitch: 36, band: 0.75, glow: 0.5 };
 /** The top mip of a SIZE atlas (a 1×1 texel: the map's mean). */
 const LOW_TOP_MIP = Math.log2(SIZE);
 /** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its rooms: three across, two up. */
