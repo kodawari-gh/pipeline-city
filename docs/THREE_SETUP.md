@@ -1,5 +1,7 @@
 # Three.js Setup & Integration
 
+> **Status (`03fe0bc`, 2026-11-14).** This file began as the setup plan. The renderer has shipped since, and the code differs from the sketches below: the module names (`board3d.ts`, `outside/`) and the APIs are not these. Treat the sketches as history. The current state is in [render/three.md](render/three.md) and [render/lod.md](render/lod.md).
+
 ## Installation
 
 ```bash
@@ -335,6 +337,8 @@ Models will be created in Blender and exported as glTF 2.0 (glb):
 
 For now, use primitive geometry (Box, Cylinder, etc.) to bootstrap rendering.
 
+Status: the glTF loader exists (`core/render/three/gltf.ts`, `MODEL_FILES`), but no model ships and every part is built from primitives. No KTX2 loader exists.
+
 ## Build Configuration
 
 No changes to `vite.config.ts` initially. Assets directory `public/assets/models/` will be served as static.
@@ -357,8 +361,8 @@ No changes to `vite.config.ts` initially. Assets directory `public/assets/models
 - Instant model loading (cached)
 - Smooth zoom to 20x magnification
 
-**Optimization techniques (Phase 4):**
-- Instancing for repeated parts (RAM sticks, PCIe slots)
-- Frustum culling for offscreen objects
-- LOD meshes (3 detail levels)
-- Draw-call batching
+**Optimization techniques (Phase 4), status at `03fe0bc`:**
+- Instancing: in place for room books, city cars, signal lamps, swept rings and machine fixings. No `BatchedMesh`.
+- Frustum culling: in place (three.js per-mesh bounds, plus `Sweep.cut` for the city). Not a planned item.
+- LOD meshes: part stand-ins only (two states). LOD1 and LOD2 are planned, not present. See [render/lod.md](render/lod.md).
+- Draw-call batching: in place as merges (`mergeStatic`, `mergeSiblings`, `shareMaterials`, `sweptMerge`). See [render/three.md](render/three.md#merges).
