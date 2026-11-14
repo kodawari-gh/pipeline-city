@@ -1,9 +1,16 @@
 // Palette and state looks of the 3D parts (docs/3D_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
-// `shareMaterials` lets equal materials of a built tree become one (fewer uniform uploads per frame), `writable` copies one back for a writer.
+// `shareMaterials` lets equal materials of a built tree become one (fewer uniform uploads per frame); `own` keeps a writer's material out of it.
 import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
+import { lowDetail } from './detail';
+
+/**
+ * A material's `userData` flag that keeps its PBR look at Low: the specular (the warm room's key on a braided sleeve, a brushed cap) and the
+ * metal (no `lowMetal`). Set on the material of a part that would lose that look as a Lambert. Only Low reads it (`materialKey`, `palettePatch`).
+ */
+export const KEEP_SPEC = 'lowKeepSpec';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
 /** Above this temperature a part starts to glow (3D_STYLE.md "Overheating"). */
@@ -84,32 +91,15 @@ export class PartSkin {
   }
 }
 
-// ---- shared materials (docs/GRAPHICS_3D_OVERHAUL.md "Shared materials") ----
+// ---- shared materials (docs/render/three.md "Merges") ----
 
 /** Materials a writer changes for its own meshes after the build: never shared, never replaced. */
 const owned = new WeakSet<Material>();
-/** The materials `shareMaterials` gave to more than one mesh. */
-const shared = new WeakSet<Material>();
 
 /** Marks `m` as one a writer changes for its own meshes (a part's state look): `shareMaterials` leaves it as it is. */
 export function own<T extends Material>(m: T): T {
   owned.add(m);
   return m;
-}
-
-/**
- * Copy on write: the material `mesh` can change alone. A shared one is copied for it first (with its patches); `twin` hears of the copy (the
- * room's reflections take it in, `RoomEnv.twin`). Either way the material is marked as `own`.
- */
-export function writable(mesh: Mesh, twin?: (src: Material, copy: Material) => void): MeshStandardMaterial {
-  const m = mesh.material as MeshStandardMaterial;
-  if (!shared.has(m)) return own(m);
-  const c = m.clone();
-  c.onBeforeCompile = m.onBeforeCompile;
-  c.customProgramCacheKey = m.customProgramCacheKey;
-  twin?.(m, c);
-  mesh.material = c;
-  return own(c);
 }
 
 // the program key of a material with no patch; the patches a shared material may carry (`boxenv`, `bakedao`, `lightmapmix`): each reads only
@@ -150,7 +140,10 @@ export function materialKey(m: Material, omit?: ReadonlySet<string>): string | n
   if (!(m as MeshStandardMaterial).isMeshStandardMaterial) return null;
   const pk = m.customProgramCacheKey(), base = plain();
   if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) return null;
-  const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(m.userData)}`];
+  // (the Low flag `KEEP_SPEC` splits the key at Low only: at High the flagged part and its plain twin draw alike, so they merge alike)
+  const ud = { ...m.userData }, keep = ud[KEEP_SPEC] === true;
+  delete ud[KEEP_SPEC];
+  const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(ud)}`, ...(lowDetail() && keep ? ['keep'] : [])];
   for (const k of Object.keys(m).sort()) {
     if (SKIP.has(k) || omit?.has(k)) continue;
     const v = (m as unknown as Record<string, unknown>)[k];
@@ -189,8 +182,8 @@ export interface Shared { before: number; after: number }
  * a `userData.id`, which a rebuild disposes and a hover outlines as a whole, or an `apart` subtree) by the same kind of mesh, every mesh takes
  * the first and the others are disposed. Fewer materials draw with fewer uniform uploads (each change of material uploads its uniforms and its
  * lights' state). Left as they are: a material a writer changes (`own`, `PartSkin`, a glow, a fade), one of unknown inputs, one used across
- * scopes or kinds of mesh or by more than a plain mesh, and everything under `skip`. A writer that must change a shared one alone takes a copy
- * first (`writable`).
+ * scopes or kinds of mesh or by more than a plain mesh, and everything under `skip`. A writer that must change a mesh's material marks it `own`
+ * before the share.
  */
 export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
   interface Use { scope: Object3D | null; kind: string | null; meshes: Mesh[]; fixed: boolean }
@@ -222,7 +215,6 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
     const at = `${idOf(u.scope!)}|${u.kind}|${key}`, c = canon.get(at);
     if (!c) { canon.set(at, m); after++; continue; }
     for (const mesh of u.meshes) mesh.material = c;
-    shared.add(c);
     o.onReplace?.(m, c);
     m.dispose();
   }

@@ -9,7 +9,9 @@
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { byDetail, lowDetail } from '@/core/render/three/detail';
+import { NON_METAL } from '@/core/render/three/cheapmaterials';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
@@ -55,6 +57,8 @@ const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   c.lineWidth = 3;
   for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
 }));
+/** The pump cap's metal: the brushed face, polished. At Low it is a Lambert's metalness (`NON_METAL`): the brushed map and the key's warmth show, not a dark metal. */
+const capMat = () => mat(0xffffff, { map: brushed(), metalness: byDetail(0.8, NON_METAL), roughness: 0.3 });
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
 const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {
@@ -75,7 +79,12 @@ const HOSE_R = 140;
 /** A G1/4 fitting along its axis from its port: the hex it screws in by, the collar the hose's ferrule pushes over, its length; the hose starts `FIT.len - 40` out. */
 const FIT = { hex: 220, hexLen: 110, collar: HOSE_R + 30, len: 330 } as const;
 /** The loop's fittings and plugs: black chrome. */
-const chrome = () => mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
+const chrome = () => {
+  const m = mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
+  // (Low: the fittings keep their black chrome and a cool highlight, not a darkened Lambert that leaves only the sleeve's brown)
+  if (lowDetail()) m.userData[KEEP_SPEC] = true;
+  return m;
+};
 
 /** A part of a fitting: `geo` built along `axis`, turned to point along `dir` and set `at` that far out of the port at `p`. */
 function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vector3, at: number, axis = new Vector3(0, 1, 0)) {
@@ -113,7 +122,7 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
 const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), 220, r, 16), m));
+  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(220, 40), r, byDetail(16, 8)), m));
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a
@@ -227,12 +236,12 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   for (const sx of [-1, 1]) g.add(softBox({ x: sx * 920 - 100, y: -960, w: 200, h: 1920 }, BOARD_Z + 200, BOARD_Z + 260, m, 14));
   g.add(softBox({ x: -1000, y: -110, w: 2000, h: 220 }, L + 300, L + 340, m, 12));
   for (const px of [-920, 920]) {
-    const z0 = BOARD_Z + 264, z1 = L + 296, k = 7 * 16;
+    const z0 = BOARD_Z + 264, z1 = L + 296, k = byDetail(7 * 16, 48);
     g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, 12));
     g.add(tube(Array.from({ length: k + 1 }, (_, i): [number, number, number] => {
       const a = (i / k) * 7 * Math.PI * 2;
       return [px + Math.cos(a) * 54, Math.sin(a) * 54, z0 + ((z1 - z0) * i) / k];
-    }), 10, m, 6));
+    }), 10, m, 6, byDetail(339, 48)));
   }
   screws(g, [[-920, 0], [920, 0]], L + 340, 60);
   // the base: a copper contact plate on the lid, the aluminium block the pipes run through
@@ -283,6 +292,8 @@ export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Sol
   const g = new Group(), gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
   const pts = hang({ a, b, length: gap * 1.12 + 300, r: HOSE_R, stiff: 0.95, n: 30, lead: 220, ...env });
   const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), HOSE_R, '#0c1226', '#464078'), L = curve.getLength(), ferrule = alu(0x2a3048, 0.32);
+  // (Low: the crimped collars stay dark navy metal, a separate material from the braid)
+  if (lowDetail()) ferrule.userData[KEEP_SPEC] = true;
   g.add(mesh);
   for (const s of [70, L - 70]) g.add(band(curve, s, HOSE_R + 20, 140, ferrule));
   return g;
@@ -332,7 +343,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   const polished = mat(0xc4c9d1, { metalness: 0.95, roughness: 0.14 });
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
-  g.add(drum(0, 0, top - 4, top, R - 40, mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 }), 96));
+  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), 96));
   g.add(band3(140, 118, top, top + 8, polished));
   g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), 64));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from

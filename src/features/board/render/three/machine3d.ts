@@ -1,4 +1,4 @@
-// The machine in 3D (docs/GRAPHICS_3D_OVERHAUL.md, phases 2 to 4): the glass-side case, the motherboard with its sockets, every installed part, the
+// The machine in 3D (docs/render/three.md): the glass-side case, the motherboard with its sockets, every installed part, the
 // fans the player fitted, the power cables and the wall cords. Shapes over the 2D layout (`layout.ts`, y flipped), z out of the wall.
 // Each part is its shared builder's model (`boardModel`, `cpuModel`, `cardModel`...: the gallery and Build my PC show the same); the faces wear
 // the 2D renderer's own art through one `ArtSet`, raised parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
@@ -14,6 +14,7 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
+import { lowDetail } from '@/core/render/three/detail';
 import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
@@ -90,7 +91,8 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
 export function machineKey(s: Snapshot | null): string {
   if (!s) return 'none';
-  return [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')].join('|');
+  const key = [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')].join('|');
+  return lowDetail() ? `${key}|low` : key; // (High's key is what it was)
 }
 
 /** A device's state for its look. */
@@ -255,13 +257,13 @@ export class Machine3D {
   holdDetail(held: readonly Object3D[], ceil = Infinity): void { this.partLod?.hold(held, ceil); }
 
   /**
-   * Fewer draws and materials (PERF22, docs/GRAPHICS_3D_OVERHAUL.md "Shared materials"): the still meshes of each parent as one palette mesh
+   * Fewer draws and materials (PERF22, docs/render/three.md "Merges"): the still meshes of each parent as one palette mesh
    * (`mergeSiblings`), then equal materials as one in each part (`shareMaterials`). The cables (built again alone) and `keep` stay as they
    * are; each fade (`fades`, `apart`) keeps its materials. The state looks are `own`: the skins, the rings and strips, the case's LEDs.
    */
   private share(): void {
     const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
-    mergeSiblings(this.root, { skip, apart });
+    mergeSiblings(this.root, { skip, apart, byLook: lowDetail() });
     shareMaterials(this.root, { skip, apart });
   }
 
@@ -809,6 +811,8 @@ export class Machine3D {
     this.cableIds = s.cables.map((c) => c.id).join(',');
     this.videoKey = videoKey(s);
     this.buildCables(s, geo);
+    // Low: the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
+    if (lowDetail()) mergeSiblings(this.wires);
     this.partLod?.build(this.wires); // (the still parts of the new cables; a draggable end, `userData.rig`, and the key stay out)
     this.setKey(s.plugged?.id ?? null);
   }

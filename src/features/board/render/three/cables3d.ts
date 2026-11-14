@@ -4,7 +4,7 @@
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
 import { paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 
@@ -42,7 +42,9 @@ function braid(base: string, tint: string): Texture | null {
 export function sleeveMat(base: string, tint: string | null): MeshStandardMaterial {
   if (!tint) return mat(hex(base), { roughness: 0.55 });
   const tex = braid(base, tint);
-  return mat(0xffffff, { map: tex, bumpMap: tex, bumpScale: 0.6, roughness: 0.62 });
+  const m = mat(0xffffff, { map: tex, bumpMap: tex, bumpScale: 0.6, roughness: 0.62 });
+  m.userData[KEEP_SPEC] = true; // (Low: the warm room's key on the weave, not a Lambert)
+  return m;
 }
 
 /** Segments along a strand of `n` settled points. */

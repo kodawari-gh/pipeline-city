@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
-import { BoxGeometry, Mesh, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
+import { BoxGeometry, Matrix4, Mesh, MeshStandardMaterial, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
+import { framed, meshHash, type Bake } from '@/core/render/three/lightmapmix';
+import { partsOf } from '@/core/render/three/merge';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { BEDSIDE_FAR, BEDSIDE_LAYER, Room3D } from './room3d';
 import { FLOOR_Y, NIGHTSTAND } from './roomplan';
@@ -85,4 +87,63 @@ it('scanShadows asks again while a map is pending, but not when no light casts',
   expect(room.scanShadows(cache, scene, 0)).toBe(false);
   room.setShadows(1);
   expect(room.scanShadows(cache, scene, 16)).toBe(true);
+});
+
+// (d) the second share: the bake gives its meshes a light map and changes their materials, so `takeBake` shares equal materials again (and a
+// replaced one leaves the reflections' register).
+it('takes the baked bounce and then shares equal materials again, the replaced one out of the reflections', async () => {
+  const room = new Room3D();
+  await room.ready; // (the first share and the merge are over)
+  const priv = room as unknown as { envs: { adopt(o: Object3D): void; mats: Set<unknown> }; takeBake(b: Bake): void };
+  // two meshes made after the first share, each with its own material, equal but for their identity
+  const make = (x: number) => { const m = new Mesh(new BoxGeometry(900, 900, 900), new MeshStandardMaterial({ color: 0x336699 })); m.position.set(x, 3000, 3000); return m; };
+  const a = make(0), b = make(5000);
+  room.root.add(a, b);
+  priv.envs.adopt(room.root);
+  expect(a.material).not.toBe(b.material);
+  const dropped = b.material;
+  expect(priv.envs.mats.has(dropped)).toBe(true);
+  room.root.updateMatrixWorld(true);
+  const toRoot = room.root.matrixWorld.clone().invert();
+  const hashOf = (m: Mesh) => meshHash(framed(m.geometry, new Matrix4().multiplyMatrices(toRoot, m.matrixWorld)), m.geometry.index?.array ?? null);
+  const corners = a.geometry.index!.count;
+  const bake: Bake = {
+    manifest: {
+      version: 1, encoding: 'rgbm-sqrt', width: 64, height: 64, texelsPerMetre: 50, samples: 1, groups: [], dark: [],
+      meshes: [{ name: 'a', hash: hashOf(a), corners, offset: 0 }, { name: 'b', hash: hashOf(b), corners, offset: corners }],
+    },
+    maps: new Map(), uvs: new Uint16Array(4 * corners),
+  };
+  priv.takeBake(bake);
+  // both took the light map, and the two equal materials are one again
+  expect(a.geometry.attributes.uv1).toBeDefined();
+  expect(b.geometry.attributes.uv1).toBeDefined();
+  expect(b.material).toBe(a.material);
+  expect((a.material as MeshStandardMaterial).lightMap).not.toBeNull();
+  expect(priv.envs.mats.has(dropped)).toBe(false);
+  expect(priv.envs.mats.has(a.material)).toBe(true);
+});
+
+// (a) lock: `frame` shows and hides parts by the game's state (a router, a monitor). The palette merge after the bake must not take any mesh whose
+// shown state the game changes: a merged copy would stay drawn. The test finds those meshes by running the frame in both states, not by name.
+it('the palette merge leaves every mesh the game shows and hides alone (checked from what a frame changes)', async () => {
+  const room = new Room3D();
+  const frame = (installed: boolean, router: number) => room.frame({ hour: 12, lamp: false, blind: false, screen: { installed, powered: installed, live: false, text: '' }, router, isp: 0, ispName: '', mail: false, t: 1 }, 0.016);
+  /** The meshes a camera would draw: shown, and every parent shown. */
+  const drawn = () => { const s = new Set<Object3D>(); const walk = (o: Object3D) => { if (!o.visible) return; if ((o as Mesh).isMesh) s.add(o); o.children.forEach(walk); }; walk(room.root); return s; };
+  frame(true, 1);
+  const on = drawn();
+  frame(false, 0);
+  const off = drawn();
+  const flips = [...on].filter((o) => !off.has(o));
+  expect(flips.length).toBeGreaterThan(1); // (the router and the monitor)
+  frame(true, 1);
+  await room.ready;
+  const merged = new Set<Object3D>();
+  room.root.traverse((o) => { for (const p of partsOf(o)) merged.add(p.mesh); });
+  expect(merged.size).toBeGreaterThan(0); // (the merge ran)
+  expect(flips.filter((o) => merged.has(o))).toEqual([]);
+  // and nothing the merge made stands drawn once the game hides them
+  frame(false, 0);
+  expect(flips.filter((o) => drawn().has(o))).toEqual([]);
 });

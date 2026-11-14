@@ -23,7 +23,8 @@ import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, t
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
-import { mergePalette, mergeStatic } from '@/core/render/three/merge';
+import { lowDetail } from '@/core/render/three/detail';
+import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
@@ -407,6 +408,8 @@ export class Room3D {
   private deskLed = new RectAreaLight(NEON_WASH, 0, 1, 1);
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envs: RoomEnv;
+  /** What a Low merge tells the reflections' register of a palette material (the register exists once the room is built). */
+  private readonly envTwin = (src: Material, copy: Material): void => { (this.envs as RoomEnv | undefined)?.twin(src, copy); };
   private probe = false;
   /** The room's box for the probe's reflections (boxenv.ts): on once the probe holds the room. */
   private box: BoxEnv;
@@ -608,6 +611,7 @@ export class Room3D {
     // (a new key's letter comes to the stand: it is in `keys`, so it floats in beside the rack as on the 2D wall)
     const stand = new Group();
     stand.position.set(KEY_STAND.x - kr.x, foot - ys, KEY_STAND.z);
+    if (lowDetail()) mergeWithin(rack, { twin: this.envTwin }); // (Low: the rack's bars and hooks in a few draws)
     stand.add(rack, this.keys);
     R.add(stand);
     R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
@@ -622,6 +626,10 @@ export class Room3D {
     // (its jacks are the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, their mouths 180 deep)
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
+      parts(tier);
+      if (lowDetail()) mergeWithin(router, { twin: this.envTwin }); // (Low: the router's plates, vents and jacks in a few draws)
+    };
+    const parts = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
       const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x111111, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
       const top = tier >= 4 ? 1500 : 1400, body = mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), look = jackLook(jackSteel);
@@ -677,6 +685,7 @@ export class Room3D {
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, 12), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
+    if (lowDetail()) mergeWithin(box, { twin: this.envTwin });
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));

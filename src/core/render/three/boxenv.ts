@@ -34,7 +34,7 @@ const RADIANCE = ShaderChunk.envmap_physical_pars_fragment.replace(
 
 /** The materials `boxProjected` patched. */
 const patched = new WeakSet<Material>();
-/** Has the box patch: patched here, or a copy that took the hooks of one (`writable`, the light map's and the palette's copies keep its key). */
+/** Has the box patch: patched here, or a copy that took the hooks of one (the light map's and the palette's copies keep its key). */
 const hasBox = (m: Material): boolean => patched.has(m) || m.customProgramCacheKey().split('|').includes('box');
 
 /**
