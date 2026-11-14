@@ -14,7 +14,8 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | the room: desk props, key rack and mail, USB keys, wall cords, power lens | [`render/room/room.md`](../src/features/room/room.md) |
 | the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
 | the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |
-| zoom bands of every device, smoothed zoom, off-screen skipping, bake switches | [`render/lod.md`](render/lod.md) |
+| zoom bands of every device, smoothed zoom, off-screen skipping, bake switches; the 3D part stand-ins and the city's distance bands | [`render/lod.md`](render/lod.md) |
+| the 3D renderer (Three.js, the game's view): presets and tiers, merges, cheap materials, city culling and the occlusion gate, `?debug` toggles, bench and shot tools | [`render/three.md`](render/three.md) |
 | 3D room cloth (the hoodie): pattern pieces, the offline cloth solver, how to bake a model | [`render/cloth.md`](render/cloth.md) |
 | the 3D world's load: boot screen, shader link rules, menu, flight into the game | [`render/load.md`](render/load.md) |
 | the CPU die and the memory map | [`DIE.md`](DIE.md) |

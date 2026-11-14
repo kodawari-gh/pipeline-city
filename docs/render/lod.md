@@ -1,5 +1,7 @@
 # Level of detail (zoom and location)
 
+> **Outdated (2026-11-14).** Most of this file describes the 2D-era zoom bands (the "pure, no Pixi" module). Do not build on it. It will be rewritten against the LOD0, LOD1, LOD2 and card scheme once the asset standard is approved (TODO LOD1). The "3D distance bands (city)" section is kept until then.
+
 One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands and the location rule every piece of hardware reads. Tests: `lod.test.ts`. Not every chip uses every part:
 
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
@@ -36,7 +38,9 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 - RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.
 
 ## The 3D room
-Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level: at Low all six room lights still cast.
+Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level, but they are switched off by it: Low's preset is `shadows: 0` and `SHADOW_LEVELS[0]` is `null`, so no room light casts at Low. The six casters exist and are off.
+
+The room has no distance LOD. Its draw cut comes from the merges in [three.md](three.md#merges).
 
 ## The city at Low (`outside/`)
 Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High builds and draws the full city, and its picture does not change: `highident.test.ts` fingerprints High's city groups against `highident.expected.json` (refresh on purpose with `UPDATE_HIGH_GOLDEN=1`).
@@ -48,10 +52,11 @@ Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High build
 - **Fleet.** Half the cars drive (`LOW_FLEET` 0.5). A car is its full model within 100 m (`NEAR_LOW`) and the far box beyond. None is drawn past 350 m (`CLIP_LOW`), except on the window's avenue, which is kept out to 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Within 260 m (`DRIVE_LOW`, High's `NEAR`) every moving car still drives; the share thins only the rest. On Firefox, Low has no city cuts by default (`parseCityCuts` in `detail.ts`), so it also keeps a full fleet (main's city path at Low). The car paint has no clearcoat (`carMaterial(…, false)`): matt.
 - **Cadence.** The city is drawn each `LOW_EVERY` (6) frames of a still eye at Low, `EVERY` (3) at High (`view.ts`, `detail.ts`). On Firefox, Low has no city cuts by default, so it also draws each `EVERY` (3) frames.
 - **Isolation.** `?citycuts=a,b` keeps only the named cuts (`cadence`, `far`, `streets`, `furniture`, `trees`, `steam`, `fleet`, `palette`), to measure what each costs. Without the query all cuts apply at Low, except on Firefox, which gets none (main's city path). An explicit `?citycuts=` list is still honoured on any browser. High has none.
-- **Left.** Chrome at Low game max on the razr-fold-folded profile is still short of about 60 fps (official 3-round of 384106a: 50.0 idle / 52.4 zoom vs main 48.0 / 45.9; idle ahead, zoom ahead). Firefox Low skips all the Low city cuts by default; in that sitting idle was 59.0 vs main 62.0 (ranges do not overlap) and zoom was about flat (103.9 vs 104.2). Open look leftovers and the gate are in `docs/TODO.md` (LOOK28–LOOK32, PERF27). Far-block merge and impostors are not in these cuts.
+- **Left.** Chrome at Low game max on the razr-fold-folded profile is still short of about 60 fps (official 3-round of 384106a: 50.0 idle / 52.4 zoom vs main 48.0 / 45.9; idle ahead, zoom ahead). Firefox Low skips all the Low city cuts by default; in that sitting idle was 59.0 vs main 62.0 (ranges do not overlap) and zoom was about flat (103.9 vs 104.2). Open look leftovers and the gate are in `docs/TODO.md` (LOOK28–LOOK33, PERF27). Far-block merge and impostors are not in these cuts.
 
 ## The machine's stand-ins
 PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of the machine is CPU per draw, not pixels. Far away, its small parts draw as a few merged meshes.
+- Status at `03fe0bc`: two states only, LOD0 and stand-in. LOD1 (30 %) and LOD2 (10 %) are planned and not present. No part or case item has either. The case shell has no LOD and no stand-in.
 - A stand-in holds the same triangles with the same materials. The picture, the shadows and the state looks do not change. Only the draw count falls. Hiding the small parts was tried and rejected: it removed visible parts.
 - Size classes by world radius: 25, 50, 100, 200 units (`LOD_RADII`). A larger mesh has no stand-in. A class is far while its greatest radius is under 8 px (`LOD_PX`), at the zoom of the case's nearest point. It goes back only over 10 px (`LOD_BAND` 0.25), so a zoom at the limit switches nothing.
 - Sets (`standInKey`): a still material joins a palette set of its program, across parts. A material with state (a skin, a ring, a strip, an LED) joins only the meshes of that same material object, so the stand-in shows the state with no code. An instanced mesh joins copy by copy.
@@ -63,8 +68,29 @@ PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of
 - Off: the last argument of `Machine3D` (`buildMachine(s, true, false)` in tests).
 - Census (maxed sandbox machine, headless): 632 drawn meshes to 398 in the room view, 441 in the phone board view; 273 parts in 19 stand-ins. Frame times: not measured here.
 
+## 3D distance bands (city)
+
+The city has no LOD tiers. Distance changes detail or what is generated. Only the generation limits remove an object. Rings and tree levels only change detail. Code at `03fe0bc` (`main`):
+
+| Thing | Band (m) | Constant (file) | Effect |
+|---|---|---|---|
+| Building rings | 150 / 300 / 600 / 900 / 1800 / 3600 / ∞ | `RINGS` (`outside/towers.ts:527`) | one geometry and one draw per ring; the detail does not step with the ring |
+| Roof clutter, balconies | 900 | `CLUTTER` (`towers.ts:32`) | built only inside the band |
+| Fine clutter variant | 420 | `FINE` (`towers.ts:32`) | a flag on the clutter inside the 900 band |
+| Trees | 160 / 250 / 500 | `trees.ts:57-58` | four builds: Sprayed, Round, Coarse, Sparse; never dropped by distance |
+| Moving and parked cars | 260 | `NEAR` (`cars.ts:19`) | full model inside; a box outside |
+| Street detail | 520 (elliptical, `z × 0.7`) | `DETAIL` (`plan.ts:197`) | nothing placed beyond it |
+| Signs | 1,500 / 3,400 | `SIGN_FAR`, `SIGN_TOWER` (`towers.ts:29`) | low-rise signs within 1,500; tower signs within 3,400 |
+
+- The draft's ring set is 150 / 300 / 900 / 1800 / 3600 m. The building rings match it, plus one extra 600 step. The tree, car, street, fine-clutter and sign bands are off-ring. Snapping them needs one measurement origin first.
+- Distance origin differs by system. Buildings, trees and street use the window (`av0`). Moving cars use the eye (`cars.ts:422`). Parked cars use the window (`cars.ts:326`).
+- At Low, rings past 300 m merge, cars use 100 / 350 m and `CLIP_AVENUE_LOW` 1000 m, and Firefox skips the cuts unless `?citycuts=` is set. See [The city at Low](#the-city-at-low-outside) (code at `384106a`).
+- Culling, merges and the occlusion gate are in [three.md](three.md#city-culling-and-the-firefox-occlusion-gate).
+
 ## Adding a view
 Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`board/lodcard.ts`).
 
 ## Debug and measuring
 `window.__board.lod()` (dev) returns `{ extA, reveal, interior, z, zs, bakes: { board, devices, props } }`. Frame times at the thresholds were **not measured in a browser** when this was written: use the setup of "Performance" in [case.md](case.md) (headless Chrome, SwiftShader) with a scripted wheel sweep and compare the worst frame at zoom 0.14, 0.2, 1, 2 and 3.
+
+For the 3D renderer (parts, city and room), the debug toggles and the bench tools are in [three.md](three.md#debug-toggles-debug) and [three.md](three.md#measurement-and-tools). Frame times at the 3D distance bands are not measured.
