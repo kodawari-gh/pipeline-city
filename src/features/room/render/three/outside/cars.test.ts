@@ -179,6 +179,71 @@ describe('cars', () => {
       low.dispose();
     });
 
+    /** A room-window eye: over the street near the window, looking down the avenue (-z), with its frustum. */
+    const windowEye = (r: () => number): { ex: number; ez: number; seen: Frustum } => {
+      const cam = new PerspectiveCamera(26, 412 / 915, 0.5, 20000);
+      cam.position.set(GRID.av0 + (r() - 0.5) * 60, 47, 3 + r() * 6);
+      cam.rotation.set(-0.05 - r() * 0.2, (r() - 0.5) * 0.3, 0, 'YXZ');
+      cam.updateMatrixWorld();
+      return { ex: cam.position.x, ez: cam.position.z, seen: new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)) };
+    };
+    const dist = (s: [number, number][], ex: number, ez: number): number[] => s.map(([x, z]) => Math.hypot(x - ex, z - ez));
+
+    it('Low: from a window eye, moving cars 100 to 350 m off are the far box, not the full model', () => {
+      const r = rng(21), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const i = low as unknown as Inside;
+      let box = 0, full = 0;
+      const bad: string[] = [];
+      for (let k = 0; k < 6; k++) {
+        const { ex, ez, seen } = windowEye(r);
+        for (let q = 0; q < 20; q++) { low.update(0.1, ex, ez, seen); low.park(seen, ex, ez); }
+        const far = dist(spots(i.far), ex, ez), near = dist(i.near.flatMap(spots), ex, ez);
+        for (const h of far) if (!(h >= 100 && h <= 350)) bad.push(`box at ${h}`);
+        for (const h of near) if (!(h < 100)) bad.push(`full at ${h}`);
+        box += far.filter((h) => h >= 100).length; full += near.length;
+      }
+      expect(bad).toEqual([]);
+      // (the far box carries the mid-avenue cars: some on every window eye, the full models few)
+      expect(box).toBeGreaterThan(0);
+      expect(full).toBeLessThan(box);
+      low.dispose();
+    });
+
+    it('Low: from a window eye, the parked cars 100 to 350 m off are instanced in the box mesh', () => {
+      const r = rng(22), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
+      const i = low as unknown as Inside;
+      let inRange = 0;
+      const bad: string[] = [];
+      for (let k = 0; k < 6; k++) {
+        const { ex, ez, seen } = windowEye(r);
+        low.update(0.1, ex, ez, seen); low.park(seen, ex, ez);
+        // (every parked car at Low is a box: its one mesh of them, with the cars it places)
+        expect(i.still.length).toBe(1);
+        const h = dist(spots(i.still[0]!.im), ex, ez);
+        for (const d of h) if (d > 350) bad.push(`parked at ${d}`);
+        inRange += h.filter((d) => d >= 100).length;
+      }
+      expect(bad).toEqual([]);
+      expect(inRange).toBeGreaterThan(0);
+      low.dispose();
+    });
+
+    it('High: from a window eye, the full models stay within 260 m and the box is past it', () => {
+      const r = rng(23), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
+      const i = high as unknown as Inside;
+      const bad: string[] = [];
+      let midFull = 0;
+      for (let k = 0; k < 6; k++) {
+        const { ex, ez, seen } = windowEye(r);
+        high.update(0.1, ex, ez, seen); high.park(seen, ex, ez);
+        for (const h of dist(i.near.flatMap(spots), ex, ez)) { if (!(h < 260)) bad.push(`full at ${h}`); if (h >= 100) midFull++; }
+        for (const h of dist(spots(i.far), ex, ez)) if (!(h >= 260)) bad.push(`box at ${h}`);
+      }
+      expect(bad).toEqual([]);
+      expect(midFull).toBeGreaterThan(0);
+      high.dispose();
+    });
+
     it('High: no clip, so cars past 350 m of the eye are placed', () => {
       const r = rng(15), high = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze());
       let past = 0;
