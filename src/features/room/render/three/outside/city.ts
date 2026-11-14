@@ -39,7 +39,7 @@ export function land(k: Kit): Mesh {
   };
   const fbm = (x: number, y: number) => noise(x, y) * 0.55 + noise(x * 2.1, y * 2.1) * 0.28 + noise(x * 4.3, y * 4.3) * 0.17;
   const pos: number[] = [], col: number[] = [], idx: number[] = [];
-  const city = new Color(0x5d6064), sub = new Color(0x6f7369), field = [new Color(0x7f8c4f), new Color(0x8f9258), new Color(0x6c8547)], wood = new Color(0x3d5636), high = new Color(0x56664f);
+  const city = new Color(0x5d6064), sub = new Color(0x6f7369), field = [new Color(0x66755a), new Color(0x717c64), new Color(0x5a6f52)], wood = new Color(0x3d5636), high = new Color(0x56664f);
   for (let j = 0; j <= R; j++) {
     const rad = 3000 * Math.pow(12000 / 3000, j / R);
     for (let i = 0; i <= A; i++) {

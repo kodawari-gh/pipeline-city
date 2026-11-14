@@ -190,8 +190,8 @@ export interface Lamp { x: number; z: number; rot: number }
 /** A parked car: its middle, its turn about y, its length, its paint (`CAR_COLOURS`). */
 export interface Car { x: number; z: number; rot: number; len: number; colour: number; seed: number }
 
-/** The paint colours of the cars. */
-export const CAR_COLOURS = [0xb9bdc3, 0x1c2633, 0x7a1d1f, 0xe9e7e2, 0x2e4a3b, 0x17191c, 0x4c6c8e, 0x8c8f93, 0xd8b23a] as const;
+/** The paint colours of the cars: silvers, charcoals and muted cool tones (art-style v3: no red, no yellow in the view out; LPC11). */
+export const CAR_COLOURS = [0xb9bdc3, 0x1c2633, 0x4e5360, 0xe9e7e2, 0x2e4a3b, 0x17191c, 0x4c6c8e, 0x8c8f93, 0x3a4a5c] as const;
 
 /** How far from the window the street's detail reaches (m): the trees, the lamps, the cars, the road's paint. */
 export const DETAIL = 520;
