@@ -299,7 +299,8 @@ export class OutsideView {
     this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
-    this.parts = { buildings: [still, ...mass, ground, ...plants.meshes], steam: steam ? [steam.mesh] : [], signs: [signLight] };
+    // (`?debug` layers: the streets with the land under them, the buildings, the trees: each hides alone)
+    this.parts = { streets: [still, ground], buildings: [...mass], trees: [...plants.meshes], steam: steam ? [steam.mesh] : [], signs: [signLight] };
     // the cars, moving and parked, and the signals' lamps
     this.fleet = cuts.fleet ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);

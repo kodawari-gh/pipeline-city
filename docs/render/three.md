@@ -144,7 +144,9 @@ The overlay is in `src/app/debug/` (`overlay.ts`, `controls.ts`, `city-layers.ts
 | Hide city | the whole city | window quad `visible = false`, so `outsideDraws()` is false |
 | Hide machine | the machine root | `setRootHidden` |
 | No city lights | lamps, windows, sign light, glow, emissives | lamps hidden, sign layer moved, `key = -1` |
-| No buildings | streets, buildings, land **and trees** | moved to layer 30 |
+| No buildings | buildings only | moved to layer 30 |
+| No trees | street and park trees only | moved to layer 30 |
+| No streets | streets and the land under them | moved to layer 30 |
 | Freeze city | clock stops: traffic, leaves, clouds, steam | `off` flag |
 | No cars | cars and signal lamps | layer 30 |
 | No city sky | sky dome | layer 30 |
@@ -156,7 +158,7 @@ The overlay is in `src/app/debug/` (`overlay.ts`, `controls.ts`, `city-layers.ts
 Notes:
 
 - Layer 30 (`HIDDEN_LAYER`) is used so sweep writes to `mesh.visible` do not undo a hide. Hidden objects stay in the scene. Whether their CPU cut work still runs is not verified.
-- `No buildings` cannot answer "buildings against trees". It hides both, plus land.
+- `No buildings`, `No trees` and `No streets` each hide alone (`view.ts` `parts.buildings`, `parts.trees`, `parts.streets`).
 - `view.off` takes `lights`, `glow`, `freeze`, `flat` and `mirror` (`view.ts` reads `this.off.has('mirror')` and zeros the room in the glass).
 - Hide city may not subtract the city triangle count. The stats overlay still reported about 868k city triangles with Hide city on (Razr sweep).
 

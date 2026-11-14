@@ -22,13 +22,13 @@ describe('debugLayer and debugStats (city-layers.ts)', () => {
     const all = debugStats(v);
     expect(all.tris).toBeGreaterThan(1000);
     expect(all.calls).toBeGreaterThan(5);
-    for (const k of ['lights', 'buildings', 'freeze', 'cars', 'sky', 'glow', 'steam', 'mirror', 'flat']) { debugLayer(v,k, true); debugLayer(v,k, false); }
+    for (const k of ['lights', 'buildings', 'trees', 'streets', 'freeze', 'cars', 'sky', 'glow', 'steam', 'mirror', 'flat']) { debugLayer(v,k, true); debugLayer(v,k, false); }
     expect(debugStats(v)).toEqual(all);
   });
 
-  it('buildings, cars, steam and sky take their triangles out, each one its own', () => {
+  it('buildings, trees, streets, cars, steam and sky take their triangles out, each one its own', () => {
     const all = debugStats(v);
-    for (const k of ['buildings', 'cars', 'steam', 'sky']) {
+    for (const k of ['buildings', 'trees', 'streets', 'cars', 'steam', 'sky']) {
       debugLayer(v,k, true);
       const less = debugStats(v);
       expect(less.tris, k).toBeLessThan(all.tris);
