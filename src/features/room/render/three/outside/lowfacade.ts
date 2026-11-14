@@ -19,8 +19,12 @@ export const LOW_ANISO = 2;
 /** Night walls: the day albedo times this tint at full night. Cool and dark, as base's unlit walls read (a warm grey reads brown under the lamps). */
 export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
- * so the lit rooms stay discrete and get sparser with distance (no mean wash). */
-export const LOW_FAR = { near: 150, far: 450, keep: 0.35 };
+ * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
+ * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
+ * (`1 - band` of each pitch lit, at `glow`), so a far tower reads as dark graphite with a few lit floors. */
+export const LOW_FAR = { near: 150, far: 300, keep: 0.35, share: 0.3, pitch: 36, band: 0.75, glow: 0.5 };
+/** The top mip of a SIZE atlas (a 1×1 texel: the map's mean). */
+const LOW_TOP_MIP = Math.log2(SIZE);
 /** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its rooms: three across, two up. */
 const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
 
@@ -226,7 +230,9 @@ if (fLampK > 0.0) {
 }`)
       .replace('#include <map_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
-  vec4 lowTex = textureGrad(map, lowUv, lowDx, lowDy);
+  // far off at night, the wall's albedo is the map's mean (its top mip), not its window texels: no dark dots on a far tower
+  float lowFarM = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition)) * fNight;
+  vec4 lowTex = mix(textureGrad(map, lowUv, lowDx, lowDy), textureLod(map, lowUv, ${LOW_TOP_MIP}.0), lowFarM);
   diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
   vec3 lowTn = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
@@ -260,13 +266,19 @@ if (vLowFac == 0.0) {
   else if (vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75 * (0.2 + 0.9 * exp(-3.0 * clamp((vLowFuv.y - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
   else if (vLowKind == 8.0 && vLowLook.w > -0.5) lowGlow = vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0));
   // the lit rooms stay discrete at every range (the atlas's own mips, no mean wash). Far off, each lit room is kept only if its hash
-  // clears a threshold that rises with distance, so the far towers get sparser windows, not a warm average
+  // clears a threshold that rises with distance, so the mid towers get sparser windows, not a warm average. Past LOW_FAR.far the room
+  // hash and the window texels are not read at all: only this building's share of towers shows floors, as analytic horizontal bands
+  // (a band per LOW_FAR.pitch metres, lit for the top 1 - band of it; no atlas texel, so no alias). The rest of a far wall stays dark.
+  // The mix is smooth, with no branch on the distance, so dFdx/dFdy above stay in uniform control flow
   // (by day fNight is 0 and the whole term is 0: the night map's read and the room hash are skipped, one uniform branch)
   vec3 lowLit = vec3(0.0);
   if (fNight > 0.0) {
-    lowLit = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb;
     float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
-    lowLit *= step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+    vec3 lowRooms = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb * step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+    float lowGate = step(fract(sin(vLowSeed * 91.7 + 3.3) * 43758.5453), ${LOW_FAR.share});
+    float lowFloor = step(${LOW_FAR.band}, fract(vLowY / ${LOW_FAR.pitch}.0 + vLowSeed * 0.618));
+    vec3 lowBands = vec3(0.9, 0.7, 0.45) * (lowGate * lowFloor * ${LOW_FAR.glow});
+    lowLit = mix(lowRooms, lowBands, lowFar);
   }
   totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;
 }`);

@@ -164,17 +164,67 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: far walls thin their lit rooms per room (discrete, sparser with distance), with no mean wash', () => {
+  it('Low: mid walls thin their lit rooms per room (discrete, sparser with distance), with no mean wash', () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       expect(sh).toContain('float lowRoomHash()');
       expect(sh).toContain(`smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition))`);
-      expect(sh).toContain(`lowLit *= step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());`);
-      expect(sh).not.toContain('textureLod(emissiveMap');
+      expect(sh).toContain(`step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash())`);
     }
     expect(LOW_FAR.keep).toBeGreaterThan(0);
     expect(LOW_FAR.keep).toBeLessThan(1);
     expect(LOW_FAR.far).toBeGreaterThan(LOW_FAR.near);
+  }, 180000);
+
+  it('Low: past LOW_FAR.far a wall has no window texel: no emissive read at all, only a share of towers show analytic floor bands', () => {
+    expect(LOW_FAR.share).toBeGreaterThan(0);
+    expect(LOW_FAR.share).toBeLessThan(1);
+    expect(LOW_FAR.band).toBeGreaterThan(0);
+    expect(LOW_FAR.band).toBeLessThan(1);
+    expect(LOW_FAR.pitch).toBeGreaterThan(0);
+    expect(LOW_FAR.glow).toBeGreaterThan(0);
+    expect(LOW_FAR.glow).toBeLessThanOrEqual(1);
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      // the mean-wash read is gone: the emissive map is read per window texel only (mid range), never at the top mip
+      expect(sh).not.toContain('textureLod(emissiveMap');
+      // which towers show floors: a share of them, by the seed
+      expect(sh).toContain(`step(fract(sin(vLowSeed * 91.7 + 3.3) * 43758.5453), ${LOW_FAR.share})`);
+      // the floors: one lit band per pitch, from the world height, phased per building
+      expect(sh).toContain(`step(${LOW_FAR.band}, fract(vLowY / ${LOW_FAR.pitch}.0 + vLowSeed * 0.618))`);
+      expect(sh).toContain(`vec3(0.9, 0.7, 0.45) * (lowGate * lowFloor * ${LOW_FAR.glow})`);
+      // mid and far mix by the distance
+      expect(sh).toContain('lowLit = mix(lowRooms, lowBands, lowFar);');
+    }
+  }, 180000);
+
+  it('Low: the wall albedo at night far off is the map\'s mean too (no dark glass dots), and by day the mix is 0 (fNight)', () => {
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      expect(sh).toContain(`textureLod(map, lowUv, ${Math.log2(256)}.0)`);
+      expect(sh).toContain('* fNight;');
+      expect(sh).toContain('mix(textureGrad(map, lowUv, lowDx, lowDy), textureLod(map');
+      expect(sh).toContain('length(vViewPosition)) * fNight;');
+    }
+  }, 180000);
+
+  it('Low: the derivatives stay in uniform control flow (no vLowFac branch around dFdx/dFdy or textureGrad)', () => {
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      expect(sh).not.toContain('if (vLowFac > 0.0');
+      expect(sh).not.toContain('if (vLowFac == 1.0');
+      expect(sh).toContain('dFdx(vLowBay) * lowScale()');
+      expect(sh).toContain('dFdy(vLowBay) * lowScale()');
+    }
+  }, 180000);
+
+  it('Low: the Empire crown (kind 4) and the other live glows are not in the far term (they stay a solid lit cap)', () => {
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      // the far term multiplies only the window term (lowLit, facade kinds 0 and 6), never lowGlow
+      expect(sh).toContain('totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;');
+      expect(sh).toContain('vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75');
+    }
   }, 180000);
 
   it('Low: the walls go cool and dark at night (albedo tint scaled by the night only, lamps included)', () => {
