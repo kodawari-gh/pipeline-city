@@ -67,23 +67,45 @@ export function worldUv<T extends Mesh>(o: T, tile: number): T {
   return o;
 }
 
+/**
+ * The segment table (docs/3D_STYLE.md "Asset standard" §4, ASR10): the one place a builder takes its segment count from. A builder never
+ * writes its own count. Round parts: one side per 4–8 px of circumference on screen (6 px is the design value).
+ */
+export const SEG = {
+  /** Default sides of `post`, `drum`, `tube` and `rod`. */
+  post: 16, drum: 24, tube: 7, rod: 10,
+  /** Edge bevels: case and card edges (`softBox`), the monitor (one value for the room overview). */
+  bevel: 2, monitorBevel: 6,
+  /** A solder joint: sides round it, rings up it (about 36 triangles). */
+  joint: 6, jointRings: 3,
+  /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. */
+  lathe: 28, latheProfile: 12,
+  /** A round flange next to a case wall; a plug's round. */
+  flangeWall: 6, plug: 4,
+  /** RAM outline curves (`curveSegments`). */
+  ramCurve: 10,
+} as const;
+
+/** The sides of a round fan part (flange, housing, ring) from the fan's diameter in mm: 16 at 40 mm, up to 48 at 120 mm and above (§4, ASR4). */
+export const fanSides = (mm: number): number => Math.min(48, Math.max(16, 2 * Math.round(mm * 0.2)));
+
 /** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
-  const g = new RoundedBoxGeometry(r.w, r.h, z1 - z0, 2, rad), o = new Mesh(g, m);
+  const g = new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
 
 /** A cylinder standing on the layout point (x, y): its axis is world y. `y` is its base. */
-export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides = 16, rTop = r): Mesh {
+export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides: number = SEG.post, rTop = r): Mesh {
   const o = new Mesh(new CylinderGeometry(rTop, r, h, sides), m);
   o.position.set(x, -y + h / 2, z);
   return place(o);
 }
 
 /** A disc-like cylinder facing the viewer (its axis is world z), centred on the layout point. */
-export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides = 24): Mesh {
+export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.drum): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides), m);
   o.rotation.x = Math.PI / 2;
   o.position.set(x, -y, (z0 + z1) / 2);
@@ -98,7 +120,7 @@ export function face(r: RectLike, z: number, m: Material): Mesh {
 }
 
 /** A straight rod from world point a to b (a lamp arm, a pipe run). */
-export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides = 10): Mesh {
+export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh {
   const va = new Vector3(...a), vb = new Vector3(...b), len = va.distanceTo(vb);
   const o = new Mesh(new CylinderGeometry(r, r, len, sides), m);
   o.position.copy(va).add(vb).multiplyScalar(0.5);
@@ -107,7 +129,7 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
 }
 
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
-export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides = 7, segs = Math.max(8, points.length * 3)): Mesh {
+export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides: number = SEG.tube, segs = Math.max(8, points.length * 3)): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
   const o = new Mesh(new TubeGeometry(curve, segs, radius, sides, false), m);
   return place(o);
