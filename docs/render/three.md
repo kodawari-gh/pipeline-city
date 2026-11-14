@@ -81,9 +81,8 @@ Measured:
 
 `cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only.
 
-- Each unpatched `MeshStandardMaterial` becomes one `MeshLambertMaterial` (`cheapmaterials.ts:22`).
-- It strips `normalMap`, `roughnessMap`, `metalnessMap`, `aoMap` and `bumpMap` (`cheapmaterials.ts:5`).
-- Patched Standards stay Standard.
+- A `MeshStandardMaterial` that is neither patched nor lightmapped becomes one `MeshLambertMaterial` (`cheapmaterials.ts:22`). Only these become Lambert.
+- A Standard that is patched or has a `lightMap` stays Standard (`isPatched(m) || m.lightMap`, `cheapmaterials.ts:55`). The room's 12 lightmaps therefore stay Standard at Low. On these kept Standards, it strips `normalMap`, `roughnessMap`, `metalnessMap`, `aoMap` and `bumpMap` (`cheapmaterials.ts:5`).
 - The source Standard is not disposed (`cheapmaterials.ts:60-74`). Three.js drops a program only when its material is disposed or rebuilt.
 - The room probe is captured once at Low and not again (`probePlan`, `cheapmaterials.ts:119-120`).
 - Mesh counts do not change. The swap changes programs. Its effect on material counts is not checked.
@@ -94,7 +93,7 @@ Effect, measured on the RTX 5080:
 - Low is faster than High: room idle 4.3 ms GPU against 9.0 ms, with 930 against 968 calls.
 - Possible cuts (not done): fold Physical into Standard; move AO to vertex colours so Low can still swap; dispose Standard after the swap.
 
-Code inventory (grep, `03fe0bc`): 20 Standard sites, about 440 `mat()` calls, 3 Physical, 1 Lambert, 11 Basic, 13 `ShaderMaterial` plus 1 Raw, 14 patch definitions.
+Code inventory (grep, `03fe0bc`): 20 Standard sites, 533 `mat()` calls (on 440 lines) in the 37 production files that import `mat` from `materials.ts` (`rg -o '(^|[^\w.])mat\('` over non-test `src/`), 3 Physical, 1 Lambert, 11 Basic, 13 `ShaderMaterial` plus 1 Raw, 14 patch definitions.
 
 ## Textures
 
@@ -149,7 +148,7 @@ Notes:
 
 - Layer 30 (`HIDDEN_LAYER`) is used so sweep writes to `mesh.visible` do not undo a hide. Hidden objects stay in the scene. Whether their CPU cut work still runs is not verified.
 - `No buildings` cannot answer "buildings against trees". It hides both, plus land.
-- `view.off` takes `lights`, `glow`, `freeze` and `flat`.
+- `view.off` takes `lights`, `glow`, `freeze`, `flat` and `mirror` (`view.ts` reads `this.off.has('mirror')` and zeros the room in the glass).
 - Hide city may not subtract the city triangle count. The stats overlay still reported about 868k city triangles with Hide city on (Razr sweep).
 
 The stats overlay shows fps, average and p95 frame time, draw calls, and city triangles and calls. City triangles are an estimate from mesh draw ranges (`city-layers.ts:36`).
@@ -199,7 +198,7 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 
 ## Not on main
 
-- **PR #23** (`perf/low-city-draws`, `3cf8755`). At Low it merges every building ring past 300 m into one mesh, and adds `lowfacade.ts`, `detail.ts` and a 96 m street cell. It cuts city triangles 864k to 452k and draws 221 to 168 on the Razr. It also changes shading, so the cut is not triangles alone. Car distances at Low are 100 m (full model) and 350 m (clip). Main has none of this.
+- **PR #23** (`perf/low-city-draws`, head `67a99a2`, code at `384106a`). At Low it merges every building ring past 300 m into one mesh, and adds `lowfacade.ts`, `detail.ts` and a 96 m street cell. At `3cf8755` it cut city triangles 864k to 452k and drew 221 to 168 on the Razr. It also changes shading, so the cut is not triangles alone. Car distances at Low are 100 m (full model) and 350 m (clip). Window-avenue cars also clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low gets no city cuts unless `?citycuts=` is set (9d68407, `detail.ts`). Main has none of this.
 - **Far-city cards and night-window layer.** Designed, not built. No card path exists for buildings or trees.
 - **KTX2 loader.** Not present. Prerequisite: `KTX2Loader` and transcoder path in `gltf.ts`, plus a copied Basis transcoder (about 585 KB). About 60 to 90 lines (estimated).
 

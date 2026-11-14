@@ -38,7 +38,7 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 - RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.
 
 ## The 3D room
-Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level: at Low all six room lights still cast.
+Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level, but they are switched off by it: Low's preset is `shadows: 0` and `SHADOW_LEVELS[0]` is `null`, so no room light casts at Low. The six casters exist and are off.
 
 The room has no distance LOD. Its draw cut comes from the merges in [three.md](three.md#merges).
 
@@ -72,7 +72,7 @@ The city has no LOD tiers. Distance changes detail or what is generated. Only th
 
 - The draft's ring set is 150 / 300 / 900 / 1800 / 3600 m. The building rings match it, plus one extra 600 step. The tree, car, street, fine-clutter and sign bands are off-ring. Snapping them needs one measurement origin first.
 - Distance origin differs by system. Buildings, trees and street use the window (`av0`). Moving cars use the eye (`cars.ts:422`). Parked cars use the window (`cars.ts:326`).
-- **Not on main:** PR #23 (`perf/low-city-draws`, `3cf8755`) merges every building ring past 300 m into one mesh at Low, and moves the car full model to 100 m and the car clip to 350 m. Main has none of this.
+- **Not on main:** PR #23 (`perf/low-city-draws`, head `67a99a2`, code at `384106a`) merges every building ring past 300 m into one mesh at Low, and moves the car full model to 100 m and the car clip to 350 m. Window-avenue cars are kept to 1000 m (`CLIP_AVENUE_LOW`). Firefox Low gets no city cuts unless `?citycuts=` is set (9d68407). Main has none of this.
 - Culling, merges and the occlusion gate are in [three.md](three.md#city-culling-and-the-firefox-occlusion-gate).
 
 ## Adding a view
