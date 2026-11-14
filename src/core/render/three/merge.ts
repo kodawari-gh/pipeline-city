@@ -11,7 +11,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DARK_METAL, NON_METAL, warmMetal } from './cheapmaterials';
 import { lowDetail } from './detail';
-import { materialKey, stillMaterial } from './materials';
+import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
 
 const KEEP = new Set(['position', 'normal', 'uv']);
 
@@ -114,15 +114,17 @@ const METAL = ShaderChunk.metalnessmap_fragment.replace('= metalness;', '= vPalR
 /**
  * Patches a shader to read the colour, the roughness and the metalness from the mesh's `_pc` and `_prm` (flat: each triangle keeps its
  * mesh's values exactly). Throws when three's shader no longer has a place it patches (the mesh would draw white).
+ * `keep` (Low only): the part keeps its PBR look (`KEEP_SPEC`), so it takes the High patch as it is.
  */
-export function palettePatch(sh: { vertexShader: string; fragmentShader: string }, low = false): void {
+export function palettePatch(sh: { vertexShader: string; fragmentShader: string }, low = false, keep = false): void {
+  const lowPatch = low && !keep;
   const sub = (s: string, a: string, b: string) => { if (!s.includes(a)) throw new Error(`palette patch: no ${a}`); return s.replace(a, b); };
   sh.vertexShader = sub(sub(sh.vertexShader, '#include <common>', `#include <common>\n${PAL_VERT}`), '#include <begin_vertex>', '#include <begin_vertex>\nvPalC = _pc;\nvPalRM = _prm;');
-  let f = sub(sh.fragmentShader, '#include <common>', `#include <common>\n${PAL_FRAG}${low ? LOW_FRAG : ''}`);
-  f = sub(f, DIFFUSE, low ? 'vec4 diffuseColor = vec4( lowMetal( vPalC, vPalRM.y ), opacity );' : 'vec4 diffuseColor = vec4( vPalC, opacity );');
+  let f = sub(sh.fragmentShader, '#include <common>', `#include <common>\n${PAL_FRAG}${lowPatch ? LOW_FRAG : ''}`);
+  f = sub(f, DIFFUSE, lowPatch ? 'vec4 diffuseColor = vec4( lowMetal( vPalC, vPalRM.y ), opacity );' : 'vec4 diffuseColor = vec4( vPalC, opacity );');
   f = sub(f, '#include <roughnessmap_fragment>', ROUGH);
-  f = sub(f, '#include <metalnessmap_fragment>', low ? METAL.replace('= vPalRM.y;', '= 0.0;') : METAL);
-  sh.fragmentShader = low ? sub(f, '#include <aomap_fragment>', `${LOW_SPEC}\n#include <aomap_fragment>`) : f;
+  f = sub(f, '#include <metalnessmap_fragment>', lowPatch ? METAL.replace('= vPalRM.y;', '= 0.0;') : METAL);
+  sh.fragmentShader = lowPatch ? sub(f, '#include <aomap_fragment>', `${LOW_SPEC}\n#include <aomap_fragment>`) : f;
 }
 
 /** What a palette material draws as, less the fields on the vertices (`materialKey` of its source): two with one key draw a mesh alike. */
@@ -130,9 +132,10 @@ const palKeys = new WeakMap<Material, string>();
 
 /** A copy of `src` that reads its colour, roughness and metalness from the vertices; it keeps the source's patches. */
 function paletteOf(src: MeshStandardMaterial): MeshStandardMaterial {
-  const low = lowDetail(), m = src.clone(), prev = src.onBeforeCompile, key = `${src.customProgramCacheKey()}|pal${low ? '|low' : ''}`;
+  const low = lowDetail(), keep = low && src.userData[KEEP_SPEC] === true, m = src.clone(), prev = src.onBeforeCompile;
+  const key = `${src.customProgramCacheKey()}|pal${low ? '|low' : ''}${keep ? '|keep' : ''}`;
   m.color.setRGB(1, 1, 1);
-  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh, low); };
+  m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh, low, keep); };
   m.customProgramCacheKey = () => key;
   const pk = materialKey(src, ON_VERTEX);
   if (pk !== null) palKeys.set(m, pk);

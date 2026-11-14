@@ -10,7 +10,7 @@
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
-import { mat } from '@/core/render/three/materials';
+import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
@@ -56,6 +56,8 @@ const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   c.lineWidth = 3;
   for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
 }));
+/** The pump cap's metal: the brushed face, polished; its Low part keeps the PBR look (`KEEP_SPEC`: no Lambert, no dark-metal mix). */
+const capMat = () => { const m = mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 }); m.userData[KEEP_SPEC] = true; return m; };
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
 const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {
@@ -333,7 +335,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   const polished = mat(0xc4c9d1, { metalness: 0.95, roughness: 0.14 });
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
-  g.add(drum(0, 0, top - 4, top, R - 40, mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 }), 96));
+  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), 96));
   g.add(band3(140, 118, top, top + 8, polished));
   g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), 64));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from

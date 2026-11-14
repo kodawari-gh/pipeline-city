@@ -4,6 +4,13 @@ import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
+import { lowDetail } from './detail';
+
+/**
+ * A material's `userData` flag that keeps its PBR look at Low: the specular (the warm room's key on a braided sleeve, a brushed cap) and the
+ * metal (no `lowMetal`). Set on the material of a part that would lose that look as a Lambert. Only Low reads it (`materialKey`, `palettePatch`).
+ */
+export const KEEP_SPEC = 'lowKeepSpec';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
 /** Above this temperature a part starts to glow (3D_STYLE.md "Overheating"). */
@@ -133,7 +140,10 @@ export function materialKey(m: Material, omit?: ReadonlySet<string>): string | n
   if (!(m as MeshStandardMaterial).isMeshStandardMaterial) return null;
   const pk = m.customProgramCacheKey(), base = plain();
   if (!pk.startsWith(base) || !PURE.test(pk.slice(base.length))) return null;
-  const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(m.userData)}`];
+  // (the Low flag `KEEP_SPEC` splits the key at Low only: at High the flagged part and its plain twin draw alike, so they merge alike)
+  const ud = { ...m.userData }, keep = ud[KEEP_SPEC] === true;
+  delete ud[KEEP_SPEC];
+  const out = [m.type, `pk=${pk.slice(base.length)}`, `ud=${ser(ud)}`, ...(lowDetail() && keep ? ['keep'] : [])];
   for (const k of Object.keys(m).sort()) {
     if (SKIP.has(k) || omit?.has(k)) continue;
     const v = (m as unknown as Record<string, unknown>)[k];
