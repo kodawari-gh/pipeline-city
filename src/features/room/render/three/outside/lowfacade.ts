@@ -21,6 +21,8 @@ export const LOW_ANISO = 2;
 export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
 /** By day a glass pane takes its building's raw tint (linear) times this, lit as base's glass is; the frame keeps the tower's own colour. */
 export const LOW_DAY_GLASS = 1.5;
+/** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
+export const LOW_FAR_HUE = 0.35;
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
  * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
  * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
@@ -283,7 +285,8 @@ if (vLowFac == 0.0) {
   if (vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);
   else if (vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
   else if (vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
-  else if (vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
+  // a sign's case is dark; its lit face (look.w 0 or 1) keeps the sign's colour, the orange of base's board
+  else if (vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
   else if (vLowKind == 7.0) {
     // a solar panel, as facadeMaterial's day diffuse: dark blue cells on fine silver lines
     vec2 sg = vLowFuv * 2.0, sw = fwidth(sg), sd = abs(fract(sg) - 0.5);
@@ -293,7 +296,12 @@ if (vLowFac == 0.0) {
 }
 // by day a wall takes its own colour: its frame is the tower's vertex colour shaded by the atlas, its glass its raw tint, lit (not the frame's
 // colour dimmed by the glass). At night (fNight 1) the diffuse is what the map step left, as before; between, they mix
-vec3 lowDayWall = mix(vColor.rgb * lowShade, vLowTint * ${LOW_DAY_GLASS}, lowGlassM);
+// far off a pane is not resolved: its glass reads as the frame's brightness with the tower's hue (a dark tint would wall the building navy)
+vec3 lowFrameD = vColor.rgb * lowShade;
+vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
+float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
+vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowFarD);
+vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;

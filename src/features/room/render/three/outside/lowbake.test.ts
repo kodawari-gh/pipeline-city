@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -258,7 +258,7 @@ describe('Low city facade bake', () => {
       expect(day).toContain('vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);');
       expect(day).toContain('vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);');
       expect(day).toContain('vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);');
-      expect(day).toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      expect(day).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
       expect(day).toContain('if (vLowFac == 0.0)');
       // the spire's metal flag comes from the vertex's aux.z, as High's does
       expect(compiled(mat).vertexShader).toContain('vLowMetal = aux.z;');
@@ -310,20 +310,34 @@ describe('Low city facade bake', () => {
   it('Low: by day a wall keeps its own frame colour (the tower\'s vertex colour, shaded by the atlas), not one dark slate from the glass', () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
-      const at = sh.indexOf('vec3 lowDayWall');
+      const at = sh.indexOf('vec3 lowFrameD');
       expect(at, 'the day wall after the colour step').toBeGreaterThan(sh.indexOf('#include <color_fragment>'));
       const day = sh.slice(at);
       // the frame: the vertex colour (each tower's own frame) times the atlas shade
-      expect(day).toContain('vec3 lowDayWall = mix(vColor.rgb * lowShade, vLowTint * 1.5, lowGlassM);');
-      // the glass: the raw tint, lit by the constant (not normalised to its brightest channel, which made every tint one slate)
-      // the normalised tint stays in the night chain of the map step only, never in the day wall
+      expect(day).toContain('vec3 lowFrameD = vColor.rgb * lowShade;');
+      expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
+      // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
+      // (a full dark tint at range would wall the building navy)
+      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35), lowFarD)');
       expect(day).not.toContain('lowTn');
-      expect(day).not.toContain('vLowTint / max(');
       expect(sh).toContain('lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);');
       expect(sh).toContain('lowGlassM = lowTex.a * vLowFac;');
     }
     expect(LOW_DAY_GLASS).toBeGreaterThan(1);
     expect(LOW_DAY_GLASS).toBeLessThan(3);
+    expect(LOW_FAR_HUE).toBeGreaterThan(0);
+    expect(LOW_FAR_HUE).toBeLessThan(1);
+  }, 180000);
+
+  it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      // only the case (look.w < -0.5) is forced dark; look.w 0 or 1 keeps vColor (the sign's own colour)
+      expect(sh).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      expect(sh).not.toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      expect(sh).toContain('float lowFarD = smoothstep(150.0, 300.0, length(vViewPosition));');
+      expect(sh).toContain('lowFrameD * mix(vec3(1.0), lowHue, 0.35)');
+    }
   }, 180000);
 
   it('Low: the day wall mixes into the night path by fNight, so at full night the diffuse is the old one (item 1 untouched)', () => {

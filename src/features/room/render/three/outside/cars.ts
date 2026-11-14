@@ -445,9 +445,10 @@ export class Fleet {
         if (c.s - c.len / 2 < AROUND[0]!) break;
         const m = tr.front(c, f) - c.len / 2;
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
-        // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all)
-        if (this.scale < 1 && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
-        const x =rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
+        const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
+        // (a fleet of a share: every car that takes the running count over a whole number drives, so they are spread and ceil(n * scale) in all;
+        // a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic, and it is not counted)
+        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && Math.ceil(++seenN * this.scale) === Math.ceil((seenN - 1) * this.scale)) continue;
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
         if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
         turned(sa, P + n, x, z, cr, sr);
