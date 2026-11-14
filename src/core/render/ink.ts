@@ -14,7 +14,7 @@ export function collectGradients<T>(build: () => T): [T, FillGradient[]] {
 }
 const track = <G extends FillGradient>(g: G): G => { owned?.push(g); return g; };
 
-export const MONO ='"JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace';
+export const MONO = '"JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace';
 export const HEAD = '"Chakra Petch", system-ui, sans-serif';
 
 export interface BoxOpts { fill?: string | null; stroke?: string | null; lw?: number; fa?: number; sa?: number }
