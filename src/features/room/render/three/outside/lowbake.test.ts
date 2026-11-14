@@ -203,7 +203,7 @@ describe('Low city facade bake', () => {
       const sh = withMap(m.material as Material);
       expect(sh).toContain(`textureLod(map, lowUv, ${Math.log2(256)}.0)`);
       expect(sh).toContain('* fNight;');
-      expect(sh).toContain('mix(textureGrad(map, lowUv, lowDx, lowDy), textureLod(map');
+      expect(sh).toContain('vec4 lowTex = mix(lowNear, textureLod(map');
       expect(sh).toContain('length(vViewPosition)) * fNight;');
     }
   }, 180000);
@@ -356,6 +356,42 @@ describe('Low city facade bake', () => {
     const vs = compiled(buildings(low)[0]!.material as Material).vertexShader;
     expect(vs).toContain('attribute vec4 look;');
     expect(vs).toContain('vLowLook = look;');
+  }, 180000);
+
+  it('Low: a band wall is a continuous ribbon by day (beige frame, one glass band per storey, thin mullions), not the punched atlas window', () => {
+    for (const m of buildings(low)) {
+      const sh = withMap(m.material as Material);
+      // only a band's window (win.y 0.5, its sill and top) takes the ribbon; the other styles keep the atlas
+      expect(sh, 'the band test on the facade window').toContain('abs(vLowLook.w - 0.5)');
+      expect(sh).toContain('float lowRib = 1.0 - step(0.001, abs(vLowLook.w - 0.5));');
+      // the glass band: across the bay inside the mullions at each bay's edge, up the storey from the sill
+      const full = compiled(m.material as Material).fragmentShader;
+      expect(full).toMatch(/float lowRibGlass\(\)/);
+      // the mullion (1 - 0.97) / 2 and the sill (1 - 0.5) * 0.6, as the band's window gives them
+      expect(full).toMatch(/vec2\(0\.01[0-9]*, 0\.3[0-9]*\)/);
+      // the frame is the beige tone; the glass its dark pane
+      expect(sh).toContain('mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG)');
+      // the ribbon's glass replaces the atlas read on a band wall, and far off the top mip still takes over
+      expect(sh).toContain('vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy)');
+      expect(sh).toContain('vec4 lowTex = mix(lowNear, textureLod(map, lowUv, 8.0), lowFarM);');
+    }
+  }, 180000);
+
+  it('Low: a band wall lights in long amber runs per storey, the bottom storey\'s first run blue, all inside the night guard', () => {
+    for (const m of buildings(low)) {
+      const full = compiled(m.material as Material).fragmentShader;
+      const guard = full.indexOf('if (fNight > 0.0) {');
+      expect(guard, 'the guard').toBeGreaterThan(-1);
+      // runs of bays per storey, one hash per run; the whole bottom storey (st 0) is one blue run, always lit
+      expect(full).toContain('float run = floor((floor(vLowBay.x) + off) / 4.0);');
+      expect(full).toContain('float st = floor(vLowY / max(vLowLook.y, 0.1));');
+      expect(full).toContain('float blue = 1.0 - step(0.5, st);');
+      expect(full).toContain('mix(vec3(0.9, 0.7, 0.45), vec3(0.42, 0.52, 0.7), blue)');
+      // the ribbon's lit glass replaces the atlas's rooms on a band wall, inside the guard
+      const use = full.indexOf('lowRooms = mix(lowRooms, lowRibbon, lowRib);');
+      expect(use, 'the ribbon lights the rooms').toBeGreaterThan(guard);
+      expect(full.indexOf('lowRibLight() * lowRibGlass()')).toBeGreaterThan(guard);
+    }
   }, 180000);
 
   it('Low: the buildings take the haze in place of fog, as High does (hzApply on their fragment colour)', () => {

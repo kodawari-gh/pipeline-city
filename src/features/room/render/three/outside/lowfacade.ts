@@ -4,6 +4,7 @@
 // its cells by its seed. The maps are built once, in JS, so they exist without a canvas.
 import { ClampToEdgeWrapping, Color, DataTexture, DataUtils, HalfFloatType, LinearFilter, LinearMipmapLinearFilter, MeshLambertMaterial, NoColorSpace, RGBAFormat, ShaderChunk, Vector3 } from 'three';
 import type { FacadeUniforms } from './towers';
+import { STYLES } from './plan';
 
 /** The city's lamps the buildings take their light from at Low: the view's eight PointLights, here as an analytic term. */
 export const LOW_LAMPS = 8;
@@ -29,6 +30,9 @@ export const LOW_FAR = { near: 150, far: 300, keep: 0.35, share: 0.3, pitch: 36,
 const LOW_TOP_MIP = Math.log2(SIZE);
 /** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its rooms: three across, two up. */
 const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
+/** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill. Its mullions are the frame at each bay's edge.
+ * Its lit runs are RIB_RUN bays long, one run per storey: the whole bottom storey is one blue run. */
+const RIB_WIN = STYLES.band.win, RIB_LO = (1 - RIB_WIN[1]) * 0.6, RIB_MULL = (1 - RIB_WIN[0]) / 2, RIB_RUN = 4;
 
 /** A seeded generator (mulberry32): the bake is the same every time. */
 function rng(seed: number): () => number {
@@ -219,6 +223,26 @@ float lowRoomHash() {
   float room = clamp(floor(wc.y), 0.0, ${ROWS - 1}.0) * ${COLS}.0 + clamp(floor(wc.x), 0.0, ${COLS - 1}.0);
   vec2 bay = floor(vLowBay) + vLowOff;
   return fract(sin(dot(bay + room * vec2(0.371, 0.713), vec2(127.1, 311.7)) + vLowSeed * 2.3) * 43758.5453);
+}
+// a band's ribbon: the glass band of each storey (its window across the bay, from its sill), its mullions the frame at each bay's edge. Its rows
+// are the world's storeys, so a mirrored wall keeps its ribbon at its height. The mask is the glass (0..1), antialiased by the pixel's width
+float lowRibGlass() {
+  vec2 fw = vec2(fwidth(vLowBay.x), fwidth(vLowY / max(vLowLook.y, 0.1))) + 1e-4;
+  vec2 p = vec2(fract(vLowBay.x), fract(vLowY / max(vLowLook.y, 0.1)));
+  vec2 lo = vec2(${RIB_MULL}, ${RIB_LO}), hi = vec2(${1 - RIB_MULL}, ${RIB_LO + RIB_WIN[1]});
+  vec2 m = smoothstep(lo - fw, lo + fw, p) * (1.0 - smoothstep(hi - fw, hi + fw, p));
+  return m.x * m.y;
+}
+// the ribbon's night light: per storey, runs of ${RIB_RUN} bays, a run lit by a hash (amber, its level by the same hash). The bottom storey's
+// whole bottom storey is blue and always lit (one continuous run, as on base)
+vec3 lowRibLight() {
+  float st = floor(vLowY / max(vLowLook.y, 0.1));
+  float off = floor(fract(vLowSeed * 0.6180339) * ${RIB_RUN}.0);
+  float run = floor((floor(vLowBay.x) + off) / ${RIB_RUN}.0);
+  float h = fract(sin(dot(vec2(run, st), vec2(127.1, 311.7)) + vLowSeed * 2.3) * 43758.5453);
+  float blue = 1.0 - step(0.5, st);
+  float on = max(step(0.45, h), blue), level = mix(0.6 + 0.4 * fract(h * 7.3), 1.0, blue);
+  return mix(vec3(0.9, 0.7, 0.45), vec3(0.42, 0.52, 0.7), blue) * (on * level);
 }`)
       // the point lights' loop is cut from this wall's lights (`#if 0`): the scene's PointLights stay live for the street, cars and other meshes
       .replace('#include <lights_fragment_begin>', ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'))
@@ -237,7 +261,11 @@ if (fLampK > 0.0) {
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
   // far off at night, the wall's albedo is the map's mean (its top mip), not its window texels: no dark dots on a far tower
   float lowFarM = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition)) * fNight;
-  vec4 lowTex = mix(textureGrad(map, lowUv, lowDx, lowDy), textureLod(map, lowUv, ${LOW_TOP_MIP}.0), lowFarM);
+  // a band's wall is its ribbon by day (the frame's beige, the glass's dark pane), not the atlas's punched windows; lowRib is 1 on a band's wall
+  float lowRib = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
+  float lowG = lowRibGlass();
+  vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy), vec4(mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG), lowG), lowRib);
+  vec4 lowTex = mix(lowNear, textureLod(map, lowUv, ${LOW_TOP_MIP}.0), lowFarM);
   diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
   vec3 lowTn = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
@@ -287,6 +315,10 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
   if (fNight > 0.0) {
     float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
     vec3 lowRooms = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb * step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+    // a band's wall: its ribbon's runs on the glass (thinned by the same room hash with distance), not the atlas's rooms
+    float lowRib = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
+    vec3 lowRibbon = lowRibLight() * lowRibGlass() * step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash());
+    lowRooms = mix(lowRooms, lowRibbon, lowRib);
     float lowGate = step(fract(sin(vLowSeed * 91.7 + 3.3) * 43758.5453), ${LOW_FAR.share});
     float lowFloor = step(${LOW_FAR.band}, fract(vLowY / ${LOW_FAR.pitch}.0 + vLowSeed * 0.618));
     vec3 lowBands = vec3(0.9, 0.7, 0.45) * (lowGate * lowFloor * ${LOW_FAR.glow});
