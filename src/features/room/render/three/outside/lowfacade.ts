@@ -40,6 +40,8 @@ const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
 /** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill. Its mullions are the frame at each bay's edge.
  * Its lit runs are RIB_RUN bays long, one run per storey: the whole bottom storey is one blue run. */
 const RIB_WIN = STYLES.band.win, RIB_LO = (1 - RIB_WIN[1]) * 0.6, RIB_MULL = (1 - RIB_WIN[0]) / 2, RIB_RUN = 4;
+/** A near wall's day frame is multiplied by this (fading out by `LOW_FAR`): base's warm beige, a little darker than the cool grey the tower's colour gives. */
+export const LOW_NEAR_WARM: readonly [number, number, number] = [0.98, 0.955, 0.9];
 /** A band's frame by day (linear, times the tower's colour): base's warm beige, not the cool white the tower's grey gives. */
 export const LOW_BAND_FRAME: readonly [number, number, number] = [1.0, 0.9, 0.74];
 
@@ -243,7 +245,8 @@ float lowRibGlass() {
   vec2 m = smoothstep(lo - fw, lo + fw, p) * (1.0 - smoothstep(hi - fw, hi + fw, p));
   // a mullion finer than the pixel averages into the glass: once the bay is a few pixels, the mullions fade to the glass's share of the bay
   // (not a grey stripe per bay), so the storey reads as one continuous ribbon as base's does
-  m.x = mix(m.x, ${RIB_WIN[0]}, smoothstep(${RIB_MULL * 2}, ${RIB_MULL * 6}, fw.x));
+  // only part-way: the thin mullion stays visible (a half-faded one), the ribbon is not one continuous band
+  m.x = mix(m.x, ${RIB_WIN[0]}, 0.45 * smoothstep(${RIB_MULL * 2}, ${RIB_MULL * 6}, fw.x));
   return m.x * m.y;
 }
 // the ribbon's night light: per storey, runs of ${RIB_RUN} bays, a run lit by a hash (amber, its level by the same hash). The bottom storey's
@@ -312,7 +315,7 @@ vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3))
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
 float lowGlassF = smoothstep(${LOW_GLASS_DAY.near}.0, ${LOW_GLASS_DAY.far}.0, length(vViewPosition));
 // far off the atlas's contrast flattens toward the frame's tone, and the horizon's colour lifts the value (base's far wall reads so; the haze then goes on)
-vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * ${LOW_FAR_DAY.flat}) + fHor * (lowFarD * ${LOW_FAR_DAY.sky});
+vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * ${LOW_FAR_DAY.flat}) * mix(vec3(${LOW_NEAR_WARM.join(', ')}), vec3(1.0), lowFarD) + fHor * (lowFarD * ${LOW_FAR_DAY.sky});
 vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowGlassF);
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)

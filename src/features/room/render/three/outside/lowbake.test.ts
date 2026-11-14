@@ -315,7 +315,7 @@ describe('Low city facade bake', () => {
       expect(at, 'the day wall after the colour step').toBeGreaterThan(sh.indexOf('#include <color_fragment>'));
       const day = sh.slice(at);
       // the frame: the vertex colour (each tower's own frame) times the atlas shade
-      expect(day).toContain('vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * 0.6) + fHor * (lowFarD * 0.44);');
+      expect(day).toContain('vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * 0.6) * mix(vec3(0.98, 0.955, 0.9), vec3(1.0), lowFarD) + fHor * (lowFarD * 0.44);');
       expect(day.indexOf('float lowFarD')).toBeLessThan(day.indexOf('vec3 lowFrameD'));
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
       // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
@@ -408,8 +408,8 @@ describe('Low city facade bake', () => {
       expect(sh).toContain(`mix(vec3(${LOW_BAND_FRAME.join(', ')}), vec3(0.09, 0.1, 0.12), lowG)`);
       expect(LOW_BAND_FRAME[0]).toBeGreaterThan(LOW_BAND_FRAME[1]);
       expect(LOW_BAND_FRAME[1]).toBeGreaterThan(LOW_BAND_FRAME[2]);
-      // a mullion finer than the pixel fades to the glass's share of the bay (one continuous ribbon at range)
-      expect(full).toMatch(new RegExp(`m\\.x = mix\\(m\\.x, ${STYLES.band.win[0]}, smoothstep\\(0\\.03\\d*, 0\\.09\\d*, fw\\.x\\)\\);`));
+      // a mullion finer than the pixel fades only part-way to the glass's share of the bay (thin mullions stay visible)
+      expect(full).toMatch(new RegExp(`m\\.x = mix\\(m\\.x, ${STYLES.band.win[0]}, 0\\.45 \\* smoothstep\\(0\\.03\\d*, 0\\.09\\d*, fw\\.x\\)\\);`));
       // the ribbon's glass replaces the atlas read on a band wall, and far off the top mip still takes over
       expect(sh).toContain('vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy)');
       expect(sh).toContain('vec4 lowTex = mix(lowNear, textureLod(map, lowUv, 8.0), lowFarM);');
