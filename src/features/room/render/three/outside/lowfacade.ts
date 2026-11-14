@@ -22,9 +22,9 @@ export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.
 /** By day a glass pane takes its building's raw tint (linear) times this, lit as base's glass is; the frame keeps the tower's own colour. */
 export const LOW_DAY_GLASS = 1.5;
 /** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
-export const LOW_FAR_HUE = 0.35;
+export const LOW_FAR_HUE = 0.2;
 /** By day a pane takes the frame's grey (with `LOW_FAR_HUE` of its hue) from `near` to `far` m: a mid-distance wall reads grey, not the tint's navy. */
-export const LOW_GLASS_DAY = { near: 60, far: 220 };
+export const LOW_GLASS_DAY = { near: 30, far: 150 };
 /** By day a far wall (past `LOW_FAR`, as `lowFarD`) takes less of its atlas's contrast (`flat`: toward the frame's tone) and lifts its value with the
  * horizon's colour (`sky`, base's `fHor`), so the row reads pale and hazed as base's does, not dark and cut. Near walls are unchanged. */
 export const LOW_FAR_DAY = { flat: 0.6, sky: 0.44 };
