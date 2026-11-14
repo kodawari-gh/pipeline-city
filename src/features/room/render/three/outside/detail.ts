@@ -30,5 +30,8 @@ export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
   return q === null ? cuts(true) : cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
 }
 
+/** Firefox Low idle ran slower with the cadence and fleet cuts than without (bisect 7a64e36): there those two keep the High values. */
+export const firefox = (): boolean => typeof navigator !== 'undefined' && /\bFirefox\//.test(navigator.userAgent);
+
 /** The cuts of this page's query (`parseCityCuts` of `location.search`). */
 export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);

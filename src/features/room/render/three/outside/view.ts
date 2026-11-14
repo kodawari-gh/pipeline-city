@@ -21,7 +21,7 @@ import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
 import { withCanyon } from './canyon';
 import { land } from './city';
-import { LOW_CELL, LOW_EVERY, LOW_FLEET, cityCuts, type CityCuts, type CityDetail } from './detail';
+import { LOW_CELL, LOW_EVERY, LOW_FLEET, cityCuts, firefox, type CityCuts, type CityDetail } from './detail';
 import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
@@ -257,7 +257,8 @@ export class OutsideView {
     // ring by ring, the trees and the land in their own
     // (each Low cut by its flag, `detail.ts`: High has none)
     const on = (c: boolean): CityDetail => (c ? 'low' : 'high');
-    this.every = cuts.cadence ? LOW_EVERY : EVERY;
+    const ff = firefox();
+    this.every = cuts.cadence && !ff ? LOW_EVERY : EVERY;
     const k = this.kit = makeKit(), ts = trees();
     const still = new Group(), st = street(k, ts, on(cuts.streets), on(cuts.furniture));
     still.add(st.group);
@@ -295,7 +296,7 @@ export class OutsideView {
     this.scene.add(...plants.meshes);
     this.parts = { buildings: [still, ...mass, ground, ...plants.meshes], steam: steam ? [steam.mesh] : [], signs: [signLight] };
     // the cars, moving and parked, and the signals' lamps
-    this.fleet = cuts.fleet ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
+    this.fleet = cuts.fleet && !ff ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
     this.parts.cars = [this.fleet.group, this.signals.mesh];
