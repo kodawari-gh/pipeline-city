@@ -182,11 +182,11 @@
     "sum": "5f6239d0"
   },
   "machine/case": {
-    "meshes": 172,
-    "draws": 172,
-    "verts": 656994,
+    "meshes": 190,
+    "draws": 190,
+    "verts": 295420,
     "instances": 1230,
-    "sum": "709656b8"
+    "sum": "a2a02399"
   },
   "machine/case.side": {
     "meshes": 1,

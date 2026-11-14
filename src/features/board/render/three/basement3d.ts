@@ -4,7 +4,7 @@
 // the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.
 import { Group, Mesh, PlaneGeometry, type Material } from 'three';
 import { paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { flatSlot, NONE, perforated, plateY, ring, rivets, screws, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
+import { NONE, perforated, perforatedFlatRun, plateY, ring, rivets, screws, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roomplan';
@@ -52,9 +52,12 @@ export function basementPlan(): BasementPlan {
 export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2b3142, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 })): Group {
   const g = new Group(), m = mat(look.body, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
   const bg = `#${look.body.toString(16).padStart(6, '0')}`;
-  const holes = [flatSlot(CASE_IN.x + 520, zb + 130, 760, 170), flatSlot(p.psu.x + p.psu.w - 620, zb + 130, 760, 170)];
-  for (let z = zb + 340; z + 46 < zf - 110; z += 120) for (let x = p.vent.x + 40; x + 300 < p.vent.x + p.vent.w; x += 380) holes.push(flatSlot(x, z, 300, 46));
-  g.add(plateY(CASE_IN.x, p.east, zb, zf, p.top, 30, holes, m, 4));
+  // one hole method: the plate stays whole; its cable and vent openings are perforated sheets on a dark backing (casekit3d `perforatedFlat`)
+  g.add(plateY(CASE_IN.x, p.east, zb, zf, p.top, 30, [], m, 4));
+  const topY = -p.top, slot = { kind: 'slot' as const, pitch: 110, tone: look.body, o: { metal: 0.35, rough: 0.5 } };
+  const open: [number, number, number, number][] = [CASE_IN.x + 520, p.psu.x + p.psu.w - 620].map((x) => [x, x + 760, zb + 130, zb + 300]);
+  if (p.vent.w > 40) open.push([p.vent.x + 40, p.vent.x + p.vent.w, zb + 340, zf - 110]);
+  g.add(perforatedFlatRun(topY, open, slot.kind, slot.pitch, slot.tone, slot.o));
   // the flange up the tray, and its rivets (under the cage, the cage's own flanges hold it)
   g.add(softBox({ x: CASE_IN.x, y: p.top - 50, w: p.shelf - CASE_IN.x, h: 50 }, zb - 1, zb + 10, m, 3));
   const tray: Spot[] = [];

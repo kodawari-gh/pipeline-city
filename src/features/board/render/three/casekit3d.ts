@@ -285,6 +285,34 @@ export function perforated(g: Group, r: RectLike, z: number, kind: Perf, pitch: 
   g.add(decal(r, z + 5, perfMat(kind, r.w, r.h, pitch, tone, o)));
 }
 
+/** The same perforated sheet, lying flat at world height `top` over x `x0`–`x1` and z `z0`–`z1` (the holes show a dark backing). */
+export function perforatedFlat(top: number, x0: number, x1: number, z0: number, z1: number, kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Group {
+  return perforatedFlatRun(top, [[x0, x1, z0, z1]], kind, pitch, tone, o);
+}
+
+/**
+ * Many flat windows (`[x0, x1, z0, z1, top?]`, any sizes, each at world height `top` unless it gives its own): one backing mesh and one
+ * perforated mesh for the whole run (merged geometry, one material; each window's UVs keep the hole pitch), so a run costs two draws.
+ */
+export function perforatedFlatRun(top: number, rects: [number, number, number, number, number?][], kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Group {
+  const g = new Group();
+  if (!rects.length) return g;
+  const w = rects[0]![1] - rects[0]![0], h = rects[0]![3] - rects[0]![2];
+  const geo = (lift: number): BufferGeometry => mergeGeometries(rects.map(([x0, x1, z0, z1, y = top]) => {
+    const p = new PlaneGeometry(x1 - x0, z1 - z0), uv = p.getAttribute('uv');
+    // the material tiles the first window's size: scale the others' UVs to the same pitch
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * (x1 - x0)) / w, (uv.getY(i) * (z1 - z0)) / h);
+    p.rotateX(-Math.PI / 2);
+    p.translate((x0 + x1) / 2, y + lift, (z0 + z1) / 2);
+    return p;
+  }), false)!;
+  const back = new Mesh(geo(3), mat(0x040506, { roughness: 0.9 }));
+  const perf = new Mesh(geo(5), perfMat(kind, w, h, pitch, tone, o));
+  back.receiveShadow = perf.receiveShadow = true;
+  g.add(back, perf);
+  return g;
+}
+
 /** Brushed metal: fine streaks along the sheet's u, for the map of anodised parts (the material's colour tints it). */
 export function brushed(): Texture | null {
   return tex('brushed', 256, 256, (c, w, h) => {

@@ -13,7 +13,7 @@ import { mat } from '@/core/render/three/materials';
 import { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 import type { CaseKind } from '@/features/room/render/shell/casedecor';
 import { BASE_BAYS, BAY_CELLS, CAGE_W, CELL_H, PSU } from '../layout/layout';
-import { flatSlot, plateY, screws, shapeOf, slab, wallX, type Span, type Spot } from './casekit3d';
+import { perforatedFlatRun, plateY, screws, shapeOf, slab, wallX, type Span, type Spot } from './casekit3d';
 import { box, flat, HDD_MM, SSD_MM, xy, xz } from './drive3d';
 import { MM } from './pcbkit3d';
 import { TRAY_Z } from './wires3d';
@@ -93,10 +93,13 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   const g = new Group(), steel = mat(TRAY_TONE[kind], sheet(kind)), rubber = mat(0x101113, { roughness: 0.9 });
   const pinM = mat(0xb9bec4, { metalness: 0.88, roughness: 0.3 }), latch = mat(0x141518, { roughness: 0.55 });
   const { w: W, l: L, floor: F, rail: R, railH: H, handleH: HH } = TRAY;
-  // the floor: two air windows clear of the SSD's screw holes, the holes themselves, a row of slots by each rail
-  const holes = [xz(700, 420, W - 700, 1780, 90), xz(700, 2240, W - 700, 3180, 90), ...ssdScrews().map((s) => hole(s.x, s.z, 1.8 * MM))];
-  for (let z = 520; z + 260 < L - 300; z += 420) holes.push(xz(150, z, 330, z + 260, 50), xz(W - 330, z, W - 150, z + 260, 50));
+  // the floor: the SSD's screw holes stay (real fixings); the two air windows and the row of slots by each rail are perforated sheets
+  const holes = ssdScrews().map((s) => hole(s.x, s.z, 1.8 * MM));
   g.add(flat(xz(0, 0, W, L - 26, 26), 0, F, steel, 3, holes));
+  const fp = { metal: sheet(kind).metalness, rough: sheet(kind).roughness }, ft = TRAY_TONE[kind];
+  const rows: [number, number, number, number][] = [[700, W - 700, 420, 1780], [700, W - 700, 2240, 3180]];
+  for (let z = 520; z + 260 < L - 300; z += 420) rows.push([150, 330, z, z + 260], [W - 330, W - 150, z, z + 260]);
+  g.add(perforatedFlatRun(F, rows, 'slot', 110, ft, fp));
   // the rails, folded up from the floor, a long window in each between its pins
   const win: Span = { y0: -(H - 70), y1: -(F + 80), z0: PIN_Z[0]! + 260, z1: PIN_Z[1]! - 260, r: 40 };
   for (const x of [0, W - R]) g.add(wallX(x, x + R, { y0: -H, y1: 0, z0: 40, z1: L - 26 }, [win], steel, 3));
@@ -133,8 +136,11 @@ export function driveCage(p: CagePlan, kind: CaseKind = 'gamer', filled: Readonl
   // the guides under each tray's rails
   for (const t of p.trays) for (const x of [p.x0 + SHEET, p.x1 - SHEET - 46]) g.add(rectBox({ x, y: -t.y, w: 46, h: 16 }, p.z0 + 140, p.z1 - 30, steel));
   // the top and the bottom, slotted
-  const slots = (): Vector2[][] => { const s: Vector2[][] = []; for (let z = p.z0 + 300; z + 60 < p.z1 - 200; z += 170) for (let x = p.x0 + 220; x + 360 < p.x1 - 180; x += 470) s.push(flatSlot(x, z, 360, 60)); return s; };
-  g.add(plateY(p.x0, p.x1, p.z0, p.z1, p.top, SHEET, slots(), steel, 3), plateY(p.x0, p.x1, p.z0, p.z1, p.bottom - SHEET, SHEET, slots(), steel, 3));
+  // one hole method: the plates stay whole; their slotted areas are perforated sheets on a dark backing (casekit3d `perforatedFlat`)
+  g.add(plateY(p.x0, p.x1, p.z0, p.z1, p.top, SHEET, [], steel, 3), plateY(p.x0, p.x1, p.z0, p.z1, p.bottom - SHEET, SHEET, [], steel, 3));
+  const sx0 = p.x0 + 220, sx1 = p.x1 - 180, sz0 = p.z0 + 300, sz1 = p.z1 - 200, sheetTone = CAGE_TONE[kind], so = sheet(kind);
+  const perf = { metal: so.metalness, rough: so.roughness };
+  g.add(perforatedFlatRun(-p.top, [[sx0, sx1, sz0, sz1], [sx0, sx1, sz0, sz1, -(p.bottom - SHEET)]], 'slot', 110, sheetTone, perf));
   // the folds down the front edges, the flanges at the back and their screws into the tray sheet
   for (const x of [p.x0, p.x1 - 30]) g.add(rectBox({ x, y: p.top, w: 30, h: p.bottom - p.top }, p.z1 - SHEET, p.z1, steel));
   const flange = (y: number) => rectBox({ x: p.x0 - 60, y, w: p.x1 - p.x0 + 120, h: 130 }, p.z0, p.z0 + SHEET, steel);
