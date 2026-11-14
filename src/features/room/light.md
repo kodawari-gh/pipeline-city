@@ -1,6 +1,6 @@
 # Rendering: the room's window, time of day and light
 
-Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/shell/skyline.ts`, `room/light.ts`, `room/room.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/shell/skyline.ts`, `src/features/room/render/shell/light.ts`, `src/features/room/render/shell/room.ts`.
 
 ## Files
 
@@ -23,7 +23,7 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 
 ## 3D room light
 
-A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, the machine's light), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `src/features/room/render/three/room3d.ts` (the room's lights and their hours), `src/features/room/render/three/outside/view.ts` (the city, its own lights, the glass's tint), `src/features/board/render/three/machine3d.ts` (the case's lights), `src/features/board/render/three/board3d.ts` (the probe, the machine's light), `src/features/room/render/three/roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/3D_STYLE.md` "Lighting Setup".
 
 ### The owner's call
 
@@ -102,7 +102,7 @@ At night the warm lamps make overlapping pools: no wall is black, and the light 
 
 The 4K room is CPU-bound: about 2,000 draws each upload the uniforms of every light in the scene, also a light at 0. The graphics options `lights` (4, 8, 0 = all) and `lightShadows` cut that (`Room3D.setLights`, the pure choice in `roomlights.ts`).
 
-- **The cap counts all the room's lights**, the window's `key` and `sun` included (20 in all; the machine's own lights are not in it). `LIGHT_ORDER` gives the order and the reason for each place. Cap 4: the window, the arc lamp, the desk lamp. Cap 8: also the two lanterns and the sconce's two spots.
+- **The cap counts all the room's lights**, the window's `key` and `sun` included (every id in `LIGHT_ORDER`, 15 ids; the machine's own lights are not in it). `LIGHT_ORDER` gives the order and the reason for each place. Cap 4: the window, the arc lamp, the desk lamp. Cap 8: also the two lanterns and the sconce's two spots.
 - **The choice depends on the cap alone**, not on the hour or a switch. A lamp that is off keeps its place, so the count of lights (and each lit program) holds through the evening. Programs link again only when the option changes.
 - **A capped lamp** leaves the scene (`visible = false`). Its fixture still glows, the frame still sets its level, and its baked bounce shows `CAPPED_BOUNCE` (2.5) times over, for the pool it lost. A group with a share of its lights capped takes that share of the lift.
 - **`lightShadows` off**: the lamps cast no shadow and their maps are freed. The window's shadows follow `shadows` alone.

@@ -150,7 +150,7 @@ Left to right: **money** (with game time next to it), **rep** (reputation; deman
 
 ## Hints (`logic.ts`, `state.ts`)
 
-Shown once each as a small dismissible toast, remembered in `localStorage['pipeline-city.hints']`. At most two are visible (bottom centre). The rest wait in a queue and appear when one is dismissed or auto-expires after 8 s. Hints are suppressed while a tutorial card is active; the menu's **Show hints again** clears the seen list.
+Shown once each as a small dismissible toast, remembered in `localStorage['pipeline-city.hints']`. At most one is visible (`MAX_TOASTS` = 1 in `logic.ts`, bottom centre). The rest wait in a queue and appear when the visible one is dismissed or auto-expires after 8 s (`TOAST_MS` in `state.ts`). Hints are suppressed while a tutorial card is active; the menu's **Show hints again** clears the seen list.
 
 | id | fires when |
 |---|---|
@@ -158,7 +158,7 @@ Shown once each as a small dismissible toast, remembered in `localStorage['pipel
 | `throttle` | a working device has `throttle < 1` |
 | `overheat` | a working device is `unstable` |
 | `queue` | 3 or more keys waiting in the tray |
-| `keyIgnored` | `snapshot.keyIgnored`: a key sits in the port of a halted no-OS machine ("the machine only looks for a program at boot: power it off and on to load it") |
+| `keyIgnored` | `snapshot.keyIgnored`: a key sits in the port of a halted no-OS machine ("Without an OS the machine only looks for a program at boot: power off and on to load this key.") |
 | `burnt` | a device is burnt |
 | `trip` | the PSU has hard-tripped |
 | `brownout` | PSU overloaded (`psuFactor < 1`) but not tripped |
@@ -188,7 +188,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 
 ## OS panel (`OsPanel.tsx`, `osui.ts`; src/features/os/OS.md "OS menu")
 
-`OsModal` (a modal on the almanac frame, Esc and backdrop close it) is mounted in `Hud.tsx`; `osOpen` / `toggleOs` / `closeOs` live in `state.ts`. The bottom-bar OS button (`Inventory.tsx`, once an OS is installed), the HUD chip `OsChipButton` and the menu entry open it. Tabs: Resources (monitor and bottleneck), Spool (slot slider, per-drive switches), Apps (work in progress). The model is pure and tested in `osui.test.ts`.
+`OsModal` (a modal on the almanac frame, Esc and backdrop close it) is mounted in `Hud.tsx`; `osOpen` / `toggleOs` / `closeOs` live in `state.ts`. The bottom-bar OS button (`Inventory.tsx`, once an OS is installed), the HUD chip `OsChipButton` and the menu entry open it. Tabs (`TABS`): Performance (monitor and bottleneck), Processes, Disk allocation, Apps (work in progress). The model is pure and tested in `osui.test.ts`.
 
 ## Graphics panel (`panels/Graphics.tsx`; the model is `app/graphics.ts`)
 
@@ -220,7 +220,7 @@ Dark is the only theme (art-style §7, approved v3). Target: no theme switch and
 
 The main menu (`panels/MainMenu.tsx`) shows over the live room before a game: Continue (with an autosave), New game, Sandbox (the dialog on the sandbox choice), Gallery, Load game, Settings. New game opens the dialog, whose Cancel returns to it. Gallery (`shop/Gallery.tsx`) is the shop's 3D view, large, for every part with a model. The room behind the menu takes no hover, click, key or zoom (the canvas has `pointer-events: none` while no game runs).
 
-Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
+Notices (refusals) and hint toasts (capped at 1) stack at the bottom centre of `.stack`, above the tutorial card. Modals (`.modal-back` + `.modal`, centred, dimmed backdrop): the tutorial welcome and offer, the Settings card of the main menu, and the New game dialog (`NewGame.tsx`, which asks again before discarding a running game).
 
 **Keyboard and names (new dialogs and tools).** The New game dialog is `role="dialog"` with `aria-labelledby`; its two choices are a `radiogroup` of `role="radio"` cards (roving `tabindex`: Arrow keys move, Enter or Space picks). It opens focused on the chosen card, Tab and Shift+Tab wrap inside it, and Escape closes it only when a game can be fallen back on; focus returns to where it was. The sandbox chip is a button named `SANDBOX` (`aria-expanded`, `aria-controls`); its popover is a `role="dialog"`, Escape closes it and gives focus back to the chip, and every control has a name (the job template, the work multiplier, the reputation slider with `aria-valuetext`). Focus rings: `:focus-visible` outlines on buttons, inputs, `[role="button"]` and the new radio cards (rem offsets). Picker: Escape or the x closes it, the rungs are `role="button"` with Enter and Space, and the popup is an `aside` with its title as the label.
 
@@ -230,7 +230,7 @@ Notices (refusals) and hint toasts (capped at 2) stack at the bottom centre of `
 
 ## Verification
 
-Checked in headless Chrome (playwright-core, software GL, dev server, screenshots read): 1360x800, 1920x1080, 2560x1440, 1024x640 and 390x844, dark and light across them: HUD, the welcome modal, the tutorial card with the pointer on a target and lifted off covered targets, the picker popup next to the CPU, a DIMM and the PSU (left of the object near the right edge, docked on a phone), the inventory shelf with parts, and a real mouse drag from a tile (shelf collapses, `dragging` set, inset kept). Measured: at 1920x1080 and 2560x1440 the tutorial card is 9.6 percent and the picker about 41 percent of the viewport height and the welcome modal 21.9 percent of its width, both times; every checked popup stayed inside the viewport. VRM and board UI (headless Chrome, software GL, 1360x800 and 390x844, dark and light): the board cards, the CPU warning and the liquid-cooler note, the heatsink rows, the VRM card and the stats VRM section, the dead-board chip and picker; no horizontal scroll at either size. A popup anchored to an inventory tile now stays above the shelf (the bottom inset is respected). Not verified: touch, a real GPU.
+Results below are from earlier runs. They were not re-run in the 2026-11 docs check. Checked in headless Chrome (playwright-core, software GL, dev server, screenshots read): 1360x800, 1920x1080, 2560x1440, 1024x640 and 390x844, dark and light across them: HUD, the welcome modal, the tutorial card with the pointer on a target and lifted off covered targets, the picker popup next to the CPU, a DIMM and the PSU (left of the object near the right edge, docked on a phone), the inventory shelf with parts, and a real mouse drag from a tile (shelf collapses, `dragging` set, inset kept). Measured: at 1920x1080 and 2560x1440 the tutorial card is 9.6 percent and the picker about 41 percent of the viewport height and the welcome modal 21.9 percent of its width, both times; every checked popup stayed inside the viewport. VRM and board UI (headless Chrome, software GL, 1360x800 and 390x844, dark and light): the board cards, the CPU warning and the liquid-cooler note, the heatsink rows, the VRM card and the stats VRM section, the dead-board chip and picker; no horizontal scroll at either size. A popup anchored to an inventory tile now stays above the shelf (the bottom inset is respected). Not verified: touch, a real GPU.
 
 **Sandbox playthrough (headless Chrome, playwright-core kept outside the repo, real mouse and keyboard, 1360x800, dark):** the New game dialog from a fresh load (Tab and arrow keys, Sandbox, Assembled or Bare board, Start with Enter); the menu's New game asks "This discards the game you are playing." before a running game is replaced (Cancel keeps it), and Campaign then starts the tutorial (welcome card). Bare board: the starter CPU, cooler, RAM, PSU and monitor dragged from the shelf onto their sockets. Assembled: the Enthusiast board bought from the board picker and dragged onto the board; a better CPU bought from its picker and dropped on the socket (swap); the RAM upgrade dropped in a free DIMM slot; the liquid cooler bought and swapped in; the top VRM heatsink bought and dropped on its socket; the power object clicked (POST, then a job ran). The sandbox popover by keyboard (Enter on the chip, Escape closes and returns focus), a scan key spawned at x4, Repair all, the reputation slider (1.00 to 1.40 by eight Arrow presses, matching the sim), Run at 64x (about 210 ticks in 3 s, back to 1x), and 16x with a job done. Board sizes measured at 1280x720, 1360x800, 1366x768, 1024x640 and 1920x1080 with the shelf open: no scrolling in the board picker. **Not reached with the mouse:** drives and the OS (see Known gaps).
 
@@ -279,7 +279,7 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 
 ## Tutorial help for someone who is lost (2026-10-25)
 
-- **Done pill.** When a step finishes, a green pill "Install the processor: done" sits above the card for about 2.5 s (`.tut-praise`), so progress is felt.
+- **Done pill.** When a step finishes, a green pill "Install the processor: done" sits above the card for about 2.6 s (`.tut-praise`, timer in `TutorialCard.tsx`), so progress is felt.
 - **Ghost hand.** After 8 s without a drag on a drag step (a shelf tile to its socket, or a key to the USB port), a ring presses on the tile, glides to the target and lets go, over and over (`ghostPath`, `.ptr-ghost`, drawn in the pointer layer). Any drag by the player hides it; reduced motion turns it off.
 - **Tip.** After 22 s on a drag step a plain-words tip bubble appears above the card ("press and hold the glowing part, move it to the glowing spot, then let go"). It floats, so the card does not grow and the camera does not re-frame.
 - **Quiet shelf.** The shelf opens for steps that use it and tucks away on the others (never during a drag).
