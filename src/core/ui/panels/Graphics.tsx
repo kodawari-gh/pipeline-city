@@ -29,7 +29,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
 ];
 
 /** What auto-adjust can take away, by the option's name in the panel. */
-const LOWERED: readonly (readonly [keyof Graphics, string])[] = [['ao', 'ambient occlusion'], ['scale', 'render scale'], ['bloom', 'bloom'], ['msaa', 'anti-aliasing'], ['live', 'live chips']];
+const LOWERED: readonly (readonly [keyof Graphics, string])[] = [['ao', 'ambient occlusion'], ['scale', 'render scale'], ['bloom', 'bloom'], ['msaa', 'anti-aliasing'], ['live', 'live chips'], ['shadows', 'sun shadows'], ['lightShadows', 'lamp shadows'], ['fps', 'frame limit']];
 
 function Choices({ row, value }: { row: Row; value: number }) {
   return (

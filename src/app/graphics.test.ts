@@ -381,11 +381,24 @@ describe('stored settings', () => {
 });
 
 describe('auto-adjust', () => {
-  it('walks the same three steps as before', () => {
+  it('walks the GPU steps, then the CPU steps', () => {
     expect(lowered(DEFAULTS, 0)).toBe(DEFAULTS);
     expect(lowered(DEFAULTS, 1)).toEqual({ ...DEFAULTS, ao: 0 });
     expect(lowered(DEFAULTS, 2)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0 });
     expect(lowered(DEFAULTS, 3)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75 });
+    expect(lowered(DEFAULTS, 4)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75, shadows: 0, lightShadows: 0 });
+    expect(lowered(DEFAULTS, 5)).toEqual({ ...DEFAULTS, ao: 0, bloom: 0, msaa: 0, live: 0, scale: 0.75, shadows: 0, lightShadows: 0, fps: 30 });
+  });
+
+  it('step 5 caps the frame limit at 30 and never raises it', () => {
+    expect(lowered({ ...DEFAULTS, fps: 0 }, 5).fps).toBe(30);
+    expect(lowered({ ...DEFAULTS, fps: 120 }, 5).fps).toBe(30);
+    expect(lowered({ ...DEFAULTS, fps: 30 }, 5).fps).toBe(30);
+    expect(lowered({ ...DEFAULTS, fps: 20 }, 5).fps).toBe(20);
+  });
+
+  it('step 4 leaves the frame limit as it is', () => {
+    expect(lowered({ ...DEFAULTS, fps: 120 }, 4).fps).toBe(120);
   });
 
   it('keeps the resolution until the effects are gone', () => {
@@ -399,8 +412,13 @@ describe('auto-adjust', () => {
   it('skips the steps that change nothing', () => {
     expect(nextStep(DEFAULTS, 0)).toBe(1);
     expect(nextStep({ ...DEFAULTS, ao: 0 }, 0)).toBe(2);
-    expect(nextStep({ ...DEFAULTS, ...PRESETS.low }, 0)).toBeNull();
-    expect(nextStep(DEFAULTS, 3)).toBeNull();
+    expect(nextStep({ ...DEFAULTS, ...PRESETS.low, fps: 30 }, 0)).toBeNull();
+    expect(nextStep({ ...DEFAULTS, ...PRESETS.low }, 0)).toBe(5);
+    expect(nextStep(DEFAULTS, 3)).toBe(4);
+    expect(nextStep(DEFAULTS, 4)).toBe(5);
+    expect(nextStep(DEFAULTS, 5)).toBeNull();
+    expect(nextStep({ ...DEFAULTS, shadows: 0, lightShadows: 0 }, 3)).toBe(5);
+    expect(nextStep({ ...DEFAULTS, shadows: 0, lightShadows: 0, fps: 30 }, 3)).toBeNull();
   });
 });
 

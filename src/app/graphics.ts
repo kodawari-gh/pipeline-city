@@ -271,17 +271,20 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
 
 /**
  * Auto-adjust's steps, each cheaper than the last: 1 drops the ambient occlusion, 2 also drops the bloom and the multisampling and calms the live dies,
- * 3 also draws at 3/4 of the pixels (the resolution is the last to go). A step only lowers: an option already below it stays where the player put it.
+ * 3 also draws at 3/4 of the pixels (the resolution is the last to go). The GPU steps come first. 4 drops the sun and lamp shadows (CPU and GPU), and 5
+ * caps the frame limit at 30 (CPU-bound phones). A step only lowers: an option already below it stays where the player put it; a limit of 0 (none) becomes 30.
  */
 export function lowered(g: Graphics, step: number): Graphics {
   if (step <= 0) return g;
   const out = { ...g, ao: 0 };
   if (step >= 2) { out.bloom = 0; out.msaa = 0; out.live = 0; }
   if (step >= 3) out.scale = Math.min(out.scale, 0.75); // the resolution goes last: effects first
+  if (step >= 4) { out.shadows = 0; out.lightShadows = 0; }
+  if (step >= 5) out.fps = out.fps && out.fps <= 30 ? out.fps : 30;
   return out;
 }
 
-export const AUTO_STEPS = 3;
+export const AUTO_STEPS = 5;
 
 /** The next step that changes the picture (a step on options already low gains nothing), or null: nothing is left to take away. */
 export function nextStep(g: Graphics, step: number): number | null {
