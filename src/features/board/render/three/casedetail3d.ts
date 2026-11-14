@@ -161,7 +161,7 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
       spins.push(light(m));
     }
   } else if (f.kind === 'show') {
-    const silver = mat(0xa7adb6, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.32 }), face: Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
+    const silver = mat(0x2a2d32, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.4 }), face: Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
     const frame = wallX(ex, ex + 30, { ...face, y0: face.y0 - 60, y1: face.y1 + 60, z0: face.z0 - 80, z1: face.z1 + 80 }, [{ ...face, r: 30 }], silver, 6);
     g.add(frame, decalX(ex + 8, face, 1, perfMat('hex', face.z1 - face.z0, face.y1 - face.y0, 52, 0x4a4f58, { metal: 0.6, rough: 0.4 })));
   } else if (f.kind === 'matte') {
@@ -404,7 +404,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   }
   // the top I/O panel by the front edge (the gaming case's sits behind its mesh cap)
   const ix = ex - (k === 'gamer' ? cap + 260 : 520), z0 = FRONT - 2050, z1 = FRONT - 360, py = top - 14;
-  const plateM = k === 'show' ? mat(0xa7adb6, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.32 }) : mat(k === 'gamer' ? 0x101420 : 0x0c0d10, { roughness: 0.55, metalness: 0.2 });
+  const plateM = k === 'show' ? mat(0x2a2d32, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.4 }) : mat(k === 'gamer' ? 0x101420 : 0x0c0d10, { roughness: 0.55, metalness: 0.2 });
   root.add(softBox({ x: ix - 140, y: py, w: 280, h: 16 }, z0, z1, plateM, 6));
   if (k === 'gamer') { const line = glowMat(f.acc, 0x15121f); root.add(seeThrough(rectBox({ x: ix + 118, y: py - 2, w: 8, h: 4 }, z0 + 40, z1 - 40, line))); spins.push(light(line, f.acc, 1.6)); }
   // the button and its light ring

@@ -1,10 +1,10 @@
 {
   "machine/Group#3": {
-    "meshes": 24,
-    "draws": 24,
-    "verts": 5518,
+    "meshes": 25,
+    "draws": 25,
+    "verts": 5106,
     "instances": 50,
-    "sum": "fc33b1c9"
+    "sum": "1f49eb6b"
   },
   "machine/Group#4": {
     "meshes": 62,
@@ -184,9 +184,9 @@
   "machine/case": {
     "meshes": 172,
     "draws": 172,
-    "verts": 655458,
+    "verts": 656994,
     "instances": 1230,
-    "sum": "96a45c43"
+    "sum": "709656b8"
   },
   "machine/case.side": {
     "meshes": 1,
