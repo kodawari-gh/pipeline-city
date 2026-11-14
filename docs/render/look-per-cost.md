@@ -18,6 +18,8 @@ Spend at build time or at a rare event, not per frame. The room is static and th
 
 Flicker, measured (night, still camera, High, share of window pixels whose luminance moves more than 24/255 in 1.5 s): 1.42% before, 1.33% after; with cars hidden 0.79% to 0.72%; with the sky and facade clocks frozen 0.35% (the floor). The rest is car motion and cloud drift, which are motion, not flicker. Not measured: shimmer of small lights while the camera moves.
 
+Measure: `npm run flicker -- --preset High` (or `Low`, `Medium`; `--frames N`). It starts the dev server on port 5231, opens the assembled sandbox at night (hour 23) and prints two lines. Still camera: the share of pixels whose luma moves more than 24/255 over 30 frames (full frame, no top bar). Pan at 2 px per frame: the window and the rest, apart. Pan numbers include motion, so they are an upper bound. Results on an RTX 5080 (ANGLE D3D11): High still 0.64%, pan window 9.42%, rest 46.35%; Low still 5.94%, pan window 8.78%, rest 35.91%.
+
 ## Ranked gains (best look per cost first)
 
 1. **Real room in reflections.** Already present: `probe.ts` captures the room per light change and `RoomEnvironment` is only the fallback before the first capture. One fix on this branch: the case no longer reflects itself (2739357).
