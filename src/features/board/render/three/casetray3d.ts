@@ -2,7 +2,8 @@
 // in it (the CPU cut-out, punched vents and lacing slots) over a thin back panel, a stamped panel under the board with its standoff marks, stiffening
 // beads, tie-down bridges, Velcro straps, and rubber cable holes where the leads come through. The frame: riveted flanges round the tray, a rolled lip
 // round the side opening with rubber bumpers and the receivers of the door's hooks, and the door's own hem and hooks. All at real scale, by kind.
-import { Color, CylinderGeometry, Group, Shape, Vector2, type Material } from 'three';
+import { Color, CylinderGeometry, Group, Mesh, PlaneGeometry, Shape, Vector2, type BufferGeometry, type Material } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SEG, extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
@@ -14,7 +15,7 @@ import { geoOf, TIER_GEO } from '../layout/boardlayout';
 import { CASE, CASE_BD, FAN_SLOT, GEO, LAYOUT_CASE, PSU, WALL_T } from '../layout/layout';
 import { GROMMETS, kindTone, type Frame } from './casedetail3d';
 import { baseCagePlan, cageGrommet, cagePlan } from './drivecage3d';
-import { decal, FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
+import { FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
 import { cableMesh, fanPlug, fromSlot, grommet, hung, TRAY_Z, type Env, type Look } from './wires3d';
 
 /** How far the stamped panel under the board stands off the tray's sheet. */
@@ -89,7 +90,19 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
     g.add(instanced(up(26, 12, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
   }
   const ink = kind === 'oem' ? '#6f6a53' : '#8d929c';
-  for (const [x, y] of standoffs()) g.add(seeThrough(decal({ x: x + 76, y: y - 26, w: 104, h: 52 }, z + 1, markMat(standoffMark(x, y), ink))));
+  // (one mesh a word, not one a position: the marks of one word share a texture)
+  const marks = new Map<string, BufferGeometry[]>();
+  for (const [x, y] of standoffs()) {
+    const word = standoffMark(x, y), at = marks.get(word) ?? [];
+    marks.set(word, at);
+    at.push(new PlaneGeometry(104, 52).translate(x + 128, -y, z + 1));
+  }
+  for (const [word, at] of marks) {
+    if (!word) continue;
+    const o = new Mesh(mergeGeometries(at), markMat(word, ink));
+    o.receiveShadow = true;
+    g.add(seeThrough(o));
+  }
   return g;
 }
 
