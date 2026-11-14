@@ -219,6 +219,6 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 - Phone triangle cost with the same draws is not measured.
 - Per-ring city cost is not measured.
 - The cause of Low's extra programs is not known.
-- GL textures grow 2 to 7 per tier cycle from cycle 4 (boot 218, cycle 5 about 223 to 225). `main` shows the same steps, so this predates the Low work. The source is not traced: candidates are shadow map targets, `ShadowCache.pictureOf`, `CityGlow` levels and the `GlassMirror` target. GL buffers stay flat (1567).
+- GL textures rise 5 to 7 about 50 s after boot (218 to 223 to 229). This is not a tier-switch leak: a run with no switch shows the same steps, and `main` does too. Targets are made on first use as game time passes (the `CityGlow` chain of 5 levels starts at night; shadow and depth targets). Not traced further. A long run to check that it levels off is not done. GL buffers stay flat (1567).
 - The Razr sessions on `03fe0bc` read 45.8 fps and 16.8 fps. The cause is not known.
 - Parked cars take the distance from the window (`cars.ts:326`). Moving cars take it from the eye (`cars.ts:422`).
