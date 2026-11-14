@@ -117,8 +117,10 @@ Culling layers, in order:
 2. **`Sweep.cut`** (`outside/sweep.ts`). Each city mesh draws only the run of pieces from the first to the last one the frustum touches. A sweep run still draws the whole run.
 3. **Car cut** (`cars.ts`). Moving cars use `reach()` on each route. Parked cars use 48 m cells with a per-car test.
 4. **Occlusion query** (`outside/sight.ts`). One `ANY_SAMPLES_PASSED_CONSERVATIVE` query on the window quad. While the eye is still and the answer says hidden, the city is not drawn.
-5. **Cadence** (`view.ts:108`). While the eye moves under 1 px (`HOLD_PX`), the city draws every 3rd frame (`EVERY`).
+5. **Cadence** (`view.ts`, `detail.ts`). While the eye moves under 1 px (`HOLD_PX`), the city draws every `LOW_EVERY` (6) frames at Low, `EVERY` (3) at High. On Firefox, Low has no city cuts by default, so it also draws each `EVERY` (3) frames.
 6. **Window-box crop** (`view.ts`, `setViewOffset`). The city camera is cropped to the window's screen box.
+
+**Low city cuts** (this branch, code at `384106a`; [lod.md](lod.md#the-city-at-low-outside)). At Low, every building ring past 300 m is merged into one mesh, street cells are 96 m, and `lowfacade.ts` / `detail.ts` apply. Car distances at Low are 100 m (full model) and 350 m (clip); a far car drives by its own fixed key (`share`), so none blinks. Window-avenue cars clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low gets no city cuts unless `?citycuts=` is set (`detail.ts`): its facade, sky and clock are main's too, each a cut of its own. High has none of these cuts.
 
 **The Firefox gate.** `sight.ts` reads the query only two frames after it ends (`age >= 2`). The code comment says Firefox blocks on a query that is not done. The gate has three effects:
 
@@ -207,7 +209,6 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 
 ## Not on main
 
-- **PR #23** (`perf/low-city-draws`, head `67a99a2`, code at `384106a`). At Low it merges every building ring past 300 m into one mesh, and adds `lowfacade.ts`, `detail.ts` and a 96 m street cell. At `3cf8755` it cut city triangles 864k to 452k and drew 221 to 168 on the Razr. It also changes shading, so the cut is not triangles alone. Car distances at Low are 100 m (full model) and 350 m (clip). Window-avenue cars also clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low gets no city cuts unless `?citycuts=` is set (9d68407, `detail.ts`). Main has none of this.
 - **Far-city cards and night-window layer.** Designed, not built. No card path exists for buildings or trees.
 - **KTX2 loader.** Not present. Prerequisite: `KTX2Loader` and transcoder path in `gltf.ts`, plus a copied Basis transcoder (about 585 KB). About 60 to 90 lines (estimated).
 

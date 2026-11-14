@@ -8,6 +8,7 @@ import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vect
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
+import type { CityDetail } from './detail';
 import { CURB, GRID, rng, type Tree, type TreeKind } from './plan';
 import { ballOf, bearing, drawn, Sweep } from './sweep';
 
@@ -264,22 +265,26 @@ float leafNoise(vec3 p) {
  * The trees' meshes (for each ring of their `Detail`: bark, leaves; each casts and takes shadows), what cuts them to the camera's view (a tree
  * a piece, `sweep.ts`), and their leaves' uniforms. Far from the window they are sparser (`Detail`).
  */
-export function plantTrees(list: readonly Tree[], k: Kit): { meshes: Mesh[]; sweeps: Sweep[]; leaf: LeafUniforms } {
-  const rings = new Map<Detail, Tree[]>();
+export function plantTrees(list: readonly Tree[], k: Kit, city: CityDetail = 'high'): { meshes: Mesh[]; sweeps: Sweep[]; leaf: LeafUniforms } {
+  const rings = new Map<Detail, Tree[]>(), low = city === 'low';
+  // (at Low every ring is one mesh pair: the trees keep the coarse look their distance gives them, none finer than `Coarse`)
+  const own = (t: Tree): Detail => (low ? Math.max(detailAt(Math.hypot(t.x - GRID.av0, t.z)), Detail.Coarse) : detailAt(Math.hypot(t.x - GRID.av0, t.z)));
   for (const t of list) {
-    const d = detailAt(Math.hypot(t.x - GRID.av0, t.z));
+    // (a sweep draws one run of bearings, so a ring that mixes near and far trees draws every near tree in the far trees' wide band: Low merges
+    // only the two near rings, which share a narrow band, and keeps the far rings apart)
+    const raw = detailAt(Math.hypot(t.x - GRID.av0, t.z)), d = low && raw < Detail.Coarse ? Detail.Round : raw;
     let r = rings.get(d);
     if (!r) rings.set(d, (r = []));
     r.push(t);
   }
   const meshes: Mesh[] = [], sweeps: Sweep[] = [];
-  for (const [d, ts] of rings) {
+  for (const [, ts] of rings) {
     ts.sort((a, b) => bearing(a.x, a.z) - bearing(b.x, b.z));
     const cards = new Lumps(), wood: BufferGeometry[] = [], balls: Sphere[] = [], leafAt = [0], barkAt = [0];
     let bark = 0;
     for (const t of ts) {
       const v = cards.vertices, w = wood.length;
-      grow(t, cards, wood, d);
+      grow(t, cards, wood, own(t));
       const ball = ballOf(cards.positions, v, cards.vertices);
       for (const g of wood.slice(w)) { ball.union(ballOf(g.attributes.position!.array, 0, g.attributes.position!.count)); bark += drawn(g); }
       balls.push(ball);

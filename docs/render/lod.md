@@ -42,6 +42,18 @@ Three culls each mesh by its bounds. The room's merges keep a merged mesh small 
 
 The room has no distance LOD. Its draw cut comes from the merges in [three.md](three.md#merges).
 
+## The city at Low (`outside/`)
+Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High builds and draws the full city, and its picture does not change: `highident.test.ts` fingerprints High's city groups against `highident.expected.json` (refresh on purpose with `UPDATE_HIGH_GOLDEN=1`).
+- **Swap.** `setCityDetail` (`room3d.ts`) replaces the window's city when the tier changes. One city is alive at a time: the old one is disposed, the new one built.
+- **Far rings.** `towers.ts` keeps the two near rings of buildings (`LOW_NEAR_RINGS`) and merges the rest into one mesh of plain blocks. The streets are cut by 96 m cells (`LOW_CELL`, `detail.ts`). Small street furniture (drains, tree pits) is built only within 150 m of the window (`LOW_FURNITURE_M`, `street.ts`). Trees keep at least the `Coarse` detail, one mesh pair per ring (`trees.ts`).
+- **Facade.** `lowfacade.ts` replaces the per-pixel facade shader with a Lambert. Its day and night maps are baked once (AO in the day map, the lit rooms in the night map, scaled live by the night). Far walls (150 to 450 m, `LOW_FAR`) keep only a share of their lit rooms (35 % at the far end). The eight lamps are an analytic term on the walls (`LOW_LAMPS`, reach 45 m); the PointLights stay for the street and the cars.
+- **Sky.** `skynoise.ts` bakes the cloud and moon-sea noise once into a periodic 256 px map. `skyMaterial(true)` reads it, so the sky runs no live fbm loop.
+- **Still steam and sway.** The steam and the leaves hold at `STILL_T` (0 s, `view.ts`). The sky, the facade's beacons and the haze keep the clock.
+- **Fleet.** Half the cars drive (`LOW_FLEET` 0.5). A car is its full model within 100 m (`NEAR_LOW`) and the far box beyond. None is drawn past 350 m (`CLIP_LOW`), except on the window's avenue, which is kept out to 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Within 100 m (`NEAR_LOW`) every moving car still drives. Beyond it a car drives when its key (`share(lane, place)`, fixed for the car) is under the share, so a car does not blink as others come and go. On Firefox, Low has no city cuts by default (`parseCityCuts` in `detail.ts`), so it also keeps a full fleet (main's city path at Low). The car paint has no clearcoat (`carMaterial(…, false)`): matt.
+- **Cadence.** The city is drawn each `LOW_EVERY` (6) frames of a still eye at Low, `EVERY` (3) at High (`view.ts`, `detail.ts`). On Firefox, Low has no city cuts by default, so it also draws each `EVERY` (3) frames.
+- **Isolation.** `?citycuts=a,b` keeps only the named cuts (`cadence`, `far`, `streets`, `furniture`, `trees`, `steam`, `fleet`, `palette`, `facade`, `sky`, `clock`; `facade` the lambert facade, `sky` the baked sky noise, `clock` the frozen steam and leaves), to measure what each costs. Without the query all cuts apply at Low, except on Firefox, which gets none (main's city path). An explicit `?citycuts=` list is still honoured on any browser. High has none.
+- **Left.** Chrome at Low game max on the razr-fold-folded profile is still short of about 60 fps (official 3-round of 384106a: 50.0 idle / 52.4 zoom vs main 48.0 / 45.9; idle ahead, zoom ahead). Firefox Low skips all the Low city cuts by default; in that sitting idle was 59.0 vs main 62.0 (ranges do not overlap) and zoom was about flat (103.9 vs 104.2). Open look leftovers and the gate are in `docs/TODO.md` (LOOK28–LOOK33, PERF27). Far-block merge and impostors are not in these cuts.
+
 ## The machine's stand-ins
 PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of the machine is CPU per draw, not pixels. Far away, its small parts draw as a few merged meshes.
 - Status at `03fe0bc`: two states only, LOD0 and stand-in. LOD1 (30 %) and LOD2 (10 %) are planned and not present. No part or case item has either. The case shell has no LOD and no stand-in.
@@ -72,7 +84,7 @@ The city has no LOD tiers. Distance changes detail or what is generated. Only th
 
 - The draft's ring set is 150 / 300 / 900 / 1800 / 3600 m. The building rings match it, plus one extra 600 step. The tree, car, street, fine-clutter and sign bands are off-ring. Snapping them needs one measurement origin first.
 - Distance origin differs by system. Buildings, trees and street use the window (`av0`). Moving cars use the eye (`cars.ts:422`). Parked cars use the window (`cars.ts:326`).
-- **Not on main:** PR #23 (`perf/low-city-draws`, head `67a99a2`, code at `384106a`) merges every building ring past 300 m into one mesh at Low, and moves the car full model to 100 m and the car clip to 350 m. Window-avenue cars are kept to 1000 m (`CLIP_AVENUE_LOW`). Firefox Low gets no city cuts unless `?citycuts=` is set (9d68407). Main has none of this.
+- At Low, rings past 300 m merge, cars use 100 / 350 m and `CLIP_AVENUE_LOW` 1000 m, and Firefox skips the cuts unless `?citycuts=` is set. See [The city at Low](#the-city-at-low-outside) (code at `384106a`).
 - Culling, merges and the occlusion gate are in [three.md](three.md#city-culling-and-the-firefox-occlusion-gate).
 
 ## Adding a view

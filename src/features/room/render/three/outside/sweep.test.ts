@@ -2,6 +2,7 @@ import { BoxGeometry, BufferAttribute, BufferGeometry, Frustum, Group, Matrix4, 
 import { describe, expect, it } from 'vitest';
 import { ballOf, bearing, Sweep, sweptMerge } from './sweep';
 import { GRID } from './plan';
+import { LOW_CELL } from './detail';
 
 /** Three unit boxes of 3 vertices each, at x = -100, 0 and 100, 50 m north of the window. */
 function row(): { mesh: Mesh; sweep: Sweep } {
@@ -56,6 +57,33 @@ describe('sweep', () => {
     expect([0, 36, 72].map((v) => Math.round((pos.getX(v) - GRID.av0) / 100) + 0)).toEqual([-1, 0, 1]);
     sw!.cut();
     expect(merged.geometry.drawRange).toMatchObject({ start: 0, count: 108 });
+  });
+
+  describe('cell size', () => {
+    /** Boxes in a line 20 m apart, 300 m long, on one material. */
+    const line = (): { root: Group; mat: MeshBasicMaterial } => {
+      const root = new Group(), mat = new MeshBasicMaterial();
+      for (let x = 0; x < 300; x += 20) { const m = new Mesh(new BoxGeometry(1, 1, 1), mat); m.position.set(GRID.av0 + x, 0, -50); root.add(m); }
+      return { root, mat };
+    };
+    const cells = (s: Sweep): number => (s as unknown as { balls: unknown[] }).balls.length;
+    const total = (root: Group): number => (root.children[0] as Mesh).geometry.attributes.position!.count;
+    /** `sweptMerge` as the Low cut will call it (the third parameter does not exist yet). */
+    const merge = sweptMerge as (root: Group, mats: MeshBasicMaterial[], cell?: number) => Sweep[];
+
+    it('lock: the default cell is 24 m', () => {
+      const a = line(), b = line();
+      const [d] = sweptMerge(a.root, [a.mat]), [e] = merge(b.root, [b.mat], 24);
+      expect(cells(e!)).toBe(cells(d!));
+      expect(total(b.root)).toBe(total(a.root));
+    });
+
+    it('Low: a 96 m cell makes fewer cells and draws the same', () => {
+      const a = line(), b = line();
+      const [d] = sweptMerge(a.root, [a.mat]), [e] = merge(b.root, [b.mat], LOW_CELL);
+      expect(cells(e!)).toBeLessThan(cells(d!));
+      expect(total(b.root)).toBe(total(a.root));
+    });
   });
 
   it('hides the mesh when the camera sees none of it', () => {

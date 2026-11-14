@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { BoxGeometry, Matrix4, Mesh, MeshStandardMaterial, Scene, type Light, type LightShadow, type Object3D, type PointLight, type WebGLRenderer } from 'three';
 import { framed, meshHash, type Bake } from '@/core/render/three/lightmapmix';
 import { partsOf } from '@/core/render/three/merge';
@@ -88,6 +88,38 @@ it('scanShadows asks again while a map is pending, but not when no light casts',
   room.setShadows(1);
   expect(room.scanShadows(cache, scene, 16)).toBe(true);
 });
+
+/** The city's picture in numbers: its meshes, their vertices drawn, and a sum of every position. */
+function cityChecksum(room: Room3D): string {
+  const view = (room as unknown as { outside: { scene: Scene } }).outside;
+  let meshes = 0, vertices = 0, sum = 0;
+  view.scene.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh) return;
+    meshes++;
+    vertices += m.geometry.attributes.position?.count ?? 0;
+    for (const v of m.geometry.attributes.position?.array ?? []) sum += v;
+  });
+  return `${meshes}/${vertices}/${sum.toFixed(3)}`;
+}
+type Swap = { cityDetail?: string; setCityDetail?: (d: 'high' | 'low') => void };
+
+it('the city detail is "high" by default', () => {
+  expect((new Room3D() as unknown as Swap).cityDetail).toBe('high');
+}, 60000);
+
+it('setCityDetail("low") builds the cut city, and "high" again builds the first city back, the old view disposed', () => {
+  const room = new Room3D(), swap = room as unknown as Swap, first = cityChecksum(room);
+  const view = (room as unknown as { outside: { dispose(): void } }).outside, dispose = vi.spyOn(view, 'dispose');
+  expect(swap.setCityDetail).toBeTypeOf('function');
+  swap.setCityDetail!('low');
+  expect(swap.cityDetail).toBe('low');
+  expect(cityChecksum(room)).not.toBe(first);
+  expect(dispose).toHaveBeenCalledTimes(1);
+  swap.setCityDetail!('high');
+  expect(swap.cityDetail).toBe('high');
+  expect(cityChecksum(room)).toBe(first);
+}, 180000);
 
 // (d) the second share: the bake gives its meshes a light map and changes their materials, so `takeBake` shares equal materials again (and a
 // replaced one leaves the reflections' register).

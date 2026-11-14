@@ -17,6 +17,24 @@ import { MODELS, type Route, type Traffic } from './traffic';
 const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
 /** Within this distance of the eye (m) a car is its full model; further off, the box. */
 const NEAR = 260;
+/** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
+const NEAR_LOW = 100;
+/**
+ * A car's share key in [0, 1): a hash of its lane and its place in the lane, so it is the same on every frame and does not depend on the
+ * other cars. A far car drives at a share `s` when `share < s`; the lanes and places are fixed for the traffic's life.
+ */
+export function share(lane: number, place: number): number {
+  let h = Math.imul(lane + 1, 0x9e3779b1) ^ Math.imul(place + 1, 0x85ebca77);
+  h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+/** At Low, a car further than this from the eye (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
+const CLIP_LOW = 350;
+/**
+ * At Low, a car on the avenue the window looks down (within `AVENUE_HALF` of `GRID.av0`) is kept out to this distance of the eye (m). The near
+ * block east of the avenue hides it to the crossing at about 350 m, so the stretch the window shows starts there: `CLIP_LOW` alone left it empty.
+ */
+const CLIP_AVENUE_LOW = 1000, AVENUE_HALF = GRID.avenue / 2;
 /** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
 const CAR_R = 3;
 /**
@@ -138,9 +156,9 @@ function farGeometry(): BufferGeometry {
 /** The cars' light by the hour: 0 by day, 1 at full night. */
 export interface CarLight { night: { value: number } }
 
-/** The cars' one material: each part painted by its vertices' `part`, the paint from the instance's colour, the lamps lit by its `lit` (head lamps, brake). */
-export function carMaterial(u: CarLight): MeshPhysicalMaterial {
-  const mat = new MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.12 });
+/** The cars' one material: each part painted by its vertices' `part`, the paint from the instance's colour, the lamps lit by its `lit` (head lamps, brake). `coat` false (Low): no clearcoat, the paint is matt. */
+export function carMaterial(u: CarLight, coat = true): MeshPhysicalMaterial {
+  const mat = new MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3, clearcoat: coat ? 1 : 0, clearcoatRoughness: 0.12 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.cNight = u.night;
     sh.vertexShader = sh.vertexShader
@@ -318,12 +336,30 @@ export class Fleet {
   private still: ({ im: InstancedMesh } & ReturnType<typeof parkCells>)[] = [];
   private parked: number;
 
-  constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms) {
-    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)), box = farGeometry();
+  /** The share of the moving cars that drive (1: all), and how many models there are (fewer than `MODELS`: one mesh of them, the range `NEAR_LOW`). */
+  private scale: number;
+  private capped: boolean;
+  /** Within this distance of the eye (m) a moving car is its full model; further off, the far box. */
+  private range: number;
+  /** Past this distance of the eye (m) a car is not drawn (`CLIP_LOW` at Low, none at High); on the window's avenue, past `avenueClip`. */
+  private clip: number;
+  private avenueClip: number;
+  /** Whether a car at `x`, `d2` (m²) from the eye, is past the clip. */
+  private clipped(x: number, d2: number): boolean {
+    return d2 > this.clip * this.clip && (Math.abs(x - GRID.av0) > AVENUE_HALF || d2 > this.avenueClip * this.avenueClip);
+  }
+
+  constructor(private traffic: Traffic, parked: readonly Car[], private light: CarLight, haze: HazeUniforms, scale = 1, models: number = MODELS.length) {
+    this.scale = scale;
+    this.capped = models < MODELS.length;
+    this.range = this.capped ? NEAR_LOW : NEAR;
+    this.clip = this.capped ? CLIP_LOW : Infinity;
+    this.avenueClip = this.capped ? CLIP_AVENUE_LOW : Infinity;
+    const mat = this.mat = carMaterial(light, !this.capped), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)).slice(0, models), box = farGeometry();
     withHaze(mat, haze);
     // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
-    const byModel = MODELS.map(() => [] as Car[]), boxed: Car[] = [];
-    for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR ? byModel[Math.floor(rng(c.seed)() * MODELS.length)]! : boxed).push(c);
+    const byModel = geos.map(() => [] as Car[]), boxed: Car[] = [];
+    for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR && !this.capped ? byModel[Math.min(Math.floor(rng(c.seed)() * MODELS.length), models - 1)]! : boxed).push(c);
     [...byModel, boxed].forEach((all, k) => {
       if (!all.length) return;
       const im = fleetMesh(geos[k] ?? box, mat, all.length);
@@ -354,15 +390,18 @@ export class Fleet {
     this.shades.count = parked.length;
     this.shades.instanceMatrix.setUsage(DynamicDrawUsage);
     this.pools.renderOrder = this.shades.renderOrder = 1;
-    this.group.add(this.pools, this.shades);
+    // (the capped fleet of Low has no pools of light and no soft shadows: two draws fewer)
+    if (!this.capped) this.group.add(this.pools, this.shades);
   }
 
   /**
    * The parked cars in their meshes: those in `seen` (the eye's frustum), or all of them (for a frame that draws the sun's shadows, which they
-   * cast). They do not move: call it when the eye's frustum changes. A cell of them out of `seen` costs one test; in a cell across its side,
-   * a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball).
+   * cast). They do not move: call it when the eye's frustum or the eye (`ex`, `ez`) changes. A cell of them out of `seen` costs one test; in a
+   * cell across its side, a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball). With the eye, a car past
+   * `clip` of it is not placed (Low only).
    */
-  park(seen?: Frustum): void {
+  park(seen?: Frustum, ex?: number, ez?: number): void {
+    const eye = ex !== undefined && ez !== undefined;
     for (const { im, cars, turn, cells } of this.still) {
       const a = im.instanceMatrix.array as Float32Array, ca = im.instanceColor!.array as Float32Array;
       let k = 0;
@@ -371,6 +410,7 @@ export class Fleet {
         if (cut < 0) continue;
         next: for (let i = from; i < to; i++) {
           const c = cars[i]!;
+          if (eye && this.clipped(c.x, (c.x - ex) ** 2 + (c.z - ez) ** 2)) continue;
           if (cut) for (let q = 0; q < 6; q++) {
             if (!(cut & (1 << q))) continue;
             const p = seen!.planes[q]!, n = p.normal;
@@ -387,7 +427,7 @@ export class Fleet {
   }
 
   /**
-   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `NEAR` of the eye (x, z), else the box.
+   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `range` of the eye (x, z), else the box.
    * `seen`: the eye's frustum. Each route is cut to it first (`reach`), so a car out of it costs nothing: not drawn, nor its soft shadow, nor
    * (at night) its lamps' pools, which reach into the view from a little further (`POOL_R`). The lamps' pools are drawn only at night.
    */
@@ -415,11 +455,16 @@ export class Fleet {
         const m = tr.front(c, f) - c.len / 2;
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
         const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
+        // (a fleet of a share: a car drives when its own key (`share`, by lane and place in it) is under the scale, so a car's bit does not
+        // move when its neighbours enter or leave the view; a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic)
+        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && share(ri, q) >= this.scale) continue;
+        // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
+        if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
         turned(sa, P + n, x, z, cr, sr);
         if (night) { turned(pa, n, x, z, cr, sr); pl[n * 2] = 1; pl[n * 2 + 1] = brake; }
         n++;
         if (m < BODY[0]! || m > BODY[1]!) continue;
-        const ox = x - ex, oz = z - ez, im = ox * ox + oz * oz < NEAR * NEAR ? this.near[c.model]! : this.far, k = im.count++;
+        const ox = x - ex, oz = z - ez, im = ox * ox + oz * oz < this.range * this.range ? this.near[Math.min(c.model, this.near.length - 1)]! : this.far, k = im.count++;
         turned(im.instanceMatrix.array as Float32Array, k, x, z, cr, sr);
         paint(im.instanceColor!.array as Float32Array, k, c.colour);
         const la = im.geometry.attributes.lit!.array as Float32Array;
@@ -440,6 +485,7 @@ export class Fleet {
 
   dispose(): void {
     this.group.traverse((o) => { if ((o as InstancedMesh).isInstancedMesh) { (o as InstancedMesh).geometry.dispose(); (o as InstancedMesh).dispose(); } });
+    for (const im of [this.pools, this.shades]) { im.geometry.dispose(); im.dispose(); }
     this.mat.dispose(); this.poolMat.dispose(); this.shadeMat.dispose();
   }
 }
