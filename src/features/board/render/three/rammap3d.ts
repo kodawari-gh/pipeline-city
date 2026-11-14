@@ -1,4 +1,4 @@
-// The live memory map on the 3D sticks (src/features/memory/RAM.md "Look", docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"): as on the 2D sticks,
+// The live memory map on the 3D sticks (src/features/memory/RAM.md "Look", docs/render/three.md): as on the 2D sticks,
 // each DRAM chip is a window onto the address space (`chipLayout`), a grid of 256-byte pages, each cell in its owner's colour, stronger the fuller
 // the page is (`pageCells`), and the row open in each bank is outlined. Each chip's map is painted on a canvas that textures the chip's east face
 // (`Stick.mapFaces`), the face the camera leans to read; it is painted again only when the memory or its regions change.

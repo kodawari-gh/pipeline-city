@@ -1,4 +1,4 @@
-// Holding a cable's plug in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Cables"): the plug rides over what is under the pointer on a spring and its strands
+// Holding a cable's plug in 3D (docs/render/three.md): the plug rides over what is under the pointer on a spring and its strands
 // swing from their grommet as live ropes (rope.ts `Rope`) of the length they have seated. Near its socket it squares up; inside the snap zone it
 // lines up in front of the mouth, and let go there it slides in and clicks. A seated plug pulls out against its latch and pops free; one let go
 // away from its socket falls on its cable and stays where it lands. Machine3D builds the cable from its rig (cablerig3d.ts); the hand holds it

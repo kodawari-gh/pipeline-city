@@ -1,4 +1,4 @@
-// glTF models for parts (docs/GRAPHICS_3D_OVERHAUL.md "Models"): a part whose key is in `MODEL_FILES` (features/board/render/three/models3d.ts) wears a
+// glTF models for parts (docs/render/three.md): a part whose key is in `MODEL_FILES` (features/board/render/three/models3d.ts) wears a
 // loaded model in place of its primitives. The file loads once and is cloned for each use; until it is there, and when it fails, the primitives stay.
 import { Box3, Vector3, type Group, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';

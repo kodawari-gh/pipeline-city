@@ -1,4 +1,4 @@
-// The case's basement in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Basement"). Under the shroud: the power supply at the back corner, its rear in the case's
+// The case's basement in 3D (docs/render/three.md). Under the shroud: the power supply at the back corner, its rear in the case's
 // rear wall with the mains inlet, at its real size (an SFX bay in the Mini and the Micro, an ATX one in the bigger cases; psu3d.ts builds the
 // unit), the room east of it the front fans' air passes through to the supply, the fan hub on the tray sheet and the basement's drive cage under
 // the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.

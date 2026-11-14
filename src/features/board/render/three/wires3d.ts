@@ -1,4 +1,4 @@
-// The cables in 3D as real cables (docs/GRAPHICS_3D_OVERHAUL.md "Cables"). The 2D draws each lead along a lane of right angles; here a lead comes
+// The cables in 3D as real cables (docs/render/three.md). The 2D draws each lead along a lane of right angles; here a lead comes
 // out of a rubber grommet in the tray beside its socket (the run from the power supply is behind the tray) and hangs into its plug under its
 // own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column, and a
 // loose lead is the same comb with its plug at the end (cablerig3d.ts; plughand3d.ts holds it in the player's hand). The board's power and SATA

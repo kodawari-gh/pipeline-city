@@ -1,4 +1,4 @@
-// The board's small parts stood up in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Art and LOD"). The 2D drawers report every part they draw (`Solid`,
+// The board's small parts stood up in 3D (docs/render/three.md). The 2D drawers report every part they draw (`Solid`,
 // boardParts.ts) while the board art is built for the texture, so the 3D parts sit exactly on their drawings: capacitor cans, SMD passives with
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';

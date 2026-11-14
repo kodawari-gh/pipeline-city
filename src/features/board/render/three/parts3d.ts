@@ -1,4 +1,4 @@
-// The board's smaller hardware as real parts (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"), where the 2D drawing stands for a part seen from
+// The board's smaller hardware as real parts (docs/render/three.md), where the 2D drawing stands for a part seen from
 // above: the M.2 standoff (the stick itself: nvme3d.ts), the chipset under its low heat sink, the coin cell in its holder (the SATA drives: drive3d.ts;
 // the TPM module: tpm3d.ts).
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.

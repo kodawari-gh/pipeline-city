@@ -7,7 +7,7 @@ import { Hud } from '../core/ui/Hud';
 
 // The main menu (Continue when an autosave exists, New game, Load game, Settings) shows once the boot screen has gone. The sim only starts once the player chooses.
 loadAutosaveOffer();
-// The 3D renderer (docs/GRAPHICS_3D_OVERHAUL.md) is the game's view. The 2D board stays as a hidden fallback: `?2d` in the address, or `VITE_3D_GRAPHICS=0` at build time.
+// The 3D renderer (docs/render/three.md) is the game's view. The 2D board stays as a hidden fallback: `?2d` in the address, or `VITE_3D_GRAPHICS=0` at build time.
 // Only the chosen renderer's code loads.
 // The boot screen stays until the board can be seen (docs/render/load.md): the 3D mount ends it, the 2D board at once.
 const host = document.getElementById('board')!;

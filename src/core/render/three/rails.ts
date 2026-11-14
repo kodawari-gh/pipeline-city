@@ -1,4 +1,4 @@
-// The camera's rails (docs/GRAPHICS_3D_OVERHAUL.md "Input"): a part with a detailed view (the CPU's die, a card's die, the TPM, the memory map
+// The camera's rails (docs/render/three.md): a part with a detailed view (the CPU's die, a card's die, the TPM, the memory map
 // on the sticks, a drive) takes the view once the camera is over it and close. The view then centres on it, or, along a side where the part is
 // bigger than the screen, pans only over it. A pull past its edge first gives, then lets go; zooming out lets go. Pure and tested; the parts
 // register their rails (`Machine3D.rails`) and board3d.ts keeps which one holds the view.

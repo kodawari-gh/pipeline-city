@@ -1,4 +1,4 @@
-// A cable that hangs (docs/GRAPHICS_3D_OVERHAUL.md "Cables"): a chain of points settled by Verlet steps under gravity, its segments held at
+// A cable that hangs (docs/render/three.md): a chain of points settled by Verlet steps under gravity, its segments held at
 // their length, its bends eased by a stiffness, kept out of the boxes and off the planes it lies on. Each end leaves its plug straight (two points
 // pinned along the plug's direction); an end left free hangs, its plug where it falls. Pure maths, no Three: the same inputs give the same curve.
 

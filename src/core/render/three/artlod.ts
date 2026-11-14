@@ -1,4 +1,4 @@
-// Level of detail for the 2D art in the 3D world (docs/GRAPHICS_3D_OVERHAUL.md "Art and LOD"). The 2D renderer's drawings (the board, the CPU
+// Level of detail for the 2D art in the 3D world (docs/render/three.md). The 2D renderer's drawings (the board, the CPU
 // die, a card's floorplan) are not redrawn: a flat surface wears them as a texture, baked at a few densities. Level 0 is one small texture;
 // each higher level splits the surface into tiles of at most `TILE_PX` and bakes only the tiles in view, when the camera comes close enough to
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
