@@ -126,6 +126,8 @@ uniform vec4 keep;
 #include <colorspace_pars_fragment>
 ${look.glsl}
 varying vec2 vUv;
+// interleaved gradient noise: a fixed pattern over the pixels, no time term (it never flickers)
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec2 at(float u, float v, float z) { return texture2D(tGrid, vec2((u + z * grid.x) / (grid.x * ${f(BINS)}), v)).rg; }
 void main() {
   vec4 c = texture2D(tDiffuse, vUv);
@@ -145,6 +147,9 @@ void main() {
   #ifdef SRGB_TRANSFER
   gl_FragColor = sRGBTransferOETF(gl_FragColor);
   #endif
+  // the dither: a static triangular noise of one level (the difference of two hashes), so a smooth dark gradient breaks its 8-bit bands
+  vec2 q = gl_FragCoord.xy;
+  gl_FragColor.rgb += (vec3(ign(q), ign(q + vec2(3.0, 7.0)), ign(q + vec2(11.0, 5.0))) - vec3(ign(q + vec2(19.0, 2.0)), ign(q + vec2(23.0, 13.0)), ign(q + vec2(29.0, 17.0)))) / 255.0;
 }`;
 const FINISH_VERT = /* glsl */`
 precision highp float;
