@@ -1,5 +1,7 @@
 // `node tools/flicker.mjs [--preset Low|Medium|High] [--frames N] [--window x,y,w,h] [--keep first.png] [--map range.png]`
-// (`--map`: a grey picture of the still frames' luma range per pixel, times 4: white is where the still picture flickers.)
+// (`--map`: a grey picture of the still frames' luma range per pixel, times 4: white is where the still picture flickers; and `range-pan.png`,
+// white where a pixel shimmers under the pan. `--turns N`: the turns that count as shimmer, default 8. `--settle ms`: default 15000.)
+//   (c) shimmer: the same pan frames; the share of pixels whose luma turns N times or more. Plain motion turns a pixel once and does not count.
 // Measures flicker of the 3D night scene. It opens the sandbox with the assembled machine as tools/shot-case.mjs does, sets the room to night (hour 23),
 // sets the graphics preset in the real panel (auto-adjust off) and captures frames of the picture (the top bar is left out).
 //   (a) still: the camera does not move. Share of pixels whose luma range over the frames is above 24/255. Full frame.
@@ -28,6 +30,9 @@ const W = 1600, H = 900, TOP = 90;               // the viewport; the HUD bar is
 const CLIP = { x: 0, y: TOP, width: W, height: H - TOP };
 const PORT = Number(process.env.PORT || 5231), url = `http://localhost:${PORT}/`;
 const THRESH = 24;
+// a pixel that turns this many times under the pan shimmers (a passing edge turns it once, a thin line twice). At 2 px per frame over 30 frames a
+// striped pattern turns a pixel 120 / period times, so 8 leaves out patterns coarser than 15 px (book spines) and keeps fine ones (ribs, grilles)
+const TURNS = Number(flag('turns', 8));
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
 let server = null;
@@ -79,6 +84,32 @@ function lumaRange(pngs) {
     }
   }
   return { w, h, mn, mx };
+}
+
+/**
+ * Shimmer under motion: per pixel, how many times its luma turns (rises by more than THRESH, then falls by more than THRESH, or the reverse) over
+ * the frames. An edge that passes a pixel turns it once (a thin line: twice); a pixel that flickers turns many times. Returned as `mn` = 0 and
+ * `mx` = 255 at TURNS turns or more (else the turns times 8, under THRESH), so `share` and `rangeMap` read it as they read a range.
+ */
+function turns(pngs) {
+  let w = 0, h = 0, ref = null, dir = null, n = null;
+  for (const buf of pngs) {
+    const img = decode(buf), grey = img.n < 3;
+    if (!ref) { w = img.w; h = img.h; ref = new Int16Array(w * h).fill(-1); dir = new Int8Array(w * h); n = new Uint8Array(w * h); }
+    for (let k = 0; k < w * h; k++) {
+      const i = k * img.n, R = img.px[i], G = grey ? R : img.px[i + 1], B = grey ? R : img.px[i + 2];
+      const y = Math.round(0.2126 * R + 0.7152 * G + 0.0722 * B);
+      if (ref[k] < 0) { ref[k] = y; continue; }
+      const d = y - ref[k];
+      // the reference follows the luma while it keeps its direction; a move of more than THRESH against it is a turn
+      if (dir[k] >= 0 && d > 0) { ref[k] = y; if (dir[k] === 0 && d > THRESH) dir[k] = 1; }
+      else if (dir[k] <= 0 && d < 0) { ref[k] = y; if (dir[k] === 0 && d < -THRESH) dir[k] = -1; }
+      else if (Math.abs(d) > THRESH) { dir[k] = d > 0 ? 1 : -1; ref[k] = y; if (n[k] < 15) n[k]++; }
+    }
+  }
+  const mx = new Uint8Array(w * h);
+  for (let k = 0; k < w * h; k++) mx[k] = n[k] >= TURNS ? 255 : n[k] * 8;
+  return { w, h, mn: new Uint8Array(w * h), mx };
 }
 
 /** A grey PNG of the luma range per pixel, times 4 (a range of 64 or more is white): where the still picture flickers. */
@@ -171,6 +202,9 @@ try {
   const inWin = (x, y) => x >= wx && x < wx + ww && y >= wy && y < wy + wh;
   const pctWin = share(rp, inWin), pctRest = share(rp, (x, y) => !inWin(x, y));
   console.log(`pan    ${PRESET} night, 2 px/frame (includes motion): window ${pctWin.toFixed(2)}%, rest ${pctRest.toFixed(2)}% (${WIN.join(',')} is the window, in clip pixels)`);
+  const rt = turns(pan);
+  console.log(`shimmer ${PRESET} night, same pan (pixels that turn ${TURNS} times or more; motion alone does not count): window ${share(rt, inWin).toFixed(2)}%, rest ${share(rt, (x, y) => !inWin(x, y)).toFixed(2)}%`);
+  if (MAP) { const at = resolve(MAP.replace(/\.png$/i, '') + '-pan.png'); writeFileSync(at, rangeMap(rt)); console.log('saved', at); }
   if (errors.length) console.log(`(page errors: ${errors.slice(0, 3).join(' | ')})`);
 } finally {
   await browser.close().catch(() => {});
