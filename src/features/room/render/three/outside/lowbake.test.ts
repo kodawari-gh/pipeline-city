@@ -320,7 +320,7 @@ describe('Low city facade bake', () => {
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
       // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
       // (a full dark tint at range would wall the building navy)
-      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.2), lowGlassF)');
+      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35), lowGlassF)');
       expect(sh).toContain(`float lowGlassF = smoothstep(${LOW_GLASS_DAY.near}.0, ${LOW_GLASS_DAY.far}.0, length(vViewPosition));`);
       expect(sh.indexOf('float lowGlassF')).toBeLessThan(sh.indexOf('vec3 lowGlassD'));
       expect(day).not.toContain('lowTn');
@@ -357,7 +357,7 @@ describe('Low city facade bake', () => {
       expect(sh).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
       expect(sh).not.toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
       expect(sh).toContain('float lowFarD = smoothstep(150.0, 300.0, length(vViewPosition));');
-      expect(sh).toContain('lowFrameD * mix(vec3(1.0), lowHue, 0.2)');
+      expect(sh).toContain('lowFrameD * mix(vec3(1.0), lowHue, 0.35)');
     }
   }, 180000);
 

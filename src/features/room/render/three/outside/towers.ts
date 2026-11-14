@@ -27,7 +27,7 @@ const enum Wide { Across = 1, Up = 2, All = 3 }
 const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
 
 /** The signs' colours: cyan, amber, terracotta red (the room's accents) and a rare magenta, and how far from the window a low block has any, a tower. */
-const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3f9e] as const, SIGN_FAR = 1500, SIGN_TOWER = 3400, SIGN_BLOCK = 600;
+const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3f9e] as const, SIGN_FAR = 1500, SIGN_TOWER = 3400;
 
 /** A parapet's height over its roof (m), how far from the window a roof gets its plant and tanks, and its smallest things. */
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
@@ -508,8 +508,7 @@ function signs(m: Mass, b: Building, away: number): void {
     board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false, { fixed: 'z', at: s.z1, out: 1 });
   }
   // a far block keeps only its tower's tall board (above)
-  // a far block (Low) keeps its wall signs out to `SIGN_BLOCK`, as the lit orange boards of the mid-rises there
-  if (away > SIGN_FAR || t.y1 < 9 || (m.lightsOnly && away > SIGN_BLOCK)) return;
+  if (away > SIGN_FAR || t.y1 < 9 || m.lightsOnly) return;
   const onGrid = (v: number, pitch: number): boolean => Math.abs(v / pitch - Math.round(v / pitch)) < 1e-6;
   const y0 = storey + 0.6, tall = (w: number): number => Math.min(t.y1 - y0 - 0.8, w * (3 + Math.floor(r() * 6)));
   for (const [on, x, out] of [[onGrid(t.x1 - GRID.av0 + GRID.avenue / 2, GRID.px), t.x1, 1], [onGrid(t.x0 - GRID.av0 - GRID.avenue / 2, GRID.px), t.x0, -1]] as const) {
