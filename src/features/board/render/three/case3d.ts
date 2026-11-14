@@ -253,7 +253,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     side.add(instanced(sg, dark, Array.from({ length: nv }, (_, k) => ({ x: -2250 + k * pitch, y: -(P.y + 110), z: FRONT - 4 }))));
     side.add(ring(win!, wr, wcuts, 34, FRONT - 2, FRONT + 16, mat(0x161b27, { metalness: 0.5, roughness: 0.35 })));
     side.add(ring(win!, wr, wcuts, 6, FRONT + 16, FRONT + 20, mat(0x3a4256, { metalness: 0.7, roughness: 0.3 })));
-    const ly = win!.y + win!.h - 70, lx0 = win!.x + 140, lw = win!.w - 280, strip1 = glowMat(acc, 0x15171d);
+    const ly = win!.y + win!.h - 70, lx0 = win!.x + 140, lw = win!.w - 280, strip1 = glowMat(acc, 0x15121f);
     side.add(rectBox({ x: lx0, y: ly, w: lw, h: 26 }, z1 - 30, z1 - 4, strip1));
     spins.push(light(strip1, acc, 1.6));
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x232938, { metal: 0.5, rough: 0.4 })));

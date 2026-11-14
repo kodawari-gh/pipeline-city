@@ -30,8 +30,8 @@ export function caseMaterials(tier: number): { objects: number; looks: number; m
   return { objects: objects.size, looks: looks.size, meshes };
 }
 
-/** Today's distinct looks per case (Mini, Micro, Mid, Full), +0: a new look needs a reason. The target is 16 (§2). */
-const CEILING = [26, 20, 25, 26];
+/** The cap of distinct looks per case (Mini, Micro, Mid, Full): 16 at LOD0 (§2). A new look needs a reason. */
+const CEILING = [16, 16, 16, 16];
 
 describe('the case shell\'s materials', () => {
   it('stay under the ceiling of distinct looks', () => {

@@ -355,7 +355,12 @@ export function badgeTex(key: string, w: number, h: number, word: string, ink: s
 /** The approved base colours a case may use (docs/3D_STYLE.md "Asset standard" §1): families 1, 2, 4 and 5, the dark PCB mask, and the void behind a hole. */
 const FAMILY = [0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0xd4af5f, 0xc0793a];
 /** A colour this near a family colour (RGB distance, 0–255) is that family colour. */
-const FAMILY_NEAR = 40;
+const FAMILY_NEAR = 45;
+/** Each family colour's one finish on a case: [metalness, roughness]. Matte plastic for the darks, satin paint, brushed metal, gold plate. */
+const FINISH: Record<number, readonly [number, number]> = {
+  0x050608: [0.05, 0.9], 0x131518: [0.05, 0.9], 0x1d1e22: [0.7, 0.38], 0x2a2d32: [0.4, 0.5], 0x4e5360: [0.7, 0.38],
+  0x959aa3: [0.7, 0.38], 0xb9babf: [0.7, 0.38], 0xd4af5f: [0.7, 0.5], 0xc0793a: [0.7, 0.38],
+};
 const step = (v: number, steps: readonly number[]): number => steps.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 
 /**
@@ -376,9 +381,16 @@ export function foldCaseLooks(root: Group): void {
       const c = s.color.getHex(), r = c >> 16, g = (c >> 8) & 255, b = c & 255;
       let best = c, near = FAMILY_NEAR;
       for (const f of FAMILY) { const d = Math.hypot(r - (f >> 16), g - ((f >> 8) & 255), b - (f & 255)); if (d < near) { near = d; best = f; } }
+      // the old OEM cream (an anti-reference, ASR1) is the satin metal: the pale creams the bright one, the darker ones the brushed one
+      if (best === c && r > 120 && r >= g && g > b && r - b >= 15 && r - b <= 70) best = r > 190 ? 0xb9babf : 0x959aa3;
+      // a matte plastic part in a charcoal goes to the dark mask (the charcoals are the painted and anodised metal); a perforated sheet has one tone
+      if ((best === 0x1d1e22 || best === 0x2a2d32) && s.metalness < 0.2 && s.roughness > 0.7) best = 0x131518;
+      if (m.alphaTest > 0 && FINISH[best]) best = 0x2a2d32;
       s.color.setHex(best);
-      s.metalness = step(s.metalness, [0.05, 0.4, 0.7]);
-      s.roughness = step(s.roughness, [0.38, 0.5, 0.9]);
+      const f = FINISH[best];
+      // one finish per family colour; a colour outside the families (a port's plastic, a button) keeps a stepped finish of its own
+      s.metalness = f ? f[0] : step(s.metalness, [0.05, 0.4, 0.7]);
+      s.roughness = f ? f[1] : step(s.roughness, [0.38, 0.5, 0.9]);
     }
   });
 }

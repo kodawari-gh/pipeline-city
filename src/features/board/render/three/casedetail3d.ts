@@ -156,7 +156,7 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
     const face: Span = { y0: f.yTop - 200, y1: f.yBot + 60, z0: f.z0 + 140, z1: f.z1 - 140 };
     g.add(decalX(ex + 3, face, 1, perfMat('mesh', face.z1 - face.z0, face.y1 - face.y0, 34, 0x2a3042, { metal: 0.5, rough: 0.45 })));
     for (const z of [f.z0 + 70, f.z1 - 70]) {
-      const m = glowMat(0x7a5cff, 0x15171d);
+      const m = glowMat(0xa68bff, 0x15121f); // (the PC's one violet, art-style v3)
       g.add(seeThrough(boxW(ex - 4, ex + 14, -(f.yBot - 100), -(f.yTop + 60), z - 26, z + 26, m)));
       spins.push(light(m));
     }
