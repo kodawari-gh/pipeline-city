@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_DAY, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -314,7 +314,8 @@ describe('Low city facade bake', () => {
       expect(at, 'the day wall after the colour step').toBeGreaterThan(sh.indexOf('#include <color_fragment>'));
       const day = sh.slice(at);
       // the frame: the vertex colour (each tower's own frame) times the atlas shade
-      expect(day).toContain('vec3 lowFrameD = vColor.rgb * lowShade;');
+      expect(day).toContain('vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * 0.5) + fHor * (lowFarD * 0.3);');
+      expect(day.indexOf('float lowFarD')).toBeLessThan(day.indexOf('vec3 lowFrameD'));
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
       // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
       // (a full dark tint at range would wall the building navy)
@@ -327,6 +328,19 @@ describe('Low city facade bake', () => {
     expect(LOW_DAY_GLASS).toBeLessThan(3);
     expect(LOW_FAR_HUE).toBeGreaterThan(0);
     expect(LOW_FAR_HUE).toBeLessThan(1);
+  }, 180000);
+
+  it('Low: by day a far wall lifts its value with the horizon colour (base\'s fHor) and flattens its atlas contrast; near walls take neither', () => {
+    expect(LOW_FAR_DAY.flat).toBeGreaterThan(0);
+    expect(LOW_FAR_DAY.flat).toBeLessThan(1);
+    expect(LOW_FAR_DAY.sky).toBeGreaterThan(0);
+    expect(LOW_FAR_DAY.sky).toBeLessThan(0.5);
+    for (const m of buildings(low)) {
+      const full = compiled(m.material as Material).fragmentShader;
+      // the horizon uniform reaches the wall's shader, and is declared there
+      expect(full).toContain('uniform vec3 fLampCol, fLampPos[8], fHor;');
+      expect(withMap(m.material as Material)).toContain(`lowFarD * ${LOW_FAR_DAY.flat}`);
+    }
   }, 180000);
 
   it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {

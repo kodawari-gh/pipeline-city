@@ -23,6 +23,9 @@ export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.
 export const LOW_DAY_GLASS = 1.5;
 /** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
 export const LOW_FAR_HUE = 0.35;
+/** By day a far wall (past `LOW_FAR`, as `lowFarD`) takes less of its atlas's contrast (`flat`: toward the frame's tone) and lifts its value with the
+ * horizon's colour (`sky`, base's `fHor`), so the row reads pale and hazed as base's does, not dark and cut. Near walls are unchanged. */
+export const LOW_FAR_DAY = { flat: 0.5, sky: 0.3 };
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
  * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
  * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
@@ -154,6 +157,7 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMat
     sh.uniforms.fLampK = lamps.k;
     sh.uniforms.fLampCol = lamps.col;
     sh.uniforms.fLampPos = lamps.pos;
+    sh.uniforms.fHor = u.hor;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec2 fuv;
@@ -193,7 +197,7 @@ vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime, fLampK;
-uniform vec3 fLampCol, fLampPos[${LOW_LAMPS}];
+uniform vec3 fLampCol, fLampPos[${LOW_LAMPS}], fHor;
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
@@ -297,9 +301,10 @@ if (vLowFac == 0.0) {
 // by day a wall takes its own colour: its frame is the tower's vertex colour shaded by the atlas, its glass its raw tint, lit (not the frame's
 // colour dimmed by the glass). At night (fNight 1) the diffuse is what the map step left, as before; between, they mix
 // far off a pane is not resolved: its glass reads as the frame's brightness with the tower's hue (a dark tint would wall the building navy)
-vec3 lowFrameD = vColor.rgb * lowShade;
 vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
+// far off the atlas's contrast flattens toward the frame's tone, and the horizon's colour lifts the value (base's far wall reads so; the haze then goes on)
+vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * ${LOW_FAR_DAY.flat}) + fHor * (lowFarD * ${LOW_FAR_DAY.sky});
 vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowFarD);
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
