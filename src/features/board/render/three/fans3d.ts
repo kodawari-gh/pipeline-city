@@ -1,4 +1,4 @@
-// The fans of the 3D machine (docs/GRAPHICS_3D_OVERHAUL.md "Solids"): each is built round its own z axis (a frame or a shroud, the motor on its
+// The fans of the 3D machine (docs/render/three.md): each is built round its own z axis (a frame or a shroud, the motor on its
 // struts, a rotor of curved blades), then turned into place. The live frame spins the rotor round its z and drives the light (`Spin`).
 // A fan part (`fanPart`) has one model: the case, a heatsink, a radiator and the shop all show it, each at the size its spot gives. Its air goes in at
 // its +z face (the rotor's hub) and out at its -z face (the motor's struts).

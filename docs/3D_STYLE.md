@@ -56,7 +56,7 @@ These are drawn-triangle counts from a headless build of the showcase models, th
 | radiator | 3 | 5,028 | 5,028 | 5,028 |
 | cpu | 16 | 4,000 | 4,284 | 4,284 |
 
-The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes) and `nvme2` (34,588: a 179×68 draped-label plane). Fan housing cost is dominated by two `fanFlange` extrusions at `curveSegments: 48` (10,432 tris each).
+The heavy outliers are `cooler1` (48,908: four `TubeGeometry` 220×16 heatpipes) and `nvme2` (34,588: a 179×68 draped-label plane). At Low the cooler's heat pipes are 40×8 and the NVMe label is one flat quad (`byDetail`, `nvme3d.ts`). Fan housing cost is dominated by two `fanFlange` extrusions at `curveSegments: 48` (10,432 tris each).
 
 **Scenes and imports:**
 
@@ -85,7 +85,7 @@ These match the code as it is built today. Detail should go where it reads: the 
 What the code does today, and does **not** do:
 
 - `partlod.ts` swaps small meshes for merged stand-ins when they are under 8 px (`LOD_PX`). A stand-in **holds the same triangles**; only the draw count falls.
-- Graphics quality tiers change textures, particles, lights, AO, shadows, resolution and FPS (`TEXTURE_LEVELS`, `PARTICLE_LEVELS`, the lamp cap, scale and frame limit). They do **not** reduce geometry. The Low preset does not drop segment counts.
+- Graphics quality tiers change textures, particles, lights, AO, shadows, resolution and FPS (`TEXTURE_LEVELS`, `PARTICLE_LEVELS`, the lamp cap, scale and frame limit). They do **not** reduce geometry. The Low preset does drop segment counts and merges parts (`lowDetail()`, see `docs/render/three.md` "Levels of detail").
 - `DEVICE_LOD` / `artlod.ts` fade 2D interiors and baked-texture resolution with zoom, not 3D triangle density.
 
 A later pass may: drop or coarsen detail that is invisible at a given view (see the visible-detail assessment); keep close-up segment counts for the highest graphics setting or a near-only LoD; and put a far, cheaper city outside the window. None of that is approved to implement yet. The rework list in art-style.md stays on hold.

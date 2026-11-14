@@ -275,6 +275,8 @@ export function shadowBlob(): Texture | null {
 export function disposeTree(root: Object3D, textures = false): void {
   root.traverse((o) => {
     const m = o as Mesh;
+    // (an instanced mesh frees its instance buffers on its own 'dispose' event; the geometry's dispose leaves them)
+    if ((o as InstancedMesh).isInstancedMesh) (o as InstancedMesh).dispose();
     m.geometry?.dispose?.();
     const ms = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
     for (const x of ms) {

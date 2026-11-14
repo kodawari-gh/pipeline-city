@@ -221,12 +221,16 @@ export function mergePalette(root: Object3D, o: PaletteOptions = {}): number {
  */
 function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshStandardMaterial): Mesh | null {
   const parts = meshes.map((m) => ({ mesh: m, inMesh: new Matrix4().multiplyMatrices(toFrame, m.matrixWorld) }));
+  // (the copies are temporary: `mergeGeometries` copies their data, so each is freed once it has merged, the null result too)
+  const temps: BufferGeometry[] = [];
   const g = mergeGeometries(parts.map(({ mesh, inMesh }) => {
     let x = mesh.geometry.clone().applyMatrix4(inMesh);
-    if (x.index) x = x.toNonIndexed();
+    temps.push(x);
+    if (x.index) { x = x.toNonIndexed(); temps.push(x); }
     x.clearGroups();
     return painted(x, mesh.material as MeshStandardMaterial);
   }), false);
+  for (const t of temps) t.dispose();
   if (!g) return null;
   const first = meshes[0]!, out = new Mesh(g, material);
   out.castShadow = first.castShadow; out.receiveShadow = first.receiveShadow;

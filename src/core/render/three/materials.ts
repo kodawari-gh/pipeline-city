@@ -91,7 +91,7 @@ export class PartSkin {
   }
 }
 
-// ---- shared materials (docs/GRAPHICS_3D_OVERHAUL.md "Shared materials") ----
+// ---- shared materials (docs/render/three.md "Merges") ----
 
 /** Materials a writer changes for its own meshes after the build: never shared, never replaced. */
 const owned = new WeakSet<Material>();

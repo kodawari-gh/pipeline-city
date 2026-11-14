@@ -1,4 +1,4 @@
-// The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
+// The 3D world's mount (docs/render/three.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
@@ -36,7 +36,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, day
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
-import { setLowDetail } from '@/core/render/three/detail';
+import { lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
 import { whileHidden } from './whileHidden';
 import { RAM_LEAN } from './ram3d';
@@ -166,7 +166,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const live = snapshot.peek();
     const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
     const tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
-    const rk = `${tier}|${caseTier}`;
+    // (the room's parts are built coarser at Low and merged there: a tier change across the Low line rebuilds it, as the machine's key does)
+    const rk = `${tier}|${caseTier}|${lowDetail() ? 'low' : 'high'}`;
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);

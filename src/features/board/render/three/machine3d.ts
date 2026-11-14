@@ -1,4 +1,4 @@
-// The machine in 3D (docs/GRAPHICS_3D_OVERHAUL.md, phases 2 to 4): the glass-side case, the motherboard with its sockets, every installed part, the
+// The machine in 3D (docs/render/three.md): the glass-side case, the motherboard with its sockets, every installed part, the
 // fans the player fitted, the power cables and the wall cords. Shapes over the 2D layout (`layout.ts`, y flipped), z out of the wall.
 // Each part is its shared builder's model (`boardModel`, `cpuModel`, `cardModel`...: the gallery and Build my PC show the same); the faces wear
 // the 2D renderer's own art through one `ArtSet`, raised parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
@@ -257,7 +257,7 @@ export class Machine3D {
   holdDetail(held: readonly Object3D[], ceil = Infinity): void { this.partLod?.hold(held, ceil); }
 
   /**
-   * Fewer draws and materials (PERF22, docs/GRAPHICS_3D_OVERHAUL.md "Shared materials"): the still meshes of each parent as one palette mesh
+   * Fewer draws and materials (PERF22, docs/render/three.md "Merges"): the still meshes of each parent as one palette mesh
    * (`mergeSiblings`), then equal materials as one in each part (`shareMaterials`). The cables (built again alone) and `keep` stay as they
    * are; each fade (`fades`, `apart`) keeps its materials. The state looks are `own`: the skins, the rings and strips, the case's LEDs.
    */

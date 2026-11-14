@@ -1,4 +1,4 @@
-// A draggable cable's rig (docs/GRAPHICS_3D_OVERHAUL.md "Cables"): what Machine3D knows of a lead to build it seated or loose, and what the hand
+// A draggable cable's rig (docs/render/three.md): what Machine3D knows of a lead to build it seated or loose, and what the hand
 // (plughand3d.ts) needs to hold it live. Each strand leaves a fixed point (its grommet, its device); the plug model is built in its socket, so
 // any other place of the plug is a pose from there: a pivot at the socket's mouth, moved and turned. One model and one comb of strands serve
 // the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
