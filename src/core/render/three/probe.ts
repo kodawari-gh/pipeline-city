@@ -42,14 +42,20 @@ export class Probe {
     else this.again = true;
   }
 
-  /** Draws the capture's next face; true when that ended a capture (the texture is new). */
-  step(renderer: Drawer, scene: Object3D): boolean {
+  /**
+   * Draws the capture's next face; true when that ended a capture (the texture is new). `hide` (the machine's root) is left out of the face's
+   * draw only: it is hidden and shown again in the same call, so the frame never sees it hidden and the case does not reflect itself.
+   */
+  step(renderer: Drawer, scene: Object3D, hide: Object3D | null = null): boolean {
     if (this.face < 0) return false;
     if (this.cam.coordinateSystem !== renderer.coordinateSystem) { this.cam.coordinateSystem = renderer.coordinateSystem; this.cam.updateCoordinateSystem(); }
     const was = renderer.getRenderTarget(), wasFace = renderer.getActiveCubeFace(), wasLevel = renderer.getActiveMipmapLevel();
+    const shown = hide ? hide.visible : false;
+    if (hide) hide.visible = false;
     renderer.setRenderTarget(this.target, this.face);
     renderer.render(scene, this.cam.children[this.face] as Camera);
     renderer.setRenderTarget(was, wasFace, wasLevel);
+    if (hide) hide.visible = shown;
     if (++this.face < 6) return false;
     this.texture.needsPMREMUpdate = true;
     this.ready = true;

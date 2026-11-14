@@ -736,7 +736,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       bounces = plan.bounces;
       if (plan.request) { probe.request(); probeKey = key; probeAt = now; }
       // one light for all: the machine and the dies' art take the room's probe as the room's own materials do (`RoomEnv`), at every zoom
-      if (probe.step(renderer, scene)) {
+      if (probe.step(renderer, scene, machine?.root ?? null)) {
         roomEnv = pmrem.fromCubemap(probe.texture, roomEnv);
         scene.environment = roomEnv.texture; scene.environmentIntensity = PROBE_K;
         if (!probed) { room.setProbe(roomEnv.texture); probed = true; }

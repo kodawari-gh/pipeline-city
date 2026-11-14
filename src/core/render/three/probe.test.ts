@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Scene, WebGLCoordinateSystem, type WebGLRenderer } from 'three';
+import { Object3D, Scene, WebGLCoordinateSystem, type WebGLRenderer } from 'three';
 import { Probe } from './probe';
 
 /** A renderer that only records the faces drawn into a target. */
@@ -27,6 +27,16 @@ describe('Probe', () => {
     expect(p.ready).toBe(true);
     expect(p.busy).toBe(false);
     expect(p.texture.pmremVersion).toBe(1);
+  });
+
+  it('leaves the hidden root out of each face and shows it again after', () => {
+    const p = new Probe(1, 100), scene = new Scene(), root = new Object3D(), seen: boolean[] = [];
+    scene.add(root);
+    const r = { ...stub().r, render: () => { seen.push(root.visible); } } as unknown as WebGLRenderer;
+    p.request();
+    for (let i = 0; i < 6; i++) p.step(r, scene, root);
+    expect(seen).toEqual([false, false, false, false, false, false]);
+    expect(root.visible).toBe(true);
   });
 
   it('starts a request made during a capture after it ends', () => {
