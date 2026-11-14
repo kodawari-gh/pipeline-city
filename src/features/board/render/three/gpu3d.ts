@@ -13,7 +13,7 @@ import { mat } from '@/core/render/three/materials';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { NIC_BRACKET_X } from '../layout/layout';
 import { brushed, decal, outlinePts, screws, shapeOf, slab, tex, wallPt, type Span, type Spot } from './casekit3d';
-import { glowMat, motor, type Spin } from './fans3d';
+import { glowMat, labelDisc, motor, type Spin } from './fans3d';
 import { decalMat, maskTop, MM, passives, type Passive } from './pcbkit3d';
 
 /** The card's frame in the lying pose (card3d's `frame`): the PCB's west end and east end, the cooler's east end, the slot's line, the top edge. */
@@ -109,16 +109,16 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
   body.add(duct);
   motor(body, r, depth, 4);
-  const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45 });
+  const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45, side: DoubleSide });
   const rotor = fanRotor(r * 0.97, blades, bladeM, hubM, { chord: blades > 9 ? 0.5 : 0.6, pitch: 0.72 });
   // (a thin fan: the blades and the hub stay inside the duct's depth)
   rotor.scale.z = Math.min(1, (depth * 0.44) / (r * 0.22));
-  const sticker = place(new Mesh(new CylinderGeometry(r * 0.27, r * 0.27, r * 0.012, SEG.drum).rotateX(Math.PI / 2), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM]));
-  sticker.position.z = r * 0.212;
-  rotor.add(sticker);
+  // (the sticker's rim merges with the hub; its printed face is one draw)
+  rotor.add(...labelDisc(r * 0.27, r * 0.012, r * 0.212, SEG.drum, hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 })));
   if (rim) {
     // the barrier ring tying the blade tips together
     const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
+    ring.geometry.deleteAttribute('uv'); // (as the blades: one mesh)
     rotor.add(ring);
   }
   body.add(rotor);

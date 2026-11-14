@@ -2,7 +2,7 @@
 // struts, a rotor of curved blades), then turned into place. The live frame spins the rotor round its z and drives the light (`Spin`).
 // A fan part (`fanPart`) has one model: the case, a heatsink, a radiator and the shop all show it, each at the size its spot gives. Its air goes in at
 // its +z face (the rotor's hub) and out at its -z face (the motor's struts).
-import { BoxGeometry, Color, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh, TorusGeometry, Vector2, type BufferGeometry, type MeshStandardMaterial, type Object3D } from 'three';
+import { BoxGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh, TorusGeometry, Vector2, type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FAN_SCREW, FAN_THROAT, fanFlange, fanRotor, fanSides, place, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
@@ -33,7 +33,8 @@ const blades = (tone = 0x2c2e34) => {
   if (lowDetail()) m.userData[KEEP_SPEC] = true;
   return m;
 };
-const hubM = () => mat(0x24262c, { roughness: 0.4 });
+// (two-sided as the blades are: the rotor's hub, blades and label rim draw as one mesh)
+const hubM = () => mat(0x24262c, { roughness: 0.4, side: DoubleSide });
 
 /** Units per millimetre (23): a fan's size in units becomes its diameter in mm for `fanSides`. */
 const UNITS_PER_MM = 23;
@@ -86,12 +87,21 @@ function pads(d: number, depth: number, small: number): BufferGeometry {
   return mergeGeometries(parts, false)!;
 }
 
-/** The maker's label on the hub: its colour tells the grade. */
-function hubLabel(R: number, fast: boolean, small: number): Mesh {
-  const edge = mat(0x24262c, { roughness: 0.4 }), face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, '', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a68bff' : '#8a8f99', fast ? '#1d1830' : '#191a1e'), roughness: 0.55 });
-  const o = new Mesh(new CylinderGeometry(R * 0.18, R * 0.18, R * 0.03, small).rotateX(Math.PI / 2), [edge, face, edge]);
-  o.position.z = R * 0.203;
-  return place(o);
+/**
+ * The maker's label on the hub: its colour tells the grade. Two meshes for the rotor: the rim in the hub's material (it merges with the hub)
+ * and the printed face, one draw.
+ */
+function hubLabel(R: number, fast: boolean, small: number, edge: Material): Mesh[] {
+  const face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, '', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a68bff' : '#8a8f99', fast ? '#1d1830' : '#191a1e'), roughness: 0.55 });
+  return labelDisc(R * 0.18, R * 0.03, R * 0.203, small, edge, face);
+}
+
+/** A printed disc round z, `t` thick, centred `z` high: its open rim (`edge`) and its face (`face`, the print upright as on a cylinder's cap). */
+export function labelDisc(r: number, t: number, z: number, sides: number, edge: Material, face: Material): Mesh[] {
+  const rim = new Mesh(new CylinderGeometry(r, r, t, sides, 1, true).rotateX(Math.PI / 2).translate(0, 0, z), edge);
+  rim.geometry.deleteAttribute('uv'); // (as the hub and the blades: one mesh)
+  const top = new Mesh(new CircleGeometry(r, sides).rotateZ(-Math.PI / 2).translate(0, 0, z + t / 2), face);
+  return [place(rim), place(top)];
 }
 
 /**
@@ -108,8 +118,9 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
   root.add(place(new Mesh(housing(d, depth, sides, small), frame)));
   if (fast) root.add(place(new Mesh(pads(d, depth, small), mat(0x7d68bf, { roughness: 0.85 }))));
   motor(root, d * 0.47, depth, 4, small);
-  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hubM(), fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 });
-  rotor.add(hubLabel(R, fast, small));
+  const hub = hubM();
+  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hub, fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 });
+  rotor.add(...hubLabel(R, fast, small, hub));
   // the blades and the hub stay inside the frame's depth: a thin fan has flatter blades
   rotor.scale.z = Math.min(1, (depth * 0.42) / (R * 0.22));
   rotor.position.z = depth * 0.04;

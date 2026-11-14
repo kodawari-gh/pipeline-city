@@ -210,6 +210,8 @@ export function fanRotor(r: number, n: number, blade: Material, hub: Material, o
   const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, 28).rotateX(Math.PI / 2), hub);
   const dome = new Mesh(new SphereGeometry(hr, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
+  // (no uv, as the blades: a hub and blades of one program merge into one mesh)
+  hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');
   rotor.add(place(hubM), place(dome));
   const g = fanBlade(hr * 0.92, r * 0.97, r * (o.chord ?? 0.62), o.pitch === undefined ? {} : { pitch: o.pitch });
   for (let k = 0; k < n; k++) {
