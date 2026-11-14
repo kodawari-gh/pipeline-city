@@ -242,6 +242,12 @@ if (vLowFac == 0.0) {
   else if (vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
   else if (vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
   else if (vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
+  else if (vLowKind == 7.0) {
+    // a solar panel, as facadeMaterial's day diffuse: dark blue cells on fine silver lines
+    vec2 sg = vLowFuv * 2.0, sw = fwidth(sg), sd = abs(fract(sg) - 0.5);
+    float sl = mix(max(smoothstep(0.44 - sw.x, 0.44 + sw.x, sd.x), smoothstep(0.44 - sw.y, 0.44 + sw.y, sd.y)), 0.2, smoothstep(0.2, 0.6, max(sw.x, sw.y)));
+    diffuseColor.rgb = mix(vec3(0.012, 0.022, 0.06), vec3(0.3, 0.32, 0.34), sl * 0.6);
+  }
 }`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;

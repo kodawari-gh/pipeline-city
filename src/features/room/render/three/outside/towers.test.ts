@@ -28,10 +28,26 @@ describe('massGeometries detail', () => {
     expect(withDetail(bs, [], 'low').length).toBe(LOW_NEAR_RINGS + 1);
   }, 60000);
 
-  it('Low: draws under 16% of the High triangles', () => {
+  it('Low: the near rings are High\'s, building for building: fine clutter (door, step, lamp), and solar panels (kind 7)', () => {
+    const low = withDetail(bs, [], 'low');
+    // buildings under FINE (420 m) from the window: the near rings hold some, so the fine clutter is there to keep
+    expect(bs.filter((b) => away(b) < 300).length, 'near buildings').toBeGreaterThan(0);
+    const near = low.slice(0, LOW_NEAR_RINGS), hi = high.slice(0, LOW_NEAR_RINGS);
+    expect(near.map((r) => r.at)).toEqual(hi.map((r) => r.at));
+    expect(near.map((r) => sum(r.geometry))).toEqual(hi.map((r) => sum(r.geometry)));
+    let solar = 0;
+    for (const r of near) {
+      const aux = r.geometry.attributes.aux!;
+      for (let v = 0; v < aux.count; v++) if (Math.round(aux.getY(v)) === 7) solar++;
+    }
+    expect(solar, 'solar panel vertices in the near rings').toBeGreaterThan(0);
+  }, 60000);
+
+  it('Low: draws under 22% of the High triangles', () => {
     // (15% was the plain-block cut; far night lights — flood, LED, signs, crowns — add a little)
     // (17%: the far masts and spires keep their own silhouette pieces)
-    expect(total(withDetail(bs, [], 'low'))).toBeLessThan(total(high) * 0.17);
+    // (22%: the near rings keep their fine clutter, the door, step and lamp, as High has it)
+    expect(total(withDetail(bs, [], 'low'))).toBeLessThan(total(high) * 0.22);
   }, 60000);
 
   it('Low: the far mesh holds every far building as a plain block, of more than one height', () => {

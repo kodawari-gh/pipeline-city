@@ -5,6 +5,7 @@ import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Sce
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
 import { LOW_ANISO, LOW_FAR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
 
@@ -205,6 +206,27 @@ describe('Low city facade bake', () => {
       expect(full).toContain('totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;');
       expect(full).toContain('vec3 lowGlow = vec3(0.0);');
       expect(day).not.toContain('fGlow');
+    }
+  }, 180000);
+
+  it('Low: by day the solar panels (kind 7) take High\'s blue cells on silver lines, the same colour as High\'s', () => {
+    // the shared colour: High's solar line in facadeMaterial, its diffuse after color_fragment
+    const SOLAR = 'mix(vec3(0.012, 0.022, 0.06), vec3(0.3, 0.32, 0.34), ';
+    const sh = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader: '#include <common>\n#include <begin_vertex>\n',
+      fragmentShader: '#include <common>\n#include <color_fragment>\n',
+    };
+    (facadeMaterial().mat as unknown as { onBeforeCompile: (s: typeof sh, r: unknown) => void }).onBeforeCompile(sh, null);
+    expect(sh.fragmentShader, 'High: solar day colour').toContain(`${SOLAR}l * 0.6)`);
+    for (const m of buildings(low)) {
+      const day = withMap(m.material as Material);
+      const at = day.indexOf('#include <color_fragment>');
+      expect(at, 'the day diffuse follows color_fragment').toBeGreaterThan(-1);
+      const after = day.slice(at);
+      expect(after).toContain('vLowKind == 7.0) {');
+      expect(after).toContain(`${SOLAR}sl * 0.6)`);
+      expect(after).toContain('fwidth(sg)');
     }
   }, 180000);
 

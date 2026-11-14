@@ -556,7 +556,7 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
       const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = k === all.length - 1 && far.length > 0;
       m.washes = washes;
       for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
-        if (blocks) block(m, b, away(b)); else building(m, b, Math.max(away(b), FINE));
+        if (blocks) block(m, b, away(b)); else building(m, b, away(b));
         balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
         at.push(m.vertices);
       }
