@@ -1,4 +1,5 @@
-// `node tools/flicker.mjs [--preset Low|Medium|High] [--frames N] [--window x,y,w,h] [--keep first.png]`
+// `node tools/flicker.mjs [--preset Low|Medium|High] [--frames N] [--window x,y,w,h] [--keep first.png] [--map range.png]`
+// (`--map`: a grey picture of the still frames' luma range per pixel, times 4: white is where the still picture flickers.)
 // Measures flicker of the 3D night scene. It opens the sandbox with the assembled machine as tools/shot-case.mjs does, sets the room to night (hour 23),
 // sets the graphics preset in the real panel (auto-adjust off) and captures frames of the picture (the top bar is left out).
 //   (a) still: the camera does not move. Share of pixels whose luma range over the frames is above 24/255. Full frame.
@@ -9,7 +10,7 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { inflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
@@ -19,7 +20,10 @@ if (!['Low', 'Medium', 'High'].includes(PRESET)) throw new Error('--preset Low|M
 const FRAMES = Number(flag('frames', 30));
 // the city window (the sky and the towers above the lamp), in measured-rect pixels: x,y,w,h. The lamp and the room lie outside it.
 const WIN = flag('window', '205,0,650,290').split(',').map(Number);
-const KEEP = flag('keep', '');
+const KEEP = flag('keep', ''), MAP = flag('map', '');
+// the wait after the preset is set, before the first frame (ms): the night's lamps and the new render size must settle first
+// (3 s was too short: at Low the lamps still ramped and the frame still changed size, which read as 6 % flicker; 15 s reads 0.3 %)
+const SETTLE = Number(flag('settle', 15000));
 const W = 1600, H = 900, TOP = 90;               // the viewport; the HUD bar is left out of the measured rect
 const CLIP = { x: 0, y: TOP, width: W, height: H - TOP };
 const PORT = Number(process.env.PORT || 5231), url = `http://localhost:${PORT}/`;
@@ -77,6 +81,23 @@ function lumaRange(pngs) {
   return { w, h, mn, mx };
 }
 
+/** A grey PNG of the luma range per pixel, times 4 (a range of 64 or more is white): where the still picture flickers. */
+function rangeMap({ w, h, mn, mx }) {
+  const raw = Buffer.alloc((w + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw[y * (w + 1) + 1 + x] = Math.min(255, (mx[y * w + x] - mn[y * w + x]) * 4);
+  const table = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const chunk = (kind, data) => {
+    const body = Buffer.concat([Buffer.from(kind, 'latin1'), data]), out = Buffer.alloc(body.length + 8);
+    let c = 0xffffffff;
+    for (const b of body) c = table[(c ^ b) & 255] ^ (c >>> 8);
+    out.writeUInt32BE(data.length, 0); body.copy(out, 4); out.writeUInt32BE((c ^ 0xffffffff) >>> 0, body.length + 4);
+    return out;
+  };
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(w, 0); head.writeUInt32BE(h, 4); head[8] = 8;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 /** Share (%) of the pixels that pass `inRegion` (x, y) whose luma range is above THRESH. */
 function share({ w, h, mn, mx }, inRegion) {
   let n = 0, over = 0;
@@ -123,13 +144,14 @@ try {
   const g = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics') ?? 'null'));
   const t = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics.tier') ?? 'null'));
   if (!g || g.auto !== false || t?.mode !== 'manual') { console.log(`The preset ${PRESET} did not take (saved: ${JSON.stringify(g)}).`); process.exitCode = 3; throw new Error('preset'); }
-  await p.waitForTimeout(3000);
+  await p.waitForTimeout(SETTLE);
 
   // (a) still camera
   const still = [];
   for (let i = 0; i < FRAMES; i++) { still.push(await p.screenshot({ clip: CLIP })); await p.waitForTimeout(50); }
   if (KEEP) { writeFileSync(resolve(KEEP), still[0]); console.log('saved', resolve(KEEP)); }
   const rs = lumaRange(still);
+  if (MAP) { writeFileSync(resolve(MAP), rangeMap(rs)); console.log('saved', resolve(MAP)); }
   const pctStill = share(rs, () => true);
   console.log(`still  ${PRESET} night, full frame: ${pctStill.toFixed(2)}% of pixels move more than ${THRESH}/255 over ${FRAMES} frames`);
 

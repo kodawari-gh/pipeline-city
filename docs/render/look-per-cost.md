@@ -20,6 +20,8 @@ Flicker, measured (night, still camera, High, share of window pixels whose lumin
 
 Measure: `npm run flicker -- --preset High` (or `Low`, `Medium`; `--frames N`). It starts the dev server on port 5231, opens the assembled sandbox at night (hour 23) and prints two lines. Still camera: the share of pixels whose luma moves more than 24/255 over 30 frames (full frame, no top bar). Pan at 2 px per frame: the window and the rest, apart. Pan numbers include motion, so they are an upper bound. Results on an RTX 5080 (ANGLE D3D11): High still 0.64%, pan window 9.42%, rest 46.35%; Low still 5.94%, pan window 8.78%, rest 35.91%.
 
+Correction (2026-11-14, `--map range.png` and `--settle ms` added): the Low still figure of 5.94% was a settle artefact. The tool waited 3 s after the preset change; at Low the night lamps still ramped and the frame still changed size, so every edge in the picture read as flicker. With a 15 s settle (now the default) Low still reads 0.28% and High 0.44%. The range map of the settled still frame shows intended motion only, in this order of area: the traffic on the avenue (head lamps and their bloom), the tower beacons and the windows that switch (High), then the plane's lights and the drifting clouds. No surface of the room or the machine flickers with a still camera. The pan numbers still include the motion itself.
+
 ## Ranked gains (best look per cost first)
 
 1. **Real room in reflections.** Already present: `probe.ts` captures the room per light change and `RoomEnvironment` is only the fallback before the first capture. One fix on this branch: the case no longer reflects itself (2739357).
