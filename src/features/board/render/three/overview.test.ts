@@ -6,7 +6,7 @@ import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 quietCanvas();
 
 /** The ceiling of the machine's draws at the overview. It may only fall. */
-const CEILING = 270;
+const CEILING = 253;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {

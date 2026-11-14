@@ -10,8 +10,8 @@ quietCanvas();
 const shown = (o: Object3D): boolean => { for (let x: Object3D | null = o; x; x = x.parent) if (!x.visible) return false; return true; };
 
 /** The sets of equal drawn meshes under `root` with more than `min` members: a key (vertices, size, look), its count, the first member's path. */
-export function repeats(root: Object3D, min = 4): { key: string; n: number; verts: number; at: string }[] {
-  const sets = new Map<string, { n: number; verts: number; at: string }>(), size = new Vector3(), box = new Box3();
+export function repeats(root: Object3D, min = 4): { key: string; n: number; verts: number; at: string; up: string }[] {
+  const sets = new Map<string, { n: number; verts: number; at: string; ups: Set<unknown>[] }>(), size = new Vector3(), box = new Box3();
   root.updateMatrixWorld(true);
   root.traverse((o) => {
     const mesh = o as Mesh;
@@ -25,23 +25,24 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
     else {
       const path: string[] = [];
       for (let x: Object3D | null = o; x && path.length < 4; x = x.parent) if (x.name || typeof x.userData.id === 'string') path.push(x.name || (x.userData.id as string));
-      sets.set(key, { n: 1, verts, at: path.reverse().join('/') });
+      sets.set(key, { n: 1, verts, at: path.reverse().join('/'), ups: [new Set(), new Set()] });
     }
-  });
-  return [...sets].filter(([, s]) => s.n > min).map(([key, s]) => ({ key, ...s })).sort((a, b) => b.n - a.n);
+    const ups = sets.get(key)!.ups;
+    ups[0]!.add(o.parent); ups[1]!.add(o.parent?.parent);  });
+  return [...sets].filter(([, s]) => s.n > min).map(([key, { ups, ...s }]) => ({ key, ...s, up: `${ups[0]!.size} parents, ${ups[1]!.size} above` })).sort((a, b) => b.n - a.n);
 }
 
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. */
-const CEILING = { machine: 108, room: 18 };
+const CEILING = { machine: 93, room: 18 };
 
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {
     for (const [name, root] of [['machine', buildMachine(maxedSnapshot(), true, true).root], ['room', new Room3D().root]] as const) {
       const sets = repeats(root), save = sets.reduce((a, s) => a + s.n - 1, 0);
       console.log(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save`);
-      if (env.REPEATS_DUMP === '1') console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}`).join('\n'));
+      if (env.REPEATS_DUMP === '1') console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
       expect(save, name).toBeLessThanOrEqual(CEILING[name]);
     }
   }, 30_000);

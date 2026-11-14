@@ -3,8 +3,11 @@ import { Raycaster, Vector2, type Camera, type Object3D, type Vector3 } from 'th
 
 export const tag = <T extends Object3D>(o: T, id: string): T => { o.userData.id = id; return o; };
 
+/** The ray test of an object no ray stops at. One function for all: the merges keep meshes with different ray tests apart (`mergeSiblings`). */
+export const NO_RAY = (): void => {};
+
 /** See through this object: glass, glow and light cones never stop a ray. */
-export const seeThrough = <T extends Object3D>(o: T): T => { o.raycast = () => {}; return o; };
+export const seeThrough = <T extends Object3D>(o: T): T => { o.raycast = NO_RAY; return o; };
 
 export function idOf(o: Object3D | null): string | null {
   for (let p = o; p; p = p.parent) if (typeof p.userData.id === 'string') return p.userData.id;

@@ -1,10 +1,10 @@
 {
   "machine/Group#3": {
-    "meshes": 25,
-    "draws": 25,
+    "meshes": 8,
+    "draws": 8,
     "verts": 5106,
     "instances": 50,
-    "sum": "1f49eb6b"
+    "sum": "49c3f70c"
   },
   "machine/Group#4": {
     "meshes": 62,
@@ -182,11 +182,11 @@
     "sum": "5f6239d0"
   },
   "machine/case": {
-    "meshes": 190,
-    "draws": 190,
+    "meshes": 169,
+    "draws": 169,
     "verts": 163154,
     "instances": 1230,
-    "sum": "a636bade"
+    "sum": "51cd3b4a"
   },
   "machine/case.side": {
     "meshes": 1,
@@ -464,9 +464,9 @@
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 327930,
+    "verts": 323682,
     "instances": 0,
-    "sum": "7cc2e9a2"
+    "sum": "1fe62438"
   },
   "machine/tpm0": {
     "meshes": 1,

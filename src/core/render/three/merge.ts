@@ -12,6 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DARK_METAL, NON_METAL, warmMetal } from './cheapmaterials';
 import { lowDetail } from './detail';
 import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
+import { NO_RAY } from './pick';
 
 const KEEP = new Set(['position', 'normal', 'uv']);
 
@@ -435,7 +436,7 @@ export function standIns(frame: Object3D, meshes: readonly Mesh[], pals: Map<str
     const mesh = new Mesh(g, material);
     mesh.castShadow = first.castShadow; mesh.receiveShadow = first.receiveShadow; mesh.renderOrder = first.renderOrder;
     mesh.layers.mask = first.layers.mask;
-    mesh.raycast = () => {};
+    mesh.raycast = NO_RAY;
     mesh.name = 'standin';
     mesh.userData.standIn = true;
     frame.add(mesh);
