@@ -22,7 +22,7 @@ import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, P
 import { basementPlan } from './basement3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
-  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, grain, grow, hex, outlinePts, perfMat, perforated, perforation, ring, screws as screwHeads, shapeOf, slab, slabWithOpening,
+  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, foldCaseLooks, grain, grow, hex, outlinePts, perfMat, perforated, perforation, ring, screws as screwHeads, shapeOf, slab, slabWithOpening,
   thumbscrews, tiled, wallX, type Span,
 } from './casekit3d';
 import { bayFrame, controls, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, type Controls, type Frame } from './casedetail3d';
@@ -318,6 +318,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   door.position.set(px, 0, FRONT);
   side.position.set(-px, 0, -FRONT);
   door.add(side);
+  foldCaseLooks(root); // (the material cap, 3D_STYLE "Asset standard" §2: near-duplicate looks become one)
   return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, accent: acc, inner: L.inner, shroud: L.shroud, rivet: rivetM(kind), screw: screwM(kind) };
 
 }

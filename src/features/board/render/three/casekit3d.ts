@@ -351,3 +351,34 @@ export function badgeTex(key: string, w: number, h: number, word: string, ink: s
     }
   });
 }
+
+/** The approved base colours a case may use (docs/3D_STYLE.md "Asset standard" §1): families 1, 2, 4 and 5, the dark PCB mask, and the void behind a hole. */
+const FAMILY = [0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0xd4af5f, 0xc0793a];
+/** A colour this near a family colour (RGB distance, 0–255) is that family colour. */
+const FAMILY_NEAR = 40;
+const step = (v: number, steps: readonly number[]): number => steps.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+
+/**
+ * One look per family across a case (§2, the material cap): each plain material's colour goes to the nearest family colour, and its metalness and
+ * roughness to a few steps, so near-duplicates become the same look and the machine's material share folds them. Left as built: a lit
+ * material (its emissive is written live), a see-through one, and a printed one (a white base under its map).
+ */
+export function foldCaseLooks(root: Group): void {
+  const seen = new Set<Material>();
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const s = m as Material & { color?: { getHex(): number; setHex(h: number): void }; emissive?: { getHex(): number }; metalness?: number; roughness?: number };
+      if (seen.has(m) || !s.color || s.metalness === undefined || s.roughness === undefined) continue;
+      seen.add(m);
+      if (m.transparent || (s.emissive && s.emissive.getHex() !== 0) || s.color.getHex() === 0xffffff) continue;
+      const c = s.color.getHex(), r = c >> 16, g = (c >> 8) & 255, b = c & 255;
+      let best = c, near = FAMILY_NEAR;
+      for (const f of FAMILY) { const d = Math.hypot(r - (f >> 16), g - ((f >> 8) & 255), b - (f & 255)); if (d < near) { near = d; best = f; } }
+      s.color.setHex(best);
+      s.metalness = step(s.metalness, [0.05, 0.4, 0.7]);
+      s.roughness = step(s.roughness, [0.38, 0.5, 0.9]);
+    }
+  });
+}
