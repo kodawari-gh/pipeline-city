@@ -21,17 +21,18 @@ const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
   Object.fromEntries(CITY_CUTS.map((c) => [c, on === true || (on !== false && on.has(c))])) as CityCuts;
 
 /**
- * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all. Low with `citycuts=a,b`: only those named
- * (`none`, an empty list or unknown names: no cut).
+ * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all, or none on Firefox (`ff`: Firefox Low idle ran
+ * slower with the cuts than without, bisect 7a64e36, so it gets main's city path). Low with `citycuts=a,b`: only those named, on any
+ * browser (`none`, an empty list or unknown names: no cut).
  */
-export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
+export function parseCityCuts(search: string, detail: CityDetail, ff = false): CityCuts {
   if (detail !== 'low') return cuts(false);
   const q = new URLSearchParams(search).get('citycuts');
-  return q === null ? cuts(true) : cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
+  if (q === null) return cuts(!ff);
+  return cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
 }
 
-/** Firefox Low idle ran slower with the cadence and fleet cuts than without (bisect 7a64e36): there those two keep the High values. */
 export const firefox = (): boolean => typeof navigator !== 'undefined' && /\bFirefox\//.test(navigator.userAgent);
 
-/** The cuts of this page's query (`parseCityCuts` of `location.search`). */
-export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);
+/** The cuts of this page's query (`parseCityCuts` of `location.search`, on this browser). */
+export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail, firefox());
