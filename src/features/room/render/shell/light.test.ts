@@ -14,7 +14,7 @@ const THEME: Theme = {
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
 const CASE = { x: 0, y: 0, w: 8000, h: 6000 };
-const day: LightIn = { dark: true, night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
+const day: LightIn = { night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
 
 describe('the focus dark', () => {
   it('is off for the whole room and for a view of the monitor, full once the case fills the view', () => {
@@ -52,7 +52,6 @@ describe('the quantised light state', () => {
     expect(lightKey(day)).not.toBe(lightKey({ ...day, night: 0.5 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, lamp: 0 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, screen: 0 }));
-    expect(lightKey(day)).not.toBe(lightKey({ ...day, dark: false }));
   });
 });
 
@@ -80,10 +79,9 @@ describe('the window light', () => {
 });
 
 describe('the dark of the room', () => {
-  it('is none by day, deeper at night (more in the light theme than its wall alone would suggest) and takes the lamp by night more than by day', () => {
+  it('is none by day, deeper at night and takes the lamp by night more than by day', () => {
     expect(ambientOf({ ...day, night: 0 }).alpha).toBe(0);
     expect(ambientOf({ ...day, night: 1 }).alpha).toBeGreaterThan(0.3);
-    expect(ambientOf({ ...day, dark: false, night: 1 }).alpha).toBeGreaterThan(0.3);
     expect(ambientOf({ ...day, night: 1 }).lamp).toBeGreaterThan(ambientOf({ ...day, night: 0 }).lamp);
     expect(ambientOf({ ...day, lamp: 0, night: 1 }).lamp).toBe(0);
   });

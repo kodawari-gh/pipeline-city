@@ -32,12 +32,12 @@ function puffTexture(): Texture {
 /** The steam: `frame(gt)` moves the puffs. Without a canvas (tests) there are none. */
 export class Steam extends Container {
   private readonly sprites: Sprite[] = [];
-  constructor(private readonly sx: number, private readonly sy: number, dark: boolean) {
+  constructor(private readonly sx: number, private readonly sy: number) {
     super();
     if (typeof document === 'undefined') return;
     for (let i = 0; i < STEAM.puffs; i++) {
       const s = new Sprite(puffTexture());
-      s.anchor.set(0.5); s.tint = dark ? '#f6efe6' : '#ffffff';
+      s.anchor.set(0.5); s.tint = '#f6efe6';
       this.sprites.push(s); this.addChild(s);
     }
   }

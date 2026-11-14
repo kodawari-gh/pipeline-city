@@ -462,7 +462,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   drawMat(o, T, D, mcx); drawKeyboard(o, T, L, D, mcx); drawMouse(o, T, L, D, mcx);
   // the mug in the gap between the monitor and the case (`mug.ts`: seen from a little above, a coaster, a tapered body with a chip die printed on it, a handle, the coffee; the steam is live)
   const mx = geo.mug;
-  drawMug(o, T.dark, mx, ys, L.cork);
+  drawMug(o, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
   shadow(f, geo.lamp.x, ys, 2 * (LAMP.base + 400), 0.34);
   drawLamp(f, L, geo);
@@ -636,7 +636,7 @@ export class RoomView {
     back.addChildAt(this.blindG, 3); // over the sky, under the frame and the sill
     this.root.addChild(front);
     this.root.addChild(this.glow, this.clockG);
-    this.steam = new Steam(geo.mug, geo.ys - MUG.h + 30, T.dark);
+    this.steam = new Steam(geo.mug, geo.ys - MUG.h + 30);
     this.over.addChild(this.steam);
     this.hits = [{ id: 'lamp', rect: geo.lamp.rect, shape: renderer ? lampShape(renderer, T, geo) : undefined }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }, { id: 'clock', rect: geo.clock }];
     this.frame(0, 0, true);
@@ -681,7 +681,7 @@ export class RoomView {
       // what moves smoothly runs every frame (they are cheap: sprites and one small Graphics): the steam, and the window's shaft as the sun moves
       this.steam.frame(gt);
       const h0 = roomDebug.hour ?? hourAt(gt), bk = `${Math.round(h0 * 3000)}|${this.blind.toFixed(3)}`;
-      if (force || bk !== this.beamKey) { this.beamKey = bk; this.lightView?.setBeams(beamsAt(this.geo, h0, this.blind), this.T.dark); }
+      if (force || bk !== this.beamKey) { this.beamKey = bk; this.lightView?.setBeams(beamsAt(this.geo, h0, this.blind)); }
     }
     // the rest (the sky's stars, clouds and city, the clock, the light's textures) is redrawn about 30 times a second, and when something visible changed
     const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 33)}|${this.lamp.toFixed(2)}|${this.screen.toFixed(2)}|${this.blind.toFixed(3)}`;
@@ -690,7 +690,7 @@ export class RoomView {
     const h = roomDebug.hour ?? hourAt(gt);
     this.drawSky(h, gt);
     this.drawGlow(h);
-    this.lightView?.set({ dark: this.T.dark, night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen, beams: beamsAt(this.geo, h, this.blind) }, force);
+    this.lightView?.set({ night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen, beams: beamsAt(this.geo, h, this.blind) }, force);
     this.drawClock(h, gt);
     return true;
   }

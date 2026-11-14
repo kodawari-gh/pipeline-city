@@ -52,7 +52,7 @@ function keepOnScreen(cam: PerspectiveCamera, x0: number, x1: number, y: number)
 }
 
 export class Lens3D {
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   private readonly power = new PowerLens();
   private readonly air = new AirflowLens();
   private readonly mat = new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false });

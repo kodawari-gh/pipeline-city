@@ -7,7 +7,7 @@ import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { setLayoutTier } from '../layout/layout';
 import { caseModel } from './case3d';
 
-const T = builtinTheme(true);
+const T = builtinTheme();
 
 /** What a material looks like: two materials with one key could be one material. */
 const look = (m: Material): string => {

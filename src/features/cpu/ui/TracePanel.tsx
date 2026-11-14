@@ -8,7 +8,6 @@ import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub, traceOpe
 import { memoryTable, sizeText } from '../../memory/render/ramlayout';
 import { CoreRateTracker } from '../render/core/corestats';
 import { tileModels } from '../render/core/coretiles';
-import { isDark } from '@/core/render/theme';
 import { gpuListing } from '../../gpu/sim/gpucode';
 import { Icon } from '@/core/ui/kit/Icons';
 import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
@@ -70,7 +69,7 @@ export function TracePanel() {
   const range = scrubRange.value, at = scrubShown.value, paused = speed.value === 0;
   const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
   const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
-  const tiles = s?.cores ? tileModels(s.cores, isDark(), coreRates.update(s.cores.stats)) : [];
+  const tiles = s?.cores ? tileModels(s.cores, coreRates.update(s.cores.stats)) : [];
   const cards = s?.gpus ?? [], target = scrubTarget.value, card = target === 'cpu' ? undefined : cards.find((c) => `gpu:${c.slot}` === target);
   if (target !== 'cpu' && !card && cards.length === 0) selectScrub('cpu'); // the card is gone
   const gOn = gpuShown.value;

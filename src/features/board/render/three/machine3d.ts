@@ -124,7 +124,7 @@ export class Machine3D {
   /** The RGB's one colour: the case's accent (`caseModel`), so the fans, the strips and the light out through the glass match its trim. */
   private accent = new Color(0x8b5cff);
   /** The art is always the dark theme's: the reference's black board under neon. */
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   /** The 2D art the parts wear, baked on the view's queue. */
   private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */

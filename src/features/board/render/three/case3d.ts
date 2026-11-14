@@ -98,7 +98,7 @@ export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: numbe
   m.emissiveIntensity = mode === 'off' ? 0 : mode === 'idle' ? 0.7 : mode === 'halt' ? 1.2 : mode === 'dead' ? 0.6
     : mode === 'error' ? (Math.floor(wall / 420) % 2 ? 2.4 : 0.3) : 1.2 + Math.sin(wall / 420) * 0.8;
 }
-const STRIP_T = builtinTheme(true);
+const STRIP_T = builtinTheme();
 
 /** The light strips along the inside of the top and the front: RGB in the gaming case (the accent), the violet in the showcase, none in the plain cases. */
 export function innerStrips(kind: CaseKind, cm: Pick<CaseModel, 'rgb' | 'accent'>): { roots: Mesh[]; spins: Spin[] } {

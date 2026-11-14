@@ -52,9 +52,9 @@ describe('the room perspective', () => {
     const P = roomPersp({ ceil: -9000, floor: 7000, x0: -20000, x1: 14000 });
     expect(P.vx).toBe(-3000);
   });
-  it.each([true, false])('the desk draws its parts on the floor and the wall without error (dark %s)', (dark) => {
+  it('the desk draws its parts on the floor and the wall without error', () => {
     setLayoutTier(0, 0);
-    const g = roomGeo(), D = deskGeo(g.persp, g.ys, g.floor), T = { ...THEME, dark };
+    const g = roomGeo(), D = deskGeo(g.persp, g.ys, g.floor), T = THEME;
     const a = new Graphics(), b = new Graphics(), c = new Graphics();
     drawUnderDesk(a, T, D, g.desk.x0, g.desk.x1);
     drawDeskShadow(b, T, D, g.desk.x0, g.desk.x1);

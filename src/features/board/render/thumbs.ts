@@ -90,7 +90,7 @@ export function thumbOf(id: string): string | null {
   if (!renderer || !stills || !hasThumb(id)) return null;
   const still = stills[id];
   if (still) return `${STILLS}${id}.webp?${still}`;
-  const theme = readTheme(), key = `${theme.dark ? 'd' : 'l'}|${id}`;
+  const theme = readTheme(), key = id;
   const hit = cache.get(key);
   if (hit) return hit;
   if (failed.has(key) || sent.has(key) || queue.some((j) => j.key === key)) return null;

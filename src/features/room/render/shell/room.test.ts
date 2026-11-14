@@ -18,7 +18,6 @@ const DARK: Theme = {
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
-const LIGHT: Theme = { ...DARK, dark: false, bg: '#eaeff6', board: '#9ccdbd', ink: '#0f1830', mute: '#475372', line: '#9aabc8' };
 const inside = (r: Rect, o: Rect) => r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
 
 describe('the desk follows the case', () => {
@@ -252,7 +251,8 @@ describe('the clickable props', () => {
 });
 
 describe.each([0, 1, 2, 3])('RoomView at case tier %i', (t) => {
-  it.each([DARK, LIGHT])('builds in either theme, exposes its three hits and runs through a day', (T) => {
+  it('builds, exposes its three hits and runs through a day', () => {
+    const T = DARK;
     setLayoutTier(t, t);
     const v = new RoomView(T);
     expect(v.root.children.length).toBeGreaterThan(3);

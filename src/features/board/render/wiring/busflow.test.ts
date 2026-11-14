@@ -20,12 +20,12 @@ describe('slice', () => {
 
 describe('BusFlow', () => {
   it('takes a bounded time per trip, longer for a longer lane', () => {
-    const f = new BusFlow(false);
+    const f = new BusFlow();
     expect(f.send([mkLane([[0, 0], [10, 0]])], 1, '#fff', 0, 9)).toBe(MIN_MS);
     expect(f.send([mkLane([[0, 0], [100000, 0]])], 1, '#fff', 0, 9)).toBe(MAX_MS);
   });
   it('is idle again once the packet has arrived and the trace has faded', () => {
-    const f = new BusFlow(false);
+    const f = new BusFlow();
     const dur = f.send([lane], 1, '#fff', 1000, 9);
     f.frame(1000 + dur / 2, 1, true);
     expect(f.busy).toBe(true);
@@ -33,7 +33,7 @@ describe('BusFlow', () => {
     expect(f.busy).toBe(false);
   });
   it('lets a packet age while the interior is hidden, and clears at once', () => {
-    const f = new BusFlow(false);
+    const f = new BusFlow();
     const dur = f.send([lane], -1, '#fff', 0, 9);
     f.frame(dur + FADE_MS + 1, 1, false);
     expect(f.busy).toBe(false);

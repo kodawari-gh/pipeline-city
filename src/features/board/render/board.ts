@@ -239,7 +239,7 @@ export async function mountBoard(host: HTMLElement) {
     routeOnDie(die, e.addr, e.kind === 'store', gt);
   };
   die.onInterrupt = (line) => live.touchIrq(line);
-  const live = new Live(app.renderer, T.dark);
+  const live = new Live(app.renderer);
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
   const interact = new Interact(camera, app.canvas, (rs, opts) => {
@@ -536,7 +536,7 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene build: runs on theme change, board tier change, or an install/uninstall ----
   const keyOf = (s: Snapshot | null) =>
-    `${T.dark}|${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}|${s?.videoPort ?? 'board'}`;
+    `${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}|${s?.videoPort ?? 'board'}`;
 
   /** The cables to draw: the video cable's PC end is in the board's HDMI port, or in a graphics card's display port (`Snapshot.videoPort`). */
   /** Where each PCIe lead the snapshot lists plugs in: the sim deals the leads to the working cards in slot order (`assignLeads`), a socket each. */
@@ -962,7 +962,7 @@ export async function mountBoard(host: HTMLElement) {
       const connected = snapC ? interact.cableStateOf(c.kind, snapC.connected, now) : true;
       return { c, state: held === c.kind ? 'held' as const : connected ? 'connected' as const : 'loose' as const };
     });
-    const key = `${T.dark}|` + states.map((x) => x.c.kind + ':' + x.state).join(',') + '|' + alts.map((a) => a.port).join(',');
+    const key = states.map((x) => x.c.kind + ':' + x.state).join(',') + '|' + alts.map((a) => a.port).join(',');
     if (!force && key === cableKey) return;
     cableKey = key;
     sceneDirty = true;
@@ -1086,7 +1086,7 @@ export async function mountBoard(host: HTMLElement) {
     screenOn = powered && s?.monitorPowered !== false && !!s?.devices.some((d) => d.kind === 'display');
     roomView?.setScreen(screenOn);
     const key = [
-      T.dark, trayShown, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
+      trayShown, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,
       s?.net?.usbFallback.state ?? 'off',
     ].join('|');

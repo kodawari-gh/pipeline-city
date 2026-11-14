@@ -90,7 +90,7 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
 export class Chips3D {
   /** The art is the dark theme's, as the machine's. */
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   private readonly die = new DieView(true);
   private readonly gpu = new GpuView(true);
   private readonly npu = new NpuCardView(true);

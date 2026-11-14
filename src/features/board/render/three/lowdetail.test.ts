@@ -71,7 +71,7 @@ describe('Low builds coarser machine parts', () => {
     }
   });
   it('the sink casting and its fins keep High\'s PBR at Low (KEEP_SPEC, metalness 0.5), so cheapMaterials leaves them out of the Lambert swap', () => {
-    const sink = (visual: string) => { const g = new Group(); sinkBody(g, builtinTheme(true), 'vrm-sink', visual); return meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46) as MeshStandardMaterial[]; };
+    const sink = (visual: string) => { const g = new Group(); sinkBody(g, builtinTheme(),'vrm-sink', visual); return meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46) as MeshStandardMaterial[]; };
     for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
       setLowDetail(false);
       const high = sink(visual);
@@ -81,7 +81,7 @@ describe('Low builds coarser machine parts', () => {
       const low = sink(visual);
       expect(low.length).toBe(high.length);
       expect(low.every((m) => m.metalness === 0.5 && m.userData[KEEP_SPEC] === true)).toBe(true);
-      const g = new Group(); sinkBody(g, builtinTheme(true), 'vrm-sink', visual);
+      const g = new Group(); sinkBody(g, builtinTheme(), 'vrm-sink', visual);
       cheapMaterials(g);
       expect(meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46 && !(m as MeshStandardMaterial).isMeshStandardMaterial)).toHaveLength(0);
     }

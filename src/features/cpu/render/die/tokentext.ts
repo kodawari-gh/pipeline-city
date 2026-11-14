@@ -15,8 +15,8 @@ export const pcText = (pc: number): string => '@' + (pc >>> 0).toString(16).padS
 export const seqText = (id: number): string => '#' + id;
 
 /** A colour that belongs to one instruction (its ring and its pips in the queues): a hue by sequence number. */
-export function idColor(id: number, dark: boolean): string {
-  const h = ((id * 47) % 360) / 360, s = 0.85, l = dark ? 0.62 : 0.42;
+export function idColor(id: number): string {
+  const h = ((id * 47) % 360) / 360, s = 0.85, l = 0.62;
   const f = (n: number) => { const k = (n + h * 12) % 12; const a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
   const c = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
   return '#' + c(f(0)) + c(f(8)) + c(f(4));

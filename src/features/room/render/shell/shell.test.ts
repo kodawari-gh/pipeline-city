@@ -39,8 +39,8 @@ describe('the room shell', () => {
     expect(boardTop(1, h)).toBeGreaterThan(300);
     expect(boardTop(1, h)).toBeLessThan(600);
   });
-  it.each([true, false])('is built (dark theme %s) and reaches far past any view with its flat far colour', (dark) => {
-    const T = { ...THEME, dark }, B = { ceil: -9000, floor: 7000, vx: 2000, yH: -2000 }, L = shellLook(T);
+  it('is built and reaches far past any view with its flat far colour', () => {
+    const T = THEME, B = { ceil: -9000, floor: 7000, vx: 2000, yH: -2000 }, L = shellLook(T);
     for (const draw of [drawCeiling, drawCrown, drawFloor]) {
       const g = new Graphics();
       expect(() => draw(g, T, B)).not.toThrow();

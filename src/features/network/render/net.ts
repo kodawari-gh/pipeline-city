@@ -256,7 +256,7 @@ export class NetView {
     }
     if (lanState === 'connected' && !portId) portId = (optPort && jacks.some((j) => j.id === optPort) ? optPort : jacks[0]?.id) ?? null;
     const rv = net?.router ? net.router.visual : null;
-    const key = [T.dark, vis, rv, net?.router?.name, net?.isp?.id, lanState, portId, jacks.map((j) => j.id + j.valid).join(',')].join('|');
+    const key = [vis, rv, net?.router?.name, net?.isp?.id, lanState, portId, jacks.map((j) => j.id + j.valid).join(',')].join('|');
     this.vis = vis;
     if (!force && key === this.key) return false;
     this.key = key;

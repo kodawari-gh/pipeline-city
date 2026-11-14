@@ -16,7 +16,7 @@ const snap = (): CoresSnap => ({
 
 describe('core tiles', () => {
   it('has a tile per logical core, in order, with the selected one marked and the cells of its hardware core', () => {
-    const t = tileModels(snap(), true);
+    const t = tileModels(snap());
     expect(t.map((x) => x.core)).toEqual([0, 1, 2]);
     expect(t.map((x) => x.selected)).toEqual([false, true, false]);
     expect(t[0]!.cells).toEqual(['alu', 'ld', null, null, 'st']);
@@ -27,30 +27,29 @@ describe('core tiles', () => {
   });
 
   it('an idle parked core shows nothing in its pipeline and says so; a core with no job has no tint', () => {
-    const t = tileModels(snap(), true)[2]!;
+    const t = tileModels(snap())[2]!;
     expect(t.tint).toBeNull();
     expect(t.cells.every((c) => c === null)).toBe(true);
     expect(t.sub).toBe('parked');
   });
 
   it('gives every core its own colour, the same whatever runs on it, and a different one from its neighbours', () => {
-    const t = tileModels(snap(), true);
+    const t = tileModels(snap());
     expect(new Set(t.map((x) => x.color)).size).toBe(3);
     expect(t[0]!.color).toMatch(/^#[0-9a-f]{6}$/);
-    expect(coreColor(0, false)).not.toBe(coreColor(0, true));
-    const many = Array.from({ length: 8 }, (_, k) => coreColor(k, true));
+    const many = Array.from({ length: 8 }, (_, k) => coreColor(k));
     expect(new Set(many).size).toBe(8);
     const other = snap();
     other.live[0] = { ...other.live[0]!, job: 8192, thread: 3 };
-    expect(tileModels(other, true)[0]!.color).toBe(t[0]!.color);
+    expect(tileModels(other)[0]!.color).toBe(t[0]!.color);
   });
 
   it('carries the rates of its hardware core, none for a parked idle core', () => {
-    const t = tileModels(snap(), true, [{ ipc: 0.8, stall: 0.25, l2Wait: 0 }, { ipc: 1.5, stall: 0, l2Wait: 0 }]);
+    const t = tileModels(snap(), [{ ipc: 0.8, stall: 0.25, l2Wait: 0 }, { ipc: 1.5, stall: 0, l2Wait: 0 }]);
     expect([t[0]!.ipc, t[0]!.stall]).toEqual([0.8, 0.25]);
     expect(t[1]!.ipc).toBe(1.5);
     expect([t[2]!.ipc, t[2]!.stall]).toEqual([0, 0]);
-    expect(tileModels(snap(), true)[0]!.ipc).toBe(0);
+    expect(tileModels(snap())[0]!.ipc).toBe(0);
   });
 
   it('tints a thread by its job and its number: one family per job, a different one for another job', () => {
@@ -60,12 +59,11 @@ describe('core tiles', () => {
       const h = d === 0 ? 0 : mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
       return Math.round(h * 60);
     };
-    const a0 = threadTint(4096, 0, true), a5 = threadTint(4096, 5, true), b0 = threadTint(4096 + 64, 0, true);
+    const a0 = threadTint(4096, 0), a5 = threadTint(4096, 5), b0 = threadTint(4096 + 64, 0);
     expect(a0).toMatch(/^#[0-9a-f]{6}$/);
     expect(a0).not.toBe(a5); // another thread of the job: another shade
     expect(Math.abs(hue(a0) - hue(a5))).toBeLessThanOrEqual(2); // the same hue
     expect(Math.abs(hue(a0) - hue(b0))).toBeGreaterThan(5); // another job: another hue
-    expect(threadTint(4096, 0, false)).not.toBe(a0); // the light theme has its own
   });
 
   it('reads the out-of-order engine as its four units and the reorder buffer fill', () => {
@@ -86,7 +84,7 @@ describe('core tiles', () => {
 
 describe('washModels', () => {
   it('groups the logical cores by the hardware core they share, in tile order, and marks the tile of the selected core', () => {
-    const w = washModels(snap(), true);
+    const w = washModels(snap());
     expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([[0, [0, 2], false], [1, [1], true]]);
   });
 });

@@ -214,9 +214,9 @@ export class Live {
   private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
   private osUpTick: number | null = null;
 
-  constructor(renderer: Renderer, private additive: boolean) {
-    this.busFlow = new BusFlow(additive);
-    this.extFlow = new BusFlow(additive);
+  constructor(renderer: Renderer) {
+    this.busFlow = new BusFlow();
+    this.extFlow = new BusFlow();
     const dg = new Graphics().circle(0, 0, 16).fill({ color: '#ffffff' });
     this.dotTex = renderer.generateTexture(dg);
     dg.destroy();
@@ -279,7 +279,7 @@ export class Live {
     this.npu.setScene(T, npuCards);
     for (const t of targets) {
       const g = new Graphics(), dim = new Graphics();
-      if (this.additive) g.blendMode = 'add';
+      g.blendMode = 'add';
       this.root.addChild(g, dim);
       this.glows.set(t.id, { t, g, dim, base: 0, level: 0 });
     }
@@ -305,7 +305,7 @@ export class Live {
       let g: Graphics | null = null;
       if (power) {
         g = new Graphics();
-        if (this.additive) g.blendMode = 'add';
+        g.blendMode = 'add';
         for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
         g.stroke({ width: bus.w * 0.7, color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
         g.alpha = 0;
@@ -321,7 +321,7 @@ export class Live {
         continue;
       }
       const g = new Graphics();
-      if (this.additive) g.blendMode = 'add';
+      g.blendMode = 'add';
       // the glow stops where the plugs begin (plugs are drawn under the live layer)
       const pts = cable.path.pts.filter((_, i, a) => {
         let d = 0;

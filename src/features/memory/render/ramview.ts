@@ -237,7 +237,7 @@ export class RamView {
     if (!m || !T) return;
     // line widths follow the zoom in quarter-octave steps (about 19 %): a redraw per step, not one per tenth of a zoom while the wheel turns
     const q = Math.round(Math.log2(this.zoom) * 4), z = 2 ** (q / 4);
-    const sig = `${this.regionSig}|${q}|${OUTLINE_Z <= this.seen ? 1 : 0}${BAND_Z <= this.seen ? 1 : 0}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
+    const sig = `${this.regionSig}|${q}|${OUTLINE_Z <= this.seen ? 1 : 0}${BAND_Z <= this.seen ? 1 : 0}|${this.imgVersion}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
     if (sig === this.outSig) return;
     this.outSig = sig;
     const g = this.outG;
@@ -373,11 +373,11 @@ export class RamView {
       g.moveTo(cx, cy + r).lineTo(cx, sp.y).stroke({ width: Math.max(0.3, 1 / z), color: T.ink, alpha: 0.5 * a });
       g.circle(cx, cy, r).fill({ color: T.die, alpha: 0.92 * a });
       const n = b.cores.length, lw = 2.4 / z;
-      if (n === 1) g.circle(cx, cy, r).stroke({ width: lw, color: coreColor(b.cores[0]!.core, T.dark), alpha: a });
+      if (n === 1) g.circle(cx, cy, r).stroke({ width: lw, color: coreColor(b.cores[0]!.core), alpha: a });
       else {
         b.cores.forEach((k, j) => {
           const a0 = -Math.PI / 2 + (j * 2 * Math.PI) / n, a1 = a0 + (2 * Math.PI) / n - 0.14;
-          g.moveTo(cx + r * Math.cos(a0), cy + r * Math.sin(a0)).arc(cx, cy, r, a0, a1).stroke({ width: lw, color: coreColor(k.core, T.dark), alpha: a });
+          g.moveTo(cx + r * Math.cos(a0), cy + r * Math.sin(a0)).arc(cx, cy, r, a0, a1).stroke({ width: lw, color: coreColor(k.core), alpha: a });
         });
       }
       if (b.contended) g.circle(cx, cy, r * 1.4).stroke({ width: Math.max(0.3, 1.2 / z), color: T.br, alpha: 0.85 * a });
@@ -430,7 +430,7 @@ export class RamView {
     this.lens.scale.set(k);
     this.lens.position.set(cx - (LENS_W * k) / 2, top);
     this.lensAt = { x: cx, y: below ? top : top + LENS_H * k };
-    const sig = `${addr}|${this.imgVersion}|${color}|${focus?.kind ?? ''}|${this.regionSig}|${T.dark}|${vmSig(m)}`;
+    const sig = `${addr}|${this.imgVersion}|${color}|${focus?.kind ?? ''}|${this.regionSig}|${vmSig(m)}`;
     if (sig === this.lensSig) return;
     this.lensSig = sig;
     const rows = lensRows(m.image, m.regions, addr, LENS_ROWS);

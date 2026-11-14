@@ -35,14 +35,12 @@ describe('the slat wall', () => {
     setLayoutTier(0, 0);
     const g0 = roomGeo(), box = { ceil: g0.ceil, floor: g0.floor }, w = slatWall(box);
     expect(slatCount(w) * (SLAT.w + SLAT.gap) + SLAT.gap).toBeLessThanOrEqual(w.w);
-    for (const dark of [true, false]) {
-      const g = new Graphics();
-      expect(() => drawSlats(g, { ...THEME, dark }, box)).not.toThrow();
-      expect(g.getLocalBounds().width).toBeGreaterThan(w.w * 0.99);
-      expect(g.getLocalBounds().height).toBeGreaterThan(w.h * 0.99);
-    }
+    const g = new Graphics();
+    expect(() => drawSlats(g, THEME, box)).not.toThrow();
+    expect(g.getLocalBounds().width).toBeGreaterThan(w.w * 0.99);
+    expect(g.getLocalBounds().height).toBeGreaterThan(w.h * 0.99);
   });
-  it('shows the side of a slat that faces the vanishing point, wider the farther from it, and never more than the gap; the wall shade is built in both themes', () => {
+  it('shows the side of a slat that faces the vanishing point, wider the farther from it, and never more than the gap; the wall shade is built', () => {
     setLayoutTier(0, 0);
     const g0 = roomGeo(), box = { ceil: g0.ceil, floor: g0.floor }, vx = g0.persp.vx;
     expect(SLAT_DEPTH * 60000).toBeGreaterThan(SLAT.gap); // far enough out, the gaps are closed

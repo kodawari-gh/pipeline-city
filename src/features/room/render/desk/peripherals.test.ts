@@ -20,10 +20,10 @@ describe('what lies on the desk', () => {
   it.each([0, 1, 2, 3])('tier %i: the mat, the keyboard and the mouse lie on the desk top, between its far and near edges, and a height lifts a point straight up', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), D = deskGeo(g.persp, g.ys, g.floor), mcx = MONITOR.x + MONITOR.w / 2;
-    for (const dark of [true, false]) {
+    {
       for (const draw of [drawMat, (o: Graphics, T: Theme, d: typeof D, c: number) => drawKeyboard(o, T, LOOK, d, c), (o: Graphics, T: Theme, d: typeof D, c: number) => drawMouse(o, T, LOOK, d, c)]) {
         const o = new Graphics();
-        draw(o, { ...THEME, dark }, D, mcx);
+        draw(o, THEME, D, mcx);
         const b = o.getLocalBounds();
         expect(b.maxY).toBeLessThan(D.yFront); // nothing hangs over the desk's edge
         expect(b.minX).toBeGreaterThan(g.desk.x0);

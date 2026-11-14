@@ -23,7 +23,7 @@ describe('the mug', () => {
   });
   it('stands on its coaster inside the desk strip and does not run out of its own width', () => {
     const g = new Graphics();
-    drawMug(g, true, 1000, 3000, '#5a4634');
+    drawMug(g, 1000, 3000, '#5a4634');
     const b = g.getLocalBounds();
     expect(b.minY).toBeGreaterThanOrEqual(3000 - MUG.h - MUG.r * MUG.e - 60);
     expect(b.maxY).toBeLessThanOrEqual(3000 + 120);

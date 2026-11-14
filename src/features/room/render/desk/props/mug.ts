@@ -50,9 +50,9 @@ function drawDie(o: Graphics, cx: number, cy: number, s: number, k: number) {
 }
 
 /** Draw the mug standing at `mx` on the desk top `ys`. */
-export function drawMug(o: Graphics, dark: boolean, mx: number, ys: number, cork: string) {
+export function drawMug(o: Graphics, mx: number, ys: number, cork: string) {
   const { h, r: R, rb: Rb, e } = MUG, top = ys - h, foot = ys - 20;
-  const ceramic = dark ? '#eaeef8' : '#ffffff', ceramicLo = dark ? '#aeb8d4' : '#cdd5e4', rim = dark ? '#7e89aa' : '#9aa6bf';
+  const ceramic = '#eaeef8', ceramicLo = '#aeb8d4', rim = '#7e89aa';
   // the coaster (a rim line, a lit top, a groove), and the mug's shadow on the desk (thrown east, away from the lamp)
   o.ellipse(mx + 420, ys + 22, 1150, 56).fill({ color: '#000000', alpha: 0.26 });
   o.ellipse(mx, ys - 8, 800, 800 * e).fill({ color: mix(cork, '#000000', 0.25) });
@@ -65,7 +65,7 @@ export function drawMug(o: Graphics, dark: boolean, mx: number, ys: number, cork
   loop(0, 0).stroke({ width: 140, color: rim, alpha: 0.85, cap: 'round' });
   loop(0, 0).stroke({ width: 124, color: ceramicLo, cap: 'round' });
   loop(-4, -4).stroke({ width: 76, color: ceramic, cap: 'round' });
-  loop(-14, -10).stroke({ width: 16, color: '#ffffff', alpha: dark ? 0.5 : 0.85, cap: 'round' });
+  loop(-14, -10).stroke({ width: 16, color: '#ffffff', alpha: 0.5, cap: 'round' });
   // the body: straight sides to the base and the base's front arc, with a rim line
   o.poly([mx - R, top, mx + R, top, ...frontArc(mx, foot, Rb, false)]).fill({ color: ceramic }).stroke({ width: 9, color: rim, alpha: 0.9 });
   // the round shading: darker toward the right (away from the lamp), a cool bounce at the very edge, a lit stripe on the left
@@ -73,8 +73,8 @@ export function drawMug(o: Graphics, dark: boolean, mx: number, ys: number, cork
   strip(o, mx, top, foot, 0.4, 1, '#1a2238', 0.08);
   strip(o, mx, top, foot, 0.1, 1, '#1a2238', 0.08);
   strip(o, mx, top, foot, 0.92, 1, '#8fb4ff', 0.3);
-  o.roundRect(mx - R + 90, top + 140, 100, h - 330, 50).fill({ color: '#ffffff', alpha: dark ? 0.5 : 0.8 });
-  o.roundRect(mx - R + 210, top + 200, 34, h - 450, 17).fill({ color: '#ffffff', alpha: dark ? 0.25 : 0.45 });
+  o.roundRect(mx - R + 90, top + 140, 100, h - 330, 50).fill({ color: '#ffffff', alpha: 0.5 });
+  o.roundRect(mx - R + 210, top + 200, 34, h - 450, 17).fill({ color: '#ffffff', alpha: 0.25 });
   // the foot: a darker ring above the base
   ring(o, mx, top, foot, foot - 70, foot, '#1a2238', 0.1);
   // the rim, the inside wall (lit on the far side), the coffee with its crema ring and a lamp glint

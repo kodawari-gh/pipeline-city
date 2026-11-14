@@ -6,7 +6,7 @@ import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roompl
 import { CASE, FOOT, setLayoutTier } from '../layout/layout';
 import { caseModel, outlinePts, SIDE_T } from './case3d';
 
-const T = builtinTheme(true);
+const T = builtinTheme();
 
 describe('the 3D cases', () => {
   it('builds each tier as its own kind, inside the case box, standing on its feet', () => {

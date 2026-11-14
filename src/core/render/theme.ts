@@ -16,13 +16,8 @@ const DARK: Omit<Theme, 'dark'> = {
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
 
-/** The game is dark only. Kept so the callers read the same as before. */
-export function isDark(): boolean {
-  return true;
-}
-
-/** The built-in dark palette. The argument is ignored: there is no light theme. The 3D world's baked art always uses this one (the reference's black board under neon). */
-export const builtinTheme = (_dark: boolean = true): Theme => ({ dark: true, ...DARK });
+/** The built-in dark palette. The 3D world's baked art always uses this one (the reference's black board under neon). */
+export const builtinTheme = (): Theme => ({ dark: true, ...DARK });
 
 export function readTheme(): Theme {
   const cs = getComputedStyle(document.documentElement);

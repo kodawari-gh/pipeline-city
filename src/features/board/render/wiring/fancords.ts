@@ -135,7 +135,7 @@ export class FanCordsView {
       return { kind: p.id, connected, held: isHeld, plug: plugRectAt(p, at), centre: at, outlet: p.seat, outletRect: { x: p.header.x - 20, y: p.header.y - 20, w: p.header.w + 40, h: p.header.h + 40 }, rest: p.rest, seatR: p.seatR };
     });
     this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
-    const key = this.T.dark + '|' + this.falls.size + '|' + list.map((p) => (held?.kind === p.id ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : present.get(p.id) ? 'c' : 'l') + p.id).join('|');
+    const key = this.falls.size + '|' + list.map((p) => (held?.kind === p.id ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : present.get(p.id) ? 'c' : 'l') + p.id).join('|');
     if (key === this.key && !force) return { cords, redrew: false };
     this.key = key;
     this.draw(list, present, held);
