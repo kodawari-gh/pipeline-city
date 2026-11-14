@@ -28,7 +28,7 @@ describe('the machine at the room overview', () => {
         if (!m.isMesh || !(m.layers.mask & 1)) return;
         let anchor = ''; for (let p: Object3D | null = o; p; p = p.parent) if (typeof p.userData.id === 'string') { anchor = p.userData.id as string; break; }
         let moving = ''; for (let p: Object3D | null = o; p; p = p.parent) for (const k of ['spin', 'live', 'rig']) if (p.userData[k]) moving = `${k} ${p.name}`;
-        if (m.userData.standIn) add(`stand-in`);
+        if (m.userData.standIn) add(`stand-in: under ${m.parent?.userData.id ?? m.parent?.name ?? '?'} ${Object.keys(m.geometry.attributes).join(',')} ${mat.side} ${mat.map ? 'map' : ''} ${mat.metalness > 0.5 ? 'metal' : ''} ${m.castShadow}${m.receiveShadow}`);
         else if (moving) add(`moving: ${moving} ${anchor.replace(/\d+$/, '#')}`);
         else if (Array.isArray(mat)) add(`multi-material: ${anchor || 'case'} x${mat.length} ${m.geometry.type} ${m.geometry.attributes.position?.count} under "${m.parent?.name}" maps ${(mat as MeshStandardMaterial[]).filter((x) => x.map).length}`);
         else if (mat.transparent || mat.opacity !== 1) add(`see-through: ${anchor.replace(/\d+$/, '#') || 'case'} ${mat.emissiveIntensity > 0 && mat.emissive.getHex() ? 'glow' : 'glass'} ${m.geometry.type}`);

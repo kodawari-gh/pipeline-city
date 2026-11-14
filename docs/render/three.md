@@ -115,7 +115,8 @@ Code inventory (grep, `03fe0bc`): 20 Standard sites, 533 `mat()` calls (on 440 l
 
 ## Textures
 
-- There is no atlas, KTX2, Basis, Draco or meshopt on main. `gltf.ts` is a plain `GLTFLoader`. Both shipped GLBs carry 0 textures.
+- There is no atlas, Draco or meshopt on main. Both shipped GLBs carry 0 textures.
+- **KTX2 in models (KTX1).** `gltf.ts` `ktx2Support(renderer)` gives the `GLTFLoader` a `KTX2Loader` (`createRenderContext` calls it; the first context wins). The loader's code is its own chunk. The Basis transcoder is served from `public/basis/` (a copy of three's, 585 KB; `gltf.test.ts` fails if it differs, so copy it again after a three upgrade) and loads with the first KTX2 texture. `loadModel` gives null when a texture of the model did not load, so the part keeps its primitives. No shipped asset is KTX2 yet (ASK1–ASK3).
 - Runtime canvases carry the maps: 64 to 512 px, art tiles up to 2048 px. Anisotropy is the `filtering` option (default 8).
 - Texture counts (`renderer.info.memory.textures`): High 265, Low 219 in the main scenario. Counts are per page, not per view. Textures in MB and VRAM are not measured. No tool reports them.
 - The lightmap size is not settled. The lighting section gives 9.8 MB on disk. A derived unpacked RGBA8 figure is about 52.4 MiB. Docs also disagree on the atlas size (991x1153 against 994x1152).
@@ -223,7 +224,7 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 ## Not on main
 
 - **Far-city cards and night-window layer.** Designed, not built. No card path exists for buildings or trees.
-- **KTX2 loader.** Not present. Prerequisite: `KTX2Loader` and transcoder path in `gltf.ts`, plus a copied Basis transcoder (about 585 KB). About 60 to 90 lines (estimated).
+- **KTX2 assets.** The loader is in (see "KTX2 in models"); no asset is baked to KTX2 yet, and the painted maps (`rawSrgb`, `DECODE_SRGB`) have no KTX2 path.
 
 ## Known gaps
 

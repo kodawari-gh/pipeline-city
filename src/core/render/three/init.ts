@@ -3,6 +3,7 @@
 import { ACESFilmicToneMapping, Color, HalfFloatType, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, WebGLCubeRenderTarget, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import './arealoop';
+import { ktx2Support } from './gltf';
 
 /** `pmrem`: a prefilter for environment maps, its programs linked. */
 export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement; pmrem: PMREMGenerator }
@@ -23,6 +24,8 @@ export function createRenderContext(host: HTMLElement, background: string): Rend
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   host.appendChild(renderer.domElement);
+  // the models may carry KTX2 textures: the loader learns this GPU's formats before the first model loads (the first context's call wins)
+  void ktx2Support(renderer);
   const scene = new Scene();
   scene.background = new Color(background);
   // reflections and soft fill on every PBR surface: metal, glass, lacquered wood read as materials, not flat colour
