@@ -315,7 +315,7 @@ describe('Low city facade bake', () => {
       expect(at, 'the day wall after the colour step').toBeGreaterThan(sh.indexOf('#include <color_fragment>'));
       const day = sh.slice(at);
       // the frame: the vertex colour (each tower's own frame) times the atlas shade
-      expect(day).toContain('vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * 0.5) + fHor * (lowFarD * 0.3);');
+      expect(day).toContain('vec3 lowFrameD = vColor.rgb * mix(lowShade, vec3(0.84), lowFarD * 0.6) + fHor * (lowFarD * 0.44);');
       expect(day.indexOf('float lowFarD')).toBeLessThan(day.indexOf('vec3 lowFrameD'));
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
       // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue

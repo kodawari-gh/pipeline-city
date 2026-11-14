@@ -27,7 +27,7 @@ export const LOW_FAR_HUE = 0.35;
 export const LOW_GLASS_DAY = { near: 60, far: 220 };
 /** By day a far wall (past `LOW_FAR`, as `lowFarD`) takes less of its atlas's contrast (`flat`: toward the frame's tone) and lifts its value with the
  * horizon's colour (`sky`, base's `fHor`), so the row reads pale and hazed as base's does, not dark and cut. Near walls are unchanged. */
-export const LOW_FAR_DAY = { flat: 0.5, sky: 0.3 };
+export const LOW_FAR_DAY = { flat: 0.6, sky: 0.44 };
 /** Far walls (m from the eye): from `near` to `far` each lit room survives only if its hash clears a threshold that rises to `1 - keep`,
  * so the lit rooms stay discrete and get sparser with distance. Past `far` a wall is no longer read by room, nor by window texel: its albedo is
  * the map's mean (the top mip) and its glow is analytic. Only `share` of the buildings show floors, as horizontal bands `pitch` m apart
