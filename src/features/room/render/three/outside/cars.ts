@@ -485,7 +485,7 @@ export class Fleet {
 
   dispose(): void {
     this.group.traverse((o) => { if ((o as InstancedMesh).isInstancedMesh) { (o as InstancedMesh).geometry.dispose(); (o as InstancedMesh).dispose(); } });
-    if (this.capped) for (const im of [this.pools, this.shades]) { im.geometry.dispose(); im.dispose(); }
+    for (const im of [this.pools, this.shades]) { im.geometry.dispose(); im.dispose(); }
     this.mat.dispose(); this.poolMat.dispose(); this.shadeMat.dispose();
   }
 }
