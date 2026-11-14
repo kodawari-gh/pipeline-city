@@ -27,7 +27,9 @@ A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: 
 
 ### The owner's call
 
-The light is realistic. No studio map and no work light make the machine read. If the machine is unreadable at night, the room gets more lights: RGB accents, mood light, many lamps. The room is warm and cozy, "almost like an Instagram showroom" (T149, 2026-11-05). This adds to the earlier calls: uniformity above all (one palette, one level of detail, one light), offline bakes over live tricks, performance second.
+The light is realistic. No studio map and no work light make the machine read. If the machine is unreadable at night, the room gets more real light: RGB and neon accents, mood light, a few warm practicals. This adds to the earlier calls: uniformity above all (one palette, one level of detail, one light), offline bakes over live tricks, performance second.
+
+**Aligned 2026-11-12 with [`docs/art-style.md`](../../../docs/art-style.md) v3 (the approved direction).** The T149 call (2026-11-05) said "warm and cozy, almost like an Instagram showroom" and "many lamps". That is superseded: the room is a dark neon-led room (§1 "not a cozy warm desk scene"). Warm light is one or two practicals and pools, not the fill (§3, §10 item 1). Neon fixtures (strips, bias light, LED halo) define the room's night light. Kept from the call: realistic light only, no fill or fake work light, RGB accents, and the case lit by the room's light from outside, never from inside. Cutting the warm lamp count is part of rework item 1 (on hold until Khalil's go).
 
 ### What is wrong today (measured)
 

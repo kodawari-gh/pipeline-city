@@ -12,6 +12,8 @@ Pipeline City's 3D renders computing hardware with **precision, clarity, and rea
 
 **Target (art-style.md §1 and §3, rework items 1–2, on hold):** a neon hacker dashboard, not a cozy warm desk scene. Soft edges, ACES, and the state looks stay. Lighting and room surfaces change as marked under Lighting Setup.
 
+**Aligned 2026-11-12.** [`art-style.md`](art-style.md) v3 is the core direction. Owner calls made before it are superseded where they conflict with it: the 2026-10-31 "stylised warm" look, the warm wood room (2026-10-31 reference image), the "cozy lit room, many warm lamps" call (2026-11-05, T149), and the wood as the one warm material (2026-10-26). Kept from those calls: soft edges, realistic light only, no fill light, room first, RGB and neon accents. The 2026-11-06 PC palette keeps its violet, but as the palette's brand violet `#a68bff` (§2, "one set").
+
 ## Colour decisions (owner, 2026-11-12)
 
 - **Radiators follow the dark default** (target mean still luminance 60–100). Current: `rad1–3` stills are satin aluminium (measured `#9da2ac`, `#818695`). Target (art-style.md §4, rework item 9, on hold): rework to 60–100.
@@ -318,6 +320,7 @@ There is no separate sandbox camera. `board3d.ts:787` `caseView(yaw=0, pitch=0.0
 
 ## Changelog
 
+- 2026-11-12: aligned the owner calls of 2026-10-26 to 2026-11-06 with `art-style.md` v3 (see "Look decision"). The room's light and surfaces are still the code of today; the targets are on hold.
 - 2026-11-12: renamed from `LOWPOLY_STYLE.md` to `3D_STYLE.md`. Removed the low-poly framing (the game has been smooth, soft-edged hardware since 31 Oct). Replaced the unmeasured triangle-budget table with measured counts at `bfe11c6`. Wrote modelling rules that match the code (soft edges, sides vs on-screen size, baked 2D detail, smooth normals, where detail should go). Documented the real cameras (room 26–29°, board 14°, stills 28°) in place of the unused `init.ts` FOV 30°. Left a placeholder for per-tier geometry LoD. Performance targets deferred to Dev Lead. Current vs target on the look, the room, lighting, themes, class hues, light parts, brand violet, and stills is unchanged; the rework is still on hold.
 - 2026-11-12: renamed from `LOWPOLY_STYLE.md` (the game is no longer low-poly); measured triangle counts replace the unmeasured budget table; approved by Khalil.
 - 2026-11-12: updated against `bfe11c6` to match approved art-style.md v3. Current vs target on the look, the room, lighting, themes, class hues, light parts, brand violet, and stills. The rework is on hold. Fixed stale citations (`monitor3d.ts:12`, `layout.ts:151`, `buildmode3d.ts:150-155`).
