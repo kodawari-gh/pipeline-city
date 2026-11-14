@@ -38,8 +38,6 @@ const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
 /** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill. Its mullions are the frame at each bay's edge.
  * Its lit runs are RIB_RUN bays long, one run per storey: the whole bottom storey is one blue run. */
 const RIB_WIN = STYLES.band.win, RIB_LO = (1 - RIB_WIN[1]) * 0.6, RIB_MULL = (1 - RIB_WIN[0]) / 2, RIB_RUN = 4;
-/** A band's frame by day (linear, times the tower's colour): base's warm beige, not the cool white the tower's grey gives. */
-export const LOW_BAND_FRAME: readonly [number, number, number] = [1.0, 0.9, 0.74];
 
 /** A seeded generator (mulberry32): the bake is the same every time. */
 function rng(seed: number): () => number {
@@ -239,9 +237,6 @@ float lowRibGlass() {
   vec2 p = vec2(fract(vLowBay.x), fract(vLowY / max(vLowLook.y, 0.1)));
   vec2 lo = vec2(${RIB_MULL}, ${RIB_LO}), hi = vec2(${1 - RIB_MULL}, ${RIB_LO + RIB_WIN[1]});
   vec2 m = smoothstep(lo - fw, lo + fw, p) * (1.0 - smoothstep(hi - fw, hi + fw, p));
-  // a mullion finer than the pixel averages into the glass: once the bay is a few pixels, the mullions fade to the glass's share of the bay
-  // (not a grey stripe per bay), so the storey reads as one continuous ribbon as base's does
-  m.x = mix(m.x, ${RIB_WIN[0]}, smoothstep(${RIB_MULL * 2}, ${RIB_MULL * 6}, fw.x));
   return m.x * m.y;
 }
 // the ribbon's night light: per storey, runs of ${RIB_RUN} bays, a run lit by a hash (amber, its level by the same hash). The bottom storey's
@@ -275,7 +270,7 @@ if (fLampK > 0.0) {
   // a band's wall is its ribbon by day (the frame's beige, the glass's dark pane), not the atlas's punched windows; lowRib is 1 on a band's wall
   float lowRib = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
   float lowG = lowRibGlass();
-  vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy), vec4(mix(vec3(${LOW_BAND_FRAME.join(', ')}), vec3(0.09, 0.1, 0.12), lowG), lowG), lowRib);
+  vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy), vec4(mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG), lowG), lowRib);
   vec4 lowTex = mix(lowNear, textureLod(map, lowUv, ${LOW_TOP_MIP}.0), lowFarM);
   diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
