@@ -4,7 +4,7 @@
 
 **Base:** `bfe11c69781196ae8dfb9ba7de3553b2037edffc` (main, 2026-11-12 19:49 UTC+1). Folds the five open calls Khalil answered on 2026-11-12 into DRAFT v2. Evidence: the direction audit (2026-11-12, delivered with the v2 draft, not in the repo) and the measurements cited below. **(J)** = judgement. "Proposal" = not decided, not scheduled.
 **Images:** palette [art/palette.png](art/palette.png), references [art/references.png](art/references.png), and [art/cpu2-die-crop.png](art/cpu2-die-crop.png) (a 2.7× crop of `public/stills/cpu2.webp`).
-**Source of truth for values:** the code. Modelling and material detail: [`docs/LOWPOLY_STYLE.md`](LOWPOLY_STYLE.md) (it conflicts with this direction in places; see §12).
+**Source of truth for values:** the code. Modelling and material detail: [`docs/3D_STYLE.md`](3D_STYLE.md) (it conflicts with this direction in places; see §12).
 
 ## 1. Direction
 Pipeline City is a **neon hacker dashboard**: a near-black navy world where information glows. Neon (cyan, violet, magenta, lime, plus the status colours) arrives as **light**: emissive lines, lit traces, glowing blocks, bloom, and data that visibly moves along wires. Hardware stays **real hardware** (charcoal plastic, satin metal, PCB masks, gold and copper contacts), lit and edged by that neon rather than painted with it. Type is small and crisp, high contrast on dark glass, mono for numbers. The dark theme is the only theme.

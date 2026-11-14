@@ -155,7 +155,7 @@ Every engine configuration must match a trivial reference interpreter on generat
 
 ## Look and feel
 
-Cyberpunk-minimal with a dark/light toggle, as in the prototype. Theme tokens drive both Pixi and Preact. Minimal text, with explanations on hover and a few contextual hints on first occurrence of something (first stall, overheat, queue). No tutorial. No audio for the POC.
+Neon hacker dashboard, dark only ([art-style §1](art-style.md)). Theme tokens drive both Pixi and Preact. Minimal text, with explanations on hover and a few contextual hints on first occurrence of something (first stall, overheat, queue). No tutorial. No audio for the POC.
 
 ## Milestone 1
 

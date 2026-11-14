@@ -116,13 +116,13 @@ Each part must be **instantly recognizable** from any angle, including at shop-t
 | RAM (green PCB) | Green | `#32875b` (ram0) |
 | RAM (heat spreader) | Charcoal or silver | `#2a2d33`; silver `ram1` (current exception). Target (art-style.md §4, rework item 4, on hold): dark anodised clip-on, same family as today's DDR3 fins (`#2b2f37`, `ram3d.ts:205`) |
 | SSD / NVMe | Dark grey + label | `#4d525e`, `#41444a` |
-| PSU | Near-black | `#242425`, `#1c1c1e`; brass stripe `#e3cc71` |
+| PSU | Near-black | `#242425`, `#1c1c1e`; gold stripe `#e3cc71` (lit gold; the one gold is `#d4af5f`, art-style §2) |
 | Motherboard | Mask by tier | green `#3d6957` (board0), blue `#2b406c` (board1), black `#1d2023` (board2-3) |
 | Heatsinks (VRM, RAM, rsink) | Black anodised | `#222428` |
 | Cooler | Aluminium, satin blue-grey | `#adb2bd` (cooler1, current exception, measured), pump `#647293` (cooler2). Target (art-style.md §4, rework item 4, on hold): dark anodised fins `#2a2d32`–`#4e5360` |
 | Radiator | Satin aluminium → **to rework** dark | now `#9da2ac`, `#818695`. Target (art-style.md §4, rework item 9, on hold): mean luminance 60–100 |
 | NIC | Teal PCB | `#3a829e` |
-| Fans | Dark plastic | `#3a3a3e`; violet pads `#c19ce7` on `*x` |
+| Fans | Dark plastic | `#3a3a3e`; violet pads `#c19ce7` on `*x` (not in art-style §2; target brand violet `#a68bff`, rework item 8, on hold) |
 | Cables | Dark grey | not in stills (rule to set) |
 
 Saturated colour belongs to a PCB, the die art, or one small accent per part (a stripe, pads, a band).
@@ -320,6 +320,7 @@ There is no separate sandbox camera. `board3d.ts:787` `caseView(yaw=0, pitch=0.0
 
 ## Changelog
 
+- 2026-11-14: coherence pass with `art-style.md` v3 (lead doc): gold wording (no "brass"), fan pads mapped to the brand violet target, the lead doc's link fixed to this file.
 - 2026-11-12: aligned the owner calls of 2026-10-26 to 2026-11-06 with `art-style.md` v3 (see "Look decision"). The room's light and surfaces are still the code of today; the targets are on hold.
 - 2026-11-12: renamed from `LOWPOLY_STYLE.md` to `3D_STYLE.md`. Removed the low-poly framing (the game has been smooth, soft-edged hardware since 31 Oct). Replaced the unmeasured triangle-budget table with measured counts at `bfe11c6`. Wrote modelling rules that match the code (soft edges, sides vs on-screen size, baked 2D detail, smooth normals, where detail should go). Documented the real cameras (room 26–29°, board 14°, stills 28°) in place of the unused `init.ts` FOV 30°. Left a placeholder for per-tier geometry LoD. Performance targets deferred to Dev Lead. Current vs target on the look, the room, lighting, themes, class hues, light parts, brand violet, and stills is unchanged; the rework is still on hold.
 - 2026-11-12: renamed from `LOWPOLY_STYLE.md` (the game is no longer low-poly); measured triangle counts replace the unmeasured budget table; approved by Khalil.
