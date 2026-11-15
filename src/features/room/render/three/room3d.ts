@@ -22,7 +22,7 @@ import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
-import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
@@ -667,9 +667,9 @@ export class Room3D {
       router.add(side);
       // its front: a darker strip with the status lights, vents over its top
       router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x0d0e10, { roughness: 0.5 }), 30));
-      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, 8));
+      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, SEG.smallDisc));
       for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
-      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, 8));
+      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, SEG.smallDisc));
       if (tier >= 3) return; // a switch-router has no aerials
       for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
         const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
@@ -695,19 +695,19 @@ export class Room3D {
     box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x08090a, { roughness: 0.6 })));
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
-    box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, 12), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
+    box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
     if (lowDetail()) mergeWithin(box, { twin: this.envTwin });
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));
-    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), 20));
+    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), SEG.disc));
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
     const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {
       const m = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(NEON), emissiveIntensity: 0 });
-      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, 8);
+      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, SEG.smallDisc);
       this.ispDots.push(m);
       R.add(d);
     }
@@ -1038,7 +1038,7 @@ export class Room3D {
       g.add(body);
       if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }
       g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9bec6, { metalness: 0.8, roughness: 0.3 })));
-      g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), 6));
+      g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), SEG.cord));
       if (this.known && !this.known.has(k.id)) {
         const e = this.envelope();
         g.visible = false;

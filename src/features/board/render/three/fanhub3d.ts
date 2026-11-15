@@ -102,7 +102,7 @@ export function fanHub(): Group {
   g.add(instanced(box, mat(0xa9afb6, { metalness: 0.8, roughness: 0.4 }), legs), instanced(box, mat(0x14151a, { roughness: 0.5 }), chips), instanced(box, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), ends));
   for (const x of [h.x + 180, h.x + 290]) {
     const y = my + 80;
-    g.add(drum(x, y, z, z + 96, 44, mat(0x15161c, { roughness: 0.35, metalness: 0.2 }), 20), drum(x, y, z + 96, z + 97, 38, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), 20));
+    g.add(drum(x, y, z, z + 96, 44, mat(0x15161c, { roughness: 0.35, metalness: 0.2 }), SEG.disc), drum(x, y, z + 96, z + 97, 38, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), SEG.disc));
     g.add(rectBox({ x: x - 34, y: y - 2, w: 68, h: 4 }, z + 97, z + 97.5, mat(0x3b3e44, { roughness: 0.6 })), rectBox({ x: x - 2, y: y - 34, w: 4, h: 68 }, z + 97, z + 97.5, mat(0x3b3e44, { roughness: 0.6 })));
   }
 

@@ -3,7 +3,7 @@
 // (layout x and y, y down from the ceiling side; z out of the back wall), nothing answers a click.
 import { Box3, Group, Mesh, Vector3, type Material } from 'three';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
-import { drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
+import { SEG, drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { weave } from './furniture3d';
 import { BENCH, FLOOR_Y, PIER, TRAY } from './roomplan';
@@ -69,11 +69,11 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   const side = (t: number, from: number) => Array.from({ length: 12 }, (_, k) => [t, from + ((Math.PI / 2 - 0.02 - from) * k) / 11] as [number, number]);
   pack.add(zip(body, [...side(0.55, -0.7), ...side(Math.PI - 0.55, -0.7).reverse()], 0, 0));
   pack.add(zip(pocket, Array.from({ length: 12 }, (_, k) => [0.4 + ((Math.PI - 0.8) * k) / 11, 0.85] as [number, number]), 55, 70));
-  pack.add(tube([[-50, 418, -10], [-30, 462, 0], [30, 462, 0], [50, 418, -10]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 9 * MM, black, 6));
+  pack.add(tube([[-50, 418, -10], [-30, 462, 0], [30, 462, 0], [50, 418, -10]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 9 * MM, black, SEG.cord));
   // a zip pull on each zip: a small dark tab
   const pull = (q: Vector3, dy: number, dz: number) => rectBox({ x: (q.x - 6) * MM, y: -(q.y + dy) * MM, w: 12 * MM, h: 40 * MM }, (q.z + dz) * MM, (q.z + dz + 6) * MM, black);
   pack.add(pull(bagAt(body, 0.55, 0.9, new Vector3()), 0, 4), pull(bagAt(pocket, 1.1, 0.8, new Vector3()), 55, 74));
-  for (const s of [-1, 1]) pack.add(tube([[s * 40, 410, -62], [s * 100, 300, -82], [s * 120, 150, -82], [s * 130, 40, -62]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 14 * MM, black, 6));
+  for (const s of [-1, 1]) pack.add(tube([[s * 40, 410, -62], [s * 100, 300, -82], [s * 120, 150, -82], [s * 130, 40, -62]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 14 * MM, black, SEG.cord));
   // tilted back about its own width, turned so its back faces the drawer unit (+x); then set down on the floor and moved against the unit's
   // side: it touches both, it goes into neither
   pack.rotation.set(-0.12, -Math.PI / 2 + 0.1, 0, 'YXZ');
@@ -93,15 +93,15 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   for (let k = 0; k < 4; k++) {
     const px = sx + (40 + k * 75) * MM, top = base - sh - 32 * MM, cx = px + 22 * MM;
     g.add(softBox({ x: px, y: top, w: 45 * MM, h: 32 * MM }, sz + 6 * MM, sz + 48 * MM, lead, 120));
-    g.add(tube([[cx, -top, mid], [cx + (grommet.x - cx) * 0.5, -(top - 160), (mid + grommet.z) / 2], [grommet.x + (k - 1.5) * 80, -(under + 200), grommet.z]], 60, lead, 6));
+    g.add(tube([[cx, -top, mid], [cx + (grommet.x - cx) * 0.5, -(top - 160), (mid + grommet.z) / 2], [grommet.x + (k - 1.5) * 80, -(under + 200), grommet.z]], 60, lead, SEG.cord));
   }
   // (2D y down here; the lead runs on the tray's floor, up its back wall's inside, over its top under the desk, down between it and the wall)
   // (its socket is on the building's column: the glass is behind the rest of the desk)
   const wx = PIER.x0 + 1000, sockY = fl - 3000, ry = under + t.drop - 200;
   const path: [number, number, number][] = [[sx, base - sh / 2, mid], [sx - 600, base - 75, mid], [wx, base - 75, t.z0 + 260], [wx, ry, t.z0 + 260], [wx, ry, 200], [wx, sockY - 1000, 200], [wx, sockY - 400, 380]];
-  g.add(tube(rounded(path.map(([x, y, z]) => [x, -y, z] as const), 250), 70, lead, 6));
+  g.add(tube(rounded(path.map(([x, y, z]) => [x, -y, z] as const), 250), 70, lead, SEG.cord));
   // the socket: a flat plate on the wall, its outlet, the plug in it
-  g.add(softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x23262b, { roughness: 0.3 }), 40), drum(wx, sockY, 80, 100, 380, mat(0x15161a, { roughness: 0.6 }), 20));
+  g.add(softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x23262b, { roughness: 0.3 }), 40), drum(wx, sockY, 80, 100, 380, mat(0x15161a, { roughness: 0.6 }), SEG.disc));
   g.add(softBox({ x: wx - 300, y: sockY - 400, w: 600, h: 800 }, 100, 660, shell, 100));
 
   // ---- books: two on the bench by the glass ----

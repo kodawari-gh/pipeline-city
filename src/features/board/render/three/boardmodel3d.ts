@@ -6,7 +6,7 @@
 // Built in board space (x east, y north, z up off the board).
 import { BoxGeometry, Group, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { headerRect } from '@/core/render/accelart';
-import { drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lerpHex, mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
@@ -138,7 +138,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
   g.add(small);
   // the lights: power good beside the CPU's controller, and the top board's debug code and RGB strip
-  g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), 12));
+  g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
   if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
   if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
   return { root: g, sockets, small, lights };

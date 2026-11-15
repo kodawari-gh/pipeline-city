@@ -304,6 +304,6 @@ export function mainsPlug(p: BasementPlan, visual: string): Group {
   const relief = new Mesh(new CylinderGeometry(5.8 * MM, 3.7 * MM, 16 * MM, SEG.drum).rotateZ(-Math.PI / 2), m);
   relief.position.set(gx - 8 * MM, -i.y, i.z);
   g.add(relief);
-  g.add(instanced(new CylinderGeometry(1, 1, 1, 20).rotateZ(Math.PI / 2), m, [0, 1, 2, 3].map((k) => ({ x: gx - 3 * MM - k * 3.4 * MM, y: -i.y, z: i.z, sx: 1.2 * MM, sy: (5.6 - k * 0.5) * MM, sz: (5.6 - k * 0.5) * MM }))));
+  g.add(instanced(new CylinderGeometry(1, 1, 1, SEG.disc).rotateZ(Math.PI / 2), m, [0, 1, 2, 3].map((k) => ({ x: gx - 3 * MM - k * 3.4 * MM, y: -i.y, z: i.z, sx: 1.2 * MM, sy: (5.6 - k * 0.5) * MM, sz: (5.6 - k * 0.5) * MM }))));
   return g;
 }

@@ -90,7 +90,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   add(lga, box, gold);
   add(washers, can, mat(0x6c7480, { metalness: 0.8, roughness: 0.4 }));
   const side = mat(0x9aa3ae, { metalness: 0.85, roughness: 0.32 });
-  add(heads, new CylinderGeometry(1, 1, 1, 24).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
+  add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
   return out;
 }
 

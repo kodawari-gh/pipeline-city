@@ -79,7 +79,7 @@ const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c,
 // ------------------------------------------------------------------ small parts
 /** Screws standing on a face at depth `z`, `r` round (the push pins' heads, the crossbar's spring screws, the radiator's fill port). */
 function screws(g: Group, at: readonly (readonly [number, number])[], z: number, r: number) {
-  const geo = new CylinderGeometry(r, r * 1.08, r * 0.5, 20).rotateX(Math.PI / 2), side = alu(METAL.hi, 0.3), top = mat(0xffffff, { map: screwHead(), metalness: 0.7, roughness: 0.35 });
+  const geo = new CylinderGeometry(r, r * 1.08, r * 0.5, SEG.disc).rotateX(Math.PI / 2), side = alu(METAL.hi, 0.3), top = mat(0xffffff, { map: screwHead(), metalness: 0.7, roughness: 0.35 });
   for (const [x, y] of at) { const s = place(new Mesh(geo, [side, top, side])); s.position.set(x, -y, z + r * 0.25); g.add(s); }
 }
 
@@ -105,7 +105,7 @@ function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vect
 
 /** A G1/4 fitting screwed into a port at the world point `p`, pointing along `dir` (a unit vector): its hex, then the collar with two ridges round it. */
 function fitting(g: Group, p: Vector3, dir: Vector3, m: Material) {
-  along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, 6), m, p, dir, FIT.hexLen / 2);
+  along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, SEG.hexNut), m, p, dir, FIT.hexLen / 2);
   along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, SEG.drum), m, p, dir, (FIT.hexLen + FIT.len) / 2);
   for (const at of [FIT.hexLen + 60, FIT.len - 30]) along(g, new TorusGeometry(FIT.collar + 6, 10, 8, 32), m, p, dir, at, new Vector3(0, 0, 1));
 }
@@ -246,11 +246,11 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   g.add(softBox({ x: -1000, y: -110, w: 2000, h: 220 }, L + 300, L + 340, m, 12));
   for (const px of [-920, 920]) {
     const z0 = BOARD_Z + 264, z1 = L + 296, k = byDetail(7 * 16, 48);
-    g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, 12));
+    g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, SEG.part));
     g.add(tube(Array.from({ length: k + 1 }, (_, i): [number, number, number] => {
       const a = (i / k) * 7 * Math.PI * 2;
       return [px + Math.cos(a) * 54, Math.sin(a) * 54, z0 + ((z1 - z0) * i) / k];
-    }), 10, m, 6, byDetail(339, 48)));
+    }), 10, m, SEG.cord, byDetail(339, 48)));
   }
   screws(g, [[-920, 0], [920, 0]], L + 340, 60);
   // the base: a copper contact plate on the lid, the aluminium block the pipes run through
@@ -261,7 +261,7 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   const tip = FIN1 + 100;
   for (const [px, s] of [[-270, 960], [-90, 640], [90, 800], [270, 480]] as const) {
     g.add(pipe(rounded([[px, s, tip], [px, s, L + 170], [px, -s, L + 170], [px, -s, tip]], 220, 8), 69, cu));
-    for (const py of [s, -s]) g.add(drum(px, py, FIN1 + 40, tip, 72, cu, 20));
+    for (const py of [s, -s]) g.add(drum(px, py, FIN1 + 40, tip, 72, cu, SEG.disc));
   }
   // the fins: forty-eight plates in the board's plane, the air passing between them east to west
   const n = 48, pitch = (FIN1 - FIN0 - 12) / (n - 1);
@@ -336,7 +336,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
     const len = Math.hypot(hx, hy), k = (600 + len) / 2 / len, arm = place(new Mesh(new BoxGeometry(len - 600, 170, 44), bracket));
     arm.position.set(hx * k, -hy * k, L + 84);
     arm.rotation.z = Math.atan2(-hy, hx);
-    g.add(arm, drum(hx, hy, L + 62, L + 108, 120, bracket, 32));
+    g.add(arm, drum(hx, hy, L + 62, L + 108, 120, bracket, SEG.bigDisc));
   }
   // the body: anodised dark aluminium (satin, as the radiator's: it keeps its grey in the case's shade), a little wider at its foot; a seam where
   // it meets the base

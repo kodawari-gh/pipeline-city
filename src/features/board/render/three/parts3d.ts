@@ -19,7 +19,7 @@ const steel = () => mat(0x9aa3ae, { metalness: 0.85, roughness: 0.32 });
 
 /** A pan-head screw from depth z, radius r: the head and its cross slot. */
 function screw(g: Group, x: number, y: number, z: number, r: number) {
-  g.add(drum(x, y, z, z + r * 0.45, r, steel(), 20));
+  g.add(drum(x, y, z, z + r * 0.45, r, steel(), SEG.disc));
   const slot = mat(0x20242c, { roughness: 0.6 });
   g.add(rectBox({ x: x - r * 0.6, y: y - r * 0.1, w: r * 1.2, h: r * 0.2 }, z + r * 0.4, z + r * 0.47, slot), rectBox({ x: x - r * 0.1, y: y - r * 0.6, w: r * 0.2, h: r * 1.2 }, z + r * 0.4, z + r * 0.47, slot));
 }
@@ -97,7 +97,7 @@ function cellTop(): Texture | null {
 /** The board's coin cell over its 2D rect: a dark holder, the cell in it, the spring clip across its top. */
 export function coinCell(r: RectLike): Group {
   const g = new Group(), cx = r.x + r.w / 2, cy = r.y + r.h / 2, R = Math.min(r.w, r.h) / 2;
-  g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1a1d24, { roughness: 0.55 }), 32));
+  g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1a1d24, { roughness: 0.55 }), SEG.bigDisc));
   // (a satin top: a mirror one flares white under the lamp up close)
   const side = mat(0xaab2bc, { metalness: 0.8, roughness: 0.4 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }), side]));
   cell.position.set(cx, -cy, BOARD_Z + 34);

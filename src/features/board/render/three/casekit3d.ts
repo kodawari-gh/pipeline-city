@@ -5,7 +5,7 @@ import {
   BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { anisotropy, extrude, instanced, place, shareTex, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, extrude, instanced, place, SEG, shareTex, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -73,7 +73,7 @@ export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
 /** A flat shape extruded from depth z0 to z1, its edges rounded by `bevel` inside its outline. */
 export function slab(shape: Shape, z0: number, z1: number, m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (z1 - z0) / 2.2));
-  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
+  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.caseCurve });
   g.translate(0, 0, z0 + b);
   return place(new Mesh(g, m));
 }
@@ -97,7 +97,7 @@ export const wallPt = (y: number, z: number): Vector2 => new Vector2(z, -y);
  */
 export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])[], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
+  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.holeCurve });
   // the shape's (u, v) is the world's (z, y); its extrusion runs to -x after the turn
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));
@@ -106,7 +106,7 @@ export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])
 /** A sheet lying flat across the case (a shelf, the shroud's top): layout x from `x0` to `x1`, depth `z0` to `z1`, `t` thick under its top at layout `y`, with holes as world (x, z) outlines. */
 export function plateY(x0: number, x1: number, z0: number, z1: number, y: number, t: number, holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, t / 2.2)), s = shapeOf([new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x1, z1), new Vector2(x0, z1)], holes);
-  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
+  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: SEG.caseCurve });
   // (the shape's (u, v) is the world's (x, z); its extrusion runs down from the top)
   g.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0);
   return place(new Mesh(g, m));

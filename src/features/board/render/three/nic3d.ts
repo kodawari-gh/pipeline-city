@@ -195,10 +195,10 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
     u.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
     const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xa9b0b9, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
-      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, 16), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, 24));
+      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, 16), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
       const coil: [number, number, number][] = [];
       for (let k = 0; k <= 72; k++) { const a = (k / 72) * Math.PI * 2 * 4; coil.push([px + Math.cos(a) * 1.6 * MM, py + Math.sin(a) * 1.6 * MM, b1 + 0.2 * MM + (k / 72) * 3.2 * MM]); }
-      u.add(tube(coil, 0.18 * MM, spring, 6));
+      u.add(tube(coil, 0.18 * MM, spring, SEG.cord));
     }
   }
   // the crystal between the jacks and the controller, the flash east of it, the regulator (a dual buck) with its two inductors and the polymer
@@ -265,8 +265,8 @@ export function nicBack(g: Group, visual: string, f: CardFrame, Z: number, cu: N
   const sinkPins = a.sink ? cu.npth.slice(-2) : [];
   for (const h of cu.npth) {
     const pin = sinkPins.includes(h), m = pin ? mat(C.pinHex, { roughness: 0.55 }) : peg, r = h.r - 0.15 * MM, t = (pin ? 1.2 : 0.8) * MM;
-    g.add(drum(h.x, h.y, Z, Z + t, r, m, 20));
-    if (pin) g.add(drum(h.x, h.y, Z + t, Z + t + 0.4 * MM, r * 0.75, m, 20));
+    g.add(drum(h.x, h.y, Z, Z + t, r, m, SEG.disc));
+    if (pin) g.add(drum(h.x, h.y, Z + t, Z + t + 0.4 * MM, r * 0.75, m, SEG.disc));
     g.add(rectBox({ x: h.x - r - 0.05 * MM, y: h.y - 0.2 * MM, w: 2 * r + 0.1 * MM, h: 0.4 * MM }, Z + 0.2 * MM, Z + t + (pin ? 0.45 : 0.05) * MM, slit));
   }
   const st = serialLabel(visual);

@@ -106,7 +106,7 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   for (const x of [0, W - R]) g.add(wallX(x, x + R, { y0: -H, y1: 0, z0: 40, z1: L - 26 }, [win], steel, 3));
   // the pins, through a rubber ring on each rail's inner face, pointing at the drive's side holes
   const pin = (dir: 1 | -1) => new CylinderGeometry(1.5 * MM, 1.5 * MM, 4 * MM, SEG.post).rotateZ(Math.PI / 2).translate((dir * 4 * MM) / 2, 0, 0);
-  const ring = (dir: 1 | -1) => new CylinderGeometry(4 * MM, 4 * MM, 1.2 * MM, 20).rotateZ(Math.PI / 2).translate((dir * 1.2 * MM) / 2, 0, 0);
+  const ring = (dir: 1 | -1) => new CylinderGeometry(4 * MM, 4 * MM, 1.2 * MM, SEG.disc).rotateZ(Math.PI / 2).translate((dir * 1.2 * MM) / 2, 0, 0);
   for (const [x, dir] of [[R, 1], [W - R, -1]] as const) {
     const at = PIN_Z.map((z) => ({ x, y: PIN_Y, z }));
     g.add(instanced(ring(dir), rubber, at), instanced(pin(dir), pinM, at.map((p) => ({ ...p, x: p.x + dir * 1.2 * MM }))));

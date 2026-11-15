@@ -2,7 +2,7 @@
 // packages with their laser marking and pin-1 dimple, solder-mask tops painted with traces, vias, pads and silkscreen, gold edge fingers. Sizes are
 // real (23 layout units a mm); a part stands on a PCB top at depth z, its rect in layout coordinates (y down).
 import { BoxGeometry, Group, Mesh, PlaneGeometry, RingGeometry, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, shapeOf, tex } from './casekit3d';
 
@@ -265,7 +265,7 @@ export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { ro
  * weave in its resin, lighter than the mask, so a thin board reads as one).
  */
 export function pcbSlab(pts: readonly (readonly [number, number])[], z0: number, z1: number, mask: number, edge = 0x45443a): Mesh {
-  const g = extrude(shapeOf(pts.map(([x, y]) => new Vector2(x, -y))), { depth: z1 - z0, bevelEnabled: false, curveSegments: 6 });
+  const g = extrude(shapeOf(pts.map(([x, y]) => new Vector2(x, -y))), { depth: z1 - z0, bevelEnabled: false, curveSegments: SEG.caseCurve });
   g.translate(0, 0, z0);
   const o = new Mesh(g, [mat(mask, { roughness: 0.6 }), mat(edge, { roughness: 0.85 })]);
   o.castShadow = o.receiveShadow = true;

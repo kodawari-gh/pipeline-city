@@ -546,7 +546,7 @@ export function bookcase(): Group {
   // the shelf-pin holes up the inside of each side, two rows (front and back)
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
-  const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
+  const hole = new CylinderGeometry(70, 70, 24, SEG.smallDisc); hole.rotateX(Math.PI / 2);
   g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
   const { n } = CASE_BOARDS, gap = (fl - top - 1400) / n;
   // the bindings: neutrals, slate blues, a sage, a sand, and the room's terracotta as the one warm colour

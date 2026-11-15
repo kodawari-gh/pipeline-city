@@ -1,7 +1,7 @@
 // The heatsinks over the board's VRMs (specs `vrm-sink`, `ram-sink`), built into a group in board space: the live board and the showcase share it.
 import { BoxGeometry, Vector2, type Group } from 'three';
 import type { Theme } from '@/core/render/theme';
-import { drum, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -79,8 +79,8 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   // the screws: a boss of the casting on a nylon washer on the board, the shaft through it, a washer and the head behind
   const steel = mat(0x8c939c, { metalness: 0.8, roughness: 0.32 }), nylon = mat(0xd6d1c2, { roughness: 0.7 });
   for (const [x, y] of screwSpots(kind)) {
-    g.add(drum(x, y, BOARD_Z, BOARD_Z + 8, 46, nylon, 20), drum(x, y, BOARD_Z + 8, Z.foot + 2, 38, anod, 20));
-    g.add(drum(x, y, BOARD_Z - 72, BOARD_Z + 8, 20, steel, 12), drum(x, y, BOARD_Z - 72, BOARD_Z - 64, 50, nylon, 20), drum(x, y, BOARD_Z - 102, BOARD_Z - 72, 44, steel, 20));
+    g.add(drum(x, y, BOARD_Z, BOARD_Z + 8, 46, nylon, SEG.disc), drum(x, y, BOARD_Z + 8, Z.foot + 2, 38, anod, SEG.disc));
+    g.add(drum(x, y, BOARD_Z - 72, BOARD_Z + 8, 20, steel, SEG.part), drum(x, y, BOARD_Z - 72, BOARD_Z - 64, 50, nylon, SEG.disc), drum(x, y, BOARD_Z - 102, BOARD_Z - 72, 44, steel, SEG.disc));
   }
   if (!spot || !H) return { spot, foot: Z.root, top };
   // the housing: its floor on the rails, a wall down each side (north and south), the fins between them along the rails' channels, the cover

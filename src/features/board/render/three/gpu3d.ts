@@ -63,7 +63,7 @@ export function uvSpan<T extends Mesh>(o: T, k: number): T {
 /** A prism across x (x0 to x1) from an outline of `wallPt` points with holes: a port's shell, its mouth through it. */
 export function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
+  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: SEG.caseCurve });
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));
 }
@@ -191,7 +191,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
     const yTop = yb - 30 - PR - 1.5 * MM - j * 7.6 * MM, yBot = ya + 30 + PR + 1.5 * MM + j * 7.6 * MM;
     const topEnd = dir < 0 ? finX0 + 5 * MM : Math.min(finX1 - 5 * MM, yTop > end - SOCKET.d - 2 * MM - PR ? plugX0 - 3 * MM : Infinity), botEnd = dir < 0 ? finX0 + 5 * MM : finX1 - 5 * MM;
     const pts: [number, number, number][] = [[topEnd, -yTop, zMid], [x, -yTop, zMid], [x, -(die.y + BASE + 6 * MM), zBase], [x, -(die.y - BASE - 6 * MM), zBase], [x, -yBot, zMid], [botEnd, -yBot, zMid]];
-    g.add(tube(rounded(pts, 9 * MM, 6), PR, pipeM, 14));
+    g.add(tube(rounded(pts, 9 * MM, 6), PR, pipeM, SEG.pipe));
     // the sealed, crimped ends
     for (const [ex, ey] of [[topEnd, yTop], [botEnd, yBot]] as const) {
       const cap = place(new Mesh(new SphereGeometry(PR, 14, 8).scale(1.4, 1, 0.55), pipeM));
@@ -260,7 +260,7 @@ export function dieBack(g: Group, key: string, die: { x: number; y: number }, ho
   passives(g, caps, Z);
   const spring = mat(0x24272d, { metalness: 0.6, roughness: 0.42 }), arm = hole * (16 / 21), at = arm / Math.SQRT2;
   g.add(instanced(new BoxGeometry(1, 1, 1), spring, [{ x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: Math.PI / 4 }, { x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: -Math.PI / 4 }]));
-  g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, 24));
+  g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, SEG.drum));
   const coil = mat(0x8e959f, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
   for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
     const x = die.x + sx * at, y = die.y + sy * at;

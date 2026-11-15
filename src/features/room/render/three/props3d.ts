@@ -55,7 +55,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   // the mouth's rolled lip, the head's knob that sets the shade's tilt
   const lip = place(new Mesh(new TorusGeometry(816, 40, SEG.rod, SEG.lathe), coat));
   lip.rotation.x = Math.PI / 2; lip.position.y = -L;
-  const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, 18), joint));
+  const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, SEG.knob), joint));
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
   shade.add(lip, knob);
   const bulb = mat(0xfff6e0, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
@@ -383,7 +383,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   board.rotation.x = 0.05; board.position.y = 70;
   g.add(board);
   // the cable: out of the back, over the mat's edge, back to the wall west of the monitor's foot
-  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), 6));
+  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), SEG.cord));
   g.position.set(cx, -deskY + 40, z);
   return g;
 }

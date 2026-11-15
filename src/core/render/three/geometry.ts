@@ -86,6 +86,12 @@ export const SEG = {
   flangeWall: 6, plug: 4,
   /** RAM outline curves (`curveSegments`). */
   ramCurve: 10,
+  /** Extrude outlines (`curveSegments`): a straight edge, a flat case, PCB or board outline, an outline with holes, a rounded bezel. */
+  curveFlat: 1, caseCurve: 6, holeCurve: 8, curveRound: 12,
+  /** Small round parts (sides): an LED, a grommet or hole; a cap or standoff; a mid-size disc; a large bracket or base. */
+  smallDisc: 8, part: 12, disc: 20, bigDisc: 32,
+  /** Thin tubes and turned or cut parts: a cable or wire, a pipe, a hex nut, a knob. */
+  cord: 6, pipe: 14, hexNut: 6, knob: 18,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
@@ -255,7 +261,7 @@ export function fanFlange(d: number, t: number, w = d): BufferGeometry {
   const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
   s.holes.push(round(0, 0, d * FAN_THROAT, n));
   for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 8));
-  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: 1 }).translate(0, 0, -t / 2 + b);
+  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
 }
 
 /**
