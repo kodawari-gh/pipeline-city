@@ -62,6 +62,29 @@ PERF6 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). The cost of
 - Census (maxed sandbox machine, headless): 632 drawn meshes to 398 in the room view, 441 in the phone board view; 273 parts in 19 stand-ins. Frame times: not measured here.
 - Census with the overview's class (2026-11-14, maxed sandbox machine, High, `overview.test.ts`): 678 drawn meshes near, 270 at the overview. The 270 are the see-through meshes, the multi-material meshes, the rotors and the sets of one mesh. The test holds 270 as a ceiling.
 
+### LOD-01 popping study (2026-11-15, one fan, rule not changed)
+This is a measurement for the owner's decision. No LOD code is on main; the rule in `docs/TODO.md` (LOD-01) is as it was.
+- **Method.** The first case fan (120 mm, 32 sides from `fanSides`) in the maxed sandbox machine, hour 14, yaw -55°, presets High and Low, real GPU (RTX 5080, ANGLE D3D11). A scratch override set the sides of every fan round to 24, 16, 12 or 8. Each count was shot at 12 sizes: bbox diagonal 120, 90, 72, 60, 45, 36, 30, 23, 18 and 15 px. A crop on the fan was compared between two counts: share of pixels that differ by more than 12 of 255, and the peak difference. The size sweep stands in for the motion sweep: the camera moved back in steps, no video.
+- **Limits.** Only the side count changed. No small feature was left out, no merged mesh, no shared material: the builder has no detail level yet. The small sizes come from a smaller viewport (480×320, 240×160, 120×80), because the camera leaves the room at the true distance. The override and the tools were scratch only and are not in the repo.
+- **Noise floor.** Two runs of the same count: 0 to 0.1 % of the pixels on High (peak 14), 0 % on Low (peak 2). Each number below is far over it.
+
+| Swap | Size | High: pixels, peak | Low: pixels, peak | By eye, still frame |
+| --- | --- | --- | --- | --- |
+| 32 → 24 | 120 px | 4.3 %, 87 | 2.4 %, 132 | no facets |
+| 32 → 24 | 60 px | 2.8–4.0 %, 61–93 | 1.2–2.5 %, 53–98 | no facets |
+| 32 → 16 | 60 px | 5.7–8.0 %, 66–84 | 3.5–7.3 %, 63–91 | no facets |
+| 24 → 16 | 60 px | 4.2–6.8 %, 58–93 | 3.0–5.1 %, 63–91 | no facets |
+| 24 → 12 | 60 px | 6.5–9.8 %, 76–109 | 4.9–7.9 %, 62–91 | facets just visible |
+| 16 → 12 | 23 px | 6.5 %, 56 | 4.9 %, 46 | no facets |
+| 16 → 8 | 23 px | 10.8 %, 79 | 12.0 %, 44 | no facets |
+| 16 → 8 | 60 px | 9.2–11.9 %, 80–149 | 6.6–9.7 %, 77–108 | octagon visible |
+
+(Two values at 60 px and 30 px: the same size from two viewports.)
+- **Still frames.** 16 sides at 60 px and 8 sides at 24 px show no facets, on both presets. That is 8 px and about 6 px per side on the throat, inside the rule's 4–8 px. 8 sides is an octagon from 60 px up; 12 sides shows from about 60 px up.
+- **The swap.** A hard swap is not free. Each step changes 2 to 12 % of the fan's pixels in one frame, at each size, with peaks of 40 to 150 of 255. The share does not fall with the size, because the edge pixels move with each new set of vertices. Low changes fewer pixels than High at 60 px (no shadow and less edge contrast), not at 23 px.
+- **Not measured.** The silhouette error in px (needs a mask render), the pop in real motion (video or frame pairs across a live swap), the features under 2 px, the draw count and the frame time of a lower level.
+- **Decision needed (owner).** (1) Accept the size rule and its switches (60 px and 24 px) in place of the 30 % and 10 % ratios. (2) Hard swap, or a hold band as the stand-ins have (`LOD_BAND` 0.25), or a dither fade over some frames. The data says the still picture is safe at the proposed switches, and the swap frame is visible in theory at 2 to 12 % of the fan's pixels.
+
 ## 3D distance bands (city)
 
 The city has no LOD tiers. Distance changes detail or what is generated. Only the generation limits remove an object. Rings and tree levels only change detail. Code at `03fe0bc` (`main`):
