@@ -86,7 +86,7 @@ Gallery (`viewer.ts`) and Build my PC (`BuildStage`) each have a WebGL context o
 - `Post.dispose` frees each pass's targets and materials. three's `GTAOPass` and `UnrealBloomPass` keep three materials when they dispose; `Post` frees them.
 - `BuildStage.dispose` frees the context at once and its meshes 20 ms later. All in one task held a phone's frame for about 90 ms. A material shared with the room holds the dead renderer's listener until its `dispose`, so the meshes are disposed after the renderer too.
 - The art baker is a second Pixi renderer that stays. `ArtBaker.dispose` destroys each `Graphics` with its context. `freeBakePools` (`bake.ts`) empties Pixi's pools: each pooled `GraphicsContextRenderData` has a batcher with 7 to 14 MB of buffers.
-- `registerLabel` (`camera.ts`) lists each label for the size rule, and only the 2D camera dropped the destroyed ones. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
+- `registerLabel` (`camera.ts`) lists each label for the size rule. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
 - A closed stage drops its machine, game and snapshots: Preact's effect closure holds the stage object until the next open.
 - Shared caches stay: `roomGeo`, the shared materials, the cached textures. A reopened screen looks the same.
 

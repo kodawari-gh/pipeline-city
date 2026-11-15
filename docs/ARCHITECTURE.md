@@ -9,7 +9,7 @@ Status: POC. Decisions below are current, not final. The old prototype was `lega
 | Concern | Choice |
 |---|---|
 | Language / build | TypeScript + Vite, npm |
-| Board rendering | PixiJS (WebGL) |
+| Board rendering | Three.js (WebGL); Pixi bakes the 2D art onto 3D parts |
 | Panels / HUD | Preact + `@preact/signals` |
 | Simulation | Web Worker, from day one |
 | Tests | Vitest |
@@ -20,7 +20,7 @@ Status: POC. Decisions below are current, not final. The old prototype was `lega
 
 ```
 src/features/<f>/sim     pure TS, runs in the worker. No DOM, no Pixi, no Preact imports.
-src/features/<f>/render  Pixi views; read snapshots, never touch sim internals
+src/features/<f>/render  Three.js views (Pixi only bakes 2D art); read snapshots, never touch sim internals
 src/features/<f>/ui      Preact panels; read signals from src/app
 src/worker               worker entry, thread protocol, the Game root
 src/app                  main-thread state: owns the worker, signals, save/load
@@ -157,7 +157,7 @@ Every engine configuration must match a trivial reference interpreter on generat
 
 ## Look and feel
 
-Neon hacker dashboard, dark only ([art-style §1](art-style.md)). Theme tokens drive both Pixi and Preact. Minimal text, with explanations on hover and a few contextual hints on first occurrence of something (first stall, overheat, queue). No tutorial. No audio for the POC.
+Neon hacker dashboard, dark only ([art-style §1](art-style.md)). Theme tokens drive both the renderer and Preact. Minimal text, with explanations on hover and a few contextual hints on first occurrence of something (first stall, overheat, queue). No tutorial. No audio for the POC.
 
 ## Milestone 1
 

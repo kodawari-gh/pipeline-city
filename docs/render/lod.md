@@ -6,36 +6,28 @@ One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands a
 
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
 |---|---|---|---|
-| GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
-| Disks (HDD, SATA SSD, NVMe: `board/diskview.ts`) | yes (`DEVICE_LOD.disk`: casing to capacity map over `fade`, architecture from `arch` 0.5, counter tier from `detail` 0.9) | yes | yes (the extent list, legend, wear and queue) |
+| GPU, NPU, TPM cards | yes | yes | yes (shared by `core/render/lod/lodcard.ts`) |
+| Disks (HDD, SATA SSD, NVMe: `features/storage/render/diskview.ts`) | yes (`DEVICE_LOD.disk`: casing to capacity map over `fade`, architecture from `arch` 0.5, counter tier from `detail` 0.9) | yes | yes (the extent list, legend, wear and queue) |
 | CPU die (multicore: each core tile by its own distance; deeper than `DEVICE_LOD.die.core` 3 to 4 only the core under the view centre shows, the shared part and the other tiles fade out) | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
 | RAM view | yes | yes (sticks plus magnifier margin); shown empty while the machine is off | no |
 | PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
 | Cooler | fade only | yes (layer hidden) | no |
 | Other board parts | global bakes and labels | no | no |
 
-`anchorOf` (`board.ts`) and `anyVisible` (removed with the 2D board) have their own on-screen tests: they place popups and hit-test, they are not LoD.
+`anchorOf` (`board.ts`) has its own on-screen test: it places popups and hit-tests, it is not LoD.
 
 ## What is shared
 | Piece | What it does |
 |---|---|
-| `LodClock` | removed with the 2D board (its smoothed zoom was 2D only) |
-| `DEVICE_LOD` | the table of stages (the base ladder plus each device's extras): die, cooler, gpu, npu, tpm, disk, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
+| `DEVICE_LOD` | the table of stages (the base ladder plus each device's extras): die, cooler, gpu, npu, tpm, disk, ram, labels, bakes. The views read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
 | `smooth`, `bandAlpha`, `onBand` | one smoothstep; a layer that turns on at `z0` fades in over `z0` to `z0 * 1.15` (`TEXT_BAND`) and is hidden below `SHOWN` (0.01) alpha |
 | `deviceLod(rect, view)` | where a device is: `onScreen` (view plus 10 % margin) and `focus` (1 where the middle of the device is at the view centre, falling to 0 by 0.8 of the half-diagonal of the view) |
 | `BASE_LOD`, `seenZoom` | the one ladder every device shares (fade 0.4 to 0.6, names 0.8, counters 1.5, hover 0.45), in camera zoom. `seenZoom(zoom, focus)` = `zoom * (0.35 + 0.65 * focus)`: the only things that move a device along the ladder are the camera zoom and its distance from the view centre, never its size. Die, cooler, GPU, NPU, TPM and RAM all read it; extra stages (die wires/cells/subs, GPU lens, NPU fine, ...) stay per device |
 | `zoomSlow(zoom, cyclesPerSec, scale)` | the multiplier of the visual clock: the game speed `scale` below zoom 0.3, easing (log zoom) to one cycle per second from zoom 1 up whatever the game speed (paused stays paused). `board.ts` uses it as the game clock and sets `zoomSlowdown` (store) to the share of the chosen speed left, which the HUD shows as a "Slow motion" pill (like Paused) while it is below 0.97 and the game is running |
 | `TierBudget` | at most 2 devices show their counters at once (cards and disks: GPU, NPU, TPM, disk), the ones nearest the centre; a holder keeps its slot unless a challenger leads by 0.15. Drops are immediate |
-| `ZoomSwitch` | removed with the 2D board (it was a bake switch with a dead band) |
 
 ## How it runs (per frame, `board.ts`)
-- `camera.onChange` only marks `lodDirty`. `lodFrame` (before `live.frame`) calls `lod.update(dt, camera.z)` and, while the clock moves or the camera changed, `onZoom()` once, whatever the number of wheel events.
-- `onZoom` reads `lod.zs`: exterior crossfade and `live.setInterior` (`LOD.*` times the fit zoom), cooler and die alpha, labels, `die.setZoom`, `live.setZoom`, and the bakes through three bake switches (board 0.2, devices 0.14, props 0.2). It also tells `live.setView(view)` the world rectangle on screen.
-- Detail layers fade (alpha band) instead of popping: the die's layers (`dieview.setZoom`), the card names and counters (`gpuview`, `npuview`, `tpmview`), the RAM view, both magnifiers.
-- Location: a card out of view is hidden and not drawn (`RectCache` in `board/lodrect.ts`, its rect found once from its bounds). Its replay keeps advancing (the sim side is untouched). The die root is hidden when the die is out of view (or faded out, or the exterior covers the board) and its frame then only runs the replay, since that feeds the RAM view and the interrupt hook; the drawing resumes from fresh signatures when it is back. A card gets its counters only if it is in `live.ts`'s `TierBudget` top set.
-- Bakes: baked sprites are drawn at 1 % in the warm ring so their texture is uploaded before the swap (`stageBake`); the cached layers (monitor, props) are made in the warm ring too; the room bake (`room.ts setView`) has an 8 % dead band. The one-off bake itself still costs a frame, it is moved off the swap, not removed.
-- Text: see "Text sharpness" in [live.md](live.md): the resolution step has hysteresis and a new step is applied 250 texts a frame; the label size rule runs once per frame, not per input event (`Camera.apply(defer)`, removed with the 2D board).
-- RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.
+The 2D per-frame wiring (`camera.onChange`, `lodFrame`, `onZoom`, the bake switches) was removed with the 2D board. The 3D board sets the live layer's zoom and view each frame in `three/boardlive3d.ts` (`setZoom`, `setView`, `setInterior`).
 
 ## The 3D room
 Three culls each mesh by its bounds. The room's merges keep a merged mesh small enough for that: `mergePalette` keeps 2 m cells of space apart (`PALETTE_CELL`, see "The 3D room's draw cost" in [room.md](../../src/features/room/room.md)). Shadow casters are not cut by level, but they are switched off by it: Low's preset is `shadows: 0` and `SHADOW_LEVELS[0]` is `null`, so no room light casts at Low. The six casters exist and are off.
@@ -90,9 +82,9 @@ The city has no LOD tiers. Distance changes detail or what is generated. Only th
 - Culling, merges and the occlusion gate are in [three.md](three.md#city-culling-and-the-firefox-occlusion-gate).
 
 ## Adding a view
-Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`board/lodcard.ts`).
+Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`core/render/lod/lodcard.ts`).
 
 ## Debug and measuring
-`window.__board.lod()` (dev) returns `{ extA, reveal, interior, z, zs, bakes: { board, devices, props } }`. Frame times at the thresholds were **not measured in a browser** when this was written: use the setup of "Performance" in [case.md](case.md) (headless Chrome, SwiftShader) with a scripted wheel sweep and compare the worst frame at zoom 0.14, 0.2, 1, 2 and 3.
+`window.__board.lod()` (dev) returns `{ reveal, interior, z, zs, bakes: { board, devices, props } }`. Frame times at the thresholds were **not measured in a browser** when this was written: use the setup of "Performance" in [case.md](case.md) (headless Chrome, SwiftShader) with a scripted wheel sweep and compare the worst frame at zoom 0.14, 0.2, 1, 2 and 3.
 
 For the 3D renderer (parts, city and room), the debug toggles and the bench tools are in [three.md](three.md#debug-toggles-debug) and [three.md](three.md#measurement-and-tools). Frame times at the 3D distance bands are not measured.

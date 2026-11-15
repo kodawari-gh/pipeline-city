@@ -1,6 +1,6 @@
-# Board rendering (PixiJS)
+# Board rendering (Three.js; Pixi bakes the 2D art)
 
-Code: `src/core/render/` (shared helpers) and `src/features/*/render/` (the file tables give bare names). The 2D Pixi board view is removed. `board.ts` keeps only the bridge the HTML UI uses (`anchorOf`, `flyTo`). It reads `snapshot` and `speed` from `src/app/store` and writes `hover` / `selected` in `src/app/hover`. It never touches sim internals; the only sim import is the declarative spec table (`getSpec`, `BOARD_TIERS`) for the `visual` key and slot counts.
+Code: `src/core/render/three/` and `src/features/*/render/three/` draw the world. `src/core/render/` holds the shared helpers and `src/features/*/render/` the feature art (the file tables give bare names). The 2D Pixi board view is removed. Pixi stays only to bake 2D art onto 3D parts (`src/features/board/render/three/bake.ts`). `src/features/board/render/board.ts` is the bridge the HTML UI uses (`anchorOf`, `flyTo`) to the 3D board.
 
 This file is the hub: world layout, layers, theme, snapshot fields, known gaps and the last verification. Read the area file for the topic, not all of them:
 
@@ -24,9 +24,9 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 
 | File | Role |
 |---|---|
-| `board.ts` | scene graph, scene rebuild, LOD by zoom, hit-testing, snapshot effect, frame loop |
+| `board.ts` | the bridge the HTML UI uses (`anchorOf`, `flyTo`) to the 3D board (`three/board3d.ts`) |
 | `theme.ts` | theme tokens (below) |
-| `layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
+| `layout/layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
 | `thumbs.ts` | pictures of parts for the shop, inventory and picker: the baked 3D stills (`public/stills/`, `npm run stills`: `tools/stills.mjs`, `renderStill` in `viewer.ts`), else the real art (`thumbart.ts`) rendered in a worker (`thumbs.worker.ts`) to cached image URLs |
 | `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](../src/features/cpu/DIE.md) |
 | `dieart.ts` | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names) |
@@ -44,15 +44,9 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 
 The CPU socket is the origin. West of the board: the **monitor** (an 18.5 inch, at the machine's 23 units a mm: scaled `MONITOR_K` 3.0x, about as wide as the case is deep, its east edge `MONITOR_EAST` 2,300 west of the case's rear wall; it stands on its foot on the desk, so it **follows the desk top**, that is the case tier: `MONITOR`, `SCREEN`, the video socket and the router shelf are live bindings set by `setLayoutTier`), the **key rack** (`TRAY`: two rails of hooks with the USB sticks hanging on lanyards) on the wall above it, above it the router shelf (scaled 1.45x). The ISP's wall plate is under the desk by the power socket. There is no crate in the world: the inventory is an HTML menu (`src/core/ui`) that starts part drags with `beginPartDrag`. The board's size and everything under and around it depends on the tier (see "Board tiers, cases and the VRM" in [render/board.md](render/board.md)): the board's west edge is always x -2600 (`BD_X` in `boardlayout.ts`) and its top is tier-dependent (`CASE_TOP`, -3400, is a y value in `layout/layout.ts`); the PSU shroud sits `250` below its south edge, the drive bay east of the shroud. `WORLD` in `layout.ts` is the content box the overview fits: tight, from the monitor on the west to the case's east wall, from the router shelf (above the monitor) to the feet; it changes with the case, and the camera glides to the new overview when the case (or board tier) changes. The overview uses `OVERVIEW_MARGIN` (0.96); the device bake uses `WORLD` as its frame. On a board: rear I/O on the west edge (HDMI at the height of the video cable), the USB hub controller between I/O and CPU, the VRM row north of the CPU, the chipset south-east of the CPU (below the memory, east of the slots' ends), the DIMMs east, the memory VRM above them, PCIe slots south, M.2 south-east, the 24-pin and SATA ports on the east edge, the 8-pin on the top edge.
 
-## Layers (bottom to top)
+## Art and parts
 
-(Everything in this list up to the live layer is inside the `interior` group; the monitor, the video cable and the props are above the exterior layer, see the LOD section.)
-
-1. **Board**: `buildBoard(T, tier, solid?, far)` in `boardArt.ts`, deterministic, built once per (theme, tier, installed set) and never touched per frame. Retained Pixi geometry plus a **baked texture** (0.4x) shown instead of the vector board below zoom 0.2.
-2. **Devices**: static art per installed device (CPU, DIMMs by `slot`, PSU, monitor, cables). Empty typed slots are visible sockets and dashed bays. Below zoom 0.14 the whole layer is one **baked texture** (0.25x). The PSU fan (blades plus grill) lives in a separate `fanLayer` above the bake so it keeps spinning; the cooler has its own layer.
-3. **Cooler** sits on the CPU and fades out between seen zoom 0.3 and 0.5 (`DEVICE_LOD.cooler.fade`, `board.ts`) to reveal the die. An **empty cooler slot** (`cooler0`, the normal start state until the cooler is mounted after the CPU) is a dashed outline in this same layer, above the package, so it reads as the drop target; it fades with the cooler. The `NO CPU COOLER` POST error shows on the monitor when the cable is connected.
-4. **Pipeline view** (the die view) fades in on `seenZoom` over `DEVICE_LOD.die.fade`, 0.4 to 0.6 (`src/core/render/lod/lod.ts`).
-5. **Live layer**: lit buses and pulses, cable glow, PSU readout, heat glow, burnt overlay, throttle badge, CLI monitor text, DRAM flashes.
+The 2D layer stack is removed. The 3D board draws the parts (`three/board3d.ts`, `three/machine3d.ts`). The 2D art is baked into textures for them: `buildBoard` (`boardArt.ts`) gives the PCB face (`three/boardmodel3d.ts`), and `cpuArt` gives the CPU package (`three/cpu3d.ts`).
 
 Rebuild happens only when the theme, `boardTier` or the set of `spec@slot` pairs changes. Temperature, clocks, power etc. never rebuild anything.
 
@@ -85,7 +79,7 @@ New in `Snapshot` (`src/worker/game/types.ts`, additive, existing consumers unto
 ## Known gaps
 
 - Text is rasterised at a resolution that steps from 2 to 4 with zoom (`camera.ts`); the steps are whole numbers, so text stays sharp past 2x zoom. There is no SDF/bitmap font yet.
-- At far zoom the monitor text is small (zoom scales it with everything else; it is readable down to about 0.5x of the fit zoom, a shape only below). The exterior is baked at 0.35x and fades out as zoom passes 1.5 to 1.9 times the fit zoom (`LOD.fadeTo` and `LOD.fadeFrom` in `board.ts`), so it is soft if forced visible at high zoom. A DIMM stick draws 8 chips, in two groups of 4 (`ramChips()` in `src/features/board/render/devices.ts`). The second row's memory taps are drawn but only lit by the shared memory bus.
+- At far zoom the monitor text is small (zoom scales it with everything else; it is readable down to about 0.5x of the fit zoom, a shape only below). A DIMM stick draws 8 chips, in two groups of 4 (`ramChips()` in `src/features/board/render/devices.ts`). The second row's memory taps are drawn but only lit by the shared memory bus.
 - The liquid cooler is an AIO (no reservoir): two tubes run from the pump on the CPU to a radiator the player bolted along the front or the top of the case, spanning every fan of that side (`radiatorSpan(side)` in `src/features/room/render/desk/props/case.ts` is the one box round them, `ids` the mounts; those mounts' own fans are not drawn then), drawn by `radiatorArt` (a slab with one live `EdgeFan` per mount) / `tubeRoutes` in `src/features/board/render/cooler.ts`. The rear has no radiator. Every fan has a cable (`src/features/board/render/wiring/fancords.ts`, plugs the player drags to their headers; a fan spins only with its cable in, `live.ts`). No GPU, NVMe, SATA or USB devices exist in the sim, so those buses never light (the PCIe cable is plumbed but never drawn).
 - PSU temperature and fan rpm are renderer estimates from load (see above).
 - Touch was verified with synthesized touch events (CDP), not on a device: tap to select, one-finger pan, two-finger pinch, and dragging a drive from the shelf onto `sata0` (see Verification). There is no hover on touch. Installed parts cannot be dragged back out (the UI picker uninstalls). Loose cable plugs and tray keys are small at overview zoom (use the tutorial rings, `flyTo` or zoom).

@@ -13,7 +13,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
  main thread                                   web worker
  ┌─────────────────────────────────────┐       ┌───────────────────────────────┐
  │ features/*/ui     Preact panels     │ ToSim │ worker/worker.ts  message loop │
- │ features/*/render Pixi views        │ ────► │ worker/game/game.ts  Game      │
+ │ features/*/render Three.js views   │ ────► │ worker/game/game.ts  Game      │
  │ app/store.ts      signals, saves    │       │ features/*/sim   Game methods, │
  │ app/main.tsx      mounts the app    │ ◄──── │   machine, CPU/GPU, OS, jobs   │
  └─────────────────────────────────────┘Snapshot└───────────────────────────────┘
@@ -29,7 +29,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 | `app/` | `main.tsx` entry, `store.ts` (owns the worker, signals, save/load), hover, interaction, scrub, `debug/` (the `?debug` overlay, see `docs/render/three.md`) |
 | `worker/` | worker entry, `host`, `protocol`, `crash`; `game/` is the `Game` state, snapshot, save (`SAVE.md`) |
 | `core/sim/` | machine model: `machine`, `engine` base, `memmap`, `prng`; `hw/` bus, device, interrupts, timer, clock, display (`MACHINE.md`) |
-| `core/render/` | Pixi helpers: camera, theme, ink, shape, `live` (snapshot to views), `interact` (drag, click); `lod/` level of detail; `three/` the Three.js renderer, the game's view (`docs/render/three.md`) |
+| `core/render/` | helpers: camera, theme, ink, shape, `live` (snapshot to views); `lod/` level of detail; `three/` the Three.js renderer, the game's view (`docs/render/three.md`) |
 | `core/ui/` | `Hud`, state, logic, `ui.css`; `panels/` log, crash, stats, toasts, new game; `kit/` icons, meter, sprite |
 | `docs/` | `ARCHITECTURE`, `RENDER` (+ `render/`), `UI`, `TODO`, this file |
 
