@@ -44,6 +44,8 @@ const [W, H] = flag('size', '1600x900').split('x').map(Number);
 const angle = (n, dRad) => { const s = flag(n, null); return s === null ? dRad : s.endsWith('r') ? Number(s.slice(0, -1)) : (Number(s) * Math.PI) / 180; };
 const YAW = angle('yaw', ID ? (30 * Math.PI) / 180 : 0), PITCH = angle('pitch', ID ? (20 * Math.PI) / 180 : 0.1);
 const FILL = Number(flag('fill', ID ? 0.5 : 0.6));
+const POSE = flag('pose', '') ? flag('pose', '').split(',').map(Number) : null;
+if (POSE && (POSE.length !== 6 || POSE.some((n) => !Number.isFinite(n)))) throw new Error('--pose x,y,z,yaw,pitch,height');
 const PORT = Number(process.env.PORT || 5199), url = `http://localhost:${PORT}/`;
 mkdirSync(dirname(out), { recursive: true });
 
@@ -107,12 +109,15 @@ try {
     const before = await p.evaluate(() => ({ goal: window.__board.goal(), view: window.__board.view() }));
     const target = ID ? ID : PART;
     const names = ALIAS[PART] ?? [PART];
-    const asked = await p.evaluate(([specs, ids, yaw, pitch, fill]) => {
-      const b = window.__board;
-      for (const k of specs) { const v = b.frameSpec(k, yaw, pitch, fill); if (v) return v; }
-      for (const k of ids) { const v = b.frameId(k, yaw, pitch, fill); if (v) return v; }
-      return null;
-    }, [ID ? [] : names, ID ? [ID] : [...names, ...names.map((n) => 'cable.' + n)], YAW, PITCH, FILL]);
+    // --pose x,y,z,yaw,pitch,height: an exact view (layout x, y, z; yaw and pitch in radians; y is negated as lookAt does), unclamped
+    const asked = POSE
+      ? await p.evaluate(([x, y, z, yaw, pitch, height]) => { const v = { x, y: -y, z, yaw, pitch, fov: 26, height }; window.__board.jumpRaw(v); return v; }, POSE)
+      : await p.evaluate(([specs, ids, yaw, pitch, fill]) => {
+        const b = window.__board;
+        for (const k of specs) { const v = b.frameSpec(k, yaw, pitch, fill); if (v) return v; }
+        for (const k of ids) { const v = b.frameId(k, yaw, pitch, fill); if (v) return v; }
+        return null;
+      }, [ID ? [] : names, ID ? [ID] : [...names, ...names.map((n) => 'cable.' + n)], YAW, PITCH, FILL]);
     if (!asked) throw new Error(`no object with the hover id or device spec/kind "${target}" in the sandbox machine (run with --list)`);
     await p.waitForTimeout(2500);
     const after = await p.evaluate(() => ({ goal: window.__board.goal(), view: window.__board.view() }));
