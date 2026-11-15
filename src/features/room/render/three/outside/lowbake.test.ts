@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -303,10 +303,12 @@ describe('Low city facade bake', () => {
       const day = sh.slice(at);
       // the frame: the vertex colour (each tower's own frame) times the atlas shade
       expect(day).toContain('vec3 lowFrameD = vColor.rgb * lowShade;');
-      expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);');
-      // near glass: the raw tint, lit by the constant; far off, the pane takes the frame's brightness with a little of the tower's hue
-      // (a full dark tint at range would wall the building navy)
-      expect(day).toContain('mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35), lowFarD)');
+      // far off the pane's place is the analytic window, not the atlas's mean (a band's wall keeps its ribbon)
+      expect(day).toContain('float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));');
+      expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);');
+      // near glass: the raw tint, lit by the constant; far off, the pane is a share of the frame's brightness with a little of the tower's
+      // hue (a full dark tint at range would wall the building navy)
+      expect(day).toContain(`mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35) * ${LOW_FAR_GLASS}, lowFarD)`);
       expect(day).not.toContain('lowTn');
       expect(sh).toContain('lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);');
       expect(sh).toContain('lowGlassM = lowTex.a * vLowFac;');
@@ -315,6 +317,8 @@ describe('Low city facade bake', () => {
     expect(LOW_DAY_GLASS).toBeLessThan(3);
     expect(LOW_FAR_HUE).toBeGreaterThan(0);
     expect(LOW_FAR_HUE).toBeLessThan(1);
+    expect(LOW_FAR_GLASS).toBeGreaterThan(0.3);
+    expect(LOW_FAR_GLASS).toBeLessThan(1);
   }, 180000);
 
   it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {

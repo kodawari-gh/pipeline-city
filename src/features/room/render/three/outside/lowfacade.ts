@@ -23,6 +23,8 @@ export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.
 export const LOW_DAY_GLASS = 1.5;
 /** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
 export const LOW_FAR_HUE = 0.35;
+/** By day a far pane's brightness, as a share of the frame's: darker than the wall, so the rows of windows read, but not the near glass's dark. */
+export const LOW_FAR_GLASS = 0.55;
 /** Far walls (m from the eye): from `near` to `far` a wall's lit rooms go from the night map's texels to analytic windows (`lowFarWin`), one
  * a bay and a storey. Past `far` no window texel is read: the albedo is the map's mean (the top mip). A building lights from `occ[0]` to
  * `occ[1]` of its windows (its own share), each at `glow`; a band's far ribbon is its runs' mean, `ribMean`. So a far tower reads as dark
@@ -225,11 +227,15 @@ vec2 lowAtlas() {
 // lit windows, and each storey its own (an office lit in whole floors, a dark one between). The window's edge is as wide as the pixel
 // (fwidth), and the hash changes only in the frame between two windows, so a still or a moving eye sees no speck. Where a bay is under
 // a pixel wide the windows are their mean (the share, the window's part of the cell), and where a storey is too, the storeys' mean
-vec3 lowFarWin() {
-  vec2 fw = fwidth(vLowBay) + 1e-4, f = fract(vLowBay), id = floor(vLowBay) + vLowOff;
+float lowWinMask() {
+  vec2 fw = fwidth(vLowBay) + 1e-4, f = fract(vLowBay);
   vec2 win = lowWin(), lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6), hi = lo + win;
   vec2 e = min(fw, 0.5 * win);
   vec2 m = smoothstep(lo - e, lo + e, f) * (1.0 - smoothstep(hi - e, hi + e, f));
+  return m.x * m.y;
+}
+vec3 lowFarWin() {
+  vec2 fw = fwidth(vLowBay) + 1e-4, id = floor(vLowBay) + vLowOff;
   float occ = mix(${LOW_FAR.occ[0]}, ${LOW_FAR.occ[1]}, fract(sin(vLowSeed * 91.7 + 3.3) * 43758.5453));
   float fl = fract(sin(id.y * 12.9898 + vLowSeed * 5.7) * 43758.5453);
   float share = clamp(occ * mix(0.35, 1.9, fl * fl), 0.0, 0.95);
@@ -241,7 +247,7 @@ vec3 lowFarWin() {
   vec3 mean = mix(warm, cool, coolK) * 0.775;
   vec2 k = smoothstep(vec2(0.3), vec2(0.8), fw);
   vec3 lit = mix(mix(one, mean * share, k.x), mean * occ, k.y);
-  return lit * (m.x * m.y) * ${LOW_FAR.glow};
+  return lit * lowWinMask() * ${LOW_FAR.glow};
 }
 // a band's ribbon: the glass band of each storey (its window across the bay, from its sill), its mullions the frame at each bay's edge. Its rows
 // are the world's storeys, so a mirrored wall keeps its ribbon at its height. The mask is the glass (0..1), antialiased by the pixel's width
@@ -320,8 +326,11 @@ if (vLowFac == 0.0) {
 vec3 lowFrameD = vColor.rgb * lowShade;
 vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
-vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}), lowFarD);
-vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassM);
+vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}) * ${LOW_FAR_GLASS}, lowFarD);
+// far off the pane's place is the analytic window (its edge the pixel's width), not the atlas's mean: a far tower keeps its rows of windows
+float lowRibD = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
+float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));
+vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
