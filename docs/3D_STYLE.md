@@ -275,7 +275,7 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 
 ### Light Theme
 
-**Current:** a second, living theme. Background `#eaeff6`, board `#9ccdbd`, darker less-saturated accents (`--alu #0786ab`, `--mul #6a49e0`, `--ld #c47600`, `--st #0f9a53`, `--br #c4259f`, `--bad #c81e3e`) (`ui.css:3-13`, `theme.ts:19-23`). `:root` defaults to the light tokens; dark is `data-theme="dark"`. The 3D world's baked art always uses the dark palette (`builtinTheme(true)`, `theme.ts:33`). Lighting does not change with the theme.
+**Current:** a second, living theme. Background `#eaeff6`, board `#9ccdbd`, darker less-saturated accents (`--alu #0786ab`, `--mul #6a49e0`, `--ld #c47600`, `--st #0f9a53`, `--br #c4259f`, `--bad #c81e3e`) (`ui.css:3-13`, `theme.ts:19-23`). `:root` defaults to the light tokens; dark is `data-theme="dark"`. The 3D world's baked art always uses the dark palette (`builtinTheme()`, `theme.ts:33`). Lighting does not change with the theme.
 
 **Target (art-style.md §7, rework item 11, on hold):** the light theme is dropped. Dark is the only theme. No Light control, no `theme` value `'light'`, no light-theme tokens as a living palette.
 

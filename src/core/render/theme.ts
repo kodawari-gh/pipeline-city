@@ -3,25 +3,24 @@
 // variable is not defined. The game is dark only: the palette is always DARK.
 
 export interface Theme {
-  dark: boolean;
   bg: string; board: string; trace: string; sub: string; die: string; pin: string; tile: string;
   ink: string; mute: string; line: string; dot: string; on: string;
   /** Accents: alu cyan, mul violet, ld amber, st green, br magenta, bad red. */
   alu: string; mul: string; ld: string; st: string; br: string; bad: string;
 }
 
-const DARK: Omit<Theme, 'dark'> = {
+const DARK: Theme = {
   bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
 
 /** The built-in dark palette. The 3D world's baked art always uses this one (the reference's black board under neon). */
-export const builtinTheme = (): Theme => ({ dark: true, ...DARK });
+export const builtinTheme = (): Theme => ({ ...DARK });
 
 export function readTheme(): Theme {
   const cs = getComputedStyle(document.documentElement);
-  const out = { dark: true } as Theme;
+  const out = {} as Theme;
   for (const k of Object.keys(DARK) as (keyof typeof DARK)[]) {
     const v = cs.getPropertyValue('--' + k).trim();
     out[k] = v || DARK[k];

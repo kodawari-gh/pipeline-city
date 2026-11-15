@@ -9,7 +9,7 @@ import { SLAT, SLAT_DEPTH, drawSlats, drawWallShade, slatCount, slatTone, slatWa
 import type { Theme } from '@/core/render/theme';
 
 const THEME: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
+  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
@@ -45,12 +45,10 @@ describe('the slat wall', () => {
     const g0 = roomGeo(), box = { ceil: g0.ceil, floor: g0.floor }, vx = g0.persp.vx;
     expect(SLAT_DEPTH * 60000).toBeGreaterThan(SLAT.gap); // far enough out, the gaps are closed
     expect(SLAT_DEPTH * 3000).toBeLessThan(SLAT.gap / 4); // near the middle, they are open
-    for (const dark of [true, false]) {
-      const a = new Graphics(), b = new Graphics();
-      expect(() => { drawSlats(a, { ...THEME, dark }, box, vx); drawWallShade(b, { ...THEME, dark }, box, vx); }).not.toThrow();
-      expect(b.getLocalBounds().width).toBeGreaterThan(100000);
-      expect(b.getLocalBounds().minY).toBeGreaterThanOrEqual(box.ceil - 1);
-      expect(b.getLocalBounds().maxY).toBeLessThanOrEqual(box.floor + 1);
-    }
+    const a = new Graphics(), b = new Graphics();
+    expect(() => { drawSlats(a, THEME, box, vx); drawWallShade(b, THEME, box, vx); }).not.toThrow();
+    expect(b.getLocalBounds().width).toBeGreaterThan(100000);
+    expect(b.getLocalBounds().minY).toBeGreaterThanOrEqual(box.ceil - 1);
+    expect(b.getLocalBounds().maxY).toBeLessThanOrEqual(box.floor + 1);
   });
 });

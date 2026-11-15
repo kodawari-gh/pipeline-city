@@ -137,7 +137,7 @@ Rules (targets; all values are proposals (J)):
 
 ## 6. 2D interior art (die, GPU, NPU, TPM, board, accel)
 - **Tokens only:** colours come from `Theme` (`T.*`), `makePalette`, or the board skins (`skins.ts`). No hex literals, except `#000000`/`#ffffff` at alpha < 1 for shading. Check: `rg -n "#[0-9a-fA-F]{6}\b" src/features/{cpu,gpu,npu,tpm}/render src/core/render/accelart.ts src/features/board/render/boardArt.ts` lists only the allowed cases (today it lists the deprecated values in §2).
-- The 3D world wears the dark palette (`builtinTheme(true)`, `theme.ts:33`). There is no light-theme art path.
+- The 3D world wears the dark palette (`builtinTheme()`, `theme.ts:33`). There is no light-theme art path.
 - Class colours: ALU cyan `#3be3ff`, MUL violet `#a68bff`, load azure `#9ab8ff`, store lime `#a8ff55`, branch magenta `#ff55dc` (§2). Blocks glow while an instruction is in them; packets leave 1.5 s trails. Changing `--ld` / `--st` (and `theme.ts`) updates token users; tests that hard-code the old amber/green class hexes must follow.
 - Strokes: today 1.2–2.6 layout units in die art (`dieart.ts`, `dieview.ts`, `uncore.ts`); keep the ≥ 1 px rule (§5.4).
 
@@ -203,7 +203,7 @@ S ≈ hours, M ≈ days, L ≈ a week or more (J). The rework stays on hold unti
 
 **2D interior art**
 - [ ] Tokens only (§6 grep check); strokes ≥ 1 px at the closest LOD; class colours as in §2 (load `#9ab8ff`, store `#a8ff55`, not status green or amber).
-- [ ] Dark palette only (`builtinTheme(true)`). No light-theme art.
+- [ ] Dark palette only (`builtinTheme()`). No light-theme art.
 
 **Room**
 - [ ] Surfaces from the charcoal / graphite targets in §3, not oak or ash veneer.
