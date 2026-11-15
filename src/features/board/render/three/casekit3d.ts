@@ -387,7 +387,8 @@ export function foldCaseLooks(root: Group): void {
       if (best === c && r > 120 && r >= g && g > b && r - b >= 15 && r - b <= 70) best = r > 190 ? 0xb9babf : 0x959aa3;
       // a matte plastic part in a charcoal goes to the dark mask (the charcoals are the painted and anodised metal); a perforated sheet has one tone
       if ((best === 0x1d1e22 || best === 0x2a2d32) && s.metalness < 0.2 && s.roughness > 0.7) best = 0x131518;
-      if (m.alphaTest > 0 && FINISH[best]) best = 0x2a2d32;
+      // (a dark one; a perforated sheet in the light satin metal is the pressed vent of a light panel, and keeps the panel's colour)
+      if (m.alphaTest > 0 && FINISH[best] && best !== 0xb9babf && best !== 0x959aa3) best = 0x2a2d32;
       s.color.setHex(best);
       const f = FINISH[best];
       // one finish per family colour; a colour outside the families (a port's plastic, a button) keeps a stepped finish of its own
