@@ -278,7 +278,7 @@ cables: [... , { id: "lan", name: "Ethernet", connected: boolean, blocked?: stri
 
 `ToSim` additions: `connectCable { cable: "lan", port?: string }` (the `port` field is new; absent for the other cables) and `disconnectCable { cable: "lan" }`. **Buying the plan or the router is `purchase`** with `isp1` / `router1` ids (kinds `isp` / `router`, applied immediately, not to the inventory). The `install` of a NIC card is the normal `install` into a `pcie` slot. No new message type is needed for the network itself; the decline action for a waiting key or network job is `declineKey` / `declineJob` (`PROGRESSION.md` "Declining"). Sandbox: `sandboxOffers` also lists all `nic`, `router`, `isp` items; a tool `spawnOffer(template, scale)` is the sandbox's `spawnKey` for the network.
 
-`WorkSource` (`src/features/jobs/sim/work.ts`): a `NetSource` implements `offer`, `waiting` (the pending offers not yet started), `take` (start a download) and `giveBack` (abort); `Game` picks the key tray or the network source by `progress.networkLinked`, so the arrival code stays unchanged. New folder `src/features/network/sim/` with `specs.ts` (NIC, router, ISP records and `netMbps` of drives), `link.ts` (state machine and bandwidth) and `source.ts`.
+`WorkSource` (`src/features/jobs/sim/work.ts`): a `NetSource` implements `offer`, `waiting` (the pending offers not yet started), `take` (start a download) and `giveBack` (abort); `Game` picks the key tray or the network source by `progress.networkLinked`, so the arrival code stays unchanged. New folder `src/features/network/sim/` with `specs.ts` (NIC, router, ISP records and `netMbps` of drives), `network.ts` (the link state table and bandwidth, `computeLink`) and `source.ts`.
 
 ### Save
 

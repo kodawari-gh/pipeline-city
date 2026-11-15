@@ -70,7 +70,7 @@ A transfer is cut into segments: `segMB = max(0.5, sizeMB / 128)`, so a job is a
 
 ### 3.4 The transport (a simplified TCP, in the game layer)
 
-A pure, seeded, unit-tested module (`src/features/network/sim/transport.ts`) with no dependence on the CPU. Per transfer:
+A planned pure, seeded, unit-tested module (stage 3; no file exists yet) with no dependence on the CPU. Per transfer:
 
 - **Sequence numbers** and a **cumulative ACK**: the receiver's `next expected`. A segment that arrives out of order is kept by the NIC only if the ring has room; otherwise it counts as lost.
 - A **congestion window** `cwnd` (segments in flight) and `ssthresh`. A transfer **starts at the window that fills the line** (the bandwidth-delay product), so with no loss the time is the same as today (section 8). A loss halves `cwnd` (multiplicative decrease); each fully acknowledged round trip adds one (additive increase) until it is back at the line's window.

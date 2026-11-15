@@ -116,10 +116,10 @@ Code inventory (grep, `03fe0bc`): 20 Standard sites, 533 `mat()` calls (on 440 l
 ## Textures
 
 - There is no atlas, Draco or meshopt on main. Both shipped GLBs carry 0 textures.
-- **KTX2 in models (KTX1).** `gltf.ts` `ktx2Support(renderer)` gives the `GLTFLoader` a `KTX2Loader` (`createRenderContext` calls it; the first context wins). The loader's code is its own chunk. The Basis transcoder is served from `public/basis/` (a copy of three's, 585 KB; `gltf.test.ts` fails if it differs, so copy it again after a three upgrade) and loads with the first KTX2 texture. `loadModel` gives null when a texture of the model did not load, so the part keeps its primitives. No shipped asset is KTX2 yet (ASK1–ASK3).
+- **KTX2 in models (KTX1).** `gltf.ts` `ktx2Support(renderer)` gives the `GLTFLoader` a `KTX2Loader` (`createRenderContext` calls it; the first context wins). The loader's code is its own chunk. The Basis transcoder is served from `public/basis/` (a copy of three's, 585 KB; `gltf.test.ts` fails if it differs, so copy it again after a three upgrade) and loads with the first KTX2 texture. `loadModel` gives null when a texture of the model did not load, so the part keeps its primitives. KTX1 (this loader) is a prerequisite: it must be in place before any `.ktx2` file is added. No shipped asset is KTX2 yet (ASK1–ASK3).
 - Runtime canvases carry the maps: 64 to 512 px, art tiles up to 2048 px. Anisotropy is the `filtering` option (default 8).
 - Texture counts (`renderer.info.memory.textures`): High 265, Low 219 in the main scenario. Counts are per page, not per view. Textures in MB and VRAM are not measured. No tool reports them.
-- The lightmap size is not settled. The lighting section gives 9.8 MB on disk. A derived unpacked RGBA8 figure is about 52.4 MiB. Docs also disagree on the atlas size (991x1153 against 994x1152).
+- **Lightmap size and budget.** 12 maps at 994 × 1152 (`public/bake/room/manifest.json`), RGBM. 9.8 MB on disk (PNG). Unpacked RGBA8 on the GPU: 12 × 994 × 1152 × 4 bytes = 52.4 MiB. Compressed to 1 byte a texel (BC7 class, not shipped): about 14 MB (13.7 MB), under the Dev Lead's 16 MB lightmap cap. The game ships PNG, not compressed (`src/features/room/light.md`, Size and budget).
 
 ## City culling and the Firefox occlusion gate
 

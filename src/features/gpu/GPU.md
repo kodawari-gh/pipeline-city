@@ -10,8 +10,8 @@ The CPU has five microarchitectures, each its own engine, floorplan, goldens and
 
 - **Same results everywhere.** A kernel gives bit-identical memory on every tier and on `GpuRef`. Jobs' expected text and checksums are seed-only (`gpujob.test.ts`). Timing is the only thing a tier changes. Every engine is tested against `GpuRef` the way `engines.test.ts` tests timed CPU engines against `RefCpu`.
 - **Nothing outside the card changes:** the ISA, the register map, `GPU_HOP_TICKS` (8), `KERNEL_LAYOUT` and `GPU_FRAME` (0x800), the spec ids `gpu1..3` and their `visual` keys. No save bump: card state is not saved (card memory is volatile; only spec id and clock are).
-- **gpu1 keeps its numbers.** Blur3 golden in `machine/gpu.test.ts`: 462 instructions, 602 cycles, 140 conflict cycles, 618 ticks (ACCEL.md quoted 93/205/221, an old figure).
-- **Tier order holds:** `gpu.test.ts` "GPU tiers" (gpu3 < gpu2 < gpu1 on cycles and on base ticks), card faster than the CPU twin (`gpujob.test.ts`), npu8 < npu4 < gpu < cpu (`npujob.test.ts`).
+- **gpu1 keeps its numbers.** Blur3 golden in `sim/port.test.ts`: 462 instructions, 602 cycles, 140 conflict cycles, 618 ticks (ACCEL.md quoted 93/205/221, an old figure).
+- **Tier order holds:** `sim/port.test.ts` "GPU tiers" (gpu3 < gpu2 < gpu1 on cycles and on base ticks), card faster than the CPU twin (`gpujob.test.ts`), npu8 < npu4 < gpu < cpu (`npujob.test.ts`).
 - Deterministic: same save and seed, same cycles. No wall clock, no `Math.random`.
 
 ## 1. How the card is driven
@@ -116,7 +116,7 @@ The card gets a die plan in the style of [`DIE.md`](DIE.md): a data model (`gpup
 
 ## 8. Tests (copy the CPU's)
 
-- Equivalence: every kernel in `gpupicture.ts` and `gpukernels.ts`, at several lane counts, `GpuRef` vs each engine (memory and registers equal).
+- Equivalence: every kernel in `sim/gpupicture.ts` and `sim/kernels.ts`, at several lane counts, `GpuRef` vs each engine (memory and registers equal).
 - Timing: exact cycle counts per rule in 5 (load-use stall, two warps hide latency on a memory-bound kernel, divergence idles only its warp, barrier waits, coalesced vs scattered, bank conflict rounds, L1 hit/miss, L2 serialisation).
 - Golden charts per engine (blur3, inline snapshots), the style of `engines/golden.test.ts`.
 - Tier order: the three existing orderings in the invariants, plus `warp` < `simd` and `multi` < `warp` on the same clock.

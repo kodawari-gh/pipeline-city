@@ -121,6 +121,10 @@ A game's start at the same tier (a new campaign) builds no room. The dev server 
 
 Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots the same build.
 
+## Asset prerequisites
+
+- **KTX1 (the KTX2 loader) is required.** Before any `.ktx2` file is added, the KTX2 loader must be in place: `ktx2Support` in `gltf.ts` gives the GLTFLoader a `KTX2Loader`, with the Basis transcoder in `public/basis/`. No `.ktx2` file ships yet.
+
 ## What can still go faster
 
 - **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker.
