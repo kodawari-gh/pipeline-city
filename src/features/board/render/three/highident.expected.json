@@ -590,9 +590,9 @@
   "room/Group#35": {
     "meshes": 3,
     "draws": 3,
-    "verts": 984,
+    "verts": 936,
     "instances": 0,
-    "sum": "c79983da"
+    "sum": "586002c4"
   },
   "room/Group#6": {
     "meshes": 1,
