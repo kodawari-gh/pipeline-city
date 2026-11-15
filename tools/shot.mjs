@@ -61,7 +61,11 @@ try {
     await p.click('text=Sandbox');
     await p.click('button:has-text("Start")');
     if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
-    else await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
+    else {
+      await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
+      // the view's first frame of the game frames the room again (`flyToRoom`): a flight asked before it would be lost
+      await p.waitForFunction(() => window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
+    }
   }
   await p.waitForTimeout(2500);
   if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
