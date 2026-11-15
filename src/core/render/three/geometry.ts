@@ -249,10 +249,10 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
  * A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`.
  * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`). The hub's sides come from the rotor's own diameter (`fanSides`).
  */
-export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number } = {}): Group {
-  const rotor = new Group(), hr = r * 0.3, sides = fanSides((2 * r) / 23);
+export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number; sides?: number; rings?: number } = {}): Group {
+  const rotor = new Group(), hr = r * 0.3, sides = o.sides ?? fanSides((2 * r) / 23);
   const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, sides).rotateX(Math.PI / 2), hub);
-  const dome = new Mesh(new SphereGeometry(hr, sides, SEG.rings, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  const dome = new Mesh(new SphereGeometry(hr, sides, o.rings ?? SEG.rings, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
   // (no uv, as the blades: a hub and blades of one program merge into one mesh)
   hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');
@@ -272,18 +272,19 @@ export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
 /**
  * A fan's flange round the z axis (centred, `t` thick), for a fan `d` wide: a square plate with rounded corners, a round throat and a screw hole in
  * each corner. A case's fan mount is the same plate, `w` wide, so its holes meet the fan's.
+ * `sides`: the throat's sides, for a lower detail level (`fanPart`); the default is the fan's own (`fanSides`).
  */
-export function fanFlange(d: number, t: number, w = d): BufferGeometry {
+export function fanFlange(d: number, t: number, w = d, sides: number = fanSides(d / 23), low = false): BufferGeometry {
   const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006);
   // each round takes its sides from the fan's size (the segment table): the throat a full `fanSides`, a corner a quarter of it, a screw hole 8
-  const n = fanSides(d / 23), arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
+  const n = sides, arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
     Array.from({ length: k + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / k; return new Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
   const q = Math.max(2, n / 4), P = Math.PI;
   const s = new Shape([...arc(h - c, -h + c, c, -P / 2, 0, q), ...arc(h - c, h - c, c, 0, P / 2, q), ...arc(-h + c, h - c, c, P / 2, P, q), ...arc(-h + c, -h + c, c, P, P * 1.5, q)]);
   const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
   s.holes.push(round(0, 0, d * FAN_THROAT, n));
-  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, SEG.smallDisc));
-  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, low ? 6 : SEG.smallDisc));
+  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: low ? 1 : SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
 }
 
 /**

@@ -228,15 +228,19 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
   const parts = meshes.map((m) => ({ mesh: m, inMesh: new Matrix4().multiplyMatrices(toFrame, m.matrixWorld) }));
   // (the copies are temporary: `mergeGeometries` copies their data, so each is freed once it has merged, the null result too)
   const temps: BufferGeometry[] = [];
-  const g = mergeGeometries(parts.map(({ mesh, inMesh }) => {
-    let x = mesh.geometry.clone().applyMatrix4(inMesh);
+  const join = (of: (m: Mesh) => BufferGeometry): BufferGeometry | null => mergeGeometries(parts.map(({ mesh, inMesh }) => {
+    let x = of(mesh).clone().applyMatrix4(inMesh);
     temps.push(x);
     if (x.index) { x = x.toNonIndexed(); temps.push(x); }
     x.clearGroups();
     return painted(x, mesh.material as MeshStandardMaterial);
   }), false);
+  const g = join((m) => m.geometry);
+  // (a mesh with a lower detail level, `lowOf`: the merged mesh carries the level too, each other mesh in it as it is)
+  const low = g && meshes.some((m) => lowOf(m.geometry)) ? join((m) => lowOf(m.geometry) ?? m.geometry) : null;
   for (const t of temps) t.dispose();
   if (!g) return null;
+  if (low) g.userData.low = low;
   const first = meshes[0]!, out = new Mesh(g, material);
   out.castShadow = first.castShadow; out.receiveShadow = first.receiveShadow;
   out.renderOrder = first.renderOrder; out.frustumCulled = first.frustumCulled; out.layers.mask = first.layers.mask;
@@ -245,6 +249,13 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
   partsBy.set(out, parts);
   return out;
 }
+
+/**
+ * A geometry at a lower detail level, in the same space (`geometry.userData.low`, LOD-01), or undefined. A builder sets it on a part that is
+ * costly and seen small from far (a fan's housing); a merge carries it on (`paletteMesh`) and a distance stand-in draws it (`copiesOf`). It
+ * stays off the GPU until a stand-in copies it.
+ */
+export const lowOf = (g: BufferGeometry): BufferGeometry | undefined => g.userData.low as BufferGeometry | undefined;
 
 /** Gives each vertex of `x` the material's colour, roughness and metalness (`_pc`, `_prm`: what a palette material reads). */
 function painted(x: BufferGeometry, m: MeshStandardMaterial): BufferGeometry {
@@ -389,7 +400,8 @@ export const standInKey = (m: Mesh): string | null => joinOf(m)?.key ?? null;
 
 /** The triangles of `m` in the frame `toFrame` takes the world to (unindexed, no groups): one geometry, or one per copy of an instanced mesh. */
 function copiesOf(m: Mesh, toFrame: Matrix4, palette: boolean): BufferGeometry[] {
-  const base = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(), x = m as Copies;
+  // (a stand-in is seen from far: it takes the part's lower detail level when it has one, LOD-01)
+  const src = lowOf(m.geometry) ?? m.geometry, base = src.index ? src.toNonIndexed() : src.clone(), x = m as Copies;
   base.clearGroups();
   if (palette && !base.attributes._pc) painted(base, m.material as MeshStandardMaterial);
   const inFrame = new Matrix4().multiplyMatrices(toFrame, m.matrixWorld);

@@ -53,6 +53,15 @@ const lathe = (outline: readonly (readonly [number, number])[], seg: number): Bu
 /** A fan's real depth: a 25 mm frame, the 40 mm fan's 10 mm (23 units a millimetre, `fanLen`). */
 export const fanDepth = (size: number): number => (size > 40 ? 25 : 10) * 23;
 
+/** A fan's detail level (LOD-01): 0 full, 1 for a bbox diagonal of 60 to 120 px on the screen, 2 for 24 to 60 px. */
+export type FanLevel = 0 | 1 | 2;
+/** The switch sizes: the bbox diagonal (px) under which level 1 and level 2 stand for the level above. */
+export const FAN_LOD_PX = [120, 60] as const;
+/** The venturi's steps on each side of its waist, by level. */
+const FAN_STEPS = [10, 4, 2] as const;
+/** The sides of a fan round at a level: all, three quarters, a half; even, and never under 8. A 120 mm fan: 32, 24, 16. */
+export const fanLodSides = (sides: number, level: FanLevel): number => (level === 0 ? sides : Math.max(8, 2 * Math.round((sides * (level === 1 ? 0.75 : 0.5)) / 2)));
+
 /** The fan's four corners, in parts of its width. */
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
 
@@ -60,12 +69,12 @@ const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
  * The fan's housing, one geometry: a flange on each face, the round wall between them with its throat narrowing to a waist round the blades (a
  * venturi), and a screw post in each corner with a rib to the wall. The screw holes run right through.
  */
-function housing(d: number, depth: number, sides: number, small: number): BufferGeometry {
+function housing(d: number, depth: number, sides: number, small: number, steps = 10): BufferGeometry {
   const t = Math.min(depth * 0.16, d * 0.04), half = depth / 2, inner = half - t + 1, mouth = d * FAN_THROAT, waist = d * 0.456, wall = d * 0.49;
   const venturi: [number, number][] = [[wall, -inner], [wall, -inner * 0.92], [wall, inner * 0.92], [wall, inner]];
-  for (let k = 10; k >= -10; k--) { const u = k / 10; venturi.push([waist + (mouth - waist) * u * u, u * inner]); }
+  for (let k = steps; k >= -steps; k--) { const u = k / steps; venturi.push([waist + (mouth - waist) * u * u, u * inner]); }
   venturi.push([wall, -inner]);
-  const parts = [fanFlange(d, t).translate(0, 0, half - t / 2), fanFlange(d, t).translate(0, 0, -half + t / 2), lathe(venturi, sides)];
+  const parts = [fanFlange(d, t, d, sides, steps < 10).translate(0, 0, half - t / 2), fanFlange(d, t, d, sides, steps < 10).translate(0, 0, -half + t / 2), lathe(venturi, sides)];
   const postR = d * 0.05, holeR = d * 0.022, at = d * FAN_SCREW, rib = wall + (Math.SQRT2 * at - postR - wall) / 2;
   for (const [x, y] of CORNERS) {
     parts.push(lathe([[postR, -inner], [postR, inner], [holeR, inner], [holeR, -inner], [postR, -inner]], small).translate(x * at, y * at, 0));
@@ -102,16 +111,29 @@ export function labelDisc(r: number, t: number, z: number, sides: number, edge: 
  * A fan part round its own z, `d` wide and `depth` deep, as its spot fits it. The basic grade is all black, with seven blades. High-airflow has nine
  * wider blades at a steeper pitch, soft pads at its corners and a violet mark on its hub. A case fan has a light round its throat on the face
  * `ringSide` (+1 the +z face); the 40 mm fan has none.
+ * `level` (LOD-01, docs/render/lod.md): 0 the full part. 1 and 2 are the same builder with fewer sides (`fanLodSides`), a venturi of fewer
+ * steps and a flatter hub dome; their still parts (the housing and the motor) are one mesh. The full part's housing carries the level 1
+ * housing (`lowOf`, merge.ts): the machine's overview stand-in draws that one, at no added draw.
  */
-export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: number, ringSide: 1 | -1 = 1): { root: Group; spin: Spin } {
+export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: number, ringSide: 1 | -1 = 1, level: FanLevel = 0): { root: Group; spin: Spin } {
   const root = new Group(), fast = spec.tier > 0, R = d * 0.462;
-  const sides = fanSides(d / UNITS_PER_MM), small = Math.max(8, sides / 2);
+  const full = fanSides(d / UNITS_PER_MM), sides = fanLodSides(full, level), small = Math.max(8, sides / 2), steps = FAN_STEPS[level];
   const frame = mat(0x1d1e22, { roughness: 0.62 });
-  root.add(place(new Mesh(housing(d, depth, sides, small), frame)));
+  if (level === 0) {
+    const body = place(new Mesh(housing(d, depth, sides, small), frame));
+    body.geometry.userData.low = housing(d, depth, fanLodSides(full, 1), Math.max(8, fanLodSides(full, 1) / 2), FAN_STEPS[1]);
+    root.add(body);
+  } else {
+    // one mesh: the housing and the motor's meshes, each in the fan's space
+    const hold = new Group();
+    motor(hold, d * 0.47, depth, 4, small);
+    const still = [housing(d, depth, sides, small, steps), ...(hold.children as Mesh[]).map((m) => { m.updateMatrix(); return m.geometry.toNonIndexed().applyMatrix4(m.matrix); })];
+    root.add(place(new Mesh(mergeGeometries(still, false)!, frame)));
+  }
   if (fast) root.add(place(new Mesh(pads(d, depth, small), mat(0x7d68bf, { roughness: 0.85 }))));
-  motor(root, d * 0.47, depth, 4, small);
+  if (level === 0) motor(root, d * 0.47, depth, 4, small);
   const hub = hubM();
-  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hub, fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 });
+  const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hub, { ...(fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 }), ...(level ? { sides, rings: level === 1 ? 4 : 2 } : {}) });
   rotor.add(...hubLabel(R, fast, small, hub));
   // the blades and the hub stay inside the frame's depth: a thin fan has flatter blades
   rotor.scale.z = Math.min(1, (depth * 0.42) / (R * 0.22));
@@ -120,7 +142,7 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
   let ring: MeshStandardMaterial | null = null;
   if (spec.size > 40) {
     ring = glowMat(0xa68bff);
-    const t = new Mesh(new TorusGeometry(d * (FAN_THROAT + 0.006), d * 0.011, 8, fanSides(d / UNITS_PER_MM)), ring);
+    const t = new Mesh(new TorusGeometry(d * (FAN_THROAT + 0.006), d * 0.011, level ? 4 : 8, sides), ring);
     t.position.z = (ringSide * depth) / 2;
     root.add(seeThrough(t));
   }
