@@ -10,7 +10,6 @@
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { byDetail, lowDetail } from '@/core/render/three/detail';
-import { NON_METAL } from '@/core/render/three/cheapmaterials';
 import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
@@ -66,8 +65,8 @@ const capMark = () => tex('pump-cap-mark', 512, 512, (c, w, h) => {
   const name = 'PIPELINE', step = 34;
   [...name].forEach((ch, i) => c.fillText(ch, w / 2 + (i - (name.length - 1) / 2) * step, h * 0.7));
 });
-/** The pump cap's metal: the brushed face, polished. At Low it is a Lambert's metalness (`NON_METAL`): the brushed map and the key's warmth show, not a dark metal. */
-const capMat = () => mat(0xffffff, { map: brushed(), metalness: byDetail(0.8, NON_METAL), roughness: 0.3 });
+/** The pump cap's metal: the brushed face, polished (the same at Low, which keeps the machine's materials). */
+const capMat = () => mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 });
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
 const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {

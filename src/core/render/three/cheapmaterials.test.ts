@@ -198,10 +198,14 @@ describe('probePlan', () => {
     expect(probePlan({ ...o, bounces: 1, keyChanged: false })).toEqual({ request: true, bounces: 0 });
     expect(probePlan({ ...o, bounces: 0, keyChanged: false })).toEqual({ request: false, bounces: 0 });
   });
-  it('Low, once probed, asks for no more and its bounces go to 0', () => {
-    expect(probePlan({ ...o, low: true })).toEqual({ request: false, bounces: 0 });
-    expect(probePlan({ ...o, low: true, bounces: 3 })).toEqual({ request: false, bounces: 0 });
+  it('Low, once probed, takes no bounce: its bounces go to 0', () => {
+    expect(probePlan({ ...o, low: true, keyChanged: false, bounces: 3 })).toEqual({ request: false, bounces: 0 });
     expect(probePlan({ ...o, low: true, busy: true, bounces: 3 })).toEqual({ request: false, bounces: 0 });
+  });
+  it('Low captures again when the light changed, after the interval', () => {
+    expect(probePlan({ ...o, low: true })).toEqual({ request: true, bounces: 0 });
+    expect(probePlan({ ...o, low: true, bounces: 3 })).toEqual({ request: true, bounces: 0 });
+    expect(probePlan({ ...o, low: true, waited: false })).toEqual({ request: false, bounces: 0 });
   });
   it('Low takes its first probe, and counts its bounces down from it', () => {
     expect(probePlan({ ...o, low: true, probed: false, bounces: 3 })).toEqual({ request: true, bounces: 2 });
