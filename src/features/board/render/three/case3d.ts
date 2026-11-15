@@ -317,7 +317,10 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   door.position.set(px, 0, FRONT);
   side.position.set(-px, 0, -FRONT);
   door.add(side);
-  foldCaseLooks(root); // (the material cap, 3D_STYLE "Asset standard" §2: near-duplicate looks become one)
+  // (the material cap, 3D_STYLE "Asset standard" §2: near-duplicate looks become one; the door is not under `root`, and its own panels must take
+  // the same family colours as the body, or the Mini's pressed panel stays cream on a satin metal case)
+  foldCaseLooks(root);
+  foldCaseLooks(door);
   return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, accent: acc, inner: L.inner, shroud: L.shroud, rivet: rivetM(kind), screw: screwM(kind) };
 
 }

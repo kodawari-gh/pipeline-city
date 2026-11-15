@@ -361,21 +361,21 @@
     "draws": 14,
     "verts": 7074,
     "instances": 515,
-    "sum": "7f10709d"
+    "sum": "461db966"
   },
   "machine/dev32": {
     "meshes": 14,
     "draws": 14,
     "verts": 7074,
     "instances": 515,
-    "sum": "039391e7"
+    "sum": "7ae75839"
   },
   "machine/dev33": {
     "meshes": 14,
     "draws": 14,
     "verts": 7074,
     "instances": 515,
-    "sum": "7f10709d"
+    "sum": "461db966"
   },
   "machine/dev34": {
     "meshes": 34,

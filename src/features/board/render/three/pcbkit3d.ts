@@ -298,13 +298,17 @@ export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Mate
     o.receiveShadow = true;
     return o;
   }
+  // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
+  // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)
+  const sx = r.w / nx, sy = r.h / ny;
   for (let i = 0; i < p.count; i++) {
     const x = cx + p.getX(i), y = cy - p.getY(i);
     let z = base + lift;
     for (const b of bumps) {
-      const dx = Math.max(b.r.x - x, 0, x - (b.r.x + b.r.w)), dy = Math.max(b.r.y - y, 0, y - (b.r.y + b.r.h)), d = Math.hypot(dx, dy);
-      if (d >= b.fall) continue;
-      const s = 1 - d / b.fall, k = s * s * (3 - 2 * s);
+      const dx = Math.max(b.r.x - sx - x, 0, x - (b.r.x + b.r.w + sx)), dy = Math.max(b.r.y - sy - y, 0, y - (b.r.y + b.r.h + sy)), d = Math.hypot(dx, dy);
+      const fall = Math.max(b.fall, sx, sy);
+      if (d >= fall) continue;
+      const s = 1 - d / fall, k = s * s * (3 - 2 * s);
       z = Math.max(z, base + lift + (b.top - base) * k);
     }
     p.setZ(i, z);
