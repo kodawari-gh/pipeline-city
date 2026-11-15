@@ -15,6 +15,7 @@ import { deviceOfPart } from '@/core/render/parts';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, awayHeld, debugOverride, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { whenDebug } from '@/app/debugflag';
+import { loadBaked } from '@/core/render/three/baked';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
   applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
@@ -107,6 +108,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
+  const baked = loadBaked(renderer); // (the KTX2 maps, `public/tex/`: they load while the page sets up, and the first build waits for them)
   void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots: () => ({ city: cityMesh(), machine: machine?.root ?? null, layers: cityLayers() }) });
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
@@ -216,7 +218,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   };
   // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
   bootStage('Building the world', 0.14);
-  await nextPaint();
+  await Promise.all([nextPaint(), baked]);
   prepareCity(renderer, effective.peek().shadows);
   setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   rebuild();

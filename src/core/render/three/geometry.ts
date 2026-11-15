@@ -17,8 +17,8 @@ export function refilter(root: Object3D, n: number): void {
   root.traverse((o) => {
     const m = (o as Mesh).material as Material | Material[] | undefined;
     for (const x of Array.isArray(m) ? m : m ? [m] : []) for (const v of Object.values(x)) {
-      const t = v as CanvasTexture | null;
-      if (!t?.isCanvasTexture || done.has(t)) continue;
+      const t = v as (CanvasTexture & { isCompressedTexture?: boolean }) | null;
+      if (!(t?.isCanvasTexture || t?.isCompressedTexture) || done.has(t)) continue; // (a baked map is compressed, `baked.ts`)
       done.add(t);
       t.anisotropy = n;
       t.needsUpdate = true;

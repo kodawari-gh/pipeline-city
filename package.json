@@ -19,6 +19,7 @@
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
+    "bake:tex": "node tools/bake/textures.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
   },

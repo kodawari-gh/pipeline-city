@@ -5,6 +5,7 @@ import {
   BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { bakedTex } from '@/core/render/three/baked';
 import { anisotropy, extrude, instanced, place, SEG, shareTex, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
@@ -215,8 +216,10 @@ export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material):
 const TEX = new Map<string, Texture | null>();
 export function tex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture | null {
   if (TEX.has(key)) return TEX.get(key)!;
-  let t: Texture | null = null;
-  if (typeof document !== 'undefined') {
+  // (a baked sheet, `part-<key>` in `public/tex/`, stands for the canvas: `brushed` and `grain`)
+  let t: Texture | null = bakedTex('part-' + key);
+  if (t) t.wrapS = t.wrapT = RepeatWrapping;
+  else if (typeof document !== 'undefined') {
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     draw(cv.getContext('2d')!, w, h);

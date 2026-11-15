@@ -8,6 +8,7 @@
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
+import { bakedTex } from '@/core/render/three/baked';
 import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -46,7 +47,7 @@ const screwHead = () => screwTex ??= shareTex(paint(64, 64, (c, w, h) => {
 }));
 
 /** The pump cap's face: neutral aluminium brushed in rings, lit toward the north-west as in 2D, a turned groove round the polished boss. */
-const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
+const brushed = () => brushedTex ??= shareTex(bakedTex('cooler-brushed') ?? paint(512, 512, (c, w, h) => {
   const g = c.createRadialGradient(w * 0.38, h * 0.32, 10, w / 2, h / 2, w / 2);
   g.addColorStop(0, '#a3a8b1'); g.addColorStop(1, '#4e535c');
   c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -54,6 +55,8 @@ const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let r = 4; r < w / 2; r += 1.5) { c.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.08})` : `rgba(0,0,0,${rnd() * 0.12})`; c.lineWidth = 1; c.beginPath(); c.arc(w / 2, h / 2, r, 0, Math.PI * 2); c.stroke(); }
 }));
+/** The pump cap's map, for the texture bake (`tools/bake/textures.mjs`). */
+export const capBrushed = (): Texture | null => brushed();
 /** The maker's mark under the pump cap's glass: four bars rising to the right over the name, pale silver on clear. */
 const capMark = () => tex('pump-cap-mark', 512, 512, (c, w, h) => {
   c.clearRect(0, 0, w, h);

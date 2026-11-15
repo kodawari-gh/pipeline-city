@@ -4,6 +4,7 @@
 // (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
 import { CanvasTexture, NoColorSpace, RepeatWrapping, type Texture } from 'three';
 import { rawSrgb } from '@/core/render/three/artlod';
+import { bakedTex } from '@/core/render/three/baked';
 import { anisotropy, shareTex } from '@/core/render/three/geometry';
 import { rng } from './plan';
 
@@ -22,7 +23,11 @@ function canvas(w: number, h: number): [HTMLCanvasElement, Ctx] | null {
 
 /** A repeating texture of a canvas, a uv in metres divided by `metres`. `colour`: raw sRGB (decoded by its material); else linear data (a normal map). */
 function tex(cv: HTMLCanvasElement, metres: readonly [number, number], colour: boolean): Texture {
-  const t = colour ? rawSrgb(cv) : new CanvasTexture(cv);
+  return dress(colour ? rawSrgb(cv) : new CanvasTexture(cv), metres);
+}
+
+/** The repeat by the metre, the filtering and no colour space, on a painted or a baked texture. */
+function dress(t: Texture, metres: readonly [number, number]): Texture {
   t.colorSpace = NoColorSpace;
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(1 / metres[0], 1 / metres[1]);
@@ -47,7 +52,10 @@ function normalOf(h: HTMLCanvasElement, k: number): HTMLCanvasElement {
 }
 
 /** A surface painted on two canvases at once: the colour and the height. */
-function surface(w: number, h: number, metres: readonly [number, number], bump: number, draw: (c: Ctx, hc: Ctx, w: number, h: number) => void): Surface {
+function surface(name: string, w: number, h: number, metres: readonly [number, number], bump: number, draw: (c: Ctx, hc: Ctx, w: number, h: number) => void): Surface {
+  // the baked pair (`city-<name>` and `city-<name>-n` in `public/tex/`) stands for the canvases; the colour stays raw sRGB, as the canvas map
+  const bm = bakedTex(`city-${name}`), bn = bakedTex(`city-${name}-n`);
+  if (bm && bn) return { map: dress(bm, metres), normal: dress(bn, metres), metres };
   const a = canvas(w, h), b = canvas(w, h);
   if (!a || !b) return { map: null, normal: null, metres };
   draw(a[1], b[1], w, h);
@@ -90,7 +98,7 @@ function stains(c: Ctx, w: number, h: number, r: () => number, n: number, rad: r
 
 /** Render (stucco): near white, so a material's colour tints it, with faint weather stains and grain. */
 export function stucco(): Surface {
-  return surface(512, 512, [3, 3], 1.4, (c, hc, S) => {
+  return surface('stucco', 512, 512, [3, 3], 1.4, (c, hc, S) => {
     const r = rng(9);
     c.fillStyle = '#ecebe6'; c.fillRect(0, 0, S, S);
     stains(c, S, S, r, 40, [30, 140], (q) => [[118, 112, 100], 0.04 + q() * 0.07]);
@@ -104,7 +112,7 @@ export function stucco(): Surface {
 
 /** Paving slabs of 60 cm in a square grid, each its own shade, with dark joints and a few stains. */
 export function paving(): Surface {
-  return surface(512, 512, [1.8, 1.8], 2.5, (c, hc, S) => {
+  return surface('paving', 512, 512, [1.8, 1.8], 2.5, (c, hc, S) => {
     const r = rng(17), n = 3, s = S / n, j = 3;
     c.fillStyle = '#5c5a55'; c.fillRect(0, 0, S, S);
     hc.fillStyle = '#303030'; hc.fillRect(0, 0, S, S);
@@ -122,7 +130,7 @@ export function paving(): Surface {
 
 /** Asphalt: dark grey aggregate with lighter stones, worn patches and a few cracks. */
 export function asphalt(): Surface {
-  return surface(512, 512, [4, 4], 1.6, (c, hc, S) => {
+  return surface('asphalt', 512, 512, [4, 4], 1.6, (c, hc, S) => {
     const r = rng(21);
     c.fillStyle = '#4a4a4c'; c.fillRect(0, 0, S, S);
     hc.fillStyle = '#707070'; hc.fillRect(0, 0, S, S);
@@ -147,7 +155,7 @@ export function asphalt(): Surface {
 
 /** Mown grass: short blades in mixed greens, a few yellower. */
 export function grass(): Surface {
-  return surface(512, 512, [3, 3], 2, (c, hc, S) => {
+  return surface('grass', 512, 512, [3, 3], 2, (c, hc, S) => {
     const r = rng(25);
     c.fillStyle = '#4a6a2e'; c.fillRect(0, 0, S, S);
     hc.fillStyle = '#606060'; hc.fillRect(0, 0, S, S);
@@ -164,7 +172,7 @@ export function grass(): Surface {
 
 /** Furrowed bark (u along the trunk, v round it): grey-brown ridges and dark cracks, a few lichen patches. */
 export function bark(): Surface {
-  return surface(512, 256, [2.4, 1.2], 4, (c, hc, W, H) => {
+  return surface('bark', 512, 256, [2.4, 1.2], 4, (c, hc, W, H) => {
     const r = rng(29);
     c.fillStyle = '#5a4f45'; c.fillRect(0, 0, W, H);
     hc.fillStyle = '#909090'; hc.fillRect(0, 0, W, H);
