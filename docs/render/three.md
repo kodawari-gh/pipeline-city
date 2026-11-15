@@ -231,7 +231,8 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 
 ## Known gaps
 
-- Texture MB and VRAM are not measured. No tool reports them.
+- VRAM is not measured: WebGL has no query for it and no tool here reads it. Texture MB is an estimate only (2026-11-15, maxed sandbox machine, room view, a scratch walk of `__board.scene` materials, each texture counted as RGBA8 with mips): High 193 textures, about 192 MB; Low 179 textures, about 178 MB; none compressed. The estimate leaves out render targets and counts one-channel maps as four. `renderer.info` gave 226 and 188 GL textures.
+- Model and KTX2 assets: `mouse.glb` and `hoodie.glb` hold no texture (0 MB); their geometry is about 43 KB and 416 KB on the GPU (`gltf-transform inspect`). No KTX2 asset ships, so its size is not measured.
 - Medium is not benched on the RTX.
 - Draws per part and per case after merge are not measured at `03fe0bc`.
 - Phone triangle cost with the same draws is not measured.
