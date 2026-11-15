@@ -18,7 +18,7 @@ import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan'
 import { COOLER_HOLE, COOLER_HOLES, FAN_LEN, fanLen } from '../layout/layout';
 import { FIN_PITCH, TANK, frameOf, radiatorCore, radiatorFanUs, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
-import { brushed as streaks, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
+import { brushed as streaks, decal, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
 import { CPU_Z } from './cpu3d';
 import { fanDepth, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
 
@@ -54,9 +54,18 @@ const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let r = 4; r < w / 2; r += 1.5) { c.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.08})` : `rgba(0,0,0,${rnd() * 0.12})`; c.lineWidth = 1; c.beginPath(); c.arc(w / 2, h / 2, r, 0, Math.PI * 2); c.stroke(); }
-  c.lineWidth = 3;
-  for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
 }));
+/** The maker's mark under the pump cap's glass: four bars rising to the right over the name, pale silver on clear. */
+const capMark = () => tex('pump-cap-mark', 512, 512, (c, w, h) => {
+  c.clearRect(0, 0, w, h);
+  c.fillStyle = '#c3c8d0';
+  const bw = 34, gap = 22, x0 = w / 2 - (4 * bw + 3 * gap) / 2, base = h * 0.56;
+  [0.42, 0.7, 0.55, 1].forEach((k, i) => c.fillRect(x0 + i * (bw + gap), base - k * 150, bw, k * 150));
+  c.font = '600 44px "Inter", "Segoe UI", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  // (letter by letter: wide tracking, as an engraved name)
+  const name = 'PIPELINE', step = 34;
+  [...name].forEach((ch, i) => c.fillText(ch, w / 2 + (i - (name.length - 1) / 2) * step, h * 0.7));
+});
 /** The pump cap's metal: the brushed face, polished. At Low it is a Lambert's metalness (`NON_METAL`): the brushed map and the key's warmth show, not a dark metal. */
 const capMat = () => mat(0xffffff, { map: brushed(), metalness: byDetail(0.8, NON_METAL), roughness: 0.3 });
 
@@ -346,8 +355,13 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
   g.add(drum(0, 0, top - 4, top, R - 40, capMat(), PUMP_SIDES));
-  g.add(band3(140, 118, top, top + 8, polished));
-  g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), PUMP_SIDES));
+  // the cap's window: a disc of black glass in a polished lip, proud of the brushed face, the maker's mark printed under it (four bars, as the
+  // monitor's standby screen). No light of its own: it mirrors the room, and the ring under the cap is the pump's only light
+  const WIN = 500;
+  g.add(band3(WIN + 26, WIN, top, top + 10, polished));
+  g.add(drum(0, 0, top + 2, top + 7, WIN, mat(0x07080b, { metalness: 0, roughness: 0.06 }), PUMP_SIDES));
+  const mark = capMark();
+  if (mark) g.add(decal({ x: -WIN * 0.6, y: -WIN * 0.6, w: WIN * 1.2, h: WIN * 1.2 }, top + 7.5, mat(0xffffff, { map: mark, alphaTest: 0.5, alphaToCoverage: true, metalness: 0.3, roughness: 0.35 })));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from
   // them once every part is in: `hose`, machine3d.ts)
   const north = new Vector3(0, 1, 0), y0 = PUMP.R * 0.6;
