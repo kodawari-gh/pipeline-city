@@ -3,7 +3,7 @@ import { Group, Mesh, PlaneGeometry, TubeGeometry, type MeshStandardMaterial, ty
 import { byDetail, lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { driveBody } from '@/features/storage/render/drives';
 import { setLayoutTier } from '../layout/layout';
-import { NON_METAL, cheapMaterials } from '@/core/render/three/cheapmaterials';
+import { cheapMaterials } from '@/core/render/three/cheapmaterials';
 import { KEEP_SPEC } from '@/core/render/three/materials';
 import { coolerModel } from './cooler3d';
 import { machineKey } from './machine3d';
@@ -55,7 +55,7 @@ describe('Low builds coarser machine parts', () => {
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
     expect(new Set(Array.from({ length: z.count }, (_, i) => z.getZ(i))).size).toBe(1);
   });
-  it('the pump cap reads as a Lambert metal at Low (no dark metal, no PBR without reflections), as it was at High', () => {
+  it('the pump cap keeps High\'s polished metal at Low (the machine keeps High\'s materials, `cheap` in board3d)', () => {
     type M = { metalness: number; roughness: number; color: { getHex(): number } };
     const mats = (g: Object3D, keep: (m: M) => boolean) => meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => keep(m as unknown as M)) as unknown as M[];
     const cap = () => { setLayoutTier(3, 3); return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xffffff && m.roughness === 0.3); };
@@ -67,7 +67,7 @@ describe('Low builds coarser machine parts', () => {
       const low = build();
       expect(low.length).toBe(high.length);
       expect(high.length).toBeGreaterThan(0);
-      expect(low.every((m) => m.metalness <= NON_METAL)).toBe(true);
+      expect(low.every((m) => m.metalness > 0.4)).toBe(true);
     }
   });
   it('the sink casting and its fins keep High\'s PBR at Low (KEEP_SPEC, metalness 0.5), so cheapMaterials leaves them out of the Lambert swap', () => {

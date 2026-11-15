@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Mesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { setLowDetail } from '@/core/render/three/detail';
 import { KEEP_SPEC } from '@/core/render/three/materials';
-import { NON_METAL } from '@/core/render/three/cheapmaterials';
 import { MONITOR, SCREEN, setLayoutTier } from '@/features/board/render/layout/layout';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { coolerModel, hose } from './cooler3d';
@@ -15,14 +14,14 @@ const mats = (o: Object3D): MeshStandardMaterial[] => meshes(o).flatMap((m) => [
 
 describe('Low keeps what must read as metal or weave (KEEP_SPEC, the pump cap, the merges)', () => {
   afterEach(() => { setLowDetail(false); });
-  it('the loop hose\'s crimped ferrules keep their PBR at Low and are unflagged at High', () => {
+  it('the loop hose\'s crimped ferrules are unflagged at Low and High (the machine keeps High\'s materials at Low)', () => {
     const end = { at: [0, 0, 0] as [number, number, number], dir: [0, -1, 0] as [number, number, number] };
     const far = { at: [400, 0, 0] as [number, number, number], dir: [0, -1, 0] as [number, number, number] };
     for (const low of [false, true]) {
       setLowDetail(low);
       const ferrules = mats(hose(end, far, { planes: [], solids: [] })).filter((m) => m.color.getHex() === 0x2a2d32);
       expect(ferrules.length, `ferrules at Low ${low}`).toBeGreaterThan(0);
-      for (const m of ferrules) expect(m.userData[KEEP_SPEC] === true, `ferrule at Low ${low}`).toBe(low);
+      for (const m of ferrules) expect(m.userData[KEEP_SPEC], `ferrule at Low ${low}`).toBeUndefined();
     }
   });
 
@@ -31,13 +30,13 @@ describe('Low keeps what must read as metal or weave (KEEP_SPEC, the pump cap, t
     expect(sleeveMat('#0c1226', null).userData[KEEP_SPEC]).toBeUndefined();
   });
 
-  it('the liquid cooler\'s pump cap is polished metal (metalness 0.8) at High, a Lambert\'s metalness at Low', () => {
+  it('the liquid cooler\'s pump cap is polished metal (metalness 0.8) at High and at Low', () => {
     for (const low of [false, true]) {
       setLowDetail(low);
       setLayoutTier(3, 3);
       const caps = mats(coolerModel('cooler-liquid').root).filter((m) => m.color.getHex() === 0xffffff && m.roughness === 0.3);
       expect(caps.length, `cap at Low ${low}`).toBeGreaterThan(0);
-      for (const m of caps) expect(m.metalness, `cap at Low ${low}`).toBeCloseTo(low ? NON_METAL : 0.8, 5);
+      for (const m of caps) expect(m.metalness, `cap at Low ${low}`).toBeCloseTo(0.8, 5);
     }
   });
 

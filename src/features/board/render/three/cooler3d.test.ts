@@ -30,7 +30,7 @@ const inRoom = (visual: string, b: Box3) => {
 describe('the 3D coolers', () => {
   afterEach(() => { setLowDetail(false); });
 
-  it('keeps the side fans\' frame and blades and the fittings\' chrome on their PBR at Low (KEEP_SPEC), and leaves High unflagged', () => {
+  it('leaves the side fans\' frame and blades and the fittings\' chrome unflagged at Low and High (the machine keeps High\'s materials)', () => {
     setLayoutTier(3, 3);
     const mats = (o: Object3D) => { const out: MeshStandardMaterial[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(...[(c as Mesh).material].flat() as MeshStandardMaterial[]); }); return out; };
     // the frame and the blades of a fan (basic and high-airflow), and the G1/4 fittings' chrome
@@ -41,8 +41,8 @@ describe('the 3D coolers', () => {
       setLowDetail(low);
       const fanMats = [...mats(coolerModel('cooler-stock', [fit('fan92', 'cooler0.fan0')]).root), ...mats(coolerModel('cooler-tower', fans).root)];
       const chromeMats = mats(coolerModel('cooler-liquid').root);
-      expect(flagged(fanMats) > 0, `fans at Low ${low}`).toBe(low);
-      expect(flagged(chromeMats) > 0, `chrome at Low ${low}`).toBe(low);
+      expect(flagged(fanMats), `fans at Low ${low}`).toBe(0);
+      expect(flagged(chromeMats), `chrome at Low ${low}`).toBe(0);
     }
   });
 
