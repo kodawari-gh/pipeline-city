@@ -64,3 +64,14 @@ Drive cage shade: not done. Six Low shots (`cage-*.png` in the scratchpad) on th
 ## Low city beacons (2026-11-15)
 
 Same night view at Low and High (`--hour 23`, `citycuts=1`). The beacon shader matches High: same colour, width, 3.5 s pulse and night scale. The crown code is shared. The Low skyline has more visible red dots. Measured over the skyline top band (260,120,600,110): Low sRGB 45,36,37, High 42,36,36. Overall brightness of the band is equal. Gap is small (about 3 red units). No change made.
+
+## Flicker re-measure (2026-11-15, LPC8)
+
+`npm run flicker`, night, 30 frames, 2 px/frame pan. Window = the city; rest = room and case.
+
+| Preset | Still, full frame | Pan window | Pan rest | Shimmer window | Shimmer rest |
+|---|---|---|---|---|---|
+| High | 0.48 % | 8.58 % | 45.98 % | 0.18 % | 2.07 % |
+| Low | 0.22 % | 11.86 % | 42.28 % | 0.38 % | 0.97 % |
+
+The Low shimmer window differs from the earlier 0.17 % by about 0.2 points, so a single run is noisy. The pan numbers include motion. The "done when" test (a scene with no lights and no thin geometry) is not built yet, so this does not close LPC8. The three worst sources stay as listed above; the first needs LPC5 (owner).
