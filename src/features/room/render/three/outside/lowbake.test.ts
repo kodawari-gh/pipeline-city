@@ -160,41 +160,29 @@ describe('Low city facade bake', () => {
       const guard = sh.indexOf('if (fNight > 0.0) {');
       expect(guard, 'the guard').toBeGreaterThan(-1);
       expect(sh.indexOf('textureGrad(emissiveMap'), 'the night read is inside it').toBeGreaterThan(guard);
-      expect(sh.indexOf('lowRoomHash());')).toBeGreaterThan(guard);
+      expect(sh.indexOf('lowFarWin(), lowFar)')).toBeGreaterThan(guard);
     }
   }, 180000);
 
-  it('Low: mid walls thin their lit rooms per room (discrete, sparser with distance), with no mean wash', () => {
-    for (const m of buildings(low)) {
-      const sh = compiled(m.material as Material).fragmentShader;
-      expect(sh).toContain('float lowRoomHash()');
-      expect(sh).toContain(`smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition))`);
-      expect(sh).toContain(`step(lowFar * ${1 - LOW_FAR.keep}, lowRoomHash())`);
-    }
-    expect(LOW_FAR.keep).toBeGreaterThan(0);
-    expect(LOW_FAR.keep).toBeLessThan(1);
+  it('Low: far walls keep many small lit windows (analytic, one a bay and a storey), never flat lit bands', () => {
     expect(LOW_FAR.far).toBeGreaterThan(LOW_FAR.near);
-  }, 180000);
-
-  it('Low: past LOW_FAR.far a wall has no window texel: no emissive read at all, only a share of towers show analytic floor bands', () => {
-    expect(LOW_FAR.share).toBeGreaterThan(0);
-    expect(LOW_FAR.share).toBeLessThan(1);
-    expect(LOW_FAR.band).toBeGreaterThan(0);
-    expect(LOW_FAR.band).toBeLessThan(1);
-    expect(LOW_FAR.pitch).toBeGreaterThan(0);
+    expect(LOW_FAR.occ[0]).toBeGreaterThan(0);
+    expect(LOW_FAR.occ[1]).toBeGreaterThan(LOW_FAR.occ[0]);
+    expect(LOW_FAR.occ[1]).toBeLessThan(1);
     expect(LOW_FAR.glow).toBeGreaterThan(0);
     expect(LOW_FAR.glow).toBeLessThanOrEqual(1);
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
-      // the mean-wash read is gone: the emissive map is read per window texel only (mid range), never at the top mip
+      expect(sh).toContain('vec3 lowFarWin()');
+      expect(sh).toContain(`smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition))`);
+      // no texel of the night map far off: it is read per window texel only (near), never at the top mip
       expect(sh).not.toContain('textureLod(emissiveMap');
-      // which towers show floors: a share of them, by the seed
-      expect(sh).toContain(`step(fract(sin(vLowSeed * 91.7 + 3.3) * 43758.5453), ${LOW_FAR.share})`);
-      // the floors: one lit band per pitch, from the world height, phased per building
-      expect(sh).toContain(`step(${LOW_FAR.band}, fract(vLowY / ${LOW_FAR.pitch}.0 + vLowSeed * 0.618))`);
-      expect(sh).toContain(`vec3(0.9, 0.7, 0.45) * (lowGate * lowFloor * ${LOW_FAR.glow})`);
-      // mid and far mix by the distance
-      expect(sh).toContain('lowLit = mix(lowRooms, lowBands, lowFar);');
+      // the window's edge is the pixel's width, and the windows are their mean where a bay is under a pixel
+      expect(sh).toContain('vec2 k = smoothstep(vec2(0.3), vec2(0.8), fw);');
+      // the floor bands are gone
+      expect(sh).not.toContain('lowBands');
+      // near and far mix by the distance; a band's wall keeps its ribbon
+      expect(sh).toContain('lowLit = mix(mix(lowRooms, lowFarWin(), lowFar), lowRibbon, lowRib);');
     }
   }, 180000);
 
@@ -402,9 +390,10 @@ describe('Low city facade bake', () => {
       expect(full).toContain('float blue = 1.0 - step(0.5, st);');
       expect(full).toContain('mix(vec3(0.9, 0.7, 0.45), vec3(0.42, 0.52, 0.7), blue)');
       // the ribbon's lit glass replaces the atlas's rooms on a band wall, inside the guard
-      const use = full.indexOf('lowRooms = mix(lowRooms, lowRibbon, lowRib);');
+      const use = full.indexOf('lowRibbon, lowRib);');
       expect(use, 'the ribbon lights the rooms').toBeGreaterThan(guard);
-      expect(full.indexOf('lowRibLight() * lowRibGlass()')).toBeGreaterThan(guard);
+      // (far off the runs are their mean on the glass)
+      expect(full.indexOf(`mix(lowRibLight(), vec3(0.9, 0.7, 0.45) * ${LOW_FAR.ribMean}, lowRunM) * lowRibGlass()`)).toBeGreaterThan(guard);
     }
   }, 180000);
 
