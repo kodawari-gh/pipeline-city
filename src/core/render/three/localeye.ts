@@ -28,6 +28,8 @@ export const LO = -18, BINS = 24;
 export const SHADOW_C = 0.18, HIGH_C = 0.4;
 /** At most this many stops up or down. */
 export const MAX_UP = 9, MAX_DOWN = 3;
+/** The share of its colour a pixel loses when the eye lifts it by `CALM_STOPS` stops or more (less below, in proportion). */
+export const CALM = 0.4, CALM_STOPS = 4;
 /** The scene's luminance that shows as middle grey at an exposure of 1 (ACES: 0.18 out at 0.22 in, after its own 1 / 0.6). */
 export const MID = 0.13;
 
@@ -139,6 +141,10 @@ void main() {
     float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
     float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
     c.rgb *= exp2(up * strength);
+    // a lifted shadow keeps its colour's ratio, and a ratio that was a faint tint in the dark shows as a strong colour (a grey cage under the
+    // sky reads baby blue). The eye sees less colour in the dark: the lift takes a share of the colour away, most at ${f(CALM_STOPS)} stops up
+    float y = ${LUM};
+    c.rgb = mix(vec3(y), c.rgb, 1.0 - ${CALM.toFixed(2)} * clamp(up * strength / ${f(CALM_STOPS)}, 0.0, 1.0));
   }
   gl_FragColor = c;
   #ifdef TONE

@@ -39,6 +39,18 @@ describe('Probe', () => {
     expect(root.visible).toBe(true);
   });
 
+  it('with a calm share, draws its six calm faces at the capture\'s end and gives the calm cube', () => {
+    const plain = new Probe(1, 100), p = new Probe(1, 100, 0.5), { r, faces } = stub(), scene = new Scene();
+    p.request();
+    for (let i = 0; i < 5; i++) p.step(r, scene);
+    expect(faces).toHaveLength(5);
+    expect(p.step(r, scene)).toBe(true);
+    expect(faces).toEqual([0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5]);
+    expect(p.texture.pmremVersion).toBe(1);
+    expect(p.texture).not.toBe(plain.texture);
+    p.dispose();
+  });
+
   it('starts a request made during a capture after it ends', () => {
     const p = new Probe(1, 100), { r, faces } = stub(), scene = new Scene();
     p.request();

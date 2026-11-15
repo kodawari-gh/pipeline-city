@@ -26,7 +26,7 @@ import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
-import { Probe } from '@/core/render/three/probe';
+import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
@@ -120,7 +120,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const studio = shareTex(scene.environment!);
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
   // a few times over for a new room, as each capture holds the bounce of the one before; prefiltered, it is the scene's light at every zoom
-  const probe = new Probe(200, 400000), { pmrem } = ctx;
+  const probe = new Probe(200, 400000, PROBE_CALM), { pmrem } = ctx;
   let roomEnv: WebGLCubeRenderTarget | null = null;
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
   // the metered eye: the meter's last reading, the exposure's factor it asks for, and where the eye stands on its way to it
