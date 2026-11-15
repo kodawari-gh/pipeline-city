@@ -750,7 +750,7 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
     const t = k / 16, u = 1 - t, p = b0.clone().multiplyScalar(u * u * u).addScaledVector(b1, 3 * u * u * t).addScaledVector(b2, 3 * u * t * t).addScaledVector(knuckle, t * t * t);
     arc.push([p.x, p.y, p.z]);
   }
-  g.add(tube(arc, 200, black, 12), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, 8));
+  g.add(tube(arc, 200, black, SEG.arm), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, SEG.frameBar));
   const ball = new Mesh(new SphereGeometry(280, 16, 10), black);
   ball.position.copy(knuckle);
   g.add(place(ball));

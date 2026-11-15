@@ -65,7 +65,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   front.position.set(0, 55 * MM, 70 * MM);
   pack.add(sewn(body), front);
   // the zips: the main one up one side, over the top and down the other, near the front; the pocket's across its top
-  const zip = (f: BagForm, pts: [number, number][], dy: number, dz: number) => tube(pts.map(([t, p]) => { const q = bagAt(f, t, p, new Vector3()); return [q.x * 1.015 * MM, (q.y * 1.006 + dy) * MM, (q.z * 1.03 + dz) * MM] as const; }), 4 * MM, black, 5);
+  const zip = (f: BagForm, pts: [number, number][], dy: number, dz: number) => tube(pts.map(([t, p]) => { const q = bagAt(f, t, p, new Vector3()); return [q.x * 1.015 * MM, (q.y * 1.006 + dy) * MM, (q.z * 1.03 + dz) * MM] as const; }), 4 * MM, black, SEG.zip);
   const side = (t: number, from: number) => Array.from({ length: 12 }, (_, k) => [t, from + ((Math.PI / 2 - 0.02 - from) * k) / 11] as [number, number]);
   pack.add(zip(body, [...side(0.55, -0.7), ...side(Math.PI - 0.55, -0.7).reverse()], 0, 0));
   pack.add(zip(pocket, Array.from({ length: 12 }, (_, k) => [0.4 + ((Math.PI - 0.8) * k) / 11, 0.85] as [number, number]), 55, 70));

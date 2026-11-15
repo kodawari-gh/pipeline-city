@@ -95,6 +95,6 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   const zg = HEAD.top - 10, spoke = R * 0.72, at = R * 0.28 + spoke / 2;
   g.add(instanced(new BoxGeometry(spoke, 22, 16), anod, [1, 3, 5, 7].map((k) => ({ x: cx + Math.cos((k * Math.PI) / 4) * at, y: -cy + Math.sin((k * Math.PI) / 4) * at, z: zg, rz: (k * Math.PI) / 4 }))));
   g.add(slab(shapeOf(circle(R * 0.64 + 9), [circle(R * 0.64 - 9)]), zg - 8, zg + 8, anod));
-  g.add(drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, 40), drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x9aa2b4, { metalness: 0.8, roughness: 0.3 }), 40));
+  g.add(drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, SEG.ring), drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x9aa2b4, { metalness: 0.8, roughness: 0.3 }), SEG.ring));
   return { spot, foot: HEAD.fan, top: HEAD.top };
 }

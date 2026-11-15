@@ -9,6 +9,7 @@ import {
   InstancedMesh, MeshPhysicalMaterial, ShaderMaterial, Shape, Sphere, Vector2, Vector3, type BufferAttribute, type BufferGeometry, type Frustum, type Material,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SEG } from '@/core/render/three/geometry';
 import { HAZE_FN, withHaze, type HazeUniforms } from './haze';
 import { CAR_COLOURS, GRID, heading, rng, type Car } from './plan';
 import { MODELS, type Route, type Traffic } from './traffic';
@@ -85,7 +86,7 @@ const enum Part { Paint = 0, Glass = 1, Tyre = 2, Rim = 3, Head = 4, Tail = 5, P
 /** A shape of (x, y) points, extruded `w` wide across z about the middle, its edges rounded by `round`. */
 function extrude(pts: readonly (readonly [number, number])[], w: number, round: number): BufferGeometry {
   const g = new ExtrudeGeometry(new Shape(pts.map(([x, y]) => new Vector2(x, y))), {
-    depth: w - 2 * round, bevelEnabled: true, bevelThickness: round, bevelSize: round, bevelOffset: -round, bevelSegments: 3, curveSegments: 4,
+    depth: w - 2 * round, bevelEnabled: true, bevelThickness: round, bevelSize: round, bevelOffset: -round, bevelSegments: SEG.carBevel, curveSegments: SEG.carCurve,
   });
   return g.translate(0, 0, -(w - 2 * round) / 2);
 }
@@ -132,8 +133,8 @@ export function carGeometry(model: number): BufferGeometry {
   for (const s of [-1, 1]) out.push([box(fx - 0.2, belt + 0.06, s * (W / 2 - 0.02), fx - 0.06, belt + 0.17, s * (W / 2 + 0.13)), Part.Paint]);
   // the wheels: a tyre and its rim at each corner
   for (const x of [xf, xr]) for (const s of [-1, 1]) {
-    out.push([new CylinderGeometry(WHEEL, WHEEL, 0.21, 18).rotateX(Math.PI / 2).translate(x, WHEEL, s * (W / 2 - 0.15)), Part.Tyre]);
-    out.push([new CylinderGeometry(0.2, 0.2, 0.216, 12).rotateX(Math.PI / 2).translate(x, WHEEL, s * (W / 2 - 0.15)), Part.Rim]);
+    out.push([new CylinderGeometry(WHEEL, WHEEL, 0.21, SEG.roundCap).rotateX(Math.PI / 2).translate(x, WHEEL, s * (W / 2 - 0.15)), Part.Tyre]);
+    out.push([new CylinderGeometry(0.2, 0.2, 0.216, SEG.part).rotateX(Math.PI / 2).translate(x, WHEEL, s * (W / 2 - 0.15)), Part.Rim]);
   }
   // the front's lamps, grille and plate; the tail's lamps and plate
   for (const s of [-1, 1]) {

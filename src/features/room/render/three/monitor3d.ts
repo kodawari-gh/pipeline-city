@@ -118,7 +118,7 @@ function strainRelief(): BufferGeometry {
     pts.push(new Vector2(r, y));
   }
   pts.push(new Vector2(0, y0 + L));
-  const g = new LatheGeometry(pts, 16);
+  const g = new LatheGeometry(pts, SEG.post);
   g.rotateX(Math.PI / 2);
   return g;
 }

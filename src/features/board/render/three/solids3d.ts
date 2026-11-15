@@ -82,7 +82,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
-  add(bands, new CylinderGeometry(1, 1, 1, 10, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
+  add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
   add(bodies, box, mat(0x8c6c4c, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);

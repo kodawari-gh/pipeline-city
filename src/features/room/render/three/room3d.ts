@@ -613,7 +613,7 @@ export class Room3D {
     for (let row = 0; row < 2; row++) {
       const y = trayHook(row * 5).y;
       rack.add(softBox({ x: kr.x + 120, y: y - 110, w: kr.w - 240 + row * 330, h: 220 }, 0, 200, dark, 40));
-      for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, 10)); }
+      for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, SEG.midRound)); }
     }
     const rackTop = trayHook(0).y - 300;
     for (const x of [kr.x - 60, bar1]) {
@@ -724,7 +724,7 @@ export class Room3D {
     R.add(socket, plateBox);
     // the letterbox's light: on while an upload waits or goes out
     const mailM = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xffb347), emissiveIntensity: 0 });
-    box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, 10));
+    box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, SEG.midRound));
     this.mailLed = mailM;
 
     // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one

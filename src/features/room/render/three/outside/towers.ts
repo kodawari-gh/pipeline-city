@@ -13,6 +13,7 @@
 // lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
 import { BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, MeshStandardMaterial, Vector3, type Sphere } from 'three';
+import { SEG } from '@/core/render/three/geometry';
 import { LOW_NEAR_RINGS, type CityDetail } from './detail';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 import type { SignWash } from './signlight';
@@ -33,8 +34,8 @@ const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xa68bff, 0xa68bff, 0xff5
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
 
 /** A water tank and its lid, a vent pipe and its cap, the boot that seals a pipe to the membrane, a mushroom vent and its hood, centred on their own middles. */
-const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16).toNonIndexed(), TANK_LID = new ConeGeometry(1.3, 0.4, 16).toNonIndexed(), VENT = new CylinderGeometry(0.14, 0.14, 0.8, 8).toNonIndexed(), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, 8).toNonIndexed();
-const BOOT = new CylinderGeometry(0.2, 0.27, 0.14, 8).toNonIndexed(), MUSH = new CylinderGeometry(0.26, 0.3, 0.42, 10).toNonIndexed(), MUSH_CAP = new ConeGeometry(0.5, 0.24, 10).toNonIndexed();
+const TANK = new CylinderGeometry(1.25, 1.25, 2.4, SEG.post).toNonIndexed(), TANK_LID = new ConeGeometry(1.3, 0.4, SEG.post).toNonIndexed(), VENT = new CylinderGeometry(0.14, 0.14, 0.8, SEG.smallDisc).toNonIndexed(), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, SEG.smallDisc).toNonIndexed();
+const BOOT = new CylinderGeometry(0.2, 0.27, 0.14, SEG.smallDisc).toNonIndexed(), MUSH = new CylinderGeometry(0.26, 0.3, 0.42, SEG.midRound).toNonIndexed(), MUSH_CAP = new ConeGeometry(0.5, 0.24, SEG.midRound).toNonIndexed();
 
 type V3 = readonly [number, number, number];
 

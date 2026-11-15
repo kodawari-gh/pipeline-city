@@ -106,7 +106,7 @@ export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])
 /** A sheet lying flat across the case (a shelf, the shroud's top): layout x from `x0` to `x1`, depth `z0` to `z1`, `t` thick under its top at layout `y`, with holes as world (x, z) outlines. */
 export function plateY(x0: number, x1: number, z0: number, z1: number, y: number, t: number, holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, t / 2.2)), s = shapeOf([new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x1, z1), new Vector2(x0, z1)], holes);
-  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: SEG.caseCurve });
+  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve });
   // (the shape's (u, v) is the world's (x, z); its extrusion runs down from the top)
   g.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0);
   return place(new Mesh(g, m));
@@ -158,7 +158,7 @@ export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
 }
 
 /** A solid turned round +z from its profile, [radius, height] from the foot up. */
-const lathe = (pts: readonly (readonly [number, number])[], sides = 20): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
+const lathe = (pts: readonly (readonly [number, number])[], sides: number = SEG.disc): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
 const driveM = () => mat(0x050608, { roughness: 0.8 });
 
 /** Pan-head screws: a low head with a cross recess in its flat crown. */
@@ -189,7 +189,7 @@ export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: n
     if (i) s.lineTo(Math.cos(a) * q, Math.sin(a) * q); else s.moveTo(Math.cos(a) * q, Math.sin(a) * q);
   }
   s.closePath();
-  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 1 }).translate(0, 0, washer + b);
+  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat }).translate(0, 0, washer + b);
   g.add(instanced(turned(head, f), m, spots), instanced(turned(lathe([[r * 1.1, 0], [r * 1.1, washer * 0.8], [r * 0.9, washer], [0, washer]]), f), m, spots));
   g.add(instanced(turned(new BoxGeometry(r * 1.3, r * 0.2, Math.max(1, r * 0.03)).translate(0, 0, len + 0.5), f), driveM(), spots));
   return g;

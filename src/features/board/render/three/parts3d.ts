@@ -31,7 +31,7 @@ function screw(g: Group, x: number, y: number, z: number, r: number) {
  */
 export function m2Standoff(m: RectLike): Group {
   const [x, y] = m2Standoffs(m)[2]!, g = new Group();
-  g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), 6));
+  g.add(drum(x, y, BOARD_Z, BOARD_Z + 42, 52, brass(), SEG.lowDisc));
   const hole = new Mesh(new CylinderGeometry(20, 20, 0.6, SEG.post).rotateX(Math.PI / 2), mat(0x2a2418, { roughness: 0.8 }));
   hole.position.set(x, -y, BOARD_Z + 41.7);
   g.add(hole);
@@ -66,9 +66,9 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
   for (const [x, y] of pchFixings(q, tier)) {
     if (facet) {
       // a spring screw: the coil round the shank under the head
-      g.add(drum(x, y, top, top + 26, 13, mat(0x8b939e, { metalness: 0.7, roughness: 0.4 }), 14));
+      g.add(drum(x, y, top, top + 26, 13, mat(0x8b939e, { metalness: 0.7, roughness: 0.4 }), SEG.chipRound));
       screw(g, x, y, top + 26, 20);
-    } else g.add(drum(x, y, top, top + 10, 18, mat(0xd9d4c7, { roughness: 0.6 }), 18), drum(x, y, top + 10, top + 18, 11, mat(0xcfc9bb, { roughness: 0.6 }), 14));
+    } else g.add(drum(x, y, top, top + 10, 18, mat(0xd9d4c7, { roughness: 0.6 }), SEG.roundCap), drum(x, y, top + 10, top + 18, 11, mat(0xcfc9bb, { roughness: 0.6 }), SEG.chipRound));
   }
   let glow: MeshStandardMaterial | null = null;
   if (tier === 3) {

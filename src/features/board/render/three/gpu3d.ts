@@ -63,7 +63,7 @@ export function uvSpan<T extends Mesh>(o: T, k: number): T {
 /** A prism across x (x0 to x1) from an outline of `wallPt` points with holes: a port's shell, its mouth through it. */
 export function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: SEG.caseCurve });
+  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve });
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));
 }
@@ -264,7 +264,7 @@ export function dieBack(g: Group, key: string, die: { x: number; y: number }, ho
   const coil = mat(0x8e959f, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
   for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
     const x = die.x + sx * at, y = die.y + sy * at;
-    g.add(drum(x, y, Z + 1.8 * MM, Z + 3.4 * MM, 1.9 * MM, coil, 14));
+    g.add(drum(x, y, Z + 1.8 * MM, Z + 3.4 * MM, 1.9 * MM, coil, SEG.chipRound));
     xs.push({ x, y: -y, z: Z + 3.4 * MM });
   }
   g.add(screws(xs, 'z+', 2.6 * MM, mat(0xa9b0ba, { metalness: 0.85, roughness: 0.3 })));

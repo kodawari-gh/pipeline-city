@@ -159,7 +159,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   // the wires and the jacket inside first (the clear body over them draws after)
   const pitch = Math.min(1.02 * k, B.w / 11), wr = Math.min(0.35 * k, pitch * 0.42), jr = Math.min(cable, hy - 0.6 * k), wy = hy - 2.5 * k;
   PAIRS.forEach((c, i) => g.add(box((i - 3.5) * pitch - wr, (i - 3.5) * pitch + wr, wy - wr, wy + wr, zf + 2 * k, zb - 4 * b, mat(c, { roughness: 0.5 }))));
-  const jacket = new Mesh(new CylinderGeometry(jr, jr, 6 * b, 16).rotateX(Math.PI / 2), boot);
+  const jacket = new Mesh(new CylinderGeometry(jr, jr, 6 * b, SEG.post).rotateX(Math.PI / 2), boot);
   jacket.position.set(0, 0, zb - 3 * b);
   g.add(place(jacket));
   // the blades, standing in their slots at the front with their tops at the contact face

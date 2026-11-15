@@ -147,7 +147,7 @@ function tabMask(cu: NicCopper, f: CardFrame, face: Face, z: number): ReturnType
 /** A polymer capacitor: an aluminium can in its sleeve on a black seat, the vent's cross pressed in its top; at layout (x, y), under the u-group's PCB. */
 function polyCap(u: Group, x: number, y: number, zu: number, r: number, h: number, M: { seat: Material; sleeve: Material; can: Material; vent: Material }): void {
   u.add(rectBox({ x: x - r - 0.2 * MM, y: -(y + r + 0.2 * MM), w: 2 * r + 0.4 * MM, h: 2 * r + 0.4 * MM }, zu, zu + 0.5 * MM, M.seat));
-  u.add(drum(x, -y, zu + 0.5 * MM, zu + h - 0.5 * MM, r, M.sleeve, 28), drum(x, -y, zu + h - 0.5 * MM, zu + h, r * 0.94, M.can, 28));
+  u.add(drum(x, -y, zu + 0.5 * MM, zu + h - 0.5 * MM, r, M.sleeve, SEG.canister), drum(x, -y, zu + h - 0.5 * MM, zu + h, r * 0.94, M.can, SEG.canister));
   u.add(instanced(new BoxGeometry(1, 1, 1), M.vent, [0, Math.PI / 2].map((rz) => ({ x, y, z: zu + h + 0.02 * MM, sx: r * 1.3, sy: 0.22 * MM, sz: 0.06 * MM, rz }))));
 }
 
@@ -195,7 +195,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
     u.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
     const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xa9b0b9, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
-      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, 16), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
+      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
       const coil: [number, number, number][] = [];
       for (let k = 0; k <= 72; k++) { const a = (k / 72) * Math.PI * 2 * 4; coil.push([px + Math.cos(a) * 1.6 * MM, py + Math.sin(a) * 1.6 * MM, b1 + 0.2 * MM + (k / 72) * 3.2 * MM]); }
       u.add(tube(coil, 0.18 * MM, spring, SEG.cord));

@@ -92,6 +92,14 @@ export const SEG = {
   smallDisc: 8, part: 12, disc: 20, bigDisc: 32,
   /** Thin tubes and turned or cut parts: a cable or wire, a pipe, a hex nut, a knob. */
   cord: 6, pipe: 14, hexNut: 6, knob: 18,
+  /** Flat edge bevels (one side): a case lid, a card bracket, a steel plate. */
+  bevelFlat: 1,
+  /** Thin round parts (sides): a low disc (a cap, a heat-sink plate); a thin tube (a lamp's cord); a bag's zip; a frame bar or cable tube; a mid-size round part. */
+  lowDisc: 6, thinTube: 4, zip: 5, frameBar: 8, midRound: 10,
+  /** Round parts of a board or a room (sides): a chip's cap or a coil; a round cap or a tyre; a lamp or chair arm; a can or sleeve; a rim or a heat-sink head; a wide disc (a cooler rim). */
+  chipRound: 14, roundCap: 18, arm: 12, canister: 28, ring: 40, wideDisc: 48,
+  /** Car bodies (`curveSegments`, `bevelSegments`): the arcs of a rounded car side, and its bevel. */
+  carCurve: 4, carBevel: 3,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
@@ -270,7 +278,7 @@ export function fanFlange(d: number, t: number, w = d): BufferGeometry {
  * opening's sides. Every extrusion with holes goes through here.
  */
 export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeometry {
-  const seg = o.curveSegments ?? 12, cw = ShapeUtils.isClockWise(s.getPoints(seg));
+  const seg = o.curveSegments ?? SEG.curveRound, cw = ShapeUtils.isClockWise(s.getPoints(seg));
   s.holes = s.holes.map((h) => {
     const p = h.getPoints(seg);
     return ShapeUtils.isClockWise(p) === cw ? new Path(p.reverse()) : h;

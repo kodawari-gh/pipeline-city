@@ -113,7 +113,7 @@ function fitting(g: Group, p: Vector3, dir: Vector3, m: Material) {
 /** A G1/4 plug in a port at `p` facing `dir`: a flat round head, a hex socket in it. */
 function plug(g: Group, p: Vector3, dir: Vector3, m: Material) {
   along(g, new CylinderGeometry(190, 200, 60, SEG.drum), m, p, dir, 30);
-  along(g, new CylinderGeometry(70, 70, 8, 6), mat(0x07080b, { roughness: 0.8 }), p, dir, 62);
+  along(g, new CylinderGeometry(70, 70, 8, SEG.lowDisc), mat(0x07080b, { roughness: 0.8 }), p, dir, 62);
 }
 
 // ------------------------------------------------------------------ the mount
@@ -189,7 +189,7 @@ function stock(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   const { w, z0, z1 } = SHROUD, vane = alu(0xa7afbf, 0.3), black = plastic(), cu = copper();
   mount(g, {});
   // the copper core on the lid, a ring of sixty swept vanes round it
-  g.add(drum(0, 0, L, L + 40, 360, cu, 48), drum(0, 0, L + 40, z0, 300, cu, 48));
+  g.add(drum(0, 0, L, L + 40, 360, cu, SEG.wideDisc), drum(0, 0, L + 40, z0, 300, cu, SEG.wideDisc));
   g.add(instanced(extrude(vaneShape(290, 1020, 16, 0.45), { depth: z0 - L - 40, bevelEnabled: false }), vane, Array.from({ length: 60 }, (_, k) => ({ x: 0, y: 0, z: L + 40, rz: (k / 60) * Math.PI * 2 }))));
   // the shroud over the vanes, on a push pin at each hole: its foot on the board, its leg up to the shroud, its head sunk in the shroud's corner
   g.add(slab(shapeOf(outlinePts({ x: -w / 2, y: -w / 2, w, h: w }, 220, undefined, 8), [circle(0, 0, 1000)]), z0, z1, black, 8));
@@ -233,7 +233,7 @@ function wireClips(g: Group, face: number, notch: number, m: MeshStandardMateria
   for (const s of [-1, 1]) {
     const edge = s < 0 ? y : y + h, out = edge + s * 14, hole = yc + s * a, into = edge - s * 16;
     const pts: [number, number, number][] = [[face - e * 90, hole, z - a], [f, hole, z - a], [f, out, z - a + 60], [n, out, z - 70], [notch, into, z], [n, out, z + 70], [f, out, z + a - 60], [f, hole, z + a], [face - e * 90, hole, z + a]];
-    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, 4), 12, m, 8));
+    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, 4), 12, m, SEG.frameBar));
   }
 }
 

@@ -4,7 +4,7 @@
 // floor and turned. Pure scenery: nothing answers a click; the room merges its still parts by material (`mergeStatic`).
 import { CylinderGeometry, DoubleSide, Group, Mesh, type Material, type Object3D } from 'three';
 import { bakedAo } from '@/core/render/three/bakedao';
-import { paint, rod, softBox, tube } from '@/core/render/three/geometry';
+import { SEG, paint, rod, softBox, tube } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { cloth, mat } from '@/core/render/three/materials';
 import { cushion, floorShadow, weave } from './furniture3d';
@@ -114,7 +114,7 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
     const yy = (ey + 1) / 2, ww = W / 2 * (0.9 + 0.1 * yy);
     ring.push([ex * ww * MM, (60 + yy * H) * MM, (30 * ex * ex) * MM]);
   }
-  back.add(tube(ring, 13 * MM, black, 8));
+  back.add(tube(ring, 13 * MM, black, SEG.frameBar));
   const panel = new Mesh(cushion((W - 30) * MM, 18 * MM, (H - 30) * MM, 0.5), mesh);
   panel.rotation.x = Math.PI / 2;
   panel.position.set(0, (60 + H / 2) * MM, 8 * MM);

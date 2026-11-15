@@ -41,7 +41,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
     g.add(rod([el[0], el[1], z + dz], [hd[0], hd[1], z + dz], 50, coat));
   }
   g.add(rod([b0[0] + 160, b0[1] + 250, z], [el[0] + 180, el[1] - 200, z], 22, joint, 6)); // the spring
-  for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, 16), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
+  for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, SEG.post), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
   // the shade: its narrow end at the head, its mouth toward the desk
   const dx = mouthXY.x - head.x, dy = -(mouthXY.y - head.y), len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
   const shade = new Group(), L = 1500;
@@ -96,7 +96,7 @@ export class Monitor {
     R.add(body);
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
     this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
-    const led = new Mesh(new CylinderGeometry(28, 28, 20, 10), this.led);
+    const led = new Mesh(new CylinderGeometry(28, 28, 20, SEG.midRound), this.led);
     led.rotation.x = Math.PI / 2; led.position.set(m.x + m.w - 260, -(m.y + m.h - 70), z0 + 186);
     R.add(seeThrough(led));
     if (typeof document !== 'undefined') {
@@ -408,14 +408,14 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
   body.scale.set(sx, sy, sz); body.position.set(x, y0, z);
   prim.add(body);
   const top = (zz: number) => y0 + lift(Math.sqrt(1 - zz * zz), zz) * sy;
-  const wheel = place(new Mesh(new CylinderGeometry(72, 72, 64, 16), dark));
+  const wheel = place(new Mesh(new CylinderGeometry(72, 72, 64, SEG.post), dark));
   wheel.rotation.z = Math.PI / 2; wheel.position.set(x, top(-0.43) - 32, z - 0.43 * sz);
   prim.add(wheel);
   // the seam between the buttons, before and behind the wheel
   for (const [a, b] of [[-0.08, -0.3], [-0.56, -0.9]] as const) {
     const pts: V3[] = [];
     for (let k = 0; k <= 4; k++) { const zz = a + ((b - a) * k) / 4; pts.push([x, top(zz) + 2, z + zz * sz]); }
-    prim.add(tube(pts, 9, dark, 4));
+    prim.add(tube(pts, 9, dark, SEG.thinTube));
   }
   g.add(prim);
   // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat
