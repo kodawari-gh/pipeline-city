@@ -6,7 +6,7 @@
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
 // Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
-import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
+import { Box3, Color, Frustum, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
@@ -30,7 +30,7 @@ import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITO
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
+  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, PKG, USB_PORT, VIDEO_Y, nicY, routerLan,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -92,6 +92,13 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
  * lets in 0.75, not all: the parts shade each other at High, and 0.75 is that mean (RAM L 0.036, High 0.037; drive cage 0.051, High 0.044).
  */
 const SHADE_IN = 60, CASE_PASS: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] };
+/** Low's contact shade: three dark, unlit rings on the board round a part's seat (wider and fainter outward), so the seat reads as touching. */
+const PADS: readonly [number, number][] = [[16, 0.6], [44, 0.35], [90, 0.18]];
+const contactPad = (r: RectLike): Group => {
+  const g = new Group();
+  for (const [e, opacity] of PADS) g.add(rectBox({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, BOARD_Z + 0.5, BOARD_Z + 1.5, new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity, depthWrite: false })));
+  return g;
+};
 
 
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
@@ -414,6 +421,7 @@ export class Machine3D {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
         const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
+        if (lowDetail()) g.add(contactPad(PKG)); // (the cooler's base sits on the CPU package)
         this.fades.push(g);
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);
