@@ -4,7 +4,7 @@ import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, Direc
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
-import { anisotropy, refilter } from './geometry';
+import { SEG, anisotropy, refilter } from './geometry';
 import { disposeRenderContext, restoreStudioEnv, studioEnv } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
 
@@ -68,7 +68,7 @@ function studio(antialias: boolean, still = false) {
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   scene.add(key, key.target, rim, rim.target);
-  const floor = new Mesh(new CircleGeometry(1, 64).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x1a1d26), roughness: 0.6, metalness: 0.2 }));
+  const floor = new Mesh(new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x1a1d26), roughness: 0.6, metalness: 0.2 }));
   floor.receiveShadow = true;
   scene.add(floor);
   /** Light a part of this size round this centre. */

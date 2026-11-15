@@ -191,13 +191,13 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   // the guard: rings and spokes of black wire just under the plate, a small disc at its middle
   const wire = mat(0x1d1f24, { metalness: 0.55, roughness: 0.38 }), wr = 0.55 * MM, gy = -(yb + wr);
   for (const k of [0.24, 0.43, 0.62, 0.81, 1.0]) {
-    const ring = new Mesh(new TorusGeometry(fr * k, wr, 6, 72).rotateX(Math.PI / 2), wire);
+    const ring = new Mesh(new TorusGeometry(fr * k, wr, SEG.cord, SEG.fineRing).rotateX(Math.PI / 2), wire);
     ring.position.set(fx, gy, fz);
     g.add(ring);
   }
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4, c = Math.cos(a), s = Math.sin(a);
-    g.add(rod([fx + c * fr * 0.18, gy, fz + s * fr * 0.18], [fx + c * fr, gy, fz + s * fr], wr, wire, 6));
+    g.add(rod([fx + c * fr * 0.18, gy, fz + s * fr * 0.18], [fx + c * fr, gy, fz + s * fr], wr, wire, SEG.cord));
   }
   const disc = new Mesh(new CylinderGeometry(fr * 0.19, fr * 0.19, 1.2 * MM, SEG.drum), wire);
   disc.position.set(fx, gy, fz);
@@ -246,7 +246,7 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
   g.add(rectBox({ x: rx - 0.4 * MM, y: inner.y0, w: 0.4 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 2.6 * MM, y: sw.y, w: 2.6 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 0.5 * MM, y: sw.y - 6.5 * MM, w: 0.12 * MM, h: 4 * MM }, sw.z - 0.4 * MM, sw.z + 0.4 * MM, white));
-  const o = new Mesh(new TorusGeometry(1.6 * MM, 0.32 * MM, 6, 24).rotateY(Math.PI / 2), white);
+  const o = new Mesh(new TorusGeometry(1.6 * MM, 0.32 * MM, SEG.cord, SEG.drum).rotateY(Math.PI / 2), white);
   o.position.set(rx - 2.65 * MM, -(sw.y + 4.3 * MM), sw.z);
   g.add(o);
   // the case's four screws through the wall into the unit's corners (an SFX unit in an ATX bay: its own four, the adapter's four in the bay's corners)

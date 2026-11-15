@@ -13,7 +13,7 @@ import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, step
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/ondemand';
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
-import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
+import { SEG, anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext, restoreStudioEnv } from '@/core/render/three/init';
 import { Eye } from '@/core/render/three/eye';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
@@ -277,7 +277,7 @@ export class BuildStage {
   private stage(_caseTier: number): void {
     const { scene } = this.ctx;
     if (!this.floor) {
-      this.floor = new Mesh(new CircleGeometry(1, 72).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x171b25), roughness: 0.55, metalness: 0.25 }));
+      this.floor = new Mesh(new CircleGeometry(1, SEG.fineRing).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x171b25), roughness: 0.55, metalness: 0.25 }));
       this.floor.receiveShadow = true;
       scene.add(this.floor);
     }

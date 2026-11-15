@@ -74,7 +74,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   }
   if (p.pipe) {
     const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xb87a4a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
-    g.add(rod([px, ya, Z.root - 20], [px, ya, top + 30], 15, cu, 12), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, 12), rod([px, yb, top + 30], [px, yb, Z.root - 20], 15, cu, 12));
+    g.add(rod([px, ya, Z.root - 20], [px, ya, top + 30], 15, cu, SEG.part), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, SEG.part), rod([px, yb, top + 30], [px, yb, Z.root - 20], 15, cu, SEG.part));
   }
   // the screws: a boss of the casting on a nylon washer on the board, the shaft through it, a washer and the head behind
   const steel = mat(0x8c939c, { metalness: 0.8, roughness: 0.32 }), nylon = mat(0xd6d1c2, { roughness: 0.7 });

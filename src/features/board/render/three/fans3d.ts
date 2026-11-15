@@ -4,7 +4,7 @@
 // its +z face (the rotor's hub) and out at its -z face (the motor's struts).
 import { BoxGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh, TorusGeometry, Vector2, type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FAN_SCREW, FAN_THROAT, fanFlange, fanRotor, fanSides, place, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, FAN_THROAT, SEG, fanFlange, fanRotor, fanSides, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { FanSpec } from '@/features/board/sim/specs';
@@ -34,7 +34,7 @@ const hubM = () => mat(0x24262c, { roughness: 0.4, side: DoubleSide });
 const UNITS_PER_MM = 23;
 
 /** A fan's motor mount behind its rotor (round z, `depth` deep): a hub plate on `n` struts to the frame. `sides`: the hub's round count. */
-export function motor(holder: Group, r: number, depth: number, n = 3, sides = 24): void {
+export function motor(holder: Group, r: number, depth: number, n = 3, sides: number = SEG.drum): void {
   const m = mat(0x1a1b1f, { roughness: 0.55 }), z = -depth * 0.42;
   const hub = place(new Mesh(new CylinderGeometry(r * 0.32, r * 0.32, depth * 0.16, sides).rotateX(Math.PI / 2), m));
   hub.position.z = z;
@@ -148,7 +148,7 @@ export function partFan(x: number, y: number, z: number, r: number, frame = 0x1d
   // (r is the radius in units: the diameter in mm is 2r / UNITS_PER_MM)
   const sides = fanSides((2 * r) / UNITS_PER_MM), small = Math.max(8, sides / 2);
   const shroud = place(new Mesh(new CylinderGeometry(r * 1.04, r * 1.04, depth, sides, 1, true).rotateX(Math.PI / 2), mat(frame, { roughness: 0.55, side: DoubleSide })));
-  const lip = place(new Mesh(new TorusGeometry(r * 1.04, depth * 0.08, 8, sides), mat(0x2a2c31, { roughness: 0.4, metalness: 0.3 })));
+  const lip = place(new Mesh(new TorusGeometry(r * 1.04, depth * 0.08, SEG.smallDisc, sides), mat(0x2a2c31, { roughness: 0.4, metalness: 0.3 })));
   lip.position.z = depth / 2;
   root.add(shroud, lip);
   motor(root, r, depth, 3, small);

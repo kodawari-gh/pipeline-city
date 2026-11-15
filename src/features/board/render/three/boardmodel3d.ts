@@ -98,7 +98,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   const draw = art.baker(() => buildBoard(T, tier, (x) => solids.push(x)).root), far = art.baker(() => buildBoard(T, tier, undefined, true).root);
   const up = art.raise(draw);
   // the PCB: the solder mask over the laminate, its corners rounded as the drawing's, and the drawing on its face
-  const outline = outlinePts(BD, 120, undefined, 8);
+  const outline = outlinePts(BD, 120, undefined, SEG.cornerSoft);
   g.add(tag(slab(shapeOf(outline), BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[0]), 0x000000, 0.35), { roughness: 0.6 }), 4), 'board'));
   g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0xc8b98a, { roughness: 0.7 })));
   tag(art.surface(g, (f, px) => (px < LV_BOARD[1]! ? far : draw).bake(f, px), BD, BOARD_Z, LV_BOARD).root, 'board');

@@ -101,7 +101,7 @@ function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vect
 function fitting(g: Group, p: Vector3, dir: Vector3, m: Material) {
   along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, SEG.hexNut), m, p, dir, FIT.hexLen / 2);
   along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, SEG.drum), m, p, dir, (FIT.hexLen + FIT.len) / 2);
-  for (const at of [FIT.hexLen + 60, FIT.len - 30]) along(g, new TorusGeometry(FIT.collar + 6, 10, 8, 32), m, p, dir, at, new Vector3(0, 0, 1));
+  for (const at of [FIT.hexLen + 60, FIT.len - 30]) along(g, new TorusGeometry(FIT.collar + 6, 10, SEG.smallDisc, SEG.bigDisc), m, p, dir, at, new Vector3(0, 0, 1));
 }
 
 /** A G1/4 plug in a port at `p` facing `dir`: a flat round head, a hex socket in it. */
@@ -125,7 +125,7 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
 const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(96, 40), r, byDetail(12, 8)), m)); // (ASR6: was 220 x 16 at High)
+  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(SEG.heatPipeSteps, SEG.heatPipeStepsLow), r, byDetail(SEG.heatPipe, SEG.heatPipeLow)), m)); // (ASR6: was 220 x 16 at High)
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a
@@ -136,9 +136,9 @@ function mount(g: Group, o: { standoff?: number; nut?: number }) {
   const m = steel();
   g.add(softBox({ x: -1080, y: -1020, w: 2160, h: 2040 }, BOARD_Z - 124, BOARD_Z - 70, m, 40));
   g.add(rectBox({ x: -1040, y: -980, w: 2080, h: 1960 }, BOARD_Z - 70, BOARD_Z - 64, plastic()));
-  g.add(instanced(upright(COOLER_HOLE.r - 8, COOLER_HOLE.r - 8, 16), m, atHoles(BOARD_Z - 70, Math.max(o.nut ?? 0, o.standoff ?? BOARD_Z + 20) + 30)));
-  if (o.standoff) g.add(instanced(upright(58, 58, 6), steel(true), atHoles(BOARD_Z, o.standoff)));
-  if (o.nut) g.add(instanced(upright(80, 90, 24), steel(true), atHoles(o.nut, o.nut + 130)));
+  g.add(instanced(upright(COOLER_HOLE.r - 8, COOLER_HOLE.r - 8, SEG.post), m, atHoles(BOARD_Z - 70, Math.max(o.nut ?? 0, o.standoff ?? BOARD_Z + 20) + 30)));
+  if (o.standoff) g.add(instanced(upright(58, 58, SEG.hexNut), steel(true), atHoles(BOARD_Z, o.standoff)));
+  if (o.nut) g.add(instanced(upright(80, 90, SEG.drum), steel(true), atHoles(o.nut, o.nut + 130)));
 }
 
 // ------------------------------------------------------------------ the three coolers
@@ -186,9 +186,9 @@ function stock(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   g.add(drum(0, 0, L, L + 40, 360, cu, SEG.wideDisc), drum(0, 0, L + 40, z0, 300, cu, SEG.wideDisc));
   g.add(instanced(extrude(vaneShape(290, 1020, 16, 0.45), { depth: z0 - L - 40, bevelEnabled: false }), vane, Array.from({ length: 60 }, (_, k) => ({ x: 0, y: 0, z: L + 40, rz: (k / 60) * Math.PI * 2 }))));
   // the shroud over the vanes, on a push pin at each hole: its foot on the board, its leg up to the shroud, its head sunk in the shroud's corner
-  g.add(slab(shapeOf(outlinePts({ x: -w / 2, y: -w / 2, w, h: w }, 220, undefined, 8), [circle(0, 0, 1000)]), z0, z1, black, 8));
-  g.add(instanced(upright(100, 104, 24), black, atHoles(BOARD_Z, BOARD_Z + 40)), instanced(upright(64, 70, 20), black, atHoles(BOARD_Z + 40, z0 - 90)));
-  g.add(instanced(upright(94, 72, 24), black, atHoles(z0 - 90, z0)), instanced(upright(84, 84, 24), mat(0x07080b, { roughness: 0.8 }), atHoles(z1 - 30, z1 + 2)));
+  g.add(slab(shapeOf(outlinePts({ x: -w / 2, y: -w / 2, w, h: w }, 220, undefined, SEG.cornerSoft), [circle(0, 0, 1000)]), z0, z1, black, 8));
+  g.add(instanced(upright(100, 104, SEG.drum), black, atHoles(BOARD_Z, BOARD_Z + 40)), instanced(upright(64, 70, SEG.disc), black, atHoles(BOARD_Z + 40, z0 - 90)));
+  g.add(instanced(upright(94, 72, SEG.drum), black, atHoles(z0 - 90, z0)), instanced(upright(84, 84, SEG.drum), mat(0x07080b, { roughness: 0.8 }), atHoles(z1 - 30, z1 + 2)));
   screws(g, COOLER_HOLES, z1 - 18, 50);
   // the two latches that hold the fan down by its flange; the fan blows down into the vanes (it has no light)
   for (const s of [-1, 1]) {
@@ -227,7 +227,7 @@ function wireClips(g: Group, face: number, notch: number, m: MeshStandardMateria
   for (const s of [-1, 1]) {
     const edge = s < 0 ? y : y + h, out = edge + s * 14, hole = yc + s * a, into = edge - s * 16;
     const pts: [number, number, number][] = [[face - e * 90, hole, z - a], [f, hole, z - a], [f, out, z - a + 60], [n, out, z - 70], [notch, into, z], [n, out, z + 70], [f, out, z + a - 60], [f, hole, z + a], [face - e * 90, hole, z + a]];
-    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, 4), 12, m, SEG.frameBar));
+    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, SEG.cornerTight), 12, m, SEG.frameBar));
   }
 }
 
@@ -254,7 +254,7 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   // through the cover
   const tip = FIN1 + 100;
   for (const [px, s] of [[-270, 960], [-90, 640], [90, 800], [270, 480]] as const) {
-    g.add(pipe(rounded([[px, s, tip], [px, s, L + 170], [px, -s, L + 170], [px, -s, tip]], 220, 8), 69, cu));
+    g.add(pipe(rounded([[px, s, tip], [px, s, L + 170], [px, -s, L + 170], [px, -s, tip]], 220, SEG.cornerSoft), 69, cu));
     for (const py of [s, -s]) g.add(drum(px, py, FIN1 + 40, tip, 72, cu, SEG.disc));
   }
   // the fins: forty-eight plates in the board's plane, the air passing between them east to west
@@ -323,7 +323,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   // knurled thumb nut on each
   mount(g, { standoff: L + 60, nut: L + 110 });
   g.add(softBox({ x: -500, y: -500, w: 1000, h: 1000 }, L, L + 50, copper(), 12));
-  g.add(slab(shapeOf(outlinePts({ x: -820, y: -820, w: 1640, h: 1640 }, 320, undefined, 8)), L + 50, L + 250, black, 20));
+  g.add(slab(shapeOf(outlinePts({ x: -820, y: -820, w: 1640, h: 1640 }, 320, undefined, SEG.cornerSoft)), L + 50, L + 250, black, 20));
   for (const [hx, hy] of COOLER_HOLES) {
     const len = Math.hypot(hx, hy), k = (600 + len) / 2 / len, arm = place(new Mesh(new BoxGeometry(len - 600, 170, 44), bracket));
     arm.position.set(hx * k, -hy * k, L + 84);

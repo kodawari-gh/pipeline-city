@@ -9,7 +9,7 @@ import {
   AddEquation, BoxGeometry, CustomBlending, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Shape, ShapeGeometry, Vector2,
   type Material, type Object3D,
 } from 'three';
-import { instanced, place, post, rectBox, softBox } from '@/core/render/three/geometry';
+import { SEG, instanced, place, post, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { builtinTheme, type Theme } from '@/core/render/theme';
@@ -216,7 +216,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     root.add(wallX(ex + 50, ex + 58, badge, [], mat(0xc2b994, { roughness: 0.5 }), 2));
     root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
     const foot = mat(0x2a2924, { roughness: 0.9 });
-    for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, 20, 95));
+    for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
   }
 
   if (kind === 'matte') {

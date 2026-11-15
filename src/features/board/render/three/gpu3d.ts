@@ -191,10 +191,10 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
     const yTop = yb - 30 - PR - 1.5 * MM - j * 7.6 * MM, yBot = ya + 30 + PR + 1.5 * MM + j * 7.6 * MM;
     const topEnd = dir < 0 ? finX0 + 5 * MM : Math.min(finX1 - 5 * MM, yTop > end - SOCKET.d - 2 * MM - PR ? plugX0 - 3 * MM : Infinity), botEnd = dir < 0 ? finX0 + 5 * MM : finX1 - 5 * MM;
     const pts: [number, number, number][] = [[topEnd, -yTop, zMid], [x, -yTop, zMid], [x, -(die.y + BASE + 6 * MM), zBase], [x, -(die.y - BASE - 6 * MM), zBase], [x, -yBot, zMid], [botEnd, -yBot, zMid]];
-    g.add(tube(rounded(pts, 9 * MM, 6), PR, pipeM, SEG.pipe));
+    g.add(tube(rounded(pts, 9 * MM, SEG.cornerMid), PR, pipeM, SEG.pipe));
     // the sealed, crimped ends
     for (const [ex, ey] of [[topEnd, yTop], [botEnd, yBot]] as const) {
-      const cap = place(new Mesh(new SphereGeometry(PR, 14, 8).scale(1.4, 1, 0.55), pipeM));
+      const cap = place(new Mesh(new SphereGeometry(PR, SEG.pipe, SEG.rings).scale(1.4, 1, 0.55), pipeM));
       cap.position.set(ex + dir * PR * 0.8, -ey, zMid);
       g.add(cap);
     }

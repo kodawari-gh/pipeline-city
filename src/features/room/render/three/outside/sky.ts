@@ -5,6 +5,7 @@
 // is the land's haze. A small copy of the dome is what the view's environment sees (its sky light). The moon moves with the hour (`moonDir`,
 // set by `view.ts`): it rises in the east in the evening, is over the town near midnight and low in the west at dawn.
 import { BackSide, Color, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { SEG } from '@/core/render/three/geometry';
 import { NOISE_PERIOD, skyNoise } from './skynoise';
 
 /** The warm hour's sky low down (linear): the ember toward the sun, and the earth's shadow away from it. `view.ts` gives the haze the same. */
@@ -165,7 +166,7 @@ export function skyMaterial(low = false): ShaderMaterial {
 
 /** The dome, `radius` round its middle (set it on the camera), drawn before all else. */
 export function skyDome(mat: ShaderMaterial, radius: number): Mesh {
-  const m = new Mesh(new SphereGeometry(radius, 48, 24), mat);
+  const m = new Mesh(new SphereGeometry(radius, SEG.wideDisc, SEG.skyRings), mat);
   m.renderOrder = -1;
   m.frustumCulled = false;
   return m;

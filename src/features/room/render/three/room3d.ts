@@ -547,7 +547,7 @@ export class Room3D {
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
     const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1000;
     for (const z of [1000, DESK_D - 1000]) {
-      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, 24), post(tx, fl, z, 300, 200, mat(0x111214, { roughness: 0.8 }), 24));
+      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum), post(tx, fl, z, 300, 200, mat(0x111214, { roughness: 0.8 }), SEG.drum));
       R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
     // the drawer unit at the east end
@@ -586,7 +586,7 @@ export class Room3D {
     R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
-    R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, 24), post(grommet.x, under + 300, grommet.z, 300, 300, cap, 20));
+    R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, SEG.drum), post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
@@ -656,7 +656,7 @@ export class Room3D {
       if (ports.length) {
         const span = (px: number) => ({ y0: ledY - PORT.h / 2, y1: ledY + PORT.h / 2, z0: px - PORT.w / 2, z1: px + PORT.w / 2 });
         const holes = ports.map((px) => outlinePts({ x: px - PORT.w / 2, y: ledY - PORT.h / 2, w: PORT.w, h: PORT.h }, 0));
-        router.add(slab(shapeOf(outlinePts(ROUTER_SPOT, 80, undefined, 2), holes), front - 80, top, body));
+        router.add(slab(shapeOf(outlinePts(ROUTER_SPOT, 80, undefined, SEG.cornerCoarse), holes), front - 80, top, body));
         // (the jacks are built as a wall across x: turned, their mouths face the room, across x, the latch slots down; the faces 3 in)
         const row = new Group();
         row.rotation.y = Math.PI / 2;
@@ -676,9 +676,9 @@ export class Room3D {
       if (tier >= 3) return; // a switch-router has no aerials
       for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
         const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
-        const knuckle = new Mesh(new SphereGeometry(tier >= 2 ? 160 : 130, 12, 8), aerial);
+        const knuckle = new Mesh(new SphereGeometry(tier >= 2 ? 160 : 130, SEG.part, SEG.rings), aerial);
         knuckle.position.set(...base);
-        router.add(place(knuckle), rod(base, tip, tier >= 2 ? 120 : 95, aerial, 10));
+        router.add(place(knuckle), rod(base, tip, tier >= 2 ? 120 : 95, aerial, SEG.rod));
       }
     };
     this.routerBuild = (tier) => { if (tier !== this.routerTier) { this.routerTier = tier; build(tier); } };

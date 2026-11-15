@@ -172,9 +172,9 @@ export function floorPlant(x: number, z: number): Group {
   // the pot: a foot, a ribbed body swelling to a rolled rim, the rim's lip turned in
   const potH = 4500, profile = [[0, 0], [1500, 0], [1620, 60], [1700, 260], [2050, 600], [2280, 3700], [2440, 4300], [2500, 4440], [2450, 4520], [2330, 4500], [2260, 4380], [2200, 4200]] as const;
   g.add(lathePot(x, fl, z, profile, ware, { ribs: 24, from: 600, to: 3700 }));
-  g.add(post(x, fl, z, 1950, 200, ware, 32, 2150), post(x, fl - 200, z, 1980, 60, ware, 32));
+  g.add(post(x, fl, z, 1950, 200, ware, SEG.bigDisc, 2150), post(x, fl - 200, z, 1980, 60, ware, SEG.bigDisc));
   const top = -fl + potH - 250;
-  g.add(post(x, fl - potH + 250, z, 2210, 40, soil(), 28), mulch(x, top + 40, z, 1800, 12));
+  g.add(post(x, fl - potH + 250, z, 2210, 40, soil(), SEG.canister), mulch(x, top + 40, z, 1800, 12));
   const bark = mat(0x70584a, { roughness: 0.85 });
   // the trunk and two branches: tapered, a little crooked
   const trunk: V3[] = [[x, top, z], [x + 180, top + 6000, z + 120], [x + 520, top + 12000, z + 320], [x + 380, top + 17800, z + 160]];
@@ -182,8 +182,8 @@ export function floorPlant(x: number, z: number): Group {
     [[x + 300, top + 8800, z + 180], [x + 1300, top + 11200, z + 900], [x + 2500, top + 13600, z + 1600]],
     [[x + 470, top + 12400, z + 270], [x + 250, top + 14400, z - 900], [x - 150, top + 16400, z - 2100]],
   ];
-  g.add(place(new Mesh(taperTube(trunk, 280, 90, 9), bark)));
-  for (const b of branches) g.add(place(new Mesh(taperTube(b, 150, 60, 7), bark)));
+  g.add(place(new Mesh(taperTube(trunk, 280, 90, SEG.trunk), bark)));
+  for (const b of branches) g.add(place(new Mesh(taperTube(b, 150, 60, SEG.branch), bark)));
   // the leaves: on short thick petioles round each stem by the golden angle, the low ones big and drooping, the top ones small and upright
   const tex = leafTex('#3f6e34', '#a9c98a', 9, (c, w, h) => {
     // the fig's gloss: a few broad pale smears
@@ -202,7 +202,7 @@ export function floorPlant(x: number, z: number): Group {
       out.normalize();
       // the petiole: out of a small swollen node, arching out and up, thinning to the blade
       const stalkEnd = p.clone().addScaledVector(out, 420).addScaledVector(UP, 260 + 200 * rise), bend = p.clone().addScaledVector(out, 260).addScaledVector(UP, 60 + 90 * rise);
-      g.add(place(new Mesh(taperTube([p, bend, stalkEnd].map((q) => [q.x, q.y, q.z] as V3), 58, 26, 7), stalk)));
+      g.add(place(new Mesh(taperTube([p, bend, stalkEnd].map((q) => [q.x, q.y, q.z] as V3), 58, 26, SEG.branch), stalk)));
       const node = place(new Mesh(knob, bark));
       node.position.copy(p); node.scale.setScalar(95);
       g.add(node);
@@ -236,13 +236,13 @@ export function pothos(x: number, y: number, z: number, edge: number, vines: rea
   // (its baked occlusion, 6 cm out: the tuft's inner leaves, the vines against the shelf's edge)
   g.userData.ao = 1120;
   g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], stoneware()));
-  g.add(post(x, y - 1560, z, 905, 40, soil(), 20));
+  g.add(post(x, y - 1560, z, 905, 40, soil(), SEG.disc));
   const heart = [0, 1, 2].map((k) => leafBlade(1, 0.78, 'heart', { fold: 0.18 + k * 0.08, curl: 0.1 + k * 0.05, wave: 0.2 }));
   // a tuft out of the pot: leaves on long petioles arching up and out, to the room and the sides, none back into the wall behind it (-x)
   for (let k = 0; k < 11; k++) {
     const a = 0.6 * ((k * 2.4) % (2 * Math.PI)) - 0.6 * Math.PI, out = new Vector3(Math.cos(a), 0, Math.sin(a)), base = new Vector3(x, -y + 1600, z).addScaledVector(out, 200);
     const tip = base.clone().addScaledVector(out, 500 + (k % 3) * 160).addScaledVector(UP, 700 + (k % 4) * 250);
-    g.add(rod([base.x, base.y, base.z], [tip.x, tip.y, tip.z], 28, stem, 5));
+    g.add(rod([base.x, base.y, base.z], [tip.x, tip.y, tip.z], 28, stem, SEG.stalk));
     const dir = out.clone().multiplyScalar(0.8).addScaledVector(UP, 0.35 - (k % 3) * 0.2), s = 1400 + rnd() * 400;
     g.add(aimed(heart[k % 3]!.clone().scale(s, s, s), leaves[k % 3]!, tip, dir, UP, (rnd() - 0.5) * 0.6));
   }
@@ -250,12 +250,12 @@ export function pothos(x: number, y: number, z: number, edge: number, vines: rea
   vines.forEach((v, i) => {
     const sway = (rnd() - 0.5) * 1600, pts: V3[] = [[x + 500, -y + 1700, z + v.dz * 0.3], [edge + 120, -y + 380, z + v.dz * 0.8], [edge + 260, -y - v.len * 0.45, z + v.dz + sway * 0.5], [edge + 320, -y - v.len, z + v.dz + sway]];
     const curve = new CatmullRomCurve3(pts.map((p) => new Vector3(...p)));
-    g.add(place(new Mesh(taperTube(pts, 34, 18, 5), stem)));
+    g.add(place(new Mesh(taperTube(pts, 34, 18, SEG.stalk), stem)));
     for (let t = 0.1, k = 0; t < 0.98; t += 0.075, k++) {
       const p = curve.getPointAt(t), tan = curve.getTangentAt(t), side = k % 2 ? 1 : -1;
       // a node's leaf: off a short petiole to one side, hanging tip down, its face to the room
       const across = new Vector3(0, 0, side), stalkEnd = p.clone().addScaledVector(across, 260).addScaledVector(new Vector3(1, 0, 0), 120);
-      g.add(rod([p.x, p.y, p.z], [stalkEnd.x, stalkEnd.y, stalkEnd.z], 20, stem, 4));
+      g.add(rod([p.x, p.y, p.z], [stalkEnd.x, stalkEnd.y, stalkEnd.z], 20, stem, SEG.stem));
       const dir = tan.clone().multiplyScalar(0.7).addScaledVector(across, 0.55).addScaledVector(UP, -0.25), s = (1250 - t * 450) * (0.9 + rnd() * 0.2);
       g.add(aimed(heart[(k + i) % 3]!.clone().scale(s, s, s), leaves[(k + i) % 3]!, stalkEnd, dir, new Vector3(1, 0.4, 0), (rnd() - 0.5) * 0.5));
     }
@@ -270,7 +270,7 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
   // (its baked occlusion: the rosette's heart under its outer rings)
   g.userData.ao = r * 0.6;
   g.add(lathePot(x, y, z, [[0, 0], [r * 0.82, 0], [r * 0.9, r * 0.08], [r * 1.0, r * 1.1], [r * 1.08, r * 1.2], [r * 1.0, r * 1.22], [r * 0.95, r * 1.12]], stoneware(), { ribs: 12, from: r * 0.1, to: r * 1.05 }));
-  g.add(post(x, y - r * 1.1, z, r * 0.96, r * 0.04, soil(), 16));
+  g.add(post(x, y - r * 1.1, z, r * 0.96, r * 0.04, soil(), SEG.post));
   const tex = leafTex('#86a893', '#a9c4b0', 0, (c, w, h) => {
     const b = c.createLinearGradient(0, 0, 0, h * 0.35);
     b.addColorStop(0, 'rgba(206,120,128,0.75)'); b.addColorStop(1, 'rgba(206,120,128,0)');
@@ -295,7 +295,7 @@ export function aloe(x: number, y: number, z: number): Group {
   g.userData.ao = 1120;
   // the pot: a plain cylinder a little tapered to its foot, its rim rounded over
   g.add(lathePot(x, y, z, [[0, 0], [880, 0], [950, 40], [1000, 200], [1050, 1300], [1062, 1420], [1032, 1462], [992, 1452], [972, 1350]], stoneware()));
-  g.add(post(x, y - 1280, z, 970, 40, soil(), 20));
+  g.add(post(x, y - 1280, z, 970, 40, soil(), SEG.disc));
   const tex = leafTex('#5c9656', '#8fbf7f', 0, (c, w, h) => {
     for (let k = 0; k < 70; k++) { c.fillStyle = `rgba(232,240,214,${0.4 + rnd() * 0.3})`; c.beginPath(); c.ellipse(w * (0.15 + rnd() * 0.7), h * rnd(), 2.4, 1.4, 0, 0, Math.PI * 2); c.fill(); }
   });

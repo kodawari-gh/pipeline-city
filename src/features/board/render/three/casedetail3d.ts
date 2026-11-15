@@ -27,7 +27,7 @@ export interface Frame { kind: CaseKind; body: Material; acc: number; yTop: numb
 const black = () => mat(0x050608, { roughness: 0.85 });
 const steel = () => mat(0x8e949c, { metalness: 0.75, roughness: 0.38 });
 /** A cylinder whose axis is world x (a thumbscrew in the rear wall, a jack): centred on the world point, `len` long. */
-export function drumX(x: number, y: number, z: number, r: number, len: number, m: Material, sides = 16): Mesh {
+export function drumX(x: number, y: number, z: number, r: number, len: number, m: Material, sides: number = SEG.post): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, len, sides).rotateZ(Math.PI / 2), m);
   o.position.set(x, y, z);
   return place(o);
@@ -318,8 +318,8 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
     const nickel = mat(0xb8bcc2, { metalness: 0.85, roughness: 0.3 }), ptfe = mat(0xe8e6df, { roughness: 0.6 });
     for (const z of e.wifi.z) {
       const wy = -e.wifi.y, wz = Z + z;
-      g.add(drumX(x - 15, wy, wz, 30, 14, nickel, 6), drumX(x - 42, wy, wz, 18, 44, gold, 20), drumX(x - 64.6, wy, wz, 11, 1.4, ptfe, 16), drumX(x - 65.6, wy, wz, 3.5, 1, gold, 8));
-      for (let k = 0; k < 5; k++) g.add(drumX(x - 27 - k * 8, wy, wz, 20.5, 3, gold, 20));
+      g.add(drumX(x - 15, wy, wz, 30, 14, nickel, SEG.hexNut), drumX(x - 42, wy, wz, 18, 44, gold, SEG.disc), drumX(x - 64.6, wy, wz, 11, 1.4, ptfe, SEG.post), drumX(x - 65.6, wy, wz, 3.5, 1, gold, SEG.smallDisc));
+      for (let k = 0; k < 5; k++) g.add(drumX(x - 27 - k * 8, wy, wz, 20.5, 3, gold, SEG.disc));
     }
     g.add(boxW(x - 18, x - 8, oy - 20, oy + 20, oz - 20, oz + 20, mat(0x1b1d22, { roughness: 0.5 })), boxW(x - 20, x - 16, oy - 12, oy + 12, oz - 12, oz + 12, hole));
     // the USB-C: its rounded mouth sunk into the shell, the thin tongue down its middle
@@ -355,7 +355,7 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
     g.add(wallX(x - 16, x - 8, { y0: a - 16, y1: b + 16, z0: z0 - 16, z1: z1 + 16 }, [[wallPt(a, z0), wallPt(a + k, z1), wallPt(b - k, z1), wallPt(b, z0)]], shell));
     g.add(boxW(x - 13, x - 9, -b + 10, -a - 10, z0 + 8, z1 - 8, mat(tone, { roughness: 0.55 })));
     g.add(boxW(x - 14, x - 10, -b + 26, -a - 26, zc - 6, zc + 6, hole));
-    for (const yy of [a - 60, b + 60]) g.add(drumX(x - 20, -yy, zc, 20, 14, screw, 6), drumX(x - 28, -yy, zc, 8, 2, hole, 8));
+    for (const yy of [a - 60, b + 60]) g.add(drumX(x - 20, -yy, zc, 20, 14, screw, SEG.hexNut), drumX(x - 28, -yy, zc, 8, 2, hole, SEG.smallDisc));
     g.add(boxW(x - 11, x - 8, -(b + 90), -(a - 90), z0 - 30, z1 + 30, plateM));
   };
   const tone = (t: string) => LEGACY[t as keyof typeof LEGACY] ?? 0x999999;
@@ -407,21 +407,21 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   if (k === 'gamer') { const line = glowMat(f.acc, 0x15121f); root.add(seeThrough(rectBox({ x: ix + 118, y: py - 2, w: 8, h: 4 }, z0 + 40, z1 - 40, line))); spins.push(light(line, f.acc, 1.6)); }
   // the button and its light ring
   if (k === 'matte') {
-    power.add(post(ix, py, zb, 100, 14, mat(0x1a1b20, { roughness: 0.7 }), 40));
+    power.add(post(ix, py, zb, 100, 14, mat(0x1a1b20, { roughness: 0.7 }), SEG.ring));
   } else if (k === 'gamer') {
-    power.add(post(ix, py, zb, 120, 34, mat(0x1d2232, { metalness: 0.6, roughness: 0.35 }), 6));
-    power.add(post(ix, py - 34, zb, 70, 6, mat(0x2c3346, { metalness: 0.6, roughness: 0.3 }), 6));
+    power.add(post(ix, py, zb, 120, 34, mat(0x1d2232, { metalness: 0.6, roughness: 0.35 }), SEG.hexNut));
+    power.add(post(ix, py - 34, zb, 70, 6, mat(0x2c3346, { metalness: 0.6, roughness: 0.3 }), SEG.hexNut));
   } else {
     const alu = mat(0xb9bec6, { map: tiled(brushed(), 2, 1), metalness: 0.8, roughness: 0.28 });
-    power.add(post(ix, py, zb, 128, 22, mat(0x8a9099, { metalness: 0.8, roughness: 0.4 }), 64), post(ix, py - 22, zb, 118, 26, alu, 64));
+    power.add(post(ix, py, zb, 128, 22, mat(0x8a9099, { metalness: 0.8, roughness: 0.4 }), SEG.fineDisc), post(ix, py - 22, zb, 118, 26, alu, SEG.fineDisc));
   }
   power.add(hitPlate(ix, py, zb));
-  const ringR = k === 'show' ? 142 : k === 'gamer' ? 136 : 112, ringM = new Mesh(new TorusGeometry(ringR, k === 'gamer' ? 9 : 7, 8, k === 'gamer' ? 6 : 48), on);
+  const ringR = k === 'show' ? 142 : k === 'gamer' ? 136 : 112, ringM = new Mesh(new TorusGeometry(ringR, k === 'gamer' ? 9 : 7, SEG.smallDisc, k === 'gamer' ? SEG.hexNut : SEG.wideDisc), on);
   ringM.rotation.x = Math.PI / 2;
   if (k === 'gamer') ringM.rotation.z = Math.PI / 6;
   ringM.position.set(ix, -py + 4, zb);
   root.add(power, seeThrough(ringM));
-  root.add(seeThrough(post(ix, py, zb - 230, 16, 6, err, 12)), seeThrough(post(ix, py, zb - 300, 16, 6, disk, 12)));
+  root.add(seeThrough(post(ix, py, zb - 230, 16, 6, err, SEG.part)), seeThrough(post(ix, py, zb - 300, 16, 6, disk, SEG.part)));
   // the ports, front to back
   let z = zb - 430;
   for (const p of PORTS[k]) {
@@ -432,10 +432,10 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
       root.add(softBox({ x: ix - 24, y: py - 4, w: 48, h: 4 }, z - 56, z + 56, steel(), 2), softBox({ x: ix - 16, y: py - 6, w: 32, h: 3 }, z - 48, z + 48, black(), 1));
       z -= 160;
     } else if (p === 'audio') {
-      root.add(post(ix, py, z, 32, 3, steel(), 20), post(ix, py - 3, z, 18, 3, black(), 16));
+      root.add(post(ix, py, z, 32, 3, steel(), SEG.disc), post(ix, py - 3, z, 18, 3, black(), SEG.post));
       z -= 130;
     } else {
-      root.add(post(ix, py, z, 40, 10, mat(0x2a2f3c, { roughness: 0.5 }), 20));
+      root.add(post(ix, py, z, 40, 10, mat(0x2a2f3c, { roughness: 0.5 }), SEG.disc));
       z -= 130;
     }
   }

@@ -335,7 +335,7 @@ export function fingers(g: Group, x: number, len: number, top: readonly number[]
 
 /** A gold ring round a mounting hole or a notch (the ground pad), on a PCB face at depth z: `half` keeps the west half (a notch on the east edge). */
 export function padRing(x: number, y: number, z: number, r0: number, r1: number, half = false, under = false): Mesh {
-  const ring = new Mesh(new RingGeometry(r0, r1, 32, 1, half ? Math.PI / 2 : 0, half ? Math.PI : Math.PI * 2), once('gold', gold) as Material);
+  const ring = new Mesh(new RingGeometry(r0, r1, SEG.bigDisc, 1, half ? Math.PI / 2 : 0, half ? Math.PI : Math.PI * 2), once('gold', gold) as Material);
   ring.position.set(x, -y, under ? z - 0.5 : z + 0.5);
   if (under) ring.rotation.x = Math.PI;
   return ring;

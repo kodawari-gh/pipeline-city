@@ -16,7 +16,7 @@ export const NONE: Cuts = [0, 0, 0, 0];
 export const hex = (s: string) => parseInt(s.slice(1, 7), 16);
 
 /** The outline of a layout rect as world points (y up), clockwise in the layout: a corner with a cut is chamfered at 45 degrees, the others rounded by `r`. */
-export function outlinePts(rc: RectLike, r: number, cuts: Cuts = NONE, seg = 5): Vector2[] {
+export function outlinePts(rc: RectLike, r: number, cuts: Cuts = NONE, seg: number = SEG.corner): Vector2[] {
   const { x, y, w, h } = rc, rr = Math.max(0, Math.min(r, w / 2, h / 2)), out: Vector2[] = [];
   const corners: [number, number, number, number][] = [[x, y, 1, 1], [x + w, y, -1, 1], [x + w, y + h, -1, -1], [x, y + h, 1, -1]];
   corners.forEach(([cx, cy, dx, dy], k) => {

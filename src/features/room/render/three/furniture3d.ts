@@ -136,7 +136,7 @@ export function grainUv<T extends Mesh>(o: T, tile: number): T {
  */
 export const EDGE_R = 120;
 /** How many steps turn the round (`softBox`'s two read as a hard corner and a flat chamfer at this size). */
-const EDGE_STEPS = 4;
+const EDGE_STEPS = SEG.softBevel;
 
 /** A furniture board over a layout rect, from depth z0 to z1: every edge rounded `EDGE_R` (less on a thin board) in `EDGE_STEPS` steps. */
 export function board(r: RectLike, z0: number, z1: number, m: Material, radius = EDGE_R): Mesh {
@@ -231,7 +231,7 @@ export function bed(): Bed {
   // the mattress (its top 9000 over the floor, its edges rounded) in its fitted sheet, set in from the platform's edges
   const sheet = cloth(0xffffff, { ...woven(SHEET), roughness: 0.92 });
   const mTop = BED.top, mr = 700, inset = 1100, mx0 = x + inset, mx1 = x1 - inset, mz0 = z0 + hd + 60, mz1 = z1 - inset, mw = mx1 - mx0;
-  const mattress = place(new Mesh(new RoundedBoxGeometry(mw, plat - mTop, mz1 - mz0, 4, mr), sheet));
+  const mattress = place(new Mesh(new RoundedBoxGeometry(mw, plat - mTop, mz1 - mz0, SEG.softBevel, mr), sheet));
   mattress.position.set(cx, -(mTop + plat) / 2, (mz0 + mz1) / 2);
   g.add(mattress);
   const form: BedForm = { mx0, mx1, mz0, mz1, top: -mTop, r: mr, x0: x, x1, z1, rim: -plat, base: -under };
@@ -374,10 +374,10 @@ export function nightstand(): Bedside {
   }
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2 + 0.4, c = Math.cos(a), s = Math.sin(a);
-    g.add(rod([lx + c * (rb + 260), -top + 20, lz + s * (rb + 260)], [lx + c * rb, yb, lz + s * rb], 24, black, 6));
+    g.add(rod([lx + c * (rb + 260), -top + 20, lz + s * (rb + 260)], [lx + c * rb, yb, lz + s * rb], 24, black, SEG.cord));
   }
   const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
-  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow), by = y0 + sh / 2;
+  const bulb = new Mesh(new SphereGeometry(420, SEG.roundCap, SEG.ringsBulb), glow), by = y0 + sh / 2;
   bulb.position.set(lx, by, lz);
   g.add(seeThrough(bulb));
   // a hardcover lying flat (linen boards over a cream page block, its spine east), the phone on it, a little turned
@@ -420,13 +420,13 @@ export function floorLantern(): Lantern {
   }
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2 + 0.9, c = Math.cos(a), s = Math.sin(a);
-    g.add(rod([x + c * (r0 + 500), -fl + 20, z + s * (r0 + 500)], [x + c * r0, y0, z + s * r0], 30, black, 6));
+    g.add(rod([x + c * (r0 + 500), -fl + 20, z + s * (r0 + 500)], [x + c * r0, y0, z + s * r0], 30, black, SEG.cord));
   }
   // a cross of wire in the bottom ring holds the stem; the bulb a little over the middle
   const by = y0 + H * bulbAt;
-  g.add(rod([x - r0, y0, z], [x + r0, y0, z], 22, black, 4), rod([x, y0, z - r0], [x, y0, z + r0], 22, black, 4), rod([x, y0, z], [x, by - 400, z], 40, black, 6));
+  g.add(rod([x - r0, y0, z], [x + r0, y0, z], 22, black, SEG.thinTube), rod([x, y0, z - r0], [x, y0, z + r0], 22, black, SEG.thinTube), rod([x, y0, z], [x, by - 400, z], 40, black, SEG.cord));
   const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
-  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow);
+  const bulb = new Mesh(new SphereGeometry(420, SEG.roundCap, SEG.ringsBulb), glow);
   bulb.position.set(x, by, z);
   g.add(seeThrough(bulb));
   g.add(floorShadow(x, z, R * 2.6, R * 2.6, 0.35));
@@ -693,7 +693,7 @@ export function door(): Group {
   // the threshold: a black aluminium strip across the opening on the floor
   g.add(softBox({ x: xs - 300, y: fl - 120, w: 900, h: 120 }, z0, z1, mat(STEEL, { roughness: 0.4, metalness: 0.5 }), 40));
   // a stop on the floor where the door swings open
-  g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, 20), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2b2c2e, { roughness: 0.9 }), 20));
+  g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, SEG.disc), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2b2c2e, { roughness: 0.9 }), SEG.disc));
   // the light switch beside the door: a thin square plate in black glass, a wide rocker
   g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, mat(0x141518, { roughness: 0.2, metalness: 0.1 }), 40));
   g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0x1d1f23, { roughness: 0.35 }), 40));
@@ -706,10 +706,10 @@ export function door(): Group {
  */
 export function ceilingLight(x: number, y: number, z: number): { root: Group; glow: MeshStandardMaterial } {
   const g = new Group(), r = 5000;
-  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x0e0f11, { roughness: 0.9 }), 64), false));
-  g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d33, { roughness: 0.5 }), 64), false));
+  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x0e0f11, { roughness: 0.9 }), SEG.fineDisc), false));
+  g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d33, { roughness: 0.5 }), SEG.fineDisc), false));
   const glow = mat(0xcfccc6, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
-  g.add(place(post(x, y + 940, z, r - 250, 40, glow, 64), false));
+  g.add(place(post(x, y + 940, z, r - 250, 40, glow, SEG.fineDisc), false));
   return { root: g, glow };
 }
 
@@ -792,7 +792,7 @@ export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLig
 export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; light: SpotLight } {
   const g = new Group(), { x, z, head } = ARC_LAMP, on = onRug(x, z), fl = FLOOR_Y - (on ? RUG.h : 0), R = 2600, H = 1900;
   const black = mat(0x1a1b1e, { metalness: 0.5, roughness: 0.4 }), stone = mat(0x26272a, { roughness: 0.3 });
-  g.add(post(x, fl, z, 2600, 800, stone, 48), post(x, fl - 800, z, 360, 600, black, 20), floorShadow(x, z, 7000, 7000, 0.4, on ? RUG.h + 140 : 140));
+  g.add(post(x, fl, z, 2600, 800, stone, SEG.wideDisc), post(x, fl - 800, z, 360, 600, black, SEG.disc), floorShadow(x, z, 7000, 7000, 0.4, on ? RUG.h + 140 : 140));
   // the dome: its mouth, its axis straight down, its crown over it; the arc comes down onto a knuckle over the crown
   const mouth = new Vector3(head.x, -head.y, head.z), axis = new Vector3(0, -1, 0);
   const crown = mouth.clone().addScaledVector(axis, -H), knuckle = crown.clone().add(new Vector3(0, 900, 0));
@@ -803,7 +803,7 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
     arc.push([p.x, p.y, p.z]);
   }
   g.add(tube(arc, 200, black, SEG.arm), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, SEG.frameBar));
-  const ball = new Mesh(new SphereGeometry(280, 16, 10), black);
+  const ball = new Mesh(new SphereGeometry(280, SEG.post, SEG.ringsMid), black);
   ball.position.copy(knuckle);
   g.add(place(ball));
   // (the paper's side, mouth to crown: a quarter round, a little flattened, a small hole at the crown for the stem; the paper glows most near
@@ -848,8 +848,8 @@ export function eastWall(): Group {
   });
   // the speaker: a cylinder in dark fabric, a black top, its status light
   const cx = sx + 7400, cz = sd / 2;
-  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), 32), post(cx, sy - 2000, cz, 740, 50, mat(0x111214, { roughness: 0.35 }), 32));
-  wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x0b1a1d, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), 16));
+  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), SEG.bigDisc), post(cx, sy - 2000, cz, 740, 50, mat(0x111214, { roughness: 0.35 }), SEG.bigDisc));
+  wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x0b1a1d, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), SEG.post));
   // a pothos at the east end: built facing +x, turned so its vines trail over the shelf's front edge
   const vine = pothos(0, 0, 0, sd - 1500, [{ dz: 300, len: 7000 }, { dz: -500, len: 4200 }]);
   vine.rotation.y = -Math.PI / 2;

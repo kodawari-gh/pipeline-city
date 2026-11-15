@@ -2,6 +2,7 @@
 // a tube that tapers (a trunk, a stem), a ribbon along a curve (a tie-back's band, a strap). Pure geometry: no materials, no scene.
 import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, TubeGeometry, Vector3 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SEG } from './geometry';
 
 type V3 = readonly [number, number, number];
 
@@ -47,7 +48,7 @@ function strip(pos: number[], uv: number[], idx: number[]): BufferGeometry {
 }
 
 /** A tube through 3D points that tapers from radius `r0` at the first point to `r1` at the last (a trunk, a branch, a stem). */
-export function taperTube(points: readonly V3[], r0: number, r1: number, sides = 8, segs = Math.max(8, points.length * 4)): BufferGeometry {
+export function taperTube(points: readonly V3[], r0: number, r1: number, sides: number = SEG.frameBar, segs = Math.max(8, points.length * 4)): BufferGeometry {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(...p)), false, 'centripetal');
   const g = new TubeGeometry(curve, segs, 1, sides, false), p = g.attributes.position!, c = new Vector3(), q = new Vector3();
   // the tube's rings in order: ring i (sides + 1 points) sits round the curve's point at i / segs; each moves out to its own radius

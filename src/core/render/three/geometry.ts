@@ -102,6 +102,18 @@ export const SEG = {
   carCurve: 4, carBevel: 3,
   /** Screw and rivet parts (sides): a rivet's dome; a rivet's mandrel hole; a cap screw's hex socket; a rubber pad's flat top. */
   rivetDome: 16, rivetHole: 10, capSocket: 6, padTop: 14,
+  /** Large rounds seen close (sides): a speaker, a power button or a display floor; a fan-guard wire ring or the Build floor. */
+  fineDisc: 64, fineRing: 72,
+  /** A ball's or a dome's rings (pole to pole): a small ball; a mid ball; a lamp bulb; a bare bulb; the sky dome. */
+  rings: 8, ringsMid: 10, ringsBulb: 12, ringsFine: 14, skyRings: 24,
+  /** Plant stems (sides): a trunk, a branch, a stalk, a thin stem. */
+  trunk: 9, branch: 7, stalk: 5, stem: 4,
+  /** Heat pipes (ASR6): sides and steps along the pipe, at High and at the cheap tiers. */
+  heatPipe: 12, heatPipeLow: 8, heatPipeSteps: 96, heatPipeStepsLow: 40,
+  /** A rounded corner of a point path or an outline (steps a corner): the default, a soft one, a coarse one. */
+  corner: 5, cornerSoft: 8, cornerCoarse: 2, cornerMid: 6, cornerTight: 4,
+  /** A furniture board's edge bevel (steps), softer than `bevel`. */
+  softBevel: 4,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
@@ -168,7 +180,7 @@ export function tube(points: readonly (readonly [number, number, number])[], rad
 }
 
 /** A polyline with each inner corner cut by a round of radius `r` (a few points along the arc): a bent pipe for `tube`, tight at its bends. */
-export function rounded(pts: readonly (readonly [number, number, number])[], r: number, per = 5): [number, number, number][] {
+export function rounded(pts: readonly (readonly [number, number, number])[], r: number, per: number = SEG.corner): [number, number, number][] {
   const v = pts.map((p) => new Vector3(p[0], p[1], p[2])), out: [number, number, number][] = [[pts[0]![0], pts[0]![1], pts[0]![2]]];
   for (let i = 1; i + 1 < v.length; i++) {
     const p = v[i]!, a = v[i - 1]!.clone().sub(p), b = v[i + 1]!.clone().sub(p);
@@ -240,7 +252,7 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
 export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number } = {}): Group {
   const rotor = new Group(), hr = r * 0.3, sides = fanSides((2 * r) / 23);
   const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, sides).rotateX(Math.PI / 2), hub);
-  const dome = new Mesh(new SphereGeometry(hr, sides, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  const dome = new Mesh(new SphereGeometry(hr, sides, SEG.rings, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
   // (no uv, as the blades: a hub and blades of one program merge into one mesh)
   hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');
@@ -270,7 +282,7 @@ export function fanFlange(d: number, t: number, w = d): BufferGeometry {
   const s = new Shape([...arc(h - c, -h + c, c, -P / 2, 0, q), ...arc(h - c, h - c, c, 0, P / 2, q), ...arc(-h + c, h - c, c, P / 2, P, q), ...arc(-h + c, -h + c, c, P, P * 1.5, q)]);
   const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
   s.holes.push(round(0, 0, d * FAN_THROAT, n));
-  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 8));
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, SEG.smallDisc));
   return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
 }
 

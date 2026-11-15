@@ -65,8 +65,8 @@ export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: n
 export function bores(spots: readonly Spot[], f: Facing, r: number): Group {
   const g = new Group();
   if (!spots.length) return g;
-  g.add(instanced(turned(new CircleGeometry(r * 1.3, 18).translate(0, 0, 0.4), f), mat(0x5a6067, { metalness: 0.6, roughness: 0.5 }), spots));
-  g.add(instanced(turned(new CircleGeometry(r, 18).translate(0, 0, 0.8), f), mat(0x060708, { roughness: 0.9 }), spots));
+  g.add(instanced(turned(new CircleGeometry(r * 1.3, SEG.roundCap).translate(0, 0, 0.4), f), mat(0x5a6067, { metalness: 0.6, roughness: 0.5 }), spots));
+  g.add(instanced(turned(new CircleGeometry(r, SEG.roundCap).translate(0, 0, 0.8), f), mat(0x060708, { roughness: 0.9 }), spots));
   return g;
 }
 

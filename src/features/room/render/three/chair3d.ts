@@ -58,11 +58,11 @@ function slab(x: number, y: number, z: number, w: number, h: number, d: number, 
 }
 
 /** A rod between two points in millimetres. */
-const bar = (a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides = 10): Mesh =>
+const bar = (a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh =>
   rod([a[0] * MM, a[1] * MM, a[2] * MM], [b[0] * MM, b[1] * MM, b[2] * MM], r * MM, m, sides);
 
 /** A cylinder standing on (x, y0, z), in millimetres, `axisX` laid along x (a wheel). */
-function can(x: number, y: number, z: number, r: number, h: number, m: Material, axisX = false, sides = 16): Mesh {
+function can(x: number, y: number, z: number, r: number, h: number, m: Material, axisX = false, sides: number = SEG.post): Mesh {
   const o = new Mesh(new CylinderGeometry(r * MM, r * MM, h * MM, sides), m);
   if (axisX) o.rotation.z = Math.PI / 2;
   o.position.set(x * MM, (axisX ? y : y + h / 2) * MM, z * MM);
@@ -77,23 +77,23 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
   const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
 
   // ---- the base: a hub, five legs falling to the castors, each castor two wheels on a swivel ----
-  c.add(can(0, 95, 0, 42, 70, black, false, 20));
+  c.add(can(0, 95, 0, 42, 70, black, false, SEG.disc));
   for (let k = 0; k < 5; k++) {
     const a = (k / 5) * Math.PI * 2 + 0.3, ca = Math.cos(a), sa = Math.sin(a), tip = 315;
-    c.add(bar([ca * 30, 125, sa * 30], [ca * tip, 88, sa * tip], 19, black, 6));
-    c.add(can(ca * tip, 62, sa * tip, 12, 30, steel, false, 8));
+    c.add(bar([ca * 30, 125, sa * 30], [ca * tip, 88, sa * tip], 19, black, SEG.cord));
+    c.add(can(ca * tip, 62, sa * tip, 12, 30, steel, false, SEG.smallDisc));
     const wheel = new Group();
-    for (const s of [-1, 1]) wheel.add(can(s * 12, 26, -14, 26, 18, black, true, 18));
+    for (const s of [-1, 1]) wheel.add(can(s * 12, 26, -14, 26, 18, black, true, SEG.roundCap));
     wheel.add(slab(0, 46, -10, 34, 26, 44, black, 6));
     wheel.position.set(ca * tip * MM, 0, sa * tip * MM);
     wheel.rotation.y = a * 1.7 + 0.4;
     c.add(wheel);
   }
   // ---- the gas lift: a black sleeve, the chrome piston, the tilt box under the seat ----
-  c.add(can(0, 130, 0, 30, 160, black, false, 20), can(0, 285, 0, 21, 125, steel, false, 20));
+  c.add(can(0, 130, 0, 30, 160, black, false, SEG.disc), can(0, 285, 0, 21, 125, steel, false, SEG.disc));
   c.add(slab(0, 425, 10, 230, 45, 260, black, 10));
   // (the height lever out from under the seat's west side)
-  c.add(bar([-60, 420, -100], [-245, 405, -140], 7, steel, 8));
+  c.add(bar([-60, 420, -100], [-245, 405, -140], 7, steel, SEG.frameBar));
 
   // ---- the seat: a moulded shell, the cushion on it ----
   c.add(slab(0, 458, 0, 470, 22, 450, black, 10));
@@ -122,11 +122,11 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
   back.add(panel);
   back.add(slab(0, 150, -6, 300, 60, 22, black, 10));
   c.add(back);
-  c.add(slab(0, 470, 200, 70, 40, 120, black, 10), bar([0, 470, 255], [0, 600, 300], 22, black, 10));
+  c.add(slab(0, 470, 200, 70, 40, 120, black, 10), bar([0, 470, 255], [0, 600, 300], 22, black, SEG.rod));
 
   // ---- the armrests: a post up from under each side of the seat, a soft pad on it ----
   for (const s of [-1, 1]) {
-    c.add(bar([s * 120, 440, 40], [s * 262, 440, 40], 14, black, 8), bar([s * 262, 440, 40], [s * 268, 650, 20], 18, black, 10));
+    c.add(bar([s * 120, 440, 40], [s * 262, 440, 40], 14, black, SEG.frameBar), bar([s * 262, 440, 40], [s * 268, 650, 20], 18, black, SEG.rod));
     c.add(slab(s * 268, 662, 0, 72, 28, 250, black, 12));
   }
 

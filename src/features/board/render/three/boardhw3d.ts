@@ -86,7 +86,7 @@ export function ioStacks(shells: IoShell[]): IoStack[] {
 export const IO_X0 = () => CASE.x + 1, IO_XB = () => CASE.x + 340;
 
 /** A barrel along x from x0 to x1 round the layout point (y, z). */
-function barrel(x0: number, x1: number, y: number, z: number, r: number, m: Material, sides = 18): Mesh {
+function barrel(x0: number, x1: number, y: number, z: number, r: number, m: Material, sides: number = SEG.roundCap): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, x1 - x0, sides).rotateZ(Math.PI / 2), m);
   o.position.set((x0 + x1) / 2, -y, z);
   return place(o);
@@ -152,8 +152,8 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
     // the Wi-Fi jacks over the cover: each barrel through the wall, its nut inside, and a black lead bent down into the cover to the module
     shells.filter((s) => s.m === 'gold').forEach((s, i) => {
       const y = (s.y0 + s.y1) / 2, z = (s.z0 + s.z1) / 2, xe = x0 + 90 + i * 60;
-      io.add(barrel(xs, x0 + 24, y, z, (s.y1 - s.y0) / 2, shellM.gold, 14), barrel(x0, x0 + 22, y, z, 26, steelM, 6));
-      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, 6), 9, mat(0x1a1b1f, { roughness: 0.6 }), SEG.frameBar));
+      io.add(barrel(xs, x0 + 24, y, z, (s.y1 - s.y0) / 2, shellM.gold, SEG.chipRound), barrel(x0, x0 + 22, y, z, 26, steelM, SEG.hexNut));
+      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, SEG.cornerMid), 9, mat(0x1a1b1f, { roughness: 0.6 }), SEG.frameBar));
     });
   }
   if (pins.length) io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xc9ccd2, { metalness: 0.8, roughness: 0.3 }), pins));
@@ -176,11 +176,11 @@ export function slotHardware(): Group {
     frame.moveTo(o.x, -o.y).lineTo(o.x + o.w, -o.y).lineTo(o.x + o.w, -(o.y + o.h)).lineTo(o.x, -(o.y + o.h)).closePath();
     hole.moveTo(inner.x, -inner.y).lineTo(inner.x, -(inner.y + inner.h)).lineTo(inner.x + inner.w, -(inner.y + inner.h)).lineTo(inner.x + inner.w, -inner.y).closePath();
     frame.holes.push(hole);
-    const plate = place(new Mesh(extrude(frame, { depth: 16, bevelEnabled: true, bevelSize: 4, bevelThickness: 4, bevelSegments: 1 }), steel));
+    const plate = place(new Mesh(extrude(frame, { depth: 16, bevelEnabled: true, bevelSize: 4, bevelThickness: 4, bevelSegments: SEG.bevelFlat }), steel));
     plate.position.z = BOARD_Z + 70;
     g.add(plate);
     const lx = o.x + o.w + 40, ys = o.y + o.h + 50, zl = BOARD_Z + 46;
-    g.add(tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, 5), 13, steel, SEG.midRound));
+    g.add(tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, SEG.corner), 13, steel, SEG.midRound));
     const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, SEG.post).rotateZ(Math.PI / 2), latchM));
     cap.position.set(lx + 200, -ys, zl);
     g.add(cap);

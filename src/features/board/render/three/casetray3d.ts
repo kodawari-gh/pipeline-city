@@ -83,11 +83,11 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
   const g = new Group(), h = BOARD_Z - 60 - TRAY_Z, z = TRAY_Z + PANEL, on = (x: number, y: number) => used.some(([a, b]) => a === x && b === y);
   const up = (r: number, n: number, len: number) => new CylinderGeometry(r, r, len, n).rotateX(Math.PI / 2);
   g.add(instanced(up(58, 6, h), mat(0xb99a58, { metalness: 0.65, roughness: 0.5 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 }))));
-  g.add(instanced(up(24, 12, 2), mat(0x241c0e, { roughness: 0.8 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h + 1 }))));
+  g.add(instanced(up(24, SEG.part, 2), mat(0x241c0e, { roughness: 0.8 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h + 1 }))));
   const free = standoffs().filter(([x, y]) => !on(x, y));
   if (free.length) {
-    g.add(instanced(up(46, 16, 3), mat(0x7c828b, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: z + 1 }))));
-    g.add(instanced(up(26, 12, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
+    g.add(instanced(up(46, SEG.post, 3), mat(0x7c828b, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: z + 1 }))));
+    g.add(instanced(up(26, SEG.part, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
   }
   const ink = kind === 'oem' ? '#6f6a53' : '#8d929c';
   // (one mesh a word, not one a position: the marks of one word share a texture)
@@ -136,7 +136,7 @@ export function trayDetail(f: Frame, inner: Material): Group {
     bridges.push({ x: east + 190, y: -y, z: TRAY_Z, rz: 0 }, { x: east + 1250, y: -y, z: TRAY_Z, rz: 0 });
     straps.push({ x: east + 1250, y });
   }
-  const bridge = extrude(tieBridge(), { depth: 84, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 1 }).translate(0, 0, -42).rotateX(Math.PI / 2);
+  const bridge = extrude(tieBridge(), { depth: 84, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: SEG.bevelFlat }).translate(0, 0, -42).rotateX(Math.PI / 2);
   g.add(instanced(bridge, mat(kindTone(k), { metalness: 0.5, roughness: 0.45 }), bridges));
 
   // the cable holes: the kind's own column in the gutter, and the leads' holes (a board of the case's size brings its leads out of these, `buildCables`)

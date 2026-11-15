@@ -33,14 +33,14 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const g = tag(new Group(), 'lamp');
   // (its baked occlusion: the joints between the paired arms, the base under them; `vertexao.ts`)
   g.userData.ao = 30 * MM;
-  g.add(post(base.x, base.y, z, 950, 150, coat, 40, 880));
-  g.add(post(base.x, base.y - 150, z, 230, 280, coat, 20, 200));
+  g.add(post(base.x, base.y, z, 950, 150, coat, SEG.ring, 880));
+  g.add(post(base.x, base.y - 150, z, 230, 280, coat, SEG.disc, 200));
   const b0: V3 = [base.x, -(base.y - 400), z], el: V3 = [elbowXY.x, -elbowXY.y, z], hd: V3 = [head.x, -head.y, z];
   for (const dz of [-90, 90]) {
     g.add(rod([b0[0], b0[1], z + dz], [el[0], el[1], z + dz], 55, coat));
     g.add(rod([el[0], el[1], z + dz], [hd[0], hd[1], z + dz], 50, coat));
   }
-  g.add(rod([b0[0] + 160, b0[1] + 250, z], [el[0] + 180, el[1] - 200, z], 22, joint, 6)); // the spring
+  g.add(rod([b0[0] + 160, b0[1] + 250, z], [el[0] + 180, el[1] - 200, z], 22, joint, SEG.cord)); // the spring
   for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, SEG.post), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
   // the shade: its narrow end at the head, its mouth toward the desk
   const dx = mouthXY.x - head.x, dy = -(mouthXY.y - head.y), len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
@@ -50,7 +50,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const outer = place(new Mesh(new CylinderGeometry(300, 820, L, SEG.drum, 1, true), coat));
   const inner = mat(0xfff4dc, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
   const innerM = new Mesh(new CylinderGeometry(296, 812, L, SEG.drum, 1, true), inner);
-  const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), coat));
+  const cap = place(new Mesh(new SphereGeometry(300, SEG.disc, SEG.ringsMid, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
   // the mouth's rolled lip, the head's knob that sets the shade's tilt
   const lip = place(new Mesh(new TorusGeometry(816, 40, SEG.rod, SEG.lathe), coat));
@@ -59,7 +59,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
   shade.add(lip, knob);
   const bulb = mat(0xfff6e0, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
-  const bulbM = new Mesh(new SphereGeometry(240, 20, 14), bulb);
+  const bulbM = new Mesh(new SphereGeometry(240, SEG.disc, SEG.ringsFine), bulb);
   bulbM.position.y = -L + 380;
   shade.add(outer, innerM, cap, seeThrough(bulbM));
   g.add(shade);
@@ -447,8 +447,8 @@ export function notebook(x: number, deskY: number, z: number, a: number): Group 
   g.add(rectBox({ x: 1150, y: -410, w: 90, h: 420 }, -2310, 2310, band));
   // the pen: a barrel, its cap with a clip
   const blue = mat(0x2e3f66, { roughness: 0.35 }), steel = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
-  g.add(rod([-700, 490, -1500], [500, 490, 900], 85, blue, 12), rod([500, 490, 900], [760, 490, 1420], 92, steel, 12), rod([-700, 490, -1500], [-790, 490, -1680], 50, steel, 8));
-  g.add(rod([560, 590, 980], [760, 590, 1380], 22, steel, 4));
+  g.add(rod([-700, 490, -1500], [500, 490, 900], 85, blue, SEG.arm), rod([500, 490, 900], [760, 490, 1420], 92, steel, SEG.arm), rod([-700, 490, -1500], [-790, 490, -1680], 50, steel, SEG.frameBar));
+  g.add(rod([560, 590, 980], [760, 590, 1380], 22, steel, SEG.thinTube));
   g.position.set(x, -deskY, z); g.rotation.y = a;
   return g;
 }
