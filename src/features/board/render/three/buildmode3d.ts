@@ -14,7 +14,7 @@ import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/onde
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
-import { BASE_EXPOSURE, createRenderContext, disposeRenderContext } from '@/core/render/three/init';
+import { BASE_EXPOSURE, createRenderContext, disposeRenderContext, restoreStudioEnv } from '@/core/render/three/init';
 import { Eye } from '@/core/render/three/eye';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
@@ -184,7 +184,8 @@ export class BuildStage {
     });
     ro.observe(host);
     this.cleanup.push(() => ro.disconnect());
-    const restored = () => this.demand.ask();
+    // a restored context lost the studio's environment map (a render target's picture): made again, then a frame
+    const restored = () => { restoreStudioEnv(scene, this.ctx.pmrem); this.demand.ask(); };
     renderer.domElement.addEventListener('webglcontextrestored', restored);
     this.cleanup.push(() => renderer.domElement.removeEventListener('webglcontextrestored', restored));
   }
