@@ -77,7 +77,7 @@ const DUSK_HAZE = 0.6;
  */
 const lightsAt = (h: number): number => (h < 12 ? 1 - smooth(5.2, 7.4, h) : Math.min(1, Math.max(0, (h - 17) / 3)));
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
-const GLOW = 0.3;
+const GLOW = 0.2;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
 const MIRROR = 65, MIRROR_FROM = 0.55;
 /** With the eye still, that picture is drawn each this many frames: its LEDs and its screen a few frames late do not show in so faint a ghost. */

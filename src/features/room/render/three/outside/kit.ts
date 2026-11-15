@@ -40,7 +40,7 @@ export function makeKit(): Kit {
     paint: plain(0xe6e4dc, 0.7), yellow: plain(0xd9a92e, 0.7), iron: plain(0x2b2b2d, 0.55, 0.6), post: plain(0x4a4f55, 0.45, 0.6), lantern,
     trim: plain(0x18191b, 0.6),
     bark: surf(P.bark(), 0xffffff, { roughness: 0.95 }), leaves: leafMat, land: new MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
-    night: [{ mat: lantern, k: 9 }],
+    night: [{ mat: lantern, k: 7 }],
   };
 }
 

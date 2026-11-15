@@ -57,6 +57,8 @@ The open items are tasks LPC1–LPC11 in `docs/TODO.md` ("Look per cost"), with 
 | Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `palette.ts` |
 | Board colours | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three` |
 
+Step 4c, glow pass (2026-11-15): the soft glow round the city lights (`GLOW` in `outside/view.ts`) 0.3 to 0.2, and the lantern gain (`kit.ts` night `k`) 9 to 7. Night view at High, hour 23: the halo round the neon is tighter; the neon outlines and the lamps read as shapes. Not changed: the case's emissive gains (`casedecor`, `machine3d` fan rings 2.2 to 2.8, LEDs 2), no shot yet.
+
 ## Low city beacons (2026-11-15)
 
 Same night view at Low and High (`--hour 23`, `citycuts=1`). The beacon shader matches High: same colour, width, 3.5 s pulse and night scale. The crown code is shared. The Low skyline has more visible red dots. Measured over the skyline top band (260,120,600,110): Low sRGB 45,36,37, High 42,36,36. Overall brightness of the band is equal. Gap is small (about 3 red units). No change made.
