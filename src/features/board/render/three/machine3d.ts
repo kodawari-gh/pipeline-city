@@ -855,7 +855,7 @@ export class Machine3D {
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
-      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 2.2 : 2.8)) * f.speed; }
+      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed; }
     }
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
@@ -866,9 +866,9 @@ export class Machine3D {
     if (this.door) this.swingDoor(dt);
     this.blink = live && s.storage.some((d) => d.busy);
     if (this.leds) {
-      this.leds.on.emissiveIntensity = live ? 2 : 0;
-      this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0;
-      this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 2.2 : 0;
+      this.leds.on.emissiveIntensity = live ? 1.5 : 0;
+      this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 1.5 : 0;
+      this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 1.6 : 0;
     }
   }
 
