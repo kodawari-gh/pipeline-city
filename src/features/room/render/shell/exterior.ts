@@ -3,7 +3,7 @@ import type { Snapshot } from '@/worker/protocol';
 import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, label, lgrad, mix } from '@/core/render/ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, TOP_FANS, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
 import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, growCuts, hexes, holes, isCut, logoMark, outline, screw, slots, type CaseKind, type Cuts } from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';

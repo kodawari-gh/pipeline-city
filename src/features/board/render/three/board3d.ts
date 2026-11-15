@@ -11,7 +11,7 @@ import { airflowLens, hover, powerLens, selected, viewInset, INERT_REGIONS } fro
 import { cameraRev, highlight } from '@/app/interaction';
 import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
-import { deviceOfPart } from '@/core/render/interact';
+import { deviceOfPart } from '@/core/render/parts';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, awayHeld, debugOverride, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { whenDebug } from '@/app/debugflag';

@@ -1,12 +1,14 @@
 import type { Graphics } from 'pixi.js';
 import { mix } from '@/core/render/ink';
-import { MUG } from './props/mug';
 import type { DeskGeo } from '../shell/persp';
 import type { Theme } from '@/core/render/theme';
 
 // What lies on the desk in front of the monitor: the mat, the keyboard and the mouse. Each is a small box (or a dome) placed on the desk top in plan: a centre, a
 // yaw (they are turned a few degrees, like things somebody uses) and sizes in plan units; a point of it is turned, put on the desk top in the room's perspective
 // (`persp.ts`: its sides run to the vanishing point) and lifted by its height. Plan depth is squashed to the screen by `MUG.e`, the same squash as the mug's rim.
+
+/** The coffee mug on the desk: height, radius at the rim and at the base, and the squash of a circle (the ratio of an ellipse's height to its width). */
+export const MUG = { h: 1300, r: 560, rb: 450, e: 0.12 };
 
 type Pt = [number, number];
 export interface PeriphLook { plastic: string; plasticLo: string; line: string; paper: string }

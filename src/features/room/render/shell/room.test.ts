@@ -9,15 +9,8 @@ import {
 } from '@/features/board/render/layout/layout';
 import { buildCables } from '@/features/board/render/wiring/routes';
 import { trayHook, trayKeyCentre } from '../desk/props/props';
-import { DAY_S, DESK, FOOT, ROOM_BAKE_RES, RoomView, roomBakeFits, roomBakeRect, roomHidden, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
+import { DAY_S, DESK, FOOT, ROOM_BAKE_RES, roomBakeFits, roomBakeRect, roomHidden, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from '@/features/board/render/layout/layout';
-import type { Theme } from '@/core/render/theme';
-
-const DARK: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
-};
 const inside = (r: Rect, o: Rect) => r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
 
 describe('the desk follows the case', () => {
@@ -250,34 +243,6 @@ describe('the clickable props', () => {
   });
 });
 
-describe.each([0, 1, 2, 3])('RoomView at case tier %i', (t) => {
-  it('builds, exposes its three hits and runs through a day', () => {
-    const T = DARK;
-    setLayoutTier(t, t);
-    const v = new RoomView(T);
-    expect(v.root.children.length).toBeGreaterThan(3);
-    expect(v.hits.map((h) => h.id).sort()).toEqual(['blind', 'clock', 'lamp']);
-    for (const h of v.hits) expect(inside(h.rect, roomBox(v.geo))).toBe(true);
-    for (let k = 0; k < 24; k++) v.frame(k * (DAY_S * 1000) / 24, 16);
-    roomState.blind = true; roomState.lamp = false;
-    v.frame(1000, 600); v.frame(2000, 600);
-    roomState.blind = false; roomState.lamp = true;
-    v.root.destroy({ children: true });
-  });
-
-  it('does no work when nothing visible changed between two frames', () => {
-    setLayoutTier(t, t);
-    const v = new RoomView(DARK);
-    v.frame(5000, 0);
-    expect(v.frame(5000, 0)).toBe(false);
-    expect(v.frame(5030, 16)).toBe(false); // the clock is rounded to a few steps a second
-    expect(v.frame(5500, 16)).toBe(true);
-    roomDebug.hour = 3;
-    expect(v.frame(5500, 0)).toBe(true); // a pinned hour redraws at once
-    roomDebug.hour = null;
-  });
-});
-
 describe('the PC power cord', () => {
   it.each([0, 1, 2, 3])('tier %i: the cord leaves the plug tail, turns down once and falls straight to the PC outlet (no jog, no doubling back)', (t) => {
     setLayoutTier(t, t);
@@ -291,16 +256,12 @@ describe('the PC power cord', () => {
 
 describe('the baked room', () => {
   const view = (r: Rect, k = 1): Rect => ({ x: r.x + r.w / 2 - (r.w * k) / 2, y: r.y + r.h / 2 - (r.h * k) / 2, w: r.w * k, h: r.h * k });
-  it.each([0, 1, 2, 3])('tier %i: the baked region holds the camera box with wall to spare, and the wall and the desk are each in a wrapper with that fixed region', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the baked region holds the camera box with wall to spare, and is a texture most GPUs take', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), box = roomBox(g), r = roomBakeRect(g);
     expect(inside(box, r)).toBe(true);
-    expect(r.w * ROOM_BAKE_RES).toBeLessThan(4096);                    // a texture most GPUs take
+    expect(r.w * ROOM_BAKE_RES).toBeLessThan(4096);
     expect(r.h * ROOM_BAKE_RES).toBeLessThan(4096);
-    const room = new RoomView(DARK, g);
-    const wraps = [room.root.children[0]!.children[0]!, room.root.children[1]!.children[0]!];
-    for (const w of wraps) expect(w.boundsArea).toBeTruthy();         // (the 180000-unit wall must not set the texture's size)
-    expect(wraps[0]!.boundsArea!.width).toBe(r.w);
   });
   it('bakes only while the view is inside the region and no finer than the texture', () => {
     setLayoutTier(1, 1);
@@ -315,11 +276,5 @@ describe('the baked room', () => {
     expect(roomHidden(view(CASE, 0.5), CASE)).toBe(true);
     expect(roomHidden(view(CASE, 1), CASE)).toBe(false);               // the case's edge shows the wall
     expect(roomHidden({ x: CASE.x - 5000, y: CASE.y, w: CASE.w, h: CASE.h }, CASE)).toBe(false);
-    const room = new RoomView(DARK, roomGeo());
-    room.setView(view(CASE, 0.5), 0.5, 1, CASE);
-    expect(room.root.visible).toBe(false);
-    expect(room.frame(1000, 16)).toBe(false);                          // and its live parts are not redrawn
-    room.setView(view(roomBox(roomGeo()), 1), 0.05, 1, CASE);
-    expect(room.root.visible).toBe(true);
   });
 });

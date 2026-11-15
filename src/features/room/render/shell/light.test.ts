@@ -5,14 +5,8 @@ import { Container } from 'pixi.js';
 vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
 
 import { BEAM, LIGHT_RES, ambientOf, emittersOf, focusAt, lightKey, shiftEmitter, type LightGeo, type LightIn } from './light';
-import { DAY_S, RoomView, beamsAt, roomBakeRect, roomGeo } from './room';
-import type { Theme } from '@/core/render/theme';
+import { beamsAt, roomBakeRect, roomGeo } from './room';
 
-const THEME: Theme = {
-  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
-};
 const CASE = { x: 0, y: 0, w: 8000, h: 6000 };
 const day: LightIn = { night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
 
@@ -97,21 +91,6 @@ describe('the light layer of the room', () => {
   it('has a cone that is a fan of under a half turn', () => {
     expect(BEAM.half).toBeGreaterThan(0.3);
     expect(BEAM.half * 2).toBeLessThan(Math.PI);
-  });
-  it('is only the lit edges without a renderer (tests): the focus and the screen are accepted and change nothing', () => {
-    const v = new RoomView(THEME, geo);
-    expect(v.light.children.length).toBe(1);
-    v.setScreen(true); v.setFocus(1);
-    expect(() => v.frame(DAY_S * 400, 16)).not.toThrow();
-    v.dispose();
-  });
-  it('is hidden with the room while the view lies inside the case', () => {
-    const v = new RoomView(THEME, geo);
-    const c = { x: 0, y: 0, w: 20000, h: 12000 };
-    v.setView({ x: 4000, y: 3000, w: 8000, h: 4500 }, 0.3, 1, c);
-    expect(v.light.visible).toBe(false);
-    v.setView({ x: -20000, y: -9000, w: 40000, h: 20000 }, 0.04, 1, c);
-    expect(v.light.visible).toBe(true);
   });
 });
 

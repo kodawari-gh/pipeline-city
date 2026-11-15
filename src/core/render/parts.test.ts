@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gpuIds } from '../../features/gpu/render/gpulayout';
-import { deviceOfPart } from './interact';
+import { deviceOfPart } from './parts';
 
 const devices = [{ id: 'dev-gpu', slot: 'pcie1' }, { id: 'dev-nic', slot: 'pcie0' }];
 
