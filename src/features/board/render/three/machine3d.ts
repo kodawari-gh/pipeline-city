@@ -14,6 +14,7 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
+import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
 import { lowDetail } from '@/core/render/three/detail';
 import { disposeTree, post, rectBox, rounded, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
@@ -86,6 +87,11 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
 const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
+/**
+ * Low's case shadow: how far inside the body its box sits, and what each face lets in (the top filter a fifth, steel none). The glass side
+ * lets in 0.75, not all: the parts shade each other at High, and 0.75 is that mean (RAM L 0.036, High 0.037; drive cage 0.051, High 0.044).
+ */
+const SHADE_IN = 60, CASE_PASS: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] };
 
 
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
@@ -193,6 +199,8 @@ export class Machine3D {
   /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
   readonly partLod: PartLod | null = null;
   /** The case's box (the root's space): the distance LOD reads the zoom at its nearest point. */
+  /** The case's body less half a wall: what its walls shade at Low (`setCaseShade`); the feet and the walls' outer faces stay out of it. */
+  private readonly shadeBox = new Box3(new Vector3(CASE.x + SHADE_IN, -(CASE.y + CASE.h) + SHADE_IN, CASE_Z + SHADE_IN), new Vector3(CASE.x + CASE.w - SHADE_IN, -CASE.y - SHADE_IN, FRONT - SHADE_IN));
   private readonly caseBox = new Box3(new Vector3(CASE.x, -(CASE.y + CASE.h + FOOT), CASE_Z), new Vector3(CASE.x + CASE.w, -CASE.y, FRONT));
 
   /**
@@ -889,6 +897,8 @@ export class Machine3D {
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
     // the small parts as stand-ins from afar (after the reveals: a stand-in follows what they show and hide), by the zoom at the case's nearest point
+    // Low: the case's shadow on the spot lights (`caseshade.ts`); the glass side lets the light in, the top filter a part of it
+    if (lowDetail()) setCaseShade(this.shadeBox, this.root.matrixWorld, CASE_PASS);
     this.partLod?.update(screenPx(LOD_BOX.copy(this.caseBox).applyMatrix4(this.root.matrixWorld).distanceToPoint(cam.position), cam.fov, H));
     this.art.update(cam, this.frustum, H, dpr, now);
   }

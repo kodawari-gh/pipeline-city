@@ -91,7 +91,10 @@ So instancing can save at most 78 draws. The six fans carry the most vertices (2
 
 ## Cheap materials (Low)
 
-`cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only.
+`cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only, and on the room only (`cheap` in `board3d.ts`).
+
+- **The machine keeps High's materials at Low** (2026-11-15). Its metal reads by reflection: as Lamberts the case interior drew near black and the RAM boards plain green. The GPU time is the same on the bench machine (RTX 5080, 2560 x 1355, board idle: 5.5 ms with Lamberts, 5.2 ms with PBR; the frame is CPU-bound). Not measured on an integrated GPU.
+- **Case shadow** (`caseshade.ts`, Low's machine only): Low draws no shadow map, so each spot light is scaled by the face of the case's box its ray leaves through (`CASE_PASS` in `machine3d.ts`: glass side 0.75, top filter 0.2, steel 0). One ray-box exit a light, no texture. Point lights (the case's own RGB) are not shaded. The `KEEP_SPEC` flags below now matter only to a machine part that the room's swap reaches.
 
 - A `MeshStandardMaterial` that is neither patched nor lightmapped becomes one `MeshLambertMaterial` (`cheapmaterials.ts:22`). Only these become Lambert.
 - A Standard that is patched or has a `lightMap` stays Standard (`isPatched(m) || m.lightMap`, `cheapmaterials.ts:55`). The room's 12 lightmaps therefore stay Standard at Low. On these kept Standards, it strips `normalMap`, `roughnessMap`, `metalnessMap`, `aoMap` and `bumpMap` (`cheapmaterials.ts:5`).

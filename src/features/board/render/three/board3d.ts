@@ -27,6 +27,7 @@ import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pi
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { PROBE_CALM, Probe } from '@/core/render/three/probe';
+import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
@@ -148,7 +149,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
   /** Low's cheaper materials (`cheapMaterials`), by the root they were applied to: undone when the root goes or the tier leaves Low. */
   const cheaps = new Map<Object3D, Cheap>();
-  const cheap = (root: Object3D) => { if (isLow(effective.peek()) && !cheaps.has(root)) cheaps.set(root, cheapMaterials(root)); };
+  // (a machine keeps High's materials: its metal reads by reflection and the GPU time is the same, 5.2 ms a board frame at 2560 x 1355.
+  // It takes the case's shadow on its spot lights in place of the shadow maps Low does not draw, `caseshade.ts`)
+  const cheap = (root: Object3D) => {
+    if (!isLow(effective.peek()) || cheaps.has(root)) return;
+    cheaps.set(root, root === room?.root ? cheapMaterials(root) : caseShaded(root));
+  };
   const uncheap = (root: Object3D) => { cheaps.get(root)?.undo(); cheaps.delete(root); };
   /** Puts `m` in the scene in the machine's place. */
   const install = (m: Machine3D) => {
