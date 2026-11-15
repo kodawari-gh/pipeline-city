@@ -95,7 +95,9 @@ export class Monitor {
     if (lowDetail()) mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
     R.add(body);
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
-    this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
+    // (behind the housing's hump and its mount boss, not inside them: the game's area light casts no shadow, but the light bake's does, and a
+    // strip shut in the housing gave the wall no baked light)
+    this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 40 * MM);
     const led = new Mesh(new CylinderGeometry(28, 28, 20, SEG.midRound), this.led);
     led.rotation.x = Math.PI / 2; led.position.set(m.x + m.w - 260, -(m.y + m.h - 70), z0 + 186);
     R.add(seeThrough(led));

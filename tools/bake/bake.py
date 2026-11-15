@@ -375,8 +375,8 @@ def main():
 
     lights = {}
     for g in CFG['groups']:
-        if g['kind'] == 'lamp':
-            lights[g['id']] = [lamp(g['id'], k, l, cal) for k, l in enumerate(g['lights'])]
+        if g['kind'] in ('lamp', 'direct'):
+            lights[g['id']] =[lamp(g['id'], k, l, cal) for k, l in enumerate(g['lights'])]
         elif g['kind'] == 'sun':
             ob = light('sun', g['id'], (0, 0, 5), Vector(g['dir']).to_track_quat('Z', 'Y').to_matrix())
             ob.data.energy, ob.data.angle = 1 / cal['sun'], math.radians(0.53)
@@ -392,8 +392,9 @@ def main():
                 ob.hide_render = k != g['id']
         world(g['kind'], math.pi / cal['sky'])
         # the window (its sky and its city) has no live light on the still meshes (the game's `key` stands in for it only on what moves): it
-        # is baked whole, direct and bounced; a lamp's and the sun's direct light is live, so only their bounce is baked
-        bake(receivers, {'DIRECT', 'INDIRECT'} if g['kind'] in ('sky', 'city') else {'INDIRECT'})
+        # is baked whole, direct and bounced; a lamp's and the sun's direct light is live, so only their bounce is baked. A `direct` group is
+        # a lamp group's direct light alone, for when the game's lamp cap takes its lights out of the scene
+        bake(receivers, {'DIRECT', 'INDIRECT'} if g['kind'] in ('sky', 'city') else {'DIRECT'} if g['kind'] == 'direct' else {'INDIRECT'})
         raw = pixels(lm)
         out = denoise(dn, ins, lm) if CFG['denoise'] else raw
         out[..., :3].astype('<f4').tofile(os.path.join(WORK, f"{g['id']}.f32"))

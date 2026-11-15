@@ -63,10 +63,42 @@ export function keyFrames(hour: number, hours: readonly number[]): [number, numb
 export interface BakeGroup { id: string; kind: 'lamp' | 'sky' | 'city' | 'sun'; file: string; scale: number; lead?: number; hour?: number }
 /** A receiver: its hash, its corners (three a triangle, unindexed) and where its UVs start in `meshes.bin` (in corners). */
 export interface BakeMesh { name: string; hash: string; corners: number; offset: number }
+/**
+ * A lamp group's direct light on the receivers, for when the lamp cap takes its lights out of the scene: one channel of the file `map`
+ * (`BakeManifest.direct.files`), the square root of the light over `scale`; `colour` gives it its hue; `lead` as a `BakeGroup`'s.
+ */
+export interface BakeDirect { id: string; map: number; channel: number; scale: number; colour: [number, number, number]; lead: number }
 /** `manifest.json` (`tools/bake/bake.mjs`): the atlas's size, the groups, the sun frames with no light (`dark`), the receivers. */
-export interface BakeManifest { version: number; encoding: string; width: number; height: number; texelsPerMetre: number; samples: number; groups: BakeGroup[]; dark: string[]; meshes: BakeMesh[] }
-/** A bake as loaded: the manifest, each group's lightmap (RGBM, unflipped: row 0 is the atlas's top), the receivers' UVs (two Uint16 a corner). */
-export interface Bake { manifest: BakeManifest; maps: Map<string, Texture>; uvs: Uint16Array }
+export interface BakeManifest {
+  version: number; encoding: string; width: number; height: number; texelsPerMetre: number; samples: number; groups: BakeGroup[]; dark: string[]; meshes: BakeMesh[];
+  direct?: { files: string[]; groups: BakeDirect[] };
+}
+/**
+ * A bake as loaded: the manifest, each group's lightmap (RGBM, unflipped: row 0 is the atlas's top), the receivers' UVs (two Uint16 a corner),
+ * and the capped lamps' direct light once asked for (`loadDirect`).
+ */
+export interface Bake { manifest: BakeManifest; maps: Map<string, Texture>; uvs: Uint16Array; direct?: Texture[] }
+
+/** A lightmap file as the bytes it holds: the alpha is not a coverage and the values are not colours. */
+async function dataTexture(url: string): Promise<Texture> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  const t = new Texture(await createImageBitmap(await r.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }));
+  t.flipY = false; t.generateMipmaps = false; t.magFilter = NearestFilter; t.minFilter = NearestFilter; t.colorSpace = NoColorSpace;
+  t.needsUpdate = true;
+  return shareTex(t);
+}
+
+/**
+ * Loads the capped lamps' direct light of `bake` (from `base`, as `loadBake`), once: only a graphics setting with a lamp cap needs it. A bake
+ * with none stays as it is.
+ */
+export function loadDirect(base: string, bake: Bake): Promise<void> {
+  const d = bake.manifest.direct;
+  if (!d || bake.direct) return Promise.resolve();
+  return (directLoads.get(bake) ?? directLoads.set(bake, Promise.all(d.files.map((f) => dataTexture(base + f))).then((maps) => { bake.direct = maps; })).get(bake)!);
+}
+const directLoads = new WeakMap<Bake, Promise<void>>();
 
 /** Loads the bake under `base` (a URL ending in `/`). */
 export async function loadBake(base: string): Promise<Bake> {
@@ -74,14 +106,8 @@ export async function loadBake(base: string): Promise<Bake> {
   const manifest = (await (await get('manifest.json')).json()) as BakeManifest;
   if (manifest.version !== 1 || manifest.encoding !== 'rgbm-sqrt') throw new Error(`${base}: a bake this game cannot read (${manifest.version}, ${manifest.encoding})`);
   const uvs = get('meshes.bin').then((r) => r.arrayBuffer()).then((b) => new Uint16Array(b));
-  const maps = Promise.all(manifest.groups.map(async (g): Promise<[string, Texture]> => {
-    // the bytes as they are: the alpha is RGBM's multiplier, not a coverage, and the values are not colours
-    const img = await createImageBitmap(await (await get(g.file)).blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-    const t = new Texture(img);
-    t.flipY = false; t.generateMipmaps = false; t.magFilter = NearestFilter; t.minFilter = NearestFilter; t.colorSpace = NoColorSpace;
-    t.needsUpdate = true;
-    return [g.id, shareTex(t)];
-  }));
+  // (the bytes as they are: the alpha is RGBM's multiplier)
+  const maps = Promise.all(manifest.groups.map(async (g): Promise<[string, Texture]> => [g.id, await dataTexture(base + g.file)]));
   return { manifest, uvs: await uvs, maps: new Map(await maps) };
 }
 
@@ -211,6 +237,17 @@ void main() {
   gl_FragColor = vec4(k * e * e, 1.0);
 }`;
 
+// a capped lamp group's direct light: one channel (`sel`) of a packed map, the square root of the light; `k` holds its scale, hue and level
+const DIRECT_FRAG = /* glsl */`
+uniform sampler2D map;
+uniform vec3 k;
+uniform vec3 sel;
+varying vec2 vUv;
+void main() {
+  float e = dot(texture2D(map, vec2(vUv.x, 1.0 - vUv.y)).rgb, sel);
+  gl_FragColor = vec4(k * e * e, 1.0);
+}`;
+
 /** The groups' lightmaps summed by their live levels into one, the receivers' light map (`texture`, on their `uv1`). */
 export class LightmapMix {
   readonly texture: Texture;
@@ -218,6 +255,7 @@ export class LightmapMix {
   private scene = new Scene();
   private cam = new OrthographicCamera();
   private mat: ShaderMaterial;
+  private directMat: ShaderMaterial;
   private quad: Mesh;
 
   constructor(private readonly bake: Bake) {
@@ -229,16 +267,25 @@ export class LightmapMix {
       uniforms: { map: { value: null }, k: { value: new Vector3() } }, vertexShader: MIX_VERT, fragmentShader: MIX_FRAG,
       blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneFactor, depthTest: false, depthWrite: false,
     });
+    this.directMat = new ShaderMaterial({
+      uniforms: { map: { value: null }, k: { value: new Vector3() }, sel: { value: new Vector3() } }, vertexShader: MIX_VERT, fragmentShader: DIRECT_FRAG,
+      blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneFactor, depthTest: false, depthWrite: false,
+    });
     this.quad = new Mesh(new PlaneGeometry(2, 2), this.mat);
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
   }
 
+  /** Does the bake hold, loaded, the direct light of the lamp group `id` (`loadDirect`)? */
+  hasDirect(id: string): boolean { return !!this.bake.direct && !!this.bake.manifest.direct?.groups.some((g) => g.id === id); }
+
   /**
    * Sums the groups into `texture`, each by its level (a colour, or one number for all three): a lamp group's level is its lead light's live
    * intensity (taken over the baked one, `lead`), any other's its multiplier. A group with no level adds nothing.
+   * `direct`: the same level for each lamp group whose lights are out of the scene (times the share of them that are): its direct light is
+   * added too, where the bake holds it (`hasDirect`).
    */
-  mix(renderer: WebGLRenderer, levels: ReadonlyMap<string, number | Color>): void {
+  mix(renderer: WebGLRenderer, levels: ReadonlyMap<string, number | Color>, direct?: ReadonlyMap<string, number>): void {
     const was = renderer.getRenderTarget(), clear = renderer.getClearColor(new Color()), alpha = renderer.getClearAlpha(), auto = renderer.autoClear;
     renderer.setRenderTarget(this.rt);
     renderer.setClearColor(0x000000, 1);
@@ -254,11 +301,25 @@ export class LightmapMix {
       this.mat.uniforms.map!.value = map;
       renderer.render(this.scene, this.cam);
     }
+    const maps = this.bake.direct, u = this.directMat.uniforms;
+    if (direct && maps) {
+      this.quad.material = this.directMat;
+      for (const g of this.bake.manifest.direct?.groups ?? []) {
+        const l = direct.get(g.id) ?? 0, map = maps[g.map];
+        if (l <= 0 || !map) continue;
+        const s = (l * g.scale) / (g.lead || 1);
+        (u.k!.value as Vector3).set(g.colour[0] * s, g.colour[1] * s, g.colour[2] * s);
+        (u.sel!.value as Vector3).set(g.channel === 0 ? 1 : 0, g.channel === 1 ? 1 : 0, g.channel === 2 ? 1 : 0);
+        u.map!.value = map;
+        renderer.render(this.scene, this.cam);
+      }
+      this.quad.material = this.mat;
+    }
     renderer.autoClear = auto;
     renderer.setClearColor(clear, alpha);
     renderer.setRenderTarget(was);
   }
 
   /** Frees the target and the quad (the bake's maps are the page's: a room built again shares them). */
-  dispose(): void { this.rt.dispose(); this.mat.dispose(); this.quad.geometry.dispose(); }
+  dispose(): void { this.rt.dispose(); this.mat.dispose(); this.directMat.dispose(); this.quad.geometry.dispose(); }
 }

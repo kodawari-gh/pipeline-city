@@ -1,7 +1,7 @@
 {
  "version": 1,
  "encoding": "rgbm-sqrt",
- "width": 957,
+ "width": 961,
  "height": 1207,
  "texelsPerMetre": 50,
  "samples": 16384,
@@ -10,82 +10,82 @@
    "id": "desk",
    "kind": "lamp",
    "file": "desk.png",
-   "scale": 2.2929041385650635,
+   "scale": 3.4638009071350098,
    "lead": 223047328.25021774
   },
   {
    "id": "arc",
    "kind": "lamp",
    "file": "arc.png",
-   "scale": 0.309817373752594,
+   "scale": 0.20056335628032684,
    "lead": 182081247.20955753
   },
   {
    "id": "floor",
    "kind": "lamp",
    "file": "floor.png",
-   "scale": 0.31460803747177124,
+   "scale": 0.42736029624938965,
    "lead": 31166739.54789073
   },
   {
    "id": "bedside",
    "kind": "lamp",
    "file": "bedside.png",
-   "scale": 3.350700616836548,
+   "scale": 1.6234395503997803,
    "lead": 31166739.54789073
   },
   {
    "id": "strips",
    "kind": "lamp",
    "file": "strips.png",
-   "scale": 1.059280514717102,
+   "scale": 1.9879200458526611,
    "lead": 18.750043845656187
   },
   {
    "id": "picture",
    "kind": "lamp",
    "file": "picture.png",
-   "scale": 0.22067606449127197,
+   "scale": 0.1612110286951065,
    "lead": 13.105280390932647
   },
   {
    "id": "sconce",
    "kind": "lamp",
    "file": "sconce.png",
-   "scale": 0.2901507616043091,
+   "scale": 0.23282113671302795,
    "lead": 286418197.70789385
   },
   {
    "id": "led",
    "kind": "lamp",
    "file": "led.png",
-   "scale": 0.5766777992248535,
+   "scale": 0.6860483884811401,
    "lead": 6
   },
   {
    "id": "screen",
    "kind": "lamp",
    "file": "screen.png",
-   "scale": 0.017453769221901894,
+   "scale": 0.06381379067897797,
    "lead": 0.168
   },
   {
    "id": "sky",
    "kind": "sky",
    "file": "sky.png",
-   "scale": 7.173854827880859
+   "scale": 8.351288795471191
   },
   {
    "id": "city",
    "kind": "city",
    "file": "city.png",
-   "scale": 27.215591430664062
+   "scale": 16.980310440063477
   },
   {
    "id": "sun-20",
    "kind": "sun",
    "file": "sun-20.png",
-   "scale": 0.0437367707490921,
+   "scale": 0.03337053209543228,
    "hour": 20
   }
  ],
@@ -244,7 +244,7 @@
    "offset": 143454
   },
   {
-   "name": "mesh-ffffff-map-300",
+   "name": "mesh-ffffff-map-1584",
    "hash": "300-74402a1b",
    "corners": 1584,
    "offset": 145614
@@ -334,238 +334,331 @@
    "offset": 225990
   },
   {
-   "name": "merged-1d1e22-6048",
-   "hash": "6048-801acbf9",
-   "corners": 6048,
-   "offset": 227826
-  },
-  {
    "name": "merged-ffffff-map-17496",
    "hash": "17496-6d22b01d",
    "corners": 17496,
-   "offset": 233874
+   "offset": 227826
   },
   {
    "name": "merged-ffffff-map-18432",
    "hash": "18432-af9fd7bb",
    "corners": 18432,
-   "offset": 251370
+   "offset": 245322
   },
   {
    "name": "mesh-4e5360-36",
    "hash": "24-ce211089",
    "corners": 36,
-   "offset": 269802
+   "offset": 263754
   },
   {
    "name": "merged-131518-2700",
    "hash": "2700-d50d8a4d",
    "corners": 2700,
-   "offset": 269838
+   "offset": 263790
   },
   {
    "name": "mesh-4e5360-900",
    "hash": "900-146cbf85",
    "corners": 900,
-   "offset": 272538
+   "offset": 266490
   },
   {
    "name": "mesh-4e5360-900-1",
    "hash": "900-bff2dc9d",
    "corners": 900,
-   "offset": 273438
+   "offset": 267390
   },
   {
    "name": "mesh-1d1e22-900-17",
    "hash": "900-3cd62e35",
    "corners": 900,
-   "offset": 274338
+   "offset": 268290
   },
   {
    "name": "mesh-2a2d32-900-11",
    "hash": "900-49617905",
    "corners": 900,
-   "offset": 275238
+   "offset": 269190
   },
   {
    "name": "mesh-f0e9d8-36",
    "hash": "24-58adaa99",
    "corners": 36,
-   "offset": 276138
-  },
-  {
-   "name": "merged-1d1e22-8676",
-   "hash": "8676-fe97b27d",
-   "corners": 8676,
-   "offset": 276174
-  },
-  {
-   "name": "merged-4e5360-2700",
-   "hash": "2700-43a83f06",
-   "corners": 2700,
-   "offset": 284850
-  },
-  {
-   "name": "merged-1d1e22-18204",
-   "hash": "18204-27bc3148",
-   "corners": 18204,
-   "offset": 287550
-  },
-  {
-   "name": "merged-b9babf-816",
-   "hash": "816-fde0b4f2",
-   "corners": 816,
-   "offset": 305754
-  },
-  {
-   "name": "merged-1d1e22-1800",
-   "hash": "1800-2234f561",
-   "corners": 1800,
-   "offset": 306570
-  },
-  {
-   "name": "merged-131518-8352",
-   "hash": "8352-509feb9b",
-   "corners": 8352,
-   "offset": 308370
-  },
-  {
-   "name": "merged-2a2d32-2700",
-   "hash": "2700-0ecfa84d",
-   "corners": 2700,
-   "offset": 316722
-  },
-  {
-   "name": "merged-d8d3c6-72",
-   "hash": "72-faf22c45",
-   "corners": 72,
-   "offset": 319422
-  },
-  {
-   "name": "merged-d9d6cf-2700",
-   "hash": "2700-b4a0100c",
-   "corners": 2700,
-   "offset": 319494
-  },
-  {
-   "name": "mesh-050608-36",
-   "hash": "24-332b3c09",
-   "corners": 36,
-   "offset": 322194
-  },
-  {
-   "name": "mesh-e9e1cf-36",
-   "hash": "24-de7e34b9",
-   "corners": 36,
-   "offset": 322230
-  },
-  {
-   "name": "mesh-2a2d32-900-12",
-   "hash": "900-bdec7215",
-   "corners": 900,
-   "offset": 322266
-  },
-  {
-   "name": "mesh-050608-900-5",
-   "hash": "900-5749dd8d",
-   "corners": 900,
-   "offset": 323166
-  },
-  {
-   "name": "merged-1d1e22-6300",
-   "hash": "6300-0f89461d",
-   "corners": 6300,
-   "offset": 324066
-  },
-  {
-   "name": "mesh-131518-36",
-   "hash": "24-0c5d82b9",
-   "corners": 36,
-   "offset": 330366
-  },
-  {
-   "name": "mesh-2a2d32-900-13",
-   "hash": "900-f58db42d",
-   "corners": 900,
-   "offset": 330402
-  },
-  {
-   "name": "mesh-1d1e22-900-18",
-   "hash": "900-33d43125",
-   "corners": 900,
-   "offset": 331302
-  },
-  {
-   "name": "merged-4e5360-2700-1",
-   "hash": "2700-5d626d1d",
-   "corners": 2700,
-   "offset": 332202
-  },
-  {
-   "name": "mesh-131518-768",
-   "hash": "388-6f9335c5",
-   "corners": 768,
-   "offset": 334902
-  },
-  {
-   "name": "mesh-2a2d32-768",
-   "hash": "388-7d524d75",
-   "corners": 768,
-   "offset": 335670
-  },
-  {
-   "name": "mesh-131518-900-6",
-   "hash": "900-bafb2abd",
-   "corners": 900,
-   "offset": 336438
-  },
-  {
-   "name": "merged-1d1e22-1872",
-   "hash": "1872-d6a08fe9",
-   "corners": 1872,
-   "offset": 337338
-  },
-  {
-   "name": "mesh-d9d6cf-900",
-   "hash": "900-fba89abd",
-   "corners": 900,
-   "offset": 339210
-  },
-  {
-   "name": "mesh-2a2d32-900-14",
-   "hash": "900-15fd43fd",
-   "corners": 900,
-   "offset": 340110
-  },
-  {
-   "name": "mesh-131518-900-7",
-   "hash": "900-79ba1df5",
-   "corners": 900,
-   "offset": 341010
-  },
-  {
-   "name": "mesh-2a2d32-576",
-   "hash": "292-4f83f155",
-   "corners": 576,
-   "offset": 341910
-  },
-  {
-   "name": "merged-050608-216",
-   "hash": "216-8dcd6895",
-   "corners": 216,
-   "offset": 342486
-  },
-  {
-   "name": "merged-131518-4608",
-   "hash": "4608-97bdabcc",
-   "corners": 4608,
-   "offset": 342702
+   "offset": 270090
   },
   {
    "name": "merged-1d1e22-2736",
    "hash": "2736-043124a0",
    "corners": 2736,
-   "offset": 347310
+   "offset": 270126
+  },
+  {
+   "name": "merged-1d1e22-8676",
+   "hash": "8676-fe97b27d",
+   "corners": 8676,
+   "offset": 272862
+  },
+  {
+   "name": "merged-4e5360-2700",
+   "hash": "2700-43a83f06",
+   "corners": 2700,
+   "offset": 281538
+  },
+  {
+   "name": "merged-1d1e22-18204",
+   "hash": "18204-27bc3148",
+   "corners": 18204,
+   "offset": 284238
+  },
+  {
+   "name": "merged-b9babf-816",
+   "hash": "816-fde0b4f2",
+   "corners": 816,
+   "offset": 302442
+  },
+  {
+   "name": "merged-1d1e22-1800",
+   "hash": "1800-2234f561",
+   "corners": 1800,
+   "offset": 303258
+  },
+  {
+   "name": "merged-131518-8352",
+   "hash": "8352-509feb9b",
+   "corners": 8352,
+   "offset": 305058
+  },
+  {
+   "name": "merged-2a2d32-2700",
+   "hash": "2700-0ecfa84d",
+   "corners": 2700,
+   "offset": 313410
+  },
+  {
+   "name": "merged-d8d3c6-72",
+   "hash": "72-faf22c45",
+   "corners": 72,
+   "offset": 316110
+  },
+  {
+   "name": "merged-d9d6cf-2700",
+   "hash": "2700-b4a0100c",
+   "corners": 2700,
+   "offset": 316182
+  },
+  {
+   "name": "mesh-050608-36",
+   "hash": "24-332b3c09",
+   "corners": 36,
+   "offset": 318882
+  },
+  {
+   "name": "mesh-e9e1cf-36",
+   "hash": "24-de7e34b9",
+   "corners": 36,
+   "offset": 318918
+  },
+  {
+   "name": "mesh-2a2d32-900-12",
+   "hash": "900-bdec7215",
+   "corners": 900,
+   "offset": 318954
+  },
+  {
+   "name": "mesh-050608-900-5",
+   "hash": "900-5749dd8d",
+   "corners": 900,
+   "offset": 319854
+  },
+  {
+   "name": "merged-1d1e22-6300",
+   "hash": "6300-0f89461d",
+   "corners": 6300,
+   "offset": 320754
+  },
+  {
+   "name": "mesh-131518-36",
+   "hash": "24-0c5d82b9",
+   "corners": 36,
+   "offset": 327054
+  },
+  {
+   "name": "mesh-2a2d32-900-13",
+   "hash": "900-f58db42d",
+   "corners": 900,
+   "offset": 327090
+  },
+  {
+   "name": "mesh-1d1e22-900-18",
+   "hash": "900-33d43125",
+   "corners": 900,
+   "offset": 327990
+  },
+  {
+   "name": "merged-4e5360-2700-1",
+   "hash": "2700-5d626d1d",
+   "corners": 2700,
+   "offset": 328890
+  },
+  {
+   "name": "mesh-131518-768",
+   "hash": "388-6f9335c5",
+   "corners": 768,
+   "offset": 331590
+  },
+  {
+   "name": "mesh-2a2d32-768",
+   "hash": "388-7d524d75",
+   "corners": 768,
+   "offset": 332358
+  },
+  {
+   "name": "mesh-131518-900-6",
+   "hash": "900-bafb2abd",
+   "corners": 900,
+   "offset": 333126
+  },
+  {
+   "name": "merged-1d1e22-1872",
+   "hash": "1872-d6a08fe9",
+   "corners": 1872,
+   "offset": 334026
+  },
+  {
+   "name": "merged-1d1e22-6048",
+   "hash": "6048-801acbf9",
+   "corners": 6048,
+   "offset": 335898
+  },
+  {
+   "name": "mesh-d9d6cf-900",
+   "hash": "900-fba89abd",
+   "corners": 900,
+   "offset": 341946
+  },
+  {
+   "name": "mesh-2a2d32-900-14",
+   "hash": "900-15fd43fd",
+   "corners": 900,
+   "offset": 342846
+  },
+  {
+   "name": "mesh-131518-900-7",
+   "hash": "900-79ba1df5",
+   "corners": 900,
+   "offset": 343746
+  },
+  {
+   "name": "mesh-2a2d32-576",
+   "hash": "292-4f83f155",
+   "corners": 576,
+   "offset": 344646
+  },
+  {
+   "name": "merged-050608-216",
+   "hash": "216-8dcd6895",
+   "corners": 216,
+   "offset": 345222
+  },
+  {
+   "name": "merged-131518-4608",
+   "hash": "4608-97bdabcc",
+   "corners": 4608,
+   "offset": 345438
   }
- ]
+ ],
+ "direct": {
+  "files": [
+   "direct-0.png",
+   "direct-1.png",
+   "direct-2.png"
+  ],
+  "groups": [
+   {
+    "id": "floor",
+    "map": 0,
+    "channel": 0,
+    "scale": 1.1341352462768555,
+    "colour": [
+     0.9999805668383349,
+     0.5708301022635699,
+     0.19635116200700944
+    ],
+    "lead": 31166739.54789073
+   },
+   {
+    "id": "bedside",
+    "map": 0,
+    "channel": 1,
+    "scale": 6.836538314819336,
+    "colour": [
+     0.9999928098799947,
+     0.5727375645554906,
+     0.19603163400392856
+    ],
+    "lead": 31166739.54789073
+   },
+   {
+    "id": "strips",
+    "map": 0,
+    "channel": 2,
+    "scale": 3.478621006011963,
+    "colour": [
+     0.9999970967073929,
+     0.5731705818978968,
+     0.19741526039035917
+    ],
+    "lead": 18.750043845656187
+   },
+   {
+    "id": "picture",
+    "map": 1,
+    "channel": 0,
+    "scale": 1.2260204553604126,
+    "colour": [
+     0.9999957173882038,
+     0.6593511902106697,
+     0.3013708772452663
+    ],
+    "lead": 13.105280390932647
+   },
+   {
+    "id": "sconce",
+    "map": 1,
+    "channel": 1,
+    "scale": 5.366666793823242,
+    "colour": [
+     0.9999608599440989,
+     0.5720538845154431,
+     0.19760364970264754
+    ],
+    "lead": 286418197.70789385
+   },
+   {
+    "id": "led",
+    "map": 1,
+    "channel": 2,
+    "scale": 25.553171157836914,
+    "colour": [
+     0.34523373850797584,
+     0.882244119471388,
+     0.9989399073536225
+    ],
+    "lead": 6
+   },
+   {
+    "id": "screen",
+    "map": 2,
+    "channel": 0,
+    "scale": 0.41601261496543884,
+    "colour": [
+     0.35833533289639935,
+     0.8138193295796121,
+     0.9975207107656769
+    ],
+    "lead": 0.168
+   }
+  ]
+ }
 }

@@ -68,6 +68,13 @@ async function exportScene() {
   }
 }
 
+/**
+ * The lamp groups that stay real-time at the game's lowest lamp cap (`LIGHT_ORDER` in roomlights.ts: Low keeps 4 lights). Each other lamp
+ * group also gets its direct light baked (`<id>-direct`, kind `direct`), which the game shows when the cap takes its lights out of the scene.
+ */
+const ALWAYS_LIVE = ['arc', 'desk'];
+const directGroups = (groups) => groups.filter((g) => g.kind === 'lamp' && !ALWAYS_LIVE.includes(g.id)).map((g) => ({ id: `${g.id}-direct`, kind: 'direct', of: g.id, lights: g.lights }));
+
 /** Write the room for Blender: `scene.json` and the arrays it points into, `scene.bin`. */
 function writeWork(scene, atlas, receivers) {
   const parts = [];
@@ -86,6 +93,7 @@ function writeWork(scene, atlas, receivers) {
     { id: 'sky', kind: 'sky' }, { id: 'city', kind: 'city' },
     ...scene.suns.map((s) => ({ id: `sun-${s.hour}`, kind: 'sun', hour: s.hour, dir: s.dir })),
   ];
+  groups.push(...directGroups(groups));
   writeFileSync(join(work, 'scene.bin'), Buffer.concat(parts.map((a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength))));
   writeFileSync(join(work, 'scene.json'), JSON.stringify({ samples: SAMPLES, denoise: !FAST, padding: PADDING, width: atlas.width, height: atlas.height, meshes, groups }));
   return groups;
@@ -106,11 +114,14 @@ function blender(only) {
   return new Promise((done, fail) => b.on('exit', (code) => (code ? fail(new Error(`Blender stopped (${code}):\n${tail}`)) : done())));
 }
 
-let manifest, groups;
+let manifest, groups, all;
 if (ONLY.length || PACK) {
   if (!existsSync(join(work, 'scene.json')) || !existsSync(join(out, 'manifest.json'))) { console.log(`--${PACK ? 'pack' : 'only'} needs a full bake first`); process.exit(1); }
   const cfg = JSON.parse(readFileSync(join(work, 'scene.json'), 'utf8'));
   manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
+  // (a work dir from before the direct groups: add them, so `--only led-direct,...` bakes them on the last bake's room)
+  if (!cfg.groups.some((g) => g.kind === 'direct')) { cfg.groups.push(...directGroups(cfg.groups)); writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
+  all = cfg.groups;
   groups = cfg.groups.filter((g) => !ONLY.length || ONLY.includes(g.id));
   if (ONLY.length && groups.length !== ONLY.length) { console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id))}`); process.exit(1); }
   if (!PACK && (cfg.samples !== SAMPLES || cfg.denoise === FAST)) { cfg.samples = SAMPLES; cfg.denoise = !FAST; writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
@@ -121,7 +132,7 @@ if (ONLY.length || PACK) {
   const decode = (s, T) => { if (!s) return null; const b = Buffer.from(s, 'base64'); return new T(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); };
   const atlas = await atlasLib.buildAtlas(receivers.map((m) => ({ pos: decode(m.pos, Float32Array), index: decode(m.index, Uint32Array) })), TEXELS, PADDING);
   console.log(`atlas: ${atlas.width} x ${atlas.height}, ${(atlas.utilization * 100).toFixed(0)}% used (${secs()})`);
-  groups = writeWork(scene, atlas, receivers);
+  groups = all = writeWork(scene, atlas, receivers);
   // the receivers' UVs, for the game: a corner's UV as two Uint16 (0 to 65535 over the atlas)
   const total = atlas.meshes.reduce((n, m) => n + m.uv.length, 0), uv = new Uint16Array(total);
   let off = 0;
@@ -141,8 +152,10 @@ if (ONLY.length || PACK) {
 if (!PACK) await blender([...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
 if (args.includes('--preview')) console.log(`previews: ${work}`);
 const uvBytes = readFileSync(join(out, 'meshes.bin')), keep = atlasLib.chartTexels(new Uint16Array(uvBytes.buffer.slice(uvBytes.byteOffset, uvBytes.byteOffset + uvBytes.byteLength)), manifest.width, manifest.height, PADDING / 2);
+const light = (id) => { const f = readFileSync(join(work, `${id}.f32`)); return new Float32Array(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength)); };
 for (const g of groups) {
-  const f = readFileSync(join(work, `${g.id}.f32`)), rgb = new Float32Array(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength));
+  if (g.kind === 'direct') continue;
+  const rgb = light(g.id);
   const scale = rgbm.scaleOf(rgb), file = rgbm.png(rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }, keep), manifest.width, manifest.height);
   writeFileSync(join(out, `${g.id}.png`), file);
   const entry = { id: g.id, kind: g.kind, file: `${g.id}.png`, scale, ...(g.kind === 'lamp' ? { lead: g.lights[0].intensity } : {}), ...(g.kind === 'sun' ? { hour: g.hour } : {}) };
@@ -150,6 +163,19 @@ for (const g of groups) {
   if (k < 0) manifest.groups.push(entry); else manifest.groups[k] = entry;
   console.log(`${g.id}.png: ${(file.length / 1024).toFixed(0)} KB, scale ${scale.toPrecision(3)}`);
 }
+// the capped lamps' direct light, three groups a file (`packDirect`): all of them again, as a file holds more than one group
+const direct = all.filter((g) => g.kind === 'direct' && existsSync(join(work, `${g.id}.f32`)));
+manifest.direct = { files: [], groups: [] };
+for (let i = 0; i < direct.length; i += 3) {
+  const part = direct.slice(i, i + 3), name = `direct-${i / 3}.png`;
+  const { bytes, entries } = rgbm.packDirect(part.map((g) => light(g.id)), manifest.width, manifest.height, keep);
+  const file = rgbm.png(bytes, manifest.width, manifest.height);
+  writeFileSync(join(out, name), file);
+  manifest.direct.files.push(name);
+  part.forEach((g, c) => manifest.direct.groups.push({ id: g.of, map: i / 3, channel: c, scale: entries[c].scale, colour: entries[c].colour, lead: g.lights[0].intensity }));
+  console.log(`${name}: ${(file.length / 1024).toFixed(0)} KB, ${part.map((g, c) => `${g.of} scale ${entries[c].scale.toPrecision(3)}`).join(', ')}`);
+}
+if (!direct.length) delete manifest.direct;
 if (!PACK) manifest.samples = SAMPLES;
 writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 1));
 console.log(`wrote ${resolve(out)} (${secs()})`);

@@ -41,6 +41,40 @@ export function decode(bytes: Uint8Array, width: number, height: number, scale: 
   return out;
 }
 
+/** A direct map's channel clips above this many times its 99.5th percentile: the few texels beside the lamp must not take the 8 bits' range. */
+export const DIRECT_CLIP = 4;
+
+/** One lamp group's direct light in a packed map: the scale its channel decodes by and its hue (the light is `colour * scale * byte²`). */
+export interface DirectEntry { scale: number; colour: [number, number, number] }
+
+/**
+ * Up to three lamp groups' direct light in one RGBA map (rows from the top, alpha 255), a group a channel: the square root of its brightest
+ * channel over its scale. A group's light has one hue (its lamps share a colour, and a lightmap holds the light before the surface's colour),
+ * so one value a texel and `colour` give it back. `keep` as in `encode`.
+ */
+export function packDirect(lights: readonly Float32Array[], width: number, height: number, keep?: Uint8Array): { bytes: Uint8Array; entries: DirectEntry[] } {
+  const n = width * height, bytes = new Uint8Array(n * 4), entries: DirectEntry[] = [];
+  for (let t = 0; t < n; t++) bytes[4 * t + 3] = 255;
+  lights.slice(0, 3).forEach((rgb, c) => {
+    const s = new Float32Array(n), sum = [0, 0, 0];
+    let total = 0, top = 0;
+    const lit: number[] = [];
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const i = 3 * (y * width + x), t = (height - 1 - y) * width + x;
+      if (keep && !keep[t]) continue;
+      const v = Math.max(0, rgb[i]!, rgb[i + 1]!, rgb[i + 2]!);
+      if (v <= 0) continue;
+      s[t] = v; total += v; top = Math.max(top, v); lit.push(v);
+      for (let k = 0; k < 3; k++) sum[k]! += Math.max(0, rgb[i + k]!);
+    }
+    lit.sort((a, b) => a - b);
+    const scale = lit.length ? Math.min(top, DIRECT_CLIP * lit[Math.floor(0.995 * (lit.length - 1))]!) || 1 : 1;
+    for (let t = 0; t < n; t++) bytes[4 * t + c] = Math.round(255 * Math.sqrt(Math.min(1, s[t]! / scale)));
+    entries.push({ scale, colour: total > 0 ? [sum[0]! / total, sum[1]! / total, sum[2]! / total] : [1, 1, 1] });
+  });
+  return { bytes, entries };
+}
+
 const CRC = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
 function crc32(b: Uint8Array): number {
   let c = -1;

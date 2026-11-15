@@ -27,7 +27,7 @@ import { lowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
-import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
+import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
@@ -143,9 +143,11 @@ const PALETTE_CELL = 2 * M;
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** The room's light bake (`public/bake/room/`), loaded once a page: null when there is none or it cannot be read. */
+const BAKE_URL = `${import.meta.env.BASE_URL}bake/room/`;
 let bakeLoad: Promise<Bake | null> | null = null;
 const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
-  : loadBake(`${import.meta.env.BASE_URL}bake/room/`).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
+  // (a page that starts with a lamp cap takes the capped lamps' direct light with the bake, so the first probe sees it)
+  : loadBake(BAKE_URL).then(async (b) => { if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b); return b; }).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
 /** Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). */
 export const preloadRoomBake = (): void => { void roomBake(); };
 /** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
@@ -372,6 +374,7 @@ export class Room3D {
   private hour = 12;
   /** The baked bounce once its files are in, and the light it was last summed for. */
   private lightmap: LightmapMix | null = null;
+  private bake: Bake | null = null;
   private mixKey = '';
   private gone = false;
   private lampLight = new SpotLight(kelvin(3000), 0, 0, 0.6, 0.7, 2);
@@ -803,6 +806,7 @@ export class Room3D {
       console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit, ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
     }
     this.lightmap = mix;
+    this.bake = b;
     this.mixKey = '';
     this.share();
   }
@@ -820,13 +824,18 @@ export class Room3D {
     const lm = this.lightmap;
     if (!lm || this.mixKey === this.lightKey) return;
     this.mixKey = this.lightKey;
-    const levels = new Map<string, number | Color>();
-    // (a capped lamp's light is out of the scene, its level is not: its bounce stays, lifted for the pool it lost, `CAPPED_BOUNCE`)
-    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity * bounceLift(g.lights.filter((l) => !l.visible).length, g.lights.length));
+    const levels = new Map<string, number | Color>(), direct = new Map<string, number>();
+    // (a capped lamp's light is out of the scene, its level is not: its bounce stays, and the bake's direct light of its group stands in for
+    // its pool; a bake without it lifts the bounce in its place, `CAPPED_BOUNCE`)
+    for (const g of this.lightGroups()) {
+      const level = g.lights[0]!.intensity, capped = g.lights.filter((l) => !l.visible).length;
+      if (capped && lm.hasDirect(g.id)) { levels.set(g.id, level); direct.set(g.id, level * (capped / g.lights.length)); }
+      else levels.set(g.id, level * bounceLift(capped, g.lights.length));
+    }
     levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
     levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
     for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
-    lm.mix(renderer, levels);
+    lm.mix(renderer, levels, direct);
   }
 
   /**
@@ -892,6 +901,8 @@ export class Room3D {
     this.choice = chooseLights(cap, lampShadows, (id) => this.lightsOf(id).length);
     for (const id of LIGHT_ORDER) for (const l of this.lightsOf(id)) l.visible = this.choice.live.has(id);
     this.mixKey = '';
+    // (a cap set later: the capped lamps' direct light loads now, and the next frame's mix takes it)
+    if (cap > 0 && this.bake && !this.bake.direct) void loadDirect(BAKE_URL, this.bake).then(() => { this.mixKey = ''; }, () => { /* the lifted bounce stays */ });
     this.setShadows(this.shadowLevel);
   }
 
