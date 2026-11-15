@@ -23,6 +23,14 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after.
 
+### Status 2026-11-15 (branch `gfx/look-per-cost`, 109 commits ahead of main)
+
+- Done and in this branch: LPC1, LPC12, KTX1, PERF23 (room), DOC5, DOC9, DOC12, LEFT25-1, ASR11; ASR2–ASR7 work (they wait on the owner's shot only); LPC10 for Build my PC.
+- Open and `[auto]`, next: LPC8 (flicker sources), LOOK28–LOOK33 (Low city look; official shots not compared yet), LPC13 (one owner question), PERF2, PERF6, PERF11, PERF14, PERF22, PERF24–PERF26, PERF28, PARK1, LEFT23-2, LEFT25-2.
+- Open and waiting on the owner (nothing unattended can finish these): LPC2, LPC4, LPC5, LPC9, LPC11, PERF9, PERF12, PERF17, PERF27, ASR1–ASR10 shots, ASR8, ASK1–ASK3, LOD1, LODD1–LODD3, THEME1, 3D1, 3D2, DOC6, DOC8.
+- Why the order: the frame is CPU bound (draw calls, materials, light uniforms), so cuts to those come before triangle cuts. The branch is not merged: merge it to main once the owner accepts the shots.
+- Cleanup 2026-11-15: 18 stale `worktree-agent-*` branches and worktrees, `asr10-rest-seg` and 16 merged remote branches were deleted. All their commits were already in this branch.
+
 ## Look per cost (2026-11-14)
 
 From the review on branch `gfx/look-per-cost` (`docs/render/look-per-cost.md`). The frame is CPU bound (draw calls, materials, light uniforms), so tasks that cut materials and lights come before tasks that cut triangles. A normal map cuts triangles, not draw calls. The machine's parts move, so the machine gets baked occlusion and the room probe, not lightmaps. Run in this order; PERF9 and DOC10 come first (measure, then guard), then PERF17.
