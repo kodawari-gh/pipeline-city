@@ -3,7 +3,6 @@
 // and a mapped label keeps its uv rect.
 import { afterEach, describe, expect, it } from 'vitest';
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, PlaneGeometry, type BufferAttribute, type Object3D, type Texture } from 'three';
-import { warmMetal } from '@/core/render/three/cheapmaterials';
 import { setLowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeSiblings, mergeWithin, partsOf, standIns } from '@/core/render/three/merge';
 import { tag } from '@/core/render/three/pick';
@@ -83,21 +82,6 @@ describe('a palette merge keeps every source mesh\'s look', () => {
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
   });
 
-  it('byLook (Low): a warm metal merges only with warm metals, never in a palette with grey or black', () => {
-    const s = scene();
-    s.sub.add(new Mesh(new BoxGeometry(10, 10, 10), std(0xd9b25e, { metalness: 1, roughness: 0.25 }))); // gold
-    mergeSiblings(s.root, { byLook: true });
-    expect(expectKept(s.root, 'byLook')).toBe(6);
-    for (const c of s.sub.children) {
-      const parts = partsOf(c).map((p) => p.mesh.material as MeshStandardMaterial);
-      if (parts.length) expect(new Set(parts.map((m) => m.metalness > 0.5 && m.color.r > m.color.b)).size, 'one class a palette').toBe(1);
-    }
-    // (off by default: High merges as it did)
-    const h = scene();
-    mergeSiblings(h.root);
-    expect(h.sub.children.filter((c) => partsOf(c).some((p) => p.mesh === h.cu) && partsOf(c).some((p) => p.mesh === h.grey))).toHaveLength(1);
-  });
-
   it('mergeWithin (a plug on its own) and mergePalette keep every source too', () => {
     const a = scene();
     expect(mergeWithin(a.part)).toBeGreaterThan(2);
@@ -132,14 +116,5 @@ describe('the Low machine keeps every merged mesh\'s look', () => {
     setLowDetail(true);
     const m = buildMachine(maxedSnapshot(), true, true);
     expect(expectKept(m.root, 'Low machine')).toBeGreaterThan(100);
-    // no palette of the machine holds a warm metal (copper, gold) with anything else
-    let warmSets = 0;
-    m.root.traverse((o) => {
-      const parts = partsOf(o).map((p) => p.mesh.material as MeshStandardMaterial);
-      if (!parts.length) return;
-      const warm = parts.map((x) => x.metalness > 0.5 && warmMetal(x.color));
-      if (warm.some(Boolean)) { warmSets++; expect(warm.every(Boolean), 'a warm metal shares a palette with another look').toBe(true); }
-    });
-    expect(warmSets).toBeGreaterThan(0);
   });
 });

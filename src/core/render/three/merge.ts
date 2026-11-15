@@ -9,7 +9,7 @@ import {
   type MeshStandardMaterial, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { DARK_METAL, NON_METAL, warmMetal } from './cheapmaterials';
+import { DARK_METAL, NON_METAL } from './cheapmaterials';
 import { lowDetail } from './detail';
 import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
 import { NO_RAY } from './pick';
@@ -276,17 +276,9 @@ export interface SiblingOptions {
   apart?: readonly Object3D[];
   /** Hears of each palette material made from a source material (the room keeps the reflections' register, as `mergePalette`'s `twin`). */
   twin?: (src: Material, copy: Material) => void;
-  /** Low: a warm metal (copper, gold) merges only with warm metals, so its palette never mixes it with the grey metals and the blacks. Off at High. */
-  byLook?: boolean;
   /** Low: the palette meshes keep High's PBR patch (`paletteOf`), so the machine's metal reflects the room as it does at High. */
   pbr?: boolean;
 }
-
-/** The look class a Low merge keeps apart (`SiblingOptions.byLook`): a warm metal, or none. */
-const lookOf = (m: Material): string => {
-  const s = m as MeshStandardMaterial;
-  return s.metalness > 0.5 && warmMetal(s.color) ? '|warm' : '';
-};
 
 /** May this mesh join a merge with its siblings: a plain shown mesh, one opaque material that no writer changes, nothing that code finds it by. */
 function loose(m: Mesh): boolean {
@@ -318,7 +310,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     if (x.parent && x.parent !== root && loose(m)) {
       const key = materialKey(m.material as Material, ON_VERTEX), attrs = attrsKey(m.geometry);
       if (key !== null && attrs !== null) {
-        const prog = `${attrs}|${key}${o.byLook ? lookOf(m.material as Material) : ''}`;
+        const prog = `${attrs}|${key}`;
         const at = `${idOf(x.parent)}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.frustumCulled}|${m.layers.mask}|${idOf(m.raycast)}|${prog}`;
         let set = sets.get(at);
         if (!set) sets.set(at, (set = { scope: s, prog, meshes: [] }));

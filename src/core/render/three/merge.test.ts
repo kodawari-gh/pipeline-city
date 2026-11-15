@@ -203,21 +203,6 @@ describe('the Low palette material draws as a Lambert does', () => {
     expect(sh.fragmentShader).toContain('metalnessFactor = vPalRM.y;');
   });
 
-  it('splits a flagged part from a plain one at Low, each with its own palette program', () => {
-    setLowDetail(true);
-    const root = new Group(), par = new Group(), mk = (keep: boolean): MeshStandardMaterial => {
-      const m = new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
-      if (keep) m.userData[KEEP_SPEC] = true;
-      return m;
-    };
-    par.add(new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(true)), new Mesh(new BoxGeometry(), mk(true)));
-    root.add(par);
-    expect(mergeSiblings(root, { byLook: true })).toBe(4);
-    expect(par.children).toHaveLength(2);
-    const [a, b] = par.children.map((m) => (m as Mesh).material as MeshStandardMaterial);
-    expect(a!.customProgramCacheKey()).not.toBe(b!.customProgramCacheKey());
-  });
-
   it('is the PBR patch, as it was, at High', () => {
     const f = compiled();
     expect(f).not.toContain('directSpecular = vec3( 0.0 )');
