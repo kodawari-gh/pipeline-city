@@ -68,7 +68,7 @@ describe('the debug overlay is only loaded dynamically', () => {
   it('no module outside src/app/debug imports it statically', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
-      if (file.startsWith(debugDir)) continue;
+      if ((path.normalize(file) as string).startsWith(debugDir)) continue; // (`walk` joins with `/`; on Windows the folder has `\`)
       const text = fs.readFileSync(file, 'utf8') as string;
       for (const m of text.matchAll(SPEC)) {
         const target = resolveSpec(file, m[2]!);
