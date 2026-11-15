@@ -53,3 +53,7 @@ The open items are tasks LPC1–LPC11 in `docs/TODO.md` ("Look per cost"), with 
 | East wall panel | Emissive on a part that is not a light source. | `furniture3d.ts` |
 | Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `palette.ts` |
 | Board colours | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three` |
+
+## Low city beacons (2026-11-15)
+
+Same night view at Low and High (`--hour 23`, `citycuts=1`). The beacon shader matches High: same colour, width, 3.5 s pulse and night scale. The crown code is shared. The Low skyline has more visible red dots. Measured over the skyline top band (260,120,600,110): Low sRGB 45,36,37, High 42,36,36. Overall brightness of the band is equal. Gap is small (about 3 red units). No change made.
