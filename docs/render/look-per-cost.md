@@ -51,5 +51,5 @@ The open items are tasks LPC1–LPC11 in `docs/TODO.md` ("Look per cost"), with 
 | Fan accents | Violet `0x7a5cc8`, `0x8b5cff`, not `#a68bff`. | `fans3d.ts` |
 | Desk props | Green monitor LED `0x4cff8a`; terracotta keycaps. | `props3d.ts` |
 | East wall panel | Emissive on a part that is not a light source. | `furniture3d.ts` |
-| Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `shell/wall.ts`, `palette.ts` |
+| Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `palette.ts` |
 | Board colours | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three` |

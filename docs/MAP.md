@@ -58,7 +58,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 5. **Player input** goes back as `ToSim` messages (`store.ts`, then `worker.ts`, then a `Game` method).
 
 ## Known debt
-`core/` imports `features/` in about 80 places: `core/render/live.ts`, `interact.ts`, `core/sim/machine.ts`, `core/ui/Hud.tsx` are composition roots. `architecture.test.ts` lets the count only fall.
+`core/` imports `features/` in about 80 places: `core/render/live.ts`, `core/sim/machine.ts`, `core/ui/Hud.tsx` are composition roots. `architecture.test.ts` lets the count only fall.
 
 ## Commands and tests
 See `CLAUDE.md`. A test sits next to the file it covers: `npx vitest run <path>`.

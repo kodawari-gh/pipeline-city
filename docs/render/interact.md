@@ -1,15 +1,15 @@
 # Rendering: camera, hover, interaction, tutorial support
 
-Part of the renderer docs; the hub (layers, theme, snapshot fields, known gaps) is [`RENDER.md`](../RENDER.md). Code: `src/core/render/camera.ts`, `interact.ts`, `shape.ts`, `capture.ts`.
+Part of the renderer docs; the hub (layers, theme, snapshot fields, known gaps) is [`RENDER.md`](../RENDER.md). Code: `src/core/render/camera.ts`, `shape.ts`, `capture.ts`.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `camera.ts` | pan / zoom / pinch (pointer events), tweened flights with `onDone`, the eased UI inset, `F` and `B` keys, the `onGrab` hook that lets a drag take over from panning, the pure `screenRect` transform (`camera.test.ts`) |
+| `camera.ts` | the 2D `Camera` class was removed; the file keeps the `View`, `Inset` and `Rect` types, `currentTextResolution` and the label sweep (`registerLabel`, `sweepLabels`) (`camera.test.ts`) |
 | `shape.ts` | **what the pointer picks** (see Interaction, Hit testing): `Shape` (a distance to the silhouette and its outline), `rectShape`, `rectsShape`, `discShape`, `lazyShape`, `movedShape`, `fieldShape` (a distance field from pixels), and `pick` (the rule that chooses among targets) |
 | `capture.ts` | `captureShape`: reads the alpha of an object's own art back from the GPU once and makes a `Shape` of it |
-| `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts (`beginPartDrag`) / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
+| `interact.ts` | removed with the hidden 2D board (its pointer code ran only there) |
 
 ## Camera
 
