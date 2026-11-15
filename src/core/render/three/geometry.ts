@@ -78,8 +78,8 @@ export const SEG = {
   bevel: 2, monitorBevel: 6,
   /** A solder joint: sides round it, rings up it (about 36 triangles). */
   joint: 6, jointRings: 3,
-  /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. */
-  lathe: 28, latheProfile: 12,
+  /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. The cup's sides are 24 (ASR7). */
+  lathe: 28, latheProfile: 12, cupLathe: 24,
   /** A round flange next to a case wall; a plug's round. */
   flangeWall: 6, plug: 4,
   /** RAM outline curves (`curveSegments`). */

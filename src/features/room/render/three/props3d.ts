@@ -268,7 +268,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   const map = paint(512, 256, glazeMap(false)), roughMap = paint(512, 256, glazeMap(true));
   if (roughMap) roughMap.colorSpace = NoColorSpace;
   const glaze = mat(0xffffff, { map, roughnessMap: roughMap, roughness: 1 });
-  const cup = place(new Mesh(new LatheGeometry(pts, SEG.lathe), glaze));
+  const cup = place(new Mesh(new LatheGeometry(pts, SEG.cupLathe), glaze));
   // (thrown by hand: a touch out of round)
   cup.scale.set(1.012, 1, 0.99);
   cup.rotation.y = 2.1;
