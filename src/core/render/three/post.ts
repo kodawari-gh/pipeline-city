@@ -279,7 +279,7 @@ export class Post {
     this.outline.pulsePeriod = 0;
     this.outline.enabled = false;
     // a tight halo (radius 0.3) and a high threshold (1.6): only the real emitters pass it, not the lit walls and the shades
-    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.3, 1.6);
+    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.2, 0.3, 1.6);
     // A lamp's glint at some angles overflows the half-float target (Inf, then NaN in the blur): one such pixel blanks the whole frame. The
     // high-pass reads a sane colour: a NaN or Inf becomes black, and a bright pixel is capped at 4 (a tiny very bright pixel flickers and
     // blooms into a firefly).

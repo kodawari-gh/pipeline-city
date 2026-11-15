@@ -15,6 +15,7 @@ Spend at build time or at a rare event, not per frame. The room is static and th
 | City night lights | Roof beacons pulse slowly (3.5 s) in place of a hard blink; the 9 Hz sign stutter and the star twinkle are gone; aircraft strobes ramp over 150 ms. | Same |
 | Full tower | Dark monolith: straight charcoal body, one large smoked glass side, flat plinth, one violet inner strip. No pillars, lit outlines, name plates or bright silver. | Fewer draws and lights |
 | Mid tower | One violet strip in place of the six-colour bar; plain plate; flat feet. | Fewer lights |
+| Bloom | Strength 0.5 to 0.2 (step 4c). Halos tighter; neon and lamps read as sources. Whole-frame mean unchanged at night. | Free |
 
 Flicker, measured (night, still camera, High, share of window pixels whose luminance moves more than 24/255 in 1.5 s): 1.42% before, 1.33% after; with cars hidden 0.79% to 0.72%; with the sky and facade clocks frozen 0.35% (the floor). The rest is car motion and cloud drift, which are motion, not flicker. Not measured: shimmer of small lights while the camera moves.
 
