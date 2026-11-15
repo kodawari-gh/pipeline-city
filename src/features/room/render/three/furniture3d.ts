@@ -405,13 +405,14 @@ export function floorLantern(): Lantern {
   // (the same paper twice, the glow's darker away from the bulb: a tall paper is lit by it unevenly)
   const paper = washiTex(undefined, stream(29)), lit = washiTex((v) => 0.42 + 0.58 * Math.exp(-(((v - bulbAt) / 0.32) ** 2)), stream(29));
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
-  // the side, bottom to top: fullest at the middle, the paper sagging a little between each two ribs
-  const n = RIBS * 8, prof: Vector2[] = [];
-  for (let k = 0; k <= n; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / n)) * (1 - 0.012 * Math.sin((Math.PI * (k % 8)) / 8)), (H * k) / n));
+  // the side, bottom to top: fullest at the middle. Two profile points a rib (the ribs are on the paper's texture), the paper dipping a little
+  // at the middle of each rib
+  const m = SEG.floorLanternProfile - 1, prof: Vector2[] = [];
+  for (let k = 0; k <= m; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / m)) * (1 - 0.012 * (k % 2)), (H * k) / m));
   const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, SEG.lathe), shade));
   col.position.set(x, y0, z);
   g.add(col);
-  for (const [r, y] of [[r0, y0], [prof[n]!.x, y0 + H]] as const) {
+  for (const [r, y] of [[r0, y0], [prof[m]!.x, y0 + H]] as const) {
     const ring = place(new Mesh(new TorusGeometry(r, 30, SEG.tube, SEG.lathe), black));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(x, y, z);

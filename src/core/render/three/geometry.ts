@@ -80,6 +80,8 @@ export const SEG = {
   joint: 6, jointRings: 3,
   /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. The cup's sides are 24 (ASR7). */
   lathe: 28, latheProfile: 12, cupLathe: 24,
+  /** The floor lantern's profile points (two a rib, 16 ribs, and the top; about 1,800 triangles at `lathe` sides; ASR11). */
+  floorLanternProfile: 33,
   /** A round flange next to a case wall; a plug's round. */
   flangeWall: 6, plug: 4,
   /** RAM outline curves (`curveSegments`). */
