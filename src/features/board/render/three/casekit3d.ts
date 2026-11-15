@@ -315,13 +315,17 @@ export function perforatedFlatRun(top: number, rects: [number, number, number, n
   return g;
 }
 
+/** A random stream from a fixed seed (Lehmer, as the pump cap's rings): the same map on every run, so a bake gives the same file (ASSET-07). */
+const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
 /** Brushed metal: fine streaks along the sheet's u, for the map of anodised parts (the material's colour tints it). */
 export function brushed(): Texture | null {
   return tex('brushed', 256, 256, (c, w, h) => {
+    const rnd = seeded(11);
     c.fillStyle = '#e6e6e6'; c.fillRect(0, 0, w, h);
     for (let i = 0; i < 900; i++) {
-      const y = Math.random() * h, l = 40 + Math.random() * 200, x = Math.random() * w, v = Math.random() < 0.5 ? 255 : 160;
-      c.fillStyle = `rgba(${v},${v},${v},${0.06 + Math.random() * 0.1})`;
+      const y = rnd() * h, l = 40 + rnd() * 200, x = rnd() * w, v = rnd() < 0.5 ? 255 : 160;
+      c.fillStyle = `rgba(${v},${v},${v},${0.06 + rnd() * 0.1})`;
       c.fillRect(x, y, l, 1);
       if (x + l > w) c.fillRect(x - w, y, l, 1);
     }
@@ -331,8 +335,8 @@ export function brushed(): Texture | null {
 /** A fine grain for painted and powder-coated steel: the bump map that keeps a large panel from looking like plastic film. */
 export function grain(): Texture | null {
   return tex('grain', 256, 256, (c, w, h) => {
-    const d = c.createImageData(w, h);
-    for (let i = 0; i < d.data.length; i += 4) { const v = 118 + Math.random() * 20; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    const d = c.createImageData(w, h), rnd = seeded(13);
+    for (let i = 0; i < d.data.length; i += 4) { const v = 118 + rnd() * 20; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
     c.putImageData(d, 0, 0);
   });
 }
