@@ -29,7 +29,7 @@ import { Post, roomness } from '@/core/render/three/post';
 import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
-import { linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
+import { freeWhenLinked, linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
@@ -176,7 +176,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
-      if (room) { uncheap(room.root); scene.remove(room.root); room.dispose(); disposeTree(room.root); }
+      // (the old room's materials go once their programs have linked: one deleted while it links logs GL warnings)
+      if (room) { const old = room.root; uncheap(old); scene.remove(old); room.dispose(); freeWhenLinked(renderer, old, () => disposeTree(old)); }
       room = new Room3D(studio);
       blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
