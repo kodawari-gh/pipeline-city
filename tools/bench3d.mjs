@@ -1,4 +1,4 @@
-// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off] [--gpu <regex>] [--need-timers]`:
+// `npm run bench:3d -- [out.json] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off] [--gpu <regex>] [--need-timers]`:
 // plays the game with the real pointer on the real GPU and measures what a player feels: the idle views, the flights, the side door, the hover, a cable pulled
 // and plugged, a part lifted, the running machine. Each scenario prints its frame times; out.json keeps, per scenario, the time of each part of the frame
 // (`cpu`), the GPU time of each pass (`gpu`, with EXT_disjoint_timer_query), how many times the scene and the shadow maps were drawn per frame, the draw
@@ -17,8 +17,8 @@ const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : ar
 const has = (n) => args.includes('--' + n);
 const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').startsWith('--'));
 const [W, H] = flag('size', '1920x1080').split('x').map(Number);
-const TWO = has('2d'), LOW = has('lowpower'), TOP = Number(flag('top', 6)), only = flag('only', '').split(',').filter(Boolean);
-const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/${TWO ? '?2d' : `?3d${LOW ? '&lowpower' : ''}`}`;
+const LOW = has('lowpower'), TOP = Number(flag('top', 6)), only = flag('only', '').split(',').filter(Boolean);
+const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/?3d${LOW ? '&lowpower' : ''}`;
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
 let server = null;
@@ -320,7 +320,7 @@ try {
   await p.click('[aria-label="Close graphics"]');
   await wait(800);
 
-  const report = { when: new Date().toISOString(), renderer: TWO ? '2d' : '3d', gl, size: `${W}x${H}`, preset: flag('preset', 'default'), scene: {}, scenarios: {} };
+  const report = { when: new Date().toISOString(), renderer: '3d', gl, size: `${W}x${H}`, preset: flag('preset', 'default'), scene: {}, scenarios: {} };
   const head = 'scenario'.padEnd(20) + 'FPS'.padStart(7) + 'p50'.padStart(7) + 'p95'.padStart(7) + 'p99'.padStart(7) + 'max'.padStart(7) + '>33'.padStart(5) + '>100'.padStart(5) + 'long'.padStart(7) + 'rb'.padStart(3) + 'scn'.padStart(5) + 'shd'.padStart(5) + 'calls'.padStart(7) + 'ktri'.padStart(7) + 'cpu'.padStart(7) + 'gpu'.padStart(7);
   console.log(head);
   for (const [name, s] of TWO ? flat : three) {

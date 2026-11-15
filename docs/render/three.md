@@ -1,6 +1,6 @@
 # 3D renderer (Three.js): state and tools
 
-The 3D renderer is the game's view. `?2d` opens the Pixi board instead (`src/app/main.tsx`). Shared code is in `src/core/render/three/`. The room and the city are in `src/features/room/render/three/` (`outside/` holds the city). The machine is in `src/features/board/render/three/`.
+The 3D renderer is the game's view (`src/app/main.tsx`). Shared code is in `src/core/render/three/`. The room and the city are in `src/features/room/render/three/` (`outside/` holds the city). The machine is in `src/features/board/render/three/`.
 
 This file says what the engine does today. The look and the design rules are in [`3D_STYLE.md`](../3D_STYLE.md). Graphics panel and tiers are in [`UI.md`](../UI.md#graphics-panel-panelsgraphicstsx-the-model-is-appgraphicsts). Level-of-detail rules are in [`lod.md`](lod.md).
 
@@ -183,13 +183,13 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 | `npm run bench:3d` | `tools/bench3d.mjs` | Plays the idle views, the flights, the door, the hover, a cable, a lifted part and the running machine with the real pointer. Reports frame times, GPU time per pass, scene and shadow passes per frame, draw calls, programs, textures (count), CPU time per part, rebuilds and hot functions. |
 | `npm run bench:4k` | `tools/bench3d.mjs` | 2560x1355 at DPR 1.5, Medium, `room night hover`. |
 | `npm run bench:modes` | `tools/bench-modes.mjs` | Same runs in Firefox (`--firefox`) or on a phone profile. Reports only. |
-| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--2d`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
+| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
 | `npm run stills` | `tools/stills.mjs` | Renders parts headless to `public/stills/` with a hash manifest. |
 | (no npm script) | `tools/bench-costs.mjs` | Phone sweeps (Razr, Low) used for the toggle numbers above. |
 | (no npm script) | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code. |
 | (no npm script) | `tools/shot-case.mjs` | Opens the sandbox with the assembled machine and frames one device from its own box (`--part cooler\|nvme2\|ram`, plus `--preset`, `--yaw`, `--pitch`, `--fill`). Uses the dev hook `__board.frameSpec` (`board3d.ts`), which sets the view with `jumpRaw` and skips the room clamp. Any flight or input turns the clamp back on. The hook is dev only: `devhook.test.ts` checks that the prod source has no `jumpRaw` or `frameSpec` outside the DEV object. |
 
-`bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--2d`, `--lowpower`. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
+`bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--lowpower`. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
 
 `bench:3d` does not run the city toggles. It loads `?3d`, not `?debug`. City GPU cost on the RTX is not measured.
 

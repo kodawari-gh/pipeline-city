@@ -1,6 +1,6 @@
 # Board rendering (PixiJS)
 
-Code: `src/core/render/` (shared helpers) and `src/features/*/render/` (the file tables give bare names). Entry point `mountBoard(host)` in `board.ts` (called from `src/app/main.tsx`). It reads `snapshot` and `speed` from `src/app/store` and writes `hover` / `selected` in `src/app/hover`. It never touches sim internals; the only sim import is the declarative spec table (`getSpec`, `BOARD_TIERS`) for the `visual` key and slot counts.
+Code: `src/core/render/` (shared helpers) and `src/features/*/render/` (the file tables give bare names). The 2D Pixi board view is removed. `board.ts` keeps only the bridge the HTML UI uses (`anchorOf`, `flyTo`). It reads `snapshot` and `speed` from `src/app/store` and writes `hover` / `selected` in `src/app/hover`. It never touches sim internals; the only sim import is the declarative spec table (`getSpec`, `BOARD_TIERS`) for the `visual` key and slot counts.
 
 This file is the hub: world layout, layers, theme, snapshot fields, known gaps and the last verification. Read the area file for the topic, not all of them:
 

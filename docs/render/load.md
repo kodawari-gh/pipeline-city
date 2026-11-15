@@ -119,7 +119,7 @@ Chrome, ANGLE D3D11, 1600x900, an optimized build without minifying, to the end 
 
 A game's start at the same tier (a new campaign) builds no room. The dev server adds 4 to 5 s, mostly its module load, before the first stage.
 
-The 3D renderer is behind a flag (`?3d`, `VITE_3D_GRAPHICS=1`), so measure with it: without it the page opens the 2D board at once. `npm run shot -- --prod` needs `--3d` for the same reason.
+Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots the same build.
 
 ## What can still go faster
 
