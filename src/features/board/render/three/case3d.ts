@@ -96,7 +96,7 @@ export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: numbe
   const T = STRIP_T, col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
   m.emissive.set(col);
   m.emissiveIntensity = mode === 'off' ? 0 : mode === 'idle' ? 0.7 : mode === 'halt' ? 1.2 : mode === 'dead' ? 0.6
-    : mode === 'error' ? (Math.floor(wall / 420) % 2 ? 2.4 : 0.3) : 1.2 + Math.sin(wall / 420) * 0.8;
+    : mode === 'error' ? (Math.floor(wall / 420) % 2 ? 1.8 : 0.3) : 1.0 + Math.sin(wall / 420) * 0.6;
 }
 const STRIP_T = builtinTheme();
 

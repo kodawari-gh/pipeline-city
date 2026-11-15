@@ -57,7 +57,9 @@ The open items are tasks LPC1–LPC11 in `docs/TODO.md` ("Look per cost"), with 
 | Slat wall, desk, shelves | Warm wood. On hold (ASR8). | `palette.ts` |
 | Board colours | About 490 hard-coded hex values, no palette module (ASR9). | `src/features/board/render/three` |
 
-Step 4c, glow pass (2026-11-15): the soft glow round the city lights (`GLOW` in `outside/view.ts`) 0.3 to 0.2, and the lantern gain (`kit.ts` night `k`) 9 to 7. Night view at High, hour 23: the halo round the neon is tighter; the neon outlines and the lamps read as shapes. Case gains (`machine3d.ts`): fan rings 2.2 to 1.6 (fixed colour 2.8 to 2.0), LEDs 2 to 1.5, disk LED 2.2 to 1.6. Night shot at High, hour 23, `--view 0,-600,0.1`: the change is small; the cooler's LED reads a little softer, the case shape stays. `casedecor` and `case3d.ts` mode glow not changed.
+Step 4c, glow pass (2026-11-15): the soft glow round the city lights (`GLOW` in `outside/view.ts`) 0.3 to 0.2, and the lantern gain (`kit.ts` night `k`) 9 to 7. Night view at High, hour 23: the halo round the neon is tighter; the neon outlines and the lamps read as shapes. Case gains (`machine3d.ts`): fan rings 2.2 to 1.6 (fixed colour 2.8 to 2.0), LEDs 2 to 1.5, disk LED 2.2 to 1.6. Night shot at High, hour 23, `--view 0,-600,0.1`: the change is small; the cooler's LED reads a little softer, the case shape stays. Accent strip (`stripLight`, `case3d.ts`): working breath 1.2 ± 0.8 to 1.0 ± 0.6, error peak 2.4 to 1.8. It is a state signal, so the states stay distinct. Not visible in the same night shot. `casedecor` has no emissive code to change.
+
+Drive cage shade: not done. Six Low shots (`cage-*.png` in the scratchpad) on the east rack did not frame the cage's base; the case floor sits below the frame. Needs a view from below the floor line or a debug camera.
 
 ## Low city beacons (2026-11-15)
 
