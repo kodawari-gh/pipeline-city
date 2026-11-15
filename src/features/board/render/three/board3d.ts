@@ -28,7 +28,7 @@ import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
-import { linked, startPrograms, type Program } from '@/core/render/three/compile';
+import { linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
@@ -625,7 +625,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
     if (linking) {
       if (!linked(linking)) {
-        if (!revealed) bootStage('Preparing the shaders', 0.38 + (0.52 * linking.filter((p) => p.isReady()).length) / linking.length);
+        if (!revealed) bootStage('Preparing the shaders', 0.38 + (0.52 * linking.filter(programDone).length) / linking.length);
         last = now;
         requestAnimationFrame(frame);
         return;

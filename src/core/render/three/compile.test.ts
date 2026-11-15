@@ -24,6 +24,9 @@ describe('whenLinked', () => {
   it('linked: every one', () => {
     expect(linked([after(0), after(0)])).toBe(true);
     expect(linked([after(0), after(5)])).toBe(false);
+    // a destroyed program (three sets its `program` to undefined) never links: it does not hold the wait
+    expect(linked([after(0), { isReady: () => false, program: undefined } as Program])).toBe(true);
+    expect(linked([{ isReady: () => false, program: {} } as Program])).toBe(false);
   });
 });
 

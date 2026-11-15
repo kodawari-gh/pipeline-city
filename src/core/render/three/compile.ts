@@ -63,15 +63,21 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
   return out;
 }
 
-/** Are they all linked? */
-export const linked = (programs: readonly Program[]): boolean => programs.every((p) => p.isReady());
+/**
+ * Has its link ended, or is the program gone? Three sets a destroyed program's `program` to undefined (its material was disposed while it
+ * linked: a machine built again, a Lambert of Low dropped). The driver never calls such a program ready, so a wait on it would not end.
+ */
+export const programDone = (p: Program): boolean => ('program' in p && (p as { program?: unknown }).program === undefined) || p.isReady();
+
+/** Are they all linked (or gone)? */
+export const linked = (programs: readonly Program[]): boolean => programs.every(programDone);
 
 /** Resolves once every program has linked; `onProgress` hears how many have, after each look (every `ms`, the page drawing between). */
 export function whenLinked(programs: readonly Program[], onProgress?: (done: number, total: number) => void, ms = 16): Promise<void> {
   return new Promise((done) => {
     const look = () => {
       let n = 0;
-      for (const p of programs) if (p.isReady()) n++;
+      for (const p of programs) if (programDone(p)) n++;
       onProgress?.(n, programs.length);
       if (n === programs.length) done(); else setTimeout(look, ms);
     };
