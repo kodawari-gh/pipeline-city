@@ -308,6 +308,26 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 4. **Test load**: `loadModel()` succeeds, no console errors.
 5. **Visual test**: `npm run shot` in the room or board view (`CLAUDE.md`).
 
+### Size and compression rule (draft: proposed, not approved)
+
+**Status: proposed 2026-11-15. Not approved. No task relies on it until the owner approves it.** It would replace "rule to set" in items 1 and 3.
+
+- **Geometry: meshopt** (`EXT_meshopt_compression`, with quantization), not Draco. Draco files are smaller, but its decoder is 345 KB (wasm and wrapper) against 29 KB for meshopt (`meshopt_decoder.module.js`, already in three). With two models, Draco saves 62 KB of files and costs 316 KB more decoder. Meshopt also decodes faster and needs no worker.
+- **Size budget, per file on disk:** a room model at most **200 KB**; a part model (one LOD) at most **60 KB**; all of `public/models/` at most **1 MB**. A test would hold these (J).
+- **Textures in a model:** KTX2 only. Colour and other sRGB maps in **ETC1S**; normal maps in **UASTC**; each map at most 512² (J). This matches Asset standard §6.
+- **Tool:** `gltf-transform meshopt --level medium` in the bake script, so a re-export keeps the rule.
+
+Measured effect (bytes; `gltf-transform` 4, 2026-11-15; "br" is the brotli transfer size):
+
+| File | Today | br | Quantized only | br | Meshopt | br | Draco | br |
+|---|---|---|---|---|---|---|---|---|
+| `mouse.glb` | 46,800 | 13,363 | 30,200 | 10,856 | 19,076 | 10,010 | 10,652 | 7,173 |
+| `hoodie.glb` | 418,444 | 249,011 | 320,644 | 168,789 | 179,396 | 132,275 | 72,932 | 67,868 |
+
+With meshopt both files meet the 200 KB budget. Not measured: decode time, and the look of the quantized hoodie (its `_AO` attribute and the cloth code in `hoodiecloth.ts` read the vertices). The loader needs one line (`setMeshoptDecoder`) before a meshopt file ships.
+
+Owner decisions needed: (1) meshopt or Draco; (2) the three size numbers; (3) the 512² map cap.
+
 ## Asset standard
 
 **Status: approved by Khalil, 2026-11-14 (LPC1), as drafted.** Tasks ASR1–ASR10, ASK1–ASK3, LOD1 and LODD1–LODD3 cite a section of this standard. Items marked (J) are judgements, not measurements. Until the owner approves, a cited value is a proposal.
