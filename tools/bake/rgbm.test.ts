@@ -1,6 +1,6 @@
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { decode, encode, png, scaleOf, unpng } from './rgbm';
+import { DIRECT_CLIP, decode, encode, packDirect, png, scaleOf, unpng } from './rgbm';
 
 describe('RGBM', () => {
   it('keeps the light to within 1.5% over 12 stops, and the dark finer', () => {
@@ -30,6 +30,37 @@ describe('RGBM', () => {
     const all = encode(light), kept = encode(light, new Uint8Array([1, 0]));
     expect([...kept.subarray(0, 4)]).toEqual([...all.subarray(0, 4)]);
     expect([...kept.subarray(4)]).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe('packDirect', () => {
+  it('holds a group a channel, with its hue, and reads back as colour * scale * byte²', () => {
+    const width = 4, height = 2, n = width * height, a = new Float32Array(3 * n), b = new Float32Array(3 * n);
+    for (let i = 0; i < n; i++) { const v = (i + 1) / n; a.set([v, v * 0.5, v * 0.25], 3 * i); b.set([0, 0, 2 * v], 3 * i); }
+    const { bytes, entries } = packDirect([a, b], width, height);
+    expect(entries.length).toBe(2);
+    expect(entries[0]!.colour.map((c) => +c.toFixed(3))).toEqual([1, 0.5, 0.25]);
+    expect(entries[1]!.colour).toEqual([0, 0, 1]);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const i = y * width + x, o = 4 * ((height - 1 - y) * width + x), e = bytes[o]! / 255, f = bytes[o + 1]! / 255;
+      expect(Math.abs(entries[0]!.scale * e * e - a[3 * i]!)).toBeLessThan(0.02);
+      expect(Math.abs(entries[1]!.scale * f * f * entries[1]!.colour[2] - b[3 * i + 2]!)).toBeLessThan(0.04);
+      expect([bytes[o + 2], bytes[o + 3]]).toEqual([0, 255]);
+    }
+  });
+
+  it('clips the few hot texels beside the lamp, so the pool keeps the range', () => {
+    const n = 1000, rgb = new Float32Array(3 * n).fill(1);
+    rgb.set([5000, 5000, 5000], 0);
+    const { bytes, entries } = packDirect([rgb], n, 1);
+    expect(entries[0]!.scale).toBe(DIRECT_CLIP);
+    expect(bytes[0]).toBe(255);
+    expect(bytes[4]).toBe(Math.round(255 * Math.sqrt(1 / DIRECT_CLIP)));
+  });
+
+  it('blanks a texel nothing reads', () => {
+    const { bytes } = packDirect([new Float32Array([1, 1, 1, 1, 1, 1])], 1, 2, new Uint8Array([1, 0]));
+    expect([bytes[0], bytes[4]]).toEqual([255, 0]);
   });
 });
 

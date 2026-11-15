@@ -192,7 +192,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
   const cityStub = () => ({ off: new Set<string>() }) as unknown as OutsideView;
 
   it.each([
-    ['No city lights', 'lights'], ['No buildings', 'buildings'], ['Freeze city', 'freeze'], ['No cars', 'cars'],
+    ['No city lights', 'lights'], ['No buildings', 'buildings'], ['No trees', 'trees'], ['No streets', 'streets'], ['Freeze city', 'freeze'], ['No cars', 'cars'],
     ['No city sky', 'sky'], ['No glow', 'glow'], ['No steam', 'steam'], ['No mirror', 'mirror'], ['City 1x', 'flat'],
   ])('the %s button turns off only the %s layer, lights up, and Auto turns it on again', (label, key) => {
     const layers = cityStub(), city = { visible: true };

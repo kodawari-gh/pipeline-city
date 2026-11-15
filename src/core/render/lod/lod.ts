@@ -1,11 +1,9 @@
 /**
  * Level of detail shared by every view that reacts to the camera (docs/render/lod.md). Pure: no Pixi, no DOM.
  *
- * - `LodClock` follows the camera zoom once per frame, so the views read one smooth zoom instead of one value per input event.
  * - `DEVICE_LOD` is the one table of zoom bands; views and the hover gates in board.ts read it instead of keeping their own copies.
  * - `deviceLod` adds the location: on screen or not, and how close to the centre of the view (focus).
  * - `TierBudget` limits how many devices sit in their top tier at once and how many tier rises (the costly redraws) happen per frame.
- * - `ZoomSwitch` is a hysteresis switch for bakes, so a wheel wobble around a threshold never re-bakes.
  */
 
 /** Smoothstep from 0 at `a` to 1 at `b` (`a > b` runs it backwards). */
@@ -59,33 +57,6 @@ export const TEXT_BAND = 1.15;
 /** The band over which a layer that turns on at `z0` fades in. */
 export const onBand = (z0: number): readonly [number, number] => [z0, z0 * TEXT_BAND];
 
-/**
- * The zoom the views read. It follows the camera in log space (a doubling takes the same time at any zoom), so the thresholds
- * are crossed smoothly even when the wheel jumps, and a frame sees one value however many input events came in.
- */
-export class LodClock {
-  /** The smoothed zoom. */
-  zs: number;
-  private target: number;
-  constructor(z = 1, private rate = 12) { this.zs = z; this.target = z; }
-
-  /** Jump to `z` (a fresh scene, a camera `set`). */
-  snap(z: number): void { this.zs = this.target = z; }
-
-  /** Advance by `dt` seconds toward the camera zoom `z`. Returns true while it is still moving. */
-  update(dt: number, z: number): boolean {
-    this.target = z;
-    if (this.zs === z) return false;
-    const d = Math.log(z) - Math.log(this.zs);
-    if (Math.abs(d) < 1e-3) { this.zs = z; return true; }
-    const k = 1 - Math.exp(-Math.min(0.1, Math.max(0, dt)) * this.rate);
-    this.zs = Math.exp(Math.log(this.zs) + d * k);
-    return true;
-  }
-
-  get settled(): boolean { return this.zs === this.target; }
-}
-
 /** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners. */
 export interface Placement { onScreen: boolean; focus: number }
 
@@ -126,27 +97,6 @@ export class TierBudget {
       if (w.focus > f + this.margin) { this.top.delete(weakest); this.top.add(w.id); }
     }
     return this.top;
-  }
-}
-
-/**
- * A bake switch with hysteresis for "baked below `at`". It turns on when the zoom drops under `at` and off only above `at * (1 + band)`.
- * `warm` is the outer ring: it turns on under `at * (1 + warmBand)` and off only above that by the same dead band, so the bake can be
- * made (a cached layer, a texture uploaded) a few frames before the swap, while the vector art still shows, and is never dropped on a wobble.
- */
-export class ZoomSwitch {
-  on = false;
-  warm = false;
-  constructor(readonly at: number, private band = 0.08, private warmBand = 0.15) {}
-
-  update(z: number): boolean {
-    if (z < this.at) this.on = true;
-    else if (z > this.at * (1 + this.band)) this.on = false;
-    const w = this.at * (1 + this.warmBand);
-    if (z < w) this.warm = true;
-    else if (z > w * (1 + this.band)) this.warm = false;
-    if (this.on) this.warm = true;
-    return this.on;
   }
 }
 

@@ -72,7 +72,7 @@ export function partIcon(T: Theme, kind: string, _spec = ''): Container {
   const g = new Graphics();
   c.addChild(g);
   const a = accentOf(T, kind);
-  const body = T.dark ? mix(T.sub, T.tile, 0.5) : mix(T.sub, T.tile, 0.35);
+  const body = mix(T.sub, T.tile, 0.5);
   const edge = (w = 8) => ({ stroke: a, lw: w });
   g.roundRect(-210, 190, 420, 24, 12).fill({ color: '#000000', alpha: 0.2 }); // contact shadow
   if (kind === 'cpu') {
@@ -224,8 +224,8 @@ export function drawKeyTimer(g: Graphics, T: Theme, k: KeySnap, compact: boolean
   if (k.done) return;
   const { x, y, r } = keyTimerSpot(compact);
   const span = Math.max(1, k.deadlineTick - k.arrivalTick), frac = clamp01(k.age / span), col = urgencyColor(T, urgencyOf(k));
-  const hand = T.dark ? '#e8eeff' : '#1c2540', a0 = -Math.PI / 2, a = a0 + frac * 2 * Math.PI;
-  g.circle(x, y, r).fill({ color: '#000000', alpha: T.dark ? 0.45 : 0.16 });
+  const hand = '#e8eeff', a0 = -Math.PI / 2, a = a0 + frac * 2 * Math.PI;
+  g.circle(x, y, r).fill({ color: '#000000', alpha: 0.45 });
   if (!k.late && frac < 1) {
     g.moveTo(x, y).arc(x, y, r - 8, a, a0 + 2 * Math.PI).closePath().fill({ color: col, alpha: 0.9 });
     g.moveTo(x, y).lineTo(x + Math.cos(a) * (r - 6), y + Math.sin(a) * (r - 6)).stroke({ width: 7, color: hand, cap: 'round' });
@@ -249,14 +249,14 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
   const ph = KEY_PLUG_H;
   usbPlug(g, T, px, 0, plugL + 6, ph);
   // ---- the body: a soft shadow, a gradient shell with a gloss, a keyring cap at the back and a collar by the plug ----
-  box(g, bx + 5, -h / 2 + 14, bw, h, 46, { fill: '#000000', fa: T.dark ? 0.35 : 0.22 });
-  g.roundRect(bx, -h / 2, bw, h, 46).fill(vgradFill(T.dark ? mix(T.sub, T.tile, 0.75) : '#ffffff', T.dark ? mix(T.sub, T.bg, 0.2) : mix('#c9d2e2', T.tile, 0.4))).stroke({ width: 6, color: T.line, alpha: 0.95 });
-  g.roundRect(bx + 8, -h / 2 + 8, bw - 16, 34, 17).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.7 }); // gloss
+  box(g, bx + 5, -h / 2 + 14, bw, h, 46, { fill: '#000000', fa: 0.35 });
+  g.roundRect(bx, -h / 2, bw, h, 46).fill(vgradFill(mix(T.sub, T.tile, 0.75), mix(T.sub, T.bg, 0.2))).stroke({ width: 6, color: T.line, alpha: 0.95 });
+  g.roundRect(bx + 8, -h / 2 + 8, bw - 16, 34, 17).fill({ color: '#ffffff', alpha: 0.1 }); // gloss
   g.roundRect(bx + 4, -h / 2 + 4, 74, h - 8, 42).fill({ color: mix(T.line, T.bg, 0.3), alpha: 0.5 }); // rubber cap
-  g.circle(bx + 40, 0, 17).fill({ color: T.dark ? '#05080f' : '#8a95aa' }).stroke({ width: 5, color: T.line, alpha: 0.9 }); // keyring hole
+  g.circle(bx + 40, 0, 17).fill({ color: '#05080f' }).stroke({ width: 5, color: T.line, alpha: 0.9 }); // keyring hole
   g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: mix(T.line, T.bg, 0.2), alpha: 0.9 }); // the collar band (the stage colour overrides it below)
   const tx = bx + 102, spot = keyTimerSpot(compact), tw = (k.done ? bw - 66 : spot.x - spot.r - 20) - tx;
-  if (!k.done) g.circle(spot.x, spot.y, spot.r).fill({ color: '#000000', alpha: T.dark ? 0.45 : 0.16 }); // the dial's face (its hand and the rest are `drawKeyTimer`)
+  if (!k.done) g.circle(spot.x, spot.y, spot.r).fill({ color: '#000000', alpha: 0.45 }); // the dial's face (its hand and the rest are `drawKeyTimer`)
   const stg = stageInfo(T, k);
   if (stg) g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: stg.color, alpha: 1 });
   if (compact) {
@@ -312,7 +312,7 @@ export function hangingKey(T: Theme, k: KeySnap) {
   const top = -HANG_Y, end = -KEY_LEN / 2;
   for (const dx of [-14, 14]) lan.moveTo(dx * 0.4, top + 20).quadraticCurveTo(dx * 1.6, (top + end) / 2, dx * 0.5, end + 6);
   lan.stroke({ width: 16, color: lanyardColour(k), cap: 'round' });
-  lan.circle(0, end + 4, 30).stroke({ width: 9, color: T.dark ? '#aab6dc' : '#6b7794' });
+  lan.circle(0, end + 4, 30).stroke({ width: 9, color: '#aab6dc' });
   lan.pivot.set(0, end); lan.position.set(0, end);
   swing.pivot.set(0, top); swing.position.set(0, top);
   const timer = new Graphics();
@@ -331,7 +331,7 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   chrome.addChild(g);
   const r = TRAY;
   // the rack's own look is the two rails on the wall (room.ts draws them, with a hook each): here the lettering on the upper rail, and the sticks on their lanyards
-  const ink = T.dark ? '#e6d5c4' : '#4a3426';
+  const ink = '#e6d5c4';
   chrome.addChild(label('KEYS', r.x + 70, r.y + 100, 70, ink, { head: true, a: 0.85 }));
   const empty = keys.length === 0;
   // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
@@ -405,7 +405,7 @@ export function drawKeyCue(c: KeyCue, T: Theme, now: number, k: number) {
   c.tag.scale.set(k);
   const t = CUE_TAG;
   c.pill.clear();
-  box(c.pill, -t.w / 2, -t.h / 2, t.w, t.h, t.h / 2, { fill: T.dark ? '#0b1226' : '#ffffff', fa: 0.94, stroke: T.st, lw: 9, sa: 0.85 + 0.15 * beat });
+  box(c.pill, -t.w / 2, -t.h / 2, t.w, t.h, t.h / 2, { fill: '#0b1226', fa: 0.94, stroke: T.st, lw: 9, sa: 0.85 + 0.15 * beat });
 }
 
 // ---------------------------------------------------------------- power button
@@ -430,7 +430,7 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   const ring = st.powered ? T.st : T.mute;
   disc(bg, 0, 12, b.r + 14, { fill: '#000000', fa: 0.3 });
   disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered ? 1 : 0.7 });
-  disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 5 });
+  disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', 0.1), stroke: T.line, lw: 5 });
   const k = b.r / 175;
   // the power symbol: a ring open at the top (clockwise from just right of the top, the long way round), the bar in the gap
   // The arc gets its own moveTo so no stray segment joins it to the previous shape, and the gap is wide enough for the

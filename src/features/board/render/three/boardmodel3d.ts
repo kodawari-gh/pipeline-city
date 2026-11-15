@@ -6,7 +6,7 @@
 // Built in board space (x east, y north, z up off the board).
 import { BoxGeometry, Group, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { headerRect } from '@/core/render/accelart';
-import { drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lerpHex, mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
@@ -99,7 +99,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   const up = art.raise(draw);
   // the PCB: the solder mask over the laminate, its corners rounded as the drawing's, and the drawing on its face
   const outline = outlinePts(BD, 120, undefined, 8);
-  g.add(tag(slab(shapeOf(outline), BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 }), 4), 'board'));
+  g.add(tag(slab(shapeOf(outline), BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[0]), 0x000000, 0.35), { roughness: 0.6 }), 4), 'board'));
   g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0xc8b98a, { roughness: 0.7 })));
   tag(art.surface(g, (f, px) => (px < LV_BOARD[1]! ? far : draw).bake(f, px), BD, BOARD_Z, LV_BOARD).root, 'board');
   // the rear I/O: the connectors and their cover, and the shield fitted over their mouths (the case's rear wall between)
@@ -138,7 +138,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
   g.add(small);
   // the lights: power good beside the CPU's controller, and the top board's debug code and RGB strip
-  g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), 12));
+  g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
   if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
   if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
   return { root: g, sockets, small, lights };

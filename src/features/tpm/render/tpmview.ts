@@ -172,8 +172,8 @@ export class TpmView {
       g.roundRect(x - 6, y - 10, 12, 20, 4).fill({ color: '#ffd9d0', alpha: 0.95 });
       return;
     }
-    box(g, b.x + b.w - 62, b.y + b.h / 2 - 24, 44, 52, 5, { fill: T.dark ? '#0b101c' : '#1d2536' });
-    padlock(g, b.x + b.w - 40, b.y + b.h / 2 + 4, 30, locked, locked ? T.bad : T.mute, T.dark ? '#0b101c' : '#1d2536');
+    box(g, b.x + b.w - 62, b.y + b.h / 2 - 24, 44, 52, 5, { fill: '#0b101c' });
+    padlock(g, b.x + b.w - 40, b.y + b.h / 2 + 4, 30, locked, locked ? T.bad : T.mute, '#0b101c');
   }
 
   /** Send the phase the command has reached along its route: a packet on each wire in turn, in the colour of the phase (once per phase). */

@@ -1,35 +1,16 @@
 /* Theme tokens (also read by the board renderer) and UI styles. See docs/UI.md.
    The UI is glass: low-opacity panels with a blur, 1 px low-contrast borders, no fills or shadows. The board shows through. */
+/* The game is dark only. */
 :root {
-  --bg: #eaeff6; --board: #9ccdbd; --trace: #2c7a72; --sub: #c4d0e4; --die: #dde6f4; --pin: #b3801c;
-  --tile: #ffffff; --ink: #0f1830; --mute: #475372; --line: #9aabc8; --dot: #c3cfe3;
-  --alu: #0786ab; --mul: #6a49e0; --ld: #c47600; --st: #0f9a53; --br: #c4259f; --on: #ffffff;
-  --accent: #0a6f8f; --ok: #0e7a45; --warn: #9a5a00; --bad: #c81e3e;
-  --menu-solid: #f4f7fc; --panel: rgba(255, 255, 255, .82); --glass-line: rgba(30, 44, 90, .24); --glass-hi: rgba(255, 255, 255, .6);
-  --art-plate: #e1e9f5;
-  --ui: system-ui, 'Segoe UI', sans-serif; --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  --fs-label: 0.667rem; --fs-body: 0.8rem; --fs-title: 1rem; --r-tile: 0.7rem; /* one scale for the panels: titles, section labels, tiles */
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
   --bg: #04060f; --board: #081628; --trace: #1e4270; --sub: #0d1636; --die: #111b46; --pin: #d4af5f;
   --tile: #18245c; --ink: #e2eaff; --mute: #a6b4da; --line: #2a366a; --dot: #18214a;
   --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
   --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
   --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
   --art-plate: #0e1a3c; --menu-solid: #0a0e22;
+  --ui: system-ui, 'Segoe UI', sans-serif; --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --fs-label: 0.667rem; --fs-body: 0.8rem; --fs-title: 1rem; --r-tile: 0.7rem; /* one scale for the panels: titles, section labels, tiles */
   color-scheme: dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #04060f; --board: #081628; --trace: #1e4270; --sub: #0d1636; --die: #111b46; --pin: #d4af5f;
-    --tile: #18245c; --ink: #e2eaff; --mute: #a6b4da; --line: #2a366a; --dot: #18214a;
-    --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
-    --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
-    --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
-    --art-plate: #0e1a3c; --menu-solid: #0a0e22;
-    color-scheme: dark;
-  }
 }
 
 /* THE ROOT SIZE RULE (docs/UI.md, "Scaling"). Every other length in the UI is rem/em/%/vw/vh/vmin or a clamp of those.
@@ -50,7 +31,6 @@ body { font: 0.8rem/1.35 var(--ui); }
   backdrop-filter: blur(1.1rem) saturate(130%); -webkit-backdrop-filter: blur(1.1rem) saturate(130%); box-sizing: border-box;
   box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
-:root:not([data-theme="dark"]) .card, :root:not([data-theme="dark"]) .hud-side, :root:not([data-theme="dark"]) .dock, :root:not([data-theme="dark"]) .picker, :root:not([data-theme="dark"]) .tut, :root:not([data-theme="dark"]) .inv, :root:not([data-theme="dark"]) .menu-pop, :root:not([data-theme="dark"]) .notice, :root:not([data-theme="dark"]) .toast { box-shadow: 0 1rem 2.2rem rgba(20, 30, 70, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 
 button, .btn, .menuitem {
   font: 600 0.733rem var(--ui); color: var(--ink); background: var(--glass-hi); border: 1px solid var(--glass-line); border-radius: 0.6rem;
@@ -520,7 +500,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 1rem; box-sizing: border-box;
   background: rgba(2, 6, 18, .5); pointer-events: auto; animation: fade-in .25s ease both;
 }
-:root[data-theme="light"] .modal-back { background: rgba(30, 44, 80, .28); }
 .modal { width: min(100%, 26rem); padding: 1.1rem 1.25rem 1.2rem; animation: pop-in .3s ease both; display: flex; flex-direction: column; gap: 0.5rem; }
 .modal .big { font-size: 1.2rem; }
 .modal .ptitle { font-size: 1.05rem; }
@@ -587,7 +566,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* New game dialog (NewGame.tsx): a modal with two choices. */
 .ng-back { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 8, 24, 0.55); padding: 1rem; }
-:root[data-theme="light"] .ng-back { background: rgba(30, 44, 80, .28); }
 .ng { display: flex; flex-direction: column; gap: 0.8rem; width: 44rem; max-width: 100%; max-height: 100%; overflow: auto; padding: 1.2rem; }
 .ng h2 { margin: 0; font-size: 1.3rem; }
 .ng-choices { display: flex; gap: 0.8rem; flex-wrap: wrap; }

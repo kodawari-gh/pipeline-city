@@ -58,7 +58,7 @@ export class BusFlow {
   readonly g = new Graphics();
   private runs: Run[] = [];
 
-  constructor(additive: boolean) { if (additive) this.g.blendMode = 'add'; }
+  constructor() { this.g.blendMode = 'add'; }
 
   /** Start a message on `lanes` at game time `now` (+ `delay`). Returns how long the trip takes, so a next hop can start when this one ends. */
   send(lanes: Lane[], dir: number, color: string, now: number, w: number, delay = 0): number {

@@ -3,10 +3,6 @@
 // GPU. Each option's list of `CHOICES` runs from cheap to dear; what a level means in numbers sits with the code that uses it (`post.ts`, `room3d.ts`, `chips3d.ts`).
 import { computed, signal } from '@preact/signals';
 
-export type RendererKind = '2d' | '3d';
-/** The renderer that is running (`main.tsx`): the panel shows only the options it has. */
-export const rendererKind = signal<RendererKind>('2d');
-
 export interface Graphics {
   /** Share of the screen's pixels the picture draws at, 0.5 to 1.5. */
   scale: number;
@@ -61,7 +57,7 @@ export type Preset = 'low' | 'medium' | 'high' | 'ultra';
 /** `high` is the look the game is tuned on: the default. */
 export const PRESETS: Record<Preset, PresetOptions> = {
   low: { scale: 0.75, msaa: 0, ao: 0, bloom: 0, shadows: 0, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
-  medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
+  medium: { scale: 0.75, msaa: 2, ao: 1, bloom: 1, shadows: 2, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 },
   high: { scale: 1, msaa: 4, ao: 2, bloom: 2, shadows: 3, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 },
   ultra: { scale: 1, msaa: 8, ao: 3, bloom: 2, shadows: 4, lights: 0, lightShadows: 1, textures: 3, filtering: 16, live: 3, particles: 2 },
 };
@@ -271,17 +267,20 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
 
 /**
  * Auto-adjust's steps, each cheaper than the last: 1 drops the ambient occlusion, 2 also drops the bloom and the multisampling and calms the live dies,
- * 3 also draws at 3/4 of the pixels (the resolution is the last to go). A step only lowers: an option already below it stays where the player put it.
+ * 3 also draws at 3/4 of the pixels (the resolution is the last to go). The GPU steps come first. 4 drops the sun and lamp shadows (CPU and GPU), and 5
+ * caps the frame limit at 30 (CPU-bound phones). A step only lowers: an option already below it stays where the player put it; a limit of 0 (none) becomes 30.
  */
 export function lowered(g: Graphics, step: number): Graphics {
   if (step <= 0) return g;
   const out = { ...g, ao: 0 };
   if (step >= 2) { out.bloom = 0; out.msaa = 0; out.live = 0; }
   if (step >= 3) out.scale = Math.min(out.scale, 0.75); // the resolution goes last: effects first
+  if (step >= 4) { out.shadows = 0; out.lightShadows = 0; }
+  if (step >= 5) out.fps = out.fps && out.fps <= 30 ? out.fps : 30;
   return out;
 }
 
-export const AUTO_STEPS = 3;
+export const AUTO_STEPS = 5;
 
 /** The next step that changes the picture (a step on options already low gains nothing), or null: nothing is left to take away. */
 export function nextStep(g: Graphics, step: number): number | null {

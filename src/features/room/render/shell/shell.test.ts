@@ -10,7 +10,7 @@ import { floorScale } from './persp';
 import type { Theme } from '@/core/render/theme';
 
 const THEME: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
+  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
@@ -39,8 +39,8 @@ describe('the room shell', () => {
     expect(boardTop(1, h)).toBeGreaterThan(300);
     expect(boardTop(1, h)).toBeLessThan(600);
   });
-  it.each([true, false])('is built (dark theme %s) and reaches far past any view with its flat far colour', (dark) => {
-    const T = { ...THEME, dark }, B = { ceil: -9000, floor: 7000, vx: 2000, yH: -2000 }, L = shellLook(T);
+  it('is built and reaches far past any view with its flat far colour', () => {
+    const T = THEME, B = { ceil: -9000, floor: 7000, vx: 2000, yH: -2000 }, L = shellLook(T);
     for (const draw of [drawCeiling, drawCrown, drawFloor]) {
       const g = new Graphics();
       expect(() => draw(g, T, B)).not.toThrow();

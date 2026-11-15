@@ -8,17 +8,16 @@
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
-import { FAN_SCREW, drum, extrude, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
-import { byDetail, lowDetail } from '@/core/render/three/detail';
-import { NON_METAL } from '@/core/render/three/cheapmaterials';
-import { KEEP_SPEC, mat } from '@/core/render/three/materials';
+import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { byDetail } from '@/core/render/three/detail';
+import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { COOLER_HOLE, COOLER_HOLES, FAN_LEN, fanLen } from '../layout/layout';
 import { FIN_PITCH, TANK, frameOf, radiatorCore, radiatorFanUs, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
-import { brushed as streaks, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
+import { brushed as streaks, decal, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
 import { CPU_Z } from './cpu3d';
 import { fanDepth, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
 
@@ -54,11 +53,20 @@ const brushed = () => brushedTex ??= shareTex(paint(512, 512, (c, w, h) => {
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let r = 4; r < w / 2; r += 1.5) { c.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.08})` : `rgba(0,0,0,${rnd() * 0.12})`; c.lineWidth = 1; c.beginPath(); c.arc(w / 2, h / 2, r, 0, Math.PI * 2); c.stroke(); }
-  c.lineWidth = 3;
-  for (const [f, ink] of [[0.24, 'rgba(0,0,0,0.4)'], [0.245, 'rgba(255,255,255,0.18)']] as const) { c.strokeStyle = ink; c.beginPath(); c.arc(w / 2, h / 2, f * w, 0, Math.PI * 2); c.stroke(); }
 }));
-/** The pump cap's metal: the brushed face, polished. At Low it is a Lambert's metalness (`NON_METAL`): the brushed map and the key's warmth show, not a dark metal. */
-const capMat = () => mat(0xffffff, { map: brushed(), metalness: byDetail(0.8, NON_METAL), roughness: 0.3 });
+/** The maker's mark under the pump cap's glass: four bars rising to the right over the name, pale silver on clear. */
+const capMark = () => tex('pump-cap-mark', 512, 512, (c, w, h) => {
+  c.clearRect(0, 0, w, h);
+  c.fillStyle = '#c3c8d0';
+  const bw = 34, gap = 22, x0 = w / 2 - (4 * bw + 3 * gap) / 2, base = h * 0.56;
+  [0.42, 0.7, 0.55, 1].forEach((k, i) => c.fillRect(x0 + i * (bw + gap), base - k * 150, bw, k * 150));
+  c.font = '600 44px "Inter", "Segoe UI", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  // (letter by letter: wide tracking, as an engraved name)
+  const name = 'PIPELINE', step = 34;
+  [...name].forEach((ch, i) => c.fillText(ch, w / 2 + (i - (name.length - 1) / 2) * step, h * 0.7));
+});
+/** The pump cap's metal: the brushed face, polished (the same at Low, which keeps the machine's materials). */
+const capMat = () => mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 });
 
 /** One fin of a radiator's core seen edge-on, with the dark gap to the next, stacking along the sheet's `u` or `v`. */
 const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c, w, h) => {
@@ -70,7 +78,7 @@ const finLadder = (along: 'u' | 'v') => tex(`radiator-fin-${along}`, 64, 64, (c,
 // ------------------------------------------------------------------ small parts
 /** Screws standing on a face at depth `z`, `r` round (the push pins' heads, the crossbar's spring screws, the radiator's fill port). */
 function screws(g: Group, at: readonly (readonly [number, number])[], z: number, r: number) {
-  const geo = new CylinderGeometry(r, r * 1.08, r * 0.5, 20).rotateX(Math.PI / 2), side = alu(METAL.hi, 0.3), top = mat(0xffffff, { map: screwHead(), metalness: 0.7, roughness: 0.35 });
+  const geo = new CylinderGeometry(r, r * 1.08, r * 0.5, SEG.disc).rotateX(Math.PI / 2), side = alu(METAL.hi, 0.3), top = mat(0xffffff, { map: screwHead(), metalness: 0.7, roughness: 0.35 });
   for (const [x, y] of at) { const s = place(new Mesh(geo, [side, top, side])); s.position.set(x, -y, z + r * 0.25); g.add(s); }
 }
 
@@ -79,12 +87,7 @@ const HOSE_R = 140;
 /** A G1/4 fitting along its axis from its port: the hex it screws in by, the collar the hose's ferrule pushes over, its length; the hose starts `FIT.len - 40` out. */
 const FIT = { hex: 220, hexLen: 110, collar: HOSE_R + 30, len: 330 } as const;
 /** The loop's fittings and plugs: black chrome. */
-const chrome = () => {
-  const m = mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
-  // (Low: the fittings keep their black chrome and a cool highlight, not a darkened Lambert that leaves only the sleeve's brown)
-  if (lowDetail()) m.userData[KEEP_SPEC] = true;
-  return m;
-};
+const chrome = () => mat(0x3a3f4c, { metalness: 0.9, roughness: 0.22 });
 
 /** A part of a fitting: `geo` built along `axis`, turned to point along `dir` and set `at` that far out of the port at `p`. */
 function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vector3, at: number, axis = new Vector3(0, 1, 0)) {
@@ -96,15 +99,15 @@ function along(g: Group, geo: BufferGeometry, m: Material, p: Vector3, dir: Vect
 
 /** A G1/4 fitting screwed into a port at the world point `p`, pointing along `dir` (a unit vector): its hex, then the collar with two ridges round it. */
 function fitting(g: Group, p: Vector3, dir: Vector3, m: Material) {
-  along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, 6), m, p, dir, FIT.hexLen / 2);
-  along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, 32), m, p, dir, (FIT.hexLen + FIT.len) / 2);
+  along(g, new CylinderGeometry(FIT.hex, FIT.hex, FIT.hexLen, SEG.hexNut), m, p, dir, FIT.hexLen / 2);
+  along(g, new CylinderGeometry(FIT.collar, FIT.collar + 12, FIT.len - FIT.hexLen, SEG.drum), m, p, dir, (FIT.hexLen + FIT.len) / 2);
   for (const at of [FIT.hexLen + 60, FIT.len - 30]) along(g, new TorusGeometry(FIT.collar + 6, 10, 8, 32), m, p, dir, at, new Vector3(0, 0, 1));
 }
 
 /** A G1/4 plug in a port at `p` facing `dir`: a flat round head, a hex socket in it. */
 function plug(g: Group, p: Vector3, dir: Vector3, m: Material) {
-  along(g, new CylinderGeometry(190, 200, 60, 32), m, p, dir, 30);
-  along(g, new CylinderGeometry(70, 70, 8, 6), mat(0x07080b, { roughness: 0.8 }), p, dir, 62);
+  along(g, new CylinderGeometry(190, 200, 60, SEG.drum), m, p, dir, 30);
+  along(g, new CylinderGeometry(70, 70, 8, SEG.lowDisc), mat(0x07080b, { roughness: 0.8 }), p, dir, 62);
 }
 
 // ------------------------------------------------------------------ the mount
@@ -122,7 +125,7 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
 const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(220, 40), r, byDetail(16, 8)), m));
+  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(96, 40), r, byDetail(12, 8)), m)); // (ASR6: was 220 x 16 at High)
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a
@@ -180,7 +183,7 @@ function stock(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   const { w, z0, z1 } = SHROUD, vane = alu(0xa7afbf, 0.3), black = plastic(), cu = copper();
   mount(g, {});
   // the copper core on the lid, a ring of sixty swept vanes round it
-  g.add(drum(0, 0, L, L + 40, 360, cu, 48), drum(0, 0, L + 40, z0, 300, cu, 48));
+  g.add(drum(0, 0, L, L + 40, 360, cu, SEG.wideDisc), drum(0, 0, L + 40, z0, 300, cu, SEG.wideDisc));
   g.add(instanced(extrude(vaneShape(290, 1020, 16, 0.45), { depth: z0 - L - 40, bevelEnabled: false }), vane, Array.from({ length: 60 }, (_, k) => ({ x: 0, y: 0, z: L + 40, rz: (k / 60) * Math.PI * 2 }))));
   // the shroud over the vanes, on a push pin at each hole: its foot on the board, its leg up to the shroud, its head sunk in the shroud's corner
   g.add(slab(shapeOf(outlinePts({ x: -w / 2, y: -w / 2, w, h: w }, 220, undefined, 8), [circle(0, 0, 1000)]), z0, z1, black, 8));
@@ -224,7 +227,7 @@ function wireClips(g: Group, face: number, notch: number, m: MeshStandardMateria
   for (const s of [-1, 1]) {
     const edge = s < 0 ? y : y + h, out = edge + s * 14, hole = yc + s * a, into = edge - s * 16;
     const pts: [number, number, number][] = [[face - e * 90, hole, z - a], [f, hole, z - a], [f, out, z - a + 60], [n, out, z - 70], [notch, into, z], [n, out, z + 70], [f, out, z + a - 60], [f, hole, z + a], [face - e * 90, hole, z + a]];
-    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, 4), 12, m, 8));
+    g.add(tube(rounded(pts.map(([px, py, pz]) => [px, -py, pz]), 30, 4), 12, m, SEG.frameBar));
   }
 }
 
@@ -237,11 +240,11 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   g.add(softBox({ x: -1000, y: -110, w: 2000, h: 220 }, L + 300, L + 340, m, 12));
   for (const px of [-920, 920]) {
     const z0 = BOARD_Z + 264, z1 = L + 296, k = byDetail(7 * 16, 48);
-    g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, 12));
+    g.add(drum(px, 0, BOARD_Z + 260, L + 340, 24, m, SEG.part));
     g.add(tube(Array.from({ length: k + 1 }, (_, i): [number, number, number] => {
       const a = (i / k) * 7 * Math.PI * 2;
       return [px + Math.cos(a) * 54, Math.sin(a) * 54, z0 + ((z1 - z0) * i) / k];
-    }), 10, m, 6, byDetail(339, 48)));
+    }), 10, m, SEG.cord, byDetail(339, 48)));
   }
   screws(g, [[-920, 0], [920, 0]], L + 340, 60);
   // the base: a copper contact plate on the lid, the aluminium block the pipes run through
@@ -252,7 +255,7 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   const tip = FIN1 + 100;
   for (const [px, s] of [[-270, 960], [-90, 640], [90, 800], [270, 480]] as const) {
     g.add(pipe(rounded([[px, s, tip], [px, s, L + 170], [px, -s, L + 170], [px, -s, tip]], 220, 8), 69, cu));
-    for (const py of [s, -s]) g.add(drum(px, py, FIN1 + 40, tip, 72, cu, 20));
+    for (const py of [s, -s]) g.add(drum(px, py, FIN1 + 40, tip, 72, cu, SEG.disc));
   }
   // the fins: forty-eight plates in the board's plane, the air passing between them east to west
   const n = 48, pitch = (FIN1 - FIN0 - 12) / (n - 1);
@@ -292,8 +295,6 @@ export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Sol
   const g = new Group(), gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
   const pts = hang({ a, b, length: gap * 1.12 + 300, r: HOSE_R, stiff: 0.95, n: 30, lead: 220, ...env });
   const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), HOSE_R, '#0c1226', '#464078'), L = curve.getLength(), ferrule = alu(0x2a3048, 0.32);
-  // (Low: the crimped collars stay dark navy metal, a separate material from the braid)
-  if (lowDetail()) ferrule.userData[KEEP_SPEC] = true;
   g.add(mesh);
   for (const s of [70, L - 70]) g.add(band(curve, s, HOSE_R + 20, 140, ferrule));
   return g;
@@ -307,9 +308,11 @@ const PUMP = { R: 745, R0: 770, top: L + 1100, portX: 260, portZ: L + 780 };
 /** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
 const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
 
+/** The sides of each round of the pump: one count, so its bands, foot and cap meet edge to edge. The polished chamfer shows each side, so it takes a 120 mm fan's count. */
+const PUMP_SIDES = fanSides(120);
 /** A round band standing along z, open at both ends, from depth `z0` (radius `r0`) to `z1` (radius `r1`): a body's side, a chamfer, a light ring. */
 function band3(r0: number, r1: number, z0: number, z1: number, m: Material): Mesh {
-  const o = place(new Mesh(new CylinderGeometry(r1, r0, z1 - z0, 96, 1, true).rotateX(Math.PI / 2), m));
+  const o = place(new Mesh(new CylinderGeometry(r1, r0, z1 - z0, PUMP_SIDES, 1, true).rotateX(Math.PI / 2), m));
   o.position.z = (z0 + z1) / 2;
   return o;
 }
@@ -325,13 +328,13 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
     const len = Math.hypot(hx, hy), k = (600 + len) / 2 / len, arm = place(new Mesh(new BoxGeometry(len - 600, 170, 44), bracket));
     arm.position.set(hx * k, -hy * k, L + 84);
     arm.rotation.z = Math.atan2(-hy, hx);
-    g.add(arm, drum(hx, hy, L + 62, L + 108, 120, bracket, 32));
+    g.add(arm, drum(hx, hy, L + 62, L + 108, 120, bracket, SEG.bigDisc));
   }
   // the body: anodised dark aluminium (satin, as the radiator's: it keeps its grey in the case's shade), a little wider at its foot; a seam where
   // it meets the base
   const side = mat(0x3a3f48, { metalness: 0.45, roughness: 0.4 }), z1 = top - 126;
   g.add(band3(R0, R, L + 250, z1, side));
-  g.add(drum(0, 0, L + 250, L + 262, R0 + 6, black, 96));
+  g.add(drum(0, 0, L + 250, L + 262, R0 + 6, black, PUMP_SIDES));
   // a thin light ring under the cap, set a little in: smoked when off (a dark line between the body and the cap), lit in the case's colour with
   // the fans
   const ringM = glowMat(0xffffff, 0x14161b);
@@ -343,9 +346,14 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   const polished = mat(0xc4c9d1, { metalness: 0.95, roughness: 0.14 });
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
-  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), 96));
-  g.add(band3(140, 118, top, top + 8, polished));
-  g.add(drum(0, 0, top + 4, top + 8, 120, mat(0x2a2d34, { metalness: 0.6, roughness: 0.35 }), 64));
+  g.add(drum(0, 0, top - 4, top, R - 40, capMat(), PUMP_SIDES));
+  // the cap's window: a disc of black glass in a polished lip, proud of the brushed face, the maker's mark printed under it (four bars, as the
+  // monitor's standby screen). No light of its own: it mirrors the room, and the ring under the cap is the pump's only light
+  const WIN = 500;
+  g.add(band3(WIN + 26, WIN, top, top + 10, polished));
+  g.add(drum(0, 0, top + 2, top + 7, WIN, mat(0x07080b, { metalness: 0, roughness: 0.06 }), PUMP_SIDES));
+  const mark = capMark();
+  if (mark) g.add(decal({ x: -WIN * 0.6, y: -WIN * 0.6, w: WIN * 1.2, h: WIN * 1.2 }, top + 7.5, mat(0xffffff, { map: mark, alphaTest: 0.5, alphaToCoverage: true, metalness: 0.3, roughness: 0.35 })));
   // the port block on the north side, out of the body's round side, a G1/4 fitting in each of its two ports (the hoses to the radiator hang from
   // them once every part is in: `hose`, machine3d.ts)
   const north = new Vector3(0, 1, 0), y0 = PUMP.R * 0.6;
@@ -399,7 +407,7 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
   for (const [za, zb] of [[z0, z0 + fold], [z1 - fold, z1]] as const) for (const va of [v0 - 6, v1]) plates.push(item(fr.rect(0, va, L, 6), za, zb));
   root.add(instanced(unit, plateM, plates));
   // the fans' screw holes in the folds, on both faces
-  const holeGeo = new CylinderGeometry(42, 42, 4, 16);
+  const holeGeo = new CylinderGeometry(42, 42, 4, SEG.post);
   if (side === 'front') holeGeo.rotateZ(Math.PI / 2);
   const holes: { x: number; y: number; z: number }[] = [];
   for (const u of radiatorFanUs(L, ids.length)) for (const du of [-hole, hole]) for (const dz of [-hole, hole]) for (const v of [v0 - 7, v1 + 7]) {

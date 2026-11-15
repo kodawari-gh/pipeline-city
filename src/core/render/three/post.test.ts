@@ -2,7 +2,7 @@ import { ACESFilmicToneMapping, BoxGeometry, Mesh, MeshBasicMaterial, Object3D, 
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/app/graphics', () => ({ pixelRatio: (scale: number) => scale }));
-const { Post, meterMean, steps } = await import('./post');
+const { Post, REFINE, jitter, meterMean, steps } = await import('./post');
 
 /** The full-screen passes of a step list: all but the eye's small ones. */
 const full = (s: string[]) => s.filter((x) => x !== 'eye').length;
@@ -28,7 +28,9 @@ describe('the post chain', () => {
   it('copies the picture for the outline or the bloom, and the AO copies it as it blends', () => {
     expect(steps({ ao: false, outline: true, bloom: false, eye: true })).toEqual(['scene', 'copy', 'outline', 'eye', 'finish']);
     expect(steps({ ao: false, outline: false, bloom: true, eye: true })).toEqual(['scene', 'copy', 'bloom', 'eye', 'finish']);
-    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual(['scene', 'ao', 'outline', 'bloom', 'eye', 'finish']);
+    expect(steps({ ao: true, outline: true, bloom: true, eye: true })).toEqual(['scene', 'ao', 'bloom', 'outline', 'eye', 'finish']);
+    // the outline after the bloom: its bright edge never feeds the bloom
+    expect(steps({ ao: false, outline: true, bloom: true, eye: false })).toEqual(['scene', 'copy', 'bloom', 'outline', 'finish']);
   });
 
   it('follows the settings, the pick and the view', () => {
@@ -43,8 +45,9 @@ describe('the post chain', () => {
     // the first frame after the pick ends drops the outline
     post.setOutlined([]);
     expect(post.steps()).toEqual(['scene', 'eye', 'finish']);
+    // from the board view in the local eye stays, at `BOARD_EYE` of its strength
     post.setReach(0);
-    expect(post.steps()).toEqual(['scene', 'finish']);
+    expect(post.steps()).toEqual(['scene', 'eye', 'finish']);
     post.setReach(40000);
     post.apply(HIGH, r, 400, 300);
     expect(post.steps()).toEqual(['scene', 'ao', 'bloom', 'eye', 'finish']);
@@ -72,6 +75,19 @@ describe('the post chain', () => {
     post.dispose();
     expect([...owned].filter((x) => !freed.has(x)).map((x) => x.constructor.name)).toEqual([]);
     expect(sceneFreed).toBe(false);
+  });
+});
+
+describe('the still view\'s refinement', () => {
+  it('keeps the first frame in place and spreads the rest over the pixel', () => {
+    expect(jitter(0)).toEqual([0, 0]);
+    const pts = Array.from({ length: REFINE }, (_, n) => jitter(n));
+    for (const [x, y] of pts) { expect(Math.abs(x)).toBeLessThan(0.5); expect(Math.abs(y)).toBeLessThan(0.5); }
+    expect(new Set(pts.map(([x, y]) => `${x},${y}`)).size).toBe(REFINE);
+    // each quarter of the pixel has samples, and the mean is near the pixel's middle (the picture does not move)
+    for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) expect(pts.filter(([x, y]) => x * sx > 0 && y * sy > 0).length).toBeGreaterThanOrEqual(2);
+    const mean = pts.reduce((a, [x, y]) => [a[0]! + x / REFINE, a[1]! + y / REFINE], [0, 0]);
+    expect(Math.hypot(mean[0]!, mean[1]!)).toBeLessThan(0.08);
   });
 });
 

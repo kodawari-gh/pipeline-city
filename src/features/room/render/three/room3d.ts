@@ -22,16 +22,16 @@ import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
-import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
-import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
+import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
+import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
@@ -42,7 +42,7 @@ import { M } from './outside/plan';
 import type { CityDetail } from './outside/detail';
 import { effective, isLow } from '@/app/graphics';
 import {
-  OAK_TILE, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
+  OAK_TILE, STRIP_STAND_IN, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
   smokedOak, type Lantern,
 } from './furniture3d';
 import { deskChair } from './chair3d';
@@ -143,9 +143,11 @@ const PALETTE_CELL = 2 * M;
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** The room's light bake (`public/bake/room/`), loaded once a page: null when there is none or it cannot be read. */
+const BAKE_URL = `${import.meta.env.BASE_URL}bake/room/`;
 let bakeLoad: Promise<Bake | null> | null = null;
 const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
-  : loadBake(`${import.meta.env.BASE_URL}bake/room/`).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
+  // (a page that starts with a lamp cap takes the capped lamps' direct light with the bake, so the first probe sees it)
+  : loadBake(BAKE_URL).then(async (b) => { if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b); return b; }).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
 /** Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). */
 export const preloadRoomBake = (): void => { void roomBake(); };
 /** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
@@ -372,6 +374,7 @@ export class Room3D {
   private hour = 12;
   /** The baked bounce once its files are in, and the light it was last summed for. */
   private lightmap: LightmapMix | null = null;
+  private bake: Bake | null = null;
   private mixKey = '';
   private gone = false;
   private lampLight = new SpotLight(kelvin(3000), 0, 0, 0.6, 0.7, 2);
@@ -613,7 +616,7 @@ export class Room3D {
     for (let row = 0; row < 2; row++) {
       const y = trayHook(row * 5).y;
       rack.add(softBox({ x: kr.x + 120, y: y - 110, w: kr.w - 240 + row * 330, h: 220 }, 0, 200, dark, 40));
-      for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, 10)); }
+      for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, SEG.midRound)); }
     }
     const rackTop = trayHook(0).y - 300;
     for (const x of [kr.x - 60, bar1]) {
@@ -667,9 +670,9 @@ export class Room3D {
       router.add(side);
       // its front: a darker strip with the status lights, vents over its top
       router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x0d0e10, { roughness: 0.5 }), 30));
-      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, 8));
+      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, SEG.smallDisc));
       for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
-      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, 8));
+      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, SEG.smallDisc));
       if (tier >= 3) return; // a switch-router has no aerials
       for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
         const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
@@ -684,8 +687,7 @@ export class Room3D {
     // the router's empty place: an unseen box a router dragged from the inventory lands on (`router`), there while no router stands
     this.routerBody = router;
     this.routerSpot = tag(rectBox(ROUTER_SPOT, 300, 1400, new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false })), 'router');
-    this.routerSpot.castShadow = this.routerSpot.receiveShadow = false;
-    R.add(this.routerSpot);
+    R.add(unseen(this.routerSpot));
     // (the LAN lead is the machine's: a cable with a plug to move, `Machine3D.buildRoomCords`)
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
@@ -696,19 +698,19 @@ export class Room3D {
     box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x08090a, { roughness: 0.6 })));
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
-    box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, 12), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
+    box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
     if (lowDetail()) mergeWithin(box, { twin: this.envTwin });
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));
-    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), 20));
+    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), SEG.disc));
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
     const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {
       const m = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(NEON), emissiveIntensity: 0 });
-      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, 8);
+      const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, SEG.smallDisc);
       this.ispDots.push(m);
       R.add(d);
     }
@@ -725,7 +727,7 @@ export class Room3D {
     R.add(socket, plateBox);
     // the letterbox's light: on while an upload waits or goes out
     const mailM = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xffb347), emissiveIntensity: 0 });
-    box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, 10));
+    box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, SEG.midRound));
     this.mailLed = mailM;
 
     // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one
@@ -765,8 +767,7 @@ export class Room3D {
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
     const spotM = new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false });
     this.monitorSpot = tag(rectBox({ x: MONITOR.x, y: MONITOR.y, w: MONITOR.w, h: MONITOR.h }, MONITOR_Z - 300, MONITOR_Z + 400, spotM), 'display0');
-    this.monitorSpot.castShadow = this.monitorSpot.receiveShadow = false;
-    R.add(this.monitorSpot);
+    R.add(unseen(this.monitorSpot));
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's. Then the still scenery by palette
     this.ready = roomBake().then((b) => { if (this.gone) return; if (b) this.takeBake(b); this.mergeByPalette(); });
   }
@@ -805,6 +806,7 @@ export class Room3D {
       console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit, ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
     }
     this.lightmap = mix;
+    this.bake = b;
     this.mixKey = '';
     this.share();
   }
@@ -822,13 +824,18 @@ export class Room3D {
     const lm = this.lightmap;
     if (!lm || this.mixKey === this.lightKey) return;
     this.mixKey = this.lightKey;
-    const levels = new Map<string, number | Color>();
-    // (a capped lamp's light is out of the scene, its level is not: its bounce stays, lifted for the pool it lost, `CAPPED_BOUNCE`)
-    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity * bounceLift(g.lights.filter((l) => !l.visible).length, g.lights.length));
+    const levels = new Map<string, number | Color>(), direct = new Map<string, number>();
+    // (a capped lamp's light is out of the scene, its level is not: its bounce stays, and the bake's direct light of its group stands in for
+    // its pool; a bake without it lifts the bounce in its place, `CAPPED_BOUNCE`)
+    for (const g of this.lightGroups()) {
+      const level = g.lights[0]!.intensity, capped = g.lights.filter((l) => !l.visible).length;
+      if (capped && lm.hasDirect(g.id)) { levels.set(g.id, level); direct.set(g.id, level * (capped / g.lights.length)); }
+      else levels.set(g.id, level * bounceLift(capped, g.lights.length));
+    }
     levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
     levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
     for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
-    lm.mix(renderer, levels);
+    lm.mix(renderer, levels, direct);
   }
 
   /**
@@ -894,6 +901,8 @@ export class Room3D {
     this.choice = chooseLights(cap, lampShadows, (id) => this.lightsOf(id).length);
     for (const id of LIGHT_ORDER) for (const l of this.lightsOf(id)) l.visible = this.choice.live.has(id);
     this.mixKey = '';
+    // (a cap set later: the capped lamps' direct light loads now, and the next frame's mix takes it)
+    if (cap > 0 && this.bake && !this.bake.direct) void loadDirect(BAKE_URL, this.bake).then(() => { this.mixKey = ''; }, () => { /* the lifted bounce stays */ });
     this.setShadows(this.shadowLevel);
   }
 
@@ -1040,7 +1049,7 @@ export class Room3D {
       g.add(body);
       if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }
       g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9bec6, { metalness: 0.8, roughness: 0.3 })));
-      g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), 6));
+      g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), SEG.cord));
       if (this.known && !this.known.has(k.id)) {
         const e = this.envelope();
         g.visible = false;
@@ -1116,6 +1125,9 @@ export class Room3D {
     this.floorLamp.shade.emissiveIntensity = dusk * 1.1;
     this.floorLamp.glow.emissiveIntensity = dusk * 4;
     for (const l of this.strips.lights) l.intensity = dusk * nits(STRIP_NITS);
+    // (capped strips: the books take them as a line light of their own, `stripLit`)
+    const strip = this.strips.lights[0]!;
+    STRIP_STAND_IN.colour.value.copy(strip.color).multiplyScalar(strip.visible ? 0 : strip.intensity);
     this.strips.glow.emissiveIntensity = dusk * 1.6;
     // (the arc lamp is the desk's overhead cozy light: on at every hour)
     this.arc.light.intensity = lumens(ARC_LM, this.arc.light.angle);

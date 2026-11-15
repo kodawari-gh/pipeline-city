@@ -5,16 +5,10 @@ import { Container } from 'pixi.js';
 vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
 
 import { BEAM, LIGHT_RES, ambientOf, emittersOf, focusAt, lightKey, shiftEmitter, type LightGeo, type LightIn } from './light';
-import { DAY_S, RoomView, beamsAt, roomBakeRect, roomGeo } from './room';
-import type { Theme } from '@/core/render/theme';
+import { beamsAt, roomBakeRect, roomGeo } from './room';
 
-const THEME: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
-};
 const CASE = { x: 0, y: 0, w: 8000, h: 6000 };
-const day: LightIn = { dark: true, night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
+const day: LightIn = { night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
 
 describe('the focus dark', () => {
   it('is off for the whole room and for a view of the monitor, full once the case fills the view', () => {
@@ -52,7 +46,6 @@ describe('the quantised light state', () => {
     expect(lightKey(day)).not.toBe(lightKey({ ...day, night: 0.5 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, lamp: 0 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, screen: 0 }));
-    expect(lightKey(day)).not.toBe(lightKey({ ...day, dark: false }));
   });
 });
 
@@ -80,10 +73,9 @@ describe('the window light', () => {
 });
 
 describe('the dark of the room', () => {
-  it('is none by day, deeper at night (more in the light theme than its wall alone would suggest) and takes the lamp by night more than by day', () => {
+  it('is none by day, deeper at night and takes the lamp by night more than by day', () => {
     expect(ambientOf({ ...day, night: 0 }).alpha).toBe(0);
     expect(ambientOf({ ...day, night: 1 }).alpha).toBeGreaterThan(0.3);
-    expect(ambientOf({ ...day, dark: false, night: 1 }).alpha).toBeGreaterThan(0.3);
     expect(ambientOf({ ...day, night: 1 }).lamp).toBeGreaterThan(ambientOf({ ...day, night: 0 }).lamp);
     expect(ambientOf({ ...day, lamp: 0, night: 1 }).lamp).toBe(0);
   });
@@ -99,21 +91,6 @@ describe('the light layer of the room', () => {
   it('has a cone that is a fan of under a half turn', () => {
     expect(BEAM.half).toBeGreaterThan(0.3);
     expect(BEAM.half * 2).toBeLessThan(Math.PI);
-  });
-  it('is only the lit edges without a renderer (tests): the focus and the screen are accepted and change nothing', () => {
-    const v = new RoomView(THEME, geo);
-    expect(v.light.children.length).toBe(1);
-    v.setScreen(true); v.setFocus(1);
-    expect(() => v.frame(DAY_S * 400, 16)).not.toThrow();
-    v.dispose();
-  });
-  it('is hidden with the room while the view lies inside the case', () => {
-    const v = new RoomView(THEME, geo);
-    const c = { x: 0, y: 0, w: 20000, h: 12000 };
-    v.setView({ x: 4000, y: 3000, w: 8000, h: 4500 }, 0.3, 1, c);
-    expect(v.light.visible).toBe(false);
-    v.setView({ x: -20000, y: -9000, w: 40000, h: 20000 }, 0.04, 1, c);
-    expect(v.light.visible).toBe(true);
   });
 });
 

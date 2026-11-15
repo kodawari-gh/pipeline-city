@@ -9,6 +9,7 @@ import { block } from './parts';
 import { CURB, DETAIL, GRID, LANES, PARKS, avenueX, blockRect, lamps, streetZ, toOutside, type Lamp, type Tree } from './plan';
 import { lightAt } from './traffic';
 import { WALL_T, WINDOW } from '../roomplan';
+import { SEG } from '@/core/render/three/geometry';
 
 /** How far the grid's ground reaches each way (m). */
 const REACH_X = 2400, REACH_Z = 4600;
@@ -17,7 +18,7 @@ const PAINT = 0.006;
 
 /** A modern street lamp: a tapered steel pole, an arm out over the road, a flat head with its glowing lens. Returns where its light is. */
 function lamp(g: Group, l: Lamp, k: Kit): Vector3 {
-  const lg = new Group(), pole = new Mesh(new CylinderGeometry(0.07, 0.12, 8.2, 10), k.post);
+  const lg = new Group(), pole = new Mesh(new CylinderGeometry(0.07, 0.12, 8.2, SEG.rod), k.post);
   pole.position.y = CURB + 4.1;
   lg.add(pole, block(-0.06, CURB + 7.95, -0.05, 2.3, CURB + 8.05, 0.05, k.post));
   lg.add(block(1.7, CURB + 7.86, -0.2, 2.6, CURB + 8.02, 0.2, k.post), block(1.75, CURB + 7.84, -0.16, 2.55, CURB + 7.87, 0.16, k.lantern));
@@ -32,7 +33,7 @@ export interface SignalLamp { x: number; y: number; z: number; face: number; i: 
 
 /** A traffic light on a crossing's corner: its pole, the arm over the road, the head; its lamps face `face` (z) toward the traffic it stops. */
 function signal(g: Group, x: number, z: number, rot: number, face: number, k: Kit, i: number, j: number, out: SignalLamp[]): void {
-  const s = new Group(), pole = new Mesh(new CylinderGeometry(0.1, 0.12, 6, 10), k.iron), hx = 9.2;
+  const s = new Group(), pole = new Mesh(new CylinderGeometry(0.1, 0.12, 6, SEG.rod), k.iron), hx = 9.2;
   pole.position.y = CURB + 3;
   s.add(pole, block(0, CURB + 5.8, -0.06, hx + 0.6, CURB + 5.92, 0.06, k.iron), block(hx - 0.2, CURB + 4.7, -0.2, hx + 0.2, CURB + 5.8, 0.2, k.trim));
   s.position.set(x, 0, z);

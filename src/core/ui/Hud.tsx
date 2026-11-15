@@ -31,7 +31,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { GraphicsDock } from './panels/Graphics';
 import {
-  buildOpen, galleryOpen, graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, galleryOpen, graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -246,7 +246,6 @@ export function Hud() {
   const s = snapshot.value;
   // (the menu waits for the boot screen, app/boot.ts)
   if (!s) return booted.value ? <><Title on={!galleryOpen.value && !buildOpen.value} /><MainMenu /><NewGameDialog /><Gallery /><BuildMode /><GraphicsDock /></> : null;
-  const dark = theme.value === 'dark';
   return (
     <>
       <Title on={false} />
@@ -267,9 +266,6 @@ export function Hud() {
         <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">
         <SpeedControl />
-        <button class="icon" title={dark ? 'Switch to the light theme (experimental)' : 'Switch to the dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>
-          <Icon name={dark ? 'sun' : 'moon'} size={14} />
-        </button>
         <Menu s={s} />
         </div>
       </header>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEVICE_LOD, FAR_ZOOM, LodClock, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
+import { DEVICE_LOD, FAR_ZOOM, TierBudget, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
 
 describe('smooth', () => {
   it('runs 0..1 over the band and clamps', () => {
@@ -41,50 +41,6 @@ describe('DEVICE_LOD', () => {
     expect(bandAlpha(0.8 * 1.15, b)).toBe(1);
     expect(bandAlpha(0.86, b)).toBeGreaterThan(0);
     expect(bandAlpha(0.86, b)).toBeLessThan(1);
-  });
-});
-
-describe('LodClock', () => {
-  it('follows the camera and never overshoots', () => {
-    const c = new LodClock(1);
-    let prev = 1;
-    for (let i = 0; i < 120; i++) {
-      c.update(1 / 60, 4);
-      expect(c.zs).toBeGreaterThanOrEqual(prev);
-      expect(c.zs).toBeLessThanOrEqual(4);
-      prev = c.zs;
-    }
-    expect(c.zs).toBeCloseTo(4, 2);
-  });
-  it('takes the same time for a doubling at any zoom (log space)', () => {
-    const a = new LodClock(0.1), b = new LodClock(2);
-    a.update(1 / 60, 0.2); b.update(1 / 60, 4);
-    expect(a.zs / 0.1).toBeCloseTo(b.zs / 2, 6);
-  });
-  it('crosses a threshold over several frames, not in one', () => {
-    const c = new LodClock(0.18); // a wheel flick of x1.45 across 0.2
-    let frames = 0;
-    while (c.zs < 0.2) { c.update(1 / 60, 0.26); frames++; }
-    expect(frames).toBeGreaterThanOrEqual(2);
-  });
-  it('settles exactly and reports it', () => {
-    const c = new LodClock(1);
-    for (let i = 0; i < 600; i++) c.update(1 / 60, 2);
-    expect(c.zs).toBe(2);
-    expect(c.settled).toBe(true);
-    expect(c.update(1 / 60, 2)).toBe(false);
-  });
-  it('clamps a long frame so a stall does not jump', () => {
-    const c = new LodClock(1);
-    c.update(5, 8);
-    expect(c.zs).toBeLessThan(8);
-  });
-  it('snaps', () => {
-    const c = new LodClock(1);
-    c.snap(3);
-    expect(c.zs).toBe(3);
-    expect(c.settled).toBe(true);
-    expect(c.update(1 / 60, 3)).toBe(false);
   });
 });
 
@@ -168,43 +124,5 @@ describe('TierBudget', () => {
     const b = new TierBudget(2);
     b.assign([{ id: 'a', focus: 1 }, { id: 'b', focus: 1 }]);
     expect([...b.assign([{ id: 'b', focus: 1 }])]).toEqual(['b']);
-  });
-});
-
-describe('ZoomSwitch', () => {
-  it('bakes below the threshold and unbakes only past the dead band', () => {
-    const s = new ZoomSwitch(0.2);
-    expect(s.update(0.3)).toBe(false);
-    expect(s.update(0.19)).toBe(true);
-    expect(s.update(0.21)).toBe(true); // wobble across the line: still baked
-    expect(s.update(0.2 * 1.08 + 0.001)).toBe(false);
-  });
-  it('does not flip on a wobble', () => {
-    const s = new ZoomSwitch(0.2);
-    let flips = 0, last = s.update(0.25);
-    for (let i = 0; i < 100; i++) {
-      const on = s.update(0.2 + 0.015 * Math.sin(i));
-      if (on !== last) flips++;
-      last = on;
-    }
-    expect(flips).toBeLessThanOrEqual(1);
-  });
-  it('warms up before the threshold when zooming out', () => {
-    const s = new ZoomSwitch(0.2);
-    s.update(0.3);
-    expect(s.warm).toBe(false);
-    s.update(0.22);
-    expect(s.warm).toBe(true);
-    expect(s.on).toBe(false);
-  });
-  it('keeps the warm ring through a wobble and always holds it while on', () => {
-    const s = new ZoomSwitch(0.2);
-    s.update(0.22);
-    expect(s.warm).toBe(true);
-    s.update(0.235); // just over the warm line, inside its dead band
-    expect(s.warm).toBe(true);
-    s.update(0.26);
-    expect(s.warm).toBe(false);
-    for (const z of [0.15, 0.19, 0.21, 0.24, 0.25]) { s.update(z); if (s.on) expect(s.warm).toBe(true); }
   });
 });

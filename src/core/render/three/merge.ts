@@ -9,9 +9,10 @@ import {
   type MeshStandardMaterial, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { DARK_METAL, NON_METAL, warmMetal } from './cheapmaterials';
+import { DARK_METAL, NON_METAL } from './cheapmaterials';
 import { lowDetail } from './detail';
 import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
+import { NO_RAY } from './pick';
 
 const KEEP = new Set(['position', 'normal', 'uv']);
 
@@ -130,9 +131,13 @@ export function palettePatch(sh: { vertexShader: string; fragmentShader: string 
 /** What a palette material draws as, less the fields on the vertices (`materialKey` of its source): two with one key draw a mesh alike. */
 const palKeys = new WeakMap<Material, string>();
 
-/** A copy of `src` that reads its colour, roughness and metalness from the vertices; it keeps the source's patches. */
-function paletteOf(src: MeshStandardMaterial): MeshStandardMaterial {
-  const low = lowDetail(), keep = low && src.userData[KEEP_SPEC] === true, m = src.clone(), prev = src.onBeforeCompile;
+/**
+ * A copy of `src` that reads its colour, roughness and metalness from the vertices; it keeps the source's patches.
+ * `pbr`: the mesh keeps High's PBR patch at Low (the machine: its metal reads by reflection, and a Lambert case interior drew flat and
+ * near black, L 0.002 against High's 0.009; the GPU time is the same, 5.4 ms a board frame at 2560 x 1355).
+ */
+function paletteOf(src: MeshStandardMaterial, pbr = false): MeshStandardMaterial {
+  const low = lowDetail(), keep = low && (pbr || src.userData[KEEP_SPEC] === true), m = src.clone(), prev = src.onBeforeCompile;
   const key = `${src.customProgramCacheKey()}|pal${low ? '|low' : ''}${keep ? '|keep' : ''}`;
   m.color.setRGB(1, 1, 1);
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh, low, keep); };
@@ -271,15 +276,9 @@ export interface SiblingOptions {
   apart?: readonly Object3D[];
   /** Hears of each palette material made from a source material (the room keeps the reflections' register, as `mergePalette`'s `twin`). */
   twin?: (src: Material, copy: Material) => void;
-  /** Low: a warm metal (copper, gold) merges only with warm metals, so its palette never mixes it with the grey metals and the blacks. Off at High. */
-  byLook?: boolean;
+  /** Low: the palette meshes keep High's PBR patch (`paletteOf`), so the machine's metal reflects the room as it does at High. */
+  pbr?: boolean;
 }
-
-/** The look class a Low merge keeps apart (`SiblingOptions.byLook`): a warm metal, or none. */
-const lookOf = (m: Material): string => {
-  const s = m as MeshStandardMaterial;
-  return s.metalness > 0.5 && warmMetal(s.color) ? '|warm' : '';
-};
 
 /** May this mesh join a merge with its siblings: a plain shown mesh, one opaque material that no writer changes, nothing that code finds it by. */
 function loose(m: Mesh): boolean {
@@ -311,7 +310,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     if (x.parent && x.parent !== root && loose(m)) {
       const key = materialKey(m.material as Material, ON_VERTEX), attrs = attrsKey(m.geometry);
       if (key !== null && attrs !== null) {
-        const prog = `${attrs}|${key}${o.byLook ? lookOf(m.material as Material) : ''}`;
+        const prog = `${attrs}|${key}`;
         const at = `${idOf(x.parent)}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.frustumCulled}|${m.layers.mask}|${idOf(m.raycast)}|${prog}`;
         let set = sets.get(at);
         if (!set) sets.set(at, (set = { scope: s, prog, meshes: [] }));
@@ -328,7 +327,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
   for (const { scope, prog, meshes } of sets.values()) {
     const k = `${idOf(scope)}|${prog}`;
     if (per.get(k)! < 2) continue;
-    const parent = meshes[0]!.parent!, pal = pals.get(k) ?? paletteOf(meshes[0]!.material as MeshStandardMaterial);
+    const parent = meshes[0]!.parent!, pal = pals.get(k) ?? paletteOf(meshes[0]!.material as MeshStandardMaterial, o.pbr);
     const out = paletteMesh(meshes, inv.copy(parent.matrixWorld).invert(), pal);
     if (!out) { if (!pals.has(k)) pal.dispose(); continue; }
     if (!pals.has(k)) o.twin?.(meshes[0]!.material as Material, pal);
@@ -435,7 +434,7 @@ export function standIns(frame: Object3D, meshes: readonly Mesh[], pals: Map<str
     const mesh = new Mesh(g, material);
     mesh.castShadow = first.castShadow; mesh.receiveShadow = first.receiveShadow; mesh.renderOrder = first.renderOrder;
     mesh.layers.mask = first.layers.mask;
-    mesh.raycast = () => {};
+    mesh.raycast = NO_RAY;
     mesh.name = 'standin';
     mesh.userData.standIn = true;
     frame.add(mesh);

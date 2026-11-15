@@ -1,16 +1,50 @@
-// glTF models for parts (docs/GRAPHICS_3D_OVERHAUL.md "Models"): a part whose key is in `MODEL_FILES` (features/board/render/three/models3d.ts) wears a
+// glTF models for parts (docs/render/three.md): a part whose key is in `MODEL_FILES` (features/board/render/three/models3d.ts) wears a
 // loaded model in place of its primitives. The file loads once and is cloned for each use; until it is there, and when it fails, the primitives stay.
-import { Box3, Vector3, type Group, type Object3D } from 'three';
+import { Box3, Vector3, type Group, type Object3D, type WebGLRenderer } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sceneChanged } from './ondemand';
 
 const loader = new GLTFLoader();
 const cache = new Map<string, Promise<Object3D | null>>();
 
-/** The model of a url, loaded once; null when it cannot be loaded. */
+/** A loader of KTX2 textures, as the model loader takes it (three's `KTX2Loader`). */
+export type Ktx2 = Parameters<GLTFLoader['setKTX2Loader']>[0];
+/** Where the Basis transcoder is served from (`public/basis/`, a copy of three's: `gltf.test.ts` checks it is the same). */
+export const BASIS_PATH = `${import.meta.env.BASE_URL}basis/`;
+/** The KTX2 loader on its way (`ktx2Support`): a model load waits for it. */
+let ktx2: Promise<void> | null = null;
+
+/**
+ * Let the models carry KTX2 (Basis) textures, which stay compressed on the GPU (KTX1). Call it with the renderer before the first model
+ * loads: the loader asks it which formats the GPU takes. The loader's code is its own chunk; the transcoder loads with the first KTX2
+ * texture, so a game with no KTX2 model pays for one small request. A failure here leaves the plain loader: a KTX2 model then fails to
+ * load, and its primitives stay (`loadModel`). The first call wins; `make` is the test's own loader, and replaces it.
+ */
+export function ktx2Support(renderer: WebGLRenderer | null, make?: () => Promise<Ktx2>): Promise<void> {
+  if (ktx2 && !make) return ktx2;
+  const made = make ?? (async () => {
+    const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
+    return new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(renderer!);
+  });
+  return (ktx2 = made().then((l) => { loader.setKTX2Loader(l); }, () => {}));
+}
+
+/**
+ * The file at a url as its scene. The loader gives a model even when one of its textures failed (that map is then absent): such a model is
+ * refused here, so a part never shows half dressed.
+ */
+async function sceneOf(url: string): Promise<Object3D> {
+  await ktx2;
+  const g = await loader.loadAsync(url);
+  const textures = g.parser.json.textures ? await g.parser.getDependencies('texture') : [];
+  if (textures.some((t) => !t)) throw new Error(`a texture of ${url} did not load`);
+  return g.scene;
+}
+
+/** The model of a url, loaded once; null when it cannot be loaded (or a texture of it: the primitives stay). */
 export function loadModel(url: string): Promise<Object3D | null> {
   let p = cache.get(url);
-  if (!p) { p = loader.loadAsync(url).then((g) => g.scene, () => null); cache.set(url, p); }
+  if (!p) { p = sceneOf(url).catch(() => null); cache.set(url, p); }
   // (a model that comes in changes a still view: its users add it before the next frame, which then draws, docs/render/load.md)
   return p.then((m) => { sceneChanged(); return m; });
 }

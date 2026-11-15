@@ -12,8 +12,8 @@
 // mapping and the screen's colour space (as three's OutputPass). Each was a full-screen pass of its own, into a half-float target; a phone's
 // tile GPU writes each such target out to memory and reads it back. The math and its order are as they were; only the half-float steps between are gone.
 import {
-  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping, NearestFilter, NeutralToneMapping,
-  RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
+  ACESFilmicToneMapping, AgXToneMapping, CineonToneMapping, ColorManagement, ConstantAlphaFactor, CustomBlending, CustomToneMapping, HalfFloatType, LinearFilter, LinearToneMapping,
+  NearestFilter, NeutralToneMapping, NoBlending, OneMinusConstantAlphaFactor, RawShaderMaterial, ReinhardToneMapping, ShaderMaterial, SRGBTransfer, WebGLRenderTarget, type IUniform, type Texture, type WebGLRenderer,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
@@ -28,6 +28,8 @@ export const LO = -18, BINS = 24;
 export const SHADOW_C = 0.18, HIGH_C = 0.4;
 /** At most this many stops up or down. */
 export const MAX_UP = 9, MAX_DOWN = 3;
+/** The share of its colour a pixel loses when the eye lifts it by `CALM_STOPS` stops or more (less below, in proportion). */
+export const CALM = 0.4, CALM_STOPS = 4;
 /** The scene's luminance that shows as middle grey at an exposure of 1 (ACES: 0.18 out at 0.22 in, after its own 1 / 0.6). */
 export const MID = 0.13;
 
@@ -126,6 +128,8 @@ uniform vec4 keep;
 #include <colorspace_pars_fragment>
 ${look.glsl}
 varying vec2 vUv;
+// interleaved gradient noise: a fixed pattern over the pixels, no time term (it never flickers)
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec2 at(float u, float v, float z) { return texture2D(tGrid, vec2((u + z * grid.x) / (grid.x * ${f(BINS)}), v)).rg; }
 void main() {
   vec4 c = texture2D(tDiffuse, vUv);
@@ -137,6 +141,10 @@ void main() {
     float base = (s.x + 1e-4 * l) / (s.y + 1e-4), d = base - midLog;
     float up = clamp(-d * (1.0 - (d < 0.0 ? keep.x : keep.y)), -keep.w, keep.z);
     c.rgb *= exp2(up * strength);
+    // a lifted shadow keeps its colour's ratio, and a ratio that was a faint tint in the dark shows as a strong colour (a grey cage under the
+    // sky reads baby blue). The eye sees less colour in the dark: the lift takes a share of the colour away, most at ${f(CALM_STOPS)} stops up
+    float y = ${LUM};
+    c.rgb = mix(vec3(y), c.rgb, 1.0 - ${CALM.toFixed(2)} * clamp(up * strength / ${f(CALM_STOPS)}, 0.0, 1.0));
   }
   gl_FragColor = c;
   #ifdef TONE
@@ -145,6 +153,9 @@ void main() {
   #ifdef SRGB_TRANSFER
   gl_FragColor = sRGBTransferOETF(gl_FragColor);
   #endif
+  // the dither: a static triangular noise of one level (the difference of two hashes), so a smooth dark gradient breaks its 8-bit bands
+  vec2 q = gl_FragCoord.xy;
+  gl_FragColor.rgb += (vec3(ign(q), ign(q + vec2(3.0, 7.0)), ign(q + vec2(11.0, 5.0))) - vec3(ign(q + vec2(19.0, 2.0)), ign(q + vec2(23.0, 13.0)), ign(q + vec2(29.0, 17.0)))) / 255.0;
 }`;
 const FINISH_VERT = /* glsl */`
 precision highp float;
@@ -246,10 +257,14 @@ export class LocalEye {
 
   /**
    * Draws `picture` to `to` (null: the screen) with the look, the lift (from the grid `adapt` made, while the eye is `on`) and the tone
-   * mapping, in one full-screen pass.
+   * mapping, in one full-screen pass. `weight` under 1 mixes it into what `to` holds (the still view's refinement, `Post.refine`): the caller
+   * keeps the renderer from clearing `to`.
    */
-  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null): void {
+  draw(renderer: WebGLRenderer, picture: Texture, to: WebGLRenderTarget | null = null, weight = 1): void {
     this.output(renderer);
+    const f = this.finish;
+    f.blending = weight < 1 ? CustomBlending : NoBlending;
+    f.blendSrc = ConstantAlphaFactor; f.blendDst = OneMinusConstantAlphaFactor; f.blendAlpha = weight;
     const a = this.finish.uniforms;
     a.tDiffuse!.value = picture;
     a.midLog!.value = Math.log2(this.key / this.exposure);

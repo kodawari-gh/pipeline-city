@@ -19,8 +19,8 @@ type Pt = [number, number];
 export const TUBE_W = 92;
 
 /** The brushed-metal ramp the heatsinks use (the VRM sink's tones). */
-const metals = (T: Theme) => ({ metal: T.dark ? '#3b4663' : '#b7c1d3', hi: T.dark ? '#56628a' : '#dde4f0', lo: T.dark ? '#222a41' : '#8d99b1' });
-const copper = (T: Theme) => (T.dark ? '#c0793a' : '#b8662a');
+const metals = (T: Theme) => ({ metal: '#3b4663', hi: '#56628a', lo: '#222a41' });
+const copper = (T: Theme) => '#c0793a';
 
 function screw(g: Graphics, T: Theme, x: number, y: number, r = 28): void {
   const m = metals(T);
@@ -37,12 +37,12 @@ function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
     for (const p of path.slice(1)) g.lineTo(p[0] + dx, p[1] + dy);
     g.stroke({ width: w, color, alpha, join: 'round', cap: 'butt' });
   };
-  stroke(10, 18, TUBE_W + 2, '#000000', T.dark ? 0.32 : 0.16);
-  stroke(0, 0, TUBE_W, T.dark ? '#0c1226' : '#3a4561', 1);
-  stroke(0, 0, TUBE_W * 0.72, mix(T.dark ? '#0c1226' : '#3a4561', tint, 0.38), 1);
+  stroke(10, 18, TUBE_W + 2, '#000000', 0.32);
+  stroke(0, 0, TUBE_W, '#0c1226', 1);
+  stroke(0, 0, TUBE_W * 0.72, mix('#0c1226', tint, 0.38), 1);
   dashed(g, path, 5, 9);
   g.stroke({ width: TUBE_W * 0.93, color: '#ffffff', alpha: 0.07 });
-  stroke(-TUBE_W * 0.15, -TUBE_W * 0.15, 11, '#ffffff', T.dark ? 0.2 : 0.4);
+  stroke(-TUBE_W * 0.15, -TUBE_W * 0.15, 11, '#ffffff', 0.2);
   // a hose clamp a little in from each end: it hides the cut of the sleeve and holds it on the barb
   const m = metals(T), clamp = (p: Pt, q: Pt) => {
     const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, ux = (q[0] - p[0]) / l, uy = (q[1] - p[1]) / l, cx = p[0] + ux * 34, cy = p[1] + uy * 34, nx = -uy * (TUBE_W / 2 - 2), ny = ux * (TUBE_W / 2 - 2);
@@ -60,7 +60,7 @@ function fitting(g: Graphics, T: Theme, x: number, y: number, dir: -1 | 1): void
   const m = metals(T), y0 = dir < 0 ? y - 60 : y;
   box(g, x - 40, y0, 80, 60, 10, { fill: m.metal, stroke: mix(T.line, m.metal, 0.5), lw: 4 });
   g.rect(x - 46, dir < 0 ? y0 : y0 + 46, 92, 14).fill({ color: m.hi, alpha: 0.9 });
-  g.rect(x - 28, y0 + 10, 12, 36).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.35 });
+  g.rect(x - 28, y0 + 10, 12, 36).fill({ color: '#ffffff', alpha: 0.1 });
 }
 
 /**
@@ -145,7 +145,7 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2, coun
   const m = metals(T), edge = mix(T.line, m.metal, 0.5);
   const line = (u0: number, a0: number, u1: number, a1: number) => { const a = fr.P(u0, a0), b = fr.P(u1, a1); g.moveTo(a[0], a[1]).lineTo(b[0], b[1]); };
   const body = fr.rect(-TANK, v0, L + 2 * TANK, t);
-  box(g, body.x + 14, body.y + 20, body.w, body.h, 30, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
+  box(g, body.x + 14, body.y + 20, body.w, body.h, 30, { fill: '#000000', fa: 0.3 });
   // the core: fin edges as a ladder across it, a lit edge along the face toward the fans (a finer ladder the bigger the grade)
   const core = fr.rect(0, v0, L, t);
   g.roundRect(core.x, core.y, core.w, core.h, 10).fill(lgrad(m.hi, m.lo)).stroke({ width: 5, color: edge });
@@ -153,15 +153,15 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2, coun
   for (let u = 14; u < L - 10; u += pitch) line(u, v0 + 10, u, v1 - 10);
   g.stroke({ width: 8, color: '#000000', alpha: 0.32 });
   for (let u = 14; u < L - 10; u += pitch) line(u + 5, v0 + 10, u + 5, v1 - 10);
-  g.stroke({ width: 2, color: '#ffffff', alpha: T.dark ? 0.16 : 0.4 });
+  g.stroke({ width: 2, color: '#ffffff', alpha: 0.16 });
   const lit = fr.rect(8, v0 + 4, L - 16, 5);
-  g.rect(lit.x, lit.y, lit.w, lit.h).fill({ color: '#ffffff', alpha: T.dark ? 0.16 : 0.5 });
+  g.rect(lit.x, lit.y, lit.w, lit.h).fill({ color: '#ffffff', alpha: 0.16 });
   // the end tanks
   for (const first of [true, false]) {
     const u0 = first ? -TANK : L, tk = fr.rect(u0, v0 - 10, TANK, t + 20);
     g.roundRect(tk.x, tk.y, tk.w, tk.h, 26).fill(lgrad(m.hi, m.lo, [0.4, 1])).stroke({ width: 6, color: edge });
     const sh = fr.rect(u0 + 22, v0 - 2, TANK - 44, 6);
-    g.rect(sh.x, sh.y, sh.w, sh.h).fill({ color: '#ffffff', alpha: T.dark ? 0.18 : 0.5 });
+    g.rect(sh.x, sh.y, sh.w, sh.h).fill({ color: '#ffffff', alpha: 0.18 });
     const gu = first ? u0 + TANK - 24 : u0 + 24;
     line(gu, v0 + 8, gu, v1 - 8);
     g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
@@ -295,11 +295,11 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   const kind = spec.visual === 'cooler-liquid' ? 'liquid' : spec.visual === 'cooler-tower' ? 'tower' : 'stock';
   const c: Rect = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2;
   const m = metals(T), accent = kind === 'tower' ? T.alu : kind === 'liquid' ? T.mul : T.mute;
-  const lit = { color: '#ffffff', alpha: T.dark ? 0.1 : 0.4 };
+  const lit = { color: '#ffffff', alpha: 0.1 };
 
   // the mounting plate with its drop shadow, a lit top edge and a screw in each corner
-  box(g, c.x + 14, c.y + 22, c.w, c.h, 60, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
-  g.roundRect(c.x, c.y, c.w, c.h, 60).fill(lgrad(mix(m.metal, '#ffffff', T.dark ? 0.08 : 0.25), mix(m.lo, '#000000', T.dark ? 0.2 : 0.05), [1, 1])).stroke({ width: 10, color: mix(T.line, accent, 0.6) });
+  box(g, c.x + 14, c.y + 22, c.w, c.h, 60, { fill: '#000000', fa: 0.32 });
+  g.roundRect(c.x, c.y, c.w, c.h, 60).fill(lgrad(mix(m.metal, '#ffffff', 0.08), mix(m.lo, '#000000', 0.2), [1, 1])).stroke({ width: 10, color: mix(T.line, accent, 0.6) });
   g.rect(c.x + 60, c.y + 12, c.w - 120, 8).fill(lit);
 
   let fr = 0, nBlades = 0, bezel = 0, fanAt: Pt = [cx, cy];
@@ -323,11 +323,11 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
     for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) g.roundRect(fin.x + 12, y, fin.w - 24, rail, 6);
     g.fill(lgrad(m.hi, m.metal, [0, 1]));
     for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) g.moveTo(fin.x + 20, y + 4).lineTo(fin.x + fin.w - 20, y + 4);
-    g.stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.2 : 0.5 });
+    g.stroke({ width: 3, color: '#ffffff', alpha: 0.2 });
     for (let k = 0; k < 3; k++) {
       const px = fin.x + fin.w * (0.2 + k * 0.28);
       g.moveTo(px, fin.y + 24).lineTo(px, fin.y + fin.h - 24).stroke({ width: 30, color: copper(T), cap: 'round' });
-      g.moveTo(px - 6, fin.y + 30).lineTo(px - 6, fin.y + fin.h - 30).stroke({ width: 7, color: '#ffffff', alpha: T.dark ? 0.28 : 0.5, cap: 'round' });
+      g.moveTo(px - 6, fin.y + 30).lineTo(px - 6, fin.y + fin.h - 30).stroke({ width: 7, color: '#ffffff', alpha: 0.28, cap: 'round' });
     }
     box(g, c.x + 30, c.y + c.h - 100, c.w - 60, 70, 20, { fill: m.metal, stroke: mix(T.line, m.metal, 0.5), lw: 5 });
     g.rect(c.x + 70, c.y + c.h - 94, c.w - 140, 6).fill(lit);

@@ -3,8 +3,11 @@ import { Raycaster, Vector2, type Camera, type Object3D, type Vector3 } from 'th
 
 export const tag = <T extends Object3D>(o: T, id: string): T => { o.userData.id = id; return o; };
 
+/** The ray test of an object no ray stops at. One function for all: the merges keep meshes with different ray tests apart (`mergeSiblings`). */
+export const NO_RAY = (): void => {};
+
 /** See through this object: glass, glow and light cones never stop a ray. */
-export const seeThrough = <T extends Object3D>(o: T): T => { o.raycast = () => {}; return o; };
+export const seeThrough = <T extends Object3D>(o: T): T => { o.raycast = NO_RAY; return o; };
 
 export function idOf(o: Object3D | null): string | null {
   for (let p = o; p; p = p.parent) if (typeof p.userData.id === 'string') return p.userData.id;
@@ -28,6 +31,12 @@ export function findById(root: Object3D, id: string): Object3D | null {
  * (`partlod.ts`), so a pick and its outline find the part itself.
  */
 export const UNDRAWN = 1;
+
+/**
+ * An unseen box that only answers a ray (an empty socket, a thin part easy to click): on the undrawn layer it costs no draw. With a clear
+ * material alone it was a blended draw of the full light shader over all it covers, for no pixel.
+ */
+export const unseen = <T extends Object3D>(o: T): T => { o.layers.set(UNDRAWN); o.castShadow = o.receiveShadow = false; return o; };
 
 const ray = new Raycaster(), at = new Vector2();
 ray.layers.enable(UNDRAWN);

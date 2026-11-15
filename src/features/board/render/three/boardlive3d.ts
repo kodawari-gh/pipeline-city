@@ -21,7 +21,7 @@ const Z = BOARD_Z + 3;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
 export class BoardLive3D {
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   private live: Live | null = null;
   private readonly mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
@@ -42,7 +42,7 @@ export class BoardLive3D {
   private build(s: Snapshot): void {
     const r = bakeRenderer();
     if (!r) return;
-    this.live ??= new Live(r, this.T.dark);
+    this.live ??= new Live(r);
     const dimms = s.devices.filter((d) => d.kind === 'ram').map((d) => idx(d.slot));
     const disp = s.devices.find((d) => d.kind === 'display');
     this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: !!disp, gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics });

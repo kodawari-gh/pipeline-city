@@ -190,19 +190,17 @@ describe('the Low palette material draws as a Lambert does', () => {
     expect(f).toContain('vec4( vPalC, opacity )');
   });
 
-  it('splits a flagged part from a plain one at Low, each with its own palette program', () => {
+  it('keeps the PBR patch on every palette mesh of a merge that asks for it (`pbr`: the machine)', () => {
     setLowDetail(true);
-    const root = new Group(), par = new Group(), mk = (keep: boolean): MeshStandardMaterial => {
-      const m = new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
-      if (keep) m.userData[KEEP_SPEC] = true;
-      return m;
-    };
-    par.add(new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(false)), new Mesh(new BoxGeometry(), mk(true)), new Mesh(new BoxGeometry(), mk(true)));
+    const root = new Group(), par = new Group(), blk = () => new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
+    par.add(new Mesh(new BoxGeometry(), blk()), new Mesh(new BoxGeometry(), blk()));
     root.add(par);
-    expect(mergeSiblings(root, { byLook: true })).toBe(4);
-    expect(par.children).toHaveLength(2);
-    const [a, b] = par.children.map((m) => (m as Mesh).material as MeshStandardMaterial);
-    expect(a!.customProgramCacheKey()).not.toBe(b!.customProgramCacheKey());
+    mergeSiblings(root, { pbr: true });
+    const sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader };
+    ((par.children[0] as Mesh).material as MeshStandardMaterial).onBeforeCompile(sh as never, undefined as never);
+    expect(sh.fragmentShader).not.toContain('directSpecular = vec3( 0.0 )');
+    expect(sh.fragmentShader).not.toContain('lowMetal');
+    expect(sh.fragmentShader).toContain('metalnessFactor = vPalRM.y;');
   });
 
   it('is the PBR patch, as it was, at High', () => {

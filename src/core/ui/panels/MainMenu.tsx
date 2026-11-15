@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { autosaveOffer, importSave, startSim } from '@/app/store';
 import { fmtMoney, fmtTicks } from '../logic';
 import { Icon } from '../kit/Icons';
-import { buildOpen, galleryOpen, graphicsOpen, setUiScale, theme, toggleGraphics, toggleTheme, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
+import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
 import { newGameOpen, openNewGame } from './NewGame';
 
 // The MAIN MENU, over the live room before a game: Continue (when an autosave exists), New game, Load game, Settings.
@@ -62,17 +62,10 @@ function SettingsCard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
   if (!open) return null;
-  const dark = theme.value === 'dark';
   return (
     <div class="modal-back" onClick={(e) => { if (e.target === e.currentTarget) settingsOpen.value = false; }}>
       <div class="card modal mm-card" role="dialog" aria-modal="true" aria-label="Settings">
         <div class="big">Settings</div>
-        <div class="mm-row"><span>Theme</span>
-          <div class="seg" role="group" aria-label="Theme">
-            <button class={dark ? 'on' : ''} aria-pressed={dark} onClick={() => { if (!dark) toggleTheme(); }}>Dark</button>
-            <button class={!dark ? 'on' : ''} aria-pressed={!dark} onClick={() => { if (dark) toggleTheme(); }}>Light</button>
-          </div>
-        </div>
         <label class="mm-row scale-row"><span>UI size</span>
           <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
           <b class="value">{Math.round(uiScale.value * 100)}%</b>

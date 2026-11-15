@@ -42,8 +42,8 @@ export const cardOrigin = (i: number, visual: string): { x: number; y: number } 
 /** The shroud plate over the die, in card-local units: dark with the heatsink's fins running across it. The view fades it away when zoomed in. */
 export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
   const b = p.body;
-  box(g, b.x, b.y - 6, b.w, b.h + 6, 8, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 3 });
-  const fin = T.dark ? '#7d89a4' : '#b9c3d8';
+  box(g, b.x, b.y - 6, b.w, b.h + 6, 8, { fill: '#0d1220', stroke: T.line, lw: 3 });
+  const fin = '#7d89a4';
   for (let x = b.x + 18; x < b.x + b.w - 10; x += 22) g.moveTo(x, b.y + 4).lineTo(x, b.y + b.h - 8);
   g.stroke({ width: 8, color: fin, alpha: 0.2 });
   for (let x = b.x + 18; x < b.x + b.w - 10; x += 22) g.moveTo(x + 9, b.y + 4).lineTo(x + 9, b.y + b.h - 8);
@@ -62,8 +62,8 @@ export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
 export function npuCover(T: Theme, geo: NpuGeo): Container {
   const root = new Container(), g = new Graphics(), r = geo.lid, two = geo.visual === 'npu-2', K = geo.grid;
   root.addChild(g);
-  box(g, r.x, r.y, r.w, r.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: two ? T.alu : T.line, lw: two ? 6 : 4 });
-  const fin = T.dark ? '#7d89a4' : '#b9c3d8', step = two ? 34 : 26;
+  box(g, r.x, r.y, r.w, r.h, 10, { fill: '#0d1220', stroke: two ? T.alu : T.line, lw: two ? 6 : 4 });
+  const fin = '#7d89a4', step = two ? 34 : 26;
   for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x, r.y + 14).lineTo(x, r.y + r.h - 14);
   g.stroke({ width: two ? 14 : 8, color: fin, alpha: two ? 0.3 : 0.18 });
   for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x + step * 0.4, r.y + 14).lineTo(x + step * 0.4, r.y + r.h - 14);
@@ -86,7 +86,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
   root.addChild(g);
   const isGpu = visual.startsWith('gpu');
   const L = CARD_LEN[visual] ?? 1500, H = CARD_H[visual] ?? 200, y = nicY(i), x0 = BD.x, top = y - cardTop(visual);
-  const pcb = isGpu ? (T.dark ? '#1b2236' : '#3a4560') : (T.dark ? '#2a1d46' : '#6e5aa8');
+  const pcb = isGpu ? '#1b2236' : '#2a1d46';
   box(g, x0 + 10, top + 16, L, H, 14, { fill: '#000000', fa: 0.3 });
   box(g, x0, top, L, H, 14, { fill: pcb, stroke: T.alu, lw: 6, sa: 0.55 });
   // gold edge fingers over the slot
@@ -95,13 +95,13 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
   if (isGpu) {
     // the shroud frame, a row of fans along the top edge in their bezels, an accent stripe, the power plug blocks on the end
     const p = gpuPlan(visual), o = { x: x0, y: top };
-    box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 4 });
+    box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: '#0d1220', stroke: T.line, lw: 4 });
     for (const f of p.fans) edgeFan(g, T, moveRect(f, o), false, '#1d2536', mix(T.alu, T.bg, 0.4)); // the case fans' look, edge-on
     g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
     for (const px of cardPlugs(visual)) box(g, x0 + px - PLUG_BLOCK.w / 2, top - PLUG_BLOCK.up, PLUG_BLOCK.w, PLUG_BLOCK.h, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the power sockets: a lead plugs in here
     // bracket with the display outputs
-    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
+    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
     for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
     if (!live) {
       // a still picture (shop tile): the cover and the blades drawn in
@@ -124,7 +124,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     for (let k = 0; k < 4; k++) { g.rect(x0 + 40 + k * 34, top + 12, 18, 30); g.rect(x0 + 40 + k * 34, top + H - 42, 18, 30); }
     g.fill({ color: mix(pcb, '#000000', 0.45) });
     box(g, x0 + d.x - 12, top + d.y - 12, d.w + 24, d.h + 24, 12, { fill: mix(pcb, '#000000', 0.5) });
-    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
+    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
     root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 24, 28, T.alu, { head: true, a: 0.9 }));
     if (!live) {
@@ -147,11 +147,11 @@ export const headerRect = (h: HeaderBox): Rect => ({ x: h.x, y: h.y, w: h.cols *
 export function tpmCover(T: Theme, visual: string, band: Rect): Container {
   const root = new Container(), g = new Graphics(), two = visual === 'tpm-2';
   root.addChild(g);
-  box(g, band.x, band.y, band.w, band.h, 6, { fill: T.dark ? '#0b101c' : '#1d2536', stroke: two ? T.alu : T.line, lw: two ? 4 : 3 });
+  box(g, band.x, band.y, band.w, band.h, 6, { fill: '#0b101c', stroke: two ? T.alu : T.line, lw: two ? 4 : 3 });
   if (two) box(g, band.x + 6, band.y + 6, band.w - 12, band.h - 12, 4, { stroke: mix(T.alu, '#000000', 0.4), lw: 1.5, sa: 0.8 });
   disc(g, band.x + 14, band.y + 14, 4.5, { fill: T.alu, fa: 0.85 });
   // the lock the module is named for
-  padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), T.dark ? '#0b101c' : '#1d2536');
+  padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), '#0b101c');
   root.addChild(label('SECURE MODULE', band.x + 34, band.y + band.h * 0.34, 22, T.ink, { head: true, a: 0.9 }));
   root.addChild(label(two ? 'TPM 2.0' : 'TPM 1.2', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
   return root;
@@ -165,7 +165,7 @@ export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Co
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   const r = headerRect(h), geo = tpmGeo(visual, r), p = geo.pcb;
-  const pcb = T.dark ? '#1f3b2e' : '#6faa86';
+  const pcb = '#1f3b2e';
   box(g, p.x + 24, p.y + 58, p.w, p.h - 18, 8, { fill: '#000000', fa: 0.3 });
   box(g, p.x, p.y, p.w, p.h, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
   // the chip (a TSSOP-28 at its real size, the die drawn on its top): its legs, then its body

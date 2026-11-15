@@ -15,7 +15,7 @@ export type HideRoot = { visible: boolean };
 
 /** The city's layer toggles: the layer's key (`debugLayer`, `city-layers.ts`) and its button's label. Each is its own button; lit when the layer is off. */
 export const CITY_LAYERS: readonly (readonly [string, string])[] = [
-  ['lights', 'No city lights'], ['buildings', 'No buildings'], ['freeze', 'Freeze city'], ['cars', 'No cars'],
+  ['lights', 'No city lights'], ['buildings', 'No buildings'], ['trees', 'No trees'], ['streets', 'No streets'], ['freeze', 'Freeze city'], ['cars', 'No cars'],
   ['sky', 'No city sky'], ['glow', 'No glow'], ['steam', 'No steam'], ['mirror', 'No mirror'], ['flat', 'City 1x'],
 ];
 

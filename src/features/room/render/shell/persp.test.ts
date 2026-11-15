@@ -1,20 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container, Graphics } from 'pixi.js';
+import { Container } from 'pixi.js';
 
 vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
 
 import { setLayoutTier } from '@/features/board/render/layout/layout';
 import { roomGeo } from './room';
-import { drawDesk, drawDeskShadow, drawUnderDesk } from '../desk/desk';
 import { EYE, S_FEET, S_FRONT, SLAB_FRONT, deskGeo, floorScale, roomPersp, spreadX, spreadY } from './persp';
-import type { Theme } from '@/core/render/theme';
-
-const THEME: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
-  ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
-  alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
-};
-const LOOK = { wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', metal: '#8d99b4', metalLo: '#6b7794' };
 
 describe('the room perspective', () => {
   it('a point brought forward lands on the line from the vanishing point through it, and scale 1 is the wall', () => {
@@ -51,18 +42,5 @@ describe('the room perspective', () => {
   it('the vanishing point is the middle of the desk', () => {
     const P = roomPersp({ ceil: -9000, floor: 7000, x0: -20000, x1: 14000 });
     expect(P.vx).toBe(-3000);
-  });
-  it.each([true, false])('the desk draws its parts on the floor and the wall without error (dark %s)', (dark) => {
-    setLayoutTier(0, 0);
-    const g = roomGeo(), D = deskGeo(g.persp, g.ys, g.floor), T = { ...THEME, dark };
-    const a = new Graphics(), b = new Graphics(), c = new Graphics();
-    drawUnderDesk(a, T, D, g.desk.x0, g.desk.x1);
-    drawDeskShadow(b, T, D, g.desk.x0, g.desk.x1);
-    drawDesk(c, T, LOOK, D, g.desk.x0, g.desk.x1);
-    const body = c.getLocalBounds();
-    expect(body.maxY).toBeGreaterThanOrEqual(D.floorFront); // the legs reach the floor in front of the baseboard
-    expect(body.minY).toBeLessThanOrEqual(D.yBack + 1);
-    expect(b.getLocalBounds().maxY).toBeGreaterThan(D.floorFront - 1);
-    expect(a.getLocalBounds().minY).toBeCloseTo(D.yBack, 0);
   });
 });

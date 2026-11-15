@@ -5,7 +5,7 @@ import {
   BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { anisotropy, extrude, instanced, place, shareTex, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, extrude, instanced, place, SEG, shareTex, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -73,7 +73,7 @@ export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
 /** A flat shape extruded from depth z0 to z1, its edges rounded by `bevel` inside its outline. */
 export function slab(shape: Shape, z0: number, z1: number, m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (z1 - z0) / 2.2));
-  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
+  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.caseCurve });
   g.translate(0, 0, z0 + b);
   return place(new Mesh(g, m));
 }
@@ -97,7 +97,7 @@ export const wallPt = (y: number, z: number): Vector2 => new Vector2(z, -y);
  */
 export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])[], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
+  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.holeCurve });
   // the shape's (u, v) is the world's (z, y); its extrusion runs to -x after the turn
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));
@@ -106,7 +106,7 @@ export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])
 /** A sheet lying flat across the case (a shelf, the shroud's top): layout x from `x0` to `x1`, depth `z0` to `z1`, `t` thick under its top at layout `y`, with holes as world (x, z) outlines. */
 export function plateY(x0: number, x1: number, z0: number, z1: number, y: number, t: number, holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, t / 2.2)), s = shapeOf([new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x1, z1), new Vector2(x0, z1)], holes);
-  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
+  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve });
   // (the shape's (u, v) is the world's (x, z); its extrusion runs down from the top)
   g.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0);
   return place(new Mesh(g, m));
@@ -158,7 +158,7 @@ export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
 }
 
 /** A solid turned round +z from its profile, [radius, height] from the foot up. */
-const lathe = (pts: readonly (readonly [number, number])[], sides = 20): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
+const lathe = (pts: readonly (readonly [number, number])[], sides: number = SEG.disc): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
 const driveM = () => mat(0x050608, { roughness: 0.8 });
 
 /** Pan-head screws: a low head with a cross recess in its flat crown. */
@@ -175,8 +175,8 @@ export function rivets(spots: readonly Spot[], f: Facing, r: number, m: Material
   const g = new Group();
   if (!spots.length) return g;
   const floor = r * 0.2;
-  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.1], [r * 0.82, r * 0.26], [r * 0.5, r * 0.38], [r * 0.26, r * 0.4], [r * 0.23, floor], [0, floor]], 16), f), m, spots));
-  g.add(instanced(turned(new CircleGeometry(r * 0.24, 10).translate(0, 0, floor + 0.5), f), driveM(), spots));
+  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.1], [r * 0.82, r * 0.26], [r * 0.5, r * 0.38], [r * 0.26, r * 0.4], [r * 0.23, floor], [0, floor]], SEG.rivetDome), f), m, spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.24, SEG.rivetHole).translate(0, 0, floor + 0.5), f), driveM(), spots));
   return g;
 }
 
@@ -189,7 +189,7 @@ export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: n
     if (i) s.lineTo(Math.cos(a) * q, Math.sin(a) * q); else s.moveTo(Math.cos(a) * q, Math.sin(a) * q);
   }
   s.closePath();
-  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 1 }).translate(0, 0, washer + b);
+  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat }).translate(0, 0, washer + b);
   g.add(instanced(turned(head, f), m, spots), instanced(turned(lathe([[r * 1.1, 0], [r * 1.1, washer * 0.8], [r * 0.9, washer], [0, washer]]), f), m, spots));
   g.add(instanced(turned(new BoxGeometry(r * 1.3, r * 0.2, Math.max(1, r * 0.03)).translate(0, 0, len + 0.5), f), driveM(), spots));
   return g;
@@ -200,14 +200,14 @@ export function capScrews(spots: readonly Spot[], f: Facing, r: number, m: Mater
   const g = new Group(), h = r * 0.6;
   if (!spots.length) return g;
   g.add(instanced(turned(lathe([[r, 0], [r, h * 0.82], [r * 0.9, h], [r * 0.56, h], [r * 0.5, h * 0.5], [0, h * 0.5]]), f), m, spots));
-  g.add(instanced(turned(new CircleGeometry(r * 0.52, 6).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.52, SEG.capSocket).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots));
   return g;
 }
 
 /** Soft rubber pads: a flat-topped button (the bumpers a side panel closes on). */
 export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
   const g = new Group();
-  if (spots.length) g.add(instanced(turned(lathe([[r, 0], [r, r * 0.26], [r * 0.82, r * 0.4], [0, r * 0.4]], 14), f), m, spots));
+  if (spots.length) g.add(instanced(turned(lathe([[r, 0], [r, r * 0.26], [r * 0.82, r * 0.4], [0, r * 0.4]], SEG.padTop), f), m, spots));
   return g;
 }
 
@@ -259,13 +259,15 @@ export function perforation(kind: Perf): Texture | null {
 }
 
 /** The material of a perforated sheet over a face `w` by `h` units, `pitch` units per hole. */
-export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Material {
+export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: number, o: { metal?: number; rough?: number; inside?: boolean } = {}): Material {
   const t = tiled(perforation(kind), w / pitch, h / (pitch * (kind === 'mesh' || kind === 'slot' ? 1 : 1.73)));
   // The holes are alpha-tested. A hard cut on mip-averaged alpha shimmers when the view moves: the coverage mask (the scene is multisampled) smooths it.
   // The sheet is pulled forward in depth, so the dark backing a few units behind it never wins a pixel at a far zoom (the hole flicker).
   // Once a hole is smaller than a few pixels no filter can draw it steadily: the sheet fades to a solid, darker average (the holes' mean look).
   // (a thin sheet: over a real opening it shows from inside the case too)
-  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  // (`inside`: a sheet in the case, behind the door. The factor scales the pull by the face's depth slope, which has no bound on a face seen
+  // edge-on: a tray's floor, looked at from just under it, came forward through the shut door as a dark line. Such a sheet takes a fixed pull.)
+  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: o.inside ? 0 : -2, polygonOffsetUnits: o.inside ? -8 : -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
   m.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       #ifdef USE_MAP
@@ -283,6 +285,34 @@ export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: n
 export function perforated(g: Group, r: RectLike, z: number, kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): void {
   g.add(decal(r, z, mat(0x040506, { roughness: 0.9 })));
   g.add(decal(r, z + 5, perfMat(kind, r.w, r.h, pitch, tone, o)));
+}
+
+/** The same perforated sheet, lying flat at world height `top` over x `x0`–`x1` and z `z0`–`z1` (the holes show a dark backing). */
+export function perforatedFlat(top: number, x0: number, x1: number, z0: number, z1: number, kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Group {
+  return perforatedFlatRun(top, [[x0, x1, z0, z1]], kind, pitch, tone, o);
+}
+
+/**
+ * Many flat windows (`[x0, x1, z0, z1, top?]`, any sizes, each at world height `top` unless it gives its own): one backing mesh and one
+ * perforated mesh for the whole run (merged geometry, one material; each window's UVs keep the hole pitch), so a run costs two draws.
+ */
+export function perforatedFlatRun(top: number, rects: [number, number, number, number, number?][], kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Group {
+  const g = new Group();
+  if (!rects.length) return g;
+  const w = rects[0]![1] - rects[0]![0], h = rects[0]![3] - rects[0]![2];
+  const geo = (lift: number): BufferGeometry => mergeGeometries(rects.map(([x0, x1, z0, z1, y = top]) => {
+    const p = new PlaneGeometry(x1 - x0, z1 - z0), uv = p.getAttribute('uv');
+    // the material tiles the first window's size: scale the others' UVs to the same pitch
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * (x1 - x0)) / w, (uv.getY(i) * (z1 - z0)) / h);
+    p.rotateX(-Math.PI / 2);
+    p.translate((x0 + x1) / 2, y + lift, (z0 + z1) / 2);
+    return p;
+  }), false)!;
+  const back = new Mesh(geo(3), mat(0x040506, { roughness: 0.9 }));
+  const perf = new Mesh(geo(5), perfMat(kind, w, h, pitch, tone, { ...o, inside: true }));
+  back.receiveShadow = perf.receiveShadow = true;
+  g.add(back, perf);
+  return g;
 }
 
 /** Brushed metal: fine streaks along the sheet's u, for the map of anodised parts (the material's colour tints it). */
@@ -320,6 +350,50 @@ export function badgeTex(key: string, w: number, h: number, word: string, ink: s
       c.fillStyle = ink; c.textBaseline = 'middle'; c.textAlign = mark ? 'left' : 'center';
       c.font = `700 ${Math.round(h * 0.36)}px system-ui, sans-serif`;
       c.fillText(word, mark ? x0 + 4 * bw + 4 * gap + w * 0.06 : w / 2, h / 2 + h * 0.02);
+    }
+  });
+}
+
+/** The approved base colours a case may use (docs/3D_STYLE.md "Asset standard" §1): families 1, 2, 4 and 5, the dark PCB mask, and the void behind a hole. */
+const FAMILY = [0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0xd4af5f, 0xc0793a];
+/** A colour this near a family colour (RGB distance, 0–255) is that family colour. */
+const FAMILY_NEAR = 45;
+/** Each family colour's one finish on a case: [metalness, roughness]. Matte plastic for the darks, satin paint, brushed metal, gold plate. */
+const FINISH: Record<number, readonly [number, number]> = {
+  0x050608: [0.05, 0.9], 0x131518: [0.05, 0.9], 0x1d1e22: [0.7, 0.38], 0x2a2d32: [0.4, 0.5], 0x4e5360: [0.7, 0.38],
+  0x959aa3: [0.7, 0.38], 0xb9babf: [0.7, 0.38], 0xd4af5f: [0.7, 0.5], 0xc0793a: [0.7, 0.38],
+};
+const step = (v: number, steps: readonly number[]): number => steps.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+
+/**
+ * One look per family across a case (§2, the material cap): each plain material's colour goes to the nearest family colour, and its metalness and
+ * roughness to a few steps, so near-duplicates become the same look and the machine's material share folds them. Left as built: a lit
+ * material (its emissive is written live), a see-through one, and a printed one (a white base under its map).
+ */
+export function foldCaseLooks(root: Group): void {
+  const seen = new Set<Material>();
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const s = m as Material & { color?: { getHex(): number; setHex(h: number): void }; emissive?: { getHex(): number }; metalness?: number; roughness?: number };
+      if (seen.has(m) || !s.color || s.metalness === undefined || s.roughness === undefined) continue;
+      seen.add(m);
+      if (m.transparent || (s.emissive && s.emissive.getHex() !== 0) || s.color.getHex() === 0xffffff) continue;
+      const c = s.color.getHex(), r = c >> 16, g = (c >> 8) & 255, b = c & 255;
+      let best = c, near = FAMILY_NEAR;
+      for (const f of FAMILY) { const d = Math.hypot(r - (f >> 16), g - ((f >> 8) & 255), b - (f & 255)); if (d < near) { near = d; best = f; } }
+      // the old OEM cream (an anti-reference, ASR1) is the satin metal: the pale creams the bright one, the darker ones the brushed one
+      if (best === c && r > 120 && r >= g && g > b && r - b >= 15 && r - b <= 70) best = r > 190 ? 0xb9babf : 0x959aa3;
+      // a matte plastic part in a charcoal goes to the dark mask (the charcoals are the painted and anodised metal); a perforated sheet has one tone
+      if ((best === 0x1d1e22 || best === 0x2a2d32) && s.metalness < 0.2 && s.roughness > 0.7) best = 0x131518;
+      // (a dark one; a perforated sheet in the light satin metal is the pressed vent of a light panel, and keeps the panel's colour)
+      if (m.alphaTest > 0 && FINISH[best] && best !== 0xb9babf && best !== 0x959aa3) best = 0x2a2d32;
+      s.color.setHex(best);
+      const f = FINISH[best];
+      // one finish per family colour; a colour outside the families (a port's plastic, a button) keeps a stepped finish of its own
+      s.metalness = f ? f[0] : step(s.metalness, [0.05, 0.4, 0.7]);
+      s.roughness = f ? f[1] : step(s.roughness, [0.38, 0.5, 0.9]);
     }
   });
 }

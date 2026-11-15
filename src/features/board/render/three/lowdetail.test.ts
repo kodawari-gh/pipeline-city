@@ -3,7 +3,7 @@ import { Group, Mesh, PlaneGeometry, TubeGeometry, type MeshStandardMaterial, ty
 import { byDetail, lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { driveBody } from '@/features/storage/render/drives';
 import { setLayoutTier } from '../layout/layout';
-import { NON_METAL, cheapMaterials } from '@/core/render/three/cheapmaterials';
+import { cheapMaterials } from '@/core/render/three/cheapmaterials';
 import { KEEP_SPEC } from '@/core/render/three/materials';
 import { coolerModel } from './cooler3d';
 import { machineKey } from './machine3d';
@@ -40,12 +40,12 @@ describe('Low builds coarser machine parts', () => {
     setLowDetail(true);
     expect(shapes()).toEqual(['40x8', '40x8', '40x8', '40x8', '48x6', '48x6']);
   });
-  it('the tower cooler at High keeps its 220x16 heat pipes and 339x6 thread coils', () => {
-    expect(shapes()).toEqual(['220x16', '220x16', '220x16', '220x16', '339x6', '339x6']);
+  it('the tower cooler at High has 96x12 heat pipes (ASR6) and 339x6 thread coils', () => {
+    expect(shapes()).toEqual(['339x6', '339x6', '96x12', '96x12', '96x12', '96x12']); // (sorted as text)
   });
-  it('the NVMe label drape is about 7 units a quad at High, and one flat quad of the whole picture at Low', () => {
+  it('the NVMe label drape is about 24 units a quad at High (ASR3), and one flat quad of the whole picture at Low', () => {
     const high = label().parameters;
-    expect([high.widthSegments, high.heightSegments]).toEqual([Math.round(high.width / 7), Math.round(high.height / 7)]);
+    expect([high.widthSegments, high.heightSegments]).toEqual([Math.round(high.width / 24), Math.round(high.height / 24)]);
     setLowDetail(true);
     const lowMesh = labelMesh(), low = (lowMesh.geometry as PlaneGeometry).parameters;
     expect([low.widthSegments, low.heightSegments, low.width, low.height]).toEqual([1, 1, high.width, high.height]);
@@ -55,7 +55,7 @@ describe('Low builds coarser machine parts', () => {
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
     expect(new Set(Array.from({ length: z.count }, (_, i) => z.getZ(i))).size).toBe(1);
   });
-  it('the pump cap reads as a Lambert metal at Low (no dark metal, no PBR without reflections), as it was at High', () => {
+  it('the pump cap keeps High\'s polished metal at Low (the machine keeps High\'s materials, `cheap` in board3d)', () => {
     type M = { metalness: number; roughness: number; color: { getHex(): number } };
     const mats = (g: Object3D, keep: (m: M) => boolean) => meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => keep(m as unknown as M)) as unknown as M[];
     const cap = () => { setLayoutTier(3, 3); return mats(coolerModel('cooler-liquid').root, (m) => m.color.getHex() === 0xffffff && m.roughness === 0.3); };
@@ -67,11 +67,11 @@ describe('Low builds coarser machine parts', () => {
       const low = build();
       expect(low.length).toBe(high.length);
       expect(high.length).toBeGreaterThan(0);
-      expect(low.every((m) => m.metalness <= NON_METAL)).toBe(true);
+      expect(low.every((m) => m.metalness > 0.4)).toBe(true);
     }
   });
   it('the sink casting and its fins keep High\'s PBR at Low (KEEP_SPEC, metalness 0.5), so cheapMaterials leaves them out of the Lambert swap', () => {
-    const sink = (visual: string) => { const g = new Group(); sinkBody(g, builtinTheme(true), 'vrm-sink', visual); return meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46) as MeshStandardMaterial[]; };
+    const sink = (visual: string) => { const g = new Group(); sinkBody(g, builtinTheme(),'vrm-sink', visual); return meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46) as MeshStandardMaterial[]; };
     for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
       setLowDetail(false);
       const high = sink(visual);
@@ -81,7 +81,7 @@ describe('Low builds coarser machine parts', () => {
       const low = sink(visual);
       expect(low.length).toBe(high.length);
       expect(low.every((m) => m.metalness === 0.5 && m.userData[KEEP_SPEC] === true)).toBe(true);
-      const g = new Group(); sinkBody(g, builtinTheme(true), 'vrm-sink', visual);
+      const g = new Group(); sinkBody(g, builtinTheme(), 'vrm-sink', visual);
       cheapMaterials(g);
       expect(meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46 && !(m as MeshStandardMaterial).isMeshStandardMaterial)).toHaveLength(0);
     }

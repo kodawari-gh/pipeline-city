@@ -5,7 +5,7 @@ import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { buildShowcaseModel } from './showcase';
 
-const T = builtinTheme(true);
+const T = builtinTheme();
 const BUILT = ['cpu', 'ram', 'gpu', 'npu', 'nic', 'cooler', 'fan', 'storage', 'psu', 'radiator', 'tpm', 'vrm-sink', 'ram-sink', 'display'];
 
 describe('the showcase models', () => {

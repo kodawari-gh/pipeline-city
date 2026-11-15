@@ -11,8 +11,7 @@ import { AIR_SOURCES, OUTSIDE_THE_CASE } from './airsources';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';
 import { fanMounts } from '@/features/room/render/desk/props/case';
-import { emptyScene } from '@/core/render/interact';
-
+import type { Rect } from '@/core/render/camera';
 /** A running Mid tower with a fan on every mount: a CPU at `cpuC`, fans cabled but for `unplug`. */
 function running(cpuC = 40, unplug: string[] = [], over: Partial<Snapshot> = {}): AirIn {
   setLayoutTier(2, 2);
@@ -24,7 +23,7 @@ function running(cpuC = 40, unplug: string[] = [], over: Partial<Snapshot> = {})
     cables: ids.map((id) => ({ id, name: id, connected: !unplug.includes(id) })) as Snapshot['cables'],
     ...over,
   });
-  const slots = emptyScene().slots;
+  const slots = new Map<string, Rect>();
   slots.set('cpu0', { x: CASE_GLASS.x + CASE_GLASS.w * 0.4, y: CASE_GLASS.y + CASE_GLASS.h * 0.4, w: 500, h: 500 });
   return { s, mounts, radiator: null, rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots, sources: AIR_SOURCES };
 }

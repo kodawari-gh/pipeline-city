@@ -28,7 +28,7 @@ describe('token text', () => {
   it('gives every instruction its address and number, and a colour of its own', () => {
     expect(pcText(0xc5a0)).toBe('@c5a0');
     expect(seqText(412)).toBe('#412');
-    expect(idColor(1, true)).not.toBe(idColor(2, true));
-    expect(idColor(7, true)).toMatch(/^#[0-9a-f]{6}$/);
+    expect(idColor(1)).not.toBe(idColor(2));
+    expect(idColor(7)).toMatch(/^#[0-9a-f]{6}$/);
   });
 });

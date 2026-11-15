@@ -1,4 +1,4 @@
-// The chips alive in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"): the CPU's die, the graphics cards' and the AI cards' dies run as in 2D.
+// The chips alive in 3D (docs/render/three.md): the CPU's die, the graphics cards' and the AI cards' dies run as in 2D.
 // The 2D views themselves run here (`DieView`, `GpuView`, `NpuCardView` in their bare mode: only what moves, the still die is the face's baked
 // art), fed the same snapshots, the same eased clock, and the zoom and view of the camera. Each face shows them on a plane just over its baked art:
 // the part of the face in view, drawn at the screen's density by the offscreen Pixi renderer (`drawLive`) at most 30 times a second, and only
@@ -90,7 +90,7 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
 export class Chips3D {
   /** The art is the dark theme's, as the machine's. */
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   private readonly die = new DieView(true);
   private readonly gpu = new GpuView(true);
   private readonly npu = new NpuCardView(true);

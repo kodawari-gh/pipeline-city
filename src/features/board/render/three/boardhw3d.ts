@@ -2,7 +2,7 @@
 // (where each port sits in the shield, the connectors behind it and their cover by the tier's skin), and the slot hardware (PCIe armour and
 // latches, the CPU socket's load frame and lever).
 import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape, type Material, type MeshStandardMaterial } from 'three';
-import { extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -153,7 +153,7 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
     shells.filter((s) => s.m === 'gold').forEach((s, i) => {
       const y = (s.y0 + s.y1) / 2, z = (s.z0 + s.z1) / 2, xe = x0 + 90 + i * 60;
       io.add(barrel(xs, x0 + 24, y, z, (s.y1 - s.y0) / 2, shellM.gold, 14), barrel(x0, x0 + 22, y, z, 26, steelM, 6));
-      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, 6), 9, mat(0x1a1b1f, { roughness: 0.6 }), 8));
+      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, 6), 9, mat(0x1a1b1f, { roughness: 0.6 }), SEG.frameBar));
     });
   }
   if (pins.length) io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xc9ccd2, { metalness: 0.8, roughness: 0.3 }), pins));
@@ -180,8 +180,8 @@ export function slotHardware(): Group {
     plate.position.z = BOARD_Z + 70;
     g.add(plate);
     const lx = o.x + o.w + 40, ys = o.y + o.h + 50, zl = BOARD_Z + 46;
-    g.add(tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, 5), 13, steel, 10));
-    const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, 14).rotateZ(Math.PI / 2), latchM));
+    g.add(tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, 5), 13, steel, SEG.midRound));
+    const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, SEG.post).rotateZ(Math.PI / 2), latchM));
     cap.position.set(lx + 200, -ys, zl);
     g.add(cap);
     g.add(rectBox({ x: lx - 30, y: ys - 70, w: 60, h: 40 }, BOARD_Z, BOARD_Z + 70, steel), rectBox({ x: lx - 26, y: o.y + 10, w: 52, h: 70 }, BOARD_Z, BOARD_Z + 64, steel));

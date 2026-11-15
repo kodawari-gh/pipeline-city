@@ -4,9 +4,9 @@
 // the top controls (the power button and the status lights of each kind, the front ports). The inside of the case is casetray3d.ts. Airflow reads
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { FAN_SCREW, fanFlange, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
+import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { fanMounts, frontFanRects } from '@/features/room/render/desk/props/case';
@@ -80,7 +80,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
     g.add(thumbscrews(Array.from({ length: slots }, (_, i) => ({ x: x0 - 14, y: -(slotY(i) + 30), z: (za + zb) / 2 })), 'x-', 56, 64, steel()));
   }
   // over the round opening: a honeycomb grille where the case has a mount (its four screw holes go with it), the Mini's punched grille where it has none
-  const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, 48), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
+  const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, fanSides(fan.d / 23)), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));
   grille.rotation.y = -Math.PI / 2;
   grille.position.set(x0 - 2, -fan.cy, REAR_ZC);
   g.add(grille);
@@ -156,12 +156,12 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
     const face: Span = { y0: f.yTop - 200, y1: f.yBot + 60, z0: f.z0 + 140, z1: f.z1 - 140 };
     g.add(decalX(ex + 3, face, 1, perfMat('mesh', face.z1 - face.z0, face.y1 - face.y0, 34, 0x2a3042, { metal: 0.5, rough: 0.45 })));
     for (const z of [f.z0 + 70, f.z1 - 70]) {
-      const m = glowMat(0x7a5cff, 0x15171d);
+      const m = glowMat(0xa68bff, 0x15121f); // (the PC's one violet, art-style v3)
       g.add(seeThrough(boxW(ex - 4, ex + 14, -(f.yBot - 100), -(f.yTop + 60), z - 26, z + 26, m)));
       spins.push(light(m));
     }
   } else if (f.kind === 'show') {
-    const silver = mat(0xa7adb6, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.32 }), face: Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
+    const silver = mat(0x2a2d32, { map: tiled(brushed(), 4, 1), metalness: 0.6, roughness: 0.4 }), face: Span = { y0: f.yTop - 120, y1: f.yBot, z0: f.z0 + 160, z1: f.z1 - 160 };
     const frame = wallX(ex, ex + 30, { ...face, y0: face.y0 - 60, y1: face.y1 + 60, z0: face.z0 - 80, z1: face.z1 + 80 }, [{ ...face, r: 30 }], silver, 6);
     g.add(frame, decalX(ex + 8, face, 1, perfMat('hex', face.z1 - face.z0, face.y1 - face.y0, 52, 0x4a4f58, { metal: 0.6, rough: 0.4 })));
   } else if (f.kind === 'matte') {
@@ -345,7 +345,7 @@ function legacyPorts(g: Group, tier: number, plateM: MeshStandardMaterial) {
     g.add(drumX(x - 12, -y, zc, 40, 8, mat(tone, { roughness: 0.5 })), drumX(x - 15, -y, zc, 27, 8, hole), boxW(x - 16, x - 12, -y - 4, -y + 4, zc + 14, zc + 27, mat(tone, { roughness: 0.5 })));
     // (a combo port's ring is half each colour: the half over the ring's face, the mouth in front of it)
     if (half !== undefined) {
-      const o = new Mesh(new CylinderGeometry(40, 40, 0.8, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), mat(half, { roughness: 0.5 }));
+      const o = new Mesh(new CylinderGeometry(40, 40, 0.8, SEG.post, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), mat(half, { roughness: 0.5 }));
       o.position.set(x - 16.6, -y, zc);
       g.add(place(o));
     }
@@ -375,9 +375,7 @@ const pip = (c: number) => mat(0x0c0c0e, { emissive: c, emissiveIntensity: 0, ro
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
 const hitPlate = (x: number, y: number, z: number): Mesh => {
-  const o = rectBox({ x: x - 210, y: y - 260, w: 420, h: 260 }, z - 210, z + 210, mat(0, { transparent: true, opacity: 0, depthWrite: false }));
-  o.castShadow = o.receiveShadow = false;
-  return o;
+  return unseen(rectBox({ x: x - 210, y: y - 260, w: 420, h: 260 }, z - 210, z + 210, mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 };
 
 /**
@@ -404,7 +402,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   }
   // the top I/O panel by the front edge (the gaming case's sits behind its mesh cap)
   const ix = ex - (k === 'gamer' ? cap + 260 : 520), z0 = FRONT - 2050, z1 = FRONT - 360, py = top - 14;
-  const plateM = k === 'show' ? mat(0xa7adb6, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.32 }) : mat(k === 'gamer' ? 0x101420 : 0x0c0d10, { roughness: 0.55, metalness: 0.2 });
+  const plateM = k === 'show' ? mat(0x2a2d32, { map: tiled(brushed(), 1, 6), metalness: 0.6, roughness: 0.4 }) : mat(k === 'gamer' ? 0x101420 : 0x0c0d10, { roughness: 0.55, metalness: 0.2 });
   root.add(softBox({ x: ix - 140, y: py, w: 280, h: 16 }, z0, z1, plateM, 6));
   if (k === 'gamer') { const line = glowMat(f.acc, 0x15121f); root.add(seeThrough(rectBox({ x: ix + 118, y: py - 2, w: 8, h: 4 }, z0 + 40, z1 - 40, line))); spins.push(light(line, f.acc, 1.6)); }
   // the button and its light ring
@@ -450,7 +448,7 @@ export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491,
 /** Two hinge barrels on the front edge of a glass door (the Mid and the Full tower). */
 export function hinges(ex: number, yTop: number, yBot: number): Group {
   const g = new Group(), m = mat(0x2b2f38, { metalness: 0.7, roughness: 0.35 });
-  for (const y of [yTop + 500, yBot - 900]) { const o = place(new Mesh(new CylinderGeometry(24, 24, 320, 16), m)); o.position.set(ex + 6, -y, FRONT - 6); g.add(o); }
+  for (const y of [yTop + 500, yBot - 900]) { const o = place(new Mesh(new CylinderGeometry(24, 24, 320, SEG.post), m)); o.position.set(ex + 6, -y, FRONT - 6); g.add(o); }
   return g;
 }
 

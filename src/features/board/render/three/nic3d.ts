@@ -6,7 +6,7 @@
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen.
 import { BoxGeometry, Group, LatheGeometry, Vector2, type Material } from 'three';
-import { drum, instanced, rectBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { drum, instanced, rectBox, SEG, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
@@ -29,6 +29,17 @@ const CTRL: Record<string, { chip: number; sink: number; sinkHex: number; pinHex
 };
 /** The sink's height off the PCB, under the jacks' (`JACK.h`). */
 const SINK_H = 12 * MM;
+
+/**
+ * A solder joint: the fillet from the pad up to the tail's rounded tip (tpm3d's), lathed on `SEG.joint` sides. Its profile is sampled to
+ * `SEG.jointRings` bands (the base and the tip kept), so the outer size stays the same.
+ */
+function solderFillet(): LatheGeometry {
+  const P: [number, number][] = [[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]];
+  const last = P.length - 1;
+  const pts = Array.from({ length: SEG.jointRings + 1 }, (_, k) => P[Math.round((k * last) / SEG.jointRings)]!);
+  return new LatheGeometry(pts.map(([r, z]) => new Vector2(r, z)), SEG.joint).rotateX(Math.PI / 2);
+}
 
 /** A span of a wall across x as its outline (`wallPt` points). */
 const spanPts = (s: Span): Vector2[] => outlinePts({ x: s.z0, y: s.y0, w: s.z1 - s.z0, h: s.y1 - s.y0 }, s.r ?? 0);
@@ -136,7 +147,7 @@ function tabMask(cu: NicCopper, f: CardFrame, face: Face, z: number): ReturnType
 /** A polymer capacitor: an aluminium can in its sleeve on a black seat, the vent's cross pressed in its top; at layout (x, y), under the u-group's PCB. */
 function polyCap(u: Group, x: number, y: number, zu: number, r: number, h: number, M: { seat: Material; sleeve: Material; can: Material; vent: Material }): void {
   u.add(rectBox({ x: x - r - 0.2 * MM, y: -(y + r + 0.2 * MM), w: 2 * r + 0.4 * MM, h: 2 * r + 0.4 * MM }, zu, zu + 0.5 * MM, M.seat));
-  u.add(drum(x, -y, zu + 0.5 * MM, zu + h - 0.5 * MM, r, M.sleeve, 28), drum(x, -y, zu + h - 0.5 * MM, zu + h, r * 0.94, M.can, 28));
+  u.add(drum(x, -y, zu + 0.5 * MM, zu + h - 0.5 * MM, r, M.sleeve, SEG.canister), drum(x, -y, zu + h - 0.5 * MM, zu + h, r * 0.94, M.can, SEG.canister));
   u.add(instanced(new BoxGeometry(1, 1, 1), M.vent, [0, Math.PI / 2].map((rz) => ({ x, y, z: zu + h + 0.02 * MM, sx: r * 1.3, sy: 0.22 * MM, sz: 0.06 * MM, rz }))));
 }
 
@@ -184,10 +195,10 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
     u.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
     const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xa9b0b9, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
-      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, 16), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, 24));
+      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
       const coil: [number, number, number][] = [];
       for (let k = 0; k <= 72; k++) { const a = (k / 72) * Math.PI * 2 * 4; coil.push([px + Math.cos(a) * 1.6 * MM, py + Math.sin(a) * 1.6 * MM, b1 + 0.2 * MM + (k / 72) * 3.2 * MM]); }
-      u.add(tube(coil, 0.18 * MM, spring, 6));
+      u.add(tube(coil, 0.18 * MM, spring, SEG.cord));
     }
   }
   // the crystal between the jacks and the controller, the flash east of it, the regulator (a dual buck) with its two inductors and the polymer
@@ -247,16 +258,15 @@ export function nicBack(g: Group, visual: string, f: CardFrame, Z: number, cu: N
   g.add(maskTop(`nic-back:${cu.key}`, board, Z, { ...MASK, text, seed: 0, copper: copperOf(cu, 'bottom'), pads: cu.pads.filter((p) => p.face === 'bottom' && !p.edge).map((p) => p.r) }, { px: 24 }));
   g.add(tabMask(cu, f, 'bottom', Z - 1));
   passives(g, cu.parts.filter((p) => p.face === 'bottom').map((p): Passive => ({ x: p.x, y: p.y, pkg: p.pkg, kind: p.kind, turn: p.turn })), Z);
-  // the through-hole pins' tails cut short in their solder: a fillet over each ring climbing to its rounded tip (tpm3d's), sized to the ring
-  const joint = new LatheGeometry([[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]].map(([r, z]) => new Vector2(r, z)), 20).rotateX(Math.PI / 2);
-  g.add(instanced(joint, mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
+  // the through-hole pins' tails cut short in their solder: a fillet over each ring climbing to its rounded tip, sized to the ring
+  g.add(instanced(solderFillet(), mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
   // the jacks' plastic pegs, split, just through the board; a BGA's push pins' barbed tips, split, through the sink's corners
   const C = CTRL[visual] ?? CTRL['nic-gbe']!, peg = mat(0x121316, { roughness: 0.6 }), slit = mat(0x050506, { roughness: 0.9 });
   const sinkPins = a.sink ? cu.npth.slice(-2) : [];
   for (const h of cu.npth) {
     const pin = sinkPins.includes(h), m = pin ? mat(C.pinHex, { roughness: 0.55 }) : peg, r = h.r - 0.15 * MM, t = (pin ? 1.2 : 0.8) * MM;
-    g.add(drum(h.x, h.y, Z, Z + t, r, m, 20));
-    if (pin) g.add(drum(h.x, h.y, Z + t, Z + t + 0.4 * MM, r * 0.75, m, 20));
+    g.add(drum(h.x, h.y, Z, Z + t, r, m, SEG.disc));
+    if (pin) g.add(drum(h.x, h.y, Z + t, Z + t + 0.4 * MM, r * 0.75, m, SEG.disc));
     g.add(rectBox({ x: h.x - r - 0.05 * MM, y: h.y - 0.2 * MM, w: 2 * r + 0.1 * MM, h: 0.4 * MM }, Z + 0.2 * MM, Z + t + (pin ? 0.45 : 0.05) * MM, slit));
   }
   const st = serialLabel(visual);

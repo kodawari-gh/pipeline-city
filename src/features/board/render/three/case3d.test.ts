@@ -6,7 +6,7 @@ import { CASE_FRONT as FRONT, CASE_Z } from '@/features/room/render/three/roompl
 import { CASE, FOOT, setLayoutTier } from '../layout/layout';
 import { caseModel, outlinePts, SIDE_T } from './case3d';
 
-const T = builtinTheme(true);
+const T = builtinTheme();
 
 describe('the 3D cases', () => {
   it('builds each tier as its own kind, inside the case box, standing on its feet', () => {
@@ -31,7 +31,8 @@ describe('the 3D cases', () => {
       const kind = CASE_KIND[t]!, m = caseModel(kind, T);
       expect(!!m.glass, kind).toBe(kind !== 'oem');
       expect(m.rgb, kind).toBe(kind === 'gamer' || kind === 'show');
-      expect(m.spins.length > 0, kind).toBe(m.rgb);
+      // (the showcase's light comes from its inner strips, `innerStrips`, not from the case's own parts)
+      expect(m.spins.length > 0, kind).toBe(kind === 'gamer');
       if (m.glass) {
         m.door.updateMatrixWorld(true);
         const g = new Box3().setFromObject(m.glass as Mesh), w = caseWindow(kind);

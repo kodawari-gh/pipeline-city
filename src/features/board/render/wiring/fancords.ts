@@ -1,11 +1,6 @@
-import { Container, Graphics } from 'pixi.js';
-import type { CordScene } from '@/core/render/interact';
-import { fanMounts, hubHeaders, plugBox } from '@/features/room/render/desk/props/case';
-import { paintCable, startFall, stepFall, type Fall } from '@/core/render/cable';
-import type { Theme } from '@/core/render/theme';
+import { fanMounts, hubHeaders } from '@/features/room/render/desk/props/case';
 import { CASE_BD, COOLER, FAN_HUB, FAN_SLOT, GEO, type Rect } from '../layout/layout';
-import { cordShape, type Shape } from '@/core/render/shape';
-import { roundedPath, rubberBand, type Pt } from './routes';
+import type { Pt } from './routes';
 
 // The fans' cables (docs/render/board.md "Fan cables"): the CPU cooler's, the two heatsink fans', the fan hub's control cable and one cable per
 // case fan. Each is fixed at its fan (or at the hub) and ends in a plug that seats on its header, or lies loose beside it: the player drags it in,
@@ -80,86 +75,3 @@ export function fanCordPlans(): FanCordPlan[] {
 /** How long the cord is: its plug at rest, a little slack more (it hangs from the anchor to the plug, and a plug that falls swings on this length). */
 export const cordLen = (p: FanCordPlan) => Math.hypot(p.rest[0] - p.anchor[0], p.rest[1] - p.anchor[1]) * 1.12 + 120;
 
-/** The grab rect of a plug whose centre is at `at`. */
-const plugRectAt = (pl: FanCordPlan, at: Pt): Rect => ({ x: at[0] - pl.plug.w / 2 - 30, y: at[1] - pl.plug.h / 2 - 30, w: pl.plug.w + 60, h: pl.plug.h + 60 });
-
-export interface FanCordHit { id: string; rect: Rect; shape?: Shape }
-
-export class FanCordsView {
-  readonly root = new Container();
-  hits: FanCordHit[] = [];
-  /** Each cord's silhouette (the cord and its plug), made as it is drawn. */
-  private shapes = new Map<string, Shape>();
-  private gc = new Graphics();
-  private gp = new Container();
-  private T!: Theme;
-  private plans: FanCordPlan[] = [];
-  private key = '';
-  /** Plugs let go in the air: they fall and swing on their cord until they lie at rest (`stepFall`). */
-  private falls = new Map<string, Fall>();
-  private prevHeld: { kind: string; at: Pt } | null = null;
-  private cur: { list: FanCordPlan[]; present: Map<string, boolean> } | null = null;
-
-  constructor() { this.root.addChild(this.gc, this.gp); }
-
-  /** A new room (theme, case tier, board tier): the plans are rebuilt and everything redrawn. */
-  setRoom(T: Theme) { this.T = T; this.plans = fanCordPlans(); this.key = ''; this.falls.clear(); this.prevHeld = null; }
-
-  /** Advance the plugs that fell out of the hand (call every frame; it redraws only while one moves). */
-  tick(dt: number) {
-    if (!this.falls.size || !this.cur) return;
-    for (const [id, f] of this.falls) {
-      const p = this.plans.find((q) => q.id === id);
-      if (!p) { this.falls.delete(id); continue; }
-      stepFall(f, dt, p.anchor, cordLen(p), p.rest);
-      if (f.done) this.falls.delete(id);
-    }
-    this.draw(this.cur.list, this.cur.present, this.prevHeld);
-  }
-
-  get ids(): string[] { return this.plans.map((p) => 'cable.' + p.id); }
-
-  /**
-   * Draw the cords the machine lists (`present`: cable id to whether its plug is in, as the game, or the player's drop until it confirms, says) and
-   * return them as the pointer sees them. `held` is the plug in the hand and where it is.
-   */
-  sync(present: Map<string, boolean>, held: { kind: string; at: Pt } | null, force = false): { cords: CordScene[]; redrew: boolean } {
-    const list = this.plans.filter((p) => present.has(p.id));
-    // a plug let go away from its header falls; one that is picked up (or seated) stops falling
-    if (this.prevHeld && this.prevHeld.kind !== held?.kind && !present.get(this.prevHeld.kind) && list.some((p) => p.id === this.prevHeld!.kind)) this.falls.set(this.prevHeld.kind, startFall(this.prevHeld.at));
-    for (const id of [...this.falls.keys()]) if (present.get(id) || held?.kind === id) this.falls.delete(id);
-    this.prevHeld = held ? { kind: held.kind, at: [held.at[0], held.at[1]] } : null;
-    this.cur = { list, present };
-    const cords = list.map((p): CordScene => {
-      const isHeld = held?.kind === p.id, connected = !!present.get(p.id) && !isHeld, at: Pt = isHeld ? held!.at : connected ? p.seat : p.rest;
-      return { kind: p.id, connected, held: isHeld, plug: plugRectAt(p, at), centre: at, outlet: p.seat, outletRect: { x: p.header.x - 20, y: p.header.y - 20, w: p.header.w + 40, h: p.header.h + 40 }, rest: p.rest, seatR: p.seatR };
-    });
-    this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
-    const key = this.T.dark + '|' + this.falls.size + '|' + list.map((p) => (held?.kind === p.id ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : present.get(p.id) ? 'c' : 'l') + p.id).join('|');
-    if (key === this.key && !force) return { cords, redrew: false };
-    this.key = key;
-    this.draw(list, present, held);
-    this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
-    return { cords, redrew: true };
-  }
-
-  private draw(list: FanCordPlan[], present: Map<string, boolean>, held: { kind: string; at: Pt } | null) {
-    const T = this.T, g = this.gc;
-    g.clear();
-    this.gp.removeChildren().forEach((c) => c.destroy({ children: true }));
-    for (const p of list) {
-      const isHeld = held?.kind === p.id, connected = !!present.get(p.id) && !isHeld, fall = this.falls.get(p.id);
-      const at: Pt = isHeld ? held!.at : connected ? p.seat : fall ? fall.p : p.rest;
-      const path = connected ? roundedPath(p.route, 70, 30) : rubberBand(p.anchor, p.anchorDir, at, 36, cordLen(p));
-      paintCable(g, T, path, { w: p.width, accent: T.mul });
-      this.shapes.set('cable.' + p.id, cordShape(path, p.width, { x: at[0] - p.plug.w / 2, y: at[1] - p.plug.h / 2, w: p.plug.w, h: p.plug.h }));
-      if (p.endPlug) plugBox(g, T, p.endPlug.x, p.endPlug.y, p.endPlug.w, p.endPlug.h, T.mul);
-      // the plug on the header end: square on its seat, tilted where it lies or hangs in the hand
-      const pg = new Graphics();
-      pg.position.set(at[0], at[1]);
-      plugBox(pg, T, -p.plug.w / 2, -p.plug.h / 2, p.plug.w, p.plug.h, T.mul);
-      if (!connected) pg.rotation = fall ? fall.rot : 0.3;
-      this.gp.addChild(pg);
-    }
-  }
-}

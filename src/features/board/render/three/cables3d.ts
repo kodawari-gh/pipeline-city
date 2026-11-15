@@ -3,7 +3,7 @@
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
-import { paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
+import { SEG, paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
 import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
@@ -59,7 +59,7 @@ export function braidedTube(pts: readonly Vector3[], r: number, base: string, ti
 
 /** A band round a tube at `s` along its curve (a hose clamp, a cable tie), `len` long. */
 export function band(curve: CatmullRomCurve3, s: number, r: number, len: number, m: MeshStandardMaterial): Mesh {
-  const u = Math.max(0, Math.min(1, s / curve.getLength())), o = place(new Mesh(new CylinderGeometry(r, r, len, 20), m));
+  const u = Math.max(0, Math.min(1, s / curve.getLength())), o = place(new Mesh(new CylinderGeometry(r, r, len, SEG.disc), m));
   o.position.copy(curve.getPointAt(u));
   o.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), curve.getTangentAt(u));
   return o;

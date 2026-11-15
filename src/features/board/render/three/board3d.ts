@@ -1,6 +1,5 @@
-// The 3D world's mount (docs/render/three.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
-// Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
-// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
+// The 3D world's mount (docs/render/three.md): the game's view (`app/main.tsx`). It builds the room and the machine from the snapshot, drives the orbit camera,
+// picks with rays and writes the hover / selected signals, so the HUD's tooltips and cards work. The dies run on `Chips3D`. Parts, cables and keys drag (`drag3d.ts`).
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
 // at every height (`RoomEnv`), and so does the machine: it reads at night by the room's lamps alone, at every zoom (`src/features/room/light.md`).
 import { effect } from '@preact/signals';
@@ -12,7 +11,7 @@ import { airflowLens, hover, powerLens, selected, viewInset, INERT_REGIONS } fro
 import { cameraRev, highlight } from '@/app/interaction';
 import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
-import { deviceOfPart } from '@/core/render/interact';
+import { deviceOfPart } from '@/core/render/parts';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, awayHeld, debugOverride, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { whenDebug } from '@/app/debugflag';
@@ -27,9 +26,10 @@ import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
-import { Probe } from '@/core/render/three/probe';
+import { PROBE_CALM, Probe } from '@/core/render/three/probe';
+import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
-import { linked, startPrograms, type Program } from '@/core/render/three/compile';
+import { freeWhenLinked, linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
@@ -121,7 +121,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const studio = shareTex(scene.environment!);
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
   // a few times over for a new room, as each capture holds the bounce of the one before; prefiltered, it is the scene's light at every zoom
-  const probe = new Probe(200, 400000), { pmrem } = ctx;
+  const probe = new Probe(200, 400000, PROBE_CALM), { pmrem } = ctx;
   let roomEnv: WebGLCubeRenderTarget | null = null;
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
   // the metered eye: the meter's last reading, the exposure's factor it asks for, and where the eye stands on its way to it
@@ -149,7 +149,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
   /** Low's cheaper materials (`cheapMaterials`), by the root they were applied to: undone when the root goes or the tier leaves Low. */
   const cheaps = new Map<Object3D, Cheap>();
-  const cheap = (root: Object3D) => { if (isLow(effective.peek()) && !cheaps.has(root)) cheaps.set(root, cheapMaterials(root)); };
+  // (a machine keeps High's materials: its metal reads by reflection and the GPU time is the same, 5.2 ms a board frame at 2560 x 1355.
+  // It takes the case's shadow on its spot lights in place of the shadow maps Low does not draw, `caseshade.ts`)
+  const cheap = (root: Object3D) => {
+    if (!isLow(effective.peek()) || cheaps.has(root)) return;
+    cheaps.set(root, root === room?.root ? cheapMaterials(root) : caseShaded(root));
+  };
   const uncheap = (root: Object3D) => { cheaps.get(root)?.undo(); cheaps.delete(root); };
   /** Puts `m` in the scene in the machine's place. */
   const install = (m: Machine3D) => {
@@ -171,7 +176,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
-      if (room) { uncheap(room.root); scene.remove(room.root); room.dispose(); disposeTree(room.root); }
+      // (the old room's materials go once their programs have linked: one deleted while it links logs GL warnings)
+      if (room) { const old = room.root; uncheap(old); scene.remove(old); room.dispose(); freeWhenLinked(renderer, old, () => disposeTree(old)); }
       room = new Room3D(studio);
       blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
@@ -626,7 +632,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
     if (linking) {
       if (!linked(linking)) {
-        if (!revealed) bootStage('Preparing the shaders', 0.38 + (0.52 * linking.filter((p) => p.isReady()).length) / linking.length);
+        if (!revealed) bootStage('Preparing the shaders', 0.38 + (0.52 * linking.filter(programDone).length) / linking.length);
         last = now;
         requestAnimationFrame(frame);
         return;
@@ -689,7 +695,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
     const near = 1 - roomness(seenH);
     const day = daylight(hour);
-    post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    // (the local eye's night key is the room's: low-key, pools of lamp light. From the board view in it is the day's: the metered eye has
+    // already put the board's mean where it reads, and the local eye lifts the parts in the case's shade round it, `BOARD_EYE`)
+    const eyeAt = (nr: number): void => post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** Math.max(day, nr) * NIGHT_KEY ** (1 - Math.max(day, nr)), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    eyeAt(near);
     // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
     if (!warmed) {
       warmed = true;
@@ -704,13 +713,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const ov = overview(), h = heightAt(ov, LOOK_Z), nr = 1 - roomness(h);
       applyView(camera, ov, aspect());
       post.setReach(h);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      eyeAt(nr);
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
       applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
       post.setReach(seenH);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      eyeAt(near);
     }
     // drawn on demand (docs/render/load.md "Draw on demand"): the game draws every frame. The title's room draws when its picture changes: the
     // sway moves it `STILL_PX` or more at the room's depths, the city's beat comes (its cars, the cup's steam, the hour's light), the machine
@@ -736,7 +745,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       bounces = plan.bounces;
       if (plan.request) { probe.request(); probeKey = key; probeAt = now; }
       // one light for all: the machine and the dies' art take the room's probe as the room's own materials do (`RoomEnv`), at every zoom
-      if (probe.step(renderer, scene)) {
+      if (probe.step(renderer, scene, machine?.root ?? null)) {
         roomEnv = pmrem.fromCubemap(probe.texture, roomEnv);
         scene.environment = roomEnv.texture; scene.environmentIntensity = PROBE_K;
         if (!probed) { room.setProbe(roomEnv.texture); probed = true; }
@@ -771,8 +780,17 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   if (import.meta.env.DEV) {
   /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
   const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
+  /** Dev only (`tools/shot-case.mjs`): the view that frames the object with this hover id from its own box (its largest side fills `fill` of the view's height). Null: no such object. */
+  const frameOf = (id: string, yaw: number, pitch: number, fill: number): OrbitView | null => {
+    const o = roots().map((r) => findById(r, id)).find(Boolean) ?? null;
+    if (!o) return null;
+    const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
+    const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
+    jumpRaw(v);
+    return v;
+  };
   (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, chips, quality: () => autoStep.peek(),
+    three: true, scene, renderer, chips, quality: () => autoStep.peek(), eyeCamera: camera,
     // the frame's parts as they stand (tools/bench3d.mjs times them)
     parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
     // the metered eye (the meter's reading, the exposure's factor it asks for, and where it stands now)
@@ -815,14 +833,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // own box in world units: its largest side fills `fill` of the view's height, turned by `yaw`, seen from `pitch` above. Null: no such device.
     jumpRaw: (v: OrbitView) => jumpRaw(v),
     frameSpec: (key: string, yaw = 0, pitch = 0.1, fill = 0.6): OrbitView | null => {
-      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key);
-      const o = d && machine ? findById(machine.root, d.id) : null;
-      if (!o) return null;
-      const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
-      const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
-      jumpRaw(v);
-      return v;
+      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key || x.slot === key);
+      return d ? frameOf(d.id, yaw, pitch, fill) : null;
     },
+    // `--id`: the object with this hover id (a part, a cable, a room object), framed the same way; `--list`: every hover id in the scene, sorted
+    frameId: (id: string, yaw = 0.52, pitch = 0.35, fill = 0.5): OrbitView | null => frameOf(id, yaw, pitch, fill),
+    ids: (): string[] => { const s = new Set<string>(); for (const r of roots()) r.traverse((o) => { if (typeof o.userData.id === 'string') s.add(o.userData.id); }); return [...s].sort(); },
   };
   }
 }

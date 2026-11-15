@@ -53,7 +53,7 @@ export class GpuLensView {
     this.link.clear();
     const lx = Math.min(Math.max(cell.x + cell.w / 2, x + 10), x + w - 10), ly = y + h;
     this.link.moveTo(lx, ly).lineTo(cell.x + cell.w / 2, cell.y).stroke({ width: Math.max(0.6, 1.2 / zoom), color, alpha: fresh ? 0.8 : 0.4 });
-    const sig = `${lens.tag}|${lens.note}|${lens.rows.map((r) => r.addr + r.hex + r.text + (r.current ? '*' : '')).join(';')}|${color}|${fresh}|${T.dark}`;
+    const sig = `${lens.tag}|${lens.note}|${lens.rows.map((r) => r.addr + r.hex + r.text + (r.current ? '*' : '')).join(';')}|${color}|${fresh}`;
     if (sig === this.sig) return;
     this.sig = sig;
     this.draw(T, lens, color, fresh);

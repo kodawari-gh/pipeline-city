@@ -214,9 +214,9 @@ export class Live {
   private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
   private osUpTick: number | null = null;
 
-  constructor(renderer: Renderer, private additive: boolean) {
-    this.busFlow = new BusFlow(additive);
-    this.extFlow = new BusFlow(additive);
+  constructor(renderer: Renderer) {
+    this.busFlow = new BusFlow();
+    this.extFlow = new BusFlow();
     const dg = new Graphics().circle(0, 0, 16).fill({ color: '#ffffff' });
     this.dotTex = renderer.generateTexture(dg);
     dg.destroy();
@@ -279,7 +279,7 @@ export class Live {
     this.npu.setScene(T, npuCards);
     for (const t of targets) {
       const g = new Graphics(), dim = new Graphics();
-      if (this.additive) g.blendMode = 'add';
+      g.blendMode = 'add';
       this.root.addChild(g, dim);
       this.glows.set(t.id, { t, g, dim, base: 0, level: 0 });
     }
@@ -305,7 +305,7 @@ export class Live {
       let g: Graphics | null = null;
       if (power) {
         g = new Graphics();
-        if (this.additive) g.blendMode = 'add';
+        g.blendMode = 'add';
         for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
         g.stroke({ width: bus.w * 0.7, color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
         g.alpha = 0;
@@ -321,7 +321,7 @@ export class Live {
         continue;
       }
       const g = new Graphics();
-      if (this.additive) g.blendMode = 'add';
+      g.blendMode = 'add';
       // the glow stops where the plugs begin (plugs are drawn under the live layer)
       const pts = cable.path.pts.filter((_, i, a) => {
         let d = 0;
@@ -378,7 +378,7 @@ export class Live {
   private buildStandby(T: Theme) {
     for (const c of this.standby.removeChildren()) c.destroy({ children: true });
     const g = new Graphics(), W = SCREEN_D.w, H = SCREEN_D.h, cx = W / 2, cy = H / 2;
-    for (let k = 0; k < 7; k++) g.ellipse(cx, cy, W * 0.5 * (1 - k / 8), H * 0.5 * (1 - k / 8)).fill({ color: T.dark ? '#1a2a4a' : '#2a3d63', alpha: 0.05 });
+    for (let k = 0; k < 7; k++) g.ellipse(cx, cy, W * 0.5 * (1 - k / 8), H * 0.5 * (1 - k / 8)).fill({ color: '#1a2a4a', alpha: 0.05 });
     for (const [i, hh] of [80, 136, 104, 160, 88].entries()) g.rect(cx - 140 + i * 56, cy - 40 - hh, 38, hh).fill({ color: T.mute, alpha: 0.5 });
     this.standbyCap = label('STANDBY', cx, cy + 330, 64, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.65 });
     this.standby.addChild(g, label('PIPELINE CITY', cx, cy + 100, 130, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.45 }), this.standbyCap);
@@ -768,7 +768,7 @@ export class Live {
     const g = this.deadG, T = this.T;
     g.clear();
     if (!this.dead) return;
-    box(g, BD.x, BD.y, BD.w, BD.h, 150, { fill: T.dark ? T.bg : '#1b2236', fa: T.dark ? 0.5 : 0.4 });
+    box(g, BD.x, BD.y, BD.w, BD.h, 150, { fill: T.bg, fa: 0.5 });
     const v = BR.vrm;
     // soot: dark, uneven blots over the phase blocks and the heatsink pad
     for (let i = 0; i < 6; i++) {
@@ -1047,7 +1047,7 @@ export class Live {
     t.visible = !!r;
     if (!r) return;
     const ph = this.badgePhase;
-    box(g, r.x, r.y, r.w, r.h, 14, { fill: T.dark ? '#0b1226' : '#ffffff', fa: 0.92, stroke: T.st, lw: 5, sa: 0.85 });
+    box(g, r.x, r.y, r.w, r.h, 14, { fill: '#0b1226', fa: 0.92, stroke: T.st, lw: 5, sa: 0.85 });
     const dotX = r.x + r.w - 30, dotY = r.y + r.h / 2;
     let col = T.st, a = 1;
     if (ph === 'booting-os') { col = T.ld; a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 0.008)); }

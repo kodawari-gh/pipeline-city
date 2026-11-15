@@ -8,7 +8,16 @@ import { standInKey, standIns } from './merge';
 import { UNDRAWN } from './pick';
 
 /** The size classes: the greatest world radius of each (a screw, a plug, a chip, a small bracket). A greater mesh has no stand-in. */
-export const LOD_RADII = [25, 50, 100, 200] as const;
+export const LOD_RADII = [25, 50, 100, 200, Infinity] as const;
+/**
+ * The last class holds every greater mesh (a fan frame, a card, a panel): it draws as stand-ins under this zoom (screen pixels per world unit),
+ * which is the room overview (LPC5). There the machine covers a small part of the screen and nobody works on a part.
+ */
+export const LOD_OVERVIEW = 0.05;
+/** The overview's class. */
+const BIG = LOD_RADII.length - 1;
+/** The zoom under which the class of greatest radius `r` is far. */
+export const farAt = (r: number): number => (r === Infinity ? LOD_OVERVIEW : LOD_PX / r);
 /** A class draws as stand-ins while its greatest radius is under this many pixels on the screen. */
 export const LOD_PX = 8;
 /** The dead band: a class goes back to its parts only over `LOD_PX * (1 + LOD_BAND)`, so a zoom that wobbles at the limit switches nothing. */
@@ -23,7 +32,7 @@ export const sizeClass = (radius: number): number => LOD_RADII.findIndex((r) => 
  * player works in, Build my PC's own); the limits and their dead bands stay under it.
  */
 export function farClasses(zoom: number, was: readonly boolean[] = [], ceil = Infinity): boolean[] {
-  return LOD_RADII.map((r, i) => { const at = Math.min(LOD_PX / r, ceil / (1 + LOD_BAND)); return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
+  return LOD_RADII.map((r, i) => { const at = Math.min(farAt(r), ceil / (1 + LOD_BAND)); return zoom < at ? true : zoom >= ceil || zoom > at * (1 + LOD_BAND) ? false : !!was[i]; });
 }
 
 /** Is `o` held in full detail: it, or an object above it, is one of `holds` (a part the player points at, selects or drags, a part a step moves). */
@@ -112,6 +121,8 @@ export class PartLod {
   /** What stays in full detail (`hold`), and the zoom from which all does. */
   private holds: ReadonlySet<Object3D> = new Set();
   private ceil = Infinity;
+  /** The overview's stand-ins are not made yet (or not for each anchor): the next `update` at the overview makes them. */
+  private owed = false;
 
   /** `scope`: the anchors and the left-out subtrees as they are now (asked on each build). */
   constructor(private readonly root: Object3D, private readonly scope: () => LodScope = () => ({})) { this.build(); }
@@ -154,6 +165,8 @@ export class PartLod {
       if (!pals) this.pals.set(anchor, (pals = new Map()));
       const guards = new Set<Object3D>();
       sets.forEach((meshes, cls) => {
+        // the overview's class holds most of the model's triangles: it is made when the overview is first reached, not at each build
+        if (cls === BIG && !this.far[BIG]) { this.owed ||= meshes.length > 1; return; }
         for (const { mesh, sources } of standIns(anchor, meshes, pals)) {
           const b: Built = { mesh, sources, anchor, cls, mask: mesh.layers.mask, held: !standInDraws(true, sources, this.holds) };
           for (const s of sources) for (let p: Object3D | null = s; p && p !== anchor; p = p.parent) guards.add(p);
@@ -186,6 +199,7 @@ export class PartLod {
   update(zoom: number): void {
     const far = farClasses(zoom, this.far, this.ceil), was = this.far;
     this.far = far;
+    if (far[BIG] && this.owed) { this.owed = false; this.build(); }
     if (far.some(Boolean)) {
       const stale = [...this.guards].filter(([, nodes]) => nodes.some((o) => !o.visible)).map(([anchor]) => anchor);
       for (const anchor of stale) this.build(anchor);

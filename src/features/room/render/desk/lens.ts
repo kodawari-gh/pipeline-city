@@ -204,10 +204,9 @@ export class PowerLens {
     if (!this.root.visible) return;
     const m = this.model!, T = this.T, z = v.z, px = (n: number) => n / z;
     this.t += dt;
-    const dark = T.dark;
     const left = v.x - v.cx / z, top = v.y - v.cy / z, w = v.w / z, h = v.h / z;
     const g = this.g;
-    this.dim.clear().rect(left, top, w, h).fill({ color: dark ? '#02040a' : '#10182b', alpha: dark ? 0.76 : 0.6 });
+    this.dim.clear().rect(left, top, w, h).fill({ color: '#02040a', alpha: 0.76 });
     g.clear();
     const hot = T.ld, bad = T.bad;
     for (const f of m.flows) {

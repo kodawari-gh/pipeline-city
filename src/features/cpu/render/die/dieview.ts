@@ -243,7 +243,7 @@ export class PlanView {
     const T = this.T;
     // a pulse runs on the die's traces only: with no trace between the two blocks there is none (the blocks light instead)
     const moving = st.from !== undefined && st.from !== st.to && st.wx !== undefined;
-    drawPulse(this.tailG, this.dots, seen, { key: st.key, x: st.wx ?? st.x, y: st.wy ?? st.y, moving, e: st.e, alpha: st.alpha, core: st.flushed ? T.bad : this.colorOf(opClass(st.op)), halo: idColor(st.id, T.dark) });
+    drawPulse(this.tailG, this.dots, seen, { key: st.key, x: st.wx ?? st.x, y: st.wy ?? st.y, moving, e: st.e, alpha: st.alpha, core: st.flushed ? T.bad : this.colorOf(opClass(st.op)), halo: idColor(st.id) });
   }
 
   /** Draw one frame at game time `now` (ms). `draw` false (the die is out of view or faded out): the replay still runs and feeds the sticks and the interrupt hook, but nothing is drawn. */
@@ -398,7 +398,7 @@ export class PlanView {
           const gw = r.w * (0.35 + 0.65 * e), gh = r.h * (0.35 + 0.65 * e);
           box(g, r.x + (r.w - gw) / 2, r.y + (r.h - gh) / 2, gw, gh, 1.5, { fill: it.color, fa: 0.85 * (0.3 + 0.7 * e) });
           if (u < 1) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: 1 - e });
-          if (r.w >= 28 && r.h >= 22) box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id, T.dark) }); // the instruction's own colour, as on its token
+          if (r.w >= 28 && r.h >= 22) box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id) }); // the instruction's own colour, as on its token
         }
         if (it && u < 0.6) ct.hide(k); else ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
       });
@@ -421,7 +421,7 @@ export class PlanView {
         if (u < 1) this.cellAnim = true;
         const gw = r.w * (0.35 + 0.65 * e), gh = r.h * (0.35 + 0.65 * e);
         box(g, r.x + (r.w - gw) / 2, r.y + (r.h - gh) / 2, gw, gh, 1.5, { fill: this.colorOf(opClass(it.op)), fa: 0.85 * (0.3 + 0.7 * e) });
-        box(g, r.x + r.w - 8, r.y + 3, 5, 5, 2.5, { fill: idColor(it.id, T.dark) });
+        box(g, r.x + r.w - 8, r.y + 3, 5, 5, 2.5, { fill: idColor(it.id) });
         if (u < 0.6) ct.hide(k); else ct.set(k, REG[k] ?? 'x' + k, r.h >= 24 ? pcText(it.pc) : '', r, T.on);
       });
     }

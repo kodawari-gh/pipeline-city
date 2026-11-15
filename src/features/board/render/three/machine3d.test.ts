@@ -353,7 +353,8 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       now.lod(cam, H, 1);
       expect(lod.draws(si)).toBe(false);
       for (const src of lod.sourcesOf(si)) expect(src.layers.mask & 1).toBe(1);
-      hot.traverse((o) => { const x = o as Mesh; if (x.isMesh && !x.userData.standIn) expect(x.layers.mask & 1, 'held subtree').toBe(1); });
+      // (an unseen click box is never drawn: `unseen`, pick.ts)
+      hot.traverse((o) => { const x = o as Mesh; if (x.isMesh && !x.userData.standIn && (x.material as Material).opacity !== 0) expect(x.layers.mask & 1, 'held subtree').toBe(1); });
       expect(lod.standIns.some((x) => lod.draws(x))).toBe(true); // (the rest stays merged)
       expect(drawnMeshes(now.root)).toBeGreaterThan(far);
       // a step: the whole machine

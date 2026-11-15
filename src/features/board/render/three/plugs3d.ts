@@ -6,7 +6,7 @@
 // proportion to the cable, which stays as thick as at the far end.
 import { BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh, Path, Shape, Vector2, type BufferGeometry, type Material } from 'three';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
-import { extrude, instanced, place, softBox } from '@/core/render/three/geometry';
+import { extrude, instanced, place, SEG, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { IO_HALF, IO_Z } from './boardhw3d';
 
@@ -73,7 +73,7 @@ function roundRect(p: Path, x0: number, y0: number, x1: number, y1: number, k: n
 function taper(w0: number, h0: number, w1: number, h1: number, z0: number, z1: number, r: number, bev: number, m: Material): Mesh {
   const sh = new Shape(), d = Math.max(1, z1 - z0 - 2 * bev);
   roundRect(sh, -w0 / 2 + bev, -h0 / 2 + bev, w0 / 2 - bev, h0 / 2 - bev, r - bev);
-  const g = extrude(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 4, curveSegments: 6 }), p = g.attributes.position!;
+  const g = extrude(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: SEG.plug, curveSegments: SEG.caseCurve }), p = g.attributes.position!;
   for (let i = 0; i < p.count; i++) {
     const t = (p.getZ(i) + bev) / (d + 2 * bev);
     p.setXYZ(i, p.getX(i) * (1 + (w1 / w0 - 1) * t), p.getY(i) * (1 + (h1 / h0 - 1) * t), z0 + bev + p.getZ(i));
@@ -89,7 +89,7 @@ function relief(z0: number, z1: number, r0: number, r1: number, pitch: number, r
     pts.push(new Vector2(r0 + (r1 - r0) * t + ridge, t * L));
   }
   pts.push(new Vector2(0, L));
-  const g: BufferGeometry = new LatheGeometry(pts, 20);
+  const g: BufferGeometry = new LatheGeometry(pts, SEG.disc);
   g.rotateX(Math.PI / 2);
   const o = new Mesh(g, m);
   o.position.z = z0;
@@ -116,7 +116,7 @@ export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
   // the shell, from its open front to inside the boot
   const out = keyed(new Shape(), tip.w, tip.h, tip.cut) as Shape;
   out.holes.push(keyed(new Path(), iw, ih, Math.max(0.5, tip.cut - t * 0.6)));
-  const sg = extrude(out, { depth: zs - zf, bevelEnabled: false, curveSegments: 1 });
+  const sg = extrude(out, { depth: zs - zf, bevelEnabled: false, curveSegments: SEG.curveFlat });
   sg.translate(0, 0, zf);
   g.add(place(new Mesh(sg, nickel)));
   // the insulator: solid behind the slot, the slot's walls ahead of it (its front 0.8 mm in from the shell's), the contacts on the slot's walls
@@ -159,7 +159,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   // the wires and the jacket inside first (the clear body over them draws after)
   const pitch = Math.min(1.02 * k, B.w / 11), wr = Math.min(0.35 * k, pitch * 0.42), jr = Math.min(cable, hy - 0.6 * k), wy = hy - 2.5 * k;
   PAIRS.forEach((c, i) => g.add(box((i - 3.5) * pitch - wr, (i - 3.5) * pitch + wr, wy - wr, wy + wr, zf + 2 * k, zb - 4 * b, mat(c, { roughness: 0.5 }))));
-  const jacket = new Mesh(new CylinderGeometry(jr, jr, 6 * b, 16).rotateX(Math.PI / 2), boot);
+  const jacket = new Mesh(new CylinderGeometry(jr, jr, 6 * b, SEG.post).rotateX(Math.PI / 2), boot);
   jacket.position.set(0, 0, zb - 3 * b);
   g.add(place(jacket));
   // the blades, standing in their slots at the front with their tops at the contact face

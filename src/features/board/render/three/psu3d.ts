@@ -6,7 +6,7 @@
 // panel on its east end (the 24-pin's 18 + 10 sockets, the CPU and PCIe 8-pins, the SATA and peripheral 6-pins, their latches), and its rear:
 // the honeycomb exhaust, the IEC C14 inlet with its three pins, the rocker switch, the case's four screws. The mains cord's C13 plug fits the inlet.
 import { CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { fanRotor, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE, PSU_FORM, type PsuForm } from '../layout/layout';
 import { PSU_BODY, type BasementPlan } from './basement3d';
@@ -180,7 +180,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   ceil.position.set(fx, -(yb - cav + 2), fz);
   g.add(ceil);
   // the fan: its frame's ring, the rotor (nine blades on the 120 mm fan, seven on the 92 mm), facing down
-  const frame = new Mesh(new CylinderGeometry(fr * 0.98, fr * 0.98, cav - 2 * t, 48, 1, true), mat(0x101114, { roughness: 0.6, side: DoubleSide }));
+  const frame = new Mesh(new CylinderGeometry(fr * 0.98, fr * 0.98, cav - 2 * t, fanSides(2 * fr / MM), 1, true), mat(0x101114, { roughness: 0.6, side: DoubleSide }));
   frame.position.set(fx, -(yb - cav / 2), fz);
   const rotor = fanRotor(fr * 0.93, isAtx(F) ? 9 : 7, mat(0x0d0e11, { roughness: 0.5 }), mat(0x15161a, { roughness: 0.45 }));
   // (a real one is 25 mm thick, deep inside the housing: its hub flattened here to the cavity's depth)
@@ -199,7 +199,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4, c = Math.cos(a), s = Math.sin(a);
     g.add(rod([fx + c * fr * 0.18, gy, fz + s * fr * 0.18], [fx + c * fr, gy, fz + s * fr], wr, wire, 6));
   }
-  const disc = new Mesh(new CylinderGeometry(fr * 0.19, fr * 0.19, 1.2 * MM, 32), wire);
+  const disc = new Mesh(new CylinderGeometry(fr * 0.19, fr * 0.19, 1.2 * MM, SEG.drum), wire);
   disc.position.set(fx, gy, fz);
   g.add(disc);
   const sp = fr * 0.875, spots: Spot[] = [[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, c]) => ({ x: fx + a! * sp, y: -yb, z: fz + c! * sp }));
@@ -301,9 +301,9 @@ export function mainsPlug(p: BasementPlan, visual: string): Group {
     const x = gx + 2.5 * MM + k * 3 * MM, rib: Span = { y0: grip.y0 - 0.5 * MM, y1: grip.y1 + 0.5 * MM, z0: grip.z0 - 0.5 * MM, z1: grip.z1 + 0.5 * MM, r: 3.8 * MM };
     g.add(prismX(x, x + 1.2 * MM, spanPts(rib), [], m));
   }
-  const relief = new Mesh(new CylinderGeometry(5.8 * MM, 3.7 * MM, 16 * MM, 24).rotateZ(-Math.PI / 2), m);
+  const relief = new Mesh(new CylinderGeometry(5.8 * MM, 3.7 * MM, 16 * MM, SEG.drum).rotateZ(-Math.PI / 2), m);
   relief.position.set(gx - 8 * MM, -i.y, i.z);
   g.add(relief);
-  g.add(instanced(new CylinderGeometry(1, 1, 1, 20).rotateZ(Math.PI / 2), m, [0, 1, 2, 3].map((k) => ({ x: gx - 3 * MM - k * 3.4 * MM, y: -i.y, z: i.z, sx: 1.2 * MM, sy: (5.6 - k * 0.5) * MM, sz: (5.6 - k * 0.5) * MM }))));
+  g.add(instanced(new CylinderGeometry(1, 1, 1, SEG.disc).rotateZ(Math.PI / 2), m, [0, 1, 2, 3].map((k) => ({ x: gx - 3 * MM - k * 3.4 * MM, y: -i.y, z: i.z, sx: 1.2 * MM, sy: (5.6 - k * 0.5) * MM, sz: (5.6 - k * 0.5) * MM }))));
   return g;
 }

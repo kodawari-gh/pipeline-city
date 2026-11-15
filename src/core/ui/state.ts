@@ -11,7 +11,6 @@ import { celebrationFor, reconcileSeen, type Celebration } from '../../features/
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from '../../features/tutorial/ui/tutorial';
 
-const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';
 const TUTORIAL_KEY = 'pipeline-city.tutorial';
 const SCALE_KEY = 'pipeline-city.uiScale';
@@ -25,22 +24,10 @@ function writeStore(key: string, value: string) {
 
 // ---- theme ----
 
-export type Theme = 'dark' | 'light';
-
-function initialTheme(): Theme {
-  const saved = readStore(THEME_KEY);
-  if (saved === 'dark' || saved === 'light') return saved;
-  // Dark is the primary look; light is experimental and only on when the player chose it, whatever the system prefers.
-  return 'dark';
-}
-
-export const theme = signal<Theme>(initialTheme());
+/** The game is dark only. A saved choice (an old `light`) is ignored. */
+export const theme = signal<'dark'>('dark');
 /** The renderer and the CSS read `data-theme` on the root element. */
 effect(() => { document.documentElement.setAttribute('data-theme', theme.value); });
-export function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark';
-  writeStore(THEME_KEY, theme.value);
-}
 
 // ---- UI size (multiplies the root font size, see docs/UI.md "Scaling") ----
 

@@ -1,4 +1,4 @@
-// The expansion cards in 3D as real cards (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"). A GPU, an NPU or a NIC stands up out of its PCIe
+// The expansion cards in 3D as real cards (docs/render/three.md). A GPU, an NPU or a NIC stands up out of its PCIe
 // slot: the PCB on edge, the gold fingers down in the slot, the bracket against the case's back with the ports through it. A GPU's fans face
 // down toward the shroud over the power supply, its backplate up, its light bar and power sockets along the top edge toward the glass.
 // The 2D draws the card lying flat over the board, face up. So the card is built in that pose (the 2D rect and its art, the cooler under the

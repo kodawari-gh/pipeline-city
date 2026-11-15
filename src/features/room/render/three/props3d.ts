@@ -3,10 +3,10 @@
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, LatheGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
+  NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { anisotropy, paint, place, post, rectBox, rod, softBox, tornDown, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, anisotropy, paint, place, post, rectBox, rod, softBox, tornDown, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -41,21 +41,21 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
     g.add(rod([el[0], el[1], z + dz], [hd[0], hd[1], z + dz], 50, coat));
   }
   g.add(rod([b0[0] + 160, b0[1] + 250, z], [el[0] + 180, el[1] - 200, z], 22, joint, 6)); // the spring
-  for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, 16), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
+  for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, SEG.post), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
   // the shade: its narrow end at the head, its mouth toward the desk
   const dx = mouthXY.x - head.x, dy = -(mouthXY.y - head.y), len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
   const shade = new Group(), L = 1500;
   shade.position.set(...hd);
   shade.rotation.z = Math.atan2(ux, -uy);
-  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, 32, 1, true), coat));
+  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, SEG.drum, 1, true), coat));
   const inner = mat(0xfff4dc, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
-  const innerM = new Mesh(new CylinderGeometry(296, 812, L, 32, 1, true), inner);
+  const innerM = new Mesh(new CylinderGeometry(296, 812, L, SEG.drum, 1, true), inner);
   const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
   // the mouth's rolled lip, the head's knob that sets the shade's tilt
-  const lip = place(new Mesh(new TorusGeometry(816, 40, 8, 48), coat));
+  const lip = place(new Mesh(new TorusGeometry(816, 40, SEG.rod, SEG.lathe), coat));
   lip.rotation.x = Math.PI / 2; lip.position.y = -L;
-  const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, 18), joint));
+  const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, SEG.knob), joint));
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
   shade.add(lip, knob);
   const bulb = mat(0xfff6e0, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
@@ -78,7 +78,7 @@ export class Monitor {
   private liveTex: Texture | null = null;
   private liveRev: number | undefined;
   private liveSize = '';
-  private led = mat(0x111111, { emissive: new Color(0x4cff8a), emissiveIntensity: 0 });
+  private led = mat(0x111111, { emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
    * column); the room sets its level while the screen is on. The room holds it, not this root: hidden with an absent monitor, it would change
@@ -95,8 +95,10 @@ export class Monitor {
     if (lowDetail()) mergeWithin(body); // (Low: the housing, bracket and stand in a few draws)
     R.add(body);
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
-    this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
-    const led = new Mesh(new CylinderGeometry(28, 28, 20, 10), this.led);
+    // (behind the housing's hump and its mount boss, not inside them: the game's area light casts no shadow, but the light bake's does, and a
+    // strip shut in the housing gave the wall no baked light)
+    this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 40 * MM);
+    const led = new Mesh(new CylinderGeometry(28, 28, 20, SEG.midRound), this.led);
     led.rotation.x = Math.PI / 2; led.position.set(m.x + m.w - 260, -(m.y + m.h - 70), z0 + 186);
     R.add(seeThrough(led));
     if (typeof document !== 'undefined') {
@@ -218,19 +220,15 @@ function glazeEdge(a: number): number {
 }
 
 /**
- * The yunomi's side, a lathe profile in mm: the recess under the foot and the foot ring (unglazed), the wall turned up from it (a full
- * belly, throwing rings on it), the rounded lip, the inside down to its floor. `outer` is the wall's first and last index (for the glaze map).
+ * The yunomi's side, a lathe profile in mm, at most `SEG.latheProfile` points: the foot (the recess's centre, the foot ring's edge and
+ * corner), the wall turned up from it (its shoulder, the full belly, the top), the rim, the inside down to its floor. The points sit where
+ * the curve bends and at the rim and the foot; the near-straight runs between them are dropped. `outer` is the wall's first and last index
+ * (for the glaze map).
  */
 function cupProfile(): { pts: Vector2[]; outer: [number, number] } {
-  const pts = [[0, 3], [17.5, 3], [18.6, 2.2], [19.3, 0.6], [20.2, 0], [23, 0], [23.9, 0.6], [24.2, 2]].map(([r, y]) => new Vector2(r, y));
-  const wall = new SplineCurve([[24.2, 5.2], [26.6, 6.9], [29.6, 9.6], [32, 14], [33.3, 22], [34, 34], [34.2, 46], [33.9, 60], [33.4, 72], [33.3, 77]].map(([r, y]) => new Vector2(r, y)));
-  const first = pts.length;
-  for (const p of wall.getPoints(56)) pts.push(new Vector2(p.x + (p.y > 13 && p.y < 75 ? 0.2 * Math.sin((2 * Math.PI * p.y) / 6.5) : 0), p.y));
-  const last = pts.length - 1;
-  for (const [r, y] of [[33.1, 78], [32.5, 78.7], [31.7, 78.8], [31, 78.2], [30.6, 77]]) pts.push(new Vector2(r, y));
-  const inside = new SplineCurve([[30.6, 76], [30.9, 66], [31.1, 52], [30.8, 38], [29.8, 26], [27.6, 17], [23.5, 12.2], [15, 10.4], [0, 10]].map(([r, y]) => new Vector2(r, y)));
-  pts.push(...inside.getPoints(30));
-  return { pts, outer: [first, last] };
+  const pts = [[0, 3], [18.6, 2.2], [20.2, 0], [24.2, 2], [29.6, 9.6], [33.3, 22], [34.2, 46], [33.3, 77], [31.7, 78.8], [30.6, 77], [27.6, 17], [0, 10]]
+    .map(([r, y]) => new Vector2(r, y));
+  return { pts, outer: [4, 7] };
 }
 
 /** A walnut chataku under the cup: a shallow well for its foot, a broad flat, a raised rim, a foot ring under it. In mm. */
@@ -264,7 +262,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
     }
     if (rough) return;
     // the lip, where the glaze thins over the edge, and the iron in the clay speckling through
-    const lip0 = row(vAt(74)), lip1 = row((outer[1] + 6) / n), lg = c.createLinearGradient(0, lip0, 0, lip1);
+    const lip0 = row(vAt(74)), lip1 = row((outer[1] + 2) / n), lg = c.createLinearGradient(0, lip0, 0, lip1);
     lg.addColorStop(0, 'rgba(138,104,74,0)'); lg.addColorStop(0.6, 'rgba(138,104,74,0.55)'); lg.addColorStop(1, 'rgba(138,104,74,0.2)');
     c.fillStyle = lg; c.fillRect(0, lip1, w, lip0 - lip1);
     for (let k = 0; k < 260; k++) { c.fillStyle = `rgba(70,48,30,${0.25 + 0.4 * Math.abs(Math.sin(k * 7.3))})`; const s = 0.6 + Math.abs(Math.sin(k * 3.1)) * 1.4; c.fillRect(Math.abs(Math.sin(k * 12.9898)) * w, Math.abs(Math.sin(k * 78.233)) * h * 0.92, s, s); }
@@ -272,15 +270,15 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   const map = paint(512, 256, glazeMap(false)), roughMap = paint(512, 256, glazeMap(true));
   if (roughMap) roughMap.colorSpace = NoColorSpace;
   const glaze = mat(0xffffff, { map, roughnessMap: roughMap, roughness: 1 });
-  const cup = place(new Mesh(new LatheGeometry(pts, 56), glaze));
+  const cup = place(new Mesh(new LatheGeometry(pts, SEG.cupLathe), glaze));
   // (thrown by hand: a touch out of round)
   cup.scale.set(1.012, 1, 0.99);
   cup.rotation.y = 2.1;
   cup.position.y = 4.5;
-  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, 40), mat(0x8d8a34, { roughness: 0.04 }));
+  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, SEG.lathe), mat(0x8d8a34, { roughness: 0.04 }));
   tea.position.y = 4.5 + 70;
   // the saucer, its grain straight across it
-  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), 48);
+  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), SEG.lathe);
   const sp = sg.attributes.position!, suv = sg.attributes.uv!;
   // (the grain runs along x; up the rim's side it climbs across the grain, as on a turned block)
   for (let i = 0; i < sp.count; i++) suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
@@ -372,7 +370,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
       u += wu;
     }
   });
-  [0x3b4048, 0x2b2f36, 0xc8643c].forEach((col, k) => {
+  [0x3b4048, 0x2b2f36, 0x8f7bd6].forEach((col, k) => {
     const geo = mergeGeometries(parts[k]!, false);
     if (geo) board.add(place(new Mesh(geo, mat(col, { roughness: 0.55 }))));
   });
@@ -387,7 +385,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   board.rotation.x = 0.05; board.position.y = 70;
   g.add(board);
   // the cable: out of the back, over the mat's edge, back to the wall west of the monitor's foot
-  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), 6));
+  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), SEG.cord));
   g.position.set(cx, -deskY + 40, z);
   return g;
 }
@@ -402,7 +400,7 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
  */
 export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void): Group {
   const g = new Group(), prim = new Group(), shell = mat(0x9d9b96, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
-  const geo = new SphereGeometry(1, 28, 16), p = geo.attributes.position!;
+  const geo = new SphereGeometry(1, SEG.drum, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
   for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + 0.08 * p.getZ(i)), lift(p.getY(i), p.getZ(i)), p.getZ(i));
@@ -412,14 +410,14 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
   body.scale.set(sx, sy, sz); body.position.set(x, y0, z);
   prim.add(body);
   const top = (zz: number) => y0 + lift(Math.sqrt(1 - zz * zz), zz) * sy;
-  const wheel = place(new Mesh(new CylinderGeometry(72, 72, 64, 16), dark));
+  const wheel = place(new Mesh(new CylinderGeometry(72, 72, 64, SEG.post), dark));
   wheel.rotation.z = Math.PI / 2; wheel.position.set(x, top(-0.43) - 32, z - 0.43 * sz);
   prim.add(wheel);
   // the seam between the buttons, before and behind the wheel
   for (const [a, b] of [[-0.08, -0.3], [-0.56, -0.9]] as const) {
     const pts: V3[] = [];
     for (let k = 0; k <= 4; k++) { const zz = a + ((b - a) * k) / 4; pts.push([x, top(zz) + 2, z + zz * sz]); }
-    prim.add(tube(pts, 9, dark, 4));
+    prim.add(tube(pts, 9, dark, SEG.thinTube));
   }
   g.add(prim);
   // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat

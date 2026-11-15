@@ -65,7 +65,7 @@ function withArt(build: (art: ArtSet) => Object3D): Object3D {
 const CASE_ID = /^case(\d)$/, BOARD_ID = /^board(\d)$/;
 
 /** The showcase model of a shop item, or null where there is none (a kind without a 3D builder). `T`: the PC's own palette, as the case uses. */
-export function buildShowcaseModel(specId: string, T: Theme = builtinTheme(true)): Object3D | null {
+export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): Object3D | null {
   const c = CASE_ID.exec(specId);
   if (c) {
     const tier = Number(c[1]), kind = CASE_KIND[tier];

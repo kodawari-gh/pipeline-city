@@ -15,7 +15,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
-import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
@@ -326,6 +326,24 @@ function lanternProfile(R: number, H: number, rBottom: number, rTop: number): Ve
   return out;
 }
 
+/**
+ * The indices of the `keep` profile points that bend the line most: each step drops the point whose triangle with its two neighbours is
+ * smallest (a near-straight run), so the two ends (the rims) always stay.
+ */
+function thinIndices(pts: Vector2[], keep: number): number[] {
+  const idx = pts.map((_, i) => i);
+  while (idx.length > keep) {
+    let best = 1, bestArea = Infinity;
+    for (let k = 1; k < idx.length - 1; k++) {
+      const a = pts[idx[k - 1]!]!, b = pts[idx[k]!]!, c = pts[idx[k + 1]!]!;
+      const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
+      if (area < bestArea) { bestArea = area; best = k; }
+    }
+    idx.splice(best, 1);
+  }
+  return idx;
+}
+
 /** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on a black wire stand, a book and a phone. */
 export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, cx = x + w / 2, cz = (z0 + z1) / 2;
@@ -339,13 +357,17 @@ export function nightstand(): Bedside {
   const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, R = lamp.r, rb = 0.5 * R, rt = 0.42 * R;
   const paper = washiTex();
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: paper, emissiveIntensity: 0 });
-  const prof = lanternProfile(R, sh, rb, rt), y0 = -top + legH;
-  const lantern = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  // the side keeps its ends and its bends (at most `SEG.latheProfile` points); the paper's rings keep their place on it: each point's v is
+  // its place along the full side
+  const full = lanternProfile(R, sh, rb, rt), kept = thinIndices(full, SEG.latheProfile), prof = kept.map((i) => full[i]!), y0 = -top + legH;
+  const lanternGeo = new LatheGeometry(prof, SEG.lathe), luv = lanternGeo.attributes.uv!;
+  for (let k = 0; k < luv.count; k++) luv.setY(k, kept[k % kept.length]! / (full.length - 1));
+  const lantern = place(new Mesh(lanternGeo, shade));
   lantern.position.set(lx, y0, lz);
   g.add(lantern);
   const yb = y0 + prof[0]!.y, yt = y0 + prof[prof.length - 1]!.y;
   for (const [r, y] of [[rb, yb], [rt, yt]] as const) {
-    const ring = place(new Mesh(new TorusGeometry(r, 26, 6, 40), black));
+    const ring = place(new Mesh(new TorusGeometry(r, 26, SEG.tube, SEG.lathe), black));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(lx, y, lz);
     g.add(ring);
@@ -383,14 +405,15 @@ export function floorLantern(): Lantern {
   // (the same paper twice, the glow's darker away from the bulb: a tall paper is lit by it unevenly)
   const paper = washiTex(undefined, stream(29)), lit = washiTex((v) => 0.42 + 0.58 * Math.exp(-(((v - bulbAt) / 0.32) ** 2)), stream(29));
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
-  // the side, bottom to top: fullest at the middle, the paper sagging a little between each two ribs
-  const n = RIBS * 8, prof: Vector2[] = [];
-  for (let k = 0; k <= n; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / n)) * (1 - 0.012 * Math.sin((Math.PI * (k % 8)) / 8)), (H * k) / n));
-  const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  // the side, bottom to top: fullest at the middle. Two profile points a rib (the ribs are on the paper's texture), the paper dipping a little
+  // at the middle of each rib
+  const m = SEG.floorLanternProfile - 1, prof: Vector2[] = [];
+  for (let k = 0; k <= m; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / m)) * (1 - 0.012 * (k % 2)), (H * k) / m));
+  const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, SEG.lathe), shade));
   col.position.set(x, y0, z);
   g.add(col);
-  for (const [r, y] of [[r0, y0], [prof[n]!.x, y0 + H]] as const) {
-    const ring = place(new Mesh(new TorusGeometry(r, 30, 6, 48), black));
+  for (const [r, y] of [[r0, y0], [prof[m]!.x, y0 + H]] as const) {
+    const ring = place(new Mesh(new TorusGeometry(r, 30, SEG.tube, SEG.lathe), black));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(x, y, z);
     g.add(ring);
@@ -449,6 +472,57 @@ function leanInto(b: Book, n: Book, dir: 1 | -1): void {
   b.z = pz + dir * ((b.sy / 2) * Math.sin(a) - (b.sz / 2) * Math.cos(a));
 }
 
+/** The shelf strips' tilt back toward the books (radians; `shelfStrips`). */
+const STRIP_TILT = 0.6;
+
+/**
+ * The books' stand-in for the bookcase's strips when the lamp cap takes them out of the scene (Low): `colour` is a strip's colour times its
+ * level, black while the strips are real lights (the room sets it each frame). The books are instances, so the light bake has no map for
+ * them; without this they lose the strips' light, which is most of theirs at night.
+ */
+export const STRIP_STAND_IN = { colour: { value: new Color(0, 0, 0) } };
+
+/**
+ * Patches a book material to take its shelf's strip as one line light, worked out in closed form (no area-light tables, no loop): the strip
+ * over the fragment's own shelf only, as the boards shut the others out. Positions are the bookcase's (the room's units).
+ */
+function stripLit<T extends MeshStandardMaterial>(m: T): T {
+  const { x, w, z0, z1, top } = BOOKCASE, { side, board, n } = CASE_BOARDS, gap = (FLOOR_Y - top - 1400) / n;
+  const f = (v: number) => v.toFixed(1);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uStripColour = STRIP_STAND_IN.colour;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        #ifdef USE_INSTANCING
+          vStripPos = (instanceMatrix * vec4(transformed, 1.0)).xyz;
+          vStripN = mat3(instanceMatrix) * (objectNormal / vec3(dot(instanceMatrix[0].xyz, instanceMatrix[0].xyz), dot(instanceMatrix[1].xyz, instanceMatrix[1].xyz), dot(instanceMatrix[2].xyz, instanceMatrix[2].xyz)));
+        #else
+          vStripPos = transformed; vStripN = objectNormal;
+        #endif`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uStripColour;\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        if (uStripColour.r + uStripColour.g + uStripColour.b > 0.0) {
+          // the strip over this shelf: a line along z at the board's front edge, shining down and back (its tilt)
+          float shelf = clamp(floor((-vStripPos.y - ${f(top)}) / ${f(gap)}), 0.0, ${f(n - 1)});
+          vec2 toL = vec2(${f(x + w - 120 - STRIP_W / 2)}, -(${f(top + board + 120)} + shelf * ${f(gap)})) - vStripPos.xy;
+          float d = max(length(toL), 60.0), d2 = d * d;
+          vec2 dir = toL / d;
+          vec3 sn = normalize(vStripN);
+          float ce = max(dot(vec2(${(-Math.sin(STRIP_TILT)).toFixed(4)}, ${(-Math.cos(STRIP_TILT)).toFixed(4)}), -dir), 0.0);
+          float a = ${f(z0 + side + 200)} - vStripPos.z, b = ${f(z1 - side - 200)} - vStripPos.z;
+          float ra = d2 + a * a, rb = d2 + b * b;
+          // the line's form factor: the part square to the line, and the part along it (a face that looks along the shelf)
+          float across = dot(sn.xy, dir) * (0.5 * (b / rb - a / ra) + 0.5 * (atan(b / d) - atan(a / d)) / d);
+          float along = sn.z * d * 0.5 * (1.0 / ra - 1.0 / rb);
+          reflectedLight.directDiffuse += uStripColour * material.diffuseColor * (${f(STRIP_W)} * RECIPROCAL_PI * ce * max(across + along, 0.0));
+        }`);
+  };
+  m.customProgramCacheKey = () => 'strip-lit';
+  return m;
+}
+
 /**
  * The books of a bookcase in four draws: per spine design one instanced box (spine and boards in the book's colour, no top: the page block shows
  * there), and the cream page blocks inside them, set back from the spine and in from the boards.
@@ -459,7 +533,7 @@ function shelvedBooks(books: readonly Book[]): Group {
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12), cp = cover.attributes.position!;
   for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();
-  const board = mat(0xd2d2d2, { roughness: 0.75 }), hidden = new MeshBasicMaterial({ visible: false });
+  const board = stripLit(mat(0xd2d2d2, { roughness: 0.75 })), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
   const put = (m: InstancedMesh, i: number, b: Book, sx: number, sy: number, sz: number, dx: number) => {
     d.position.set(b.x + dx, b.y, b.z); d.rotation.set(b.lean, 0, 0); d.scale.set(sx, sy, sz); d.updateMatrix();
@@ -469,11 +543,11 @@ function shelvedBooks(books: readonly Book[]): Group {
     const set = books.filter((b) => b.kind === kind);
     if (!set.length) continue;
     // BoxGeometry's groups: +x (the spine, to the room), -x, +y, -y, +z, -z
-    const m = new InstancedMesh(cover, [mat(0xffffff, { map: spineTex(kind), roughness: 0.7 }), board, hidden, hidden, board, board], set.length);
+    const m = new InstancedMesh(cover, [stripLit(mat(0xffffff, { map: spineTex(kind), roughness: 0.7 })), board, hidden, hidden, board, board], set.length);
     set.forEach((b, i) => { put(m, i, b, b.sx, b.sy, b.sz, 0); m.setColorAt(i, col.setHex(b.tone)); });
     g.add(place(m));
   }
-  const p = new InstancedMesh(box, mat(0xffffff, { map: pages, roughness: 0.9 }), books.length);
+  const p = new InstancedMesh(box, stripLit(mat(0xffffff, { map: pages, roughness: 0.9 })), books.length);
   books.forEach((b, i) => put(p, i, b, b.sx - 90, b.sy - 70, b.sz - 70, -45));
   g.add(place(p));
   return g;
@@ -503,7 +577,8 @@ export function shelfStrips(): { root: Group; glow: MeshStandardMaterial; lights
     lights.push(l);
   };
   const { x, w, z0, z1, top } = BOOKCASE, { side, board, n } = CASE_BOARDS, gap = (FLOOR_Y - top - 1400) / n;
-  for (let s = 0; s < n; s++) add(x + w - 120, top + s * gap + board, z0 + side + 200, z1 - side - 200, 0.6);
+  // (the books' stand-in for these five reads the same places: `stripLit`)
+  for (let s = 0; s < n; s++) add(x + w - 120, top + s * gap + board, z0 + side + 200, z1 - side - 200, STRIP_TILT);
   add(EAST_X - SHELF.d + STRIP_W + 120, SHELF.y + 900, SHELF.z0 + 400, SHELF.z1 - 400, -0.6);
   g.add(...lights);
   return { root: g, glow, lights };
@@ -523,7 +598,7 @@ export function bookcase(): Group {
   // the shelf-pin holes up the inside of each side, two rows (front and back)
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
-  const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
+  const hole = new CylinderGeometry(70, 70, 24, SEG.smallDisc); hole.rotateX(Math.PI / 2);
   g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
   const { n } = CASE_BOARDS, gap = (fl - top - 1400) / n;
   // the bindings: neutrals, slate blues, a sage, a sand, and the room's terracotta as the one warm colour
@@ -727,7 +802,7 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
     const t = k / 16, u = 1 - t, p = b0.clone().multiplyScalar(u * u * u).addScaledVector(b1, 3 * u * u * t).addScaledVector(b2, 3 * u * t * t).addScaledVector(knuckle, t * t * t);
     arc.push([p.x, p.y, p.z]);
   }
-  g.add(tube(arc, 200, black, 12), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, 8));
+  g.add(tube(arc, 200, black, SEG.arm), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, SEG.frameBar));
   const ball = new Mesh(new SphereGeometry(280, 16, 10), black);
   ball.position.copy(knuckle);
   g.add(place(ball));
@@ -737,14 +812,14 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
   for (let k = 0; k <= RIBS * 2; k++) { const t = (k / (RIBS * 2)) * (Math.PI / 2 - 0.12); prof.push(new Vector2(R * Math.cos(t), H * Math.sin(t))); }
   const paper = washiTex(undefined, stream(53)), lit = washiTex((v) => 0.45 + 0.55 * Math.exp(-(((v - 0.3) / 0.4) ** 2)), stream(53));
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
-  const rim = new Mesh(new TorusGeometry(R, 30, 6, 48), black);
+  const rim = new Mesh(new TorusGeometry(R, 30, SEG.tube, SEG.lathe), black);
   rim.rotation.x = Math.PI / 2;
   const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
-  const disc = new Mesh(new CircleGeometry(R * 0.8, 40), glow);
+  const disc = new Mesh(new CircleGeometry(R * 0.8, SEG.lathe), glow);
   disc.rotation.x = Math.PI / 2;
   disc.position.y = 500;
   // (the paper lets the light through: it casts no shadow)
-  dome.add(new Mesh(new LatheGeometry(prof, 48), shade), place(rim), seeThrough(disc));
+  dome.add(new Mesh(new LatheGeometry(prof, SEG.lathe), shade), place(rim), seeThrough(disc));
   dome.position.copy(mouth);
   g.add(dome);
   // (the bulb sits just inside the mouth: the paper lets it light nearly a half sphere, fading out to its edge)

@@ -2,7 +2,7 @@
 
 The list of every PC component in the game, with the state of its review. Goal (2026-11-07): each part is the best it can be, fits the parts it meets, and has an animation for going in and coming out. Update a row when you finish a check.
 
-One model per part: the case (`machine3d.ts`), Build my PC (`buildmode3d.ts`, which draws a `Machine3D`) and the gallery (`showcase.ts`) call the same builder with the same palette (`builtinTheme(true)`); only the level of detail differs. A part that wears 2D art bakes it through an `ArtSet` (`artset3d.ts`).
+One model per part: the case (`machine3d.ts`), Build my PC (`buildmode3d.ts`, which draws a `Machine3D`) and the gallery (`showcase.ts`) call the same builder with the same palette (`builtinTheme()`); only the level of detail differs. A part that wears 2D art bakes it through an `ArtSet` (`artset3d.ts`).
 
 Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the 3D model, **Fit** it sits in its socket and clears its neighbours (`render/three/fit.test.ts`), **Graph** its removal blocks are in `sim/removal.ts`, **Anim** its fit/remove motion in the build mode.
 

@@ -247,11 +247,11 @@ export class DieView {
   /** The tint, the logical cores and the pipeline cells over each tile (redrawn when one of them changes). */
   private drawWash(cs: CoresSnap | undefined) {
     const T = this.T;
-    const ws = cs ? washModels(cs, T.dark, this.rate) : [];
+    const ws = cs ? washModels(cs, this.rate) : [];
     const q8 = (v: number) => Math.round(v * 8);
     const sig = ws.map((w) => w.hw + (w.selected ? '*' : '') + w.models.map((m) => [m.tint, m.parked ? 1 : 0, m.sub].join(':')).join('/') + w.models[0]!.cells.join('.') + Math.round(w.models[0]!.fill * 8)
       + (w.models[0]!.ooo ? w.models[0]!.ooo.gauges.map((x) => x.used + (x.stall ?? '') + x.slots.map((c) => (c.cls ?? '-') + (c.done ? 1 : 0)).join('')).join(',') + w.models[0]!.ooo.units.map((u) => (u.cls ?? '-') + q8(u.progress)).join('') : '')
-      + '~' + q8(w.models[0]!.ipc) + ':' + q8(w.models[0]!.stall) + (T.dark ? 'd' : 'l')).join('|');
+      + '~' + q8(w.models[0]!.ipc) + ':' + q8(w.models[0]!.stall) + 'd').join('|');
     if (sig === this.sig) return;
     this.sig = sig;
     for (const x of this.washes) {

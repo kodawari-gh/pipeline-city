@@ -15,7 +15,7 @@ import { ENV_H, ENV_W, MAIL_S, SWAY, buildLetter, carryAx, keyPose, letterPose, 
 import type { Theme } from '@/core/render/theme';
 
 const DARK: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
+  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };

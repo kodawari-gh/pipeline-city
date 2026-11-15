@@ -160,11 +160,13 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
 export type Cheap = ReturnType<typeof cheapMaterials>;
 
 /**
- * What the probe does this frame: whether it takes a capture, and the bounces left. Low takes its first capture (an env to light with) and asks
- * for no more: once `probed`, its bounces are 0 whatever the frame is. Else a capture is wanted while bounces are left, or the light changed.
+ * What the probe does this frame: whether it takes a capture, and the bounces left. Low takes its first capture (an env to light with) and no
+ * bounce after it: once `probed`, its bounces are 0 whatever the frame is, and it captures again only when the light changed (the hour, a lamp,
+ * the lamp cap: a capture kept from before lit the machine by a room that is no more, a half brighter than High's on the case's back wall).
+ * Else a capture is wanted while bounces are left, or the light changed.
  */
 export function probePlan(o: { low: boolean; probed: boolean; busy: boolean; bounces: number; keyChanged: boolean; waited: boolean }): { request: boolean; bounces: number } {
-  if (o.low && o.probed) return { request: false, bounces: 0 };
+  if (o.low && o.probed) return { request: !o.busy && o.keyChanged && o.waited, bounces: 0 };
   if (o.busy) return { request: false, bounces: o.bounces };
   const request = o.bounces > 0 || (o.keyChanged && o.waited);
   return { request, bounces: request ? Math.max(0, o.bounces - 1) : o.bounces };

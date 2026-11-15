@@ -2,8 +2,9 @@
 // in it (the CPU cut-out, punched vents and lacing slots) over a thin back panel, a stamped panel under the board with its standoff marks, stiffening
 // beads, tie-down bridges, Velcro straps, and rubber cable holes where the leads come through. The frame: riveted flanges round the tray, a rolled lip
 // round the side opening with rubber bumpers and the receivers of the door's hooks, and the door's own hem and hooks. All at real scale, by kind.
-import { Color, CylinderGeometry, Group, Shape, Vector2, type Material } from 'three';
-import { extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { Color, CylinderGeometry, Group, Mesh, PlaneGeometry, Shape, Vector2, type BufferGeometry, type Material } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SEG, extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
@@ -14,7 +15,7 @@ import { geoOf, TIER_GEO } from '../layout/boardlayout';
 import { CASE, CASE_BD, FAN_SLOT, GEO, LAYOUT_CASE, PSU, WALL_T } from '../layout/layout';
 import { GROMMETS, kindTone, type Frame } from './casedetail3d';
 import { baseCagePlan, cageGrommet, cagePlan } from './drivecage3d';
-import { decal, FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
+import { FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
 import { cableMesh, fanPlug, fromSlot, grommet, hung, TRAY_Z, type Env, type Look } from './wires3d';
 
 /** How far the stamped panel under the board stands off the tray's sheet. */
@@ -23,7 +24,7 @@ const PANEL = 10;
 const BACK_T = 16;
 
 /** A kind's fixings: bare zinc in the Mini, black in the Micro and the Mid, polished in the Full tower; its rivets take the paint of the sheet. */
-export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0xb4b9c1, { metalness: 0.85, roughness: 0.28 }) : mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 }));
+export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 }));
 export const rivetM = (k: CaseKind): Material => mat(({ oem: 0xc6bd9c, matte: 0x25262c, gamer: 0x2b3142, show: 0x34373e })[k], { metalness: 0.45, roughness: 0.42 });
 
 /** A keyhole: a round hole with a slot rising from it (layout centre of the round part), as a world outline. */
@@ -89,7 +90,19 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
     g.add(instanced(up(26, 12, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
   }
   const ink = kind === 'oem' ? '#6f6a53' : '#8d929c';
-  for (const [x, y] of standoffs()) g.add(seeThrough(decal({ x: x + 76, y: y - 26, w: 104, h: 52 }, z + 1, markMat(standoffMark(x, y), ink))));
+  // (one mesh a word, not one a position: the marks of one word share a texture)
+  const marks = new Map<string, BufferGeometry[]>();
+  for (const [x, y] of standoffs()) {
+    const word = standoffMark(x, y), at = marks.get(word) ?? [];
+    marks.set(word, at);
+    at.push(new PlaneGeometry(104, 52).translate(x + 128, -y, z + 1));
+  }
+  for (const [word, at] of marks) {
+    if (!word) continue;
+    const o = new Mesh(mergeGeometries(at), markMat(word, ink));
+    o.receiveShadow = true;
+    g.add(seeThrough(o));
+  }
   return g;
 }
 
@@ -151,7 +164,9 @@ export function trayDetail(f: Frame, inner: Material): Group {
       o.rotation.z = lean;
       o.add(rectBox({ x: -40, y: -40, w: 80, h: 400 }, 16, 24, band), rectBox({ x: -40, y: 360, w: 80, h: 44 }, 16, 25, tab));
       o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x191a1e, { roughness: 1 })));
-      g.add(o);
+      // (its meshes go straight into the tray's group, in its frame: the straps then merge with the tray's still meshes, `mergeSiblings`)
+      o.updateMatrix();
+      for (const c of [...o.children]) { c.applyMatrix4(o.matrix); g.add(c); }
     });
   }
 
@@ -162,7 +177,7 @@ export function trayDetail(f: Frame, inner: Material): Group {
     perforated(g, c, zc, 'hex', 60, 0x2a2d33, { metal: 0.55, rough: 0.45 });
     const posts: Spot[] = [];
     for (const yy of [c.y + 80, c.y + c.h - 80]) for (const xx of [c.x + 60, c.x + c.w - 60]) posts.push({ x: xx, y: -yy, z: TRAY_Z });
-    g.add(instanced(new CylinderGeometry(26, 26, 90, 10).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x24262c, { metalness: 0.55, roughness: 0.4 }), posts));
+    g.add(instanced(new CylinderGeometry(26, 26, 90, SEG.rod).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x24262c, { metalness: 0.55, roughness: 0.4 }), posts));
     g.add(screws(posts.map((p) => ({ ...p, z: zc + 8 })), 'z+', 40, screwM(k)));
   }
   return g;

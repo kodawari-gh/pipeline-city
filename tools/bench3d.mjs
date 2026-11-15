@@ -1,4 +1,4 @@
-// `npm run bench:3d -- [out.json] [--2d] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off] [--gpu <regex>] [--need-timers]`:
+// `npm run bench:3d -- [out.json] [--lowpower] [--size 1920x1080] [--dpr 1] [--only a,b] [--preset High] [--scale 1] [--baseline old.json] [--top 6] [--no-profile] [--no-vsync-off] [--gpu <regex>] [--need-timers]`:
 // plays the game with the real pointer on the real GPU and measures what a player feels: the idle views, the flights, the side door, the hover, a cable pulled
 // and plugged, a part lifted, the running machine. Each scenario prints its frame times; out.json keeps, per scenario, the time of each part of the frame
 // (`cpu`), the GPU time of each pass (`gpu`, with EXT_disjoint_timer_query), how many times the scene and the shadow maps were drawn per frame, the draw
@@ -17,8 +17,8 @@ const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : ar
 const has = (n) => args.includes('--' + n);
 const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').startsWith('--'));
 const [W, H] = flag('size', '1920x1080').split('x').map(Number);
-const TWO = has('2d'), LOW = has('lowpower'), TOP = Number(flag('top', 6)), only = flag('only', '').split(',').filter(Boolean);
-const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/${TWO ? '?2d' : `?3d${LOW ? '&lowpower' : ''}`}`;
+const LOW = has('lowpower'), TOP = Number(flag('top', 6)), only = flag('only', '').split(',').filter(Boolean);
+const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/?3d${LOW ? '&lowpower' : ''}`;
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
 let server = null;
@@ -188,7 +188,7 @@ try {
   await p.click('button:has-text("Start")');
   await p.waitForFunction(() => !!window.__board, null, { timeout: 30000 });
   await p.waitForTimeout(3000);
-  if (!TWO) await p.waitForFunction(() => !!window.__board.parts().machine, null, { timeout: 30000 });
+  await p.waitForFunction(() => !!window.__board.parts().machine, null, { timeout: 30000 });
   await p.evaluate(installProbe);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Profiler.enable');
@@ -198,8 +198,8 @@ try {
   if (/swiftshader|llvmpipe|software/i.test(gl)) throw new Error('software GL');
   const gpuRe = flag('gpu', '');
   if (gpuRe && !new RegExp(gpuRe).test(gl)) throw new Error(`--gpu ${gpuRe} does not match the GL renderer: ${gl}`);
-  const timers = !TWO && (await p.evaluate(() => window.__probe.gpuTimers()));
-  if (!TWO) console.log(`GPU timers: ${timers ? 'yes' : 'no'}   ${W} x ${H}`);
+  const timers = await p.evaluate(() => window.__probe.gpuTimers());
+  console.log(`GPU timers: ${timers ? 'yes' : 'no'}   ${W} x ${H}`);
   if (has('need-timers') && !timers) throw new Error('--need-timers: EXT_disjoint_timer_query_webgl2 is missing');
 
   const wait = (ms) => p.waitForTimeout(ms);
@@ -300,30 +300,20 @@ try {
     ['running board', { pre: () => go('flyToBoard'), run: () => wait(3500) }],
     ['running cpu', { pre: () => go('flyToCpu'), run: () => wait(3500) }],
   ];
-  const flat = [
-    ['board idle', { pre: () => go('flyToBoard'), run: () => wait(3500) }],
-    ['cpu idle', { pre: () => go('flyToCpu'), run: () => wait(3500) }],
-    ['fly cpu to board', { pre: () => go('flyToCpu'), run: async () => { await fly('flyToBoard'); await wait(3000); } }],
-    ['fly board to cpu', { pre: () => go('flyToBoard'), run: async () => { await fly('flyToCpu'); await wait(3000); } }],
-    ['hover sweep', { pre: () => go('flyToBoard'), run: () => trace(4000, zigzag) }],
-    ['zoom in and out', { pre: async () => { await go('flyToBoard'); await p.mouse.move(W / 2, H / 2); }, run: async () => { for (let i = 0; i < 90; i++) { await p.mouse.wheel(0, i < 45 ? -60 : 60); await wait(40); } } }],
-    ['panel open', { pre: () => go('flyToBoard'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
-  ];
-
   // a chosen preset, through the real panel; auto-adjust off, so a slow frame does not change the picture under the numbers
   await p.click('[aria-label=Menu]');
   await p.click('role=menuitem[name=/Graphics/]');
   if (flag('preset', '')) await p.click(`aside.gfx .gfx-presets >> text=${flag('preset', '')}`);
-  if (!TWO) await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+  await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
   // a render scale of the player's own over the preset's (the owner plays Medium at 100 %)
   if (flag('scale', '')) await p.evaluate(async (k) => (await import('/src/app/graphics.ts')).setGraphic('scale', k), Number(flag('scale', '')));
   await p.click('[aria-label="Close graphics"]');
   await wait(800);
 
-  const report = { when: new Date().toISOString(), renderer: TWO ? '2d' : '3d', gl, size: `${W}x${H}`, preset: flag('preset', 'default'), scene: {}, scenarios: {} };
+  const report = { when: new Date().toISOString(), renderer: '3d', gl, size: `${W}x${H}`, preset: flag('preset', 'default'), scene: {}, scenarios: {} };
   const head = 'scenario'.padEnd(20) + 'FPS'.padStart(7) + 'p50'.padStart(7) + 'p95'.padStart(7) + 'p99'.padStart(7) + 'max'.padStart(7) + '>33'.padStart(5) + '>100'.padStart(5) + 'long'.padStart(7) + 'rb'.padStart(3) + 'scn'.padStart(5) + 'shd'.padStart(5) + 'calls'.padStart(7) + 'ktri'.padStart(7) + 'cpu'.padStart(7) + 'gpu'.padStart(7);
   console.log(head);
-  for (const [name, s] of TWO ? flat : three) {
+  for (const [name, s] of three) {
     if (only.length && !only.some((o) => name.includes(o))) continue;
     await s.pre?.();
     if (!has('no-profile')) await cdp.send('Profiler.start');
@@ -340,12 +330,12 @@ try {
     console.log(name.padEnd(20) + String(r.fps).padStart(7) + String(r.p50).padStart(7) + String(r.p95).padStart(7) + String(r.p99).padStart(7) + String(Math.round(r.max)).padStart(7) + String(r.over33).padStart(5) + String(r.over100).padStart(5) + String(r.longMs).padStart(7) + String(r.rebuilds).padStart(3) + String(r.scenes).padStart(5) + String(r.shadows).padStart(5) + String(r.calls).padStart(7) + String(r.ktris).padStart(7) + String(round(r.cpu['post.render'] ?? 0)).padStart(7) + String(round(gpu)).padStart(7));
     if (r.profile && TOP) for (const [k, v] of r.profile.total.filter(([k]) => !/^(frame|anonymous|\(anonymous\)|render|tick|f|run|e|i) /.test(k)).slice(0, TOP)) console.log(`      ${String(v).padStart(6)} ms  ${k}`);
     // check while the sim is still as pre left it (paused, for room night hover); then undo
-    if (!TWO) assertRecording(r, { name, needTimers: has('need-timers'), needOutline: name === 'room night hover' });
+    assertRecording(r, { name, needTimers: has('need-timers'), needOutline: name === 'room night hover' });
     await s.check?.(r);
     await s.post?.();
     await p.keyboard.press('Escape').catch(() => {});
   }
-  if (!TWO) { await go('flyToBoard'); report.scene.board = await p.evaluate(() => window.__probe.size()); await go('flyToRoom'); report.scene.room = await p.evaluate(() => window.__probe.size()); console.log('scene', JSON.stringify(report.scene)); }
+  await go('flyToBoard'); report.scene.board = await p.evaluate(() => window.__probe.size()); await go('flyToRoom'); report.scene.room = await p.evaluate(() => window.__probe.size()); console.log('scene', JSON.stringify(report.scene));
   if (errors.length) console.log('page errors:', errors.slice(0, 4).join(' | '));
   report.errors = errors;
   if (out) { writeFileSync(resolve(out), JSON.stringify(report, null, 1)); console.log('saved', resolve(out)); }

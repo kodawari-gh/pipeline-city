@@ -139,10 +139,10 @@ export interface Letter { back: Container; front: Container; flap: Container; fl
  */
 export function buildLetter(T: Theme): Letter {
   const W = ENV_W, H = ENV_H, x0 = -W / 2, y0 = -H / 2;
-  const paper = T.dark ? '#e8dcc0' : '#fdf6e3', shade = T.dark ? '#cbbb96' : '#eadfc2', inner = T.dark ? '#7d6f52' : '#b8a780', edge = T.dark ? '#5f5238' : '#9c8a66';
+  const paper = '#e8dcc0', shade = '#cbbb96', inner = '#7d6f52', edge = '#5f5238';
   const back = new Container(), front = new Container(), flap = new Container();
   const gb = new Graphics();
-  box(gb, x0 + 26, y0 + 36, W, H, 22, { fill: '#000000', fa: T.dark ? 0.32 : 0.18 });
+  box(gb, x0 + 26, y0 + 36, W, H, 22, { fill: '#000000', fa: 0.32 });
   box(gb, x0, y0, W, H, 22, { fill: inner, stroke: edge, lw: 8, sa: 0.9 });
   back.addChild(gb);
   const top = y0 + H * 0.28;

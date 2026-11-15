@@ -11,7 +11,7 @@ const HIDDEN_LAYER = 30;
 
 /**
  * Turns one layer of the city off or on (never saved; the overlay's Auto turns all on). `lights`: the lamps' light, the windows, the signs'
- * light, the glow and every emissive at 0. `buildings`: the streets, the buildings, the land and the trees. `freeze`: the clock, so the traffic,
+ * light, the glow and every emissive at 0. `buildings`, `trees`, `streets` (with the land under them): each hides alone. `freeze`: the clock, so the traffic,
  * the leaves, the clouds and the steam stand. `cars`: the cars and the signals. `sky`, `steam`, `glow` (the glow chain), `mirror` (the room in the
  * glass), `flat` (the picture at 1 pixel per screen pixel, not `SUPER`). With none off, the view is as it is without `?debug`.
  */
@@ -27,6 +27,8 @@ export function debugLayer(v: OutsideView, layer: string, off: boolean): void {
     for (const l of v.lamps) l.visible = !off;
     hide(v.parts.signs);
   } else if (layer === 'buildings') hide(v.parts.buildings);
+  else if (layer === 'trees') hide(v.parts.trees);
+  else if (layer === 'streets') hide(v.parts.streets);
   else if (layer === 'cars') hide(v.parts.cars);
   else if (layer === 'sky') hide(v.parts.sky);
   else if (layer === 'steam') hide(v.parts.steam);

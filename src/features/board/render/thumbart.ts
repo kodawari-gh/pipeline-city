@@ -40,8 +40,8 @@ function render(r: Renderer, art: Container, T: Theme, frame?: { x: number; y: n
   const f = frame ?? frameOf(stage.getLocalBounds());
   // a soft studio backdrop, so a dark part on a dark tile still reads
   const back = new Graphics();
-  back.roundRect(f.x, f.y, f.w, f.h, f.h * 0.07).fill({ color: T.dark ? '#1d2650' : '#e3e9f5', alpha: T.dark ? 0.55 : 0.8 });
-  back.roundRect(f.x, f.y + f.h * 0.62, f.w, f.h * 0.38, f.h * 0.07).fill({ color: '#000000', alpha: T.dark ? 0.12 : 0.05 });
+  back.roundRect(f.x, f.y, f.w, f.h, f.h * 0.07).fill({ color: '#1d2650', alpha: 0.55 });
+  back.roundRect(f.x, f.y + f.h * 0.62, f.w, f.h * 0.38, f.h * 0.07).fill({ color: '#000000', alpha: 0.12 });
   stage.addChildAt(back, 0);
   const scale = PX / Math.max(f.w, f.h * ASPECT);
   const canvas = r.extract.canvas({ target: stage, frame: new Rectangle(f.x, f.y, f.w, f.h), resolution: scale, antialias: true, clearColor: [0, 0, 0, 0] });

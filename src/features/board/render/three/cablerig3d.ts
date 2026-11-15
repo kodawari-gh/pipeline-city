@@ -192,8 +192,8 @@ export function looseState(rig: CableRig, exits: readonly RopeEnd[], rest: Rest 
   return { rest: r, strands };
 }
 
-/** Low: the plug's still parts in a few draws (the plug's group and the strands' mesh keep their places, ids and flags). */
-function lowMerged(g: Group): Group { mergeWithin(g); return g; }
+/** The plug's still parts in a few draws (the plug's group and the strands' mesh keep their places, ids and flags). */
+function merged(g: Group): Group { mergeWithin(g); return g; }
 
 /**
  * The rig's cable as it stands (Machine3D adds it to the cable's tagged group; the hand hides it while it holds the cable): the plug in its
@@ -206,13 +206,13 @@ export function rigStatic(rig: CableRig, seated: boolean, rest: Rest | undefined
     m.root.userData.plug = true;
     g.add(m.root, cableMesh(rig.seated(m.strands), rig.look));
     if (rig.extra) g.add(rig.extra());
-    return lowDetail() ? lowMerged(g) : g;
+    return merged(g);
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
   pivot.userData.plug = true;
   g.add(pivot, cableMesh(l.strands, rig.look));
-  return lowDetail() ? lowMerged(g) : g;
+  return merged(g);
 }
 
 /** `pts` resampled to `n` points evenly along its length. */

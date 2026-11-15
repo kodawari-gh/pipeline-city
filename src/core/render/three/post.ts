@@ -1,5 +1,5 @@
-// The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
-// the picked part, 3D_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
+// The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), bloom (the RGB, the screen, the lamp glow),
+// the selection outline (a thin cyan edge round the picked part, 3D_STYLE.md "Outline"; after the bloom, so the edge never glows), the room's grade, the eye's local adaptation (`localeye.ts`:
 // the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 // Each full-screen pass writes a target that a phone's tile GPU sends out to memory and reads back (PERF21): the chain runs only the passes
@@ -107,6 +107,13 @@ class PickOutline extends OutlinePass {
 /** What the post chain takes from the graphics settings. */
 export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
 
+/**
+ * The local eye's strength from the board view in (it is 1 in the room's views). The case is a dark box with a bright room round it: with one
+ * exposure the frame's bright edge sets the meter, and the board and its parts fall to black shapes. A person's eye at that distance adapts
+ * to the inside. Half the room's lift keeps the parts' own contrast (a heatsink still has a dark side) and shows them.
+ */
+export const BOARD_EYE = 0.5;
+
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
 export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
 
@@ -133,15 +140,16 @@ export type Step = 'scene' | 'ao' | 'copy' | 'outline' | 'bloom' | 'eye' | 'fini
 
 /**
  * The chain's steps for what is on. The scene's target holds its depth and its samples; the AO (which copies the picture as it blends), or a
- * copy where only the outline or the bloom runs, puts the picture in a target they can draw on. The finish draws to the screen. All but
- * `eye` are full-screen passes; `outline` and `bloom` each draw some smaller ones too.
+ * copy where only the outline or the bloom runs, puts the picture in a target they can draw on. The bloom comes before the outline, so the
+ * bright edge does not feed the bloom. The finish draws to the screen. All but `eye` are full-screen passes; `outline` and `bloom` each draw
+ * some smaller ones too.
  */
 export function steps(on: { ao: boolean; outline: boolean; bloom: boolean; eye: boolean }): Step[] {
   const s: Step[] = ['scene'];
   if (on.ao) s.push('ao');
   else if (on.outline || on.bloom) s.push('copy');
-  if (on.outline) s.push('outline');
   if (on.bloom) s.push('bloom');
+  if (on.outline) s.push('outline');
   if (on.eye) s.push('eye');
   s.push('finish');
   return s;
@@ -179,14 +187,56 @@ export function meterMean(cells: ArrayLike<number>, w: number, h: number): numbe
 
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
+/** The occlusion's size against the picture's, each axis: a quarter of the pixels. Its radii are in its own texels, so they scale with it. */
+const AO_SCALE = 0.5;
+/**
+ * The occlusion's blend at full size. The half-size occlusion is read at the four texels round each pixel, each weighed by its bilinear share and
+ * by how near its depth is to the pixel's (`tDepth`: the scene's depth, full size), so no occlusion bleeds over an edge. Where no texel's depth
+ * is near (a sharp edge), the bilinear share alone keeps the blend whole. `intensity` mixes it toward white, as three's blend does.
+ * A NaN or Inf sum gives white (no occlusion) for that pixel: one bad value would otherwise blank the frame (Medium, 0.75 scale).
+ */
+const AO_UPSAMPLE = /* glsl */`
+  #include <packing>
+  uniform sampler2D tDiffuse;
+  uniform sampler2D tDepth;
+  uniform vec2 aoSize;
+  uniform vec2 cameraNearFar;
+  uniform float intensity;
+  varying vec2 vUv;
+  float viewZ(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).r, cameraNearFar.x, cameraNearFar.y); }
+  void main() {
+    float z0 = viewZ(vUv);
+    vec2 q = vUv * aoSize - 0.5, b = floor(q), f = q - b;
+    vec4 sum = vec4(0.0);
+    float wsum = 0.0;
+    for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
+      vec2 uv = (b + vec2(float(i), float(j)) + 0.5) / aoSize;
+      float wb = (i == 0 ? 1.0 - f.x : f.x) * (j == 0 ? 1.0 - f.y : f.y);
+      float dz = abs(viewZ(uv) - z0) / max(z0, 1e-3);
+      float w = wb * (max(1.0 - dz * 50.0, 0.0) + 1e-3);
+      sum += w * texture2D(tDiffuse, uv);
+      wsum += w;
+    }
+    vec4 texel = sum / wsum;
+    if (any(isnan(texel)) || any(isinf(texel))) texel = vec4(1.0);
+    gl_FragColor = vec4(mix(vec3(1.0), texel.rgb, intensity), texel.a);
+  }`;
+/** The frames a still view adds up (`Post.refine`). */
+export const REFINE = 16;
+const halton = (i: number, b: number): number => { let f = 1, v = 0; for (let n = i; n > 0; n = Math.floor(n / b)) { f /= b; v += f * (n % b); } return v; };
+/** The projection's offset, in pixels, of a still view's frame `n`: none for the first (it is the picture on the screen), then a Halton (2, 3) point in the pixel. */
+export const jitter = (n: number): [number, number] => (n ? [halton(n, 2) - 0.5, halton(n, 3) - 0.5] : [0, 0]);
 /** The bloom's strength at each level (0: the pass is off). */
-const BLOOM_LEVELS = [0, 0.3, 0.5];
+const BLOOM_LEVELS = [0, 0.12, 0.2];
 
 export class Post {
   private scene: ScenePass;
   private outline: PickOutline;
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
+  /** The blend's uniform for the camera's near and far planes (the camera moves them with the distance), and the camera it reads. */
+  private nearFar: { value: Vector2 };
+  private camera: PerspectiveCamera;
   private look = grade();
   private local: LocalEye;
   /** The picture the AO, the outline and the bloom draw on. */
@@ -201,25 +251,40 @@ export class Post {
   private metering = false;
   private meterRead: number | null = null;
   private gone = false;
+  /** The still view's refinement (`refine`): the mean of its frames so far, the quad that shows it, the frames in it. */
+  private mean: WebGLRenderTarget | null = null;
+  private meanQuad: FullScreenQuad | null = null;
+  private refined = 0;
 
   constructor(private renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
+    this.camera = camera;
     this.scene = new ScenePass(scene, camera, w, h);
     this.work = new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false });
     const depth = this.scene.target.depthTexture!;
     this.ao = new GTAOPass(scene, camera, w, h, { depthTexture: depth }); // no normals given: it works them out from the depth, so it draws no scene
     this.ao.updateGtaoMaterial({ radius: 900, distanceExponent: 1.4, thickness: 600, scale: 1.2 });
+    this.ao.updatePdMaterial({ radius: 4 * AO_SCALE });
     this.ao.blendIntensity = 0.85;
+    const blend = this.ao.blendMaterial;
+    blend.fragmentShader = AO_UPSAMPLE;
+    blend.uniforms.tDepth = { value: depth };
+    blend.uniforms.aoSize = { value: new Vector2(1, 1) };
+    this.nearFar = blend.uniforms.cameraNearFar = { value: new Vector2(camera.near, camera.far) };
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
-    this.outline.visibleEdgeColor.set(0xffff00);
-    this.outline.hiddenEdgeColor.set(0x8a7a00);
-    this.outline.edgeStrength = 4;
-    this.outline.edgeThickness = 1.5;
+    // the information colour (docs/art-style.md): a thin cyan edge, a dim one where the part is hidden, no glow and no pulse
+    this.outline.visibleEdgeColor.set(0x3be3ff);
+    this.outline.hiddenEdgeColor.set(0x0d4452);
+    this.outline.edgeStrength = 1.5;
+    this.outline.edgeGlow = 0;
+    this.outline.pulsePeriod = 0;
     this.outline.enabled = false;
-    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
+    // a tight halo (radius 0.3) and a high threshold (1.6): only the real emitters pass it, not the lit walls and the shades
+    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.2, 0.3, 1.6);
     // A lamp's glint at some angles overflows the half-float target (Inf, then NaN in the blur): one such pixel blanks the whole frame. The
-    // high-pass reads a sane, capped colour.
+    // high-pass reads a sane colour: a NaN or Inf becomes black, and a bright pixel is capped at 4 (a tiny very bright pixel flickers and
+    // blooms into a firefly).
     const hp = this.bloom.materialHighPassFilter;
-    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 32.0 ) );');
+    hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv );\n\t\t\ttexel = any( isnan( texel ) ) || any( isinf( texel ) ) ? vec4( 0.0, 0.0, 0.0, 1.0 ) : min( texel, vec4( 4.0 ) );');
     this.local = new LocalEye(w, h, this.look);
     this.local.output(renderer);
     this.setSize(w, h);
@@ -251,13 +316,13 @@ export class Post {
 
   /**
    * The occlusion's reach for a view `height` world units tall: a board part's 900 up to the board view, then wider with the view, so a room
-   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out). The grade and the local
-   * eye fade out on the way in: from the board view in, the metered eye alone adapts (`board3d.ts`), and the board keeps its tuned look.
+   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out). The grade fades
+   * out on the way in. The local eye falls to `BOARD_EYE` and stays: from the board view in the metered eye sets the mean (`board3d.ts`).
    */
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
     this.look.uniforms.k!.value = k;
-    this.local.strength = k;
+    this.local.strength = BOARD_EYE + (1 - BOARD_EYE) * k;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
@@ -266,7 +331,7 @@ export class Post {
     // rebuild it every frame, slow enough for auto-adjust to drop the AO.
     this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4 });
     this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
-    this.ao.updatePdMaterial({ radius: 4 + k * 16 });
+    this.ao.updatePdMaterial({ radius: (4 + k * 16) * AO_SCALE });
   }
 
   /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
@@ -316,7 +381,13 @@ export class Post {
     const ratio = this.renderer.getPixelRatio(), pw = w * ratio, ph = h * ratio;
     this.scene.setSize(pw, ph);
     this.work.setSize(pw, ph);
-    this.ao.setSize(pw, ph);
+    this.mean?.setSize(pw, ph);
+    this.refined = 0;
+    const aw = Math.ceil(pw * AO_SCALE), ah = Math.ceil(ph * AO_SCALE);
+    this.ao.setSize(aw, ah);
+    (this.ao.blendMaterial.uniforms.aoSize!.value as Vector2).set(aw, ah);
+    // the outline's edge is found at half size (the pass's default), so 0.5 texel there is about 1 pixel of the screen
+    this.outline.edgeThickness = 0.5 * ratio;
     this.outline.setSize(pw, ph);
     this.bloom.setSize(pw, ph);
     this.local.setSize(pw, ph);
@@ -327,9 +398,38 @@ export class Post {
     return steps({ ao: this.ao.enabled, outline: this.outline.enabled, bloom: this.bloom.enabled, eye: this.local.on });
   }
 
+  /**
+   * One more frame of a still view (LPC10): the same picture, the projection moved by a part of a pixel (`jitter`), mixed into the mean of
+   * the frames before it, and the mean shown. After `REFINE` frames each pixel holds that many samples: smooth edges with no multisampling.
+   * A view calls it only on a tick with no draw of its own (nothing moves, so nothing leaves a trail); any `render` starts it again.
+   * False: the picture is done, nothing was drawn.
+   */
+  refine(): boolean {
+    if (this.refined >= REFINE) return false;
+    const r = this.renderer, cam = this.camera, s = this.scene.target, n = this.refined++, [jx, jy] = jitter(n), was = r.getRenderTarget();
+    if (!this.mean) {
+      this.mean = new WebGLRenderTarget(s.width, s.height, { type: HalfFloatType, depthBuffer: false });
+      this.meanQuad = new FullScreenQuad(new ShaderMaterial({ ...CopyShader, uniforms: UniformsUtils.clone(CopyShader.uniforms), blending: NoBlending, depthTest: false, depthWrite: false }));
+    }
+    cam.setViewOffset(s.width, s.height, jx, jy, s.width, s.height);
+    this.draw(this.mean, 1 / (n + 1));
+    cam.clearViewOffset();
+    (this.meanQuad!.material as ShaderMaterial).uniforms.tDiffuse!.value = this.mean.texture;
+    r.setRenderTarget(null);
+    this.meanQuad!.render(r);
+    r.setRenderTarget(was);
+    return true;
+  }
+
   render(): void {
+    this.refined = 0;
+    this.draw(null, 1);
+  }
+
+  private draw(to: WebGLRenderTarget | null, weight: number): void {
     const r = this.renderer, was = r.getRenderTarget();
     let picture = this.scene.target;
+    this.nearFar.value.set(this.camera.near, this.camera.far);
     for (const s of this.steps()) {
       switch (s) {
         case 'scene': this.scene.draw(r); break;
@@ -339,7 +439,13 @@ export class Post {
         case 'outline': this.outline.render(r, this.work, picture, 0, false); break;
         case 'bloom': this.bloom.render(r, this.work, picture, 0, false); break;
         case 'eye': this.local.adapt(r, picture.texture); break;
-        case 'finish': this.local.draw(r, picture.texture, null); break;
+        case 'finish': {
+          const auto = r.autoClear;
+          if (weight < 1) r.autoClear = false; // (the finish mixes into what `to` holds: a clear would empty it)
+          this.local.draw(r, picture.texture, to, weight);
+          r.autoClear = auto;
+          break;
+        }
       }
     }
     r.setRenderTarget(was);
@@ -352,6 +458,9 @@ export class Post {
     // (three's own dispose leaves these)
     for (const m of [this.ao.gtaoMaterial, this.ao.blendMaterial, this.bloom.materialHighPassFilter]) m.dispose();
     this.work.dispose();
+    this.mean?.dispose();
+    (this.meanQuad?.material as ShaderMaterial | undefined)?.dispose();
+    this.meanQuad?.dispose();
     this.meterTarget.dispose();
     (this.meterQuad.material as ShaderMaterial).dispose();
     this.meterQuad.dispose();

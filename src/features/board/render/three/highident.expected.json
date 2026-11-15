@@ -1,24 +1,24 @@
 {
   "machine/Group#3": {
-    "meshes": 24,
-    "draws": 24,
-    "verts": 5518,
+    "meshes": 8,
+    "draws": 8,
+    "verts": 5106,
     "instances": 50,
-    "sum": "fc33b1c9"
+    "sum": "49c3f70c"
   },
   "machine/Group#4": {
     "meshes": 62,
     "draws": 59,
-    "verts": 97926,
+    "verts": 99018,
     "instances": 734,
-    "sum": "af1eeb1d"
+    "sum": "d4ca1244"
   },
   "machine/Group#47": {
-    "meshes": 42,
-    "draws": 38,
-    "verts": 38452,
+    "meshes": 23,
+    "draws": 19,
+    "verts": 45660,
     "instances": 186,
-    "sum": "0d01e324"
+    "sum": "d0eaaf57"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -58,9 +58,9 @@
   "machine/bat": {
     "meshes": 2,
     "draws": 2,
-    "verts": 1528,
+    "verts": 1432,
     "instances": 0,
-    "sum": "e313807f"
+    "sum": "84db9f6d"
   },
   "machine/board": {
     "meshes": 1,
@@ -70,25 +70,25 @@
     "sum": "5b6eebb1"
   },
   "machine/cable.atx": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 12648,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 12660,
     "instances": 0,
-    "sum": "26e26938"
+    "sum": "49f91f09"
   },
   "machine/cable.cpu": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 6692,
-    "instances": 0,
-    "sum": "05be9752"
-  },
-  "machine/cable.cpufan": {
     "meshes": 3,
     "draws": 3,
-    "verts": 1826,
+    "verts": 6704,
     "instances": 0,
-    "sum": "2c0e5dbe"
+    "sum": "386b1926"
+  },
+  "machine/cable.cpufan": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
+    "instances": 0,
+    "sum": "cb76fbbf"
   },
   "machine/cable.fan:front0": {
     "meshes": 2,
@@ -133,67 +133,67 @@
     "sum": "3f8c9184"
   },
   "machine/cable.lan": {
-    "meshes": 35,
-    "draws": 35,
-    "verts": 7540,
+    "meshes": 15,
+    "draws": 15,
+    "verts": 14736,
     "instances": 32,
-    "sum": "a77b14a5"
+    "sum": "58e3d48b"
   },
   "machine/cable.monmains": {
-    "meshes": 6,
-    "draws": 6,
-    "verts": 5676,
+    "meshes": 4,
+    "draws": 3,
+    "verts": 9964,
     "instances": 0,
-    "sum": "fb83752b"
+    "sum": "93edf69e"
   },
   "machine/cable.pcmains": {
-    "meshes": 6,
-    "draws": 6,
-    "verts": 5676,
+    "meshes": 4,
+    "draws": 3,
+    "verts": 9964,
     "instances": 0,
-    "sum": "0ba771c7"
+    "sum": "2ddb2957"
   },
   "machine/cable.ramfan": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1826,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
     "instances": 0,
-    "sum": "77f9022a"
+    "sum": "5dacf6ab"
   },
   "machine/cable.sysfan": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 2278,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 8160,
     "instances": 0,
-    "sum": "f102e2c5"
+    "sum": "2fa0527d"
   },
   "machine/cable.video": {
-    "meshes": 24,
-    "draws": 24,
-    "verts": 9322,
+    "meshes": 8,
+    "draws": 8,
+    "verts": 24960,
     "instances": 62,
-    "sum": "ea11b1ff"
+    "sum": "2330259a"
   },
   "machine/cable.vrmfan": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1826,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1838,
     "instances": 0,
-    "sum": "5f6239d0"
+    "sum": "5f5faa75"
   },
   "machine/case": {
-    "meshes": 172,
-    "draws": 172,
-    "verts": 655458,
+    "meshes": 140,
+    "draws": 140,
+    "verts": 157378,
     "instances": 1230,
-    "sum": "96a45c43"
+    "sum": "770b7f06"
   },
   "machine/case.side": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "45ebb271"
+    "sum": "c0fe73d0"
   },
   "machine/chipset": {
     "meshes": 2,
@@ -219,9 +219,9 @@
   "machine/dev11": {
     "meshes": 11,
     "draws": 11,
-    "verts": 33594,
+    "verts": 30330,
     "instances": 12,
-    "sum": "c114e57f"
+    "sum": "46ad70b5"
   },
   "machine/dev12": {
     "meshes": 3,
@@ -240,149 +240,149 @@
   "machine/dev14": {
     "meshes": 5,
     "draws": 5,
-    "verts": 11428,
+    "verts": 11140,
     "instances": 35,
-    "sum": "4ef56658"
+    "sum": "fa697f70"
   },
   "machine/dev15": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 83557,
+    "meshes": 4,
+    "draws": 4,
+    "verts": 21495,
     "instances": 0,
-    "sum": "ed92b302"
+    "sum": "2d49ef4e"
   },
   "machine/dev16": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 83557,
+    "meshes": 4,
+    "draws": 4,
+    "verts": 21495,
     "instances": 0,
-    "sum": "ceb4caa9"
+    "sum": "825d961d"
   },
   "machine/dev17": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 83557,
+    "meshes": 4,
+    "draws": 4,
+    "verts": 21495,
     "instances": 0,
-    "sum": "b35d351f"
+    "sum": "5d0c9bda"
   },
   "machine/dev18": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 83557,
+    "meshes": 4,
+    "draws": 4,
+    "verts": 21495,
     "instances": 0,
-    "sum": "31653134"
+    "sum": "6e8759ae"
   },
   "machine/dev19": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 83557,
+    "meshes": 4,
+    "draws": 4,
+    "verts": 21495,
     "instances": 0,
-    "sum": "8600e1d2"
+    "sum": "a9888d19"
   },
   "machine/dev20": {
-    "meshes": 7,
-    "draws": 7,
-    "verts": 83710,
+    "meshes": 6,
+    "draws": 6,
+    "verts": 21648,
     "instances": 8,
-    "sum": "58d2b8be"
+    "sum": "4bd763dc"
   },
   "machine/dev21": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 78964,
+    "meshes": 3,
+    "draws": 3,
+    "verts": 11208,
     "instances": 0,
-    "sum": "5efd74a3"
+    "sum": "0660d6d6"
   },
   "machine/dev22": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 78964,
+    "meshes": 3,
+    "draws": 3,
+    "verts": 11208,
     "instances": 0,
-    "sum": "d7a892b1"
+    "sum": "a3391a05"
   },
   "machine/dev23": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "edd94e28"
+    "sum": "ab597302"
   },
   "machine/dev24": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "cd77dfb9"
+    "sum": "9838ae39"
   },
   "machine/dev25": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "9ecd6774"
+    "sum": "530d282f"
   },
   "machine/dev26": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "6a534311"
+    "sum": "1815a6a7"
   },
   "machine/dev27": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev28": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev29": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev30": {
     "meshes": 13,
-    "draws": 5,
+    "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "3a3e37d1"
+    "sum": "c8611160"
   },
   "machine/dev31": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "b81a25aa"
+    "sum": "461db966"
   },
   "machine/dev32": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "6bd48767"
+    "sum": "7ae75839"
   },
   "machine/dev33": {
     "meshes": 14,
     "draws": 14,
-    "verts": 24429,
+    "verts": 7074,
     "instances": 515,
-    "sum": "b81a25aa"
+    "sum": "461db966"
   },
   "machine/dev34": {
     "meshes": 34,
     "draws": 28,
-    "verts": 96363,
+    "verts": 50752,
     "instances": 383,
-    "sum": "98849042"
+    "sum": "55ea073b"
   },
   "machine/io": {
     "meshes": 8,
@@ -407,80 +407,80 @@
   },
   "machine/power": {
     "meshes": 2,
-    "draws": 2,
+    "draws": 1,
     "verts": 168,
     "instances": 0,
-    "sum": "e2a93ae1"
+    "sum": "4563e3c3"
   },
   "machine/psu": {
-    "meshes": 33,
-    "draws": 33,
-    "verts": 27241,
+    "meshes": 32,
+    "draws": 32,
+    "verts": 27407,
     "instances": 34,
-    "sum": "c9e37323"
+    "sum": "6e6e9605"
   },
   "machine/sata0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "9f86aa0b"
+    "sum": "336af5ca"
   },
   "machine/sata1": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "5c8f1596"
+    "sum": "5167958e"
   },
   "machine/sata2": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "7d2f38b3"
+    "sum": "704b4926"
   },
   "machine/sata3": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "a8e8d252"
+    "sum": "e334b0ad"
   },
   "machine/sata4": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "fba2acf8"
+    "sum": "95389e99"
   },
   "machine/sata5": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "9c64f895"
+    "sum": "14a9fabb"
   },
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 326778,
+    "verts": 323682,
     "instances": 0,
-    "sum": "db32f15b"
+    "sum": "1fe62438"
   },
   "machine/tpm0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "55ee1e24"
+    "sum": "4b38adc7"
   },
   "machine/usb": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "565dd592"
+    "sum": "6dc48aab"
   },
   "machine/vrm": {
     "meshes": 8,
@@ -527,9 +527,9 @@
   "room/Group#15": {
     "meshes": 3,
     "draws": 3,
-    "verts": 6572,
+    "verts": 1208,
     "instances": 0,
-    "sum": "d5ce8307"
+    "sum": "cd18b1d8"
   },
   "room/Group#18": {
     "meshes": 2,
@@ -548,9 +548,9 @@
   "room/Group#21": {
     "meshes": 4,
     "draws": 4,
-    "verts": 1955,
+    "verts": 1283,
     "instances": 0,
-    "sum": "0f422c69"
+    "sum": "6c384c01"
   },
   "room/Group#30": {
     "meshes": 5,
@@ -562,9 +562,9 @@
   "room/Group#31": {
     "meshes": 1,
     "draws": 1,
-    "verts": 493,
+    "verts": 425,
     "instances": 0,
-    "sum": "5c749a93"
+    "sum": "6b0ae9c5"
   },
   "room/Group#32": {
     "meshes": 3,
@@ -590,9 +590,9 @@
   "room/Group#35": {
     "meshes": 3,
     "draws": 3,
-    "verts": 6785,
+    "verts": 936,
     "instances": 0,
-    "sum": "39478484"
+    "sum": "586002c4"
   },
   "room/Group#6": {
     "meshes": 1,
@@ -611,9 +611,9 @@
   "room/Group#8": {
     "meshes": 7,
     "draws": 7,
-    "verts": 8420,
+    "verts": 2447,
     "instances": 0,
-    "sum": "11e5c866"
+    "sum": "1d912892"
   },
   "room/Group#9": {
     "meshes": 11,
@@ -750,17 +750,17 @@
   },
   "room/display0": {
     "meshes": 1,
-    "draws": 1,
+    "draws": 0,
     "verts": 24,
     "instances": 0,
-    "sum": "77f91138"
+    "sum": "e6fd2945"
   },
   "room/lamp": {
     "meshes": 16,
     "draws": 16,
-    "verts": 2195,
+    "verts": 2041,
     "instances": 0,
-    "sum": "6ec1a3fa"
+    "sum": "753c0378"
   },
   "room/mail": {
     "meshes": 8,
@@ -772,23 +772,23 @@
   "room/merged": {
     "meshes": 57,
     "draws": 57,
-    "verts": 291936,
+    "verts": 289224,
     "instances": 0,
-    "sum": "1bcc7eb3"
+    "sum": "221e9fd5"
   },
   "room/monitor": {
     "meshes": 32,
     "draws": 32,
-    "verts": 48023,
+    "verts": 38039,
     "instances": 8,
-    "sum": "233a03ce"
+    "sum": "29c6ff94"
   },
   "room/router": {
     "meshes": 25,
-    "draws": 25,
+    "draws": 24,
     "verts": 4446,
     "instances": 17,
-    "sum": "2161ff45"
+    "sum": "d79c8fbb"
   },
   "room/socket": {
     "meshes": 3,

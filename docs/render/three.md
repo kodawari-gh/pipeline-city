@@ -1,6 +1,6 @@
 # 3D renderer (Three.js): state and tools
 
-The 3D renderer is the game's view. `?2d` opens the Pixi board instead (`src/app/main.tsx`). Shared code is in `src/core/render/three/`. The room and the city are in `src/features/room/render/three/` (`outside/` holds the city). The machine is in `src/features/board/render/three/`.
+The 3D renderer is the game's view (`src/app/main.tsx`). Shared code is in `src/core/render/three/`. The room and the city are in `src/features/room/render/three/` (`outside/` holds the city). The machine is in `src/features/board/render/three/`.
 
 This file says what the engine does today. The look and the design rules are in [`3D_STYLE.md`](../3D_STYLE.md). Graphics panel and tiers are in [`UI.md`](../UI.md#graphics-panel-panelsgraphicstsx-the-model-is-appgraphicsts). Level-of-detail rules are in [`lod.md`](lod.md).
 
@@ -64,7 +64,7 @@ Parts, the room and the city each use a different method. Full bands are in [`lo
 | `mergeStatic` | room, at build (`room3d.ts:742`, `merge.ts:47`) | one mesh per material |
 | `mergePalette` | room (`PALETTE_CELL` 2 m, `room3d.ts:138`) | per-cell meshes, so the frustum can still cull them |
 | `mergeSiblings` + `shareMaterials` | machine, once at build (`machine3d.ts:262-266`) | still meshes of one parent become one palette mesh; gated by the `merge` flag only, not by tier |
-| `mergeWithin` | Low only: room key rack, router, mailbox and monitor housing (`room3d.ts`, `props3d.ts`); cable plugs, cord ends and grommets (`cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `|low` and the room's key carries it too (`rebuild` in `board3d.ts`), so a tier change across the Low line rebuilds both |
+| `mergeWithin` | Low only: room key rack, router, mailbox and monitor housing (`room3d.ts`, `props3d.ts`). Every tier (LPC5): cable plugs, cord ends and grommets (`cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `|low` and the room's key carries it too (`rebuild` in `board3d.ts`), so a tier change across the Low line rebuilds both |
 | stand-ins (`standIns`, `merge.ts`) | far machine parts | a stand-in set of merged meshes |
 | `Sweep` | city buildings and trees (`sweep.ts`) | one draw per ring, cut to the camera's frustum |
 | `sweptMerge` | city street (`CELL` 24 m, `sweep.ts`) | street pieces merged per material, in bearing order |
@@ -78,18 +78,32 @@ Measured:
 - Menu at Low, machine: 487 meshes to 238, 239 materials to 102 (same doc).
 - Per-part and per-case draws after merge: not measured at `03fe0bc`. The case had 462 meshes and about 950 draws in Build my PC (geo run at `bfe11c6`).
 
+**Repeated meshes left after the merges (LPC3 count, 2026-11-14, `repeats.test.ts`, `REPEATS_DUMP=1` lists them).** Equal meshes (same vertices, size and look) that draw more than 4 times, High, maxed machine plus room, 942 draws in all:
+
+| Where | Sets | Draws to save | Largest sets |
+|---|---|---|---|
+| Machine | 11 | 60 | 6 perforated tray floors, 8 merged pieces of 1,836 vertices, 6 fans of 120 mm (4 meshes each), 8 + 6 + 6 see-through or cable boxes |
+| Room | 3 | 18 | 10 meshes under `tray`, 6 under `router` |
+
+A set of 16 merged case pieces is gone: each mesh that no ray stops at (`seeThrough`) had its own ray function, and `mergeSiblings` keeps different ray functions apart, so none of them merged. They now share `NO_RAY` (`pick.ts`): the maxed machine draws 640 meshes near, was 678. Any new "no ray" mesh must use `seeThrough` or `NO_RAY`, never a new function. The 18 standoff marks of the tray were one quad a position; they are now one mesh a word (`mounts`, `casetray3d.ts`): 628 draws near. The empty drive trays and the Velcro straps were groups of their own, and `mergeSiblings` merges by parent; their meshes now go straight into the cage and the tray group (`driveCage`, `trayDetail`): 611 draws near. Rule: a still sub-assembly that nothing finds, moves or fades alone adds its meshes to its parent, not a group.
+
+So instancing can save at most 78 draws. The six fans carry the most vertices (24,288 each, merged); they are in six part scopes (`userData.id`), which fade and outline alone, so an instanced set needs a per-instance fade first. The test holds the count: it may only fall.
+
 ## Cheap materials (Low)
 
-`cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only.
+`cheapMaterials` (`src/core/render/three/cheapmaterials.ts`) runs at Low only, and on the room only (`cheap` in `board3d.ts`).
+
+- **The machine keeps High's materials at Low** (2026-11-15). Its metal reads by reflection: as Lamberts the case interior drew near black and the RAM boards plain green. The GPU time is the same on the bench machine (RTX 5080, 2560 x 1355, board idle: 5.5 ms with Lamberts, 5.2 ms with PBR; the frame is CPU-bound). Not measured on an integrated GPU.
+- **Case shadow** (`caseshade.ts`, Low's machine only): Low draws no shadow map, so each spot light is scaled by the face of the case's box its ray leaves through (`CASE_PASS` in `machine3d.ts`: glass side 0.75, top filter 0.2, steel 0). One ray-box exit a light, no texture. Point lights (the case's own RGB) are not shaded. The `KEEP_SPEC` flags below now matter only to a machine part that the room's swap reaches.
 
 - A `MeshStandardMaterial` that is neither patched nor lightmapped becomes one `MeshLambertMaterial` (`cheapmaterials.ts:22`). Only these become Lambert.
 - A Standard that is patched or has a `lightMap` stays Standard (`isPatched(m) || m.lightMap`, `cheapmaterials.ts:55`). The room's 12 lightmaps therefore stay Standard at Low. On these kept Standards, it strips `normalMap`, `roughnessMap`, `metalnessMap`, `aoMap` and `bumpMap` (`cheapmaterials.ts:5`).
 - The source Standard is not disposed (`cheapmaterials.ts:60-74`). Three.js drops a program only when its material is disposed or rebuilt.
-- The room probe is captured once at Low and not again (`probePlan`, `cheapmaterials.ts:119-120`).
+- At Low the room probe takes no bounce, and is captured again only when the room's light changes (`probePlan` in `cheapmaterials.ts`, `lightKey`). A probe kept from before the lamp cap lit the case's back wall a half brighter than High's.
 - Mesh counts do not change. The swap changes programs. Its effect on material counts is not checked.
 - **KEEP_SPEC** (`userData.lowKeepSpec` in `materials.ts`): a flagged part keeps its High PBR material at Low. `cheapMaterials` returns it unchanged (no Lambert, no maps stripped). `palettePatch` also takes a `keep` flag and leaves the High PBR patch on a flagged palette mesh. Flagged on the sleeve at both tiers, the rest at Low only: the AIO braid sleeve (`cables3d.ts`, `sleeveMat`; High reads no flag, so this is harmless), the VRM sink's anodised casting and fins (`sink3d.ts`), the side-fan frame and blades (`fans3d.ts`), and the loop's G1/4 chrome fittings and hose ferrules (`cooler3d.ts`). At High a flagged part and its plain twin merge alike.
 - **Metals** (metalness above `NON_METAL`, 0.1): the Lambert reads `metalColor`, mixed toward the dark-metal range (`DARK_METAL`, `#2a2d32` to `#4e5360`) by the metalness. Warm metals (`warmMetal`: copper, brass, gold) keep their colour. Paint and plastic keep theirs. The pump cap uses `NON_METAL` at Low instead of a dark metal, so the brushed face stays a Lambert of its colour.
-- **Palette meshes at Low** (`palettePatch(sh, low, keep)`, `LOW_FRAG` in `merge.ts`): a merged palette mesh also draws as a Lambert: no specular, colour `lowMetal` (the dark-metal mix, warm metals kept), metalness 0. A black plug stays black. High keeps the PBR patch.
+- **Palette meshes at Low** (`palettePatch(sh, low, keep)`, `LOW_FRAG` in `merge.ts`): a merged palette mesh also draws as a Lambert: no specular, colour `lowMetal` (the dark-metal mix, warm metals kept), metalness 0. A black plug stays black. High keeps the PBR patch. The machine's merge (`mergeSiblings` with `pbr`) keeps the PBR patch at Low too: its metal reads by reflection, a Lambert case interior drew near black (L 0.002, High 0.009; now 0.014), and the GPU time does not change (5.4 ms a board frame at 2560 x 1355).
 - **Merge guard at Low**: `mergeSiblings` takes `byLook` at Low, so a warm metal (`lookOf`: metalness above 0.5 and warm) merges only with another warm metal.
 - **Coarser meshes** (`byDetail`): the cooler's heat pipes go from 220×16 to 40×8 segments and its coils from 339×6 to 48×6 (`cooler3d.ts`). The NVMe label is one flat quad over the packages at Low (`nvme3d.ts`).
 - **Tests**: `cheapmaterials.test.ts`, `merge.test.ts`, `mergelook.test.ts`, `lowdetail.test.ts`, `materials.test.ts`, `buildmode3d.shared.test.ts`. High's geometry and placement are pinned by `highident.test.ts` against `highident.expected.json`. Its materials are not. The Low cuts that matter for keeping metal or weave are pinned by `lowkeep.test.ts`.
@@ -104,10 +118,11 @@ Code inventory (grep, `03fe0bc`): 20 Standard sites, 533 `mat()` calls (on 440 l
 
 ## Textures
 
-- There is no atlas, KTX2, Basis, Draco or meshopt on main. `gltf.ts` is a plain `GLTFLoader`. Both shipped GLBs carry 0 textures.
+- There is no atlas, Draco or meshopt on main. Both shipped GLBs carry 0 textures.
+- **KTX2 in models (KTX1).** `gltf.ts` `ktx2Support(renderer)` gives the `GLTFLoader` a `KTX2Loader` (`createRenderContext` calls it; the first context wins). The loader's code is its own chunk. The Basis transcoder is served from `public/basis/` (a copy of three's, 585 KB; `gltf.test.ts` fails if it differs, so copy it again after a three upgrade) and loads with the first KTX2 texture. `loadModel` gives null when a texture of the model did not load, so the part keeps its primitives. KTX1 (this loader) is a prerequisite: it must be in place before any `.ktx2` file is added. No shipped asset is KTX2 yet (ASK1–ASK3).
 - Runtime canvases carry the maps: 64 to 512 px, art tiles up to 2048 px. Anisotropy is the `filtering` option (default 8).
 - Texture counts (`renderer.info.memory.textures`): High 265, Low 219 in the main scenario. Counts are per page, not per view. Textures in MB and VRAM are not measured. No tool reports them.
-- The lightmap size is not settled. The lighting section gives 9.8 MB on disk. A derived unpacked RGBA8 figure is about 52.4 MiB. Docs also disagree on the atlas size (991x1153 against 994x1152).
+- **Lightmap size and budget.** 12 maps at 961 × 1207 (`public/bake/room/manifest.json`), RGBM. 9.9 MB on disk (PNG). Unpacked RGBA8 on the GPU: 12 × 961 × 1207 × 4 bytes = 53.1 MiB. Compressed to 1 byte a texel (BC7 class, not shipped): about 14 MB (13.9 MB), under the Dev Lead's 16 MB lightmap cap. A lamp cap (Low) loads 3 more maps, the capped lamps' direct light (0.3 MB on disk, 13.3 MiB unpacked): 15 maps would be 17.4 MB compressed, over the cap, so pack them tighter before compression ships. The game ships PNG, not compressed (`src/features/room/light.md`, Size and budget).
 
 ## City culling and the Firefox occlusion gate
 
@@ -144,7 +159,9 @@ The overlay is in `src/app/debug/` (`overlay.ts`, `controls.ts`, `city-layers.ts
 | Hide city | the whole city | window quad `visible = false`, so `outsideDraws()` is false |
 | Hide machine | the machine root | `setRootHidden` |
 | No city lights | lamps, windows, sign light, glow, emissives | lamps hidden, sign layer moved, `key = -1` |
-| No buildings | streets, buildings, land **and trees** | moved to layer 30 |
+| No buildings | buildings only | moved to layer 30 |
+| No trees | street and park trees only | moved to layer 30 |
+| No streets | streets and the land under them | moved to layer 30 |
 | Freeze city | clock stops: traffic, leaves, clouds, steam | `off` flag |
 | No cars | cars and signal lamps | layer 30 |
 | No city sky | sky dome | layer 30 |
@@ -156,7 +173,7 @@ The overlay is in `src/app/debug/` (`overlay.ts`, `controls.ts`, `city-layers.ts
 Notes:
 
 - Layer 30 (`HIDDEN_LAYER`) is used so sweep writes to `mesh.visible` do not undo a hide. Hidden objects stay in the scene. Whether their CPU cut work still runs is not verified.
-- `No buildings` cannot answer "buildings against trees". It hides both, plus land.
+- `No buildings`, `No trees` and `No streets` each hide alone (`view.ts` `parts.buildings`, `parts.trees`, `parts.streets`).
 - `view.off` takes `lights`, `glow`, `freeze`, `flat` and `mirror` (`view.ts` reads `this.off.has('mirror')` and zeros the room in the glass).
 - Hide city may not subtract the city triangle count. The stats overlay still reported about 868k city triangles with Hide city on (Razr sweep).
 
@@ -169,13 +186,13 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 | `npm run bench:3d` | `tools/bench3d.mjs` | Plays the idle views, the flights, the door, the hover, a cable, a lifted part and the running machine with the real pointer. Reports frame times, GPU time per pass, scene and shadow passes per frame, draw calls, programs, textures (count), CPU time per part, rebuilds and hot functions. |
 | `npm run bench:4k` | `tools/bench3d.mjs` | 2560x1355 at DPR 1.5, Medium, `room night hover`. |
 | `npm run bench:modes` | `tools/bench-modes.mjs` | Same runs in Firefox (`--firefox`) or on a phone profile. Reports only. |
-| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--2d`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
+| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
 | `npm run stills` | `tools/stills.mjs` | Renders parts headless to `public/stills/` with a hash manifest. |
 | (no npm script) | `tools/bench-costs.mjs` | Phone sweeps (Razr, Low) used for the toggle numbers above. |
 | (no npm script) | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code. |
 | (no npm script) | `tools/shot-case.mjs` | Opens the sandbox with the assembled machine and frames one device from its own box (`--part cooler\|nvme2\|ram`, plus `--preset`, `--yaw`, `--pitch`, `--fill`). Uses the dev hook `__board.frameSpec` (`board3d.ts`), which sets the view with `jumpRaw` and skips the room clamp. Any flight or input turns the clamp back on. The hook is dev only: `devhook.test.ts` checks that the prod source has no `jumpRaw` or `frameSpec` outside the DEV object. |
 
-`bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--2d`, `--lowpower`. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
+`bench:3d` flags: `--preset High|Low`, `--only "a,b"` (scenario names such as `room idle`, `board idle`, `cpu idle`, `door first open`, `running room`, `room night hover`), `--size`, `--dpr`, `--gpu <regex>`, `--need-timers`, `--no-profile`, `--baseline old.json`, `--lowpower`. It starts its own dev server on port 5197. `shot` uses port 5199. Both take `PORT`.
 
 `bench:3d` does not run the city toggles. It loads `?3d`, not `?debug`. City GPU cost on the RTX is not measured.
 
@@ -188,7 +205,7 @@ Last RTX 5080 run (`03fe0bc`, Chrome / ANGLE D3D11, GPU timers on, Auto-adjust o
 | CPU idle | 2.8 | 163 | 127 | 0.6 | 130 | 202 |
 | Door first open | 9.7 | 1,057 | 128 | 4.4 | 923 | 203 |
 
-Room idle, High: 1,715k triangles drawn, 3.16 shadow maps per frame. Low: 1,611k triangles, no shadow maps. GTAO takes about 1.5 ms of High room time. Low has no GTAO.
+Room idle, High: 1,715k triangles drawn, 3.16 shadow maps per frame. Low: 1,611k triangles, no shadow maps. GTAO takes about 0.5 ms of High room time (half size, bilateral upsample). Medium runs GTAO at half size too, about 0.2 ms. Low has no GTAO.
 
 Program counts are cumulative per page. Textures are the same in every view (the scene is shared).
 
@@ -210,7 +227,7 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 ## Not on main
 
 - **Far-city cards and night-window layer.** Designed, not built. No card path exists for buildings or trees.
-- **KTX2 loader.** Not present. Prerequisite: `KTX2Loader` and transcoder path in `gltf.ts`, plus a copied Basis transcoder (about 585 KB). About 60 to 90 lines (estimated).
+- **KTX2 assets.** The loader is in (see "KTX2 in models"); no asset is baked to KTX2 yet, and the painted maps (`rawSrgb`, `DECODE_SRGB`) have no KTX2 path.
 
 ## Known gaps
 

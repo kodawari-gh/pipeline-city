@@ -30,19 +30,19 @@ const inRoom = (visual: string, b: Box3) => {
 describe('the 3D coolers', () => {
   afterEach(() => { setLowDetail(false); });
 
-  it('keeps the side fans\' frame and blades and the fittings\' chrome on their PBR at Low (KEEP_SPEC), and leaves High unflagged', () => {
+  it('leaves the side fans\' frame and blades and the fittings\' chrome unflagged at Low and High (the machine keeps High\'s materials)', () => {
     setLayoutTier(3, 3);
     const mats = (o: Object3D) => { const out: MeshStandardMaterial[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(...[(c as Mesh).material].flat() as MeshStandardMaterial[]); }); return out; };
     // the frame and the blades of a fan (basic and high-airflow), and the G1/4 fittings' chrome
-    const FAN = [0x1d1e22, 0x2c2e34, 0x3a3c46], CHROME = 0x3a3f4c;
+    // (their greys are family colours that other parts share since ASR9: the flag itself names them)
+    const flagged = (list: MeshStandardMaterial[]) => list.filter((m) => m.userData[KEEP_SPEC] === true).length;
     const fans = [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')];
     for (const low of [false, true]) {
       setLowDetail(low);
-      const fanMats = [...mats(coolerModel('cooler-stock', [fit('fan92', 'cooler0.fan0')]).root), ...mats(coolerModel('cooler-tower', fans).root)].filter((m) => FAN.includes(m.color.getHex()));
-      const chromeMats = mats(coolerModel('cooler-liquid').root).filter((m) => m.color.getHex() === CHROME);
-      expect(fanMats.length, `fans at Low ${low}`).toBeGreaterThan(0);
-      expect(chromeMats.length, `chrome at Low ${low}`).toBeGreaterThan(0);
-      for (const m of [...fanMats, ...chromeMats]) expect(m.userData[KEEP_SPEC] === true, `low ${low}`).toBe(low);
+      const fanMats = [...mats(coolerModel('cooler-stock', [fit('fan92', 'cooler0.fan0')]).root), ...mats(coolerModel('cooler-tower', fans).root)];
+      const chromeMats = mats(coolerModel('cooler-liquid').root);
+      expect(flagged(fanMats), `fans at Low ${low}`).toBe(0);
+      expect(flagged(chromeMats), `chrome at Low ${low}`).toBe(0);
     }
   });
 

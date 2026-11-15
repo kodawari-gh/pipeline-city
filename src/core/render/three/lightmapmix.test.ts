@@ -1,6 +1,9 @@
-import { BoxGeometry, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, ShaderChunk, ShaderLib, Texture, type Material, type WebGLProgramParametersWithUniforms, type WebGLRenderer } from 'three';
+import {
+  BoxGeometry, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, ShaderChunk, ShaderLib, Texture,
+  type Color, type Material, type Scene, type ShaderMaterial, type Vector3, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
+} from 'three';
 import { describe, expect, it } from 'vitest';
-import { STAND_IN_DECAY, applyLightmap, framed, keyFrames, lightmapped, meshHash, type Bake } from './lightmapmix';
+import { LightmapMix, STAND_IN_DECAY, applyLightmap, framed, keyFrames, lightmapped, meshHash, type Bake } from './lightmapmix';
 
 const hashOf = (m: Mesh, root: Group) => { root.updateMatrixWorld(true); return meshHash(framed(m.geometry, new Matrix4().multiplyMatrices(root.matrixWorld.clone().invert(), m.matrixWorld)), m.geometry.index?.array ?? null); };
 const compile = (m: Material) => {
@@ -81,5 +84,41 @@ describe('the baked bounce', () => {
     expect(copy.customProgramCacheKey()).toContain('|lm');
     // lit again (a bake loaded twice): the wall keeps the hash it was found by
     expect(applyLightmap(root, bake, map, { metre: 18700 }).meshes).toEqual([wall]);
+  });
+
+  it("adds a capped lamp group's direct light from its channel, with its hue and its level over the baked one", () => {
+    const bounce = new Texture(), packed = new Texture();
+    const bake: Bake = {
+      manifest: {
+        version: 1, encoding: 'rgbm-sqrt', width: 8, height: 8, texelsPerMetre: 50, samples: 1, dark: [], meshes: [],
+        groups: [{ id: 'led', kind: 'lamp', file: 'led.png', scale: 2, lead: 4 }],
+        direct: { files: ['direct-0.png'], groups: [{ id: 'floor', map: 0, channel: 0, scale: 1, colour: [1, 1, 1], lead: 1 }, { id: 'led', map: 0, channel: 2, scale: 10, colour: [0.5, 1, 1], lead: 4 }] },
+      },
+      maps: new Map([['led', bounce]]), uvs: new Uint16Array(0),
+    };
+    const mix = new LightmapMix(bake), draws: { map: unknown; k: number[]; sel?: number[] }[] = [];
+    const renderer = {
+      getRenderTarget: () => null, getClearColor: (c: Color) => c, getClearAlpha: () => 1, autoClear: true,
+      setRenderTarget() { /* none */ }, setClearColor() { /* none */ }, clear() { /* none */ },
+      render(scene: Scene) {
+        const u = ((scene.children[0] as Mesh).material as ShaderMaterial).uniforms;
+        draws.push({ map: u.map!.value, k: (u.k!.value as Vector3).toArray(), ...(u.sel ? { sel: (u.sel.value as Vector3).toArray() } : {}) });
+      },
+    } as unknown as WebGLRenderer;
+    // not loaded yet: the bounce alone, and the room keeps its lift
+    expect(mix.hasDirect('led')).toBe(false);
+    mix.mix(renderer, new Map([['led', 2]]), new Map([['led', 2]]));
+    expect(draws).toEqual([{ map: bounce, k: [1, 1, 1] }]);
+    // loaded: the capped group's channel is added; a group at no level (`floor`) and one with no direct map (`desk`) add nothing
+    bake.direct = [packed];
+    expect(mix.hasDirect('led')).toBe(true);
+    expect(mix.hasDirect('desk')).toBe(false);
+    draws.length = 0;
+    mix.mix(renderer, new Map([['led', 2]]), new Map([['led', 2], ['floor', 0], ['desk', 3]]));
+    expect(draws).toEqual([{ map: bounce, k: [1, 1, 1] }, { map: packed, k: [2.5, 5, 5], sel: [0, 0, 1] }]);
+    // and the next mix starts with the bounce's material again
+    draws.length = 0;
+    mix.mix(renderer, new Map([['led', 2]]));
+    expect(draws).toEqual([{ map: bounce, k: [1, 1, 1] }]);
   });
 });

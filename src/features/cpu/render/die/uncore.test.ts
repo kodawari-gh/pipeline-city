@@ -5,7 +5,7 @@ import type { Theme } from '@/core/render/theme';
 import { UncoreFx, fresh, uncoreInput } from './uncore';
 import type { PlanBlock } from './dieart';
 
-const T = { dark: true, bg: '#000', line: '#222', ink: '#fff', mute: '#888', alu: '#0ff', mul: '#a0f', ld: '#fa0', st: '#0f8', br: '#f0a', bad: '#f33' } as unknown as Theme;
+const T = { bg: '#000', line: '#222', ink: '#fff', mute: '#888', alu: '#0ff', mul: '#a0f', ld: '#fa0', st: '#0f8', br: '#f0a', bad: '#f33' } as unknown as Theme;
 const block = (kind: string, grid?: PlanBlock['grid']): PlanBlock => ({ id: kind, kind, label: kind, rect: { x: 0, y: 0, w: 300, h: 100 }, ...(grid ? { grid } : {}) });
 
 describe('uncore state', () => {

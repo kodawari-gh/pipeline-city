@@ -6,7 +6,7 @@
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
 // Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
-import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
+import { Box3, Color, Frustum, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
@@ -14,13 +14,14 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
+import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
 import { lowDetail } from '@/core/render/three/detail';
 import { disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
-import { tag } from '@/core/render/three/pick';
+import { tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -29,7 +30,7 @@ import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITO
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
+  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, PKG, USB_PORT, VIDEO_Y, nicY, routerLan,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -86,6 +87,18 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
 const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
+/**
+ * Low's case shadow: how far inside the body its box sits, and what each face lets in (the top filter a fifth, steel none). The glass side
+ * lets in 0.75, not all: the parts shade each other at High, and 0.75 is that mean (RAM L 0.036, High 0.037; drive cage 0.051, High 0.044).
+ */
+const SHADE_IN = 60, CASE_PASS: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] };
+/** Low's contact shade: three dark, unlit rings on the board round a part's seat (wider and fainter outward), so the seat reads as touching. */
+const PADS: readonly [number, number][] = [[16, 0.6], [44, 0.35], [90, 0.18]];
+const contactPad = (r: RectLike): Group => {
+  const g = new Group();
+  for (const [e, opacity] of PADS) g.add(rectBox({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, BOARD_Z + 0.5, BOARD_Z + 1.5, new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity, depthWrite: false })));
+  return g;
+};
 
 
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
@@ -124,7 +137,7 @@ export class Machine3D {
   /** The RGB's one colour: the case's accent (`caseModel`), so the fans, the strips and the light out through the glass match its trim. */
   private accent = new Color(0x8b5cff);
   /** The art is always the dark theme's: the reference's black board under neon. */
-  private readonly T = builtinTheme(true);
+  private readonly T = builtinTheme();
   /** The 2D art the parts wear, baked on the view's queue. */
   private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
@@ -193,6 +206,8 @@ export class Machine3D {
   /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
   readonly partLod: PartLod | null = null;
   /** The case's box (the root's space): the distance LOD reads the zoom at its nearest point. */
+  /** The case's body less half a wall: what its walls shade at Low (`setCaseShade`); the feet and the walls' outer faces stay out of it. */
+  private readonly shadeBox = new Box3(new Vector3(CASE.x + SHADE_IN, -(CASE.y + CASE.h) + SHADE_IN, CASE_Z + SHADE_IN), new Vector3(CASE.x + CASE.w - SHADE_IN, -CASE.y - SHADE_IN, FRONT - SHADE_IN));
   private readonly caseBox = new Box3(new Vector3(CASE.x, -(CASE.y + CASE.h + FOOT), CASE_Z), new Vector3(CASE.x + CASE.w, -CASE.y, FRONT));
 
   /**
@@ -263,7 +278,7 @@ export class Machine3D {
    */
   private share(): void {
     const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
-    mergeSiblings(this.root, { skip, apart, byLook: lowDetail() });
+    mergeSiblings(this.root, { skip, apart, pbr: true });
     shareMaterials(this.root, { skip, apart });
   }
 
@@ -365,8 +380,8 @@ export class Machine3D {
     this.small = b.small;
     this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
-    const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
-    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
+    const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { this.root.add(unseen(tag(rectBox(r, z0, z1, clear), id))); };
     pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
     GEO.dimm.forEach((d, i) => { if (!filled.has(`dimm${i}`)) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, `dimm${i}`); });
     M2_SLOTS.forEach((m, i) => { if (!filled.has(`m2${i}`)) pickBox(m, BOARD_Z, BOARD_Z + 40, `m2${i}`); });
@@ -406,6 +421,7 @@ export class Machine3D {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
         const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
+        if (lowDetail()) g.add(contactPad(PKG)); // (the cooler's base sits on the CPU package)
         this.fades.push(g);
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);
@@ -719,8 +735,8 @@ export class Machine3D {
       g.add(cableMesh(run, cord));
       // (a thin cord seen from afar is a pixel wide: an unseen sleeve three times as thick round it is what the pointer finds)
       const grab = cableMesh(run, { ...cord, r: cord.r * 3 });
-      grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false }); grab.castShadow = grab.receiveShadow = false;
-      g.add(grab);
+      grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+      g.add(unseen(grab));
       this.addRig(g, {
         id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
         engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
@@ -811,8 +827,8 @@ export class Machine3D {
     this.cableIds = s.cables.map((c) => c.id).join(',');
     this.videoKey = videoKey(s);
     this.buildCables(s, geo);
-    // Low: the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
-    if (lowDetail()) mergeSiblings(this.wires);
+    // the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
+    mergeSiblings(this.wires);
     this.partLod?.build(this.wires); // (the still parts of the new cables; a draggable end, `userData.rig`, and the key stay out)
     this.setKey(s.plugged?.id ?? null);
   }
@@ -839,7 +855,7 @@ export class Machine3D {
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
-      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 2.2 : 2.8)) * f.speed; }
+      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed; }
     }
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
@@ -850,9 +866,9 @@ export class Machine3D {
     if (this.door) this.swingDoor(dt);
     this.blink = live && s.storage.some((d) => d.busy);
     if (this.leds) {
-      this.leds.on.emissiveIntensity = live ? 2 : 0;
-      this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0;
-      this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 2.2 : 0;
+      this.leds.on.emissiveIntensity = live ? 1.5 : 0;
+      this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 1.5 : 0;
+      this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 1.6 : 0;
     }
   }
 
@@ -889,6 +905,8 @@ export class Machine3D {
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
     // the small parts as stand-ins from afar (after the reveals: a stand-in follows what they show and hide), by the zoom at the case's nearest point
+    // Low: the case's shadow on the spot lights (`caseshade.ts`); the glass side lets the light in, the top filter a part of it
+    if (lowDetail()) setCaseShade(this.shadeBox, this.root.matrixWorld, CASE_PASS);
     this.partLod?.update(screenPx(LOD_BOX.copy(this.caseBox).applyMatrix4(this.root.matrixWorld).distanceToPoint(cam.position), cam.fov, H));
     this.art.update(cam, this.frustum, H, dpr, now);
   }

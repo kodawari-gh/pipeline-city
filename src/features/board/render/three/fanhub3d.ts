@@ -3,7 +3,7 @@
 // top edge (the fan cords' plugs seat in these, `buildCables`: their seats do not move), the input header, the SATA power socket on the west edge, three
 // addressable-light outputs and the USB header along the bottom edge.
 import { BoxGeometry, CylinderGeometry, Group } from 'three';
-import { drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE_Z } from '@/features/room/render/three/roomplan';
 import { hubHeaders } from '@/features/room/render/desk/props/case';
@@ -57,7 +57,7 @@ export function fanHub(): Group {
   g.add(decal(grow(h, -8), z + 0.5, mat(0xffffff, { map: silk(h, headers), roughness: 0.55, metalness: 0.1 })));
   const corners: Spot[] = [[h.x + 46, h.y + 46], [h.x + h.w - 46, h.y + 46], [h.x + 46, h.y + h.h - 46], [h.x + h.w - 46, h.y + h.h - 46]].map(([x, y]) => ({ x: x!, y: -y!, z: z + 1 }));
   g.add(screws(corners, 'z+', 34, mat(0xb8bcc2, { metalness: 0.85, roughness: 0.3 })));
-  g.add(instanced(new CylinderGeometry(30, 30, PCB_Z0 - TRAY_Z, 6).rotateX(Math.PI / 2), mat(0xb99a58, { metalness: 0.65, roughness: 0.5 }), corners.map((c) => ({ ...c, z: (PCB_Z0 + TRAY_Z) / 2 }))));
+  g.add(instanced(new CylinderGeometry(30, 30, PCB_Z0 - TRAY_Z, SEG.joint).rotateX(Math.PI / 2), mat(0xb99a58, { metalness: 0.65, roughness: 0.5 }), corners.map((c) => ({ ...c, z: (PCB_Z0 + TRAY_Z) / 2 }))));
 
   // a side-entry fan header per mount, and the input header: walls either side of the plug's mouth, four gold pins pointing north
   const sideEntry = (hx: number) => {
@@ -102,7 +102,7 @@ export function fanHub(): Group {
   g.add(instanced(box, mat(0xa9afb6, { metalness: 0.8, roughness: 0.4 }), legs), instanced(box, mat(0x14151a, { roughness: 0.5 }), chips), instanced(box, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), ends));
   for (const x of [h.x + 180, h.x + 290]) {
     const y = my + 80;
-    g.add(drum(x, y, z, z + 96, 44, mat(0x15161c, { roughness: 0.35, metalness: 0.2 }), 20), drum(x, y, z + 96, z + 97, 38, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), 20));
+    g.add(drum(x, y, z, z + 96, 44, mat(0x15161c, { roughness: 0.35, metalness: 0.2 }), SEG.disc), drum(x, y, z + 96, z + 97, 38, mat(0xb8bcc2, { metalness: 0.8, roughness: 0.4 }), SEG.disc));
     g.add(rectBox({ x: x - 34, y: y - 2, w: 68, h: 4 }, z + 97, z + 97.5, mat(0x3b3e44, { roughness: 0.6 })), rectBox({ x: x - 2, y: y - 34, w: 4, h: 68 }, z + 97, z + 97.5, mat(0x3b3e44, { roughness: 0.6 })));
   }
 

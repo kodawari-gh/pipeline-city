@@ -10,7 +10,7 @@ import { roomGeo } from '../shell/room';
 import type { Theme } from '@/core/render/theme';
 
 const THEME: Theme = {
-  dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
+  bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
@@ -20,10 +20,10 @@ describe('what lies on the desk', () => {
   it.each([0, 1, 2, 3])('tier %i: the mat, the keyboard and the mouse lie on the desk top, between its far and near edges, and a height lifts a point straight up', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), D = deskGeo(g.persp, g.ys, g.floor), mcx = MONITOR.x + MONITOR.w / 2;
-    for (const dark of [true, false]) {
+    {
       for (const draw of [drawMat, (o: Graphics, T: Theme, d: typeof D, c: number) => drawKeyboard(o, T, LOOK, d, c), (o: Graphics, T: Theme, d: typeof D, c: number) => drawMouse(o, T, LOOK, d, c)]) {
         const o = new Graphics();
-        draw(o, { ...THEME, dark }, D, mcx);
+        draw(o, THEME, D, mcx);
         const b = o.getLocalBounds();
         expect(b.maxY).toBeLessThan(D.yFront); // nothing hangs over the desk's edge
         expect(b.minX).toBeGreaterThan(g.desk.x0);

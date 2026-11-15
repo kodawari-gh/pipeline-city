@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Material, Mesh, Scene, type WebGLRenderer } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { linked, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
+import { freeWhenLinked, linked, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
 
 /** A program that links after `n` looks. */
 const after = (n: number): Program => ({ isReady: () => n-- <= 0 });
@@ -24,6 +24,34 @@ describe('whenLinked', () => {
   it('linked: every one', () => {
     expect(linked([after(0), after(0)])).toBe(true);
     expect(linked([after(0), after(5)])).toBe(false);
+    // a destroyed program (three sets its `program` to undefined) never links: it does not hold the wait
+    expect(linked([after(0), { isReady: () => false, program: undefined } as Program])).toBe(true);
+    expect(linked([{ isReady: () => false, program: {} } as Program])).toBe(false);
+  });
+});
+
+describe('freeWhenLinked', () => {
+  const tree = (programs: Program[]) => {
+    const made = new Material(), fresh = new Material(), root = new Scene();
+    root.add(new Mesh(undefined, made), new Mesh(undefined, fresh));
+    const r = { properties: { has: (m: Material) => m === made, get: () => ({ programs: new Map(programs.map((p, i) => [String(i), p])) }) } } as unknown as WebGLRenderer;
+    return { r, root };
+  };
+
+  it('frees at once when the programs have linked (a material with no program is not asked)', () => {
+    const { r, root } = tree([after(0)]);
+    let n = 0;
+    freeWhenLinked(r, root, () => n++, 1);
+    expect(n).toBe(1);
+  });
+
+  it('waits for a program that still links, then frees once', async () => {
+    const { r, root } = tree([after(0), after(3)]);
+    let n = 0;
+    freeWhenLinked(r, root, () => n++, 1);
+    expect(n).toBe(0);
+    await new Promise((done) => setTimeout(done, 40));
+    expect(n).toBe(1);
   });
 });
 

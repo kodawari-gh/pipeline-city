@@ -104,13 +104,16 @@ void main() {
   // the stars
   vec3 sp = d * 380.0, cell = floor(sp);
   float h = hash3(cell);
-  if (h > 0.996 && e > 0.04) c += vec3(0.9, 0.94, 1.0) * smoothstep(0.3, 0.0, length(fract(sp) - 0.5)) * night * (0.6 + 0.4 * sin(time * 1.7 + h * 90.0)) * 1.6;
+  // steady: a star does not twinkle with the clock (a still eye sees no change)
+  if (h > 0.996 && e > 0.04) c += vec3(0.9, 0.94, 1.0) * smoothstep(0.3, 0.0, length(fract(sp) - 0.5)) * night * 1.0 * 1.6;
   // aircraft far off, each on its own line and its own long clock: a steady red or green light and a white strobe. Small, so they show only at night
   for (int k = 0; k < 3; k++) {
     float fk = float(k), span = 170.0 + 70.0 * fk, u = fract(time / span + fk * 0.37);
     float az = -0.95 + 1.9 * (mod(fk, 2.0) < 0.5 ? u : 1.0 - u) + 0.3 * fk, ee = 0.05 + 0.055 * fk + 0.03 * u;
     vec3 ad = normalize(vec3(sin(az), ee, -cos(az)));
-    float blink = smoothstep(0.08, 0.0, fract(time / 1.3 + fk * 0.31)) + 0.6 * smoothstep(0.06, 0.0, abs(fract(time / 1.3 + fk * 0.31) - 0.16));
+    // the strobe: each flash rises and falls over at least 150 ms (0.12 of the 1.3 s period each way), no hard edge
+    float bp = fract(time / 1.3 + fk * 0.31);
+    float blink = (smoothstep(0.0, 0.12, bp) * smoothstep(0.24, 0.12, bp) + 0.6 * smoothstep(0.1, 0.22, bp) * smoothstep(0.34, 0.22, bp));
     float ar = length(d - ad);
     c += ((fk == 1.0 ? vec3(0.3, 1.0, 0.45) : vec3(1.0, 0.18, 0.1)) * 0.75 * smoothstep(0.0012, 0.0003, ar) + vec3(1.0, 0.97, 0.9) * 2.2 * blink * smoothstep(0.0016, 0.0002, ar)) * night * step(0.0, e);
   }

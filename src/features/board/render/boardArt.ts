@@ -63,7 +63,7 @@ export const pchFixings = (q: Rect, tier: number): [number, number][] => { const
 
 /** The board palette of a tier: the theme's, mixed from the skin's solder mask, with the skin's silkscreen ink (skins.ts). */
 export function boardPalette(T: Theme, tier: number): Palette {
-  const skin = skinOf(tier), k = T.dark ? 0 : 1, P = makePalette(T, skin.mask[k]);
+  const skin = skinOf(tier), k = 0, P = makePalette(T, skin.mask[k]);
   P.silk = skin.silk[k]; P.silkHi = mix(skin.silk[k], '#ffffff', 0.35);
   return P;
 }
@@ -92,13 +92,13 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
   const south = BD.y + BD.h;
 
   // ---- plate: a soft shadow on the tray, the substrate, an edge bevel (the mounting holes go on last, over any trim) ----
-  box(g, BD.x + 22, BD.y + 34, BD.w, BD.h, 120, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
+  box(g, BD.x + 22, BD.y + 34, BD.w, BD.h, 120, { fill: '#000000', fa: 0.32 });
   // the solder mask: lit from the top left (the lamp's side), a little deeper toward the bottom right
-  g.roundRect(BD.x, BD.y, BD.w, BD.h, 120).fill(lgrad(mix(P.board, '#ffffff', T.dark ? 0.07 : 0.14), mix(P.board, '#000000', T.dark ? 0.26 : 0.1), [1, 1])).stroke({ width: 12, color: P.edge });
+  g.roundRect(BD.x, BD.y, BD.w, BD.h, 120).fill(lgrad(mix(P.board, '#ffffff', 0.07), mix(P.board, '#000000', 0.26), [1, 1])).stroke({ width: 12, color: P.edge });
   box(g, BD.x + 70, BD.y + 70, BD.w - 140, BD.h - 140, 90, { stroke: P.edge, lw: 4, sa: 0.5 });
   // the bevel: a lit edge on the top and west sides, a shaded one on the bottom and east
-  g.moveTo(BD.x + 120, BD.y + 9).lineTo(BD.x + BD.w - 120, BD.y + 9).moveTo(BD.x + 9, BD.y + 120).lineTo(BD.x + 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
-  g.moveTo(BD.x + 120, BD.y + BD.h - 9).lineTo(BD.x + BD.w - 120, BD.y + BD.h - 9).moveTo(BD.x + BD.w - 9, BD.y + 120).lineTo(BD.x + BD.w - 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#000000', alpha: T.dark ? 0.3 : 0.16, cap: 'round' });
+  g.moveTo(BD.x + 120, BD.y + 9).lineTo(BD.x + BD.w - 120, BD.y + 9).moveTo(BD.x + 9, BD.y + 120).lineTo(BD.x + 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#ffffff', alpha: 0.1, cap: 'round' });
+  g.moveTo(BD.x + 120, BD.y + BD.h - 9).lineTo(BD.x + BD.w - 120, BD.y + BD.h - 9).moveTo(BD.x + BD.w - 9, BD.y + 120).lineTo(BD.x + BD.w - 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#000000', alpha: 0.3, cap: 'round' });
   // the better boards carry a little more: a trim line round the plate (Mainstream, Enthusiast) and a second line for the top tier;
   // drawn first, so every part sits over it (the holes clear it with their own ring)
   if (skin.trim >= 1) box(g, BD.x + 120, BD.y + 120, BD.w - 240, BD.h - 240, 70, { stroke: T.alu, lw: 5, sa: skin.trim >= 2 ? 0.3 : 0.16 });
@@ -252,7 +252,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
       // the bare package: a black moulded body, the pin-1 dimple and the ejector marks, the type laser-etched in pale grey
       box(g, q.x, q.y, q.w, q.h, 14, { fill: mix(P.dark, '#000000', 0.35), stroke: P.edge, lw: 4, sa: 0.8 });
       disc(g, q.x + 50, q.y + 50, 16, { fill: '#000000', fa: 0.45 });
-      for (const [ex, ey] of [[q.x + q.w - 70, q.y + q.h - 70], [q.x + 70, q.y + q.h - 70]] as const) disc(g, ex, ey, 26, { fill: '#ffffff', fa: T.dark ? 0.03 : 0.08 });
+      for (const [ex, ey] of [[q.x + q.w - 70, q.y + q.h - 70], [q.x + 70, q.y + q.h - 70]] as const) disc(g, ex, ey, 26, { fill: '#ffffff', fa: 0.03 });
       labels.addChild(label('PCH-S1', cx, cy - 34, 52, P.silk, { anchor: [0.5, 0.5], a: 0.42 }), label('2026  K7', cx, cy + 34, 34, P.silk, { anchor: [0.5, 0.5], a: 0.32 }));
     } else {
       // the heat sink: its plate covers the package (the 3D plate runs on over the legs, as a real one does); a flat black plate with
@@ -378,7 +378,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
     for (const [r, edge, half, txt] of [[geo.xtalCpu, 'n', 10, '24M'], [geo.xtalPch, 's', 13, '25M']] as const) {
       shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.3);
       box(g, r.x, r.y, r.w, r.h, 12, { fill: mix(P.panel, T.alu, 0.18), stroke: T.alu, lw: 4, sa: 0.55 });
-      g.rect(r.x + 8, r.y + 6, r.w - 16, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.35 });
+      g.rect(r.x + 8, r.y + 6, r.w - 16, 5).fill({ color: '#ffffff', alpha: 0.1 });
       padsAt(c, xtalPads(r, edge, half), 14, 12);
       labels.addChild(label(txt, r.x + r.w / 2, r.y + r.h / 2 + (edge === 'n' ? 6 : -6), 24, P.silk, { anchor: [0.5, 0.5], a: 0.8 }));
     }

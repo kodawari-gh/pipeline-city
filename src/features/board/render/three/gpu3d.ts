@@ -8,12 +8,12 @@
 // long card's flow-through window. The 8-pin power sockets, keyed 2 x 4 Mini-Fit housings on the top edge; the display outputs at their real
 // size through the bracket, an HDMI and three DisplayPorts in their keyed shells.
 import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, SphereGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { drum, extrude, fanRotor, instanced, place, rectBox, rounded, tube, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, extrude, fanRotor, fanSides, instanced, place, rectBox, rounded, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { NIC_BRACKET_X } from '../layout/layout';
 import { brushed, decal, outlinePts, screws, shapeOf, slab, tex, wallPt, type Span, type Spot } from './casekit3d';
-import { glowMat, motor, type Spin } from './fans3d';
+import { glowMat, labelDisc, motor, type Spin } from './fans3d';
 import { decalMat, maskTop, MM, passives, type Passive } from './pcbkit3d';
 
 /** The card's frame in the lying pose (card3d's `frame`): the PCB's west end and east end, the cooler's east end, the slot's line, the top edge. */
@@ -40,7 +40,7 @@ const socketsAt = (visual: string, f: CardFrame): number[] => (visual === 'gpu-3
 
 /** Each tier's finish: the shroud, the bezels and lips, the backplate, the heat pipes (copper on the entry card), the fans' blades. */
 const LOOK: Record<string, { shroud: number; bezel: number; bezelMetal: boolean; back: number; backMetal: boolean; pipe: number; blades: number; rim: boolean; lips: boolean }> = {
-  'gpu-1': { shroud: 0x15171b, bezel: 0x23262c, bezelMetal: false, back: 0x15171a, backMetal: false, pipe: 0xb8774a, blades: 9, rim: false, lips: false },
+  'gpu-1': { shroud: 0x15171b, bezel: 0x23262c, bezelMetal: false, back: 0x15171a, backMetal: false, pipe: 0xc0793a, blades: 9, rim: false, lips: false },
   'gpu-2': { shroud: 0x262a31, bezel: 0x9aa2ad, bezelMetal: true, back: 0x2a2f37, backMetal: true, pipe: 0xc3cad2, blades: 11, rim: false, lips: true },
   'gpu-3': { shroud: 0x1a1d23, bezel: 0xb4bcc6, bezelMetal: true, back: 0x3a4049, backMetal: true, pipe: 0xc3cad2, blades: 11, rim: true, lips: true },
 };
@@ -63,7 +63,7 @@ export function uvSpan<T extends Mesh>(o: T, k: number): T {
 /** A prism across x (x0 to x1) from an outline of `wallPt` points with holes: a port's shell, its mouth through it. */
 export function prismX(x0: number, x1: number, outline: Vector2[], holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1, curveSegments: 6 });
+  const g = extrude(shapeOf(outline, holes), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve });
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));
 }
@@ -106,19 +106,19 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   const root = new Group(), body = new Group();
   body.position.z = -depth / 2;
   root.add(body);
-  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, 64, 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
+  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
   body.add(duct);
   motor(body, r, depth, 4);
-  const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45 });
+  const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45, side: DoubleSide });
   const rotor = fanRotor(r * 0.97, blades, bladeM, hubM, { chord: blades > 9 ? 0.5 : 0.6, pitch: 0.72 });
   // (a thin fan: the blades and the hub stay inside the duct's depth)
   rotor.scale.z = Math.min(1, (depth * 0.44) / (r * 0.22));
-  const sticker = place(new Mesh(new CylinderGeometry(r * 0.27, r * 0.27, r * 0.012, 40).rotateX(Math.PI / 2), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM]));
-  sticker.position.z = r * 0.212;
-  rotor.add(sticker);
+  // (the sticker's rim merges with the hub; its printed face is one draw)
+  rotor.add(...labelDisc(r * 0.27, r * 0.012, r * 0.212, SEG.drum, hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 })));
   if (rim) {
     // the barrier ring tying the blade tips together
-    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, 96, 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
+    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
+    ring.geometry.deleteAttribute('uv'); // (as the blades: one mesh)
     rotor.add(ring);
   }
   body.add(rotor);
@@ -191,7 +191,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
     const yTop = yb - 30 - PR - 1.5 * MM - j * 7.6 * MM, yBot = ya + 30 + PR + 1.5 * MM + j * 7.6 * MM;
     const topEnd = dir < 0 ? finX0 + 5 * MM : Math.min(finX1 - 5 * MM, yTop > end - SOCKET.d - 2 * MM - PR ? plugX0 - 3 * MM : Infinity), botEnd = dir < 0 ? finX0 + 5 * MM : finX1 - 5 * MM;
     const pts: [number, number, number][] = [[topEnd, -yTop, zMid], [x, -yTop, zMid], [x, -(die.y + BASE + 6 * MM), zBase], [x, -(die.y - BASE - 6 * MM), zBase], [x, -yBot, zMid], [botEnd, -yBot, zMid]];
-    g.add(tube(rounded(pts, 9 * MM, 6), PR, pipeM, 14));
+    g.add(tube(rounded(pts, 9 * MM, 6), PR, pipeM, SEG.pipe));
     // the sealed, crimped ends
     for (const [ex, ey] of [[topEnd, yTop], [botEnd, yBot]] as const) {
       const cap = place(new Mesh(new SphereGeometry(PR, 14, 8).scale(1.4, 1, 0.55), pipeM));
@@ -260,11 +260,11 @@ export function dieBack(g: Group, key: string, die: { x: number; y: number }, ho
   passives(g, caps, Z);
   const spring = mat(0x24272d, { metalness: 0.6, roughness: 0.42 }), arm = hole * (16 / 21), at = arm / Math.SQRT2;
   g.add(instanced(new BoxGeometry(1, 1, 1), spring, [{ x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: Math.PI / 4 }, { x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: -Math.PI / 4 }]));
-  g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, 24));
+  g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, SEG.drum));
   const coil = mat(0x8e959f, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
   for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
     const x = die.x + sx * at, y = die.y + sy * at;
-    g.add(drum(x, y, Z + 1.8 * MM, Z + 3.4 * MM, 1.9 * MM, coil, 14));
+    g.add(drum(x, y, Z + 1.8 * MM, Z + 3.4 * MM, 1.9 * MM, coil, SEG.chipRound));
     xs.push({ x, y: -y, z: Z + 3.4 * MM });
   }
   g.add(screws(xs, 'z+', 2.6 * MM, mat(0xa9b0ba, { metalness: 0.85, roughness: 0.3 })));

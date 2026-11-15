@@ -1,8 +1,8 @@
-// The board's small parts stood up in 3D (docs/GRAPHICS_3D_OVERHAUL.md "Art and LOD"). The 2D drawers report every part they draw (`Solid`,
+// The board's small parts stood up in 3D (docs/render/three.md). The 2D drawers report every part they draw (`Solid`,
 // boardParts.ts) while the board art is built for the texture, so the 3D parts sit exactly on their drawings: capacitor cans, SMD passives with
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';
-import { instanced, paint } from '@/core/render/three/geometry';
+import { SEG, instanced, paint } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import type { Solid } from '../boardParts';
@@ -74,7 +74,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
       default: break; // chokes and power stages are raised with their own art (machine3d.ts)
     }
   }
-  const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, 22).rotateX(Math.PI / 2);
+  const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2);
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
   const tinned = mat(0xc2c8d0, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };
@@ -82,7 +82,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
-  add(bands, new CylinderGeometry(1, 1, 1, 10, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
+  add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
   add(bodies, box, mat(0x8c6c4c, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);
@@ -90,7 +90,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   add(lga, box, gold);
   add(washers, can, mat(0x6c7480, { metalness: 0.8, roughness: 0.4 }));
   const side = mat(0x9aa3ae, { metalness: 0.85, roughness: 0.32 });
-  add(heads, new CylinderGeometry(1, 1, 1, 24).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
+  add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
   return out;
 }
 

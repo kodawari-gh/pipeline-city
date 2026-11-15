@@ -63,15 +63,46 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
   return out;
 }
 
-/** Are they all linked? */
-export const linked = (programs: readonly Program[]): boolean => programs.every((p) => p.isReady());
+/**
+ * Has its link ended, or is the program gone? Three sets a destroyed program's `program` to undefined (its material was disposed while it
+ * linked: a machine built again, a Lambert of Low dropped). The driver never calls such a program ready, so a wait on it would not end.
+ */
+export const programDone = (p: Program): boolean => ('program' in p && (p as { program?: unknown }).program === undefined) || p.isReady();
+
+/** Are they all linked (or gone)? */
+export const linked = (programs: readonly Program[]): boolean => programs.every(programDone);
+
+/** The programs the materials under `root` have made so far (none is made here). */
+export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
+  const out = new Set<Program>();
+  root.traverse((x) => {
+    const m = (x as Mesh).material as Material | Material[] | undefined;
+    if (!m) return;
+    for (const mm of Array.isArray(m) ? m : [m]) {
+      if (!r.properties.has(mm)) continue;
+      for (const q of (r.properties.get(mm) as { programs?: Map<string, Program> }).programs?.values() ?? []) out.add(q);
+    }
+  });
+  return [...out];
+}
+
+/**
+ * Calls `free` (which disposes the materials under `root`) once the programs they made have linked: now if they have. The browser asks the
+ * driver about a program that still links, and a program deleted meanwhile logs `GL_INVALID_VALUE: glGetProgramiv` for each such ask (a preset
+ * change that builds the room again, with a program of the old room not yet linked).
+ */
+export function freeWhenLinked(r: WebGLRenderer, root: Object3D, free: () => void, ms = 100): void {
+  const programs = programsOf(r, root);
+  const look = () => { if (linked(programs)) free(); else setTimeout(look, ms); };
+  look();
+}
 
 /** Resolves once every program has linked; `onProgress` hears how many have, after each look (every `ms`, the page drawing between). */
 export function whenLinked(programs: readonly Program[], onProgress?: (done: number, total: number) => void, ms = 16): Promise<void> {
   return new Promise((done) => {
     const look = () => {
       let n = 0;
-      for (const p of programs) if (p.isReady()) n++;
+      for (const p of programs) if (programDone(p)) n++;
       onProgress?.(n, programs.length);
       if (n === programs.length) done(); else setTimeout(look, ms);
     };

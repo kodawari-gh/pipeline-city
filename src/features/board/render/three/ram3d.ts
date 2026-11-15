@@ -1,12 +1,12 @@
-// The memory sticks in 3D as real DIMMs (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"). The 2D draws a stick flat, its face seen from above;
+// The memory sticks in 3D as real DIMMs (docs/render/three.md). The 2D draws a stick flat, its face seen from above;
 // here it stands in its socket: the gold fingers down in the groove, the chips on both faces, a latch clipped into the notch at each end. The
 // look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
-import { instanced, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { seeThrough } from '@/core/render/three/pick';
+import { seeThrough, unseen } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
 import { ramChips, ramNotch } from '../devices';
@@ -46,7 +46,7 @@ const RGB_PLATE = 70;
 
 /** A shape drawn in the stick's plane (u along it, v up from the PCB's bottom edge), extruded `t` thick, turned to stand at `x` (its near face) from its south end `y`. */
 function standing(s: Shape, t: number, x: number, y: number, bevel = 0): BufferGeometry {
-  const g = new ExtrudeGeometry(s, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 10 });
+  const g = new ExtrudeGeometry(s, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: SEG.ramCurve });
   // (u, v, depth) to world (x + depth, y + u, Z0 + v): a turn, so the normals hold
   return g.applyMatrix4(new Matrix4().set(0, 0, 1, x, 1, 0, 0, y, 0, 1, 0, Z0, 0, 0, 0, 1));
 }
@@ -180,7 +180,10 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   chips.push({ y: gy - 11, h: 22, z0: Zc0 - 170, z1: Zc0 - 140 });
   const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x101115, { roughness: 0.6 });
   const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
-  root.add(instanced(new BoxGeometry(1, 1, 1), [top, top, side, side, side, side] as unknown as MeshStandardMaterial, items));
+  // (two draws, not six: the box's two x faces are one group for the printed top, its four other faces one group for the sides)
+  const chipBox = new BoxGeometry(1, 1, 1);
+  chipBox.clearGroups(); chipBox.addGroup(0, 12, 0); chipBox.addGroup(12, 24, 1);
+  root.add(instanced(chipBox, [top, side] as unknown as MeshStandardMaterial, items));
   // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
   const mapFaces = chips.slice(0, d.length).map((c) => {
     const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
@@ -263,7 +266,5 @@ function faceLabel(text: string, sticker: boolean, x: number, y: number, z: numb
 
 /** The unseen box a click hits: the whole 2D rect, up to the stick's top. */
 function hitBox(r: RectLike, look: StickLook): Mesh {
-  const o = rectBox(r, BOARD_Z, stickTop(look), mat(0, { transparent: true, opacity: 0, depthWrite: false }));
-  o.castShadow = o.receiveShadow = false;
-  return o;
+  return unseen(rectBox(r, BOARD_Z, stickTop(look), mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 }

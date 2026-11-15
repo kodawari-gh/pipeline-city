@@ -34,66 +34,66 @@
   "Mesh#11": {
     "meshes": 1,
     "draws": 1,
-    "tris": 11856,
-    "verts": 10374,
+    "tris": 20976,
+    "verts": 18354,
     "instances": 0,
-    "sum": "2fe4341a"
+    "sum": "594b6263"
   },
   "Mesh#12": {
     "meshes": 1,
     "draws": 1,
-    "tris": 853440,
-    "verts": 448056,
+    "tris": 329840,
+    "verts": 197904,
     "instances": 0,
-    "sum": "064ded3b"
+    "sum": "7b3c495f"
   },
   "Mesh#13": {
     "meshes": 1,
     "draws": 1,
-    "tris": 11808,
-    "verts": 10332,
+    "tris": 68832,
+    "verts": 49500,
     "instances": 0,
-    "sum": "5e454bfb"
+    "sum": "29fbb630"
   },
   "Mesh#14": {
     "meshes": 1,
     "draws": 1,
-    "tris": 308000,
-    "verts": 161700,
+    "tris": 203400,
+    "verts": 111450,
     "instances": 0,
-    "sum": "e7c32f7b"
+    "sum": "fbc6a828"
   },
   "Mesh#15": {
     "meshes": 1,
     "draws": 1,
-    "tris": 168016,
-    "verts": 114924,
+    "tris": 43736,
+    "verts": 30489,
     "instances": 0,
-    "sum": "5928f11d"
+    "sum": "a5d19296"
   },
   "Mesh#16": {
     "meshes": 1,
     "draws": 1,
-    "tris": 495540,
-    "verts": 253276,
+    "tris": 119280,
+    "verts": 66456,
     "instances": 0,
-    "sum": "48789f65"
+    "sum": "b98e072d"
   },
   "Mesh#17": {
     "meshes": 1,
     "draws": 1,
-    "tris": 64032,
-    "verts": 43888,
+    "tris": 138,
+    "verts": 184,
     "instances": 0,
-    "sum": "0872433d"
+    "sum": "5ffd5694"
   },
   "Mesh#18": {
     "meshes": 1,
     "draws": 1,
-    "tris": 416400,
-    "verts": 218610,
+    "tris": 3120,
+    "verts": 1872,
     "instances": 0,
-    "sum": "594695f5"
+    "sum": "1b710760"
   },
   "Mesh#2": {
     "meshes": 1,

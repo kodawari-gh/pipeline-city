@@ -1,12 +1,11 @@
 // The showcase viewer: one part on a turntable, turned and zoomed by the player (shop preview). It owns a small WebGL context, built on the first
 // part and disposed with `dispose`. The camera is the board's orbit (`camera.ts`) with the full turn allowed.
 import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
 import { anisotropy, refilter } from './geometry';
-import { disposeRenderContext } from './init';
+import { disposeRenderContext, restoreStudioEnv, studioEnv } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
 
 export interface Viewer {
@@ -62,7 +61,7 @@ function studio(antialias: boolean, still = false) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   const scene = new Scene(), pmrem = new PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = studioEnv(pmrem);
   scene.environmentIntensity = 0.55;
   scene.add(new AmbientLight(0xffffff, 0.25));
   const key = new DirectionalLight(0xfff0dc, 2.4), rim = new DirectionalLight(0x9ab8ff, 1.2);
@@ -251,7 +250,8 @@ export function mountViewer(host: HTMLElement): Viewer {
   el.addEventListener('wheel', onWheel, { passive: false });
   el.addEventListener('dblclick', reset);
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // the browser's image menu has no place on a 3D view
-  el.addEventListener('webglcontextrestored', () => demand.ask());
+  // a restored context lost the studio's environment map: made again, then a frame
+  el.addEventListener('webglcontextrestored', () => { restoreStudioEnv(scene, pmrem); demand.ask(); });
   resize();
   raf = requestAnimationFrame(frame);
 

@@ -52,7 +52,7 @@ describe('which addresses a chip stands for', () => {
 });
 
 describe('what the colours say', () => {
-  const T: Theme = { dark: true, bg: '#000', board: '#001', trace: '#002', sub: '#003', die: '#111111', pin: '#d4af5f', tile: '#222222', ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a', alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78' };
+  const T: Theme = { bg: '#000',board: '#001', trace: '#002', sub: '#003', die: '#111111', pin: '#d4af5f', tile: '#222222', ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a', alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78' };
   it('the OS, the ROM and the programs look different, and one kind of program always looks the same', () => {
     const rom = regionColor(reg({ id: 'rom', kind: 'rom', lo: 0, hi: 1 }), T);
     const os = regionColor(reg({ id: 'k', kind: 'os', lo: 0, hi: 1 }), T);
@@ -76,7 +76,7 @@ describe('the memory table the OS shows', () => {
     expect(t.free).toBe(65536 - 5120 - 1836);
   });
   it('working memory is the programs colour, duller', () => {
-    const T: Theme = { dark: true, bg: '#000000', board: '#001', trace: '#002', sub: '#003', die: '#111111', pin: '#d4af5f', tile: '#222222', ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a', alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78' };
+    const T: Theme = { bg: '#000000',board: '#001', trace: '#002', sub: '#003', die: '#111111', pin: '#d4af5f', tile: '#222222', ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a', alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78' };
     const a = regionColor(reg({ id: 'a', kind: 'app', lo: 0, hi: 1, owner: 1, type: 'scan' }), T);
     const w = regionColor(reg({ id: 'w', kind: 'work', lo: 0, hi: 1, owner: 1, type: 'scan' }), T);
     expect(w).not.toBe(a);

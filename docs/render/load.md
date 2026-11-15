@@ -54,6 +54,8 @@ Phone (412x915 at dpr 2.6, CPU /4, `npm run bench:modes -- --phone`), frames dra
 
 The menu cannot draw less than the city's beat: the cars never stop (10 Hz at 30 fps, a third of the ticks when the fps is unlimited). The sway adds the frames it moves the picture by (about 11 a second). The cup's steam steps on the beat: at the menu's distance a wisp moves under 0.5 px a beat.
 
+**The still view's refinement (LPC10, `Post.refine`).** Build my PC uses its ticks with no draw: each of the first 16 draws the chain once more with the projection moved by a part of a pixel (`jitter`: a Halton point; the first has no offset, so the picture does not jump), mixes the finished frame into a half-float mean (weight 1/n) and shows the mean. After 16 ticks each pixel holds 16 samples: smooth edges at Low, which has no multisampling, and finer ones above. Then the view draws nothing again. Any real frame (`Post.render`) starts it over, so nothing that moves can leave a trail. Checked on a Low shot (the RAM, the ATX lead and the case's edges read smooth; they were stepped). Cost: 16 more frames after each stop, and one half-float target of the picture's size. Not used where the picture never stands: the game draws every frame, and the menu draws on the city's beat, so a mean there would start over 10 times a second. Those views need motion vectors first (not planned).
+
 ## Rules for the programs
 
 A program first drawn before it has linked holds the frame and the page. On ANGLE D3D11 a lit program of the room takes about 0.3 s. These rules keep each program linked once, before its first draw:
@@ -84,7 +86,7 @@ Gallery (`viewer.ts`) and Build my PC (`BuildStage`) each have a WebGL context o
 - `Post.dispose` frees each pass's targets and materials. three's `GTAOPass` and `UnrealBloomPass` keep three materials when they dispose; `Post` frees them.
 - `BuildStage.dispose` frees the context at once and its meshes 20 ms later. All in one task held a phone's frame for about 90 ms. A material shared with the room holds the dead renderer's listener until its `dispose`, so the meshes are disposed after the renderer too.
 - The art baker is a second Pixi renderer that stays. `ArtBaker.dispose` destroys each `Graphics` with its context. `freeBakePools` (`bake.ts`) empties Pixi's pools: each pooled `GraphicsContextRenderData` has a batcher with 7 to 14 MB of buffers.
-- `registerLabel` (`camera.ts`) lists each label for the size rule, and only the 2D camera dropped the destroyed ones. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
+- `registerLabel` (`camera.ts`) lists each label for the size rule. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
 - A closed stage drops its machine, game and snapshots: Preact's effect closure holds the stage object until the next open.
 - Shared caches stay: `roomGeo`, the shared materials, the cached textures. A reopened screen looks the same.
 
@@ -117,7 +119,11 @@ Chrome, ANGLE D3D11, 1600x900, an optimized build without minifying, to the end 
 
 A game's start at the same tier (a new campaign) builds no room. The dev server adds 4 to 5 s, mostly its module load, before the first stage.
 
-The 3D renderer is behind a flag (`?3d`, `VITE_3D_GRAPHICS=1`), so measure with it: without it the page opens the 2D board at once. `npm run shot -- --prod` needs `--3d` for the same reason.
+Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots the same build.
+
+## Asset prerequisites
+
+- **KTX1 (the KTX2 loader) is required.** Before any `.ktx2` file is added, the KTX2 loader must be in place: `ktx2Support` in `gltf.ts` gives the GLTFLoader a `KTX2Loader`, with the Basis transcoder in `public/basis/`. No `.ktx2` file ships yet.
 
 ## What can still go faster
 

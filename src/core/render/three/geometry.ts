@@ -1,7 +1,7 @@
 // Mesh builders of the 3D scene. The layout is 2D with y down (`layout.ts`): a rect of it plus a depth range is a box in the world, x east, y up, z out of the wall.
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, Object3D, Path, PlaneGeometry,
-  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
+  RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector2, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -67,23 +67,77 @@ export function worldUv<T extends Mesh>(o: T, tile: number): T {
   return o;
 }
 
+/**
+ * The segment table (docs/3D_STYLE.md "Asset standard" §4, ASR10): the one place a builder takes its segment count from. A builder never
+ * writes its own count. Round parts: one side per 4–8 px of circumference on screen (6 px is the design value).
+ */
+export const SEG = {
+  /** Default sides of `post`, `drum`, `tube` and `rod`. */
+  post: 16, drum: 24, tube: 7, rod: 10,
+  /** Edge bevels: case and card edges (`softBox`), the monitor (one value for the room overview). */
+  bevel: 2, monitorBevel: 6,
+  /** A solder joint: sides round it, rings up it (about 36 triangles). */
+  joint: 6, jointRings: 3,
+  /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. The cup's sides are 24 (ASR7). */
+  lathe: 28, latheProfile: 12, cupLathe: 24,
+  /** The floor lantern's profile points (two a rib, 16 ribs, and the top; about 1,800 triangles at `lathe` sides; ASR11). */
+  floorLanternProfile: 33,
+  /** A round flange next to a case wall; a plug's round. */
+  flangeWall: 6, plug: 4,
+  /** RAM outline curves (`curveSegments`). */
+  ramCurve: 10,
+  /** Extrude outlines (`curveSegments`): a straight edge, a flat case, PCB or board outline, an outline with holes, a rounded bezel. */
+  curveFlat: 1, caseCurve: 6, holeCurve: 8, curveRound: 12,
+  /** Small round parts (sides): an LED, a grommet or hole; a cap or standoff; a mid-size disc; a large bracket or base. */
+  smallDisc: 8, part: 12, disc: 20, bigDisc: 32,
+  /** Thin tubes and turned or cut parts: a cable or wire, a pipe, a hex nut, a knob. */
+  cord: 6, pipe: 14, hexNut: 6, knob: 18,
+  /** Flat edge bevels (one side): a case lid, a card bracket, a steel plate. */
+  bevelFlat: 1,
+  /** Thin round parts (sides): a low disc (a cap, a heat-sink plate); a thin tube (a lamp's cord); a bag's zip; a frame bar or cable tube; a mid-size round part. */
+  lowDisc: 6, thinTube: 4, zip: 5, frameBar: 8, midRound: 10,
+  /** Round parts of a board or a room (sides): a chip's cap or a coil; a round cap or a tyre; a lamp or chair arm; a can or sleeve; a rim or a heat-sink head; a wide disc (a cooler rim). */
+  chipRound: 14, roundCap: 18, arm: 12, canister: 28, ring: 40, wideDisc: 48,
+  /** Car bodies (`curveSegments`, `bevelSegments`): the arcs of a rounded car side, and its bevel. */
+  carCurve: 4, carBevel: 3,
+  /** Screw and rivet parts (sides): a rivet's dome; a rivet's mandrel hole; a cap screw's hex socket; a rubber pad's flat top. */
+  rivetDome: 16, rivetHole: 10, capSocket: 6, padTop: 14,
+} as const;
+
+/** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
+const FAN_SIDE_TABLE: readonly (readonly [number, number])[] = [[40, 16], [80, 24], [92, 24], [120, 32], [140, 40], [200, 48]];
+
+/**
+ * The sides of a round fan part (flange, housing, hub, rings) from the fan's diameter in mm: 16 at 40 mm, 24 at 80 to 92 mm, 32 at 120 mm,
+ * 40 at 140 mm and 48 from 200 mm. Always even, never under 16 or over 48, and never fewer for a wider fan.
+ */
+export const fanSides = (mm: number): number => {
+  const first = FAN_SIDE_TABLE[0]!;
+  if (mm <= first[0]) return first[1];
+  for (let i = 1; i < FAN_SIDE_TABLE.length; i++) {
+    const [x1, y1] = FAN_SIDE_TABLE[i]!, [x0, y0] = FAN_SIDE_TABLE[i - 1]!;
+    if (mm <= x1) return 2 * Math.round((y0 + ((y1 - y0) * (mm - x0)) / (x1 - x0)) / 2);
+  }
+  return FAN_SIDE_TABLE[FAN_SIDE_TABLE.length - 1]![1];
+};
+
 /** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
-  const g = new RoundedBoxGeometry(r.w, r.h, z1 - z0, 2, rad), o = new Mesh(g, m);
+  const g = new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
 
 /** A cylinder standing on the layout point (x, y): its axis is world y. `y` is its base. */
-export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides = 16, rTop = r): Mesh {
+export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides: number = SEG.post, rTop = r): Mesh {
   const o = new Mesh(new CylinderGeometry(rTop, r, h, sides), m);
   o.position.set(x, -y + h / 2, z);
   return place(o);
 }
 
 /** A disc-like cylinder facing the viewer (its axis is world z), centred on the layout point. */
-export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides = 24): Mesh {
+export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.drum): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides), m);
   o.rotation.x = Math.PI / 2;
   o.position.set(x, -y, (z0 + z1) / 2);
@@ -98,7 +152,7 @@ export function face(r: RectLike, z: number, m: Material): Mesh {
 }
 
 /** A straight rod from world point a to b (a lamp arm, a pipe run). */
-export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides = 10): Mesh {
+export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh {
   const va = new Vector3(...a), vb = new Vector3(...b), len = va.distanceTo(vb);
   const o = new Mesh(new CylinderGeometry(r, r, len, sides), m);
   o.position.copy(va).add(vb).multiplyScalar(0.5);
@@ -107,7 +161,7 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
 }
 
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
-export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides = 7, segs = Math.max(8, points.length * 3)): Mesh {
+export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides: number = SEG.tube, segs = Math.max(8, points.length * 3)): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
   const o = new Mesh(new TubeGeometry(curve, segs, radius, sides, false), m);
   return place(o);
@@ -181,13 +235,15 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
 
 /**
  * A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`.
- * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`).
+ * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`). The hub's sides come from the rotor's own diameter (`fanSides`).
  */
 export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number } = {}): Group {
-  const rotor = new Group(), hr = r * 0.3;
-  const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, 28).rotateX(Math.PI / 2), hub);
-  const dome = new Mesh(new SphereGeometry(hr, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  const rotor = new Group(), hr = r * 0.3, sides = fanSides((2 * r) / 23);
+  const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, sides).rotateX(Math.PI / 2), hub);
+  const dome = new Mesh(new SphereGeometry(hr, sides, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
+  // (no uv, as the blades: a hub and blades of one program merge into one mesh)
+  hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');
   rotor.add(place(hubM), place(dome));
   const g = fanBlade(hr * 0.92, r * 0.97, r * (o.chord ?? 0.62), o.pitch === undefined ? {} : { pitch: o.pitch });
   for (let k = 0; k < n; k++) {
@@ -206,20 +262,16 @@ export const FAN_THROAT = 0.475, FAN_SCREW = 0.4375;
  * each corner. A case's fan mount is the same plate, `w` wide, so its holes meet the fan's.
  */
 export function fanFlange(d: number, t: number, w = d): BufferGeometry {
-  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006), s = new Shape();
-  s.moveTo(-h + c, -h).lineTo(h - c, -h).absarc(h - c, -h + c, c, -Math.PI / 2, 0, false);
-  s.lineTo(h, h - c).absarc(h - c, h - c, c, 0, Math.PI / 2, false);
-  s.lineTo(-h + c, h).absarc(-h + c, h - c, c, Math.PI / 2, Math.PI, false);
-  s.lineTo(-h, -h + c).absarc(-h + c, -h + c, c, Math.PI, Math.PI * 1.5, false);
-  const throat = new Path();
-  throat.absarc(0, 0, d * FAN_THROAT, 0, Math.PI * 2, true);
-  s.holes.push(throat);
-  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-    const p = new Path();
-    p.absarc(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 0, Math.PI * 2, true);
-    s.holes.push(p);
-  }
-  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 48 }).translate(0, 0, -t / 2 + b);
+  const h = w / 2, c = w * 0.07, b = Math.min(t * 0.2, d * 0.006);
+  // each round takes its sides from the fan's size (the segment table): the throat a full `fanSides`, a corner a quarter of it, a screw hole 8
+  const n = fanSides(d / 23), arc = (cx: number, cy: number, r: number, a0: number, a1: number, k: number): Vector2[] =>
+    Array.from({ length: k + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / k; return new Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
+  const q = Math.max(2, n / 4), P = Math.PI;
+  const s = new Shape([...arc(h - c, -h + c, c, -P / 2, 0, q), ...arc(h - c, h - c, c, 0, P / 2, q), ...arc(-h + c, h - c, c, P / 2, P, q), ...arc(-h + c, -h + c, c, P, P * 1.5, q)]);
+  const round = (cx: number, cy: number, r: number, k: number): Path => new Path(arc(cx, cy, r, 0, -2 * P * (1 - 1 / k), k - 1));
+  s.holes.push(round(0, 0, d * FAN_THROAT, n));
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) s.holes.push(round(x * d * FAN_SCREW, y * d * FAN_SCREW, d * 0.022, 8));
+  return extrude(s, { depth: t - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.curveFlat }).translate(0, 0, -t / 2 + b);
 }
 
 /**
@@ -228,7 +280,7 @@ export function fanFlange(d: number, t: number, w = d): BufferGeometry {
  * opening's sides. Every extrusion with holes goes through here.
  */
 export function extrude(s: Shape, o: ExtrudeGeometryOptions = {}): ExtrudeGeometry {
-  const seg = o.curveSegments ?? 12, cw = ShapeUtils.isClockWise(s.getPoints(seg));
+  const seg = o.curveSegments ?? SEG.curveRound, cw = ShapeUtils.isClockWise(s.getPoints(seg));
   s.holes = s.holes.map((h) => {
     const p = h.getPoints(seg);
     return ShapeUtils.isClockWise(p) === cw ? new Path(p.reverse()) : h;
