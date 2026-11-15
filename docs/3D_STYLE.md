@@ -302,15 +302,15 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 
 **Before committing an imported model to `public/models/`:**
 
-1. **Export**: glTF 2.0 binary (`.glb`); include normals; UVs if a map is used. (Compression and quantization: not used by the current files; rule to set.)
+1. **Export**: glTF 2.0 binary (`.glb`); include normals; UVs if a map is used. Then run `npm run bake:models`: meshopt with quantization ("Size and compression rule" below).
 2. **Naming**: short lowercase noun, `<thing>.glb` (as `hoodie.glb`, `mouse.glb`).
-3. **Size**: rule to set. Current: `mouse.glb` 46.8 KB, `hoodie.glb` 418 KB (the old < 200 KB rule is not met or enforced).
+3. **Size**: a room model at most 200 KB, a part model at most 60 KB a LOD (`bake:models` fails over 200 KB). Current: `mouse.glb` 18.6 KB, `hoodie.glb` 175 KB.
 4. **Test load**: `loadModel()` succeeds, no console errors.
 5. **Visual test**: `npm run shot` in the room or board view (`CLAUDE.md`).
 
-### Size and compression rule (draft: proposed, not approved)
+### Size and compression rule
 
-**Status: proposed 2026-11-15. Not approved. No task relies on it until the owner approves it.** It would replace "rule to set" in items 1 and 3.
+**Status: accepted 2026-11-16 (a delegated decision: the owner gave the trade-offs between cost and look to the graphics lead).** It is the rule of items 1 and 3. `npm run bake:models` (`tools/bake/models.mjs`) applies it and fails over the budget.
 
 - **Geometry: meshopt** (`EXT_meshopt_compression`, with quantization), not Draco. Draco files are smaller, but its decoder is 345 KB (wasm and wrapper) against 29 KB for meshopt (`meshopt_decoder.module.js`, already in three). With two models, Draco saves 62 KB of files and costs 316 KB more decoder. Meshopt also decodes faster and needs no worker.
 - **Size budget, per file on disk:** a room model at most **200 KB**; a part model (one LOD) at most **60 KB**; all of `public/models/` at most **1 MB**. A test would hold these (J).
@@ -324,9 +324,9 @@ Measured effect (bytes; `gltf-transform` 4, 2026-11-15; "br" is the brotli trans
 | `mouse.glb` | 46,800 | 13,363 | 30,200 | 10,856 | 19,076 | 10,010 | 10,652 | 7,173 |
 | `hoodie.glb` | 418,444 | 249,011 | 320,644 | 168,789 | 179,396 | 132,275 | 72,932 | 67,868 |
 
-With meshopt both files meet the 200 KB budget. Not measured: decode time, and the look of the quantized hoodie (its `_AO` attribute and the cloth code in `hoodiecloth.ts` read the vertices). The loader needs one line (`setMeshoptDecoder`) before a meshopt file ships.
+Both files ship with meshopt since 2026-11-16 (`hoodie.glb` 179,396 bytes, `mouse.glb` 19,076) and meet the 200 KB budget; the loader has the decoder (`setMeshoptDecoder`, `gltf.ts`). The quantized hoodie was checked on a real-GPU room shot, before and after: 40 of 122,100 pixels of the chair differ by more than 8 of 255. Its `TEXCOORD_0` is not quantized (out of the 0 to 1 range). Not measured: decode time.
 
-Owner decisions needed: (1) meshopt or Draco; (2) the three size numbers; (3) the 512² map cap.
+The map cap has two exceptions, both baked from painters and not held in a model: the room's floor (1024²) and its rug (1024×768), the two largest surfaces seen close.
 
 ## Asset standard
 

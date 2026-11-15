@@ -20,6 +20,7 @@
     "stills": "node tools/stills.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
     "bake:tex": "node tools/bake/textures.mjs",
+    "bake:models": "node tools/bake/models.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
@@ -30,6 +31,7 @@
     "three": "0.187.0"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "@preact/preset-vite": "^2.10.6",
     "@types/three": "0.187.0",
     "playwright-core": "^1.64.1",

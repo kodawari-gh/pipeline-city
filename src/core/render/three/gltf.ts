@@ -2,9 +2,11 @@
 // loaded model in place of its primitives. The file loads once and is cloned for each use; until it is there, and when it fails, the primitives stay.
 import { Box3, Vector3, type Group, type Object3D, type WebGLRenderer } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { sceneChanged } from './ondemand';
 
-const loader = new GLTFLoader();
+// Models may carry meshopt-compressed geometry (`npm run bake:models`).
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<Object3D | null>>();
 
 /** A loader of KTX2 textures, as the model loader takes it (three's `KTX2Loader`). */
