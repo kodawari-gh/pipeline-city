@@ -783,7 +783,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     return v;
   };
   (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, chips, quality: () => autoStep.peek(),
+    three: true, scene, renderer, chips, quality: () => autoStep.peek(), eyeCamera: camera,
     // the frame's parts as they stand (tools/bench3d.mjs times them)
     parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
     // the metered eye (the meter's reading, the exposure's factor it asks for, and where it stands now)
