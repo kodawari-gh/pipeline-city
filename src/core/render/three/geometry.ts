@@ -100,6 +100,8 @@ export const SEG = {
   chipRound: 14, roundCap: 18, arm: 12, canister: 28, ring: 40, wideDisc: 48,
   /** Car bodies (`curveSegments`, `bevelSegments`): the arcs of a rounded car side, and its bevel. */
   carCurve: 4, carBevel: 3,
+  /** Screw and rivet parts (sides): a rivet's dome; a rivet's mandrel hole; a cap screw's hex socket; a rubber pad's flat top. */
+  rivetDome: 16, rivetHole: 10, capSocket: 6, padTop: 14,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */

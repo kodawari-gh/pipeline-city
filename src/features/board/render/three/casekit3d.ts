@@ -175,8 +175,8 @@ export function rivets(spots: readonly Spot[], f: Facing, r: number, m: Material
   const g = new Group();
   if (!spots.length) return g;
   const floor = r * 0.2;
-  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.1], [r * 0.82, r * 0.26], [r * 0.5, r * 0.38], [r * 0.26, r * 0.4], [r * 0.23, floor], [0, floor]], 16), f), m, spots));
-  g.add(instanced(turned(new CircleGeometry(r * 0.24, 10).translate(0, 0, floor + 0.5), f), driveM(), spots));
+  g.add(instanced(turned(lathe([[r, 0], [r, r * 0.1], [r * 0.82, r * 0.26], [r * 0.5, r * 0.38], [r * 0.26, r * 0.4], [r * 0.23, floor], [0, floor]], SEG.rivetDome), f), m, spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.24, SEG.rivetHole).translate(0, 0, floor + 0.5), f), driveM(), spots));
   return g;
 }
 
@@ -200,14 +200,14 @@ export function capScrews(spots: readonly Spot[], f: Facing, r: number, m: Mater
   const g = new Group(), h = r * 0.6;
   if (!spots.length) return g;
   g.add(instanced(turned(lathe([[r, 0], [r, h * 0.82], [r * 0.9, h], [r * 0.56, h], [r * 0.5, h * 0.5], [0, h * 0.5]]), f), m, spots));
-  g.add(instanced(turned(new CircleGeometry(r * 0.52, 6).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots));
+  g.add(instanced(turned(new CircleGeometry(r * 0.52, SEG.capSocket).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots));
   return g;
 }
 
 /** Soft rubber pads: a flat-topped button (the bumpers a side panel closes on). */
 export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
   const g = new Group();
-  if (spots.length) g.add(instanced(turned(lathe([[r, 0], [r, r * 0.26], [r * 0.82, r * 0.4], [0, r * 0.4]], 14), f), m, spots));
+  if (spots.length) g.add(instanced(turned(lathe([[r, 0], [r, r * 0.26], [r * 0.82, r * 0.4], [0, r * 0.4]], SEG.padTop), f), m, spots));
   return g;
 }
 
