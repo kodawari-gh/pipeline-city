@@ -472,6 +472,57 @@ function leanInto(b: Book, n: Book, dir: 1 | -1): void {
   b.z = pz + dir * ((b.sy / 2) * Math.sin(a) - (b.sz / 2) * Math.cos(a));
 }
 
+/** The shelf strips' tilt back toward the books (radians; `shelfStrips`). */
+const STRIP_TILT = 0.6;
+
+/**
+ * The books' stand-in for the bookcase's strips when the lamp cap takes them out of the scene (Low): `colour` is a strip's colour times its
+ * level, black while the strips are real lights (the room sets it each frame). The books are instances, so the light bake has no map for
+ * them; without this they lose the strips' light, which is most of theirs at night.
+ */
+export const STRIP_STAND_IN = { colour: { value: new Color(0, 0, 0) } };
+
+/**
+ * Patches a book material to take its shelf's strip as one line light, worked out in closed form (no area-light tables, no loop): the strip
+ * over the fragment's own shelf only, as the boards shut the others out. Positions are the bookcase's (the room's units).
+ */
+function stripLit<T extends MeshStandardMaterial>(m: T): T {
+  const { x, w, z0, z1, top } = BOOKCASE, { side, board, n } = CASE_BOARDS, gap = (FLOOR_Y - top - 1400) / n;
+  const f = (v: number) => v.toFixed(1);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uStripColour = STRIP_STAND_IN.colour;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        #ifdef USE_INSTANCING
+          vStripPos = (instanceMatrix * vec4(transformed, 1.0)).xyz;
+          vStripN = mat3(instanceMatrix) * (objectNormal / vec3(dot(instanceMatrix[0].xyz, instanceMatrix[0].xyz), dot(instanceMatrix[1].xyz, instanceMatrix[1].xyz), dot(instanceMatrix[2].xyz, instanceMatrix[2].xyz)));
+        #else
+          vStripPos = transformed; vStripN = objectNormal;
+        #endif`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uStripColour;\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        if (uStripColour.r + uStripColour.g + uStripColour.b > 0.0) {
+          // the strip over this shelf: a line along z at the board's front edge, shining down and back (its tilt)
+          float shelf = clamp(floor((-vStripPos.y - ${f(top)}) / ${f(gap)}), 0.0, ${f(n - 1)});
+          vec2 toL = vec2(${f(x + w - 120 - STRIP_W / 2)}, -(${f(top + board + 120)} + shelf * ${f(gap)})) - vStripPos.xy;
+          float d = max(length(toL), 60.0), d2 = d * d;
+          vec2 dir = toL / d;
+          vec3 sn = normalize(vStripN);
+          float ce = max(dot(vec2(${(-Math.sin(STRIP_TILT)).toFixed(4)}, ${(-Math.cos(STRIP_TILT)).toFixed(4)}), -dir), 0.0);
+          float a = ${f(z0 + side + 200)} - vStripPos.z, b = ${f(z1 - side - 200)} - vStripPos.z;
+          float ra = d2 + a * a, rb = d2 + b * b;
+          // the line's form factor: the part square to the line, and the part along it (a face that looks along the shelf)
+          float across = dot(sn.xy, dir) * (0.5 * (b / rb - a / ra) + 0.5 * (atan(b / d) - atan(a / d)) / d);
+          float along = sn.z * d * 0.5 * (1.0 / ra - 1.0 / rb);
+          reflectedLight.directDiffuse += uStripColour * material.diffuseColor * (${f(STRIP_W)} * RECIPROCAL_PI * ce * max(across + along, 0.0));
+        }`);
+  };
+  m.customProgramCacheKey = () => 'strip-lit';
+  return m;
+}
+
 /**
  * The books of a bookcase in four draws: per spine design one instanced box (spine and boards in the book's colour, no top: the page block shows
  * there), and the cream page blocks inside them, set back from the spine and in from the boards.
@@ -482,7 +533,7 @@ function shelvedBooks(books: readonly Book[]): Group {
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12), cp = cover.attributes.position!;
   for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();
-  const board = mat(0xd2d2d2, { roughness: 0.75 }), hidden = new MeshBasicMaterial({ visible: false });
+  const board = stripLit(mat(0xd2d2d2, { roughness: 0.75 })), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
   const put = (m: InstancedMesh, i: number, b: Book, sx: number, sy: number, sz: number, dx: number) => {
     d.position.set(b.x + dx, b.y, b.z); d.rotation.set(b.lean, 0, 0); d.scale.set(sx, sy, sz); d.updateMatrix();
@@ -492,11 +543,11 @@ function shelvedBooks(books: readonly Book[]): Group {
     const set = books.filter((b) => b.kind === kind);
     if (!set.length) continue;
     // BoxGeometry's groups: +x (the spine, to the room), -x, +y, -y, +z, -z
-    const m = new InstancedMesh(cover, [mat(0xffffff, { map: spineTex(kind), roughness: 0.7 }), board, hidden, hidden, board, board], set.length);
+    const m = new InstancedMesh(cover, [stripLit(mat(0xffffff, { map: spineTex(kind), roughness: 0.7 })), board, hidden, hidden, board, board], set.length);
     set.forEach((b, i) => { put(m, i, b, b.sx, b.sy, b.sz, 0); m.setColorAt(i, col.setHex(b.tone)); });
     g.add(place(m));
   }
-  const p = new InstancedMesh(box, mat(0xffffff, { map: pages, roughness: 0.9 }), books.length);
+  const p = new InstancedMesh(box, stripLit(mat(0xffffff, { map: pages, roughness: 0.9 })), books.length);
   books.forEach((b, i) => put(p, i, b, b.sx - 90, b.sy - 70, b.sz - 70, -45));
   g.add(place(p));
   return g;
@@ -526,7 +577,8 @@ export function shelfStrips(): { root: Group; glow: MeshStandardMaterial; lights
     lights.push(l);
   };
   const { x, w, z0, z1, top } = BOOKCASE, { side, board, n } = CASE_BOARDS, gap = (FLOOR_Y - top - 1400) / n;
-  for (let s = 0; s < n; s++) add(x + w - 120, top + s * gap + board, z0 + side + 200, z1 - side - 200, 0.6);
+  // (the books' stand-in for these five reads the same places: `stripLit`)
+  for (let s = 0; s < n; s++) add(x + w - 120, top + s * gap + board, z0 + side + 200, z1 - side - 200, STRIP_TILT);
   add(EAST_X - SHELF.d + STRIP_W + 120, SHELF.y + 900, SHELF.z0 + 400, SHELF.z1 - 400, -0.6);
   g.add(...lights);
   return { root: g, glow, lights };

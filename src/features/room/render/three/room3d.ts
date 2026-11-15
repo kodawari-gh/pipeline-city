@@ -42,7 +42,7 @@ import { M } from './outside/plan';
 import type { CityDetail } from './outside/detail';
 import { effective, isLow } from '@/app/graphics';
 import {
-  OAK_TILE, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
+  OAK_TILE, STRIP_STAND_IN, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
   smokedOak, type Lantern,
 } from './furniture3d';
 import { deskChair } from './chair3d';
@@ -1125,6 +1125,9 @@ export class Room3D {
     this.floorLamp.shade.emissiveIntensity = dusk * 1.1;
     this.floorLamp.glow.emissiveIntensity = dusk * 4;
     for (const l of this.strips.lights) l.intensity = dusk * nits(STRIP_NITS);
+    // (capped strips: the books take them as a line light of their own, `stripLit`)
+    const strip = this.strips.lights[0]!;
+    STRIP_STAND_IN.colour.value.copy(strip.color).multiplyScalar(strip.visible ? 0 : strip.intensity);
     this.strips.glow.emissiveIntensity = dusk * 1.6;
     // (the arc lamp is the desk's overhead cozy light: on at every hour)
     this.arc.light.intensity = lumens(ARC_LM, this.arc.light.angle);
