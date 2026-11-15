@@ -88,7 +88,7 @@ function bakeFacadeMaps(): LowFacadeMaps {
     for (let cx = 0; cx < CELLS; cx++) {
       const rand = rng(cy * CELLS + cx + 1);
       // this cell's frame tone, its glass, how many of its rooms are lit, and each room's lamp
-      const frame = 0.8 + 0.08 * rand(), glassK = 0.85 + 0.3 * rand(), share = 0.2 + 0.4 * rand();
+      const frame = 0.8 + 0.08 * rand(), glassK = 0.85 + 0.3 * rand(), share = 0.08 + 0.3 * rand();
       const lit: number[] = [], warm: boolean[] = [];
       for (let r = 0; r < COLS * ROWS; r++) {
         lit.push(rand() < share ? 0.6 + 0.4 * rand() : 0);
