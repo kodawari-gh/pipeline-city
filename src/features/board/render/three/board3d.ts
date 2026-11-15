@@ -689,7 +689,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
     const near = 1 - roomness(seenH);
     const day = daylight(hour);
-    post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    // (the local eye's night key is the room's: low-key, pools of lamp light. From the board view in it is the day's: the metered eye has
+    // already put the board's mean where it reads, and the local eye lifts the parts in the case's shade round it, `BOARD_EYE`)
+    const eyeAt = (nr: number): void => post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** Math.max(day, nr) * NIGHT_KEY ** (1 - Math.max(day, nr)), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    eyeAt(near);
     // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
     if (!warmed) {
       warmed = true;
@@ -704,13 +707,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const ov = overview(), h = heightAt(ov, LOOK_Z), nr = 1 - roomness(h);
       applyView(camera, ov, aspect());
       post.setReach(h);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - nr) * seen ** nr, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      eyeAt(nr);
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
       applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
       post.setReach(seenH);
-      post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+      eyeAt(near);
     }
     // drawn on demand (docs/render/load.md "Draw on demand"): the game draws every frame. The title's room draws when its picture changes: the
     // sway moves it `STILL_PX` or more at the room's depths, the city's beat comes (its cars, the cup's steam, the hour's light), the machine

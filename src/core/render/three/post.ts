@@ -107,6 +107,13 @@ class PickOutline extends OutlinePass {
 /** What the post chain takes from the graphics settings. */
 export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
 
+/**
+ * The local eye's strength from the board view in (it is 1 in the room's views). The case is a dark box with a bright room round it: with one
+ * exposure the frame's bright edge sets the meter, and the board and its parts fall to black shapes. A person's eye at that distance adapts
+ * to the inside. Half the room's lift keeps the parts' own contrast (a heatsink still has a dark side) and shows them.
+ */
+export const BOARD_EYE = 0.5;
+
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
 export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
 
@@ -309,13 +316,13 @@ export class Post {
 
   /**
    * The occlusion's reach for a view `height` world units tall: a board part's 900 up to the board view, then wider with the view, so a room
-   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out). The grade and the local
-   * eye fade out on the way in: from the board view in, the metered eye alone adapts (`board3d.ts`), and the board keeps its tuned look.
+   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out). The grade fades
+   * out on the way in. The local eye falls to `BOARD_EYE` and stays: from the board view in the metered eye sets the mean (`board3d.ts`).
    */
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
     this.look.uniforms.k!.value = k;
-    this.local.strength = k;
+    this.local.strength = BOARD_EYE + (1 - BOARD_EYE) * k;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only

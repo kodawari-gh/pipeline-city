@@ -45,8 +45,9 @@ describe('the post chain', () => {
     // the first frame after the pick ends drops the outline
     post.setOutlined([]);
     expect(post.steps()).toEqual(['scene', 'eye', 'finish']);
+    // from the board view in the local eye stays, at `BOARD_EYE` of its strength
     post.setReach(0);
-    expect(post.steps()).toEqual(['scene', 'finish']);
+    expect(post.steps()).toEqual(['scene', 'eye', 'finish']);
     post.setReach(40000);
     post.apply(HIGH, r, 400, 300);
     expect(post.steps()).toEqual(['scene', 'ao', 'bloom', 'eye', 'finish']);
