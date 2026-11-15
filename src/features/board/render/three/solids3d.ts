@@ -76,20 +76,20 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   }
   const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2);
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
-  const tinned = mat(0xc2c8d0, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
+  const tinned = mat(0xb9babf, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };
-  add(caps, can, capSleeve ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 }) : mat(0x7c838d, { metalness: 0.6, roughness: 0.45 }));
+  add(caps, can, capSleeve ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 }) : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }));
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
-  add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
+  add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xb9babf, { roughness: 0.4, side: DoubleSide }));
   add(bodies, box, mat(0x8c6c4c, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);
   add(pins, box, gold);
   add(lga, box, gold);
-  add(washers, can, mat(0x6c7480, { metalness: 0.8, roughness: 0.4 }));
-  const side = mat(0x9aa3ae, { metalness: 0.85, roughness: 0.32 });
+  add(washers, can, mat(0x4e5360, { metalness: 0.8, roughness: 0.4 }));
+  const side = mat(0x959aa3, { metalness: 0.85, roughness: 0.32 });
   add(heads, new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
   return out;
 }

@@ -67,7 +67,7 @@ export function band(curve: CatmullRomCurve3, s: number, r: number, len: number,
 
 /** A plug's body over a layout rect from depth z0 to z1, the accent collar round it near z1 where the cable leaves, the dark cap over that end. */
 export function plugBody(r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, accent: string): Group {
-  const g = new Group(), dark = mat(0x1b2230, { roughness: 0.5 }), k = Math.min(14, r.w / 4, r.h / 4);
+  const g = new Group(), dark = mat(0x1d1e22, { roughness: 0.5 }), k = Math.min(14, r.w / 4, r.h / 4);
   g.add(softBox(r, z0, z1 - 34, dark, k));
   g.add(softBox({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, z1 - 36, z1 - 12, mat(hex(accent), { roughness: 0.45 }), Math.min(8, k)));
   g.add(softBox(r, z1 - 14, z1, dark, Math.min(6, k)));
@@ -83,7 +83,7 @@ export const CARD_PLUG = { w: 20.5 * 23, h: 9.1 * 23 };
  * `top`, where the wires leave; its latch arm down the side away from the PCB (+y), hooked under the socket's ridge, pressed at its top to pull it.
  */
 export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
-  const { w, h } = CARD_PLUG, g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent), m = mat(0x1b2230, { roughness: 0.5 });
+  const { w, h } = CARD_PLUG, g = plugBody({ x: at.x - w / 2, y: at.y - h / 2, w, h }, at.z - 30, top, accent), m = mat(0x1d1e22, { roughness: 0.5 });
   const y1 = at.y + 6.5 * 23;
   g.add(rectBox({ x: at.x - 60, y: y1, w: 120, h: 30 }, at.z - 125, at.z + 70, m));
   g.add(rectBox({ x: at.x - 60, y: at.y + h / 2, w: 120, h: y1 - at.y - h / 2 }, at.z + 30, at.z + 70, m), rectBox({ x: at.x - 60, y: at.y + 4.9 * 23, w: 120, h: y1 - at.y - 4.9 * 23 }, at.z - 125, at.z - 105, m));

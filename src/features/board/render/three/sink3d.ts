@@ -60,7 +60,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   // (Low: the casting and its fins keep High's PBR, as the silver is the room's reflection: a Lambert of this dark colour draws near black)
   if (lowDetail()) anod.userData[KEEP_SPEC] = true;
   const [f0, f1] = FOOT[kind], foot = { x: r.x + 10, y: r.y + f0, w: r.w - 20, h: f1 - f0 };
-  g.add(rectBox({ x: foot.x + 14, y: foot.y + 8, w: foot.w - 28, h: foot.h - 16 }, Z.pad, Z.foot, mat(0x8e98a8, { roughness: 0.85 })));
+  g.add(rectBox({ x: foot.x + 14, y: foot.y + 8, w: foot.w - 28, h: foot.h - 16 }, Z.pad, Z.foot, mat(0x959aa3, { roughness: 0.85 })));
   g.add(slab(shapeOf(outlinePts(foot, 0, [24, 24, 24, 24])), Z.foot, Z.block + 2, anod, 6));
   g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), Z.block, Z.root, anod, 8));
   if (sk.insert) g.add(rectBox({ x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 }, Z.block + 20, Z.root - 20, mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
@@ -73,11 +73,11 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
     for (const [x0, x1, z1] of runs) if (x1 - x0 > 20) g.add(softBox({ x: x0, y, w: x1 - x0, h: t }, Z.root - 10, z1, anod, 6));
   }
   if (p.pipe) {
-    const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xb87a4a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
+    const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xc0793a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
     g.add(rod([px, ya, Z.root - 20], [px, ya, top + 30], 15, cu, SEG.part), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, SEG.part), rod([px, yb, top + 30], [px, yb, Z.root - 20], 15, cu, SEG.part));
   }
   // the screws: a boss of the casting on a nylon washer on the board, the shaft through it, a washer and the head behind
-  const steel = mat(0x8c939c, { metalness: 0.8, roughness: 0.32 }), nylon = mat(0xd6d1c2, { roughness: 0.7 });
+  const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.32 }), nylon = mat(0xd6d1c2, { roughness: 0.7 });
   for (const [x, y] of screwSpots(kind)) {
     g.add(drum(x, y, BOARD_Z, BOARD_Z + 8, 46, nylon, SEG.disc), drum(x, y, BOARD_Z + 8, Z.foot + 2, 38, anod, SEG.disc));
     g.add(drum(x, y, BOARD_Z - 72, BOARD_Z + 8, 20, steel, SEG.part), drum(x, y, BOARD_Z - 72, BOARD_Z - 64, 50, nylon, SEG.disc), drum(x, y, BOARD_Z - 102, BOARD_Z - 72, 44, steel, SEG.disc));
@@ -95,6 +95,6 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
   const zg = HEAD.top - 10, spoke = R * 0.72, at = R * 0.28 + spoke / 2;
   g.add(instanced(new BoxGeometry(spoke, 22, 16), anod, [1, 3, 5, 7].map((k) => ({ x: cx + Math.cos((k * Math.PI) / 4) * at, y: -cy + Math.sin((k * Math.PI) / 4) * at, z: zg, rz: (k * Math.PI) / 4 }))));
   g.add(slab(shapeOf(circle(R * 0.64 + 9), [circle(R * 0.64 - 9)]), zg - 8, zg + 8, anod));
-  g.add(drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, SEG.ring), drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x9aa2b4, { metalness: 0.8, roughness: 0.3 }), SEG.ring));
+  g.add(drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, SEG.ring), drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x959aa3, { metalness: 0.8, roughness: 0.3 }), SEG.ring));
   return { spot, foot: HEAD.fan, top: HEAD.top };
 }

@@ -180,16 +180,16 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   ceil.position.set(fx, -(yb - cav + 2), fz);
   g.add(ceil);
   // the fan: its frame's ring, the rotor (nine blades on the 120 mm fan, seven on the 92 mm), facing down
-  const frame = new Mesh(new CylinderGeometry(fr * 0.98, fr * 0.98, cav - 2 * t, fanSides(2 * fr / MM), 1, true), mat(0x101114, { roughness: 0.6, side: DoubleSide }));
+  const frame = new Mesh(new CylinderGeometry(fr * 0.98, fr * 0.98, cav - 2 * t, fanSides(2 * fr / MM), 1, true), mat(0x131518, { roughness: 0.6, side: DoubleSide }));
   frame.position.set(fx, -(yb - cav / 2), fz);
-  const rotor = fanRotor(fr * 0.93, isAtx(F) ? 9 : 7, mat(0x0d0e11, { roughness: 0.5 }), mat(0x15161a, { roughness: 0.45 }));
+  const rotor = fanRotor(fr * 0.93, isAtx(F) ? 9 : 7, mat(0x131518, { roughness: 0.5 }), mat(0x131518, { roughness: 0.45 }));
   // (a real one is 25 mm thick, deep inside the housing: its hub flattened here to the cavity's depth)
   rotor.rotation.x = Math.PI / 2;
   rotor.scale.z = 0.5;
   rotor.position.set(fx, -(yb - cav * 0.5), fz);
   g.add(frame, rotor);
   // the guard: rings and spokes of black wire just under the plate, a small disc at its middle
-  const wire = mat(0x1d1f24, { metalness: 0.55, roughness: 0.38 }), wr = 0.55 * MM, gy = -(yb + wr);
+  const wire = mat(0x1d1e22, { metalness: 0.55, roughness: 0.38 }), wr = 0.55 * MM, gy = -(yb + wr);
   for (const k of [0.24, 0.43, 0.62, 0.81, 1.0]) {
     const ring = new Mesh(new TorusGeometry(fr * k, wr, SEG.cord, SEG.fineRing).rotateX(Math.PI / 2), wire);
     ring.position.set(fx, gy, fz);
@@ -236,13 +236,13 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
   const floor = rx + 7 * MM;
   g.add(prismX(rx, floor, mouth(i, 0.8 * MM), [mouth(i, 0)], M.plastic));
   g.add(prismX(floor, floor + 0.6 * MM, mouth(i, 0.4 * MM), [], M.black));
-  const pin = mat(0xc9cdd3, { metalness: 0.9, roughness: 0.28 }), pins = [[i.y + 2.6 * MM, i.z - 7 * MM, 1.2], [i.y + 2.6 * MM, i.z + 7 * MM, 1.2], [i.y - 3 * MM, i.z, 0.6]] as const;
+  const pin = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 }), pins = [[i.y + 2.6 * MM, i.z - 7 * MM, 1.2], [i.y + 2.6 * MM, i.z + 7 * MM, 1.2], [i.y - 3 * MM, i.z, 0.6]] as const;
   for (const [y, z, front] of pins) g.add(rectBox({ x: rx + front * MM, y: y - 2 * MM, w: floor - rx - front * MM, h: 4 * MM }, z - 0.8 * MM, z + 0.8 * MM, pin));
   // the rocker switch: its bezel, the rocker (the "I" half pressed in), the marks
   const bezel: Span = { y0: sw.y - 10.5 * MM, y1: sw.y + 10.5 * MM, z0: sw.z - 7.5 * MM, z1: sw.z + 7.5 * MM, r: 1 * MM };
   const inner: Span = { y0: sw.y - 8.5 * MM, y1: sw.y + 8.5 * MM, z0: sw.z - 5.5 * MM, z1: sw.z + 5.5 * MM, r: 0.5 * MM };
   g.add(prismX(rx - 1.6 * MM, rx, spanPts(bezel), [spanPts(inner)], M.plastic, 0.3 * MM));
-  const rock = mat(0x121316, { roughness: 0.42 }), white = mat(0xe6e8ec, { roughness: 0.5 });
+  const rock = mat(0x131518, { roughness: 0.42 }), white = mat(0xe6e8ec, { roughness: 0.5 });
   g.add(rectBox({ x: rx - 0.4 * MM, y: inner.y0, w: 0.4 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 2.6 * MM, y: sw.y, w: 2.6 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 0.5 * MM, y: sw.y - 6.5 * MM, w: 0.12 * MM, h: 4 * MM }, sw.z - 0.4 * MM, sw.z + 0.4 * MM, white));
@@ -255,7 +255,7 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
   if (b.w < u.w) {
     // (the plate is the ATX unit's outline over the bay's opening, held by the ATX holes)
     const plate: Span = { y0: u.y, y1: u.y + u.h, z0: u.z0, z1: u.z1, r: 1.5 * MM };
-    g.add(wallX(rx - 1.5 * MM, rx, plate, [end], mat(0x1a1b1f, { metalness: 0.5, roughness: 0.45 })));
+    g.add(wallX(rx - 1.5 * MM, rx, plate, [end], mat(0x1d1e22, { metalness: 0.5, roughness: 0.45 })));
     g.add(screws(corners(u, rx - 1.5 * MM), 'x-', 3 * MM, M.screw));
   }
 }
@@ -267,8 +267,8 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
 export function psuUnit(p: BasementPlan, visual = 'psu-basic', fan = true, watts = 0): { root: Group; body: MeshStandardMaterial } {
   const g = new Group(), u = p.psu, b = psuBox(u, visual), F = psuForm(visual), W = watts || (isAtx(F) ? 1000 : 100);
   g.name = PSU_BODY;
-  const body = mat(0x17181c, { metalness: 0.35, roughness: 0.55, bumpMap: tiled(grain(), 6, 6), bumpScale: 0.5 });
-  const M = { body, black: mat(0x040405, { roughness: 0.92 }), plastic: mat(0x0f1013, { roughness: 0.58 }), bezel: mat(0x0b0c0e, { roughness: 0.66 }), screw: mat(0x26282d, { metalness: 0.75, roughness: 0.32 }) };
+  const body = mat(0x131518, { metalness: 0.35, roughness: 0.55, bumpMap: tiled(grain(), 6, 6), bumpScale: 0.5 });
+  const M = { body, black: mat(0x050608, { roughness: 0.92 }), plastic: mat(0x131518, { roughness: 0.58 }), bezel: mat(0x050608, { roughness: 0.66 }), screw: mat(0x2a2d32, { metalness: 0.75, roughness: 0.32 }) };
   // the cover over the base: with a fan, the cover stops over the fan's cavity (`underFan` builds the rest)
   const cav = fan ? 13 * MM : 0, lw = Math.min(b.w * 0.5, 72 * MM), ld = Math.min(b.z1 - b.z0 - 16 * MM, lw * 0.7);
   g.add(softBox({ x: b.x, y: b.y, w: b.w, h: b.h - cav }, b.z0, b.z1, body, 1.4 * MM));
@@ -293,7 +293,7 @@ export function psuUnit(p: BasementPlan, visual = 'psu-basic', fan = true, watts
  * `PLUG_TAIL` from the rear's face).
  */
 export function mainsPlug(p: BasementPlan, visual: string): Group {
-  const g = new Group(), i = inletOf(psuBox(p.psu, visual)), rx = CASE.x, face = rx - FLANGE, m = mat(0x18191c, { roughness: 0.55 });
+  const g = new Group(), i = inletOf(psuBox(p.psu, visual)), rx = CASE.x, face = rx - FLANGE, m = mat(0x131518, { roughness: 0.55 });
   g.add(prismX(face - 0.4 * MM, rx + 6 * MM, mouth(i, -0.25 * MM), [], m));
   const grip: Span = { y0: i.y - 11 * MM, y1: i.y + 11 * MM, z0: i.z - 15 * MM, z1: i.z + 15 * MM, r: 3.5 * MM }, gx = face - 0.4 * MM - 30 * MM;
   g.add(prismX(gx, face - 0.4 * MM, spanPts(grip), [], m, 1.2 * MM));

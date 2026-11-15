@@ -28,8 +28,8 @@ export type PassivePkg = keyof typeof PASSIVE;
 export interface Passive { x: number; y: number; pkg: PassivePkg; kind: 'cap' | 'res'; turn?: boolean }
 
 const capM = () => once('cap', () => mat(0x9a7a52, { roughness: 0.55 }));
-const resM = () => once('res', () => mat(0x15171b, { roughness: 0.5 }));
-const tinM = () => once('tin', () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.32 }));
+const resM = () => once('res', () => mat(0x131518, { roughness: 0.5 }));
+const tinM = () => once('tin', () => mat(0xb9babf, { metalness: 0.9, roughness: 0.32 }));
 
 /** Passives on a PCB top at depth z: each body between its two tinned ends (a resistor's top black, a capacitor tan all over). */
 export function passives(g: Group, items: readonly Passive[], z: number): void {
@@ -88,7 +88,7 @@ export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly
   if (o.lid) {
     const sub = mat(0x3d4a2e, { roughness: 0.55 }), t = Math.min(h * 0.35, 18);
     g.add(body(r, z, z + t, sub, 2));
-    const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 }, m = mat(0x9ca2aa, { metalness: 0.8, roughness: 0.4 });
+    const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 }, m = mat(0x959aa3, { metalness: 0.8, roughness: 0.4 });
     g.add(body(lid, z + t, z + h, m, 6));
     if (lines.length) g.add(decal(lid, z + h + 0.4, decalMat(markTex(lines, wMm * 0.88, hMm * 0.88, '#9ca2aa', '#5a5f68', false), { metal: 0.75, rough: 0.42 })));
     return m;
@@ -103,13 +103,13 @@ export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly
 export function crystal(g: Group, r: RectLike, z: number, h: number, value = '40.000'): void {
   g.add(body(r, z, z + h * 0.35, mat(0xcfc6b2, { roughness: 0.7 }), 2));
   const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.08, w: r.w * 0.88, h: r.h * 0.84 };
-  g.add(body(lid, z + h * 0.35, z + h, mat(0xc9ced6, { metalness: 0.9, roughness: 0.28 }), 3));
+  g.add(body(lid, z + h * 0.35, z + h, mat(0xb9babf, { metalness: 0.9, roughness: 0.28 }), 3));
   g.add(decal(lid, z + h + 0.3, decalMat(markTex([value], lid.w / MM, lid.h / MM, '#c9ced6', '#6a6f78', false), { metal: 0.85, rough: 0.3 })));
 }
 
 /** A shielded power inductor (a grey ferrite block with its value printed), as next to a regulator. */
 export function inductor(g: Group, r: RectLike, z: number, h: number, value = 'R47'): void {
-  const m = once('ind', () => mat(0x5b6068, { roughness: 0.62, metalness: 0.15 }));
+  const m = once('ind', () => mat(0x4e5360, { roughness: 0.62, metalness: 0.15 }));
   g.add(body(r, z, z + h, m, Math.min(5, h * 0.25)));
   g.add(decal({ x: r.x + 2, y: r.y + 2, w: r.w - 4, h: r.h - 4 }, z + h + 0.4, decalMat(markTex([value], r.w / MM, r.h / MM, '#5b6068', '#2a2d33', false), { rough: 0.62 })));
 }
@@ -322,7 +322,7 @@ export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Mate
 
 // ------------------------------------------------------------------ edge fingers
 /** Gold, as the ENIG finish of the fingers and the pads. */
-export const gold = () => mat(0xd8b264, { metalness: 1, roughness: 0.24 });
+export const gold = () => mat(0xd4af5f, { metalness: 1, roughness: 0.24 });
 
 /**
  * Gold edge fingers from layout x `x` for `len` (they run along x into the socket), centred on the layout ys `top` on the PCB's top (z1) and

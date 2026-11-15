@@ -94,9 +94,9 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
     }
   }
   const cube = new BoxGeometry(1, 1, 1);
-  g.add(instanced(cube, mat(0x9c7e55, { roughness: 0.6 }), body), instanced(cube, mat(0xc9ccd2, { metalness: 0.8, roughness: 0.35 }), ends));
+  g.add(instanced(cube, mat(0x9c7e55, { roughness: 0.6 }), body), instanced(cube, mat(0xb9babf, { metalness: 0.8, roughness: 0.35 }), ends));
   // the die: a block of silicon; its top, in the die's own frame drawn at `CPU_S`, wears the die view's floorplan with every name
-  g.add(softBox(DIE, CPU_Z.sub, CPU_Z.die, mat(0x1d2433, { metalness: 0.35, roughness: 0.3 }), 2));
+  g.add(softBox(DIE, CPU_Z.sub, CPU_Z.die, mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 }), 2));
   const dieArt = art.baker(() => {
     const c = new Container(), gg = new Graphics();
     box(gg, DIE_PLAN.x, DIE_PLAN.y, DIE_PLAN.w, DIE_PLAN.h, 14, { fill: T.die });
@@ -110,8 +110,8 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
   g.add(frame);
   const face = art.surface(frame, dieArt.bake, DIE_PLAN, 1 / CPU_S, LV_DIE, FINISH.die);
   // the lid: satin nickel, a black bead of sealant where it meets the substrate; plain and flat, or a flange under a plateau
-  const nickel = mat(0xc3c8ce, { metalness: 0.78, roughness: 0.36, map: tiled(brushed(), 1, 1) }), rim = grow(DIE, 26);
-  lid.add(slab(shapeOf(outlinePts(grow(rim, 3), 32)), CPU_Z.sub, CPU_Z.sub + 5, mat(0x0b0c0f, { roughness: 0.7 })));
+  const nickel = mat(0xb9babf, { metalness: 0.78, roughness: 0.36, map: tiled(brushed(), 1, 1) }), rim = grow(DIE, 26);
+  lid.add(slab(shapeOf(outlinePts(grow(rim, 3), 32)), CPU_Z.sub, CPU_Z.sub + 5, mat(0x050608, { roughness: 0.7 })));
   const plain = spec.tier <= 1, top = plain ? grow(rim, -20) : grow(DIE, -24);
   if (plain) lid.add(softBox(rim, CPU_Z.sub + 2, CPU_Z.top, nickel, 22));
   else {

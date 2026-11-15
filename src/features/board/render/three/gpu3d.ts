@@ -106,10 +106,10 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   const root = new Group(), body = new Group();
   body.position.z = -depth / 2;
   root.add(body);
-  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x121317, { roughness: 0.6, side: DoubleSide })));
+  const duct = place(new Mesh(new CylinderGeometry(r * 1.035, r * 1.035, depth, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x131518, { roughness: 0.6, side: DoubleSide })));
   body.add(duct);
   motor(body, r, depth, 4);
-  const bladeM = mat(0x1f2126, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.45, side: DoubleSide });
+  const bladeM = mat(0x1d1e22, { roughness: 0.42, metalness: 0.05, side: DoubleSide }), hubM = mat(0x1d1e22, { roughness: 0.45, side: DoubleSide });
   const rotor = fanRotor(r * 0.97, blades, bladeM, hubM, { chord: blades > 9 ? 0.5 : 0.6, pitch: 0.72 });
   // (a thin fan: the blades and the hub stay inside the duct's depth)
   rotor.scale.z = Math.min(1, (depth * 0.44) / (r * 0.22));
@@ -117,7 +117,7 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   rotor.add(...labelDisc(r * 0.27, r * 0.012, r * 0.212, SEG.drum, hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 })));
   if (rim) {
     // the barrier ring tying the blade tips together
-    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1f2126, { roughness: 0.42, side: DoubleSide })));
+    const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1d1e22, { roughness: 0.42, side: DoubleSide })));
     ring.geometry.deleteAttribute('uv'); // (as the blades: one mesh)
     rotor.add(ring);
   }
@@ -134,7 +134,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   const { x0, x1, xe, y0, end } = f, L = lookOf(visual), zB = Zp - ct + 1.6 * MM, xa = x0 + 60, xb = xe, ya = y0 + 110, yb = end - 8, cy = (ya + yb) / 2;
   const frameM = mat(L.shroud, { metalness: 0.35, roughness: 0.5 });
   const bezelM = L.bezelMetal ? mat(L.bezel, { metalness: 0.85, roughness: 0.3, map: brushed() }) : mat(L.bezel, { roughness: 0.48 });
-  const screwM = mat(0x2a2d33, { metalness: 0.7, roughness: 0.4 });
+  const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 });
   // ---- the shroud's face: a plate chamfered at its corners (a long cut at the far top corner), a hole per fan
   const n = gpuFanCount(visual), seg = (xb - xa) / n, PLATE = 58, BEZ = 3.2 * MM;
   const plugs = socketsAt(visual, f), plugX0 = plugs.length ? Math.min(...plugs) - SOCKET.w / 2 - 4 * MM : Infinity;
@@ -179,7 +179,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   }
   // ---- the base over the die and the heat pipes out of it, then the fin stack round them
   const die = gpuDie(f), BASE = 20 * MM, zBase = Zp - 3 * MM - 2.2 * MM, fz0 = zB + 30 + fanD + 0.6 * MM, fz1 = Zp - 1.3 * MM, zMid = (fz0 + fz1) / 2, PR = 3 * MM;
-  const nickel = mat(0xc4cbd3, { metalness: 0.9, roughness: 0.24 });
+  const nickel = mat(0xb9babf, { metalness: 0.9, roughness: 0.24 });
   g.add(rectBox({ x: die.x - BASE, y: die.y - BASE, w: 2 * BASE, h: 2 * BASE }, Zp - 3 * MM, Zp - 0.2 * MM, nickel));
   const pipeM = mat(L.pipe, { metalness: 0.9, roughness: 0.26 }), np = 2 + n, pitch = 7.5 * MM;
   const finX0 = x0 + 15 * MM, finX1 = xb - 3 * MM;
@@ -201,7 +201,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   }
   // the fins: thin plates across the card, 2 mm apart; low over the trench where the pipes run up to the base, short under the power sockets,
   // and past the PCB's end up to the backplate (its window, on the long card: the air goes straight through)
-  const finM = mat(0xb3bbc6, { metalness: 0.8, roughness: 0.34 }), plates = [], fy0 = ya + 30, fy1 = yb - 30;
+  const finM = mat(0xb9babf, { metalness: 0.8, roughness: 0.34 }), plates = [], fy0 = ya + 30, fy1 = yb - 30;
   for (let x = finX0; x < finX1; x += 2 * MM) {
     const zt = x > x1 + 30 ? (flow ? Z + backT - 6 : Z - 4) : x > trench.x0 && x < trench.x1 ? Math.min(zMid, zBase) - PR - 0.4 * MM : fz1;
     const top = plugs.some((p) => Math.abs(x - p) < SOCKET.w / 2 + 1.5 * MM) ? end - SOCKET.d - 2 * MM : fy1;
@@ -244,7 +244,7 @@ export function gpuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
   // the screws round the plate's rim
   const rim: Spot[] = [], xr = flow ? x1 - 8 * MM : xe - 14 * MM;
   for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr]) for (const y of [y0 + 5 * MM, end - 6 * MM]) rim.push({ x, y: -y, z: Z + backT });
-  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1c1e22, { metalness: 0.6, roughness: 0.4 })));
+  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1d1e22, { metalness: 0.6, roughness: 0.4 })));
 }
 
 /**
@@ -258,16 +258,16 @@ export function dieBack(g: Group, key: string, die: { x: number; y: number }, ho
   for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) caps.push({ x: die.x + (i - 2.5) * 1.6 * MM, y: die.y + (j - 2.5) * 1.6 * MM, pkg: '0402', kind: 'cap', turn: (i + j) % 2 === 1 });
   for (let i = 0; i < 12; i++) for (const s of [-1, 1]) caps.push({ x: die.x + (i - 5.5) * 1.3 * MM, y: die.y + s * 7.5 * MM, pkg: '0201', kind: i % 5 === 2 ? 'res' : 'cap' });
   passives(g, caps, Z);
-  const spring = mat(0x24272d, { metalness: 0.6, roughness: 0.42 }), arm = hole * (16 / 21), at = arm / Math.SQRT2;
+  const spring = mat(0x2a2d32, { metalness: 0.6, roughness: 0.42 }), arm = hole * (16 / 21), at = arm / Math.SQRT2;
   g.add(instanced(new BoxGeometry(1, 1, 1), spring, [{ x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: Math.PI / 4 }, { x: die.x, y: -die.y, z: Z + 1.4 * MM, sx: 2 * arm + 4 * MM, sy: 3.6 * MM, sz: 0.8 * MM, rz: -Math.PI / 4 }]));
   g.add(drum(die.x, die.y, Z + 1 * MM, Z + 1.9 * MM, 4 * MM, spring, SEG.drum));
-  const coil = mat(0x8e959f, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
+  const coil = mat(0x959aa3, { metalness: 0.75, roughness: 0.35 }), xs: Spot[] = [];
   for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
     const x = die.x + sx * at, y = die.y + sy * at;
     g.add(drum(x, y, Z + 1.8 * MM, Z + 3.4 * MM, 1.9 * MM, coil, SEG.chipRound));
     xs.push({ x, y: -y, z: Z + 3.4 * MM });
   }
-  g.add(screws(xs, 'z+', 2.6 * MM, mat(0xa9b0ba, { metalness: 0.85, roughness: 0.3 })));
+  g.add(screws(xs, 'z+', 2.6 * MM, mat(0xb9babf, { metalness: 0.85, roughness: 0.3 })));
 }
 
 /**
@@ -275,7 +275,7 @@ export function dieBack(g: Group, key: string, die: { x: number; y: number }, ho
  * the latch ridge on the outer side. Returns each mouth's middle standing (layout x and y, and the depth of the top edge where a plug goes in).
  */
 export function gpuSockets(g: Group, visual: string, f: CardFrame, Zp: number, hinge: number, stand: number, pcbT: number): { x: number; y: number; z: number }[] {
-  const housing = mat(0x16181c, { roughness: 0.5 }), dark = mat(0x050608, { roughness: 0.9 }), tin = mat(0x9aa2ac, { metalness: 0.8, roughness: 0.4 });
+  const housing = mat(0x131518, { roughness: 0.5 }), dark = mat(0x050608, { roughness: 0.9 }), tin = mat(0x959aa3, { metalness: 0.8, roughness: 0.4 });
   const { w, h, d } = SOCKET, mouth = f.end + 6;
   return socketsAt(visual, f).map((sx) => {
     // (the housing in a frame of its own: x along the card, y up off the PCB (lying z, down), z out of its mouth (lying y))
@@ -304,8 +304,8 @@ export function gpuSockets(g: Group, visual: string, f: CardFrame, Zp: number, h
  * away from the PCB, DP's one), its mouth dark inside with the contact tongue in it.
  */
 export function gpuOutputs(g: Group, f: CardFrame, Zp: number): void {
-  const shell = mat(0xb9bfc7, { metalness: 0.85, roughness: 0.33 }), dark = mat(0x08090b, { roughness: 0.85 }), tongue = mat(0x15161a, { roughness: 0.5 });
-  const goldM = mat(0xd9b25e, { metalness: 0.9, roughness: 0.3 }), xm = NIC_BRACKET_X + OUT_IN;
+  const shell = mat(0xb9babf, { metalness: 0.85, roughness: 0.33 }), dark = mat(0x050608, { roughness: 0.85 }), tongue = mat(0x131518, { roughness: 0.5 });
+  const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 }), xm = NIC_BRACKET_X + OUT_IN;
   for (const o of OUTPUTS) {
     const yc = f.y0 + o.c, zc = Zp - outDepth(o), y0 = yc - o.w / 2, y1 = yc + o.w / 2, z0 = zc - o.h / 2, z1 = zc + o.h / 2, k = (o.kind === 'hdmi' ? 1.6 : 1.9) * MM;
     // (the cut corners are on the low side, away from the PCB: lying z0)

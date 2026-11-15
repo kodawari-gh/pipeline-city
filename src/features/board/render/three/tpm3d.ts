@@ -20,8 +20,8 @@ import { arc, maskTop, MM, passives, pcbSlab, pkg, type MaskArt, type MaskCopper
 /** The module's depths: the connector's mating face (down on the header's base), the board's underside and top. */
 export const TPM_Z = { mate: BOARD_Z + 120, pcb: BOARD_Z + 290, top: BOARD_Z + 312 } as const;
 
-const tin = () => mat(0xc4c9d0, { metalness: 0.9, roughness: 0.3 });
-const solder = () => mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 });
+const tin = () => mat(0xb9babf, { metalness: 0.9, roughness: 0.3 });
+const solder = () => mat(0xb9babf, { metalness: 0.92, roughness: 0.22 });
 
 /**
  * A solder joint: the fillet from the pad up to the tail's rounded tip, lathed on `SEG.joint` sides. Its profile is sampled to `SEG.jointRings`
@@ -85,9 +85,9 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
   // the female connector under it: 2 x 7 cells on the header's pitch, the keyed cell plugged; its contacts' tails come up through the board's
   // contacts (`tpmCopper`)
   const cu = tpmCopper(geo, hr), pins = cu.holes.map((q): [number, number] => [q.x, q.y]);
-  const house = { x: hr.x + 10, y: hr.y + 10, w: h.cols * 52, h: h.rows * 52 }, pbt = mat(0x1a1b1f, { roughness: 0.52 });
+  const house = { x: hr.x + 10, y: hr.y + 10, w: h.cols * 52, h: h.rows * 52 }, pbt = mat(0x1d1e22, { roughness: 0.52 });
   g.add(softBox(house, TPM_Z.mate, z0, pbt, 5));
-  const box = new BoxGeometry(1, 1, 1), dark = mat(0x050607, { roughness: 0.9 });
+  const box = new BoxGeometry(1, 1, 1), dark = mat(0x050608, { roughness: 0.9 });
   // its mating face: a chamfered entry to each contact; the V notches between the cells along both long sides
   g.add(instanced(box, dark, pins.map(([x, y]) => ({ x, y: -y, z: TPM_Z.mate - 0.4, sx: 22, sy: 22, sz: 1 }))));
   g.add(instanced(box, dark, Array.from({ length: (h.cols - 1) * 2 }, (_, k) => {

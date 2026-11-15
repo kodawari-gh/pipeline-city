@@ -126,8 +126,8 @@ function strainRelief(): BufferGeometry {
 /** The body: everything but the picture, its glass and the power light. `screen` is the picture's rect. */
 export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: number): Group {
   const R = new Group(), p = monitorPlan(m, deskY, z0), cx = m.x + m.w / 2, by = m.y + m.h;
-  const shell = mat(0x2d3137, { roughness: 0.45, metalness: 0.2 }), back = mat(0x24272c, { roughness: 0.6 }), dark = mat(0x111215, { roughness: 0.75 });
-  const black = mat(0x08090b, { roughness: 0.25 }), rubber = mat(0x0c0c0e, { roughness: 0.92 }), steel = mat(0x8d939a, { metalness: 0.8, roughness: 0.35 });
+  const shell = mat(0x2a2d32, { roughness: 0.45, metalness: 0.2 }), back = mat(0x2a2d32, { roughness: 0.6 }), dark = mat(0x131518, { roughness: 0.75 });
+  const black = mat(0x050608, { roughness: 0.25 }), rubber = mat(0x050608, { roughness: 0.92 }), steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.35 });
 
   // the panel: a 7.8 mm slab, the glass's black border inside its 5.2 mm frame, round the picture down to the chin
   R.add(softBox(m, z0, z0 + 180, shell, 50));

@@ -29,7 +29,7 @@ export interface Lamp { root: Group; bulb: MeshStandardMaterial; inner: MeshStan
  * shade pointing down at the desk, warm white inside.
  */
 export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: number }, head: { x: number; y: number }, mouthXY: { x: number; y: number }, z: number): Lamp {
-  const coat = mat(STEEL, { roughness: 0.4, metalness: 0.3 }), joint = mat(0x6d7178, { metalness: 0.6, roughness: 0.3 });
+  const coat = mat(STEEL, { roughness: 0.4, metalness: 0.3 }), joint = mat(0x4e5360, { metalness: 0.6, roughness: 0.3 });
   const g = tag(new Group(), 'lamp');
   // (its baked occlusion: the joints between the paired arms, the base under them; `vertexao.ts`)
   g.userData.ao = 30 * MM;
@@ -78,7 +78,7 @@ export class Monitor {
   private liveTex: Texture | null = null;
   private liveRev: number | undefined;
   private liveSize = '';
-  private led = mat(0x111111, { emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
+  private led = mat(0x131518, { emissive: new Color(0x3be3ff), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
    * column); the room sets its level while the screen is on. The room holds it, not this root: hidden with an absent monitor, it would change
@@ -180,7 +180,7 @@ export class DigitalClock {
     // (its baked occlusion: the bezel round the face, the case against the column; `vertexao.ts`)
     this.root.userData.ao = 20 * MM;
     this.root.add(softBox(r, 0, 260, mat(STEEL, { roughness: 0.45, metalness: 0.3 }), 50));
-    this.root.add(rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x121212, { roughness: 0.3 })));
+    this.root.add(rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x131518, { roughness: 0.3 })));
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas'); this.canvas.width = 512; this.canvas.height = 160;
       this.tex = rawSrgb(this.canvas);
@@ -343,11 +343,11 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   const g = new Group(), board = new Group(), U = KEY_U, W = 15 * U, D = 6.25 * U;
   // (its baked occlusion: the gaps between the caps, the plate inside the rim; `vertexao.ts`)
   g.userData.ao = 25 * MM;
-  const caseM = mat(0x2b2f35, { roughness: 0.4, metalness: 0.3 }), rim = 180;
+  const caseM = mat(0x2a2d32, { roughness: 0.4, metalness: 0.3 }), rim = 180;
   board.add(softBox({ x: -W / 2 - rim, y: -200, w: W + 2 * rim, h: 200 }, -D / 2 - rim, D / 2 + rim, caseM, 70));
   for (const r of [{ x: -W / 2 - rim, w: rim + 20 }, { x: W / 2 - 20, w: rim + 20 }] as const) board.add(softBox({ x: r.x, y: -300, w: r.w, h: 300 }, -D / 2 - rim, D / 2 + rim, caseM, 50));
   for (const [z0, z1] of [[-D / 2 - rim, -D / 2 + 20], [D / 2 - 20, D / 2 + rim]] as const) board.add(softBox({ x: -W / 2 - rim, y: -300, w: W + 2 * rim, h: 300 }, z0, z1, caseM, 50));
-  board.add(rectBox({ x: -W / 2, y: -210, w: W, h: 10 }, -D / 2, D / 2, mat(0x17191c, { roughness: 0.7 })));
+  board.add(rectBox({ x: -W / 2, y: -210, w: W, h: 10 }, -D / 2, D / 2, mat(0x131518, { roughness: 0.7 })));
   // the caps, merged per kind; the legends drawn on one sheet over their tops
   const parts: BufferGeometry[][] = [[], [], []], px = 64;
   const sheet = typeof document === 'undefined' ? null : document.createElement('canvas');
@@ -385,7 +385,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   board.rotation.x = 0.05; board.position.y = 70;
   g.add(board);
   // the cable: out of the back, over the mat's edge, back to the wall west of the monitor's foot
-  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), SEG.cord));
+  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x2a2d32, { roughness: 0.6 }), SEG.cord));
   g.position.set(cx, -deskY + 40, z);
   return g;
 }
@@ -399,7 +399,7 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
  * room gives it its reflections).
  */
 export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void): Group {
-  const g = new Group(), prim = new Group(), shell = mat(0x9d9b96, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
+  const g = new Group(), prim = new Group(), shell = mat(0x959aa3, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, SEG.drum, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
@@ -441,12 +441,12 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
 
 /** A closed notebook with its elastic band and a pen on it, lying askew on the desk (turned `a` about the vertical). */
 export function notebook(x: number, deskY: number, z: number, a: number): Group {
-  const g = new Group(), cover = mat(0x3f5a4a, { roughness: 0.7 }), pages = mat(0xf0e9d8, { roughness: 0.9 }), band = mat(0x1f2124, { roughness: 0.6 });
+  const g = new Group(), cover = mat(0x4e5360, { roughness: 0.7 }), pages = mat(0xf0e9d8, { roughness: 0.9 }), band = mat(0x1d1e22, { roughness: 0.6 });
   g.add(softBox({ x: -1700, y: -60, w: 3400, h: 60 }, -2300, 2300, cover, 25), softBox({ x: -1700, y: -400, w: 3400, h: 60 }, -2300, 2300, cover, 25));
   g.add(rectBox({ x: -1640, y: -340, w: 3290, h: 280 }, -2250, 2250, pages), softBox({ x: -1770, y: -400, w: 160, h: 400 }, -2300, 2300, cover, 70));
   g.add(rectBox({ x: 1150, y: -410, w: 90, h: 420 }, -2310, 2310, band));
   // the pen: a barrel, its cap with a clip
-  const blue = mat(0x2e3f66, { roughness: 0.35 }), steel = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
+  const blue = mat(0x2e3f66, { roughness: 0.35 }), steel = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
   g.add(rod([-700, 490, -1500], [500, 490, 900], 85, blue, SEG.arm), rod([500, 490, 900], [760, 490, 1420], 92, steel, SEG.arm), rod([-700, 490, -1500], [-790, 490, -1680], 50, steel, SEG.frameBar));
   g.add(rod([560, 590, 980], [760, 590, 1380], 22, steel, SEG.thinTube));
   g.position.set(x, -deskY, z); g.rotation.y = a;

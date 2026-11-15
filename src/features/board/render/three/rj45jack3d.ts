@@ -20,7 +20,7 @@ export function mouthPts(m: Mouth, e = 0): Vector2[] {
 }
 
 /** The springs' gold: a satin plate (a mirror finish deep in a dark mouth only shows the dark round it). */
-export const springGold = () => mat(0xd9b25e, { metalness: 0.85, roughness: 0.4 });
+export const springGold = () => mat(0xd4af5f, { metalness: 0.85, roughness: 0.4 });
 
 /**
  * A mesh in a jack's mouth: it casts no shadow (deep in a narrow mouth its own shadow only shows acne), but it takes the shell's, so in the
@@ -33,8 +33,8 @@ export interface JackLook { shell: Material; insert: Material; contact: Material
 
 /** The look of a jack in this shell: the black insert, satin gold springs, a green link light and an amber activity light. */
 export const jackLook = (shell: Material): JackLook => {
-  const light = (c: number) => mat(0x111111, { emissive: c, emissiveIntensity: 0.8, roughness: 0.3 });
-  return { shell, insert: mat(0x111214, { roughness: 0.9 }), contact: springGold(), link: light(0x58e08a), act: light(0xffb547) };
+  const light = (c: number) => mat(0x131518, { emissive: c, emissiveIntensity: 0.8, roughness: 0.3 });
+  return { shell, insert: mat(0x131518, { roughness: 0.9 }), contact: springGold(), link: light(0x58e08a), act: light(0xffb547) };
 };
 
 /**

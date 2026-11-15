@@ -218,7 +218,7 @@ export function bed(): Bed {
     g.add(softBox({ x: fx - 500, y: apron, w: 1000, h: ground - apron }, fz - 500, fz + 500, black, 30));
   }
   // the LED strips, round the apron's top under the platform's edge and across the headboard's back near its top; each stands for an area light
-  const glow = mat(0x101416, { roughness: 0.6, emissive: new Color(NEON), emissiveIntensity: 0 });
+  const glow = mat(0x131518, { roughness: 0.6, emissive: new Color(NEON), emissiveIntensity: 0 });
   g.add(rectBox({ x: x + set - 40, y: under, w: w - 2 * set + 80, h: 160 }, z0 + hd + 560, z1 - set + 40, glow));
   g.add(rectBox({ x: x + 600, y: headTop + 300, w: w - 1200, h: 160 }, z0 - 60, z0, glow));
   const underL = new RectAreaLight(NEON, 0, w - 800, z1 - z0 - hd - 800);
@@ -350,7 +350,7 @@ export function nightstand(): Bedside {
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
   // the box on the wall, the drawer's front nearly flush in it, a dark gap round the front
   g.add(board({ x, y: top, w, h }, z0, z1, veneer));
-  g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x0b0b0c, { roughness: 0.9 })));
+  g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x050608, { roughness: 0.9 })));
   g.add(board({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer));
   // the lantern: a paper round on bamboo ribs, open top and bottom (a black wire ring at each), on a wire stand of three legs; it glows from
   // the bulb inside
@@ -385,7 +385,7 @@ export function nightstand(): Bedside {
   g.add(softBox({ x: bx0, y: top - 55, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20), softBox({ x: bx0, y: top - bh, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20));
   g.add(rectBox({ x: bx0 + 50, y: top - bh + 50, w: bx1 - bx0 - 160, h: bh - 100 }, bz0 + 70, bz1 - 70, mat(0xe9e1cf, { roughness: 0.9 })));
   g.add(softBox({ x: bx1 - 170, y: top - bh, w: 170, h: bh }, bz0, bz1, linen, 70));
-  const phone = new Group(), alu = mat(0x34363a, { metalness: 0.7, roughness: 0.35 }), glass = mat(0x060708, { roughness: 0.06, metalness: 0.1 });
+  const phone = new Group(), alu = mat(0x2a2d32, { metalness: 0.7, roughness: 0.35 }), glass = mat(0x050608, { roughness: 0.06, metalness: 0.1 });
   phone.add(softBox({ x: -700, y: -150, w: 1400, h: 150 }, -1425, 1425, alu, 60), softBox({ x: -665, y: -162, w: 1330, h: 24 }, -1390, 1390, glass, 10));
   phone.position.set(cx + 2200, -(top - bh), cz + 100);
   phone.rotation.y = 0.18;
@@ -533,7 +533,7 @@ function shelvedBooks(books: readonly Book[]): Group {
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12), cp = cover.attributes.position!;
   for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();
-  const board = stripLit(mat(0xd2d2d2, { roughness: 0.75 })), hidden = new MeshBasicMaterial({ visible: false });
+  const board = stripLit(mat(0xb9babf, { roughness: 0.75 })), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
   const put = (m: InstancedMesh, i: number, b: Book, sx: number, sy: number, sz: number, dx: number) => {
     d.position.set(b.x + dx, b.y, b.z); d.rotation.set(b.lean, 0, 0); d.scale.set(sx, sy, sz); d.updateMatrix();
@@ -567,7 +567,7 @@ function stripLine(x: number, y: number, z0: number, z1: number, glow: Material)
  * each a thin glowing line and the area light it stands for, shining down. Their light comes on with the evening (the room sets it).
  */
 export function shelfStrips(): { root: Group; glow: MeshStandardMaterial; lights: RectAreaLight[] } {
-  const g = new Group(), lights: RectAreaLight[] = [], glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
+  const g = new Group(), lights: RectAreaLight[] = [], glow = mat(0x131518, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
   // (each at its board's front edge, its light tilted `tilt` back toward the books, or toward the wall: a strip in an angled profile)
   const add = (x: number, y: number, z0: number, z1: number, tilt: number) => {
     g.add(stripLine(x, y, z0, z1, glow));
@@ -599,12 +599,12 @@ export function bookcase(): Group {
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
   const hole = new CylinderGeometry(70, 70, 24, SEG.smallDisc); hole.rotateX(Math.PI / 2);
-  g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
+  g.add(instanced(hole, mat(0x050608, { roughness: 0.9 }), pins));
   const { n } = CASE_BOARDS, gap = (fl - top - 1400) / n;
   // the bindings: neutrals, slate blues, a sage, a sand, and the room's terracotta as the one warm colour
   const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x3a3f47];
   const books: Book[] = [];
-  const steel = mat(0x3a3c40, { metalness: 0.6, roughness: 0.4 });
+  const steel = mat(0x2a2d32, { metalness: 0.6, roughness: 0.4 });
   // (the same books in every room built: the light bake finds the bookend by where it stands, `lightmapmix.ts`; the gaps draw from their own
   // numbers, so the runs and the bookend stand where they did)
   seedN = 11;
@@ -654,7 +654,7 @@ export function bookcase(): Group {
     if (s % 2) {
       const tz = z1 - side - 2200;
       if (s === 1) g.add(succulent(xf - 2600, base, tz, 1000));
-      else g.add(softBox({ x: x + 900, y: base - 1800, w: 3800, h: 1800 }, tz - 1600, tz + 1600, mat(0x1b1c1f, { roughness: 0.6 }), 120), softBox({ x: x + 880, y: base - 1880, w: 3840, h: 200 }, tz - 1640, tz + 1640, mat(0x26272b, { roughness: 0.6 }), 60));
+      else g.add(softBox({ x: x + 900, y: base - 1800, w: 3800, h: 1800 }, tz - 1600, tz + 1600, mat(0x1d1e22, { roughness: 0.6 }), 120), softBox({ x: x + 880, y: base - 1880, w: 3840, h: 200 }, tz - 1640, tz + 1640, mat(0x2a2d32, { roughness: 0.6 }), 60));
     }
   }
   g.add(shelvedBooks(books));
@@ -681,11 +681,11 @@ export function door(): Group {
   g.add(slab(top - cw, top, z0 - cw, z1 + cw, xs, xs + 160, trim, 20));
   for (const [a, b] of [[z0 - cw, z0], [z1, z1 + cw]] as const) g.add(slab(top, fl, a, b, xs, xs + 160, trim, 20));
   // the frame's dark gap round the leaf, the leaf
-  g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x0e0f11, { roughness: 0.9 })));
-  const face = xs + 110, leaf = mat(0x2a2e35, { roughness: 0.5 });
+  g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x131518, { roughness: 0.9 })));
+  const face = xs + 110, leaf = mat(0x2a2d32, { roughness: 0.5 });
   g.add(slab(top + 70, fl - 150, z0 + 70, z1 - 70, xs - 220, face, leaf, 25));
   // the lever: a square rose, a short neck, a straight square-section bar along the door; a keyhole plate under it
-  const black = mat(0x1d1e20, { metalness: 0.4, roughness: 0.4 }), dark = mat(0x0d0d0e, { roughness: 0.7 }), hy = fl - 19000, hz = z0 + 1350;
+  const black = mat(0x1d1e22, { metalness: 0.4, roughness: 0.4 }), dark = mat(0x050608, { roughness: 0.7 }), hy = fl - 19000, hz = z0 + 1350;
   g.add(slab(hy - 480, hy + 480, hz - 480, hz + 480, face, face + 90, black, 40));
   g.add(slab(hy - 110, hy + 110, hz - 110, hz + 110, face + 90, face + 620, black, 40));
   g.add(slab(hy - 120, hy + 120, hz - 110, hz + 2300, face + 520, face + 760, black, 60));
@@ -693,10 +693,10 @@ export function door(): Group {
   // the threshold: a black aluminium strip across the opening on the floor
   g.add(softBox({ x: xs - 300, y: fl - 120, w: 900, h: 120 }, z0, z1, mat(STEEL, { roughness: 0.4, metalness: 0.5 }), 40));
   // a stop on the floor where the door swings open
-  g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, SEG.disc), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2b2c2e, { roughness: 0.9 }), SEG.disc));
+  g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, SEG.disc), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2a2d32, { roughness: 0.9 }), SEG.disc));
   // the light switch beside the door: a thin square plate in black glass, a wide rocker
-  g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, mat(0x141518, { roughness: 0.2, metalness: 0.1 }), 40));
-  g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0x1d1f23, { roughness: 0.35 }), 40));
+  g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, mat(0x131518, { roughness: 0.2, metalness: 0.1 }), 40));
+  g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0x1d1e22, { roughness: 0.35 }), 40));
   return g;
 }
 
@@ -706,8 +706,8 @@ export function door(): Group {
  */
 export function ceilingLight(x: number, y: number, z: number): { root: Group; glow: MeshStandardMaterial } {
   const g = new Group(), r = 5000;
-  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x0e0f11, { roughness: 0.9 }), SEG.fineDisc), false));
-  g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d33, { roughness: 0.5 }), SEG.fineDisc), false));
+  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x131518, { roughness: 0.9 }), SEG.fineDisc), false));
+  g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d32, { roughness: 0.5 }), SEG.fineDisc), false));
   const glow = mat(0xcfccc6, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
   g.add(place(post(x, y + 940, z, r - 250, 40, glow, SEG.fineDisc), false));
   return { root: g, glow };
@@ -716,7 +716,7 @@ export function ceilingLight(x: number, y: number, z: number): { root: Group; gl
 /** A framed print over the bed: a thin black frame, an ink-wash scene on warm paper (misty ridges, a small vermilion sun, a red seal). */
 export function print(r: { x: number; y: number; w: number; h: number }, z: number): Group {
   const g = new Group();
-  g.add(softBox(r, z, z + 380, mat(0x111214, { roughness: 0.45 }), 30));
+  g.add(softBox(r, z, z + 380, mat(0x131518, { roughness: 0.45 }), 30));
   const art = paint(512, 360, (c, w, h) => {
     c.fillStyle = '#bdb5a3'; c.fillRect(0, 0, w, h);
     for (let k = 0; k < 500; k++) { c.fillStyle = `rgba(255,255,255,${0.03 + rnd() * 0.05})`; c.fillRect(rnd() * w, rnd() * h, 1, 3 + rnd() * 8); }
@@ -745,12 +745,12 @@ export function print(r: { x: number; y: number; w: number; h: number }, z: numb
  * slot under it; its area light (3000 K) shines down and back onto the print.
  */
 export function pictureLight(r: { x: number; y: number; w: number; h: number }, z: number): { root: Group; glow: MeshStandardMaterial; light: RectAreaLight } {
-  const g = new Group(), black = mat(0x1d1e20, { metalness: 0.4, roughness: 0.4 }), cx = r.x + r.w / 2, len = r.w * 0.6, by = r.y - 900, bz = z + 2600;
+  const g = new Group(), black = mat(0x1d1e22, { metalness: 0.4, roughness: 0.4 }), cx = r.x + r.w / 2, len = r.w * 0.6, by = r.y - 900, bz = z + 2600;
   // the wall plate, the arm out from it and down to the bar, the bar (`by` its underside)
   g.add(softBox({ x: cx - 900, y: by - 1300, w: 1800, h: 900 }, z, z + 120, black, 30));
   g.add(rectBox({ x: cx - 90, y: by - 940, w: 180, h: 180 }, z + 120, bz, black), rectBox({ x: cx - 90, y: by - 940, w: 180, h: 500 }, bz - 90, bz + 90, black));
   g.add(softBox({ x: cx - len / 2, y: by - 450, w: len, h: 450 }, bz - 260, bz + 260, black, 60));
-  const glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(3000)), emissiveIntensity: 0 });
+  const glow = mat(0x131518, { roughness: 0.6, emissive: new Color(kelvin(3000)), emissiveIntensity: 0 });
   g.add(rectBox({ x: cx - len / 2 + 200, y: by, w: len - 400, h: 70 }, bz - 150, bz + 150, glow));
   // (tilted back toward the wall, onto the print's middle)
   const light = new RectAreaLight(kelvin(3000), 0, len - 400, 300);
@@ -765,11 +765,11 @@ export function pictureLight(r: { x: number; y: number; w: number; h: number }, 
  * and the two spots (2700 K) it stands for, one up and one down the plaster.
  */
 export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLight; down: SpotLight } {
-  const g = new Group(), { z, y } = SCONCE, xs = WEST_X, h = 4200, w = 1500, d = 1500, x0 = xs + 700, black = mat(0x1d1e20, { metalness: 0.3, roughness: 0.5 });
+  const g = new Group(), { z, y } = SCONCE, xs = WEST_X, h = 4200, w = 1500, d = 1500, x0 = xs + 700, black = mat(0x1d1e22, { metalness: 0.3, roughness: 0.5 });
   // (in the wall's plane: 2D y down, z along the wall; x out of the wall into the room)
   g.add(softBox({ x: xs, y: y - 900, w: 120, h: 1800 }, z - 500, z + 500, black, 30), rectBox({ x: xs + 120, y: y - 200, w: x0 - xs - 120, h: 400 }, z - 200, z + 200, black));
   g.add(softBox({ x: x0, y: y - h / 2, w: d, h }, z - w / 2, z + w / 2, black, 60));
-  const glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
+  const glow = mat(0x131518, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
   for (const gy of [y - h / 2 - 10, y + h / 2 - 10]) g.add(rectBox({ x: x0 + 160, y: gy, w: d - 320, h: 20 }, z - w / 2 + 160, z + w / 2 - 160, glow));
   // the two spots, each out of its opening along the wall: a cone up to the ceiling, a wider one down, its head turned a little to the door
   // (`lean`: along z, a part of the way down)
@@ -791,7 +791,7 @@ export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLig
  */
 export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; light: SpotLight } {
   const g = new Group(), { x, z, head } = ARC_LAMP, on = onRug(x, z), fl = FLOOR_Y - (on ? RUG.h : 0), R = 2600, H = 1900;
-  const black = mat(0x1a1b1e, { metalness: 0.5, roughness: 0.4 }), stone = mat(0x26272a, { roughness: 0.3 });
+  const black = mat(0x1d1e22, { metalness: 0.5, roughness: 0.4 }), stone = mat(0x2a2d32, { roughness: 0.3 });
   g.add(post(x, fl, z, 2600, 800, stone, SEG.wideDisc), post(x, fl - 800, z, 360, 600, black, SEG.disc), floorShadow(x, z, 7000, 7000, 0.4, on ? RUG.h + 140 : 140));
   // the dome: its mouth, its axis straight down, its crown over it; the arc comes down onto a knuckle over the crown
   const mouth = new Vector3(head.x, -head.y, head.z), axis = new Vector3(0, -1, 0);
@@ -848,8 +848,8 @@ export function eastWall(): Group {
   });
   // the speaker: a cylinder in dark fabric, a black top, its status light
   const cx = sx + 7400, cz = sd / 2;
-  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), SEG.bigDisc), post(cx, sy - 2000, cz, 740, 50, mat(0x111214, { roughness: 0.35 }), SEG.bigDisc));
-  wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x0b1a1d, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), SEG.post));
+  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), SEG.bigDisc), post(cx, sy - 2000, cz, 740, 50, mat(0x131518, { roughness: 0.35 }), SEG.bigDisc));
+  wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x131518, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), SEG.post));
   // a pothos at the east end: built facing +x, turned so its vines trail over the shelf's front edge
   const vine = pothos(0, 0, 0, sd - 1500, [{ dz: 300, len: 7000 }, { dz: -500, len: 4200 }]);
   vine.rotation.y = -Math.PI / 2;
@@ -857,7 +857,7 @@ export function eastWall(): Group {
   wall.add(vine);
   // a framed poster above: a thin cyan circle and a fine grid on a dark ground
   const r = { x: sx + 1500, y: -18500, w: 11000, h: 13800 };
-  wall.add(softBox(r, 0, 320, mat(0x111214, { roughness: 0.45 }), 30));
+  wall.add(softBox(r, 0, 320, mat(0x131518, { roughness: 0.45 }), 30));
   const art = paint(384, 480, (c, w, h) => {
     c.fillStyle = '#16181d'; c.fillRect(0, 0, w, h);
     c.strokeStyle = 'rgba(120,130,150,0.12)'; c.lineWidth = 1;

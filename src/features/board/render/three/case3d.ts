@@ -204,7 +204,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     }
     root.add(wallX(ex - OEM_BEZEL, ex + 50, { y0: C.y - 8, y1: C.y + C.h + 8, z0: CASE_Z + 10, z1: FRONT + 12, r: 40 }, slots, bezel));
     // two 5.25-inch bay blanks, each in its dark gap: a face with soft corners, a raised rim round a recessed panel, the release notch under it
-    const blank = mat(0xcbc29f, { roughness: 0.6 }), gap = mat(0x34312a, { roughness: 0.9 });
+    const blank = mat(0xcbc29f, { roughness: 0.6 }), gap = mat(0x2a2d32, { roughness: 0.9 });
     for (let k = 0; k < 2; k++) {
       const b: Span = { y0: C.y + 520 + k * 470, y1: C.y + 940 + k * 470, z0: zc - 740, z1: zc + 740, r: 12 }, inset = (e: number): Span => ({ y0: b.y0 + e, y1: b.y1 - e, z0: b.z0 + e, z1: b.z1 - e, r: 10 });
       root.add(wallX(ex + 48, ex + 52, inset(-14), [], gap), wallX(ex + 52, ex + 66, b, [], blank, 3), wallX(ex + 66, ex + 71, inset(34), [inset(64)], blank));
@@ -215,21 +215,21 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
     root.add(wallX(ex + 50, ex + 58, badge, [], mat(0xc2b994, { roughness: 0.5 }), 2));
     root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
-    const foot = mat(0x2a2924, { roughness: 0.9 });
+    const foot = mat(0x2a2d32, { roughness: 0.9 });
     for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
   }
 
   if (kind === 'matte') {
     // one sheet: a smoked window over the upper part in a dark gasket, a debossed mark, the intake, the vents; rubber rails for feet
-    side.add(ring(win!, wr, NONE, 16, FRONT - 2, FRONT + 3, mat(0x050507, { roughness: 0.6 })));
+    side.add(ring(win!, wr, NONE, 16, FRONT - 2, FRONT + 3, mat(0x050608, { roughness: 0.6 })));
     const bars = [0, 1, 2, 3].map((k) => ({ x: right - 300 + k * 24, y: cy - 60 + 100 * (0.66 - k * 0.2), w: 17, h: 100 * (0.34 + k * 0.2) }));
     for (const b of bars) {
-      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2c2e35, { roughness: 0.9 })));
-      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x08090b, { roughness: 0.95 })));
+      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2a2d32, { roughness: 0.9 })));
+      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x050608, { roughness: 0.95 })));
     }
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x1b1c21, { metal: 0.1, rough: 0.85 })));
     for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 1, dark, 12));
-    const rubber = mat(0x0c0c0e, { roughness: 0.95 });
+    const rubber = mat(0x050608, { roughness: 0.95 });
     for (const x of [C.x + 300, C.x + C.w - 600]) root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
   }
 
@@ -242,41 +242,41 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     cap.rotation.z = -Math.PI / 4;
     const t = perforation('mesh')?.clone() ?? null;
     if (t) { t.needsUpdate = true; t.repeat.set(len / 36, d / 36); }
-    const capBack = new Mesh(new PlaneGeometry(len - 40, d), dark), capMesh = new Mesh(new PlaneGeometry(len - 40, d), mat(0x2a3042, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: 0.5, roughness: 0.45 }));
+    const capBack = new Mesh(new PlaneGeometry(len - 40, d), dark), capMesh = new Mesh(new PlaneGeometry(len - 40, d), mat(0x2a2d32, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: 0.5, roughness: 0.45 }));
     capBack.rotation.x = capMesh.rotation.x = -Math.PI / 2;
     capBack.position.y = -4;
     cap.add(capBack, capMesh);
-    for (const s of [-1, 1]) { const rail = place(new Mesh(new BoxGeometry(len, 24, 40), mat(0x262c3c, { metalness: 0.6, roughness: 0.35 }))); rail.position.z = (s * d) / 2; cap.add(rail); }
+    for (const s of [-1, 1]) { const rail = place(new Mesh(new BoxGeometry(len, 24, 40), mat(0x2a2d32, { metalness: 0.6, roughness: 0.35 }))); rail.position.z = (s * d) / 2; cap.add(rail); }
     root.add(cap);
     const lean = 70, pitch = 78, sw = pitch * 0.5, sh = 200, par = new Shape([new Vector2(lean, 0), new Vector2(lean + sw, 0), new Vector2(sw, -sh), new Vector2(0, -sh)]);
     const sg = new ExtrudeGeometry(par, { depth: 6, bevelEnabled: false });
     side.add(instanced(sg, dark, Array.from({ length: nv }, (_, k) => ({ x: -2250 + k * pitch, y: -(P.y + 110), z: FRONT - 4 }))));
-    side.add(ring(win!, wr, wcuts, 34, FRONT - 2, FRONT + 16, mat(0x161b27, { metalness: 0.5, roughness: 0.35 })));
-    side.add(ring(win!, wr, wcuts, 6, FRONT + 16, FRONT + 20, mat(0x3a4256, { metalness: 0.7, roughness: 0.3 })));
+    side.add(ring(win!, wr, wcuts, 34, FRONT - 2, FRONT + 16, mat(0x1d1e22, { metalness: 0.5, roughness: 0.35 })));
+    side.add(ring(win!, wr, wcuts, 6, FRONT + 16, FRONT + 20, mat(0x4e5360, { metalness: 0.7, roughness: 0.3 })));
     const ly = win!.y + win!.h - 70, lx0 = win!.x + 140, lw = win!.w - 280, strip1 = glowMat(acc, 0x15121f);
     side.add(rectBox({ x: lx0, y: ly, w: lw, h: 26 }, z1 - 30, z1 - 4, strip1));
     spins.push(light(strip1, acc, 1.6));
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x232938, { metal: 0.5, rough: 0.4 })));
     const plate = { x: right - 1100, y: cy - 190, w: 1100, h: 380 };
-    side.add(softBox(plate, FRONT - 2, FRONT + 18, mat(0x0d1018, { roughness: 0.4, metalness: 0.4 }), 10));
+    side.add(softBox(plate, FRONT - 2, FRONT + 18, mat(0x131518, { roughness: 0.4, metalness: 0.4 }), 10));
     // the four bars, debossed into the plate: a lit print over a dark one
     for (let k = 0; k < 4; k++) {
       const bh = 200 * (0.34 + k * 0.2), x = plate.x + plate.w / 2 - 89 + k * 48, y = plate.y + plate.h / 2 + 100 - bh;
-      side.add(rectBox({ x, y: y + 5, w: 34, h: bh }, FRONT + 18, FRONT + 19, mat(0x2c2e35, { roughness: 0.9 })));
-      side.add(rectBox({ x, y, w: 34, h: bh }, FRONT + 18, FRONT + 20, mat(0x08090b, { roughness: 0.95 })));
+      side.add(rectBox({ x, y: y + 5, w: 34, h: bh }, FRONT + 18, FRONT + 19, mat(0x2a2d32, { roughness: 0.9 })));
+      side.add(rectBox({ x, y, w: 34, h: bh }, FRONT + 18, FRONT + 20, mat(0x050608, { roughness: 0.95 })));
     }
     // two flat rubber rails, as on the matte case
-    const rubber = mat(0x0c0c0e, { roughness: 0.95 });
+    const rubber = mat(0x050608, { roughness: 0.95 });
     for (const x of [C.x + 300, C.x + C.w - 600]) root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
   }
 
   if (kind === 'show') {
     // a smoked glass in a thin dark gasket, a debossed four-bar mark, a hex mesh intake, a flat graphite plinth under the case
-    side.add(ring(win!, wr, wcuts, 30, FRONT - 2, FRONT + 14, mat(0x101115, { metalness: 0.5, roughness: 0.3 })));
+    side.add(ring(win!, wr, wcuts, 30, FRONT - 2, FRONT + 14, mat(0x131518, { metalness: 0.5, roughness: 0.3 })));
     const bars = [0, 1, 2, 3].map((k) => ({ x: right - 300 + k * 24, y: cy - 60 + 100 * (0.66 - k * 0.2), w: 17, h: 100 * (0.34 + k * 0.2) }));
     for (const b of bars) {
-      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2c2e35, { roughness: 0.9 })));
-      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x08090b, { roughness: 0.95 })));
+      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2a2d32, { roughness: 0.9 })));
+      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x050608, { roughness: 0.95 })));
     }
     side.add(decal(intake, FRONT + 4, perfMat('hex', intake.w, intake.h, 46, 0x2a2d32, { metal: 0.5, rough: 0.4 })));
     root.add(softBox({ x: C.x + 250, y: bottom - 10, w: C.w - 500, h: FOOT + 10 }, CASE_Z + 250, FRONT - 250, mat(0x4e5360, { metalness: 0.5, roughness: 0.5 }), 30));
@@ -305,7 +305,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     }
   }
   // the back panel's flange and its two thumbscrews, on every case (black on the dark ones)
-  const backKnurl = kind === 'oem' ? mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 }) : mat(0x1b1c21, { metalness: 0.55, roughness: 0.4 });
+  const backKnurl = kind === 'oem' ? mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 }) : mat(0x1d1e22, { metalness: 0.55, roughness: 0.4 });
   root.add(rectBox(flange, CASE_Z, CASE_Z + FL, body));
   root.add(thumbscrews([C.y + 700, bottom - 700].map((y) => ({ x: C.x - 12, y: -y, z: CASE_Z + FL / 2 })), 'x-', 100, 96, backKnurl));
   side.traverse(seeThrough);

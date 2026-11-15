@@ -283,7 +283,7 @@ export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: n
 
 /** A perforated plate over `r` at depth z on a dark backing (the holes show the dark), `pitch` units per hole. */
 export function perforated(g: Group, r: RectLike, z: number, kind: Perf, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): void {
-  g.add(decal(r, z, mat(0x040506, { roughness: 0.9 })));
+  g.add(decal(r, z, mat(0x050608, { roughness: 0.9 })));
   g.add(decal(r, z + 5, perfMat(kind, r.w, r.h, pitch, tone, o)));
 }
 
@@ -308,7 +308,7 @@ export function perforatedFlatRun(top: number, rects: [number, number, number, n
     p.translate((x0 + x1) / 2, y + lift, (z0 + z1) / 2);
     return p;
   }), false)!;
-  const back = new Mesh(geo(3), mat(0x040506, { roughness: 0.9 }));
+  const back = new Mesh(geo(3), mat(0x050608, { roughness: 0.9 }));
   const perf = new Mesh(geo(5), perfMat(kind, w, h, pitch, tone, { ...o, inside: true }));
   back.receiveShadow = perf.receiveShadow = true;
   g.add(back, perf);

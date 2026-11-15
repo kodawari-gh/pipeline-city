@@ -314,7 +314,7 @@ export function deskSlab(g: RoomGeo): Mesh {
  */
 export function drawerUnit(g: RoomGeo): Mesh[] {
   const ped = { x: g.desk.x1 - PED.in, y: g.ys + DESK_TOP, w: PED.w, h: FLOOR_Y - g.ys - DESK_TOP };
-  const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x0c0c0d, { roughness: 0.9 });
+  const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x050608, { roughness: 0.9 });
   const out = [board(ped, 300, DESK_D - 400, alex), rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot)];
   const dh = (ped.h - 160 - 4 * 90) / 5;
   for (let k = 0; k < 5; k++) {
@@ -440,9 +440,9 @@ export class Room3D {
     this.geo = roomGeo();
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     if (!areaLights) { RectAreaLightUniformsLib.init(); areaLights = true; }
-    const graphite = mat(0x23262b, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
-    const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
-    const dark = mat(0x2a2c31, { roughness: 0.5 });
+    const graphite = mat(0x2a2d32, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
+    const chrome = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
+    const dark = mat(0x2a2d32, { roughness: 0.5 });
     // one plaster on every wall, its texture at one size on each piece and running on across the pieces (`worldUv`)
     const plaster = mat(0xffffff, { ...plasterMaps(WALL), normalScale: new Vector2(1, 1), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
     const W = WINDOW;
@@ -469,7 +469,7 @@ export class Room3D {
     run(WEST_X, WEST_X, DOOR.z1 + 980, FRONT_Z, 'x');
     run(EAST_X, EAST_X, 0, FRONT_Z, '-x');
     run(WEST_X, EAST_X, FRONT_Z, FRONT_Z, '-z');
-    const gap = mat(0x16171a, { roughness: 0.9 });
+    const gap = mat(0x131518, { roughness: 0.9 });
     skirt({ x: WEST_X, y: CEIL_Y, w: EAST_X - WEST_X, h: 220 }, 0, 40, gap);
     skirt({ x: WEST_X, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
     skirt({ x: EAST_X - 40, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
@@ -484,7 +484,7 @@ export class Room3D {
     // ---- the glass wall: slim black aluminium frames set back in the reveal, a pane a bay (the column parts two bays, a mullion parts the west
     // one), one picture of the city behind them all; a roller blind in each bay, its cassette at the top of the reveal ----
     // (matt enough that the sky light's one spot, a large light in truth, leaves no glint on a frame's rounded edge for the bloom to spread)
-    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.6 });
+    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1d1e22, { metalness: 0.5, roughness: 0.6 });
     const bays = [{ x0: W.x, x1: PIER.x0 }, { x0: PIER.x1, x1: W.x + W.w }];
     for (const b of bays) {
       const w = b.x1 - b.x0;
@@ -497,7 +497,7 @@ export class Room3D {
     this.cityDetail = this.outside.detail;
     this.window = winG;
     winG.add(this.outside.mesh, glass);
-    const cassette = mat(0x2a2d33, { roughness: 0.5 }), screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
+    const cassette = mat(0x2a2d32, { roughness: 0.5 }), screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
     for (const b of bays) {
       winG.add(softBox({ x: b.x0 + 150, y: W.y, w: b.x1 - b.x0 - 300, h: 900 }, -900, -150, cassette, 120));
       const blind = place(new Mesh(new BoxGeometry(b.x1 - b.x0 - 500, 1, 40), screen));
@@ -547,7 +547,7 @@ export class Room3D {
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
     const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1000;
     for (const z of [1000, DESK_D - 1000]) {
-      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum), post(tx, fl, z, 300, 200, mat(0x111214, { roughness: 0.8 }), SEG.drum));
+      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, SEG.drum), post(tx, fl, z, 300, 200, mat(0x131518, { roughness: 0.8 }), SEG.drum));
       R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
     // the drawer unit at the east end
@@ -585,7 +585,7 @@ export class Room3D {
     this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o));
     R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
-    const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
+    const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x131518, { roughness: 0.6 });
     R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, SEG.drum), post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
@@ -637,7 +637,7 @@ export class Room3D {
     // its tier's look (`net.router.visual`, as the 2D drawings): the home router with its two aerials and four lights; the gigabit one, broader,
     // with a row of ports and a bright status; the 10G switch-router: no aerials, a port row and a lit strip; the core router: a deep rack unit
     // with two rows of lights and a blue strip
-    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d31, { roughness: 0.45 }), jackSteel = mat(0x9ea5ae, { metalness: 0.8, roughness: 0.44 });
+    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d32, { roughness: 0.45 }), jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
     // (its jacks are the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, their mouths 180 deep)
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
@@ -646,13 +646,13 @@ export class Room3D {
     };
     const parts = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
-      const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x111111, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
+      const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x131518, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
       const top = tier >= 4 ? 1500 : 1400, body = mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), look = jackLook(jackSteel);
       // its port row (the gigabit one and up): jacks sunk into the front. The body stops behind them, and a front slab open at each jack closes
       // it (a solid box would fill the mouths)
       const ports = tier >= 2 ? [0, 1, 2, 3].map((k) => rs.x + 1600 + k * 180) : [], front = ports.length ? top - DEEP : top;
       router.add(softBox(ROUTER_SPOT, 300, front, body, 80));
-      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, Math.min(1400, front), mat(0x2a2c30, { roughness: 0.4 }), 40));
+      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, Math.min(1400, front), mat(0x2a2d32, { roughness: 0.4 }), 40));
       if (ports.length) {
         const span = (px: number) => ({ y0: ledY - PORT.h / 2, y1: ledY + PORT.h / 2, z0: px - PORT.w / 2, z1: px + PORT.w / 2 });
         const holes = ports.map((px) => outlinePts({ x: px - PORT.w / 2, y: ledY - PORT.h / 2, w: PORT.w, h: PORT.h }, 0));
@@ -669,9 +669,9 @@ export class Room3D {
       jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look);
       router.add(side);
       // its front: a darker strip with the status lights, vents over its top
-      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x0d0e10, { roughness: 0.5 }), 30));
+      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x131518, { roughness: 0.5 }), 30));
       for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, SEG.smallDisc));
-      for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
+      for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x050608, { roughness: 0.8 })));
       if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, SEG.smallDisc));
       if (tier >= 3) return; // a switch-router has no aerials
       for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
@@ -692,10 +692,10 @@ export class Room3D {
     // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
     box.add(softBox(OUTBOX, 0, 700, mat(STEEL, { roughness: 0.45 }), 70));
-    box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, mat(0x08090a, { roughness: 0.8 })));
+    box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, mat(0x050608, { roughness: 0.8 })));
     // its front door (a panel in a fine seam), a name plate, the lock
-    const ob = OUTBOX, front = mat(0x232428, { roughness: 0.45 });
-    box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x08090a, { roughness: 0.6 })));
+    const ob = OUTBOX, front = mat(0x1d1e22, { roughness: 0.45 });
+    box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x050608, { roughness: 0.6 })));
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
@@ -703,7 +703,7 @@ export class Room3D {
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));
-    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), SEG.disc));
+    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x131518, { roughness: 0.6 }), SEG.disc));
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
     const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
@@ -1048,7 +1048,7 @@ export class Room3D {
       const body = softBox({ x: c.x - KEY_W / 2, y: c.y - KEY_LEN / 2, w: KEY_W, h: KEY_LEN }, 260, 400, shell, 40);
       g.add(body);
       if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }
-      g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9bec6, { metalness: 0.8, roughness: 0.3 })));
+      g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9babf, { metalness: 0.8, roughness: 0.3 })));
       g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), SEG.cord));
       if (this.known && !this.known.has(k.id)) {
         const e = this.envelope();

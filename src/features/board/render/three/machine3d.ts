@@ -644,7 +644,7 @@ export class Machine3D {
         // the hub's header on its top edge, the cord down to it from the slot
         const hx = p.seat[0], from = hubEnds[1 + hubHeaders().findIndex((h) => h.x === hx)] ?? hubEnds[0]!;
         this.addRig(g, cord(from, env, { slack: 1.2, extra: 80, n: 14 }, {
-          model: () => ({ root: rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 206, CASE_Z + 276, mat(0x1b2230, { roughness: 0.5 })), strands: [{ at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }] }),
+          model: () => ({ root: rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 206, CASE_Z + 276, mat(0x1d1e22, { roughness: 0.5 })), strands: [{ at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }] }),
           seat: { at: [hx, -FAN_HUB.y, CASE_Z + 240], axis: [0, 1, 0] }, engage: 60,
         }), plugged);
       } else {
@@ -689,7 +689,7 @@ export class Machine3D {
     const cord: Look = { r: 70, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
     // the desk's grommet the mains cords drop through, behind the case's west side
     const dg = { x: CASE.x - 900, z: 1300 };
-    this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), SEG.bigDisc), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), SEG.bigDisc));
+    this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x2a2d32, { roughness: 0.6, metalness: 0.3 }), SEG.bigDisc), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050608, { roughness: 0.9 }), SEG.bigDisc));
     if (has('video')) {
       // combed out of sight: from the monitor's back (its plug is built in), behind the stand, down through the keyboard's grommet by the wall
       // (room3d.ts: the keyboard sits at MONITOR_Z + 3600), along under the top (over the tray) and up through the desk's grommet behind the
@@ -787,8 +787,8 @@ export class Machine3D {
     if (this.key) { this.wires.remove(this.key.g); disposeTree(this.key.g); this.key = null; }
     if (id === null) return;
     const g = tag(new Group(), 'key:' + id), y = USB_PORT.y + USB_PORT.h / 2, z = BOARD_Z + 600;
-    g.add(rectBox({ x: USB_PORT.x - 760, y: y - 115, w: 560, h: 230 }, z - 60, z + 60, mat(0x2a2d34, { roughness: 0.45 })));
-    g.add(rectBox({ x: USB_PORT.x - 200, y: y - 60, w: 200, h: 120 }, z - 40, z + 40, mat(0xb9bec6, { metalness: 0.7, roughness: 0.3 })));
+    g.add(rectBox({ x: USB_PORT.x - 760, y: y - 115, w: 560, h: 230 }, z - 60, z + 60, mat(0x2a2d32, { roughness: 0.45 })));
+    g.add(rectBox({ x: USB_PORT.x - 200, y: y - 60, w: 200, h: 120 }, z - 40, z + 40, mat(0xb9babf, { metalness: 0.7, roughness: 0.3 })));
     this.wires.add(g);
     this.key = { id, g };
   }

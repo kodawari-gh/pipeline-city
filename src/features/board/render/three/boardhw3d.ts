@@ -102,8 +102,8 @@ function barrel(x0: number, x1: number, y: number, z: number, r: number, m: Mate
 export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }): { root: Group; glow: MeshStandardMaterial | null } {
   const sk = skinOf(GEO.tier), tier = GEO.tier, io = tag(new Group(), 'io'), ir = GEO.io, x0 = ir.x + WALL_T, xs = IO_X0(), xb = IO_XB(), Z = BOARD_Z;
   let glow: MeshStandardMaterial | null = null;
-  const steelM = mat(0x8a9099, { metalness: 0.7, roughness: 0.42 }), plastic = mat(0x111215, { roughness: 0.55 }), dark = mat(0x23272d, { metalness: 0.5, roughness: 0.5 });
-  const shellM = { steel: steelM, plastic, gold: mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 }) };
+  const steelM = mat(0x959aa3, { metalness: 0.7, roughness: 0.42 }), plastic = mat(0x131518, { roughness: 0.55 }), dark = mat(0x2a2d32, { metalness: 0.5, roughness: 0.5 });
+  const shellM = { steel: steelM, plastic, gold: mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 }) };
   const shells = ioShells(feat, tier), stacks = ioStacks(shells.filter((s) => s.m !== 'gold'));
   const bare = sk.ioCover === 'bare', into = bare ? x0 + 8 : x0 + 6;
   // the shells through the wall, from the shield's back to the housing (or the cover) inside; the RJ45's a hollow sleeve round the jack's
@@ -141,7 +141,7 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
     for (const st of stacks) if (st.top > H - 30) housing(st, H - 40);
     const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
     for (let y = ir.y + 140; y < ir.y + ir.h * (armour ? 0.3 : 1) - 140; y += 64) vents.push({ x: x0 + body.w * 0.45, y: -y, z: H, sx: body.w * 0.5, sy: 24, sz: 10 });
-    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07080c, { roughness: 0.7 }), vents));
+    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x050608, { roughness: 0.7 }), vents));
     if (armour) {
       const plate = { x: x0 + 24, y: ir.y + ir.h * 0.3, w: body.w - 48, h: ir.h * 0.7 - 60 };
       io.add(slab(shapeOf(outlinePts(plate, 0, [60, 60, 60, 60])), H - 4, H + 26, mat(hexNum(sk.insert ?? '#7d838d'), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 1, 6) }), 6));
@@ -153,17 +153,17 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
     shells.filter((s) => s.m === 'gold').forEach((s, i) => {
       const y = (s.y0 + s.y1) / 2, z = (s.z0 + s.z1) / 2, xe = x0 + 90 + i * 60;
       io.add(barrel(xs, x0 + 24, y, z, (s.y1 - s.y0) / 2, shellM.gold, SEG.chipRound), barrel(x0, x0 + 22, y, z, 26, steelM, SEG.hexNut));
-      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, SEG.cornerMid), 9, mat(0x1a1b1f, { roughness: 0.6 }), SEG.frameBar));
+      io.add(tube(rounded([[x0 + 20, -y, z], [xe, -y, z], [xe, -y, H - 10]], 50, SEG.cornerMid), 9, mat(0x1d1e22, { roughness: 0.6 }), SEG.frameBar));
     });
   }
-  if (pins.length) io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xc9ccd2, { metalness: 0.8, roughness: 0.3 }), pins));
+  if (pins.length) io.add(instanced(new BoxGeometry(1, 1, 1), mat(0xb9babf, { metalness: 0.8, roughness: 0.3 }), pins));
   return { root: io, glow };
 }
 
 /** The hardware round the sockets that the flat drawing cannot show: a steel armour round the PCIe slots the skin armours, the retention latch at each slot's far end, and the CPU socket's load frame and lever. */
 export function slotHardware(): Group {
   const g = new Group();
-    const sk = skinOf(GEO.tier), latchM = mat(hexNum(sk.latch), { roughness: 0.5 }), steel = mat(0x8a929c, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
+    const sk = skinOf(GEO.tier), latchM = mat(hexNum(sk.latch), { roughness: 0.5 }), steel = mat(0x959aa3, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
     PCIE_RAILS.forEach((r, i) => {
       // the armour: a thin steel wall round the slot's sides, a little proud of it, its top edge rolled; the latch stands at the east end
       const t = 10, z0 = BOARD_Z + 10, z1 = BOARD_Z + 152;

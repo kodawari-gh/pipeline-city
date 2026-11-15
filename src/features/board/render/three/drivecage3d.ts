@@ -91,8 +91,8 @@ function ssdScrews(): { x: number; z: number }[] {
  * fixings its drive takes: the SSD's four screws under the floor.
  */
 export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): Group {
-  const g = new Group(), steel = mat(TRAY_TONE[kind], sheet(kind)), rubber = mat(0x101113, { roughness: 0.9 });
-  const pinM = mat(0xb9bec4, { metalness: 0.88, roughness: 0.3 }), latch = mat(0x141518, { roughness: 0.55 });
+  const g = new Group(), steel = mat(TRAY_TONE[kind], sheet(kind)), rubber = mat(0x131518, { roughness: 0.9 });
+  const pinM = mat(0xb9babf, { metalness: 0.88, roughness: 0.3 }), latch = mat(0x131518, { roughness: 0.55 });
   const { w: W, l: L, floor: F, rail: R, railH: H, handleH: HH } = TRAY;
   // the floor: the SSD's screw holes stay (real fixings); the two air windows and the row of slots by each rail are perforated sheets
   const holes = ssdScrews().map((s) => hole(s.x, s.z, 1.8 * MM));
@@ -115,7 +115,7 @@ export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): 
   g.add(slab(shapeOf(xy(0, 0, W, HH, 30), [xy(W / 2 - 420, 120, W / 2 + 420, 245, 62)]), L - 26, L, steel, 4));
   g.add(box(W - 430, W - 90, 60, 270, L, L + 22, latch));
   g.add(instanced(new CylinderGeometry(9, 9, 160, SEG.rod), latch, [0, 1, 2, 3].map((i) => ({ x: W - 380 + i * 80, y: 165, z: L + 26 }))));
-  if (fitted === 'ssd') g.add(screws(ssdScrews().map((s): Spot => ({ x: s.x, y: 0, z: s.z })), 'y-', 2.4 * MM, mat(0x2b2e33, { metalness: 0.7, roughness: 0.4 })));
+  if (fitted === 'ssd') g.add(screws(ssdScrews().map((s): Spot => ({ x: s.x, y: 0, z: s.z })), 'y-', 2.4 * MM, mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 })));
   return g;
 }
 

@@ -49,7 +49,7 @@ export function basementPlan(): BasementPlan {
  * (its edge folded down, the hub and the basement's cage under it) and the shroud's east wall, slotted so the front fans' air reaches the supply. On the
  * floor, the strips the supply stands on.
  */
-export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2b3142, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 })): Group {
+export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2a2d32, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 })): Group {
   const g = new Group(), m = mat(look.body, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
   const bg = `#${look.body.toString(16).padStart(6, '0')}`;
   // one hole method: the plate stays whole; its cable and vent openings are perforated sheets on a dark backing (casekit3d `perforatedFlat`)
@@ -68,7 +68,7 @@ export function shroud(p: BasementPlan, look: { body: number; ink: string } = { 
   const panel = tag(new Group(), 'psu');
   panel.name = PSU_COVER;
   panel.add(softBox(west, zf - 40, zf, m, 8));
-  const knurl = mat(0x8e949c, { metalness: 0.75, roughness: 0.38 }), tx = west.x + west.w - 170;
+  const knurl = mat(0x959aa3, { metalness: 0.75, roughness: 0.38 }), tx = west.x + west.w - 170;
   panel.add(thumbscrews([west.y + 170, west.y + west.h - 170].map((y) => ({ x: tx, y: -y, z: zf + 2 })), 'z+', 80, 48, knurl));
   panel.add(screws([west.y + 110, west.y + west.h - 110].map((y) => ({ x: west.x + 110, y: -y, z: zf + 2 })), 'z+', 48, screw));
   const W = 1024, H = Math.max(64, Math.round((W * west.h) / west.w));
@@ -102,7 +102,7 @@ export function shroud(p: BasementPlan, look: { body: number; ink: string } = { 
   g.add(wallX(p.east - 40, p.east, { y0: p.top, y1: p.floor, z0: zb, z1: zf }, slots, m));
 
   // the rubber strips under the power supply, either side of its fan
-  const u = p.psu, rubber = mat(0x0b0b0d, { roughness: 0.92 });
+  const u = p.psu, rubber = mat(0x050608, { roughness: 0.92 });
   for (const z of [u.z0 + 60, u.z1 - 200]) g.add(rectBox({ x: u.x + 90, y: u.y + u.h, w: u.w - 180, h: PSU_FEET }, z, z + 140, rubber));
   return g;
 }

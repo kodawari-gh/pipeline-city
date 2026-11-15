@@ -156,9 +156,9 @@ function polyCap(u: Group, x: number, y: number, zu: number, r: number, h: numbe
  * the regulator and its inductors and capacitors, the passives, the MAC label and the mask. `inX`: the bracket's inner face.
  */
 export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number, cu: NicCopper): void {
-  const steel = mat(0x9ea5ae, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xc4c9d0, { metalness: 0.9, roughness: 0.32 });
+  const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 });
   const M: JackMats = {
-    steel, plastic: mat(0x0f1013, { roughness: 0.62 }), back: mat(0x24262b, { roughness: 0.6 }), gold: springGold(),
+    steel, plastic: mat(0x131518, { roughness: 0.62 }), back: mat(0x2a2d32, { roughness: 0.6 }), gold: springGold(),
     green: mat(0x2f8a52, { emissive: 0x5cff9a, emissiveIntensity: 0.55, roughness: 0.3 }), amber: mat(0x8a6420, { emissive: 0xffc247, emissiveIntensity: 0.4, roughness: 0.3 }),
   };
   const ys = jacksOf(visual, f.y0);
@@ -193,7 +193,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
       fins.push({ x: (a + b) / 2, y, z: (b1 + zu + SINK_H) / 2, sx: b - a, sy: 0.9 * MM, sz: zu + SINK_H - b1 });
     }
     u.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
-    const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xa9b0b9, { metalness: 0.85, roughness: 0.3 });
+    const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
       u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
       const coil: [number, number, number][] = [];
@@ -207,7 +207,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
   soic8(u, a.flash, zu, ['25Q32JV', 'SIQ 2240'], tin);
   pkg(u, U(a.reg), zu, 0.85 * MM, ['PL3A']);
   a.inductors.forEach((r, k) => inductor(u, U(r), zu, 2 * MM, k ? '1R0' : 'R47'));
-  const capMs = { seat: mat(0x101114, { roughness: 0.6 }), sleeve: mat(0x2b2350, { roughness: 0.45, metalness: 0.2 }), can: mat(0xc9ced5, { metalness: 0.85, roughness: 0.3 }), vent: mat(0x6c727b, { metalness: 0.6, roughness: 0.5 }) };
+  const capMs = { seat: mat(0x131518, { roughness: 0.6 }), sleeve: mat(0x16294d, { roughness: 0.45, metalness: 0.2 }), can: mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }), vent: mat(0x4e5360, { metalness: 0.6, roughness: 0.5 }) };
   for (const c of a.cans) polyCap(u, c.x, c.y, zu, c.r, 5.8 * MM, capMs);
   parts.push({ r: a.crystal, ref: 'Y1' }, { r: a.flash, ref: 'U2' }, { r: a.reg, ref: 'U3' }, ...a.inductors.map((r, k) => ({ r, ref: `L${k + 1}` })), ...a.cans.map((c) => ({ r: { x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }, ref: c.ref })));
   // the passives on this face: the crystal's load capacitors, the lights' resistors, the flash's and the regulator's capacitors, a BGA's row by
@@ -259,9 +259,9 @@ export function nicBack(g: Group, visual: string, f: CardFrame, Z: number, cu: N
   g.add(tabMask(cu, f, 'bottom', Z - 1));
   passives(g, cu.parts.filter((p) => p.face === 'bottom').map((p): Passive => ({ x: p.x, y: p.y, pkg: p.pkg, kind: p.kind, turn: p.turn })), Z);
   // the through-hole pins' tails cut short in their solder: a fillet over each ring climbing to its rounded tip, sized to the ring
-  g.add(instanced(solderFillet(), mat(0xb9bec6, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
+  g.add(instanced(solderFillet(), mat(0xb9babf, { metalness: 0.92, roughness: 0.22 }), cu.holes.map((h) => ({ x: h.x, y: -h.y, z: Z, sx: h.ring / 16, sy: h.ring / 16 }))));
   // the jacks' plastic pegs, split, just through the board; a BGA's push pins' barbed tips, split, through the sink's corners
-  const C = CTRL[visual] ?? CTRL['nic-gbe']!, peg = mat(0x121316, { roughness: 0.6 }), slit = mat(0x050506, { roughness: 0.9 });
+  const C = CTRL[visual] ?? CTRL['nic-gbe']!, peg = mat(0x131518, { roughness: 0.6 }), slit = mat(0x050608, { roughness: 0.9 });
   const sinkPins = a.sink ? cu.npth.slice(-2) : [];
   for (const h of cu.npth) {
     const pin = sinkPins.includes(h), m = pin ? mat(C.pinHex, { roughness: 0.55 }) : peg, r = h.r - 0.15 * MM, t = (pin ? 1.2 : 0.8) * MM;

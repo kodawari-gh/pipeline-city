@@ -28,10 +28,10 @@ import { CHIP_H, buildSolids } from './solids3d';
 import { atxSocket, epsSocket, sataPort } from './wires3d';
 
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-const gold = () => mat(0xd9b25e, { metalness: 1, roughness: 0.25 });
+const gold = () => mat(0xd4af5f, { metalness: 1, roughness: 0.25 });
 /** A lamp lit as a running board shows it; `lamps` gets its light, which a live machine drives with its power. */
 function lamp(lamps: Spin[], color: number, k = 2.2): MeshStandardMaterial {
-  const m = mat(0x101010, { emissive: color, emissiveIntensity: k, roughness: 0.35 });
+  const m = mat(0x131518, { emissive: color, emissiveIntensity: k, roughness: 0.35 });
   lamps.push(light(m, color, k));
   return m;
 }
@@ -53,26 +53,26 @@ export function pcieSlot(r: RectLike, body: Material): Group {
 
 /** The top board's POST code display (`GEO.dbg`): a black housing, a smoked window, two seven-segment digits reading A0 (boot done) in the theme's amber. */
 function debugDisplay(d: RectLike, T: Theme, lamps: Spin[]): Group {
-  const g = new Group(), top = BOARD_Z + 90, on = lamp(lamps, hexNum(T.ld), 1.1), off = mat(0x1a0f08, { roughness: 0.5 });
-  g.add(softBox(d, BOARD_Z, top, mat(0x05070b, { roughness: 0.45 }), 8));
+  const g = new Group(), top = BOARD_Z + 90, on = lamp(lamps, hexNum(T.ld), 1.1), off = mat(0x131518, { roughness: 0.5 });
+  g.add(softBox(d, BOARD_Z, top, mat(0x050608, { roughness: 0.45 }), 8));
   // the segments as the 2D lays them (`[x, y, w, h]` in a digit's cell): top, middle, bottom, upper left, upper right, lower left, lower right
   const seg = [[10, 10, 70, 10], [10, 70, 70, 10], [10, 130, 70, 10], [4, 18, 10, 50], [74, 18, 10, 50], [4, 78, 10, 50], [74, 78, 10, 50]] as const;
   const lit = [[1, 1, 0, 1, 1, 1, 1], [1, 0, 1, 1, 1, 1, 1]]; // A, 0
   for (let k = 0; k < 2; k++) seg.forEach(([a, b, w, h], i) => g.add(rectBox({ x: d.x + 24 + k * 134 + a, y: d.y + 14 + b * 0.82, w, h }, top, top + 3, lit[k]![i] ? on : off)));
-  g.add(rectBox(grow(d, -8), top + 4, top + 6, mat(0x202020, { transparent: true, opacity: 0.18, roughness: 0.1, metalness: 0.2 })));
+  g.add(rectBox(grow(d, -8), top + 4, top + 6, mat(0x1d1e22, { transparent: true, opacity: 0.18, roughness: 0.1, metalness: 0.2 })));
   return g;
 }
 
 /** The top board's RGB strip along its south edge (`GEO.rgb`): 44 LEDs fading from the theme's teal to its pink under a frosted light pipe. */
 function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
   const g = new Group(), n = 44, a = hexNum(T.alu), b = hexNum(T.br), y = r.y + r.h / 2;
-  g.add(softBox(r, BOARD_Z, BOARD_Z + 18, mat(0x0b0d12, { roughness: 0.6 }), 6));
+  g.add(softBox(r, BOARD_Z, BOARD_Z + 18, mat(0x131518, { roughness: 0.6 }), 6));
   for (let k = 0; k < n; k++) {
     const x = r.x + (k * r.w) / (n - 1);
     g.add(rectBox({ x: x - 12, y: y - 12, w: 24, h: 24 }, BOARD_Z + 18, BOARD_Z + 26, lamp(lamps, lerpHex(a, b, k / (n - 1)), 1.4)));
   }
   // (a dark smoked pipe: a pale one turns every LED white)
-  g.add(softBox(grow(r, -4), BOARD_Z + 26, BOARD_Z + 44, mat(0x30343c, { transparent: true, opacity: 0.22, roughness: 0.3 }), 8));
+  g.add(softBox(grow(r, -4), BOARD_Z + 26, BOARD_Z + 44, mat(0x2a2d32, { transparent: true, opacity: 0.22, roughness: 0.3 }), 8));
   return g;
 }
 
@@ -93,7 +93,7 @@ export interface Board3D {
 export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?: ReadonlySet<string>; feat?: IoFeatures } = {}): Board3D {
   const g = new Group(), small = new Group(), sk = skinOf(tier), solids: Solid[] = [], sockets = new Map<string, Object3D>(), lights: Spin[] = [];
   const filled = o.filled ?? new Set<string>();
-  const slot = mat(hexNum(sk.slot), { roughness: 0.5 }), socket = mat(0x1a1d24, { roughness: 0.5 }), chip = mat(0x14161b, { roughness: 0.5 });
+  const slot = mat(hexNum(sk.slot), { roughness: 0.5 }), socket = mat(0x1d1e22, { roughness: 0.5 }), chip = mat(0x131518, { roughness: 0.5 });
   // the drawing, and its far picture for the coarsest level (each lane a wider band: a thin trace would be lost); the drawers report the solids
   const draw = art.baker(() => buildBoard(T, tier, (x) => solids.push(x)).root), far = art.baker(() => buildBoard(T, tier, undefined, true).root);
   const up = art.raise(draw);
@@ -123,7 +123,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   if (pch.glow) lights.push(light(pch.glow));
   for (const r of GEO.sata) g.add(sataPort(r));
   // the regulators: each phase's choke and power stage, the CPU's and the memory's in their own groups (each is picked as one)
-  const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2b2f38, { metalness: 0.35, roughness: 0.45 });
+  const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2a2d32, { metalness: 0.35, roughness: 0.45 });
   const inside = (rs: readonly RectLike[], x: number, y: number) => rs.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
   for (const p of solids) if (p.kind === 'choke' || p.kind === 'stage') {
     const ch = p.kind === 'choke', at = inside(GEO.vrmPhases, p.x, p.y) ? vrm : inside(GEO.dPhases, p.x, p.y) ? vrm2 : g;
@@ -131,7 +131,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   }
   g.add(vrm, vrm2, slotHardware());
   // the small parts: the controllers, the crystals (metal cans), the header bodies and the solids
-  const can = mat(0xa9b0b8, { metalness: 0.8, roughness: 0.3 });
+  const can = mat(0xb9babf, { metalness: 0.8, roughness: 0.3 });
   for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy]) if (r) up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);
   for (const r of [GEO.xtalCpu, GEO.xtalPch]) up(small, r, BOARD_Z, BOARD_Z + 60, can, 12);
   for (const h of GEO.hdrs) up(small, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);

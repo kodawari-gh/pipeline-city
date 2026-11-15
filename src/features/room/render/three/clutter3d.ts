@@ -58,7 +58,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
 
   // ---- the backpack: set down by the drawer unit, its back to it, leant back on it; a front pocket, the zips round the top and across the
   // pocket, a grab loop, the shoulder straps on its back from the top to the bottom corners ----
-  const pack = new Group(), canvas = cloth(0xffffff, { map: weave('#343b47', { repeat: [3, 4] }) }), black = mat(0x141517, { roughness: 0.6 });
+  const pack = new Group(), canvas = cloth(0xffffff, { map: weave('#343b47', { repeat: [3, 4] }) }), black = mat(0x131518, { roughness: 0.6 });
   const body = bag({ w: 150, h: 430, front: 85, back: 55, sag: 14 }), pocket = bag({ w: 110, h: 190, front: 38, back: 5, sag: 0 });
   const sewn = (f: BagForm) => { const o = place(new Mesh(healNormals(new ParametricGeometry((u: number, v: number, out: Vector3) => bagAt(f, u * Math.PI * 2, -Math.PI / 2 + Math.PI * v, out), 48, 32), 49), canvas)); o.scale.setScalar(MM); return o; };
   const front = sewn(pocket);
@@ -87,7 +87,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
 
   // ---- the power strip in the cable tray: four plugs, their leads up into the grommet's sleeve; its own lead out of the tray's back and down
   // the wall to a socket over the skirting ----
-  const t = TRAY, base = under + t.drop + t.h - 60, shell = mat(0x1d1e21, { roughness: 0.45 }), lead = mat(0x141517, { roughness: 0.55 });
+  const t = TRAY, base = under + t.drop + t.h - 60, shell = mat(0x1d1e22, { roughness: 0.45 }), lead = mat(0x131518, { roughness: 0.55 });
   const sl = 330 * MM, sw = 55 * MM, sh = 45 * MM, sx = grommet.x - 1200, sz = (t.z0 + t.z1) / 2 - sw / 2, mid = sz + sw / 2;
   g.add(softBox({ x: sx, y: base - sh, w: sl, h: sh }, sz, sz + sw, shell, 200));
   for (let k = 0; k < 4; k++) {
@@ -101,7 +101,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   const path: [number, number, number][] = [[sx, base - sh / 2, mid], [sx - 600, base - 75, mid], [wx, base - 75, t.z0 + 260], [wx, ry, t.z0 + 260], [wx, ry, 200], [wx, sockY - 1000, 200], [wx, sockY - 400, 380]];
   g.add(tube(rounded(path.map(([x, y, z]) => [x, -y, z] as const), 250), 70, lead, SEG.cord));
   // the socket: a flat plate on the wall, its outlet, the plug in it
-  g.add(softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x23262b, { roughness: 0.3 }), 40), drum(wx, sockY, 80, 100, 380, mat(0x15161a, { roughness: 0.6 }), SEG.disc));
+  g.add(softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x2a2d32, { roughness: 0.3 }), 40), drum(wx, sockY, 80, 100, 380, mat(0x131518, { roughness: 0.6 }), SEG.disc));
   g.add(softBox({ x: wx - 300, y: sockY - 400, w: 600, h: 800 }, 100, 660, shell, 100));
 
   // ---- books: two on the bench by the glass ----

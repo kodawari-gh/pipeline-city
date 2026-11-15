@@ -110,7 +110,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
   g.add(padRing(X1, cy, z1, 40, 64, true), padRing(X1, cy, z0, 40, 64, true, true));
 
   // the screw through the notch into the standoff: an M2 pan head, 4 mm across
-  g.add(screws([{ x: X1, y: -cy, z: z1 }], 'z+', 46, mat(0xaab1bb, { metalness: 0.9, roughness: 0.3 })));
+  g.add(screws([{ x: X1, y: -cy, z: z1 }], 'z+', 46, mat(0xb9babf, { metalness: 0.9, roughness: 0.3 })));
 
   if (look.heatsink) return heatsink(g, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
   // the label, over the DRAM and the NAND to short of the notch, draped over them
@@ -131,9 +131,9 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
  */
 function heatsink(g: Group, X0: number, X1: number, Y0: number, Y1: number, zc: number, look: NvmeLook): MeshStandardMaterial {
   const hs = { x: X0 + 6.6 * MM, y: Y0 - 21, w: X1 - 3.8 * MM - (X0 + 6.6 * MM), h: Y1 - Y0 + 42 };
-  const anod = mat(0x1c1e23, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 5, 1) });
+  const anod = mat(0x1d1e22, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 5, 1) });
   const zb0 = zc + 12, zb1 = zb0 + 28, zt = NVME_Z.sink;
-  g.add(rectBox({ x: hs.x + 12, y: Y0 + 14, w: hs.w - 24, h: Y1 - Y0 - 28 }, zc, zb0, mat(0x8f99a6, { roughness: 0.92 })));
+  g.add(rectBox({ x: hs.x + 12, y: Y0 + 14, w: hs.w - 24, h: Y1 - Y0 - 28 }, zc, zb0, mat(0x959aa3, { roughness: 0.92 })));
   g.add(slab(shapeOf(outlinePts(hs, 0, [23, 23, 23, 23])), zb0, zb1, anod, 5));
   for (const y of [hs.y, Y1]) g.add(slab(shapeOf(outlinePts({ x: hs.x + 23, y, w: hs.w - 46, h: 21 }, 4)), NVME_Z.pcb, zb0 + 2, anod, 2));
   // the fins, 0.8 mm on a 1.9 mm pitch, either side of the plateau

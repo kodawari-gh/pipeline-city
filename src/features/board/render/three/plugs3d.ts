@@ -110,8 +110,8 @@ function keyed(p: Path, w: number, h: number, c: number): Path {
  */
 export function hdmiPlug(f: HdmiFit): { body: Group; l: number } {
   const { k, tip, cable } = f, b = bootScale(k, cable, HDMI.boot.h, 0.68), l = HDMI.l * b, g = new Group();
-  const nickel = mat(0xc6cad0, { metalness: 0.9, roughness: 0.26 }), black = mat(0x0a0b0d, { roughness: 0.7 }), boot = mat(0x1b1d21, { roughness: 0.5 });
-  const goldM = mat(0xd9b25e, { metalness: 0.9, roughness: 0.3 });
+  const nickel = mat(0xb9babf, { metalness: 0.9, roughness: 0.26 }), black = mat(0x050608, { roughness: 0.7 }), boot = mat(0x1d1e22, { roughness: 0.5 });
+  const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
   const zf = -l - HDMI.in * k, zs = -l + 3 * b, t = Math.max(2, 0.3 * k), iw = tip.w - 2 * t, ih = tip.h - 2 * t;
   // the shell, from its open front to inside the boot
   const out = keyed(new Shape(), tip.w, tip.h, tip.cut) as Shape;
@@ -154,7 +154,7 @@ const PAIRS = [0xf0d7bd, 0xe8772b, 0xd3e8cf, 0x2f63c8, 0xd2dbf1, 0x3a9a4a, 0xe3d
 export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   const { k, body: B, latch, cable } = f, b = bootScale(k, cable, RJ45.boot.h, 0.62), l = RJ45.l * b, g = new Group();
   const clear = mat(0xdce6ec, { transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0 }), lever = mat(0xcfdbe2, { transparent: true, opacity: 0.6, roughness: 0.15 });
-  const goldM = mat(0xd9b25e, { metalness: 0.9, roughness: 0.3 }), boot = mat(f.tone, { roughness: 0.55 });
+  const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 }), boot = mat(f.tone, { roughness: 0.55 });
   const zf = -l - RJ45.in * k, zb = -l + RJ45.out * b, hy = B.h / 2;
   // the wires and the jacket inside first (the clear body over them draws after)
   const pitch = Math.min(1.02 * k, B.w / 11), wr = Math.min(0.35 * k, pitch * 0.42), jr = Math.min(cable, hy - 0.6 * k), wy = hy - 2.5 * k;

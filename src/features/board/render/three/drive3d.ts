@@ -65,14 +65,14 @@ export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: n
 export function bores(spots: readonly Spot[], f: Facing, r: number): Group {
   const g = new Group();
   if (!spots.length) return g;
-  g.add(instanced(turned(new CircleGeometry(r * 1.3, SEG.roundCap).translate(0, 0, 0.4), f), mat(0x5a6067, { metalness: 0.6, roughness: 0.5 }), spots));
-  g.add(instanced(turned(new CircleGeometry(r, SEG.roundCap).translate(0, 0, 0.8), f), mat(0x060708, { roughness: 0.9 }), spots));
+  g.add(instanced(turned(new CircleGeometry(r * 1.3, SEG.roundCap).translate(0, 0, 0.4), f), mat(0x4e5360, { metalness: 0.6, roughness: 0.5 }), spots));
+  g.add(instanced(turned(new CircleGeometry(r, SEG.roundCap).translate(0, 0, 0.8), f), mat(0x050608, { roughness: 0.9 }), spots));
   return g;
 }
 
 /** The receptacle's parts: the black body, the dark of its mouth, the gold contacts. */
 interface SocketMats { body: Material; dark: Material; gold: Material }
-const socketMats = (): SocketMats => ({ body: mat(0x16171a, { roughness: 0.5 }), dark: mat(0x050506, { roughness: 0.9 }), gold: gold() });
+const socketMats = (): SocketMats => ({ body: mat(0x131518, { roughness: 0.5 }), dark: mat(0x050608, { roughness: 0.9 }), gold: gold() });
 
 /** A receptacle's width: 7 (data) or 15 (power) contacts at 1.27 mm, and its walls. */
 const socketW = (pins: 7 | 15) => m(pins * 1.27 + (pins === 7 ? 1.5 : 3.55));
@@ -96,9 +96,9 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
 /** The 3.5 in. hard disk (see the header). */
 export function hddModel(look: DriveLook): DriveModel {
   const g = new Group(), W = m(HDD_MM.w), T = m(HDD_MM.t), L = m(HDD_MM.l), top = T - m(0.8), r = m(2.2);
-  const cast = mat(0x8e949b, { metalness: 0.72, roughness: 0.52 });
+  const cast = mat(0x959aa3, { metalness: 0.72, roughness: 0.52 });
   const cover = mat(0xd5d9dd, { metalness: 0.92, roughness: 0.27, map: tiled(brushed(), 2, 3) });
-  const screwM = mat(0x2b2e33, { metalness: 0.7, roughness: 0.4 }), s = socketMats();
+  const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 }), s = socketMats();
   // the casting: its lower part round the receptacles' pocket, its upper part whole, its sides down to the rails it stands on
   const pocket = { x0: m(6), x1: m(52), d: m(6.8) }, pocketTop = m(8.2), foot = m(1.8);
   g.add(flat(pocketed(W, L, r, pocket), foot, pocketTop, cast, m(0.15)), flat(xz(0, 0, W, L, r), pocketTop, top, cast, m(0.45)));
@@ -112,15 +112,15 @@ export function hddModel(look: DriveLook): DriveModel {
   g.add(decalTop(-(T + 0.8), lab.x0, lab.x1, lab.z0, lab.z1, decalMat(hddLabel(look, lw, lh, { u: (spin.x - lab.x0) / MM, v: (spin.z - lab.z0) / MM, r: 4.4 }), { rough: 0.62, cut: true })));
   const rim: Spot[] = [[m(4.0), m(4.6)], [W - m(4.0), m(4.6)], [m(4.0), L - m(4.2)], [W - m(4.0), L - m(4.2)], [m(4.0), L * 0.47], [W - m(4.0), L * 0.53], [W / 2, L - m(4.2)]].map(([x, z]) => ({ x: x!, y: T, z: z! }));
   g.add(screws(rim, 'y+', m(1.8), screwM), screws([{ x: spin.x, y: T + 3, z: spin.z }], 'y+', m(2.7), screwM), screws([{ x: pivot.x, y: T, z: pivot.z }], 'y+', m(2.3), screwM));
-  g.add(place(new Mesh(new CylinderGeometry(m(3.3), m(3.3), 3, SEG.drum).translate(spin.x, T + 1.5, spin.z), mat(0xbfc4c9, { metalness: 0.9, roughness: 0.3 }))));
+  g.add(place(new Mesh(new CylinderGeometry(m(3.3), m(3.3), 3, SEG.drum).translate(spin.x, T + 1.5, spin.z), mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }))));
   g.add(bores([{ x: m(12), y: T, z: m(9) }], 'y+', m(0.8)));
   // the threaded holes along each side, 6.35 mm up
   const sides = [28.5, 70.1, 130.1].map((f) => L - m(f));
   g.add(bores(sides.map((z) => ({ x: -0.4, y: m(6.35), z })), 'x-', m(1.75)), bores(sides.map((z) => ({ x: W + 0.4, y: m(6.35), z })), 'x+', m(1.75)));
   // its board on the underside, screwed into the casting, the spindle motor's boss beside it
-  g.add(flat(xz(m(5.2), m(1.0), W - m(5.2), m(81), m(1.6)), m(0.5), foot, mat(0x12301f, { roughness: 0.55, metalness: 0.1 }), m(0.2)));
+  g.add(flat(xz(m(5.2), m(1.0), W - m(5.2), m(81), m(1.6)), m(0.5), foot, mat(0x173d29, { roughness: 0.55, metalness: 0.1 }), m(0.2)));
   g.add(screws([[m(8), m(6)], [W - m(8), m(6)], [m(8), m(77)], [W - m(8), m(77)], [W / 2, m(44)]].map(([x, z]) => ({ x: x!, y: m(0.5), z: z! })), 'y-', m(1.6), screwM));
-  g.add(place(new Mesh(new CylinderGeometry(m(13), m(13.6), m(1.3), SEG.drum).translate(spin.x, foot - m(0.65), spin.z), mat(0xaeb3b8, { metalness: 0.85, roughness: 0.35 }))));
+  g.add(place(new Mesh(new CylinderGeometry(m(13), m(13.6), m(1.3), SEG.drum).translate(spin.x, foot - m(0.65), spin.z), mat(0xb9babf, { metalness: 0.85, roughness: 0.35 }))));
   // the receptacles in the pocket: power, then data, then the jumper pins
   const y0 = m(2.4), power = receptacle(g, 15, m(8.2), y0, s), dx = m(8.2) + socketW(15) + m(1.9), data = receptacle(g, 7, dx, y0, s);
   const jx = dx + socketW(7) + m(1.6);
@@ -134,11 +134,11 @@ export function hddModel(look: DriveLook): DriveModel {
 /** The 2.5 in. SSD (see the header). */
 export function ssdModel(look: DriveLook): DriveModel {
   const g = new Group(), W = m(SSD_MM.w), T = m(SSD_MM.t), L = m(SSD_MM.l), r = m(1.8), s = socketMats();
-  const base = mat(0x1c1e22, { roughness: 0.62, metalness: 0.25 }), shell = mat(0x464b53, { metalness: 0.8, roughness: 0.46 });
+  const base = mat(0x1d1e22, { roughness: 0.62, metalness: 0.25 }), shell = mat(0x4e5360, { metalness: 0.8, roughness: 0.46 });
   // the base and the shell over it meet at a seam 3 mm up; both are cut round the receptacles' pocket, the shell closes over it
   const pocket = { x0: m(5), x1: m(43), d: m(5.6) }, seam = m(3), roof = m(6.2);
   const e = m(0.4), seamPts = pocketed(W - 2 * e, L - 2 * e, r, { x0: pocket.x0 - e, x1: pocket.x1 - e, d: pocket.d - e }).map((v) => new Vector2(v.x + e, v.y + e));
-  g.add(flat(pocketed(W, L, r, pocket), 0, seam, base, m(0.2)), flat(seamPts, seam, seam + 2, mat(0x0a0b0d, { roughness: 0.8 })));
+  g.add(flat(pocketed(W, L, r, pocket), 0, seam, base, m(0.2)), flat(seamPts, seam, seam + 2, mat(0x050608, { roughness: 0.8 })));
   g.add(flat(pocketed(W, L, r, pocket), seam + 2, roof, shell, m(0.2)), flat(xz(0, 0, W, L, r), roof, T, shell, m(0.55)));
   // the label on top, the holes along its sides (3 mm up) and under it
   g.add(decalTop(-(T + 0.6), m(3.2), W - m(3.2), m(5), L - m(5), decalMat(ssdLabel(look, SSD_MM.w - 6.4, SSD_MM.l - 10), { rough: 0.5, cut: true })));
@@ -159,7 +159,7 @@ export function drivePlug(power: boolean, at: V3, tone: number): { root: Group; 
   const g = new Group(), [x, y, z] = at, w = m(power ? 23.4 : 11.2), h = m(5.6), L = m(power ? 13 : 12), body = mat(tone, { roughness: 0.5 });
   g.add(softBox({ x: x - w / 2, y: -(y + h / 2), w, h }, z - L, z - m(0.1), body, m(0.7)));
   g.add(instanced(new BoxGeometry(w - m(3), m(0.45), m(0.6)), body, [0, 1, 2].map((i) => ({ x, y: y + h / 2 + m(0.15), z: z - L + m(2.2) + i * m(1.6) }))));
-  if (!power) g.add(box(x - m(2.4), x + m(2.4), y + h / 2, y + h / 2 + m(0.8), z - m(8.5), z - m(1.5), mat(0x9a9fa6, { metalness: 0.85, roughness: 0.32 })));
+  if (!power) g.add(box(x - m(2.4), x + m(2.4), y + h / 2, y + h / 2 + m(0.8), z - m(8.5), z - m(1.5), mat(0x959aa3, { metalness: 0.85, roughness: 0.32 })));
   return { root: g, end: { at: [x, y, z - L], dir: [0, 0, -1] } };
 }
 

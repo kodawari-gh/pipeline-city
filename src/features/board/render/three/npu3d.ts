@@ -45,7 +45,7 @@ export function npuPlan(f: CardFrame) {
  * sticker on it, a ring tying the blades' tops at the intake. Turns about its z.
  */
 function impeller(r: number, h: number): Group {
-  const rotor = new Group(), discM = mat(0x15171b, { roughness: 0.5 }), bladeM = mat(0x1c1e23, { roughness: 0.44, side: DoubleSide }), hubM = mat(0x1a1c20, { roughness: 0.42 });
+  const rotor = new Group(), discM = mat(0x131518, { roughness: 0.5 }), bladeM = mat(0x1d1e22, { roughness: 0.44, side: DoubleSide }), hubM = mat(0x1d1e22, { roughness: 0.42 });
   const t = 0.8 * MM;
   rotor.add(place(new Mesh(new CylinderGeometry(r * 0.99, r * 0.99, t, fanSides(2 * r / MM)).rotateX(Math.PI / 2).translate(0, 0, t / 2), discM)));
   // the motor's cup and its sticker
@@ -90,7 +90,7 @@ export function npuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   // its screws: through the plate either side of the plateau
   const spots: Spot[] = [];
   for (const x of [xa + 5 * MM, (xa + fx) / 2, fx + r * 0.25]) for (const y of [ya + 6 * MM, yb - 6 * MM]) spots.push({ x, y: -y, z: zF });
-  g.add(screws(spots, 'z-', 1.6 * MM, mat(0x2a2d33, { metalness: 0.7, roughness: 0.4 })));
+  g.add(screws(spots, 'z-', 1.6 * MM, mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 })));
   // ---- the walls: the slot's side, the top edge and the far end (chamfered as the plate), open at the bracket for the air out
   const k = c + 0.414 * WALL, T = WALL;
   const U: [number, number][] = [[xa, ya], [xb - c, ya], [xb, ya + c], [xb, yb - c], [xb - c, yb], [xa, yb], [xa, yb - T], [xb - k, yb - T], [xb - T, yb - k], [xb - T, ya + k], [xb - k, ya + T], [xa, ya + T]];
@@ -111,7 +111,7 @@ export function npuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   g.add(holder);
   spins.push({ rotor, ring: null, needs: null });
   // ---- the vapour chamber over the die and its fin block: plates along the card, 1.8 mm apart, the air runs between them to the bracket
-  const F = P.fins, base = Zp - 2.8 * MM, copper = mat(0xc0793a, { metalness: 0.9, roughness: 0.3 }), finM = mat(0xb9c1cb, { metalness: 0.8, roughness: 0.32 });
+  const F = P.fins, base = Zp - 2.8 * MM, copper = mat(0xc0793a, { metalness: 0.9, roughness: 0.3 }), finM = mat(0xb9babf, { metalness: 0.8, roughness: 0.32 });
   g.add(rectBox({ x: F.x0, y: F.y0, w: F.x1 - F.x0, h: F.y1 - F.y0 }, base, zTop, copper));
   const plates = [];
   for (let y = F.y0 + 0.4 * MM; y < F.y1 - 0.2 * MM; y += 1.8 * MM) plates.push({ x: (F.x0 + F.x1) / 2, y: -y, z: (zI + 0.3 * MM + base) / 2, sx: F.x1 - F.x0, sy: 0.3 * MM, sz: base - zI - 0.3 * MM });
@@ -146,7 +146,7 @@ export function npuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
   dieBack(g, `npu-back:${visual}`, die, HOLE, Z, 'NPU1');
   const rim: Spot[] = [], xr = xe - 14 * MM;
   for (const x of [x0 + 6 * MM, (x0 + xr) / 2, xr]) for (const y of [y0 + 5 * MM, end - 6 * MM]) rim.push({ x, y: -y, z: Z + backT });
-  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1c1e22, { metalness: 0.6, roughness: 0.4 })));
+  g.add(screws(rim, 'z+', 1.9 * MM, mat(0x1d1e22, { metalness: 0.6, roughness: 0.4 })));
 }
 
 /** A hexagon round a wall point (layout y and depth), `R` to its corners. */

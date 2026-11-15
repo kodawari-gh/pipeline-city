@@ -73,7 +73,7 @@ function can(x: number, y: number, z: number, r: number, h: number, m: Material,
 /** The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk; `loaded` gets the hoodie. */
 export function deskChair(x: number, z: number, turn: number, loaded?: (o: Object3D) => void): Group {
   const root = new Group(), c = new Group();
-  const black = mat(0x1d1f22, { roughness: 0.45 }), steel = mat(0xb9bdc2, { metalness: 0.9, roughness: 0.28 });
+  const black = mat(0x1d1e22, { roughness: 0.45 }), steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 });
   const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
 
   // ---- the base: a hub, five legs falling to the castors, each castor two wheels on a swivel ----

@@ -123,7 +123,7 @@ function chipFace(): Texture | null {
 /** A memory socket over its 2D rect: the housing with its groove, the gold contacts down in it, the key, and a latch at each end (open when empty). */
 export function dimmSlot(r: RectLike, empty: boolean, tone = 0x1a1d24, latchTone = 0x2c3242): { housing: Group; latches: Group } {
   const cx = r.x + r.w / 2, housing = new Group(), latches = new Group();
-  const body = mat(tone, { roughness: 0.55 }), dark = mat(0x07080b, { roughness: 0.8 }), gold = mat(0xd9b25e, { metalness: 1, roughness: 0.25 });
+  const body = mat(tone, { roughness: 0.55 }), dark = mat(0x050608, { roughness: 0.8 }), gold = mat(0xd4af5f, { metalness: 1, roughness: 0.25 });
   housing.add(softBox({ x: cx - SLOT_W / 2, y: r.y, w: SLOT_W, h: r.h }, BOARD_Z, TOP, body, 10));
   housing.add(rectBox({ x: cx - GROOVE / 2, y: r.y + 18, w: GROOVE, h: r.h - 36 }, Z0 - 4, TOP + 1, dark));
   for (const s of [-1, 1]) housing.add(rectBox({ x: cx + s * (GROOVE / 2 - 3) - 2, y: r.y + 24, w: 4, h: r.h - 48 }, Z0 + 6, TOP - 6, gold));
@@ -178,7 +178,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   if (ecc) chips.push({ y: gy - 70, h: 140, z0: Zc0, z1: Zc1 });
   if (visual === 'dimm-ddr5' || visual === 'dimm-ddr5ecc') chips.push({ y: gy + (ecc ? 80 : -23), h: 46, z0: Zc0 - 120, z1: Zc0 - 70 });
   chips.push({ y: gy - 11, h: 22, z0: Zc0 - 170, z1: Zc0 - 140 });
-  const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x101115, { roughness: 0.6 });
+  const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x131518, { roughness: 0.6 });
   const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
   // (two draws, not six: the box's two x faces are one group for the printed top, its four other faces one group for the sides)
   const chipBox = new BoxGeometry(1, 1, 1);
@@ -204,12 +204,12 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   // the spreader: a plate over each face, on a thermal pad over the chips. No tier colours: the tiers read by how premium the metal looks,
   // stamped steel (DDR2), dark anodised fins (DDR3), matte black under a light bar (DDR4), brushed dark titanium with a diamond-cut edge (DDR5)
   const t = look === 'low' ? 14 : look === 'fins' ? 30 : 32, x0 = PCB_T / 2 + CHIP_T + PAD, u0 = 18, u1 = L - 18, best = visual === 'dimm-ddr5';
-  const plateM = look === 'low' ? mat(0x8d939c, { metalness: 0.55, roughness: 0.5 })
-    : look === 'fins' ? mat(0x2b2f37, { metalness: 0.6, roughness: 0.45 })
-    : best ? mat(0x3a404b, { metalness: 0.85, roughness: 0.3 }) : mat(0x22262e, { metalness: 0.5, roughness: 0.55 });
+  const plateM = look === 'low' ? mat(0x959aa3, { metalness: 0.55, roughness: 0.5 })
+    : look === 'fins' ? mat(0x2a2d32, { metalness: 0.6, roughness: 0.45 })
+    : best ? mat(0x2a2d32, { metalness: 0.85, roughness: 0.3 }) : mat(0x2a2d32, { metalness: 0.5, roughness: 0.55 });
   for (const s of [-1, 1]) spreader.add(place(new Mesh(standing(plateShape(look, u0, u1), t, s < 0 ? cx - x0 - t : cx + x0, ys, 1.5), plateM)));
   // polished trim: a thin bright line, the one sign of a better stick
-  const trim = mat(0xc4c9d1, { metalness: 0.95, roughness: best ? 0.12 : 0.22 });
+  const trim = mat(0xb9babf, { metalness: 0.95, roughness: best ? 0.12 : 0.22 });
   if (look === 'low') {
     // the spring clips over the top edge that hold the two plates
     for (const f of [0.3, 0.7]) spreader.add(rectBox({ x: cx - x0 - t, y: -(ys + L * f) - 10, w: 2 * (x0 + t), h: 20 }, Z0 + PCB_H - 8, Z0 + PCB_H + 4, plateM));
@@ -219,7 +219,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   } else {
     // the light bar: a dark cap across the plates, a frosted diffuser on it that glows with the fans; an accent line down each plate
     const cap = Z0 + PCB_H + RGB_PLATE - 8;
-    spreader.add(softBox({ x: cx - x0 - t, y: -(ys + u1 - 20), w: 2 * (x0 + t), h: u1 - u0 - 40 }, cap, cap + 16, mat(0x15171d, { roughness: 0.5 }), 4));
+    spreader.add(softBox({ x: cx - x0 - t, y: -(ys + u1 - 20), w: 2 * (x0 + t), h: u1 - u0 - 40 }, cap, cap + 16, mat(0x131518, { roughness: 0.5 }), 4));
     // (smoked: unlit, the bar reads as dark acrylic, not a pale block)
     const bar = glowMat(0xffffff, 0x2c303b);
     bar.roughness = 0.85;

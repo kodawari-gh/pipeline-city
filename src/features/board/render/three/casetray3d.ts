@@ -24,7 +24,7 @@ const PANEL = 10;
 const BACK_T = 16;
 
 /** A kind's fixings: bare zinc in the Mini, black in the Micro and the Mid, polished in the Full tower; its rivets take the paint of the sheet. */
-export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2c33, { metalness: 0.65, roughness: 0.38 }));
+export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 }));
 export const rivetM = (k: CaseKind): Material => mat(({ oem: 0xc6bd9c, matte: 0x25262c, gamer: 0x2b3142, show: 0x34373e })[k], { metalness: 0.45, roughness: 0.42 });
 
 /** A keyhole: a round hole with a slot rising from it (layout centre of the round part), as a world outline. */
@@ -59,7 +59,7 @@ export function traySheet(f: Frame, outer: Vector2[], m: Material): Group {
   const g = new Group(), back = CASE_Z + BACK_T, holes = sheetHoles(f);
   g.add(slab(shapeOf(outer), CASE_Z, back, m, 6), slab(shapeOf(outer, holes), back, TRAY_Z, m, 6));
   // (a hole shows the back panel in the dark: nothing behind the sheet is lit)
-  const dark = mat(0x040506, { roughness: 0.95 });
+  const dark = mat(0x050608, { roughness: 0.95 });
   for (const h of holes) g.add(seeThrough(slab(shapeOf(h), back, back + 2, dark)));
   return g;
 }
@@ -82,11 +82,11 @@ function markMat(word: string, ink: string): Material {
 function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): Group {
   const g = new Group(), h = BOARD_Z - 60 - TRAY_Z, z = TRAY_Z + PANEL, on = (x: number, y: number) => used.some(([a, b]) => a === x && b === y);
   const up = (r: number, n: number, len: number) => new CylinderGeometry(r, r, len, n).rotateX(Math.PI / 2);
-  g.add(instanced(up(58, 6, h), mat(0xb99a58, { metalness: 0.65, roughness: 0.5 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 }))));
-  g.add(instanced(up(24, SEG.part, 2), mat(0x241c0e, { roughness: 0.8 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h + 1 }))));
+  g.add(instanced(up(58, 6, h), mat(0xd4af5f, { metalness: 0.65, roughness: 0.5 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h / 2 }))));
+  g.add(instanced(up(24, SEG.part, 2), mat(0x1d1e22, { roughness: 0.8 }), used.map(([x, y]) => ({ x, y: -y, z: TRAY_Z + h + 1 }))));
   const free = standoffs().filter(([x, y]) => !on(x, y));
   if (free.length) {
-    g.add(instanced(up(46, SEG.post, 3), mat(0x7c828b, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: z + 1 }))));
+    g.add(instanced(up(46, SEG.post, 3), mat(0x959aa3, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: z + 1 }))));
     g.add(instanced(up(26, SEG.part, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
   }
   const ink = kind === 'oem' ? '#6f6a53' : '#8d929c';
@@ -157,13 +157,13 @@ export function trayDetail(f: Frame, inner: Material): Group {
 
   // the Velcro straps of the better cases, waiting open under their bridges: a black band down from the bridge with its pull tab
   if (k === 'gamer' || k === 'show') {
-    const band = mat(0x0e0f12, { roughness: 1 }), tab = mat(new Color(f.acc).lerp(new Color(0x101114), 0.7).getHex(), { roughness: 0.75 });
+    const band = mat(0x131518, { roughness: 1 }), tab = mat(new Color(f.acc).lerp(new Color(0x101114), 0.7).getHex(), { roughness: 0.75 });
     straps.forEach((s, i) => {
       const o = new Group(), lean = (i % 2 ? 1 : -1) * 0.05;
       o.position.set(s.x, -s.y, TRAY_Z);
       o.rotation.z = lean;
       o.add(rectBox({ x: -40, y: -40, w: 80, h: 400 }, 16, 24, band), rectBox({ x: -40, y: 360, w: 80, h: 44 }, 16, 25, tab));
-      o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x191a1e, { roughness: 1 })));
+      o.add(rectBox({ x: -40, y: 60, w: 80, h: 110 }, 24, 26, mat(0x1d1e22, { roughness: 1 })));
       // (its meshes go straight into the tray's group, in its frame: the straps then merge with the tray's still meshes, `mergeSiblings`)
       o.updateMatrix();
       for (const c of [...o.children]) { c.applyMatrix4(o.matrix); g.add(c); }
@@ -173,11 +173,11 @@ export function trayDetail(f: Frame, inner: Material): Group {
   // the Full tower's cable cover: a vented plate standing on the tray over the gutter's east side, on four screws
   if (k === 'show') {
     const c: RectLike = { x: east + 1660, y: f.yTop + 260, w: 400, h: PSU.y - f.yTop - 520 }, zc = TRAY_Z + 90;
-    g.add(ring(c, 30, NONE, 26, zc - 6, zc + 8, mat(0x24262c, { metalness: 0.55, roughness: 0.4 })));
+    g.add(ring(c, 30, NONE, 26, zc - 6, zc + 8, mat(0x2a2d32, { metalness: 0.55, roughness: 0.4 })));
     perforated(g, c, zc, 'hex', 60, 0x2a2d33, { metal: 0.55, rough: 0.45 });
     const posts: Spot[] = [];
     for (const yy of [c.y + 80, c.y + c.h - 80]) for (const xx of [c.x + 60, c.x + c.w - 60]) posts.push({ x: xx, y: -yy, z: TRAY_Z });
-    g.add(instanced(new CylinderGeometry(26, 26, 90, SEG.rod).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x24262c, { metalness: 0.55, roughness: 0.4 }), posts));
+    g.add(instanced(new CylinderGeometry(26, 26, 90, SEG.rod).rotateX(Math.PI / 2).translate(0, 0, 45), mat(0x2a2d32, { metalness: 0.55, roughness: 0.4 }), posts));
     g.add(screws(posts.map((p) => ({ ...p, z: zc + 8 })), 'z+', 40, screwM(k)));
   }
   return g;
@@ -223,7 +223,7 @@ export function leadCoil(): Group {
     const end = pts[pts.length - 1]!, tail: V3 = [end[0] + (i - all.length / 2) * 36, end[1] - 240 - i * 30, zc + 8];
     pts.push(tail);
     g.add(cableMesh(pts, look));
-    g.add(softBox({ x: tail[0] - 36, y: -tail[1], w: 72, h: 90 }, zc - 26, zc + 34, mat(0x1b2230, { roughness: 0.5 }), 6));
+    g.add(softBox({ x: tail[0] - 36, y: -tail[1], w: 72, h: 90 }, zc - 26, zc + 34, mat(0x1d1e22, { roughness: 0.5 }), 6));
   });
   // the tie
   g.add(rectBox({ x: cx - 34, y: cy - 280, w: 68, h: 100 }, TRAY_Z + 30, TRAY_Z + 134, mat(0xd8dade, { roughness: 0.6 })));
@@ -252,13 +252,13 @@ export function frameDetail(f: Frame, ex: number, hooks: readonly number[], hook
   // the opening: the lip rolled in round it, and on its rim the door's bumpers and receivers
   const open: RectLike = { x: x0, y: f.yTop, w: x1 - x0, h: f.yBot - f.yTop };
   g.add(ring(open, 18, NONE, 0, z1 - 26, z1, m, 38));
-  const rubber = mat(0x0b0b0d, { roughness: 0.92 }), rim: Spot[] = [], zr = z1 - 1;
+  const rubber = mat(0x050608, { roughness: 0.92 }), rim: Spot[] = [], zr = z1 - 1;
   for (const x of hooks) rim.push({ x: x - 380, y: -hookY, z: zr }, { x: x + 380, y: -hookY, z: zr });
   const lowY = (f.yBot + bottom) / 2;
   for (const x of hooks) rim.push({ x, y: -lowY, z: zr });
   for (const y of [f.yTop + 500, (f.yTop + f.yBot) / 2, f.yBot - 500]) rim.push({ x: (CASE.x + x0) / 2, y: -y, z: zr }, { x: (x1 + ex) / 2, y: -y, z: zr });
   g.add(pads(rim, 'z+', 34, rubber));
-  const dark = mat(0x040506, { roughness: 0.9 }), lipM = rivetM(k);
+  const dark = mat(0x050608, { roughness: 0.9 }), lipM = rivetM(k);
   for (const x of hooks) {
     g.add(seeThrough(rectBox({ x: x - 96, y: hookY - 28, w: 192, h: 56 }, z1 - 1, z1 + 1, lipM)));
     g.add(seeThrough(rectBox({ x: x - 76, y: hookY - 15, w: 152, h: 30 }, z1, z1 + 2, dark)));

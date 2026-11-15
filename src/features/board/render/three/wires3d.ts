@@ -63,7 +63,7 @@ export function grommet(r: RectLike, style: GrommetStyle = { tone: 0x101114, met
   const sheared = (pts: Vector2[]) => (lean ? pts.map((p) => new Vector2(p.x + (lean * (r.y + r.h + p.y)) / r.h, p.y)) : pts);
   const inner = sheared(outlinePts(r, rad));
   g.add(slab(shapeOf(sheared(outlinePts({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, rad + e)), [inner]), TRAY_Z - 6, TRAY_Z + 24, rubber, 6));
-  g.add(slab(shapeOf(inner), TRAY_Z - 2, TRAY_Z + 2, mat(0x050506, { roughness: 0.9 })));
+  g.add(slab(shapeOf(inner), TRAY_Z - 2, TRAY_Z + 2, mat(0x050608, { roughness: 0.9 })));
   if (style.flap === null) return g;
   const len = along ? r.h : r.w, wide = along ? r.w : r.h, n = Math.max(1, Math.round(len / 34)), pitch = len / n, slit = 8, fw = (wide - slit) / 2;
   const flaps = Array.from({ length: n }, (_, i) => i).flatMap((i) => [-1, 1].map((s) => {
@@ -76,9 +76,9 @@ export function grommet(r: RectLike, style: GrommetStyle = { tone: 0x101114, met
 }
 
 // ------------------------------------------------------------------ sockets and plugs
-const housingM = () => mat(0x1d2028, { roughness: 0.5 });
+const housingM = () => mat(0x1d1e22, { roughness: 0.5 });
 const darkM = () => mat(0x050608, { roughness: 0.9 });
-const tinM = () => mat(0x7a818b, { metalness: 0.7, roughness: 0.5 });
+const tinM = () => mat(0x959aa3, { metalness: 0.7, roughness: 0.5 });
 /** How deep a socket's mouth plate is: its cavities are holes through it, a contact sleeve stands in each, on a dark floor. */
 const MOUTH = 26;
 
@@ -110,8 +110,8 @@ export function atxSocket(r: RectLike, h = 170): Group {
 /** The 24-pin plug seated in the socket's mouth: its body east of the board, the latch hooked over the ridge. Returns where its strands leave (east face). */
 export function atxPlug(r: RectLike, accent: string, h = 170): { root: Group; strands: RopeEnd[] } {
   const g = new Group(), x0 = r.x + r.w - 16, L = 230, body = { x: x0, y: r.y + 24, w: L, h: r.h - 48 };
-  g.add(softBox(body, BOARD_Z + 10, BOARD_Z + h - 10, mat(0x1b2230, { roughness: 0.5 }), 12));
-  g.add(rectBox({ x: x0 - 40, y: r.y + r.h * 0.42, w: 120, h: r.h * 0.16 }, BOARD_Z + h - 10, BOARD_Z + h + 30, mat(0x1b2230, { roughness: 0.5 })));
+  g.add(softBox(body, BOARD_Z + 10, BOARD_Z + h - 10, mat(0x1d1e22, { roughness: 0.5 }), 12));
+  g.add(rectBox({ x: x0 - 40, y: r.y + r.h * 0.42, w: 120, h: r.h * 0.16 }, BOARD_Z + h - 10, BOARD_Z + h + 30, mat(0x1d1e22, { roughness: 0.5 })));
   g.add(softBox({ x: x0 + L - 30, y: body.y - 4, w: 34, h: body.h + 8 }, BOARD_Z + 6, BOARD_Z + h - 6, mat(hex(accent), { roughness: 0.45 }), 8));
   const pitch = body.h / 12;
   const strands = Array.from({ length: 12 }, (_, i): RopeEnd => ({ at: [x0 + L + 4, -(body.y + (i + 0.5) * pitch), BOARD_Z + h / 2], dir: [1, 0, 0] }));
@@ -139,7 +139,7 @@ export function epsSocket(r: RectLike, h = 160): Group {
 export function epsPlug(r: RectLike, accent: string, h = 160): { root: Group; strands: RopeEnd[]; top: number } {
   const g = new Group(), z0 = BOARD_Z + h - 30, top = BOARD_Z + h + 170, b = { x: r.x + 8, y: r.y + 8, w: r.w - 16, h: r.h - 16 };
   g.add(plugBody(b, z0, top, accent));
-  g.add(rectBox({ x: r.x + r.w * 0.36, y: r.y - 34, w: r.w * 0.28, h: 30 }, BOARD_Z + h * 0.4, z0 + 60, mat(0x1b2230, { roughness: 0.5 })));
+  g.add(rectBox({ x: r.x + r.w * 0.36, y: r.y - 34, w: r.w * 0.28, h: 30 }, BOARD_Z + h * 0.4, z0 + 60, mat(0x1d1e22, { roughness: 0.5 })));
   const strands = Array.from({ length: 4 }, (_, i): RopeEnd => ({ at: [b.x + (i + 0.5) * (b.w / 4), -(b.y + b.h / 2), top + 4], dir: [0, 0, 1] }));
   return { root: g, strands, top };
 }
@@ -154,9 +154,9 @@ export function sataPort(r: RectLike): Group {
   const mouth = [wallPt(ya, Z + 34), wallPt(yb, Z + 34), wallPt(yb, Z + 62), wallPt(arm, Z + 62), wallPt(arm, Z + 80), wallPt(ya, Z + 80)].reverse();
   g.add(wallX(x0, x1, { y0: r.y, y1: r.y + r.h, z0: Z, z1: Z + h, r: 8 }, [mouth], housingM(), 2));
   g.add(rectBox({ x: x0 - 2, y: ya - 4, w: 3, h: yb - ya + 8 }, Z + 30, Z + 84, darkM()));
-  g.add(rectBox({ x: x0 - 2, y: r.y + 28, w: MOUTH - 4, h: r.h - 56 }, Z + 40, Z + 52, mat(0x2c3038, { roughness: 0.5 })));
+  g.add(rectBox({ x: x0 - 2, y: r.y + 28, w: MOUTH - 4, h: r.h - 56 }, Z + 40, Z + 52, mat(0x2a2d32, { roughness: 0.5 })));
   const pins = Array.from({ length: 7 }, (_, k) => ({ x: x1 - 15, y: -(r.y + 32 + (k * (r.h - 64)) / 6), z: Z + 53, sx: 16, sy: 4, sz: 2 }));
-  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0xd9b25e, { metalness: 1, roughness: 0.25 }), pins));
+  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0xd4af5f, { metalness: 1, roughness: 0.25 }), pins));
   return g;
 }
 
@@ -171,7 +171,7 @@ export function sataPlug(r: RectLike): { root: Group; end: RopeEnd } {
 /** A fan plug seated on a header (layout rect of its pins), standing over the pins; its cord leaves the top. */
 export function fanPlug(r: RectLike, accent: string, z0 = BOARD_Z + 150, h = 140): { root: Group; end: RopeEnd } {
   const g = new Group(), b = { x: r.x + 6, y: r.y + 6, w: r.w - 12, h: r.h - 12 };
-  g.add(softBox(b, z0, z0 + h, mat(0x1b2230, { roughness: 0.5 }), 8));
+  g.add(softBox(b, z0, z0 + h, mat(0x1d1e22, { roughness: 0.5 }), 8));
   g.add(rectBox({ x: b.x, y: b.y + b.h - 10, w: b.w, h: 12 }, z0 + h - 26, z0 + h + 2, mat(hex(accent), { roughness: 0.45 })));
   return { root: g, end: { at: [b.x + b.w / 2, -(b.y + b.h / 2), z0 + h + 2], dir: [0, 0, 1] } };
 }
