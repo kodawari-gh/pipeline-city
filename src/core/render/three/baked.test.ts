@@ -22,7 +22,8 @@ describe('baked textures', () => {
       const b = readFileSync(`${dir}${k}.ktx2`), v = new DataView(b.buffer, b.byteOffset, b.byteLength);
       expect([...b.subarray(0, 12)], k).toEqual(KTX2);
       const w = v.getUint32(20, true), h = v.getUint32(24, true), levels = v.getUint32(40, true);
-      expect(Math.max(w, h), k).toBeLessThanOrEqual(512);
+      // (the room's floor and rug: the two largest surfaces seen close, docs/3D_STYLE.md "Size and compression rule")
+      expect(Math.max(w, h), k).toBeLessThanOrEqual(/^room-(planks|rug)/.test(k) ? 1024 : 512);
       expect(levels, k).toBe(Math.floor(Math.log2(Math.max(w, h))) + 1);
     }
   });

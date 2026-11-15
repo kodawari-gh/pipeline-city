@@ -22,7 +22,8 @@ import type { KeySnap } from '@/worker/game/types';
 import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
-import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { bakedTex } from '@/core/render/three/baked';
+import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
@@ -42,8 +43,8 @@ import { M } from './outside/plan';
 import type { CityDetail } from './outside/detail';
 import { effective, isLow } from '@/app/graphics';
 import {
-  OAK_TILE, STRIP_STAND_IN, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
-  smokedOak, type Lantern,
+  OAK_TILE, STRIP_STAND_IN, STRIP_W, arcLamp, bakedOak, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, oakMaps, pictureLight, print, sconce, shelfStrips,
+  smokedOak, type Lantern, type OakMaps,
 } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
@@ -267,8 +268,8 @@ function planksTex(): Texture | null {
       // the boards of this row: between the cuts, and the one through the tile's edge (drawn in two parts, the same board)
       const boards: [number, number][][] = cuts.map((x, k) => (k + 1 < cuts.length ? [[x, cuts[k + 1]!]] : [[x, w], [0, cuts[0]!]]));
       for (const parts of boards) {
-        // (a board a few shades from the next, a hair warmer or cooler: one wood, not a patchwork)
-        const f = 0.86 + rnd() * 0.14, warm = rnd() * 6, seed = seedN;
+        // (a board a few shades from the next, a hair cooler at most: one surface, not a patchwork; no warm cast, art-style v3)
+        const f = 0.86 + rnd() * 0.14, warm = -rnd() * 2, seed = seedN;
         for (const [x0, x1] of parts) {
           seedN = seed;
           c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, ph); c.clip();
@@ -288,16 +289,36 @@ function planksTex(): Texture | null {
         }
       }
       // the long joint above the row (dark, then its lit bevel), the butt joints
-      c.fillStyle = 'rgba(22,14,8,0.75)'; c.fillRect(0, y0, w, 3);
-      c.fillStyle = 'rgba(255,238,210,0.1)'; c.fillRect(0, y0 + 3, w, 2);
-      for (const x of cuts) { c.fillStyle = 'rgba(22,14,8,0.7)'; c.fillRect(x - 1, y0, 2.5, ph); }
+      c.fillStyle = 'rgba(4,6,15,0.75)'; c.fillRect(0, y0, w, 3);
+      c.fillStyle = 'rgba(226,234,255,0.1)'; c.fillRect(0, y0 + 3, w, 2);
+      for (const x of cuts) { c.fillStyle = 'rgba(4,6,15,0.7)'; c.fillRect(x - 1, y0, 2.5, ph); }
     }
-  }, [2.4, 3.2]);
+  }, PLANKS_REPEAT);
+}
+/** The floor's tiles across the room and along it. */
+const PLANKS_REPEAT: [number, number] = [2.4, 3.2];
+
+/** The floor's maps, painted: always the same boards (their own seed). The texture bake runs it (`room-planks`, `tools/bake/textures.mjs`). */
+export function planksMaps(): OakMaps {
+  const keep = seedN;
+  seedN = 4871;
+  const maps = oakMaps(planksTex());
+  seedN = keep;
+  return maps;
 }
 
-/** The floor: long smoked oak planks east-west (`planksTex`), wall to wall. */
+/** The rug's map, painted: always the same flecks (its own seed). The texture bake runs it (`room-rug`). */
+export function rugMap(): Texture | null {
+  const keep = seedN;
+  seedN = 9311;
+  const map = rugTex();
+  seedN = keep;
+  return map;
+}
+
+/** The floor: long planks east-west (`planksTex`, or its baked maps), wall to wall. */
 export function oakFloor(): Mesh {
-  const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), smokedOak(planksTex()));
+  const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), smokedOak(bakedOak('room-planks', PLANKS_REPEAT) ?? planksMaps()));
   floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -FLOOR_Y, FRONT_Z / 2);
   floor.receiveShadow = true;
   return floor;
@@ -476,7 +497,7 @@ export class Room3D {
 
     // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
     R.add(oakFloor());
-    const pile = rugTex();
+    const pile = shareTex(bakedTex('room-rug')) ?? rugMap();
     const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 1, roughness: 0.97 }), 140);
     rug.castShadow = false;
     R.add(rug);

@@ -10,12 +10,13 @@
 // nothing answers a click.
 import {
   BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, NoColorSpace, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, Vector3, type Material,
+  MeshStandardMaterial, NoColorSpace, Object3D, PlaneGeometry, RectAreaLight, RepeatWrapping, SphereGeometry, SpotLight, TorusGeometry, Vector2, Vector3, type Material,
   type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
-import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { bakedTex } from '@/core/render/three/baked';
+import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
@@ -98,17 +99,38 @@ export const OAK_TILE = 11200;
 const OAK_DEPTH = 3;
 
 /**
- * Smoked oak, the room's one wood (`OAK`): the floor, the desk top, the bookcase. The palette's oak is the material's colour; its map only
- * shades it (white, with the grain in `OAK_GRAIN`'s share of `OAK`), so the planks and every board read as one wood in every light; the
+ * The room's one board (`OAK`, since art-style v3 a matte charcoal laminate): the floor, the desk top, the bookcase. The palette's `OAK` is
+ * the material's colour; its map only
+ * shades it (white, with the grain in `OAK_GRAIN`'s share of `OAK`), so the planks and every board read as one surface in every light; the
  * grain's relief is a normal map from the same strokes (`relief`). The map is a board's close straight grain by default (lay it along each
  * board with `grainUv`); the floor passes its planks. The grain is the same in every room built: its own stream of random numbers.
  */
-export function smokedOak(map?: Texture | null): MeshStandardMaterial {
+export function smokedOak(maps?: OakMaps): MeshStandardMaterial {
+  const { map, normal } = maps ?? bakedOak('room-oak', [1, 1]) ?? oakMaps();
+  return mat(new Color(OAK).getHex(), { map, normalMap: normal, roughness: OAK_ROUGH });
+}
+
+/** The two maps of `smokedOak`: the shade and the relief of its strokes. */
+export interface OakMaps { map: Texture | null; normal: Texture | null }
+
+/**
+ * The maps of `smokedOak`, painted: of `map`, or of a board's own grain (512 px, always the same strokes). The texture bake runs it
+ * (`room-oak`, `tools/bake/textures.mjs`).
+ */
+export function oakMaps(map?: Texture | null): OakMaps {
   if (map === undefined) {
     const keep = seedN;
     seedN = 7919; map = oak('#ffffff', shadeOf(OAK_GRAIN, OAK), [1, 1], 512); seedN = keep;
   }
-  return mat(new Color(OAK).getHex(), { map, normalMap: relief(map, OAK_DEPTH), roughness: OAK_ROUGH });
+  return { map, normal: relief(map, OAK_DEPTH) };
+}
+
+/** The baked maps of a key (`<key>` and `<key>-n` in `public/tex/`) with their repeat, or null: the caller paints. They outlive a rebuild. */
+export function bakedOak(key: string, repeat: [number, number]): OakMaps | null {
+  const map = bakedTex(key), normal = bakedTex(`${key}-n`);
+  if (!map || !normal) return null;
+  for (const t of [map, normal]) { t.wrapS = t.wrapT = RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); shareTex(t); }
+  return { map, normal };
 }
 
 /**

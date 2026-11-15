@@ -1,8 +1,8 @@
 {
  "version": 1,
  "encoding": "rgbm-sqrt",
- "width": 961,
- "height": 1207,
+ "width": 944,
+ "height": 1219,
  "texelsPerMetre": 50,
  "samples": 16384,
  "groups": [
@@ -10,82 +10,82 @@
    "id": "desk",
    "kind": "lamp",
    "file": "desk.png",
-   "scale": 3.4638009071350098,
+   "scale": 0.27317431569099426,
    "lead": 223047328.25021774
   },
   {
    "id": "arc",
    "kind": "lamp",
    "file": "arc.png",
-   "scale": 0.20056335628032684,
+   "scale": 0.20721757411956787,
    "lead": 182081247.20955753
   },
   {
    "id": "floor",
    "kind": "lamp",
    "file": "floor.png",
-   "scale": 0.42736029624938965,
+   "scale": 0.6375280022621155,
    "lead": 31166739.54789073
   },
   {
    "id": "bedside",
    "kind": "lamp",
    "file": "bedside.png",
-   "scale": 1.6234395503997803,
+   "scale": 2.465183734893799,
    "lead": 31166739.54789073
   },
   {
    "id": "strips",
    "kind": "lamp",
    "file": "strips.png",
-   "scale": 1.9879200458526611,
+   "scale": 0.7270873188972473,
    "lead": 18.750043845656187
   },
   {
    "id": "picture",
    "kind": "lamp",
    "file": "picture.png",
-   "scale": 0.1612110286951065,
+   "scale": 0.14704523980617523,
    "lead": 13.105280390932647
   },
   {
    "id": "sconce",
    "kind": "lamp",
    "file": "sconce.png",
-   "scale": 0.23282113671302795,
+   "scale": 0.2742433547973633,
    "lead": 286418197.70789385
   },
   {
    "id": "led",
    "kind": "lamp",
    "file": "led.png",
-   "scale": 0.6860483884811401,
+   "scale": 0.39110004901885986,
    "lead": 6
   },
   {
    "id": "screen",
    "kind": "lamp",
    "file": "screen.png",
-   "scale": 0.06381379067897797,
+   "scale": 0.07292632758617401,
    "lead": 0.168
   },
   {
    "id": "sky",
    "kind": "sky",
    "file": "sky.png",
-   "scale": 8.351288795471191
+   "scale": 8.06052017211914
   },
   {
    "id": "city",
    "kind": "city",
    "file": "city.png",
-   "scale": 16.980310440063477
+   "scale": 18.57203483581543
   },
   {
    "id": "sun-20",
    "kind": "sun",
    "file": "sun-20.png",
-   "scale": 0.03337053209543228,
+   "scale": 0.029636789113283157,
    "hour": 20
   }
  ],
@@ -100,7 +100,7 @@
  ],
  "meshes": [
   {
-   "name": "mesh-665540-map-6",
+   "name": "mesh-1d1e22-map-6",
    "hash": "4-773f1fc8",
    "corners": 6,
    "offset": 0
@@ -220,352 +220,346 @@
    "offset": 137472
   },
   {
-   "name": "mesh-665540-map-2916",
-   "hash": "2916-e5ae8fad",
-   "corners": 2916,
+   "name": "mesh-2a2d32-576",
+   "hash": "292-4f83f155",
+   "corners": 576,
    "offset": 137478
   },
   {
+   "name": "mesh-1d1e22-map-2916",
+   "hash": "2916-a5da6905",
+   "corners": 2916,
+   "offset": 138054
+  },
+  {
    "name": "mesh-ffffff-map-900-1",
-   "hash": "900-e3471fd5",
+   "hash": "900-fd1b4b95",
    "corners": 900,
-   "offset": 140394
+   "offset": 140970
   },
   {
    "name": "mesh-ffffff-map-2160",
    "hash": "462-6041e23a",
    "corners": 2160,
-   "offset": 141294
+   "offset": 141870
   },
   {
    "name": "mesh-ffffff-map-2160-1",
    "hash": "462-838a35db",
    "corners": 2160,
-   "offset": 143454
+   "offset": 144030
   },
   {
-   "name": "mesh-ffffff-map-1584",
-   "hash": "300-74402a1b",
+   "name": "mesh-ffffff-map-300",
+   "hash": "300-1c33a23b",
    "corners": 1584,
-   "offset": 145614
+   "offset": 146190
   },
   {
    "name": "mesh-2a2d32-900-7",
-   "hash": "900-1b073a25",
+   "hash": "900-66663ac5",
    "corners": 900,
-   "offset": 147198
-  },
-  {
-   "name": "mesh-1d1e22-900-14",
-   "hash": "900-bd5562a3",
-   "corners": 900,
-   "offset": 148098
+   "offset": 147774
   },
   {
    "name": "merged-ffffff-map-180",
    "hash": "180-4da16595",
    "corners": 180,
-   "offset": 148998
+   "offset": 148674
   },
   {
    "name": "merged-ffffff-map-108",
    "hash": "108-e4894275",
    "corners": 108,
-   "offset": 149178
+   "offset": 148854
   },
   {
    "name": "merged-4e5360-4500",
    "hash": "4500-21fb94d5",
    "corners": 4500,
-   "offset": 149286
+   "offset": 148962
   },
   {
    "name": "merged-ffffff-map-5832",
    "hash": "5832-2e2e2015",
    "corners": 5832,
-   "offset": 153786
+   "offset": 153462
   },
   {
    "name": "merged-ffffff-map-12384",
    "hash": "12384-3e5fd845",
    "corners": 12384,
-   "offset": 159618
+   "offset": 159294
   },
   {
    "name": "merged-ffffff-map-12384-1",
    "hash": "12384-606906cc",
    "corners": 12384,
-   "offset": 172002
+   "offset": 171678
   },
   {
    "name": "merged-ffffff-map-5832-1",
    "hash": "5832-ba4b6dfd",
    "corners": 5832,
-   "offset": 184386
+   "offset": 184062
   },
   {
    "name": "merged-ffffff-map-2700",
    "hash": "2700-8f7d0425",
    "corners": 2700,
-   "offset": 190218
+   "offset": 189894
   },
   {
-   "name": "merged-665540-map-29160",
+   "name": "merged-1d1e22-map-29160",
    "hash": "29160-c2c66f1d",
    "corners": 29160,
-   "offset": 192918
+   "offset": 192594
   },
   {
    "name": "merged-2a2d32-72",
    "hash": "72-40243ee5",
    "corners": 72,
-   "offset": 222078
+   "offset": 221754
   },
   {
    "name": "merged-1d1e22-3840",
    "hash": "3840-cb49c775",
    "corners": 3840,
-   "offset": 222150
+   "offset": 221826
   },
   {
    "name": "merged-1d1e22-1836",
    "hash": "1836-06551bc5",
    "corners": 1836,
-   "offset": 225990
+   "offset": 225666
   },
   {
    "name": "merged-ffffff-map-17496",
-   "hash": "17496-6d22b01d",
+   "hash": "17496-529306c5",
    "corners": 17496,
-   "offset": 227826
+   "offset": 227502
+  },
+  {
+   "name": "merged-050608-216",
+   "hash": "216-8f739305",
+   "corners": 216,
+   "offset": 244998
   },
   {
    "name": "merged-ffffff-map-18432",
-   "hash": "18432-af9fd7bb",
+   "hash": "18432-3123ac09",
    "corners": 18432,
-   "offset": 245322
+   "offset": 245214
   },
   {
    "name": "mesh-4e5360-36",
    "hash": "24-ce211089",
    "corners": 36,
-   "offset": 263754
+   "offset": 263646
   },
   {
    "name": "merged-131518-2700",
    "hash": "2700-d50d8a4d",
    "corners": 2700,
-   "offset": 263790
+   "offset": 263682
   },
   {
    "name": "mesh-4e5360-900",
    "hash": "900-146cbf85",
    "corners": 900,
-   "offset": 266490
+   "offset": 266382
   },
   {
    "name": "mesh-4e5360-900-1",
    "hash": "900-bff2dc9d",
    "corners": 900,
-   "offset": 267390
+   "offset": 267282
   },
   {
    "name": "mesh-1d1e22-900-17",
    "hash": "900-3cd62e35",
    "corners": 900,
-   "offset": 268290
+   "offset": 268182
   },
   {
    "name": "mesh-2a2d32-900-11",
    "hash": "900-49617905",
    "corners": 900,
-   "offset": 269190
-  },
-  {
-   "name": "mesh-f0e9d8-36",
-   "hash": "24-58adaa99",
-   "corners": 36,
-   "offset": 270090
+   "offset": 269082
   },
   {
    "name": "merged-1d1e22-2736",
    "hash": "2736-043124a0",
    "corners": 2736,
-   "offset": 270126
-  },
-  {
-   "name": "merged-1d1e22-8676",
-   "hash": "8676-fe97b27d",
-   "corners": 8676,
-   "offset": 272862
-  },
-  {
-   "name": "merged-4e5360-2700",
-   "hash": "2700-43a83f06",
-   "corners": 2700,
-   "offset": 281538
+   "offset": 269982
   },
   {
    "name": "merged-1d1e22-18204",
    "hash": "18204-27bc3148",
    "corners": 18204,
-   "offset": 284238
+   "offset": 272718
   },
   {
    "name": "merged-b9babf-816",
    "hash": "816-fde0b4f2",
    "corners": 816,
-   "offset": 302442
-  },
-  {
-   "name": "merged-1d1e22-1800",
-   "hash": "1800-2234f561",
-   "corners": 1800,
-   "offset": 303258
-  },
-  {
-   "name": "merged-131518-8352",
-   "hash": "8352-509feb9b",
-   "corners": 8352,
-   "offset": 305058
+   "offset": 290922
   },
   {
    "name": "merged-2a2d32-2700",
    "hash": "2700-0ecfa84d",
    "corners": 2700,
-   "offset": 313410
+   "offset": 291738
   },
   {
    "name": "merged-d8d3c6-72",
    "hash": "72-faf22c45",
    "corners": 72,
-   "offset": 316110
+   "offset": 294438
   },
   {
    "name": "merged-d9d6cf-2700",
    "hash": "2700-b4a0100c",
    "corners": 2700,
-   "offset": 316182
+   "offset": 294510
   },
   {
    "name": "mesh-050608-36",
    "hash": "24-332b3c09",
    "corners": 36,
-   "offset": 318882
+   "offset": 297210
   },
   {
    "name": "mesh-e9e1cf-36",
    "hash": "24-de7e34b9",
    "corners": 36,
-   "offset": 318918
+   "offset": 297246
   },
   {
    "name": "mesh-2a2d32-900-12",
    "hash": "900-bdec7215",
    "corners": 900,
-   "offset": 318954
+   "offset": 297282
   },
   {
    "name": "mesh-050608-900-5",
    "hash": "900-5749dd8d",
    "corners": 900,
-   "offset": 319854
+   "offset": 298182
   },
   {
    "name": "merged-1d1e22-6300",
    "hash": "6300-0f89461d",
    "corners": 6300,
-   "offset": 320754
+   "offset": 299082
   },
   {
    "name": "mesh-131518-36",
    "hash": "24-0c5d82b9",
    "corners": 36,
-   "offset": 327054
+   "offset": 305382
   },
   {
    "name": "mesh-2a2d32-900-13",
    "hash": "900-f58db42d",
    "corners": 900,
-   "offset": 327090
+   "offset": 305418
   },
   {
    "name": "mesh-1d1e22-900-18",
    "hash": "900-33d43125",
    "corners": 900,
-   "offset": 327990
+   "offset": 306318
   },
   {
-   "name": "merged-4e5360-2700-1",
+   "name": "merged-4e5360-2700",
    "hash": "2700-5d626d1d",
    "corners": 2700,
-   "offset": 328890
+   "offset": 307218
   },
   {
    "name": "mesh-131518-768",
    "hash": "388-6f9335c5",
    "corners": 768,
-   "offset": 331590
+   "offset": 309918
   },
   {
    "name": "mesh-2a2d32-768",
    "hash": "388-7d524d75",
    "corners": 768,
-   "offset": 332358
+   "offset": 310686
   },
   {
    "name": "mesh-131518-900-6",
    "hash": "900-bafb2abd",
    "corners": 900,
-   "offset": 333126
+   "offset": 311454
   },
   {
    "name": "merged-1d1e22-1872",
    "hash": "1872-d6a08fe9",
    "corners": 1872,
-   "offset": 334026
+   "offset": 312354
   },
   {
    "name": "merged-1d1e22-6048",
    "hash": "6048-801acbf9",
    "corners": 6048,
-   "offset": 335898
+   "offset": 314226
   },
   {
    "name": "mesh-d9d6cf-900",
    "hash": "900-fba89abd",
    "corners": 900,
-   "offset": 341946
+   "offset": 320274
   },
   {
    "name": "mesh-2a2d32-900-14",
    "hash": "900-15fd43fd",
    "corners": 900,
-   "offset": 342846
+   "offset": 321174
   },
   {
    "name": "mesh-131518-900-7",
    "hash": "900-79ba1df5",
    "corners": 900,
-   "offset": 343746
+   "offset": 322074
   },
   {
-   "name": "mesh-2a2d32-576",
-   "hash": "292-4f83f155",
-   "corners": 576,
-   "offset": 344646
+   "name": "mesh-f0e9d8-24",
+   "hash": "24-818ea579",
+   "corners": 36,
+   "offset": 322974
   },
   {
-   "name": "merged-050608-216",
-   "hash": "216-8dcd6895",
-   "corners": 216,
-   "offset": 345222
+   "name": "merged-1d1e22-8676",
+   "hash": "8676-845c99bd",
+   "corners": 8676,
+   "offset": 323010
+  },
+  {
+   "name": "merged-4e5360-2700-1",
+   "hash": "2700-2aec8bc6",
+   "corners": 2700,
+   "offset": 331686
   },
   {
    "name": "merged-131518-4608",
-   "hash": "4608-97bdabcc",
+   "hash": "4608-a58c40fc",
    "corners": 4608,
-   "offset": 345438
+   "offset": 334386
+  },
+  {
+   "name": "merged-1d1e22-1800",
+   "hash": "1800-3ea149e1",
+   "corners": 1800,
+   "offset": 338994
+  },
+  {
+   "name": "merged-131518-8352",
+   "hash": "8352-6a3aaf5f",
+   "corners": 8352,
+   "offset": 340794
   }
  ],
  "direct": {
@@ -579,11 +573,11 @@
     "id": "floor",
     "map": 0,
     "channel": 0,
-    "scale": 1.1341352462768555,
+    "scale": 1.094217300415039,
     "colour": [
-     0.9999805668383349,
-     0.5708301022635699,
-     0.19635116200700944
+     0.9999886473741609,
+     0.5702766820870517,
+     0.19615837605346795
     ],
     "lead": 31166739.54789073
    },
@@ -591,11 +585,11 @@
     "id": "bedside",
     "map": 0,
     "channel": 1,
-    "scale": 6.836538314819336,
+    "scale": 4.993033409118652,
     "colour": [
-     0.9999928098799947,
-     0.5727375645554906,
-     0.19603163400392856
+     0.9999921584338946,
+     0.5714503658376501,
+     0.1963480975045634
     ],
     "lead": 31166739.54789073
    },
@@ -603,11 +597,11 @@
     "id": "strips",
     "map": 0,
     "channel": 2,
-    "scale": 3.909148693084717,
+    "scale": 4.326941013336182,
     "colour": [
-     0.9999982941050314,
-     0.5729716716036042,
-     0.19796879984974092
+     0.9999981898995561,
+     0.5733081257035845,
+     0.19812096267683538
     ],
     "lead": 18.750043845656187
    },
@@ -615,11 +609,11 @@
     "id": "picture",
     "map": 1,
     "channel": 0,
-    "scale": 1.3918606042861938,
+    "scale": 1.4551844596862793,
     "colour": [
-     0.9999894994253851,
-     0.6601656390759595,
-     0.3043784459777443
+     0.9999967892809379,
+     0.6605021726211626,
+     0.3040496117794855
     ],
     "lead": 13.105280390932647
    },
@@ -627,11 +621,11 @@
     "id": "sconce",
     "map": 1,
     "channel": 1,
-    "scale": 5.366666793823242,
+    "scale": 5.278223991394043,
     "colour": [
-     0.9999608599440989,
-     0.5720538845154431,
-     0.19760364970264754
+     0.9999520365827789,
+     0.5728583861842232,
+     0.197484856131828
     ],
     "lead": 286418197.70789385
    },
@@ -639,11 +633,11 @@
     "id": "led",
     "map": 1,
     "channel": 2,
-    "scale": 28.19608497619629,
+    "scale": 22.397605895996094,
     "colour": [
-     0.3458999378614318,
-     0.8789950071402994,
-     0.9993625518483189
+     0.3466772266473346,
+     0.8787118228522746,
+     0.998974113083086
     ],
     "lead": 6
    },
@@ -651,11 +645,11 @@
     "id": "screen",
     "map": 2,
     "channel": 0,
-    "scale": 0.7531907558441162,
+    "scale": 0.8844910860061646,
     "colour": [
-     0.36051296504204444,
-     0.8090802840496095,
-     0.9951424648580554
+     0.35845902291820725,
+     0.8148148977476725,
+     0.9947948953658767
     ],
     "lead": 0.168
    }

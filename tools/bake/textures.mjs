@@ -23,6 +23,12 @@ const SET = [
     { key: `city-${n}`, mod: '/src/features/room/render/three/outside/textures.ts', call: n, pick: 'map', kind: 'colour', srgb: false },
     { key: `city-${n}-n`, mod: '/src/features/room/render/three/outside/textures.ts', call: n, pick: 'normal', kind: 'normal', srgb: false },
   ]),
+  // the room's board (`smokedOak`: the desk top and the bookcase), its floor (1024 px: the largest surface, seen close) and its rug
+  { key: 'room-oak', mod: '/src/features/room/render/three/furniture3d.ts', call: 'oakMaps', pick: 'map', kind: 'colour', srgb: true },
+  { key: 'room-oak-n', mod: '/src/features/room/render/three/furniture3d.ts', call: 'oakMaps', pick: 'normal', kind: 'normal', srgb: false },
+  { key: 'room-planks', mod: '/src/features/room/render/three/room3d.ts', call: 'planksMaps', pick: 'map', kind: 'colour', srgb: true },
+  { key: 'room-planks-n', mod: '/src/features/room/render/three/room3d.ts', call: 'planksMaps', pick: 'normal', kind: 'normal', srgb: false },
+  { key: 'room-rug', mod: '/src/features/room/render/three/room3d.ts', call: 'rugMap', kind: 'colour', srgb: true },
 ];
 
 const PORT = Number(process.env.PORT || 5199), url = `http://localhost:${PORT}/`;

@@ -48,7 +48,7 @@ async function exportScene() {
   try {
     const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
     p.on('pageerror', (e) => console.log('[page]', e.message));
-    await p.goto(url + '?3d');
+    await p.goto(url + '?3d&nobaked'); // (`nobaked`: every map is a painted canvas, so `scene.ts` can read its mean colour; a KTX2 map has no pixels to read)
     // a fresh server first optimizes its dependencies: the menu can take a while
     await p.click('text=Sandbox', { timeout: 120000 });
     await p.click('button:has-text("Start")');

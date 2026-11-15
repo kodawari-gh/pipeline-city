@@ -1,18 +1,22 @@
-// The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one smoked oak for the floor, the desk
-// top and the bookcase (one material, `smokedOak` in `furniture3d.ts`: the palette's oak as its colour, its maps only shade it, so the warm
-// lamps and the window light the three as one wood), black-brown flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
+// The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one charcoal board for the floor, the desk
+// top and the bookcase (one material, `smokedOak` in `furniture3d.ts`: the palette's `OAK` as its colour, its maps only shade it, so the
+// lamps and the window light the three as one surface), charcoal flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
 // things (the runner, the keyboard's accent keys, the print's sun), cyan for what glows in tech (the LED strips, the clock, the router's
 // lights), a warm amber for lamp light. Modern and plain: the builders take their colours from here.
 
 /** The walls' paint (their plaster texture is painted over this), the ceiling's, and the trim's (skirting, door, plinth). */
 export const WALL = '#3a404c', CEILING = 0x4a4f59, TRIM = 0x3d424c;
-/** Black-brown ash veneer (the bed, the bedside drawer, the shelf, the drawer unit): its ground and its grain. */
-export const VENEER = '#2f2a26', VENEER_GRAIN = '#1c1815';
 /**
- * Smoked oak, the room's one wood (the floor's planks, the desk top, the bookcase): its colour and its grain. A yellow brown: the 2700 K
- * lamps pull it to red (a redder oak reads orange-red under them), and the window's cool light needs its colour to read it as wood.
+ * Charcoal veneer (the bed, the bedside drawer, the shelf, the drawer unit): its ground and its grain. Art-style v3 "charcoal 2"
+ * (docs/art-style.md, 3. Lighting): the sheen of the old ash veneer, no brown.
  */
-export const OAK = '#665540', OAK_GRAIN = '#38291c';
+export const VENEER = '#2a2d32', VENEER_GRAIN = '#1d1e22';
+/**
+ * The room's one board (the floor's planks, the desk top, the bookcase): its colour and its grain. Art-style v3 "charcoal 1", a matte
+ * charcoal laminate in place of the smoked oak. It has no hue of its own: the window's cool light and the neon give it its colour, and a
+ * warm lamp makes a small warm pool on it. (The names keep `OAK`: the builders and the bake's manifest use them.)
+ */
+export const OAK = '#1d1e22', OAK_GRAIN = '#04060f';
 /** Powder-coated steel (legs, frames, the key stand, the desk lamp, the clock, the router) and black plastic. */
 export const STEEL = 0x1c1d20;
 /** Bedding: the fitted sheet and the front pillows, the duvet and the back pillows, the runner across the foot. */
