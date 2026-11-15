@@ -215,8 +215,12 @@ def calibrate():
     return cal
 
 
-def lamp(g, k, l, cal):
-    """One of the game's lights as a Blender light of the same power: a point's or a spot's intensity (per m²), an area's radiance."""
+def lamp(g, k, l, cal, live=False):
+    """One of the game's lights as a Blender light of the same power: a point's or a spot's intensity (per m²), an area's radiance.
+
+    `live`: the light stands in for the game's own (a `direct` group). The game's area light casts no shadow, so this one casts none: the
+    monitor's bias light, behind its housing, gave the wall a fifth of what High's live light gives it.
+    """
     rot = Matrix.Identity(3)
     if l['kind'] == 'spot':
         rot = Vector(l['dir']).to_track_quat('-Z', 'Y').to_matrix()
@@ -236,6 +240,10 @@ def lamp(g, k, l, cal):
     else:
         d.shape, d.size, d.size_y = 'RECTANGLE', l['w'], l['h']
         d.energy = l['power'] * l['w'] * l['h'] / cal['area']
+        if live:
+            d.use_shadow = False
+            if hasattr(d, 'cycles') and hasattr(d.cycles, 'cast_shadow'):
+                d.cycles.cast_shadow = False
     return ob
 
 
@@ -376,7 +384,7 @@ def main():
     lights = {}
     for g in CFG['groups']:
         if g['kind'] in ('lamp', 'direct'):
-            lights[g['id']] =[lamp(g['id'], k, l, cal) for k, l in enumerate(g['lights'])]
+            lights[g['id']] = [lamp(g['id'], k, l, cal, g['kind'] == 'direct') for k, l in enumerate(g['lights'])]
         elif g['kind'] == 'sun':
             ob = light('sun', g['id'], (0, 0, 5), Vector(g['dir']).to_track_quat('Z', 'Y').to_matrix())
             ob.data.energy, ob.data.angle = 1 / cal['sun'], math.radians(0.53)
