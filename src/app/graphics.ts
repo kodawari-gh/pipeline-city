@@ -3,10 +3,6 @@
 // GPU. Each option's list of `CHOICES` runs from cheap to dear; what a level means in numbers sits with the code that uses it (`post.ts`, `room3d.ts`, `chips3d.ts`).
 import { computed, signal } from '@preact/signals';
 
-export type RendererKind = '2d' | '3d';
-/** The renderer that is running (`main.tsx`): the panel shows only the options it has. */
-export const rendererKind = signal<RendererKind>('2d');
-
 export interface Graphics {
   /** Share of the screen's pixels the picture draws at, 0.5 to 1.5. */
   scale: number;

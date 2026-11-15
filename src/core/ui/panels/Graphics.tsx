@@ -1,30 +1,30 @@
 // The graphics drawer: the presets and each option on its own. A change applies at once, so the player sees the picture move behind the panel, and the numbers
-// at the top say what it costs. Only the options of the running renderer show (`rendererKind`). The settings and the presets live in `app/graphics.ts`.
+// at the top say what it costs. The settings and the presets live in `app/graphics.ts`.
 import { useEffect } from 'preact/hooks';
 import {
-  autoStep, BRIGHT_MAX, BRIGHT_MIN, CHOICES, effective, frameStats, graphics, presetOf, PRESET_NAMES, rendererKind, resetGraphics, retryPicture, SCALE_MAX, SCALE_MIN, setAutoTier, setGraphic, setPreset,
-  setTier, TIER_NAMES, tierRecord, type Choice, type Graphics, type RendererKind,
+  autoStep, BRIGHT_MAX, BRIGHT_MIN, CHOICES, effective, frameStats, graphics, presetOf, PRESET_NAMES, resetGraphics, retryPicture, SCALE_MAX, SCALE_MIN, setAutoTier, setGraphic, setPreset,
+  setTier, TIER_NAMES, tierRecord, type Choice, type Graphics,
 } from '@/app/graphics';
 import { Icon } from '../kit/Icons';
 import { graphicsOpen, toggleGraphics } from '../state';
 
-interface Row { key: Choice; label: string; help: string; only?: RendererKind }
+interface Row { key: Choice; label: string; help: string }
 
 /** The options by group, each with what it does in a line. The groups show only when a row of theirs does. */
 const GROUPS: { title: string; rows: Row[] }[] = [
   { title: 'Light', rows: [
-    { key: 'shadows', label: 'Shadows', help: 'The size of the shadow maps. Off draws the fastest room.', only: '3d' },
-    { key: 'lights', label: 'Room lamps', help: 'The most real-time lamps the room lights at once. All has no cap.', only: '3d' },
-    { key: 'lightShadows', label: 'Lamp shadows', help: 'Do the room\'s lamps cast shadows.', only: '3d' },
-    { key: 'ao', label: 'Ambient occlusion', help: 'Soft contact shadows in corners and under parts.', only: '3d' },
-    { key: 'bloom', label: 'Bloom', help: 'The glow round the RGB, the screen and the lamp.', only: '3d' },
+    { key: 'shadows', label: 'Shadows', help: 'The size of the shadow maps. Off draws the fastest room.' },
+    { key: 'lights', label: 'Room lamps', help: 'The most real-time lamps the room lights at once. All has no cap.' },
+    { key: 'lightShadows', label: 'Lamp shadows', help: 'Do the room\'s lamps cast shadows.' },
+    { key: 'ao', label: 'Ambient occlusion', help: 'Soft contact shadows in corners and under parts.' },
+    { key: 'bloom', label: 'Bloom', help: 'The glow round the RGB, the screen and the lamp.' },
   ] },
   { title: 'Detail', rows: [
-    { key: 'msaa', label: 'Anti-aliasing', help: 'Smooths the edges of every part.', only: '3d' },
-    { key: 'textures', label: 'Textures', help: 'How sharp the board, the dies and their names are up close.', only: '3d' },
-    { key: 'filtering', label: 'Filtering', help: 'Keeps textures sharp at a slant.', only: '3d' },
-    { key: 'live', label: 'Live chips', help: 'How often and how sharply the running dies draw.', only: '3d' },
-    { key: 'particles', label: 'Particles', help: 'Haze off hot parts, smoke and sparks.', only: '3d' },
+    { key: 'msaa', label: 'Anti-aliasing', help: 'Smooths the edges of every part.' },
+    { key: 'textures', label: 'Textures', help: 'How sharp the board, the dies and their names are up close.' },
+    { key: 'filtering', label: 'Filtering', help: 'Keeps textures sharp at a slant.' },
+    { key: 'live', label: 'Live chips', help: 'How often and how sharply the running dies draw.' },
+    { key: 'particles', label: 'Particles', help: 'Haze off hot parts, smoke and sparks.' },
   ] },
 ];
 
@@ -107,8 +107,7 @@ export function GraphicsDock() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
   if (!open) return null;
-  const g = graphics.value, kind = rendererKind.value, preset = presetOf(g);
-  const fits = (r: Row) => !r.only || r.only === kind;
+  const g = graphics.value, preset = presetOf(g);
   return (
     <aside class="dock gfx" aria-label="Graphics">
       <button class="close" aria-label="Close graphics" onClick={toggleGraphics}><Icon name="close" size={11} /></button>
@@ -123,21 +122,19 @@ export function GraphicsDock() {
       <h3>Display</h3>
       <Slider label="Render scale" help="The pixels the picture draws, as a share of the screen's." min={SCALE_MIN} max={SCALE_MAX} value={g.scale} set={(v) => setGraphic('scale', v)} />
       <Choices row={{ key: 'fps', label: 'Frame limit', help: 'Saves power and heat. Off runs at the rate of the screen.' }} value={g.fps} />
-      {kind === '3d' && <Slider label="Brightness" help="The picture's exposure. Presets leave it alone." min={BRIGHT_MIN} max={BRIGHT_MAX} value={g.brightness} set={(v) => setGraphic('brightness', v)} />}
-      {kind === '3d' && (
-        <div class="gfx-row" title="Lowers the picture by steps while the frames stay under 30 FPS.">
-          <span class="gfx-name">Auto-adjust</span>
-          <div class="seg" role="group" aria-label="Auto-adjust">
-            <button class={g.auto ? '' : 'on'} aria-pressed={!g.auto} onClick={() => setGraphic('auto', false)}>Off</button>
-            <button class={g.auto ? 'on' : ''} aria-pressed={g.auto} onClick={() => setGraphic('auto', true)}>On</button>
-          </div>
-          <span class="gfx-help">Lowers the picture while the frames stay under 30 FPS.</span>
+      <Slider label="Brightness" help="The picture's exposure. Presets leave it alone." min={BRIGHT_MIN} max={BRIGHT_MAX} value={g.brightness} set={(v) => setGraphic('brightness', v)} />
+      <div class="gfx-row" title="Lowers the picture by steps while the frames stay under 30 FPS.">
+        <span class="gfx-name">Auto-adjust</span>
+        <div class="seg" role="group" aria-label="Auto-adjust">
+          <button class={g.auto ? '' : 'on'} aria-pressed={!g.auto} onClick={() => setGraphic('auto', false)}>Off</button>
+          <button class={g.auto ? 'on' : ''} aria-pressed={g.auto} onClick={() => setGraphic('auto', true)}>On</button>
         </div>
-      )}
-      {GROUPS.filter((s) => s.rows.some(fits)).map((s) => (
+        <span class="gfx-help">Lowers the picture while the frames stay under 30 FPS.</span>
+      </div>
+      {GROUPS.map((s) => (
         <section key={s.title}>
           <h3>{s.title}</h3>
-          {s.rows.filter(fits).map((r) => <Choices key={r.key} row={r} value={g[r.key]} />)}
+          {s.rows.map((r) => <Choices key={r.key} row={r} value={g[r.key]} />)}
         </section>
       ))}
       <div class="pactions"><button onClick={resetGraphics}>Reset to defaults</button></div>

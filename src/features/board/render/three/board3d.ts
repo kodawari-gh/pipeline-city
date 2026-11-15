@@ -1,6 +1,5 @@
-// The 3D world's mount (docs/render/three.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
-// Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
-// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
+// The 3D world's mount (docs/render/three.md): the game's view (`app/main.tsx`). It builds the room and the machine from the snapshot, drives the orbit camera,
+// picks with rays and writes the hover / selected signals, so the HUD's tooltips and cards work. The dies run on `Chips3D`. Parts, cables and keys drag (`drag3d.ts`).
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
 // at every height (`RoomEnv`), and so does the machine: it reads at night by the room's lamps alone, at every zoom (`src/features/room/light.md`).
 import { effect } from '@preact/signals';
