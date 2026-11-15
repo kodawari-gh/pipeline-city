@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MeshBasicMaterial, Scene, WebGLRenderTarget } from 'three';
-import { disposeTree, rectBox, worldUv } from './geometry';
+import { disposeTree, fanSides, rectBox, worldUv } from './geometry';
 
 /** The uvs of the box's face toward +z (BoxGeometry's fifth face) at its four corners, by corner position (x, y). */
 function front(o: ReturnType<typeof rectBox>): Map<string, [number, number]> {
@@ -43,5 +43,27 @@ describe('disposeTree', () => {
     disposeTree(scene);
     expect(disposed).toBe(0);
     target.dispose();
+  });
+});
+
+describe('fanSides', () => {
+  it('sets the sides by diameter: 16 at 40 mm, 24 at 92 mm, 32 at 120 mm, 40 or more at 140 mm', () => {
+    expect(fanSides(40)).toBe(16);
+    expect(fanSides(80)).toBe(24);
+    expect(fanSides(92)).toBe(24);
+    expect(fanSides(120)).toBe(32);
+    expect(fanSides(140)).toBeGreaterThanOrEqual(40);
+  });
+
+  it('stays even and inside 16..48, and never falls as the diameter grows', () => {
+    let last = 0;
+    for (let mm = 1; mm <= 400; mm++) {
+      const s = fanSides(mm);
+      expect(s % 2).toBe(0);
+      expect(s).toBeGreaterThanOrEqual(16);
+      expect(s).toBeLessThanOrEqual(48);
+      expect(s).toBeGreaterThanOrEqual(last);
+      last = s;
+    }
   });
 });

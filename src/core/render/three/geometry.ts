@@ -86,8 +86,22 @@ export const SEG = {
   ramCurve: 10,
 } as const;
 
-/** The sides of a round fan part (flange, housing, ring) from the fan's diameter in mm: 16 at 40 mm, up to 48 at 120 mm and above (§4, ASR4). */
-export const fanSides = (mm: number): number => Math.min(48, Math.max(16, 2 * Math.round(mm * 0.2)));
+/** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */
+const FAN_SIDE_TABLE: readonly (readonly [number, number])[] = [[40, 16], [80, 24], [92, 24], [120, 32], [140, 40], [200, 48]];
+
+/**
+ * The sides of a round fan part (flange, housing, hub, rings) from the fan's diameter in mm: 16 at 40 mm, 24 at 80 to 92 mm, 32 at 120 mm,
+ * 40 at 140 mm and 48 from 200 mm. Always even, never under 16 or over 48, and never fewer for a wider fan.
+ */
+export const fanSides = (mm: number): number => {
+  const first = FAN_SIDE_TABLE[0]!;
+  if (mm <= first[0]) return first[1];
+  for (let i = 1; i < FAN_SIDE_TABLE.length; i++) {
+    const [x1, y1] = FAN_SIDE_TABLE[i]!, [x0, y0] = FAN_SIDE_TABLE[i - 1]!;
+    if (mm <= x1) return 2 * Math.round((y0 + ((y1 - y0) * (mm - x0)) / (x1 - x0)) / 2);
+  }
+  return FAN_SIDE_TABLE[FAN_SIDE_TABLE.length - 1]![1];
+};
 
 /** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
@@ -203,12 +217,12 @@ export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: num
 
 /**
  * A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`.
- * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`).
+ * `chord`: the blades' width in parts of `r`; `pitch`: their tilt (`fanBlade`). The hub's sides come from the rotor's own diameter (`fanSides`).
  */
 export function fanRotor(r: number, n: number, blade: Material, hub: Material, o: { chord?: number; pitch?: number } = {}): Group {
-  const rotor = new Group(), hr = r * 0.3;
-  const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, 28).rotateX(Math.PI / 2), hub);
-  const dome = new Mesh(new SphereGeometry(hr, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  const rotor = new Group(), hr = r * 0.3, sides = fanSides((2 * r) / 23);
+  const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, sides).rotateX(Math.PI / 2), hub);
+  const dome = new Mesh(new SphereGeometry(hr, sides, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
   dome.position.z = r * 0.11;
   // (no uv, as the blades: a hub and blades of one program merge into one mesh)
   hubM.geometry.deleteAttribute('uv'); dome.geometry.deleteAttribute('uv');

@@ -184,9 +184,9 @@
   "machine/case": {
     "meshes": 140,
     "draws": 140,
-    "verts": 163154,
+    "verts": 157378,
     "instances": 1230,
-    "sum": "9dc98240"
+    "sum": "770b7f06"
   },
   "machine/case.side": {
     "meshes": 1,
@@ -219,9 +219,9 @@
   "machine/dev11": {
     "meshes": 11,
     "draws": 11,
-    "verts": 31194,
+    "verts": 30330,
     "instances": 12,
-    "sum": "9508a097"
+    "sum": "95d184ed"
   },
   "machine/dev12": {
     "meshes": 3,
@@ -247,58 +247,58 @@
   "machine/dev15": {
     "meshes": 4,
     "draws": 4,
-    "verts": 28521,
+    "verts": 21495,
     "instances": 0,
-    "sum": "98b91601"
+    "sum": "2d49ef4e"
   },
   "machine/dev16": {
     "meshes": 4,
     "draws": 4,
-    "verts": 28521,
+    "verts": 21495,
     "instances": 0,
-    "sum": "00049f24"
+    "sum": "825d961d"
   },
   "machine/dev17": {
     "meshes": 4,
     "draws": 4,
-    "verts": 28521,
+    "verts": 21495,
     "instances": 0,
-    "sum": "ef902257"
+    "sum": "5d0c9bda"
   },
   "machine/dev18": {
     "meshes": 4,
     "draws": 4,
-    "verts": 28521,
+    "verts": 21495,
     "instances": 0,
-    "sum": "0457867b"
+    "sum": "6e8759ae"
   },
   "machine/dev19": {
     "meshes": 4,
     "draws": 4,
-    "verts": 28521,
+    "verts": 21495,
     "instances": 0,
-    "sum": "6b2e86f9"
+    "sum": "a9888d19"
   },
   "machine/dev20": {
     "meshes": 6,
     "draws": 6,
-    "verts": 28674,
+    "verts": 21648,
     "instances": 8,
-    "sum": "06527914"
+    "sum": "4bd763dc"
   },
   "machine/dev21": {
     "meshes": 3,
     "draws": 3,
-    "verts": 11712,
+    "verts": 11208,
     "instances": 0,
-    "sum": "365b9a25"
+    "sum": "0660d6d6"
   },
   "machine/dev22": {
     "meshes": 3,
     "draws": 3,
-    "verts": 11712,
+    "verts": 11208,
     "instances": 0,
-    "sum": "4856a19b"
+    "sum": "a3391a05"
   },
   "machine/dev23": {
     "meshes": 13,
@@ -415,9 +415,9 @@
   "machine/psu": {
     "meshes": 32,
     "draws": 32,
-    "verts": 27145,
+    "verts": 27407,
     "instances": 34,
-    "sum": "c89ba8d3"
+    "sum": "6e6e9605"
   },
   "machine/sata0": {
     "meshes": 1,
