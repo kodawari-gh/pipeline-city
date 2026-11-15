@@ -259,13 +259,15 @@ export function perforation(kind: Perf): Texture | null {
 }
 
 /** The material of a perforated sheet over a face `w` by `h` units, `pitch` units per hole. */
-export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): Material {
+export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: number, o: { metal?: number; rough?: number; inside?: boolean } = {}): Material {
   const t = tiled(perforation(kind), w / pitch, h / (pitch * (kind === 'mesh' || kind === 'slot' ? 1 : 1.73)));
   // The holes are alpha-tested. A hard cut on mip-averaged alpha shimmers when the view moves: the coverage mask (the scene is multisampled) smooths it.
   // The sheet is pulled forward in depth, so the dark backing a few units behind it never wins a pixel at a far zoom (the hole flicker).
   // Once a hole is smaller than a few pixels no filter can draw it steadily: the sheet fades to a solid, darker average (the holes' mean look).
   // (a thin sheet: over a real opening it shows from inside the case too)
-  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  // (`inside`: a sheet in the case, behind the door. The factor scales the pull by the face's depth slope, which has no bound on a face seen
+  // edge-on: a tray's floor, looked at from just under it, came forward through the shut door as a dark line. Such a sheet takes a fixed pull.)
+  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: o.inside ? 0 : -2, polygonOffsetUnits: o.inside ? -8 : -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
   m.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       #ifdef USE_MAP
@@ -307,7 +309,7 @@ export function perforatedFlatRun(top: number, rects: [number, number, number, n
     return p;
   }), false)!;
   const back = new Mesh(geo(3), mat(0x040506, { roughness: 0.9 }));
-  const perf = new Mesh(geo(5), perfMat(kind, w, h, pitch, tone, o));
+  const perf = new Mesh(geo(5), perfMat(kind, w, h, pitch, tone, { ...o, inside: true }));
   back.receiveShadow = perf.receiveShadow = true;
   g.add(back, perf);
   return g;
