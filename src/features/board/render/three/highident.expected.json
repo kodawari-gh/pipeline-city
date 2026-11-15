@@ -527,9 +527,9 @@
   "room/Group#15": {
     "meshes": 3,
     "draws": 3,
-    "verts": 3992,
+    "verts": 1208,
     "instances": 0,
-    "sum": "1010f207"
+    "sum": "cd18b1d8"
   },
   "room/Group#18": {
     "meshes": 2,
