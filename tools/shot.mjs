@@ -8,7 +8,8 @@
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
 //   (default)             the Three.js renderer, the game's view; --view also takes `room` there
 //   --hour h              (dev server, --3d) pin the room's hour (`roomDebug.hour`), e.g. 23 or 14.2
-//   --look x,y,z,yaw,pitch,height  (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
+//   --query "a=b&c=d"     the page's query string, e.g. `citycuts=cadence,far` (the Low city's cuts by name, `outside/detail.ts`)
+//   --look x,y,z,yaw,pitch,height (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
 //                         Measure the picture with `node tools/lum.mjs <png> x,y,w,h ...`
 //   env: PORT (5199), CHROME_PATH (default: the installed Chrome), SOFTWARE=1
 import { spawn } from 'node:child_process';
@@ -50,7 +51,7 @@ try {
   p.on('pageerror', (e) => errors.push(e.message));
   // --console: print the page's console errors and warnings too (a shader that fails to compile is only logged)
   if (args.includes('--console')) p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 2000)); });
-  await p.goto(url);
+  await p.goto(url + (flag('query', '') ? '?' + flag('query', '') : ''));
   await p.waitForTimeout(1500);
   const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   console.log('GL renderer:', renderer);
