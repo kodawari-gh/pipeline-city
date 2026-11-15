@@ -773,6 +773,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   if (import.meta.env.DEV) {
   /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
   const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
+  /** Dev only (`tools/shot-case.mjs`): the view that frames the object with this hover id from its own box (its largest side fills `fill` of the view's height). Null: no such object. */
+  const frameOf = (id: string, yaw: number, pitch: number, fill: number): OrbitView | null => {
+    const o = roots().map((r) => findById(r, id)).find(Boolean) ?? null;
+    if (!o) return null;
+    const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
+    const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
+    jumpRaw(v);
+    return v;
+  };
   (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
@@ -817,14 +826,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // own box in world units: its largest side fills `fill` of the view's height, turned by `yaw`, seen from `pitch` above. Null: no such device.
     jumpRaw: (v: OrbitView) => jumpRaw(v),
     frameSpec: (key: string, yaw = 0, pitch = 0.1, fill = 0.6): OrbitView | null => {
-      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key);
-      const o = d && machine ? findById(machine.root, d.id) : null;
-      if (!o) return null;
-      const b = new Box3().setFromObject(o), c = b.getCenter(new Vector3()), s = b.getSize(new Vector3());
-      const v: OrbitView = { x: c.x, y: c.y, z: c.z, yaw, pitch, fov: 26, height: Math.max(s.x, s.y, s.z, 1) / fill };
-      jumpRaw(v);
-      return v;
+      const d = snapshot.peek()?.devices.find((x) => x.spec === key || x.kind === key || x.slot === key);
+      return d ? frameOf(d.id, yaw, pitch, fill) : null;
     },
+    // `--id`: the object with this hover id (a part, a cable, a room object), framed the same way; `--list`: every hover id in the scene, sorted
+    frameId: (id: string, yaw = 0.52, pitch = 0.35, fill = 0.5): OrbitView | null => frameOf(id, yaw, pitch, fill),
+    ids: (): string[] => { const s = new Set<string>(); for (const r of roots()) r.traverse((o) => { if (typeof o.userData.id === 'string') s.add(o.userData.id); }); return [...s].sort(); },
   };
   }
 }
