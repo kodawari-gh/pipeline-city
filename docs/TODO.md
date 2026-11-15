@@ -20,7 +20,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] [look: x] Tit
 - **`[look: x]`**: the task can change the picture (none, low, medium, high). Any task with a look needs a before and after shot.
 - **State**: what is already done and measured, with the date. Newest facts only; older history is in git and `docs/render/look-per-cost.md`.
 
-## Where things stand (2026-11-15, branch `gfx/look-per-cost`, 109 commits ahead of main, not merged)
+## Where things stand (2026-11-15, branch `main` at `656d3ed`, in sync with origin; `gfx/look-per-cost` merged and deleted)
 
 Why the work exists: the frame is CPU bound (draw calls, materials, light uniforms), so cuts to those come before triangle cuts. A normal map cuts triangles, not draw calls. The machine's parts move, so the machine gets baked occlusion and the room probe, not lightmaps.
 
