@@ -24,7 +24,7 @@ const PANEL = 10;
 const BACK_T = 16;
 
 /** A kind's fixings: bare zinc in the Mini, black in the Micro and the Mid, polished in the Full tower; its rivets take the paint of the sheet. */
-export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0xb2b4ab, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 }));
+export const screwM = (k: CaseKind): Material => (k === 'oem' ? mat(0x959aa3, { metalness: 0.8, roughness: 0.36 }) : k === 'show' ? mat(0x4e5360, { metalness: 0.8, roughness: 0.34 }) : mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 }));
 export const rivetM = (k: CaseKind): Material => mat(({ oem: 0xc6bd9c, matte: 0x25262c, gamer: 0x2b3142, show: 0x34373e })[k], { metalness: 0.45, roughness: 0.42 });
 
 /** A keyhole: a round hole with a slot rising from it (layout centre of the round part), as a world outline. */
@@ -89,7 +89,7 @@ function mounts(used: readonly (readonly [number, number])[], kind: CaseKind): G
     g.add(instanced(up(46, SEG.post, 3), mat(0x959aa3, { metalness: 0.75, roughness: 0.42 }), free.map(([x, y]) => ({ x, y: -y, z: z + 1 }))));
     g.add(instanced(up(26, SEG.part, 3), mat(0x050608, { roughness: 0.85 }), free.map(([x, y]) => ({ x, y: -y, z: z + 3 }))));
   }
-  const ink = kind === 'oem' ? '#6f6a53' : '#8d929c';
+  const ink = kind === 'oem' ? '#959aa3' : '#8d929c';
   // (one mesh a word, not one a position: the marks of one word share a texture)
   const marks = new Map<string, BufferGeometry[]>();
   for (const [x, y] of standoffs()) {

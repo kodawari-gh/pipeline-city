@@ -35,7 +35,7 @@ export { outlinePts, SIDE_T } from './casekit3d';
  * through it that its tint takes), the shroud's print.
  */
 const LOOKS: Record<CaseKind, { body: number; rough: number; metal: number; inner: number; rad: number; glass: { tint: number } | null; shroud: { body: number; ink: string }; rgb: boolean }> = {
-  oem: { body: 0xdcd4b5, rough: 0.6, metal: 0.04, inner: 0xcbc2a1, rad: 30, glass: null, shroud: { body: 0xcfc6a5, ink: '#5c5642' }, rgb: false },
+  oem: { body: 0x2a2d32, rough: 0.62, metal: 0.08, inner: 0x2a2d32, rad: 30, glass: null, shroud: { body: 0x1d1e22, ink: '#5d626d' }, rgb: false },
   matte: { body: 0x17181c, rough: 0.88, metal: 0.08, inner: 0x111215, rad: 80, glass: { tint: 0.5 }, shroud: { body: 0x15161a, ink: '#5d626d' }, rgb: false },
   gamer: { body: 0x1d2232, rough: 0.38, metal: 0.55, inner: 0x121621, rad: 56, glass: { tint: 0.12 }, shroud: { body: 0x1b2030, ink: '#c9ced6' }, rgb: true },
   show: { body: 0x1d1e22, rough: 0.4, metal: 0.6, inner: 0x0c0d10, rad: 20, glass: { tint: 0.25 }, shroud: { body: 0x1a1c21, ink: '#d8dce4' }, rgb: true },
@@ -181,20 +181,20 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   if (kind === 'oem') {
     // a pressed panel over the board's side, a vent patch over the CPU, a screw in each corner, the seam to the PSU bay, a label
     const r = { x: ci.x, y: gl.y, w: ci.w, h: gl.h }, pressed = { x: r.x + 60, y: r.y + 50, w: r.w - 120, h: r.h - 100 };
-    side.add(softBox(pressed, FRONT - 10, FRONT + 14, mat(0xe3dcc0, { roughness: 0.55 }), 12));
+    side.add(softBox(pressed, FRONT - 10, FRONT + 14, mat(0x2a2d32, { roughness: 0.55 }), 12));
     const v = { x: caseWindow('oem').x + 700, y: r.y + r.h / 2 - 760, w: 1500, h: 1500 };
-    side.add(softBox(grow(v, 30), FRONT + 8, FRONT + 18, mat(0xc2b994, { roughness: 0.6 }), 10));
-    perforated(side, v, FRONT + 20, 'round', 52, 0xcfc6a3, { metal: 0.05, rough: 0.6 });
+    side.add(softBox(grow(v, 30), FRONT + 8, FRONT + 18, mat(0x1d1e22, { roughness: 0.6 }), 10));
+    perforated(side, v, FRONT + 20, 'round', 52, 0x2a2d32, { metal: 0.05, rough: 0.6 });
     const corners = [[r.x + 120, r.y + 110], [r.x + r.w - 120, r.y + 110], [r.x + 120, r.y + r.h - 110], [r.x + r.w - 120, r.y + r.h - 110]] as const;
-    side.add(screwHeads(corners.map(([x, y]) => ({ x, y: -y, z: FRONT + 14 })), 'z+', 62, mat(0xb9b29a, { metalness: 0.6, roughness: 0.35 })));
-    side.add(rectBox({ x: ci.x + 40, y: lowY + 40, w: ci.w - 80, h: 14 }, FRONT - 2, FRONT + 1, mat(0x8f8768, { roughness: 0.7 })));
-    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0xbfb695, { metal: 0.05, rough: 0.6 })));
+    side.add(screwHeads(corners.map(([x, y]) => ({ x, y: -y, z: FRONT + 14 })), 'z+', 62, mat(0x4e5360, { metalness: 0.6, roughness: 0.35 })));
+    side.add(rectBox({ x: ci.x + 40, y: lowY + 40, w: ci.w - 80, h: 14 }, FRONT - 2, FRONT + 1, mat(0x131518, { roughness: 0.7 })));
+    side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x2a2d32, { metal: 0.05, rough: 0.6 })));
     const label = { x: right - 700, y: cy - 150, w: 700, h: 300 };
-    side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0xc9c0a0, { roughness: 0.5 }), 8));
-    side.add(decal(grow(label, -20), FRONT + 9, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
+    side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0x1d1e22, { roughness: 0.5 }), 8));
+    side.add(decal(grow(label, -20), FRONT + 9, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#959aa3', '#959aa3', '#1d1e22'), roughness: 0.5 })));
     // the top strip's vents; the plastic front with two drive-bay covers and its grille; round feet
-    for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 2, mat(0x8a8468, { roughness: 0.8 }), 12));
-    const bezel = mat(0xd3caa9, { roughness: 0.65 }), ex = C.x + C.w;
+    for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 2, mat(0x131518, { roughness: 0.8 }), 12));
+    const bezel = mat(0x1d1e22, { roughness: 0.65 }), ex = C.x + C.w;
     const zc = CASE_Z + CASE_D / 2;
     // the plastic front, with a round grille of slots cut through it over each front fan
     const grilleR = Math.min(frontFanRects()[0]!.h, FAN_MAX) * 0.45, slots: Span[] = [];
@@ -204,7 +204,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     }
     root.add(wallX(ex - OEM_BEZEL, ex + 50, { y0: C.y - 8, y1: C.y + C.h + 8, z0: CASE_Z + 10, z1: FRONT + 12, r: 40 }, slots, bezel));
     // two 5.25-inch bay blanks, each in its dark gap: a face with soft corners, a raised rim round a recessed panel, the release notch under it
-    const blank = mat(0xcbc29f, { roughness: 0.6 }), gap = mat(0x2a2d32, { roughness: 0.9 });
+    const blank = mat(0x2a2d32, { roughness: 0.6 }), gap = mat(0x050608, { roughness: 0.9 });
     for (let k = 0; k < 2; k++) {
       const b: Span = { y0: C.y + 520 + k * 470, y1: C.y + 940 + k * 470, z0: zc - 740, z1: zc + 740, r: 12 }, inset = (e: number): Span => ({ y0: b.y0 + e, y1: b.y1 - e, z0: b.z0 + e, z1: b.z1 - e, r: 10 });
       root.add(wallX(ex + 48, ex + 52, inset(-14), [], gap), wallX(ex + 52, ex + 66, b, [], blank, 3), wallX(ex + 66, ex + 71, inset(34), [inset(64)], blank));
@@ -213,8 +213,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     root.add(bayFrame());
     // the maker's badge over the bays
     const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
-    root.add(wallX(ex + 50, ex + 58, badge, [], mat(0xc2b994, { roughness: 0.5 }), 2));
-    root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#4a4636', '#4a4636', '#cbc3a3'), roughness: 0.5 })));
+    root.add(wallX(ex + 50, ex + 58, badge, [], mat(0x2a2d32, { roughness: 0.5 }), 2));
+    root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#959aa3', '#959aa3', '#1d1e22'), roughness: 0.5 })));
     const foot = mat(0x2a2d32, { roughness: 0.9 });
     for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
   }
@@ -295,7 +295,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   // turns them out before the panel opens)
   const screws: Object3D[] = [], flange = { x: C.x - 12, y: C.y + 160, w: 12, h: bottom - C.y - 320 }, FL = 260;
   if (kind === 'oem') {
-    const knurl = mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 });
+    const knurl = mat(0x4e5360, { metalness: 0.6, roughness: 0.35 });
     side.add(rectBox(flange, FRONT - FL, FRONT, sheetM));
     for (const y of [C.y + 700, bottom - 700]) {
       const s = thumbscrews([{ x: 12, y: 0, z: 0 }], 'x-', 100, 96, knurl);
@@ -305,7 +305,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     }
   }
   // the back panel's flange and its two thumbscrews, on every case (black on the dark ones)
-  const backKnurl = kind === 'oem' ? mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 }) : mat(0x1d1e22, { metalness: 0.55, roughness: 0.4 });
+  const backKnurl = kind === 'oem' ? mat(0x4e5360, { metalness: 0.6, roughness: 0.35 }) : mat(0x1d1e22, { metalness: 0.55, roughness: 0.4 });
   root.add(rectBox(flange, CASE_Z, CASE_Z + FL, body));
   root.add(thumbscrews([C.y + 700, bottom - 700].map((y) => ({ x: C.x - 12, y: -y, z: CASE_Z + FL / 2 })), 'x-', 100, 96, backKnurl));
   side.traverse(seeThrough);

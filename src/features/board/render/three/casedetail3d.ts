@@ -98,7 +98,7 @@ export function rearFanScrews(): Group {
  * the bays) and a tool-less latch per bay on the glass side.
  */
 export function bayFrame(): Group {
-  const g = new Group(), m = mat(0xa9aca4, { metalness: 0.7, roughness: 0.4 }), zc = CASE_Z + CASE_D / 2, x0 = CASE_IN.x + CASE_IN.w - 1830, x1 = CASE_IN.x + CASE_IN.w;
+  const g = new Group(), m = mat(0x4e5360, { metalness: 0.7, roughness: 0.4 }), zc = CASE_Z + CASE_D / 2, x0 = CASE_IN.x + CASE_IN.w - 1830, x1 = CASE_IN.x + CASE_IN.w;
   const ya = CASE.y + 480, yb = CASE.y + 1440, za = zc - 760, zb = zc + 760, t = 14, side: RectLike = { x: x0, y: ya, w: x1 - x0, h: yb - ya };
   const holes = [0, 1].flatMap((k) => [200, 560, 920].map((dx) => outlinePts({ x: x0 + dx, y: CASE.y + 708 + k * 470, w: 160, h: 44 }, 22)));
   holes.push(outlinePts({ x: x0 + 1240, y: ya + 160, w: 420, h: yb - ya - 320 }, 60));
@@ -134,7 +134,7 @@ export function fanMountPlates(m: Material): Group {
 }
 
 /** The sheet's tone of each kind, for its grilles and meshes. */
-export const kindTone = (k: CaseKind) => ({ oem: 0xcfc6a3, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
+export const kindTone = (k: CaseKind) => ({ oem: 0x2a2d32, matte: 0x1c1d22, gamer: 0x262c3c, show: 0x5a5f69 })[k];
 /** The slot blanks' finish by kind: bare zinc in the Mini, painted to match the body in the others. */
 export const SLOT_BLANK: Record<CaseKind, number> = { oem: 0xa3a69f, matte: 0x1c1d22, gamer: 0x232838, show: 0x17181d };
 
@@ -388,16 +388,17 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
   const root = new Group(), power = tag(new Group(), 'power'), spins: Spin[] = [], k = f.kind, zb = FRONT - 650, top = CASE.y;
   const on = pip(k === 'oem' ? 0x5cff9a : k === 'matte' ? 0xe8f0ff : f.acc), err = pip(0xff4a5a), disk = pip(k === 'oem' ? 0xffb547 : 0xe8f0ff);
   if (k === 'oem') {
-    const bx = ex - 60, ty = top - 8, beige = mat(0xd9d0b0, { roughness: 0.55 });
-    power.add(softBox({ x: bx - 95, y: ty - 34, w: 190, h: 34 }, zb - 95, zb + 95, beige, 14), rectBox({ x: bx - 60, y: ty - 36, w: 120, h: 3 }, zb - 6, zb + 6, mat(0x8a8468, { roughness: 0.8 })));
+    const bx = ex - 60, ty = top - 8, beige = mat(0x4e5360, { roughness: 0.55 });
+    power.add(softBox({ x: bx - 95, y: ty - 34, w: 190, h: 34 }, zb - 95, zb + 95, beige, 14), rectBox({ x: bx - 60, y: ty - 36, w: 120, h: 3 }, zb - 6, zb + 6, mat(0x131518, { roughness: 0.8 })));
     power.add(hitPlate(bx, ty, zb));
     root.add(power, seeThrough(rectBox({ x: bx - 30, y: ty - 10, w: 60, h: 10 }, zb - 300, zb - 220, on)), seeThrough(rectBox({ x: bx - 30, y: ty - 10, w: 60, h: 10 }, zb - 420, zb - 340, disk)));
     root.add(seeThrough(rectBox({ x: bx - 20, y: ty - 8, w: 40, h: 8 }, zb - 520, zb - 470, err)));
     // the face: a reset button, two USB ports and the audio jacks under the bay covers
     const face = ex + 50, y0 = top + 1650, zc = (f.z0 + f.z1) / 2;
-    root.add(boxW(face, face + 14, -(y0 + 40), -(y0 - 40), zc + 500, zc + 580, mat(0xb9b092, { roughness: 0.6 })));
+    root.add(boxW(face, face + 14, -(y0 + 40), -(y0 - 40), zc + 500, zc + 580, mat(0x4e5360, { roughness: 0.6 })));
     [-330, -170].forEach((dz) => root.add(boxW(face, face + 8, -(y0 + 56), -(y0 - 56), zc + dz - 28, zc + dz + 28, steel()), boxW(face + 6, face + 10, -(y0 + 46), -(y0 - 46), zc + dz - 20, zc + dz + 20, black())));
-    [40, 160].forEach((dz, i) => root.add(drumX(face + 6, -y0, zc + dz, 30, 10, mat(i ? 0xf08cb0 : 0x8fd14f, { roughness: 0.5 })), drumX(face + 10, -y0, zc + dz, 17, 6, black())));
+    // (the jacks' rings are satin metal, not the old pink and green: a base colour is never saturated, art-style C1)
+    [40, 160].forEach((dz) => root.add(drumX(face + 6, -y0, zc + dz, 30, 10, mat(0x959aa3, { metalness: 0.7, roughness: 0.38 })), drumX(face + 10, -y0, zc + dz, 17, 6, black())));
     return { root, power, leds: { on, err, disk }, spins };
   }
   // the top I/O panel by the front edge (the gaming case's sits behind its mesh cap)
