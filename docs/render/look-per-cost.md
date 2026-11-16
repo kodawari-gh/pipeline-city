@@ -33,7 +33,7 @@ Shimmer under the pan (third line of the tool, `--turns N`, default 8): the shar
 2. **Dither at output.** Static triangular noise of 1/255 in the finish pass. Removes banding in the dark room. Cost: a few instructions.
 3. **Half-resolution GTAO**, depth-aware upsample, then AO at Medium. Cost: about a quarter of the present AO.
 4. **Baked occlusion for the machine.** Per-vertex AO at build time for static parts. Low gets depth in the case with no pass.
-5. **Light count (PERF17).** Lamps that never move live in the lightmaps only; at most 4 real-time lights at Low, 8 above. Every lit shader gets cheaper.
+5. **Light count (PERF17).** Lamps that never move live in the lightmaps only; at most 4 real-time lights at Low, 8 above. Every lit shader gets cheaper. Done for Low (GFX-04, 2026-11-16): key, arc and the case's two RGB lights (src/features/room/light.md "The lamp cap").
 6. **Shadow maps on demand.** Already present (`shadows.ts`, PERF18): a still room draws no shadow map. Left: spend the saving on softer filtering at High.
 7. **Grade LUT.** One 3D-LUT lookup in the finish pass in place of the hand tint. Needs an authored grade from the owner first.
 8. **Still-camera refinement.** Jitter and accumulate frames while nothing moves: super-sampled edges at Low with no MSAA. Experiment; stop if moving parts ghost.

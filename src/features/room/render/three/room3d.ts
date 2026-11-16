@@ -55,7 +55,7 @@ import {
   WALL_T, WEST_X, WINDOW,
   daylight, sunDir, wallAround,
 } from './roomplan';
-import { LIGHT_ORDER, bounceLift, chooseLights, type LightId } from './roomlights';
+import { LIGHT_ORDER, MACHINE_LIGHTS, bounceLift, chooseLights, type LightId } from './roomlights';
 
 const KEY_W = 230;
 
@@ -907,8 +907,7 @@ export class Room3D {
       case 'desk': return [this.lampLight];
       case 'floor': return [this.floorLight];
       case 'bedside': return [this.bedLight];
-      case 'sconceUp': return [this.sconce.up];
-      case 'sconceDown': return [this.sconce.down];
+      case 'sconce': return [this.sconce.up, this.sconce.down];
       case 'screen': return [this.screenLight];
       case 'deskLed': return [this.deskLed];
       case 'picture': return [this.picture.light];
@@ -916,20 +915,25 @@ export class Room3D {
       case 'ledUnder': return [this.ledUnder];
       case 'bias': return [this.monitor.bias];
       case 'strips': return this.strips.lights;
+      case 'case': case 'spill': return []; // (the machine's: `Machine3D.setLights`)
     }
   }
+
+  /** The scene's real-time lights at the cap last set (`setLights`), the machine's included: the board hands them on to the machine. */
+  get liveLights(): ReadonlySet<LightId> { return this.choice.live; }
 
   /** The graphics settings' shadow level and choice of lights, as last set. */
   private shadowLevel = 3;
   private choice = chooseLights(0, true);
 
   /**
-   * At most `cap` real-time lights in the room (0: all of them), and whether its lamps cast shadows (`chooseLights`). A capped light leaves
-   * the scene (the renderer counts a light at 0), so the lit programs are made again: call it when the setting changes, never by the frame.
-   * Its fixture still glows and its baked bounce shows lifted (`mixLight`); the frame still sets its level.
+   * At most `cap` real-time lights in the scene (0: all of them), the machine's two included, and whether the lamps cast shadows
+   * (`chooseLights`). A capped light leaves the scene (the renderer counts a light at 0), so the lit programs are made again: call it when
+   * the setting changes, never by the frame. Its fixture still glows and its baked light stands in (`mixLight`); the frame still sets its
+   * level. The machine takes its share from `liveLights`.
    */
   setLights(cap: number, lampShadows: boolean): void {
-    this.choice = chooseLights(cap, lampShadows, (id) => this.lightsOf(id).length);
+    this.choice = chooseLights(cap, lampShadows, (id) => (MACHINE_LIGHTS.includes(id) ? 1 : this.lightsOf(id).length));
     for (const id of LIGHT_ORDER) for (const l of this.lightsOf(id)) l.visible = this.choice.live.has(id);
     this.mixKey = '';
     // (a cap set later: the capped lamps' direct light loads now, and the next frame's mix takes it)

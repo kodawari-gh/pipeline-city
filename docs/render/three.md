@@ -33,8 +33,8 @@ Rules:
 
 ## Lights and shadows by tier
 
-- The room has 20 real lights (6 spots, 2 points, 12 area). Low keeps 4: `key`, `sun`, `arc`, `desk`. A manual cap of 8 adds `floor`, `bedside`, `sconceUp` and `sconceDown`. Medium and up keep all 20 (`roomlights.ts`).
-- A capped light is hidden (`visible = false`). Its fixture still glows. Its bounce is lifted (`CAPPED_BOUNCE` 2.5, `roomlights.ts:36`).
+- The scene has 22 real lights: the room's 20 and the machine's 2 (`case`, `spill`). Low keeps 4: `key`, `arc`, `case`, `spill` (GFX-04, src/features/room/light.md "The lamp cap"). A manual cap of 8 adds `sun`, `desk`, `floor` and `bedside`. Medium and up keep all 22 (`roomlights.ts`).
+- A capped light is hidden (`visible = false`). Its fixture still glows. Its baked direct map takes its place on the still meshes (`<id>-direct`); with no direct map its bounce is lifted (`CAPPED_BOUNCE` 2.5).
 - Room shadow maps by level (`SHADOW_LEVELS`, `room3d.ts:63-65`), in px: key / sun / desk / bedside (cube) / floor (cube) / arc.
 
 | Level | key | sun | desk | bedside | floor | arc | Used by |

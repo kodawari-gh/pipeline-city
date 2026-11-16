@@ -1,21 +1,31 @@
-// Which of the room's lights stay real-time under the graphics settings' cap (`lights`, `lightShadows`; light.md "The lamp cap"). Pure: no Three.js.
+// Which of the scene's lights stay real-time under the graphics settings' cap (`lights`, `lightShadows`; light.md "The lamp cap"). Pure: no Three.js.
 
-/** One entry a light, but `strips`: the shelves' strips, which the room drives as one. */
-export type LightId = 'key' | 'sun' | 'arc' | 'desk' | 'floor' | 'bedside' | 'sconceUp' | 'sconceDown' | 'screen' | 'deskLed' | 'picture' | 'ledHalo' | 'ledUnder' | 'bias' | 'strips';
+/** One entry a light, but `sconce` (its two spots) and `strips` (the shelves' strips), which the room drives as one. */
+export type LightId = 'key' | 'sun' | 'arc' | 'case' | 'spill' | 'desk' | 'floor' | 'bedside' | 'sconce' | 'screen' | 'deskLed' | 'picture' | 'ledHalo' | 'ledUnder' | 'bias' | 'strips';
 
 /**
- * The room's lights by what the look loses without each, the first kept longest. The choice depends on the cap alone, not on the hour or a
- * switch: a lamp that is off keeps its place, so the count of lights (and so every lit program) holds through the evening.
- * - `key`, `sun`: the window. The day, the moon's shaft, and the only light from outside on what moves. They have no baked direct light.
- * - `arc`: on at every hour; the board reads by it (light.md "How the case reads").
- * - `desk`: the player's switch must show; its pool and its shadows are the desk's.
+ * Every real-time light of the scene by what the look loses without each, the first kept longest. The choice depends on the cap alone, not
+ * on the hour or a switch: a lamp that is off keeps its place, so the count of lights (and so every lit program) holds through the evening.
+ * A light with no baked direct light loses all of it when capped; a lamp with one (`npm run bake`'s `<id>-direct`) loses only its light on
+ * what moves and its gloss. So the unbaked ones come first.
+ * - `key`: the window's sky and city. The bake holds its light whole (`STAND_IN_DECAY`): live, it lights only what moves, and nothing else
+ *   from outside does.
+ * - `arc`: on at every hour; the board reads by it (light.md "How the case reads"). Its direct light is not baked.
+ * - `case`, `spill`: the machine's RGB (`machine3d.ts`): its glow on the parts in the case, and its light from in front of the glass on the
+ *   parts' faces, the desk and the wall (the case's violet in the board view). Nothing bakes them: they come and go with the power.
+ * - `sun`: the moon's shaft at night and the low sun at dusk. Its bounce is baked, its direct light is not; but with no window shadow (Low)
+ *   it is a faint wash with no shaft (GFX-04: under 1% of the pixels at 20:00 and 23:00). With shadows it is the shaft.
+ * - `desk`: the player's switch; its pool on the desk is baked (GFX-04), so a cap keeps it, without its gloss and its light on the chair.
  * - `floor`, `bedside`: the two lanterns. The largest warm pools, each with shadows: they shape the room's two ends at night.
- * - `sconceUp`, `sconceDown`: the scallops on the west wall (the "wall in a lamp's pool" target). Together, or the fixture reads broken.
+ * - `sconce`: the two scallops on the west wall (the "wall in a lamp's pool" target). Together, or the fixture reads broken.
  * - `screen`: its glow falls where the arc and the desk lamp already light, and the panel itself glows.
  * - `deskLed`, `picture`, `ledHalo`, `ledUnder`, `bias`, `strips`: accents. Each has a glowing line at its source and a short reach, so
- *   its baked bounce stands in for it best. The strips are many lights for one soft wash: last.
+ *   its baked light stands in for it best. The strips are many lights for one soft wash: last.
  */
-export const LIGHT_ORDER: readonly LightId[] = ['key', 'sun', 'arc', 'desk', 'floor', 'bedside', 'sconceUp', 'sconceDown', 'screen', 'deskLed', 'picture', 'ledHalo', 'ledUnder', 'bias', 'strips'];
+export const LIGHT_ORDER: readonly LightId[] = ['key', 'arc', 'case', 'spill', 'sun', 'desk', 'floor', 'bedside', 'sconce', 'screen', 'deskLed', 'picture', 'ledHalo', 'ledUnder', 'bias', 'strips'];
+
+/** The machine's lights (`Machine3D.setLights`): in the cap, but not the room's; the board hands the room's choice on to the machine. */
+export const MACHINE_LIGHTS: readonly LightId[] = ['case', 'spill'];
 
 /** The window's lights: their shadows follow the `shadows` option alone. */
 export const WINDOW_LIGHTS: readonly LightId[] = ['key', 'sun'];
@@ -45,9 +55,9 @@ export interface LightChoice {
 }
 
 /**
- * The real-time lights at a cap of `cap` lights in all (0: no cap), the window's two included, and the ones that may cast a shadow.
- * `count(id)`: how many lights the entry stands for (the strips). The walk stops at the first entry that does not fit: none after it comes
- * in, so a higher cap only ever adds lights.
+ * The real-time lights at a cap of `cap` lights in all (0: no cap), the window's two and the machine's included, and the ones that may
+ * cast a shadow. `count(id)`: how many lights the entry stands for (the sconce, the strips). The walk stops at the first entry that does not
+ * fit: none after it comes in, so a higher cap only ever adds lights.
  */
 export function chooseLights(cap: number, lampShadows: boolean, count: (id: LightId) => number = () => 1): LightChoice {
   const live = new Set<LightId>(), shadows = new Set<LightId>(), small = new Set<LightId>();

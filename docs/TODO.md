@@ -26,12 +26,12 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 1 | 1 | MACH-01, one material |
-| GFX | 5 | 3 | GFX-01 flicker |
+| GFX | 4 | 2 | GFX-01 flicker |
 | LOD | 1 | 1 | LOD-04, far city cards |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 6 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
@@ -51,8 +51,7 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 135 a
 - [ ] GFX-01 [auto] [look: none] Flicker with a moving camera (was LPC8). `npm run flicker` exists (`tools/flicker.mjs`). State (night, still full frame): High 0.44 %, Low 0.28 % after a 15 s settle (the earlier 5.94 % was a settle artefact); pan shimmer (pixels that turn 8 times or more): High window 0.18 %, rest 2.08 %; Low 0.17 %, 0.52 %. Worst sources: the machine's fine detail at the overview (docs/render/lod.md "The stand-in"), the traffic's bloom, the keyboard and lamp ribs. Left: fix them, then measure again. Files: tools/flicker.mjs. Docs: docs/render/look-per-cost.md. Done when: the pan number of a scene with no lights and no thin geometry is near the still number, and the doc names the three worst sources.
 - [ ] GFX-02 [owner] [look: medium] Grade LUT (was LPC9). One 3D-LUT lookup in the finish pass in place of the hand tint, so every tier has the same grade. The owner supplies or approves the grade first. Files: src/core/render/three/post.ts. Docs: docs/art-style.md. Done when: the owner approves a day and a night shot, and `bench:3d` shows no rise in the finish pass.
 - [ ] GFX-03 [owner] [look: low] Still-camera refinement (was LPC10). State: done for Build my PC (`Post.refine`, docs/render/load.md "Draw on demand"): 16 jittered frames on the ticks with no draw give smooth edges at Low, and any real frame starts it over, so nothing trails. Not done for the game (it draws every frame) and the menu (the city's beat): they need motion vectors. Decision: the owner's look at it, and whether the game view gets it. Files: src/core/render/three/post.ts, ondemand.ts. Docs: docs/render/load.md "Draw on demand". Done when: the owner accepts the Build my PC result and decides on the game view.
-- [ ] GFX-04 [owner] [look: high] Low light set (was PERF17). Every lit shader loops over 22 lights, 18 of them at intensity 0 most of the time (kept to avoid program rebuilds, docs/render/load.md rule 2). A phone GPU pays for each light on each pixel; RectArea lights are the dearest. Options: a Low light set (baked light plus the key and one lamp, the rest baked or emissive), or light groups per mesh so far props skip the lamps. Decision: which lamps may stop lighting in real time on phones. Files: src/features/room/render/three/room3d.ts, furniture3d.ts, src/core/render/three/arealoop.ts. Docs: docs/render/load.md, src/features/room/light.md. Done when: the Low tier compiles the lit programs with at most 4 lights and the owner accepts a before and after shot.
-- [ ] GFX-05 [auto] [look: low] Programs and precision (was PERF26). State (real GPU, ANGLE D3D11, RTX 5080): `renderer.info.programs.length` after the room view is Low 175, High 180 (`PORT=5233 npm run shot -- <png> --view room --preset Low|High --eval "return window.__board?.renderer?.info?.programs?.length"`). The menu count is not measured (the tool cannot stop at the menu). Target is under 60. Every program is `highp`. GFX-04 and MACH-01 cut most; then try `mediump` for the post passes and the city. Files: src/core/render/three/post.ts, init.ts. Docs: docs/render/load.md. Done when: the menu links under 60 programs and a shot shows no banding.
+- [ ] GFX-05 [auto] [look: low] Programs and precision (was PERF26). State (real GPU, ANGLE D3D11, RTX 5080, 2026-11-16, powered on): `renderer.info.programs.length` after the room view is Low 201, High 198 (`PORT=5233 npm run shot -- <png> --view room --preset Low|High --eval "return window.__board?.renderer?.info?.programs?.length"`). GFX-04 cut Low's lights from 6 to 4 but not the count of programs. The menu count is not measured (the tool cannot stop at the menu). Target is under 60. Every program is `highp`. MACH-01 cuts most; then try `mediump` for the post passes and the city. Files: src/core/render/three/post.ts, init.ts. Docs: docs/render/load.md. Done when: the menu links under 60 programs and a shot shows no banding.
 
 ## LOD: levels of detail
 
@@ -97,7 +96,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

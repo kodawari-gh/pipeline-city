@@ -14,7 +14,7 @@ interface Row { key: Choice; label: string; help: string }
 const GROUPS: { title: string; rows: Row[] }[] = [
   { title: 'Light', rows: [
     { key: 'shadows', label: 'Shadows', help: 'The size of the shadow maps. Off draws the fastest room.' },
-    { key: 'lights', label: 'Room lamps', help: 'The most real-time lamps the room lights at once. All has no cap.' },
+    { key: 'lights', label: 'Room lamps', help: 'The most real-time lights at once, the window\'s and the case\'s included. All has no cap.' },
     { key: 'lightShadows', label: 'Lamp shadows', help: 'Do the room\'s lamps cast shadows.' },
     { key: 'ao', label: 'Ambient occlusion', help: 'Soft contact shadows in corners and under parts.' },
     { key: 'bloom', label: 'Bloom', help: 'The glow round the RGB, the screen and the lamp.' },

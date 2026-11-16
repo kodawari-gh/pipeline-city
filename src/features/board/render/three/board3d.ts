@@ -201,6 +201,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       next?.m.dispose();
       next = null;
       const m = new Machine3D(s, room.geo, bakes, chips);
+      m.setLights(room.liveLights); // (the RGB's lights by the lamp cap, before its programs link)
       if (!machine || !warmed) install(m);
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
@@ -584,6 +585,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
     room?.setLights(g.lights, g.lightShadows > 0);
+    if (room) for (const m of [machine, next?.m]) m?.setLights(room.liveLights); // (the cap counts the machine's RGB too)
     // Low's cheaper materials: on for the room and the machines, off (originals back) when the tier leaves Low
     if (isLow(g)) { for (const r of [room?.root, machine?.root, next?.m.root]) if (r) cheap(r); } else for (const root of [...cheaps.keys()]) uncheap(root);
     for (const c of cheaps.values()) c.sync(); // (the tier's program-level state; the live values need none)

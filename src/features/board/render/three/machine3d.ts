@@ -29,6 +29,7 @@ import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
+import type { LightId } from '@/features/room/render/three/roomlights';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
   LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
@@ -144,6 +145,12 @@ export class Machine3D {
    * this RGB alone, at every zoom (`src/features/room/light.md`).
    */
   private spill = new PointLight(0x8b5cff, 0, 18000, 0);
+
+  /** The RGB's lights in the scene by the lamp cap (`Room3D.liveLights`, `LIGHT_ORDER`: `case`, `spill`). Set once built and when the cap changes. */
+  setLights(live: ReadonlySet<LightId>): void {
+    this.rgb.visible = live.has('case');
+    this.spill.visible = live.has('spill');
+  }
   private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial } | null = null;
   /** The RGB's one colour: the case's accent (`caseModel`), so the fans, the strips and the light out through the glass match its trim. */
   private accent = new Color(0x8b5cff);

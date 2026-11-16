@@ -70,10 +70,11 @@ async function exportScene() {
 }
 
 /**
- * The lamp groups that stay real-time at the game's lowest lamp cap (`LIGHT_ORDER` in roomlights.ts: Low keeps 4 lights). Each other lamp
- * group also gets its direct light baked (`<id>-direct`, kind `direct`), which the game shows when the cap takes its lights out of the scene.
+ * The lamp groups that stay real-time at the game's lowest lamp cap (`LIGHT_ORDER` in roomlights.ts: Low keeps the window's key, the arc
+ * lamp and the case's two RGB lights). Each other lamp group also gets its direct light baked (`<id>-direct`, kind `direct`), which the game shows
+ * when the cap takes its lights out of the scene.
  */
-const ALWAYS_LIVE = ['arc', 'desk'];
+const ALWAYS_LIVE = ['arc'];
 const directGroups = (groups) => groups.filter((g) => g.kind === 'lamp' && !ALWAYS_LIVE.includes(g.id)).map((g) => ({ id: `${g.id}-direct`, kind: 'direct', of: g.id, lights: g.lights }));
 
 /** Write the room for Blender: `scene.json` and the arrays it points into, `scene.bin`. */
@@ -120,8 +121,9 @@ if (ONLY.length || PACK) {
   if (!existsSync(join(work, 'scene.json')) || !existsSync(join(out, 'manifest.json'))) { console.log(`--${PACK ? 'pack' : 'only'} needs a full bake first`); process.exit(1); }
   const cfg = JSON.parse(readFileSync(join(work, 'scene.json'), 'utf8'));
   manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
-  // (a work dir from before the direct groups: add them, so `--only led-direct,...` bakes them on the last bake's room)
-  if (!cfg.groups.some((g) => g.kind === 'direct')) { cfg.groups.push(...directGroups(cfg.groups)); writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
+  // (a work dir from before a direct group: add it, so `--only desk-direct,...` bakes it on the last bake's room)
+  const added = directGroups(cfg.groups).filter((d) => !cfg.groups.some((g) => g.id === d.id));
+  if (added.length) { cfg.groups.push(...added); writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
   all = cfg.groups;
   groups = cfg.groups.filter((g) => !ONLY.length || ONLY.includes(g.id));
   if (ONLY.length && groups.length !== ONLY.length) { console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id))}`); process.exit(1); }
