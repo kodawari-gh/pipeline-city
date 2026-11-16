@@ -204,7 +204,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   // the spreader: a plate over each face, on a thermal pad over the chips. No tier colours: the tiers read by how premium the metal looks,
   // stamped steel (DDR2), dark anodised fins (DDR3), matte black under a light bar (DDR4), brushed dark titanium with a diamond-cut edge (DDR5)
   const t = look === 'low' ? 14 : look === 'fins' ? 30 : 32, x0 = PCB_T / 2 + CHIP_T + PAD, u0 = 18, u1 = L - 18, best = visual === 'dimm-ddr5';
-  const plateM = look === 'low' ? mat(0x959aa3, { metalness: 0.55, roughness: 0.5 })
+  const plateM = look === 'low' ? mat(0x4e5360, { metalness: 0.6, roughness: 0.45 }) // (a dark anodised clip-on, art-style §4)
     : look === 'fins' ? mat(0x2a2d32, { metalness: 0.6, roughness: 0.45 })
     : best ? mat(0x2a2d32, { metalness: 0.85, roughness: 0.3 }) : mat(0x2a2d32, { metalness: 0.5, roughness: 0.55 });
   for (const s of [-1, 1]) spreader.add(place(new Mesh(standing(plateShape(look, u0, u1), t, s < 0 ? cx - x0 - t : cx + x0, ys, 1.5), plateM)));

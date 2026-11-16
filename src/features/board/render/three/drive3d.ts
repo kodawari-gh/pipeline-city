@@ -96,8 +96,9 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
 /** The 3.5 in. hard disk (see the header). */
 export function hddModel(look: DriveLook): DriveModel {
   const g = new Group(), W = m(HDD_MM.w), T = m(HDD_MM.t), L = m(HDD_MM.l), top = T - m(0.8), r = m(2.2);
-  const cast = mat(0x959aa3, { metalness: 0.72, roughness: 0.52 });
-  const cover = mat(0xd5d9dd, { metalness: 0.92, roughness: 0.27, map: tiled(brushed(), 2, 3) });
+  // (a dark drive, art-style §4: a black casting under a brushed dark stainless cover)
+  const cast = mat(0x2a2d32, { metalness: 0.65, roughness: 0.55 });
+  const cover = mat(0x4e5360, { metalness: 0.8, roughness: 0.4, map: tiled(brushed(), 2, 3) });
   const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 }), s = socketMats();
   // the casting: its lower part round the receptacles' pocket, its upper part whole, its sides down to the rails it stands on
   const pocket = { x0: m(6), x1: m(52), d: m(6.8) }, pocketTop = m(8.2), foot = m(1.8);

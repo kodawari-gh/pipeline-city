@@ -239,7 +239,7 @@ function wireClips(g: Group, face: number, notch: number, m: MeshStandardMateria
 }
 
 function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMaterial {
-  const { x, y, w, h } = STACK, fin = alu(0xb4bccb, 0.3), cu = copper(), m = steel();
+  const { x, y, w, h } = STACK, fin = alu(0x4e5360, 0.4), cu = copper(), m = steel(); // (dark anodised fins, art-style §4)
   // the mount: a bar each side of the socket on the standoffs, a thumb nut on each end; a crossbar over the base, sprung down onto the bars by a
   // screw at each end
   mount(g, { standoff: BOARD_Z + 200, nut: BOARD_Z + 260 });
@@ -256,7 +256,7 @@ function tower(g: Group, spins: Spin[], fans: readonly FanFit[]): MeshStandardMa
   screws(g, [[-920, 0], [920, 0]], L + 340, 60);
   // the base: a copper contact plate on the lid, the aluminium block the pipes run through
   g.add(softBox({ x: -470, y: -470, w: 940, h: 940 }, L, L + 50, cu, 10));
-  g.add(softBox({ x: -500, y: -450, w: 1000, h: 900 }, L + 50, L + 300, alu(0x8a93a6, 0.34), 30));
+  g.add(softBox({ x: -500, y: -450, w: 1000, h: 900 }, L + 50, L + 300, alu(0x2a2d32, 0.4), 30));
   // four heat pipes, each a U along the base and up through every fin at both ends, staggered so the air meets each in turn; their tips stand
   // through the cover
   const tip = FIN1 + 100;
