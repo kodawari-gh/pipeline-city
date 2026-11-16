@@ -21,10 +21,11 @@ export const LOW_ANISO = 2;
 export const LOW_NIGHT_WALL: readonly [number, number, number] = [0.36, 0.44, 0.58];
 /** By day a glass pane takes its building's raw tint (linear) times this, lit as base's glass is; the frame keeps the tower's own colour. */
 export const LOW_DAY_GLASS = 1.5;
-/** By day a pane far off (past `LOW_FAR`) takes the frame's brightness, with this share of its tower's hue: a grey wall that keeps its tint. */
-export const LOW_FAR_HUE = 0.35;
-/** By day a far pane's brightness, as a share of the frame's: darker than the wall, so the rows of windows read, but not the near glass's dark. */
-export const LOW_FAR_GLASS = 0.55;
+/** By day a pane far off (past `LOW_FAR`) is its building's tint times this (the dark room behind the glass), and over it the sky it mirrors:
+ * the horizon's colour through High's mirror tint (`mirrorK`: grey on plain glass, the tint on a coated one, white at a grazing look), times
+ * `LOW_FAR_MIRROR`. So a far curtain wall reads pale teal, blue-grey or grey by its own glass, as High's does, not as a dark slate box. */
+export const LOW_FAR_GLASS = 0.3;
+export const LOW_FAR_MIRROR = 0.34;
 /** Far walls (m from the eye): from `near` to `far` a wall's lit rooms go from the night map's texels to analytic windows (`lowFarWin`), one
  * a bay and a storey. Past `far` no window texel is read: the albedo is the map's mean (the top mip). A building lights from `occ[0]` to
  * `occ[1]` of its windows (its own share), each at `glow`; a band's far ribbon is its rooms' mean (`lowRibLight`). So a far tower reads as
@@ -173,7 +174,7 @@ attribute vec2 fuv;
 attribute vec4 look;
 attribute vec3 aux;
 attribute vec3 tint;
-uniform float fPixel;
+uniform float fPixel, fNight;
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
@@ -186,7 +187,9 @@ int lowKind = int(aux.y + 0.5);
 float lowWide = 1.0;
 if (look.w > 0.5 && (lowKind == 2 || lowKind == 3 || lowKind == 5)) {
   vec3 wo = transformed - look.xyz, wa = abs(wo), wm = look.w < 1.5 ? vec3(1.0, 0.0, 1.0) : look.w < 2.5 ? vec3(0.0, 1.0, 0.0) : vec3(1.0);
-  vec3 wg = mix(wa, max(wa, vec3(distance(transformed, cameraPosition) * fPixel)), wm);
+  // (a lit beacon to two pixels: Low's picture is upscaled to the screen, and one pixel of red comes out a dull dot, not High's bright one;
+  // by day, unlit, one pixel, or a dark dot tops each mast)
+  vec3 wg = mix(wa, max(wa, vec3(distance(transformed, cameraPosition) * fPixel * (lowKind == 3 ? 1.0 + fNight : 1.0))), wm);
   transformed += sign(wo) * (wg - wa);
   lowWide = dot(wa / wg, wm) / dot(wm, wm);
 }
@@ -218,6 +221,8 @@ vec3 lowShade = vec3(1.0);
 float lowGlassM = 0.0;
 // a band's ribbon room by room (lowRibCover), set by the map step for the colour and the night steps: its mullions, its cover, the fabric's fold
 vec4 lowRibC = vec4(0.0, 0.0, 1.0, 0.0);
+// a far pane's share of the pixel by day, set by the colour step: the emissive step puts the sky it mirrors there
+float lowMirM = 0.0;
 float lowH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 // a room's lamp by its warmth, from 0 (a cold daylight tube) through a neutral white to 1 (an old warm bulb), as High's fLampCol
 vec3 lowLampCol(float t) {
@@ -248,7 +253,9 @@ float lowWinMask() {
   vec2 fw = fwidth(vLowBay) + 1e-4, f = fract(vLowBay);
   vec2 win = lowWin(), lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6), hi = lo + win;
   vec2 e = min(fw, 0.5 * win);
-  vec2 m = smoothstep(lo - e, lo + e, f) * (1.0 - smoothstep(hi - e, hi + e, f));
+  // (by day, where a bay or a storey is under a few pixels, its window is its share of the cell, as High's: no pixel picks a pane or a
+  // frame. At night the lit windows keep their rows, as CITY-01 tuned them)
+  vec2 m = mix(smoothstep(lo - e, lo + e, f) * (1.0 - smoothstep(hi - e, hi + e, f)), win, smoothstep(vec2(0.1), vec2(0.35), fw) * (1.0 - fNight));
   return m.x * m.y;
 }
 vec3 lowFarWin() {
@@ -432,19 +439,19 @@ if (vLowFac == 0.0) {
 }
 // by day a wall takes its own colour: its frame is the tower's vertex colour shaded by the atlas, its glass its raw tint, lit (not the frame's
 // colour dimmed by the glass). At night (fNight 1) the diffuse is what the map step left, as before; between, they mix
-// far off a pane is not resolved: its glass reads as the frame's brightness with the tower's hue (a dark tint would wall the building navy)
+// far off a pane is its dark tint, and the emissive step adds the sky it mirrors (lowMirM), as High's glass reads at a distance
 vec3 lowFrameD = vColor.rgb * lowShade;
-vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
 float lowRibD = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
 // a band's glass: the dark room behind its half-mirror, its curtains or blinds pale, on slim dark mullions (lowRibC). It keeps its dark at
 // any range, as base's bands do (a ribbon is half the wall: it reads as stripes, not navy); its cover goes to its mean far off
 vec3 lowRibFab = mix(vec3(0.42, 0.43, 0.44), vec3(0.62, 0.57, 0.5), step(5.5, vLowKind) * step(vLowKind, 6.5)) * lowRibC.z;
 vec3 lowRibGl = mix(vLowTint * ${LOW_RIB_GLASS} + lowRibFab * (${RIB_FABRIC} * lowRibC.y), vec3(0.03), lowRibC.x) * (1.0 - lowRibC.w);
-vec3 lowGlassD = mix(mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}) * ${LOW_FAR_GLASS}, lowFarD), lowRibGl, lowRibD);
+vec3 lowGlassD = mix(mix(vLowTint * ${LOW_DAY_GLASS}, vLowTint * ${LOW_FAR_GLASS}, lowFarD), lowRibGl, lowRibD);
 // far off the pane's place is the analytic window (its edge the pixel's width), not the atlas's mean: a far tower keeps its rows of windows
 float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);
+lowMirM = lowGlassF * lowFarD * (1.0 - lowRibD) * vLowFac * (1.0 - fNight);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
       .replace('#include <emissivemap_fragment>', `{
   vec2 lowUv = lowAtlas(), lowDx = dFdx(vLowBay) * lowScale() / ${CELLS}.0, lowDy = dFdy(vLowBay) * lowScale() / ${CELLS}.0;
@@ -477,7 +484,14 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
     }
     lowLit = mix(mix(lowRooms, lowFarWin(), lowFar), lowRibbon, lowRib);
   }
-  totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;
+  // by day a far pane mirrors the sky: the horizon through High's mirror tint (its pane hash at its mean), white at a grazing look
+  vec3 lowMir = vec3(0.0);
+  if (lowMirM > 0.0) {
+    float lowFr = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0);
+    vec3 lowMt = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
+    lowMir = mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor * (${LOW_FAR_MIRROR.toFixed(3)} * lowMirM);
+  }
+  totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);
 }`);
   };
   mat.customProgramCacheKey = () => 'outside-facade-low';

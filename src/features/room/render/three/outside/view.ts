@@ -495,7 +495,9 @@ export class OutsideView {
     c.far = 20000;
     c.setViewOffset(fw * ss, fh * ss, rx * ss, ry * ss, rw, rh);
     c.updateMatrixWorld();
-    this.facade.pixel.value = (2 * Math.tan((c.fov * Math.PI) / 360)) / c.zoom / (fh * ss);
+    // (at Low, half a window pixel at any scale: a thin thing grows to one pixel of the window, as High's supersampled one; a whole 1x
+    // pixel each side would draw it two pixels wide, twice as bold as High's)
+    this.facade.pixel.value = (2 * Math.tan((c.fov * Math.PI) / 360)) / c.zoom / (fh * (this.lowLamps ? SUPER : ss));
     this.dome.position.copy(c.position);
     // the traffic on to the frame's clock, each car placed for this eye, the signals lit
     const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;

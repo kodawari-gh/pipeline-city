@@ -4,7 +4,7 @@
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_HUE, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_MIRROR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -210,7 +210,7 @@ describe('Low city facade bake', () => {
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       // the far term multiplies only the window term (lowLit, facade kinds 0 and 6), never lowGlow
-      expect(sh).toContain('totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;');
+      expect(sh).toContain('totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);');
       expect(sh).toContain('vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75');
     }
   }, 180000);
@@ -231,7 +231,9 @@ describe('Low city facade bake', () => {
       expect(sh.fragmentShader).toContain('* fNight;');
       expect(sh.fragmentShader).not.toContain('fHash');
       expect(sh.fragmentShader).not.toContain('fNoise');
-      expect(sh.vertexShader).toContain('uniform float fPixel;');
+      expect(sh.vertexShader).toContain('uniform float fPixel, fNight;');
+      // a thin thing grows to one window pixel; a lit beacon to two, or the upscaled picture dulls its red (by day one, a dark dot)
+      expect(sh.vertexShader).toContain('fPixel * (lowKind == 3 ? 1.0 + fNight : 1.0)');
     }
   }, 180000);
 
@@ -252,7 +254,7 @@ describe('Low city facade bake', () => {
       expect(compiled(mat).vertexShader).toContain('vLowMetal = aux.z;');
       // the glow is still the night's: each kind's glow scaled by fNight, not by the day diffuse
       const full = compiled(mat).fragmentShader;
-      expect(full).toContain('totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;');
+      expect(full).toContain('totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);');
       expect(full).toContain('vec3 lowGlow = vec3(0.0);');
       expect(day).not.toContain('fGlow');
     }
@@ -306,19 +308,33 @@ describe('Low city facade bake', () => {
       // far off the pane's place is the analytic window, not the atlas's mean (a band's wall keeps its ribbon)
       expect(day).toContain('float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));');
       expect(day).toContain('vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);');
-      // near glass: the raw tint, lit by the constant; far off, the pane is a share of the frame's brightness with a little of the tower's
-      // hue (a full dark tint at range would wall the building navy)
-      expect(day).toContain(`mix(vLowTint * 1.5, lowFrameD * mix(vec3(1.0), lowHue, 0.35) * ${LOW_FAR_GLASS}, lowFarD)`);
+      // near glass: the raw tint, lit by the constant; far off, the pane is its dark tint (the room behind), and the emissive step adds
+      // the sky it mirrors (CITY-02), on the pane's share of the pixel by day only
+      expect(day).toContain(`mix(vLowTint * 1.5, vLowTint * ${LOW_FAR_GLASS}, lowFarD)`);
+      expect(day).toContain('lowMirM = lowGlassF * lowFarD * (1.0 - lowRibD) * vLowFac * (1.0 - fNight);');
       expect(day).not.toContain('lowTn');
       expect(sh).toContain('lowShade = mix(lowTex.rgb, vec3(0.84), lowTex.a);');
       expect(sh).toContain('lowGlassM = lowTex.a * vLowFac;');
     }
     expect(LOW_DAY_GLASS).toBeGreaterThan(1);
     expect(LOW_DAY_GLASS).toBeLessThan(3);
-    expect(LOW_FAR_HUE).toBeGreaterThan(0);
-    expect(LOW_FAR_HUE).toBeLessThan(1);
-    expect(LOW_FAR_GLASS).toBeGreaterThan(0.3);
-    expect(LOW_FAR_GLASS).toBeLessThan(1);
+    expect(LOW_FAR_GLASS).toBeGreaterThan(0);
+    expect(LOW_FAR_GLASS).toBeLessThan(LOW_DAY_GLASS);
+  }, 180000);
+
+  it('Low: by day a far pane mirrors the horizon through High\'s mirror tint (grey plain glass, the tint on a coated one, white at a grazing look)', () => {
+    for (const m of buildings(low)) {
+      const full = compiled(m.material as Material).fragmentShader;
+      // the eye's ray: vViewPosition points from the wall to the eye, so the facing term is its dot with the normal (no minus)
+      expect(full).toContain('pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0)');
+      expect(full).toContain('mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor');
+      // a float literal: an int would not compile in GLSL ES
+      expect(full).toContain(`${LOW_FAR_MIRROR.toFixed(3)} * lowMirM`);
+      // the far window's mask goes to its mean by day where a bay or a storey is under a few pixels; at night it keeps its rows
+      expect(full).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw) * (1.0 - fNight));');
+    }
+    expect(LOW_FAR_MIRROR).toBeGreaterThan(0);
+    expect(LOW_FAR_MIRROR).toBeLessThan(1);
   }, 180000);
 
   it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {
@@ -328,7 +344,7 @@ describe('Low city facade bake', () => {
       expect(sh).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
       expect(sh).not.toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
       expect(sh).toContain('float lowFarD = smoothstep(150.0, 300.0, length(vViewPosition));');
-      expect(sh).toContain('lowFrameD * mix(vec3(1.0), lowHue, 0.35)');
+      expect(sh).toContain(`vLowTint * ${LOW_FAR_GLASS}, lowFarD)`);
     }
   }, 180000);
 
