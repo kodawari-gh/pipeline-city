@@ -728,8 +728,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const D = distanceOf(view);
     // the city's beat is one frame, not a motion: it asks, so it draws no trailing frame after it
     if (room?.ambientDue) demand.ask();
+    // the title's sway never stops: a frame that moves the picture by `STILL_PX` is one frame, not a motion with an end pose to show, so it
+    // asks and draws no trailing frame (the picture a tick later would be the same within the limit). Without the sway, a settling view keeps its last frame.
+    const moved = menu && shift.shift(camera, canvas.width, canvas.height, D / 2, D * 1.5) >= STILL_PX, swaying = menu && sway > 0;
+    if (moved && swaying) demand.ask();
     const busy = !menu || !revealed || !!machine?.moving || probe.busy || bounces > 0
-      || (near > 0 && Math.abs(Math.log(metered / seen)) > 1e-3) || shift.shift(camera, canvas.width, canvas.height, D / 2, D * 1.5) >= STILL_PX;
+      || (near > 0 && Math.abs(Math.log(metered / seen)) > 1e-3) || (moved && !swaying);
     const draw = demand.want(now, busy);
     if (draw) {
       room?.drawOutside(renderer, scene, camera, g.msaa);
