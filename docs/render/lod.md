@@ -81,7 +81,7 @@ The idea: the far city and the skyline as flat PNG cards rendered from High, plu
 - **High would change.** The far rings are High's own picture, fingerprinted by `highident`; a card replaces them with a bake of them, so every far pixel moves a little (filtering, the mirror, the glints), and the owner's rule is that High's look does not give way (graphics priority: the best look, uniformity above all).
 - **The seam.** The plan hides it behind a building row or in haze, with matched fog and mipmaps. The haze is a live term, so the match is one more thing to check by eye at every hour.
 
-Take it up again only if the far rings are measured as the cost of a frame on a real device (PHONE-02), and then for Low only, which has no `highident` to keep.
+Take it up again only if the far rings are measured as the cost of a frame on a real device, and then for Low only, which has no `highident` to keep.
 
 ## The city at Low (`outside/`)
 Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High builds and draws the full city, and its picture does not change: `highident.test.ts` fingerprints High's city groups against `highident.expected.json` (refresh on purpose with `UPDATE_HIGH_GOLDEN=1`).
