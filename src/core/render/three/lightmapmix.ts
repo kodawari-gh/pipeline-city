@@ -143,8 +143,11 @@ export function lightmapped(m: Material): void {
   m.customProgramCacheKey = () => key;
 }
 
-/** What `applyLightmap` did: the meshes it lit; the names of those that look like receivers but have no bake; the bake's meshes it found no mesh for. */
-export interface Lit { meshes: Mesh[]; missing: string[]; stale: number }
+/**
+ * What `applyLightmap` did: the meshes it lit; the names of those that look like receivers but have no bake; the bake's meshes it found no
+ * mesh for; how many of the lit ones it found by their count of corners, not by their hash (they moved or grew since the bake).
+ */
+export interface Lit { meshes: Mesh[]; missing: string[]; stale: number; loose: number }
 export interface LitOptions {
   /** Units a metre (the receivers' least surface, `MIN_AREA`). */
   metre: number;
@@ -165,7 +168,8 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
   root.traverse((x) => { if ((x as Mesh).isMesh) all.push(x as Mesh); });
   const uses = new Map<unknown, number>(), use = (k: unknown, d = 1) => { const n = (uses.get(k) ?? 0) + d; uses.set(k, n); return n; };
   for (const m of all) { use(m.geometry); for (const x of [m.material].flat()) use(x); }
-  const lit: [Mesh, BakeMesh, string][] = [], missing: string[] = [], found = new Set<string>(), k = new Matrix4();
+  const lit: [Mesh, BakeMesh, string][] = [], found = new Set<string>(), k = new Matrix4();
+  let none: { m: Mesh; hash: string; corners: number }[] = [];
   for (const m of all) {
     const x = m as Mesh & { isInstancedMesh?: boolean; isSkinnedMesh?: boolean };
     if (x.isInstancedMesh || x.isSkinnedMesh || Array.isArray(m.material) || !solid(m.material) || o.skip?.(m)) continue;
@@ -177,8 +181,20 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
     if (e && e.corners === corners) { lit.push([m, e, hash]); found.add(hash); continue; }
     if (hasAo(g) || !shown(m)) continue;
     pos ??= framed(g, k.multiplyMatrices(toRoot, m.matrixWorld));
-    if (area(pos, g.index?.array ?? null) >= MIN_AREA * o.metre * o.metre) missing.push(`${m.name || 'mesh'} ${hash}`);
+    if (area(pos, g.index?.array ?? null) >= MIN_AREA * o.metre * o.metre) none.push({ m, hash, corners });
   }
+  // A mesh that moved or grew since the bake (the desk and what stands on it, with the board's and the case's tier) has another hash, but
+  // its triangles are the same ones in the same order. So a baked mesh not found goes to the first mesh left with its count of corners
+  // (both lists are in the tree's order): it keeps its own baked light, a little off, in place of the probe's.
+  let loose = 0;
+  for (const e of bake.manifest.meshes) {
+    if (found.has(e.hash)) continue;
+    const i = none.findIndex((x) => x.corners === e.corners);
+    if (i < 0) continue;
+    lit.push([none[i]!.m, e, e.hash]); found.add(e.hash); loose++;
+    none = none.filter((_, j) => j !== i);
+  }
+  const missing = none.map((x) => `${x.m.name || 'mesh'} ${x.hash}`);
   const litUses = new Map<Material, number>(), mats = new Map<Material, Material>();
   for (const [m] of lit) litUses.set(m.material as Material, (litUses.get(m.material as Material) ?? 0) + 1);
   for (const [m, e, hash] of lit) {
@@ -204,7 +220,7 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
     }
     m.material = mat;
   }
-  return { meshes: lit.map(([m]) => m), missing, stale: bake.manifest.meshes.filter((e) => !found.has(e.hash)).length };
+  return { meshes: lit.map(([m]) => m), missing, stale: bake.manifest.meshes.filter((e) => !found.has(e.hash)).length, loose };
 }
 
 /** The surface of the triangles (units²). */

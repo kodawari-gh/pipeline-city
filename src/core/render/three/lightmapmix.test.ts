@@ -59,7 +59,7 @@ describe('the baked bounce', () => {
     const bake: Bake = {
       manifest: {
         version: 1, encoding: 'rgbm-sqrt', width: 64, height: 64, texelsPerMetre: 50, samples: 1, groups: [], dark: [],
-        meshes: [{ name: 'wall', hash: hashOf(wall, root), corners, offset: 10 }, { name: 'gone', hash: '6-00000000', corners: 6, offset: 0 }],
+        meshes: [{ name: 'wall', hash: hashOf(wall, root), corners, offset: 10 }, { name: 'gone', hash: '6-00000000', corners: 9, offset: 0 }],
       },
       maps: new Map(), uvs,
     };
@@ -84,6 +84,23 @@ describe('the baked bounce', () => {
     expect(copy.customProgramCacheKey()).toContain('|lm');
     // lit again (a bake loaded twice): the wall keeps the hash it was found by
     expect(applyLightmap(root, bake, map, { metre: 18700 }).meshes).toEqual([wall]);
+  });
+
+  it('a mesh that moved since the bake keeps its baked light: found by its count of corners, in the order of the tree', () => {
+    const root = new Group(), top = new Mesh(new BoxGeometry(20000, 500, 8000), new MeshStandardMaterial());
+    const matA = new Mesh(new PlaneGeometry(9000, 4000), new MeshStandardMaterial()), matB = new Mesh(new PlaneGeometry(4000, 4000), new MeshStandardMaterial());
+    root.add(top, matA, matB);
+    const n = top.geometry.index!.count, uvs = new Uint16Array(2 * (n + 12));
+    const entries = [{ name: 'top', hash: hashOf(top, root), corners: n, offset: 0 }, { name: 'a', hash: hashOf(matA, root), corners: 6, offset: n }, { name: 'b', hash: hashOf(matB, root), corners: 6, offset: n + 6 }];
+    const bake: Bake = { manifest: { version: 1, encoding: 'rgbm-sqrt', width: 64, height: 64, texelsPerMetre: 50, samples: 1, groups: [], dark: [], meshes: entries }, maps: new Map(), uvs };
+    // the desk rises with a larger case: the three move, the top grows too
+    top.scale.x = 1.1;
+    for (const m of [top, matA, matB]) m.position.y = 2800;
+    const lit = applyLightmap(root, bake, new Texture(), { metre: 18700 });
+    expect(lit).toMatchObject({ stale: 0, missing: [], loose: 3 });
+    expect(lit.meshes).toEqual([top, matA, matB]);
+    expect(matA.userData.bakeHash).toBe(entries[1]!.hash);
+    expect(matB.userData.bakeHash).toBe(entries[2]!.hash);
   });
 
   it("adds a capped lamp group's direct light from its channel, with its hue and its level over the baked one", () => {

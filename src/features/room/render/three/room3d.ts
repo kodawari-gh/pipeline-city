@@ -19,7 +19,7 @@ import {
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
-import { MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
+import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { bakedTex } from '@/core/render/three/baked';
@@ -823,8 +823,10 @@ export class Room3D {
   private takeBake(b: Bake): void {
     const mix = new LightmapMix(b), blinds = new Set<Object3D>(this.blinds);
     const lit = applyLightmap(this.root, b, mix.texture, { metre: M, skip: (o) => blinds.has(o), twin: (src, c) => this.envs.twin(src, c) });
-    if (import.meta.env.DEV && (lit.missing.length || lit.stale)) {
-      console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit, ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
+    // (the bake is of the first board in the first case: there each mesh has its hash. With another tier the desk and what stands on it
+    // move, and those meshes are found by their count of corners, `loose`)
+    if (import.meta.env.DEV && (lit.missing.length || lit.stale || (lit.loose && LAYOUT_TIER === 0 && LAYOUT_CASE === 0))) {
+      console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit (${lit.loose} by count, not by hash), ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
     }
     this.lightmap = mix;
     this.bake = b;
