@@ -114,6 +114,15 @@ export const SEG = {
   corner: 5, cornerSoft: 8, cornerCoarse: 2, cornerMid: 6, cornerTight: 4,
   /** A furniture board's edge bevel (steps), softer than `bevel`. */
   softBevel: 4,
+  /** A rolled rim's sides (the cloth bake's hem tube); a spire's band of sides (its flats face the walls). */
+  rimSides: 8, spireSides: 8,
+  /** Tree limbs (sides, and steps along the limb): a sparse bole; a bole; a far bole or limb; a near leader; a near bole; a near branch; a far branch; a near twig. */
+  limbSparse: 3, limbSparseSteps: 1, limbBole: 6, limbBoleSteps: 2, limbFar: 8, limbFarSteps: 8, limbLeader: 10, limbLeaderSteps: 16,
+  limbNear: 10, limbNearSteps: 8, limbNearBranch: 6, limbNearBranchSteps: 8, limbBranch: 4, limbBranchSteps: 4, limbTwig: 4, limbTwigSteps: 3,
+  /** Icosahedron detail levels (subdivisions, not sides): a tree's crown ball, coarse to fine near the window; a leaf node; a bark chip. */
+  ballDetail: 0, ballDetailMid: 1, ballDetailFine: 2, nodeDetail: 1, chipDetail: 0,
+  /** A car's wheel arch (steps over its half turn); a leaf blade's steps along it and across it: the fig's, the aloe's lance. */
+  wheelArch: 8, figLong: 14, lanceLong: 8, lanceWide: 4,
 } as const;
 
 /** Fan sides by diameter, mm -> sides (ASR4). Points between two entries are linear. */

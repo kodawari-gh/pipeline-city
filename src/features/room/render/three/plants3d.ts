@@ -189,8 +189,8 @@ export function floorPlant(x: number, z: number): Group {
     // the fig's gloss: a few broad pale smears
     for (let k = 0; k < 6; k++) { c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.ellipse(w * (0.25 + rnd() * 0.5), h * rnd(), w * 0.25, h * 0.08, 0, 0, Math.PI * 2); c.fill(); }
   });
-  const leaves = leafMats(tex, 0.36), stalk = mat(0x6d8a46, { roughness: 0.6 }), knob = new IcosahedronGeometry(1, 1);
-  const shapes = [0, 1, 2, 3].map((k) => leafBlade(1, 0.62, 'fig', { fold: 0.2 + k * 0.04, curl: 0.06 + k * 0.04, wave: 0.3 + k * 0.12, nu: 14 }));
+  const leaves = leafMats(tex, 0.36), stalk = mat(0x6d8a46, { roughness: 0.6 }), knob = new IcosahedronGeometry(1, SEG.nodeDetail);
+  const shapes = [0, 1, 2, 3].map((k) => leafBlade(1, 0.62, 'fig', { fold: 0.2 + k * 0.04, curl: 0.06 + k * 0.04, wave: 0.3 + k * 0.12, nu: SEG.figLong }));
   let n = 0;
   const along = (pts: V3[], from: number, count: number, size: number) => {
     const curve = new CatmullRomCurve3(pts.map((p) => new Vector3(...p)));
@@ -302,7 +302,7 @@ export function aloe(x: number, y: number, z: number): Group {
   const ms = leafMats(tex, 0.45), base = new Vector3(x, -y + 1320, z);
   for (let k = 0; k < 11; k++) {
     const a = k * 2.4, out = new Vector3(Math.cos(a), 0, Math.sin(a)), el = 1.25 - (k / 11) * 0.7, len = 2100 + (k % 4) * 280;
-    const geo = leafBlade(len, len * 0.2, 'lance', { fold: 0.7, curl: -0.12 - (k / 11) * 0.12, nu: 8, nv: 4 });
+    const geo = leafBlade(len, len * 0.2, 'lance', { fold: 0.7, curl: -0.12 - (k / 11) * 0.12, nu: SEG.lanceLong, nv: SEG.lanceWide });
     const dir = out.clone().multiplyScalar(Math.cos(el)).addScaledVector(UP, Math.sin(el));
     g.add(aimed(geo, ms[k % 3]!, base.clone().addScaledVector(out, 120), dir, UP.clone().addScaledVector(out, -0.5)));
   }
@@ -311,7 +311,7 @@ export function aloe(x: number, y: number, z: number): Group {
 
 /** A few pebbles of bark on the soil (flat-shaded chips), round (x, top, z) within r. */
 export function mulch(x: number, top: number, z: number, r: number, n: number): Group {
-  const g = new Group(), m = mat(0x7a5a40, { roughness: 0.9, flatShading: true }), geo = new IcosahedronGeometry(1, 0);
+  const g = new Group(), m = mat(0x7a5a40, { roughness: 0.9, flatShading: true }), geo = new IcosahedronGeometry(1, SEG.chipDetail);
   for (let k = 0; k < n; k++) {
     const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * r, s = 120 + rnd() * 120, o = new Mesh(geo, m);
     o.scale.set(s, s * 0.45, s * 0.8); o.position.set(x + Math.cos(a) * d, top + s * 0.2, z + Math.sin(a) * d); o.rotation.set(rnd(), rnd() * 3, rnd());

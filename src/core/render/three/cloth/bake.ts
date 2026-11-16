@@ -2,6 +2,7 @@
 // written out as a glTF model the game loads (`tools/bake-cloth.mjs`). Sewn points are welded, the normals run smooth over the seams, the
 // pieces keep their own flat uvs, and a rolled rim runs along every free edge (a hem, a cuff, a hood's opening) so the single sheet reads thick.
 // Each vertex carries its baked occlusion (`_AO`: its normal's side, the other side) for the game's material (`bakedAo`). Pure: no DOM.
+import { SEG } from '../geometry';
 import { writeGlb, type GlbPrimitive } from './glb';
 import { occlusion } from './occlusion';
 import { assemble, type ClothMesh, type Garment } from './pattern';
@@ -154,7 +155,7 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
   }
   // the rims: a tube round each free edge, on the cloth's own normal and the edge's run
   if (b.rim > 0) {
-    const sides = 8;
+    const sides = SEG.rimSides;
     for (const loop of freeEdges(m)) {
       const part = parts[loop.mat]!, k0 = part.position.length / 3, L = loop.pts.length;
       let run = 0;

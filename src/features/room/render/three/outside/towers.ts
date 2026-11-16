@@ -383,8 +383,8 @@ const STAGES = [0.3, 0.24, 0.19, 0.15, 0.12] as const;
 function spire(m: Mass, b: Building, t: Tier, h: number): number {
   const cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2, w = Math.min(t.x1 - t.x0, t.z1 - t.z0), metal = new Color(b.frame).lerp(new Color(0xc8ccd0), 0.5), seed = b.seed % 991;
   /** A band of eight sides through these radii and heights, its flats facing the tower's walls. */
-  const lathe = (...profile: readonly (readonly [number, number])[]): void => m.skin(profile.map(([r, y]) => Array.from({ length: 8 }, (_, i): V3 => {
-    const a = -(i + 0.5) * (Math.PI / 4);
+  const lathe = (...profile: readonly (readonly [number, number])[]): void => m.skin(profile.map(([r, y]) => Array.from({ length: SEG.spireSides }, (_, i): V3 => {
+    const a = -(i + 0.5) * ((Math.PI * 2) / SEG.spireSides);
     return [cx + r * Math.cos(a), y, cz + r * Math.sin(a)];
   })));
   for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]] as const) blade(m, t, sx, sz, h, h * 0.065, metal, b.light, seed);

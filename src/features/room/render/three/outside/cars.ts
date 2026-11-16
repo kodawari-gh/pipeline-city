@@ -96,7 +96,7 @@ const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: num
 /** The arc over a wheel at x, from its back to its front (the body's lower edge runs that way). */
 function arch(x: number): [number, number][] {
   const out: [number, number][] = [[x - ARCH, SILL]];
-  for (let i = 0; i <= 8; i++) { const a = Math.PI - (i / 8) * Math.PI; out.push([x + Math.cos(a) * ARCH, WHEEL + Math.sin(a) * ARCH]); }
+  for (let i = 0; i <= SEG.wheelArch; i++) { const a = Math.PI - (i / SEG.wheelArch) * Math.PI; out.push([x + Math.cos(a) * ARCH, WHEEL + Math.sin(a) * ARCH]); }
   out.push([x + ARCH, SILL]);
   return out;
 }

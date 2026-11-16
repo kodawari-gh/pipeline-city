@@ -6,6 +6,7 @@
 // the leaves, each tree in turn round the window, so `sweep.ts` draws only the run of them the camera sees.
 import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial, type Sphere } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SEG } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
 import type { CityDetail } from './detail';
@@ -42,7 +43,7 @@ const HABIT: Record<TreeKind, Habit> = {
 };
 
 /** A unit ball whose vertices are shared, so its lumps shade smooth: finer near the window. */
-const BALLS = [0, 1, 2].map((d) => {
+const BALLS = [SEG.ballDetail, SEG.ballDetailMid, SEG.ballDetailFine].map((d) => {
   const g = mergeVertices(new IcosahedronGeometry(1, d).deleteAttribute('normal').deleteAttribute('uv'));
   return { pos: g.attributes.position!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
 });
@@ -163,7 +164,7 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): vo
   const top = add(foot, unit([(r() - 0.5) * 0.12, 1, (r() - 0.5) * 0.12]), bole + 0.05 * H);
   const lead = h.leader ? add(top, unit([(r() - 0.5) * 0.15, 1, (r() - 0.5) * 0.15]), (H - bole) * 0.82) : top;
   const near = detail === Detail.Sprayed;
-  bark.push(!wood ? (detail === Detail.Sparse ? limb([foot, top], r0, r0 * 0.72, 3, 1) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 6, 2)) : !near ? limb(h.leader ? [foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead] : [foot, lerp(foot, top, 0.5), top], r0, h.leader ? 0.035 : r0 * 0.72, 8, 8) : h.leader ? limb([foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead], r0, 0.035, 10, 16) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 10, 8));
+  bark.push(!wood ? (detail === Detail.Sparse ? limb([foot, top], r0, r0 * 0.72, SEG.limbSparse, SEG.limbSparseSteps) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, SEG.limbBole, SEG.limbBoleSteps)) : !near ? limb(h.leader ? [foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead] : [foot, lerp(foot, top, 0.5), top], r0, h.leader ? 0.035 : r0 * 0.72, SEG.limbFar, SEG.limbFarSteps) : h.leader ? limb([foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead], r0, 0.035, SEG.limbLeader, SEG.limbLeaderSteps) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, SEG.limbNear, SEG.limbNearSteps));
   // the crown's ellipsoid over the bole (a little larger than the limbs' reach, as the clusters stand out round their ends)
   const o: V3 = [top[0], CURB + bole + (H - bole) * 0.52, top[2]], rad: V3 = [R * 1.15, (H - bole) * 0.55, R * 1.15], cl: Cluster[] = [];
   for (let i = 0; i < h.limbs; i++) {
@@ -180,13 +181,13 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): vo
       end = [o[0] + out[0] * R * (0.55 + r() * 0.3), o[1] + rad[1] * (-0.15 + r() * 0.7), o[2] + out[2] * R * (0.55 + r() * 0.3)];
     }
     const span = len([end[0] - from[0], end[1] - from[1], end[2] - from[2]]), mid = add(lerp(from, end, 0.45), [0, span * 0.14, 0]);
-    if (wood) bark.push(near ? limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, 6, 8) : limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, 4, 4));
+    if (wood) bark.push(near ? limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, SEG.limbNearBranch, SEG.limbNearBranchSteps) : limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, SEG.limbBranch, SEG.limbBranchSteps));
     cl.push({ p: end, r: R * (detail === Detail.Sparse ? 0.52 : 0.42) });
     // its branches, off its outer half, each fanned a little from it and up
     for (let j = 0, m = 2 + (r() < 0.5 ? 1 : 0); j < m; j++) {
       const a = az + (r() < 0.5 ? -1 : 1) * (0.4 + r() * 0.5), f = 0.4 + r() * 0.45, s = f < 0.5 ? lerp(from, mid, f * 2) : lerp(mid, end, f * 2 - 1);
       const tip = add(add(s, [Math.cos(a), 0, Math.sin(a)], R * (0.3 + r() * 0.2)), [0, R * (0.12 + r() * 0.2), 0]);
-      if (near) bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, 4, 3));
+      if (near) bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, SEG.limbTwig, SEG.limbTwigSteps));
       if (detail !== Detail.Sparse && (detail !== Detail.Coarse || j < 2)) cl.push({ p: tip, r: R * 0.36, tip: true });
     }
   }
