@@ -17,6 +17,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { lowDetail } from '@/core/render/three/detail';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
@@ -555,6 +556,16 @@ function shelvedBooks(books: readonly Book[]): Group {
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12), cp = cover.attributes.position!;
   for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();
+  // (Low, CITY-06: the spine, then the boards' three faces in one group, with no group for the hidden top and foot: two draws a design, not four)
+  const low = lowDetail();
+  if (low) {
+    const ix = cover.index!, take = (g: { start: number; count: number }) => Array.from(ix.array.slice(g.start, g.start + g.count));
+    const [px, nx, , , pz, nz] = cover.groups, spine = take(px!), rest = [...take(nx!), ...take(pz!), ...take(nz!)];
+    cover.setIndex([...spine, ...rest]);
+    cover.clearGroups();
+    cover.addGroup(0, spine.length, 0);
+    cover.addGroup(spine.length, rest.length, 1);
+  }
   const board = stripLit(mat(0xb9babf, { roughness: 0.75 })), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
   const put = (m: InstancedMesh, i: number, b: Book, sx: number, sy: number, sz: number, dx: number) => {
@@ -565,7 +576,8 @@ function shelvedBooks(books: readonly Book[]): Group {
     const set = books.filter((b) => b.kind === kind);
     if (!set.length) continue;
     // BoxGeometry's groups: +x (the spine, to the room), -x, +y, -y, +z, -z
-    const m = new InstancedMesh(cover, [stripLit(mat(0xffffff, { map: spineTex(kind), roughness: 0.7 })), board, hidden, hidden, board, board], set.length);
+    const spine = stripLit(mat(0xffffff, { map: spineTex(kind), roughness: 0.7 }));
+    const m = new InstancedMesh(cover, low ? [spine, board] : [spine, board, hidden, hidden, board, board], set.length);
     set.forEach((b, i) => { put(m, i, b, b.sx, b.sy, b.sz, 0); m.setColorAt(i, col.setHex(b.tone)); });
     g.add(place(m));
   }

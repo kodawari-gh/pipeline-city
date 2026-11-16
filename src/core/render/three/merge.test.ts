@@ -3,7 +3,7 @@ import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Grou
 import { DARK_METAL } from './cheapmaterials';
 import { setLowDetail } from './detail';
 import { own } from './materials';
-import { mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
+import { glows, mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
 
 describe('mergeStatic', () => {
@@ -56,6 +56,30 @@ describe('mergeStatic', () => {
     expect(mergeStatic(root)).toBe(0);
     expect(picked.children).toHaveLength(1);
     expect(root.children).toHaveLength(5);
+  });
+
+  it('merges the lights of a prop with an id on the prop, by material, and leaves its other meshes', () => {
+    const prop = tag(new Group(), 'router'), row = new Group(), part = tag(new Group(), 'port');
+    const led = new MeshStandardMaterial({ emissive: 0x00ff00 }), amber = new MeshStandardMaterial({ emissive: 0xffaa00 }), body = new MeshStandardMaterial();
+    row.rotation.y = Math.PI / 2;
+    row.position.set(100, 0, 0);
+    const far = new Mesh(new BoxGeometry(2, 2, 2), led);
+    far.position.set(0, 0, 40);
+    row.add(far, new Mesh(new BoxGeometry(), amber));
+    part.add(new Mesh(new BoxGeometry(), led));
+    prop.add(new Mesh(new BoxGeometry(2, 2, 2), led), new Mesh(new BoxGeometry(), body), new Mesh(new BoxGeometry(), body), row, part);
+    expect(mergeStatic(prop)).toBe(0); // (the prop's id keeps a plain merge out)
+    expect(mergeStatic(prop, { own: true, ok: glows })).toBe(2);
+    const merged = prop.children.filter((c) => c.name === 'merged') as Mesh[];
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.material).toBe(led);
+    expect(idOf(merged[0]!)).toBe('router');
+    // (the light in the turned row stands where it stood: 40 along the row's z is 40 along the prop's x)
+    merged[0]!.geometry.computeBoundingBox();
+    expect(merged[0]!.geometry.boundingBox!.max.x).toBeCloseTo(141);
+    expect(prop.children.filter((c) => (c as Mesh).material === body)).toHaveLength(2); // the body's meshes stay
+    expect(row.children).toHaveLength(1); // the lone amber light stays
+    expect(part.children).toHaveLength(1); // a part with its own id keeps its light
   });
 });
 

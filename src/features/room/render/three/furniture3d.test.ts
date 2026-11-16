@@ -1,6 +1,7 @@
 import { Box3, DoubleSide, Matrix4, Mesh, MeshBasicMaterial, Quaternion, Raycaster, Vector3, type InstancedMesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Room } from '@/core/render/three/camera';
+import { setLowDetail } from '@/core/render/three/detail';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
@@ -153,6 +154,18 @@ describe('3D furniture', () => {
       return Math.min(ca + reach(a, u), cb + reach(b, u)) - Math.max(ca - reach(a, u), cb - reach(b, u));
     }));
     const foot = (b: B) => b.y - reach(b, [0, 1]);
+
+    it('draws a cover in two groups at Low (the spine, the boards), not four (CITY-06): the hidden top and foot have none', () => {
+      const groups = (low: boolean) => {
+        setLowDetail(low);
+        try { return covers().map((m) => ({ groups: m.geometry.groups.length, mats: (m.material as unknown as unknown[]).length, tris: m.geometry.groups.reduce((n, g) => n + g.count / 3, 0) })); } finally { setLowDetail(false); }
+      };
+      const high = groups(false), low = groups(true);
+      expect(high.every((c) => c.groups === 6 && c.mats === 6)).toBe(true);
+      expect(low.every((c) => c.groups === 2 && c.mats === 2)).toBe(true);
+      // (the hidden top and foot are 24 triangles each; the four shown faces are the same ones)
+      expect(low.map((c) => c.tris)).toEqual(high.map((c) => c.tris - 48));
+    });
 
     it('rounds each spine across the book: from the boards to its middle, an even arc', () => {
       const p = covers()[0]!.geometry.attributes.position!, arc = new Map<number, number>();

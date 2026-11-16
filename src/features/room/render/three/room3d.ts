@@ -24,9 +24,10 @@ import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
-import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
+import { glows, mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
+import { lowDetail } from '@/core/render/three/detail';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
@@ -627,6 +628,9 @@ export class Room3D {
     // ---- the architect lamp ----
     const lx = g.lamp.x;
     this.lamp = lamp({ x: lx, y: ys }, { x: lx - 1300, y: ys - 3900 }, g.lamp.head, g.lamp.mouth, 2600);
+    // (Low: its base, arms and joints in one draw, its shade's steel in another; CITY-06. High keeps each mesh: `highident`)
+    // (`pbr`: its steel keeps High's reflection of the room, the blue rim the monitor's wash gives the shade's lip)
+    if (lowDetail()) mergeWithin(this.lamp.root, { twin: this.envTwin, pbr: true });
     R.add(this.lamp.root);
     const [mx, my, mz] = this.lamp.mouth;
     this.lampLight.position.set(mx, my, mz);
@@ -672,6 +676,8 @@ export class Room3D {
     const build = (tier: number) => {
       parts(tier);
       mergeWithin(router, { twin: this.envTwin }); // (the router's plates, vents and jacks in a few draws, every tier)
+      // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06)
+      if (lowDetail()) mergeStatic(router, { own: true, ok: glows });
     };
     const parts = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
@@ -689,13 +695,13 @@ export class Room3D {
         // (the jacks are built as a wall across x: turned, their mouths face the room, across x, the latch slots down; the faces 3 in)
         const row = new Group();
         row.rotation.y = Math.PI / 2;
-        for (const px of ports) jackFace(row, -(top - 3), span(px), DEEP, look);
+        for (const px of ports) jackFace(row, -(top - 3), span(px), DEEP, look, !lowDetail());
         router.add(row);
       }
       // the LAN jack on its east side, where the lead's plug stays (turned to face east)
       const side = new Group();
       side.rotation.y = Math.PI;
-      jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look);
+      jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look, !lowDetail());
       router.add(side);
       // its front: a darker strip with the status lights, vents over its top
       router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x131518, { roughness: 0.5 }), 30));

@@ -40,16 +40,17 @@ export const jackLook = (shell: Material): JackLook => {
 /**
  * A compact jack's face (the board's rear I/O's, a router's ports), `k` units a mm from its width (13.75 mm over the span's depth z): the steel
  * shell over the span `s` (its face at x, 1 mm thick), the mouth sunk through it (the plug's fit, plugs3d's `boardRj45`) with its latch slot
- * toward +y, the insert `deep` behind (`jackInside`), the lights in their windows on the contact side's corners. Returns the mouth.
+ * toward +y, the insert `deep` behind (`jackInside`), the lights in their windows on the contact side's corners. Returns the mouth. `fine` false:
+ * no springs and no comb (their eight and nine boxes are two draws a jack).
  */
-export function jackFace(g: Group, x: number, s: Span, deep: number, M: JackLook): Mouth {
+export function jackFace(g: Group, x: number, s: Span, deep: number, M: JackLook, fine = true): Mouth {
   const k = (s.z1 - s.z0) / 13.75, zm = (s.z0 + s.z1) / 2, a = s.y0 + 1.4 * k, b = s.y1 - 1.05 * k, n = s.y1 - 0.35 * k;
   const m: Mouth = { y: (a + b) / 2, z: zm, w: 11.68 * k, h: b - a, slotW: 4.2 * k, slot: n - b, dir: 1 };
   const win = (side: number): Span => ({ y0: s.y0 + 0.25 * k, y1: s.y0 + 1.05 * k, z0: zm + side * 3.45 * k - 1.1 * k, z1: zm + side * 3.45 * k + 1.1 * k, r: 0.17 * k });
   // (the shell's opening a hair wider than the insert's lip)
   g.add(wallX(x, x + 1.05 * k, s, [mouthPts(m, 0.13 * k), win(-1), win(1)], M.shell));
   const e = 0.35 * k;
-  jackInside(g, x + 0.1 * k, deep, m, { y0: s.y0 + e, y1: s.y1 - e, z0: s.z0 + e, z1: s.z1 - e }, k, M.insert, M.contact);
+  jackInside(g, x + 0.1 * k, deep, m, { y0: s.y0 + e, y1: s.y1 - e, z0: s.z0 + e, z1: s.z1 - e }, k, M.insert, M.contact, fine);
   // the lights' lenses, a hair proud of the insert's face behind them
   for (const [side, lm] of [[-1, M.link], [1, M.act]] as const) {
     const w = win(side), lens = rectBox({ x: x + 0.05 * k, y: w.y0, w: 0.86 * k, h: w.y1 - w.y0 }, w.z0, w.z1, lm);
@@ -64,12 +65,13 @@ export function jackFace(g: Group, x: number, s: Span, deep: number, M: JackLook
  * its back; the eight contact springs at the 1.02 mm pitch (`k` units a mm), each from the contact side's lip sloping back in toward the latch
  * side; the comb's ribs between them. The plug's blades meet the springs; its latch rides in the slot.
  */
-export function jackInside(g: Group, x: number, deep: number, m: Mouth, outer: Span, k: number, insert: Material, contact: Material): void {
+export function jackInside(g: Group, x: number, deep: number, m: Mouth, outer: Span, k: number, insert: Material, contact: Material, fine = true): void {
   const c = m.y - m.dir * (m.h / 2), s = m.y + m.dir * (m.h / 2 + m.slot), pitch = 1.02 * k;
   // (the insert's outside holds the whole mouth with a rim: a cut that meets the outline breaks the faces)
   const e = 0.3 * k, o: Span = { y0: Math.min(outer.y0, Math.min(c, s) - e), y1: Math.max(outer.y1, Math.max(c, s) + e), z0: Math.min(outer.z0, m.z - m.w / 2 - e), z1: Math.max(outer.z1, m.z + m.w / 2 + e) };
   g.add(unshadowed(wallX(x, x + deep, o, [mouthPts(m)], insert)));
   g.add(unshadowed(rectBox({ x: x + deep - k, y: Math.min(c, s), w: k, h: Math.abs(s - c) }, m.z - m.w / 2, m.z + m.w / 2, insert)));
+  if (!fine) return; // (the springs and the comb are a pixel or two across in the room: the router's jacks at Low leave them out, CITY-06)
   // the springs: from just inside the lip, sloping in toward the latch side as they run back, as far as the plug's blades reach
   const ax = x + 1.2 * k, bx = x + Math.min(deep - 2 * k, 9 * k), ay = c + m.dir * 0.35 * k, by = c + m.dir * Math.min(2.4 * k, m.h * 0.4);
   const len = Math.hypot(bx - ax, by - ay), rz = Math.atan2(-(by - ay), bx - ax);
