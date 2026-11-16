@@ -19,8 +19,9 @@ describe('the lower detail level of the shared builders', () => {
       expect(low, name).toBeDefined();
       expect(tris(low!), name).toBeLessThanOrEqual(tris(o.geometry) / 2);
     }
-    // the plain box in place of 300 triangles of soft edge
-    expect(tris(lowOf(made.softBox.geometry)!)).toBe(12);
+    // a radius of 40 is too round for the plain box (`LOW_TOL`): a chamfer in place of 300 triangles of soft edge; a radius of 6 is the plain box
+    expect(tris(lowOf(made.softBox.geometry)!)).toBe(108);
+    expect(tris(lowOf(softBox({ x: 0, y: 0, w: 400, h: 300 }, 0, 200, m, 6).geometry)!)).toBe(12);
   });
 
   it('a round shape with no fewer sides to give has no level', () => {

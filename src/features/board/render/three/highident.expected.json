@@ -9,16 +9,16 @@
   "machine/Group#4": {
     "meshes": 62,
     "draws": 59,
-    "verts": 91242,
+    "verts": 72762,
     "instances": 734,
-    "sum": "3b51e3e1"
+    "sum": "5a7dfa9e"
   },
   "machine/Group#47": {
     "meshes": 23,
     "draws": 19,
-    "verts": 42684,
+    "verts": 41484,
     "instances": 186,
-    "sum": "5dcb4cc7"
+    "sum": "e2093981"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -380,9 +380,9 @@
   "machine/dev34": {
     "meshes": 34,
     "draws": 28,
-    "verts": 50752,
+    "verts": 47872,
     "instances": 383,
-    "sum": "55ea073b"
+    "sum": "2b0288cc"
   },
   "machine/io": {
     "meshes": 8,
@@ -464,9 +464,9 @@
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 293250,
+    "verts": 228198,
     "instances": 0,
-    "sum": "2d3eb080"
+    "sum": "314483fd"
   },
   "machine/tpm0": {
     "meshes": 1,

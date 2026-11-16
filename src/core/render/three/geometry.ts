@@ -78,6 +78,8 @@ export const SEG = {
   bevel: 2, monitorBevel: 6,
   /** A solder joint: sides round it, rings up it (about 36 triangles). */
   joint: 6, jointRings: 3,
+  /** A solder joint's lower level (LOD-05): one band up the fillet, so a cone on the same sides and the same outer size. */
+  jointRingsLow: 1,
   /** Lathe props (the teacup, the bedside lantern): sides round the axis, and the most profile points. The cup's sides are 24 (ASR7). */
   lathe: 28, latheProfile: 12, cupLathe: 24,
   /** The floor lantern's profile points (two a rib, 16 ribs, and the top; about 1,800 triangles at `lathe` sides; ASR11). */
@@ -162,10 +164,51 @@ export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometr
 const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
   withLow(new CylinderGeometry(rTop, r, h, sides), () => new CylinderGeometry(rTop, r, h, lowSides(sides)), lowSides(sides) < sides);
 
-/** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). Its lower level is the plain box. */
+/**
+ * The most a lower detail level's outline may stand off the full shape's (LOD-05), in world units: half a millimetre. The overview's
+ * stand-in draws the level at 0.05 px a unit at most (`LOD_OVERVIEW`), so this is 0.6 px there; `lodreach.test.ts` holds every level of
+ * the maxed machine within 1 px.
+ */
+export const LOW_TOL = 12;
+
+/** The 26 directions of a cube's faces, edges and corners: `outlineOff` measures the reach along them. */
+const REACH = [-1, 0, 1].flatMap((x) => [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z) => new Vector3(x, y, z)))).filter((d) => d.lengthSq() > 0).map((d) => d.normalize());
+
+/** The reach of a geometry along each of `REACH`: its farthest vertex that way. */
+function reachOf(g: BufferGeometry): number[] {
+  const p = g.getAttribute('position'), v = new Vector3(), out = REACH.map(() => -Infinity);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    for (let k = 0; k < REACH.length; k++) out[k] = Math.max(out[k]!, v.dot(REACH[k]!));
+  }
+  return out;
+}
+
+/** How far `low`'s outline stands off `g`'s: the most their reach differs along the 26 directions of `REACH`. */
+export function outlineOff(g: BufferGeometry, low: BufferGeometry): number {
+  const a = reachOf(g), b = reachOf(low);
+  return Math.max(...a.map((r, k) => Math.abs(r - b[k]!)));
+}
+
+/** Sets `g`'s lower level to the first of `tries` (cheapest first) whose outline stays within `LOW_TOL` of `g`'s; when none does, no level. Returns `g`. */
+export function fitLow<T extends BufferGeometry>(g: T, tries: readonly (() => BufferGeometry)[]): T {
+  for (const t of tries) {
+    const low = t();
+    if (outlineOff(g, low) <= LOW_TOL) { g.userData.low = low; break; }
+    low.dispose();
+  }
+  return g;
+}
+
+/**
+ * The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). Its lower level is the plain box
+ * while the box's corner stands off the round one by at most `LOW_TOL` (a radius up to 16), else one step a corner: a chamfer, whose
+ * corner and edge points stay on the round (108 triangles for 300).
+ */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
-  const g = withLow(new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), () => new BoxGeometry(r.w, r.h, z1 - z0)), o = new Mesh(g, m);
+  const low = () => (rad * (Math.sqrt(3) - 1) <= LOW_TOL ? new BoxGeometry(r.w, r.h, z1 - z0) : new RoundedBoxGeometry(r.w, r.h, z1 - z0, 1, rad));
+  const g = withLow(new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), low), o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
@@ -204,9 +247,11 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
 export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides: number = SEG.tube, segs = Math.max(8, points.length * 3)): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
-  // (the lower level: half the steps along it, 4 sides at least; a cable is a pixel or two wide from far)
-  const o = new Mesh(withLow(new TubeGeometry(curve, segs, radius, sides, false), () => new TubeGeometry(curve, Math.max(4, Math.ceil(segs / 2)), radius, Math.min(sides, Math.max(4, Math.ceil(sides / 2))), false)), m);
-  return place(o);
+  // (the lower level: half the sides, 4 at least, with half the steps along it or all of them, whichever keeps the outline within `LOW_TOL`;
+  // a cable is a pixel or two wide from far)
+  const full = new TubeGeometry(curve, segs, radius, sides, false), few = Math.min(sides, Math.max(4, Math.ceil(sides / 2)));
+  const tries = few < sides ? [Math.max(4, Math.ceil(segs / 2)), segs].map((n) => () => new TubeGeometry(curve, n, radius, few, false)) : [];
+  return place(new Mesh(fitLow(full, tries), m));
 }
 
 /** A polyline with each inner corner cut by a round of radius `r` (a few points along the arc): a bent pipe for `tube`, tight at its bends. */

@@ -32,13 +32,14 @@ const SINK_H = 12 * MM;
 
 /**
  * A solder joint: the fillet from the pad up to the tail's rounded tip (tpm3d's), lathed on `SEG.joint` sides. Its profile is sampled to
- * `SEG.jointRings` bands (the base and the tip kept), so the outer size stays the same.
+ * `SEG.jointRings` bands (the base and the tip kept), so the outer size stays the same. Its lower level (LOD-05): one band, the same base
+ * and tip, so the same outer size.
  */
-function solderFillet(): LatheGeometry {
+export function solderFillet(): LatheGeometry {
   const P: [number, number][] = [[15, 0], [13, 1], [10.6, 2.6], [9, 4.6], [8, 7.2], [7.4, 10.5], [7.2, 15], [6.6, 18], [5, 20], [2.6, 21], [0, 21.3]];
   const last = P.length - 1;
-  const pts = Array.from({ length: SEG.jointRings + 1 }, (_, k) => P[Math.round((k * last) / SEG.jointRings)]!);
-  return new LatheGeometry(pts.map(([r, z]) => new Vector2(r, z)), SEG.joint).rotateX(Math.PI / 2);
+  const lathe = (rings: number) => new LatheGeometry(Array.from({ length: rings + 1 }, (_, k) => P[Math.round((k * last) / rings)]!).map(([r, z]) => new Vector2(r, z)), SEG.joint).rotateX(Math.PI / 2);
+  return withLow(lathe(SEG.jointRings), () => lathe(SEG.jointRingsLow));
 }
 
 /** A span of a wall across x as its outline (`wallPt` points). */

@@ -2,7 +2,7 @@
 // boardParts.ts) while the board art is built for the texture, so the 3D parts sit exactly on their drawings: capacitor cans, SMD passives with
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';
-import { SEG, instanced, paint } from '@/core/render/three/geometry';
+import { SEG, instanced, lowSides, paint, withLow } from '@/core/render/three/geometry';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import type { Solid } from '../boardParts';
@@ -15,11 +15,14 @@ export const CHIP_H = 46;
 /** The turn round z that points a leg built toward +x out of its chip's side (north is up the screen: world +y). */
 const LEG_TURN = { e: 0, n: Math.PI / 2, w: Math.PI, s: -Math.PI / 2 } as const;
 
-/** A gull-wing leg leaving a chip's edge (x = 0) toward +x: out of the body's side, bent down to a foot on its pad. `width` across, centred. */
-function gullWing(width: number): BufferGeometry {
+/**
+ * A gull-wing leg leaving a chip's edge (x = 0) toward +x: out of the body's side, bent down to a foot on its pad. `width` across, centred.
+ * Its lower detail level (LOD-05) is the box round it: a leg is under a pixel wide from far, and the same from above.
+ */
+export function gullWing(width: number): BufferGeometry {
   const s = new Shape();
   s.moveTo(-10, 30).lineTo(2, 30).lineTo(7, 6).lineTo(14, 6).lineTo(14, 0).lineTo(3, 0).lineTo(-2, 24).lineTo(-10, 24).closePath();
-  return new ExtrudeGeometry(s, { depth: width, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, width / 2, 0);
+  return withLow(new ExtrudeGeometry(s, { depth: width, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, width / 2, 0), () => new BoxGeometry(24, width, 30).translate(2, 0, 15));
 }
 
 /** A can's height for its radius: the big filter caps are tall, the small polymer ones squat. */
@@ -74,7 +77,9 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
       default: break; // chokes and power stages are raised with their own art (machine3d.ts)
     }
   }
-  const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, SEG.drum).rotateX(Math.PI / 2);
+  // (a can's lower detail level, LOD-05: half the sides)
+  const drumOf = (sides: number) => new CylinderGeometry(1, 1, 1, sides).rotateX(Math.PI / 2);
+  const box = new BoxGeometry(1, 1, 1), can = withLow(drumOf(SEG.drum), () => drumOf(lowSides(SEG.drum)));
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
   const tinned = mat(0xb9babf, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd4af5f, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };

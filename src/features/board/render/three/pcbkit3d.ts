@@ -2,7 +2,7 @@
 // packages with their laser marking and pin-1 dimple, solder-mask tops painted with traces, vias, pads and silkscreen, gold edge fingers. Sizes are
 // real (23 layout units a mm); a part stands on a PCB top at depth z, its rect in layout coordinates (y down).
 import { BoxGeometry, Group, Mesh, PlaneGeometry, RingGeometry, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
-import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, rectBox, SEG, softBox, withLow, type RectLike } from '@/core/render/three/geometry';
 import { CERAMIC, LAMINATE, NYLON, mat } from '@/core/render/three/materials';
 import { decal, shapeOf, tex } from './casekit3d';
 
@@ -287,34 +287,30 @@ export interface Bump { r: RectLike; top: number; fall: number }
  * would cut the packages through the label and tear its edge).
  */
 export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Material, step = 7, flat = false): Mesh {
-  const nx = flat ? 1 : Math.max(2, Math.round(r.w / step)), ny = flat ? 1 : Math.max(2, Math.round(r.h / step)), geo = new PlaneGeometry(r.w, r.h, nx, ny);
-  const p = geo.attributes.position!, cx = r.x + r.w / 2, cy = r.y + r.h / 2, lift = 3;
-  if (flat) {
-    const z = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
-    for (let i = 0; i < p.count; i++) p.setZ(i, z);
-    geo.computeVertexNormals();
-    const o = new Mesh(geo, m);
-    o.position.set(cx, -cy, 0);
-    o.receiveShadow = true;
-    return o;
-  }
-  // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
-  // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)
-  const sx = r.w / nx, sy = r.h / ny;
-  for (let i = 0; i < p.count; i++) {
-    const x = cx + p.getX(i), y = cy - p.getY(i);
-    let z = base + lift;
-    for (const b of bumps) {
-      const dx = Math.max(b.r.x - sx - x, 0, x - (b.r.x + b.r.w + sx)), dy = Math.max(b.r.y - sy - y, 0, y - (b.r.y + b.r.h + sy)), d = Math.hypot(dx, dy);
-      const fall = Math.max(b.fall, sx, sy);
-      if (d >= fall) continue;
-      const s = 1 - d / fall, k = s * s * (3 - 2 * s);
-      z = Math.max(z, base + lift + (b.top - base) * k);
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2, lift = 3;
+  const sheet = (grain: number): PlaneGeometry => {
+    const nx = flat ? 1 : Math.max(2, Math.round(r.w / grain)), ny = flat ? 1 : Math.max(2, Math.round(r.h / grain)), geo = new PlaneGeometry(r.w, r.h, nx, ny);
+    const p = geo.attributes.position!, top = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
+    // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
+    // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)
+    const sx = r.w / nx, sy = r.h / ny;
+    for (let i = 0; i < p.count; i++) {
+      const x = cx + p.getX(i), y = cy - p.getY(i);
+      let z = flat ? top : base + lift;
+      if (!flat) for (const b of bumps) {
+        const dx = Math.max(b.r.x - sx - x, 0, x - (b.r.x + b.r.w + sx)), dy = Math.max(b.r.y - sy - y, 0, y - (b.r.y + b.r.h + sy)), d = Math.hypot(dx, dy);
+        const fall = Math.max(b.fall, sx, sy);
+        if (d >= fall) continue;
+        const s = 1 - d / fall, k = s * s * (3 - 2 * s);
+        z = Math.max(z, base + lift + (b.top - base) * k);
+      }
+      p.setZ(i, z);
     }
-    p.setZ(i, z);
-  }
-  geo.computeVertexNormals();
-  const o = new Mesh(geo, m);
+    geo.computeVertexNormals();
+    return geo;
+  };
+  // (the lower detail level, LOD-05: three times the grain by the same rule, so no part comes through it; a sheet of a few quads has none)
+  const o = new Mesh(withLow(sheet(step), () => sheet(step * 3), !flat && Math.max(r.w, r.h) / step >= 6), m);
   o.position.set(cx, -cy, 0);
   o.receiveShadow = true;
   return o;

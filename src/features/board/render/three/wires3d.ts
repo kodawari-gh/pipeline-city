@@ -4,7 +4,7 @@
 // loose lead is the same comb with its plug at the end (cablerig3d.ts; plughand3d.ts holds it in the player's hand). The board's power and SATA
 // sockets are modelled with their cavities, the plugs seat in them.
 import { BoxGeometry, Group, Mesh, Vector2 } from 'three';
-import { instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { fitLow, instanced, place, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { hang, naturalLength, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
@@ -26,9 +26,14 @@ const hex = (c: string): number => parseInt(c.slice(1), 16);
 /** A cable along settled points (several: one strand each, one mesh). */
 export function cableMesh(pts: readonly V3[] | readonly V3[][], look: Look): Mesh {
   const paths = (Array.isArray(pts[0]![0]) ? pts : [pts]) as readonly V3[][];
-  const sl = new Sleeve(paths.length, look.r, samplesFor(Math.max(...paths.map((p) => p.length))), look.accent ? 14 : 10);
-  sl.update(paths);
-  return place(new Mesh(sl.geometry, sleeveMat(look.base, look.accent)));
+  const steps = samplesFor(Math.max(...paths.map((p) => p.length))), sides = look.accent ? 14 : 10;
+  const sleeve = (n: number, k: number) => { const s = new Sleeve(paths.length, look.r, n, k); s.update(paths); return s.geometry; };
+  // (the lower level, LOD-05: the cheapest of half or all the steps on fewer sides whose outline stays within `LOW_TOL`, at most 3/4 of the
+  // triangles; a fat cord may keep all its sides, and then has none)
+  const half = Math.max(SEG.sleeveStepsLow, Math.ceil(steps / 2));
+  const tries = [half, steps].flatMap((n) => [SEG.sleeveLow, 8, 10, 12, 14].filter((k) => k <= sides).map((k) => [n, k] as const))
+    .filter(([n, k]) => n * k <= 0.75 * steps * sides).sort((a, b) => a[0] * a[1] - b[0] * b[1]);
+  return place(new Mesh(fitLow(sleeve(steps, sides), tries.map(([n, k]) => () => sleeve(n, k))), sleeveMat(look.base, look.accent)));
 }
 
 /**

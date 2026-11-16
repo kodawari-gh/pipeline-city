@@ -20,19 +20,23 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] [look: x] Tit
 - **`[look: x]`**: the task can change the picture (none, low, medium, high). Any task with a look needs a before and after shot.
 - **State**: what is already done and measured, with the date. Newest facts only; older history is in git and `docs/render/look-per-cost.md`.
 
-## Where things stand (2026-11-15, branch `main` at `656d3ed`, in sync with origin; `gfx/look-per-cost` merged and deleted)
+## Where things stand (2026-11-16, branch `main`, local commits not pushed)
 
 Why the work exists: the frame is CPU bound (draw calls, materials, light uniforms), so cuts to those come before triangle cuts. A normal map cuts triangles, not draw calls. The machine's parts move, so the machine gets baked occlusion and the room probe, not lightmaps.
 
-| Area | Open | Waiting on owner | Next step |
+Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
+
+Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, LOD-01, LOD-05.
+
+| Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 6 | 5 | MACH-06 needs a real-GPU shot |
 | GFX | 5 | 3 | GFX-01 flicker |
-| LOD | 4 | 3 | LOD-05, detail levels for the other builders (the fan is done) |
+| LOD | 3 | 3 | LOD-03, the `lod.md` rewrite (LOD-01 and LOD-05 are done) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 8 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
-| ASSET | 5 | 3 | ASSET-01 owner looks at the finished redo shots |
-| UI | 1 | 1 | |
+| ASSET | 3 | 2 | ASSET-02, the case's holes and its LOD1 materials |
+| UI | 1 | 1 | UI-01, remove the `Theme.dark` field |
 | DOC | 1 | 1 | |
 | BENCH | 2 | 0 | next official run |
 
@@ -59,7 +63,6 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 182 a
 
 ## LOD: levels of detail
 
-- [ ] LOD-05 Detail levels for the other builders (follows LOD-01, done 2026-11-16: the size rule is accepted and the fan has three levels, `docs/render/lod.md` "Detail levels from the builders"). Give each costly builder a `level` as `fanPart` has (`fans3d.ts`): fewer sides from the segment table, features under 2 px left out, the still parts one mesh. Set the level 1 geometry on the full part (`geometry.userData.low`, `lowOf` in `merge.ts`), so the overview stand-in draws it at no added draw. Start with the largest triangle counts in the overview census (coolers, card fans, the PSU fan, heatsink fins). Left open from LOD-01: a per-part swap to level 1 and level 2 nearer than the overview (level 2 is built and tested, not drawn), a dither fade at the swap on High and Ultra, and the pop in real motion (not measured). Files: src/features/board/render/three/ (one builder per commit), src/core/render/three/geometry.ts, merge.ts. Docs: docs/render/lod.md. Done when: each builder over 2,000 triangles has a level 1 with an outline error of at most 1 px at 120 px, a test as `fanlod.test.ts`, and an overview shot that matches. State (2026-11-16): the shared builders `softBox`, `post`, `drum`, `rod`, `tube` give a level 1 to every part made from them, and `lowOf` drops a level that no longer fits (`lowof.test.ts`); the stand-ins lost 9 % of their vertices, the overview shot matches. The census is in `docs/render/lod.md`. Also done: a level for the braided sleeve (700 to 156 triangles), the PSU's guard ring (864 to 192), the cooler's heat pipe (2,304 to 288) and the 10 GbE card's pin coil (2,628 to 128), `partlod.low.test.ts`; the sandbox machine's overview draws 368,246 triangles, was 373,598, and the shot matches. Note: the ATX cable's 20,100 triangles are not from `braidedTube` (only the cooler's hose uses it): find its builder first. Left, in order of triangles: the case (94,688: outline extrudes, `slab`, rings, rivets in `casekit3d.ts`, `casedetail3d.ts`), the ATX cable, the 10 GbE card's solder fillets (`nic3d.ts`), the NVMe fins (instanced: `copiesOf` copies each one), the VRM heatsink.
 - [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; the shot is unchanged. Left to reach 6: see MACH-06. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
 - [ ] LOD-03 [owner] Rewrite `docs/render/lod.md` against the LOD0, LOD1, LOD2 and card scheme (was LOD1). The file is marked outdated; its 2D zoom bands and "pure, no Pixi" text must go. Keep the "3D distance bands (city)" section. Do it after LOD-01 is decided; carry in the stand-in text (DOC12 said it right: the stand-in keeps the LOD0 triangles; LOD1 and LOD2 are planned). Files: docs/render/lod.md. Docs: docs/3D_STYLE.md "Per-tier detail and LoD". Done when: the file describes only the approved scheme and the 2D bands are gone.
 - [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk.

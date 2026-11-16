@@ -2,11 +2,12 @@
 // z (the side) or along x (the rear and front walls, with their openings), decals on any face, and the painted sheets (perforations, brushed
 // metal, badges). Shapes are drawn in the layout (y down) and come out in the world (y up), z out of the wall.
 import {
-  BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type BufferGeometry, type Material, type Texture,
+  BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2,
+  type BufferGeometry, type ExtrudeGeometry, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { bakedTex } from '@/core/render/three/baked';
-import { anisotropy, extrude, instanced, place, SEG, shareTex, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, extrude, instanced, LOW_TOL, lowSides, place, SEG, shareTex, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -71,11 +72,54 @@ export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
   return s;
 };
 
+/**
+ * A closed outline for a lower detail level: the points that stand less than `tol` off the line between the points kept round them are left
+ * out (a small rounded corner becomes a chamfer, a round hole keeps about half its sides). Every point on the outline's bounds stays, so
+ * its size does not change.
+ */
+export function coarse(pts: readonly Vector2[], tol: number = LOW_TOL): Vector2[] {
+  const p = pts.length > 1 && pts[0]!.distanceTo(pts[pts.length - 1]!) < 1e-6 ? pts.slice(0, -1) : [...pts];
+  if (p.length <= 4) return p;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const q of p) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  const e = 1e-6 * (x1 - x0 + y1 - y0), onBounds = (q: Vector2) => q.x - x0 <= e || x1 - q.x <= e || q.y - y0 <= e || y1 - q.y <= e;
+  const first = p.findIndex(onBounds), ring = [...p.slice(first), ...p.slice(0, first), p[first]!], keep = ring.map(onBounds);
+  const cut = (a: number, b: number): void => {
+    const A = ring[a]!, B = ring[b]!, dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy);
+    let at = -1, worst = tol;
+    for (let i = a + 1; i < b; i++) {
+      const q = ring[i]!, d = len > 0 ? Math.abs((q.x - A.x) * dy - (q.y - A.y) * dx) / len : q.distanceTo(A);
+      if (d > worst) { worst = d; at = i; }
+    }
+    if (at < 0) return;
+    keep[at] = true;
+    cut(a, at); cut(at, b);
+  };
+  for (let a = 0, b = 1; b < ring.length; b++) if (keep[b]) { cut(a, b); a = b; }
+  return ring.slice(0, -1).filter((_, i) => keep[i]);
+}
+
+/** The triangles `extrude` makes of `n` outline points in all, round `holes` holes, with `bands` bands up its sides. */
+const extrudeTris = (n: number, holes: number, bands: number): number => 2 * (n + 2 * holes - 2) + 2 * n * bands;
+
+/**
+ * `extrude`, moved into place by `fit`, with a lower detail level on the geometry (LOD-05; `lowOf`, merge.ts): the same shape with each
+ * outline through `coarse` and its bevel in one step. A shape gets a level only when the level has at most half its triangles and saves
+ * 100 at least (a plain plate has none).
+ */
+function extruded(s: Shape, o: ExtrudeGeometryOptions, fit: (g: ExtrudeGeometry) => ExtrudeGeometry): ExtrudeGeometry {
+  const seg = o.curveSegments ?? SEG.curveRound, ends = (a: Vector2[]) => (a.length > 1 && a[0]!.distanceTo(a[a.length - 1]!) < 1e-6 ? a.length - 1 : a.length);
+  const outer = s.getPoints(seg), holes = s.holes.map((h) => h.getPoints(seg)), lowOuter = coarse(outer), lowHoles = holes.map((h) => coarse(h));
+  const bands = (k: number) => (o.bevelEnabled ? 1 + 2 * k : 1), sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
+  const full = extrudeTris(ends(outer) + sum(holes.map(ends)), holes.length, bands(o.bevelSegments ?? 3));
+  const low = extrudeTris(lowOuter.length + sum(lowHoles.map((h) => h.length)), holes.length, bands(1));
+  return withLow(fit(extrude(s, o)), () => fit(extrude(shapeOf(lowOuter, lowHoles), { ...o, bevelSegments: 1 })), low <= full / 2 && full - low >= 100);
+}
+
 /** A flat shape extruded from depth z0 to z1, its edges rounded by `bevel` inside its outline. */
 export function slab(shape: Shape, z0: number, z1: number, m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (z1 - z0) / 2.2));
-  const g = extrude(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.caseCurve });
-  g.translate(0, 0, z0 + b);
+  const g = extruded(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.caseCurve }, (x) => x.translate(0, 0, z0 + b));
   return place(new Mesh(g, m));
 }
 
@@ -98,18 +142,18 @@ export const wallPt = (y: number, z: number): Vector2 => new Vector2(z, -y);
  */
 export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])[], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = extrude(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.holeCurve });
   // the shape's (u, v) is the world's (z, y); its extrusion runs to -x after the turn
-  g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
+  const g = extruded(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevel, curveSegments: SEG.holeCurve },
+    (x) => x.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0));
   return place(new Mesh(g, m));
 }
 
 /** A sheet lying flat across the case (a shelf, the shroud's top): layout x from `x0` to `x1`, depth `z0` to `z1`, `t` thick under its top at layout `y`, with holes as world (x, z) outlines. */
 export function plateY(x0: number, x1: number, z0: number, z1: number, y: number, t: number, holes: Vector2[][], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, t / 2.2)), s = shapeOf([new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x1, z1), new Vector2(x0, z1)], holes);
-  const g = extrude(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve });
   // (the shape's (u, v) is the world's (x, z); its extrusion runs down from the top)
-  g.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0);
+  const g = extruded(s, { depth: t - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat, curveSegments: SEG.caseCurve },
+    (x) => x.translate(0, 0, b).rotateX(Math.PI / 2).translate(0, -y, 0));
   return place(new Mesh(g, m));
 }
 /** A rounded slot in a `plateY` sheet, as its (x, z) outline. */
@@ -148,8 +192,10 @@ export type Facing = 'x+' | 'x-' | 'y+' | 'y-' | 'z+' | 'z-';
 /** A fixing's place on the surface its head stands on (world: y up). */
 export interface Spot { x: number; y: number; z: number }
 
-/** Turn a part modelled round +z to look along `f`. */
+/** Turn a part modelled round +z to look along `f`. Its lower detail level (`userData.low`) turns with it. */
 export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
+  const low = g.userData.low as BufferGeometry | undefined;
+  if (low) turned(low, f);
   if (f === 'z-') g.rotateX(Math.PI);
   else if (f === 'x+') g.rotateY(Math.PI / 2);
   else if (f === 'x-') g.rotateY(-Math.PI / 2);
@@ -158,8 +204,17 @@ export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
   return g;
 }
 
-/** A solid turned round +z from its profile, [radius, height] from the foot up. */
-const lathe = (pts: readonly (readonly [number, number])[], sides: number = SEG.disc): BufferGeometry => new LatheGeometry(pts.map(([r, h]) => new Vector2(r, h)), sides).rotateX(Math.PI / 2);
+/**
+ * A solid turned round +z from its profile, [radius, height] from the foot up. Its lower detail level (LOD-05): `lowSides` sides, and of the
+ * profile only its two ends, the first and the last point at its widest, and the first at its top. So the level has the same outer size; a
+ * head's recess closes to a dimple.
+ */
+function lathe(pts: readonly (readonly [number, number])[], sides: number = SEG.disc): BufferGeometry {
+  const turn = (p: readonly (readonly [number, number])[], n: number) => new LatheGeometry(p.map(([r, h]) => new Vector2(r, h)), n).rotateX(Math.PI / 2);
+  const rs = pts.map((p) => p[0]), hs = pts.map((p) => p[1]), R = Math.max(...rs), H = Math.max(...hs);
+  const keep = new Set([0, rs.indexOf(R), rs.lastIndexOf(R), hs.indexOf(H), pts.length - 1]);
+  return withLow(turn(pts, sides), () => turn(pts.filter((_, i) => keep.has(i)), lowSides(sides)));
+}
 const driveM = () => mat(0x050608, { roughness: 0.8 });
 
 /** Pan-head screws: a low head with a cross recess in its flat crown. */
@@ -190,7 +245,8 @@ export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: n
     if (i) s.lineTo(Math.cos(a) * q, Math.sin(a) * q); else s.moveTo(Math.cos(a) * q, Math.sin(a) * q);
   }
   s.closePath();
-  const washer = r * 0.16, head = extrude(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat }).translate(0, 0, washer + b);
+  // (the head's lower level is `extruded`'s: the teeth go, an octagon of the same width stays)
+  const washer = r * 0.16, head = extruded(s, { depth: len - washer - 2 * b, bevelEnabled: true, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: SEG.bevelFlat }, (x) => x.translate(0, 0, washer + b));
   g.add(instanced(turned(head, f), m, spots), instanced(turned(lathe([[r * 1.1, 0], [r * 1.1, washer * 0.8], [r * 0.9, washer], [0, washer]]), f), m, spots));
   g.add(instanced(turned(new BoxGeometry(r * 1.3, r * 0.2, Math.max(1, r * 0.03)).translate(0, 0, len + 0.5), f), driveM(), spots));
   return g;
