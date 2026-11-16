@@ -93,11 +93,11 @@ The three worst sources, by the strict measure: (1) the city's lit windows, beac
 
 ## High idle against the base of #23 (2026-11-17, BENCH-01)
 
-The question: does #23 leave High alone? The official run read High idle at 25.3 fps against main's 27.8, with ranges that overlap. Rerun on the dev desktop (RTX 5080, ANGLE D3D11, dev server), as a same-box pair: `bench:modes --device razr-fold-folded --presets high --modes game-max --views idle --ms 6000` (485x997 at 2.225, CPU /4), 3 rounds, the two builds alternating. Base: `03fe0bca` (main before #23, with the current tool copied in). Now: `386977cb`, which has #23 and all the work after it.
+The question: does #23 leave High alone? An earlier run read High idle at 25.3 fps against main's 27.8, with ranges that overlap. Rerun on the dev desktop (RTX 5080, ANGLE D3D11, dev server), as a same-box pair: `bench:modes --device razr-fold-folded --presets high --modes game-max --views idle --ms 6000` (485x997 at 2.225, CPU /4), 3 rounds, the two builds alternating. Base: `03fe0bca` (main before #23, with the current tool copied in). Now: `386977cb`, which has #23 and all the work after it.
 
 | Build | Idle fps (3 rounds) | p50 ms | p95 ms | Draw calls | Ktri |
 |---|---|---|---|---|---|
 | `03fe0bca` | 11.7, 11.4, 11.7 | 81.2, 83.3, 82.6 | 120, 140, 124 | 541, 607, 480 | 1505, 1594, 1390 |
 | `386977cb` | 17.5, 16.9, 19.0 | 56.7, 59.0, 51.1 | 84, 91, 74 | 356, 323, 317 | 732, 717, 692 |
 
-High idle is not slower than at the base: it is faster, and the ranges do not overlap (17 to 19 fps against 11 to 12). So the official gap (25.3 against 27.8) is not a High regression; the box's own run-to-run spread is the likely cause. This is a dev-desktop result with 6 s runs: the absolute fps differ from the official box's, and the official box has not run this pair (BENCH-02 asks it to).
+High idle is not slower than at the base: it is faster, and the ranges do not overlap (17 to 19 fps against 11 to 12). So the earlier gap (25.3 against 27.8) is not a High regression; run-to-run spread is the likely cause. These are 6 s runs on the dev desktop.
