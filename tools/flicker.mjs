@@ -1,4 +1,5 @@
-// `node tools/flicker.mjs [--preset Low|Medium|High] [--frames N] [--window x,y,w,h] [--keep first.png] [--map range.png]`
+// `node tools/flicker.mjs [--preset Low|Medium|High] [--frames N] [--window x,y,w,h] [--control x,y,w,h] [--keep first.png] [--map range.png]`
+// (`--control`: a rect of plain wall, default 1520,0,80,410; its still, pan and shimmer numbers are the floor of the method: a pan that shimmers there is the method, not the scene.)
 // (`--map`: a grey picture of the still frames' luma range per pixel, times 4: white is where the still picture flickers; and `range-pan.png`,
 // white where a pixel shimmers under the pan. `--turns N`: the turns that count as shimmer, default 8. `--settle ms`: default 15000.)
 //   (c) shimmer: the same pan frames; the share of pixels whose luma turns N times or more. Plain motion turns a pixel once and does not count.
@@ -22,6 +23,8 @@ if (!['Low', 'Medium', 'High'].includes(PRESET)) throw new Error('--preset Low|M
 const FRAMES = Number(flag('frames', 30));
 // the city window (the sky and the towers above the lamp), in measured-rect pixels: x,y,w,h. The lamp and the room lie outside it.
 const WIN = flag('window', '205,0,650,290').split(',').map(Number);
+// the control rect (clip pixels): the bare wall at the right of the room view, no lamp, no shelf, no thin geometry
+const CTL = flag('control', '1520,0,80,410').split(',').map(Number);
 const KEEP = flag('keep', ''), MAP = flag('map', '');
 // the wait after the preset is set, before the first frame (ms): the night's lamps and the new render size must settle first
 // (3 s was too short: at Low the lamps still ramped and the frame still changed size, which read as 6 % flicker; 15 s reads 0.3 %)
@@ -107,8 +110,9 @@ function turns(pngs) {
       else if (Math.abs(d) > THRESH) { dir[k] = d > 0 ? 1 : -1; ref[k] = y; if (n[k] < 15) n[k]++; }
     }
   }
+  // (`share` counts a range over THRESH: a pixel under TURNS turns stays at or under it, so only TURNS or more count; the map shows 12 grey a turn, white from TURNS)
   const mx = new Uint8Array(w * h);
-  for (let k = 0; k < w * h; k++) mx[k] = n[k] >= TURNS ? 255 : n[k] * 8;
+  for (let k = 0; k < w * h; k++) mx[k] = n[k] >= TURNS ? 255 : Math.min(THRESH, n[k] * 3);
   return { w, h, mn: new Uint8Array(w * h), mx };
 }
 
@@ -204,6 +208,10 @@ try {
   console.log(`pan    ${PRESET} night, 2 px/frame (includes motion): window ${pctWin.toFixed(2)}%, rest ${pctRest.toFixed(2)}% (${WIN.join(',')} is the window, in clip pixels)`);
   const rt = turns(pan);
   console.log(`shimmer ${PRESET} night, same pan (pixels that turn ${TURNS} times or more; motion alone does not count): window ${share(rt, inWin).toFixed(2)}%, rest ${share(rt, (x, y) => !inWin(x, y)).toFixed(2)}%`);
+  // the control: a rect of plain wall (no light, no thin geometry); its shimmer is the floor of the method and should sit near its still number
+  const [cx, cy, cw, ch] = CTL;
+  const inCtl = (x, y) => x >= cx && x < cx + cw && y >= cy && y < cy + ch;
+  console.log(`control ${PRESET} night, plain wall (${CTL.join(',')}): still ${share(rs, inCtl).toFixed(2)}%, pan ${share(rp, inCtl).toFixed(2)}%, shimmer ${share(rt, inCtl).toFixed(2)}%`);
   if (MAP) { const at = resolve(MAP.replace(/\.png$/i, '') + '-pan.png'); writeFileSync(at, rangeMap(rt)); console.log('saved', at); }
   if (errors.length) console.log(`(page errors: ${errors.slice(0, 3).join(' | ')})`);
 } finally {
