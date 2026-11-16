@@ -26,14 +26,14 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, CITY-08, DOC-01, GFX-01, GFX-02, GFX-03, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-01, PHONE-03, PHONE-05, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, CITY-08, DOC-01, GFX-01, GFX-02, GFX-03, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-01, PHONE-03, PHONE-04, PHONE-05, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 1 | 1 | MACH-01, one material |
 | GFX | 1 | 0 | GFX-05 programs and precision |
 | LOD | 1 | 1 | LOD-04, far city cards |
-| PHONE | 4 | 2 | PHONE-06 draw on demand; PHONE-02 real phone |
+| PHONE | 3 | 1 | PHONE-06 draw on demand; PHONE-02 real phone |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
 | BENCH | 2 | 0 | next official run |
 
@@ -65,7 +65,6 @@ Findings (phone profile, Low, CPU/4, 2026-11-09, old): menu 31 fps; gallery 18 f
 Common mobile budgets: 100–200 draw calls on low-end, under 500 on most phones; 1–2 M triangles; baked light plus one real-time light; few render-target switches. Over budget: draw calls, triangles, lights.
 
 - [ ] PHONE-02 [owner] Run the real devices (was PERF9, PERF15, 3D2). Run `bench:modes` and the game on the owner's real phone (Chrome remote debugging, `chrome://inspect`) to replace the 4x CPU estimate and the missing GPU numbers; run it 5 minutes (`--ms 300000`, print per-minute fps) and compare minute 1 with minute 5: if the frame rate drops by 25 % or more, PHONE-06 and PHONE-07 get priority. Then pick the touch preset (Low or a new Phone preset with scale 0.5 and shadows Off). Also test the 3D view with touch on a real tablet (two-finger pinch is in; no tablet run is recorded). Files: tools/bench-modes.mjs (per-minute fps). Docs: docs/render/interact.md. Done when: the owner reports the frame rate of menu, gallery and Build my PC on Low, thermals over 5 minutes, and that pan, pinch and the picker work on the tablet.
-- [ ] PHONE-04 [owner] [look: low] The rest of freeing a closed screen (was PERF12). Done: a close frees the screen's context, meshes, targets and Pixi pools (5 closes: Build my PC 40.4 MB, it was 215 to 264 MB; Gallery 33.4 MB; the menu's 3 contexts). Left: Build my PC still leaves the heap 29 % over the first menu reading (31.3 MB); about 6 MB is V8's compiled code for the screen's modules, the rest is capped caches (Pixi's text metrics, 1000 entries). The owner decides if that code counts; if it does, load less code on the main thread (Build my PC imports the whole `Game`). Files: src/features/board/render/three/buildmode3d.ts. Docs: docs/render/load.md ("A closed screen frees what it owns"). Done when: the owner accepts that floor, or 5 opens and closes of Build my PC leave the heap within 10 % of the first menu reading.
 - [ ] PHONE-06 [auto] [look: none] Draw on demand, the rest (was PERF14). The gate is in (`ondemand.ts`, docs/render/load.md "Draw on demand"). Phone, 60 s untouched menu: 30 to 23 frames a second (default), 60 to 34 (low, fps unlimited); Gallery with Spin off 0; Build my PC 0 once settled. What still draws the menu: the sway (about 11 a second, each frame moves the picture 0.5 px or more) and the city's beat (10 a second at 30 fps: the cars, the steam, the clock). Next: draw the city's beat into the window's screen box only (a scissored redraw over the last picture), and let the sway and the beat share frames. Files: src/features/board/render/three/board3d.ts, src/features/room/render/three/outside/view.ts. Docs: docs/render/load.md. Done when: an untouched menu with reduced motion draws only the window's box on the city's beat; a shot matches.
 - [ ] PHONE-07 [auto] [look: low] One WebGL context for all 3D screens (was PERF24). Gallery and Build my PC open a second context, which compiles its own programs and uploads its own textures (two copies in memory). Draw them with the room's renderer into the same canvas (a different scene and camera) once the room pauses behind them. Files: src/core/render/three/viewer.ts, src/features/board/render/three/buildmode3d.ts, board3d.ts. Docs: docs/ARCHITECTURE.md. Done when: one context is alive on every screen and opening Gallery links no program the room already has.
 
@@ -82,7 +81,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LPC8 (GFX-01), LPC9 (GFX-02), LPC10 (GFX-03), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), PARK1 (CITY-08), PERF2 and PERF6 (PHONE-01), PERF13 and PERF25 (PHONE-05), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LPC8 (GFX-01), LPC9 (GFX-02), LPC10 (GFX-03), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), PARK1 (CITY-08), PERF2 and PERF6 (PHONE-01), PERF13 and PERF25 (PHONE-05), PERF12 (PHONE-04), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|
