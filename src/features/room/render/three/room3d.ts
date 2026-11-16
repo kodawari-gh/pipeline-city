@@ -145,12 +145,15 @@ const smooth = (a: number, b: number, v: number): number => { const t = Math.min
 
 /** The room's light bake (`public/bake/room/`), loaded once a page: null when there is none or it cannot be read. */
 const BAKE_URL = `${import.meta.env.BASE_URL}bake/room/`;
-let bakeLoad: Promise<Bake | null> | null = null;
+let bakeLoad: Promise<Bake | null> | null = null, bakeRenderer: WebGLRenderer | undefined;
 const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
   // (a page that starts with a lamp cap takes the capped lamps' direct light with the bake, so the first probe sees it)
-  : loadBake(BAKE_URL).then(async (b) => { if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b); return b; }).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
-/** Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). */
-export const preloadRoomBake = (): void => { void roomBake(); };
+  : loadBake(BAKE_URL, bakeRenderer).then(async (b) => { if (effective.peek().lights > 0) await loadDirect(BAKE_URL, b); return b; }).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
+/**
+ * Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). With the page's
+ * renderer the maps come as KTX2 (the formats of its GPU); a call with none, or a load begun before, takes the PNGs.
+ */
+export const preloadRoomBake = (renderer?: WebGLRenderer): void => { bakeRenderer ??= renderer; void roomBake(); };
 /** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
 let city: OutsideView | null = null;
 /** The city's detail now: Low graphics (`isLow`) build the cut city, any other settings the full one. */

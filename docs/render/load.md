@@ -165,7 +165,22 @@ Ten biggest buffers, Build my PC (the owner is the nearest named object):
 | 6-7 | standin | 0.94 each |
 | 8-10 | standin | 0.85 each |
 
-Baked light files, `public/bake/room` (17 files: PNG maps, `meshes.bin`, `manifest.json`): 11,716,352 bytes, 11.7 MB (11.2 MiB) to download.
+Baked light files, `public/bake/room` (17 files: PNG maps, `meshes.bin`, `manifest.json`): 11,716,352 bytes, 11.7 MB (11.2 MiB) to download. After PHONE-05 (below) the game downloads 12 KTX2 maps (1.69 MB), `meshes.packed` (0.44 MB) and the manifest: 2.1 MB. The estimate above does not count these maps (they are uniforms of `LightmapMix`, not a material's slot): 12 maps of 944x1219 RGBA8 are 52.7 MB (4.39 MB each) when all are on the GPU; as BC7 they are 13.2 MB (1.10 MB each, read from `mipmaps[0]` of the loaded texture; format 36492).
+
+### First-start download (PHONE-05, 2026-11-16)
+
+`vite build`, served by `vite preview`, a phone profile page (412x915 at 2.6), 30 s from the first request, Chrome on the RTX 5080. The tool counted the body of every response (a scratch script, not kept). "As served" is what `vite preview` sent (it does not compress); "text compressed" gzips the JS, wasm, JSON and `.bin` as a host does, and sends the KTX2 as they are.
+
+| Part | Before (as served) | After (as served) |
+|---|---|---|
+| Light bake: 12 maps, UVs, manifest | 11.7 MB | 2.1 MB |
+| Baked textures `public/tex/` (21 KTX2) | 2.9 MB | 2.9 MB |
+| Basis transcoder (wasm, js) | 0.55 MB | 0.55 MB |
+| JS (31 files, `thumbs.worker` 0.53 MB of it) | 4.0 MB (1.3 MB compressed) | 4.0 MB (1.3 MB compressed) |
+| Models, css, blobs | 0.4 MB | 0.4 MB |
+| Total | about 20.0 MB (16.9 MB text compressed) | 10.4 MB (7.3 MB text compressed) |
+
+The Before column is the After column plus the bake's change (11.7 minus 2.1 MB): the old build was not run again. Left toward the 6 MB goal: the city's and the room's normal maps (UASTC, 2.2 MB), the JS and the UVs (0.44 MB; delta and brotli give 0.29 MB, but a `DecompressionStream` has no brotli). The city's normal maps at Low would be 1.35 MB of it; they give the low sun its raking light on the joints, so a Low without them is another look than High, and this decision keeps them (uniformity).
 
 Doubts: the dev build adds Vite's module code to the heap, so the heap is high. The first reading of the menu heap was 141 MB; this run reads 283 MB and is not reconciled. Render targets that no scene holds (the post target) are not counted. Build my PC textures (177 MB) are above the 150 MB line in PHONE-05, so its cap rule applies. The 16 MB material texture budget in `docs/3D_STYLE.md` stays TBD; it is not set here.
 

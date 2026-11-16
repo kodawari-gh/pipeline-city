@@ -13,9 +13,11 @@ import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { runnerImport } from 'vite';
+import { ktx2Of } from './ktx2.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -154,17 +156,23 @@ if (ONLY.length || PACK) {
 
 if (!PACK) await blender([...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
 if (args.includes('--preview')) console.log(`previews: ${work}`);
-const uvBytes = readFileSync(join(out, 'meshes.bin')), keep = atlasLib.chartTexels(new Uint16Array(uvBytes.buffer.slice(uvBytes.byteOffset, uvBytes.byteOffset + uvBytes.byteLength)), manifest.width, manifest.height, PADDING / 2);
+const uvBytes = readFileSync(join(out, 'meshes.bin'));
+// (the game reads the gzipped copy: `BakeManifest.uvs`; its name has no `.gz`, as a server that sees one may send it as `Content-Encoding`)
+writeFileSync(join(out, 'meshes.packed'), gzipSync(uvBytes, { level: 9 })); manifest.uvs = 'meshes.packed';
+const keep = atlasLib.chartTexels(new Uint16Array(uvBytes.buffer.slice(uvBytes.byteOffset, uvBytes.byteOffset + uvBytes.byteLength)), manifest.width, manifest.height, PADDING / 2);
 const light = (id) => { const f = readFileSync(join(work, `${id}.f32`)); return new Float32Array(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength)); };
 for (const g of groups) {
   if (g.kind === 'direct') continue;
   const rgb = light(g.id);
-  const scale = rgbm.scaleOf(rgb), file = rgbm.png(rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }, keep), manifest.width, manifest.height);
+  const scale = rgbm.scaleOf(rgb), bytes = rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }, keep), file = rgbm.png(bytes, manifest.width, manifest.height);
   writeFileSync(join(out, `${g.id}.png`), file);
-  const entry = { id: g.id, kind: g.kind, file: `${g.id}.png`, scale, ...(g.kind === 'lamp' ? { lead: g.lights[0].intensity } : {}), ...(g.kind === 'sun' ? { hour: g.hour } : {}) };
+  // (and the same bytes as the game loads them, KTX2: `ktx2.mjs`; `npm run bake:lm` does it for the files already there)
+  const ktx2 = await ktx2Of(bytes, manifest.width, manifest.height);
+  writeFileSync(join(out, `${g.id}.ktx2`), ktx2);
+  const entry = { id: g.id, kind: g.kind, file: `${g.id}.png`, ktx2: `${g.id}.ktx2`, scale, ...(g.kind === 'lamp' ? { lead: g.lights[0].intensity } : {}), ...(g.kind === 'sun' ? { hour: g.hour } : {}) };
   const k = manifest.groups.findIndex((e) => e.id === g.id);
   if (k < 0) manifest.groups.push(entry); else manifest.groups[k] = entry;
-  console.log(`${g.id}.png: ${(file.length / 1024).toFixed(0)} KB, scale ${scale.toPrecision(3)}`);
+  console.log(`${g.id}.png: ${(file.length / 1024).toFixed(0)} KB, ${g.id}.ktx2: ${(ktx2.byteLength / 1024).toFixed(0)} KB, scale ${scale.toPrecision(3)}`);
 }
 // the capped lamps' direct light, three groups a file (`packDirect`): all of them again, as a file holds more than one group
 const direct = all.filter((g) => g.kind === 'direct' && existsSync(join(work, `${g.id}.f32`)));

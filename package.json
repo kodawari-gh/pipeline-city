@@ -19,6 +19,7 @@
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
+    "bake:lm": "node tools/bake/lightmaps.mjs",
     "bake:tex": "node tools/bake/textures.mjs",
     "bake:models": "node tools/bake/models.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",

@@ -24,6 +24,12 @@ export function bakedTex(key: string): Texture | null {
 /** The keys that are loaded (the debug overlay and the tests). */
 export const bakedKeys = (): string[] => [...BAKED.keys()];
 
+/** A KTX2 loader for this renderer's GPU (the formats it can take). The caller disposes it when its files are in: that ends its transcoder threads. */
+export async function ktx2Loader(renderer: WebGLRenderer) {
+  const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
+  return new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(renderer);
+}
+
 /**
  * Load the set, once a page. It never fails: a key that did not load is absent, and its painter paints. Call it with the first renderer,
  * and wait for it before the first build. `?nobaked` skips it (the painted look, to compare).
@@ -34,8 +40,7 @@ export function loadBaked(renderer: WebGLRenderer): Promise<void> {
     const res = await fetch(`${BAKED_URL}manifest.json`);
     if (!res.ok) return;
     const { keys } = (await res.json()) as BakedManifest;
-    const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
-    const l = new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(renderer);
+    const l = await ktx2Loader(renderer);
     await Promise.all(keys.map((k) => l.loadAsync(`${BAKED_URL}${k}.ktx2`).then((t) => { t.name = `baked:${k}`; BAKED.set(k, t); }, () => {})));
     l.dispose();
   })().catch(() => {}));

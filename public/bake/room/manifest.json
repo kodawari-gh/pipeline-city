@@ -11,82 +11,94 @@
    "kind": "lamp",
    "file": "desk.png",
    "scale": 0.27317431569099426,
-   "lead": 223047328.25021774
+   "lead": 223047328.25021774,
+   "ktx2": "desk.ktx2"
   },
   {
    "id": "arc",
    "kind": "lamp",
    "file": "arc.png",
    "scale": 0.20721757411956787,
-   "lead": 182081247.20955753
+   "lead": 182081247.20955753,
+   "ktx2": "arc.ktx2"
   },
   {
    "id": "floor",
    "kind": "lamp",
    "file": "floor.png",
    "scale": 0.6375280022621155,
-   "lead": 31166739.54789073
+   "lead": 31166739.54789073,
+   "ktx2": "floor.ktx2"
   },
   {
    "id": "bedside",
    "kind": "lamp",
    "file": "bedside.png",
    "scale": 2.465183734893799,
-   "lead": 31166739.54789073
+   "lead": 31166739.54789073,
+   "ktx2": "bedside.ktx2"
   },
   {
    "id": "strips",
    "kind": "lamp",
    "file": "strips.png",
    "scale": 0.7270873188972473,
-   "lead": 18.750043845656187
+   "lead": 18.750043845656187,
+   "ktx2": "strips.ktx2"
   },
   {
    "id": "picture",
    "kind": "lamp",
    "file": "picture.png",
    "scale": 0.14704523980617523,
-   "lead": 13.105280390932647
+   "lead": 13.105280390932647,
+   "ktx2": "picture.ktx2"
   },
   {
    "id": "sconce",
    "kind": "lamp",
    "file": "sconce.png",
    "scale": 0.2742433547973633,
-   "lead": 286418197.70789385
+   "lead": 286418197.70789385,
+   "ktx2": "sconce.ktx2"
   },
   {
    "id": "led",
    "kind": "lamp",
    "file": "led.png",
    "scale": 0.39110004901885986,
-   "lead": 6
+   "lead": 6,
+   "ktx2": "led.ktx2"
   },
   {
    "id": "screen",
    "kind": "lamp",
    "file": "screen.png",
    "scale": 0.07292632758617401,
-   "lead": 0.168
+   "lead": 0.168,
+   "ktx2": "screen.ktx2"
   },
   {
    "id": "sky",
    "kind": "sky",
    "file": "sky.png",
-   "scale": 8.06052017211914
+   "scale": 8.06052017211914,
+   "ktx2": "sky.ktx2"
   },
   {
    "id": "city",
    "kind": "city",
    "file": "city.png",
-   "scale": 18.57203483581543
+   "scale": 18.57203483581543,
+   "ktx2": "city.ktx2"
   },
   {
    "id": "sun-20",
    "kind": "sun",
    "file": "sun-20.png",
    "scale": 0.029636789113283157,
-   "hour": 20
+   "hour": 20,
+   "ktx2": "sun-20.ktx2"
   }
  ],
  "dark": [
@@ -666,5 +678,6 @@
     "lead": 223047328.25021774
    }
   ]
- }
+ },
+ "uvs": "meshes.packed"
 }

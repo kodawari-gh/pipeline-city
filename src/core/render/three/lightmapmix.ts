@@ -9,6 +9,7 @@ import {
   PlaneGeometry, Scene, ShaderChunk, ShaderMaterial, Texture, Vector3, WebGLRenderTarget,
   type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
+import { ktx2Loader } from './baked';
 import { shareTex } from './geometry';
 import './arealoop';
 
@@ -59,8 +60,11 @@ export function keyFrames(hour: number, hours: readonly number[]): [number, numb
   return [[hours[n - 1]!, 1]];
 }
 
-/** A light group's lightmap: its file, the scale its RGBM decodes by, a lamp group's baked lead intensity, a sun frame's hour. */
-export interface BakeGroup { id: string; kind: 'lamp' | 'sky' | 'city' | 'sun'; file: string; scale: number; lead?: number; hour?: number }
+/**
+ * A light group's lightmap: its file, the scale its RGBM decodes by, a lamp group's baked lead intensity, a sun frame's hour. `ktx2` names the
+ * same map as a KTX2 file (`tools/bake/lightmaps.mjs`): the game loads that one when it can, and the PNG when it cannot.
+ */
+export interface BakeGroup { id: string; kind: 'lamp' | 'sky' | 'city' | 'sun'; file: string; ktx2?: string; scale: number; lead?: number; hour?: number }
 /** A receiver: its hash, its corners (three a triangle, unindexed) and where its UVs start in `meshes.bin` (in corners). */
 export interface BakeMesh { name: string; hash: string; corners: number; offset: number }
 /**
@@ -72,6 +76,8 @@ export interface BakeDirect { id: string; map: number; channel: number; scale: n
 export interface BakeManifest {
   version: number; encoding: string; width: number; height: number; texelsPerMetre: number; samples: number; groups: BakeGroup[]; dark: string[]; meshes: BakeMesh[];
   direct?: { files: string[]; groups: BakeDirect[] };
+  /** `meshes.bin` gzipped (a third of the size; the game unzips it as it reads it), when the bake has it: `meshes.packed`. */
+  uvs?: string;
 }
 /**
  * A bake as loaded: the manifest, each group's lightmap (RGBM, unflipped: row 0 is the atlas's top), the receivers' UVs (two Uint16 a corner),
@@ -100,14 +106,45 @@ export function loadDirect(base: string, bake: Bake): Promise<void> {
 }
 const directLoads = new WeakMap<Bake, Promise<void>>();
 
-/** Loads the bake under `base` (a URL ending in `/`). */
-export async function loadBake(base: string): Promise<Bake> {
+/**
+ * The groups' maps from their KTX2 files: one byte a texel on the GPU where the PNG's is four (a quarter of the memory), and about half the
+ * file. The bytes are RGBM as in the PNG: no sRGB, no mips, nearest.
+ */
+async function ktx2Maps(base: string, groups: readonly BakeGroup[], renderer: WebGLRenderer): Promise<[string, Texture][]> {
+  const l = await ktx2Loader(renderer);
+  try {
+    return await Promise.all(groups.map(async (g): Promise<[string, Texture]> => {
+      const t = await l.loadAsync(base + g.ktx2!);
+      t.generateMipmaps = false; t.magFilter = NearestFilter; t.minFilter = NearestFilter; t.colorSpace = NoColorSpace;
+      return [g.id, shareTex(t)];
+    }));
+  } finally { l.dispose(); }
+}
+
+/**
+ * Loads the bake under `base` (a URL ending in `/`). With a `renderer` and a KTX2 file for every group, the maps come from those; a file that
+ * fails to load or to transcode sends all of them to the PNGs.
+ */
+export async function loadBake(base: string, renderer?: WebGLRenderer): Promise<Bake> {
   const get = async (f: string) => { const r = await fetch(base + f); if (!r.ok) throw new Error(`${base}${f}: ${r.status}`); return r; };
   const manifest = (await (await get('manifest.json')).json()) as BakeManifest;
   if (manifest.version !== 1 || manifest.encoding !== 'rgbm-sqrt') throw new Error(`${base}: a bake this game cannot read (${manifest.version}, ${manifest.encoding})`);
-  const uvs = get('meshes.bin').then((r) => r.arrayBuffer()).then((b) => new Uint16Array(b));
+  const raw = () => get('meshes.bin').then((r) => r.arrayBuffer()).then((b) => new Uint16Array(b));
+  // (what the file holds decides, not the headers: a server may send the gzip as it is, or as a `Content-Encoding` the browser has undone
+  // already, or gzip it a second time. A browser with no `DecompressionStream`, a file that is no gzip or is not the size the receivers say
+  // reads the plain `meshes.bin`)
+  const size = manifest.meshes.reduce((n, m) => Math.max(n, m.offset + m.corners), 0) * 2;
+  const unzip = async (r: Response): Promise<Uint16Array> => {
+    let b = await r.arrayBuffer();
+    const h = new Uint8Array(b, 0, Math.min(3, b.byteLength));
+    if (h[0] === 0x1f && h[1] === 0x8b && h[2] === 8) b = await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    if (b.byteLength !== size * 2) throw new Error(`${base}${manifest.uvs}: ${b.byteLength} bytes, not ${size * 2}`);
+    return new Uint16Array(b);
+  };
+  const uvs = manifest.uvs && typeof DecompressionStream !== 'undefined' ? get(manifest.uvs).then(unzip).catch(raw) : raw();
   // (the bytes as they are: the alpha is RGBM's multiplier)
-  const maps = Promise.all(manifest.groups.map(async (g): Promise<[string, Texture]> => [g.id, await dataTexture(base + g.file)]));
+  const png = () => Promise.all(manifest.groups.map(async (g): Promise<[string, Texture]> => [g.id, await dataTexture(base + g.file)]));
+  const maps = renderer && manifest.groups.every((g) => g.ktx2) ? ktx2Maps(base, manifest.groups, renderer).catch(png) : png();
   return { manifest, uvs: await uvs, maps: new Map(await maps) };
 }
 

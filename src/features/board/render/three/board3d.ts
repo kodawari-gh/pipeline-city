@@ -103,11 +103,11 @@ const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFra
  */
 export async function mountBoard3d(host: HTMLElement): Promise<void> {
   bootStage('Starting the renderer', 0.1);
-  preloadRoomBake();
   await nextPaint();
   const T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
+  preloadRoomBake(renderer); // (the light maps come as KTX2 in the formats of this GPU; the files load while the page sets up)
   const baked = loadBaked(renderer); // (the KTX2 maps, `public/tex/`: they load while the page sets up, and the first build waits for them)
   void whenDebug(location.search, () => import('@/app/debug/overlay'), { renderer, canvas, roots: () => ({ city: cityMesh(), machine: machine?.root ?? null, layers: cityLayers() }) });
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
