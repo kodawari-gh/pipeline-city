@@ -27,18 +27,26 @@ export const LOW_FAR_HUE = 0.35;
 export const LOW_FAR_GLASS = 0.55;
 /** Far walls (m from the eye): from `near` to `far` a wall's lit rooms go from the night map's texels to analytic windows (`lowFarWin`), one
  * a bay and a storey. Past `far` no window texel is read: the albedo is the map's mean (the top mip). A building lights from `occ[0]` to
- * `occ[1]` of its windows (its own share), each at `glow`; a band's far ribbon is its runs' mean, `ribMean`. So a far tower reads as dark
- * graphite with many small warm windows, as High's does, and never as flat lit slabs. */
-export const LOW_FAR = { near: 150, far: 300, occ: [0.1, 0.42] as readonly [number, number], glow: 0.4, ribMean: 0.16 };
+ * `occ[1]` of its windows (its own share), each at `glow`; a band's far ribbon is its rooms' mean (`lowRibLight`). So a far tower reads as
+ * dark graphite with many small warm windows, as High's does, and never as flat lit slabs. */
+export const LOW_FAR = { near: 150, far: 300, occ: [0.1, 0.42] as readonly [number, number], glow: 0.4 };
 /** The top mip of a SIZE atlas (a 1×1 texel: the map's mean). */
 const LOW_TOP_MIP = Math.log2(SIZE);
 /** The atlas's window in its cell (a fraction of the bay across and the storey up; each facade maps its own share onto it), and its rooms: three across, two up. */
 const WIN = { u0: 0.19, u1: 0.81, v0: 0.24, v1: 0.84 }, COLS = 3, ROWS = 2;
-/** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill. Its mullions are the frame at each bay's edge.
- * Its lit runs are RIB_RUN bays long, one run per storey: the whole bottom storey is one blue run. */
-const RIB_WIN = STYLES.band.win, RIB_LO = (1 - RIB_WIN[1]) * 0.6, RIB_MULL = (1 - RIB_WIN[0]) / 2, RIB_RUN = 4;
-/** A room's width behind a ribbon (m along the wall): each is dark or lit at its own level, so a lit run reads as a row of windows. */
-const RIB_PANE = 3.2;
+/** A band's ribbon (`STYLES.band`): its window across the bay and up the storey, from its sill, on High's grid (the facade's own uv), so
+ * each window, its curtain and its room are High's. Behind it, rooms as High's (`lowRibLight`); the ground floor is High's shops. */
+const RIB_WIN = STYLES.band.win;
+/** A ribbon's lites: slim dark mullions about this far apart (m), as High's. */
+const RIB_LITE = 1.2;
+/** A ribbon's frame tone (times the tower's colour): this lambert's lit wall then reads as High's lit beige (sRGB about 147, 144, 138). */
+const RIB_FRAME: readonly [number, number, number] = [0.72, 0.7, 0.68];
+/** By day a ribbon's glass is its building's tint times this: the dark room behind a half-mirror, as base's reads (a curtain wall's glass
+ * mirrors the sky: `LOW_DAY_GLASS`). Its curtains and blinds add their fabric times `RIB_FABRIC`, seen through the same mirror. */
+export const LOW_RIB_GLASS = 0.26;
+const RIB_FABRIC = 0.13;
+/** A ribbon's lit rooms at night times this: High's lit window (sRGB about 79, 64, 48) under this lambert's emissive. */
+const RIB_LIT = 1.3;
 
 /** A seeded generator (mulberry32): the bake is the same every time. */
 function rng(seed: number): () => number {
@@ -154,6 +162,7 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMat
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
     sh.uniforms.fTime = u.time;
+    sh.uniforms.fHor = u.hor;
     sh.uniforms.fPixel = u.pixel;
     sh.uniforms.fLampK = lamps.k;
     sh.uniforms.fLampCol = lamps.col;
@@ -197,7 +206,7 @@ vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime, fLampK;
-uniform vec3 fLampCol, fLampPos[${LOW_LAMPS}];
+uniform vec3 fHor, fLampCol, fLampPos[${LOW_LAMPS}];
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff;
@@ -207,6 +216,14 @@ flat varying float vLowFac, vLowKind, vLowNight, vLowSeed, vLowMetal;
 // the day wall's parts, set by the map step and read after the vertex colour: the atlas shade (the frame's tone, the glass mixed in by its mask) and the glass mask
 vec3 lowShade = vec3(1.0);
 float lowGlassM = 0.0;
+// a band's ribbon room by room (lowRibCover), set by the map step for the colour and the night steps: its mullions, its cover, the fabric's fold
+vec4 lowRibC = vec4(0.0, 0.0, 1.0, 0.0);
+float lowH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// a room's lamp by its warmth, from 0 (a cold daylight tube) through a neutral white to 1 (an old warm bulb), as High's fLampCol
+vec3 lowLampCol(float t) {
+  vec3 c = mix(vec3(0.74, 0.87, 1.0), vec3(1.0, 0.87, 0.68), smoothstep(0.0, 0.5, t));
+  return mix(c, vec3(1.0, 0.62, 0.32), smoothstep(0.5, 1.0, t));
+}
 // the facade's own window (look.zw, as base's towers.ts sets it: centred across, win.y tall from a sill up) mapped onto the atlas's window,
 // so a band keeps its ribbon and a glass front its pane. lowLocal is the pixel's place in the atlas cell, unclamped
 vec2 lowWin() { return max(vLowLook.zw, vec2(0.05)); }
@@ -249,28 +266,117 @@ vec3 lowFarWin() {
   vec3 lit = mix(mix(one, mean * share, k.x), mean * occ, k.y);
   return lit * lowWinMask() * ${LOW_FAR.glow};
 }
-// a band's ribbon: the glass band of each storey (its window across the bay, from its sill), its mullions the frame at each bay's edge. Its rows
-// are the world's storeys, so a mirrored wall keeps its ribbon at its height. The mask is the glass (0..1), antialiased by the pixel's width
-float lowRibGlass() {
-  vec2 fw = vec2(fwidth(vLowBay.x), fwidth(vLowY / max(vLowLook.y, 0.1))) + 1e-4;
-  vec2 p = vec2(fract(vLowBay.x), fract(vLowY / max(vLowLook.y, 0.1)));
-  vec2 lo = vec2(${RIB_MULL}, ${RIB_LO}), hi = vec2(${1 - RIB_MULL}, ${RIB_LO + RIB_WIN[1]});
-  vec2 m = smoothstep(lo - fw, lo + fw, p) * (1.0 - smoothstep(hi - fw, hi + fw, p));
-  return m.x * m.y;
+// a band's ribbon in High's bays and storeys (the facade's own uv, not mirrored, so each window is High's), and a pixel's share of each
+vec2 lowRibUv() { return vLowFuv / max(vLowLook.xy, vec2(0.1)); }
+vec2 lowRibFw() { return fwidth(lowRibUv()) + 1e-4; }
+// a band's window in its cell, as High's: xy its sill's corner, zw its size. The ground floor's shop window is wider and down to the pavement
+vec4 lowRibWin(float shop) {
+  vec2 win = mix(vec2(${RIB_WIN[0]}, ${RIB_WIN[1]}), vec2(0.94, 0.66), shop);
+  return vec4(0.5 - 0.5 * win.x, mix((1.0 - win.y) * 0.6, 0.05, shop), win);
 }
-// the ribbon's night light: per storey, runs of ${RIB_RUN} bays, a run lit by a hash (amber, its level by the same hash). The bottom storey's
-// whole bottom storey is blue and always lit (one continuous run, as on base)
-vec3 lowRibLight() {
-  float st = floor(vLowY / max(vLowLook.y, 0.1));
-  float off = floor(fract(vLowSeed * 0.6180339) * ${RIB_RUN}.0);
-  float run = floor((floor(vLowBay.x) + off) / ${RIB_RUN}.0);
-  float h = fract(sin(dot(vec2(run, st), vec2(127.1, 311.7)) + vLowSeed * 2.3) * 43758.5453);
-  float blue = 1.0 - step(0.5, st);
-  float on = max(step(0.45, h), blue), level = mix(0.6 + 0.4 * fract(h * 7.3), 1.0, blue);
-  // each bay of a lit run is its own room: some dark, the others at their own level, so a run reads as a row of windows, not one slab
-  float pane = fract(sin(dot(vec2(floor(vLowFuv.x / ${RIB_PANE}), st), vec2(12.9898, 78.233)) + vLowSeed * 4.1) * 43758.5453);
-  level *= mix(mix(0.06, 0.3 + 0.5 * fract(pane * 5.7), step(0.35, pane)), 0.6, blue);
-  return mix(vec3(0.9, 0.7, 0.45), vec3(0.42, 0.52, 0.7), blue) * (on * level);
+float lowBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w, x) - smoothstep(b - w, b + w, x); }
+// a band's ribbon: the glass of each storey's window, the frame between. The mask is the glass (0..1), antialiased by the pixel's width;
+// where a bay or a storey is under a pixel, its mean (the window's part of the cell)
+float lowRibGlass() {
+  vec2 g = lowRibUv(), fw = lowRibFw(), f = fract(g);
+  vec4 w = lowRibWin(1.0 - step(0.5, floor(g.y)));
+  vec2 e = mix(smoothstep(w.xy - fw, w.xy + fw, f) - smoothstep(w.xy + w.zw - fw, w.xy + w.zw + fw, f), w.zw, smoothstep(0.1, 0.35, fw));
+  return e.x * e.y;
+}
+float lowNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(lowH(i), lowH(i + vec2(1.0, 0.0)), f.x), mix(lowH(i + vec2(0.0, 1.0)), lowH(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+// how much the rooms in use gather at a place on a wall: in patches up it and along it (High's fGather)
+float lowGather(vec2 p, float seed) { return (0.35 + 1.3 * lowNoise(vec2(seed * 3.3, p.y / 34.0))) * (0.55 + 0.9 * lowNoise(p / vec2(23.0, 16.0) + seed * 5.1)); }
+// a band's ribbon window by window, as High's: its place in the window (o: 0..1 across, up the glass), its lites' slim dark mullions about
+// ${RIB_LITE} m apart, a home's curtains drawn to the sides (a few closed) or an office's blind part way down, by High's hashes. Each goes to
+// its mean where a pixel covers it, so a far ribbon does not shimmer. The window sits back in the wall: its reveal's shadow along the head
+// and down one side. x: the mullions' share of the glass, y: the cover's, z: the fold, w: the reveal's shade
+vec4 lowRibCover(vec2 g, vec2 fw) {
+  vec2 id = floor(g);
+  float shop = 1.0 - step(0.5, id.y);
+  vec4 w = lowRibWin(shop);
+  vec2 win = w.zw, o = clamp((fract(g) - w.xy) / win, 0.0, 1.0), ow = fw / win;
+  float home = step(5.5, vLowKind) * step(vLowKind, 6.5), cf = smoothstep(0.1, 0.35, max(fw.x, fw.y)), fine = smoothstep(0.05, 0.18, max(fw.x, fw.y));
+  float wm = win.x * vLowLook.x, lite = wm / max(1.0, floor(wm / ${RIB_LITE} + 0.5)), mpx = fw.x * vLowLook.x;
+  float mull = 1.0 - smoothstep(0.035 - mpx, 0.035 + mpx, (0.5 - abs(fract(o.x * wm / lite) - 0.5)) * lite);
+  mull = mix(mull, 0.07 / lite, smoothstep(0.1, 0.35, mpx / lite));
+  float h2 = lowH(id * 1.37 + vLowSeed + 7.1);
+  float drop = step(0.55, h2) * fract(h2 * 13.7), cw = 0.06 + 0.22 * fract(h2 * 7.3), sheer = step(0.84, h2);
+  float cov = home > 0.5
+    ? max(sheer, max(1.0 - smoothstep(cw - ow.x, cw + ow.x, o.x), smoothstep(1.0 - cw - ow.x, 1.0 - cw + ow.x, o.x)))
+    : step(0.01, drop) * smoothstep(1.0 - drop - ow.y, 1.0 - drop + ow.y, o.y);
+  // (a curtain's pleats, about 0.29 m apart, go to their mean before they are two pixels wide)
+  float pleat = mix(0.82 + 0.18 * sin(o.x * wm * 22.0), 0.82, smoothstep(0.04, 0.08, mpx));
+  float fold = mix(home > 0.5 ? pleat : 0.86 + 0.14 * o.y, 1.0, fine);
+  vec2 f = fract(g);
+  float hi = w.y + w.w - 0.14 * w.w, si = w.x + 0.07 * w.z;
+  float rev = max(smoothstep(hi - fw.y, hi + fw.y, f.y), 1.0 - smoothstep(si - fw.x, si + fw.x, f.x));
+  return vec4(mull, mix(cov, mix(0.22, 0.44, home), cf) * (1.0 - shop), fold, mix(rev, 0.1, cf) * 0.6);
+}
+// a lit room's lamp and level, for the frame round its window (lowRibLight sets it)
+vec3 lowRibLamp = vec3(0.0);
+// a band's ribbon at night, room by room as High's, by its hashes: each building has its share of lit rooms and its habit (a home lit room
+// by room, one or two bays; an office in whole floors, in zones of a few bays, desk by desk, or in stacks a few storeys high), gathered in
+// patches; a zone now and then turns its lights on or off on its own slow clock. Its lamps' own warmth, each room a little off it and at its
+// own level, a few a fluorescent green or a screen's blue, tinted by the glass. A dark room still shows a little (a corridor's light, a
+// standby lamp); a curtain or a blind lets less through; a home's lamp shade hangs in the room, in depth. The ground floor is shops, each a
+// few bays wide, open or shut as one, in its own light. A building's rooms come on at its own time as the night comes. The glass mirrors the
+// walls across the street (their lit windows) under a roof line that wanders, the night sky over it. Far off, each goes to its mean.
+// c: lowRibCover's; V: the eye's ray to the wall, N: the wall's normal (both world)
+vec3 lowRibLight(vec2 g, vec2 fw, vec4 c, vec3 V, vec3 N) {
+  vec2 id = floor(g), f = fract(g);
+  float seed = vLowSeed, refl = vLowMetal, home = step(5.5, vLowKind) * step(vLowKind, 6.5), shop = 1.0 - step(0.5, id.y);
+  float cx = smoothstep(0.1, 0.35, fw.x), cf = max(cx, smoothstep(0.1, 0.35, fw.y)), fine = smoothstep(0.05, 0.18, max(fw.x, fw.y));
+  float h = lowH(id + seed), h3 = lowH(id * 2.71 + seed * 0.13 + 3.3);
+  float habit = lowH(vec2(floor(seed) * 0.37, 21.7)), share = 0.06 + 0.42 * lowH(vec2(seed * 0.731, 5.3)), hw = lowH(vec2(seed, 8.1));
+  float zw = home > 0.5 ? 1.0 + step(0.55, lowH(vec2(seed, 8.7))) : habit < 0.2 ? 7.0 + floor(8.0 * hw) : habit < 0.55 ? 2.0 + floor(4.0 * hw) : habit < 0.8 ? 1.0 : 2.0 + floor(2.0 * hw);
+  float zh = home < 0.5 && habit >= 0.8 ? 3.0 + floor(6.0 * lowH(vec2(seed, 19.3))) : 1.0;
+  float zone = floor(id.x / zw), fl = floor(id.y / zh), cz = smoothstep(0.08, 0.25, fw.x / zw), cv = smoothstep(0.1, 0.35, fw.y / zh), cr = max(cz, cv);
+  float gather = lowGather(vLowFuv, seed), gatherZ = lowGather(vec2(zone * zw * vLowLook.x, fl * zh * vLowLook.y), seed);
+  float rf = lowH(vec2(fl * 0.37 + seed, 2.9)), zt = fract(vLowFuv.x / (vLowLook.x * zw)), zs = 0.5 * smoothstep(0.04, 0.16, fw.x / zw);
+  float occ = home > 0.5 ? share * gatherZ : min(1.0, share * 2.6 * rf * rf * gatherZ);
+  float swN = floor(fTime / (70.0 + 170.0 * lowH(vec2(zone + seed, fl + 1.7))) + lowH(vec2(fl + seed, zone + 2.3)));
+  float zlit = abs(step(lowH(vec2(zone * 1.91 + seed, fl * 0.83 + 4.7)), occ) - step(0.94, lowH(vec2(zone * 3.1 + seed + swN * 0.77, fl * 1.3 + 6.1))));
+  if (zs > 0.0) zlit = mix(zlit, 0.5 * (zlit + step(lowH(vec2((zt < 0.5 ? zone - 1.0 : zone + 1.0) * 1.91 + seed, fl * 0.83 + 4.7)), occ)), 1.0 - smoothstep(0.0, zs, min(zt, 1.0 - zt)));
+  float lit = mix(mix(zlit, occ, cz), share * gather * mix(0.86, 1.0, home), cv);
+  lit *= mix(mix(step(h3, 0.9), 0.9, cx), 1.0, home);
+  lit = max(lit, 0.05);
+  float sw = 1.0 + floor(3.0 * lowH(vec2(seed, 13.7))), sid = floor(id.x / sw), hs = lowH(vec2(sid + seed * 2.3, 11.3)), sOpen = step(lowH(vec2(sid + seed, 17.1)), 0.8);
+  vec3 sCol = hs < 0.5 ? vec3(1.0, 0.8, 0.58) : hs < 0.64 ? vec3(0.3, 0.8, 1.0) : hs < 0.78 ? vec3(1.0, 0.58, 0.2) : hs < 0.92 ? vec3(1.0, 0.32, 0.2) : vec3(1.0, 0.26, 0.64);
+  sCol = mix(sCol, vec3(1.0, 0.7, 0.5), cx);
+  lit = mix(lit, mix(sOpen, 0.8, cx), shop);
+  float hc = lowH(vec2(zone + seed * 3.1, fl + 9.2)), bt = lowH(vec2(floor(seed) * 0.61, 33.1));
+  float kz = mix(0.55 + 0.7 * lowH(vec2(hc, 3.7)), 1.0, cr) * (0.72 + 0.56 * lowH(vec2(floor(seed) * 0.43, 41.9)));
+  vec3 lamp = lowLampCol(mix(0.68 * bt, 0.55 + 0.45 * bt, home) + (hc - 0.5) * 0.55 * (1.0 - cr));
+  lamp = mix(lamp, mix(vec3(0.7, 1.0, 0.82), vec3(0.42, 0.56, 1.0), home), step(0.95, hc) * (1.0 - cr));
+  lamp = mix(lamp, sCol, shop) * mix(vec3(1.0), vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3)), refl * 0.5 * (1.0 - shop));
+  // a home's lamp shade, in depth: the eye's ray goes on into the room (its bays wide, a storey high, a few metres deep) and meets the shade
+  float inLit = mix(0.36, 0.4, home);
+  if (home > 0.5 && fine < 0.999) {
+    vec3 rd = vec3(dot(V, vec3(N.z, 0.0, -N.x)), V.y, max(-dot(V, N), 0.02));
+    vec4 w = lowRibWin(shop);
+    float rw = zw * vLowLook.x, rc = (w.y + w.w) * vLowLook.y + 0.12, hr = lowH(vec2(zone + seed, id.y + 0.5)), dep = 3.4 + 1.8 * lowH(vec2(seed, 1.9));
+    vec3 oc = vec3(clamp(vLowFuv.x - zone * rw, 0.0, rw), clamp(f.y * vLowLook.y, 0.01, rc - 0.01), 0.0) - vec3(rw * (0.3 + 0.4 * hr), rc - 0.55, dep * 0.55);
+    float b = dot(oc, rd), q = dot(oc, oc) - 0.05;
+    inLit = mix(inLit, b < 0.0 && b * b > q ? 3.0 : inLit, 1.0 - fine);
+  }
+  float through = mix(inLit, mix(0.3, 0.4, home) * c.z, c.y);
+  float bNight = mix(smoothstep(0.0, 0.2, fNight - 0.8 * lowH(vec2(floor(seed) * 0.29, 51.3))), fNight, shop);
+  lowRibLamp = lamp * lit * 0.06 * bNight;
+  vec3 rooms = lamp * (${RIB_LIT} * kz * lit * through * (1.0 - 0.5 * refl * (1.0 - shop)) * (bNight * mix(0.6, 1.2, shop) + 0.02));
+  // the mirror: the eye's ray turned by the glass meets the walls across (their lit windows, a pane each, some lit), the road under them, the
+  // sky over their roof line
+  vec3 R = reflect(V, N);
+  vec2 rs = vec2(dot(R, vec3(N.z, 0.0, -N.x)), R.y) / max(dot(R, N), 0.1) + (vec2(h, lowH(id * 1.37 + seed + 7.1)) - 0.5) * (0.01 + 0.025 * refl) * (1.0 - cf);
+  vec2 rp = vec2(vLowFuv.x, vLowY) + rs * (abs(N.x) > 0.5 ? 32.0 : 24.0), rg = rp / vec2(3.0, 3.4), rq = fract(rg);
+  float hit = 1.0 - smoothstep(-0.7, 0.7, rp.y - 13.0 - 32.0 * lowNoise(vec2(rp.x / 34.0, seed * 0.37)));
+  float road = 1.0 - smoothstep(-0.4, 0.4, rp.y), pane = mix(lowBand(0.18, 0.82, rq.x, 0.1) * lowBand(0.22, 0.78, rq.y, 0.1), 0.34, cf);
+  vec3 across = fHor * 0.3 * (1.0 - 0.3 * pane) + vec3(1.0, 0.76, 0.5) * pane * mix(step(0.74, lowH(floor(rg) + seed)), 0.26, cf) * 0.55 * fNight;
+  vec3 mirrorK = mix(mix(vec3(0.1 + 0.09 * h), vLowTint * 1.7, refl * 0.9), vec3(1.0), pow(1.0 - clamp(-dot(V, N), 0.0, 1.0), 5.0));
+  return rooms + mirrorK * (hit * mix(across, fHor * 0.09, road) + (1.0 - hit) * fHor * 0.3);
 }`)
       // the point lights' loop is cut from this wall's lights (`#if 0`): the scene's PointLights stay live for the street, cars and other meshes
       .replace('#include <lights_fragment_begin>', ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'))
@@ -291,8 +397,12 @@ if (fLampK > 0.0) {
   float lowFarM = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition)) * fNight;
   // a band's wall is its ribbon by day (the frame's beige, the glass's dark pane), not the atlas's punched windows; lowRib is 1 on a band's wall
   float lowRib = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
+  // (its frame each storey a touch different, as High's; its tone is High's lit beige under this lambert)
   float lowG = lowRibGlass();
-  vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy), vec4(mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG), lowG), lowRib);
+  vec2 lowRg2 = lowRibUv(), lowRfw = lowRibFw();
+  if (lowRib > 0.5) lowRibC = lowRibCover(lowRg2, lowRfw);
+  vec3 lowRibFr = vec3(${RIB_FRAME.join(', ')}) * (0.92 + 0.14 * mix(lowH(vec2(floor(lowRg2.y), vLowSeed)), 0.5, smoothstep(0.1, 0.35, lowRfw.y)));
+  vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy), vec4(mix(lowRibFr, vec3(0.09, 0.1, 0.12), lowG), lowG), lowRib);
   vec4 lowTex = mix(lowNear, textureLod(map, lowUv, ${LOW_TOP_MIP}.0), lowFarM);
   diffuseColor.rgb *= mix(vec3(1.0), lowTex.rgb, vLowFac);
   // a glass pane takes its building's own tint (scaled to its brightest channel, so the atlas's dark glass keeps its level), by the glass mask (alpha)
@@ -326,9 +436,13 @@ if (vLowFac == 0.0) {
 vec3 lowFrameD = vColor.rgb * lowShade;
 vec3 lowHue = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
 float lowFarD = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
-vec3 lowGlassD = mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}) * ${LOW_FAR_GLASS}, lowFarD);
-// far off the pane's place is the analytic window (its edge the pixel's width), not the atlas's mean: a far tower keeps its rows of windows
 float lowRibD = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
+// a band's glass: the dark room behind its half-mirror, its curtains or blinds pale, on slim dark mullions (lowRibC). It keeps its dark at
+// any range, as base's bands do (a ribbon is half the wall: it reads as stripes, not navy); its cover goes to its mean far off
+vec3 lowRibFab = mix(vec3(0.42, 0.43, 0.44), vec3(0.62, 0.57, 0.5), step(5.5, vLowKind) * step(vLowKind, 6.5)) * lowRibC.z;
+vec3 lowRibGl = mix(vLowTint * ${LOW_RIB_GLASS} + lowRibFab * (${RIB_FABRIC} * lowRibC.y), vec3(0.03), lowRibC.x) * (1.0 - lowRibC.w);
+vec3 lowGlassD = mix(mix(vLowTint * ${LOW_DAY_GLASS}, lowFrameD * mix(vec3(1.0), lowHue, ${LOW_FAR_HUE}) * ${LOW_FAR_GLASS}, lowFarD), lowRibGl, lowRibD);
+// far off the pane's place is the analytic window (its edge the pixel's width), not the atlas's mean: a far tower keeps its rows of windows
 float lowGlassF = mix(lowGlassM, lowWinMask() * vLowFac, lowFarD * (1.0 - lowRibD));
 vec3 lowDayWall = mix(lowFrameD, lowGlassD, lowGlassF);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);`)
@@ -350,10 +464,17 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
   if (fNight > 0.0) {
     float lowFar = smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition));
     vec3 lowRooms = textureGrad(emissiveMap, lowUv, lowDx, lowDy).rgb;
-    // a band's wall: its ribbon's runs on the glass, not the atlas's rooms; far off the runs are their mean on the glass
+    // a band's wall: its ribbon's rooms on the glass between the mullions, not the atlas's rooms (far off, their mean)
+    // (the frame round a lit window catches a little of its light)
     float lowRib = 1.0 - step(0.001, abs(vLowLook.w - ${RIB_WIN[1]}));
-    float lowRunM = smoothstep(0.3, 0.8, fwidth(vLowFuv.x / ${RIB_PANE}));
-    vec3 lowRibbon = mix(lowRibLight(), vec3(0.9, 0.7, 0.45) * ${LOW_FAR.ribMean}, lowRunM) * lowRibGlass();
+    vec2 lowRg2 = lowRibUv(), lowRfw = lowRibFw();
+    float lowRg = lowRibGlass() * (1.0 - lowRibC.x);
+    vec3 lowRibbon = vec3(0.0);
+    if (lowRib > 0.5) {
+      vec3 lowV = inverseTransformDirection(normalize(-vViewPosition), viewMatrix), lowN = inverseTransformDirection(normal, viewMatrix);
+      lowRibbon = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowRg;
+      lowRibbon += vColor.rgb * lowShade * lowRibLamp * (1.0 - lowRg);
+    }
     lowLit = mix(mix(lowRooms, lowFarWin(), lowFar), lowRibbon, lowRib);
   }
   totalEmissiveRadiance = emissive * (lowLit * vLowFac * vLowNight + lowGlow) * fNight;

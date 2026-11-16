@@ -370,34 +370,44 @@ describe('Low city facade bake', () => {
       // only a band's window (win.y 0.5, its sill and top) takes the ribbon; the other styles keep the atlas
       expect(sh, 'the band test on the facade window').toContain('abs(vLowLook.w - 0.5)');
       expect(sh).toContain('float lowRib = 1.0 - step(0.001, abs(vLowLook.w - 0.5));');
-      // the glass band: across the bay inside the mullions at each bay's edge, up the storey from the sill
+      // the glass band on High's grid (the facade's own uv, not mirrored): the band's window (0.97 across, 0.5 up, from its sill), the
+      // ground floor's shop window wider and down to the pavement, as High's
       const full = compiled(m.material as Material).fragmentShader;
       expect(full).toMatch(/float lowRibGlass\(\)/);
-      // the mullion (1 - 0.97) / 2 and the sill (1 - 0.5) * 0.6, as the band's window gives them
-      expect(full).toMatch(/vec2\(0\.01[0-9]*, 0\.3[0-9]*\)/);
-      // the frame is the beige tone; the glass its dark pane
-      expect(sh).toContain('mix(vec3(0.9), vec3(0.09, 0.1, 0.12), lowG)');
+      expect(full).toContain('vec2 lowRibUv() { return vLowFuv / max(vLowLook.xy, vec2(0.1)); }');
+      expect(full).toContain('mix(vec2(0.97, 0.5), vec2(0.94, 0.66), shop)');
+      // the frame is the beige tone, each storey a touch different (High's hash); the glass its dark pane
+      expect(sh).toContain('vec4(mix(lowRibFr, vec3(0.09, 0.1, 0.12), lowG), lowG)');
+      expect(sh).toContain('lowH(vec2(floor(lowRg2.y), vLowSeed))');
       // the ribbon's glass replaces the atlas read on a band wall, and far off the top mip still takes over
       expect(sh).toContain('vec4 lowNear = mix(textureGrad(map, lowUv, lowDx, lowDy)');
       expect(sh).toContain('vec4 lowTex = mix(lowNear, textureLod(map, lowUv, 8.0), lowFarM);');
     }
   }, 180000);
 
-  it('Low: a band wall lights in long amber runs per storey, the bottom storey\'s first run blue, all inside the night guard', () => {
+  it('Low: a band wall lights room by room as High does (its window ids, hashes, habits and shops), all inside the night guard', () => {
+    // High's lines, in Low's names: so a band lights the same rooms at both tiers
+    const high = (s: string) => s.replace(/fHash/g, 'lowH').replace(/fGather/g, 'lowGather').replace(/vLook/g, 'vLowLook').replace(/vFuv/g, 'vLowFuv');
     for (const m of buildings(low)) {
       const full = compiled(m.material as Material).fragmentShader;
       const guard = full.indexOf('if (fNight > 0.0) {');
       expect(guard, 'the guard').toBeGreaterThan(-1);
-      // runs of bays per storey, one hash per run; the whole bottom storey (st 0) is one blue run, always lit
-      expect(full).toContain('float run = floor((floor(vLowBay.x) + off) / 4.0);');
-      expect(full).toContain('float st = floor(vLowY / max(vLowLook.y, 0.1));');
-      expect(full).toContain('float blue = 1.0 - step(0.5, st);');
-      expect(full).toContain('mix(vec3(0.9, 0.7, 0.45), vec3(0.42, 0.52, 0.7), blue)');
+      for (const line of [
+        'float zw = home > 0.5 ? 1.0 + step(0.55, fHash(vec2(seed, 8.7)))',
+        'float occ = home > 0.5 ? share * gatherZ : min(1.0, share * 2.6 * rf * rf * gatherZ);',
+        'float swN = floor(fTime / (70.0 + 170.0 * fHash(vec2(zone + seed, fl + 1.7))) + fHash(vec2(fl + seed, zone + 2.3)));',
+        'float lit = mix(mix(zlit, occ, cz), share * gather * mix(0.86, 1.0, home), cv);',
+        'lit *= mix(mix(step(h3, 0.9), 0.9, cx), 1.0, home);',
+        'float sw = 1.0 + floor(3.0 * fHash(vec2(seed, 13.7))), sid = floor(id.x / sw), hs = fHash(vec2(sid + seed * 2.3, 11.3)), sOpen = step(fHash(vec2(sid + seed, 17.1)), 0.8);',
+        'lit = mix(lit, mix(sOpen, 0.8, cx), shop);',
+        'vec3 lamp = fLampCol(mix(0.68 * bt, 0.55 + 0.45 * bt, home) + (hc - 0.5) * 0.55 * (1.0 - cr));',
+      ]) expect(full, line).toContain(high(line).replace('fLampCol', 'lowLampCol'));
+      // a window's curtain by High's hash of its id
+      expect(full).toContain('float h2 = lowH(id * 1.37 + vLowSeed + 7.1);');
       // the ribbon's lit glass replaces the atlas's rooms on a band wall, inside the guard
       const use = full.indexOf('lowRibbon, lowRib);');
       expect(use, 'the ribbon lights the rooms').toBeGreaterThan(guard);
-      // (far off the runs are their mean on the glass)
-      expect(full.indexOf(`mix(lowRibLight(), vec3(0.9, 0.7, 0.45) * ${LOW_FAR.ribMean}, lowRunM) * lowRibGlass()`)).toBeGreaterThan(guard);
+      expect(full.indexOf('lowRibbon = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowRg;')).toBeGreaterThan(guard);
     }
   }, 180000);
 
