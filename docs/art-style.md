@@ -163,7 +163,7 @@ Rules (targets; all values are proposals (J)):
 
 **Anti-references (the old look, including the withdrawn light-part exceptions)**
 - `public/boot-still.jpg`: a sunny warm room (48.0 % warm pixels (R > B + 5), 0 % neon, wood tones `#413124`, `#593e23`).
-- `public/stills/case0.webp`: was the cream case, mean L 231.6. Done 2026-11-16: the 3D case is the charcoal variant (§4; body and inner `#2a2d32`, plastic front `#1d1e22`, cage and buttons `#4e5360`, screws `#959aa3`), its still has mean L 57.8. The 2D shell art (`exterior.ts` `STYLES[0]`, `devices.ts`, `desk/props/case.ts`) is still cream.
+- `public/stills/case0.webp`: was the cream case, mean L 231.6. Done 2026-11-16: the 3D case is the charcoal variant (§4; body and inner `#2a2d32`, plastic front `#1d1e22`, cage and buttons `#4e5360`, screws `#959aa3`), its still has mean L 57.8. The 2D shell art (`exterior.ts` `STYLES[0]`, `devices.ts`, `desk/props/case.ts`) uses the same charcoals (checked by its tests only, no picture looked at).
 - Done 2026-11-16, the other three dark variants of §4 in 3D, stills baked again: `hdd0` (casting `#2a2d32`, cover `#4e5360`; mean L 191.4 → 131.2, its paper label stays white), `ram1` (plate `#4e5360`; 171.2 → 96.4), `cooler1` (fins `#4e5360`, base block `#2a2d32`; 166.5 → 107.1). All three meet C2 (≤ 140); `hdd0` and `cooler1` are above the dark default of 100.
 - `public/stills/hdd0.webp`: bright aluminium drive, mean L 191.4.
 - `public/stills/ram1.webp`: silver DDR2 spreader, mean L 171.2.

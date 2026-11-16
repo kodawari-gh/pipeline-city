@@ -62,8 +62,8 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, step = 3
  */
 interface CaseStyle { mixTo: string; k: number; accent: (T: Theme) => string; rad: number; rgb: boolean; brushed: boolean }
 const STYLES: CaseStyle[] = [
-  // a budget OEM tower: painted cream steel, square corners, a solid side with one vent patch, no window
-  { mixTo: '#e6dfc4', k: 0.72, accent: (T) => T.ld, rad: 28, rgb: false, brushed: false },
+  // a budget OEM tower: charcoal painted steel, square corners, a solid side with one vent patch, no window
+  { mixTo: '#2a2d32', k: 0.72, accent: (T) => T.ld, rad: 28, rgb: false, brushed: false },
   // a matte black mid-tower: powder coat, a tinted window over the upper part, one small logo
   { mixTo: '#0b0c10', k: 0.72, accent: (T) => T.mute, rad: 70, rgb: false, brushed: false },
   // a gaming case: dark, angular, slanted vents, a cut-corner window, one RGB strip and a lit logo plate
@@ -76,11 +76,9 @@ const styleOf = (): CaseStyle & { kind: CaseKind } => ({ ...(STYLES[LAYOUT_CASE]
 /** The body tones of the current tier: the shared steel tones mixed toward the tier's colour. */
 function bodyTones(T: Theme, st: CaseStyle) {
   const c = exteriorTones(T), m = (v: string) => mix(v, st.mixTo, st.k);
-  // the painted OEM tower is cream to its edges: its own palette, nothing of the steel's dark grey left in it
-  if (st.k >= 0.72 && st.mixTo === '#e6dfc4') {
-    const dk = 0.1;
-    const s = (v: string) => mix(v, '#000000', dk);
-    return { ...c, hi: s('#ebe4cb'), mid: s('#ddd6bb'), lo: s('#c6bfa2'), edge: s('#9a9373'), shade: s('#6f6a52'), cut: s('#8a8468') };
+  // the painted OEM tower is charcoal to its edges: its own palette, no darkening and no steel grey left in it
+  if (st.k >= 0.72 && st.mixTo === '#2a2d32') {
+    return { ...c, hi: '#4e5360', mid: '#2a2d32', lo: '#1d1e22', edge: '#131518', shade: '#050608', cut: '#131518' };
   }
   return { ...c, hi: m(c.hi), mid: m(c.mid), lo: m(c.lo), edge: mix(c.edge, st.mixTo, st.k * 0.6), cut: mix(c.cut, '#000000', 0.2) };
 }
@@ -98,7 +96,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   root.addChild(g);
   const st = styleOf(), c = bodyTones(T, st), acc = st.accent(T), R = st.rad;
   const c0 = CASE, p = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN;
-  const oem = st.kind === 'oem', dim = oem ? '#5a5642' : '#8d9bc4';
+  const oem = st.kind === 'oem', dim = oem ? '#959aa3' : '#8d9bc4';
   const slit = oem ? mix(c.lo, '#000000', 0.5) : c.glassTop; // the dark of the vent holes
 
   // the feet (rubber pads on the small cases, wider blocks on the full tower, which also throws a little light on the desk) and the soft shadow
@@ -112,7 +110,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     if (kind === 'gamer') { // two flat rubber rails, as on the matte case
       box(g, fx, fy, fw, 150, 30, { fill: '#0c0c0e', stroke: c.edge, lw: 6, sa: 0.5 });
     } else {
-      box(g, fx, fy, fw, kind === 'oem' ? 130 : 150, kind === 'oem' ? 65 : 30, { fill: kind === 'oem' ? '#cfc8b0' : c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
+      box(g, fx, fy, fw, kind === 'oem' ? 130 : 150, kind === 'oem' ? 65 : 30, { fill: kind === 'oem' ? '#131518' : c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
       g.rect(fx + 30, fy, fw - 60, 5).fill({ color: '#ffffff', alpha: 0.08 });
     }
     if (st.rgb) g.rect(fx + 20, c0.y + c0.h + 100, fw - 40, 8).fill({ color: acc, alpha: 0.55 });
@@ -238,7 +236,7 @@ function solidSide(g: Graphics, c: Tones, r: Rect, win: Rect) {
  * a lit plate with an RGB outline on the gaming case. The showcase's mark is debossed like the matte case's.
  */
 function badge(root: Container, g: Graphics, c: Tones, kind: CaseKind, r: Rect) {
-  const press = kind === 'oem' ? '#4a4636' : '#b4c0e4', lit = '#000000';
+  const press = kind === 'oem' ? '#959aa3' : '#b4c0e4', lit = '#000000';
   const text = (s: string, x: number, y: number, size: number, col: string, a = 0.85) => root.addChild(label(s, x, y, size, col, { head: true, anchor: [0.5, 0.5], a }));
   const right = r.x + r.w, cy = r.y + r.h / 2;
   // one quiet mark per case, the logo and no more: a label, a debossed print, a lit plate

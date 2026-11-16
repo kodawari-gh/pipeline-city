@@ -28,13 +28,13 @@ const edgeTone = (T: Theme) => mix(T.line, T.mute, 0.15);
 export const kindNow = (): CaseKind => CASE_KIND[LAYOUT_CASE] ?? 'gamer';
 
 /**
- * The paint inside each kind of case: bare cream steel in the OEM tower, black powder coat in the matte case, blue-black with a violet
+ * The paint inside each kind of case: bare charcoal steel in the OEM tower, black powder coat in the matte case, blue-black with a violet
  * edge in the gaming case, near-black with a silver edge in the showcase. `wall` is the sheet metal, `cav` the dark behind the board.
  */
 export function caseInterior(T: Theme, kind: CaseKind) {
   const wall = wallTone(T), cav = cavityTone(T), edge = edgeTone(T);
   switch (kind) {
-    case 'oem': return { wall: mix(wall, '#d9d0b0', 0.7), cav: mix(cav, '#9c9575', 0.55), edge: mix(edge, '#6b6548', 0.6) };
+    case 'oem': return { wall: mix(wall, '#2a2d32', 0.7), cav: mix(cav, '#1d1e22', 0.55), edge: mix(edge, '#131518', 0.6) };
     case 'matte': return { wall: mix(wall, '#0a0b0e', 0.6), cav: mix(cav, '#000000', 0.45), edge: mix(edge, '#2a2d36', 0.4) };
     case 'gamer': return { wall: mix(wall, '#1b2236', 0.5), cav: mix(cav, '#0a0f1c', 0.5), edge: mix(edge, '#4b5a8a', 0.35) };
     default: return { wall: mix(wall, '#040405', 0.6), cav: mix(cav, '#000000', 0.5), edge: mix(edge, '#4a4d56', 0.5) };

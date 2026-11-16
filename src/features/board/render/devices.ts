@@ -246,10 +246,10 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
   const body = mix(T.sub, T.tile, 0.45);
   const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer';
-  // the shroud is part of the case: cream pressed steel in the OEM tower, black in the matte case, charcoal with an RGB strip in the
+  // the shroud is part of the case: charcoal pressed steel in the OEM tower, black in the matte case, charcoal with an RGB strip in the
   // gaming case, a dark plate with a silver rim and a honeycomb in the showcase
-  const shroud = { oem: mix(T.sub, '#d9d2b6', 0.8), matte: mix(T.sub, '#07080b', 0.85), gamer: mix(T.sub, '#171c2a', 0.75), show: mix(T.sub, '#06080c', 0.85) }[kind];
-  const rim = kind === 'oem' ? mix('#9a9373', shroud, 0.2) : kind === 'show' ? '#c9d1de' : kind === 'gamer' ? T.mul : mix(shroud, '#ffffff', 0.12);
+  const shroud = { oem: mix(T.sub, '#1d1e22', 0.8), matte: mix(T.sub, '#07080b', 0.85), gamer: mix(T.sub, '#171c2a', 0.75), show: mix(T.sub, '#06080c', 0.85) }[kind];
+  const rim = kind === 'oem' ? mix('#4e5360', shroud, 0.2) : kind === 'show' ? '#c9d1de' : kind === 'gamer' ? T.mul : mix(shroud, '#ffffff', 0.12);
   const sh = { x: r.x, y: r.y + 24, w: u.x - 70 - r.x, h: r.h - 48 };
 
   // the shroud: a long plate over the cables, a lit top edge, a perforated vent field, the readout panel on it
@@ -259,7 +259,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   if (kind !== 'oem') g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: 0.06 });
   if (kind === 'gamer') for (const [k, col] of ['#ff4d6d', '#ffb84d', '#7dff4d', '#4dd2ff', '#6a4dff', '#ff4dd2'].entries()) g.rect(sh.x + 200 + (k * (sh.w - 400)) / 6, sh.y + sh.h - 30, (sh.w - 400) / 6 + 1, 8).fill(col);
   else if (kind === 'show') g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
-  for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: kind === 'show' ? '#c9d1de' : kind === 'oem' ? '#b7b08f' : T.line, stroke: T.mute, lw: 4, sa: 0.4 });
+  for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: kind === 'show' ? '#c9d1de' : kind === 'oem' ? '#959aa3' : T.line, stroke: T.mute, lw: 4, sa: 0.4 });
   {
     const v = VENTS;
     if (v.w >= 300) {
