@@ -1,10 +1,10 @@
 // The Low city's facade bake (fail-first). At Low the buildings leave `facadeMaterial`'s per-pixel shader (`towers.ts`) for a cheap
-// material that samples baked day and night maps, with the night windows as live emissive in their own map, never in the albedo.
+// material that samples a baked day map, with the night windows as live emissive (High's rooms, window by window), never in the albedo.
 // High keeps `facadeMaterial` unchanged. The building meshes are the ones with the facade's per-vertex attributes (`fuv`).
 import { DataUtils, LinearMipmapLinearFilter, type Material, type Mesh, type Scene, type Texture } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OutsideView } from './view';
-import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_MIRROR, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
+import { LOW_ANISO, LOW_DAY_GLASS, LOW_FAR, LOW_FAR_GLASS, LOW_FAR_MIRROR, LOW_FW, LOW_NIGHT_WALL, lowFacadeMaps } from './lowfacade';
 import { facadeMaterial } from './towers';
 
 const inner = (v: OutsideView): { scene: Scene } => v as unknown as { scene: Scene };
@@ -134,56 +134,87 @@ describe('Low city facade bake', () => {
     }
   }, 180000);
 
-  it('Low: night windows are live emissive in their own map, not baked into the albedo', () => {
+  it('Low: night windows are live emissive (High\'s rooms in the shader), with no night map and nothing baked into the albedo', () => {
     for (const m of buildings(low)) {
       const mat = m.material as Material & { map?: Texture | null; emissiveMap?: Texture | null; emissive?: { getHex(): number } };
-      expect(mat.emissiveMap?.isTexture, 'a separate emissive (night) map').toBe(true);
-      expect(mat.emissiveMap).not.toBe(mat.map);
+      expect(mat.emissiveMap ?? null, 'no night atlas: the rooms are analytic').toBeNull();
       expect(mat.emissive?.getHex() ?? 0, 'emissive colour on').toBeGreaterThan(0);
+      expect(compiled(mat).fragmentShader).not.toContain('emissiveMap');
     }
+    expect(Object.keys(lowFacadeMaps())).toEqual(['day']);
   }, 180000);
 
-  it('Low: both atlases carry mips and anisotropic taps (far walls average, grazing walls keep their windows)', () => {
-    const { day, night } = lowFacadeMaps();
-    for (const t of [day, night]) {
-      expect(t.generateMipmaps).toBe(true);
-      expect(t.minFilter).toBe(LinearMipmapLinearFilter);
-      expect(t.anisotropy).toBe(LOW_ANISO);
-      expect(LOW_ANISO).toBeGreaterThan(1);
-    }
+  it('Low: the day atlas carries mips and anisotropic taps (far walls average, grazing walls keep their windows)', () => {
+    const { day } = lowFacadeMaps();
+    expect(day.generateMipmaps).toBe(true);
+    expect(day.minFilter).toBe(LinearMipmapLinearFilter);
+    expect(day.anisotropy).toBe(LOW_ANISO);
+    expect(LOW_ANISO).toBeGreaterThan(1);
   }, 180000);
 
-  it('Low: by day the night map is not read and the room hash does not run (one uniform branch); the atlas taps stay at the tier\'s 2', () => {
+  it('Low: by day the room hashes do not run (one uniform branch); the atlas taps stay at the tier\'s 2', () => {
     expect(LOW_ANISO).toBeLessThanOrEqual(2);
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
       const guard = sh.indexOf('if (fNight > 0.0) {');
       expect(guard, 'the guard').toBeGreaterThan(-1);
-      expect(sh.indexOf('textureGrad(emissiveMap'), 'the night read is inside it').toBeGreaterThan(guard);
-      expect(sh.indexOf('lowFarWin(), lowFar)')).toBeGreaterThan(guard);
+      expect(sh.indexOf('lowLit = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowGm;'), 'the rooms are inside it').toBeGreaterThan(guard);
     }
   }, 180000);
 
-  it('Low: far walls keep many small lit windows (analytic, one a bay and a storey), never flat lit bands', () => {
+  it('Low: every wall lights its windows as High does (no flat lit bands): the atlas pane near, High\'s window far, a band\'s ribbon at any range', () => {
     expect(LOW_FAR.far).toBeGreaterThan(LOW_FAR.near);
-    expect(LOW_FAR.occ[0]).toBeGreaterThan(0);
-    expect(LOW_FAR.occ[1]).toBeGreaterThan(LOW_FAR.occ[0]);
-    expect(LOW_FAR.occ[1]).toBeLessThan(1);
-    expect(LOW_FAR.glow).toBeGreaterThan(0);
-    expect(LOW_FAR.glow).toBeLessThanOrEqual(1);
     for (const m of buildings(low)) {
       const sh = compiled(m.material as Material).fragmentShader;
-      expect(sh).toContain('vec3 lowFarWin()');
       expect(sh).toContain(`smoothstep(${LOW_FAR.near}.0, ${LOW_FAR.far}.0, length(vViewPosition))`);
-      // no texel of the night map far off: it is read per window texel only (near), never at the top mip
-      expect(sh).not.toContain('textureLod(emissiveMap');
-      // the window's edge is the pixel's width, and the windows are their mean where a bay is under a pixel
-      expect(sh).toContain('vec2 k = smoothstep(vec2(0.3), vec2(0.8), fw);');
-      // the floor bands are gone
+      expect(sh).toContain('float lowGm = mix(mix(lowGlassM, lowRg, lowFar), lowRg, lowRib);');
+      // the old near rooms (a night texel) and far windows (one hash a bay) are gone
+      expect(sh).not.toContain('lowFarWin');
+      expect(sh).not.toContain('lowRooms');
       expect(sh).not.toContain('lowBands');
-      // near and far mix by the distance; a band's wall keeps its ribbon
-      expect(sh).toContain('lowLit = mix(mix(lowRooms, lowFarWin(), lowFar), lowRibbon, lowRib);');
+      // any wall's room cover at night, not a band's only
+      expect(withMap(m.material as Material)).toContain('if (vLowFac > 0.5 && (lowRib > 0.5 || fNight > 0.0)) lowRibC = lowRibCover(lowRg2, lowRfw);');
     }
+  }, 180000);
+
+  it('Low: a window\'s details go to their means at High\'s range, not a third of it (Low\'s pixel is about 2.7 of High\'s)', () => {
+    expect(LOW_FW).toBeGreaterThan(0.3);
+    expect(LOW_FW).toBeLessThan(1);
+    const sh = compiled(buildings(low)[0]!.material as Material).fragmentShader;
+    expect(sh).toContain(`vec2 lowRibFw() { return fwidth(lowRibUv()) * ${LOW_FW} + 1e-4; }`);
+    // the day mask's own fade (by day and at night alike) keeps its own pixel's width
+    expect(sh).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw));');
+  }, 180000);
+
+  it('Low: the frame round a lit window catches its light, the street lamps wash the walls\' foot, a head light floods the walls, as High\'s', () => {
+    const vs = compiled(buildings(low)[0]!.material as Material).vertexShader;
+    expect(vs).toContain('attribute vec3 wash;');
+    expect(vs).toContain('attribute vec2 washY;');
+    expect(vs).toContain('vLowWash = wash; vLowWashY = washY;');
+    for (const m of buildings(low)) {
+      const sh = compiled(m.material as Material).fragmentShader;
+      expect(sh).toContain('lowLit += vColor.rgb * lowShade * (lowRibLamp + vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vLowFuv.y / 6.0)) * (1.0 - lowGm);');
+      expect(sh).toContain('float lowK = clamp((vLowY - vLowWashY.x) / (vLowWashY.y - vLowWashY.x), 0.0, 1.0);');
+      expect(sh).toContain('lowLit += vLowWash * lowK * lowK * mix(1.0, 0.4, lowGm);');
+    }
+    // High's lines, the same terms
+    const hs = withMap(facadeMaterial().mat);
+    expect(hs).toContain('fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);');
+    expect(hs).toContain('fGlow += vWash * washK * washK * mix(1.0, 0.4, m) * fNight;');
+  }, 180000);
+
+  it('Low: a far block keeps its floodlights and a flat roof (a roof, not a facade: no shop strip or street wash on its top)', () => {
+    let roofs = 0, flooded = 0;
+    for (const m of buildings(low)) {
+      const a = m.geometry.attributes, aux = a.aux, wy = a.washY;
+      if (!aux || !wy) continue;
+      for (let i = 0; i < aux.count; i++) {
+        if (Math.round(aux.getY(i)) === 1) roofs++;
+        if (wy.getY(i) > 0) flooded++;
+      }
+    }
+    expect(roofs, 'roof vertices').toBeGreaterThan(0);
+    expect(flooded, 'floodlit wall vertices').toBeGreaterThan(0);
   }, 180000);
 
   it('Low: the wall albedo at night far off is the map\'s mean too (no dark glass dots), and by day the mix is 0 (fNight)', () => {
@@ -201,8 +232,12 @@ describe('Low city facade bake', () => {
       const sh = compiled(m.material as Material).fragmentShader;
       expect(sh).not.toContain('if (vLowFac > 0.0');
       expect(sh).not.toContain('if (vLowFac == 1.0');
-      expect(sh).toContain('dFdx(vLowBay) * lowScale()');
-      expect(sh).toContain('dFdy(vLowBay) * lowScale()');
+      // the night branch on vLowFac holds no derivative: the pixel widths are taken before it
+      const night = sh.slice(sh.indexOf('if (vLowFac > 0.5) {'), sh.indexOf('vec3 lowMir'));
+      expect(night).not.toMatch(/dFd[xy]|fwidth|lowRibFw\(|lowRibGlass\(/);
+      const map = withMap(m.material as Material);
+      expect(map).toContain('dFdx(vLowBay) * lowScale()');
+      expect(map).toContain('dFdy(vLowBay) * lowScale()');
     }
   }, 180000);
 
@@ -330,8 +365,8 @@ describe('Low city facade bake', () => {
       expect(full).toContain('mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor');
       // a float literal: an int would not compile in GLSL ES
       expect(full).toContain(`${LOW_FAR_MIRROR.toFixed(3)} * lowMirM`);
-      // the far window's mask goes to its mean by day where a bay or a storey is under a few pixels; at night it keeps its rows
-      expect(full).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw) * (1.0 - fNight));');
+      // the far window's mask goes to its mean where a bay or a storey is under a few pixels
+      expect(full).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw));');
     }
     expect(LOW_FAR_MIRROR).toBeGreaterThan(0);
     expect(LOW_FAR_MIRROR).toBeLessThan(1);
@@ -355,10 +390,9 @@ describe('Low city facade bake', () => {
       expect(sh).toContain('diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNight), vLowFac);');
       // the night wall tint is still in the map step, unchanged
       expect(sh).toContain('mix(vec3(1.0), vec3(0.36, 0.44, 0.58), fNight * vLowFac)');
-      // the night read and its guard are untouched
+      // the night guard is untouched
       const full = compiled(m.material as Material).fragmentShader;
       expect(full).toContain('if (fNight > 0.0) {');
-      expect(full).toContain('textureGrad(emissiveMap, lowUv, lowDx, lowDy)');
     }
   }, 180000);
 
@@ -371,7 +405,7 @@ describe('Low city facade bake', () => {
       expect(sh).toContain('vec2 lowLocal()');
       // the atlas lookup and its mip derivatives both follow that map
       expect(sh).toContain('clamp(lowLocal(), 0.0, 1.0)');
-      expect(sh).toContain('dFdx(vLowBay) * lowScale()');
+      expect(withMap(m.material as Material)).toContain('dFdx(vLowBay) * lowScale()');
       // the old lookup, one baked window for every facade, is gone
       expect(sh).not.toContain('+ fract(vLowBay)) / 8.0');
     }
@@ -391,7 +425,7 @@ describe('Low city facade bake', () => {
       const full = compiled(m.material as Material).fragmentShader;
       expect(full).toMatch(/float lowRibGlass\(\)/);
       expect(full).toContain('vec2 lowRibUv() { return vLowFuv / max(vLowLook.xy, vec2(0.1)); }');
-      expect(full).toContain('mix(vec2(0.97, 0.5), vec2(0.94, 0.66), shop)');
+      expect(full).toContain('vec2 win = mix(lowWin(), vec2(0.94, 0.66), shop);');
       // the frame is the beige tone, each storey a touch different (High's hash); the glass its dark pane
       expect(sh).toContain('vec4(mix(lowRibFr, vec3(0.09, 0.1, 0.12), lowG), lowG)');
       expect(sh).toContain('lowH(vec2(floor(lowRg2.y), vLowSeed))');
@@ -420,10 +454,8 @@ describe('Low city facade bake', () => {
       ]) expect(full, line).toContain(high(line).replace('fLampCol', 'lowLampCol'));
       // a window's curtain by High's hash of its id
       expect(full).toContain('float h2 = lowH(id * 1.37 + vLowSeed + 7.1);');
-      // the ribbon's lit glass replaces the atlas's rooms on a band wall, inside the guard
-      const use = full.indexOf('lowRibbon, lowRib);');
-      expect(use, 'the ribbon lights the rooms').toBeGreaterThan(guard);
-      expect(full.indexOf('lowRibbon = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowRg;')).toBeGreaterThan(guard);
+      // the rooms light the glass, inside the guard (a band's ribbon at any range)
+      expect(full.indexOf('lowLit = lowRibLight(lowRg2, lowRfw, lowRibC, lowV, lowN) * lowGm;')).toBeGreaterThan(guard);
     }
   }, 180000);
 

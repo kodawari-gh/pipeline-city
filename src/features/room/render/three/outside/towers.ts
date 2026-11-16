@@ -577,14 +577,20 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
 }
 
 /**
- * A far building at Low: each tier a plain box in the facade's look (36 vertices a tier), then only its night pieces: the crown's lights, the LED
- * bands, their corner strips and the signs. No roof, parapet or clutter (`Mass.lightsOnly` drops those). `away`: from the window (m).
+ * A far building at Low: each tier a plain box in the facade's look (its walls in its floodlights, as `building`'s) under a flat roof (30
+ * vertices a tier), then only its night pieces: the crown's lights, the LED bands, their corner strips and the signs. No parapet or clutter
+ * (`Mass.lightsOnly` drops those). `away`: from the window (m).
  */
 function block(m: Mass, b: Building, away: number): void {
-  const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
+  const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60), head = headLight(b);
   b.tiers.forEach((t, i) => {
     m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
-    m.box(t, t.y0, t.y1, true, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
+    if (head) { m.fl = head.c; m.flY = [head.from, topOf(b)]; }
+    m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
+    m.fl = [0, 0, 0];
+    m.flY = [0, 0];
+    // (a roof, not a facade: its uv is the ground's metres, and a wall's rooms would light on it)
+    m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [t.x0, t.x1, t.z0, t.z1]).top(t, t.y1);
   });
   m.lightsOnly = true;
   crown(m, b, rng(b.seed));
