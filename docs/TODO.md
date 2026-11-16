@@ -26,7 +26,7 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, CITY-08, DOC-01, GFX-01, GFX-02, GFX-03, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-01, PHONE-03, PHONE-04, PHONE-05, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, BENCH-01, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, CITY-08, DOC-01, GFX-01, GFX-02, GFX-03, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-01, PHONE-03, PHONE-04, PHONE-05, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
@@ -35,7 +35,7 @@ Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-0
 | LOD | 1 | 1 | LOD-04, parked by decision |
 | PHONE | 3 | 1 | PHONE-02 real phone; PHONE-06 and PHONE-07 parked by decision |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
-| BENCH | 2 | 0 | next official run |
+| BENCH | 1 | 0 | next official run (BENCH-02) |
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after. Not yet turned into tasks.
 
@@ -76,12 +76,11 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## UI, DOC and BENCH
 
-- [ ] BENCH-01 [auto] [look: none] Confirm #23 leaves High alone (was LEFT23-2). Official Chrome High idle reads 25.3 fps against main's 27.8, with ranges that overlap, so it is not proven. Run the official 3-round again. Files: tools/bench-modes.mjs. Done when: the medians sit within each other's ranges, or the cause is found.
-- [ ] BENCH-02 [auto] [look: none] Recheck Firefox Low zoom triangles (was LEFT25-2): 728 to 735 ktris (+7, about 1 %, no overlap) in the official 3-round of `060b6d6` (#25). A known triangle-count cell, not a frame-rate regression (dFPS overlapped). Also confirm CITY-05 there: Firefox Low now takes the city cuts, so its triangles fall; on the dev desktop its idle was 68.7 fps against main's 61.5 and its zoom 103.1 against 98.7 (lod.md "The city at Low"), and the official box has not run it. Also confirm CITY-06 there: Chrome Low (CPU /4) on the dev desktop holds 92 idle / 86 zoom fps after the cuts (79 / 87 before), and the official box has not run it. Files: none. Done when: the next official run keeps the cell in range, or explains the change, and Firefox Low idle and zoom are at least main's, and Chrome Low is at about 60 fps or more, on `razr-fold-folded`.
+- [ ] BENCH-02 [auto] [look: none] Recheck Firefox Low zoom triangles (was LEFT25-2): 728 to 735 ktris (+7, about 1 %, no overlap) in the official 3-round of `060b6d6` (#25). A known triangle-count cell, not a frame-rate regression (dFPS overlapped). Also confirm CITY-05 there: Firefox Low now takes the city cuts, so its triangles fall; on the dev desktop its idle was 68.7 fps against main's 61.5 and its zoom 103.1 against 98.7 (lod.md "The city at Low"), and the official box has not run it. Also confirm CITY-06 there: Chrome Low (CPU /4) on the dev desktop holds 92 idle / 86 zoom fps after the cuts (79 / 87 before), and the official box has not run it. Also confirm BENCH-01's dev-desktop pair there (High idle 17 to 19 fps now against 11 to 12 at `03fe0bca`, `docs/render/look-per-cost.md`). Files: none. Done when: the next official run keeps the cell in range, or explains the change, and Firefox Low idle and zoom are at least main's, and Chrome Low is at about 60 fps or more, on `razr-fold-folded`.
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LPC8 (GFX-01), LPC9 (GFX-02), LPC10 (GFX-03), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), PARK1 (CITY-08), PERF2 and PERF6 (PHONE-01), PERF13 and PERF25 (PHONE-05), PERF12 (PHONE-04), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LPC8 (GFX-01), LPC9 (GFX-02), LPC10 (GFX-03), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), PARK1 (CITY-08), PERF2 and PERF6 (PHONE-01), PERF13 and PERF25 (PHONE-05), PERF12 (PHONE-04), LEFT23-2 (BENCH-01), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

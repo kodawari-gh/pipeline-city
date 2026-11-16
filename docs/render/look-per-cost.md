@@ -90,3 +90,14 @@ Correction: `turns()` in `tools/flicker.mjs` gave a pixel that turned 4 times a 
 The share of the shimmering pixels by region of the room view (the pan map; High, then Low): the city window 22 % and 47 %, the keyboard 20 % and 0 %, the monitor 19 % and 13 %, the machine behind the glass 17 % and 24 %; every other region (the bookcase, the three paper lamps, the chair, the drawers) is under 1 % at 8 turns. At 4 turns or more (the old measure, High 1.56 % of the frame) the books of the bookcase are 47 % of it, then the machine 12 %, the city window 6 %, the monitor 6 % and the keyboard 5 %: the lamps' ribs and the spines move a pixel 4 to 7 times in 60 px of pan, which is detail passing, not shimmer.
 
 The three worst sources, by the strict measure: (1) the city's lit windows, beacons and traffic (the content: a light that is a pixel wide turns on and off as it passes a pixel); (2) the keyboard's key rows and the machine's fine detail behind the glass (gaps of one pixel at the overview; High only for the keyboard); (3) the monitor's standby picture (a progress line and text, animated on purpose). The earlier "the room shimmers more than the city" came from the 4-turn count. Done: the control shimmers 0.00 % under a pan (the still number is 0.00 % there), and the whole scene's strict shimmer is 0.28 % at High and 0.11 % at Low, under its 0.5 % still number. Nothing is fixed in the scene: what is left is thin light and geometry that MSAA 4x at High and the stand-ins at the overview (`docs/render/lod.md`) already handle.
+
+## High idle against the base of #23 (2026-11-17, BENCH-01)
+
+The question: does #23 leave High alone? The official run read High idle at 25.3 fps against main's 27.8, with ranges that overlap. Rerun on the dev desktop (RTX 5080, ANGLE D3D11, dev server), as a same-box pair: `bench:modes --device razr-fold-folded --presets high --modes game-max --views idle --ms 6000` (485x997 at 2.225, CPU /4), 3 rounds, the two builds alternating. Base: `03fe0bca` (main before #23, with the current tool copied in). Now: `386977cb`, which has #23 and all the work after it.
+
+| Build | Idle fps (3 rounds) | p50 ms | p95 ms | Draw calls | Ktri |
+|---|---|---|---|---|---|
+| `03fe0bca` | 11.7, 11.4, 11.7 | 81.2, 83.3, 82.6 | 120, 140, 124 | 541, 607, 480 | 1505, 1594, 1390 |
+| `386977cb` | 17.5, 16.9, 19.0 | 56.7, 59.0, 51.1 | 84, 91, 74 | 356, 323, 317 | 732, 717, 692 |
+
+High idle is not slower than at the base: it is faster, and the ranges do not overlap (17 to 19 fps against 11 to 12). So the official gap (25.3 against 27.8) is not a High regression; the box's own run-to-run spread is the likely cause. This is a dev-desktop result with 6 s runs: the absolute fps differ from the official box's, and the official box has not run this pair (BENCH-02 asks it to).
