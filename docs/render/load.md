@@ -128,6 +128,47 @@ A game's start at the same tier (a new campaign) builds no room. The dev server 
 
 Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots the same build.
 
+### Memory per screen (PHONE-03, 2026-11-16)
+
+Chrome, NVIDIA GeForce RTX 5080 (the page's GL renderer string was not logged), dev build, phone profile (412x915 at 2.6, first-start Low settings). Run: `npm run bench:modes -- out.json --phone --presets default --modes menu,game,gallery,build --views idle --ms 1500`. JS heap is `performance.memory` after a gc. GPU memory is ESTIMATED from sizes (pixels x 4 bytes, x 1.33 with mips; compressed: their levels; buffers: each attribute, index and instance array once). It is not the driver's number. The driver counts come from `renderer.info.memory`.
+
+| Screen | JS heap MB | Textures MB (count) | Buffers MB (count) | Note |
+|---|---|---|---|---|
+| Menu | 283.0 | 44.8 (75) | 40.6 (1647) | the room only |
+| Room (game) | 327.0 | 45.4 (81) | 47.3 (1872) | a new campaign, tutorial off |
+| Gallery | 293.1 | 51.2 (91) | 45.9 (2786) | the room is still alive behind it (2 scenes) |
+| Build my PC | 442.0 | 177.0 (173) | 99.4 (5103) | the room is still alive behind it (2 scenes) |
+
+Driver counts (textures, geometries): menu 74, 171; room 80, 209; Gallery 84, 467; Build my PC 148, 799.
+
+Ten biggest textures, Build my PC (the owner is the material slot; all are canvas textures except the baked lightmap):
+
+| # | Size | MB | Owner |
+|---|---|---|---|
+| 1 | 3480x1377 | 24.31 | Mesh, MeshStandardMaterial.map |
+| 2 | 3480x1377 | 24.31 | Mesh, MeshStandardMaterial.map |
+| 3 | 1360x1340 | 9.25 | Mesh, MeshStandardMaterial.map |
+| 4 | 2184x832 | 9.22 | Mesh, MeshStandardMaterial.map |
+| 5 | 1760x688 | 6.14 | Mesh, MeshStandardMaterial.map |
+| 6 | 2080x572 | 6.04 | Mesh, MeshStandardMaterial.map |
+| 7 | 2080x572 | 6.04 | Mesh, MeshStandardMaterial.map |
+| 8 | 1280x720 | 4.68 | Mesh, MeshBasicMaterial.map |
+| 9 | 1280x720 | 4.68 | Mesh, MeshBasicMaterial.map |
+| 10 | 944x1219 | 4.39 | Mesh, MeshStandardMaterial.lightMap (baked room light) |
+
+Ten biggest buffers, Build my PC (the owner is the nearest named object):
+
+| # | Owner | MB |
+|---|---|---|
+| 1-3 | standin | 1.41 each |
+| 4-5 | duvet | 1.14 each |
+| 6-7 | standin | 0.94 each |
+| 8-10 | standin | 0.85 each |
+
+Baked light files, `public/bake/room` (17 files: PNG maps, `meshes.bin`, `manifest.json`): 11,716,352 bytes, 11.7 MB (11.2 MiB) to download.
+
+Doubts: the dev build adds Vite's module code to the heap, so the heap is high. The first reading of the menu heap was 141 MB; this run reads 283 MB and is not reconciled. Render targets that no scene holds (the post target) are not counted. Build my PC textures (177 MB) are above the 150 MB line in PHONE-05, so its cap rule applies. The 16 MB material texture budget in `docs/3D_STYLE.md` stays TBD; it is not set here.
+
 ## Asset prerequisites
 
 - **KTX1 (the KTX2 loader) is required.** Before any `.ktx2` file is added, the KTX2 loader must be in place: `ktx2Support` in `gltf.ts` gives the GLTFLoader a `KTX2Loader`, with the Basis transcoder in `public/basis/`. The baked maps (`public/tex/`, 20 files, 3.0 MB) load at `Starting the renderer` (`loadBaked`), and `Building the world` waits for them; the boot time with them is not measured.

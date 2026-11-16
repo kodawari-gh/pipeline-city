@@ -9,6 +9,9 @@
 // the frame time as the CPU cost. `--firefox`: the same run in Firefox (playwright's firefox, headless, WebGL forced on, the frame rate not capped);
 // the default is Chrome. Chrome's launch forces ANGLE d3d11 on Windows only: on Linux it is not forced (that flag made the GPU process fall back to
 // SwiftShader on the box). Firefox never gets d3d11. It reports; nothing here passes or fails. Dev server on PORT (5196).
+// `memory` (once per screen, after its settle): the JS heap (Chrome's `performance.memory`, after a gc) and the GPU memory ESTIMATED from the sizes
+// of the live three.js scenes (dev only: `trackRender`): texture pixels x 4 bytes (x 1.33 with mips), compressed levels, and the geometry buffers.
+// It is not the driver's number; the driver's counts come with it. Render targets that no scene holds (the post target) are not walked.
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { chromium, firefox } from 'playwright-core';
@@ -65,7 +68,7 @@ const CPU = FF ? 1 : THROTTLE;
 const CPU_LABEL = FF ? '1 (firefox: not throttled)' : String(THROTTLE);
 const browser = FF ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true, 'layout.frame_rate': 0 } }) : await chromium.launch({
   headless: true, channel: 'chrome',
-  args: ['--enable-gpu', ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []), '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync'],
+  args: ['--enable-gpu', ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []), '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--disable-frame-rate-limit', '--disable-gpu-vsync', '--js-flags=--expose-gc'],
 });
 const stop = async () => { await browser.close().catch(() => {}); try { server?.kill(); } catch { /* gone */ } };
 
@@ -161,10 +164,58 @@ const probe = () => {
   };
 };
 
+// the page's memory (PHONE-03). Run in the page, after the screen settles: the JS heap, and the GPU memory estimated from sizes (see the header)
+const memory = () => {
+  globalThis.gc?.();
+  const renders = [...(window.__renders ?? [])], texs = new Map(), bufs = new Map(), arrays = new Set(), geos = new Set(), mats = new Set();
+  const mips = (f) => f !== 1003 && f !== 1006; // (Nearest, Linear: no mip levels)
+  const texBytes = (t) => {
+    if (t.isCompressedTexture) return (t.mipmaps ?? []).reduce((a, m) => a + (m.data?.byteLength ?? 0), 0);
+    const k = t.generateMipmaps && mips(t.minFilter) ? 1.33 : 1;
+    return (Array.isArray(t.image) ? t.image : [t.image]).reduce((a, im) => a + (im?.data?.byteLength ?? ((im?.width ?? im?.naturalWidth ?? im?.videoWidth ?? 0) * (im?.height ?? im?.naturalHeight ?? im?.videoHeight ?? 0) * 4 * k)), 0);
+  };
+  const tex = (t, owner) => {
+    if (!t?.isTexture || texs.has(t)) return;
+    const im = Array.isArray(t.image) ? t.image[0] : t.image;
+    texs.set(t, { bytes: texBytes(t), size: `${im?.width ?? im?.naturalWidth ?? '?'}x${im?.height ?? im?.naturalHeight ?? '?'}`, name: t.name || t.source?.data?.currentSrc || t.source?.data?.src || `${t.constructor.name} ${t.uuid.slice(0, 8)}`, owner });
+  };
+  const buf = (arr, owner) => { if (arr && !arrays.has(arr)) { arrays.add(arr); bufs.set(arr, { bytes: arr.byteLength, name: owner, owner }); } };
+  for (const [, scene] of renders) {
+    scene.traverse((o) => {
+      let p = o;
+      while (p && !p.name) p = p.parent; // (the first named object up the tree)
+      const owner = p?.name || o.type;
+      if (o.isInstancedMesh) { buf(o.instanceMatrix?.array, owner); buf(o.instanceColor?.array, owner); }
+      const g = o.geometry;
+      if (g && !geos.has(g)) {
+        geos.add(g);
+        for (const a of [...Object.values(g.attributes), ...Object.values(g.morphAttributes).flat()]) buf(a.data?.array ?? a.array, owner);
+        buf(g.index?.array, owner);
+      }
+      for (const m of [].concat(o.material ?? [])) {
+        if (!m || mats.has(m)) continue;
+        mats.add(m);
+        const mine = `${owner} · ${m.name || m.type}`;
+        for (const k of Object.keys(m)) if (m[k]?.isTexture) tex(m[k], `${mine}.${k}`);
+        for (const u of Object.values(m.uniforms ?? {})) if (u?.value?.isTexture) tex(u.value, mine);
+      }
+    });
+    tex(scene.environment, 'environment');
+    tex(scene.background, 'background');
+  }
+  const sum = (m) => [...m.values()].reduce((a, x) => a + x.bytes, 0);
+  const top = (m) => [...m.values()].sort((a, b) => b.bytes - a.bytes).slice(0, 10).map((x) => ({ name: x.name, size: x.size, owner: x.owner, bytes: x.bytes }));
+  return {
+    heap: performance.memory?.usedJSHeapSize ?? 0, tex: sum(texs), texN: texs.size, buf: sum(bufs), bufN: bufs.size, topTex: top(texs), topBuf: top(bufs), scenes: renders.length,
+    driver: renders.reduce((a, [r]) => ({ tex: a.tex + r.info.memory.textures, geo: a.geo + r.info.memory.geometries }), { tex: 0, geo: 0 }),
+  };
+};
+
 const pct = (a, k) => (a.length ? a[Math.min(a.length - 1, Math.floor(a.length * k))] : 0);
 const r1 = (v) => Math.round(v * 10) / 10;
+const mb = (b) => (b / 1048576).toFixed(1);
 const r2 = (v) => Math.round(v * 100) / 100;
-const rows = [];
+const rows = [], mems = [];
 let gpuTimer = false, disjoint = 0;
 try {
   const sizeCol = (s) => `${(s.pixels.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}Mpx/${s.contexts}ctx`;
@@ -197,6 +248,9 @@ try {
         await p.waitForTimeout(4000); // (the flight in from the room)
       }
       await p.waitForTimeout(4000);
+      const mem = await p.evaluate(memory);
+      mems.push({ preset, mode, ...mem });
+      console.log(`memory ${mode} (${preset}): JS heap ${mb(mem.heap)} MB; textures ~${mb(mem.tex)} MB (${mem.texN}); buffers ~${mb(mem.buf)} MB (${mem.bufN}); driver ${mem.driver.tex} textures, ${mem.driver.geo} geometries, ${mem.scenes} scenes`);
       const cx = W / 2, cy = H / 2;
       const views = [];
       for (const v of VIEWS) {
@@ -224,5 +278,5 @@ try {
     }
   }
   console.log(gpuTimer ? `GPU timer: EXT_disjoint_timer_query_webgl2${disjoint ? ` (${disjoint} disjoint results dropped)` : ''}${CPU > 1 ? `; CPU /${CPU}: the GPU ms hold its waits for the CPU, read them at --throttle 1` : ''}` : 'GPU timer: n/a');
-  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: CPU, gpuTimer, rows }, null, 1));
+  if (out) writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), device: DEVICE || 'desktop', tier: TIER || null, keepLimit: KEEP, size: `${W}x${H}@${DPR}`, throttle: CPU, gpuTimer, rows, memory: mems }, null, 1));
 } finally { await stop(); }

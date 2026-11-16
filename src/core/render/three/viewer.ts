@@ -5,7 +5,7 @@ import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
 import { SEG, anisotropy, refilter } from './geometry';
-import { disposeRenderContext, restoreStudioEnv, studioEnv } from './init';
+import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
 
 export interface Viewer {
@@ -87,6 +87,7 @@ function studio(antialias: boolean, still = false) {
     rim.position.set(centre.x - r * 2, centre.y + r, centre.z - r * 1.5);
     rim.target.position.copy(centre);
   };
+  trackRender(renderer, scene);
   return { renderer, scene, pmrem, key, floor, place };
 }
 
