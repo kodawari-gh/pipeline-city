@@ -7,18 +7,18 @@
     "sum": "49c3f70c"
   },
   "machine/Group#4": {
-    "meshes": 62,
+    "meshes": 63,
     "draws": 59,
-    "verts": 72762,
+    "verts": 75354,
     "instances": 734,
-    "sum": "5a7dfa9e"
+    "sum": "4453b470"
   },
   "machine/Group#47": {
-    "meshes": 23,
+    "meshes": 24,
     "draws": 19,
-    "verts": 41484,
+    "verts": 52056,
     "instances": 186,
-    "sum": "e2093981"
+    "sum": "0e368175"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -464,9 +464,9 @@
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 228198,
+    "verts": 234822,
     "instances": 0,
-    "sum": "314483fd"
+    "sum": "8f47b491"
   },
   "machine/tpm0": {
     "meshes": 1,

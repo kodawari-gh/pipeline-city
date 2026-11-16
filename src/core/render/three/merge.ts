@@ -387,34 +387,64 @@ function mirrored(m: Copies): boolean {
   return false;
 }
 
-/** How `m` joins a stand-in: the key of its set and, for a palette set, the key of its program (one palette material draws it). */
-function joinOf(m: Mesh): { key: string; prog: string | null } | null {
-  const x = m as Copies & { isSkinnedMesh?: boolean; isBatchedMesh?: boolean }, mat = m.material as MeshStandardMaterial;
-  if (!m.isMesh || x.isSkinnedMesh || x.isBatchedMesh || Array.isArray(mat) || mat.transparent || mat.opacity !== 1 || !mat.visible) return null;
+/** One material of a mesh in a stand-in set: `split` when the mesh has a list of materials (the set takes only that material's groups). */
+interface Join { key: string; prog: string | null; mat: MeshStandardMaterial; split: boolean }
+
+/** How `m` joins a stand-in, one join per material: the key of its set and, for a palette set, the key of its program. Null: it stays out. */
+function joinsOf(m: Mesh): Join[] | null {
+  const x = m as Copies & { isSkinnedMesh?: boolean; isBatchedMesh?: boolean };
+  if (!m.isMesh || x.isSkinnedMesh || x.isBatchedMesh) return null;
   if (x.isInstancedMesh && (x.count < 1 || x.instanceColor)) return null;
   if (Object.keys(m.geometry.morphAttributes).length || m.onBeforeRender !== Object3D.prototype.onBeforeRender || m.customDepthMaterial || m.customDistanceMaterial || mirrored(x)) return null;
-  const pal = palKeys.get(mat) ?? (mat.isMeshStandardMaterial && stillMaterial(mat) ? materialKey(mat, ON_VERTEX) : null);
-  const attrs = attrsKey(m.geometry, pal === null ? undefined : ON_PALETTE), flags = `${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.layers.mask}`;
-  if (attrs === null) return null;
-  return pal === null ? { key: `mat:${mat.uuid}|${attrs}|${flags}`, prog: null } : { key: `pal:${attrs}|${pal}|${flags}`, prog: `${attrs}|${pal}` };
+  // a list of materials: each material its own join (two materials of one program join the same set)
+  const split = Array.isArray(m.material), mats = split ? [...new Set(m.geometry.groups.map((g) => (m.material as Material[])[g.materialIndex ?? 0]))] : [m.material];
+  if (!mats.length) return null;
+  const flags = `${m.castShadow}|${m.receiveShadow}|${m.renderOrder}|${m.layers.mask}`, out: Join[] = [];
+  for (const mm of mats) {
+    const mat = mm as MeshStandardMaterial | undefined;
+    if (!mat || mat.transparent || mat.opacity !== 1 || !mat.visible) return null;
+    const pal = palKeys.get(mat) ?? (mat.isMeshStandardMaterial && stillMaterial(mat) ? materialKey(mat, ON_VERTEX) : null);
+    const attrs = attrsKey(m.geometry, pal === null ? undefined : ON_PALETTE);
+    if (attrs === null) return null;
+    out.push(pal === null ? { key: `mat:${mat.uuid}|${attrs}|${flags}`, prog: null, mat, split } : { key: `pal:${attrs}|${pal}|${flags}`, prog: `${attrs}|${pal}`, mat, split });
+  }
+  return out;
 }
 
 /**
  * The set a mesh joins in a stand-in (`standIns`), or null: it stays out. A still material (and a palette mesh) joins the meshes of its
  * program (`pal:`): their colours, roughness and metalness go on the vertices. A material that carries state (a skin, a ring, an LED: `own`,
  * or it glows) joins only the meshes of that same material object (`mat:`), so the stand-in shows the state as they do. Each set has one
- * attribute layout, one pair of shadow flags, one order and one layer mask. Out: a see-through or multi-material mesh, a skinned, batched,
- * morphed or mirrored one, one with a draw hook or instance colours. The world matrices must be set.
+ * attribute layout, one pair of shadow flags, one order and one layer mask. A mesh with a list of materials joins one set per material
+ * (the keys, joined by ` + `), and only when each of its materials can. Out: a see-through mesh, a skinned, batched, morphed or mirrored
+ * one, one with a draw hook or instance colours. The world matrices must be set.
  */
-export const standInKey = (m: Mesh): string | null => joinOf(m)?.key ?? null;
+export const standInKey = (m: Mesh): string | null => joinsOf(m)?.map((j) => j.key).join(' + ') ?? null;
 
-/** The triangles of `m` in the frame `toFrame` takes the world to (unindexed, no groups): one geometry, or one per copy of an instanced mesh. */
-function copiesOf(m: Mesh, toFrame: Matrix4, palette: boolean): BufferGeometry[] {
-  // (a stand-in is seen from far: it takes the part's lower detail level when it has one, LOD-01)
-  const src = lowOf(m.geometry) ?? m.geometry, base = src.index ? src.toNonIndexed() : src.clone(), x = m as Copies;
+/** The vertices of the groups that draw with `mat` (an unindexed geometry with the groups of a list of materials). */
+function groupsOf(g: BufferGeometry, mats: readonly Material[], mat: Material): BufferGeometry {
+  const runs = g.groups.filter((r) => mats[r.materialIndex ?? 0] === mat), n = g.attributes.position!.count;
+  const out = g.clone();
+  for (const [name, a] of Object.entries(g.attributes)) {
+    const it = a.itemSize, vals: number[] = [];
+    for (const r of runs) for (let i = r.start; i < Math.min(r.start + r.count, n); i++) for (let c = 0; c < it; c++) vals.push(a.getComponent(i, c));
+    out.setAttribute(name, new BufferAttribute(new (a.array.constructor as Float32ArrayConstructor)(vals), it, a.normalized));
+  }
+  return out;
+}
+
+/**
+ * The triangles of `m` in the frame `toFrame` takes the world to (unindexed, no groups): one geometry, or one per copy of an instanced mesh.
+ * `j.split`: only the groups of `j.mat`.
+ */
+function copiesOf(m: Mesh, toFrame: Matrix4, palette: boolean, j: Join): BufferGeometry[] {
+  // (a stand-in is seen from far: it takes the part's lower detail level when it has one, LOD-01; a split mesh only when the low keeps its groups)
+  const low = lowOf(m.geometry), src = low && (!j.split || low.groups.length) ? low : m.geometry;
+  let base = src.index ? src.toNonIndexed() : src.clone();
+  if (j.split) { const all = base; base = groupsOf(all, m.material as Material[], j.mat); all.dispose(); }
   base.clearGroups();
-  if (palette && !base.attributes._pc) painted(base, m.material as MeshStandardMaterial);
-  const inFrame = new Matrix4().multiplyMatrices(toFrame, m.matrixWorld);
+  if (palette && !base.attributes._pc) painted(base, j.mat);
+  const inFrame = new Matrix4().multiplyMatrices(toFrame, m.matrixWorld), x = m as Copies;
   if (!x.isInstancedMesh) return [base.applyMatrix4(inFrame)];
   const out: BufferGeometry[] = [];
   for (let i = 0; i < x.count; i++) { x.getMatrixAt(i, COPY); out.push(base.clone().applyMatrix4(COPY.premultiply(inFrame))); }
@@ -430,27 +460,35 @@ export interface StandIn { mesh: Mesh; sources: Mesh[] }
  * (`PartLod`), and they still answer the rays and the outline. A stand-in answers no ray. A stand-in of a material with state draws with
  * that same material object. A palette set draws with the palette material of its first palette mesh, else with one of `pals` (by program;
  * made here when missing: the caller keeps the map over the rebuilds and disposes its materials). An instanced mesh joins copy by copy.
+ * A mesh with a list of materials joins with each material's groups: it goes in only when one of them joins another (else it draws as it
+ * is), and then it is a source of each stand-in it is in, a set of one included, so no group of it is lost.
  */
 export function standIns(frame: Object3D, meshes: readonly Mesh[], pals: Map<string, MeshStandardMaterial> = new Map()): StandIn[] {
   frame.updateWorldMatrix(true, true);
-  const toFrame = frame.matrixWorld.clone().invert(), sets = new Map<string, { prog: string | null; sources: Mesh[] }>();
+  type Part = { m: Mesh; j: Join };
+  const toFrame = frame.matrixWorld.clone().invert(), sets = new Map<string, { prog: string | null; parts: Part[] }>(), joins = new Map<Mesh, Join[]>();
   for (const m of meshes) {
-    const j = joinOf(m);
-    if (!j) continue;
-    let set = sets.get(j.key);
-    if (!set) sets.set(j.key, (set = { prog: j.prog, sources: [] }));
-    set.sources.push(m);
+    const js = joinsOf(m);
+    if (!js) continue;
+    joins.set(m, js);
+    for (const j of js) {
+      let set = sets.get(j.key);
+      if (!set) sets.set(j.key, (set = { prog: j.prog, parts: [] }));
+      set.parts.push({ m, j });
+    }
   }
+  // a split mesh none of whose materials joins another part draws as it is
+  for (const [m, js] of joins) if (js[0]!.split && js.every((j) => sets.get(j.key)!.parts.length < 2)) for (const j of js) sets.get(j.key)!.parts = sets.get(j.key)!.parts.filter((p) => p.m !== m);
   const out: StandIn[] = [];
-  for (const { prog, sources } of sets.values()) {
-    if (sources.length < 2) continue;
-    const g = mergeGeometries(sources.flatMap((m) => copiesOf(m, toFrame, prog !== null)), false);
+  for (const { prog, parts } of sets.values()) {
+    if (!parts.length || (parts.length < 2 && !parts[0]!.j.split)) continue;
+    const g = mergeGeometries(parts.flatMap((p) => copiesOf(p.m, toFrame, prog !== null, p.j)), false);
     if (!g) continue;
-    const first = sources[0]!;
-    let material = first.material as MeshStandardMaterial;
+    const sources = [...new Set(parts.map((p) => p.m))], first = sources[0]!;
+    let material = parts[0]!.j.mat;
     if (prog !== null) {
-      const has = sources.find((m) => palKeys.has(m.material as Material));
-      if (has) material = has.material as MeshStandardMaterial;
+      const has = parts.find((p) => palKeys.has(p.j.mat));
+      if (has) material = has.j.mat;
       else { material = pals.get(prog) ?? paletteOf(material); pals.set(prog, material); }
     }
     const mesh = new Mesh(g, material);

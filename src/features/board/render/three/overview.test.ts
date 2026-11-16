@@ -7,7 +7,7 @@ import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 quietCanvas();
 
 /** The ceiling of the machine's draws at the overview. It may only fall. */
-const CEILING = 182;
+const CEILING = 135;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {
@@ -29,7 +29,7 @@ describe('the machine at the room overview', () => {
         const m = o as Mesh, mat = m.material as MeshStandardMaterial;
         if (!m.isMesh || !(m.layers.mask & 1)) return;
         let anchor = ''; for (let p: Object3D | null = o; p; p = p.parent) if (typeof p.userData.id === 'string') { anchor = p.userData.id as string; break; }
-        let moving = ''; for (let p: Object3D | null = o; p; p = p.parent) for (const k of ['spin', 'live', 'rig']) if (p.userData[k]) moving = `${k} ${p.name}`;
+        let moving = ''; for (let p: Object3D | null = o; p; p = p.parent) for (const k of ['spin', 'live']) if (p.userData[k]) moving = `${k} ${p.name}`;
         if (m.userData.standIn) add(`stand-in: under ${m.parent?.userData.id ?? m.parent?.name ?? '?'} ${Object.keys(m.geometry.attributes).join(',')} ${mat.side} ${mat.map ? 'map' : ''} ${mat.metalness > 0.5 ? 'metal' : ''} ${m.castShadow}${m.receiveShadow}`);
         else if (moving) add(`moving: ${moving} ${anchor.replace(/\d+$/, '#')} | ${Array.isArray(mat) ? 'multi' : `${m.name || m.geometry.type} ${(m as { isInstancedMesh?: boolean }).isInstancedMesh ? 'inst' : ''} ${mat.map ? 'map' : ''} ${mat.transparent ? 'clear' : ''} ${mat.emissiveIntensity > 0 && mat.emissive?.getHex() ? 'glow' : ''} side${mat.side} ${Object.keys(m.userData).join(',')} ${m.castShadow}`}`);
         else if (Array.isArray(mat)) add(`multi-material: ${anchor.replace(/\d+$/, '#') || 'case'} x${mat.length} in ${m.geometry.groups.length} groups, ${m.geometry.type} ${m.geometry.attributes.position?.count}, ${new Set(mat as MeshStandardMaterial[]).size} distinct`);
@@ -41,5 +41,20 @@ describe('the machine at the room overview', () => {
     }
     expect(far).toBeLessThan(near);
     expect(far).toBeLessThanOrEqual(CEILING);
+  }, 30_000);
+
+  it('draws a cable built again (a plug in or out) in the cables\' stand-ins, with its new rig (MACH-06)', () => {
+    const machine = buildMachine(maxedSnapshot(), true, true), lod = machine.partLod!;
+    lod.update(LOD_OVERVIEW / 2);
+    const far = drawnMeshes(machine.root);
+    let atx: Object3D | undefined;
+    machine.root.traverse((o) => { if (o.userData.id === 'cable.atx') atx = o; });
+    const own = () => { let n = 0; atx!.traverseVisible((o) => { if ((o as Mesh).isMesh && !o.userData.standIn && (o.layers.mask & 1)) n++; }); return n; };
+    expect(own()).toBe(0);
+    for (const seated of [false, true]) {
+      machine.setCable('atx', seated);
+      expect(own()).toBe(0);
+      expect(drawnMeshes(machine.root)).toBe(far);
+    }
   }, 30_000);
 });

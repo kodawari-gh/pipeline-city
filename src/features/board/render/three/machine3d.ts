@@ -800,7 +800,7 @@ export class Machine3D {
   private addRig(g: Group, rig: CableRig, seated: boolean, fade?: () => () => void) {
     this.rigs.set(rig.id, rig);
     this.built.set(rig.id, { g, seated, fade });
-    this.setCable(rig.id);
+    this.placeRig(rig.id);
   }
 
   /** A draggable cable's rig (plughand3d.ts holds it live), or null. */
@@ -808,14 +808,21 @@ export class Machine3D {
 
   /** Build one draggable cable again as it stands (`seated`, default as it was; a dropped plug at its rest pose): the others stay as they are. */
   setCable(kind: string, seated?: boolean): void {
+    // (the rig draws in the cables' stand-ins: they are made again with the new rig)
+    if (this.placeRig(kind, seated)) this.partLod?.build(this.wires);
+  }
+
+  /** Put one draggable cable's rig in as it stands (`setCable`, less the stand-ins). False: no such cable. */
+  private placeRig(kind: string, seated?: boolean): boolean {
     const rig = this.rigs.get(kind), b = this.built.get(kind);
-    if (!rig || !b) return;
+    if (!rig || !b) return false;
     if (seated !== undefined) b.seated = seated;
     for (const c of [...b.g.children]) if (c.userData.rig) { b.g.remove(c); disposeTree(c); }
     b.g.add(rigStatic(rig, b.seated, this.rest.get(kind)));
     this.unfade.get(kind)?.();
     this.unfade.delete(kind);
     if (b.seated && b.fade) this.unfade.set(kind, b.fade());
+    return true;
   }
 
   /** Build all the cables and the key again: the parts stay as they are. */
@@ -832,7 +839,7 @@ export class Machine3D {
     this.buildCables(s, geo);
     // the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
     mergeSiblings(this.wires);
-    this.partLod?.build(this.wires); // (the still parts of the new cables; a draggable end, `userData.rig`, and the key stay out)
+    this.partLod?.build(this.wires); // (the still parts of the new cables, their rigs too; the key stays out)
     this.setKey(s.plugged?.id ?? null);
   }
 

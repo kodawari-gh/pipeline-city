@@ -26,13 +26,13 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, MACH-04, MACH-05, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
-| MACH | 4 | 3 | MACH-06, the overview's last draws |
+| MACH | 3 | 3 | MACH-01, one material (its atlas also serves LOD-02) |
 | GFX | 5 | 3 | GFX-01 flicker |
-| LOD | 2 | 2 | LOD-02, one stand-in for the machine (MACH-06 first) |
+| LOD | 2 | 2 | LOD-02, one stand-in for the machine (an atlas first) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 6 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
@@ -42,12 +42,11 @@ Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after. N
 
 ## MACH: the machine in the case
 
-The maxed machine at High draws 942 draws before the merges (640 now near; 182 at the overview).
+The maxed machine at High draws 942 draws before the merges (640 now near; 135 at the overview).
 
 - [ ] MACH-01 [owner] [look: low] One material for most machine parts (was LPC2, PERF22). Colour, roughness and metalness move to vertex attributes or one palette atlas; one shared trim sheet (normal and roughness: brushed metal, vents, screw heads, fins, solder joints) gives the small detail. Parts that share the material can merge; this cuts draw calls, which a normal map alone does not. State: `mergeSiblings` and `shareMaterials` (`Machine3D.share`) took the Low machine from 239 to 102 materials, the scene from 378 to 241 and the scene pass from 634 to 385 draws. Left: the profile check of the Low machine and its cables, program switches (see GFX-05), and moving colour to vertices (room 86 materials, machine 34). Files: src/core/render/three/materials.ts, merge.ts, src/features/board/render/three/machine3d.ts, tools/bake/. Docs: docs/render/three.md "Merges". Done when: the maxed machine at High draws with under 40 materials, `highident` is regenerated on purpose, the two uniform functions' profile share halves, and the owner accepts a close-up shot.
 - [ ] MACH-02 [owner] [look: none] Instance the repeated parts (was LPC3). State: no set qualifies. The case's standoffs, screws and rivets are already instanced (`casetray3d.ts`, `casekit3d.ts`). The rest sit under picked or fading part scopes (`userData.id`): one instance would lose its pick and fade. The machine's equal groups are 4 or fewer eligible meshes, at the rule's limit (more than 4). `repeats.test.ts` counts 56 draws left to save in the machine and 18 in the room. Decision: build instances with a pick map and per-instance fade, or take the room's `tray` and `router` sets only (outside the old files). Files: src/core/render/three/merge.ts, src/features/board/render/three/machine3d.ts. Docs: docs/render/three.md "Merges". Done when: the owner picks one way and the counted draws drop, with `highident` passing.
 - [ ] MACH-03 [owner] [look: low] Contact shade inside the case at Low (was LPC7). State: vertex occlusion is the wrong tool; do not try `_ao` on the machine a third time (695,000 points, 5 to 11 s in the worker, almost no shade: large flat faces have no vertex where a part touches them). Built: three dark unlit rings under the cooler's CPU package at Low (`contactPad` in `machine3d.ts`), costing under the 50 ms budget (421.8 ms with, 427.5 ms without; noise). Not done: the drive cage. Options: dark footprint skirts on the board under each part (Low only), or a half-resolution occlusion pass. Files: src/features/board/render/three/machine3d.ts. Docs: src/features/room/light.md. Done when: the owner picks an option and a Low close-up of the cooler and the drive cage shows contact shade, the machine's build time rises by under 50 ms, and no pass is added.
-- [ ] MACH-06 [auto] [look: none] Cap the Low machine's last costs: the cable rigs (41), the see-through meshes, the multi-material meshes, the rotors and sets across anchors (was LPC5's "left" list; the stand-in itself is LOD-02). Files: src/features/board/render/three/machine3d.ts, partlod.ts. Docs: docs/render/lod.md. Done when: `overview.test.ts` shows fewer overview draws than the 182 today, each cut with an unchanged shot, and LOD-02's target of 6 is in reach.
 
 ## GFX: engine-wide look and light
 
@@ -59,7 +58,7 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 182 a
 
 ## LOD: levels of detail
 
-- [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; the shot is unchanged. Left to reach 6: see MACH-06. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws and 4 materials (the LOD1 cap, 3D_STYLE §2) at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
+- [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; MACH-06 (multi-material meshes split over the sets, still cable rigs in) gives 135 draws and 135 calls; the shots are unchanged. Left to reach 6: about 50 sets of one mesh (a map or a material no other mesh shares: they need one atlas and one material, see MACH-01), 16 rotors, 15 see-through meshes, 5 instanced meshes, the skipped parts, and about 35 stand-ins to join. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws and 4 materials (the LOD1 cap, 3D_STYLE §2) at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
 - [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk.
 
 ## CITY: the view outside the window
@@ -101,7 +100,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

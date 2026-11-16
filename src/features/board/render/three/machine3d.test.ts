@@ -272,7 +272,8 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       // (a palette stand-in has only still looks: no skin, no glow)
       const e = si.material as MeshStandardMaterial;
       if (!(e.emissive.getHex() && e.emissiveIntensity > 0)) continue;
-      expect(src.every((x) => x.material === si.material)).toBe(true);
+      // (a source with a list of materials, as a RAM stick's board and its skin edge, has it in its list: MACH-06)
+      expect(src.every((x) => [x.material].flat().includes(si.material as MeshStandardMaterial))).toBe(true);
       glowing++;
     }
     expect(glowing).toBeGreaterThan(0);

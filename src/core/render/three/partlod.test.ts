@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, Raycaster, Vector3 } from 'three';
+import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, Raycaster, Vector3, type Material } from 'three';
 import { mat, own } from './materials';
 import { LOD_BAND, LOD_OVERVIEW, LOD_PX, LOD_RADII, PartLod, drawnMeshes, farClasses, heldBy, lodSources, sizeClass, standInDraws } from './partlod';
 import { UNDRAWN } from './pick';
@@ -112,5 +112,41 @@ describe('the distance LOD rule (PERF6)', () => {
     let left = 0;
     root.traverse((o) => { if (o.userData.standIn) left++; });
     expect(left).toBe(0);
+  });
+
+  it('splits a mesh of two materials over two stand-ins, holds them together, and leaves a lone one as it is (MACH-06)', () => {
+    // a box whose x faces draw with the first material and its other faces with the second (as the RAM chips)
+    const two = (m0: Material, m1: Material, x: number) => {
+      const g = new BoxGeometry(10, 10, 10);
+      g.clearGroups(); g.addGroup(0, 12, 0); g.addGroup(12, 24, 1);
+      const o = new Mesh(g, [m0, m1]); o.position.x = x; return o;
+    };
+    const root = new Group(), c = new Group(), d = new Group(), skin = own(mat(0x204060)), m = two(mat(0xff0000), skin, 0), x = box(10, mat(0x00ff00), 40), y = box(10, skin, 80);
+    const lone = two(own(mat(0x101010)), own(mat(0x202020)), 120);
+    c.userData.id = 'c'; d.userData.id = 'd';
+    c.add(m, x, lone); d.add(y);
+    root.add(c, d);
+    expect(lodSources(root).map((s) => s.mesh)).toContain(m);
+    expect(lodSources(root).map((s) => s.mesh)).toContain(lone);
+    const lod = new PartLod(root);
+    lod.update(0.01);
+    // the red faces join the green box, the skin's faces the skin's box: two stand-ins draw for the three meshes, with every triangle
+    const of = (o: Mesh) => lod.standIns.filter((s) => lod.sourcesOf(s).includes(o));
+    expect(of(m).length).toBe(2);
+    expect(of(m).map((s) => s.geometry.attributes.position!.count).sort((p, q) => p - q)).toEqual([36 + 12, 36 + 24]);
+    expect(of(m).find((s) => s.material === skin)).toBeDefined();
+    expect([m, x, y].every((o) => !(o.layers.mask & 1))).toBe(true);
+    // the lone two-material mesh joins nothing and draws as it is
+    expect(of(lone).length).toBe(0);
+    expect(lone.layers.mask & 1).toBe(1);
+    expect(drawnMeshes(root)).toBe(3);
+    // a held box sends its stand-in back, and with it the other stand-in of the split mesh: the split mesh draws whole
+    lod.hold([d]);
+    expect(of(m).every((s) => lod.held(s) && !(s.layers.mask & 1))).toBe(true);
+    expect([m, x, y].every((o) => o.layers.mask & 1)).toBe(true);
+    lod.hold([]);
+    expect([m, x, y].every((o) => !(o.layers.mask & 1))).toBe(true);
+    lod.dispose();
+    expect([m, x, y, lone].every((o) => o.layers.mask & 1)).toBe(true);
   });
 });
