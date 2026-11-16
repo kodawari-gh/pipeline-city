@@ -94,6 +94,8 @@ Gallery (`viewer.ts`) and Build my PC (`BuildStage`) each have a WebGL context o
 
 The menu has 3 contexts that stay: the room, Pixi's 1x1 shader probe and the Pixi art baker.
 
+**One context for all screens (PHONE-07). Decided 2026-11-17: not built.** The task assumed that a second context repeats the room's programs and textures. Measured (phone profile, dev server, real GPU, programs compared by `cacheKey`, 40 s after the open): the menu's room has 123 programs, 116 textures and 218 geometries. The Gallery's context adds 16 programs (3 are in the room's set), 12 textures and 300 geometries. Build my PC's context adds 47 programs (3 in the room's set), 119 textures and 627 geometries. A single context would still link 13 and 44 programs: the screens use other materials (the viewer's, the machine's painted dies). Only 3 programs would link once instead of twice; the textures are other art, so one context would not share their memory either. The room stays resident behind both screens in either design. It costs: two post stacks and two sizes and pixel ratios drawn into one canvas, a loss handler for the room's context, `setLowDetail` and the other module-level state of a renderer, and the close that frees the context at once (PHONE-04) would free nothing. The gain is small and the risk is high, so each screen keeps its own context. Take it up again only if a real phone (PHONE-02) runs out of contexts or of GPU memory with the room, the stage and Pixi alive.
+
 Phone profile (412x915 at 2.6), 4x CPU throttle, the optimized build, heap after a forced GC; 5 opens and closes of each screen:
 
 | | Before | After |
