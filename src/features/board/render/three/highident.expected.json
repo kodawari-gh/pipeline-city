@@ -763,11 +763,11 @@
     "sum": "753c0378"
   },
   "room/mail": {
-    "meshes": 8,
-    "draws": 8,
-    "verts": 2912,
+    "meshes": 2,
+    "draws": 2,
+    "verts": 3016,
     "instances": 0,
-    "sum": "a43068ea"
+    "sum": "95871c51"
   },
   "room/merged": {
     "meshes": 57,
@@ -784,11 +784,11 @@
     "sum": "29c6ff94"
   },
   "room/router": {
-    "meshes": 25,
-    "draws": 24,
-    "verts": 4446,
+    "meshes": 12,
+    "draws": 11,
+    "verts": 5416,
     "instances": 17,
-    "sum": "d79c8fbb"
+    "sum": "e9b91a7b"
   },
   "room/socket": {
     "meshes": 3,
@@ -798,11 +798,11 @@
     "sum": "e21e01ca"
   },
   "room/tray": {
-    "meshes": 16,
-    "draws": 16,
-    "verts": 6040,
+    "meshes": 1,
+    "draws": 1,
+    "verts": 6600,
     "instances": 0,
-    "sum": "2b94f299"
+    "sum": "f878251a"
   },
   "room/wall": {
     "meshes": 1,

@@ -24,7 +24,6 @@ import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
-import { lowDetail } from '@/core/render/three/detail';
 import { mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
@@ -656,7 +655,7 @@ export class Room3D {
     // (a new key's letter comes to the stand: it is in `keys`, so it floats in beside the rack as on the 2D wall)
     const stand = new Group();
     stand.position.set(KEY_STAND.x - kr.x, foot - ys, KEY_STAND.z);
-    if (lowDetail()) mergeWithin(rack, { twin: this.envTwin }); // (Low: the rack's bars and hooks in a few draws)
+    mergeWithin(rack, { twin: this.envTwin }); // (the rack's bars and hooks in a few draws, every tier: MACH-02, docs/render/three.md "Merges")
     stand.add(rack, this.keys);
     R.add(stand);
     R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
@@ -672,7 +671,7 @@ export class Room3D {
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
       parts(tier);
-      if (lowDetail()) mergeWithin(router, { twin: this.envTwin }); // (Low: the router's plates, vents and jacks in a few draws)
+      mergeWithin(router, { twin: this.envTwin }); // (the router's plates, vents and jacks in a few draws, every tier)
     };
     const parts = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
@@ -729,7 +728,7 @@ export class Room3D {
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(PAPER, { roughness: 0.6 }), 10));
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
-    if (lowDetail()) mergeWithin(box, { twin: this.envTwin });
+    mergeWithin(box, { twin: this.envTwin });
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
     socket.add(softBox(plate, 0, 80, graphite, 30));

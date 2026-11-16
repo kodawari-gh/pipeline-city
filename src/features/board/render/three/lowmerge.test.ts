@@ -1,5 +1,5 @@
-// Low merges the router; every tier merges the cable plugs and the machine's wires (`mergeWithin`). Each part is checked on its own, so a
-// merge that stops (its mutation) fails here.
+// Every tier merges the room's router, key rack and mailbox (MACH-02), the cable plugs and the machine's wires (`mergeWithin`). Each part is
+// checked on its own, so a merge that stops (its mutation) fails here.
 import { afterEach, expect, it } from 'vitest';
 import { type Mesh, type Object3D } from 'three';
 import { setLowDetail } from '@/core/render/three/detail';
@@ -20,7 +20,7 @@ const merged = (o: Object3D | null | undefined): number => { let n = 0; o?.trave
 /** The plug's rig group (`cablerig3d.ts`, `userData.rig`) under a cable's tagged group. */
 const rigOf = (root: Object3D, id: string): Object3D | null => { let r: Object3D | null = null; findById(root, id)?.traverse((c) => { if (!r && c.userData.rig) r = c; }); return r; };
 
-it('Low merges the router; every tier merges the cable plugs and the wires', () => {
+it('every tier merges the router, the key rack, the mailbox, the cable plugs and the wires', () => {
   const snap = maxedSnapshot();
   const build = (low: boolean) => {
     setLowDetail(low);
@@ -30,9 +30,11 @@ it('Low merges the router; every tier merges the cable plugs and the wires', () 
   };
   const hi = build(false), lo = build(true);
 
-  // the router on its shelf (room3d.ts: `mergeWithin(router)`)
-  expect(merged(findById(hi.room.root, 'router')), 'router merged at High').toBe(0);
-  expect(merged(findById(lo.room.root, 'router')), 'router merged at Low').toBeGreaterThan(0);
+  // the router on its shelf, the key rack, the letterbox (room3d.ts: `mergeWithin`)
+  for (const id of ['router', 'tray', 'mail']) {
+    expect(merged(findById(hi.room.root, id)), `${id} merged at High`).toBeGreaterThan(0);
+    expect(merged(findById(lo.room.root, id)), `${id} merged at Low`).toBeGreaterThan(0);
+  }
 
   // each cable plug the machine builds (cablerig3d.ts: `merged`)
   for (const id of ['cable.cpu', 'cable.atx']) {

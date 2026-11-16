@@ -26,11 +26,11 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-02, LOD-03, LOD-05, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
-| MACH | 2 | 2 | MACH-01, one material |
+| MACH | 1 | 1 | MACH-01, one material |
 | GFX | 5 | 3 | GFX-01 flicker |
 | LOD | 1 | 1 | LOD-04, far city cards |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
@@ -45,7 +45,6 @@ Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after. N
 The maxed machine at High draws 942 draws before the merges (640 now near; 135 at the overview).
 
 - [ ] MACH-01 [owner] [look: low] One material for most machine parts (was LPC2, PERF22). Colour, roughness and metalness move to vertex attributes or one palette atlas; one shared trim sheet (normal and roughness: brushed metal, vents, screw heads, fins, solder joints) gives the small detail. Parts that share the material can merge; this cuts draw calls, which a normal map alone does not. State: `mergeSiblings` and `shareMaterials` (`Machine3D.share`) took the Low machine from 239 to 102 materials, the scene from 378 to 241 and the scene pass from 634 to 385 draws. Left: the profile check of the Low machine and its cables, program switches (see GFX-05), and moving colour to vertices (room 86 materials, machine 34). Files: src/core/render/three/materials.ts, merge.ts, src/features/board/render/three/machine3d.ts, tools/bake/. Docs: docs/render/three.md "Merges". Done when: the maxed machine at High draws with under 40 materials, `highident` is regenerated on purpose, the two uniform functions' profile share halves, and the owner accepts a close-up shot.
-- [ ] MACH-02 [owner] [look: none] Instance the repeated parts (was LPC3). State: no set qualifies. The case's standoffs, screws and rivets are already instanced (`casetray3d.ts`, `casekit3d.ts`). The rest sit under picked or fading part scopes (`userData.id`): one instance would lose its pick and fade. The machine's equal groups are 4 or fewer eligible meshes, at the rule's limit (more than 4). `repeats.test.ts` counts 56 draws left to save in the machine and 18 in the room. Decision: build instances with a pick map and per-instance fade, or take the room's `tray` and `router` sets only (outside the old files). Files: src/core/render/three/merge.ts, src/features/board/render/three/machine3d.ts. Docs: docs/render/three.md "Merges". Done when: the owner picks one way and the counted draws drop, with `highident` passing.
 
 ## GFX: engine-wide look and light
 
@@ -98,7 +97,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

@@ -16,6 +16,8 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
   root.traverse((o) => {
     const mesh = o as Mesh;
     if (!mesh.isMesh || (mesh as { isInstancedMesh?: boolean }).isInstancedMesh || !shown(o) || Array.isArray(mesh.material)) return;
+    // (drawn only, as `highident` counts: a pick box on the undrawn layer (`unseen`) or a hidden material makes no draw to save)
+    if ((mesh.layers.mask & 1) === 0 || !mesh.material.visible) return;
     const g = mesh.geometry, m = mesh.material as MeshStandardMaterial, verts = g.attributes.position?.count ?? 0;
     if (!g.boundingBox) g.computeBoundingBox();
     box.copy(g.boundingBox!).getSize(size);
@@ -35,7 +37,7 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. */
-const CEILING = { machine: 56, room: 18 };
+const CEILING = { machine: 44, room: 4 };
 
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {
