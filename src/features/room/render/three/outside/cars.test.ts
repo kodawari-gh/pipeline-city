@@ -128,8 +128,8 @@ describe('cars', () => {
       const ex = GRID.av0, ez = 0;
       full.update(0.1, ex, ez);
       low.update(0.1, ex, ez);
-      // the avenue's cars past FULL_LOW, to the avenue's clip (1000 m): the stretch the window shows (the near block hides it to about 350 m)
-      const lanes = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.abs(x - GRID.av0) <= GRID.avenue / 2 && Math.hypot(x - ex, z - ez) >= FULL_LOW && Math.hypot(x - ex, z - ez) < 1000).map(([x, z]) => key(x, z)).sort();
+      // the avenue's cars past FULL_LOW, to the avenue's clip (900 m, a ring's edge): the stretch the window shows (the near block hides it to about 350 m)
+      const lanes = (f: Fleet): string[] => meshes(f).flatMap(spots).filter(([x, z]) => Math.abs(x - GRID.av0) <= GRID.avenue / 2 && Math.hypot(x - ex, z - ez) >= FULL_LOW && Math.hypot(x - ex, z - ez) < 900).map(([x, z]) => key(x, z)).sort();
       const mine = (tr: Traffic): Set<string> => new Set(tr.routes.flatMap((rt, ri) => ownAvenue(rt) ? tr.lanes[ri]!.map((c) => { const m = tr.front(c, tr.phase(ri)) - c.len / 2; return key(rt.x + rt.dx * m, rt.z + rt.dz * m); }) : []));
       const along = (f: Fleet, tr: Traffic): string[] => { const set = mine(tr); return lanes(f).filter((k) => set.has(k)); };
       expect(along(low, trL)).toEqual(along(full, trF));
@@ -212,10 +212,10 @@ describe('cars', () => {
 
     // (the Low clip, as `CLIP_LOW` in cars.ts: a car past it is not drawn, moving or parked; one within it still is. On the window's avenue
     // the clip is `CLIP_AVENUE_LOW`)
-    const CLIP = 350, CLIP_AVENUE = 1000;
+    const CLIP = 350, CLIP_AVENUE = 900;
     /** Whether Low may draw a car at `x`, `h` m from the eye. */
     const kept = (x: number, h: number): boolean => h <= CLIP || (Math.abs(x - GRID.av0) <= GRID.avenue / 2 && h <= CLIP_AVENUE);
-    it('Low: no car past 350 m of the eye, moving or parked, but on the window\'s avenue (to 1000 m); those within it are drawn', () => {
+    it('Low: no car past 350 m of the eye, moving or parked, but on the window\'s avenue (to 900 m); those within it are drawn', () => {
       const r = rng(14), low = new Sized(new Traffic(), parked(), { night: { value: 0 } }, haze(), LOW_FLEET, 1);
       const bad: string[] = [];
       let moving = 0, parkedIn = 0;

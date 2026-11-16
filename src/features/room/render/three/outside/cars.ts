@@ -16,12 +16,14 @@ import { MODELS, type Route, type Traffic } from './traffic';
 
 /** A wheel's radius and its arch's, the sill's height (m). */
 const WHEEL = 0.32, ARCH = 0.39, SILL = 0.2;
-/** Within this distance of the eye (m) a car is its full model; further off, the box. */
+// Every distance here runs from the window's point on the avenue (`GRID.av0`, z 0), the origin of the city's rings, trees and street too (CITY-07):
+// the view passes it as (`ex`, `ez`), so a car does not change its model when the camera moves.
+/** Within this distance of the window (m) a car is its full model; further off, the box. */
 const NEAR = 260;
 /** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
 const NEAR_LOW = 100;
 /**
- * At Low, every moving car within this distance of the eye (m) drives, and every car in a lane of the avenue the window looks down (`ownAvenue`):
+ * At Low, every moving car within this distance of the window (m) drives, and every car in a lane of the avenue the window looks down (`ownAvenue`):
  * the lanes the window shows keep High's traffic. The rest: the fleet's share.
  */
 export const FULL_LOW = 300;
@@ -34,13 +36,13 @@ export function share(lane: number, place: number): number {
   h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
   return (h >>> 0) / 4294967296;
 }
-/** At Low, a car further than this from the eye (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
+/** At Low, a car further than this from the window (m) is not drawn at all, neither its full model nor its box: the far grid goes, the avenue stays (`CLIP_AVENUE_LOW`). */
 const CLIP_LOW = 350;
 /**
- * At Low, a car on the avenue the window looks down (within `AVENUE_HALF` of `GRID.av0`) is kept out to this distance of the eye (m). The near
+ * At Low, a car on the avenue the window looks down (within `AVENUE_HALF` of `GRID.av0`) is kept out to this distance of the window (m). The near
  * block east of the avenue hides it to the crossing at about 350 m, so the stretch the window shows starts there: `CLIP_LOW` alone left it empty.
  */
-const CLIP_AVENUE_LOW = 1000, AVENUE_HALF = GRID.avenue / 2;
+const CLIP_AVENUE_LOW = 900, AVENUE_HALF = GRID.avenue / 2;
 /** Whether a route is a lane of the avenue the window looks down: it runs along the avenue, within its width (a street that crosses it is not). */
 export const ownAvenue = (rt: { x: number; dx: number }): boolean => Math.abs(rt.dx) < 0.5 && Math.abs(rt.x - GRID.av0) <= AVENUE_HALF;
 /** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
@@ -347,12 +349,12 @@ export class Fleet {
   /** The share of the moving cars that drive (1: all), and how many models there are (fewer than `MODELS`: one mesh of them, the range `NEAR_LOW`). */
   private scale: number;
   private capped: boolean;
-  /** Within this distance of the eye (m) a moving car is its full model; further off, the far box. */
+  /** Within this distance of the window (m) a moving car is its full model; further off, the far box. */
   private range: number;
   /** Past this distance of the eye (m) a car is not drawn (`CLIP_LOW` at Low, none at High); on the window's avenue, past `avenueClip`. */
   private clip: number;
   private avenueClip: number;
-  /** Whether a car at `x`, `d2` (m²) from the eye, is past the clip. */
+  /** Whether a car at `x`, `d2` (m²) from the window, is past the clip. */
   private clipped(x: number, d2: number): boolean {
     return d2 > this.clip * this.clip && (Math.abs(x - GRID.av0) > AVENUE_HALF || d2 > this.avenueClip * this.avenueClip);
   }
@@ -404,7 +406,7 @@ export class Fleet {
 
   /**
    * The parked cars in their meshes: those in `seen` (the eye's frustum), or all of them (for a frame that draws the sun's shadows, which they
-   * cast). They do not move: call it when the eye's frustum or the eye (`ex`, `ez`) changes. A cell of them out of `seen` costs one test; in a
+   * cast). They do not move: call it when the eye's frustum or the origin (`ex`, `ez`) changes. A cell of them out of `seen` costs one test; in a
    * cell across its side, a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball). With the eye, a car past
    * `clip` of it is not placed (Low only).
    */
@@ -435,7 +437,7 @@ export class Fleet {
   }
 
   /**
-   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `range` of the eye (x, z), else the box.
+   * Move the traffic on by dt (s) and place each moving car the eye may see: its full model within `range` of the origin (x, z), else the box.
    * `seen`: the eye's frustum. Each route is cut to it first (`reach`), so a car out of it costs nothing: not drawn, nor its soft shadow, nor
    * (at night) its lamps' pools, which reach into the view from a little further (`POOL_R`). The lamps' pools are drawn only at night.
    */
@@ -464,7 +466,7 @@ export class Fleet {
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
         const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
         // (a fleet of a share: a car drives when its own key (`share`, by lane and place in it) is under the scale, so a car's bit does not
-        // move when its neighbours enter or leave the view; a car within `FULL_LOW` of the eye always drives, and one in a lane of the window's
+        // move when its neighbours enter or leave the view; a car within `FULL_LOW` of the window always drives, and one in a lane of the window's
         // avenue (`own`: the near block hides that avenue to about 350 m, so the lanes the window shows are past `FULL_LOW`))
         if (this.scale < 1 && !own && (x - ex) ** 2 + (z - ez) ** 2 >= FULL_LOW * FULL_LOW && share(ri, q) >= this.scale) continue;
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)

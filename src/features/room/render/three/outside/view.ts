@@ -509,12 +509,13 @@ export class OutsideView {
     const seen = shadowNow ? undefined : this.seen;
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
       for (const s of this.sweeps) s.cut(seen);
-      this.fleet.park(seen, c.position.x, c.position.z);
+      this.fleet.park(seen, GRID.av0, 0);
       this.cutOf.copy(this.seenOf);
       this.cutAll = shadowNow;
     }
-    // (the moving cars always for the eye alone: they cast no shadows in the sun's map)
-    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z, this.seen);
+    // (the moving cars always for the eye's frustum alone: they cast no shadows in the sun's map. Their distances run from the window's point,
+    // as the rings', the trees' and the parked cars' do (CITY-07): a car does not change its model when the camera moves)
+    this.fleet.update(Math.max(0, dt), GRID.av0, 0, this.seen);
     this.signals.update(this.traffic.t);
     // the leaves' light from behind, in the camera's frame
     const sd = sunOutside(this.key / 30);

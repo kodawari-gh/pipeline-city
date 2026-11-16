@@ -143,7 +143,7 @@ Culling layers, in order:
 5. **Cadence** (`view.ts`, `detail.ts`). While the eye moves under 1 px (`HOLD_PX`), the city draws every `LOW_EVERY` (6) frames at Low, `EVERY` (3) at High.
 6. **Window-box crop** (`view.ts`, `setViewOffset`). The city camera is cropped to the window's screen box.
 
-**Low city cuts** (this branch, code at `384106a`; [lod.md](lod.md#the-city-at-low-outside)). At Low, every building ring past 300 m is merged into one mesh, street cells are 96 m, and `lowfacade.ts` / `detail.ts` apply. Car distances at Low are 100 m (full model) and 350 m (clip); a far car drives by its own fixed key (`share`), so none blinks. Window-avenue cars clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low takes the same cuts as Chrome Low (CITY-05: its old gate is gone, the numbers are in lod.md). High has none of these cuts.
+**Low city cuts** (this branch, code at `384106a`; [lod.md](lod.md#the-city-at-low-outside)). At Low, every building ring past 300 m is merged into one mesh, street cells are 96 m, and `lowfacade.ts` / `detail.ts` apply. Car distances at Low are 100 m (full model) and 350 m (clip); a far car drives by its own fixed key (`share`), so none blinks. Window-avenue cars clip at 900 m (`CLIP_AVENUE_LOW`, `cars.ts`; CITY-07). Every car distance runs from the window's point (`GRID.av0`), not the eye. Firefox Low takes the same cuts as Chrome Low (CITY-05: its old gate is gone, the numbers are in lod.md). High has none of these cuts.
 
 **The Firefox gate.** `sight.ts` reads the query only two frames after it ends (`age >= 2`). The code comment says Firefox blocks on a query that is not done. The gate has three effects:
 
