@@ -105,6 +105,13 @@ Phone profile (412x915 at 2.6), 4x CPU throttle, the optimized build, heap after
 
 The 9 MB that stays after Build my PC does not grow after the third close. About 6 MB of it is V8's compiled code for the screen's modules (machine code, bytecode, feedback): 20 more idle GCs do not drop it. The objects come back to within about 1 MB of the menu. The game's start builds a second `Room3D`: `board3d.ts` disposes the first, and the GC collects it.
 
+**Context loss (PHONE-08, 2026-11-16, NVIDIA GeForce RTX 5080, ANGLE D3D11, dev server).** Phone profile (412x915 at 2.6). `WEBGL_lose_context` on the screen's own canvas, then `restoreContext` 1 s later. Pictures taken before the loss and 5.5 s after the restore:
+
+- Gallery: `webglcontextlost` 1, `webglcontextrestored` 1, no page error. 38.6% of pixels differ by more than 24 of 255. The turntable turns (Spin is on); a control run with no loss shows the same turn. By eye: the case draws again, lit, not black or empty.
+- Build my PC: `webglcontextlost` 1, `webglcontextrestored` 1, no page error. 0.00% of pixels differ. By eye: the same picture as before the loss.
+
+`restoreContext` is asynchronous. The restored event fired inside the 1.5 s wait. The handlers (`viewer.ts`, `buildmode3d.ts`) ask for a frame. No code change was needed.
+
 ## Measured
 
 Chrome, ANGLE D3D11, 1600x900, an optimized build without minifying, to the end of the boot screen (`Ready` is 0.9 s before it):

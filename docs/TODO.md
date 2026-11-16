@@ -26,7 +26,7 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, UI-01.
+Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
@@ -34,7 +34,7 @@ Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01,
 | GFX | 5 | 3 | GFX-01 flicker |
 | LOD | 2 | 2 | LOD-02, one stand-in for the machine (MACH-06 first) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
-| PHONE | 8 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
+| PHONE | 7 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 2 | 2 | ASSET-01, the part redo shots |
 | BENCH | 2 | 0 | next official run |
 
@@ -90,7 +90,6 @@ Common mobile budgets: 100–200 draw calls on low-end, under 500 on most phones
 - [ ] PHONE-05 [auto] [look: low] Cap texture size, compress, and shrink the download (was PERF13, PERF25). First start downloads about 11 MB of light bake (12 PNG of about 0.85 MB and a 1.5 MB mesh file) plus about 3.5 MB of JS; PNGs decode to uncompressed RGBA on the GPU. Ship the lightmaps as KTX2 (Basis; KTX1 is done) and load only the hour's sun map first; if PHONE-03 shows textures above 150 MB, cap lightmap and baked art at 1024 on touch (`textures` level 0). Files: src/features/room/render/three/, tools/bake/. Docs: docs/render/load.md, src/features/room/light.md. Done when: the first-start download is under 6 MB, lightmap GPU memory drops by 4× or more, texture memory at the Low tier is under 100 MB, and a before and after shot differs by no more than lightmap softness.
 - [ ] PHONE-06 [auto] [look: none] Draw on demand, the rest (was PERF14). The gate is in (`ondemand.ts`, docs/render/load.md "Draw on demand"). Phone, 60 s untouched menu: 30 to 23 frames a second (default), 60 to 34 (low, fps unlimited); Gallery with Spin off 0; Build my PC 0 once settled. What still draws the menu: the sway (about 11 a second, each frame moves the picture 0.5 px or more) and the city's beat (10 a second at 30 fps: the cars, the steam, the clock). Next: draw the city's beat into the window's screen box only (a scissored redraw over the last picture), and let the sway and the beat share frames. Files: src/features/board/render/three/board3d.ts, src/features/room/render/three/outside/view.ts. Docs: docs/render/load.md. Done when: an untouched menu with reduced motion draws only the window's box on the city's beat; a shot matches.
 - [ ] PHONE-07 [auto] [look: low] One WebGL context for all 3D screens (was PERF24). Gallery and Build my PC open a second context, which compiles its own programs and uploads its own textures (two copies in memory). Draw them with the room's renderer into the same canvas (a different scene and camera) once the room pauses behind them. Files: src/core/render/three/viewer.ts, src/features/board/render/three/buildmode3d.ts, board3d.ts. Docs: docs/ARCHITECTURE.md. Done when: one context is alive on every screen and opening Gallery links no program the room already has.
-- [ ] PHONE-08 [auto] [look: none] Test context loss in Gallery and Build my PC (left from PERF23). The room is verified (`WEBGL_lose_context`, dev, RTX: lost and restored events fire, no page error, same picture after the restore; `board3d.ts` asks for a frame on `webglcontextrestored`). `viewer.ts` and `buildmode3d.ts` have the same handler but no test with a lost context. Files: src/core/render/three/viewer.ts, src/features/board/render/three/buildmode3d.ts. Docs: docs/render/load.md. Done when: `WEBGL_lose_context` on each screen restores the picture with no page error.
 
 ## ASSET: the asset standard
 
@@ -115,7 +114,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|
