@@ -26,7 +26,7 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
@@ -35,7 +35,7 @@ Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01,
 | LOD | 2 | 2 | LOD-02, one stand-in for the machine (MACH-06 first) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 7 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
-| ASSET | 2 | 2 | ASSET-01, the part redo shots |
+| ASSET | 1 | 1 | ASSET-08, parked by decision |
 | BENCH | 2 | 0 | next official run |
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after. Not yet turned into tasks.
@@ -95,16 +95,6 @@ Common mobile budgets: 100–200 draw calls on low-end, under 500 on most phones
 
 The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below needs the owner to accept its shot. Source of the numbers: `budget.test.ts` (High: 942 draws, vertices 2,216,520 to 1,172,752; city triangles 3,643,156 to 2,103,386).
 
-- [ ] ASSET-01 [owner] [look: medium] Look at the finished part redos and accept or reject each shot (was ASR1, ASR2, ASR3, ASR4, ASR5, ASR6, ASR7, ASR9). Strike each item as it is accepted:
-  - Case shell and kit (ASR1, 996f5a4, 625c63e, 12a9b18): one hole method (perforated sheets in `drivecage3d.ts`, `basement3d.ts`); 64–101 material objects per case and 11–16 distinct looks (was 163–230); `casemat.test.ts` holds the ceiling of 16. The `case0` charcoal (31eb589, no cream since 2026-11-16): its 2D shell art was checked by tests only, no picture yet.
-  - City trees (ASR2, a99fbdd): `trees.test.ts` holds the caps, worst 4,968 / 1,320 / 424 / 146 against 5,000 / 1,450 / 430 / 170; city 2,103,386 triangles (was 3.64 M). Needs a Razr shot past 300 m.
-  - NVMe label drape (ASR3, ae6dd2e): one mesh, about 2,000 triangles (was 24,344). No `raid2` builder found in `board/render/three` (not verified).
-  - Fans (ASR4, 6b6d29f, 521a50d, 9eea3c6): `fanSides(mm)` gives 16 / 24 / 32 / 40 sides at 40 / 92 / 120 / 140 mm (48 from 200 mm). A 40 mm fan part: 3,904 to 3,736 triangles; 140 mm: 8,432 to 7,576. Needs the silhouette shot.
-  - Solder joints, TPM and NIC (ASR5, 6b6d29f): 3 rings × 6 sides (36 triangles each, was 400). TPM 5,200 to 468; nic-gbe 8,000 to 720; nic-10g 8,000 to 720; nic-40g 16,000 to 1,440. The joints are too small to judge at the framings tried; the TPM is not a sandbox device, so `shot-case` cannot frame it.
-  - Heat pipes (ASR6, ae6dd2e): 96 × 12 at High (was 220 × 16). The dark variant stays on hold.
-  - Teacup and bedside lantern (ASR7, 6b6d29f): cup 1,568 triangles (lathe 616; 24 sides, `SEG.cupLathe`); lantern lathe 616 (28 sides, 12 points).
-  - Grey ladder and families (ASR9): `mat()` snaps a colour nearer than 30 to a family colour (`familyHex`, `materials.ts`); base colours machine 175 to 30, room 81 to 30 (`palette.test.ts` holds the ceiling). Mid greys are now `#2a2d32` or `#4e5360`.
-  Files: none. Docs: docs/render/case.md, docs/render/lod.md. Done when: the owner accepts or rejects each shot above.
 - [ ] ASSET-08 [owner] [look: low] Build-time bake for parts, and the first glTF part model (was LPC6, 3D1). A headless page builds each part at LOD0 and at its lower levels, bakes LOD0's normals and occlusion onto the lower level's UVs (xatlas, as the room atlas does), and writes glb plus KTX2. Start with one part. The loader works (`MODEL_FILES` in `models3d.ts`) and two room models ship (`public/models/hoodie.glb`, `mouse.glb`), but no part model: every part is still primitives. Runs after LOD-01 decides the lower levels. Files: tools/bake/, src/features/board/render/three/models3d.ts, public/models/. Docs: docs/render/three.md "Known gaps", docs/3D_STYLE.md "Asset Export Checklist". Done when: one part's LOD1 ships as a baked glb, the bake reruns from one command, a shot at the switch distance matches LOD0, and the owner accepts a shot of it beside the primitive build. State (2026-11-16): parked by decision, not started. Its three blockers are gone: LOD-01 is decided, the size rule is accepted and both room models ship as meshopt (`npm run bake:models`), and a KTX2 encoder is in the repo (`ktx2-encoder`, `npm run bake:tex`). But the lower levels now come from the builders (`fanPart`, LOD-05) at no download cost, and a level 1 is drawn at 120 px or less, where baked normals do not show. A baked part glb adds download, a loader path and a bake step for no visible gain. Take it up again only for a part that needs hand-made art.
 
 ## UI, DOC and BENCH
@@ -114,7 +104,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

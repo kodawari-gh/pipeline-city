@@ -56,6 +56,8 @@ Each case must look good with nothing in it: the shop's viewer shows it so (`sho
 - **Mini's bays** (`bayFrame`). A zinc frame behind the two bay covers: side plates with screw slots and a window, top and bottom plates, rails between the bays, a tool-less latch per bay on the glass side. The corner screws of its side panel are kit screws.
 - **Front-panel leads** (`frontPanelLeads`). From their hole under the board's south edge to the `F_PANEL` (four thin wires), `USB_2`, `USB_3` (thick blue) and `ARGB` headers, static and hung as the system fan's cord. They are in `wires`, and `boardRoots` lists them, so a board swap lifts them. With no board (the viewer) they lie coiled and tied over their hole (`leadCoil`).
 
+**Part redos accepted (2026-11-16, ASSET-01).** Judged by art-style v3 from real-GPU shots (RTX 5080, High and Low, 14:00): the case shell and kit (one hole method, charcoal `case0` in the shop's 3D thumbnail and viewer), the city trees past 300 m (Low: green masses along the avenue, no popping), the NVMe label drape, the fans' silhouettes (round at 24 to 40 sides), the solder joints, TPM header and NIC, the heat pipes and the AIO pump, the teacup and the bedside lantern, and the grey ladder (one family of greys across the room and the machine). No item was rejected. The dark heat-pipe variant stays on hold.
+
 ## Level of detail: interior and exterior (far zoom)
 
 The 2D zoom bands (`LOD` in `board.ts`, the exterior crossfade and the room cap) were removed with the 2D board. The 3D case has its own detail rules: see "The 3D cases" above and [three.md](three.md).
