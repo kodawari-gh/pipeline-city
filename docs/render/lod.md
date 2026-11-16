@@ -10,7 +10,7 @@ Rewritten 2026-11-16 (LOD-03) for the 3D game. The scheme has five levels: LOD0,
 | LOD1 | The same builder at a lower level: fewer sides, no feature under 2 px, still parts in one mesh. Its outline stays within 1 px of LOD0 at the room overview. | `geometry.userData.low` (`withLow`, `fitLow`, `lowOf`; `geometry.ts`, `merge.ts`). Every shape of the maxed machine with 2,000 triangles or more has one. | The overview stand-in only. |
 | LOD2 | A second lower level, for 60 px and less. | The fan only (`fanPart`, `fans3d.ts`). | Nothing: at 900 p and more, no camera rest shows a fan under 60 px. |
 | Stand-in | Far parts merged into a few meshes by material set. It holds each part's LOD1 where there is one, else LOD0, with the same materials. | `partlod.ts`, `standIns` (`merge.ts`), `Machine3D.partLod`. | The size classes under 8 px, and the overview class under 0.05 px per unit. |
-| Card | A flat PNG rendered from High, for the far city where parallax is under 1 px. | Not built (LOD-04). | Nothing. |
+| Card | A flat PNG rendered from High, for the far city where parallax is under 1 px. | Not built, decided (LOD-04). | Nothing. |
 
 - **Why.** The frame is CPU bound: draws, materials and light uniforms cost more than triangles. So a level must cut draws first. A level that saves triangles but adds draws is not used.
 - **Tiers.** The quality tiers do not choose a level: every tier uses the same levels and the same switches. Low also builds coarser geometry in some builders (`lowDetail()`, `core/render/three/detail.ts`; see [three.md](three.md#levels-of-detail-and-detail-tiers)).
@@ -71,9 +71,17 @@ PERF6 and LPC5 (`partlod.ts`, `standIns` in `merge.ts`, `Machine3D.partLod`). Fa
 - **Browser count (room view, High, the sandbox's top machine, 2026-11-16).** The Node census reads no canvas texture, so the browser count is the truth: 216 drawn machine meshes at the overview (259 before the RGB strip became one mesh). They are 53 stand-ins, 16 rotor meshes (8 fans), 21 see-through meshes, 42 still meshes with a map of their own (labels, prints), 50 meshes with a map and state (the art sheets that glow: the board, the chipset, the VRM fins; the perforated case sheets), 23 with state and no map (LEDs, rings) and 11 still sets of one.
 - **Decision (LOD-02, 2026-11-16).** The cap of 6 draws and 4 materials at the overview (LOD1, 3D_STYLE §2) is dropped. The overview shows the live machine: the fans turn, and the RGB, the LEDs and the art's glow follow its state. One impostor or one material loses that, or needs a state table and an atlas of the live art. The draw count does not limit a frame: the phone's Low room draws 242 calls in all (budget: under 500), and the look comes first. Done: the board's RGB strip is one mesh and one lamp (44 draws to 1 at every zoom, the same pixels at High and Low). Measured and not worth the code: one stand-in across the size classes (53 to 49 at High, 51 to 45 at Low) and no `uv` in the sets with no map (no change). The next levers, when the draw count limits a frame: an atlas for the 42 still meshes with a map (single images, no wrap), one material for the 8 perforated case sheets (only their texture repeat differs), and the art sheets.
 
-## The card (planned, LOD-04)
+## The card (LOD-04, decided 2026-11-17: not built)
 
-The far city and the skyline as flat PNG cards rendered from High, plus a separate live layer of night windows. Cards only where parallax is under 1 px. The far bands (1,800–3,600 m and ∞) split into 4 or 5 depth slices. The seam hides behind a building row or in haze, with matched fog and mipmaps. Nothing is built yet; the task is in `docs/TODO.md`.
+The idea: the far city and the skyline as flat PNG cards rendered from High, plus a separate live layer of night windows. Cards only where parallax is under 1 px. The far bands (1,800–3,600 m and ∞) split into 4 or 5 depth slices. The seam hides behind a building row or in haze, with matched fog and mipmaps.
+
+**Decision.** Not built, for four reasons.
+- **The gain is small.** The whole city's pass is 40 draws and 468k triangles at High and 18 draws and 302k at Low (above), and it draws only each 3rd tick at High and each 6th at Low (`EVERY`, `LOW_EVERY`). At Low the city is 0.8 ms a frame on average (CITY-06). The far rings are a part of that, and the main scene pass of the room and the machine is the cost (CITY-06).
+- **A card cannot hold the light.** The far city changes with the hour (sun, haze, the sky it mirrors, the windows that come on): a card needs one bake for each hour step and each depth slice, and the night layer needs its own masks. That is many PNGs to download and a bake tool to keep, for a picture that is live today.
+- **High would change.** The far rings are High's own picture, fingerprinted by `highident`; a card replaces them with a bake of them, so every far pixel moves a little (filtering, the mirror, the glints), and the owner's rule is that High's look does not give way (graphics priority: the best look, uniformity above all).
+- **The seam.** The plan hides it behind a building row or in haze, with matched fog and mipmaps. The haze is a live term, so the match is one more thing to check by eye at every hour.
+
+Take it up again only if the far rings are measured as the cost of a frame on a real device (PHONE-02), and then for Low only, which has no `highident` to keep.
 
 ## The city at Low (`outside/`)
 Only the Low tier cuts the city in the window (`isLow`, `room3d.ts`). High builds and draws the full city, and its picture does not change: `highident.test.ts` fingerprints High's city groups against `highident.expected.json` (refresh on purpose with `UPDATE_HIGH_GOLDEN=1`).

@@ -30,9 +30,9 @@ Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-0
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
-| MACH | 1 | 1 | MACH-01, one material |
-| GFX | 1 | 0 | GFX-05 programs and precision |
-| LOD | 1 | 1 | LOD-04, far city cards |
+| MACH | 1 | 1 | MACH-01, parked by decision |
+| GFX | 1 | 0 | GFX-05, parked with MACH-01 |
+| LOD | 1 | 1 | LOD-04, parked by decision |
 | PHONE | 3 | 1 | PHONE-02 real phone; PHONE-06 and PHONE-07 parked by decision |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
 | BENCH | 2 | 0 | next official run |
@@ -51,7 +51,7 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 135 a
 
 ## LOD: levels of detail
 
-- [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk.
+- [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk. State (2026-11-17): parked by decision, not started. The city's pass is 40 draws and 468k triangles at High (18 and 302k at Low), drawn each 3rd or 6th tick; a card needs one bake for each hour step and slice, and it moves High's far pixels (`highident`). Details in docs/render/lod.md "The card". Take it up again only if the far rings are measured as a frame's cost on a real device, and then for Low only.
 
 ## CITY: the view outside the window
 

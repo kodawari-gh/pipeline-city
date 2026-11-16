@@ -88,7 +88,7 @@ Decided 2026-11-16 (delegated by the owner). The scheme (LOD0, LOD1, LOD2, stand
 - Only the room overview's stand-in draws LOD1. No per-part swap nearer: the frame is CPU bound, and a swap adds draws to save triangles.
 - Graphics quality tiers change textures, particles, lights, AO, shadows, resolution and FPS (`TEXTURE_LEVELS`, `PARTICLE_LEVELS`, the lamp cap, scale and frame limit). They do not choose a level. The Low preset also drops segment counts and merges parts, and paints big sheets at half size (`lowDetail()`, `sheetCut`; see `docs/render/three.md` "Levels of detail" and `docs/render/load.md` "Build my PC texture memory at Low").
 - `DEVICE_LOD` / `artlod.ts` fade the chips' art and its texture resolution with zoom (the reveal bands), not triangle density.
-- The far city gets flat cards where parallax is under 1 px (LOD-04, planned).
+- The far city would get flat cards where parallax is under 1 px (LOD-04: not built, decided 2026-11-17, `docs/render/lod.md` "The card").
 
 ### Silhouette & Recognition
 
