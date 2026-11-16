@@ -14,7 +14,7 @@
 // `key` stands in for it on what moves. The room's probe is the bounce on all that moves. No light fills from nowhere; the eye adapts to the
 // dark (`localeye.ts`). The sim knows nothing of it.
 import {
-  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
+  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, RepeatWrapping,Shape, ShapeGeometry, SphereGeometry,
   RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type LightShadow, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
@@ -184,10 +184,11 @@ const PLASTER_RELIEF = 0.12, PLASTER_SHEEN = 0.12;
 /**
  * Plaster: one flat paint over a skimmed wall, an even modern finish. Its relief is a fine orange peel from the roller over a faint trowel
  * ripple, seamless across the tile's edges, and it shows only in the light that rakes it (the normal map); the peel's tops are a little
- * smoother than its pits (the roughness map). The paint itself has no clouds: a stain on a wall is the light's, not the paint's. Its own
- * stream of random numbers, so the room's other textures keep theirs.
+ * smoother than its pits (the roughness map). The paint is one flat colour, the material's (`WALL`): it has no clouds (a stain on a wall
+ * is the light's, not the paint's), and no colour map (the old one moved a texel 2 levels of 255 at most, which nobody saw, for 1.4 MB of
+ * GPU memory). Its own stream of random numbers, so the room's other textures keep theirs and a bake gives the same files each time.
  */
-function plasterMaps(base: string): { map: Texture | null; normalMap: Texture | null; roughnessMap: Texture | null } {
+export function plasterMaps(): PlasterMaps {
   const N = 512, hgt = new Float32Array(N * N);
   let seed = 4271;
   const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -205,26 +206,33 @@ function plasterMaps(base: string): { map: Texture | null; normalMap: Texture | 
   }
   const at = (x: number, y: number) => hgt[((y + N) % N) * N + ((x + N) % N)]!;
   /** One map from the height field: `px(x, y, out)` fills a texel's rgb. */
-  const field = (px: (x: number, y: number, o: Uint8ClampedArray, i: number) => void, colour: boolean) => {
+  const field = (px: (x: number, y: number, o: Uint8ClampedArray, i: number) => void) => {
     const t = paint(N, N, (c, w, h) => {
-      c.fillStyle = base; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
       const img = c.getImageData(0, 0, w, h);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(x, y, img.data, (y * w + x) * 4);
       c.putImageData(img, 0, 0);
     }, [1, 1]);
-    if (t && !colour) t.colorSpace = NoColorSpace;
+    if (t) t.colorSpace = NoColorSpace;
     return t;
   };
   return {
-    // the paint: flat, the peel's pits a hair darker with the dust in them
-    map: field((x, y, d, i) => { const k = at(x, y) * 1.2; for (let j = 0; j < 3; j++) d[i + j] = d[i + j]! + k; }, true),
     // the slope by central differences; the canvas runs down, the texture's v up
     normalMap: field((x, y, d, i) => {
       const nx = -(at(x + 1, y) - at(x - 1, y)) * PLASTER_RELIEF, ny = (at(x, y + 1) - at(x, y - 1)) * PLASTER_RELIEF, l = Math.hypot(nx, ny, 1);
       d[i] = 128 + 127 * (nx / l); d[i + 1] = 128 + 127 * (ny / l); d[i + 2] = 128 + 127 / l;
-    }, false),
-    roughnessMap: field((x, y, d, i) => { d[i] = d[i + 2] = 255; d[i + 1] = 255 * (1 - PLASTER_SHEEN * Math.min(1, Math.max(0, 0.5 + at(x, y) * 0.4))); }, false),
+    }),
+    roughnessMap: field((x, y, d, i) => { d[i] = d[i + 2] = 255; d[i + 1] = 255 * (1 - PLASTER_SHEEN * Math.min(1, Math.max(0, 0.5 + at(x, y) * 0.4))); }),
   };
+}
+export interface PlasterMaps { normalMap: Texture | null; roughnessMap: Texture | null }
+
+/** The plaster's two maps from the baked set (`public/tex/`, `npm run bake:tex`); null before it has loaded or with `?nobaked`. */
+function bakedPlaster(): PlasterMaps | null {
+  const normalMap = bakedTex('room-plaster-n'), roughnessMap = bakedTex('room-plaster-r');
+  if (!normalMap || !roughnessMap) return null;
+  for (const t of [normalMap, roughnessMap]) { t.wrapS = t.wrapT = RepeatWrapping; shareTex(t); }
+  return { normalMap, roughnessMap };
 }
 
 /** The blinds' screen: a dark cloth with a soft cloud of light and shade (smooth noise over three scales, seamless) and a fine stipple. */
@@ -465,7 +473,8 @@ export class Room3D {
     const chrome = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2d32, { roughness: 0.5 });
     // one plaster on every wall, its texture at one size on each piece and running on across the pieces (`worldUv`)
-    const plaster = mat(0xffffff, { ...plasterMaps(WALL), normalScale: new Vector2(1, 1), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
+    // (the paint is the palette's `WALL` as it is: `mat` would move this grey to a step of the parts' grey ladder)
+    const plaster = mat(0xffffff, { color: new Color(WALL), ...(bakedPlaster() ?? plasterMaps()), normalScale: new Vector2(1, 1), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
     const W = WINDOW;
 
     // ---- the back wall: plaster round the glass (a slot over it, a low upstand under it, the corner to the west, the bed's wall to the east)

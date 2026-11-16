@@ -123,7 +123,7 @@ Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots t
 
 ## Asset prerequisites
 
-- **KTX1 (the KTX2 loader) is required.** Before any `.ktx2` file is added, the KTX2 loader must be in place: `ktx2Support` in `gltf.ts` gives the GLTFLoader a `KTX2Loader`, with the Basis transcoder in `public/basis/`. The baked maps (`public/tex/`, 18 files, 2.7 MB) load at `Starting the renderer` (`loadBaked`), and `Building the world` waits for them; the boot time with them is not measured.
+- **KTX1 (the KTX2 loader) is required.** Before any `.ktx2` file is added, the KTX2 loader must be in place: `ktx2Support` in `gltf.ts` gives the GLTFLoader a `KTX2Loader`, with the Basis transcoder in `public/basis/`. The baked maps (`public/tex/`, 20 files, 3.0 MB) load at `Starting the renderer` (`loadBaked`), and `Building the world` waits for them; the boot time with them is not measured.
 
 ## What can still go faster
 

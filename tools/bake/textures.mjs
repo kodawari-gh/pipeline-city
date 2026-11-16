@@ -29,6 +29,9 @@ const SET = [
   { key: 'room-planks', mod: '/src/features/room/render/three/room3d.ts', call: 'planksMaps', pick: 'map', kind: 'colour', srgb: true },
   { key: 'room-planks-n', mod: '/src/features/room/render/three/room3d.ts', call: 'planksMaps', pick: 'normal', kind: 'normal', srgb: false },
   { key: 'room-rug', mod: '/src/features/room/render/three/room3d.ts', call: 'rugMap', kind: 'colour', srgb: true },
+  // the walls' plaster: its relief and its sheen (`data`: linear values, ETC1S; it has no colour map, the material holds the paint)
+  { key: 'room-plaster-n', mod: '/src/features/room/render/three/room3d.ts', call: 'plasterMaps', pick: 'normalMap', kind: 'normal', srgb: false },
+  { key: 'room-plaster-r', mod: '/src/features/room/render/three/room3d.ts', call: 'plasterMaps', pick: 'roughnessMap', kind: 'data', srgb: false },
 ];
 
 const PORT = Number(process.env.PORT || 5199), url = `http://localhost:${PORT}/`;
@@ -66,7 +69,7 @@ try {
       isKTX2File: true, generateMipmap: true, isYFlip: true, enableDebug: false,
       isUASTC: normal, ...(normal ? { uastcLDRQualityLevel: 2, needSupercompression: true, isNormalMap: true } : { qualityLevel: 255, compressionLevel: 3 }),
       // (the city's colour is sRGB in the texels but the file says linear: `isPerceptual` still tunes the encoder for it)
-      isPerceptual: !normal, isSetKTX2SRGBTransferFunc: s.srgb,
+      isPerceptual: s.kind === 'colour', isSetKTX2SRGBTransferFunc: s.srgb,
     });
     console.log = say;
     writeFileSync(`${out}${s.key}.ktx2`, file);
