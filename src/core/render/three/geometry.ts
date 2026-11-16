@@ -104,12 +104,20 @@ export const SEG = {
   rivetDome: 16, rivetHole: 10, capSocket: 6, padTop: 14,
   /** Large rounds seen close (sides): a speaker, a power button or a display floor; a fan-guard wire ring or the Build floor. */
   fineDisc: 64, fineRing: 72,
+  /** A fan-guard ring's lower level (LOD-05): its sides along the ring, and round its wire. */
+  fineRingLow: 24, ringTubeLow: 4,
+  /** A braided sleeve's sides round (the full level), its lower level's sides, and its fewest steps along (LOD-05). */
+  sleeve: 14, sleeveLow: 6, sleeveStepsLow: 8,
+  /** A pin coil's lower level (LOD-05): its steps along the coil (four a turn, so the peaks fall on steps and `lowOf` keeps it), and its sides round the wire. */
+  coilStepsLow: 16, coilSidesLow: 4,
   /** A ball's or a dome's rings (pole to pole): a small ball; a mid ball; a lamp bulb; a bare bulb; the sky dome. */
   rings: 8, ringsMid: 10, ringsBulb: 12, ringsFine: 14, skyRings: 24,
   /** Plant stems (sides): a trunk, a branch, a stalk, a thin stem. */
   trunk: 9, branch: 7, stalk: 5, stem: 4,
   /** Heat pipes (ASR6): sides and steps along the pipe, at High and at the cheap tiers. */
   heatPipe: 12, heatPipeLow: 8, heatPipeSteps: 96, heatPipeStepsLow: 40,
+  /** A heat pipe's lower detail level (LOD-05): its steps along the pipe, and its sides round it. */
+  heatPipeLevelSteps: 24, heatPipeLevelSides: 6,
   /** A rounded corner of a point path or an outline (steps a corner): the default, a soft one, a coarse one. */
   corner: 5, cornerSoft: 8, cornerCoarse: 2, cornerMid: 6, cornerTight: 4,
   /** A furniture board's edge bevel (steps), softer than `bevel`. */
@@ -148,8 +156,9 @@ export const fanSides = (mm: number): number => {
  * overview, where a part is a few pixels across). It is in the geometry's own space, so a caller that moves the vertices afterwards loses
  * it (`lowOf` checks the bounds). A shape with no fewer sides to give has no lower level.
  */
-const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
-const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => { if (has) g.userData.low = low(); return g; };
+export const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
+/** Sets `g`'s lower detail level (`userData.low`) to `low()`, when `has`. Returns `g`. */
+export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => { if (has) g.userData.low = low(); return g; };
 const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
   withLow(new CylinderGeometry(rTop, r, h, sides), () => new CylinderGeometry(rTop, r, h, lowSides(sides)), lowSides(sides) < sides);
 

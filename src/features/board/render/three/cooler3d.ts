@@ -9,7 +9,7 @@
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
 import { bakedTex } from '@/core/render/three/baked';
-import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
@@ -127,8 +127,12 @@ const atHoles = (z0: number, z1: number) => COOLER_HOLES.map(([x, y]) => ({ x, y
 /** A circle of points round (x, y) in the board's plane (world y up): a round hole in a shape. */
 const circle = (x: number, y: number, r: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(x + Math.cos((k / n) * Math.PI * 2) * r, y + Math.sin((k / n) * Math.PI * 2) * r));
 /** A bent pipe through the points (`rounded`), smooth at its bends however long its runs. */
-const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) =>
-  place(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal'), byDetail(SEG.heatPipeSteps, SEG.heatPipeStepsLow), r, byDetail(SEG.heatPipe, SEG.heatPipeLow)), m)); // (ASR6: was 220 x 16 at High)
+export const pipe = (pts: readonly (readonly [number, number, number])[], r: number, m: Material) => {
+  const curve = new CatmullRomCurve3(pts.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
+  // (the lower level: fewer steps and sides on the same curve, LOD-05)
+  const g = withLow(new TubeGeometry(curve, byDetail(SEG.heatPipeSteps, SEG.heatPipeStepsLow), r, byDetail(SEG.heatPipe, SEG.heatPipeLow)), () => new TubeGeometry(curve, SEG.heatPipeLevelSteps, r, SEG.heatPipeLevelSides));
+  return place(new Mesh(g, m)); // (ASR6: was 220 x 16 at High)
+};
 
 /**
  * What every cooler mounts with, on the board's four cooler holes (`COOLER_HOLES`): a steel backplate on an insulating pad behind the board, a

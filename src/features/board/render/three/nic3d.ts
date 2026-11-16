@@ -5,8 +5,8 @@
 // lidded BGA under a finned sink with its push pins on the faster cards (the fins run along the card, in the case's front-to-back air). Its 25 MHz
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen.
-import { BoxGeometry, Group, LatheGeometry, Vector2, type Material } from 'three';
-import { drum, instanced, rectBox, SEG, tube, type RectLike } from '@/core/render/three/geometry';
+import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material } from 'three';
+import { drum, instanced, rectBox, SEG, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
@@ -151,6 +151,15 @@ function polyCap(u: Group, x: number, y: number, zu: number, r: number, h: numbe
   u.add(instanced(new BoxGeometry(1, 1, 1), M.vent, [0, Math.PI / 2].map((rz) => ({ x, y, z: zu + h + 0.02 * MM, sx: r * 1.3, sy: 0.22 * MM, sz: 0.06 * MM, rz }))));
 }
 
+/** A pin's spring coil: four turns of wire round the pin at (px, py), from height `b1` up 3.2 mm. Its lower level: fewer steps and sides (LOD-05). */
+export function pinCoil(px: number, py: number, b1: number, m: Material): Mesh {
+  const coil: [number, number, number][] = [];
+  for (let k = 0; k <= 72; k++) { const a = (k / 72) * Math.PI * 2 * 4; coil.push([px + Math.cos(a) * 1.6 * MM, py + Math.sin(a) * 1.6 * MM, b1 + 0.2 * MM + (k / 72) * 3.2 * MM]); }
+  const o = tube(coil, 0.18 * MM, m, SEG.cord), curve = new CatmullRomCurve3(coil.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
+  withLow(o.geometry, () => new TubeGeometry(curve, SEG.coilStepsLow, 0.18 * MM, SEG.coilSidesLow));
+  return o;
+}
+
 /**
  * Every part on the NIC's component side, under the PCB (`Zp` its underside): the jacks, the controller (with its sink), the crystal, the flash,
  * the regulator and its inductors and capacitors, the passives, the MAC label and the mask. `inX`: the bracket's inner face.
@@ -196,9 +205,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
     const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
       u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
-      const coil: [number, number, number][] = [];
-      for (let k = 0; k <= 72; k++) { const a = (k / 72) * Math.PI * 2 * 4; coil.push([px + Math.cos(a) * 1.6 * MM, py + Math.sin(a) * 1.6 * MM, b1 + 0.2 * MM + (k / 72) * 3.2 * MM]); }
-      u.add(tube(coil, 0.18 * MM, spring, SEG.cord));
+      u.add(pinCoil(px, py, b1, spring));
     }
   }
   // the crystal between the jacks and the controller, the flash east of it, the regulator (a dual buck) with its two inductors and the polymer

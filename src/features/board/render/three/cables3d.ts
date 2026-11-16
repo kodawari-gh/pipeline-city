@@ -3,7 +3,7 @@
 // hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
-import { SEG, paint, place, rectBox, shareTex, softBox } from '@/core/render/three/geometry';
+import { SEG, paint, place, rectBox, shareTex, softBox, withLow } from '@/core/render/three/geometry';
 import { KEEP_SPEC, mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
@@ -52,9 +52,13 @@ export const samplesFor = (n: number): number => Math.max(24, (n - 1) * 3);
 
 /** A braided tube through world points, `r` thick: the sleeve `base` woven toward `tint`. Its curve is returned for what sits along it. */
 export function braidedTube(pts: readonly Vector3[], r: number, base: string, tint: string): { mesh: Mesh; curve: CatmullRomCurve3 } {
-  const sl = new Sleeve(1, r, samplesFor(pts.length), 14);
-  sl.update([pts.map((p): V3 => [p.x, p.y, p.z])]);
-  return { mesh: place(new Mesh(sl.geometry, sleeveMat(base, tint))), curve: new CatmullRomCurve3(pts.map((p) => p.clone()), false, 'centripetal') };
+  const path = [pts.map((p): V3 => [p.x, p.y, p.z])], steps = samplesFor(pts.length);
+  const sl = new Sleeve(1, r, steps, SEG.sleeve);
+  sl.update(path);
+  // (the lower level: half the steps, 6 sides; the same skin, so it fits the full one)
+  const low = new Sleeve(1, r, Math.max(SEG.sleeveStepsLow, Math.ceil(steps / 2)), SEG.sleeveLow);
+  low.update(path);
+  return { mesh: place(new Mesh(withLow(sl.geometry, () => low.geometry), sleeveMat(base, tint))), curve: new CatmullRomCurve3(pts.map((p) => p.clone()), false, 'centripetal') };
 }
 
 /** A band round a tube at `s` along its curve (a hose clamp, a cable tie), `len` long. */

@@ -5,8 +5,8 @@
 // (a passive unit: punched vents on its top and its underside), the rating label on its top, the maker's badge on its glass side, the modular
 // panel on its east end (the 24-pin's 18 + 10 sockets, the CPU and PCIe 8-pins, the SATA and peripheral 6-pins, their latches), and its rear:
 // the honeycomb exhaust, the IEC C14 inlet with its three pins, the rocker switch, the case's four screws. The mains cord's C13 plug fits the inlet.
-import { CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
-import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type BufferGeometry, type Material, type MeshStandardMaterial } from 'three';
+import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE, PSU_FORM, type PsuForm } from '../layout/layout';
 import { PSU_BODY, type BasementPlan } from './basement3d';
@@ -191,7 +191,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   // the guard: rings and spokes of black wire just under the plate, a small disc at its middle
   const wire = mat(0x1d1e22, { metalness: 0.55, roughness: 0.38 }), wr = 0.55 * MM, gy = -(yb + wr);
   for (const k of [0.24, 0.43, 0.62, 0.81, 1.0]) {
-    const ring = new Mesh(new TorusGeometry(fr * k, wr, SEG.cord, SEG.fineRing).rotateX(Math.PI / 2), wire);
+    const ring = new Mesh(guardRing(fr * k, wr), wire);
     ring.position.set(fx, gy, fz);
     g.add(ring);
   }
@@ -258,6 +258,12 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
     g.add(wallX(rx - 1.5 * MM, rx, plate, [end], mat(0x1d1e22, { metalness: 0.5, roughness: 0.45 })));
     g.add(screws(corners(u, rx - 1.5 * MM), 'x-', 3 * MM, M.screw));
   }
+}
+
+/** A fan guard's ring of wire, `r` from the fan's centre, `wr` thick, lying flat (its axis is world y). Its lower level is fewer sides round and round the wire. */
+export function guardRing(r: number, wr: number): BufferGeometry {
+  const ring = (tube: number, n: number) => new TorusGeometry(r, wr, tube, n).rotateX(Math.PI / 2);
+  return withLow(ring(SEG.cord, SEG.fineRing), () => ring(SEG.ringTubeLow, SEG.fineRingLow));
 }
 
 /**
