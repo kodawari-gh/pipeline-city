@@ -354,12 +354,12 @@ Neon is not a family. Neon comes from emissive light only, from the status and i
 ### 2. Material cap per case
 
 - LOD0: at most **16** materials for the case shell and kit.
-- LOD1: at most **4** materials.
-- Today: 163–230 materials per case (ASR1). The cap is a test to add with ASR1.
+- LOD1: at most **4** materials. The machine's overview stand-in holds it (LOD-02); the case has no level of its own.
+- Today (2026-11-16): 64–101 material objects and 11–16 distinct looks per case; `casemat.test.ts` holds the LOD0 cap.
 
 ### 3. Hole method
 
-One method only: a perforation **alpha texture** (`perforation`, 256 × 444, UASTC, alpha edges). Holes are never cut as geometry. This covers the drive cage and the PSU shroud (ASR1). Texture rules: [§6](#6-textures).
+One method for patterns: a pattern of many small holes (slots, mesh, vents) is a perforation **alpha texture** (`perforation`, 256 × 444, UASTC, alpha edges), never cut as geometry. This covers the drive cage and the PSU shroud (ASR1). A single structural opening (a cage window, a screw hole, a cable cut-out) stays geometry: its outline must read near, and it costs no material (decision 2026-11-16, ASSET-02, [render/case.md](render/case.md) "The empty case"). Texture rules: [§6](#6-textures).
 
 ### 4. Segment table (ASR10)
 

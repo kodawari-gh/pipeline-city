@@ -26,7 +26,7 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-05.
+Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-05.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
@@ -35,7 +35,7 @@ Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, L
 | LOD | 3 | 3 | LOD-03, the `lod.md` rewrite (LOD-01 and LOD-05 are done) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 8 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
-| ASSET | 3 | 2 | ASSET-02, the case's holes and its LOD1 materials |
+| ASSET | 2 | 2 | ASSET-01, the part redo shots |
 | UI | 1 | 1 | UI-01, remove the `Theme.dark` field |
 | BENCH | 2 | 0 | next official run |
 
@@ -62,7 +62,7 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 182 a
 
 ## LOD: levels of detail
 
-- [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; the shot is unchanged. Left to reach 6: see MACH-06. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
+- [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; the shot is unchanged. Left to reach 6: see MACH-06. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws and 4 materials (the LOD1 cap, 3D_STYLE §2) at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
 - [ ] LOD-03 [owner] Rewrite `docs/render/lod.md` against the LOD0, LOD1, LOD2 and card scheme (was LOD1). The file is marked outdated; its 2D zoom bands and "pure, no Pixi" text must go. Keep the "3D distance bands (city)" section. Do it after LOD-01 is decided; carry in the stand-in text (DOC12 said it right: the stand-in keeps the LOD0 triangles; LOD1 and LOD2 are planned). Files: docs/render/lod.md. Docs: docs/3D_STYLE.md "Per-tier detail and LoD". Done when: the file describes only the approved scheme and the 2D bands are gone.
 - [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk.
 
@@ -99,7 +99,7 @@ Common mobile budgets: 100–200 draw calls on low-end, under 500 on most phones
 The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below needs the owner to accept its shot. Source of the numbers: `budget.test.ts` (High: 942 draws, vertices 2,216,520 to 1,172,752; city triangles 3,643,156 to 2,103,386).
 
 - [ ] ASSET-01 [owner] [look: medium] Look at the finished part redos and accept or reject each shot (was ASR1, ASR2, ASR3, ASR4, ASR5, ASR6, ASR7, ASR9). Strike each item as it is accepted:
-  - Case shell and kit (ASR1, 996f5a4, 625c63e, 12a9b18): one hole method (perforated sheets in `drivecage3d.ts`, `basement3d.ts`); 64–101 material objects per case and 11–16 distinct looks (was 163–230); `casemat.test.ts` holds the ceiling of 16.
+  - Case shell and kit (ASR1, 996f5a4, 625c63e, 12a9b18): one hole method (perforated sheets in `drivecage3d.ts`, `basement3d.ts`); 64–101 material objects per case and 11–16 distinct looks (was 163–230); `casemat.test.ts` holds the ceiling of 16. The `case0` charcoal (31eb589, no cream since 2026-11-16): its 2D shell art was checked by tests only, no picture yet.
   - City trees (ASR2, a99fbdd): `trees.test.ts` holds the caps, worst 4,968 / 1,320 / 424 / 146 against 5,000 / 1,450 / 430 / 170; city 2,103,386 triangles (was 3.64 M). Needs a Razr shot past 300 m.
   - NVMe label drape (ASR3, ae6dd2e): one mesh, about 2,000 triangles (was 24,344). No `raid2` builder found in `board/render/three` (not verified).
   - Fans (ASR4, 6b6d29f, 521a50d, 9eea3c6): `fanSides(mm)` gives 16 / 24 / 32 / 40 sides at 40 / 92 / 120 / 140 mm (48 from 200 mm). A 40 mm fan part: 3,904 to 3,736 triangles; 140 mm: 8,432 to 7,576. Needs the silhouette shot.
@@ -108,7 +108,6 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
   - Teacup and bedside lantern (ASR7, 6b6d29f): cup 1,568 triangles (lathe 616; 24 sides, `SEG.cupLathe`); lantern lathe 616 (28 sides, 12 points).
   - Grey ladder and families (ASR9): `mat()` snaps a colour nearer than 30 to a family colour (`familyHex`, `materials.ts`); base colours machine 175 to 30, room 81 to 30 (`palette.test.ts` holds the ceiling). Mid greys are now `#2a2d32` or `#4e5360`.
   Files: none. Docs: docs/render/case.md, docs/render/lod.md. Done when: the owner accepts or rejects each shot above.
-- [ ] ASSET-02 [auto] [look: low] Finish the case (left from ASR1): the cage side-wall windows (still cut as geometry) and the LOD1 cap of 4 materials. (The `case0` cream is gone since 2026-11-16, art-style §4: the 3D case and its still, mean L 57.8, and the 2D shell art; the 2D art was checked by its tests only, no picture of it was looked at.) Files: src/features/board/render/three/casekit3d.ts, drivecage3d.ts, basement3d.ts, case3d.ts. Docs: docs/render/case.md. Done when: no hole is cut as geometry, LOD1 holds 4 materials, `casemat.test.ts` passes, and a before and after shot is looked at.
 - [ ] ASSET-08 [owner] [look: low] Build-time bake for parts, and the first glTF part model (was LPC6, 3D1). A headless page builds each part at LOD0 and at its lower levels, bakes LOD0's normals and occlusion onto the lower level's UVs (xatlas, as the room atlas does), and writes glb plus KTX2. Start with one part. The loader works (`MODEL_FILES` in `models3d.ts`) and two room models ship (`public/models/hoodie.glb`, `mouse.glb`), but no part model: every part is still primitives. Runs after LOD-01 decides the lower levels. Files: tools/bake/, src/features/board/render/three/models3d.ts, public/models/. Docs: docs/render/three.md "Known gaps", docs/3D_STYLE.md "Asset Export Checklist". Done when: one part's LOD1 ships as a baked glb, the bake reruns from one command, a shot at the switch distance matches LOD0, and the owner accepts a shot of it beside the primitive build. State (2026-11-16): parked by decision, not started. Its three blockers are gone: LOD-01 is decided, the size rule is accepted and both room models ship as meshopt (`npm run bake:models`), and a KTX2 encoder is in the repo (`ktx2-encoder`, `npm run bake:tex`). But the lower levels now come from the builders (`fanPart`, LOD-05) at no download cost, and a level 1 is drawn at 120 px or less, where baked normals do not show. A baked part glb adds download, a loader path and a bake step for no visible gain. Take it up again only for a part that needs hand-made art.
 
 ## UI, DOC and BENCH
@@ -119,7 +118,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|
