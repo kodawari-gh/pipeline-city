@@ -26,11 +26,11 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05, MACH-05, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
-| MACH | 6 | 5 | MACH-06 needs a real-GPU shot |
+| MACH | 5 | 4 | MACH-06, the overview's last draws |
 | GFX | 5 | 3 | GFX-01 flicker |
 | LOD | 2 | 2 | LOD-02, one stand-in for the machine (MACH-06 first) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
@@ -48,7 +48,6 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 182 a
 - [ ] MACH-02 [owner] [look: none] Instance the repeated parts (was LPC3). State: no set qualifies. The case's standoffs, screws and rivets are already instanced (`casetray3d.ts`, `casekit3d.ts`). The rest sit under picked or fading part scopes (`userData.id`): one instance would lose its pick and fade. The machine's equal groups are 4 or fewer eligible meshes, at the rule's limit (more than 4). `repeats.test.ts` counts 56 draws left to save in the machine and 18 in the room. Decision: build instances with a pick map and per-instance fade, or take the room's `tray` and `router` sets only (outside the old files). Files: src/core/render/three/merge.ts, src/features/board/render/three/machine3d.ts. Docs: docs/render/three.md "Merges". Done when: the owner picks one way and the counted draws drop, with `highident` passing.
 - [ ] MACH-03 [owner] [look: low] Contact shade inside the case at Low (was LPC7). State: vertex occlusion is the wrong tool; do not try `_ao` on the machine a third time (695,000 points, 5 to 11 s in the worker, almost no shade: large flat faces have no vertex where a part touches them). Built: three dark unlit rings under the cooler's CPU package at Low (`contactPad` in `machine3d.ts`), costing under the 50 ms budget (421.8 ms with, 427.5 ms without; noise). Not done: the drive cage. Options: dark footprint skirts on the board under each part (Low only), or a half-resolution occlusion pass. Files: src/features/board/render/three/machine3d.ts. Docs: src/features/room/light.md. Done when: the owner picks an option and a Low close-up of the cooler and the drive cage shows contact shade, the machine's build time rises by under 50 ms, and no pass is added.
 - [ ] MACH-04 [owner] [look: low] Remove what Low's machine no longer uses (was LPC13). Since 2026-11-15 the machine keeps High's materials at Low (`cheap` in `board3d.ts`). State: the `KEEP_SPEC` flags on the fans' frame and blades, the cooler's chrome and the hose ferrules are gone; the pump cap keeps High's metal at Low; `byLook` is removed (look-neutral). `pbr` stays: removing it made Low about 33 % darker. Left: the `KEEP_SPEC` flags on sink and cables. Decision: is the darker Low palette without `pbr` acceptable? Files: src/features/board/render/three/ (sink, cables), src/core/render/three/merge.ts. Docs: docs/render/three.md "Cheap materials (Low)". Done when: the owner decides on `pbr`, Low and High board shots are unchanged and the touched tests pass.
-- [ ] MACH-05 [owner] [look: low] Low VRM sink fins (was PERF27): SwiftShader cannot show their draw cost or look. Take an official real-GPU shot of the VRM sink and the cooler at Low against High. Files: src/features/board/render/three/sink3d.ts, cooler3d.ts. Docs: docs/render/three.md "Cheap materials (Low)". Done when: the owner accepts the Low fins from that shot.
 - [ ] MACH-06 [auto] [look: none] Cap the Low machine's last costs: the cable rigs (41), the see-through meshes, the multi-material meshes, the rotors and sets across anchors (was LPC5's "left" list; the stand-in itself is LOD-02). Files: src/features/board/render/three/machine3d.ts, partlod.ts. Docs: docs/render/lod.md. Done when: `overview.test.ts` shows fewer overview draws than the 182 today, each cut with an unchanged shot, and LOD-02's target of 6 is in reach.
 
 ## GFX: engine-wide look and light
@@ -103,7 +102,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), PERF23 (PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|
