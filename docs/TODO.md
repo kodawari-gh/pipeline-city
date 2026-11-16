@@ -26,7 +26,7 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, LOD-01, LOD-05.
+Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-05.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
@@ -37,7 +37,6 @@ Done since 2026-11-15: ASSET-03, ASSET-04, ASSET-05, ASSET-06, LOD-01, LOD-05.
 | PHONE | 8 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 3 | 2 | ASSET-02, the case's holes and its LOD1 materials |
 | UI | 1 | 1 | UI-01, remove the `Theme.dark` field |
-| DOC | 1 | 1 | |
 | BENCH | 2 | 0 | next official run |
 
 Menu review (`docs/MENU_REVIEW.md`): one menu per task, shot before and after. Not yet turned into tasks.
@@ -115,13 +114,12 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 ## UI, DOC and BENCH
 
 - [ ] UI-01 [owner] [look: medium] Remove the light theme (was THEME1; rework on hold in docs/3D_STYLE.md "Dark Mode & Light Mode"). Remove the HUD theme toggle (`Hud.tsx`), the Light choice in the menu's Theme row (`panels/MainMenu.tsx`), the `light` value and `toggleTheme` (`state.ts`), and the light tokens and selectors (`ui.css`, `render/theme.ts`). A saved `light` choice must fall back to dark. State: the render side is clean (fbf1117, 149ad07): no `T.dark` branch or `dark` flag parameter is left under `src`; only the `Theme.dark` field stays (always true). Left: remove the `dark` field itself, and the owner's look at the HUD and the menu. Files: src/core/ui/Hud.tsx, panels/MainMenu.tsx, state.ts, ui.css, src/core/render/theme.ts. Docs: docs/UI.md "Theme". Done when: no `light` value or toggle is left, and a dark-only HUD and menu shot is looked at.
-- [ ] DOC-01 [owner] Leftover `LOWPOLY_STYLE.md` links point at `3D_STYLE.md`, and state that tiers do not reduce geometry (was DOC6). `docs/art-style.md` (line 7) and `docs/3D_STYLE.md` are off limits for this edit, so the owner decides who fixes them. Files: docs/art-style.md, docs/3D_STYLE.md (owner), other docs. Done when: no link to `LOWPOLY_STYLE.md` is left outside the owner's two files.
 - [ ] BENCH-01 [auto] [look: none] Confirm #23 leaves High alone (was LEFT23-2). Official Chrome High idle reads 25.3 fps against main's 27.8, with ranges that overlap, so it is not proven. Run the official 3-round again. Files: tools/bench-modes.mjs. Done when: the medians sit within each other's ranges, or the cause is found.
 - [ ] BENCH-02 [auto] [look: none] Recheck Firefox Low zoom triangles (was LEFT25-2): 728 to 735 ktris (+7, about 1 %, no overlap) in the official 3-round of `060b6d6` (#25). A known triangle-count cell, not a frame-rate regression (dFPS overlapped). Files: none. Done when: the next official run keeps the cell in range, or explains the change.
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

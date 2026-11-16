@@ -219,7 +219,7 @@ fill=max((np.ptp(xs)+1)/480,(np.ptp(ys)+1)/336)
 mx=o.max(1)/255; S=(o.max(1)-o.min(1))/np.maximum(o.max(1),1); neon=((S>0.6)&(mx>0.85)).mean()
 ```
 
-## 12. LOWPOLY_STYLE.md sections that now conflict (not edited)
+## 12. 3D_STYLE.md sections that now conflict (not edited; the file was LOWPOLY_STYLE.md)
 - "Look decision (owner, 2026-10-31)": "Stylised warm… warm light (sky fill, sun or moon through the window, the lamp's spot)".
 - "Inspiration": "A cozy lit room in a photograph (warm lamps, a cool window)".
 - "Lighting Setup", **Lamps**: "warm lamps (2700 to 3000 K…) and a few cyan accents".
