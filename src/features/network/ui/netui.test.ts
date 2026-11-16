@@ -130,7 +130,7 @@ describe('network panel: offers, transfers, spool, USB fallback', () => {
 
 describe('network panel: open and close with netOpen', () => {
   it('shows only while netOpen is set and a network exists', async () => {
-    // state.ts sets data-theme on import; there is no DOM here, so give it a stub document first.
+    // state.ts sets --ui-scale on import; there is no DOM here, so give it a stub document first.
     vi.stubGlobal('document', { documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {} } } });
     const { netOpen, toggleNet, toggleStats } = await import('@/core/ui/state');
     const linked = rig(1000, 'router3', 'isp3', 'nvme2');

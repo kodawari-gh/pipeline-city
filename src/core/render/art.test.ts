@@ -18,11 +18,11 @@ const DARK: Theme = {
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
-const LIGHT: Theme = { ...DARK, bg: '#eaeff6', board: '#9ccdbd', ink: '#0f1830', mute: '#475372', line: '#9aabc8' };
 
 // every board in every case that holds it: the art of the case, the board and the cage builds without throwing
 describe.each([0, 1, 2, 3].flatMap((b) => [b, ...[0, 1, 2, 3].filter((c) => c > b)].map((c, i) => [b, i === 0 ? b : c] as const)))('board %i in case %i', (b, c) => {
-  it.each([DARK, LIGHT])('builds all its art in either theme', (T) => {
+  it('builds all its art in the dark palette', () => {
+    const T = DARK;
     setLayoutTier(b, c);
     const spec = BOARD_TIERS[b]!;
     expect(buildBoard(T, b).root.children.length).toBeGreaterThan(0);

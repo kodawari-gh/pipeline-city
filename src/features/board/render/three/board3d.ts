@@ -12,7 +12,7 @@ import { cameraRev, highlight } from '@/app/interaction';
 import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
 import { deviceOfPart } from '@/core/render/parts';
-import { readTheme, onThemeChange } from '@/core/render/theme';
+import { readTheme } from '@/core/render/theme';
 import { autoStep, awayHeld, debugOverride, effective, FrameGate, FrameMeter, graphics, isLow, loopLimit, nextStep, SlowWatch, stepTier, TierWatch, tierRecord, type Graphics, watchFps } from '@/app/graphics';
 import { whenDebug } from '@/app/debugflag';
 import { loadBaked } from '@/core/render/three/baked';
@@ -105,7 +105,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   bootStage('Starting the renderer', 0.1);
   preloadRoomBake();
   await nextPaint();
-  let T = readTheme();
+  const T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
   const baked = loadBaked(renderer); // (the KTX2 maps, `public/tex/`: they load while the page sets up, and the first build waits for them)
@@ -570,7 +570,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   // ---- snapshot, theme, size ----
   effect(() => { snapshot.value; rebuild(); });
-  onThemeChange(() => { T = readTheme(); (scene.background as { set(c: string): void }).set(T.bg); demand.ask(); });
   new ResizeObserver(() => {
     W = host.clientWidth; H = Math.max(1, host.clientHeight);
     renderer.setSize(W, H); post.setSize(W, H);

@@ -130,7 +130,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .meter.bad .fill { background: var(--bad); }
 .meter .mark { position: absolute; top: 0; bottom: 0; width: 0.133rem; background: var(--ink); opacity: .6; }
 
-/* Part art (inline SVG). Classes, so both themes read the tokens. */
+/* Part art (inline SVG). Classes, so they read the tokens. */
 .art { display: block; overflow: visible; }
 .art-img { object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .art .plate { fill: var(--art-plate); }
@@ -1222,7 +1222,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .shop-title, .alm-title, .inv-title { font-size: 1.2rem; font-weight: 750; letter-spacing: -0.01em; }
 
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
-/* The two part-viewing modes (Gallery, Build my PC) are one "studio": the dark 3D stage fills the screen and glass panels float over it. The tokens are redefined on `.mode`, so the studio is dark in both themes and every kit rule inside it follows. */
+/* The two part-viewing modes (Gallery, Build my PC) are one "studio": the dark 3D stage fills the screen and glass panels float over it. The tokens are redefined on `.mode`, so the studio is dark and every kit rule inside it follows. */
 .mode { position: fixed; inset: 0; z-index: 70; overflow: hidden; animation: fade-in .3s ease both; color: var(--ink);
   --ink: #e9eeff; --mute: #8f9bc4; --accent: #3be3ff; --on: #07101f; --bad: #ff5a78; --tile: #141c3f; --menu-solid: #0a0e22;
   --glass-line: rgba(150, 170, 255, 0.15); --glass-hi: rgba(255, 255, 255, 0.045); --panel: rgba(10, 14, 32, 0.66);

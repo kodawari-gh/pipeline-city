@@ -15,10 +15,9 @@ const DARK: Theme = {
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
-const LIGHT: Theme = { ...DARK, bg: '#eaeff6', board: '#9ccdbd', ink: '#0f1830', mute: '#475372', line: '#9aabc8' };
 
 describe('accelerator art', () => {
-  it('every card spec has a length, a rectangle on its slot and art in either theme', () => {
+  it('every card spec has a length, a rectangle on its slot and art in the dark palette', () => {
     for (const spec of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
       expect(CARD_LEN[spec.visual], spec.id).toBeGreaterThan(0);
       for (let slot = 0; slot < 4; slot++) {
@@ -26,7 +25,7 @@ describe('accelerator art', () => {
         const r = cardRect(slot, spec.visual);
         expect(r.w).toBeGreaterThan(CARD_LEN[spec.visual]!);
         expect(r.h).toBeGreaterThan(150);
-        for (const T of [DARK, LIGHT]) expect(cardArt(T, spec.visual, slot).children.length, `${spec.id} ${slot}`).toBeGreaterThan(0);
+        expect(cardArt(DARK, spec.visual, slot).children.length, `${spec.id} ${slot}`).toBeGreaterThan(0);
       }
     }
   });
@@ -97,7 +96,7 @@ describe('accelerator art', () => {
       const h = tpmHeader(tier)!, r = tpmRect(tier)!, hr = headerRect(h);
       expect(r.x).toBeLessThan(hr.x);
       expect(r.x + r.w).toBeGreaterThan(hr.x + hr.w);
-      for (const spec of specsOfKind('tpm')) for (const T of [DARK, LIGHT]) expect(tpmArt(T, spec.visual, h).children.length).toBeGreaterThan(0);
+      for (const spec of specsOfKind('tpm')) expect(tpmArt(DARK, spec.visual, h).children.length).toBeGreaterThan(0);
     }
     expect(tpmRect(0)).toBeNull();
   });

@@ -28,15 +28,6 @@ export function readTheme(): Theme {
   return out;
 }
 
-/** Fires when data-theme changes or the OS scheme flips. Returns an unsubscribe function. */
-export function onThemeChange(cb: () => void): () => void {
-  const mo = new MutationObserver(cb);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-  mq?.addEventListener('change', cb);
-  return () => { mo.disconnect(); mq?.removeEventListener('change', cb); };
-}
-
 /**
  * Derived palette for the board art. The theme tokens stay the single source of colour, but the board is mixed toward
  * the background so it recedes: decoration < passive parts < working parts (which use the full tokens).

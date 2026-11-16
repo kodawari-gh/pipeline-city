@@ -50,7 +50,7 @@ interface DriveLive extends DriveHook {
 interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-/** The PSU panel is a dark LCD in both themes, so its text uses fixed light inks. */
+/** The PSU panel is a dark LCD, so its text uses fixed light inks. */
 const LCD_INK = '#dbe5ff', LCD_MUTE = '#8d9bc4';
 /** OS status screen: row count, font size and line height in world units (readable at overview zoom). */
 const OS_INK = '#7dffb0', OS_DIM = '#52a981', OS_RULE = '#2f5a46', OS_AMBER = '#ffc247', OS_CYAN = '#4fe3ff';

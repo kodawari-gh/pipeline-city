@@ -1,4 +1,4 @@
-// UI-only signals: theme, the stats panel, hint toasts, the guided tutorial's per-viewer state.
+// UI-only signals: the stats panel, hint toasts, the guided tutorial's per-viewer state.
 // Everything persisted is per-viewer (localStorage) and wrapped in try/catch. The tutorial's progress itself comes
 // from the snapshot's `progress` flags; skip/finish/replay/acks live here and are also written into every save
 // (`saveHooks`), so loading a save restores them. localStorage is the copy for the running game.
@@ -21,13 +21,6 @@ function readStore(key: string): string | null {
 function writeStore(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* storage blocked or full: ignore */ }
 }
-
-// ---- theme ----
-
-/** The game is dark only. A saved choice (an old `light`) is ignored. */
-export const theme = signal<'dark'>('dark');
-/** The renderer and the CSS read `data-theme` on the root element. */
-effect(() => { document.documentElement.setAttribute('data-theme', theme.value); });
 
 // ---- UI size (multiplies the root font size, see docs/UI.md "Scaling") ----
 

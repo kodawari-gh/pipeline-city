@@ -17,15 +17,14 @@ const DARK: Theme = {
   ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a',
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
-const LIGHT: Theme = { ...DARK, bg: '#eaeff6', board: '#9ccdbd', ink: '#0f1830', mute: '#475372', line: '#9aabc8', tile: '#ffffff' };
 const coolers = specsOfKind('cooler') as CoolerSpec[];
 
 describe('cooler art', () => {
-  it('every cooler draws in either theme, its fan turning on the plate or the frame it sits in', () => {
+  it('every cooler draws, its fan turning on the plate or the frame it sits in', () => {
     expect(coolers.length).toBeGreaterThanOrEqual(3);
     setLayoutTier(3, 3);
-    for (const spec of coolers) for (const T of [DARK, LIGHT]) {
-      const p = coolerArt(T, spec);
+    for (const spec of coolers) {
+      const p = coolerArt(DARK, spec);
       expect(p.root.children.length, spec.id).toBeGreaterThan(1);
       expect(p.fan, spec.id).toBeDefined();
       const f = p.fan!.position;
@@ -49,11 +48,11 @@ describe('cooler art', () => {
 const spans = () => (['front', 'top'] as const).map((s) => radiatorSpan(s)).filter((m): m is NonNullable<ReturnType<typeof radiatorSpan>> => !!m);
 
 describe('the radiator', () => {
-  it('bolts along the front or the top of any case, in either theme, with a live fan for every mount it spans', () => {
+  it('bolts along the front or the top of any case, with a live fan for every mount it spans', () => {
     for (const tier of [0, 1, 2, 3]) {
       setLayoutTier(tier, tier);
-      for (const m of spans()) for (const T of [DARK, LIGHT]) for (const grade of [1, 2, 3] as const) {
-        const r = radiatorArt(T, radiatorFit(m, 0), grade, m.ids.length);
+      for (const m of spans()) for (const grade of [1, 2, 3] as const) {
+        const r = radiatorArt(DARK, radiatorFit(m, 0), grade, m.ids.length);
         expect(r.root.children.length, `${tier} ${m.id}`).toBeGreaterThan(0);
         expect(r.fans.length, `${tier} ${m.id}`).toBe(m.ids.length);
         for (const f of r.fans) expect(f.offset).toBe(0);

@@ -3,10 +3,10 @@ import type { Renderer } from 'pixi.js';
 import { getSpec } from '../sim/specs';
 import { getIspSpec, getRouterSpec } from '../../network/sim/specs';
 import { drawThumb, type ThumbJob, type ThumbReply } from './thumbart';
-import { onThemeChange, readTheme } from '@/core/render/theme';
+import { readTheme } from '@/core/render/theme';
 
 // Pictures of the parts for the shop, the inventory and the picker: the same art the board draws, rendered to a small image, so a
-// tile shows what will end up in the machine. Built on demand, cached per theme, and rebuilt when the theme changes. A worker with its
+// tile shows what will end up in the machine. Built on demand and cached per id (the game has one theme). A worker with its
 // own Pixi renderer draws them (`thumbs.worker.ts`), so opening the shop or the case never stalls a frame; the image comes back as a
 // PNG blob URL. Only when that worker cannot start (no OffscreenCanvas WebGL) are they drawn here, one per idle slice, with the
 // renderer given to `initThumbs`. `thumbsVersion` bumps whenever one arrives, so a component that reads it re-renders. Without a
@@ -17,7 +17,7 @@ import { onThemeChange, readTheme } from '@/core/render/theme';
 
 let renderer: Renderer | null = null;
 let worker: Worker | null = null;
-/** Bumped on each theme change: a picture of an older theme that arrives late is dropped. */
+/** Sent with each job and echoed back: a picture that arrives for another epoch is dropped. */
 let epoch = 0;
 const cache = new Map<string, string>();
 const failed = new Set<string>();
@@ -48,13 +48,6 @@ export function initThumbs(r: Renderer): void {
   renderer = r;
   if (!first) return;
   loadStills();
-  onThemeChange(() => {
-    for (const u of cache.values()) URL.revokeObjectURL(u);
-    cache.clear(); failed.clear(); sent.clear(); queue.length = 0;
-    epoch += 1;
-    worker?.postMessage({ epoch });
-    thumbsVersion.value += 1;
-  });
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
   try {
     worker = new Worker(new URL('./thumbs.worker.ts', import.meta.url), { type: 'module' });
