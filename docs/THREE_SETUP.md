@@ -364,5 +364,5 @@ No changes to `vite.config.ts` initially. Assets directory `public/assets/models
 **Optimization techniques (Phase 4), status at `03fe0bc`:**
 - Instancing: in place for room books, city cars, signal lamps, swept rings and machine fixings. No `BatchedMesh`.
 - Frustum culling: in place (three.js per-mesh bounds, plus `Sweep.cut` for the city). Not a planned item.
-- LOD meshes: part stand-ins only (two states). LOD1 and LOD2 are planned, not present. See [render/lod.md](render/lod.md).
+- LOD meshes: part stand-ins, which hold the builders' LOD1 (2026-11-16). See [render/lod.md](render/lod.md).
 - Draw-call batching: in place as merges (`mergeStatic`, `mergeSiblings`, `shareMaterials`, `sweptMerge`). See [render/three.md](render/three.md#merges).

@@ -80,17 +80,15 @@ These match the code as it is built today. Detail should go where it reads: the 
 - **Smooth normals.** Parts and imported models use smooth vertex normals (`MeshStandardMaterial` default; both glbs carry `NORMAL`). **Flat shading is only for the tiny exceptions that already exist:** the cooler's hex standoffs and knurled nuts (`steel(true)`, `cooler3d.ts:137-138`) and the plant-pot bark chips on the soil (`plants3d.ts:314`). Do not introduce new flat-shaded hardware.
 - Simplify sub-parts only below what reads at the size they appear; real fixings stay (screws, standoffs, fan clips, push pins; `docs/PC_PARTS.md` pass 3). Keep the PCB rectangular; flatten diagonal components.
 
-### Per-tier detail and LoD (placeholder)
+### Per-tier detail and LoD
 
-**Pending Dev Lead's performance findings and Khalil's decision.** Do not treat the paragraph below as a rule.
+Decided 2026-11-16 (delegated by the owner). The scheme (LOD0, LOD1, LOD2, stand-in, card) and its numbers are in [render/lod.md](render/lod.md#the-scheme).
 
-What the code does today, and does **not** do:
-
-- `partlod.ts` swaps small meshes for merged stand-ins when they are under 8 px (`LOD_PX`). A stand-in **holds the same triangles**; only the draw count falls.
-- Graphics quality tiers change textures, particles, lights, AO, shadows, resolution and FPS (`TEXTURE_LEVELS`, `PARTICLE_LEVELS`, the lamp cap, scale and frame limit). They do **not** reduce geometry. The Low preset does drop segment counts and merges parts (`lowDetail()`, see `docs/render/three.md` "Levels of detail").
-- `DEVICE_LOD` / `artlod.ts` fade 2D interiors and baked-texture resolution with zoom, not 3D triangle density.
-
-A later pass may: drop or coarsen detail that is invisible at a given view (see the visible-detail assessment); keep close-up segment counts for the highest graphics setting or a near-only LoD; and put a far, cheaper city outside the window. None of that is approved to implement yet. The rework list in art-style.md stays on hold.
+- A part's lower level is the same builder at a lower `level`: fewer sides (4 to 8 px per side at its switch), no feature under 2 px, its outline within 1 px of LOD0 (`lodreach.test.ts`). No mesh simplifier, no hand-made model.
+- Only the room overview's stand-in draws LOD1. No per-part swap nearer: the frame is CPU bound, and a swap adds draws to save triangles.
+- Graphics quality tiers change textures, particles, lights, AO, shadows, resolution and FPS (`TEXTURE_LEVELS`, `PARTICLE_LEVELS`, the lamp cap, scale and frame limit). They do not choose a level. The Low preset also drops segment counts and merges parts (`lowDetail()`, see `docs/render/three.md` "Levels of detail").
+- `DEVICE_LOD` / `artlod.ts` fade the chips' art and its texture resolution with zoom (the reveal bands), not triangle density.
+- The far city gets flat cards where parallax is under 1 px (LOD-04, planned).
 
 ### Silhouette & Recognition
 

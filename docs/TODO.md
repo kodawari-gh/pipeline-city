@@ -26,13 +26,13 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-05.
+Done since 2026-11-15: ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, DOC-01, LOD-01, LOD-03, LOD-05.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 6 | 5 | MACH-06 needs a real-GPU shot |
 | GFX | 5 | 3 | GFX-01 flicker |
-| LOD | 3 | 3 | LOD-03, the `lod.md` rewrite (LOD-01 and LOD-05 are done) |
+| LOD | 2 | 2 | LOD-02, one stand-in for the machine (MACH-06 first) |
 | CITY | 8 | 1 | CITY-01 to CITY-04, official Low shots vs base `03fe0bc` |
 | PHONE | 8 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 2 | 2 | ASSET-01, the part redo shots |
@@ -63,7 +63,6 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 182 a
 ## LOD: levels of detail
 
 - [ ] LOD-02 [owner] [look: low] One stand-in for the whole machine at the room overview (was LPC5). The camera rests at three distances; at the overview the PC covers a small part of the screen but draws hundreds of meshes. State: `PartLod` has an overview class for every larger still mesh (`LOD_OVERVIEW`): 678 draws near became 270 at the overview; later merges (`NO_RAY`, plugs and wires at every tier, fans' hub and blades one mesh, the unseen click boxes on the undrawn layer) give 514 near and 182 at the overview; the shot is unchanged. Left to reach 6: see MACH-06. The memory cost is not measured. Files: src/features/board/render/three/machine3d.ts, src/core/render/three/partlod.ts, merge.ts. Docs: docs/render/lod.md "The machine's stand-ins". Done when: the room overview draws the machine in at most 6 draws and 4 materials (the LOD1 cap, 3D_STYLE §2) at every tier, a shot matches the full machine within 1 px of silhouette, and picks still work after zoom in.
-- [ ] LOD-03 [owner] Rewrite `docs/render/lod.md` against the LOD0, LOD1, LOD2 and card scheme (was LOD1). The file is marked outdated; its 2D zoom bands and "pure, no Pixi" text must go. Keep the "3D distance bands (city)" section. Do it after LOD-01 is decided; carry in the stand-in text (DOC12 said it right: the stand-in keeps the LOD0 triangles; LOD1 and LOD2 are planned). Files: docs/render/lod.md. Docs: docs/3D_STYLE.md "Per-tier detail and LoD". Done when: the file describes only the approved scheme and the 2D bands are gone.
 - [ ] LOD-04 [owner] Far city and skyline as flat PNG cards rendered from High, plus a separate live night-window layer (was LODD3, ASR2's "cards past 300 m"). Cards only where parallax is under 1 px. Split 1,800–3,600 m and ∞ into 4–5 depth slices. Hide the seam behind a building row or in haze, with matched fog and mipmaps. Night layer: a second linear grey mask per slice; the shader adds mask × lamp colour × night, with a per-column onset. Beacons, crowns and signs stay a small real mesh. Decide before the bake: the owner asked for the same tone mapping as High; the audit recommends storing linear (before ACES) so ACES runs once. Tree cards past 300 m belong here. Files: new src/features/room/render/three/outside/cards.ts, tools/cards.mjs, public/cards/; view.ts, haze.ts. Docs: docs/render/three.md "Not on main". Done when: the storage decision is written here, a card matches a High shot at the nominal window, and the night layer lights the windows at dusk.
 
 ## CITY: the view outside the window
@@ -118,7 +117,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF23 (room; the rest is PHONE-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

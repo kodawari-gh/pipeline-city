@@ -49,10 +49,10 @@ Rules:
 
 ## Levels of detail and detail tiers
 
-Parts, the room and the city each use a different method. Full bands are in [`lod.md`](lod.md#3d-distance-bands-city) and [`lod.md`](lod.md#the-machines-stand-ins).
+Parts, the room and the city each use a different method. Full bands are in [`lod.md`](lod.md#3d-distance-bands-city) and [`lod.md`](lod.md#the-stand-in).
 
-- **Machine parts** (`partlod.ts`): a stand-in set replaces the detail of far parts. Two states only: LOD0 and stand-in. The stand-in keeps the LOD0 triangles. Stand-ins cut draws (632 to 398 meshes in the room view), not triangles.
-- **No LOD1 (30 %) or LOD2 (10 %) exists** for any part, the case shell or the room. The case shell has no LOD and no stand-in.
+- **Machine parts** (`partlod.ts`): a stand-in set replaces far parts with a few merged meshes. It holds each part's LOD1 where the builder gives one, else LOD0. Stand-ins cut draws (514 to 182 meshes at the overview); LOD1 cuts the overview's triangles 22 %.
+- **LOD1 and LOD2** come from the builders (`geometry.userData.low`); only the overview stand-in draws LOD1, and nothing draws LOD2 (the fan's). The scheme is in [`lod.md`](lod.md#the-scheme).
 - **Build my PC** keeps every part at full detail (`LOD_CEIL`, see `lod.md`).
 - **Room**: no distance LOD. The room's draw cut comes from merges only.
 - **City**: distance changes detail and generation. Only generation limits remove objects (see the table in `lod.md`). Rings do not drop objects, and buildings have no distance cull (the far ring keeps every far building).

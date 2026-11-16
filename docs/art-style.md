@@ -123,7 +123,7 @@ These four stay recognisably the same hardware (OEM tower, 3.5" HDD, DDR2 clip-o
 **Emissive (new)**
 - Emissives only where real hardware has light: status and activity LEDs, RGB strips and rings (fans, GPU shroud, cooler cap, case strip, board strip, RAM), screens, lit traces and die blocks. No glowing outlines on geometry; no emissive on bare plastic or metal.
 - Colours from the neon and status roles only (§2). Existing state looks hold: active `#3be3ff` 0.4, throttled `#ffc247` 0.2, burnt `#ff5a78` 0.8, heat ramp cyan→amber→red from 42 °C to 82 °C (`materials.ts:8-33`).
-- LOD stand-ins keep the same materials, so emissive state survives at a distance (`src/core/render/three/partlod.ts`; `docs/render/lod.md` "The machine's stand-ins"). New emissive materials must keep this: a stateful material joins only its own set.
+- LOD stand-ins keep the same materials, so emissive state survives at a distance (`src/core/render/three/partlod.ts`; `docs/render/lod.md` "The stand-in"). New emissive materials must keep this: a stateful material joins only its own set.
 - **Stills: powered-on idle (proposal).** Today `renderStill` shows parts unpowered (3 of 71 stills have any neon pixel, S > 0.6 and V > 0.85: `tpm1` 17 px, `tpm2` 15 px, `cooler1` 1 px). New stills show idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
 ## 5. Zoom continuity: 3D part → interior view
