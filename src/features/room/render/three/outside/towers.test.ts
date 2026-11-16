@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { LOW_NEAR_RINGS, type CityDetail } from './detail';
 import { buildings, GRID, topOf, type Building } from './plan';
 import { bearing, drawn } from './sweep';
-import { massGeometries, type MassRing } from './towers';
+import { LOW_WHOLE, massGeometries, type MassRing } from './towers';
 
 /** `massGeometries` as the Low cut will call it (the third parameter does not exist yet). */
 const withDetail = massGeometries as (bs: readonly Building[], washes: [], detail?: CityDetail) => MassRing[];
@@ -43,14 +43,63 @@ describe('massGeometries detail', () => {
     expect(solar, 'solar panel vertices in the near rings').toBeGreaterThan(0);
   }, 60000);
 
-  it('Low: draws under 22% of the High triangles', () => {
+  it('Low: draws under 37% of the High triangles', () => {
     // (15% was the plain-block cut; far night lights — flood, LED, signs, crowns — add a little)
     // (17%: the far masts and spires keep their own silhouette pieces)
     // (22%: the near rings keep their fine clutter, the door, step and lamp, as High has it)
-    expect(total(withDetail(bs, [], 'low'))).toBeLessThan(total(high) * 0.22);
+    // (37%: the buildings from 300 m to `LOW_WHOLE` are whole, the window looks down on their roofs; 295k of High's 823k)
+    expect(total(withDetail(bs, [], 'low'))).toBeLessThan(total(high) * 0.37);
   }, 60000);
 
-  it('Low: the far mesh holds every far building as a plain block, of more than one height', () => {
+  it('Low: a far-mesh building within LOW_WHOLE is High\'s whole building, vertex for vertex', () => {
+    const far = withDetail(bs, [], 'low').at(-1)!, ring = high[LOW_NEAR_RINGS]!;
+    const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+    const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
+    // (`LOW_WHOLE` is the edge of High's ring after the near ones, so that ring is the whole buildings, in the same order)
+    expect(farBs.filter((b) => away(b) < LOW_WHOLE).length).toBe(ring.balls.length);
+    const lp = far.geometry.attributes.position!.array, hp = ring.geometry.attributes.position!.array;
+    let j = 0;
+    for (let i = 0; i < farBs.length; i++) {
+      if (away(farBs[i]!) >= LOW_WHOLE) continue;
+      expect(far.at[i + 1]! - far.at[i]!, `building ${j} vertices`).toBe(ring.at[j + 1]! - ring.at[j]!);
+      expect(Array.from(lp.subarray(3 * far.at[i]!, 3 * far.at[i + 1]!))).toEqual(Array.from(hp.subarray(3 * ring.at[j]!, 3 * ring.at[j + 1]!)));
+      j++;
+    }
+    expect(j).toBeGreaterThan(100);
+  }, 60000);
+
+  it('Low: a block past LOW_WHOLE keeps High\'s own crown lights, tip beacon and sign boards (the roof plant\'s draws still run)', () => {
+    const far = withDetail(bs, [], 'low').at(-1)!, ring = high[LOW_NEAR_RINGS + 1]!;
+    const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
+    const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
+    // a building's vertices of one kind: their places, and their seeds
+    const of = (r: MassRing, i: number, kind: number): { at: number[]; seeds: number[] } => {
+      const pos = r.geometry.attributes.position!, aux = r.geometry.attributes.aux!, at: number[] = [], seeds: number[] = [];
+      for (let v = r.at[i]!; v < r.at[i + 1]!; v++) if (Math.round(aux.getY(v)) === kind) { at.push(pos.getX(v), pos.getY(v), pos.getZ(v)); seeds.push(aux.getX(v)); }
+      return { at, seeds };
+    };
+    let j = 0, crowns = 0, boards = 0;
+    for (let i = 0; i < farBs.length; i++) {
+      const d = away(farBs[i]!);
+      // (High's ring after the whole ones ends at 900 m: within it a roof has its plant, whose draws come before the crown's)
+      if (d < LOW_WHOLE || d >= 900) continue;
+      const lc = of(far, i, 4), hc = of(ring, j, 4), ls = of(far, i, 8), hs = of(ring, j, 8), lb = of(far, i, 3), hb = of(ring, j, 3);
+      expect(lc.at, `crown lights ${j}`).toEqual(hc.at);
+      expect(ls.at, `sign boards ${j}`).toEqual(hs.at);
+      expect(ls.seeds).toEqual(hs.seeds);
+      // a tip's beacon is High's first one (its seed comes from the building's stream, after the roof plant's draws; no tower that tall
+      // stands in this band today)
+      if (lb.seeds.length) expect(lb.seeds[0]).toBe(hb.seeds[0]);
+      if (lc.at.length) crowns++;
+      if (ls.at.length) boards++;
+      j++;
+    }
+    expect(j).toBe(ring.balls.length);
+    expect(crowns, 'blocks with crown lights').toBeGreaterThan(0);
+    expect(boards, 'blocks with sign boards').toBeGreaterThan(0);
+  }, 60000);
+
+  it('Low: the far mesh holds every far building (a plain block past LOW_WHOLE), of more than one height', () => {
     const low = withDetail(bs, [], 'low'), far = low[low.length - 1]!;
     // (the ring edge: ring 1 ends at 300 m)
     expect(far.balls.length).toBe(bs.filter((b) => away(b) >= 300).length);
@@ -80,7 +129,8 @@ describe('massGeometries detail', () => {
     let checked = 0;
     for (let i = 0; i < farBs.length; i++) {
       const b = farBs[i]!, h = topOf(b);
-      if ((b.crown !== 'mast' && b.crown !== 'spire') || h < 110) continue;
+      // (a building within `LOW_WHOLE` is High's whole one, roof plant and corner beacons too: the test above holds it)
+      if ((b.crown !== 'mast' && b.crown !== 'spire') || h < 110 || away(b) < LOW_WHOLE) continue;
       checked++;
       const v0 = far.at[i]!, v1 = far.at[i + 1]!;
       // the tip: the lowest beacon vertex; the silhouette must reach up to it on a kept piece, not stop short

@@ -153,6 +153,8 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): { mat: MeshLambertMat
     sh.uniforms.fNight = u.night;
     sh.uniforms.fTime = u.time;
     sh.uniforms.fHor = u.hor;
+    sh.uniforms.fSun = u.sun;
+    sh.uniforms.fSunCol = u.sunCol;
     sh.uniforms.fPixel = u.pixel;
     sh.uniforms.fLampK = lamps.k;
     sh.uniforms.fLampCol = lamps.col;
@@ -200,7 +202,7 @@ vLowNight = 0.9 + 0.2 * fract(aux.x * 0.5698402909);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime, fLampK;
-uniform vec3 fHor, fLampCol, fLampPos[${LOW_LAMPS}];
+uniform vec3 fHor, fSun, fSunCol, fLampCol, fLampPos[${LOW_LAMPS}];
 varying vec2 vLowBay, vLowFuv;
 varying float vLowWide, vLowY;
 flat varying vec2 vLowOff, vLowWashY;
@@ -215,7 +217,19 @@ float lowGlassM = 0.0;
 vec4 lowRibC = vec4(0.0, 0.0, 1.0, 0.0);
 // a far pane's share of the pixel by day, set by the colour step: the emissive step puts the sky it mirrors there
 float lowMirM = 0.0;
+// a sign's light at night, set by the colour step (its glyphs: neon tubes on its dark board, or dark on its lit box)
+vec3 lowSign = vec3(0.0);
 float lowH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// a sign's glyph, as High's fGlyph: a few strokes on a grid by its hash; the distance to the nearest (in its cell, 0..1)
+float lowGlyph(vec2 c, float gh) {
+  float d = 9.0;
+  for (int k = 0; k < 3; k++) {
+    float fk = float(k), a = lowH(vec2(gh, fk + 0.5)), b = lowH(vec2(gh, fk + 3.5));
+    if (lowH(vec2(gh, fk + 6.5)) > 0.35) d = min(d, length(max(abs(c - vec2(a < 0.5 ? 0.5 : a < 0.75 ? 0.28 : 0.72, 0.5 * fk)) - vec2(a < 0.5 ? 0.5 : 0.28, 0.0), 0.0)));
+    if (lowH(vec2(gh, fk + 9.5)) > 0.45) d = min(d, length(max(abs(c - vec2(0.5 * fk, b < 0.5 ? 0.5 : b < 0.75 ? 0.28 : 0.72)) - vec2(0.0, b < 0.5 ? 0.5 : 0.28), 0.0)));
+  }
+  return d;
+}
 // a room's lamp by its warmth, from 0 (a cold daylight tube) through a neutral white to 1 (an old warm bulb), as High's fLampCol
 vec3 lowLampCol(float t) {
   vec3 c = mix(vec3(0.74, 0.87, 1.0), vec3(1.0, 0.87, 0.68), smoothstep(0.0, 0.5, t));
@@ -403,8 +417,25 @@ if (vLowFac == 0.0) {
   if (vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);
   else if (vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
   else if (vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
-  // a sign's case is dark; its lit face (look.w 0 or 1) keeps the sign's colour, the orange of base's board
-  else if (vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
+  // a sign, as High's: a dark case; on its face (look.w 0 or 1) its glyphs in a stack or a row, paint by day (tubes on a dark board, or
+  // dark on a box in the sign's colour), lit at night (lowSign). Far off, their mean
+  else if (vLowKind == 8.0) {
+    vec3 lowCol = vColor.rgb;
+    diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
+    if (vLowLook.w > -0.5) {
+      vec2 sz = vLowLook.xy, p = vec2(vLowFuv.x, vLowFuv.y - vLowLook.z), pw = fwidth(p);
+      float cell = min(sz.x, sz.y), box = vLowLook.w;
+      vec2 cnt = floor(sz / cell + 0.001), q = (p - (sz - cnt * cell) * 0.5) / cell, gid = clamp(floor(q), vec2(0.0), cnt - 1.0), c = (q - gid - 0.15) / 0.7;
+      float px = max(pw.x, pw.y) / (cell * 0.7), far = smoothstep(0.12, 0.45, px), d = lowGlyph(c, lowH(gid + vLowSeed * 1.31));
+      float dead = step(0.94, lowH(gid * 3.7 + vLowSeed));
+      float th = mix(0.05, 0.085, box), tube = mix(smoothstep(th + px, th - px, d), 0.3, far), halo = mix(exp(-d * d * 30.0), 0.55, far) * (1.0 - tube);
+      float edge = min(min(p.x, sz.x - p.x), min(p.y, sz.y - p.y)), rim = smoothstep(0.05 - pw.x, 0.05 + pw.x, edge);
+      vec3 neon = (lowCol * 1.75 + vec3(0.22)) * tube * (1.0 - dead) + lowCol * 0.3 * halo * (1.0 - dead);
+      vec3 boxed = lowCol * 0.72 * (1.0 - tube) * (0.72 + 0.28 * smoothstep(0.0, cell * 0.5, edge));
+      diffuseColor.rgb = mix(mix(diffuseColor.rgb, lowCol * 0.5, tube * (1.0 - dead)), mix(lowCol * 0.62 + 0.1, vec3(0.03), tube), box) * mix(0.3, 1.0, rim);
+      lowSign = mix(neon, boxed, box) * rim;
+    }
+  }
   else if (vLowKind == 7.0) {
     // a solar panel, as facadeMaterial's day diffuse: dark blue cells on fine silver lines
     vec2 sg = vLowFuv * 2.0, sw = fwidth(sg), sd = abs(fract(sg) - 0.5);
@@ -436,7 +467,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
   else if (vLowKind == 9.0) lowGlow = vColor.rgb * (0.12 + 1.5 * exp(-3.0 * clamp((vLowY - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
   else if (vLowKind == 3.0) lowGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vLowWide * mix(0.55, 1.0, 0.5 + 0.5 * sin(6.2831853 * (fTime / 3.5 + vLowSeed)));
   else if (vLowKind == 4.0) lowGlow = vColor.rgb * (1.0 + vLowLook.w) * 0.75 * (0.2 + 0.9 * exp(-3.0 * clamp((vLowFuv.y - vLowLook.y) / max(vLowLook.z, 1.0), 0.0, 1.0)));
-  else if (vLowKind == 8.0 && vLowLook.w > -0.5) lowGlow = vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0));
+  else if (vLowKind == 8.0) lowGlow = lowSign;
   // every wall's rooms at night are High's, window by window (lowRibLight), on its glass: near, the atlas's pane (its mask, so the light
   // sits in the window the day map draws); from LOW_FAR.near to LOW_FAR.far, High's own window (lowRibGlass), as a band's wall is at any
   // range. The frame round a lit window catches a little of its light, and the street's lamps wash the walls' foot, as High's. A building
@@ -459,12 +490,20 @@ diffuseColor.rgb = mix(diffuseColor.rgb, mix(lowDayWall, diffuseColor.rgb, fNigh
       }
     }
   }
-  // by day a far pane mirrors the sky: the horizon through High's mirror tint (its pane hash at its mean), white at a grazing look
+  // by day a far pane mirrors the sky: the horizon through High's mirror tint (its pane hash at its mean), white at a grazing look. Under
+  // the roof line across the street (High's: it wanders along it) the pane mirrors the walls there, in shade or in the sun as they face, or
+  // the road: a low block's glass reads grey, a tower's head the sky
   vec3 lowMir = vec3(0.0);
   if (lowMirM > 0.0) {
     float lowFr = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0);
     vec3 lowMt = vLowTint / max(max(vLowTint.r, vLowTint.g), max(vLowTint.b, 1e-3));
-    lowMir = mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor * (${LOW_FAR_MIRROR.toFixed(3)} * lowMirM);
+    vec3 lowV = inverseTransformDirection(normalize(-vViewPosition), viewMatrix), lowN = inverseTransformDirection(normal, viewMatrix), lowR = reflect(lowV, lowN);
+    vec2 lowRp = vec2(vLowFuv.x, vLowY) + vec2(dot(lowR, vec3(lowN.z, 0.0, -lowN.x)), lowR.y) / max(dot(lowR, lowN), 0.1) * (abs(lowN.x) > 0.5 ? 32.0 : 24.0);
+    float lowHit = 1.0 - smoothstep(-0.7, 0.7, lowRp.y - 13.0 - 32.0 * lowNoise(vec2(lowRp.x / 34.0, vLowSeed * 0.37)));
+    vec3 lowAcross = mix((fHor * 0.3 + fSunCol * max(dot(fSun, -lowN), 0.0) * 0.26) * 0.9, fHor * 0.09, 1.0 - smoothstep(-0.4, 0.4, lowRp.y));
+    vec3 lowSkyM = mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor * ${LOW_FAR_MIRROR.toFixed(3)};
+    vec3 lowWallM = mix(mix(vec3(0.145), vLowTint * 1.7, vLowMetal * 0.9), vec3(1.0), lowFr) * lowAcross;
+    lowMir = mix(lowSkyM, lowWallM, lowHit) * lowMirM;
   }
   totalEmissiveRadiance = emissive * ((lowLit * vLowFac * vLowNight + lowGlow) * fNight + lowMir);
 }`);

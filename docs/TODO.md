@@ -26,14 +26,14 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, DOC-01, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, DOC-01, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 1 | 1 | MACH-01, one material |
 | GFX | 4 | 2 | GFX-01 flicker |
 | LOD | 1 | 1 | LOD-04, far city cards |
-| CITY | 5 | 1 | CITY-04, official Low shots vs base `03fe0bc` |
+| CITY | 4 | 1 | CITY-05, the Firefox Low gate |
 | PHONE | 6 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
 | BENCH | 2 | 0 | next official run |
@@ -59,9 +59,8 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 135 a
 
 ## CITY: the view outside the window
 
-State of the Low city: #23 and #28 are merged to main (b0da132, 3c516b8), so main has the Low city with the defects below. The expected look is origin/main `03fe0bc`; official Chrome Low shots: `/workspace/game-run/low-city-draws/shots/official-gpu-ad7e/`. High must stay byte-identical (`highident`). On this branch every wall at night draws High's window grid and room model (CITY-01, CITY-03, `lowRibCover`, `lowRibLight`), and a far pane mirrors the sky by its tint (CITY-02). The night target is High's look at the same framing, not base Low's warm cast (decision in lod.md "The city at Low"). The official crops are not yet compared.
+State of the Low city: #23 and #28 are merged to main (b0da132, 3c516b8), so main has the Low city with the defects below. The expected look is origin/main `03fe0bc`; official Chrome Low shots: `/workspace/game-run/low-city-draws/shots/official-gpu-ad7e/`. High must stay byte-identical (`highident`). On this branch every wall at night draws High's window grid and room model (CITY-01, CITY-03, `lowRibCover`, `lowRibLight`), and a far pane mirrors the sky by its tint (CITY-02). A building within 600 m is whole, a sign's face is High's glyph board and the window's avenue keeps its full traffic (CITY-04). The night target is High's look at the same framing, not base Low's warm cast (decision in lod.md "The city at Low"). The official crops are not yet compared.
 
-- [ ] CITY-04 [auto] [look: low] Near lanes, mid-rise and sign (was LOOK31): about 6 near-lane cars, the left mid-rise grey-green, the small dark-orange sign visible. Official count crop (20, 370, 140, 260) and its 3× NEAREST zoom. Files: outside/cars.ts, towers.ts, lowfacade.ts. Docs: docs/render/lod.md. Done when: the official Low day count crop shows about 6 cars, the grey-green mid-rise and the sign, and `highident` passes.
 - [ ] CITY-05 [auto] [look: none] Firefox Low skips all city cuts by default (`parseCityCuts` in `outside/detail.ts`) so Firefox gets main's city path (was LOOK32). Find which cut (or combination) slows Firefox, then drop the gate. Isolation: `?citycuts=`. State: official 3-round of 384106a: Firefox Low ktris match main (936 idle); idle 59.0 vs 62.0 (ranges do not overlap); zoom about flat. Files: outside/detail.ts, view.ts. Docs: docs/render/lod.md. Done when: the Firefox default skip is removed, official Firefox Low idle and zoom are at least main's on `razr-fold-folded`, Chrome Low is not worse, and `highident` passes.
 - [ ] CITY-06 [auto] [look: low] Low city still short of 60 fps (was PERF28). Official 3-round of 384106a vs 03fe0bc, Chrome Low: 50.0 idle / 52.4 zoom vs main 48.0 / 45.9. Far-block merge and impostors are not in those cuts (see CITY-07). Find the next largest cost with `bench:modes` on that profile, then cut it at Low only, without making Firefox Low worse than main. Files: outside/. Docs: docs/render/lod.md. Done when: `bench:modes --device razr-fold-folded --presets low --modes game-max --views idle,zoom` (Chrome CPU /4) holds about 60 fps at Low, Firefox Low is at least main's, and `highident` passes.
 - [ ] CITY-07 [owner] [look: low] Far blocks and trees merged per ring, then switch distances on rings (was LODD2, DOC8). At Low, far blocks past 300 m merge to one mesh per ring (as #23 does; its Firefox gate applies too, see CITY-05), trees merge. Decide one distance origin first (window `av0`, eye or origin; they differ today). Distances off the rings 150 / 300 / 900 / 1,800 / 3,600 m: trees 160 / 250 / 500 (`trees.ts:58`), cars 260 (`cars.ts:19`), `FINE` 420 (`towers.ts`), street 520 (`plan.ts:197`), signs 1,500 / 3,400 (`towers.ts:29`); `CLUTTER` 900 matches. #23's Low car distances (100 and 350 m) and its 1000 m window-avenue clip (`CLIP_AVENUE_LOW`) are not rings. Files: outside/towers.ts, trees.ts, cars.ts, plan.ts, sweep.ts, view.ts. Docs: docs/render/lod.md "3D distance bands (city)", docs/render/three.md "Merges". Done when: the origin is chosen and written in lod.md, each distance is on a ring or listed there as off-ring, Low city draws drop on the Razr sweep, and the owner accepts a Low shot past 300 m.
@@ -93,7 +92,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

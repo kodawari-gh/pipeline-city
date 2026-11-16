@@ -21,6 +21,11 @@ const NEAR = 260;
 /** At Low (the capped fleet), the same, the full model's range (m): further off, the box. */
 const NEAR_LOW = 100;
 /**
+ * At Low, every moving car within this distance of the eye (m) drives, and every car in a lane of the avenue the window looks down (`ownAvenue`):
+ * the lanes the window shows keep High's traffic. The rest: the fleet's share.
+ */
+export const FULL_LOW = 300;
+/**
  * A car's share key in [0, 1): a hash of its lane and its place in the lane, so it is the same on every frame and does not depend on the
  * other cars. A far car drives at a share `s` when `share < s`; the lanes and places are fixed for the traffic's life.
  */
@@ -36,6 +41,8 @@ const CLIP_LOW = 350;
  * block east of the avenue hides it to the crossing at about 350 m, so the stretch the window shows starts there: `CLIP_LOW` alone left it empty.
  */
 const CLIP_AVENUE_LOW = 1000, AVENUE_HALF = GRID.avenue / 2;
+/** Whether a route is a lane of the avenue the window looks down: it runs along the avenue, within its width (a street that crosses it is not). */
+export const ownAvenue = (rt: { x: number; dx: number }): boolean => Math.abs(rt.dx) < 0.5 && Math.abs(rt.x - GRID.av0) <= AVENUE_HALF;
 /** A ball round a car (m: its radius; its middle at half that height), for the eye's frustum. */
 const CAR_R = 3;
 /**
@@ -445,7 +452,7 @@ export class Fleet {
       reach(rt, seen, 0, night ? POOL_R : SHADE_R, AROUND);
       if (!lane.length || AROUND[0]! > AROUND[1]!) continue;
       reach(rt, seen, CAR_R / 2, CAR_R, BODY);
-      const f = tr.phase(ri), rot = heading(rt.dx, rt.dz), cr = Math.cos(rot), sr = Math.sin(rot);
+      const f = tr.phase(ri), rot = heading(rt.dx, rt.dz), cr = Math.cos(rot), sr = Math.sin(rot), own = ownAvenue(rt);
       // (the lane runs front first, so `was` and `s` fall: a car is drawn between the two, so the first that may be in the stretch is the
       // first whose step began short of its far end, and once a car's step ends short of its near end, so do those of all behind it)
       let k0 = 0;
@@ -457,8 +464,9 @@ export class Fleet {
         if (m < AROUND[0]! || m > AROUND[1]!) continue;
         const x = rt.x + rt.dx * m, z = rt.z + rt.dz * m, brake = c.brake ? 1 : 0;
         // (a fleet of a share: a car drives when its own key (`share`, by lane and place in it) is under the scale, so a car's bit does not
-        // move when its neighbours enter or leave the view; a car within `NEAR_LOW` of the eye always drives, so the near lanes keep their full traffic)
-        if (this.scale < 1 && (x - ex) ** 2 + (z - ez) ** 2 >= NEAR_LOW * NEAR_LOW && share(ri, q) >= this.scale) continue;
+        // move when its neighbours enter or leave the view; a car within `FULL_LOW` of the eye always drives, and one in a lane of the window's
+        // avenue (`own`: the near block hides that avenue to about 350 m, so the lanes the window shows are past `FULL_LOW`))
+        if (this.scale < 1 && !own && (x - ex) ** 2 + (z - ez) ** 2 >= FULL_LOW * FULL_LOW && share(ri, q) >= this.scale) continue;
         // (past the clip: not drawn, and not counted, as if it were off the road; the drive count above is already set)
         if (this.clipped(x, (x - ex) ** 2 + (z - ez) ** 2)) continue;
         turned(sa, P + n, x, z, cr, sr);

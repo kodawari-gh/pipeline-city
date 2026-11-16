@@ -59,6 +59,8 @@ class Mass {
   lightsOnly = false;
   /** While on (with `lightsOnly`), a plain vertex is kept: a far block's mast and spire, the silhouette a tip's beacon sits on. */
   silhouette = false;
+  /** While on, no vertex is kept: a piece's draws from a building's stream still run, so what comes after it (the crown) is the same. */
+  dry = false;
   private hidden = false;
 
   /** What the next vertices are: their frame colour, tint, look, seed, kind and reflection. */
@@ -79,7 +81,7 @@ class Mass {
   }
 
   private vert(p: V3, n: V3, u: number, v: number): void {
-    if (this.hidden) return;
+    if (this.hidden || this.dry) return;
     if (this.n === this.room) this.grow();
     const i = this.n++, i2 = 2 * i, i3 = 3 * i, i4 = 4 * i, { pos, nor, fuv, col, tint, look, aux, wash, washY, c, t, lk, ax, fl, flY } = this;
     pos[i3] = p[0]; pos[i3 + 1] = p[1]; pos[i3 + 2] = p[2];
@@ -508,8 +510,8 @@ function signs(m: Mass, b: Building, away: number): void {
     const s = b.tiers[Math.min(1, b.tiers.length - 1)]!, w = 3.5 + r() * 3, h = Math.min((s.y1 - s.y0) * 0.7, w * (4 + Math.floor(r() * 6))), x = s.x0 + w + r() * (s.x1 - s.x0 - 2 * w), y1 = s.y1 - 2 - r() * (s.y1 - s.y0 - h - 2);
     board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false, { fixed: 'z', at: s.z1, out: 1 });
   }
-  // a far block keeps only its tower's tall board (above)
-  if (away > SIGN_FAR || t.y1 < 9 || m.lightsOnly) return;
+  // (a far block keeps its boards too, as High's: `lightsOnly` drops only their brackets and legs, under a pixel that far)
+  if (away > SIGN_FAR || t.y1 < 9) return;
   const onGrid = (v: number, pitch: number): boolean => Math.abs(v / pitch - Math.round(v / pitch)) < 1e-6;
   const y0 = storey + 0.6, tall = (w: number): number => Math.min(t.y1 - y0 - 0.8, w * (3 + Math.floor(r() * 6)));
   for (const [on, x, out] of [[onGrid(t.x1 - GRID.av0 + GRID.avenue / 2, GRID.px), t.x1, 1], [onGrid(t.x0 - GRID.av0 - GRID.avenue / 2, GRID.px), t.x0, -1]] as const) {
@@ -540,6 +542,8 @@ function signs(m: Mass, b: Building, away: number): void {
 
 /** The rings round the window (m: each one's outer edge) whose buildings make one geometry each: a draw, cut to what the camera sees (`sweep.ts`). */
 const RINGS = [150, 300, 600, CLUTTER, 1800, 3600, Infinity] as const;
+/** At Low, a building within this distance of the window (m, a ring's edge) is whole, as High's; past it, a plain block (`block`). */
+export const LOW_WHOLE = 600;
 
 /** A ring's buildings: their geometry, each building's ball, and where each one's vertices start in it (then their end). */
 export interface MassRing { geometry: BufferGeometry; balls: Sphere[]; at: number[] }
@@ -551,13 +555,14 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
   const rings = RINGS.map(() => [] as Building[]);
   for (const b of bs) rings[RINGS.findIndex((r) => away(b) < r)]!.push(b);
   if (detail === 'low') {
-    // the rings past the near ones merge into one mesh of plain blocks
+    // the rings past the near ones merge into one mesh. A building within `LOW_WHOLE` is whole (its parapet, its roof's plant and its
+    // signs are High's: the window looks down on them); past it, a plain block
     const keep = rings.slice(0, LOW_NEAR_RINGS), far = rings.slice(LOW_NEAR_RINGS).flat();
     return [...keep, far].filter((r) => r.length).map((ring, k, all) => {
       const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = k === all.length - 1 && far.length > 0;
       m.washes = washes;
       for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
-        if (blocks) block(m, b, away(b)); else building(m, b, away(b));
+        if (blocks && away(b) >= LOW_WHOLE) block(m, b, away(b)); else building(m, b, away(b));
         balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
         at.push(m.vertices);
       }
@@ -577,13 +582,20 @@ export function massGeometries(bs: readonly Building[], washes: SignWash[] = [],
 }
 
 /**
- * A far building at Low: each tier a plain box in the facade's look (its walls in its floodlights, as `building`'s) under a flat roof (30
- * vertices a tier), then only its night pieces: the crown's lights, the LED bands, their corner strips and the signs. No parapet or clutter
- * (`Mass.lightsOnly` drops those). `away`: from the window (m).
+ * A far building at Low (past `LOW_WHOLE`): each tier a plain box in the facade's look (its walls in its floodlights, as `building`'s) under
+ * a flat roof (30 vertices a tier), then only its night pieces: the crown's lights, the LED bands, their corner strips and the signs. No
+ * parapet or roof plant (`Mass.lightsOnly` drops the plain pieces). Its crown and its signs are High's own. `away`: from the window (m).
  */
 function block(m: Mass, b: Building, away: number): void {
-  const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60), head = headLight(b);
+  const s = STYLES[b.style], home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60), head = headLight(b), rand = rng(b.seed);
   b.tiers.forEach((t, i) => {
+    // (the roof's plant draws from the building's stream before the crown does, in `building`: the same draws here, no vertex kept)
+    const next = b.tiers[i + 1], free = next ? { ...t, z0: next.z1 + 1 } : t;
+    if (away < CLUTTER && free.z1 - free.z0 > 10) {
+      m.dry = true;
+      clutter(m, free, t.y1, b, rand, away < FINE);
+      m.dry = false;
+    }
     m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
     if (head) { m.fl = head.c; m.flY = [head.from, topOf(b)]; }
     m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
@@ -593,7 +605,7 @@ function block(m: Mass, b: Building, away: number): void {
     m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [t.x0, t.x1, t.z0, t.z1]).top(t, t.y1);
   });
   m.lightsOnly = true;
-  crown(m, b, rng(b.seed));
+  crown(m, b, rand);
   leds(m, b);
   signs(m, b, away);
   m.lightsOnly = false;

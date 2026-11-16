@@ -283,7 +283,7 @@ describe('Low city facade bake', () => {
       expect(day).toContain('vLowKind == 5.0) diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vLowMetal);');
       expect(day).toContain('vLowKind == 9.0) diffuseColor.rgb = vec3(0.55, 0.58, 0.6);');
       expect(day).toContain('vLowKind == 4.0) diffuseColor.rgb = vec3(0.32, 0.34, 0.36);');
-      expect(day).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      expect(day).toContain('else if (vLowKind == 8.0) {');
       expect(day).toContain('if (vLowFac == 0.0)');
       // the spire's metal flag comes from the vertex's aux.z, as High's does
       expect(compiled(mat).vertexShader).toContain('vLowMetal = aux.z;');
@@ -364,7 +364,12 @@ describe('Low city facade bake', () => {
       expect(full).toContain('pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0)');
       expect(full).toContain('mix(mix(vec3(0.3), lowMt * 0.75, vLowMetal * 0.9), vec3(1.0), lowFr) * fHor');
       // a float literal: an int would not compile in GLSL ES
-      expect(full).toContain(`${LOW_FAR_MIRROR.toFixed(3)} * lowMirM`);
+      expect(full).toContain(`vec3(1.0), lowFr) * fHor * ${LOW_FAR_MIRROR.toFixed(3)};`);
+      // under the roof line across the street the pane mirrors the walls there (or the road), not the sky: High's lines
+      expect(full).toContain('float lowHit = 1.0 - smoothstep(-0.7, 0.7, lowRp.y - 13.0 - 32.0 * lowNoise(vec2(lowRp.x / 34.0, vLowSeed * 0.37)));');
+      expect(full).toContain('(fHor * 0.3 + fSunCol * max(dot(fSun, -lowN), 0.0) * 0.26) * 0.9');
+      expect(full).toContain('lowMir = mix(lowSkyM, lowWallM, lowHit) * lowMirM;');
+      expect(full).toContain('uniform vec3 fHor, fSun, fSunCol,');
       // the far window's mask goes to its mean where a bay or a storey is under a few pixels
       expect(full).toContain('win, smoothstep(vec2(0.1), vec2(0.35), fw));');
     }
@@ -375,9 +380,15 @@ describe('Low city facade bake', () => {
   it('Low: a sign\'s case is dark, its lit face keeps the sign colour (the orange board), and far day glass does not go navy', () => {
     for (const m of buildings(low)) {
       const sh = withMap(m.material as Material);
-      // only the case (look.w < -0.5) is forced dark; look.w 0 or 1 keeps vColor (the sign's own colour)
-      expect(sh).toContain('vLowKind == 8.0 && vLowLook.w < -0.5) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
-      expect(sh).not.toContain('vLowKind == 8.0) diffuseColor.rgb = vec3(0.022, 0.024, 0.027);');
+      // the case (look.w < -0.5) stays dark; a face draws High's glyph board: dark-orange backing by day, tubes at night
+      expect(sh).toContain('float lowGlyph(vec2 c, float gh) {');
+      expect(sh).toContain('if (vLowLook.w > -0.5) {');
+      expect(sh).toContain('d = lowGlyph(c, lowH(gid + vLowSeed * 1.31));');
+      expect(sh).toContain('mix(lowCol * 0.62 + 0.1, vec3(0.03), tube), box) * mix(0.3, 1.0, rim);');
+      expect(sh).toContain('lowSign = mix(neon, boxed, box) * rim;');
+      const full = compiled(m.material as Material).fragmentShader;
+      expect(full).toContain('else if (vLowKind == 8.0) lowGlow = lowSign;');
+      expect(full).not.toContain('vColor.rgb * mix(1.8, 0.72, clamp(vLowLook.w, 0.0, 1.0))');
       expect(sh).toContain('float lowFarD = smoothstep(150.0, 300.0, length(vViewPosition));');
       expect(sh).toContain(`vLowTint * ${LOW_FAR_GLASS}, lowFarD)`);
     }
