@@ -5,7 +5,7 @@
 // calls, the machine rebuilds, the long tasks and the hottest functions of a CPU profile. Compare two runs with `--baseline old.json`. It starts its own dev
 // server on PORT (5197), so no hot update changes the code under it; `window.__board` exists only there. Nothing here is a pass or a fail: it reports,
 // except that `--gpu <regex>` throws if the GL renderer string does not match, `--need-timers` throws if EXT_disjoint_timer_query_webgl2 is missing, and
-// `room night hover` throws on a missed hover, a moved key, a drawn shadow map or an off outline, and any scenario throws on a recording with no frames, no draw calls, or no GPU pass times when `--need-timers` is set.
+// `room night hover` (skipped on a portrait screen, where the overview does not hold the case) throws on a missed hover, a moved key, a drawn shadow map or an off outline, and any scenario throws on a recording with no frames, no draw calls, or no GPU pass times when `--need-timers` is set.
 import { spawn } from 'node:child_process';
 import { assertRecording } from './bench3d-check.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -274,6 +274,8 @@ try {
       pre: async () => {
         await go('flyToRoom', 1500); await hour(23); await wait(2500);
         const c = await at('case.side');
+        // a phone in portrait: the overview stays in the room and holds the window and the desk, the case is off the right edge
+        if (!c && H > W) { console.log(`room night hover: skipped, the case is off the screen at ${W}x${H}`); await hour(null); return 'skip'; }
         if (!c) throw new Error('room night hover: case.side is not on screen');
         await p.mouse.move(c.x, c.y); await wait(1000);
         const id = await p.evaluate(async () => (await import('/src/app/hover.ts')).hover.value?.id);
@@ -315,7 +317,7 @@ try {
   console.log(head);
   for (const [name, s] of three) {
     if (only.length && !only.some((o) => name.includes(o))) continue;
-    await s.pre?.();
+    if ((await s.pre?.()) === 'skip') continue;
     if (!has('no-profile')) await cdp.send('Profiler.start');
     await p.evaluate(() => window.__probe.start());
     const t0 = Date.now();

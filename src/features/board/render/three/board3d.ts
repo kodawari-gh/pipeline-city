@@ -810,13 +810,14 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       const at = (nx: number, ny: number) => ({ x: r.left + ((nx + 1) / 2) * r.width, y: r.top + ((1 - ny) / 2) * r.height });
       // the middle if the object is there, else a point on it found by a grid of rays over its box
       const hit = (nx: number, ny: number) => { const p = at(nx, ny), got = idAt({ clientX: p.x, clientY: p.y }); return got === id || (got ?? '').startsWith(id); };
-      if (hit(mid.x, mid.y)) return at(mid.x, mid.y);
+      // (a ray meets the object off the screen too: a point the pointer cannot reach is no answer)
+      if (Math.abs(mid.x) < 1 && Math.abs(mid.y) < 1 && hit(mid.x, mid.y)) return at(mid.x, mid.y);
       const lo = new Vector3(b.min.x, b.min.y, b.max.z).project(camera), hi = new Vector3(b.max.x, b.max.y, b.max.z).project(camera);
       for (let i = 1; i < 24; i++) for (let j = 1; j < 24; j++) {
         const nx = Math.min(lo.x, hi.x) + (Math.abs(hi.x - lo.x) * i) / 24, ny = Math.min(lo.y, hi.y) + (Math.abs(hi.y - lo.y) * j) / 24;
         if (nx > -1 && nx < 1 && ny > -1 && ny < 1 && hit(nx, ny)) return at(nx, ny);
       }
-      return at(mid.x, mid.y);
+      return Math.abs(mid.x) < 1 && Math.abs(mid.y) < 1 ? at(mid.x, mid.y) : null;
     }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, goal: () => goal, bakes: () => bakes.size,
     // the rail that holds the view (its part's id), and the parts' rails
     rail: () => rail?.r.id ?? null, rails: () => machine?.rails ?? [],
