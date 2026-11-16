@@ -253,9 +253,19 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
 /**
  * A geometry at a lower detail level, in the same space (`geometry.userData.low`, LOD-01), or undefined. A builder sets it on a part that is
  * costly and seen small from far (a fan's housing); a merge carries it on (`paletteMesh`) and a distance stand-in draws it (`copiesOf`). It
- * stays off the GPU until a stand-in copies it.
+ * stays off the GPU until a stand-in copies it. The shared builders set one too (`softBox`, `post`, `drum`, `rod`, `tube` in geometry.ts,
+ * LOD-05), and a caller may then change the full geometry in place. So a level counts only while it still fits: the same attributes (a
+ * merge needs them, and baked occlusion or a second UV set has no copy on it) and the same bounds, within 2 % of the size.
  */
-export const lowOf = (g: BufferGeometry): BufferGeometry | undefined => g.userData.low as BufferGeometry | undefined;
+export function lowOf(g: BufferGeometry): BufferGeometry | undefined {
+  const low = g.userData.low as BufferGeometry | undefined;
+  if (!low) return undefined;
+  const names = Object.keys(g.attributes);
+  if (names.length !== Object.keys(low.attributes).length || names.some((k) => !low.attributes[k])) return undefined;
+  g.computeBoundingBox(); low.computeBoundingBox();
+  const a = g.boundingBox!, b = low.boundingBox!, tol = 0.02 * a.min.distanceTo(a.max) + 1e-6;
+  return a.min.distanceTo(b.min) <= tol && a.max.distanceTo(b.max) <= tol ? low : undefined;
+}
 
 /** Gives each vertex of `x` the material's colour, roughness and metalness (`_pc`, `_prm`: what a palette material reads). */
 function painted(x: BufferGeometry, m: MeshStandardMaterial): BufferGeometry {

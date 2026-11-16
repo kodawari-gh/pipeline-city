@@ -9,16 +9,16 @@
   "machine/Group#4": {
     "meshes": 62,
     "draws": 59,
-    "verts": 99018,
+    "verts": 91242,
     "instances": 734,
-    "sum": "d4ca1244"
+    "sum": "3b51e3e1"
   },
   "machine/Group#47": {
     "meshes": 23,
     "draws": 19,
-    "verts": 45660,
+    "verts": 42684,
     "instances": 186,
-    "sum": "d0eaaf57"
+    "sum": "5dcb4cc7"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -464,9 +464,9 @@
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 323682,
+    "verts": 293250,
     "instances": 0,
-    "sum": "1fe62438"
+    "sum": "2d3eb080"
   },
   "machine/tpm0": {
     "meshes": 1,

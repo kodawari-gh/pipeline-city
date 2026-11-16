@@ -1,0 +1,39 @@
+// The shared builders' lower detail level (LOD-05): each gives one with fewer triangles in the same space, and `lowOf` drops a level that
+// no longer fits its geometry.
+import { BufferAttribute, MeshStandardMaterial, type BufferGeometry } from 'three';
+import { describe, expect, it } from 'vitest';
+import { drum, post, rod, softBox, tube } from './geometry';
+import { lowOf } from './merge';
+
+const tris = (g: BufferGeometry): number => (g.index ? g.index.count : g.attributes.position!.count) / 3;
+const m = new MeshStandardMaterial();
+
+describe('the lower detail level of the shared builders', () => {
+  it('a soft box, a post, a drum, a rod and a tube each carry a level with fewer triangles', () => {
+    const made = {
+      softBox: softBox({ x: 0, y: 0, w: 400, h: 300 }, 0, 200, m), post: post(0, 0, 0, 50, 300, m, 24), drum: drum(0, 0, 0, 40, 100, m, 32),
+      rod: rod([0, 0, 0], [300, 200, 100], 20, m, 16), tube: tube([[0, 0, 0], [200, 100, 0], [400, 0, 100]], 15, m, 8),
+    };
+    for (const [name, o] of Object.entries(made)) {
+      const low = lowOf(o.geometry);
+      expect(low, name).toBeDefined();
+      expect(tris(low!), name).toBeLessThanOrEqual(tris(o.geometry) / 2);
+    }
+    // the plain box in place of 300 triangles of soft edge
+    expect(tris(lowOf(made.softBox.geometry)!)).toBe(12);
+  });
+
+  it('a round shape with no fewer sides to give has no level', () => {
+    expect(lowOf(post(0, 0, 0, 50, 300, m, 8).geometry)).toBeUndefined();
+    expect(lowOf(rod([0, 0, 0], [0, 100, 0], 5, m, 6).geometry)).toBeUndefined();
+  });
+
+  it('a level no longer counts once its geometry moved, or took an attribute the level has not', () => {
+    const moved = softBox({ x: 0, y: 0, w: 400, h: 300 }, 0, 200, m);
+    moved.geometry.translate(500, 0, 0);
+    expect(lowOf(moved.geometry)).toBeUndefined();
+    const baked = softBox({ x: 0, y: 0, w: 400, h: 300 }, 0, 200, m);
+    baked.geometry.setAttribute('_ao', new BufferAttribute(new Float32Array(baked.geometry.attributes.position!.count), 1));
+    expect(lowOf(baked.geometry)).toBeUndefined();
+  });
+});

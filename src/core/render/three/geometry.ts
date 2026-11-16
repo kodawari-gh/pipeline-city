@@ -142,24 +142,35 @@ export const fanSides = (mm: number): number => {
   return FAN_SIDE_TABLE[FAN_SIDE_TABLE.length - 1]![1];
 };
 
-/** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). */
+/**
+ * The sides of a round shape's lower detail level (LOD-05): half, a multiple of 4 (so it is as wide as the full shape on both axes), 8 at
+ * least. The level is the geometry's `userData.low` (`lowOf`, merge.ts): a stand-in seen from far draws it (the machine at the room's
+ * overview, where a part is a few pixels across). It is in the geometry's own space, so a caller that moves the vertices afterwards loses
+ * it (`lowOf` checks the bounds). A shape with no fewer sides to give has no lower level.
+ */
+const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
+const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => { if (has) g.userData.low = low(); return g; };
+const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
+  withLow(new CylinderGeometry(rTop, r, h, sides), () => new CylinderGeometry(rTop, r, h, lowSides(sides)), lowSides(sides) < sides);
+
+/** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). Its lower level is the plain box. */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);
-  const g = new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), o = new Mesh(g, m);
+  const g = withLow(new RoundedBoxGeometry(r.w, r.h, z1 - z0, SEG.bevel, rad), () => new BoxGeometry(r.w, r.h, z1 - z0)), o = new Mesh(g, m);
   o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
   return place(o);
 }
 
 /** A cylinder standing on the layout point (x, y): its axis is world y. `y` is its base. */
 export function post(x: number, y: number, z: number, r: number, h: number, m: Material, sides: number = SEG.post, rTop = r): Mesh {
-  const o = new Mesh(new CylinderGeometry(rTop, r, h, sides), m);
+  const o = new Mesh(lowCylinder(rTop, r, h, sides), m);
   o.position.set(x, -y + h / 2, z);
   return place(o);
 }
 
 /** A disc-like cylinder facing the viewer (its axis is world z), centred on the layout point. */
 export function drum(x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.drum): Mesh {
-  const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides), m);
+  const o = new Mesh(lowCylinder(r, r, z1 - z0, sides), m);
   o.rotation.x = Math.PI / 2;
   o.position.set(x, -y, (z0 + z1) / 2);
   return place(o);
@@ -175,7 +186,7 @@ export function face(r: RectLike, z: number, m: Material): Mesh {
 /** A straight rod from world point a to b (a lamp arm, a pipe run). */
 export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides: number = SEG.rod): Mesh {
   const va = new Vector3(...a), vb = new Vector3(...b), len = va.distanceTo(vb);
-  const o = new Mesh(new CylinderGeometry(r, r, len, sides), m);
+  const o = new Mesh(lowCylinder(r, r, len, sides), m);
   o.position.copy(va).add(vb).multiplyScalar(0.5);
   o.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), vb.sub(va).normalize());
   return place(o);
@@ -184,7 +195,8 @@ export function rod(a: readonly [number, number, number], b: readonly [number, n
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. `segs`: the steps along it (default three a point, at least 8). */
 export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides: number = SEG.tube, segs = Math.max(8, points.length * 3)): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');
-  const o = new Mesh(new TubeGeometry(curve, segs, radius, sides, false), m);
+  // (the lower level: half the steps along it, 4 sides at least; a cable is a pixel or two wide from far)
+  const o = new Mesh(withLow(new TubeGeometry(curve, segs, radius, sides, false), () => new TubeGeometry(curve, Math.max(4, Math.ceil(segs / 2)), radius, Math.min(sides, Math.max(4, Math.ceil(sides / 2))), false)), m);
   return place(o);
 }
 
