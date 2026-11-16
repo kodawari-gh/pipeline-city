@@ -297,7 +297,8 @@ export class Machine3D {
   private share(): void {
     const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
     mergeSiblings(this.root, { skip, apart, pbr: true });
-    shareMaterials(this.root, { skip, apart });
+    // (at Low, equal materials of different parts become one too: PHONE-01; High keeps one set per part, as it was)
+    shareMaterials(this.root, { skip, apart, across: lowDetail() });
   }
 
   // ------------------------------------------------------------------ case

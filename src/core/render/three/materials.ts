@@ -197,6 +197,12 @@ export interface ShareOptions {
   apart?: readonly Object3D[];
   /** Hears of each material replaced by an equal one before it is disposed (the room's reflections drop it). */
   onReplace?: (old: Material, canon: Material) => void;
+  /**
+   * Share equal materials across parts, not only inside one (PHONE-01: the Low machine has 424 materials of 217 different looks, and each change of
+   * material costs a draw its uniform upload). A fade subtree (`apart`) still shares only inside itself. A part that goes away disposes a material
+   * the other parts use: three sets it up again at its next draw, so this costs one setup, not a wrong picture.
+   */
+  across?: boolean;
 }
 
 /** The standard materials under the root before and after a share. */
@@ -211,11 +217,12 @@ export interface Shared { before: number; after: number }
  * before the share.
  */
 export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
-  interface Use { scope: Object3D | null; kind: string | null; meshes: Mesh[]; fixed: boolean }
+  interface Use { scope: Object3D | null; kind: string | null; meshes: Mesh[]; fixed: boolean; fade: boolean }
   const uses = new Map<Material, Use>(), skip = new Set(o.skip ?? []), apart = new Set(o.apart ?? []);
-  const use = (m: Material): Use => { let u = uses.get(m); if (!u) uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false })); return u; };
-  const walk = (x: Object3D, scope: Object3D, fixed: boolean): void => {
-    const f = fixed || skip.has(x), s = typeof x.userData.id === 'string' || apart.has(x) ? x : scope, mesh = x as Mesh;
+  const use = (m: Material): Use => { let u = uses.get(m); if (!u) uses.set(m, (u = { scope: null, kind: null, meshes: [], fixed: false, fade: false })); return u; };
+  // `fade`: under a subtree that fades alone, at any depth (an id'd part inside a fading lid is still faded with it)
+  const walk = (x: Object3D, scope: Object3D, fixed: boolean, fade: boolean): void => {
+    const f = fixed || skip.has(x), fd = fade || apart.has(x), s = typeof x.userData.id === 'string' || apart.has(x) ? x : scope, mesh = x as Mesh;
     const m = (x as { material?: Material | Material[] }).material;
     if (m) {
       for (const a of Array.isArray(m) ? m : [m]) {
@@ -223,13 +230,13 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
         if (f || Array.isArray(m) || !mesh.isMesh) { u.fixed = true; continue; }
         const k = kind(mesh);
         if (u.meshes.length && (u.scope !== s || u.kind !== k)) u.fixed = true;
-        u.scope = s; u.kind = k;
+        u.scope = s; u.kind = k; u.fade ||= fd;
         u.meshes.push(mesh);
       }
     }
-    for (const c of x.children) walk(c, s, f);
+    for (const c of x.children) walk(c, s, f, fd);
   };
-  walk(root, root, false);
+  walk(root, root, false, false);
   const canon = new Map<string, Material>();
   let before = 0, after = 0;
   for (const [m, u] of uses) {
@@ -237,7 +244,7 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
     before++;
     const key = u.fixed || !stillMaterial(m) ? null : materialKey(m);
     if (key === null) { after++; continue; }
-    const at = `${idOf(u.scope!)}|${u.kind}|${key}`, c = canon.get(at);
+    const at = `${o.across && !u.fade ? 'all' : idOf(u.scope!)}|${u.kind}|${key}`, c = canon.get(at);
     if (!c) { canon.set(at, m); after++; continue; }
     for (const mesh of u.meshes) mesh.material = c;
     o.onReplace?.(m, c);

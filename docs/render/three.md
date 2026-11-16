@@ -53,7 +53,7 @@ Parts, the room and the city each use a different method. Full bands are in [`lo
 
 - **Machine parts** (`partlod.ts`): a stand-in set replaces far parts with a few merged meshes. It holds each part's LOD1 where the builder gives one, else LOD0. Stand-ins cut draws (514 to 182 meshes at the overview); LOD1 cuts the overview's triangles 22 %.
 - **LOD1 and LOD2** come from the builders (`geometry.userData.low`); only the overview stand-in draws LOD1, and nothing draws LOD2 (the fan's). The scheme is in [`lod.md`](lod.md#the-scheme).
-- **Build my PC** keeps every part at full detail (`LOD_CEIL`, see `lod.md`).
+- **Build my PC** keeps every part at full detail from its own zoom in (`LOD_CEIL`, see `lod.md`), at Medium and High. At Low the stand-ins draw by the size rule at every zoom (PHONE-01): 585 draw calls to 223 on the phone profile.
 - **Room**: no distance LOD. The room's draw cut comes from merges only.
 - **City**: distance changes detail and generation. Only generation limits remove objects (see the table in `lod.md`). Rings do not drop objects, and buildings have no distance cull (the far ring keeps every far building).
 
@@ -64,6 +64,7 @@ Parts, the room and the city each use a different method. Full bands are in [`lo
 | `mergeStatic` | room, at build (`room3d.ts:742`, `merge.ts:47`) | one mesh per material |
 | `mergePalette` | room (`PALETTE_CELL` 2 m, `room3d.ts:138`) | per-cell meshes, so the frustum can still cull them |
 | `mergeSiblings` + `shareMaterials` | machine, once at build (`machine3d.ts:262-266`) | still meshes of one parent become one palette mesh; gated by the `merge` flag only, not by tier |
+| `shareMaterials(…, { across: true })` | Low only: the machine (`Machine3D.share`, PHONE-01) | equal still materials of different parts become one (a fade subtree still shares only inside itself); Build my PC at Low, 424 materials to 362 (the 217 distinct looks are not all reachable: the rest carry a fade or a writer's state); zoom frame 28.7–29.5 to 31.3–32.1 fps at CPU /4 on its own. High keeps one set per part. A part that goes away disposes a material the others use: three sets it up again at the next draw |
 | `mergeStatic(prop, { own: true, ok: glows })` | Low only: the router's status lights and its jacks' lenses (`room3d.ts`, CITY-06) | the glowing meshes of one material under a prop with its own id become one mesh, so a pick still finds the prop; one writer sets a material's glow, merged or not |
 | `mergeWithin` | Low only: the monitor housing (`props3d.ts`) and the architect lamp (`room3d.ts`, CITY-06; `pbr` keeps its steel's reflection). Every tier: the room's key rack, router and mailbox (MACH-02, `room3d.ts`); cable plugs, cord ends and grommets (LPC5, `cablerig3d.ts`); machine wires (`machine3d.ts`) | still meshes under one parent become one mesh; the machine key carries `|low` and the room's key carries it too (`rebuild` in `board3d.ts`), so a tier change across the Low line rebuilds both |
 | stand-ins (`standIns`, `merge.ts`) | far machine parts | a stand-in set of merged meshes |

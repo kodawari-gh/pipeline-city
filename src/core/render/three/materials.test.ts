@@ -150,6 +150,40 @@ describe('shared materials', () => {
     expect(top[0]!.material).not.toBe(body[0]!.material);
   });
 
+  it('across: equal materials of different parts become one; a fade, a skin and a glow stay out of it', () => {
+    const root = new Group(), a = tagged('ram0'), b = tagged('ram1'), lid = new Group(), c = tagged('ram2');
+    const ma = new Mesh(box(), mat(0x223344)), mb = new Mesh(box(), mat(0x223344)), mc = new Mesh(box(), mat(0x223344));
+    const ga = new Mesh(box(), mat(0x223344, { emissive: 0xffaa00 })), gb = new Mesh(box(), mat(0x223344, { emissive: 0xffaa00 }));
+    const sa = new Mesh(box(), mat(0x556677)), sb = new Mesh(box(), mat(0x556677));
+    const fa = new Mesh(box(), mat(0x223344)), fb = new Mesh(box(), mat(0x223344));
+    a.add(ma, ga, sa); b.add(mb, gb, sb); c.add(mc); lid.add(fa, fb);
+    b.add(lid);
+    root.add(a, b, c);
+    const skin = new PartSkin([sa.material]);
+    // (without `across`: no equal materials between parts)
+    expect(shareMaterials(root, { apart: [lid] })).toEqual({ before: 9, after: 9 - 1 });
+    const solo = new Set([ma.material, mb.material, mc.material]);
+    expect(solo.size).toBe(3);
+    expect(shareMaterials(root, { apart: [lid], across: true })).toEqual({ before: 8, after: 6 });
+    expect(mb.material).toBe(ma.material);
+    expect(mc.material).toBe(ma.material);
+    expect(ga.material).not.toBe(gb.material);
+    expect(sa.material).not.toBe(sb.material);
+    expect(fa.material).toBe(fb.material);
+    expect(fa.material).not.toBe(ma.material);
+    skin.set({ ...ON, burnt: true });
+    skin.frame(1);
+    expect(sb.material.emissive.getHex()).toBe(0);
+  });
+
+  it('across: a material used by two parts is left as it is', () => {
+    const root = new Group(), a = tagged('a'), b = tagged('b'), m = mat(0x223344);
+    a.add(new Mesh(box(), m)); b.add(new Mesh(box(), m), new Mesh(box(), mat(0x223344)));
+    root.add(a, b);
+    shareMaterials(root, { across: true });
+    expect((a.children[0] as Mesh).material).toBe(m);
+  });
+
   it('skin materials are never shared (a part state look stays on its own part)', () => {
     const root = new Group(), a = new Mesh(box(), mat(0x223344)), b = new Mesh(box(), mat(0x223344));
     root.add(a, b);

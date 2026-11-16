@@ -505,7 +505,9 @@ export function standIns(frame: Object3D, meshes: readonly Mesh[], pals: Map<str
     if (prog !== null) {
       const has = parts.find((p) => palKeys.has(p.j.mat));
       if (has) material = has.j.mat;
-      else { material = pals.get(prog) ?? paletteOf(material); pals.set(prog, material); }
+      // (a stand-in draws as its sources do: the machine's palette meshes keep PBR at Low, `pbr`, so a stand-in's palette does too. Else a set with
+      // no palette mesh in it drew Lambert at Low: the RAM chips went darker in Build my PC, PHONE-01)
+      else { material = pals.get(prog) ?? paletteOf(material, true); pals.set(prog, material); }
     }
     const mesh = new Mesh(g, material);
     mesh.castShadow = first.castShadow; mesh.receiveShadow = first.receiveShadow; mesh.renderOrder = first.renderOrder;

@@ -14,6 +14,7 @@ import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/onde
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
 import { SEG, anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
+import { lowDetail } from '@/core/render/three/detail';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext, restoreStudioEnv } from '@/core/render/three/init';
 import { Eye } from '@/core/render/three/eye';
 import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
@@ -63,7 +64,11 @@ const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
-/** The distance stand-ins (`partlod.ts`) draw only from this part of the stage's own zoom out: at its own view and closer, every part is itself. */
+/**
+ * The distance stand-ins (`partlod.ts`) draw only from this part of the stage's own zoom out: at its own view and closer, every part is itself.
+ * Low has no such floor (PHONE-01): the small parts draw merged at any zoom, as the size rule says, and the whole machine is held while a
+ * step moves parts (`frame`).
+ */
 export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
@@ -297,8 +302,10 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
-    // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held
-    this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
+    // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
+    // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
+    if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
+    else this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
     this.machine.lod(camera, this.H, renderer.getPixelRatio());
     this.step(dt * this.speed.peek());
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)

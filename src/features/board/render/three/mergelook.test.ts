@@ -109,6 +109,17 @@ describe('a palette merge keeps every source mesh\'s look', () => {
     }
     expect(new Color(COPPER).r).toBeGreaterThan(new Color(COPPER).b); // (the copper is warm: a grey result would fail the checks above)
   });
+
+  it('a stand-in of plain meshes draws with a PBR palette at Low, as the machine\'s palette meshes do (PHONE-01: the RAM chips went darker), and as before at High', () => {
+    for (const low of [true, false]) {
+      setLowDetail(low);
+      const s = scene();
+      s.root.updateMatrixWorld(true);
+      const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]).filter((x) => x.mesh.geometry.attributes._pc).map((x) => x.mesh.material as MeshStandardMaterial);
+      expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
+      for (const m of pals) expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);
+    }
+  });
 });
 
 describe('the Low machine keeps every merged mesh\'s look', () => {
