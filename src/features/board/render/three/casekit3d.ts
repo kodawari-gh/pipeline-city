@@ -2,12 +2,13 @@
 // z (the side) or along x (the rear and front walls, with their openings), decals on any face, and the painted sheets (perforations, brushed
 // metal, badges). Shapes are drawn in the layout (y down) and come out in the world (y up), z out of the wall.
 import {
-  BoxGeometry, CanvasTexture, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2,
+  BoxGeometry, CircleGeometry, DoubleSide, Group, LatheGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, Shape, Vector2,
   type BufferGeometry, type ExtrudeGeometry, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { bakedTex } from '@/core/render/three/baked';
-import { anisotropy, extrude, instanced, LOW_TOL, lowSides, place, SEG, shareTex, withLow, type RectLike } from '@/core/render/three/geometry';
+import { extrude, instanced, LOW_TOL, lowSides, paintLow, place, SEG, shareTex, withLow, type RectLike } from '@/core/render/three/geometry';
+import { sheetCut } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
 
@@ -271,20 +272,14 @@ export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material):
 // ---------------------------------------------------------------- painted sheets (painted once, shared by every rebuild)
 const TEX = new Map<string, Texture | null>();
 export function tex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture | null {
-  if (TEX.has(key)) return TEX.get(key)!;
+  // (a big sheet is half size at Low and has its own cache entry: a switch back to High paints the full one)
+  const cut = sheetCut(w, h), id = cut < 1 ? key + '@low' : key;
+  if (TEX.has(id)) return TEX.get(id)!;
   // (a baked sheet, `part-<key>` in `public/tex/`, stands for the canvas: `brushed` and `grain`)
   let t: Texture | null = bakedTex('part-' + key);
   if (t) t.wrapS = t.wrapT = RepeatWrapping;
-  else if (typeof document !== 'undefined') {
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    draw(cv.getContext('2d')!, w, h);
-    t = new CanvasTexture(cv);
-    t.colorSpace = SRGBColorSpace;
-    t.anisotropy = anisotropy;
-    t.wrapS = t.wrapT = RepeatWrapping;
-  }
-  TEX.set(key, shareTex(t));
+  else t = paintLow(w, h, draw, [1, 1]);
+  TEX.set(id, shareTex(t));
   return t;
 }
 

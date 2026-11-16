@@ -8,7 +8,7 @@ import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, G
 import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
-import { BakeQueue } from '@/core/render/three/artlod';
+import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
 import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/ondemand';
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
@@ -306,7 +306,8 @@ export class BuildStage {
     // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
     if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
     else this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
-    this.machine.lod(camera, this.H, renderer.getPixelRatio());
+    // (the art's density follows the `textures` setting as the board's view does: Low draws it at half what the screen needs)
+    this.machine.lod(camera, this.H, renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1));
     this.step(dt * this.speed.peek());
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
     this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);

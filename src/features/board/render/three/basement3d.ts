@@ -3,7 +3,7 @@
 // unit), the room east of it the front fans' air passes through to the supply, the fan hub on the tray sheet and the basement's drive cage under
 // the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.
 import { Group, Mesh, PlaneGeometry, type Material } from 'three';
-import { paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { paintLow, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { NONE, perforated, perforatedFlatRun, plateY, ring, rivets, screws, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
@@ -72,7 +72,7 @@ export function shroud(p: BasementPlan, look: { body: number; ink: string } = { 
   panel.add(thumbscrews([west.y + 170, west.y + west.h - 170].map((y) => ({ x: tx, y: -y, z: zf + 2 })), 'z+', 80, 48, knurl));
   panel.add(screws([west.y + 110, west.y + west.h - 110].map((y) => ({ x: west.x + 110, y: -y, z: zf + 2 })), 'z+', 48, screw));
   const W = 1024, H = Math.max(64, Math.round((W * west.h) / west.w));
-  const print = paint(W, H, (c) => {
+  const print = paintLow(W, H, (c) => {
     c.fillStyle = bg; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, W, 6);
     c.fillStyle = look.ink; c.textBaseline = 'middle'; c.textAlign = 'center';

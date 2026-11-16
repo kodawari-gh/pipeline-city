@@ -4,7 +4,8 @@
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
-import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { sheetCut } from '@/core/render/three/detail';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { seeThrough, unseen } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -90,12 +91,12 @@ export const stickPins = (visual: string): number => (visual === 'dimm-basic' ? 
 
 /** The PCB's face: the solder mask with faint traces up from the fingers, the gold fingers (`pins` of them) along the bottom edge with the key's gap. */
 function pcbFace(color: string, L: number, notchU: number, pins: number): Texture | null {
-  const key = `${color}|${notchU}|${pins}`;
-  if (pcbTex.has(key)) return pcbTex.get(key)!;
   const W = 1536, H = Math.round((W * PCB_H) / L), py = (v: number) => H - (v / PCB_H) * H, px = (u: number) => (u / L) * W;
+  const key = `${color}|${notchU}|${pins}|${sheetCut(W, H)}`; // (the sheet is half size at Low: its own entry)
+  if (pcbTex.has(key)) return pcbTex.get(key)!;
   // (the fingers fill the edge but for a 3 mm margin at each end and the key's gap)
   const m = 3 * STICK_MM, pitch = (L - 2 * m - 24) / pins;
-  const t = paint(W, H, (c) => {
+  const t = paintLow(W, H, (c) => {
     c.fillStyle = color; c.fillRect(0, 0, W, H);
     c.strokeStyle = 'rgba(255,255,255,0.07)'; c.lineWidth = 2;
     for (let u = m; u < L - m; u += pitch) { if (Math.abs(u - notchU) < 12) continue; c.beginPath(); c.moveTo(px(u + pitch / 2), py(SINK + 8)); c.lineTo(px(u + pitch / 2), py(SINK + 22 + ((Math.round(u) * 7) % 23))); c.stroke(); }

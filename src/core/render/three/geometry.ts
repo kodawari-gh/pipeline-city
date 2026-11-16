@@ -4,6 +4,7 @@ import {
   RepeatWrapping, SRGBColorSpace, Shape, ShapeUtils, SphereGeometry, TubeGeometry, Vector2, Vector3, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { sheetCut } from '@/core/render/three/detail';
 
 export interface RectLike { x: number; y: number; w: number; h: number }
 
@@ -387,6 +388,12 @@ export function paint(w: number, h: number, draw: (c: CanvasRenderingContext2D, 
   t.anisotropy = anisotropy;
   if (repeat) { t.wrapS = t.wrapT = RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   return t;
+}
+
+/** `paint` at the picture's detail: a big sheet is half its size per side at Low (`sheetCut`). The painter keeps its own `w` by `h` coordinates. */
+export function paintLow(w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void, repeat?: [number, number]): Texture | null {
+  const k = sheetCut(w, h);
+  return k < 1 ? paint(Math.round(w * k), Math.round(h * k), (c) => { c.scale(k, k); draw(c, w, h); }, repeat) : paint(w, h, draw, repeat);
 }
 
 /** Textures that outlive the rebuild that made them (the caches): `disposeTree` leaves them alive. */

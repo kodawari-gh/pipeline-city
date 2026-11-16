@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Group, Mesh, PlaneGeometry, TubeGeometry, type MeshStandardMaterial, type Object3D } from 'three';
-import { byDetail, lowDetail, setLowDetail } from '@/core/render/three/detail';
+import { byDetail, LOW_SHEET_PX, lowDetail, setLowDetail, sheetCut } from '@/core/render/three/detail';
+import { paintLow } from '@/core/render/three/geometry';
+import { tex } from './casekit3d';
 import { driveBody } from '@/features/storage/render/drives';
 import { setLayoutTier } from '../layout/layout';
 import { coolerModel } from './cooler3d';
@@ -86,5 +88,54 @@ describe('Low builds coarser machine parts', () => {
     setLowDetail(true);
     expect(machineKey(s)).not.toBe(high);
     expect(machineKey(null)).toBe('none');
+  });
+});
+
+describe('Low keeps a big painted sheet at half its size (PHONE-05)', () => {
+  type Fake = { width: number; height: number; scale: [number, number] | null };
+  /** A document whose canvases only remember their size and the scale the painter's context got. */
+  const fakeDocument = (): Fake[] => {
+    const made: Fake[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const cv: Fake & { getContext: () => object } = { width: 0, height: 0, scale: null, getContext: () => ({ scale: (x: number, y: number) => { cv.scale = [x, y]; } }) };
+        made.push(cv);
+        return cv;
+      },
+    });
+    return made;
+  };
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('sheetCut is 1 at High, and at Low 0.5 over the pixel limit only', () => {
+    expect(sheetCut(1024, 700)).toBe(1);
+    setLowDetail(true);
+    expect(sheetCut(1024, 700)).toBe(0.5);
+    expect(sheetCut(256, 256)).toBe(1);
+    expect(sheetCut(600, LOW_SHEET_PX / 600)).toBe(1);
+  });
+  it('paintLow draws a big sheet on a half-size canvas, and the painter still works in w by h', () => {
+    const made = fakeDocument();
+    let seen: number[] = [];
+    paintLow(1024, 700, (_c, w, h) => { seen = [w, h]; });
+    expect(made[0]).toMatchObject({ width: 1024, height: 700, scale: null });
+    setLowDetail(true);
+    paintLow(1024, 700, (_c, w, h) => { seen = [w, h]; });
+    expect(made[1]).toMatchObject({ width: 512, height: 350, scale: [0.5, 0.5] });
+    expect(seen).toEqual([1024, 700]);
+    paintLow(128, 128, () => {});
+    expect(made[2]).toMatchObject({ width: 128, height: 128, scale: null });
+  });
+  it('a cached sheet is painted again for the other detail, and each keeps its entry', () => {
+    fakeDocument();
+    const size = (t: ReturnType<typeof tex>) => (t!.image as { width: number }).width;
+    const high = tex('lowdetail-test-sheet', 1024, 700, () => {});
+    expect(size(high)).toBe(1024);
+    setLowDetail(true);
+    const low = tex('lowdetail-test-sheet', 1024, 700, () => {});
+    expect(size(low)).toBe(512);
+    expect(tex('lowdetail-test-sheet', 1024, 700, () => {})).toBe(low);
+    setLowDetail(false);
+    expect(tex('lowdetail-test-sheet', 1024, 700, () => {})).toBe(high);
   });
 });

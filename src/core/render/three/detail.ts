@@ -12,5 +12,11 @@ export function setLowDetail(on: boolean): boolean {
   return true;
 }
 
+/** At Low a painted sheet over this many pixels is kept at half its size per side (a quarter of the memory; the art's own Low density is half too, `TEXTURE_LEVELS`): the painted sheets were 158 MB of the 177 MB Build my PC held on a phone (PHONE-05). */
+export const LOW_SHEET_PX = 300_000;
+
+/** The share of its size a `w` by `h` painted sheet keeps: 1, or 0.5 at Low when it is big. The painter keeps its own `w` by `h` coordinates (scale the context by it). */
+export const sheetCut = (w: number, h: number): number => (low && w * h > LOW_SHEET_PX ? 0.5 : 1);
+
 /** `high` at High, `cheap` at Low. */
 export const byDetail = <T>(high: T, cheap: T): T => (low ? cheap : high);

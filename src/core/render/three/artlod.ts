@@ -29,6 +29,12 @@ export function tilesOf(r: Rect, px: number, tile = TILE_PX): Rect[] {
 /** Screen pixels per layout unit at distance `d` (a perspective camera, vertical fov in degrees, viewport `H` pixels high): the 2D renderer's zoom. */
 export const screenPx = (d: number, fov: number, H: number): number => H / (2 * Math.max(1, d) * Math.tan((fov * Math.PI) / 360));
 
+/**
+ * The art's density at each level of the graphics settings (`textures`), as a share of what the screen needs (`ArtSurface.update`'s `dpr` is the
+ * pixel ratio times it); level 2 is the tuned look. The board's view and the Build my PC stage both apply it.
+ */
+export const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
+
 /** The level to show for a screen that needs `need` pixels per unit: the first dense enough (a little under is fine), else the top one. */
 export function levelFor(levels: readonly number[], need: number): number {
   for (let i = 0; i < levels.length; i++) if (levels[i]! >= need * 0.8) return i;

@@ -41,7 +41,7 @@ import { lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
 import { whileHidden } from './whileHidden';
 import { RAM_LEAN } from './ram3d';
-import { BakeQueue } from '@/core/render/three/artlod';
+import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -67,8 +67,6 @@ const LOOK_Z = 5000;
 const TARGET_Z0 = -3000;
 /** The machine's ids that are reached from outside the case (a tutorial target among them leaves the side panel shut). */
 const OUTSIDE = new Set(['case', 'case.side', 'power', 'usb', 'io', 'cable.video', 'cable.lan', 'cable.pcmains', 'cable.monmains']);
-/** The art's density at each level of the graphics settings, as a share of what the screen needs (`ArtSurface.update`); level 2 is the tuned look. */
-const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
 /** The share of the particles at each level of the graphics settings. */
 const PARTICLE_LEVELS = [0, 0.5, 1];
 /** The room's probe is captured again at most this often (ms) while its light changes (the sun moves a step every few seconds). */

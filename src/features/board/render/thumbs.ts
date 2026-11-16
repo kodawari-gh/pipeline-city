@@ -46,8 +46,14 @@ function loadStills(): void {
 export function initThumbs(r: Renderer): void {
   const first = !renderer;
   renderer = r;
-  if (!first) return;
-  loadStills();
+  if (first) loadStills();
+}
+
+/** The drawing worker starts with the first picture that needs a drawing, not with the game: its code (Pixi, 0.5 MB) is a first-start download, and the stills cover most tiles (PHONE-05). */
+let workerTried = false;
+function startWorker(): void {
+  if (workerTried) return;
+  workerTried = true;
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
   try {
     worker = new Worker(new URL('./thumbs.worker.ts', import.meta.url), { type: 'module' });
@@ -88,6 +94,7 @@ export function thumbOf(id: string): string | null {
   if (hit) return hit;
   if (failed.has(key) || sent.has(key) || queue.some((j) => j.key === key)) return null;
   const job: ThumbJob = { key, id, theme, epoch };
+  startWorker();
   if (worker) { sent.set(key, job); worker.postMessage(job); } else { queue.push(job); pump(); }
   return null;
 }
