@@ -5,7 +5,7 @@
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
 import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { NYLON, mat } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
@@ -202,13 +202,15 @@ export function psuFilter(f: Frame, bottom: number): Group {
 
 // ---------------------------------------------------------------- the rear I/O shield
 
-const JACK: Record<string, number> = { 'line-out': 0x8fd14f, 'line-in': 0x5aa9e6, mic: 0xf08cb0 };
+/** The audio jack colour codes (PC 99): line out green, line in blue, mic pink. */
+export const JACK: Record<string, number> ={ 'line-out': 0x8fd14f, 'line-in': 0x5aa9e6, mic: 0xf08cb0 };
 
 /** The rear I/O plate's extent: layout y (the board's I/O strip and a margin) and depth. */
 const plateSpan = (): Span => ({ y0: BR.io.y - 40, y1: BR.io.y + BR.io.h + 40, z0: BOARD_Z + 60, z1: BOARD_Z + 1240 });
 
 /** The USB-A tongue's colour by the board's generation: black USB 2 (Starter, Basic), blue USB 3 (Mainstream), red USB 3.2 (Enthusiast). */
-const USB_TONGUE = [0x16171b, 0x16171b, 0x2a6fdc, 0xc8323c];
+/** The USB tongue colour codes by generation: black USB 2.0, white and blue USB 3.0, red USB charging. */
+export const USB_TONGUE = [0x16171b, 0x16171b, 0x2a6fdc, 0xc8323c];
 
 /**
  * The labels printed on a black shield, laid out as `decalX` lays a face across x (the canvas's x is depth, its y the layout y down): the port
@@ -315,7 +317,7 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
     const e = IO_EXTRA, oy = -e.optical.y, oz = Z + e.optical.z, uy = -e.usbc.y, [u0, u1] = e.usbc.z;
     button(e.clr, Z + IO_Z.jack, 0xc8323c);
     // each antenna jack an SMA: the hex nut on the plate, the threaded barrel, the white insulator and the centre socket at its mouth
-    const nickel = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }), ptfe = mat(0xe8e6df, { roughness: 0.6 });
+    const nickel = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }), ptfe = mat(NYLON, { roughness: 0.6 });
     for (const z of e.wifi.z) {
       const wy = -e.wifi.y, wz = Z + z;
       g.add(drumX(x - 15, wy, wz, 30, 14, nickel, SEG.hexNut), drumX(x - 42, wy, wz, 18, 44, gold, SEG.disc), drumX(x - 64.6, wy, wz, 11, 1.4, ptfe, SEG.post), drumX(x - 65.6, wy, wz, 3.5, 1, gold, SEG.smallDisc));
@@ -444,7 +446,7 @@ export function controls(f: Frame, ex: number, cap: number): Controls {
 }
 
 /** How each kind finishes a cable hole in the tray: a rolled steel lip (the Mini), black rubber, or a brushed aluminium ring over rubber flaps (the Full tower). */
-export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0xbdb491, metal: false, flap: null }, matte: { tone: 0x101114, metal: false, flap: 0x1c1d22 }, gamer: { tone: 0x14171f, metal: false, flap: 0x20242f }, show: { tone: 0x9aa0a8, metal: true, flap: 0x17181c } };
+export const GROMMETS: Record<CaseKind, GrommetStyle> = { oem: { tone: 0x131518, metal: false, flap: null }, matte: { tone: 0x101114, metal: false, flap: 0x1c1d22 }, gamer: { tone: 0x14171f, metal: false, flap: 0x20242f }, show: { tone: 0x9aa0a8, metal: true, flap: 0x17181c } };
 
 /** Two hinge barrels on the front edge of a glass door (the Mid and the Full tower). */
 export function hinges(ex: number, yTop: number, yBot: number): Group {

@@ -5,7 +5,7 @@
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { CERAMIC, mat } from '@/core/render/three/materials';
 import { seeThrough, unseen } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
@@ -195,7 +195,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   // a row of passives between the fingers and the chips, on both faces
   const caps = [];
   for (let u = 30; u < L - 30; u += 27) for (const s of [-1, 1]) caps.push({ x: cx + s * (PCB_T / 2 + 5), y: ys + u, z: TOP + 14, sx: 10, sy: 16, sz: 8 });
-  root.add(instanced(new BoxGeometry(1, 1, 1), mat(0x8c6c4c, { roughness: 0.55 }), caps));
+  root.add(instanced(new BoxGeometry(1, 1, 1), mat(CERAMIC, { roughness: 0.55 }), caps));
   if (look === 'bare') {
     // the maker's sticker across the first group of chips on the west face (the live map lands on the east)
     if (label) root.add(faceLabel(label, true, cx - PCB_T / 2 - CHIP_T - 2.5, wy((d[0]!.y + d[3]!.y + d[3]!.h) / 2), Z0 + (CHIP_Z0 + CHIP_Z1) / 2, -1, Math.min(760, d[3]!.y + d[3]!.h - d[0]!.y - 40), CHIP_Z1 - CHIP_Z0 - 30));

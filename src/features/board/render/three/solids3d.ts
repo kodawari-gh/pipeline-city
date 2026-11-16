@@ -3,7 +3,7 @@
 // their metal ends, chip legs, header pins and the CPU socket's contacts. Each kind is one instanced mesh: a few thousand parts, a few draw calls.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Shape, type BufferGeometry } from 'three';
 import { SEG, instanced, paint } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { CERAMIC, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import type { Solid } from '../boardParts';
 
@@ -83,7 +83,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
   add(bands, new CylinderGeometry(1, 1, 1, SEG.midRound, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xb9babf, { roughness: 0.4, side: DoubleSide }));
-  add(bodies, box, mat(0x8c6c4c, { roughness: 0.55 }));
+  add(bodies, box, mat(CERAMIC, { roughness: 0.55 }));
   add(ends, box, tinned);
   add(legs, gullWing(8), tinned);
   add(pins, box, gold);

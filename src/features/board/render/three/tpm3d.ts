@@ -9,7 +9,7 @@
 import { BoxGeometry, Group, LatheGeometry, Matrix4, Shape, Vector2, type MeshStandardMaterial } from 'three';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { CU, tpmCopper, type Layer } from '@/features/tpm/render/tpmcopper';
 import { tpmGeo } from '@/features/tpm/render/tpmlayout';
@@ -55,12 +55,12 @@ function gullWing() {
   return extrude(s, { depth: w, bevelEnabled: false }).applyMatrix4(new Matrix4().set(0, 0, 1, -w / 2, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
 }
 
-/** A 0603 LED turned along y, centred at (x, y) on a PCB top at depth z: its white base, its red lens, the tinned ends. */
+/** A 0603 LED turned along y, centred at (x, y) on a PCB top at depth z: its white base, its dark lens (unlit), the tinned ends. */
 function led(g: Group, x: number, y: number, z: number) {
   const L = 1.6 * MM, W = 0.8 * MM, e = 0.3 * MM;
-  g.add(rectBox({ x: x - W / 2, y: y - L / 2 + e, w: W, h: L - 2 * e }, z, z + 6, mat(0xe6e2d8, { roughness: 0.6 })));
+  g.add(rectBox({ x: x - W / 2, y: y - L / 2 + e, w: W, h: L - 2 * e }, z, z + 6, mat(NYLON, { roughness: 0.6 })));
   for (const s of [-1, 1]) g.add(rectBox({ x: x - W / 2, y: s < 0 ? y - L / 2 : y + L / 2 - e, w: W, h: e }, z, z + 8, tin()));
-  g.add(softBox({ x: x - W / 2 + 1.5, y: y - L / 2 + e + 1, w: W - 3, h: L - 2 * e - 2 }, z + 6, z + 14, mat(0x9a2318, { roughness: 0.16, metalness: 0 }), 2.5));
+  g.add(softBox({ x: x - W / 2 + 1.5, y: y - L / 2 + e + 1, w: W - 3, h: L - 2 * e - 2 }, z + 6, z + 14, mat(0x131518, { roughness: 0.16, metalness: 0 }), 2.5));
 }
 
 /**

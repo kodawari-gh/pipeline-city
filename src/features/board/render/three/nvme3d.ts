@@ -144,7 +144,7 @@ function heatsink(g: Group, X0: number, X1: number, Y0: number, Y1: number, zc: 
   }
   g.add(instanced(new BoxGeometry(ft, hs.h - 28, fh), anod, items)); // (plain boxes: a fin is under 3 mm thick)
   // the plateau and its insert, the insert's edges diamond-cut (bright chamfers)
-  const P = { x: px, y: hs.y + 14, w: pl, h: hs.h - 28 }, I = grow(P, -23), silver = mat(0xd0d4da, { metalness: 0.9, roughness: 0.26, map: tiled(brushed(), 2, 1) });
+  const P = { x: px, y: hs.y + 14, w: pl, h: hs.h - 28 }, I = grow(P, -23), silver = mat(0xb9babf, { metalness: 0.9, roughness: 0.26, map: tiled(brushed(), 2, 1) });
   g.add(slab(shapeOf(outlinePts(P, 0, [30, 30, 30, 30])), zb1 - 2, zt - 20, anod, 4));
   g.add(slab(shapeOf(outlinePts(I, 0, [20, 20, 20, 20])), zt - 20, zt, silver, 7));
   g.add(decal(grow(I, -7), zt + 0.3, decalMat(insertTex(look, (I.w - 14) / MM, (I.h - 14) / MM), { metal: 0.85, rough: 0.28, cut: true })));

@@ -31,7 +31,7 @@ import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
-import { cloth, mat, shareMaterials } from '@/core/render/three/materials';
+import { NYLON, cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
@@ -50,7 +50,7 @@ import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf, shadeOf } from './palette';
+import { CEILING, LANTERN, MANILA, NEON, NEON_WASH, OAK, OAK_GRAIN, PAPER, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf, shadeOf } from './palette';
 import {
   BED, BENCH, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
   WALL_T, WEST_X, WINDOW,
@@ -727,7 +727,7 @@ export class Room3D {
     const ob = OUTBOX, front = mat(0x1d1e22, { roughness: 0.45 });
     box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x050608, { roughness: 0.6 })));
     box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
-    box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
+    box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(PAPER, { roughness: 0.6 }), 10));
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, SEG.part), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
     if (lowDetail()) mergeWithin(box, { twin: this.envTwin });
     R.add(box);
@@ -739,7 +739,7 @@ export class Room3D {
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {
-      const m = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(NEON), emissiveIntensity: 0 });
+      const m = new MeshStandardMaterial({ color: 0x131518, emissive: new Color(NEON), emissiveIntensity: 0 });
       const d = drum(ISP_PLATE.x + ISP_PLATE.w * (0.14 + k * 0.18), ISP_PLATE.y + ISP_PLATE.h * 0.8, 80, 96, ISP_PLATE.w * 0.04, m, SEG.smallDisc);
       this.ispDots.push(m);
       R.add(d);
@@ -756,7 +756,7 @@ export class Room3D {
     }
     R.add(socket, plateBox);
     // the letterbox's light: on while an upload waits or goes out
-    const mailM = new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xffb347), emissiveIntensity: 0 });
+    const mailM = new MeshStandardMaterial({ color: 0x131518, emissive: new Color(0xffb347), emissiveIntensity: 0 });
     box.add(drum(ob.x + 180, ob.y + 215, 730, 750, 28, mailM, SEG.midRound));
     this.mailLed = mailM;
 
@@ -1048,7 +1048,7 @@ export class Room3D {
 
   /** The envelope: paper, and its flap, which turns about the top edge. */
   private envelope(): { env: Group; flap: Mesh; mats: MeshStandardMaterial[] } {
-    const paper = mat(0xf1e8d6, { roughness: 0.8 }), darker = mat(0xdccfb4, { roughness: 0.8 }), env = new Group();
+    const paper = mat(PAPER, { roughness: 0.8 }), darker = mat(MANILA, { roughness: 0.8 }), env = new Group();
     paper.transparent = darker.transparent = true;
     paper.side = darker.side = DoubleSide;
     env.add(softBox({ x: -ENV_W / 2, y: -ENV_H / 2, w: ENV_W, h: ENV_H }, 0, 40, paper, 20));
@@ -1076,7 +1076,7 @@ export class Room3D {
         cx.fillStyle = '#2b3140'; cx.font = 'bold 24px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
         cx.fillText(k.label, 0, 0); cx.restore();
       });
-      const shell = mat(0xeceef2, { roughness: 0.35 });
+      const shell = mat(NYLON, { roughness: 0.35 });
       const body = softBox({ x: c.x - KEY_W / 2, y: c.y - KEY_LEN / 2, w: KEY_W, h: KEY_LEN }, 260, 400, shell, 40);
       g.add(body);
       if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }

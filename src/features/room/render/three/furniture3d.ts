@@ -20,7 +20,7 @@ import { SEG, instanced, paint, place, post, rectBox, rod, shadowBlob, shareTex,
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
-import { DUVET, LANTERN, NEON, OAK, OAK_GRAIN, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin, shadeOf } from './palette';
+import { DUVET, LANTERN, NEON, OAK, OAK_GRAIN, OPAL, PAPER, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin, shadeOf } from './palette';
 import { pothos, succulent } from './plants3d';
 import { ARC_LAMP, BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SCONCE, SHELF, WEST_X, onRug } from './roomplan';
 
@@ -398,14 +398,14 @@ export function nightstand(): Bedside {
     const a = (k / 3) * Math.PI * 2 + 0.4, c = Math.cos(a), s = Math.sin(a);
     g.add(rod([lx + c * (rb + 260), -top + 20, lz + s * (rb + 260)], [lx + c * rb, yb, lz + s * rb], 24, black, SEG.cord));
   }
-  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
+  const glow = mat(OPAL, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
   const bulb = new Mesh(new SphereGeometry(420, SEG.roundCap, SEG.ringsBulb), glow), by = y0 + sh / 2;
   bulb.position.set(lx, by, lz);
   g.add(seeThrough(bulb));
   // a hardcover lying flat (linen boards over a cream page block, its spine east), the phone on it, a little turned
   const bx0 = cx + 950, bx1 = x + w - 100, bz0 = cz - 1900, bz1 = cz + 2100, bh = 420, linen = cloth(0xffffff, { map: weave('#8d8a80', { repeat: [2, 2] }), roughness: 0.85 });
   g.add(softBox({ x: bx0, y: top - 55, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20), softBox({ x: bx0, y: top - bh, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20));
-  g.add(rectBox({ x: bx0 + 50, y: top - bh + 50, w: bx1 - bx0 - 160, h: bh - 100 }, bz0 + 70, bz1 - 70, mat(0xe9e1cf, { roughness: 0.9 })));
+  g.add(rectBox({ x: bx0 + 50, y: top - bh + 50, w: bx1 - bx0 - 160, h: bh - 100 }, bz0 + 70, bz1 - 70, mat(PAPER, { roughness: 0.9 })));
   g.add(softBox({ x: bx1 - 170, y: top - bh, w: 170, h: bh }, bz0, bz1, linen, 70));
   const phone = new Group(), alu = mat(0x2a2d32, { metalness: 0.7, roughness: 0.35 }), glass = mat(0x050608, { roughness: 0.06, metalness: 0.1 });
   phone.add(softBox({ x: -700, y: -150, w: 1400, h: 150 }, -1425, 1425, alu, 60), softBox({ x: -665, y: -162, w: 1330, h: 24 }, -1390, 1390, glass, 10));
@@ -447,7 +447,7 @@ export function floorLantern(): Lantern {
   // a cross of wire in the bottom ring holds the stem; the bulb a little over the middle
   const by = y0 + H * bulbAt;
   g.add(rod([x - r0, y0, z], [x + r0, y0, z], 22, black, SEG.thinTube), rod([x, y0, z - r0], [x, y0, z + r0], 22, black, SEG.thinTube), rod([x, y0, z], [x, by - 400, z], 40, black, SEG.cord));
-  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
+  const glow = mat(OPAL, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
   const bulb = new Mesh(new SphereGeometry(420, SEG.roundCap, SEG.ringsBulb), glow);
   bulb.position.set(x, by, z);
   g.add(seeThrough(bulb));
@@ -730,7 +730,7 @@ export function ceilingLight(x: number, y: number, z: number): { root: Group; gl
   const g = new Group(), r = 5000;
   g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x131518, { roughness: 0.9 }), SEG.fineDisc), false));
   g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d32, { roughness: 0.5 }), SEG.fineDisc), false));
-  const glow = mat(0xcfccc6, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
+  const glow = mat(OPAL, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
   g.add(place(post(x, y + 940, z, r - 250, 40, glow, SEG.fineDisc), false));
   return { root: g, glow };
 }
@@ -836,7 +836,7 @@ export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: Mes
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
   const rim = new Mesh(new TorusGeometry(R, 30, SEG.tube, SEG.lathe), black);
   rim.rotation.x = Math.PI / 2;
-  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
+  const glow = mat(OPAL, { roughness: 0.4, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
   const disc = new Mesh(new CircleGeometry(R * 0.8, SEG.lathe), glow);
   disc.rotation.x = Math.PI / 2;
   disc.position.y = 500;
@@ -863,14 +863,14 @@ export function eastWall(): Group {
   const sx = SHELF.z0, sw = SHELF.z1 - SHELF.z0, sy = SHELF.y, sd = SHELF.d;
   wall.add(board({ x: sx, y: sy, w: sw, h: 900 }, 0, sd, wood));
   let y = sy;
-  ([0xd9d6cf, 0x26303d] as const).forEach((c, k) => {
+  ([PAPER, 0x26303d] as const).forEach((c, k) => {
     const t = 480 - k * 60;
     wall.add(softBox({ x: sx + 900 + k * 160, y: y - t, w: 4200 - k * 420, h: t }, 400 + k * 90, 3300 - k * 140, mat(c, { roughness: 0.75 }), 40));
     y -= t;
   });
   // the speaker: a cylinder in dark fabric, a black top, its status light
   const cx = sx + 7400, cz = sd / 2;
-  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), SEG.bigDisc), post(cx, sy - 2000, cz, 740, 50, mat(0x131518, { roughness: 0.35 }), SEG.bigDisc));
+  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2d32, { roughness: 0.95 }), SEG.bigDisc), post(cx, sy - 2000, cz, 740, 50, mat(0x131518, { roughness: 0.35 }), SEG.bigDisc));
   wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x131518, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), SEG.post));
   // a pothos at the east end: built facing +x, turned so its vines trail over the shelf's front edge
   const vine = pothos(0, 0, 0, sd - 1500, [{ dz: 300, len: 7000 }, { dz: -500, len: 4200 }]);

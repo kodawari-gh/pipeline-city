@@ -153,7 +153,7 @@ const PAIRS = [0xf0d7bd, 0xe8772b, 0xd3e8cf, 0x2f63c8, 0xd2dbf1, 0x3a9a4a, 0xe3d
  */
 export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   const { k, body: B, latch, cable } = f, b = bootScale(k, cable, RJ45.boot.h, 0.62), l = RJ45.l * b, g = new Group();
-  const clear = mat(0xdce6ec, { transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0 }), lever = mat(0xcfdbe2, { transparent: true, opacity: 0.6, roughness: 0.15 });
+  const clear = mat(0xffffff, { transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0 }), lever = mat(0xffffff, { transparent: true, opacity: 0.6, roughness: 0.15 });
   const goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 }), boot = mat(f.tone, { roughness: 0.55 });
   const zf = -l - RJ45.in * k, zb = -l + RJ45.out * b, hy = B.h / 2;
   // the wires and the jacket inside first (the clear body over them draws after)

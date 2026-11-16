@@ -1,7 +1,7 @@
 // The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one charcoal board for the floor, the desk
 // top and the bookcase (one material, `smokedOak` in `furniture3d.ts`: the palette's `OAK` as its colour, its maps only shade it, so the
 // lamps and the window light the three as one surface), charcoal flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
-// things (the runner, the keyboard's accent keys, the print's sun), cyan for what glows in tech (the LED strips, the clock, the router's
+// things (the runner, the print's sun), the PC's violet on the keyboard's accent keys, cyan for what glows in tech (the LED strips, the clock, the router's
 // lights), a warm amber for lamp light. Modern and plain: the builders take their colours from here.
 
 /** The walls' paint (their plaster texture is painted over this), the ceiling's, and the trim's (skirting, door, plinth). */
@@ -25,6 +25,14 @@ export const SHEET = '#b4b7bd', DUVET = '#434a5c', RUNNER = '#7a4434';
 export const RUG_WOOL = '#3b3d42', RUG_LINE = '#7a7c82', STONE = 0x4a4c51;
 /** Dark stoneware (every plant pot): its glaze and its speckle. */
 export const STONEWARE = '#3d3e40', SPECKLE = '205,198,184';
+/** Paper (a page block, an envelope, a label) and manila (the darker envelope). */
+export const PAPER = 0xe6e2d8, MANILA = 0xdccfb4;
+/** Opal glass and a bulb, unlit (a lamp's shade or globe; its light is its emissive). */
+export const OPAL = 0xfff3dc;
+/** The plants: bark, a green stem, potting soil. The mug's green tea. */
+export const BARK = 0x70584a, STEM = 0x6d8a46, SOIL = 0x7a5a40, TEA = 0x8d8a34;
+/** The keyboard's accent keys: the PC's violet, a step darker (as keycap plastic). */
+export const KEY_ACCENT = 0x8f7bd6;
 /** The camera's white balance (K): a lamp's colour is a black body's seen against it (`kelvin`), so a 2700 K bulb reads warm, the noon sky pale blue. */
 export const WHITE_K = 4500;
 

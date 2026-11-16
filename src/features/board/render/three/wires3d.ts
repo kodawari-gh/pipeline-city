@@ -160,11 +160,11 @@ export function sataPort(r: RectLike): Group {
   return g;
 }
 
-/** A SATA data plug seated in a port (red, the L of its latch on top). Returns where its cable leaves (east). */
+/** A SATA data plug seated in a port (dark, the L of its latch on top). Returns where its cable leaves (east). */
 export function sataPlug(r: RectLike): { root: Group; end: RopeEnd } {
-  const g = new Group(), red = mat(0xb3262f, { roughness: 0.45 }), x0 = r.x + r.w - 6, L = 120;
-  g.add(softBox({ x: x0, y: r.y + 10, w: L, h: r.h - 20 }, BOARD_Z + 16, BOARD_Z + 84, red, 8));
-  g.add(rectBox({ x: x0 + 20, y: r.y + 20, w: 60, h: r.h - 40 }, BOARD_Z + 84, BOARD_Z + 96, mat(0xd8dde4, { metalness: 0.8, roughness: 0.3 })));
+  const g = new Group(), body = mat(0x1d1e22, { roughness: 0.45 }), x0 = r.x + r.w - 6, L = 120;
+  g.add(softBox({ x: x0, y: r.y + 10, w: L, h: r.h - 20 }, BOARD_Z + 16, BOARD_Z + 84, body, 8));
+  g.add(rectBox({ x: x0 + 20, y: r.y + 20, w: 60, h: r.h - 40 }, BOARD_Z + 84, BOARD_Z + 96, mat(0xb9babf, { metalness: 0.8, roughness: 0.3 })));
   return { root: g, end: { at: [x0 + L + 2, -(r.y + r.h / 2), BOARD_Z + 50], dir: [1, 0, 0] } };
 }
 

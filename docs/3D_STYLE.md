@@ -343,6 +343,11 @@ Real material families only. A part uses these hexes, plus pure black or white a
 | 3. PCB masks | `#131518`, `#16294d`, `#173d29` | Board and card substrate |
 | 4. Gold | `#d4af5f` | One gold: contacts and pins |
 | 5. Copper | `#c0793a` | One copper: heat pipes and the cooler |
+| 6. Nylon and PTFE | `#d6d1c2` | White plastic: a standoff, a tie, a label's base (`NYLON`) |
+| 7. Ceramic | `#9a7a52` | A chip capacitor's body (`CERAMIC`) |
+| 8. Laminate edge | `#45443a` | A PCB's edge, side-on (`LAMINATE`) |
+
+The chip body `#0d1636` (art-style §2 "Sub / chip body") is the CPU package's substrate. The room's own tones (paper, opal glass, bark, stem, soil, tea) are in `src/features/room/render/three/palette.ts`. The laminate edge is a family colour; it is not a mask.
 
 Neon is not a family. Neon comes from emissive light only, from the status and instruction roles in art-style §2. A base colour must never be neon (art-style C1).
 

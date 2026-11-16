@@ -3,7 +3,7 @@
 // real (23 layout units a mm); a part stands on a PCB top at depth z, its rect in layout coordinates (y down).
 import { BoxGeometry, Group, Mesh, PlaneGeometry, RingGeometry, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { CERAMIC, LAMINATE, NYLON, mat } from '@/core/render/three/materials';
 import { decal, shapeOf, tex } from './casekit3d';
 
 /** Layout units a millimetre (the case's scale). */
@@ -27,7 +27,7 @@ export type PassivePkg = keyof typeof PASSIVE;
 /** One passive: its centre, its package, a capacitor (tan ceramic) or a resistor (black top), turned to run along y. */
 export interface Passive { x: number; y: number; pkg: PassivePkg; kind: 'cap' | 'res'; turn?: boolean }
 
-const capM = () => once('cap', () => mat(0x9a7a52, { roughness: 0.55 }));
+const capM = () => once('cap', () => mat(CERAMIC, { roughness: 0.55 }));
 const resM = () => once('res', () => mat(0x131518, { roughness: 0.5 }));
 const tinM = () => once('tin', () => mat(0xb9babf, { metalness: 0.9, roughness: 0.32 }));
 
@@ -86,7 +86,7 @@ export interface PkgLook { mould?: number; lid?: boolean; dot?: boolean; bevel?:
 export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly string[], o: PkgLook = {}): MeshStandardMaterial {
   const wMm = r.w / MM, hMm = r.h / MM;
   if (o.lid) {
-    const sub = mat(0x3d4a2e, { roughness: 0.55 }), t = Math.min(h * 0.35, 18);
+    const sub = mat(0x173d29, { roughness: 0.55 }), t = Math.min(h * 0.35, 18);
     g.add(body(r, z, z + t, sub, 2));
     const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 }, m = mat(0x959aa3, { metalness: 0.8, roughness: 0.4 });
     g.add(body(lid, z + t, z + h, m, 6));
@@ -101,7 +101,7 @@ export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly
 
 /** A crystal in its seam-sealed metal can (the controller's clock): a nickel lid on a ceramic base, its frequency stamped on it. */
 export function crystal(g: Group, r: RectLike, z: number, h: number, value = '40.000'): void {
-  g.add(body(r, z, z + h * 0.35, mat(0xcfc6b2, { roughness: 0.7 }), 2));
+  g.add(body(r, z, z + h * 0.35, mat(NYLON, { roughness: 0.7 }), 2));
   const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.08, w: r.w * 0.88, h: r.h * 0.84 };
   g.add(body(lid, z + h * 0.35, z + h, mat(0xb9babf, { metalness: 0.9, roughness: 0.28 }), 3));
   g.add(decal(lid, z + h + 0.3, decalMat(markTex([value], lid.w / MM, lid.h / MM, '#c9ced6', '#6a6f78', false), { metal: 0.85, rough: 0.3 })));
@@ -264,7 +264,7 @@ export function maskTop(key: string, r: RectLike, z: number, a: MaskArt, o: { ro
  * A PCB's body from its layout outline `pts` (y down), depth z0 to z1: its faces in the mask's colour, its routed edge the laminate's (the glass
  * weave in its resin, lighter than the mask, so a thin board reads as one).
  */
-export function pcbSlab(pts: readonly (readonly [number, number])[], z0: number, z1: number, mask: number, edge = 0x45443a): Mesh {
+export function pcbSlab(pts: readonly (readonly [number, number])[], z0: number, z1: number, mask: number, edge = LAMINATE): Mesh {
   const g = extrude(shapeOf(pts.map(([x, y]) => new Vector2(x, -y))), { depth: z1 - z0, bevelEnabled: false, curveSegments: SEG.caseCurve });
   g.translate(0, 0, z0);
   const o = new Mesh(g, [mat(mask, { roughness: 0.6 }), mat(edge, { roughness: 0.85 })]);

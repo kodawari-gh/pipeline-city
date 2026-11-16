@@ -168,7 +168,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
   const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 });
   const M: JackMats = {
     steel, plastic: mat(0x131518, { roughness: 0.62 }), back: mat(0x2a2d32, { roughness: 0.6 }), gold: springGold(),
-    green: mat(0x2f8a52, { emissive: 0x5cff9a, emissiveIntensity: 0.55, roughness: 0.3 }), amber: mat(0x8a6420, { emissive: 0xffc247, emissiveIntensity: 0.4, roughness: 0.3 }),
+    green: mat(0x131518, { emissive: 0x5cff9a, emissiveIntensity: 0.55, roughness: 0.3 }), amber: mat(0x131518, { emissive: 0xffc247, emissiveIntensity: 0.4, roughness: 0.3 }),
   };
   const ys = jacksOf(visual, f.y0);
   for (const y of ys) jack(g, y, Zp, M, inX);

@@ -15,7 +15,7 @@ import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { oak } from './furniture3d';
 import { monitorBody } from './monitor3d';
-import { NEON, NEON_WASH, STEEL } from './palette';
+import { KEY_ACCENT, NEON, NEON_WASH, OPAL, PAPER, RUNNER, STEEL, TEA } from './palette';
 
 type V3 = [number, number, number];
 /** The clock's digits: the cyan of what glows in tech. */
@@ -48,7 +48,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   shade.position.set(...hd);
   shade.rotation.z = Math.atan2(ux, -uy);
   const outer = place(new Mesh(new CylinderGeometry(300, 820, L, SEG.drum, 1, true), coat));
-  const inner = mat(0xfff4dc, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
+  const inner = mat(OPAL, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
   const innerM = new Mesh(new CylinderGeometry(296, 812, L, SEG.drum, 1, true), inner);
   const cap = place(new Mesh(new SphereGeometry(300, SEG.disc, SEG.ringsMid, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
@@ -58,7 +58,7 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, SEG.knob), joint));
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
   shade.add(lip, knob);
-  const bulb = mat(0xfff6e0, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
+  const bulb = mat(OPAL, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
   const bulbM = new Mesh(new SphereGeometry(240, SEG.disc, SEG.ringsFine), bulb);
   bulbM.position.y = -L + 380;
   shade.add(outer, innerM, cap, seeThrough(bulbM));
@@ -275,7 +275,7 @@ export function teaCup(x: number, deskY: number, z: number): Cup {
   cup.scale.set(1.012, 1, 0.99);
   cup.rotation.y = 2.1;
   cup.position.y = 4.5;
-  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, SEG.lathe), mat(0x8d8a34, { roughness: 0.04 }));
+  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, SEG.lathe), mat(TEA, { roughness: 0.04 }));
   tea.position.y = 4.5 + 70;
   // the saucer, its grain straight across it
   const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), SEG.lathe);
@@ -370,7 +370,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
       u += wu;
     }
   });
-  [0x3b4048, 0x2b2f36, 0x8f7bd6].forEach((col, k) => {
+  [0x3b4048, 0x2b2f36, KEY_ACCENT].forEach((col, k) => {
     const geo = mergeGeometries(parts[k]!, false);
     if (geo) board.add(place(new Mesh(geo, mat(col, { roughness: 0.55 }))));
   });
@@ -441,13 +441,13 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
 
 /** A closed notebook with its elastic band and a pen on it, lying askew on the desk (turned `a` about the vertical). */
 export function notebook(x: number, deskY: number, z: number, a: number): Group {
-  const g = new Group(), cover = mat(0x4e5360, { roughness: 0.7 }), pages = mat(0xf0e9d8, { roughness: 0.9 }), band = mat(0x1d1e22, { roughness: 0.6 });
+  const g = new Group(), cover = mat(0x4e5360, { roughness: 0.7 }), pages = mat(PAPER, { roughness: 0.9 }), band = mat(0x1d1e22, { roughness: 0.6 });
   g.add(softBox({ x: -1700, y: -60, w: 3400, h: 60 }, -2300, 2300, cover, 25), softBox({ x: -1700, y: -400, w: 3400, h: 60 }, -2300, 2300, cover, 25));
   g.add(rectBox({ x: -1640, y: -340, w: 3290, h: 280 }, -2250, 2250, pages), softBox({ x: -1770, y: -400, w: 160, h: 400 }, -2300, 2300, cover, 70));
   g.add(rectBox({ x: 1150, y: -410, w: 90, h: 420 }, -2310, 2310, band));
   // the pen: a barrel, its cap with a clip
-  const blue = mat(0x2e3f66, { roughness: 0.35 }), steel = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
-  g.add(rod([-700, 490, -1500], [500, 490, 900], 85, blue, SEG.arm), rod([500, 490, 900], [760, 490, 1420], 92, steel, SEG.arm), rod([-700, 490, -1500], [-790, 490, -1680], 50, steel, SEG.frameBar));
+  const barrel = mat(new Color(RUNNER).getHex(), { roughness: 0.35 }), steel = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
+  g.add(rod([-700, 490, -1500], [500, 490, 900], 85, barrel, SEG.arm), rod([500, 490, 900], [760, 490, 1420], 92, steel, SEG.arm), rod([-700, 490, -1500], [-790, 490, -1680], 50, steel, SEG.frameBar));
   g.add(rod([560, 590, 980], [760, 590, 1380], 22, steel, SEG.thinTube));
   g.position.set(x, -deskY, z); g.rotation.y = a;
   return g;

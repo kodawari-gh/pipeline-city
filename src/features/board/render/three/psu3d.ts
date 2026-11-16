@@ -7,7 +7,7 @@
 // the honeycomb exhaust, the IEC C14 inlet with its three pins, the rocker switch, the case's four screws. The mains cord's C13 plug fits the inlet.
 import { CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, TorusGeometry, Vector2, type BufferGeometry, type Material, type MeshStandardMaterial } from 'three';
 import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, withLow, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { NYLON, mat } from '@/core/render/three/materials';
 import { CASE, PSU_FORM, type PsuForm } from '../layout/layout';
 import { PSU_BODY, type BasementPlan } from './basement3d';
 import { badgeTex, decal, decalTop, decalX, grain, outlinePts, perfMat, plateY, screws, tex, tiled, wallX, type Span, type Spot } from './casekit3d';
@@ -242,7 +242,7 @@ function rear(g: Group, u: BasementPlan['psu'], b: PsuBox, M: { body: Material; 
   const bezel: Span = { y0: sw.y - 10.5 * MM, y1: sw.y + 10.5 * MM, z0: sw.z - 7.5 * MM, z1: sw.z + 7.5 * MM, r: 1 * MM };
   const inner: Span = { y0: sw.y - 8.5 * MM, y1: sw.y + 8.5 * MM, z0: sw.z - 5.5 * MM, z1: sw.z + 5.5 * MM, r: 0.5 * MM };
   g.add(prismX(rx - 1.6 * MM, rx, spanPts(bezel), [spanPts(inner)], M.plastic, 0.3 * MM));
-  const rock = mat(0x131518, { roughness: 0.42 }), white = mat(0xe6e8ec, { roughness: 0.5 });
+  const rock = mat(0x131518, { roughness: 0.42 }), white = mat(NYLON, { roughness: 0.5 });
   g.add(rectBox({ x: rx - 0.4 * MM, y: inner.y0, w: 0.4 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 2.6 * MM, y: sw.y, w: 2.6 * MM, h: (inner.y1 - inner.y0) / 2 }, inner.z0, inner.z1, rock));
   g.add(rectBox({ x: rx - 0.5 * MM, y: sw.y - 6.5 * MM, w: 0.12 * MM, h: 4 * MM }, sw.z - 0.4 * MM, sw.z + 0.4 * MM, white));

@@ -7,7 +7,7 @@ import { SEG, paint, place, post, rod, shareTex } from '@/core/render/three/geom
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { floorShadow, relief } from './furniture3d';
-import { SPECKLE, STONEWARE } from './palette';
+import { BARK, SOIL, SPECKLE, STEM, STONEWARE } from './palette';
 import { FLOOR_Y } from './roomplan';
 
 type V3 = [number, number, number];
@@ -90,9 +90,11 @@ function leafTex(ground: string, vein: string, veins: number, extra?: (c: Canvas
   return { map, normalMap: relief(height, VEIN_DEPTH) };
 }
 
+/** The leaves' three tints over one leaf map: fresh, pale, dusty. */
+export const LEAF_TINTS = [0xffffff, 0xd7e4c9, 0xaebb9f] as const;
 /** Three tones of one leaf material (light, mid, deep): the leaves of a plant take turns. */
 function leafMats(tex: { map: Texture | null; normalMap: Texture | null }, roughness: number): Material[] {
-  return [0xffffff, 0xd7e4c9, 0xaebb9f].map((c) => mat(c, { ...tex, roughness, side: DoubleSide }));
+  return LEAF_TINTS.map((c) => mat(c, { ...tex, roughness, side: DoubleSide }));
 }
 
 /** A leaf from base point `at` along `dir`, its face turned toward `face` (and rolled about its midrib by `roll`). */
@@ -175,7 +177,7 @@ export function floorPlant(x: number, z: number): Group {
   g.add(post(x, fl, z, 1950, 200, ware, SEG.bigDisc, 2150), post(x, fl - 200, z, 1980, 60, ware, SEG.bigDisc));
   const top = -fl + potH - 250;
   g.add(post(x, fl - potH + 250, z, 2210, 40, soil(), SEG.canister), mulch(x, top + 40, z, 1800, 12));
-  const bark = mat(0x70584a, { roughness: 0.85 });
+  const bark = mat(BARK, { roughness: 0.85 });
   // the trunk and two branches: tapered, a little crooked
   const trunk: V3[] = [[x, top, z], [x + 180, top + 6000, z + 120], [x + 520, top + 12000, z + 320], [x + 380, top + 17800, z + 160]];
   const branches: V3[][] = [
@@ -189,7 +191,7 @@ export function floorPlant(x: number, z: number): Group {
     // the fig's gloss: a few broad pale smears
     for (let k = 0; k < 6; k++) { c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.ellipse(w * (0.25 + rnd() * 0.5), h * rnd(), w * 0.25, h * 0.08, 0, 0, Math.PI * 2); c.fill(); }
   });
-  const leaves = leafMats(tex, 0.36), stalk = mat(0x6d8a46, { roughness: 0.6 }), knob = new IcosahedronGeometry(1, SEG.nodeDetail);
+  const leaves = leafMats(tex, 0.36), stalk = mat(STEM, { roughness: 0.6 }), knob = new IcosahedronGeometry(1, SEG.nodeDetail);
   const shapes = [0, 1, 2, 3].map((k) => leafBlade(1, 0.62, 'fig', { fold: 0.2 + k * 0.04, curl: 0.06 + k * 0.04, wave: 0.3 + k * 0.12, nu: SEG.figLong }));
   let n = 0;
   const along = (pts: V3[], from: number, count: number, size: number) => {
@@ -232,7 +234,7 @@ const pothosLeaves = perRoom(() => leafMats(pothosTex ??= sharedLeaf(leafTex('#4
 
 /** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room (+x). */
 export function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {
-  const g = new Group(), leaves = pothosLeaves(), stem = mat(0x6f9442, { roughness: 0.6 });
+  const g = new Group(), leaves = pothosLeaves(), stem = mat(STEM, { roughness: 0.6 });
   // (its baked occlusion, 6 cm out: the tuft's inner leaves, the vines against the shelf's edge)
   g.userData.ao = 1120;
   g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], stoneware()));
@@ -311,7 +313,7 @@ export function aloe(x: number, y: number, z: number): Group {
 
 /** A few pebbles of bark on the soil (flat-shaded chips), round (x, top, z) within r. */
 export function mulch(x: number, top: number, z: number, r: number, n: number): Group {
-  const g = new Group(), m = mat(0x7a5a40, { roughness: 0.9, flatShading: true }), geo = new IcosahedronGeometry(1, SEG.chipDetail);
+  const g = new Group(), m = mat(SOIL, { roughness: 0.9, flatShading: true }), geo = new IcosahedronGeometry(1, SEG.chipDetail);
   for (let k = 0; k < n; k++) {
     const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * r, s = 120 + rnd() * 120, o = new Mesh(geo, m);
     o.scale.set(s, s * 0.45, s * 0.8); o.position.set(x + Math.cos(a) * d, top + s * 0.2, z + Math.sin(a) * d); o.rotation.set(rnd(), rnd() * 3, rnd());

@@ -130,7 +130,7 @@ export function fanPart(spec: Pick<FanSpec, 'size' | 'tier'>, d: number, depth: 
     const still = [housing(d, depth, sides, small, steps), ...(hold.children as Mesh[]).map((m) => { m.updateMatrix(); return m.geometry.toNonIndexed().applyMatrix4(m.matrix); })];
     root.add(place(new Mesh(mergeGeometries(still, false)!, frame)));
   }
-  if (fast) root.add(place(new Mesh(pads(d, depth, small), mat(0x7d68bf, { roughness: 0.85 }))));
+  if (fast) root.add(place(new Mesh(pads(d, depth, small), mat(0x4e5360, { roughness: 0.85 }))));
   if (level === 0) motor(root, d * 0.47, depth, 4, small);
   const hub = hubM();
   const rotor = fanRotor(R, fast ? 9 : 7, blades(fast ? 0x3a3c46 : 0x2c2e34), hub, { ...(fast ? { chord: 0.6, pitch: 0.85 } : { chord: 0.66 }), ...(level ? { sides, rings: level === 1 ? 4 : 2 } : {}) });

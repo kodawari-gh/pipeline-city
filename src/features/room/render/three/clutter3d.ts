@@ -5,6 +5,7 @@ import { Box3, Group, Mesh, Vector3, type Material } from 'three';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { SEG, drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
+import { PAPER } from './palette';
 import { weave } from './furniture3d';
 import { BENCH, FLOOR_Y, PIER, TRAY } from './roomplan';
 
@@ -40,7 +41,7 @@ function flatBook(x: number, y: number, z: number, w: number, h: number, d: numb
 
 /** A pile of books from the layout height `y` up, each its own size and colour, set a little askew. */
 function pile(x: number, y: number, z: number, books: readonly (readonly [number, number, number, number, number])[]): Group {
-  const g = new Group(), pages = mat(0xd8d3c6, { roughness: 0.9 });
+  const g = new Group(), pages = mat(PAPER, { roughness: 0.9 });
   let top = y;
   for (const [w, h, d, colour, turn] of books) {
     g.add(flatBook(x, top, z, w * MM, h * MM, d * MM, mat(colour, { roughness: 0.75 }), pages, turn));
@@ -105,7 +106,7 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
   g.add(softBox({ x: wx - 300, y: sockY - 400, w: 600, h: 800 }, 100, 660, shell, 100));
 
   // ---- books: two on the bench by the glass ----
-  g.add(pile(BENCH.x0 + 1800, BENCH.top, (BENCH.z0 + BENCH.z1) / 2, [[200, 24, 135, 0x26303d, -0.1], [190, 16, 130, 0xd9d6cf, 0.08]]));
+  g.add(pile(BENCH.x0 + 1800, BENCH.top, (BENCH.z0 + BENCH.z1) / 2, [[200, 24, 135, 0x26303d, -0.1], [190, 16, 130, PAPER, 0.08]]));
 
   return g;
 }

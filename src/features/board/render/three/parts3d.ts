@@ -4,7 +4,7 @@
 // Each top still wears its 2D drawing (`Raise`: `ArtSet.raise`), so the 3D parts sit on their pictures.
 import { CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { SEG, drum, paint, place, rectBox, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';
 import { m2Standoffs } from '../layout/pins';
@@ -68,7 +68,7 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
       // a spring screw: the coil round the shank under the head
       g.add(drum(x, y, top, top + 26, 13, mat(0x959aa3, { metalness: 0.7, roughness: 0.4 }), SEG.chipRound));
       screw(g, x, y, top + 26, 20);
-    } else g.add(drum(x, y, top, top + 10, 18, mat(0xd9d4c7, { roughness: 0.6 }), SEG.roundCap), drum(x, y, top + 10, top + 18, 11, mat(0xcfc9bb, { roughness: 0.6 }), SEG.chipRound));
+    } else g.add(drum(x, y, top, top + 10, 18, mat(NYLON, { roughness: 0.6 }), SEG.roundCap), drum(x, y, top + 10, top + 18, 11, mat(NYLON, { roughness: 0.6 }), SEG.chipRound));
   }
   let glow: MeshStandardMaterial | null = null;
   if (tier === 3) {

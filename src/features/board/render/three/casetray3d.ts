@@ -5,7 +5,7 @@
 import { Color, CylinderGeometry, Group, Mesh, PlaneGeometry, Shape, Vector2, type BufferGeometry, type Material } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SEG, extrude, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { NYLON, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
 import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
@@ -17,6 +17,9 @@ import { GROMMETS, kindTone, type Frame } from './casedetail3d';
 import { baseCagePlan, cageGrommet, cagePlan } from './drivecage3d';
 import { FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
 import { cableMesh, fanPlug, fromSlot, grommet, hung, TRAY_Z, type Env, type Look } from './wires3d';
+
+/** A strap's pull tab: the case's accent, muted 70 % toward black, so the band reads as a strap and not a colour. */
+export const strapTone = (acc: number): number => new Color(acc).lerp(new Color(0x101114), 0.7).getHex();
 
 /** How far the stamped panel under the board stands off the tray's sheet. */
 const PANEL = 10;
@@ -157,7 +160,7 @@ export function trayDetail(f: Frame, inner: Material): Group {
 
   // the Velcro straps of the better cases, waiting open under their bridges: a black band down from the bridge with its pull tab
   if (k === 'gamer' || k === 'show') {
-    const band = mat(0x131518, { roughness: 1 }), tab = mat(new Color(f.acc).lerp(new Color(0x101114), 0.7).getHex(), { roughness: 0.75 });
+    const band = mat(0x131518, { roughness: 1 }), tab = mat(strapTone(f.acc), { roughness: 0.75 });
     straps.forEach((s, i) => {
       const o = new Group(), lean = (i % 2 ? 1 : -1) * 0.05;
       o.position.set(s.x, -s.y, TRAY_Z);
@@ -226,7 +229,7 @@ export function leadCoil(): Group {
     g.add(softBox({ x: tail[0] - 36, y: -tail[1], w: 72, h: 90 }, zc - 26, zc + 34, mat(0x1d1e22, { roughness: 0.5 }), 6));
   });
   // the tie
-  g.add(rectBox({ x: cx - 34, y: cy - 280, w: 68, h: 100 }, TRAY_Z + 30, TRAY_Z + 134, mat(0xd8dade, { roughness: 0.6 })));
+  g.add(rectBox({ x: cx - 34, y: cy - 280, w: 68, h: 100 }, TRAY_Z + 30, TRAY_Z + 134, mat(NYLON, { roughness: 0.6 })));
   g.traverse(seeThrough);
   return g;
 }

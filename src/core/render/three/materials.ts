@@ -42,6 +42,13 @@ export function partLook(s: PartState): PartLook {
 
 /** The base colours of the asset standard (docs/3D_STYLE.md "Asset standard" §1): darks, satins, PCB masks, gold, copper. */
 export const FAMILY: readonly number[] = [0x050608, 0x131518, 0x1d1e22, 0x2a2d32, 0x4e5360, 0x959aa3, 0xb9babf, 0x16294d, 0x173d29, 0xd4af5f, 0xc0793a];
+/**
+ * Two real materials outside the families (docs/3D_STYLE.md "Asset standard" §1): natural nylon and PTFE (a standoff, a tie, a label's
+ * base, a white plastic shell), and the ceramic of a chip capacitor.
+ */
+export const NYLON = 0xd6d1c2, CERAMIC = 0x9a7a52;
+/** The edge of a PCB's laminate: glass-epoxy seen side-on (docs/3D_STYLE.md §1). */
+export const LAMINATE = 0x45443a;
 /** A colour nearer than this to a family colour (sum of the channel differences) is that family colour: the eye sees no difference. */
 export const FAMILY_SNAP = 30;
 // the first 7 family colours are the grey ladder; a grey is a colour of at most this chroma, no warmer than neutral, no lighter than this

@@ -20,6 +20,7 @@ import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } fro
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
 import { mergeSiblings } from '@/core/render/three/merge';
+import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -75,6 +76,8 @@ import { tpmModel, TPM_Z } from './tpm3d';
 import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
+/** The network lead's light blue (a common patch-cable colour). */
+export const LAN_LEAD = '#8cc3e0';
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const union = (a: RectLike, b: RectLike): RectLike => {
@@ -610,13 +613,13 @@ export class Machine3D {
     // leave the sockets on its end and go back through the cage
     const sataSlot = GEO.sata.length ? { x: gx - 30, y: GEO.sata[0]!.y - 60, w: 60, h: GEO.sata[GEO.sata.length - 1]!.y + GEO.sata[GEO.sata.length - 1]!.h - GEO.sata[0]!.y + 120 } : null;
     if (sataSlot) this.wires.add(grommet(sataSlot, this.grommets));
-    const sataEnds = sataSlot ? fromSlot(sataSlot, GEO.sata.length) : [], red: Look = { r: 15, base: '#b3262f', accent: null }, black: Look = { r: 19, base: '#16171b', accent: null };
+    const sataEnds = sataSlot ? fromSlot(sataSlot, GEO.sata.length) : [], data: Look = { r: 15, base: '#4e5360', accent: null }, black: Look = { r: 19, base: '#16171b', accent: null };
     for (const d of s.devices) {
       if (d.kind !== 'storage' || !d.slot.startsWith('sata')) continue;
       const i = idx(d.slot), port = GEO.sata[i], g = tag(new Group(), d.id);
-      if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, red, env, { natural: true, slack: 1.05, stiff: 0.7, n: 18 })); }
+      if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, data, env, { natural: true, slack: 1.05, stiff: 0.7, n: 18 })); }
       const drive = this.driveSockets.get(d.slot), slot = cageGrommet(this.cages.find((c) => c.trays.some((t) => t.slot === i)) ?? this.cage);
-      if (drive) for (const [sock, look, power] of [[drive.data, red, false], [drive.power, black, true]] as const) {
+      if (drive) for (const [sock, look, power] of [[drive.data, data, false], [drive.power, black, true]] as const) {
         // its plug pushed into the receptacle, the cable back into the slot in the tray sheet behind its cage (`cageGrommet`)
         const p = drivePlug(power, sock, power ? 0x16171b : 0xb3262f);
         const back: RopeEnd = { at: [slot.x + slot.w * (power ? 0.62 : 0.38), Math.min(-(slot.y + 80), Math.max(-(slot.y + slot.h - 80), sock[1] - 260)), TRAY_Z - 30], dir: [0, 0, 1] };
@@ -746,9 +749,9 @@ export class Machine3D {
     };
     if (has('lan') && netVisible(s) && this.inRoom) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
-      const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
+      const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: LAN_LEAD, accent: null };
       // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot)
-      const lan = routerLan(), fixed = seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, 0x8cc3e0)));
+      const lan = routerLan(), fixed = seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD))));
       g.add(fixed.root);
       const from: RopeEnd = fixed.strands[0]!;
       // (a card's jack is on its bracket, in the slot's opening: the plug goes into its mouth, nic3d's `mouthAt`)
@@ -762,7 +765,7 @@ export class Machine3D {
       const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', at: [CASE.x, -ly, lz] as V3 };
       const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
       // (a card's jack is real, its latch slot up; the board's is cut to its rear I/O's smaller mouth, its latch notch down)
-      const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, 0x8cc3e0))) : seatPlug(seat, rj45Plug(rj45Real(look.r, 0x8cc3e0)), Math.PI));
+      const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD)))) : seatPlug(seat, rj45Plug(rj45Real(look.r, hexNum(LAN_LEAD))), Math.PI));
       this.addRig(g, {
         id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: plug(now.port), seat, canSeat: true, engage: 380,
         port: now.port, alts: jacks.filter((j) => j !== now).map((j) => ({ ...j, model: plug(j.port) })),

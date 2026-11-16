@@ -3,7 +3,7 @@ import { BoxGeometry, Vector2, type Group } from 'three';
 import type { Theme } from '@/core/render/theme';
 import { SEG, drum, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
-import { KEEP_SPEC, mat } from '@/core/render/three/materials';
+import { KEEP_SPEC, NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { GEO, RAM_SINK, VRM_SINK } from '../layout/layout';
 import { SINK_FAN_RIM } from '../layout/boardlayout';
@@ -77,7 +77,7 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
     g.add(rod([px, ya, Z.root - 20], [px, ya, top + 30], 15, cu, SEG.part), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, SEG.part), rod([px, yb, top + 30], [px, yb, Z.root - 20], 15, cu, SEG.part));
   }
   // the screws: a boss of the casting on a nylon washer on the board, the shaft through it, a washer and the head behind
-  const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.32 }), nylon = mat(0xd6d1c2, { roughness: 0.7 });
+  const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.32 }), nylon = mat(NYLON, { roughness: 0.7 });
   for (const [x, y] of screwSpots(kind)) {
     g.add(drum(x, y, BOARD_Z, BOARD_Z + 8, 46, nylon, SEG.disc), drum(x, y, BOARD_Z + 8, Z.foot + 2, 38, anod, SEG.disc));
     g.add(drum(x, y, BOARD_Z - 72, BOARD_Z + 8, 20, steel, SEG.part), drum(x, y, BOARD_Z - 72, BOARD_Z - 64, 50, nylon, SEG.disc), drum(x, y, BOARD_Z - 102, BOARD_Z - 72, 44, steel, SEG.disc));

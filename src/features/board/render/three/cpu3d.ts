@@ -10,7 +10,7 @@ import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { instanced, softBox, type RectLike } from '@/core/render/three/geometry';
-import { mat } from '@/core/render/three/materials';
+import { CERAMIC, mat } from '@/core/render/three/materials';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import type { CpuSpec } from '@/features/board/sim/specs';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -80,7 +80,7 @@ function etching(spec: CpuSpec, w: number, h: number): Texture | null {
 export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
   const g = new Group(), lid = new Group(), plan = planOf(spec);
   // the substrate: the package's rounded rect (as the art's), its top the package art
-  const sub = mat(0x111a33, { roughness: 0.6 });
+  const sub = mat(0x0d1636, { roughness: 0.6 });
   g.add(slab(shapeOf(outlinePts(PKG, 70)), CPU_Z.base, CPU_Z.sub, sub, 3));
   art.surface(g, art.baker(() => cpuArt(T, spec).root).bake, PKG, CPU_Z.sub, LV_PART);
   // the capacitors where the art draws them: a ceramic body between two tinned ends
@@ -94,7 +94,7 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
     }
   }
   const cube = new BoxGeometry(1, 1, 1);
-  g.add(instanced(cube, mat(0x9c7e55, { roughness: 0.6 }), body), instanced(cube, mat(0xb9babf, { metalness: 0.8, roughness: 0.35 }), ends));
+  g.add(instanced(cube, mat(CERAMIC, { roughness: 0.6 }), body), instanced(cube, mat(0xb9babf, { metalness: 0.8, roughness: 0.35 }), ends));
   // the die: a block of silicon; its top, in the die's own frame drawn at `CPU_S`, wears the die view's floorplan with every name
   g.add(softBox(DIE, CPU_Z.sub, CPU_Z.die, mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 }), 2));
   const dieArt = art.baker(() => {
