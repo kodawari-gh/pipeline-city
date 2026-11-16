@@ -4,9 +4,10 @@
 // PCIe slots' grooves and contacts, the memory sockets, the power sockets' cavities, the chipset's sink, the slot hardware, the rear I/O with its
 // shield, the solids (capacitors, passives, legs, pins, screws), and the lights a running board shows (power good, the debug code, the RGB strip).
 // Built in board space (x east, y north, z up off the board).
-import { BoxGeometry, Group, type Material, type MeshStandardMaterial, type Object3D } from 'three';
+import { BoxGeometry, DataTexture, Group, Mesh, NearestFilter, SRGBColorSpace, type Material, type MeshStandardMaterial, type Object3D } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { headerRect } from '@/core/render/accelart';
-import { SEG, drum, instanced, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lerpHex, mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
@@ -63,14 +64,27 @@ function debugDisplay(d: RectLike, T: Theme, lamps: Spin[]): Group {
   return g;
 }
 
-/** The top board's RGB strip along its south edge (`GEO.rgb`): 44 LEDs fading from the theme's teal to its pink under a frosted light pipe. */
-function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
-  const g = new Group(), n = 44, a = hexNum(T.alu), b = hexNum(T.br), y = r.y + r.h / 2;
+/**
+ * The top board's RGB strip along its south edge (`GEO.rgb`): 44 LEDs fading from the theme's teal to its pink under a frosted light pipe.
+ * The LEDs are one mesh and one lamp (LOD-02: they were 44 draws at every zoom): each LED's uvs sit on its own texel of a 44 x 1 emissive map,
+ * so it glows its own colour, and the lamp's white emissive scales them all as each lamp's own colour did.
+ */
+export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
+  const g = new Group(), n = 44, a = hexNum(T.alu), b = hexNum(T.br), y = r.y + r.h / 2, z = BOARD_Z + 22;
   g.add(softBox(r, BOARD_Z, BOARD_Z + 18, mat(0x131518, { roughness: 0.6 }), 6));
+  const px = new Uint8Array(4 * n), leds: BoxGeometry[] = [];
   for (let k = 0; k < n; k++) {
-    const x = r.x + (k * r.w) / (n - 1);
-    g.add(rectBox({ x: x - 12, y: y - 12, w: 24, h: 24 }, BOARD_Z + 18, BOARD_Z + 26, lamp(lamps, lerpHex(a, b, k / (n - 1)), 1.4)));
+    const c = lerpHex(a, b, k / (n - 1)), box = new BoxGeometry(24, 24, 8).translate(r.x + (k * r.w) / (n - 1), -y, z), uv = box.attributes.uv!;
+    px.set([(c >> 16) & 255, (c >> 8) & 255, c & 255, 255], 4 * k);
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (k + 0.5) / n, 0.5);
+    leds.push(box);
   }
+  const map = new DataTexture(px, n, 1);
+  map.colorSpace = SRGBColorSpace; map.magFilter = map.minFilter = NearestFilter; map.generateMipmaps = false; map.needsUpdate = true;
+  const m = mat(0x131518, { emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 1.4, roughness: 0.35 });
+  lamps.push(light(m, 0xffffff, 1.4));
+  g.add(place(new Mesh(mergeGeometries(leds), m)));
+  for (const x of leds) x.dispose();
   // (a dark smoked pipe: a pale one turns every LED white)
   g.add(softBox(grow(r, -4), BOARD_Z + 26, BOARD_Z + 44, mat(0x2a2d32, { transparent: true, opacity: 0.22, roughness: 0.3 }), 8));
   return g;
