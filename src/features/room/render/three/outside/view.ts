@@ -219,6 +219,9 @@ export class OutsideView {
   /** What the picture's camera sees: the buildings, the trees and the cars out of it are not drawn (`sweep.ts`, `Fleet.update`). */
   private seen = new Frustum();
   private seenOf = new Matrix4();
+  /** The sun's shadow box, for a frame that draws its map. */
+  private sunBox = new Frustum();
+  private sunOf = new Matrix4();
   private sweeps: Sweep[] = [];
   /** The camera's view at the last cut, and whether that cut kept all of it (for the sun's shadows). */
   private cutOf = new Matrix4();
@@ -502,14 +505,23 @@ export class OutsideView {
     // the traffic on to the frame's clock, each car placed for this eye, the signals lit
     const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;
     this.ran = this.clock;
-    // (only what the camera sees, cut again once it has moved; all of it when the sun's shadows are drawn this frame: what is out of sight
-    // casts them too. A sun at 0 draws none: its map waits for its first lit frame, `sunmap.ts`)
+    // (only what the camera sees, cut again once it has moved; on a frame that draws the sun's map, also what its box holds: what is behind
+    // the camera casts into it. What is outside both casts into neither (CITY-08: the whole city was placed, 4.0 M triangles a frame at High,
+    // not 0.47 M). A sun at 0 draws none: its map waits for its first lit frame, `sunmap.ts`)
     const shadowNow = this.sunMap.due(this.sun.castShadow, this.sun.intensity);
     this.seen.setFromProjectionMatrix(this.seenOf.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse));
-    const seen = shadowNow ? undefined : this.seen;
+    const seen = this.seen;
+    let also: Frustum | undefined;
+    if (shadowNow) {
+      this.sun.updateMatrixWorld();
+      this.sun.target.updateMatrixWorld();
+      this.sun.shadow.updateMatrices(this.sun);
+      const sc = this.sun.shadow.camera;
+      also = this.sunBox.setFromProjectionMatrix(this.sunOf.multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse));
+    }
     if (shadowNow || this.cutAll || !nearly(this.seenOf, this.cutOf)) {
-      for (const s of this.sweeps) s.cut(seen);
-      this.fleet.park(seen, GRID.av0, 0);
+      for (const s of this.sweeps) s.cut(seen, also);
+      this.fleet.park(seen, GRID.av0, 0, also);
       this.cutOf.copy(this.seenOf);
       this.cutAll = shadowNow;
     }

@@ -45,6 +45,17 @@ describe('sweep', () => {
     expect(mesh.geometry.drawRange).toMatchObject({ start: 0, count: 9 });
   });
 
+  it('draws the run of the camera and of a second frustum together (the sun\'s box), and nothing outside both', () => {
+    const { mesh, sweep } = row();
+    sweep.cut(frustum(1)); // looking south: none of the three pieces
+    expect(mesh.visible).toBe(false);
+    sweep.cut(frustum(1), frustum(-1)); // the box looks north: the middle piece
+    expect(mesh.geometry.drawRange).toMatchObject({ start: 3, count: 3 });
+    expect(mesh.visible).toBe(true);
+    sweep.cut(frustum(-1), frustum(1)); // the eye looks north, the box south: the eye's run alone
+    expect(mesh.geometry.drawRange).toMatchObject({ start: 3, count: 3 });
+  });
+
   it('merges the meshes on each material in bearing order, and leaves the rest', () => {
     const root = new Group(), paint = new MeshBasicMaterial(), stone = new MeshBasicMaterial();
     for (const x of [100, -100, 0]) { const m = new Mesh(new BoxGeometry(1, 1, 1), paint); m.position.set(GRID.av0 + x, 0, -50); root.add(m); }

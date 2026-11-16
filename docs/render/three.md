@@ -138,7 +138,7 @@ Culling layers, in order:
 
 1. **Frustum, per mesh** (three.js bounds). Room, machine and city.
 2. **`Sweep.cut`** (`outside/sweep.ts`). Each city mesh draws only the run of pieces from the first to the last one the frustum touches. A sweep run still draws the whole run.
-3. **Car cut** (`cars.ts`). Moving cars use `reach()` on each route. Parked cars use 48 m cells with a per-car test.
+3. **Car cut** (`cars.ts`). Moving cars use `reach()` on each route. Parked cars use 48 m cells with a per-car test. On a frame that draws the sun's map, a parked car or a ring piece is placed when the eye's frustum or the sun's shadow box holds it (`Fleet.park`, `Sweep.cut`, `also`).
 4. **Occlusion query** (`outside/sight.ts`). One `ANY_SAMPLES_PASSED_CONSERVATIVE` query on the window quad. While the eye is still and the answer says hidden, the city is not drawn.
 5. **Cadence** (`view.ts`, `detail.ts`). While the eye moves under 1 px (`HOLD_PX`), the city draws every `LOW_EVERY` (6) frames at Low, `EVERY` (3) at High.
 6. **Window-box crop** (`view.ts`, `setViewOffset`). The city camera is cropped to the window's screen box.
@@ -248,4 +248,4 @@ The same commit read 16.8 fps in a later bake session. The two sessions are not 
 - The cause of Low's extra programs is not known.
 - GL textures rise 5 to 7 about 50 s after boot (218 to 223 to 229). This is not a tier-switch leak: a run with no switch shows the same steps, and `main` does too. Targets are made on first use as game time passes (the `CityGlow` chain of 5 levels starts at night; shadow and depth targets). Not traced further. A long run to check that it levels off is not done. GL buffers stay flat (1567).
 - The Razr sessions on `03fe0bc` read 45.8 fps and 16.8 fps. The cause is not known.
-- Parked cars take the distance from the window (`cars.ts:326`). Moving cars take it from the eye (`cars.ts:422`).
+- (Fixed, CITY-07 and CITY-08.) Parked cars took the distance from the window and moving cars from the eye: both take it from the window now. A frame that draws the sun's map placed the whole city; it places what the eye and the shadow box hold. See lod.md "The frame of the sun's map".

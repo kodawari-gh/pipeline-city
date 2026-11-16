@@ -66,6 +66,16 @@ export function within(f: Frustum, b: Sphere): number {
   return cut;
 }
 
+/** Does the frustum hold a car at (x, z), its ball of radius `CAR_R`, given the planes its cell crosses (`within`; 0: the cell is wholly in)? */
+function holds(f: Frustum, cut: number, x: number, z: number): boolean {
+  if (cut) for (let q = 0; q < 6; q++) {
+    if (!(cut & (1 << q))) continue;
+    const p = f.planes[q]!, n = p.normal;
+    if (n.x * x + n.y * (CAR_R / 2) + n.z * z + p.constant < -CAR_R) return false;
+  }
+  return true;
+}
+
 /**
  * The stretch of a route where a ball of radius `r`, its middle `y` over the road at a car's middle, meets the frustum (each plane, as
  * `Frustum.intersectsSphere`): the cars' middles from `out[0]` to `out[1]` m along it (none when `out[0] > out[1]`); all of it with no `seen`.
@@ -410,22 +420,19 @@ export class Fleet {
    * cell across its side, a car is tested on the planes the cell crosses (as `Frustum.intersectsSphere` on its ball). With the eye, a car past
    * `clip` of it is not placed (Low only).
    */
-  park(seen?: Frustum, ex?: number, ez?: number): void {
+  park(seen?: Frustum, ex?: number, ez?: number, also?: Frustum): void {
     const eye = ex !== undefined && ez !== undefined;
     for (const { im, cars, turn, cells } of this.still) {
       const a = im.instanceMatrix.array as Float32Array, ca = im.instanceColor!.array as Float32Array;
       let k = 0;
       for (const { ball, from, to } of cells) {
-        const cut = seen ? within(seen, ball) : 0;
-        if (cut < 0) continue;
-        next: for (let i = from; i < to; i++) {
+        // (a car is placed when `seen` or `also` holds it: `also` is the sun's shadow box on a frame that draws the map)
+        const cut = seen ? within(seen, ball) : 0, cutAlso = seen && also ? within(also, ball) : -1;
+        if (cut < 0 && cutAlso < 0) continue;
+        for (let i = from; i < to; i++) {
           const c = cars[i]!;
           if (eye && this.clipped(c.x, (c.x - ex) ** 2 + (c.z - ez) ** 2)) continue;
-          if (cut) for (let q = 0; q < 6; q++) {
-            if (!(cut & (1 << q))) continue;
-            const p = seen!.planes[q]!, n = p.normal;
-            if (n.x * c.x + n.y * (CAR_R / 2) + n.z * c.z + p.constant < -CAR_R) continue next;
-          }
+          if (seen && !(cut >= 0 && holds(seen, cut, c.x, c.z)) && !(cutAlso >= 0 && holds(also!, cutAlso, c.x, c.z))) continue;
           turned(a, k, c.x, c.z, turn[i * 2]!, turn[i * 2 + 1]!);
           paint(ca, k++, c.colour);
         }

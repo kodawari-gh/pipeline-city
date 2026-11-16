@@ -23,12 +23,15 @@ export const drawn = (g: BufferGeometry): number => (g.index ? g.index.count : g
 export class Sweep {
   constructor(private balls: readonly Sphere[], private runs: readonly { mesh: Mesh; at: readonly number[] }[]) {}
 
-  /** Each mesh draws the run of pieces from the first that `seen` (the camera's frustum) holds to the last; with no `seen`, every piece. */
-  cut(seen?: Frustum): void {
+  /**
+   * Each mesh draws the run of pieces from the first that `seen` (the camera's frustum) holds to the last; with no `seen`, every piece. `also`: a
+   * second frustum whose pieces join the run (the sun's shadow box, on a frame that draws its map: the pieces behind the camera that cast into it).
+   */
+  cut(seen?: Frustum, also?: Frustum): void {
     let a = 0, b = this.balls.length;
     if (seen) {
       a = b = -1;
-      for (let k = 0; k < this.balls.length; k++) if (seen.intersectsSphere(this.balls[k]!)) { if (a < 0) a = k; b = k + 1; }
+      for (let k = 0; k < this.balls.length; k++) if (seen.intersectsSphere(this.balls[k]!) || (also && also.intersectsSphere(this.balls[k]!))) { if (a < 0) a = k; b = k + 1; }
       if (a < 0) a = b = 0;
     }
     for (const { mesh, at } of this.runs) {

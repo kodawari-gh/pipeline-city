@@ -26,14 +26,13 @@ Why the work exists: the frame is CPU bound (draw calls, materials, light unifor
 
 Decisions (2026-11-15): the owner gave the look and performance trade-offs to the agent, by tier. An `[owner]` task in an attended session needs the agent's written decision (in the task's doc) and a looked-at shot, not the owner. An unattended run still skips `[owner]` tasks. Phone cost is no longer a constraint on a decision.
 
-Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, DOC-01, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
+Done since 2026-11-15: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, CITY-01, CITY-02, CITY-03, CITY-04, CITY-05, CITY-06, CITY-07, CITY-08, DOC-01, GFX-04, LOD-01, LOD-02, LOD-03, LOD-05, MACH-02, MACH-03, MACH-04, MACH-05, MACH-06, PHONE-03, PHONE-08, UI-01.
 
 | Area | Open | Tagged `[owner]` | Next step |
 |---|---|---|---|
 | MACH | 1 | 1 | MACH-01, one material |
 | GFX | 4 | 2 | GFX-01 flicker |
 | LOD | 1 | 1 | LOD-04, far city cards |
-| CITY | 1 | 0 | CITY-08, parked cars |
 | PHONE | 6 | 2 | PHONE-01 re-bench; PHONE-02 real phone |
 | ASSET | 1 | 1 | ASSET-08, parked by decision |
 | BENCH | 2 | 0 | next official run |
@@ -61,7 +60,6 @@ The maxed machine at High draws 942 draws before the merges (640 now near; 135 a
 
 State of the Low city: #23 and #28 are merged to main (b0da132, 3c516b8), so main has the Low city with the defects below. The expected look is origin/main `03fe0bc`; official Chrome Low shots: `/workspace/game-run/low-city-draws/shots/official-gpu-ad7e/`. High must stay byte-identical (`highident`). On this branch every wall at night draws High's window grid and room model (CITY-01, CITY-03, `lowRibCover`, `lowRibLight`), and a far pane mirrors the sky by its tint (CITY-02). A building within 600 m is whole, a sign's face is High's glyph board and the window's avenue keeps its full traffic (CITY-04). Firefox Low takes the same cuts as Chrome Low (CITY-05; measured on the dev desktop only, see BENCH-02). The night target is High's look at the same framing, not base Low's warm cast (decision in lod.md "The city at Low"). The official crops are not yet compared.
 
-- [ ] CITY-08 [auto] [look: none] Find the parked-car slowdown, then fix it (was PARK1). Two suspects. (a) Shadow frames draw every parked car, behind the camera too, about once per sun step in daylight (audit H2, `view.ts:468-474`). (b) Parked cars take the distance from the window (`cars.ts:326`) and moving cars from the eye (`cars.ts:422`), so one car can switch models at different distances. Measure first: `bench:3d` does not run the city toggles, so use `?debug` or add a city view; count parked cars drawn per frame with the sun map on and off. Do it after CITY-07 picks the origin. Files: outside/cars.ts, view.ts. Docs: docs/render/three.md "Known gaps", docs/render/lod.md. Done when: the bench gives a frame-time number for each suspect and the fix lands or the note says why not.
 
 ## PHONE: speed, memory and load on phones
 
@@ -89,7 +87,7 @@ The standard is approved (docs/3D_STYLE.md "Asset standard"). Each task below ne
 
 ## Old ID to new ID
 
-Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), DOC5, DOC9, DOC12, LEFT25-1.
+Done and removed: LPC1, LPC12, ASR11, ASR8, ASR1–ASR7 and ASR9 (shots) (ASSET-01), ASK3 (ASSET-05), ASR10 (ASSET-03), ASK1 (ASSET-06), ASR9 (left) and LPC11 (ASSET-04), ASR1 (left) (ASSET-02), LOD1 (LOD-03), DOC6 (DOC-01), KTX1, PERF11 (PHONE-03), PERF27 (MACH-05), LPC13 (MACH-04), LPC5 (left list) (MACH-06), LPC7 (MACH-03), LPC3 (MACH-02), PERF23 (PHONE-08), PERF17 (GFX-04), LOOK30 (CITY-03), LOOK29 (CITY-02), LOOK28 and LOOK33 (CITY-01), LOOK31 (CITY-04), LOOK32 (CITY-05), PERF28 (CITY-06), LODD2 and DOC8 (CITY-07), PARK1 (CITY-08), DOC5, DOC9, DOC12, LEFT25-1.
 
 | Old | New | Old | New |
 |---|---|---|---|

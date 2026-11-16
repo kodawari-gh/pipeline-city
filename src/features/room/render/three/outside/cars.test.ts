@@ -414,11 +414,21 @@ describe('cars', () => {
     }
     // (most of the eyes see some of the traffic, not all of it)
     expect(saw).toBeGreaterThan(5);
-    // with no frustum (the sun's shadows), every car
+    // with no frustum, every car
     fleet.update(0.1, 0, 0);
     fleet.park();
     expect(f.moving.reduce((s, im) => s + im.count, 0)).toBe(tr.cars.length);
     expect(f.still.reduce((s, { im }) => s + im.count, 0)).toBe(P);
+    // on a frame that draws the sun's map, the parked cars the eye sees and those its box holds (CITY-08): the cars out of both are not placed
+    const r2 = rng(4), { seen: a } = eye(r2), { seen: b } = eye(r2);
+    fleet.park(a, 0, 0, b);
+    for (const { im, cars } of f.still) {
+      expect(placed(im).sort()).toEqual(cars.filter((c) => { const s = ball(c.x, 1.5, c.z, 3); return a.intersectsSphere(s) || b.intersectsSphere(s); }).map((c) => key(c.x, c.z)).sort());
+    }
+    const union = f.still.reduce((s, { im }) => s + im.count, 0);
+    fleet.park(a, 0, 0);
+    expect(union).toBeGreaterThanOrEqual(f.still.reduce((s, { im }) => s + im.count, 0));
+    expect(union).toBeLessThan(P);
     fleet.dispose();
   }, 30000);
 });
