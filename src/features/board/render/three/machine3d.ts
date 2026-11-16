@@ -6,7 +6,7 @@
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
 // Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
-import { Box3, Color, Frustum, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
+import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
@@ -31,7 +31,7 @@ import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITO
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, PKG, USB_PORT, VIDEO_Y, nicY, routerLan,
+  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -42,7 +42,7 @@ import { isPcieKind } from '../wiring/routes';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
-import { coolerFanBox, coolerFanLead, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
 import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
@@ -55,7 +55,8 @@ import { DOOR_SECONDS, doorPose, stepDoor } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
 import { basementPlan, shroud } from './basement3d';
-import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot } from './drivecage3d';
+import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot, type CagePlan } from './drivecage3d';
+import { footShade } from './footshade3d';
 import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
@@ -95,12 +96,19 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
  * lets in 0.75, not all: the parts shade each other at High, and 0.75 is that mean (RAM L 0.036, High 0.037; drive cage 0.051, High 0.044).
  */
 const SHADE_IN = 60, CASE_PASS: CasePass = { plus: [0, 0.2, 0.75], minus: [0, 0, 0] };
-/** Low's contact shade: three dark, unlit rings on the board round a part's seat (wider and fainter outward), so the seat reads as touching. */
-const PADS: readonly [number, number][] = [[16, 0.6], [44, 0.35], [90, 0.18]];
-const contactPad = (r: RectLike): Group => {
-  const g = new Group();
-  for (const [e, opacity] of PADS) g.add(rectBox({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, BOARD_Z + 0.5, BOARD_Z + 1.5, new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity, depthWrite: false })));
-  return g;
+/**
+ * Low's contact shade (`footShade`): how far out a skirt reaches and how dark it starts, as High's occlusion pass shades round the cooler on the
+ * board (the board beside the pump's base L 0.035 at High, 0.052 at Low without it) and round a cage on its shelf.
+ */
+const COOLER_SHADE = { reach: 320, peak: 0.42 }, CAGE_SHADE = { reach: 240, peak: 0.3 };
+/** A skirt on the board's face. */
+const onBoard = (m: Mesh): Mesh => { m.position.z = BOARD_Z + 2; return m; };
+/** A skirt on the floor a cage stands on (its bottom), the cage's footprint between the tray sheet and its front. */
+const underCage = (c: CagePlan): Mesh => {
+  const m = footShade({ x: c.x0, y: c.z0, w: c.x1 - c.x0, h: c.z1 - c.z0 }, CAGE_SHADE.reach, CAGE_SHADE.peak);
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = -c.bottom + 2;
+  return m;
 };
 
 
@@ -297,6 +305,7 @@ export class Machine3D {
     // drive cages with an empty tray in each free bay (a fitted drive's tray is its device's, `drivecage3d.ts`)
     const bays = new Set(this.devs.filter((d) => d.kind === 'storage' && d.slot.startsWith('sata')).map((d) => d.slot));
     shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), ...this.cages.map((c) => driveCage(c, kind, bays)));
+    if (lowDetail()) shell.add(...this.cages.map(underCage));
     // light strips along the inside of the top and the front (`innerStrips`)
     const strips = innerStrips(kind, cm);
     for (const m of strips.roots) this.root.add(m);
@@ -424,7 +433,7 @@ export class Machine3D {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
         const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
-        if (lowDetail()) g.add(contactPad(PKG)); // (the cooler's base sits on the CPU package)
+        if (lowDetail()) { const f = coolerFoot(visual); g.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round))); }
         this.fades.push(g);
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);

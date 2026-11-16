@@ -135,6 +135,15 @@ The owner (T154, 2026-11-06): "We need an option that works for the basic non RG
 - T149 removed the studio blend (`EnvMix`, `ENV_BAND`), the work light `fill` and the art's studio light (`ART_LIGHT`): the machine and the dies' art take the room's probe at every zoom (`board3d.ts`). The light does not change with the camera's height; the eye does.
 - Measured after the level lamp and the eye: see "The eye". Measured after T149 (the aimed spot, one exposure) at `--look 2000,-1000,4000,-0.15,0.1,12000`, rect 700,250,520,600: 23:00 L .048 with the case's RGB off, .056 with it on; a silkscreen label 6:1 against the board. The board's middle (rect 900,480,120,120) on a zoom from 30000 to 8000: .016 to .029 at 23:00, .020 to .036 at 14:00 (it steps up a little as the side opens).
 
+### Contact shade at Low
+
+Decision (MACH-03, 2026-11-16): Low draws no AO pass, so a part on the board or on the shroud met it with no dark band. Low now draws a footprint skirt (`footShade`, `footshade3d.ts`) round the parts that stand tallest: one unlit, see-through mesh, its alpha in its vertices, darkest at the footprint and gone at its reach. High keeps its GTAO and draws no skirt. No pass is added at Low.
+- Why not vertex AO: two tries failed. The rings under the CPU package lay under the pump's base, so nothing of them showed.
+- **The cooler**: the foot is per visual (`coolerFoot`: the loop's square base, the tower's mounting bars, the stock fan's shroud), reach 320, peak 0.42, just over the board. **The cages**: their box on the shroud's top or on the basement floor, reach 240, peak 0.3.
+- Measured at 14:00, `--look 0,0,1500,-0.2,0.15,5000`, the board beside the pump (rect 650,420,30,120): Low L .052 before, .039 after; High .035. The main cage's foot (`--look 6200,4300,5500,-0.4,0.3,3500`): the darkening at Low is close to High's.
+- Cost: 3 skirts of 169 points, 0.063 ms each to build, one draw each. They fade with their part (`fadeTree`).
+- Next lever if Low needs more: skirts for the RAM bank, the cards and the large sinks.
+
 ### Offline bakes
 
 The owner prefers offline bakes. The bake gives the bounce (the indirect light); the direct light stays live, with its shadows, so the chair, the keys and the cables still cast and catch light.

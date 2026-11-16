@@ -369,6 +369,17 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   return side;
 }
 
+/**
+ * What of the cooler stands over the board near it, seen through the glass, and that outline's corner radius: Low's contact shade lies round it
+ * (`footShade`). The loop's square base, the tower's mounting bars, the stock fan's shroud.
+ */
+export function coolerFoot(visual: string): { r: RectLike; round: number } {
+  if (visual === 'cooler-liquid') return { r: { x: -820, y: -820, w: 1640, h: 1640 }, round: 320 };
+  if (visual === 'cooler-tower') return { r: { x: -1020, y: -960, w: 2040, h: 1920 }, round: 14 };
+  const w = SHROUD.w;
+  return { r: { x: -w / 2, y: -w / 2, w, h: w }, round: 220 };
+}
+
 /** The cooler on the CPU, by its spec's `visual` (the loop's hoses are `hose`'s), with the fans fitted on its spots: without any, a bare heatsink. */
 export function coolerModel(visual: string, fans: readonly FanFit[] = []): Model {
   const root = new Group(), spins: Spin[] = [];
