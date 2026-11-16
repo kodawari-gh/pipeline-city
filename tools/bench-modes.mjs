@@ -1,4 +1,4 @@
-// `npm run bench:modes -- [out.json] [--phone] [--throttle 4] [--presets low,medium,high] [--modes menu,gallery,build,game,game-max] [--ms 3500] [--views idle,zoom,late] [--keep-limit]`: frame cost of the
+// `npm run bench:modes -- [out.json] [--phone] [--throttle 4] [--presets low,medium,high] [--modes menu,gallery,build,game,game-max] [--ms 3500] [--views idle,zoom,late] [--keep-limit] [--query "citycuts=far,fleet"]`: frame cost of the
 // screens that start the game (main menu, gallery, Build my PC) and of the game view (`game`: a new campaign, tutorial off; `game-max`: a sandbox with the
 // assembled machine) at each graphics preset, idle and while the wheel zooms. It counts what every WebGL
 // context draws (draw calls, triangles, pixels, contexts alive) by wrapping the GL calls, so it needs no dev hook. `FPS` counts every animation frame;
@@ -43,7 +43,9 @@ const poke = () => { window.__bmPoke = setInterval(() => window.dispatchEvent(ne
 const BUDGET = 1000 / 60;
 const THROTTLE = Number(flag('throttle', PHONE ? 4 : 1));
 const MS = Number(flag('ms', 3500));
-const PORT = Number(process.env.PORT || 5196), url = `http://localhost:${PORT}/`;
+// `--query "a=b&c=d"`: the page's query, e.g. `citycuts=far,fleet` to bench the Low city cuts one by one (`outside/detail.ts`)
+const QUERY = flag('query', '');
+const PORT = Number(process.env.PORT || 5196), url = `http://localhost:${PORT}/${QUERY ? `?${QUERY}` : ''}`;
 const PRESETS = {
   low: { scale: 0.6, msaa: 0, ao: 0, bloom: 0, shadows: 1, lights: 4, lightShadows: 0, textures: 0, filtering: 2, live: 0, particles: 0 },
   medium: { scale: 0.75, msaa: 2, ao: 0, bloom: 1, shadows: 2, lights: 4, lightShadows: 1, textures: 1, filtering: 4, live: 1, particles: 1 },

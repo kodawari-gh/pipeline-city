@@ -21,19 +21,16 @@ const cuts = (on: boolean | ReadonlySet<string>): CityCuts =>
   Object.fromEntries(CITY_CUTS.map((c) => [c, on === true || (on !== false && on.has(c))])) as CityCuts;
 
 /**
- * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all, or none on Firefox (`ff`: Firefox Low idle ran
- * slower with the cuts than without, bisect 7a64e36, so it gets main's city path: its facade, sky and clock are the High ones too,
- * as each of those is a cut of its own). Low with `citycuts=a,b`: only those named, on any
- * browser (`none`, an empty list or unknown names: no cut).
+ * Which cuts apply. High: none, whatever the query says. Low with no `citycuts`: all, on every browser (Firefox had none until CITY-05:
+ * its Low idle ran slower with the cuts at 7a64e36; it no longer does, `docs/render/lod.md` "The city at Low"). Low with `citycuts=a,b`:
+ * only those named (`none`, an empty list or unknown names: no cut).
  */
-export function parseCityCuts(search: string, detail: CityDetail, ff = false): CityCuts {
+export function parseCityCuts(search: string, detail: CityDetail): CityCuts {
   if (detail !== 'low') return cuts(false);
   const q = new URLSearchParams(search).get('citycuts');
-  if (q === null) return cuts(!ff);
+  if (q === null) return cuts(true);
   return cuts(new Set(q.split(',').map((s) => s.trim().toLowerCase())));
 }
 
-export const firefox = (): boolean => typeof navigator !== 'undefined' && /\bFirefox\//.test(navigator.userAgent);
-
-/** The cuts of this page's query (`parseCityCuts` of `location.search`, on this browser). */
-export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail, firefox());
+/** The cuts of this page's query (`parseCityCuts` of `location.search`). */
+export const cityCuts = (detail: CityDetail): CityCuts => parseCityCuts(typeof location === 'undefined' ? '' : location.search, detail);

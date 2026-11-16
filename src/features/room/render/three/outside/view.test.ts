@@ -225,9 +225,9 @@ describe('OutsideView detail', () => {
     }
   }, 600000);
 
-  it("Low with no cut (Firefox, no citycuts) draws High's materials; the facade cut alone is the Lambert one", () => {
+  it("Low with no cut (citycuts=none) draws High's materials; the facade cut alone is the Lambert one", () => {
     const kinds = (v: OutsideView): string[] => everyMesh(v).map((m) => (m.material as Material).type).sort();
-    const uncut = new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("", "low", true));
+    const uncut = new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("?citycuts=none", "low"));
     expect(kinds(uncut)).toEqual(kinds(high));
     expect(kinds(new Detailed(0, 0, 10, 10, 0, "low", parseCityCuts("?citycuts=facade", "low")))).toContain("MeshLambertMaterial");
     expect(kinds(uncut)).not.toContain("MeshLambertMaterial");

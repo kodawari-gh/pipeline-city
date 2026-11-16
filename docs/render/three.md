@@ -139,10 +139,10 @@ Culling layers, in order:
 2. **`Sweep.cut`** (`outside/sweep.ts`). Each city mesh draws only the run of pieces from the first to the last one the frustum touches. A sweep run still draws the whole run.
 3. **Car cut** (`cars.ts`). Moving cars use `reach()` on each route. Parked cars use 48 m cells with a per-car test.
 4. **Occlusion query** (`outside/sight.ts`). One `ANY_SAMPLES_PASSED_CONSERVATIVE` query on the window quad. While the eye is still and the answer says hidden, the city is not drawn.
-5. **Cadence** (`view.ts`, `detail.ts`). While the eye moves under 1 px (`HOLD_PX`), the city draws every `LOW_EVERY` (6) frames at Low, `EVERY` (3) at High. On Firefox, Low has no city cuts by default, so it also draws each `EVERY` (3) frames.
+5. **Cadence** (`view.ts`, `detail.ts`). While the eye moves under 1 px (`HOLD_PX`), the city draws every `LOW_EVERY` (6) frames at Low, `EVERY` (3) at High.
 6. **Window-box crop** (`view.ts`, `setViewOffset`). The city camera is cropped to the window's screen box.
 
-**Low city cuts** (this branch, code at `384106a`; [lod.md](lod.md#the-city-at-low-outside)). At Low, every building ring past 300 m is merged into one mesh, street cells are 96 m, and `lowfacade.ts` / `detail.ts` apply. Car distances at Low are 100 m (full model) and 350 m (clip); a far car drives by its own fixed key (`share`), so none blinks. Window-avenue cars clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low gets no city cuts unless `?citycuts=` is set (`detail.ts`): its facade, sky and clock are main's too, each a cut of its own. High has none of these cuts.
+**Low city cuts** (this branch, code at `384106a`; [lod.md](lod.md#the-city-at-low-outside)). At Low, every building ring past 300 m is merged into one mesh, street cells are 96 m, and `lowfacade.ts` / `detail.ts` apply. Car distances at Low are 100 m (full model) and 350 m (clip); a far car drives by its own fixed key (`share`), so none blinks. Window-avenue cars clip at 1000 m (`CLIP_AVENUE_LOW`, `cars.ts`). Firefox Low takes the same cuts as Chrome Low (CITY-05: its old gate is gone, the numbers are in lod.md). High has none of these cuts.
 
 **The Firefox gate.** `sight.ts` reads the query only two frames after it ends (`age >= 2`). The code comment says Firefox blocks on a query that is not done. The gate has three effects:
 
@@ -192,8 +192,8 @@ The stats overlay shows fps, average and p95 frame time, draw calls, and city tr
 |---|---|---|
 | `npm run bench:3d` | `tools/bench3d.mjs` | Plays the idle views, the flights, the door, the hover, a cable, a lifted part and the running machine with the real pointer. Reports frame times, GPU time per pass, scene and shadow passes per frame, draw calls, programs, textures (count), CPU time per part, rebuilds and hot functions. |
 | `npm run bench:4k` | `tools/bench3d.mjs` | 2560x1355 at DPR 1.5, Medium, `room night hover`. |
-| `npm run bench:modes` | `tools/bench-modes.mjs` | Same runs in Firefox (`--firefox`) or on a phone profile. Reports only. |
-| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU. Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
+| `npm run bench:modes` | `tools/bench-modes.mjs` | Same runs in Firefox (`--firefox`) or on a phone profile; `--query "citycuts=…"` sets the page's query. Reports only. |
+| `npm run shot` | `tools/shot.mjs` | Headless Chrome on the real GPU (`--firefox`: Firefox). Flags: `--view cpu\|board\|x,y,z`, `--clip hud`, `--preset`, `--prod`, `--hour`, `--look`, `--query`. Stops if the GL renderer is SwiftShader (unless `SOFTWARE=1`). |
 | `npm run stills` | `tools/stills.mjs` | Renders parts headless to `public/stills/` with a hash manifest. |
 | (no npm script) | `tools/bench-costs.mjs` | Phone sweeps (Razr, Low) used for the toggle numbers above. |
 | (no npm script) | `tools/bench-groups.mjs` | Wraps the renderer in the page (dev server only, via `window.__board`) and files each draw by group: machine, room, scene, shadow, post, city, mirror, probe, other. It prints a table and writes JSON. Flags: `[out.json] [--device razr-fold-folded] [--preset low] [--views idle,zoom]`. It changes no game code. |

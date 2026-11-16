@@ -9,13 +9,14 @@
 //   (default)             the Three.js renderer, the game's view; --view also takes `room` there
 //   --hour h              (dev server, --3d) pin the room's hour (`roomDebug.hour`), e.g. 23 or 14.2
 //   --query "a=b&c=d"     the page's query string, e.g. `citycuts=cadence,far` (the Low city's cuts by name, `outside/detail.ts`)
+//   --firefox             the same shot in Firefox (playwright's, headless, WebGL forced on), to see a shader as Firefox compiles it
 //   --look x,y,z,yaw,pitch,height (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
 //                         Measure the picture with `node tools/lum.mjs <png> x,y,w,h ...`
 //   env: PORT (5199), CHROME_PATH (default: the installed Chrome), SOFTWARE=1
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -40,7 +41,7 @@ const stop = () => { try { server?.kill(); } catch { /* gone */ } };
 process.on('exit', stop);
 
 const gpu = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
-const browser = await chromium.launch({
+const browser = args.includes('--firefox') ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } }) : await chromium.launch({
   headless: true,
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
   args: process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : gpu,
