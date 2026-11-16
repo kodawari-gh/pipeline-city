@@ -49,10 +49,11 @@ async function exportScene() {
     const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
     p.on('pageerror', (e) => console.log('[page]', e.message));
     await p.goto(url + '?3d&nobaked'); // (`nobaked`: every map is a painted canvas, so `scene.ts` can read its mean colour; a KTX2 map has no pixels to read)
-    // a fresh server first optimizes its dependencies: the menu can take a while
-    await p.click('text=Sandbox', { timeout: 120000 });
-    await p.click('button:has-text("Start")');
-    await p.waitForFunction(() => !!window.__board, null, { timeout: 30000 });
+    // The menu's room is the one to bake: the first board in the first case, as a new game has it. There each receiver has its exact hash;
+    // with another tier the desk moves and the game finds those meshes by their count of corners (`applyLightmap`, ASSET-09). Do not start
+    // a game first: the sandbox builds the largest tier a moment later, and the export would depend on when it ran.
+    // (a fresh server first optimizes its dependencies: the menu can take a while)
+    await p.waitForFunction(() => !!window.__board?.parts?.().room, null, { timeout: 120000 });
     // the loaded models (the mouse, the hoodie) block light too: wait for them
     await p.waitForFunction(() => { const r = window.__board.parts().room?.root; return !!r?.getObjectByName('mouse_1') && !!r.getObjectByName('hoodie_1'); }, null, { timeout: 60000 })
       .catch(() => console.log('the models did not load: the bake goes on without them'));
