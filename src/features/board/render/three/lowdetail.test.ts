@@ -3,8 +3,6 @@ import { Group, Mesh, PlaneGeometry, TubeGeometry, type MeshStandardMaterial, ty
 import { byDetail, lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { driveBody } from '@/features/storage/render/drives';
 import { setLayoutTier } from '../layout/layout';
-import { cheapMaterials } from '@/core/render/three/cheapmaterials';
-import { KEEP_SPEC } from '@/core/render/three/materials';
 import { coolerModel } from './cooler3d';
 import { machineKey } from './machine3d';
 import { nvmeStick } from './nvme3d';
@@ -70,20 +68,15 @@ describe('Low builds coarser machine parts', () => {
       expect(low.every((m) => m.metalness > 0.4)).toBe(true);
     }
   });
-  it('the sink casting and its fins keep High\'s PBR at Low (KEEP_SPEC, metalness 0.5), so cheapMaterials leaves them out of the Lambert swap', () => {
+  it('the sink casting and its fins keep metalness 0.5 at High and at Low, with no userData flag (the machine keeps High\'s materials)', () => {
     const sink = (visual: string) => { const g = new Group(); sinkBody(g, builtinTheme(),'vrm-sink', visual); return meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46) as MeshStandardMaterial[]; };
     for (const visual of ['vrm-sink', 'vrm-sink-fan']) {
-      setLowDetail(false);
-      const high = sink(visual);
-      expect(high.length).toBeGreaterThan(0);
-      expect(high.every((m) => m.metalness === 0.5 && m.userData[KEEP_SPEC] === undefined)).toBe(true);
-      setLowDetail(true);
-      const low = sink(visual);
-      expect(low.length).toBe(high.length);
-      expect(low.every((m) => m.metalness === 0.5 && m.userData[KEEP_SPEC] === true)).toBe(true);
-      const g = new Group(); sinkBody(g, builtinTheme(), 'vrm-sink', visual);
-      cheapMaterials(g);
-      expect(meshes(g).flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])).filter((m) => (m as MeshStandardMaterial).roughness === 0.46 && !(m as MeshStandardMaterial).isMeshStandardMaterial)).toHaveLength(0);
+      for (const low of [false, true]) {
+        setLowDetail(low);
+        const list = sink(visual);
+        expect(list.length, `${visual} at Low ${low}`).toBeGreaterThan(0);
+        expect(list.every((m) => m.metalness === 0.5 && Object.keys(m.userData).length === 0), `${visual} at Low ${low}`).toBe(true);
+      }
     }
   });
   it('the machine key changes when the detail does (so the machine is built again) and is unchanged at High', () => {

@@ -11,7 +11,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DARK_METAL, NON_METAL } from './cheapmaterials';
 import { lowDetail } from './detail';
-import { KEEP_SPEC, materialKey, stillMaterial } from './materials';
+import { materialKey, stillMaterial } from './materials';
 import { NO_RAY } from './pick';
 
 const KEEP = new Set(['position', 'normal', 'uv']);
@@ -115,7 +115,7 @@ const METAL = ShaderChunk.metalnessmap_fragment.replace('= metalness;', '= vPalR
 /**
  * Patches a shader to read the colour, the roughness and the metalness from the mesh's `_pc` and `_prm` (flat: each triangle keeps its
  * mesh's values exactly). Throws when three's shader no longer has a place it patches (the mesh would draw white).
- * `keep` (Low only): the part keeps its PBR look (`KEEP_SPEC`), so it takes the High patch as it is.
+ * `keep` (Low only): the mesh keeps the machine's `pbr` merge, so it takes the High patch as it is.
  */
 export function palettePatch(sh: { vertexShader: string; fragmentShader: string }, low = false, keep = false): void {
   const lowPatch = low && !keep;
@@ -137,7 +137,7 @@ const palKeys = new WeakMap<Material, string>();
  * near black, L 0.002 against High's 0.009; the GPU time is the same, 5.4 ms a board frame at 2560 x 1355).
  */
 function paletteOf(src: MeshStandardMaterial, pbr = false): MeshStandardMaterial {
-  const low = lowDetail(), keep = low && (pbr || src.userData[KEEP_SPEC] === true), m = src.clone(), prev = src.onBeforeCompile;
+  const low = lowDetail(), keep = low && pbr, m = src.clone(), prev = src.onBeforeCompile;
   const key = `${src.customProgramCacheKey()}|pal${low ? '|low' : ''}${keep ? '|keep' : ''}`;
   m.color.setRGB(1, 1, 1);
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => { prev.call(src, sh, r); palettePatch(sh, low, keep); };

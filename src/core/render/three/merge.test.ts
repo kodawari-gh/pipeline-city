@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, ShaderLib, Vector3, type Material } from 'three';
 import { DARK_METAL } from './cheapmaterials';
 import { setLowDetail } from './detail';
-import { KEEP_SPEC, own } from './materials';
+import { own } from './materials';
 import { mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
 
@@ -151,10 +151,9 @@ describe('mergePalette', () => {
 
 describe('the Low palette material draws as a Lambert does', () => {
   /** What a merged palette mesh of two black plastic parts compiles to, as three gives its fragment shader to `onBeforeCompile`. */
-  const compiled = (keep = false): string => {
+  const compiled = (): string => {
     const root = new Group(), par = new Group(), blk = () => new MeshStandardMaterial({ color: 0x18181b, roughness: 0.55, metalness: 0.05 });
     par.add(new Mesh(new BoxGeometry(), blk()), new Mesh(new BoxGeometry(), blk()));
-    if (keep) for (const m of par.children) (m as Mesh).material = Object.assign(blk(), { userData: { [KEEP_SPEC]: true } });
     root.add(par);
     mergeSiblings(root);
     const out = par.children[0] as Mesh, sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader };
@@ -178,16 +177,6 @@ describe('the Low palette material draws as a Lambert does', () => {
     expect(f).toContain('metalnessFactor = 0.0;');
     expect(f).not.toContain('metalnessFactor = vPalRM.y;');
     for (const c of DARK_METAL) expect(f).toContain(`vec3( ${c.r.toFixed(6)}, ${c.g.toFixed(6)}, ${c.b.toFixed(6)} )`);
-  });
-
-  it('keeps the specular and the PBR metal of a part flagged to keep it (the braid sleeve, the pump cap)', () => {
-    setLowDetail(true);
-    const f = compiled(true);
-    expect(f).not.toContain('directSpecular = vec3( 0.0 )');
-    expect(f).not.toContain('indirectSpecular = vec3( 0.0 )');
-    expect(f).not.toContain('lowMetal');
-    expect(f).toContain('metalnessFactor = vPalRM.y;');
-    expect(f).toContain('vec4( vPalC, opacity )');
   });
 
   it('keeps the PBR patch on every palette mesh of a merge that asks for it (`pbr`: the machine)', () => {

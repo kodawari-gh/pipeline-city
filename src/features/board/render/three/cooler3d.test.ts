@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Box3, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { setLowDetail } from '@/core/render/three/detail';
-import { KEEP_SPEC } from '@/core/render/three/materials';
 import { radiatorBay, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { radiatorCore, radiatorFit, radiatorRect } from '../cooler';
@@ -29,22 +28,6 @@ const inRoom = (visual: string, b: Box3) => {
 
 describe('the 3D coolers', () => {
   afterEach(() => { setLowDetail(false); });
-
-  it('leaves the side fans\' frame and blades and the fittings\' chrome unflagged at Low and High (the machine keeps High\'s materials)', () => {
-    setLayoutTier(3, 3);
-    const mats = (o: Object3D) => { const out: MeshStandardMaterial[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(...[(c as Mesh).material].flat() as MeshStandardMaterial[]); }); return out; };
-    // the frame and the blades of a fan (basic and high-airflow), and the G1/4 fittings' chrome
-    // (their greys are family colours that other parts share since ASR9: the flag itself names them)
-    const flagged = (list: MeshStandardMaterial[]) => list.filter((m) => m.userData[KEEP_SPEC] === true).length;
-    const fans = [fit('fan120', 'cooler0.fan0'), fit('fan120x', 'cooler0.fan1')];
-    for (const low of [false, true]) {
-      setLowDetail(low);
-      const fanMats = [...mats(coolerModel('cooler-stock', [fit('fan92', 'cooler0.fan0')]).root), ...mats(coolerModel('cooler-tower', fans).root)];
-      const chromeMats = mats(coolerModel('cooler-liquid').root);
-      expect(flagged(fanMats), `fans at Low ${low}`).toBe(0);
-      expect(flagged(chromeMats), `chrome at Low ${low}`).toBe(0);
-    }
-  });
 
   it('mounts every cooler on the board\'s cooler holes over the CPU, a bare heatsink with nothing to spin (and on the loop the pump\'s light ring)', () => {
     for (const t of [0, 3]) {
