@@ -376,6 +376,7 @@ export class BuildStage {
     for (const x of a.objs) {
       x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
       x.o.rotation.z = x.baseTurn + p.turn;
+      if (p.tilt || x.o.rotation.y) x.o.rotation.y = p.tilt;
     }
     this.setStep(p.label);
     const open = latchOpen(m, a.t, a.dir);

@@ -74,3 +74,16 @@ describe('the latches of a socket', () => {
     expect(latchOpen(m, total, 'in')).toBe(0);
   });
 });
+
+describe('a card tips out of its slot', () => {
+  it('tilts on the way and is flat at the seat and at the far end', () => {
+    for (const kind of ['gpu', 'npu', 'nic']) {
+      const m = motionFor(kind), total = motionSeconds(m);
+      expect(poseAt(m, 0).tilt).toBeCloseTo(0, 6);
+      expect(poseAt(m, total).tilt).toBeCloseTo(0, 6);
+      const mid = Math.max(...Array.from({ length: 40 }, (_, i) => poseAt(m, (total * i) / 39).tilt));
+      expect(mid, kind).toBeGreaterThan(0.03);
+    }
+    expect(poseAt(motionFor('ram'), 0.5).tilt).toBe(0);
+  });
+});
