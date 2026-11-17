@@ -253,6 +253,7 @@ export class BuildStage {
   }
 
   private rebuildNow(): void {
+    this.held.clear();
     if (this.bench.peek()) this.bench.value = null;
     // (the redraw always reads the game as it is now)
     this.snaps.drop();
@@ -625,14 +626,27 @@ export class BuildStage {
     const d = this.board.devices.find((x) => devNode(x.id) === node);
     if (!d) return null;
     const kind = deviceSpec(d).kind;
+    // a part of a removal (`remove`) stays built: it is hidden where it ended, and a part that goes back is shown again (no build for each step)
+    const obj = this.deferring && kind !== 'display' && kind !== 'psu' ? this.objectOf(node) : null;
+    const home = obj ? { p: obj.position.clone(), z: obj.rotation.z } : null;
     await this.unseat(node, motionOf(kind, d.slot));
     const r = this.edit((g) => g.uninstall(d.id));
     if (!r.ok) { this.note(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
     undo?.push({ t: 'dev', spec: d.spec, slot: d.slot, invId: r.invId!, clock: d.clock });
+    if (obj && home && !this.dead) {
+      obj.visible = false;
+      this.held.set(`${d.spec}@${d.slot}`, { obj, id: d.id, ...home });
+      this.bump(); this.demand.ask();
+      return r.invId;
+    }
     this.rebuild();
     await this.coverBack(kind);
     return r.invId;
   }
+
+  /** Parts a removal took out and keeps built, by `spec@slot`: hidden at the far end of their way, with the place and id they had. */
+  private readonly held = new Map<string, { obj: Object3D; id: string; p: Vector3; z: number }>();
+  private deferring = false;
 
   private async putBack(u: Undo): Promise<void> {
     if (u.t === 'cable') {
@@ -653,6 +667,16 @@ export class BuildStage {
     // (a fan the new heatsink or case has no spot for stays out, as the game sends it to the inventory)
     if (!r.ok) { this.note(getSpec(u.spec)?.kind === 'fan' ? `${getSpec(u.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(u.spec)?.name ?? u.spec} back: ${r.reason}`); return; }
     this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
+    const kept = this.held.get(`${u.spec}@${u.slot}`);
+    if (kept && r.deviceId) {
+      // the part that came out is still built: it goes back where it was, under the id the game gave it
+      this.held.delete(`${u.spec}@${u.slot}`);
+      kept.obj.traverse((o) => { const i = o.userData.id; if (typeof i === 'string' && (i === kept.id || i.startsWith(kept.id + '.'))) o.userData.id = r.deviceId + i.slice(kept.id.length); });
+      kept.obj.position.copy(kept.p); kept.obj.rotation.z = kept.z; kept.obj.visible = true;
+      this.snaps.drop(); this.bump();
+      await this.seat(devNode(r.deviceId), motionOf(deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, u.slot));
+      return;
+    }
     this.rebuild();
     const node = devNode(r.deviceId ?? '');
     await this.seat(node, motionOf(deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, u.slot));
@@ -685,13 +709,20 @@ export class BuildStage {
   /** Take a part out with everything in its way, then put the others back. The part goes to the bin (the game's inventory). */
   remove(node: string): Promise<void> {
     return this.job(async () => {
+      this.deferring = true;
+      try { await this.removeSteps(node); } finally { this.deferring = false; }
+    });
+  }
+
+  private async removeSteps(node: string): Promise<void> {
+    {
       const undo: Undo[] = [], steps = this.plan(node);
       const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
       if (gone) this.record({ t: 'remove', spec: gone.spec, slot: gone.slot });
       for (const n of steps) await this.takeOut(n, n === node ? null : undo);
       for (const u of undo.reverse()) await this.putBack(u);
       this.note(`Done: ${steps.length} step${steps.length === 1 ? '' : 's'}`);
-    });
+    }
   }
 
   /** Fit a catalogue part (its id; the shelf is unlimited, there is no inventory here). `drop`: the socket it was dropped on
