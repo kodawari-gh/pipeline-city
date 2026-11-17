@@ -952,7 +952,7 @@ export class BuildStage {
       if (!slot) { this.note(spec.kind === 'fan' ? `Nothing in this machine takes a ${spec.size} mm fan` : `${spec.name} fits no socket on this board`); return; }
       const occupant = this.board.devices.find((d) => d.slot === slot) ?? null;
       const graph = buildGraph(this.board, this.cables);
-      const steps = this.assemble(occupant ? removalPlan(graph, devNode(occupant.id)) : removalPlanAll(graph, accessBlockers(this.board, slot, spec.kind).filter((n) => graph.has(n))));
+      const steps = this.assemble(occupant ? removalPlan(graph, devNode(occupant.id)) : removalPlanAll(graph, accessBlockers(this.board, slot, spec.kind, itemId).filter((n) => graph.has(n))));
       if (!steps.length) steps.push(SIDE);
       if (steps[0] !== SIDE) steps.unshift(SIDE);
       const undo: Undo[] = [], looped = hasLoop(this.board);

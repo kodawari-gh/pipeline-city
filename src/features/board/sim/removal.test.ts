@@ -45,6 +45,16 @@ describe("removal graph", () => {
     expect(removalPlan(buildGraph(b, c), devNode(cooler.id))).toContain(devNode(gpu.id));
   });
 
+  it("the VRM heat sink (and its fan) comes off before a pump head twists free", () => {
+    const b = createBoard(3), c = noCables();
+    const pump = install(b, "cooler2"), sink = install(b, "vsink2");
+    if (!pump.ok || !sink.ok) throw new Error("install");
+    expect(removalPlan(buildGraph(b, c), devNode(pump.id))).toContain(devNode(sink.id));
+    const air = createBoard(3), tower = install(air, "cooler1"), s2 = install(air, "vsink2");
+    if (!tower.ok || !s2.ok) throw new Error("install");
+    expect(removalPlan(buildGraph(air, c), devNode(tower.id))).not.toContain(devNode(s2.id));
+  });
+
   it("a card in the next slot waits for the tall card above it", () => {
     const b = createBoard(3), c = noCables();
     const gpu = install(b, "gpu2", "pcie0"), nic = install(b, "nic1", "pcie1"), far = install(b, "nic1", "pcie3"), nvme = install(b, "nvme2", "m20"), nvme2 = install(b, "nvme2", "m21");

@@ -7,7 +7,7 @@
 
 import { boardSlots, deviceSpec, fanHost, fansOn, fittedRadiator, mountFan, type Board, type InstalledDevice } from "./board";
 import { cablesOf, cardLeadIds, type Cables } from "./cables";
-import type { DeviceKind } from "./specs";
+import { getSpec, type DeviceKind } from "./specs";
 
 export const SIDE = "side";
 /** The liquid loop's hoses: there only with a loop's pump and a radiator both fitted; they come off before either comes out, and go on last. */
@@ -61,6 +61,8 @@ function coveredBy(board: Board, dev: InstalledDevice): InstalledDevice[] {
   const others = board.devices.filter((o) => o.id !== dev.id);
   if (spec.kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler"));
   if (spec.kind === "cooler") out.push(...others.filter((o) => overCooler(o.spec, o.slot, dev.spec)));
+  // a pump head twists as it comes off: it swings into the VRM heat sink beside the CPU (and that sink's fan), so the sink comes off first
+  if (isPump(dev)) out.push(...others.filter((o) => deviceSpec(o).kind === "vrm-sink"));
   // a heatsink's fans clip onto it; the fans on a radiator's mounts are screwed through it into the case
   out.push(...fansOn(board, dev.slot));
   const rad = spec.kind === "radiator" ? fittedRadiator(board) : null;
@@ -182,12 +184,13 @@ export function nodeKind(board: Board, node: string): NodeKind {
 }
 
 /** The slots a new part of this device kind can reach only with these devices out: used by the build mode to take a cooler off before a CPU goes in. */
-export function accessBlockers(board: Board, slotId: string, kind: DeviceKind): string[] {
+export function accessBlockers(board: Board, slotId: string, kind: DeviceKind, specId?: string): string[] {
   const slot = boardSlots(board).find((s) => s.id === slotId);
   if (!slot) return [];
   const out: string[] = [];
   const others = board.devices;
   if (kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler").map((o) => devNode(o.id)));
+  if (kind === "cooler" && specId && (getSpec(specId) as { loop?: unknown } | undefined)?.loop) out.push(...others.filter((o) => deviceSpec(o).kind === "vrm-sink").map((o) => devNode(o.id)));
   if (kind === "cooler") out.push(...others.filter((o) => others.some((c) => c.slot === slotId && overCooler(o.spec, o.slot, c.spec))).map((o) => devNode(o.id)));
   if (slot.type === "pcie") {
     const n = slotNo(slotId);
