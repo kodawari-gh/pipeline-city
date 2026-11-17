@@ -126,6 +126,16 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 }
 
 type Fan = Spin & { speed: number };
+type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike };
+
+/** What one built part added to the machine's shared lists: a patch (`Machine3D.patch`) takes exactly this away, or adds it for a new part. */
+interface Owned { id: string; kind: string; slot: string; roots: Object3D[]; reveals: Reveal[]; fades: Object3D[]; apart: Object3D[]; fans: Fan[]; obstacles: Object3D[]; keep: Object3D[]; caseRoots: Object3D[]; rails: Rail[] }
+
+const keyOf = (d: { spec: string; slot: string }): string => `${d.spec}@${d.slot}`;
+/** The parts a patch may add or take away: a stick, an M.2 drive, a card. Their sockets, cables and bank are all it must keep right. */
+const patchable = (d: DeviceSnap): boolean => d.kind === 'ram' || d.kind === 'gpu' || d.kind === 'npu' || d.kind === 'nic' || (d.kind === 'storage' && driveKindOf((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '') === 'ssd-nvme');
+/** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
+const GRAVE_MAX = 10;
 
 /** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
 const netVisible = (s: Snapshot) => netPropsVisible({
@@ -159,7 +169,23 @@ export class Machine3D {
   /** The 2D art the parts wear, baked on the view's queue. */
   private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
-  private reveals: { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike }[] = [];
+  private reveals: Reveal[] = [];
+  /** By `spec@slot`: what each part added (`patch`). */
+  private readonly owned = new Map<string, Owned>();
+  /** Parts a patch took away: hidden, not freed (the stand-ins of `partLod` know them by their hiding), freed with the machine. */
+  private readonly graveyard: Object3D[] = [];
+  /** The unseen box of each empty socket (a drop lands on it), and the plate over each empty PCIe slot, by socket id. */
+  private readonly picks = new Map<string, Object3D>();
+  private readonly blanks = new Map<string, Object3D>();
+  /** The board's sockets by id (tagged while empty: a pick or a drop finds the socket). */
+  private sockets = new Map<string, Object3D>();
+  private pickBox: (r: RectLike, z0: number, z1: number, id: string) => void = () => {};
+  private blankTone = 0;
+  /** The memory map's reveal and rail, made again when the bank changes. */
+  private ramBits: { reveal: Reveal; rail: Rail } | null = null;
+  /** `tier|caseTier`: a patch keeps the board and the case, so these must be the same. */
+  private tiers = '';
+  private merged = true;
   private frustum = new Frustum();
   /** The radiator bolted on a side of the case (it takes that side's fan mounts) and the loop's tubes run to. */
   private rad: (RadiatorAt & { span: FanMount & { ids: string[] } }) | null = null;
@@ -239,6 +265,8 @@ export class Machine3D {
    */
   constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge) {
     this.art = new ArtSet(q);
+    this.merged = merge;
+    this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2, radiatorGrade((getSpec(radDev!.spec) as { visual?: string } | undefined)?.visual ?? '')), count: span.ids.length, span };
@@ -247,14 +275,8 @@ export class Machine3D {
     this.buildBoard(s);
     if (s) {
       this.rects = slotRects(s);
-      for (const d of s.devices) this.buildDevice(d);
-      // the live memory map on the chips: it comes in as the spreaders go, over the whole bank
-      if (this.ram && this.ramSticks.length) {
-        const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
-        this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true);
-        // the bank is one rail: the camera leans along it (`lean`)
-        this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]);
-      }
+      for (const d of s.devices) this.build(d);
+      this.buildRamMap();
       this.root.updateMatrixWorld(true);
       for (const o of this.obstacles) {
         const b = new Box3().setFromObject(o);
@@ -390,13 +412,48 @@ export class Machine3D {
    * Run `apply` every frame with the zoom seen at the centre of `r` (depth `z`). `anywhere`: the camera zoom there, wherever the view centre is.
    * `area`: the zoom seen at the point of `r` nearest the view's centre instead (a long card: the view may hold only one end of it).
    */
-  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false) {
-    this.reveals.push({ at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z), apply, anywhere, ...(area ? { area: r } : {}) });
+  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false): Reveal {
+    const v: Reveal = { at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z), apply, anywhere, ...(area ? { area: r } : {}) };
+    this.reveals.push(v);
+    return v;
   }
 
   /** A part's detailed view: its face `r` at depth `z`, its detail all in from `zoom` (screen pixels per world unit: the end of its fade, so no lid
    * half covers it); the camera's rails hold the view on it. */
-  private rail(id: string, r: RectLike, z: number, zoom: number) { this.rails.push({ id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom }); }
+  private rail(id: string, r: RectLike, z: number, zoom: number): Rail {
+    const v: Rail = { id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom };
+    this.rails.push(v);
+    return v;
+  }
+
+  /** `buildDevice`, noting what it added to the shared lists (`owned`). */
+  private build(d: DeviceSnap): Owned | null {
+    const n = { roots: this.root.children.length, reveals: this.reveals.length, fades: this.fades.length, apart: this.apart.length, fans: this.fans.length, obstacles: this.obstacles.length, keep: this.keep.length, caseRoots: this.caseRoots.length, rails: this.rails.length };
+    this.buildDevice(d);
+    const o: Owned = {
+      id: d.id, kind: d.kind, slot: d.slot, roots: this.root.children.slice(n.roots), reveals: this.reveals.slice(n.reveals), fades: this.fades.slice(n.fades), apart: this.apart.slice(n.apart),
+      fans: this.fans.slice(n.fans), obstacles: this.obstacles.slice(n.obstacles), keep: this.keep.slice(n.keep), caseRoots: this.caseRoots.slice(n.caseRoots), rails: this.rails.slice(n.rails),
+    };
+    this.owned.set(keyOf(d), o);
+    return o;
+  }
+
+  /**
+   * The live memory map over the bank of sticks: it comes in as the spreaders go, and the bank is one rail the camera leans along (`lean`).
+   * Made again when a stick comes or goes (the old map's reveal and rail go).
+   */
+  private buildRamMap(): void {
+    if (this.ramBits) {
+      this.reveals.splice(this.reveals.indexOf(this.ramBits.reveal), 1);
+      this.rails.splice(this.rails.indexOf(this.ramBits.rail), 1);
+      this.ramBits = null;
+    }
+    this.ramMap?.dispose();
+    this.ramMap = null;
+    if (!this.ram || !this.ramSticks.length) return;
+    const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
+    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]) };
+  }
 
   /** The same for a built object: its box as seen from the glass, its face the box's front. */
   private railOf(id: string, o: Object3D, zoom: number) {
@@ -409,6 +466,7 @@ export class Machine3D {
     // the board of this tier (boardmodel3d.ts: the same model the gallery shows); an empty socket is tagged for picking, its lights follow the power
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const b = boardModel(this.art, this.T, GEO.tier, { filled, ...(s ? { feat: s.board.features } : {}) });
+    this.sockets = b.sockets;
     for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
     for (const l of b.lights) this.spin(l);
     this.root.add(b.root);
@@ -417,7 +475,7 @@ export class Machine3D {
     this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
-    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { this.root.add(unseen(tag(rectBox(r, z0, z1, clear), id))); };
+    const pickBox = this.pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const b = unseen(tag(rectBox(r, z0, z1, clear), id)); this.picks.set(id, b); this.root.add(b); };
     pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
     GEO.dimm.forEach((d, i) => { if (!filled.has(`dimm${i}`)) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, `dimm${i}`); });
     M2_SLOTS.forEach((m, i) => { if (!filled.has(`m2${i}`)) pickBox(m, BOARD_Z, BOARD_Z + 40, `m2${i}`); });
@@ -425,7 +483,8 @@ export class Machine3D {
     if (s) this.fanPicks(s, filled, pickBox);
     // the back wall's slot covers, where no card's bracket stands; an empty bay is picked by an unseen plate over its mouth
     const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
-    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotBlank(nicY(i), blank)); });
+    this.blankTone = blank;
+    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) { const b = slotBlank(nicY(i), blank); this.blanks.set(`pcie${i}`, b); this.root.add(b); } });
     for (const t of this.cages.flatMap((c) => c.trays)) if (!filled.has(`sata${t.slot}`)) this.root.add(tag(trayHit(t), `sata${t.slot}`));
   }
 
@@ -891,6 +950,81 @@ export class Machine3D {
     this.setKey(s.plugged?.id ?? null);
   }
 
+  // ------------------------------------------------------------------ patch
+  /**
+   * Bring the machine in line with a snapshot that differs from it by whole sticks, M.2 drives or cards (Build my PC: a fit or a removal builds no
+   * new machine). A part that goes is hidden (the stand-ins of `partLod` know a part by its hiding) and its entries leave the shared lists; a part
+   * that comes is built alone and merged alone, as the build does it; the sockets they take or free change their look; the cables hang again.
+   * False, with nothing changed, when the change is more than that (another kind of part, a host's fans, a new board or case, a grave grown
+   * too big): the caller builds the machine again.
+   */
+  patch(s: Snapshot, geo: RoomGeo): boolean {
+    if (this.tiers !== `${s.boardTier}|${s.caseTier}` || this.graveyard.length >= GRAVE_MAX) return false;
+    const cur = new Map(this.devs.map((d) => [keyOf(d), d])), nxt = new Map(s.devices.map((d) => [keyOf(d), d]));
+    const gone = [...cur].filter(([k]) => !nxt.has(k)).map(([, d]) => d), came = [...nxt].filter(([k]) => !cur.has(k)).map(([, d]) => d);
+    const all = [...cur.values(), ...nxt.values()];
+    for (const d of [...gone, ...came]) if (!patchable(d) || all.some((x) => x.slot.startsWith(`${d.slot}.`))) return false;
+    if (gone.some((d) => !this.owned.has(keyOf(d)))) return false;
+    // ---- what goes
+    const drop = <T>(list: T[], out: readonly T[]): void => { for (const x of out) { const i = list.indexOf(x); if (i >= 0) list.splice(i, 1); } };
+    for (const d of gone) {
+      const o = this.owned.get(keyOf(d))!;
+      for (const r of o.roots) { r.visible = false; this.graveyard.push(r); }
+      drop(this.reveals, o.reveals); drop(this.fades, o.fades); drop(this.apart, o.apart); drop(this.fans, o.fans); drop(this.obstacles, o.obstacles);
+      drop(this.keep, o.keep); drop(this.caseRoots, o.caseRoots); drop(this.rails, o.rails);
+      for (const ob of o.obstacles) this.solids.delete(ob);
+      this.skins.delete(o.id);
+      if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
+      this.cards.delete(d.slot);
+      this.owned.delete(keyOf(d));
+    }
+    this.ram = null;
+    for (const x of this.ramSticks) { const r = { x: DIMM_X(x.idx), y: DIMM_Y(x.idx), w: DIMM_W, h: DIMM_H }; this.ram = this.ram ? union(this.ram, r) : r; }
+    // ---- what comes
+    this.devs = s.devices;
+    this.rects = slotRects(s);
+    const made = came.map((d) => this.build(d)!), added: Object3D[] = made.flatMap((o) => o.roots);
+    for (const o of made) for (const ob of o.obstacles) {
+      ob.updateWorldMatrix(true, true);
+      const b = new Box3().setFromObject(ob);
+      if (!b.isEmpty()) this.solids.set(ob, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+    }
+    if (gone.some((d) => d.kind === 'ram') || came.some((d) => d.kind === 'ram')) this.buildRamMap();
+    for (const d of gone) this.fill(d.slot, false, added);
+    for (const d of came) this.fill(d.slot, true, added);
+    // ---- the new pieces merge among themselves, as the build merges each part
+    if (this.merged && added.length) {
+      const holder = new Group(), skip = [...this.keep], apart = [...this.fades, ...this.apart];
+      holder.add(...added);
+      mergeSiblings(holder, { skip, apart, pbr: true });
+      shareMaterials(holder, { skip, apart, across: lowDetail() });
+      this.root.add(...holder.children);
+    } else for (const o of added) if (o.parent !== this.root) this.root.add(o);
+    this.setCables(s, geo);
+    return true;
+  }
+
+  /** A socket takes a part or is freed: its latches, its drop box, its plate or its tag follow. New pieces go on `added`. */
+  private fill(slot: string, filled: boolean, added: Object3D[]): void {
+    const m = /^(dimm|m2|pcie)(\d+)$/.exec(slot);
+    if (!m) return;
+    const i = Number(m[2]), sock = this.sockets.get(slot), pick = this.picks.get(slot);
+    if (sock) { if (filled) delete sock.userData.id; else tag(sock, slot); }
+    const freeBox = (o: Object3D) => { o.removeFromParent(); o.traverse((x) => (x as Mesh).geometry?.dispose?.()); };
+    if (m[1] === 'pcie') {
+      const b = this.blanks.get(slot);
+      if (filled && b) { freeBox(b); this.blanks.delete(slot); }
+      else if (!filled && !b) { const n = slotBlank(nicY(i), this.blankTone); this.blanks.set(slot, n); this.root.add(n); added.push(n); }
+      return;
+    }
+    if (m[1] === 'dimm') this.root.traverse((o) => { if (o.userData.dimm === slot) for (const p of o.children) p.rotation.x = ((p.userData.latchEnd as number | undefined) ?? 0) * (filled ? 0 : 0.5); });
+    if (filled && pick) { freeBox(pick); this.picks.delete(slot); }
+    else if (!filled && !pick) {
+      if (m[1] === 'dimm') this.pickBox(GEO.dimm[i]!.rect, BOARD_Z, BOARD_Z + SLOT_H, slot);
+      else this.pickBox(M2_SLOTS[i]!, BOARD_Z, BOARD_Z + 40, slot);
+    }
+  }
+
   // ------------------------------------------------------------------ live
   frame(s: Snapshot | null, dt: number): void {
     const live = !!s && s.powered && !s.power.tripped && !s.board.burnt;
@@ -970,7 +1104,25 @@ export class Machine3D {
   }
 
   /** Open the case's outer side whatever the zoom (a part or a cable is dragged, a tutorial target is inside), or let the zoom decide again. */
-  setOpen(inside: boolean, busy = false): void { if (this.door) { this.door.inside = inside; this.door.busy = busy; } }
+  setOpen(inside: boolean, busy = false): void {
+    const d = this.door;
+    if (!d) return;
+    // (a panel a job held open stays open when the job lets go, as if the zoom had opened it: it shuts when the zoom falls under its band)
+    if (d.inside && !inside && this.doorOpen) { d.manual = null; d.zoomOpen = true; }
+    d.inside = inside;
+    d.busy = busy;
+  }
+
+  /** Shut the side panel now, whatever held it open (the zoom decides again at its next crossing). */
+  closeDoor(): void { const d = this.door; if (d) { d.inside = false; d.manual = false; } }
+
+  /** The side panel as `from` (the machine this one replaces) had it: how far open, and what holds it, so a new build does not swing it again. */
+  takeDoor(from: Machine3D): void {
+    const a = from.door, b = this.door;
+    if (!a || !b) return;
+    b.t = a.t; b.zoom = a.zoom; b.board = a.board; b.zoomOpen = a.zoomOpen; b.manual = a.manual; b.inside = a.inside; b.busy = a.busy;
+    this.swingDoor(0);
+  }
 
   /** Open the side panel if it is shut (or opening), shut it if it is open: the player's say holds until the zoom crosses its band again. */
   toggleDoor(): void { const d = this.door; if (d) d.manual = !(d.manual ?? (d.zoomOpen || d.inside)); }

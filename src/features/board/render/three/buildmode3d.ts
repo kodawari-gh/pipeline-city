@@ -162,7 +162,10 @@ export class BuildStage {
   private raf = 0;
   private dead = false;
   private last = performance.now();
+  /** The player's Side panel button holds the panel open. */
   private wantOpen = false;
+  /** A job holds the panel open from its first step that needs the inside; at its end the panel is the zoom's again (`Machine3D.setOpen`). */
+  private jobOpen = false;
   /**
    * The motion that plays now: its objects (each turns about `pivot`, the middle of them all in its parent's frame), or a `drive` that reads the pose
    * itself (the hoses) and an `end` that puts them away. `fade` draws them see-through at the far end of their way (`solidAt`).
@@ -270,7 +273,7 @@ export class BuildStage {
   }
 
   /** What the machine builds cost since the stage opened (a swap's cost, read by the bench through `window.__build` in dev; `docs/render/load.md`). */
-  readonly cost = { builds: 0, buildMs: 0, skipped: 0 };
+  readonly cost = { builds: 0, buildMs: 0, skipped: 0, patches: 0, patchMs: 0 };
   /** What the machine on the stage was built from (`machineKey`): a redraw of the same parts builds nothing (cables and the key sync themselves). */
   private builtKey = '';
 
@@ -287,6 +290,13 @@ export class BuildStage {
       return;
     }
     const t0 = performance.now();
+    // a part more or less that a patch can make (a stick, an M.2 drive, a card): the machine stays, only that part is built or hidden
+    if (this._machine && this._machine.patch(this.snapshot, roomGeo())) {
+      this.builtKey = key; this.held.clear(); this.warm = true;
+      this.cost.patches++; this.cost.patchMs += performance.now() - t0;
+      this.bump(); this.demand.ask();
+      return;
+    }
     try { this.rebuildNow(); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
 
@@ -300,8 +310,10 @@ export class BuildStage {
     this.tierKey = `${tier}|${caseTier}`;
     setLayoutTier(tier, caseTier);
     const { scene } = this.ctx;
-    if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
+    const old = this._machine;
+    if (old) { scene.remove(old.root); old.dispose(); }
     this._machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
+    if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
     this.warm = true;
@@ -369,7 +381,7 @@ export class BuildStage {
     const { scene, camera, renderer } = this.ctx;
     this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);
     applyView(camera, this.view, this.W / this.H);
-    this.machine.setOpen(this.wantOpen, true);
+    this.machine.setOpen(this.wantOpen || this.jobOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
@@ -554,8 +566,12 @@ export class BuildStage {
   private bump(): void { const st = this.status.peek(); this.status.value = { ...st, rev: st.rev + 1 }; }
 
   /** Is the side panel open (or opening)? The case hides what is inside it, so parts and sockets answer only then. */
-  get insideOpen(): boolean { return this.wantOpen; }
-  openInside(open: boolean): void { this.wantOpen = open; this.demand.ask(); }
+  get insideOpen(): boolean { return this.wantOpen || this.jobOpen || this.machine.doorOpen; }
+  openInside(open: boolean): void {
+    this.wantOpen = open;
+    if (!open) { this.jobOpen = false; this.machine.closeDoor(); }
+    this.demand.ask();
+  }
 
   /** The id under a client point, from the board's own pieces (the case is left out: it hides what is inside). */
   private hitId(x: number, y: number): string | null {
@@ -692,9 +708,21 @@ export class BuildStage {
     return this.playAll(obj ? [obj] : [], kind, dir, slot);
   }
 
+  /**
+   * The side panel for a step: it opens once, for the first step that needs the inside, and not at all when it stands open already (a click, the
+   * zoom, the step before). The job holds it open to its end; then the zoom has it (`Machine3D.setOpen`). Only a new case or board shuts it.
+   */
   private async door(open: boolean): Promise<void> {
-    if (this.wantOpen === open) return;
-    this.wantOpen = open;
+    const was = this.machine.doorOpen;
+    if (open) {
+      if (this.jobOpen) return;
+      this.jobOpen = true;
+      if (was) return;
+    } else {
+      this.jobOpen = false; this.wantOpen = false;
+      if (!was) return;
+      this.machine.closeDoor();
+    }
     this.setStep(open ? 'Undo the side panel' : 'Close the side panel');
     // (the work starts while the panel is still swinging: it is out of the way after the first part of its swing)
     await sleep((DOOR_SECONDS[CASE_KIND[LAYOUT_CASE] ?? 'gamer'] * 1000 * DOOR_WAIT) / this.rate());
@@ -871,7 +899,8 @@ export class BuildStage {
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
-        // (the side panel stays open for the next step: the player closes it with its button; a loop's hoses are never left off)
+        // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off)
+        this.jobOpen = false;
         this.pace = 1; this.skipping = false;
         this.hosesOff = false;
         const h = this._machine?.hoses;
@@ -943,6 +972,9 @@ export class BuildStage {
           if (occupant) this.record({ t: 'remove', spec: occupant.spec, slot });
           this.record({ t: 'fit', spec: itemId, slot });
           fresh = { id: put.deviceId ?? '', kind: spec.kind, slot };
+          // (the same part in the same socket: the one that came out stands as the new one)
+          const same = this.held.get(`${itemId}@${slot}`);
+          if (same && put.deviceId) { this.held.delete(`${itemId}@${slot}`); this.refit(same, put.deviceId); }
         }
       }
       // the parts that were in the way go back in the game now; one build shows the new part and all of them
@@ -954,12 +986,15 @@ export class BuildStage {
           const r = this.edit((x) => x.install(g.invId, g.slot));
           if (!r.ok) { this.note(getSpec(g.spec)?.kind === 'fan' ? `${getSpec(g.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(g.spec)?.name ?? g.spec} back: ${r.reason}`); continue; }
           this.note(`Put back ${getSpec(g.spec)?.name ?? g.spec}`);
+          // (a part that is still built stands again under its new id: the build below leaves it as it is)
+          const kept = this.held.get(`${g.spec}@${g.slot}`);
+          if (kept && r.deviceId) { this.held.delete(`${g.spec}@${g.slot}`); this.refit(kept, r.deviceId); }
           back.push({ id: r.deviceId ?? '', kind: deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, slot: g.slot, asm: !!u.along?.length });
         }
       }
       // a part that just made the loop (a pump with a radiator in, a radiator with a pump in): its hoses are built off and go on last
       if (!looped && hasLoop(this.board)) this.hosesOff = true;
-      this.builtKey = ''; // (the hidden parts are stale objects: always build the new machine, even when its parts equal the old)
+      // (one patch or one build: the part that came is built, the others stand as they are, hidden until they go back in)
       this.rebuild();
       const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
       for (const x of shown) if (x.obj) x.obj.visible = false;
