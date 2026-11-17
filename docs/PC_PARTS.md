@@ -69,7 +69,7 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 
 - A GPU's or an NPU's cooler stands less than a finger's width (15 mm) from the next slot's card: it covers that slot (`COVERS`). A NIC leaves room.
 - A card's cooler covers the M.2 sockets under it, by card and slot (`OVER_M2`): its stick cannot come out first.
-- The cooler covers the CPU. The loop's radiator comes out before its pump.
+- The cooler covers the CPU. The loop's hoses come off before its pump and its radiator.
 - The board comes out bare. The case comes out last.
 - Every part has a board tier with its slot (and a wide enough PCIe slot).
 
@@ -91,7 +91,8 @@ The owner's call: the models from the NVMe on were low quality next to the coole
 - Take out: drag a part off the PC onto the shelf (or press its Remove in the list). The graph gives the steps; each step plays its animation. The part is gone; take another from the shelf.
 - Parts sit inside the case: the side panel must be open to drag them (the Side panel button, or it opens when a drag starts).
 - Fit: blocks come out, the part goes in, the blocks go back.
-- Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
+- Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording). Each channel follows a monotone cubic through the keys (`poseAt`): no stop at a key the path runs through, no overshoot. A twist turns the part about its own centre (`placed`). A part fades over the last stretch of its way out and comes in from see-through (`solidAt`, `partfade.ts`: per-part copies of the shared materials).
+- Water loop: the hoses (`LoopHoses`, cooler3d.ts) exist only with a liquid pump and a radiator (`hasLoop` in `sim/removal.ts`; a GPU water block would join there, none exists yet). They are their own graph node (`hoses`): they come off before the pump or the radiator, and go on last, after the parts and before the cables. The pump unscrews, twists free of the paste and lifts (motion `pump`); the hoses slide off their fittings and lift.
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
 - Board and case swaps: the parts come out first. The door closes. The board lifts out (`Machine3D.boardRoots`), then the case pieces (`caseRoots`). The new case lowers over the board, then the new board settles in.
 - The stage shows the room's monitor on standby (`Monitor`, props3d.ts).

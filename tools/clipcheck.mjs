@@ -52,13 +52,16 @@ try {
       if (KINDS.length && !KINDS.includes(m.kind)) continue;
       if (onRad(m)) continue;
       const crew = m === rad ? still.filter(onRad) : [];
-      const motion = BM.motionFor(m === rad && crew.length ? 'assembly' : BS.motionOf(m.kind, m.d.slot));
+      const motion = BM.motionFor(m === rad && crew.length ? 'assembly' : BS.motionOf(m.kind, m.d.slot, B.board));
       const total = BM.motionSeconds(motion), seat = new Map();
+      // (a part turns about its own middle, as the stage plays it: `placed`)
+      const mid = [m, ...crew].reduce((b, x) => b.union(x.b), new THREE.Box3()).getCenter(new THREE.Vector3());
+      for (const x of [m, ...crew]) { const c = x.o.parent ? x.o.parent.worldToLocal(mid.clone()) : x.base; x.pivot = [c.x, c.y]; }
       for (const o of still) if (o !== m) seat.set(o, share(m.b, o.b));
       const hits = new Map();
       for (let i = 0; i <= STEPS; i++) {
         const t = (total * i) / STEPS, pose = BM.poseAt(motion, t, 'out');
-        for (const x of [m, ...crew]) { x.o.position.set(x.base.x + pose.offset[0], x.base.y + pose.offset[1], x.base.z + pose.offset[2]); x.o.rotation.z = x.baseZ + pose.turn; x.o.updateWorldMatrix(true, true); }
+        for (const x of [m, ...crew]) { x.o.position.set(...BM.placed([x.base.x, x.base.y, x.base.z], x.pivot, pose.turn, pose.offset)); x.o.rotation.z = x.baseZ + pose.turn; x.o.updateWorldMatrix(true, true); }
         const mb = box(m.o);
         for (const o of still) {
           if (o === m || crew.includes(o)) continue;

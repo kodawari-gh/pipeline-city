@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createBoard, install, type Board } from "./board";
 import { noCables, type Cables } from "./cables";
-import { BOARD, CASE, SIDE, buildGraph, cableNode, devNode, nodeKind, removalPlan, removalPlanAll, restorePlan } from "./removal";
+import { BOARD, CASE, HOSES, SIDE, buildGraph, cableNode, devNode, nodeKind, removalPlan, removalPlanAll, restorePlan } from "./removal";
 
 function rig(): { b: Board; c: Cables; id: Record<string, string> } {
   const b = createBoard(3), id: Record<string, string> = {};
@@ -54,12 +54,26 @@ describe("removal graph", () => {
     expect(removalPlan(buildGraph(b2, c), devNode(under.id))).toContain(devNode(big.id));
   });
 
-  it("the loop's radiator comes out before the pump", () => {
+  it("the loop's hoses come off before the pump or the radiator, and each then comes out alone", () => {
     const b = createBoard(3), c = noCables();
     const cool = install(b, "cooler2"), rad = install(b, "rad2");
     if (!cool.ok || !rad.ok) throw new Error("install");
-    const plan = removalPlan(buildGraph(b, c), devNode(cool.id));
-    expect(plan.indexOf(devNode(rad.id))).toBeLessThan(plan.indexOf(devNode(cool.id)));
+    const g = buildGraph(b, c), pump = removalPlan(g, devNode(cool.id)), radiator = removalPlan(g, devNode(rad.id));
+    expect(pump).toContain(HOSES);
+    expect(pump).not.toContain(devNode(rad.id));
+    expect(radiator).toContain(HOSES);
+    expect(radiator).not.toContain(devNode(cool.id));
+    expect(nodeKind(b, HOSES)).toBe("hoses");
+  });
+
+  it("has no hoses without a loop: an air cooler and a radiator, or a pump alone", () => {
+    const b = createBoard(3), c = noCables();
+    install(b, "cooler1");
+    install(b, "rad2");
+    expect(buildGraph(b, c).has(HOSES)).toBe(false);
+    const b2 = createBoard(3);
+    install(b2, "cooler2");
+    expect(buildGraph(b2, c).has(HOSES)).toBe(false);
   });
 
   it("the board comes out bare, and the case last of all", () => {

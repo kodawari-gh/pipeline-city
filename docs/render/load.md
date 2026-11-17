@@ -239,4 +239,12 @@ Every action plays in about 1 s (`ACTION_SECONDS` in `buildmotion.ts`; the case 
 
 - A radiator leaves with its fans as one piece (motion `assembly`: screws out through the panel, then all of them along the side opening). The fans sit between the panel and the radiator and are screwed through both, so a fan alone on a radiator's mount uses `fan-rad`: it slides out along the radiator, never through it. `takeOutRadiator`, `putBackAssembly` and the group restore in `fit` play the assembly in both directions.
 - The cooler has no twist (even 0.18 rad swung it into the rear fan) and the rear fan pulls straight along the panel, not toward the cooler.
+- A twist or a hold's rock turns the part about the centre of its box (`placed`, the pivot in `playAll`; `clipcheck.mjs` does the same). Before, the turn was about the machine's origin and swung the part sideways. The pump (`pump`) twists 0.2 rad about its centre and passes the check.
+
+## Motion curves and fades (2026-11-17)
+
+- `poseAt` runs a monotone cubic (Fritsch–Carlson) per channel through the keys: a part flows through keys on one line and stops only where the path turns. One segment is the old smoothstep.
+- A part leaves with a fade over the last 0.3 s of its way (at most 35 % of the motion) and comes in from see-through (`solidAt`, `PartFade`). The 'out' motion ends at its far pose and hides there: no frame at the seat.
+- The see-through programs link at each build (`startPrograms` with `fades`, one frame after the build): 20 to 30 ms a build. `bench:swap` now counts 63 to 66 programs (45 to 47 in the table above, before the fades and the brands). The longest frame gap is still the build (+25 ms).
+- The loop's hoses (`LoopHoses`) stay live only in Build my PC (`keep`). In the room they join the cooler's group, its merges and its stand-ins: the overview stays at 136 draws, and the cooler draws 9 meshes at High, not 11 (`highident` regenerated on purpose).
 - `npm run clip:check` lists no clip over 4% now. It does not test case walls or cables yet.

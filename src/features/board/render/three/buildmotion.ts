@@ -1,7 +1,7 @@
 // The motion of a part coming out of the machine and going back in (the build mode, buildmode3d.ts). Pure: a keyframe list per kind of part and a pose
 // function, so the build mode only moves the part's group by the pose. The removal order comes from the graph (`sim/removal.ts`); this says how each step looks.
 // Offsets are in layout units in the machine's frame: +x east (toward the drive cage), +y up the case, +z out of the board toward the glass. Fitting a part
-// plays its removal backwards, with the fit wording.
+// plays its removal backwards, with the fit wording. A part turns about its own middle (`placed`), never about the machine's origin.
 
 import type { NodeKind } from '@/features/board/sim/removal';
 
@@ -9,6 +9,10 @@ import type { NodeKind } from '@/features/board/sim/removal';
 export interface Key {
   at: readonly [number, number, number];
   turn?: number;
+  /** How far the loop's hose ends are off their fittings (0 on, 1 free): the hoses' own channel (`LoopHoses.pose`). */
+  slide?: number;
+  /** The part stays put while a latch or a screw is worked: it presses in and rocks a little (`HOLD_PRESS`, `HOLD_ROCK`). */
+  hold?: boolean;
   sec: number;
   /** The words for coming out (`remove`) and for going in (`fit`) while the part moves to / from this key. */
   remove: string;
@@ -17,11 +21,14 @@ export interface Key {
 
 export interface Motion { keys: readonly Key[]; /** Peak tilt (rad) of a card pulled out end first. */ tilt?: number }
 
-const k = (at: readonly [number, number, number], sec: number, remove: string, fit: string, turn = 0): Key => ({ at, sec, remove, fit, turn });
+const k = (at: readonly [number, number, number], sec: number, remove: string, fit: string, turn = 0, slide = 0): Key => ({ at, sec, remove, fit, turn, slide });
 const HOME: readonly [number, number, number] = [0, 0, 0];
 
 /** Hold in place (the part does not move: a latch opens, a screw turns). */
-const hold = (sec: number, remove: string, fit: string): Key => k(HOME, sec, remove, fit);
+const hold = (sec: number, remove: string, fit: string): Key => ({ ...k(HOME, sec, remove, fit), hold: true });
+
+/** How far the loop's pump head turns (rad) to break it free of the paste, about its own axis. */
+export const PUMP_TWIST = 0.2;
 
 /** Pull straight out of the socket, then carry away. */
 function lift(rise: number, away: readonly [number, number, number], sec: [number, number], verbs: [string, string, string, string]): Key[] {
@@ -38,7 +45,13 @@ const MOTIONS: Record<string, Motion> = {
   cable: CABLE,
   ram: { keys: [hold(0.35, 'Press the two latches out', 'Click the two latches shut'), ...lift(260, [0, 0, 2200], [0.5, 0.7], ['Lift the stick out of its socket', 'Take the stick away', 'Bring the stick over the socket', 'Press the stick home'])] },
   cpu: { keys: [hold(0.45, 'Lift the load lever', 'Lower the load lever and lock it'), ...lift(200, [0, 0, 2600], [0.5, 0.7], ['Lift the CPU straight up', 'Take the CPU away', 'Bring the CPU over the socket', 'Lower the CPU into the socket'])] },
-  cooler: { keys: [hold(0.5, 'Undo the four mounting screws', 'Tighten the four mounting screws'), k([0, 0, 420], 0.6, 'Twist the cooler free', 'Press the cooler onto the CPU', 0.0), k([0, 0, 3200], 0.9, 'Lift the cooler away', 'Bring the cooler over the CPU', 0.0)] },
+  // (a tower does not twist: it is long, and a turn swings its ends into the rear fan and the RAM; it eases straight up off the paste)
+  cooler: { keys: [hold(0.5, 'Undo the four mounting screws', 'Tighten the four mounting screws'), k([0, 0, 420], 0.6, 'Ease the cooler off the CPU', 'Press the cooler onto the CPU'), k([0, 0, 3200], 0.9, 'Lift the cooler away', 'Bring the cooler over the CPU')] },
+  // the loop's pump head is round: it twists a little about its axis as it rises, to break it free of the paste (its hoses are off by then)
+  pump: { keys: [hold(0.5, 'Undo the four mounting screws', 'Tighten the four mounting screws'), k([0, 0, 180], 0.5, 'Twist the pump head free of the paste', 'Press the pump head onto the CPU', PUMP_TWIST), k([0, 0, 3200], 0.8, 'Lift the pump away', 'Bring the pump over the CPU', PUMP_TWIST)] },
+  // the loop's hoses come off as one step before the pump or the radiator, and go on last (`sim/removal.ts` HOSES): the compression rings, then the ends slide
+  // off their fittings (`slide`), then the pair is carried out on its own weight (`LoopHoses.pose`)
+  hoses: { keys: [hold(0.35, 'Undo the compression rings', 'Tighten the compression rings'), k([0, 0, 0], 0.45, 'Pull the hoses off the fittings', 'Push the hoses onto the fittings', 0, 1), k([0, 0, 2800], 0.7, 'Lift the hoses out', 'Bring the hoses to the fittings', 0, 1)] },
   radiator: { keys: [hold(0.5, 'Undo the radiator screws', 'Tighten the radiator screws'), k([0, 0, 500], 0.6, 'Pull the radiator off the fan mount', 'Press the radiator onto the fan mount'), k([0, 0, 3600], 0.9, 'Lift the radiator away', 'Bring the radiator over the mount')] },
   gpu: { tilt: 0.07, keys: [hold(0.5, 'Undo the bracket screws', 'Tighten the bracket screws'), hold(0.35, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 520], 0.6, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3600], 0.9, 'Lift the card away', 'Bring the card over the slot')] },
   npu: { tilt: 0.07, keys: [hold(0.45, 'Undo the bracket screw', 'Tighten the bracket screw'), hold(0.3, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 480], 0.55, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3200], 0.8, 'Lift the card away', 'Bring the card over the slot')] },
@@ -92,6 +105,8 @@ export const motionSeconds = (m: Motion): number => m.keys.reduce((s, x) => s + 
 export interface Pose {
   offset: [number, number, number];
   turn: number;
+  /** The loop's hose ends off their fittings (0 on, 1 free): only the hoses read it. */
+  slide: number;
   /** The words for this moment. */
   label: string;
   /** 0 at the seat, 1 at the end of the way out. */
@@ -104,30 +119,95 @@ export interface Pose {
 export const HOLD_PRESS = -14, HOLD_ROCK = 0.012;
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
+const unit = (x: number): number => Math.max(0, Math.min(1, x));
+
+/**
+ * One motion's channels (x, y, z, turn, slide) as a monotone cubic through its keys (Fritsch–Carlson, the end slopes 0): a part that goes on the same
+ * way from one key to the next keeps its speed through the key instead of stopping at it (a cooler eased off its paste flows into the lift). A channel
+ * that stops or turns back at a key stops there (a slide out of a rear opening, then a lift), and nothing overshoots its keys. One key alone is the
+ * old smoothstep.
+ */
+interface Curve { t: number[]; v: number[][]; d: number[][] }
+const CHANNELS = 5, curves = new WeakMap<Motion, Curve>();
+function curveOf(m: Motion): Curve {
+  const had = curves.get(m);
+  if (had) return had;
+  const t = [0], v: number[][] = Array.from({ length: CHANNELS }, () => [0]);
+  for (const key of m.keys) {
+    t.push(t[t.length - 1]! + key.sec);
+    [key.at[0], key.at[1], key.at[2], key.turn ?? 0, key.slide ?? 0].forEach((x, j) => v[j]!.push(x));
+  }
+  const d = v.map((y) => {
+    const s = new Array<number>(t.length).fill(0);
+    for (let i = 1; i < t.length - 1; i++) {
+      const h0 = t[i]! - t[i - 1]!, h1 = t[i + 1]! - t[i]!;
+      if (h0 <= 0 || h1 <= 0) continue;
+      const d0 = (y[i]! - y[i - 1]!) / h0, d1 = (y[i + 1]! - y[i]!) / h1;
+      // (the weighted harmonic mean of the two secants: zero where the channel stops or turns back, never steep enough to overshoot)
+      if (d0 * d1 > 0) s[i] = (3 * (h0 + h1)) / ((2 * h1 + h0) / d0 + (h1 + 2 * h0) / d1);
+    }
+    return s;
+  });
+  const c = { t, v, d };
+  curves.set(m, c);
+  return c;
+}
+
+/** A cubic Hermite segment from y0 (slope m0) to y1 (slope m1) over `h` seconds, at `u` (0..1) of the way. */
+function hermite(y0: number, y1: number, m0: number, m1: number, h: number, u: number): number {
+  const u2 = u * u, u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * h * m0 + (3 * u2 - 2 * u3) * y1 + (u3 - u2) * h * m1;
+}
 
 /**
  * The pose `t` seconds into the removal (`dir` 'out') or the fitting ('in': the same keys played backwards, so t = 0 is the part far away and the
  * last moment is the part seated). `t` past the end clamps.
  */
 export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
-  const total = motionSeconds(m);
+  const keys = m.keys, total = motionSeconds(m);
+  if (!keys.length) return { offset: [...HOME], turn: 0, slide: 0, label: '', out: 0, tilt: 0 };
   const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)); // the time along the way out
-  let from: readonly [number, number, number] = HOME, fromTurn = 0, left = s;
-  for (const key of m.keys) {
-    if (left <= key.sec || key === m.keys[m.keys.length - 1]) {
-      const u = key.sec > 0 ? ease(Math.max(0, Math.min(1, left / key.sec))) : 1;
-      const offset: [number, number, number] = [from[0] + (key.at[0] - from[0]) * u, from[1] + (key.at[1] - from[1]) * u, from[2] + (key.at[2] - from[2]) * u];
-      const far = m.keys[m.keys.length - 1]!.at, reach = Math.hypot(...far) || 1;
-      // a hold (a latch, a screw, a lever): the part does not travel but it does not freeze: it presses in and rocks a little (zero at both ends)
-      const held = key.at === from && from === HOME, raw = key.sec > 0 ? Math.max(0, Math.min(1, left / key.sec)) : 0, bump = held ? Math.sin(Math.PI * raw) : 0;
-      if (held) { offset[2] += HOLD_PRESS * bump; }
-      return { offset, turn: fromTurn + ((key.turn ?? 0) - fromTurn) * u + (held ? HOLD_ROCK * Math.sin(2 * Math.PI * raw) * bump : 0), label: dir === 'out' ? key.remove : key.fit, out: Math.min(1, Math.hypot(...offset) / reach), tilt: m.tilt ? m.tilt * Math.sin(Math.PI * Math.min(1, Math.hypot(...offset) / (Math.hypot(...m.keys.find((x) => x.at !== HOME)!.at) || 1))) : 0 };
-    }
-    left -= key.sec;
-    from = key.at;
-    fromTurn = key.turn ?? 0;
+  const c = curveOf(m);
+  let i = 0;
+  while (i < keys.length - 1 && s > c.t[i + 1]!) i++;
+  const key = keys[i]!, h = c.t[i + 1]! - c.t[i]!, raw = h > 0 ? unit((s - c.t[i]!) / h) : 1;
+  const at = (j: number): number => hermite(c.v[j]![i]!, c.v[j]![i + 1]!, c.d[j]![i]!, c.d[j]![i + 1]!, h, raw);
+  const offset: [number, number, number] = [at(0), at(1), at(2)];
+  let turn = at(3);
+  // a hold (a latch, a screw, a lever): the part does not travel but it does not freeze: it presses in and rocks a little (zero at both ends)
+  if (key.hold) {
+    const bump = Math.sin(Math.PI * raw);
+    offset[2] += HOLD_PRESS * bump;
+    turn += HOLD_ROCK * Math.sin(2 * Math.PI * raw) * bump;
   }
-  return { offset: [...HOME], turn: 0, label: '', out: 0, tilt: 0 };
+  const reach = Math.hypot(...keys[keys.length - 1]!.at) || 1, first = keys.find((x) => x.at !== HOME)?.at ?? HOME;
+  return {
+    offset, turn, slide: at(4), label: dir === 'out' ? key.remove : key.fit, out: Math.min(1, Math.hypot(...offset) / reach),
+    tilt: m.tilt ? m.tilt * Math.sin(Math.PI * Math.min(1, Math.hypot(...offset) / (Math.hypot(...first) || 1))) : 0,
+  };
+}
+
+/**
+ * Where a part's group goes for a pose: its turn is about `pivot` (the part's own middle, x and y in the group's parent frame), not about the parent's
+ * origin. The parts are built at the machine's origin with absolute coordinates, so a plain `rotation.z` would swing a part around that far-off point.
+ */
+export function placed(base: readonly [number, number, number], pivot: readonly [number, number], turn: number, offset: readonly [number, number, number]): [number, number, number] {
+  const cs = Math.cos(turn), sn = Math.sin(turn), dx = base[0] - pivot[0], dy = base[1] - pivot[1];
+  return [pivot[0] + cs * dx - sn * dy + offset[0], pivot[1] + sn * dx + cs * dy + offset[1], base[2] + offset[2]];
+}
+
+/** How long (s) a part takes to fade at the far end of its way, at most `FADE_SHARE` of its motion. */
+export const FADE_SECONDS = 0.3, FADE_SHARE = 0.35;
+
+/**
+ * How solid a part is drawn `t` seconds into a motion (`PartFade`): 1 at its seat and along most of the way, fading to 0 over the last stretch of
+ * the way out, so it never pops out of sight; going in ('in') it comes from 0 at the far end. A part that does not travel (a hold alone) stays solid.
+ */
+export function solidAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): number {
+  const total = motionSeconds(m);
+  if (!m.keys.some((x) => !x.hold)) return 1;
+  const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)), f = Math.min(FADE_SECONDS, total * FADE_SHARE);
+  return f > 0 ? 1 - ease(unit((s - (total - f)) / f)) : 1;
 }
 
 /** Is the motion finished `t` seconds in? */

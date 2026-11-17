@@ -4,7 +4,7 @@
 // (clear of the first card), four copper heat pipes rising from its base through every fin, held by a sprung crossbar on two bars; a 120 mm fan on
 // each end clips on by its wire clips, both blowing west. The loop's pump is a cold plate under a square base and a round anodised body (a thin
 // light ring under a brushed cap with a diamond-cut edge; the impeller is inside, unseen) on a four-arm bracket; two 12 mm braided hoses arc from
-// the G1/4 fittings in the port block on its north side to the radiator's (`hose`, hung round the parts in their way). The radiator (`radiatorModel`) is the 2D one stood up across the case,
+// the G1/4 fittings in the port block on its north side to the radiator's (`LoopHoses`, hung round the parts in their way; only with both fitted). The radiator (`radiatorModel`) is the 2D one stood up across the case,
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
@@ -14,11 +14,12 @@ import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectB
 import { byDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
-import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
+import { Rope, hang, type Plane, type RopeEnd, type RopeSpec, type Solid, type V3 } from '@/core/render/three/rope';
+import { Sleeve } from '@/core/render/three/sleeve';
 import { BOARD_Z, FAN_MAX, FAN_ZC } from '@/features/room/render/three/roomplan';
 import { COOLER_HOLE, COOLER_HOLES, FAN_LEN, fanLen } from '../layout/layout';
 import { FIN_PITCH, TANK, frameOf, radiatorCore, radiatorFanUs, type RadiatorFit } from '../cooler';
-import { band, braidedTube } from './cables3d';
+import { band, braidedTube, samplesFor, sleeveMat } from './cables3d';
 import { brushed as streaks, decal, outlinePts, shapeOf, slab, tex, tiled } from './casekit3d';
 import { CPU_Z } from './cpu3d';
 import { fanDepth, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
@@ -294,14 +295,91 @@ export function hoseEnds(fit: RadiatorFit): [RopeEnd, RopeEnd][] {
   return [[pump[0]!, rad[0]!], [pump[1]!, rad[1]!]];
 }
 
-/** One of the loop's hoses: a stiff braided hose (the 2D tube's dark sleeve, its weave 38 % of the way to the loop's accent) arcing between its ends, a crimped ferrule at each end. */
-export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Solid[] }): Group {
-  const g = new Group(), gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
-  const pts = hang({ a, b, length: gap * 1.12 + 300, r: HOSE_R, stiff: 0.95, n: 30, lead: 220, ...env });
-  const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), HOSE_R, '#0c1226', '#464078'), L = curve.getLength(), ferrule = alu(0x2a3048, 0.32);
+type Env = { planes: Plane[]; solids: Solid[] };
+/** A hose's rope: a stiff hose a little longer than its gap, its ends leaving straight out of the fittings. */
+const hoseRope = (a: RopeEnd, b: RopeEnd, env: Env): RopeSpec =>
+  ({ a, b, length: Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]) * 1.12 + 300, r: HOSE_R, stiff: 0.95, n: 30, lead: 220, ...env });
+/** The hoses' sleeve (the 2D tube's dark sleeve, its weave 38 % of the way to the loop's accent) and their crimped ferrules. */
+const HOSE_LOOK = ['#0c1226', '#464078'] as const, ferruleMat = () => alu(0x2a3048, 0.32);
+
+/** One of the loop's hoses: a stiff braided hose arcing between its ends, a crimped ferrule at each end. */
+export function hose(a: RopeEnd, b: RopeEnd, env: Env): Group {
+  const g = new Group(), pts = hang(hoseRope(a, b, env));
+  const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), HOSE_R, ...HOSE_LOOK), L = curve.getLength(), ferrule = ferruleMat();
   g.add(mesh);
   for (const s of [70, L - 70]) g.add(band(curve, s, HOSE_R + 20, 140, ferrule));
   return g;
+}
+
+/** How far a hose's end slides along its fitting to come off it: past the collar's tip and its ridges, with room. */
+export const HOSE_PULL = 300;
+const UP = new Vector3(0, 1, 0);
+/** A hose of the rig: its rope as built, its seated points, its two skins and ferrules, and its live rope while it moves. */
+type Hose = { spec: RopeSpec; seat: V3[]; hi: Sleeve; lo: Sleeve; ferrules: Mesh[]; rope: Rope | null };
+
+/**
+ * The loop's two hoses as one piece (machine3d.ts builds them only with a pump and a radiator both fitted). They stand as `hose` hangs them, and
+ * Build my PC poses them live while it takes them off or puts them on (`pose`): each end slides along its fitting, the pair moves by an offset,
+ * and between the ends each hose hangs on a live rope, so it bends, sags and trails as it is carried. A rigid copy would move as a stiff piece.
+ */
+export class LoopHoses {
+  /** What Build my PC shows and hides (tagged 'hoses'). */
+  readonly root = tag(new Group(), 'hoses');
+  /** What the zoom fades with the cooler (`fadeTree` sets its `visible` too, so it is not `root`). */
+  readonly body = new Group();
+  private readonly hoses: Hose[] = [];
+  /** The ropes' space while they move: the case's walls less the glass (the hoses leave through the open side), and the boxes. */
+  private readonly free: Env;
+
+  constructor(ends: readonly (readonly [RopeEnd, RopeEnd])[], env: Env) {
+    this.root.add(this.body);
+    this.free = { planes: env.planes.filter((p) => p.n[2] >= 0), solids: env.solids };
+    const look = sleeveMat(...HOSE_LOOK), ferrule = ferruleMat(), ring = new CylinderGeometry(HOSE_R + 20, HOSE_R + 20, 140, SEG.disc);
+    for (const [a, b] of ends) {
+      const spec = hoseRope(a, b, env), seat = hang(spec), steps = samplesFor(seat.length);
+      // (the lower level: half the steps, 6 sides; the same skin, so it fits the full one; both follow every pose)
+      const hi = new Sleeve(1, HOSE_R, steps, SEG.sleeve), lo = new Sleeve(1, HOSE_R, Math.max(SEG.sleeveStepsLow, Math.ceil(steps / 2)), SEG.sleeveLow);
+      const ferrules = [0, 1].map(() => place(new Mesh(ring, ferrule)));
+      this.body.add(place(new Mesh(withLow(hi.geometry, () => lo.geometry), look)), ...ferrules);
+      const h: Hose = { spec, seat, hi, lo, ferrules, rope: null };
+      this.hoses.push(h);
+      this.draw(h, seat);
+    }
+  }
+
+  /** Skin a hose along its points; its ferrules sit on the straight leads, 70 in from each end. */
+  private draw(h: Hose, pts: readonly V3[]): void {
+    h.hi.update([pts]);
+    h.lo.update([pts]);
+    const n = pts.length;
+    for (const [f, i, j] of [[h.ferrules[0]!, 0, 1], [h.ferrules[1]!, n - 1, n - 2]] as const) {
+      const p = new Vector3(...pts[i]!), d = new Vector3(...pts[j]!).sub(p).normalize();
+      f.position.copy(p).addScaledVector(d, 70);
+      f.quaternion.setFromUnitVectors(UP, d);
+    }
+  }
+
+  /**
+   * Pose the hoses: each end `slide` of the way off its fitting (0 on it, 1 free), the pair moved by `off`; the ropes take `steps` steps. While
+   * the ends are on their fittings the hoses keep some of their seated arcs (all of them at 0), so they leave and come back to them smoothly.
+   */
+  pose(slide: number, off: V3, steps: number): void {
+    const s = Math.max(0, Math.min(1, slide)), keep = 1 - s;
+    const end = (e: RopeEnd): RopeEnd => ({ at: [e.at[0] + e.dir[0] * s * HOSE_PULL + off[0], e.at[1] + e.dir[1] * s * HOSE_PULL + off[1], e.at[2] + e.dir[2] * s * HOSE_PULL + off[2]], dir: e.dir });
+    for (const h of this.hoses) {
+      const a = end(h.spec.a), b = end(h.spec.b!), seat = h.seat.map((p): V3 => [p[0] + off[0], p[1] + off[1], p[2] + off[2]]);
+      if (!h.rope) h.rope = new Rope({ ...h.spec, ...this.free, a, b }, { live: true, start: seat });
+      h.rope.setEnds(a, b);
+      h.rope.step(steps);
+      const live = h.rope.points();
+      this.draw(h, keep > 0 ? live.map((p, i): V3 => [p[0] + (seat[i]![0] - p[0]) * keep, p[1] + (seat[i]![1] - p[1]) * keep, p[2] + (seat[i]![2] - p[2]) * keep]) : live);
+    }
+  }
+
+  /** Back on the fittings as they were built: the seated arcs, and no live rope. */
+  rest(): void {
+    for (const h of this.hoses) { h.rope = null; this.draw(h, h.seat); }
+  }
 }
 
 /**

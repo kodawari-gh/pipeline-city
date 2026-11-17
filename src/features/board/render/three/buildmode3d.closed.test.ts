@@ -12,7 +12,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
       pmrem: { dispose() {} },
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }), remove() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, forceContextLoss() {}, dispose() {},
+        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {}, forceContextLoss() {}, dispose() {},
       },
     }),
   };

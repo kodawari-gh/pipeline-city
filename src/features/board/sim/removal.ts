@@ -1,6 +1,6 @@
 // The removal graph (docs/BOARD.md "Build my PC"): which part must come out before which. Pure and static, like `compat.ts`: it reads the board and
 // the plugged cables and says what stands in the way. The build mode (render/three/buildmode3d.ts) plays each step as an animation, in this order.
-//   node ids  `side` the case's side panel · `board` · `case` · `cable:<id>` · `dev:<id>` (an installed device by its instance id)
+//   node ids  `side` the case's side panel · `hoses` the liquid loop's two hoses · `board` · `case` · `cable:<id>` · `dev:<id>` (an installed device by its instance id)
 //   an edge   A -> B means "B must be out before A can come out" (B blocks A)
 // Two kinds of block: a *cable* feeds the part (unplug it first), and a part *covers* another (a cooler hides the CPU, a long card hides the next slot).
 // The cover table (`COVERS`) is checked against the 3D geometry in render/three/fit.test.ts, so the rules and the models cannot drift apart.
@@ -10,6 +10,8 @@ import { cablesOf, cardLeadIds, type Cables } from "./cables";
 import type { DeviceKind } from "./specs";
 
 export const SIDE = "side";
+/** The liquid loop's hoses: there only with a loop's pump and a radiator both fitted; they come off before either comes out, and go on last. */
+export const HOSES = "hoses";
 export const BOARD = "board";
 export const CASE = "case";
 export const cableNode = (id: string): string => `cable:${id}`;
@@ -49,7 +51,6 @@ function coveredBy(board: Board, dev: InstalledDevice): InstalledDevice[] {
   const spec = deviceSpec(dev), out: InstalledDevice[] = [];
   const others = board.devices.filter((o) => o.id !== dev.id);
   if (spec.kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler"));
-  if (spec.kind === "cooler" && (spec as { loop?: unknown }).loop) out.push(...others.filter((o) => deviceSpec(o).kind === "radiator")); // the hoses join the pump to the radiator: it comes out first
   // a heatsink's fans clip onto it; the fans on a radiator's mounts are screwed through it into the case
   out.push(...fansOn(board, dev.slot));
   const rad = spec.kind === "radiator" ? fittedRadiator(board) : null;
@@ -89,18 +90,30 @@ function cablesOn(board: Board, cables: Cables, dev: InstalledDevice): string[] 
   return ids.filter(plugged);
 }
 
+/** A liquid loop's pump (a cooler whose spec has a `loop`). */
+export const isPump = (d: InstalledDevice): boolean => deviceSpec(d).kind === "cooler" && !!(deviceSpec(d) as { loop?: unknown }).loop;
+
+/** Does the machine have the loop's hoses: a pump and a radiator both fitted? (A graphics card's water block would join them here; none exists yet.) */
+export function hasLoop(board: Board): boolean {
+  return board.devices.some(isPump) && !!fittedRadiator(board);
+}
+
 /** Every node that exists now with the nodes that block it. */
 export function buildGraph(board: Board, cables: Cables): Graph {
   const g = new Map<string, string[]>();
   const add = (n: string, ...blockers: string[]) => g.set(n, [...new Set(blockers)]);
   add(SIDE);
+  // the loop's hoses join the pump to the radiator: they come off first, and each part then comes out on its own
+  const loop = hasLoop(board);
+  if (loop) add(HOSES, SIDE);
   const cableIds = new Set(cablesOf(board).map((c) => c.id as string));
   for (const id of cableIds) if (cables[id]) add(cableNode(id), ...(OUTSIDE.has(id) ? [] : [SIDE]));
   for (const d of board.devices) {
     const spec = deviceSpec(d);
     // the monitor and the wall sit outside the case; everything else needs the side panel off
     const inside = spec.kind !== "display";
-    add(devNode(d.id), ...(inside ? [SIDE] : []), ...cablesOn(board, cables, d).map(cableNode), ...coveredBy(board, d).map((o) => devNode(o.id)));
+    const hosed = loop && (isPump(d) || spec.kind === "radiator");
+    add(devNode(d.id), ...(inside ? [SIDE] : []), ...(hosed ? [HOSES] : []), ...cablesOn(board, cables, d).map(cableNode), ...coveredBy(board, d).map((o) => devNode(o.id)));
   }
   // The board comes out only bare: every part that sits on it and every cable inside the case first. The PSU, the drives in the cage, the monitor, the
   // radiator and the fans on the case mounts hang off the case.
@@ -146,10 +159,11 @@ export function restorePlan(plan: readonly string[]): string[] {
 }
 
 /** What a node is, for the animation: the device's kind, `cable`, or the case's own parts. */
-export type NodeKind = DeviceKind | "cable" | "side" | "board" | "case";
+export type NodeKind = DeviceKind | "cable" | "side" | "hoses" | "board" | "case";
 
 export function nodeKind(board: Board, node: string): NodeKind {
   if (node === SIDE) return "side";
+  if (node === HOSES) return "hoses";
   if (node === BOARD) return "board";
   if (node === CASE) return "case";
   if (isCableNode(node)) return "cable";
@@ -169,6 +183,5 @@ export function accessBlockers(board: Board, slotId: string, kind: DeviceKind): 
     for (const o of others) { const os = deviceSpec(o); if (os.slot === "pcie" && slotNo(o.slot) < n && slotNo(o.slot) + (COVERS[os.kind] ?? 0) >= n) out.push(devNode(o.id)); }
   }
   if (slot.type === "m2") out.push(...others.filter((o) => overM2(o.spec, o.slot, slotId)).map((o) => devNode(o.id)));
-  if (kind === "cooler" && fittedRadiator(board)) out.push(...others.filter((o) => deviceSpec(o).kind === "radiator").map((o) => devNode(o.id)));
   return [...new Set(out)];
 }

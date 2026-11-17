@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
-import { latchOpen, motionFor, motionKinds, motionSeconds, poseAt } from './buildmotion';
+import { latchOpen, motionFor, motionKinds, motionSeconds, placed, poseAt, PUMP_TWIST } from './buildmotion';
 
 describe('build motions', () => {
   it('every part kind and the case parts have a motion', () => {
@@ -39,6 +39,44 @@ describe('build motions', () => {
         last = p;
       }
     }
+  });
+
+  it('flows through a key that goes on the same way, and stops only where the way turns', () => {
+    // the cooler eases off its paste and goes on up: it does not stop between the two
+    const m = motionFor('cooler'), at = m.keys[0]!.sec + m.keys[1]!.sec, dz = (t: number) => (poseAt(m, t + 0.005).offset[2] - poseAt(m, t - 0.005).offset[2]) / 0.01;
+    expect(dz(at)).toBeGreaterThan(300);
+    // the board lifts off its studs, then slides sideways: it stops at the corner
+    const b = motionFor('board'), corner = b.keys[0]!.sec + b.keys[1]!.sec + b.keys[2]!.sec, v = (t: number) => poseAt(b, t + 0.004).offset.map((x, i) => x - poseAt(b, t - 0.004).offset[i]!);
+    expect(Math.hypot(...v(corner)) / 0.008).toBeLessThan(200);
+    // nothing overshoots its keys
+    for (const kind of motionKinds()) {
+      const k = motionFor(kind), far = k.keys[k.keys.length - 1]!.at;
+      for (let t = 0; t <= motionSeconds(k); t += 0.01) for (const i of [0, 1, 2]) {
+        const lo = Math.min(0, ...k.keys.map((x) => x.at[i]!)) - 15, hi = Math.max(0, ...k.keys.map((x) => x.at[i]!)) + 1e-6;
+        expect(poseAt(k, t).offset[i], `${kind} ${i} at ${t}`).toBeGreaterThanOrEqual(lo);
+        expect(poseAt(k, t).offset[i], `${kind} ${i} at ${t}`).toBeLessThanOrEqual(hi);
+      }
+      poseAt(k, 99).offset.forEach((x, i) => expect(x, kind).toBeCloseTo(far[i]!, 6));
+    }
+  });
+
+  it("a loop's pump head twists free, and its hoses slide off before they lift", () => {
+    const p = motionFor('pump');
+    expect(poseAt(p, motionSeconds(p)).turn).toBeCloseTo(PUMP_TWIST, 6);
+    expect(poseAt(p, p.keys[0]!.sec + p.keys[1]!.sec).label).toMatch(/twist/i);
+    const h = motionFor('hoses'), off = h.keys[0]!.sec + h.keys[1]!.sec;
+    expect(poseAt(h, off).slide).toBeCloseTo(1, 6);
+    expect(poseAt(h, off).offset[2]).toBeCloseTo(0, 6);
+    expect(poseAt(h, motionSeconds(h), 'in').slide).toBeCloseTo(0, 6);
+    expect(poseAt(motionFor('ram'), 0.5).slide).toBe(0);
+  });
+
+  it('a part turns about its own middle, not the far origin', () => {
+    expect(placed([0, 0, 0], [5000, 3000], 0, [0, 0, 10])).toEqual([0, 0, 10]);
+    // the part's middle stays put whatever the turn: the group's origin swings around it
+    const base: [number, number, number] = [0, 0, 0], mid: [number, number] = [5000, 3000], q = placed(base, mid, Math.PI / 2, [0, 0, 0]);
+    expect(q[0]).toBeCloseTo(8000, 6);
+    expect(q[1]).toBeCloseTo(-2000, 6);
   });
 
   it('says what the player does, out and in', () => {

@@ -217,11 +217,11 @@
     "sum": "3c30e71d"
   },
   "machine/dev11": {
-    "meshes": 11,
-    "draws": 11,
+    "meshes": 9,
+    "draws": 9,
     "verts": 30330,
     "instances": 12,
-    "sum": "46ad70b5"
+    "sum": "9d6907b7"
   },
   "machine/dev12": {
     "meshes": 3,

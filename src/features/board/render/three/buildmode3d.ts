@@ -22,7 +22,7 @@ import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
+import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, hasLoop, HOSES, isCableNode, isDevNode, isPump, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
 import { boardSlots, deviceSpec, fanHost, fittedRadiator, freeSlots, mountFan, slotAccepts, slotFits, type Board, type InstalledDevice, type SlotInfo } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
@@ -34,7 +34,9 @@ import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
 import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
-import { latchOpen, motionFor, motionSeconds, poseAt } from './buildmotion';
+import { latchOpen, motionFor, motionSeconds, placed, poseAt, solidAt, type Pose } from './buildmotion';
+import { PartFade } from './partfade';
+import { startPrograms } from '@/core/render/three/compile';
 import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
@@ -61,7 +63,7 @@ type Step = { t: 'fit' | 'remove'; spec: string; slot: string };
 /** What a swap took out, to put back. */
 /** A part that came out (`along`: the fans of a radiator, which came out with it as one assembly). */
 type Gone = { spec: string; slot: string; invId: string; clock?: number };
-type Undo = { t: 'cable'; id: string } | ({ t: 'dev'; along?: Gone[] } & Gone);
+type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: Gone[] } & Gone);
 
 const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
@@ -84,9 +86,14 @@ const BAKE_MS = 6, BAKE_STILL_MS = 12, RANK_EVERY = 32;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
- *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket. */
+ *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket, a loop's pump head twists free (`pump`). */
 export const motionOf = (kind: string, slot: string, board?: Board): string =>
-  kind === 'fan' && !fanHost(slot) ? (board && fittedRadiator(board)?.mounts.includes(slot) ? 'fan-rad' : `fan-${slot.replace(/\d+$/, '')}`) : kind === 'storage' && slot.startsWith('sata') ? 'tray' : kind;
+  kind === 'fan' && !fanHost(slot) ? (board && fittedRadiator(board)?.mounts.includes(slot) ? 'fan-rad' : `fan-${slot.replace(/\d+$/, '')}`)
+    : kind === 'storage' && slot.startsWith('sata') ? 'tray'
+    : kind === 'cooler' && board?.devices.some((d) => d.slot === slot && isPump(d)) ? 'pump' : kind;
+
+/** The rope's steps for a frame of `dt` seconds (the hoses, `LoopHoses.pose`): about 240 a second, as the cable hand's. */
+const ropeSteps = (dt: number): number => Math.max(2, Math.min(24, Math.round(dt * 240)));
 
 /** A game's snapshot, kept until the game changes (PERF19): `game.snapshot()` builds the inventory and copies the board through JSON, about 8 % of
  *  an idle phone frame when each frame asked for it. Call `drop` after every change to the game; another game object starts over by itself. */
@@ -156,7 +163,19 @@ export class BuildStage {
   private dead = false;
   private last = performance.now();
   private wantOpen = false;
-  private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; latches: Object3D[]; done: () => void } | null = null;
+  /**
+   * The motion that plays now: its objects (each turns about `pivot`, the middle of them all in its parent's frame), or a `drive` that reads the pose
+   * itself (the hoses) and an `end` that puts them away. `fade` draws them see-through at the far end of their way (`solidAt`).
+   */
+  private anim: {
+    objs: { o: Object3D; base: [number, number, number]; baseTurn: number; pivot: [number, number] }[];
+    kind: string; dir: 'out' | 'in'; t: number; latches: Object3D[]; done: () => void;
+    drive?: (p: Pose, steps: number) => void; end?: () => void; fade?: PartFade;
+  } | null = null;
+  /** A new build: the see-through programs of its parts' fades start to link after the next draw (`PartFade`). */
+  private warm = false;
+  /** The loop's hoses are off their fittings (a step took them off, or a part just made the loop): a build keeps them hidden until they go on. */
+  private hosesOff = false;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
   private tierKey = '';
@@ -283,7 +302,9 @@ export class BuildStage {
     const { scene } = this.ctx;
     if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
     this._machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
+    if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
+    this.warm = true;
     this.stage(caseTier);
     this.syncMonitor(s.devices.some((d) => d.kind === 'display'));
     if (refit) this.view = this.goal = this.frameView();
@@ -378,6 +399,8 @@ export class BuildStage {
     if (!this.drew) { this.post.refine(); return; }
     syncWorld(scene);
     this.post.render();
+    // (after the draw: the fades' see-through variants link on the driver's threads while the player looks, not at the first fade)
+    if (this.warm) { this.warm = false; startPrograms(renderer, scene, camera, { fades: [this.machine.root, ...(this.monitor ? [this.monitor] : [])] }); }
     this.moved.mark(camera, w, h);
     // (a frame with a change may have new materials or programs; the others refresh the ranks now and then)
     if (this.demand.forced || !(++this.frames % RANK_EVERY)) rankMaterials(scene, this.programOf);
@@ -393,10 +416,12 @@ export class BuildStage {
     a.t += dt;
     const m = motionFor(a.kind), p = poseAt(m, a.t, a.dir);
     for (const x of a.objs) {
-      x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
+      x.o.position.set(...placed(x.base, x.pivot, p.turn, p.offset));
       x.o.rotation.z = x.baseTurn + p.turn;
       if (p.tilt || x.o.rotation.y) x.o.rotation.y = p.tilt;
     }
+    a.drive?.(p, ropeSteps(dt));
+    a.fade?.set(solidAt(m, a.t, a.dir));
     this.setStep(p.label);
     const open = latchOpen(m, a.t, a.dir);
     for (const l of a.latches) {
@@ -405,13 +430,19 @@ export class BuildStage {
     }
     if (a.t >= motionSeconds(m)) {
       // a part going in settles: it dips a little past its seat along the way it came, then comes back (a damped spring, 0.3 s)
-      if (a.dir === 'in' && a.t < motionSeconds(m) + SETTLE_SECONDS) {
+      if (a.dir === 'in' && !a.drive && a.t < motionSeconds(m) + SETTLE_SECONDS) {
         const u = (a.t - motionSeconds(m)) / SETTLE_SECONDS, far = m.keys[m.keys.length - 1]!.at, reach = Math.hypot(...far) || 1;
         const k = -SETTLE_DEPTH * Math.exp(-5 * u) * Math.sin(u * Math.PI * 3) / reach;
         for (const x of a.objs) x.o.position.set(x.base[0] + far[0] * k, x.base[1] + far[1] * k, x.base[2] + far[2] * k);
         return;
       }
-      for (const x of a.objs) x.o.position.set(x.base[0], x.base[1], x.base[2]);
+      // a part that went in is at its seat; a part that came out has faded where its way ended and is hidden there. This frame draws before the
+      // job goes on (`done` resumes it after the draw): a part put back at its seat here showed there for a frame, then vanished. The fade's
+      // copies go after the hide, or the part would show solid for a frame.
+      if (a.dir === 'in') for (const x of a.objs) { x.o.position.set(x.base[0], x.base[1], x.base[2]); x.o.rotation.z = x.baseTurn; }
+      else for (const x of a.objs) x.o.visible = false;
+      a.end?.();
+      a.fade?.end();
       this.anim = null; a.done();
     }
   }
@@ -588,10 +619,12 @@ export class BuildStage {
   /** The part goes in, right after the rebuild that made it: a power supply with its shroud's cover held off, which then goes back on. */
   private async seat(node: string, kind: string): Promise<void> {
     const cover = kind === 'psu' ? this.machine.root.getObjectByName(PSU_COVER) : null, far = poseAt(motionFor('shroud'), 0, 'in').offset;
-    if (cover) cover.position.set(cover.position.x + far[0], cover.position.y + far[1], cover.position.z + far[2]);
+    // (the cover is out of sight while the supply goes in: it fades in on its own way back)
+    if (cover) { cover.position.set(cover.position.x + far[0], cover.position.y + far[1], cover.position.z + far[2]); cover.visible = false; }
     await this.play(node, kind, 'in');
     if (cover) {
       cover.position.set(cover.position.x - far[0], cover.position.y - far[1], cover.position.z - far[2]);
+      cover.visible = true;
       await this.playAll([cover], 'shroud', 'in');
     }
   }
@@ -611,11 +644,45 @@ export class BuildStage {
       if (kind === 'ram' && o.userData.dimm === slot) latches.push(...o.children);
       else if (kind === 'cpu' && o.userData.leverOf === slot) latches.push(o);
     });
+    // (the parts turn about their common middle: they are built at the machine's origin, so their own origin is far off; only a motion that turns needs it)
+    const box = new Box3();
+    if (m.keys.some((x) => x.hold || x.turn)) for (const o of objs) { o.updateWorldMatrix(true, true); box.expandByObject(o); }
+    const mid = box.isEmpty() ? null : box.getCenter(new Vector3());
     return new Promise((done) => {
-      const list = objs.map((o) => ({ o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z }));
-      this.anim = { objs: list, kind, dir, t: 0, latches, done: () => { if (dir === 'out' && objs.length > 1) for (const x of list) x.o.position.set(...x.base); done(); } };
-      for (const x of list) x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
+      const list = objs.map((o) => {
+        const c = mid && o.parent ? o.parent.worldToLocal(mid.clone()) : o.position;
+        return { o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z, pivot: [c.x, c.y] as [number, number] };
+      });
+      const fade = objs.length ? new PartFade(objs) : undefined;
+      fade?.set(solidAt(m, 0, dir));
+      this.anim = { objs: list, kind, dir, t: 0, latches, done, ...(fade ? { fade } : {}) };
+      for (const x of list) { x.o.position.set(...placed(x.base, x.pivot, p.turn, p.offset)); x.o.rotation.z = x.baseTurn + p.turn; }
     });
+  }
+
+  /**
+   * The loop's hoses (`LoopHoses`) come off or go on: the compression rings, then the ends slide along their fittings, then the pair is carried on its
+   * own weight (a live rope). They stay hidden while off (`hosesOff`). Without built hoses the time still passes, so the log reads right.
+   */
+  private async playHoses(dir: 'out' | 'in'): Promise<void> {
+    const h = this.machine.hoses;
+    if (!h) { await this.playAll([], 'hoses', dir); this.hosesOff = dir === 'out'; return; }
+    const m = motionFor('hoses'), p = poseAt(m, 0, dir), fade = new PartFade([h.root]);
+    h.root.visible = true;
+    h.pose(p.slide, p.offset, 2);
+    fade.set(solidAt(m, 0, dir));
+    await new Promise<void>((done) => {
+      this.anim = { objs: [], kind: 'hoses', dir, t: 0, latches: [], done, fade, drive: (q, steps) => h.pose(q.slide, q.offset, steps), end: () => { h.rest(); h.root.visible = dir === 'in'; } };
+    });
+    this.hosesOff = dir === 'out';
+    this.demand.ask();
+  }
+
+  /** The loop's hoses go on, when the machine has a loop and they are off. */
+  private async connectHoses(): Promise<void> {
+    if (!this.hosesOff || !hasLoop(this.board)) return;
+    this.note(this.labelOf(HOSES, 'Put back'));
+    await this.playHoses('in');
   }
 
   /** Play a node's motion on its object. */
@@ -635,6 +702,7 @@ export class BuildStage {
 
   private labelOf(node: string, verb: 'Take out' | 'Put back'): string {
     if (node === SIDE) return verb === 'Take out' ? 'Open the side panel' : 'Close the side panel';
+    if (node === HOSES) return verb === 'Take out' ? 'Disconnect the loop hoses' : 'Connect the loop hoses';
     if (isCableNode(node)) return `${verb === 'Take out' ? 'Unplug' : 'Plug in'} ${this.snapshot.cables.find((c) => c.id === node.slice(6))?.name ?? node.slice(6)}`;
     const d = this.board.devices.find((x) => devNode(x.id) === node);
     return `${verb} ${d ? deviceSpec(d).name : node}`;
@@ -644,6 +712,7 @@ export class BuildStage {
   private async takeOut(node: string, undo: Undo[] | null): Promise<string | null> {
     if (node === SIDE) { await this.door(true); this.note(this.labelOf(node, 'Take out')); return null; }
     this.note(this.labelOf(node, 'Take out'));
+    if (node === HOSES) { await this.door(true); await this.playHoses('out'); undo?.push({ t: 'hoses' }); return null; }
     if (isCableNode(node)) {
       const id = node.slice(6);
       if (!OUTSIDE.has(id)) await this.door(true);
@@ -753,6 +822,7 @@ export class BuildStage {
   private deferring = false;
 
   private async putBack(u: Undo): Promise<void> {
+    if (u.t === 'hoses') { await this.connectHoses(); return; }
     if (u.t === 'cable') {
       if (this.cables[u.id] || !cableNeeded(this.board, u.id as never) || cableBlocked(this.board, u.id as never)) return;
       // (the PC's cord goes into the supply's inlet: with the supply out it stays unplugged)
@@ -801,8 +871,11 @@ export class BuildStage {
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
-        // (the side panel stays open for the next step: the player closes it with its button)
+        // (the side panel stays open for the next step: the player closes it with its button; a loop's hoses are never left off)
         this.pace = 1; this.skipping = false;
+        this.hosesOff = false;
+        const h = this._machine?.hoses;
+        if (h && !h.root.visible) { h.rest(); h.root.visible = true; this.demand.ask(); }
         this.status.value = { ...this.status.peek(), busy: false, step: '' };
         this.rebuild();
       }
@@ -853,7 +926,7 @@ export class BuildStage {
       const steps = this.assemble(occupant ? removalPlan(graph, devNode(occupant.id)) : removalPlanAll(graph, accessBlockers(this.board, slot, spec.kind).filter((n) => graph.has(n))));
       if (!steps.length) steps.push(SIDE);
       if (steps[0] !== SIDE) steps.unshift(SIDE);
-      const undo: Undo[] = [];
+      const undo: Undo[] = [], looped = hasLoop(this.board);
       // (the parts in the way are hidden, not built again: the one build below has them all back)
       this.deferring = true;
       try {
@@ -876,6 +949,7 @@ export class BuildStage {
       const back: { id: string; kind: string; slot: string; asm?: boolean }[] = [], cables: Undo[] = [];
       for (const u of undo.reverse()) {
         if (u.t === 'cable') { cables.push(u); continue; }
+        if (u.t === 'hoses') continue; // (they go on after every part is in: `connectHoses` below)
         for (const g of [u as Gone, ...(u.along ?? [])]) {
           const r = this.edit((x) => x.install(g.invId, g.slot));
           if (!r.ok) { this.note(getSpec(g.spec)?.kind === 'fan' ? `${getSpec(g.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(g.spec)?.name ?? g.spec} back: ${r.reason}`); continue; }
@@ -883,6 +957,8 @@ export class BuildStage {
           back.push({ id: r.deviceId ?? '', kind: deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, slot: g.slot, asm: !!u.along?.length });
         }
       }
+      // a part that just made the loop (a pump with a radiator in, a radiator with a pump in): its hoses are built off and go on last
+      if (!looped && hasLoop(this.board)) this.hosesOff = true;
       this.builtKey = ''; // (the hidden parts are stale objects: always build the new machine, even when its parts equal the old)
       this.rebuild();
       const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
@@ -900,6 +976,8 @@ export class BuildStage {
         await this.seat(devNode(x.id), motionOf(x.kind, x.slot, this.board));
       }
       this.pace = 1;
+      // (the loop's hoses go on once the pump and the radiator are both in, then the cables)
+      await this.connectHoses();
       for (const u of cables) await this.putBack(u);
       await this.plugNeeded();
     });
@@ -928,11 +1006,12 @@ export class BuildStage {
     if (fitted.ok) {
       const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset;
       if (isCase) {
-        // the new case comes down first, the board still held over it
-        for (const o of board) o.position.set(o.position.x + far[0], o.position.y + far[1], o.position.z + far[2]);
+        // the new case comes down first, the board still held over it (out of sight: it fades in on its own way down)
+        const shown = board.map((o) => o.visible);
+        for (const o of board) { o.position.set(o.position.x + far[0], o.position.y + far[1], o.position.z + far[2]); o.visible = false; }
         this.note(`Set the ${CASE_TIERS[tier]!.name} down`);
         await this.playAll(this.machine.caseRoots, 'case', 'in');
-        for (const o of board) o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]);
+        board.forEach((o, i) => { o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]); o.visible = shown[i]!; });
       }
       this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
       await this.playAll(board, 'board', 'in');

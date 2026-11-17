@@ -43,7 +43,7 @@ import { isPcieKind } from '../wiring/routes';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
-import { coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
 import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
@@ -195,8 +195,12 @@ export class Machine3D {
   private cableIds = '';
   private videoKey = '';
   private key: { id: number; g: Group } | null = null;
-  /** The CPU cooler's group: the loop's hoses join it (they fade with it). */
+  /** Is the CPU cooler a liquid loop's pump? With a radiator too, the loop's hoses join them (`hoses`). */
+  private pump = false;
+  /** The CPU cooler's group: in the room the loop's hoses join it (they fade, merge and stand in with it). */
   private cooler: Group | null = null;
+  /** The loop's hoses (they fade with the cooler; Build my PC takes them off and puts them on, `buildmode3d.ts`), or null: no pump or no radiator, or the room (they join the cooler). */
+  readonly hoses: LoopHoses | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
@@ -256,8 +260,19 @@ export class Machine3D {
         const b = new Box3().setFromObject(o);
         if (!b.isEmpty()) this.solids.set(o, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
       }
-      // the loop's hoses: stiff braided hoses arcing from the pump's ports to the radiator's barbs
-      if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad.fit)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
+      // the loop's hoses, only with its pump and a radiator both fitted (`hasLoop`): stiff braided hoses arcing from the pump's ports to the
+      // radiator's. The room never moves them: they join the cooler (its merges, its stand-ins, its fade). Build my PC poses them live, so
+      // there they stay as they are (`keep`) and fade with the cooler.
+      if (this.pump && this.rad) {
+        const h = new LoopHoses(hoseEnds(this.rad.fit), this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator)));
+        if (this.inRoom && this.cooler) this.cooler.add(h.body);
+        else {
+          this.hoses = h;
+          this.keep.push(h.root);
+          this.fades.push(h.body);
+          this.root.add(h.root);
+        }
+      }
       this.root.add(this.wires);
       this.setCables(s, geo);
     }
@@ -275,7 +290,8 @@ export class Machine3D {
    */
   private lodScope(): LodScope {
     const cards = new Set<Object3D>([...this.cards.values()].map((c) => c.root));
-    const anchors: Object3D[] = [this.wires, ...this.apart, ...this.fades.filter((o) => !cards.has(o))];
+    // (the loop's hoses fade but have no stand-ins: they are in `keep`, posed live)
+    const anchors: Object3D[] = [this.wires, ...this.apart, ...this.fades.filter((o) => !cards.has(o) && o !== this.hoses?.body)];
     const skip: Object3D[] = [...this.keep, ...cards];
     if (this.small) anchors.push(this.small);
     if (this.door) skip.push(this.door.cm.door);
@@ -443,11 +459,16 @@ export class Machine3D {
         const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
         if (lowDetail()) { const f = coolerFoot(visual); g.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round))); }
         this.fades.push(g);
-        this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
+        this.pump = !!(spec as { loop?: unknown }).loop;
+        this.cooler = g;
+        this.reveal(COOLER, BOARD_Z + 400, (z) => {
+          const a = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
+          fadeTree(g, a);
+          if (this.hoses) fadeTree(this.hoses.body, a);
+        }, this.pump);
         this.softSkin(d.id, ...m.skin);
         this.obstacles.push(m.root);
         m.root.userData.cooler = true;
-        this.cooler = g;
         break;
       }
       case 'ram': {

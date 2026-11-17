@@ -14,7 +14,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
       camera: new PerspectiveCamera(30, 1, 10, 1e6),
       renderer: {
         domElement: { width: 400, height: 400, addEventListener() {}, removeEventListener() {} },
-        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) },
+        setOpaqueSort() {}, getPixelRatio: () => 1, setSize() {}, properties: { get: () => ({}) }, compile: () => new Set(), getRenderTarget: () => null, setRenderTarget() {},
       },
     }),
   };
