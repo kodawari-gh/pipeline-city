@@ -88,7 +88,8 @@ const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
  *  a SATA drive comes out on its cage's tray (`tray`), an M.2 stick off its socket, a loop's pump head twists free (`pump`). */
 export const motionOf = (kind: string, slot: string, board?: Board): string =>
-  kind === 'fan' && !fanHost(slot) ? (board && fittedRadiator(board)?.mounts.includes(slot) ? 'fan-rad' : `fan-${slot.replace(/\d+$/, '')}`)
+  kind === 'fan' && /^(vrm|ram)-sink/.test(fanHost(slot) ?? '') ? 'fan-sink'
+    : kind === 'fan' && !fanHost(slot) ? (board && fittedRadiator(board)?.mounts.includes(slot) ? 'fan-rad' : `fan-${slot.replace(/\d+$/, '')}`)
     : kind === 'storage' && slot.startsWith('sata') ? 'tray'
     : kind === 'cooler' && board?.devices.some((d) => d.slot === slot && isPump(d)) ? 'pump' : kind;
 

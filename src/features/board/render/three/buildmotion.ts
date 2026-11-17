@@ -73,6 +73,8 @@ const MOTIONS: Record<string, Motion> = {
   psu: { keys: [hold(0.5, 'Undo the four rear screws', 'Tighten the four rear screws'), k([240, 0, 0], 0.6, 'Slide the supply off the rear wall', 'Slide the supply back against the rear wall'), k([240, 0, 2800], 0.9, 'Lift the supply out of the shroud', 'Bring the supply into the shroud')] },
   // a fan comes off its own wall first (the top fan down, the front and rear fans inward), then out through the open side
   fan: fanMotion([0, 0, 420]),
+  // a heat sink's fan sits in a housing under a cover with a round opening: it cannot rise through the cover, it slides out of the housing's open west end (the fan square is 920, the housing 980)
+  'fan-sink': { keys: [hold(0.4, 'Undo the four fan screws', 'Tighten the four fan screws'), k([-1100, 0, 0], 0.7, 'Slide the fan out of its housing', 'Slide the fan into its housing'), k([-1100, 0, 3000], 0.7, 'Lift the fan away', 'Bring the fan over its housing')] },
   'fan-front': fanMotion([-160, 0, 0]),
   'fan-top': fanMotion([0, -160, 0]),
   'fan-rear': fanMotion([0, 0, 120]),

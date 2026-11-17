@@ -124,7 +124,8 @@ export function buildGraph(board: Board, cables: Cables): Graph {
     const spec = deviceSpec(d);
     // the monitor and the wall sit outside the case; everything else needs the side panel off
     const inside = spec.kind !== "display";
-    const hosed = loop && (isPump(d) || spec.kind === "radiator");
+    // (the hoses arc across the VRM sink and its fan: they come off before either goes)
+    const hosed = loop && (isPump(d) || spec.kind === "radiator" || spec.kind === "vrm-sink" || (spec.kind === "fan" && /^vrm-sink/.test(fanHost(d.slot) ?? "")));
     add(devNode(d.id), ...(inside ? [SIDE] : []), ...(hosed ? [HOSES] : []), ...cablesOn(board, cables, d).map(cableNode), ...coveredBy(board, d).map((o) => devNode(o.id)));
   }
   // The board comes out only bare: every part that sits on it and every cable inside the case first. The PSU, the drives in the cage, the monitor, the
