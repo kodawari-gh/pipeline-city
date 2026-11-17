@@ -19,4 +19,4 @@ Done and removed: ANIM-01 (`npm run bench:swap`, numbers in `docs/render/load.md
 
 ## ANIM: animation and swap cost in Build my PC
 
-No open tasks. ANIM-05 is done: every hold presses and rocks the part; DIMM latches, the CPU load lever and the PCIe slot latches move (`latchOpen`); a card tips out of its slot (`Pose.tilt`). Decided 2026-11-17: no separate screw objects. The screws are part of the fused part meshes, and the press-and-rock of the hold stands for turning them; a real screw would add draws and a build step for a detail below the zoom where it shows. Take it up again if a close-up asks for it.
+No open tasks. ANIM-05 is done: every hold presses and rocks the part; DIMM latches and the CPU load lever move (`latchOpen`; a PCIe slot latch was tried and dropped: its hinge group added 4 draws at High); a card tips out of its slot (`Pose.tilt`). Decided 2026-11-17: no separate screw objects. The screws are part of the fused part meshes, and the press-and-rock of the hold stands for turning them; a real screw would add draws and a build step for a detail below the zoom where it shows. Take it up again if a close-up asks for it.

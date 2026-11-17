@@ -382,7 +382,6 @@ export class BuildStage {
     const open = latchOpen(m, a.t, a.dir);
     for (const l of a.latches) {
       if (l.userData.leverOf) l.rotation.y = -1.3 * open; // (the load lever lifts about its long side)
-      else if (l.userData.latchOf) l.rotation.y = 0.7 * open; // (a slot's latch tips away from the card)
       else l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * open;
     }
     if (a.t >= motionSeconds(m)) {
@@ -592,7 +591,6 @@ export class BuildStage {
     if (slot) this.machine.root.traverse((o) => {
       if (kind === 'ram' && o.userData.dimm === slot) latches.push(...o.children);
       else if (kind === 'cpu' && o.userData.leverOf === slot) latches.push(o);
-      else if (o.userData.latchOf === slot && (kind === 'gpu' || kind === 'npu' || kind === 'nic')) latches.push(o);
     });
     return new Promise((done) => {
       const list = objs.map((o) => ({ o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z }));

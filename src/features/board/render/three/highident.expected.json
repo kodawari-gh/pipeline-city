@@ -7,11 +7,11 @@
     "sum": "49c3f70c"
   },
   "machine/Group#4": {
-    "meshes": 63,
-    "draws": 59,
+    "meshes": 64,
+    "draws": 60,
     "verts": 75354,
     "instances": 734,
-    "sum": "4453b470"
+    "sum": "f5d56be3"
   },
   "machine/Group#47": {
     "meshes": 24,

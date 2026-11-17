@@ -227,4 +227,4 @@ Programs stay at 45 to 47 across the swaps and the longest frame gap equals the 
 
 Update (2026-11-17, later): `fit` now hides the parts in its way, puts them back in the game, forces one build and shows the new part and each restored one going in (`fit` in `buildmode3d.ts`). CPU swap with cooler, radiator and fans: 1 build (0.71 s). `machineKey` sorts its parts, so a part put back in its socket gives the key it had.
 
-Motion (ANIM-05): a hold presses the part in and rocks it (`poseAt`); DIMM latches, the CPU load lever and each PCIe slot's latch swing with the part (`latchOpen`, `userData.dimm`, `leverOf`, `latchOf`); a card tips out of its slot (`Pose.tilt`). A transform on a named node: no build, no new material.
+Motion (ANIM-05): a hold presses the part in and rocks it (`poseAt`); DIMM latches and the CPU load lever swing with the part (`latchOpen`, `userData.dimm`, `leverOf`; the lever pivot adds 1 draw at High, `highident` regenerated on purpose; a PCIe latch hinge added 4 and was dropped); a card tips out of its slot (`Pose.tilt`). A transform on a named node: no build, no new material.

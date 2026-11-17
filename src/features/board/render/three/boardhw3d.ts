@@ -168,13 +168,8 @@ export function slotHardware(): Group {
       // the armour: a thin steel wall round the slot's sides, a little proud of it, its top edge rolled; the latch stands at the east end
       const t = 10, z0 = BOARD_Z + 10, z1 = BOARD_Z + 152;
       if (slotArmour(GEO.tier, i)) for (const s of [{ x: r.x - t, y: r.y - t, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y + r.h, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y, w: t, h: r.h }]) g.add(softBox(s, z0, z1, steel, 4));
-      // (the latch swings about its foot, along the slot's end: Build my PC opens it for a card on its way out, `userData.latchOf`)
-      const hinge = new Group(), hx = r.x + r.w + 70, hy = -(r.y + r.h / 2);
-      hinge.position.set(hx, hy, BOARD_Z);
-      hinge.userData.latchOf = `pcie${i}`;
-      const body = softBox({ x: r.x + r.w, y: r.y - 16, w: 70, h: r.h + 32 }, BOARD_Z, BOARD_Z + 190, latchM, 10), tab = rectBox({ x: r.x + r.w + 44, y: r.y - 16, w: 26, h: r.h + 32 }, BOARD_Z + 190, BOARD_Z + 240, latchM);
-      for (const m of [body, tab]) { m.position.set(-hx, -hy, -BOARD_Z); hinge.add(m); }
-      g.add(hinge);
+      g.add(softBox({ x: r.x + r.w, y: r.y - 16, w: 70, h: r.h + 32 }, BOARD_Z, BOARD_Z + 190, latchM, 10));
+      g.add(rectBox({ x: r.x + r.w + 44, y: r.y - 16, w: 26, h: r.h + 32 }, BOARD_Z + 190, BOARD_Z + 240, latchM));
     });
     // the load frame over the socket's border and its lever down the east side, the handle turned out at the south end under its hook
     const o = grow(PKG, SOCKET_E + 20), inner = grow(PKG, SOCKET_E - 26), frame = new Shape(), hole = new Path();
