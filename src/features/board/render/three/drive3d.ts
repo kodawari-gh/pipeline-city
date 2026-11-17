@@ -6,6 +6,7 @@
 // its label, two holes along each side and four under it, the receptacles at its back. Each is built lying flat in its own frame: x across,
 // y up, z along it from the connector end (0) to its front; a tray of the cage (drivecage3d.ts) carries it in the case.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
+import { drawLockup } from '@/core/render/brands';
 import { SEG, extrude, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
@@ -212,11 +213,11 @@ function hddLabel(look: DriveLook, wm: number, hm: number, hole: { u: number; v:
     // the maker's band, a silver line under it
     c.fillStyle = '#1b1e23'; c.fillRect(0, 0, w, u(14));
     c.fillStyle = '#c9ced5'; c.fillRect(0, u(14), w, u(0.6));
-    c.textBaseline = 'alphabetic'; c.fillStyle = '#f2f4f7'; c.font = `800 ${u(5)}px ${FONT}`; c.letterSpacing = `${u(0.5)}px`;
-    c.fillText('PIPELINE', u(4), u(9.6)); c.letterSpacing = '0px';
+    drawLockup(c, 'kura', u(4), u(7), u(7.4), '#f2f4f7');
+    c.textBaseline = 'alphabetic';
     c.fillStyle = '#a3aab4'; c.font = `600 ${u(2)}px ${FONT}`; c.textAlign = 'right'; c.fillText('HARD DISK DRIVE', w - u(4), u(9.2)); c.textAlign = 'left';
     // the model, the name, the capacity and its specs
-    c.fillStyle = ink; c.font = `800 ${u(4.4)}px ${FONT}`; c.fillText(`PC-H3${String(seed % 900 + 100)}-${cap}`, u(4), u(22));
+    c.fillStyle = ink; c.font = `800 ${u(4.4)}px ${FONT}`; c.fillText(`KR-H3${String(seed % 900 + 100)}-${cap}`, u(4), u(22));
     c.fillStyle = grey; c.font = `600 ${u(2.8)}px ${FONT}`; fitText(c, look.name, u(4), u(26.8), w - u(8));
     c.fillStyle = ink; c.font = `800 ${u(11)}px ${FONT}`; c.fillText(cap, u(3.6), u(41));
     const cw = c.measureText(cap).width;
@@ -236,7 +237,7 @@ function hddLabel(look: DriveLook, wm: number, hm: number, hole: { u: number; v:
     c.fillStyle = '#c8ccd1'; c.fillRect(u(4), u(hole.v + hole.r + 4.2), w - u(8), u(0.3));
     const by = u(hole.v + hole.r + 6.3), bh = u(5.4);
     barcode(c, u(3), by, u(48), bh, seed, ink, `S/N ZP${String(seed % 1e6).padStart(6, '0')}`);
-    barcode(c, u(3), by + bh + u(3.4), u(48), bh * 0.8, seed + 7, ink, `PC-H3-${cap}`);
+    barcode(c, u(3), by + bh + u(3.4), u(48), bh * 0.8, seed + 7, ink, `KR-H3-${cap}`);
     matrix(c, w - u(17), by, u(12.5), seed + 11, ink); c.textBaseline = 'alphabetic';
     c.fillStyle = ink; c.font = `700 ${u(1.6)}px ${MONO}`; c.fillText(`ZP${String(seed % 1e6).padStart(6, '0')}`, w - u(17), by + u(15));
     // the warning and the marks along the foot
@@ -261,8 +262,8 @@ function ssdLabel(look: DriveLook, wm: number, hm: number): Texture | null {
     // a silver bar across, the maker's mark over it
     const gr = c.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(214,219,226,0.85)'); gr.addColorStop(1, 'rgba(214,219,226,0.15)');
     c.fillStyle = gr; c.fillRect(u(4), u(19), w - u(8), u(0.5));
-    c.textBaseline = 'alphabetic'; c.fillStyle = '#f2f4f7'; c.font = `800 ${u(5.6)}px ${FONT}`; c.letterSpacing = `${u(0.5)}px`;
-    c.fillText('PIPELINE', u(4), u(14)); c.letterSpacing = '0px';
+    drawLockup(c, 'kura', u(4), u(11.8), u(7), '#f2f4f7');
+    c.textBaseline = 'alphabetic';
     c.fillStyle = '#9aa1ab'; c.font = `600 ${u(2.1)}px ${FONT}`; c.fillText('SOLID STATE DRIVE', u(4.2), u(17.4));
     // the name, the capacity large, the interface
     c.fillStyle = '#e8ebef'; c.font = `700 ${u(3.4)}px ${FONT}`; fitText(c, look.name, u(4), u(29), w - u(8));
@@ -275,7 +276,7 @@ function ssdLabel(look: DriveLook, wm: number, hm: number): Texture | null {
     c.fillStyle = '#e9ebee'; c.fillRect(w - u(15.4), h - u(24), u(11), u(11));
     matrix(c, w - u(14.6), h - u(23.2), u(9.4), seed + 9, '#111317'); c.textBaseline = 'alphabetic';
     c.fillStyle = '#c9ced6'; c.font = `600 ${u(1.6)}px ${MONO}`;
-    [`MODEL  PC-S2-${cap}`, `FW  SBFM${seed % 90 + 10}`].forEach((t, i) => fitText(c, t, u(4), h - u(9.4) + i * u(2.6), w - u(8)));
+    [`MODEL  KR-S2-${cap}`, `FW  SBFM${seed % 90 + 10}`].forEach((t, i) => fitText(c, t, u(4), h - u(9.4) + i * u(2.6), w - u(8)));
     marks(c, w - u(30), h - u(9.6), u(2.6), '#c9ced6');
     c.restore();
   });

@@ -5,7 +5,7 @@ import {
   LAYOUT_CASE, PSU_REAR_FAN, RAM_FAN, VRM_FAN, type Rect,
 } from './layout/layout';
 import { SINK_FAN, SINK_FAN_RIM } from './layout/boardlayout';
-import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
+import { CASE_KIND, brandLockup, hexes, slots } from '../../room/render/shell/casedecor';
 import { EdgeFan } from '../../room/render/desk/props/case';
 import { box, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
@@ -415,10 +415,9 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   g.rect(s.x + 30, s.y + 4, s.w - 60, 6).fill({ color: '#ffffff', alpha: 0.07 });
   for (const [qx, qy] of [[s.x, s.y], [s.x + s.w - 160, s.y], [s.x, s.y + s.h - 160], [s.x + s.w - 160, s.y + s.h - 160]] as const) g.rect(qx, qy, 160, 160).fill({ color: '#000000', alpha: 0.05 });
   if (gfx) g.rect(s.x + 120, s.y + s.h + 38, s.w - 240, 8).fill({ color: T.alu, alpha: on ? 0.55 : 0.25 });
-  // ---- the chin: a little skyline mark and the brand, the power lamp and the touch buttons ----
+  // ---- the chin: the maker's lockup (`core/render/brands`, as on the 3D monitor), the power lamp and the touch buttons ----
   const cy = s.y + s.h + 26 + (m.y + m.h - (s.y + s.h + 26)) / 2;
-  for (const [dx, hh] of [[0, 20], [14, 34], [28, 26], [42, 40], [56, 22]] as const) g.rect(cx - 150 + dx, cy + 20 - hh, 10, hh).fill({ color: T.mute, alpha: 0.7 });
-  labels.addChild(label('PIPELINE CITY', cx + 40, cy, 40, T.mute, { head: true, anchor: [0, 0.5], a: 0.85 }));
+  brandLockup(labels, 'hikari', cx, cy, 48, T.mute);
   for (let k = 0; k < 4; k++) disc(g, m.x + m.w - 520 + k * 62, cy, 7, { fill: T.mute, fa: 0.35 });
   disc(g, m.x + m.w - 220, cy, 26, { fill: '#000000', fa: 0.4 });
   disc(g, m.x + m.w - 220, cy, 14, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });

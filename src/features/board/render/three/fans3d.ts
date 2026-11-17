@@ -95,7 +95,7 @@ function pads(d: number, depth: number, small: number): BufferGeometry {
  * and the printed face, one draw.
  */
 function hubLabel(R: number, fast: boolean, small: number, edge: Material): Mesh[] {
-  const face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, '', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a68bff' : '#8a8f99', fast ? '#1d1830' : '#191a1e'), roughness: 0.55 });
+  const face = mat(0xffffff, { map: badgeTex(fast ? 'fan-fast' : 'fan', 128, 128, 'fujin', fast ? '#e9e6f5' : '#8a8f99', fast ? '#a68bff' : null, fast ? '#1d1830' : '#191a1e', { word: false, h: 0.6 }), roughness: 0.55 });
   return labelDisc(R * 0.18, R * 0.03, R * 0.203, small, edge, face);
 }
 

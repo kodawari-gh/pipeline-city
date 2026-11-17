@@ -9,10 +9,11 @@
 // size through the bracket, an HDMI and three DisplayPorts in their keyed shells.
 import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, SphereGeometry, Vector2, type Material, type MeshStandardMaterial } from 'three';
 import { SEG, drum, extrude, fanRotor, fanSides, instanced, place, rectBox, rounded, tube, type RectLike } from '@/core/render/three/geometry';
+import { BRANDS, drawMark, type BrandId } from '@/core/render/brands';
 import { mat } from '@/core/render/three/materials';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { NIC_BRACKET_X } from '../layout/layout';
-import { brushed, decal, outlinePts, screws, shapeOf, slab, tex, wallPt, type Span, type Spot } from './casekit3d';
+import { badgeTex, brushed, decal, outlinePts, screws, shapeOf, slab, tex, wallPt, type Span, type Spot } from './casekit3d';
 import { glowMat, labelDisc, motor, type Spin } from './fans3d';
 import { decalMat, maskTop, MM, passives, type Passive } from './pcbkit3d';
 
@@ -79,22 +80,15 @@ export function word(key: string, s: string, w: number, h: number, ink: string, 
   });
 }
 
-/** A fan's hub sticker: a dark disc with a thin ring and the maker's mark. */
-export function hubSticker(): ReturnType<typeof tex> {
-  return tex('gpu-hub', 256, 256, (c, w, h) => {
+/** A fan's hub sticker: a dark disc with a thin ring and the card maker's mark (`core/render/brands`), its accent printed. */
+export function hubSticker(brand: BrandId): ReturnType<typeof tex> {
+  return tex(`gpu-hub:${brand}`, 256, 256, (c, w, h) => {
     const g = c.createRadialGradient(w * 0.42, h * 0.38, 8, w / 2, h / 2, w / 2);
     g.addColorStop(0, '#30343c'); g.addColorStop(1, '#15171b');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#8a929e'; c.lineWidth = 5; c.beginPath(); c.arc(w / 2, h / 2, w * 0.42, 0, Math.PI * 2); c.stroke();
-    // the mark: a hexagon round a smaller solid one, the maker's sign
-    const hexPath = (r: number) => {
-      c.beginPath();
-      for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + (k * Math.PI) / 3; c.lineTo(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); }
-      c.closePath();
-    };
-    c.strokeStyle = '#c9d0da'; c.lineWidth = 12; c.lineJoin = 'round';
-    hexPath(w * 0.22); c.stroke();
-    c.fillStyle = '#c9d0da'; hexPath(w * 0.09); c.fill();
+    const mh = Math.min(w * 0.42, (w * 0.56) / BRANDS[brand].aspect);
+    drawMark(c, brand, (w - mh * BRANDS[brand].aspect) / 2, (h - mh) / 2, mh, '#c9d0da');
   });
 }
 
@@ -114,7 +108,7 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
   // (a thin fan: the blades and the hub stay inside the duct's depth)
   rotor.scale.z = Math.min(1, (depth * 0.44) / (r * 0.22));
   // (the sticker's rim merges with the hub; its printed face is one draw)
-  rotor.add(...labelDisc(r * 0.27, r * 0.012, r * 0.212, SEG.drum, hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 })));
+  rotor.add(...labelDisc(r * 0.27, r * 0.012, r * 0.212, SEG.drum, hubM, mat(0xffffff, { map: hubSticker('ocula'), roughness: 0.5 })));
   if (rim) {
     // the barrier ring tying the blade tips together
     const ring = place(new Mesh(new CylinderGeometry(r * 0.972, r * 0.972, r * 0.07, fanSides(2 * r / MM), 1, true).rotateX(Math.PI / 2), mat(0x1d1e22, { roughness: 0.42, side: DoubleSide })));
@@ -212,7 +206,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   const accent = glowMat(0x3be3ff, 0x1d6f80), zl = (wallLo + wallHi) / 2, nameH = (wallHi - wallLo) * 0.7, nameW = (nameH * 1024) / 112, nameX = (xa + Math.min(xb, plugX0)) / 2;
   for (const [b0, b1] of [[xa + 8 * MM, nameX - nameW / 2 - 4 * MM], [nameX + nameW / 2 + 4 * MM, Math.min(xb - 14 * MM, plugX0 - 2 * MM)]] as const) if (b1 - b0 > 200) g.add(rectBox({ x: b0, y: yb, w: b1 - b0, h: 6 }, zl - 0.6 * MM, zl + 0.6 * MM, accent));
   spins.push({ rotor: new Group(), ring: accent, needs: null, fixed: 0x3be3ff });
-  const name = word('edge', 'PIPELINE', 1024, 112, '#c8ced8');
+  const name = badgeTex('gpu-edge', 1024, 112, 'ocula', '#c8ced8', BRANDS.ocula.colors.accent, null, { h: 0.86 });
   if (name) {
     const d = new Mesh(new PlaneGeometry(nameW, nameH).rotateX(Math.PI / 2), decalMat(name, { rough: 0.4, metal: 0.6, cut: true }));
     d.position.set(nameX, -(yb + 0.6), zl);
@@ -238,7 +232,7 @@ export function gpuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
   for (const v of vents) holes.push(outlinePts(v, 1.1 * MM));
   g.add(uvSpan(slab(shapeOf(outlinePts(plate, 30, [0, 5 * MM, 12 * MM, 0]), holes), Z + 4, Z + backT, backM, 3), 900));
   // the name engraved toward the top edge, its tops toward the slot (it reads from the glass, over the card)
-  const nm = word('back', 'PIPELINE', 1024, 128, L.backMetal ? '#d4d9e0' : '#8d939c');
+  const ink = L.backMetal ? '#d4d9e0' : '#8d939c', nm = badgeTex(`gpu-back:${ink}`, 1024, 128, 'ocula', ink, null, null, { h: 0.86 });
   if (nm) g.add(decal({ x: (x0 + x1) / 2 - 30 * MM, y: end - 21 * MM, w: 60 * MM, h: 7.5 * MM }, Z + backT + 0.3, decalMat(nm, { rough: 0.35, metal: 0.5, cut: true })));
   dieBack(g, `gpu-back:${visual}`, die, HOLE, Z, 'GPU1');
   // the screws round the plate's rim

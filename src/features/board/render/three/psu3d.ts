@@ -10,7 +10,8 @@ import { SEG, fanRotor, fanSides, instanced, rectBox, rod, softBox, withLow, typ
 import { NYLON, mat } from '@/core/render/three/materials';
 import { CASE, PSU_FORM, type PsuForm } from '../layout/layout';
 import { PSU_BODY, type BasementPlan } from './basement3d';
-import { badgeTex, decal, decalTop, decalX, grain, outlinePts, perfMat, plateY, screws, tex, tiled, wallX, type Span, type Spot } from './casekit3d';
+import { drawLockup } from '@/core/render/brands';
+import { decal, decalTop, decalX, grain, outlinePts, perfMat, plateY, screws, tex, tiled, wallX, type Span, type Spot } from './casekit3d';
 import { prismX, word } from './gpu3d';
 import { decalMat } from './pcbkit3d';
 
@@ -51,8 +52,9 @@ function ratingLabel(visual: string, watts: number): ReturnType<typeof tex> {
   return tex(`psu-label:${visual}:${watts}`, 1024, 720, (c, w, h) => {
     c.fillStyle = '#d9dcdf'; c.fillRect(0, 0, w, h);
     c.fillStyle = '#15161a'; c.fillRect(0, 0, w, 92);
-    c.fillStyle = '#e9ebee'; c.textBaseline = 'middle'; c.font = '700 50px "Segoe UI", system-ui, sans-serif'; c.fillText('PIPELINE', 30, 48);
-    c.textAlign = 'right'; c.font = '600 36px "Segoe UI", system-ui, sans-serif'; c.fillText(`PL-${watts}${visual === 'psu-big' ? (watts >= 1000 ? 'P' : 'G') : visual === 'psu-mid' ? 'B' : 'S'}`, w - 30, 48);
+    drawLockup(c, 'raiden', 30, 46, 60, '#e9ebee');
+    c.fillStyle = '#e9ebee'; c.textBaseline = 'middle';
+    c.textAlign = 'right'; c.font = '600 36px "Segoe UI", system-ui, sans-serif'; c.fillText(`RD-${watts}${visual === 'psu-big' ? (watts >= 1000 ? 'P' : 'G') : visual === 'psu-mid' ? 'B' : 'S'}`, w - 30, 48);
     c.textAlign = 'left'; c.fillStyle = '#17181c'; c.font = '600 26px "Segoe UI", system-ui, sans-serif';
     c.fillText(`${visual === 'psu-big' ? 'ATX12V' : 'SFX12V'} SWITCHING POWER SUPPLY`, 30, 130);
     c.fillText('AC INPUT: 100-240V~  50/60Hz  ' + (watts >= 500 ? '12-6A' : '4-2A'), 30, 170);
@@ -75,7 +77,7 @@ function ratingLabel(visual: string, watts: number): ReturnType<typeof tex> {
     let s = watts * 7 + visual.length;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let x = 30; x < w - 340;) { const bw = 3 + Math.floor(rnd() * 3) * 3; if (rnd() > 0.4) c.fillRect(x, 500, bw, 130); x += bw + 3 + Math.floor(rnd() * 3) * 3; }
-    c.font = '600 26px "Consolas", "DejaVu Sans Mono", monospace'; c.fillText(`S/N PL${watts}2245A${(watts * 13) % 9973}`, 30, 670);
+    c.font = '600 26px "Consolas", "DejaVu Sans Mono", monospace'; c.fillText(`S/N RD${watts}2245A${(watts * 13) % 9973}`, 30, 670);
     c.fillText('MADE IN PIPELINE CITY', w - 330, 670);
   });
 }
@@ -91,9 +93,7 @@ const RATING: Record<string, (watts: number) => [string, string] | null> = {
 function sideBadge(visual: string, watts: number, wpx: number, hpx: number): ReturnType<typeof tex> {
   return tex(`psu-side:${visual}:${watts}`, wpx, hpx, (c, w, h) => {
     c.clearRect(0, 0, w, h);
-    const mark = badgeTex('psu-mark', 512, 128, 'PIPELINE', '#e6e8ec', '#e6e8ec', null);
-    const img = mark?.image as CanvasImageSource | undefined;
-    if (img) c.drawImage(img, w * 0.06, h * 0.2, w * 0.5, w * 0.125);
+    drawLockup(c, 'raiden', w * 0.09, h * 0.2 + w * 0.0625, w * 0.085, '#e6e8ec');
     c.fillStyle = '#e6e8ec'; c.textBaseline = 'middle'; c.font = `700 ${Math.round(h * 0.2)}px "Segoe UI", system-ui, sans-serif`;
     c.fillText(`${watts}W`, w * 0.09, h * 0.62);
     c.font = `600 ${Math.round(h * 0.075)}px "Segoe UI", system-ui, sans-serif`; c.fillStyle = '#8d939c';

@@ -1,4 +1,6 @@
-import { Graphics } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
+import type { BrandId } from '@/core/render/brands';
+import { brandSprite } from '@/core/render/brands/pixi';
 import { disc } from '@/core/render/ink';
 import { BR, CASE_GLASS, type Rect } from '@/features/board/render/layout/layout';
 
@@ -72,12 +74,10 @@ export function screw(g: Graphics, x: number, y: number, r: number, tone: string
   g.moveTo(x - r * 0.55, y + r * 0.1).lineTo(x + r * 0.55, y - r * 0.1).stroke({ width: Math.max(3, r * 0.2), color: '#000000', alpha: 0.6, cap: 'round' });
 }
 
-/** The pipeline mark (rising bars, the one on the monitor's splash) with its square foot, `s` units tall. */
-export function logoMark(g: Graphics, x: number, y: number, s: number, ink: string, acc: string) {
-  const bw = s * 0.17, gap = s * 0.07;
-  for (let k = 0; k < 4; k++) {
-    const h = s * (0.34 + k * 0.2), bx = x + k * (bw + gap);
-    g.roundRect(bx, y + s - h, bw, h, bw * 0.28).fill({ color: k === 3 ? acc : ink, alpha: k === 3 ? 1 : 0.85 });
-  }
-  g.roundRect(x - gap, y + s + gap, 4 * bw + 4 * gap, s * 0.07, s * 0.03).fill({ color: ink, alpha: 0.85 });
+/**
+ * A maker's lockup in 2D (`core/render/brands`): its mark `h` tall and its wordmark, as on the 3D parts, added to `root` with its centre at
+ * (x, y). `acc` null prints it in the ink alone.
+ */
+export function brandLockup(root: Container, id: BrandId, x: number, y: number, h: number, ink: string, acc: string | null = null, a = 0.85) {
+  root.addChild(brandSprite(id, x, y, h, ink, { acc, alpha: a }));
 }

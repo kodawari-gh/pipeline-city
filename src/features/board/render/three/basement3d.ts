@@ -3,6 +3,7 @@
 // unit), the room east of it the front fans' air passes through to the supply, the fan hub on the tray sheet and the basement's drive cage under
 // the main one (drivecage3d.ts). The shroud runs on east under the main cage as its shelf, as a Define 7's: open on the glass side from the hub on.
 import { Group, Mesh, PlaneGeometry, type Material } from 'three';
+import { drawLockup } from '@/core/render/brands';
 import { paintLow, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { NONE, perforated, perforatedFlatRun, plateY, ring, rivets, screws, thumbscrews, wallX, type Span, type Spot } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
@@ -75,8 +76,8 @@ export function shroud(p: BasementPlan, look: { body: number; ink: string } = { 
   const print = paintLow(W, H, (c) => {
     c.fillStyle = bg; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, W, 6);
-    c.fillStyle = look.ink; c.textBaseline = 'middle'; c.textAlign = 'center';
-    c.font = `600 ${Math.round(Math.min(H * 0.28, W * 0.056))}px system-ui, sans-serif`; c.fillText('PIPELINE CITY', W * 0.36, H / 2);
+    // the case maker's lockup (`core/render/brands`), in the print's one ink
+    drawLockup(c, 'hako', W * 0.36, H / 2, Math.min(H * 0.36, W * 0.07), look.ink, { acc: null, align: 'center' });
   });
   const face = new Mesh(new PlaneGeometry(west.w, west.h), mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }));
   face.position.set(west.x + west.w / 2, -(west.y + west.h / 2), zf + 2);

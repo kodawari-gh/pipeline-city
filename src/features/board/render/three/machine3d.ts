@@ -309,7 +309,7 @@ export class Machine3D {
     this.accent.setHex(cm.accent);
     this.strip = cm.strip;
     for (const s of cm.spins) this.spin(s);
-    // the basement's shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", `basement3d.ts`); over it and under it the
+    // the basement's shroud (its panel over the power supply printed with the case maker's lockup, `basement3d.ts`); over it and under it the
     // drive cages with an empty tray in each free bay (a fitted drive's tray is its device's, `drivecage3d.ts`)
     const bays = new Set(this.devs.filter((d) => d.kind === 'storage' && d.slot.startsWith('sata')).map((d) => d.slot));
     shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), ...this.cages.map((c) => driveCage(c, kind, bays)));

@@ -20,6 +20,7 @@
     "flicker": "node tools/flicker.mjs",
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
+    "brands": "node tools/brandsheet.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
     "bake:lm": "node tools/bake/lightmaps.mjs",
     "bake:tex": "node tools/bake/textures.mjs",

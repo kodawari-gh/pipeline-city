@@ -6,6 +6,7 @@ import {
   NoColorSpace, PlaneGeometry, RectAreaLight, SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BRANDS, drawMark } from '@/core/render/brands';
 import { SEG, anisotropy, paint, place, post, rectBox, rod, softBox, tornDown, tube, type RectLike } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
@@ -150,10 +151,10 @@ export class Monitor {
       c.fillStyle = '#dff4ff'; c.font = '30px "JetBrains Mono", Consolas, monospace'; c.textBaseline = 'top';
       (s.text || '_').split('\n').slice(-16).forEach((l, i) => c.fillText(l.slice(0, 70), 48, 40 + i * 40));
     } else if (s.powered) {
-      // standby: the logo, the title, a progress line, a small chart (the reference's standby card)
-      c.fillStyle = '#c9d3de';
-      [18, 30, 24, 40, 32].forEach((bh, i) => c.fillRect(w / 2 - 50 + i * 20, h * 0.36 - bh, 13, bh));
-      c.font = '600 46px system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('PIPELINE CITY', w / 2, h * 0.47);
+      // standby: the city's mark and name (`brands/pipeline.ts`), a progress line, a small chart (the reference's standby card)
+      const mh = h * 0.13;
+      drawMark(c, 'pipeline', w / 2 - (mh * BRANDS.pipeline.aspect) / 2, h * 0.37 - mh, mh, '#c9d3de');
+      c.fillStyle = '#c9d3de'; c.font = '600 46px system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('PIPELINE CITY', w / 2, h * 0.47);
       c.fillStyle = '#3a4653'; c.fillRect(w / 2 - 200, h * 0.52, 400, 6);
       c.fillStyle = '#5fd0ff'; c.fillRect(w / 2 - 200, h * 0.52, 130, 6);
       c.fillStyle = '#8795a3'; c.font = '20px system-ui, sans-serif'; c.fillText('STANDBY', w / 2, h * 0.58);

@@ -4,6 +4,7 @@
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
+import { BRAND_FONT, drawLockup, lockupWidth } from '@/core/render/brands';
 import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { sheetCut } from '@/core/render/three/detail';
 import { CERAMIC, mat } from '@/core/render/three/materials';
@@ -248,15 +249,21 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
 function faceLabel(text: string, sticker: boolean, x: number, y: number, z: number, side: 1 | -1, w: number, h: number): Mesh {
   const W = 512, H = Math.max(32, Math.round((W * h) / w));
   const t = tex(`ram-label-${sticker}-${text}-${H}`, W, H, (c) => {
+    // the maker's lockup (`brands/kaiju.ts`) at the left, the model after it in the maker's face
+    const model = (ink: string, mh: number, y: number, x0: number) => {
+      const px = Math.round(mh * 0.5), lw = lockupWidth('kaiju', mh), room = W * 0.95 - x0 - lw - mh * 0.5;
+      drawLockup(c, 'kaiju', x0, y, mh, ink);
+      c.fillStyle = ink; c.textAlign = 'left'; c.textBaseline = 'middle'; c.font = `500 ${px}px ${BRAND_FONT}`;
+      c.fillText(text.toUpperCase(), x0 + lw + mh * 0.5, y + 1, Math.max(room, 1));
+    };
     if (sticker) {
       c.fillStyle = '#e9ecef'; c.fillRect(0, 0, W, H);
-      c.fillStyle = '#1b1e26'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.font = `700 ${Math.round(H * 0.34)}px system-ui, sans-serif`;
-      c.fillText(text.toUpperCase(), W * 0.05, H * 0.3);
+      model('#1b1e26', H * 0.3, H * 0.28, W * 0.05);
+      c.fillStyle = '#1b1e26';
       for (let k = 0, x = W * 0.05; x < W * 0.7; k++) { const b = 2 + ((k * 7) % 5); c.fillRect(x, H * 0.55, b, H * 0.32); x += b + 3 + ((k * 3) % 4); }
     } else {
       c.clearRect(0, 0, W, H);
-      c.fillStyle = 'rgba(214,220,234,0.78)'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `600 ${Math.round(H * 0.62)}px system-ui, sans-serif`;
-      c.fillText(text.toUpperCase(), W / 2, H / 2 + 1);
+      model('#b6bcc8', H * 0.64, H / 2, W * 0.06);
     }
   });
   const m = new Mesh(new PlaneGeometry(w, h), mat(0xffffff, { map: t, transparent: !sticker, roughness: sticker ? 0.7 : 0.5 }));

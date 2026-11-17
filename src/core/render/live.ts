@@ -5,6 +5,7 @@ import type { Snapshot } from '../../worker/protocol';
 import type { KeyActivity } from '../../worker/game/game';
 import { blades } from '../../features/board/render/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
+import { brandSprite } from './brands/pixi';
 import { drawDriveLive, type DriveKind } from '../../features/storage/render/drives';
 import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout/layout';
 import { monitorView, screenMode, standbyLook, type MonitorInput } from '../../features/room/render/desk/monitor';
@@ -374,14 +375,15 @@ export class Live {
     this.psuTexts.rpm.style.fill = LCD_INK;
   }
 
-  /** The blank screen's art, at the screen's design size: a faint light in the glass, the skyline mark of the chin made large, the brand and, while off, `STANDBY`. */
+  /** The blank screen's art, at the screen's design size: a faint light in the glass, the city's mark (`brands/pipeline.ts`), its name and, while off, `STANDBY`. */
   private buildStandby(T: Theme) {
     for (const c of this.standby.removeChildren()) c.destroy({ children: true });
     const g = new Graphics(), W = SCREEN_D.w, H = SCREEN_D.h, cx = W / 2, cy = H / 2;
     for (let k = 0; k < 7; k++) g.ellipse(cx, cy, W * 0.5 * (1 - k / 8), H * 0.5 * (1 - k / 8)).fill({ color: '#1a2a4a', alpha: 0.05 });
-    for (const [i, hh] of [80, 136, 104, 160, 88].entries()) g.rect(cx - 140 + i * 56, cy - 40 - hh, 38, hh).fill({ color: T.mute, alpha: 0.5 });
+    const mh = 200, mark = brandSprite('pipeline', cx, cy - 40 - mh / 2, mh, T.mute, { word: false, alpha: 0.55 });
     this.standbyCap = label('STANDBY', cx, cy + 330, 64, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.65 });
-    this.standby.addChild(g, label('PIPELINE CITY', cx, cy + 100, 130, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.45 }), this.standbyCap);
+    const word = brandSprite('pipeline', cx, cy + 100, 92, T.mute, { mark: false, cap: 1, alpha: 0.45 });
+    this.standby.addChild(g, mark, word, this.standbyCap);
     this.standby.visible = false;
   }
 

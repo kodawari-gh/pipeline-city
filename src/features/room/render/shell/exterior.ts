@@ -5,7 +5,7 @@ import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layou
 import { box, label, lgrad, mix } from '@/core/render/ink';
 import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
-import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, growCuts, hexes, holes, isCut, logoMark, outline, screw, slots, type CaseKind, type Cuts } from './casedecor';
+import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, brandLockup, caseWindow, growCuts, hexes, holes, isCut, outline, screw, slots, type CaseKind, type Cuts } from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';
 import type { Theme } from '@/core/render/theme';
 
@@ -236,21 +236,18 @@ function solidSide(g: Graphics, c: Tones, r: Rect, win: Rect) {
  * a lit plate with an RGB outline on the gaming case. The showcase's mark is debossed like the matte case's.
  */
 function badge(root: Container, g: Graphics, c: Tones, kind: CaseKind, r: Rect) {
-  const press = kind === 'oem' ? '#959aa3' : '#b4c0e4', lit = '#000000';
-  const text = (s: string, x: number, y: number, size: number, col: string, a = 0.85) => root.addChild(label(s, x, y, size, col, { head: true, anchor: [0.5, 0.5], a }));
+  // the case maker's lockup (`brands/hako.ts`), as the 3D case has it: a label, a debossed plate, a debossed print
   const right = r.x + r.w, cy = r.y + r.h / 2;
-  // one quiet mark per case, the logo and no more: a label, a debossed print, a lit plate
   if (kind === 'oem') {
     const w = 700, x = right - w, h = 300;
     g.roundRect(x, cy - h / 2, w, h, 16).fill(mix(c.hi, c.lo, 0.45)).stroke({ width: 5, color: c.edge, alpha: 0.7 });
-    logoMark(g, x + w / 2 - 150, cy - 90, 120, press, press);
-    text('PC-1', x + w / 2 + 130, cy + 10, 90, press, 0.7);
-  } else if (kind === 'gamer') { // a dark plate, the mark debossed into it
+    brandLockup(root, 'hako', x + w / 2, cy, 110, '#959aa3');
+  } else if (kind === 'gamer') { // a dark plate, the lockup debossed into it
     const w = 1100, x = right - w, h = 380, y = cy - h / 2;
     g.roundRect(x, y, w, h, 28).fill(lgrad('#171b25', '#07090d')).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-    for (const [dy, col] of [[5, '#2a2f3a'], [0, '#000000']] as const) logoMark(g, x + w / 2 - 200, y + h / 2 - 100 + dy, 200, col, col);
-  } else { // matte and showcase: debossed, a dark print under a lit one
-    for (const [dy, col] of [[5, lit], [0, '#000000']] as const) logoMark(g, right - 300, cy - 60 + dy, 100, col, col);
+    for (const [dy, col] of [[8, '#2a2f3a'], [0, '#000000']] as const) brandLockup(root, 'hako', x + w / 2, y + h / 2 + dy, 190, col, null, 1);
+  } else { // matte and showcase: debossed, a dark print over a paler lip
+    for (const [dy, col] of [[8, '#2a2d32'], [0, '#050608']] as const) brandLockup(root, 'hako', right - 120 - 520, cy + dy, 200, col, null, 1);
   }
 }
 

@@ -7,9 +7,10 @@
 import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Mesh, PlaneGeometry, type Material, type MeshStandardMaterial, type Vector2 } from 'three';
 import { SEG, extrude, fanSides, instanced, place, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { brushed, decal, outlinePts, screws, shapeOf, slab, wallPt, wallX, type Span, type Spot } from './casekit3d';
+import { BRANDS } from '@/core/render/brands';
+import { badgeTex, brushed, decal, outlinePts, screws, shapeOf, slab, wallPt, wallX, type Span, type Spot } from './casekit3d';
 import type { Spin } from './fans3d';
-import { circle, dieBack, hubSticker, uvSpan, V, word, type CardFrame } from './gpu3d';
+import { circle, dieBack, hubSticker, uvSpan, V, type CardFrame } from './gpu3d';
 import { decalMat, MM } from './pcbkit3d';
 
 /** Each AI card's finish: the shroud, its raised plateau (brushed), the intake's bezel, the backplate. */
@@ -51,7 +52,7 @@ function impeller(r: number, h: number): Group {
   // the motor's cup and its sticker
   const cup = h * 0.72;
   rotor.add(place(new Mesh(new CylinderGeometry(r * 0.5, r * 0.53, cup, SEG.drum).rotateX(Math.PI / 2).translate(0, 0, cup / 2), hubM)));
-  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.43, r * 0.43, 0.15 * MM, SEG.drum).rotateX(Math.PI / 2).translate(0, 0, cup + 0.07 * MM), [hubM, mat(0xffffff, { map: hubSticker(), roughness: 0.5 }), hubM])));
+  rotor.add(place(new Mesh(new CylinderGeometry(r * 0.43, r * 0.43, 0.15 * MM, SEG.drum).rotateX(Math.PI / 2).translate(0, 0, cup + 0.07 * MM), [hubM, mat(0xffffff, { map: hubSticker('synapta'), roughness: 0.5 }), hubM])));
   // the blades: straight vanes from the cup's rim to the tips, leaned back from the radius
   const n = 33, r0 = r * 0.62, r1 = r * 0.97, rm = (r0 + r1) / 2, bh = h - t - 0.5 * MM;
   rotor.add(instanced(new BoxGeometry(1, 1, 1), bladeM, Array.from({ length: n }, (_, k) => {
@@ -79,7 +80,7 @@ export function npuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   const pl = { x: xa + 3 * MM, y: ya + 12 * MM, w: fx - rIn - 8 * MM - xa - 3 * MM, h: yb - ya - 24 * MM };
   g.add(uvSpan(slab(shapeOf(outlinePts(pl, 0, [2 * MM, 11 * MM, 11 * MM, 2 * MM])), zB, zF + 10, plateauM, 6), 900));
   const nameH = Math.min(9 * MM, pl.h * 0.3), nameW = nameH * (1024 / 140);
-  const nm = word('npu-face', 'NEURAL', 1024, 140, '#d3d8e0');
+  const nm = badgeTex('npu-face', 1024, 140, 'synapta', '#d3d8e0', null, null, { h: 0.86 });
   if (nm && nameW < pl.w - 20 * MM) {
     const d = new Mesh(new PlaneGeometry(nameW, nameH).rotateX(Math.PI), decalMat(nm, { rough: 0.35, metal: 0.5, cut: true }));
     d.position.set(pl.x + pl.w / 2 - 4 * MM, -(pl.y + pl.h / 2), zB - 0.3);
@@ -119,7 +120,7 @@ export function npuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   // ---- the top edge (it faces the glass, standing): the violet line either side of the name
   const violet = mat(0xa68bff, { roughness: 0.38, metalness: 0.3 }), zl = (zI + zTop) / 2, eh = (zTop - zI) * 0.55, ew = eh * (1024 / 112), ex = (xa + xb) / 2;
   for (const [b0, b1] of [[xa + 8 * MM, ex - ew / 2 - 4 * MM], [ex + ew / 2 + 4 * MM, xb - c - 4 * MM]] as const) if (b1 - b0 > 200) g.add(rectBox({ x: b0, y: yb, w: b1 - b0, h: 5 }, zl - 0.5 * MM, zl + 0.5 * MM, violet));
-  const edge = word('npu-edge', 'NEURAL', 1024, 112, '#c8ced8');
+  const edge = badgeTex('npu-edge', 1024, 112, 'synapta', '#c8ced8', BRANDS.synapta.colors.accent, null, { h: 0.86 });
   if (edge) {
     const d = new Mesh(new PlaneGeometry(ew, eh).rotateX(Math.PI / 2), decalMat(edge, { rough: 0.4, metal: 0.6, cut: true }));
     d.position.set(ex, -(yb + 0.6), zl);
@@ -141,7 +142,7 @@ export function npuBackplate(g: Group, visual: string, f: CardFrame, Z: number, 
   for (let k = 0, x = die.x + HOLE + 5 * MM; k < 8 && x < P.fx - P.r; k++, x += 4 * MM) for (const dy of [-20, 0, 20]) vents.push({ x, y: die.y + dy * MM - 7 * MM, w: 2.2 * MM, h: 14 * MM });
   for (const v of vents) holes.push(outlinePts(v, 1.1 * MM));
   g.add(uvSpan(slab(shapeOf(outlinePts(plate, 30, [0, 5 * MM, 12 * MM, 0]), holes), Z + 4, Z + backT, backM, 3), 900));
-  const nm = word('npu-back', 'NEURAL', 1024, 128, '#d4d9e0');
+  const nm = badgeTex('npu-back', 1024, 128, 'synapta', '#d4d9e0', null, null, { h: 0.86 });
   if (nm) g.add(decal({ x: P.fx - 26 * MM, y: end - 19 * MM, w: 52 * MM, h: 6.5 * MM }, Z + backT + 0.3, decalMat(nm, { rough: 0.35, metal: 0.5, cut: true })));
   dieBack(g, `npu-back:${visual}`, die, HOLE, Z, 'NPU1');
   const rim: Spot[] = [], xr = xe - 14 * MM;

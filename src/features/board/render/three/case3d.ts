@@ -22,7 +22,7 @@ import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, P
 import { basementPlan } from './basement3d';
 import { glowMat, light, type Spin } from './fans3d';
 import {
-  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, decalX, foldCaseLooks, grain, grow, hex, outlinePts, perfMat, perforated, perforation, ring, screws as screwHeads, shapeOf, slab, slabWithOpening,
+  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, debossMat, decal, decalTop, decalX, foldCaseLooks, grain, grow, hex, outlinePts, perfMat, perforated, perforation, ring, screws as screwHeads, shapeOf, slab, slabWithOpening,
   thumbscrews, tiled, wallX, type Span,
 } from './casekit3d';
 import { bayFrame, controls, fanMountPlates, frontWall, hinges, psuFilter, psuIntake, rearWall, type Controls, type Frame } from './casedetail3d';
@@ -155,6 +155,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const plan = basementPlan(), lowY = gl.y + gl.h, intake = { x: plan.vent.x - 60, y: plan.top + 60, w: plan.vent.w + 120, h: plan.floor - plan.top - 120 };
   const area = { x: PSU.x + 120, y: plan.top + 60, w: plan.vent.x - 260 - (PSU.x + 120), h: plan.floor - plan.top - 120 };
   const right = area.x + area.w, cy = area.y + area.h / 2;
+  // (the debossed maker's lockup on the plain sheets: right-aligned over the supply's cover, about 45 mm long)
+  const dw = Math.min(area.w - 100, 1040), debossAt = { x: right - 120 - dw, y: cy - dw / 8, w: dw, h: dw / 4 };
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   // (the Mini's plastic front wraps round the front edge: its sheet stops short of it)
   const sheet = kind === 'oem' ? outlinePts({ ...C, w: C.w - OEM_BEZEL }, L.rad) : outer();
@@ -191,7 +193,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x2a2d32, { metal: 0.05, rough: 0.6 })));
     const label = { x: right - 700, y: cy - 150, w: 700, h: 300 };
     side.add(softBox(label, FRONT - 4, FRONT + 8, mat(0x1d1e22, { roughness: 0.5 }), 8));
-    side.add(decal(grow(label, -20), FRONT + 9, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#959aa3', '#959aa3', '#1d1e22'), roughness: 0.5 })));
+    side.add(decal(grow(label, -20), FRONT + 9, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 })));
     // the top strip's vents; the plastic front with two drive-bay covers and its grille; round feet
     for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 2, mat(0x131518, { roughness: 0.8 }), 12));
     const bezel = mat(0x1d1e22, { roughness: 0.65 }), ex = C.x + C.w;
@@ -214,7 +216,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     // the maker's badge over the bays
     const badge: Span = { y0: C.y + 220, y1: C.y + 390, z0: zc - 300, z1: zc + 300, r: 24 };
     root.add(wallX(ex + 50, ex + 58, badge, [], mat(0x2a2d32, { roughness: 0.5 }), 2));
-    root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'PC-1', '#959aa3', '#959aa3', '#1d1e22'), roughness: 0.5 })));
+    root.add(decalX(ex + 59, { ...badge, y0: badge.y0 + 16, y1: badge.y1 - 16, z0: badge.z0 + 30, z1: badge.z1 - 30 }, 1, mat(0xffffff, { map: badgeTex('oem', 512, 220, 'hako', '#959aa3', null, '#1d1e22'), roughness: 0.5 })));
     const foot = mat(0x2a2d32, { roughness: 0.9 });
     for (const x of [C.x + 400, ex - 400]) for (const z of [CASE_Z + 420, FRONT - 420]) root.add(post(x, bottom + FOOT, z, 110, FOOT, foot, SEG.disc, 95));
   }
@@ -222,11 +224,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   if (kind === 'matte') {
     // one sheet: a smoked window over the upper part in a dark gasket, a debossed mark, the intake, the vents; rubber rails for feet
     side.add(ring(win!, wr, NONE, 16, FRONT - 2, FRONT + 3, mat(0x050608, { roughness: 0.6 })));
-    const bars = [0, 1, 2, 3].map((k) => ({ x: right - 300 + k * 24, y: cy - 60 + 100 * (0.66 - k * 0.2), w: 17, h: 100 * (0.34 + k * 0.2) }));
-    for (const b of bars) {
-      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2a2d32, { roughness: 0.9 })));
-      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x050608, { roughness: 0.95 })));
-    }
+    side.add(decal(debossAt, FRONT + 1, debossMat('side', 'hako', 1024, 256)));
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x1b1c21, { metal: 0.1, rough: 0.85 })));
     for (let k = 0; k < nv; k++) side.add(softBox({ x: -2250 + k * 78, y: P.y + 120, w: 30, h: 190 }, FRONT - 4, FRONT + 1, dark, 12));
     const rubber = mat(0x050608, { roughness: 0.95 });
@@ -259,12 +257,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     side.add(decal(intake, FRONT + 2, perfMat('round', intake.w, intake.h, 64, 0x232938, { metal: 0.5, rough: 0.4 })));
     const plate = { x: right - 1100, y: cy - 190, w: 1100, h: 380 };
     side.add(softBox(plate, FRONT - 2, FRONT + 18, mat(0x131518, { roughness: 0.4, metalness: 0.4 }), 10));
-    // the four bars, debossed into the plate: a lit print over a dark one
-    for (let k = 0; k < 4; k++) {
-      const bh = 200 * (0.34 + k * 0.2), x = plate.x + plate.w / 2 - 89 + k * 48, y = plate.y + plate.h / 2 + 100 - bh;
-      side.add(rectBox({ x, y: y + 5, w: 34, h: bh }, FRONT + 18, FRONT + 19, mat(0x2a2d32, { roughness: 0.9 })));
-      side.add(rectBox({ x, y, w: 34, h: bh }, FRONT + 18, FRONT + 20, mat(0x050608, { roughness: 0.95 })));
-    }
+    // the maker's lockup debossed into the plate: a dark print over a paler lip
+    side.add(decal(grow(plate, -70), FRONT + 18.5, debossMat('plate', 'hako', 1024, 256)));
     // two flat rubber rails, as on the matte case
     const rubber = mat(0x050608, { roughness: 0.95 });
     for (const x of [C.x + 300, C.x + C.w - 600]) root.add(softBox({ x, y: bottom - 10, w: 300, h: FOOT + 10 }, CASE_Z + 260, FRONT - 260, rubber, 30));
@@ -273,11 +267,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   if (kind === 'show') {
     // a smoked glass in a thin dark gasket, a debossed four-bar mark, a hex mesh intake, a flat graphite plinth under the case
     side.add(ring(win!, wr, wcuts, 30, FRONT - 2, FRONT + 14, mat(0x131518, { metalness: 0.5, roughness: 0.3 })));
-    const bars = [0, 1, 2, 3].map((k) => ({ x: right - 300 + k * 24, y: cy - 60 + 100 * (0.66 - k * 0.2), w: 17, h: 100 * (0.34 + k * 0.2) }));
-    for (const b of bars) {
-      side.add(rectBox({ ...b, y: b.y + 5 }, FRONT, FRONT + 1, mat(0x2a2d32, { roughness: 0.9 })));
-      side.add(rectBox(b, FRONT, FRONT + 2, mat(0x050608, { roughness: 0.95 })));
-    }
+    side.add(decal(debossAt, FRONT + 1, debossMat('side', 'hako', 1024, 256)));
     side.add(decal(intake, FRONT + 4, perfMat('hex', intake.w, intake.h, 46, 0x2a2d32, { metal: 0.5, rough: 0.4 })));
     root.add(softBox({ x: C.x + 250, y: bottom - 10, w: C.w - 500, h: FOOT + 10 }, CASE_Z + 250, FRONT - 250, mat(0x4e5360, { metalness: 0.5, roughness: 0.5 }), 30));
   }

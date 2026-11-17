@@ -8,6 +8,7 @@
 // inboard of its side's fans: a core as thick as its grade and as deep as a fan, an end tank past the fans at each end. Heatsinks and radiators come
 // bare: the fans are parts of their own (`fanPart`), shown where the player fitted them (a radiator's on the case's mounts it spans).
 import { BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Shape, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Material, type Texture } from 'three';
+import { drawLockup, drawMark, lockupWidth } from '@/core/render/brands';
 import { bakedTex } from '@/core/render/three/baked';
 import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
@@ -57,16 +58,12 @@ const brushed = () => brushedTex ??= shareTex(bakedTex('cooler-brushed') ?? pain
 }));
 /** The pump cap's map, for the texture bake (`tools/bake/textures.mjs`). */
 export const capBrushed = (): Texture | null => brushed();
-/** The maker's mark under the pump cap's glass: four bars rising to the right over the name, pale silver on clear. */
+/** The maker's mark under the pump cap's glass (`brands/fujin.ts`): the cooling maker's crest over its name, pale silver on clear. */
 const capMark = () => tex('pump-cap-mark', 512, 512, (c, w, h) => {
   c.clearRect(0, 0, w, h);
-  c.fillStyle = '#c3c8d0';
-  const bw = 34, gap = 22, x0 = w / 2 - (4 * bw + 3 * gap) / 2, base = h * 0.56;
-  [0.42, 0.7, 0.55, 1].forEach((k, i) => c.fillRect(x0 + i * (bw + gap), base - k * 150, bw, k * 150));
-  c.font = '600 44px "Inter", "Segoe UI", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  // (letter by letter: wide tracking, as an engraved name)
-  const name = 'PIPELINE', step = 34;
-  [...name].forEach((ch, i) => c.fillText(ch, w / 2 + (i - (name.length - 1) / 2) * step, h * 0.7));
+  const ink = '#c3c8d0', m = h * 0.34;
+  drawMark(c, 'fujin', (w - m) / 2, h * 0.2, m, ink, null);
+  drawLockup(c, 'fujin', w / 2, h * 0.72, 64, ink, { mark: false, cap: 0.75, align: 'center' });
 });
 /** The pump cap's metal: the brushed face, polished (the same at Low, which keeps the machine's materials). */
 const capMat = () => mat(0xffffff, { map: brushed(), metalness: 0.8, roughness: 0.3 });
@@ -354,8 +351,7 @@ function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   g.add(band3(R, R, z1 + 46, top - 34, side));
   g.add(band3(R, R - 40, top - 34, top, polished));
   g.add(drum(0, 0, top - 4, top, R - 40, capMat(), PUMP_SIDES));
-  // the cap's window: a disc of black glass in a polished lip, proud of the brushed face, the maker's mark printed under it (four bars, as the
-  // monitor's standby screen). No light of its own: it mirrors the room, and the ring under the cap is the pump's only light
+  // the cap's window: a disc of black glass in a polished lip, proud of the brushed face, the maker's mark printed under it (`capMark`). No light of its own: it mirrors the room, and the ring under the cap is the pump's only light
   const WIN = 500;
   g.add(band3(WIN + 26, WIN, top, top + 10, polished));
   g.add(drum(0, 0, top + 2, top + 7, WIN, mat(0x050608, { metalness: 0, roughness: 0.06 }), PUMP_SIDES));
@@ -443,9 +439,10 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
     c.fillStyle = '#121626'; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#a68bff'; c.lineWidth = 4; c.strokeRect(6, 6, w - 12, h - 12);
     if (along) { c.translate(w / 2, h / 2); c.rotate(-Math.PI / 2); c.translate(-h / 2, -w / 2); }
+    // the maker's mark (its hub in the frame's accent) and the model in its face
     const W = along ? h : w, H = along ? w : h;
-    c.fillStyle = '#c9d0e6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `700 ${Math.round(H * 0.5)}px system-ui, sans-serif`;
-    c.fillText(name, W / 2, H / 2 + 2);
+    const o = { acc: '#a68bff', text: name, cap: 0.56, align: 'center' as const }, mh = Math.min(H * 0.56, (H * 0.56 * W * 0.88) / lockupWidth('fujin', H * 0.56, o));
+    drawLockup(c, 'fujin', W / 2, H / 2, mh, '#c9d0e6', o);
   });
   root.add(rectBox(fr.rect(L / 2 - PW / 2, v0 + t / 2 - PH / 2, PW, PH), z1 + 3, z1 + 7, mat(0xffffff, { map: label, roughness: 0.45, metalness: 0.2 })));
   // the end tanks, each closed by its cap

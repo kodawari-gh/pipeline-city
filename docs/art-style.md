@@ -127,6 +127,10 @@ These four stay recognisably the same hardware (OEM tower, 3.5" HDD, DDR2 clip-o
 - LOD stand-ins keep the same materials, so emissive state survives at a distance (`src/core/render/three/partlod.ts`; `docs/render/lod.md` "The stand-in"). New emissive materials must keep this: a stateful material joins only its own set.
 - **Stills: powered-on idle (proposal).** Today `renderStill` shows parts unpowered (3 of 71 stills have any neon pixel, S > 0.6 and V > 0.85: `tpm1` 17 px, `tpm2` 15 px, `cooler1` 1 px). New stills show idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
+**Brands (makers' marks)**
+- Each kind of part has one fictional maker with its own mark, wordmark and colour scheme: `src/core/render/brands/`, one module per brand. The design sheets and the rules are in [brands/README.md](brands/README.md).
+- A mark lights one palette neon (§2), on the mark and its lit letters only (C1). Etches, debosses and silkscreens print in one tone. Prints use the brand's type, never a system font, except for small print (specs, serials).
+
 ## 5. Zoom continuity: 3D part → interior view
 Rules (targets; all values are proposals (J)):
 1. **Glow ramp:** as the camera closes on a die or board, the baked art's self-light rises and the scene light falls. Today: `FINISH` die `glow` 0.4 / `lit` 0.4, card 0.1 / 1, board 0.05 / 1 (`artlod.ts:129-133`). Target at the closest LOD: die `lit` ≈ 0.1, `glow` ≈ 0.8, and trace pixels glow on boards. The die's neon reaches V ≈ 1.0 (today it peaks at V 0.69, p99 of S > 0.5 pixels in `cpu2.webp`).
@@ -236,3 +240,4 @@ mx=o.max(1)/255; S=(o.max(1)-o.min(1))/np.maximum(o.max(1),1); neon=((S>0.6)&(mx
 - 2026-11-12: DRAFT v2: direction "neon hacker dashboard" approved by Khalil for drafting; harmonised palette; cool key and neon rim; emissive and zoom rules; references reset. Base `bfe11c6`.
 - 2026-11-12: Approved v3 (this file): folds Khalil's five calls — drop the light theme; instruction classes get their own hues (`--ld #9ab8ff`, `--st #a8ff55`); dark or anodised variants of `case0`, `hdd0`, `ram1`, `cooler1`; room surfaces to charcoal and graphite; brand `#8b5cff` folded into `#a68bff`. Base still `bfe11c6`.
 - 2026-11-12: v3 fact fixes after review: status, changelog and palette wording; current studio key vs rim; AAA contrast for MUL and branch; hue distances; warm-pixel threshold (R > B + 5); neon still counts; references sheet (approved v3 at `bfe11c6`, all listed anti-references); dropped `ui-boot.png` as a reference; shot command usage.
+- 2026-11-17: §4 Brands: 13 makers' marks with their own type and colour schemes; design sheets in `docs/brands/`.

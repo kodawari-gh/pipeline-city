@@ -5,6 +5,7 @@
 // wears its maker's label draped over the DRAM and the NAND; a premium one wears a black anodised heat sink on a thermal pad instead (fins,
 // a raised plateau with a brushed silver insert, skirts that clip it to the board's edges). The underside carries its own mask and the serial sticker.
 import { BoxGeometry, Group, type MeshStandardMaterial, type Texture } from 'three';
+import { drawLockup } from '@/core/render/brands';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
@@ -196,11 +197,8 @@ function labelTex(look: NvmeLook): Texture | null {
     const stripe = (y: number) => { const gr = c.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(217,221,227,0.7)'); gr.addColorStop(0.6, 'rgba(217,221,227,0.25)'); gr.addColorStop(1, 'rgba(217,221,227,0)'); c.fillStyle = gr; c.fillRect(u(1.6), y, w - u(3.2), u(0.22)); };
     stripe(u(2.3)); stripe(h - u(2.5));
     // the maker's mark and the drive's kind
-    c.textBaseline = 'alphabetic'; c.fillStyle = '#f2f4f7'; c.font = `800 ${u(2.1)}px ${FONT}`;
-    (c as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${u(0.22)}px`;
-    c.fillText('PIPELINE', u(1.6), u(7.0));
-    const mw = c.measureText('PIPELINE').width + u(1.4);
-    (c as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+    const mw = drawLockup(c, 'kura', u(1.6), u(6.2), u(2.8), '#f2f4f7') + u(1.4);
+    c.textBaseline = 'alphabetic';
     c.fillStyle = '#9aa1ab'; c.font = `600 ${u(0.95)}px ${FONT}`; c.fillText('SOLID STATE DRIVE', u(1.6) + mw, u(6.9));
     // the drive: its name, its capacity large, its interface beside it
     c.fillStyle = '#e8ebef'; c.font = `700 ${u(1.5)}px ${FONT}`;
@@ -217,7 +215,7 @@ function labelTex(look: NvmeLook): Texture | null {
     c.fillStyle = '#e9ebee'; c.fillRect(u(35.6), u(10.9), u(5.4), u(5.4));
     matrix(c, u(35.9), u(11.2), u(4.8), seed + 9, '#111317');
     c.fillStyle = '#c9ced6'; c.font = `600 ${u(0.9)}px ${MONO}`;
-    [`S/N  PC2N${String(seed % 1e7).padStart(7, '0')}A`, `MODEL  PC-N2-${cap}`, 'FW  2B4QFXO7', '3.3V ⎓ 2.5A'].forEach((t, i) => c.fillText(t, u(41.8), u(11.8 + i * 1.4)));
+    [`S/N  KR2N${String(seed % 1e7).padStart(7, '0')}A`, `MODEL  KR-N2-${cap}`, 'FW  2B4QFXO7', '3.3V ⎓ 2.5A'].forEach((t, i) => c.fillText(t, u(41.8), u(11.8 + i * 1.4)));
   });
 }
 
@@ -232,10 +230,9 @@ function insertTex(look: NvmeLook, wm: number, hm: number): Texture | null {
     for (let i = 0; i < 1600; i++) { const y = rnd() * h; c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${0.05 + rnd() * 0.12})` : `rgba(60,64,72,${0.04 + rnd() * 0.1})`; c.fillRect(0, y, w, 0.6 + rnd() * 1.4); }
     // the engraving: dark in its cut, a bright lip on its far side
     const engrave = (t: string, x: number, y: number, font: string) => { c.font = font; c.fillStyle = 'rgba(255,255,255,0.55)'; c.fillText(t, x, y + 2); c.fillStyle = '#4a5059'; c.fillText(t, x, y); };
+    // the maker's lockup engraved the same way, in the ink alone
+    for (const [dy, ink] of [[2, 'rgba(255,255,255,0.55)'], [0, '#4a5059']] as const) drawLockup(c, 'kura', w / 2, h * 0.24 + dy, u(2.9), ink, { acc: null, align: 'center' });
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    (c as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${u(0.3)}px`;
-    engrave('PIPELINE', w / 2, h * 0.24, `800 ${u(2.1)}px ${FONT}`);
-    (c as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
     engrave(look.name.replace(/\s*\d+K$/, ''), w / 2, h * 0.52, `700 ${Math.min(u(2.0), (w * 0.9) / Math.max(6, look.name.length * 0.58))}px ${FONT}`);
     engrave(cap, w / 2, h * 0.78, `800 ${u(3.2)}px ${FONT}`);
     c.restore();
@@ -249,10 +246,10 @@ function stickerTex(look: NvmeLook): Texture | null {
     const u = (mm: number) => mm * PX, seed = hash(look.name + cap + 'u');
     c.clearRect(0, 0, w, h);
     roundRect(c, 0, 0, w, h, u(0.6)); c.fillStyle = '#c9cdd3'; c.fill();
-    c.fillStyle = '#111317'; c.textBaseline = 'alphabetic'; c.font = `800 ${u(1.6)}px ${FONT}`; c.fillText('PIPELINE', u(1.6), u(2.9));
-    c.font = `600 ${u(1.0)}px ${FONT}`; c.fillText(`${look.name} · M.2 2280 · PCIe 4.0 x4 NVMe`, u(1.6), u(4.7));
-    barcode(c, u(1.4), u(5.8), u(20), u(3.6), seed, '#111317', `PC-N2-${cap}`);
-    barcode(c, u(23), u(5.8), u(19.4), u(3.6), seed + 1, '#111317', `S/N PC2N${String(seed % 1e7).padStart(7, '0')}A`);
+    drawLockup(c, 'kura', u(1.6), u(2.3), u(2.0), '#111317');
+    c.fillStyle = '#111317'; c.textBaseline = 'alphabetic'; c.font = `600 ${u(1.0)}px ${FONT}`; c.fillText(`${look.name} · M.2 2280 · PCIe 4.0 x4 NVMe`, u(1.6), u(4.7));
+    barcode(c, u(1.4), u(5.8), u(20), u(3.6), seed, '#111317', `KR-N2-${cap}`);
+    barcode(c, u(23), u(5.8), u(19.4), u(3.6), seed + 1, '#111317', `S/N KR2N${String(seed % 1e7).padStart(7, '0')}A`);
     matrix(c, u(1.6), u(11.2), u(4.6), seed + 2, '#111317');
     c.font = `600 ${u(0.9)}px ${MONO}`;
     ['3.3V ⎓ 2.5A', 'FW 2B4QFXO7', `MFG ${2023 + (seed % 3)}-${String(1 + (seed % 12)).padStart(2, '0')}`].forEach((t, i) => c.fillText(t, u(7.2), u(12.2 + i * 1.3)));

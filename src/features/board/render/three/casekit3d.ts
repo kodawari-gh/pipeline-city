@@ -6,6 +6,7 @@ import {
   type BufferGeometry, type ExtrudeGeometry, type ExtrudeGeometryOptions, type Material, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { drawLockup, lockupWidth, type BrandId, type LockupOpts } from '@/core/render/brands';
 import { bakedTex } from '@/core/render/three/baked';
 import { extrude, instanced, LOW_TOL, lowSides, paintLow, place, SEG, shareTex, withLow, type RectLike } from '@/core/render/three/geometry';
 import { sheetCut } from '@/core/render/three/detail';
@@ -395,21 +396,28 @@ export function grain(): Texture | null {
   });
 }
 
-/** The pipeline mark (four rising bars on a foot) and a word, painted for a badge: `ink` the bars, `acc` the last bar. */
-export function badgeTex(key: string, w: number, h: number, word: string, ink: string, acc: string, bg: string | null, mark = true): Texture | null {
+/**
+ * A maker's badge (`core/render/brands`): its lockup centred on the sheet (clear where `bg` is null), the mark `o.h` of the sheet's height (default
+ * 0.56) or less where the sheet is too narrow. `acc` null prints it in the ink alone (an etching, a deboss).
+ */
+export function badgeTex(key: string, w: number, h: number, brand: BrandId, ink: string, acc: string | null, bg: string | null, o: LockupOpts & { h?: number } = {}): Texture | null {
   return tex('badge-' + key, w, h, (c) => {
-    if (bg) { c.fillStyle = bg; c.fillRect(0, 0, w, h); }
-    const s = h * 0.5, bw = s * 0.17, gap = s * 0.07, x0 = word ? w * 0.12 : (w - 4 * bw - 3 * gap) / 2, y0 = (h - s) / 2;
-    if (mark) {
-      for (let k = 0; k < 4; k++) { const bh = s * (0.34 + k * 0.2); c.fillStyle = k === 3 ? acc : ink; c.fillRect(x0 + k * (bw + gap), y0 + s - bh, bw, bh); }
-      c.fillStyle = ink; c.fillRect(x0 - gap, y0 + s + gap, 4 * bw + 4 * gap, s * 0.07);
-    }
-    if (word) {
-      c.fillStyle = ink; c.textBaseline = 'middle'; c.textAlign = mark ? 'left' : 'center';
-      c.font = `700 ${Math.round(h * 0.36)}px system-ui, sans-serif`;
-      c.fillText(word, mark ? x0 + 4 * bw + 4 * gap + w * 0.06 : w / 2, h / 2 + h * 0.02);
-    }
+    if (bg) { c.fillStyle = bg; c.fillRect(0, 0, w, h); } else c.clearRect(0, 0, w, h);
+    const opts = { ...o, acc, align: 'center' as const }, mh = h * (o.h ?? 0.56);
+    const m = Math.min(mh, (mh * w * 0.84) / lockupWidth(brand, mh, opts));
+    drawLockup(c, brand, w / 2, h / 2, m, ink, opts);
   });
+}
+
+/** A maker's lockup debossed into a sheet (`core/render/brands`): a dark print over a paler lip just under it, on a clear ground (a decal's material). */
+export function debossMat(key: string, brand: BrandId, w: number, h: number, ink = '#050608', lip = '#2a2d32'): Material {
+  const t = tex('deboss-' + key, w, h, (c) => {
+    c.clearRect(0, 0, w, h);
+    const o = { acc: null, align: 'center' as const }, mh = h * 0.8, m = Math.min(mh, (mh * w * 0.96) / lockupWidth(brand, mh, o));
+    drawLockup(c, brand, w / 2, h / 2 + m * 0.05, m, lip, o);
+    drawLockup(c, brand, w / 2, h / 2, m, ink, o);
+  });
+  return mat(0xffffff, { map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 }
 
 /** The approved base colours a case may use (docs/3D_STYLE.md "Asset standard" §1): families 1, 2, 4 and 5, the dark PCB mask, and the void behind a hole. */

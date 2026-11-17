@@ -6,6 +6,7 @@
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen.
 import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material } from 'three';
+import { drawLockup } from '@/core/render/brands';
 import { drum, instanced, rectBox, SEG, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
@@ -23,9 +24,9 @@ export const mouthAt = (y: number, Zp: number) => ({ y: y + JACK.w / 2, z: Zp - 
 
 /** Each card's controller (its package's side, mm), its sink (0: none, as on a real gigabit card), the sink's and the push pins' finish, its marking. */
 const CTRL: Record<string, { chip: number; sink: number; sinkHex: number; pinHex: number; mark: string[] }> = {
-  'nic-gbe': { chip: 9, sink: 0, sinkHex: 0, pinHex: 0, mark: ['PL-N210', 'GBE Q9A2', '2241'] },
-  'nic-10g': { chip: 25, sink: 40, sinkHex: 0xb9c0c8, pinHex: 0xe6e4dc, mark: ['PL-N510', '10GBASE-T', 'A1 2244'] },
-  'nic-40g': { chip: 25, sink: 45, sinkHex: 0x24272d, pinHex: 0x1a1c20, mark: ['PL-N740', '40GBASE-T', 'B0 2251'] },
+  'nic-gbe': { chip: 9, sink: 0, sinkHex: 0, pinHex: 0, mark: ['RL-N210', 'GBE Q9A2', '2241'] },
+  'nic-10g': { chip: 25, sink: 40, sinkHex: 0xb9c0c8, pinHex: 0xe6e4dc, mark: ['RL-N510', '10GBASE-T', 'A1 2244'] },
+  'nic-40g': { chip: 25, sink: 45, sinkHex: 0x24272d, pinHex: 0x1a1c20, mark: ['RL-N740', '40GBASE-T', 'B0 2251'] },
 };
 /** The sink's height off the PCB, under the jacks' (`JACK.h`). */
 const SINK_H = 12 * MM;
@@ -224,7 +225,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
   // the MAC label, and the mask over the copper with its silkscreen
   const lt = macLabel(visual);
   if (lt) u.add(decal(U(a.label), zu + 0.15 * MM, decalMat(lt, { rough: 0.7 })));
-  const text = [{ x: f.x1 - 26 * MM, y: f.y0 + 6 * MM, s: `PL-NIC ${SPEED[visual] ?? '1G'} REV A2`, mm: 1.6 }, ...ys.map((y, k) => ({ x: jx1 + 1 * MM, y: y + JACK.w / 2, s: `LAN${k + 1}  LNK ACT`, mm: 1.1 }))];
+  const text = [{ x: f.x1 - 26 * MM, y: f.y0 + 6 * MM, s: `RELAY NIC ${SPEED[visual] ?? '1G'} REV A2`, mm: 1.6 }, ...ys.map((y, k) => ({ x: jx1 + 1 * MM, y: y + JACK.w / 2, s: `LAN${k + 1}  LNK ACT`, mm: 1.1 }))];
   const f1 = cu.pads.find((p) => p.id === 'U2.1')!, dots = [{ x: f1.r.x - 0.5 * MM, y: f1.r.y - 0.4 * MM, r: 0.25 * MM }];
   if (a.qfn) dots.push({ x: chip.x - 0.9 * MM, y: chip.y - 0.9 * MM, r: 0.25 * MM });
   const board = { x: f.x0, y: f.y0, w: f.x1 - f.x0, h: f.end - f.y0 };
@@ -243,9 +244,10 @@ function serialLabel(visual: string): ReturnType<typeof tex> {
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     c.fillStyle = '#16181c';
     for (let x = 28; x < w - 28;) { const bw = 2 + Math.floor(rnd() * 3) * 2; if (rnd() > 0.45) c.fillRect(x, 70, bw, h * 0.36); x += bw + 2 + Math.floor(rnd() * 3) * 2; }
-    c.font = '600 30px "Consolas", "DejaVu Sans Mono", monospace'; c.textBaseline = 'middle';
-    c.fillText(`PL-NIC-${SPEED[visual] ?? '1G'}  P/N 9C${visual.length}41-A2`, 28, 36);
-    c.fillText(`S/N PLN${(SPEED[visual] ?? '1G').padStart(3, '0')}2244A0${1700 + visual.length * 13}`, 28, h - 34);
+    const lw = drawLockup(c, 'relay', 28, 36, 40, '#16181c', { acc: null });
+    c.fillStyle = '#16181c'; c.font = '600 30px "Consolas", "DejaVu Sans Mono", monospace'; c.textBaseline = 'middle';
+    c.fillText(`RL-NIC-${SPEED[visual] ?? '1G'}  P/N 9C${visual.length}41-A2`, 28 + lw + 24, 36, w - 56 - lw - 24);
+    c.fillText(`S/N RLN${(SPEED[visual] ?? '1G').padStart(3, '0')}2244A0${1700 + visual.length * 13}`, 28, h - 34);
   });
 }
 
@@ -257,7 +259,7 @@ function serialLabel(visual: string): ReturnType<typeof tex> {
 export function nicBack(g: Group, visual: string, f: CardFrame, Z: number, cu: NicCopper): void {
   const a = cu.at, L = f.x1 - f.x0, sp = SPEED[visual] ?? '1G', s = a.serial;
   const text = [
-    { x: s.x, y: f.end - 11 * MM, s: `PL-NIC ${sp}  REV A2`, mm: 1.8 },
+    { x: s.x, y: f.end - 11 * MM, s: `RELAY NIC ${sp}  REV A2`, mm: 1.8 },
     { x: s.x, y: f.end - 7.6 * MM, s: '94V-0   E224410   2244', mm: 1.1 },
     { x: s.x, y: f.end - 4.6 * MM, s: 'CE   FCC   RoHS', mm: 1.3 },
     { x: f.x0 + 2.5 * MM, y: f.end - 3.5 * MM, s: `PCB-NIC${sp}-4L`, mm: 0.9 },

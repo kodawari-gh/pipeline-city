@@ -5,6 +5,7 @@
 // screws to); the video socket and the power cord's strain relief at the bottom edge, where the cables leave (`monitorSeats`); five buttons under
 // the chin's east end; a height-adjustable column with a cable hole through it; a rounded foot on four rubber pads.
 import { BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh, Path, PlaneGeometry, Quaternion, Shape, Vector2, Vector3, type BufferGeometry, type Material } from 'three';
+import { drawLockup } from '@/core/render/brands';
 import { extrude, instanced, paint, place, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 
@@ -96,13 +97,13 @@ function ratingLabel(): Material {
   const W = 600, H = 340;
   const t = paint(W, H, (c) => {
     c.fillStyle = '#cfd3d7'; c.fillRect(0, 0, W, H);
+    drawLockup(c, 'hikari', 24, 36, 40, '#1b1d21', { acc: null });
     c.fillStyle = '#1b1d21'; c.textBaseline = 'top';
-    c.font = '700 34px system-ui, sans-serif'; c.fillText('PIPELINE', 24, 18);
     c.font = '19px system-ui, sans-serif';
-    ['Model: PM19-F    18.5" LED monitor', 'Input: 100-240 V ~ 50/60 Hz 0.8 A', 'Panel: 1366 x 768  60 Hz', 'Made for Pipeline City'].forEach((l, i) => c.fillText(l, 24, 66 + i * 26));
+    ['Model: HK19-F    18.5" LED monitor', 'Input: 100-240 V ~ 50/60 Hz 0.8 A', 'Panel: 1366 x 768  60 Hz', 'Made for Pipeline City'].forEach((l, i) => c.fillText(l, 24, 66 + i * 26));
     let x = 24;
     for (let k = 0; x < 360; k++) { const bw = 2 + ((k * 7919) % 5); if (k % 2 === 0) c.fillRect(x, 182, bw, 90); x += bw; }
-    c.font = '15px monospace'; c.fillText('S/N PM19F2611083', 24, 280);
+    c.font = '15px monospace'; c.fillText('S/N HK19F2611083', 24, 280);
     c.lineWidth = 3; c.strokeStyle = '#1b1d21'; c.font = '700 21px system-ui, sans-serif';
     ['CE', 'FC', 'UL'].forEach((s, k) => { c.strokeRect(404 + k * 64, 190, 52, 52); c.fillText(s, 413 + k * 64, 205); });
     c.beginPath(); c.arc(436, 290, 20, 0, Math.PI * 2); c.stroke();
@@ -133,8 +134,8 @@ export function monitorBody(m: RectLike, screen: RectLike, deskY: number, z0: nu
   R.add(softBox(m, z0, z0 + 180, shell, 50));
   const F = 120, glassBot = screen.y + screen.h + 30;
   R.add(rectBox({ x: m.x + F, y: m.y + F, w: m.w - 2 * F, h: glassBot - (m.y + F) }, z0 + 176, z0 + 181, black));
-  // the maker's name on the chin
-  const name = paint(512, 64, (c, w, h) => { c.fillStyle = '#9aa1a9'; c.font = '600 40px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('P I P E L I N E', w / 2, h / 2 + 2); });
+  // the maker's lockup on the chin (`brands/hikari.ts`), in one grey
+  const name = paint(512, 64, (c, w, h) => { drawLockup(c, 'hikari', w / 2, h / 2, h * 0.72, '#9aa1a9', { acc: null, align: 'center' }); });
   const logo = new Mesh(new PlaneGeometry(1400, 175), mat(0xffffff, { map: name, transparent: true, roughness: 0.4, metalness: 0.3 }));
   logo.position.set(cx, -(glassBot + by) / 2, z0 + 181);
   R.add(logo);

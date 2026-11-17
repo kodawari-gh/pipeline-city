@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS, pcieLabel } from '../sim/specs';
 import { BD, BOARD_SEED, COOLER_HOLE, COOLER_HOLES, GEO, PKG, SOCKET_E, SOCKET_KEEP, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
+import { brandSprite } from '@/core/render/brands/pixi';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts, m2Socket, m2Standoffs, m2Stick, m2Tie, pcieFeed, slotLanding, slotTie, xtalPads } from './layout/pins';
@@ -427,7 +428,10 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = f
   }
   // the bottom silkscreen sits above the trim lines (south - 150 and below), clear of the header row and the holes
   if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 195, 36, 0.6);
-  lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, Math.min(1300, BD.x + BD.w - 1150), south - 215, 40, 0.8);
+  // the board maker's lockup (`core/render/brands`) in the silkscreen's ink, over the model line
+  const mx = Math.min(1300, BD.x + BD.w - 1150);
+  labels.addChild(brandSprite('kitsune', mx, south - 290, 64, P.silk, { acc: null, align: 'left', alpha: 0.8 }));
+  lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, mx, south - 215, 40, 0.8);
 
   // ---- the pads every signal lane ends on, over the parts, so each trace visibly meets its pin ----
   drawPads(g, padLanes, P.via);

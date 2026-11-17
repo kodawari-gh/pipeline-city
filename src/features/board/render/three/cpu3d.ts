@@ -5,6 +5,7 @@
 // as the 2D lid does. The first two tiers wear a plain flat lid, the later ones a stepped one: a flange glued to the substrate, a plateau on it.
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, type Texture } from 'three';
 import { Container, Graphics } from 'pixi.js';
+import { drawLockup } from '@/core/render/brands';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import type { Theme } from '@/core/render/theme';
@@ -54,10 +55,9 @@ function etching(spec: CpuSpec, w: number, h: number): Texture | null {
   return tex(`cpu-etch-${spec.id}-${W}x${H}`, W, H, (c) => {
     c.clearRect(0, 0, W, H);
     const ink = 'rgba(38,42,50,0.78)', m = W * 0.07, model = spec.name.split(' (')[0]!.toUpperCase(), cores = spec.cores ?? 1, n = hash(spec.id);
+    drawLockup(c, 'axiom', m, m + W * 0.05, W * 0.1, ink, { acc: null });
     c.fillStyle = ink;
     c.textBaseline = 'alphabetic';
-    c.font = `700 ${Math.round(W * 0.09)}px sans-serif`;
-    c.fillText('PIPELINE', m, m + W * 0.08);
     c.font = `600 ${Math.round(W * 0.062)}px sans-serif`;
     c.fillText(model, m, m + W * 0.17);
     c.font = `500 ${Math.round(W * 0.036)}px monospace`;

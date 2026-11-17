@@ -127,7 +127,7 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
   const art: MaskArt = {
     ...look.art, seed: 0, copper: copper('top'), pads: cu.pads.map((q) => q.r),
     text: [
-      { x: X0 + 44, y: Y1 - 19, s: `PIPELINE  TPM ${look.gen}  LPC`, mm: 0.72 },
+      { x: X0 + 44, y: Y1 - 19, s: `SIGIL  TPM ${look.gen}  LPC`, mm: 0.72 },
       { x: X0 + 10, y: j1.y, s: '1', mm: 0.7 },
       { x: X0 + 40, y: body.y - 6, s: 'U1', mm: 0.7 },
       { x: X0 + 12, y: Y0 + 128, s: 'C1', mm: 0.6 },
