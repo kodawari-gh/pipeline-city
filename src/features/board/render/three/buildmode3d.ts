@@ -74,6 +74,8 @@ export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 /** The share of the panel's swing to wait for, the speed of the parts in the way in a chain of more than two steps, and of a skip. */
 const DOOR_WAIT = 0.4, QUICK = 2.5, SKIP = 6;
+/** A cable in a chain (a fan's lead) is pulled this much faster again: it is the same small motion each time. */
+const CABLE_QUICK = 1.8;
 const SETTLE_SECONDS = 0.2, SETTLE_DEPTH = 40;
 /** The tile bakes' time in a tick that follows a drawn frame, and in one that follows none (ms); the drawn frames between two rank refreshes. */
 const BAKE_MS = 6, BAKE_STILL_MS = 12, RANK_EVERY = 32;
@@ -642,7 +644,7 @@ export class BuildStage {
       if (!OUTSIDE.has(id)) await this.door(true);
       // the plug comes out as a player's hand pulls it: against its latch, free, lifted, then it falls on its cable (the built cable is hidden meanwhile)
       this.setStep('Pull the plug out of its socket');
-      if (await this.hand.pullOut(id)) { undo?.push({ t: 'cable', id }); this.bump(); return null; }
+      if (await this.hand.pullOut(id, this.pace > 1 ? CABLE_QUICK : 1)) { undo?.push({ t: 'cable', id }); this.bump(); return null; }
       await this.play(node, 'cable', 'out');
       this.edit((g) => g.disconnectCable(id));
       undo?.push({ t: 'cable', id });
@@ -682,7 +684,7 @@ export class BuildStage {
       this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === u.id)?.name ?? u.id}`);
       // the loose plug is carried to its socket and pushed in; a cable with no rig (or one the game refuses) is connected at once
       this.setStep('Push the plug home');
-      if (await this.hand.plugIn(u.id)) { this.bump(); return; }
+      if (await this.hand.plugIn(u.id, this.pace > 1 ? CABLE_QUICK : 1)) { this.bump(); return; }
       if (this.dead) return;
       this.edit((g) => g.connectCable(u.id));
       this.rebuild();
