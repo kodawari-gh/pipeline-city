@@ -5,7 +5,7 @@ import type { Mesh, Object3D } from 'three';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/game/types';
 import { BakeQueue } from '@/core/render/three/artlod';
-import { idOf } from '@/core/render/three/pick';
+import { findById, idOf } from '@/core/render/three/pick';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { Machine3D } from './machine3d';
 import { quietCanvas } from './testutil';
@@ -91,6 +91,26 @@ describe('a patched machine stands as a built one', () => {
     const sink = snap().devices.find((x) => x.kind === 'vrm-sink');
     if (sink) { out('fan', `${sink.slot}.fan0`); out('vrm-sink'); back(); back(); }
   }, 120_000);
+
+  it('leaves no id on a host it built again: a lookup finds the shown one', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
+    const m = stage(g.snapshot());
+    const fan = g.snapshot().devices.find((x) => x.kind === 'fan' && x.slot === 'vrm-sink0.fan0')!, host = g.snapshot().devices.find((x) => x.slot === 'vrm-sink0')!;
+    // (the fan off and on again: the sink is built twice, its old copies stay hidden in the tree)
+    const r = g.uninstall(fan.id);
+    if (!r.ok) throw new Error(r.reason);
+    expect(m.patch(g.snapshot(), roomGeo())).toBe(true);
+    expect(g.install(r.invId!, fan.slot).ok).toBe(true);
+    expect(m.patch(g.snapshot(), roomGeo())).toBe(true);
+    const shown = (o: Object3D | null) => { for (let q = o; q; q = q.parent) if (!q.visible) return false; return !!o; };
+    for (const d of g.snapshot().devices.filter((x) => x.slot.startsWith('vrm-sink0'))) {
+      let n = 0;
+      m.root.traverse((o) => { if (o.userData.id === d.id) n++; });
+      expect(n, `${d.kind} ${d.id}: one object`).toBe(1);
+      expect(shown(findById(m.root, d.id)), `${d.kind} ${d.id}: shown`).toBe(true);
+    }
+    expect(host.id).toBe(g.snapshot().devices.find((x) => x.slot === 'vrm-sink0')!.id);
+  }, 60_000);
 
   it('asks for a build for a liquid pump (its hoses join it)', () => {
     const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });

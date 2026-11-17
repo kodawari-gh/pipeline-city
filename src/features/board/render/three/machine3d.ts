@@ -148,6 +148,8 @@ const patchable = (d: DeviceSnap): boolean => {
 };
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
+/** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
+export const untag = (root: Object3D): void => root.traverse((o) => { if (typeof o.userData.id === 'string') delete o.userData.id; });
 
 /** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
 const netVisible = (s: Snapshot) => netPropsVisible({
@@ -999,7 +1001,8 @@ export class Machine3D {
     const drop = <T>(list: T[], out: readonly T[]): void => { for (const x of out) { const i = list.indexOf(x); if (i >= 0) list.splice(i, 1); } };
     for (const d of gone) {
       const o = this.owned.get(keyOf(d))!;
-      for (const r of o.roots) { r.visible = false; this.graveyard.push(r); }
+      // (a hidden part answers to no id: a host built again keeps its id, and a lookup must find the new one, never the copy left here)
+      for (const r of o.roots) { r.visible = false; untag(r); this.graveyard.push(r); }
       drop(this.reveals, o.reveals); drop(this.fades, o.fades); drop(this.apart, o.apart); drop(this.fans, o.fans); drop(this.obstacles, o.obstacles);
       drop(this.keep, o.keep); drop(this.caseRoots, o.caseRoots); drop(this.rails, o.rails);
       for (const ob of o.obstacles) this.solids.delete(ob);
