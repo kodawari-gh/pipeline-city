@@ -11,7 +11,7 @@ Source of truth for tasks in this repository. Rewritten 2026-11-17 for one theme
 - Use the Edit tool, never rewrite a file from a script.
 - Any task with a look needs a before and after shot (`npm run shot`), and a `--prod` shot before a push.
 - When done, delete the task's line. If a task is only part done, rewrite its `State` and keep it.
-- Test runner note (2026-11-17): on this checkout `vitest run` fails on every file ("Cannot read properties of undefined (reading 'config')"); `--pool=vmThreads` works. `highident.test.ts` times out at 20 s with and without changes.
+- Test runner note (2026-11-17): on this checkout `vitest run` fails on every file ("Cannot read properties of undefined (reading 'config')"); `--pool=vmThreads` works. Heavy render tests take about 43 s here: their own timeouts are now 120 to 180 s, and the full set passes with `--pool=vmThreads`.
 
 ## Where things stand (2026-11-17, branch `main`)
 

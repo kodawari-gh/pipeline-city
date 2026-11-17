@@ -111,5 +111,5 @@ describe('High builds the same machine and room', () => {
     const want = readGolden();
     expect(want, 'no High golden yet: fill highident.expected.json from origin/main (UPDATE_HIGH_GOLDEN=1 npx vitest run highident.test.ts)').not.toBeNull();
     expect(got).toEqual(want);
-  }, 20_000);
+  }, 120_000);
 });

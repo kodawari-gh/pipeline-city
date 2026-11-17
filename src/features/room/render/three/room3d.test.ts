@@ -55,7 +55,7 @@ it('keeps the bedside lantern\'s map to the drawer and the bed with the lamps\' 
   settle();
   near.position.x += 500;
   expect(frames()).toContain(bed);
-}, 60000);
+}, 180000);
 
 it('casting is false with the shadows off and true at a shadow level', () => {
   const room = new Room3D();
@@ -106,7 +106,7 @@ type Swap = { cityDetail?: string; setCityDetail?: (d: 'high' | 'low') => void }
 
 it('the city detail is "high" by default', () => {
   expect((new Room3D() as unknown as Swap).cityDetail).toBe('high');
-}, 60000);
+}, 180000);
 
 it('setCityDetail("low") builds the cut city, and "high" again builds the first city back, the old view disposed', () => {
   const room = new Room3D(), swap = room as unknown as Swap, first = cityChecksum(room);

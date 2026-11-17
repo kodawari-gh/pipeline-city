@@ -257,7 +257,7 @@ describe("sandbox maxed machine", () => {
     for (let i = 0; i < 1500; i++) g.advanceBaseTick(); // and it stays up: the 250 W supply and the liquid loop carry it
     expect(g.snapshot().power.tripped).toBeFalsy();
     expect(g.snapshot().phase).not.toBe("error");
-  }, 30000);
+  }, 120000);
   it("does not change the plain assembled sandbox machine", () => {
     expect(sb({ preassembled: true }).snapshot().devices.length).toBe(8); // five parts and three fans
   });

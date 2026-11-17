@@ -47,5 +47,5 @@ describe('the repeated meshes', () => {
       if (env.REPEATS_DUMP === '1') console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
       expect(save, name).toBeLessThanOrEqual(CEILING[name]);
     }
-  }, 30_000);
+  }, 120_000);
 });

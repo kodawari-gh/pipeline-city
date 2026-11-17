@@ -66,5 +66,5 @@ describe('preview rebuild frees its textures', () => {
     }
     // the first build may add the shared caches and the city; every later build may add at most a couple more
     for (const c of counts.slice(1)) expect(c - counts[0]!).toBeLessThanOrEqual(2);
-  }, 60000);
+  }, 180000);
 });

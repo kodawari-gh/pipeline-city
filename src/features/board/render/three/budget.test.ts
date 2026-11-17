@@ -65,7 +65,7 @@ describe('High draw and triangle budget', () => {
     console.log(`High budget: machine+room ${draws} draws, ${verts} verts`);
     expect(within(draws, BUDGET.machineRoomDraws), `draws ${draws} > ${BUDGET.machineRoomDraws} + 5 %`).toBe(true);
     expect(within(verts, BUDGET.machineRoomVerts), `verts ${verts} > ${BUDGET.machineRoomVerts} + 5 %`).toBe(true);
-  }, 20_000);
+  }, 120_000);
 
   it('city triangles stay within BUDGET', () => {
     const view = new OutsideView(0, 0, 10, 10, 0);

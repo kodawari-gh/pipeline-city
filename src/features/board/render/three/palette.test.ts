@@ -70,7 +70,7 @@ describe('the base colours', () => {
       }
       expect(list.length, name).toBeLessThanOrEqual(CEILING[name]);
     }
-  }, 30_000);
+  }, 120_000);
 
   it('every mat() literal is a family colour', () => {
     const allowed = new Set<number>([...FAMILY, 0xffffff, 0x000000, 0x0d1636, 0x3be3ff, 0xa68bff, ...OPEN]);
@@ -113,5 +113,5 @@ describe('the base colours', () => {
     const seen = [...baseColours(buildMachine(maxedSnapshot(), false).root).keys(), ...baseColours(new Room3D().root).keys()];
     const unnamed = [...new Set(seen.filter((c) => !named.has(c)))].sort((a, b) => a - b);
     expect(unnamed.map(hex), 'unnamed base colours').toEqual([]);
-  }, 30_000);
+  }, 120_000);
 });

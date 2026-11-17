@@ -32,4 +32,4 @@ it('the Build my PC scene shares no material or texture with the live room or th
     expect(common(owned(stage.root), owned(other)), `stage machine / live ${name}`).toEqual({ mats: 0, texs: 0 });
     expect(common(owned(monitor.root), owned(other)), `stage monitor / live ${name}`).toEqual({ mats: 0, texs: 0 });
   }
-}, 60000);
+}, 180000);
