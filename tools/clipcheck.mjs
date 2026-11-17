@@ -29,6 +29,12 @@ try {
   await p.waitForSelector('.bld-bar', { timeout: 30000 });
   await p.waitForFunction(() => !!window.__build, null, { timeout: 30000 });
   await p.waitForTimeout(3000);
+  // `--preset level,ram,storage,gpus,npus`: check that machine (as `buildPreset` makes it) instead of the maxed one
+  if (flag('preset', '')) {
+    const [level, ram, storage, gpus, npus] = flag('preset', '').split(',').map(Number);
+    await p.evaluate(async (pr) => { await window.__build.buildPreset({ name: 'x', ...pr }); }, { level, ram, storage, gpus, npus });
+    await p.waitForTimeout(2500);
+  }
   const rows = await p.evaluate(async ([STEPS, MIN, KINDS]) => {
     const B = window.__build, BM = await import('/src/features/board/render/three/buildmotion.ts'), BS = await import('/src/features/board/render/three/buildmode3d.ts');
     const THREE = await import('/node_modules/three/build/three.module.js');
@@ -38,7 +44,7 @@ try {
     const parts = [];
     for (const d of snap.devices) {
       const o = B.objectOf('dev:' + d.id);
-      if (o && o.visible !== false) parts.push({ d, o, kind: d.kind, name: `${d.kind}@${d.slot}`, base: o.position.clone(), baseZ: o.rotation.z });
+      if (o && o.visible !== false) parts.push({ d, o, kind: d.kind, name: `${d.kind}@${d.slot}(${d.spec})`, base: o.position.clone(), baseZ: o.rotation.z });
     }
     const box = (o) => { o.updateWorldMatrix(true, true); return new THREE.Box3().setFromObject(o); };
     const vol = (b) => { const s = b.getSize(new THREE.Vector3()); return Math.max(0, s.x) * Math.max(0, s.y) * Math.max(0, s.z); };
@@ -58,13 +64,15 @@ try {
       const mid = [m, ...crew].reduce((b, x) => b.union(x.b), new THREE.Box3()).getCenter(new THREE.Vector3());
       for (const x of [m, ...crew]) { const c = x.o.parent ? x.o.parent.worldToLocal(mid.clone()) : x.base; x.pivot = [c.x, c.y]; }
       for (const o of still) if (o !== m) seat.set(o, share(m.b, o.b));
+      // (a part the removal plan takes out first is gone when this one moves: a hit with it is no clip; what is left is a rule the graph lacks)
+      const first = new Set(B.plan('dev:' + m.d.id));
       const hits = new Map();
       for (let i = 0; i <= STEPS; i++) {
         const t = (total * i) / STEPS, pose = BM.poseAt(motion, t, 'out');
         for (const x of [m, ...crew]) { x.o.position.set(...BM.placed([x.base.x, x.base.y, x.base.z], x.pivot, pose.turn, pose.offset)); x.o.rotation.z = x.baseZ + pose.turn; x.o.updateWorldMatrix(true, true); }
         const mb = box(m.o);
         for (const o of still) {
-          if (o === m || crew.includes(o)) continue;
+          if (o === m || crew.includes(o) || first.has('dev:' + o.d.id)) continue;
           const s = share(mb, o.b) - (seat.get(o) ?? 0);
           if (s > MIN) { const h = hits.get(o.name) ?? { with: o.name, worst: 0, at: 0 }; if (s > h.worst) { h.worst = s; h.at = Math.round((t / total) * 100); } hits.set(o.name, h); }
         }

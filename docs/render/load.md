@@ -243,7 +243,7 @@ Every action plays in about 1 s (`ACTION_SECONDS` in `buildmotion.ts`; the case 
 
 ## Clipping (2026-11-17)
 
-`npm run clip:check` plays each part's way out in small steps and lists the parts whose boxes grow into another part's box (axis-aligned boxes: a slanted part can show a false hit, so look with `npm run shot`). It lists, it does not fail.
+`npm run clip:check` plays each part's way out in small steps and lists the parts whose boxes grow into another part's box (axis-aligned boxes: a slanted part can show a false hit, so look with `npm run shot`). It lists, it does not fail. It skips parts the removal plan takes out first, so a hit is a rule the graph lacks (add it to `COVERS`, `OVER_M2` or `OVER_COOLER` in `sim/removal.ts`). `--preset level,ram,storage,gpus,npus` checks another machine than the maxed one (2026-11-17: the biggest card over the biggest cooler was found this way; cards no longer press down during a hold, they rock).
 
 - A radiator leaves with its fans as one piece (motion `assembly`: screws out through the panel, then all of them along the side opening). The fans sit between the panel and the radiator and are screwed through both, so a fan alone on a radiator's mount uses `fan-rad`: it slides out along the radiator, never through it. `takeOutRadiator`, `putBackAssembly` and the group restore in `fit` play the assembly in both directions.
 - The cooler has no twist (even 0.18 rad swung it into the rear fan) and the rear fan pulls straight along the panel, not toward the cooler.

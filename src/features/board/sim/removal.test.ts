@@ -38,6 +38,13 @@ describe("removal graph", () => {
     expect(gpu).toContain(cableNode("video"));
   });
 
+  it("the biggest card waits to leave before the biggest cooler lifts", () => {
+    const b = createBoard(3), c = noCables();
+    const gpu = install(b, "gpu3", "pcie0"), cooler = install(b, "cooler2");
+    if (!gpu.ok || !cooler.ok) throw new Error("install");
+    expect(removalPlan(buildGraph(b, c), devNode(cooler.id))).toContain(devNode(gpu.id));
+  });
+
   it("a card in the next slot waits for the tall card above it", () => {
     const b = createBoard(3), c = noCables();
     const gpu = install(b, "gpu2", "pcie0"), nic = install(b, "nic1", "pcie1"), far = install(b, "nic1", "pcie3"), nvme = install(b, "nvme2", "m20"), nvme2 = install(b, "nvme2", "m21");

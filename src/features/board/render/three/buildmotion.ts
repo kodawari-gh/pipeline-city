@@ -19,7 +19,13 @@ export interface Key {
   fit: string;
 }
 
-export interface Motion { keys: readonly Key[]; /** Peak tilt (rad) of a card pulled out end first. */ tilt?: number }
+export interface Motion {
+  keys: readonly Key[];
+  /** Peak tilt (rad) of a card pulled out end first. */
+  tilt?: number;
+  /** A card with its cooler over an M.2 stick or a CPU cooler: a hold only rocks it, it does not press down (it would sink into what stands under it). */
+  flat?: boolean;
+}
 
 const k = (at: readonly [number, number, number], sec: number, remove: string, fit: string, turn = 0, slide = 0): Key => ({ at, sec, remove, fit, turn, slide });
 const HOME: readonly [number, number, number] = [0, 0, 0];
@@ -53,8 +59,8 @@ const MOTIONS: Record<string, Motion> = {
   // off their fittings (`slide`), then the pair is carried out on its own weight (`LoopHoses.pose`)
   hoses: { keys: [hold(0.35, 'Undo the compression rings', 'Tighten the compression rings'), k([0, 0, 0], 0.45, 'Pull the hoses off the fittings', 'Push the hoses onto the fittings', 0, 1), k([0, 0, 2800], 0.7, 'Lift the hoses out', 'Bring the hoses to the fittings', 0, 1)] },
   radiator: { keys: [hold(0.5, 'Undo the radiator screws', 'Tighten the radiator screws'), k([0, 0, 500], 0.6, 'Pull the radiator off the fan mount', 'Press the radiator onto the fan mount'), k([0, 0, 3600], 0.9, 'Lift the radiator away', 'Bring the radiator over the mount')] },
-  gpu: { tilt: 0.07, keys: [hold(0.5, 'Undo the bracket screws', 'Tighten the bracket screws'), hold(0.35, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 520], 0.6, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3600], 0.9, 'Lift the card away', 'Bring the card over the slot')] },
-  npu: { tilt: 0.07, keys: [hold(0.45, 'Undo the bracket screw', 'Tighten the bracket screw'), hold(0.3, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 480], 0.55, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3200], 0.8, 'Lift the card away', 'Bring the card over the slot')] },
+  gpu: { tilt: 0.07, flat: true, keys: [hold(0.5, 'Undo the bracket screws', 'Tighten the bracket screws'), hold(0.35, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 520], 0.6, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3600], 0.9, 'Lift the card away', 'Bring the card over the slot')] },
+  npu: { tilt: 0.07, flat: true, keys: [hold(0.45, 'Undo the bracket screw', 'Tighten the bracket screw'), hold(0.3, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 480], 0.55, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3200], 0.8, 'Lift the card away', 'Bring the card over the slot')] },
   nic: { tilt: 0.07, keys: [hold(0.4, 'Undo the bracket screw', 'Tighten the bracket screw'), k([0, 0, 420], 0.5, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 2800], 0.7, 'Lift the card away', 'Bring the card over the slot')] },
   storage: { keys: [hold(0.45, 'Undo the retaining screw', 'Tighten the retaining screw'), k([0, 0, 300], 0.5, 'Slide the drive out', 'Slide the drive in'), k([0, 0, 2600], 0.7, 'Lift the drive away', 'Bring the drive over its bay')] },
   // a SATA drive on its tray (drivecage3d.ts): the latch frees it, it slides its whole length out of the cage toward the glass, then comes away
@@ -177,7 +183,7 @@ export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
   // a hold (a latch, a screw, a lever): the part does not travel but it does not freeze: it presses in and rocks a little (zero at both ends)
   if (key.hold) {
     const bump = Math.sin(Math.PI * raw);
-    offset[2] += HOLD_PRESS * bump;
+    if (!m.flat) offset[2] += HOLD_PRESS * bump;
     turn += HOLD_ROCK * Math.sin(2 * Math.PI * raw) * bump;
   }
   const reach = Math.hypot(...keys[keys.length - 1]!.at) || 1, first = keys.find((x) => x.at !== HOME)?.at ?? HOME;

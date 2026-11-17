@@ -39,6 +39,15 @@ export const OVER_M2: Readonly<Record<string, Readonly<Record<string, readonly s
   npu1: { pcie0: ["m20"], pcie1: ["m21"], pcie2: ["m22"] },
   npu2: { pcie0: ["m20"], pcie1: ["m21"], pcie2: ["m22"] },
 };
+/**
+ * The CPU coolers a card's cooler stands over, by spec id and the PCIe slot it stands in: the cooler cannot lift away under it (the card comes out
+ * first). Found with `npm run clip:check` on the biggest machine; a smaller card or cooler leaves room.
+ */
+export const OVER_COOLER: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
+  gpu3: { pcie0: ["cooler2"] },
+};
+/** Whether a card (spec `spec` in PCIe slot `pcie`) stands over a CPU cooler of spec `cooler`. */
+export const overCooler = (spec: string, pcie: string, cooler: string): boolean => !!OVER_COOLER[spec]?.[pcie]?.includes(cooler);
 /** Whether a card (spec `spec` in PCIe slot `pcie`) stands over M.2 socket `m2`. */
 export const overM2 = (spec: string, pcie: string, m2: string): boolean => !!OVER_M2[spec]?.[pcie]?.includes(m2);
 
@@ -51,6 +60,7 @@ function coveredBy(board: Board, dev: InstalledDevice): InstalledDevice[] {
   const spec = deviceSpec(dev), out: InstalledDevice[] = [];
   const others = board.devices.filter((o) => o.id !== dev.id);
   if (spec.kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler"));
+  if (spec.kind === "cooler") out.push(...others.filter((o) => overCooler(o.spec, o.slot, dev.spec)));
   // a heatsink's fans clip onto it; the fans on a radiator's mounts are screwed through it into the case
   out.push(...fansOn(board, dev.slot));
   const rad = spec.kind === "radiator" ? fittedRadiator(board) : null;
@@ -178,6 +188,7 @@ export function accessBlockers(board: Board, slotId: string, kind: DeviceKind): 
   const out: string[] = [];
   const others = board.devices;
   if (kind === "cpu") out.push(...others.filter((o) => deviceSpec(o).kind === "cooler").map((o) => devNode(o.id)));
+  if (kind === "cooler") out.push(...others.filter((o) => others.some((c) => c.slot === slotId && overCooler(o.spec, o.slot, c.spec))).map((o) => devNode(o.id)));
   if (slot.type === "pcie") {
     const n = slotNo(slotId);
     for (const o of others) { const os = deviceSpec(o); if (os.slot === "pcie" && slotNo(o.slot) < n && slotNo(o.slot) + (COVERS[os.kind] ?? 0) >= n) out.push(devNode(o.id)); }
