@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { SnapCache } from './buildmode3d';
+import { machineKey } from './machine3d';
 
 describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
   const rig = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
@@ -40,5 +41,27 @@ describe('SnapCache (PERF19: one snapshot per change, not per frame)', () => {
     const sa = c.of(a), sb = c.of(b);
     expect(sb).not.toBe(sa);
     expect(sb.boardTier).toBe(b.board.tier);
+  });
+});
+
+describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)', () => {
+  const key = (g: Game) => machineKey(new SnapCache().of(g));
+
+  it('keeps the machine key when a part comes out and goes back in its socket', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), before = key(g);
+    const ram = g.snapshot().devices.find((d) => d.kind === 'ram')!;
+    const out = g.uninstall(ram.id);
+    expect(out.ok).toBe(true);
+    expect(key(g)).not.toBe(before); // a part really gone is a build
+    expect(g.install(out.ok ? out.invId! : '', ram.slot).ok).toBe(true);
+    expect(key(g)).toBe(before); // put back: the machine on the stage is still right
+  });
+
+  it('keeps the machine key when a cable is plugged in or out (the cable builds itself)', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), before = key(g);
+    g.disconnectCable('atx');
+    expect(key(g)).toBe(before);
+    g.connectCable('atx');
+    expect(key(g)).toBe(before);
   });
 });

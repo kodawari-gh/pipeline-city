@@ -116,7 +116,7 @@ const underCage = (c: CagePlan): Mesh => {
 /** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
 export function machineKey(s: Snapshot | null): string {
   if (!s) return 'none';
-  const key = [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')].join('|');
+  const key = [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',')].join('|');
   return lowDetail() ? `${key}|low` : key; // (High's key is what it was)
 }
 

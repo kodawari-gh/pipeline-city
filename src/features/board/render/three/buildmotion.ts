@@ -114,3 +114,12 @@ export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
 
 /** Is the motion finished `t` seconds in? */
 export const finished = (m: Motion, t: number): boolean => t >= motionSeconds(m);
+
+/**
+ * How far a socket's latches are open (0 shut, 1 open) `t` seconds into a motion whose first key is the hold that works them: they open during that
+ * hold when the part comes out ('out') and stay open while it is away; going in ('in') they are open until the part is seated, then close.
+ */
+export function latchOpen(m: Motion, t: number, dir: 'out' | 'in'): number {
+  const first = m.keys[0]?.sec || 1, total = motionSeconds(m), s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)), u = Math.min(1, s / first);
+  return ease(u);
+}

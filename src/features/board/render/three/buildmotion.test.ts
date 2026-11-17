@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
-import { motionFor, motionKinds, motionSeconds, poseAt } from './buildmotion';
+import { latchOpen, motionFor, motionKinds, motionSeconds, poseAt } from './buildmotion';
 
 describe('build motions', () => {
   it('every part kind and the case parts have a motion', () => {
@@ -61,5 +61,16 @@ describe('a hold (a latch, a screw) is not a freeze', () => {
   it('a plain pull has no press', () => {
     const m = motionFor('cable');
     expect(poseAt(m, m.keys[0]!.sec / 2).offset[2]).toBeGreaterThan(0);
+  });
+});
+
+describe('the latches of a socket', () => {
+  it('open while the stick comes out and stay open, and close as it is seated', () => {
+    const m = motionFor('ram'), total = motionSeconds(m);
+    expect(latchOpen(m, 0, 'out')).toBe(0);
+    expect(latchOpen(m, m.keys[0]!.sec, 'out')).toBe(1);
+    expect(latchOpen(m, total, 'out')).toBe(1);
+    expect(latchOpen(m, 0, 'in')).toBe(1);
+    expect(latchOpen(m, total, 'in')).toBe(0);
   });
 });

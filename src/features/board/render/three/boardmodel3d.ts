@@ -124,6 +124,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   sockets.set('cpu0', up(g, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket));
   GEO.dimm.forEach((d, i) => {
     const s = dimmSlot(d.rect, !filled.has(`dimm${i}`), hexNum(sk.slot), hexNum(sk.latch));
+    s.latches.userData.dimm = `dimm${i}`;
     g.add(s.housing, s.latches);
     sockets.set(`dimm${i}`, s.housing);
   });

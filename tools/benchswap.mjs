@@ -64,6 +64,7 @@ try {
     ['ram out', `const r=B.snapshot.devices.find(d=>d.kind==='ram'); window.__ram=r; await B.remove('dev:'+r.id)`],
     ['ram back', `await B.fit(window.__ram.spec)`],
     ['nic out', `const r=B.snapshot.devices.find(d=>d.kind==='nic'); await B.remove('dev:'+r.id)`],
+    ['cpu swap', `const r=B.snapshot.devices.find(d=>d.kind==='cpu'); await B.fit(r.spec)`],
     ['cpu out', `const r=B.snapshot.devices.find(d=>d.kind==='cpu'); await B.remove('dev:'+r.id)`],
     ['24-pin unplug', `await B.remove('cable:atx')`],
   ];

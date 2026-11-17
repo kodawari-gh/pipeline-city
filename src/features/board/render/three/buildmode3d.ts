@@ -34,7 +34,7 @@ import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
 import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
-import { motionFor, motionSeconds, poseAt } from './buildmotion';
+import { latchOpen, motionFor, motionSeconds, poseAt } from './buildmotion';
 import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
@@ -143,7 +143,7 @@ export class BuildStage {
   private dead = false;
   private last = performance.now();
   private wantOpen = false;
-  private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; done: () => void } | null = null;
+  private anim: { objs: { o: Object3D; base: [number, number, number]; baseTurn: number }[]; kind: string; dir: 'out' | 'in'; t: number; latches: Object3D[]; done: () => void } | null = null;
   private readonly was: [number, number] = [LAYOUT_TIER, LAYOUT_CASE];
   private readonly cleanup: (() => void)[] = [];
   private tierKey = '';
@@ -378,6 +378,7 @@ export class BuildStage {
       x.o.rotation.z = x.baseTurn + p.turn;
     }
     this.setStep(p.label);
+    for (const l of a.latches) l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * latchOpen(m, a.t, a.dir);
     if (a.t >= motionSeconds(m)) {
       // a part going in settles: it dips a little past its seat along the way it came, then comes back (a damped spring, 0.3 s)
       if (a.dir === 'in' && a.t < motionSeconds(m) + SETTLE_SECONDS) {
@@ -578,11 +579,14 @@ export class BuildStage {
   }
 
   /** Play a motion on some objects together. Without any (the monitor of a part that is not built) the time still passes, so the log reads right. */
-  private playAll(objs: Object3D[], kind: string, dir: 'out' | 'in'): Promise<void> {
+  private playAll(objs: Object3D[], kind: string, dir: 'out' | 'in', slot = ''): Promise<void> {
     const m = motionFor(kind), p = poseAt(m, 0, dir);
+    // (a stick's socket latches swing with it: the ones of its own slot)
+    const latches: Object3D[] = [];
+    if (kind === 'ram' && slot) this.machine.root.traverse((o) => { if (o.userData.dimm === slot) latches.push(...o.children); });
     return new Promise((done) => {
       const list = objs.map((o) => ({ o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z }));
-      this.anim = { objs: list, kind, dir, t: 0, done: () => { if (dir === 'out' && objs.length > 1) for (const x of list) x.o.position.set(...x.base); done(); } };
+      this.anim = { objs: list, kind, dir, t: 0, latches, done: () => { if (dir === 'out' && objs.length > 1) for (const x of list) x.o.position.set(...x.base); done(); } };
       for (const x of list) x.o.position.set(x.base[0] + p.offset[0], x.base[1] + p.offset[1], x.base[2] + p.offset[2]);
     });
   }
@@ -590,7 +594,8 @@ export class BuildStage {
   /** Play a node's motion on its object. */
   private play(node: string, kind: string, dir: 'out' | 'in'): Promise<void> {
     const obj = this.objectOf(node);
-    return this.playAll(obj ? [obj] : [], kind, dir);
+    const slot = this.board.devices.find((x) => devNode(x.id) === node)?.slot ?? '';
+    return this.playAll(obj ? [obj] : [], kind, dir, slot);
   }
 
   private async door(open: boolean): Promise<void> {
@@ -745,7 +750,10 @@ export class BuildStage {
       if (!steps.length) steps.push(SIDE);
       if (steps[0] !== SIDE) steps.unshift(SIDE);
       const undo: Undo[] = [];
-      for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo);
+      // (the parts in the way are hidden, not built again: the one build below has them all back)
+      this.deferring = true;
+      try { for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo); } finally { this.deferring = false; }
+      let fresh: { id: string; kind: string; slot: string } | null = null;
       const bought = this.edit((g) => g.purchase(itemId));
       if (!bought.ok) this.note(`Cannot get ${spec.name}: ${bought.reason}`);
       else {
@@ -755,12 +763,24 @@ export class BuildStage {
           this.note(`Fit ${spec.name} in ${slot}`);
           if (occupant) this.record({ t: 'remove', spec: occupant.spec, slot });
           this.record({ t: 'fit', spec: itemId, slot });
-          this.rebuild();
-          await this.seat(devNode(put.deviceId ?? ''), motionOf(spec.kind, slot));
-          await this.plugNeeded();
+          fresh = { id: put.deviceId ?? '', kind: spec.kind, slot };
         }
       }
-      for (const u of undo.reverse()) await this.putBack(u);
+      // the parts that were in the way go back in the game now; one build shows the new part and all of them
+      const back: { id: string; kind: string; slot: string }[] = [], cables: Undo[] = [];
+      for (const u of undo.reverse()) {
+        if (u.t === 'cable') { cables.push(u); continue; }
+        const r = this.edit((g) => g.install(u.invId, u.slot));
+        if (!r.ok) { this.note(getSpec(u.spec)?.kind === 'fan' ? `${getSpec(u.spec)!.name} no longer fits: it stays out` : `Cannot put ${getSpec(u.spec)?.name ?? u.spec} back: ${r.reason}`); continue; }
+        this.note(`Put back ${getSpec(u.spec)?.name ?? u.spec}`);
+        back.push({ id: r.deviceId ?? '', kind: deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, slot: u.slot });
+      }
+      this.builtKey = ''; // (the hidden parts are stale objects: always build the new machine, even when its parts equal the old)
+      this.rebuild();
+      const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
+      for (const x of shown) if (x.obj) x.obj.visible = false;
+      for (const x of shown) { if (x.obj) x.obj.visible = true; await this.seat(devNode(x.id), motionOf(x.kind, x.slot)); }
+      for (const u of cables) await this.putBack(u);
       await this.plugNeeded();
     });
   }

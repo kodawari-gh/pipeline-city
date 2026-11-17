@@ -135,6 +135,7 @@ export function dimmSlot(r: RectLike, empty: boolean, tone = 0x1a1d24, latchTone
     const pivot = new Group(), hy = end < 0 ? r.y : r.y + r.h;
     pivot.position.set(cx, -hy, BOARD_Z);
     pivot.rotation.x = end * open;
+    pivot.userData.latchEnd = end; // (Build my PC swings it open for a stick on its way out: `buildmode3d.ts`)
     const arm = softBox({ x: -SLOT_W / 2 + 4, y: end < 0 ? -34 : 0, w: SLOT_W - 8, h: 34 }, 0, LATCH_Z - BOARD_Z, latchM, 8);
     const hook = rectBox({ x: -11, y: end < 0 ? 0 : -(END + NOTCH_R + 2), w: 22, h: END + NOTCH_R + 2 }, LATCH_Z - BOARD_Z - 30, LATCH_Z - BOARD_Z - 8, latchM);
     const tab = softBox({ x: -SLOT_W / 2 + 4, y: end < 0 ? -48 : 14, w: SLOT_W - 8, h: 34 }, LATCH_Z - BOARD_Z - 20, LATCH_Z - BOARD_Z, latchM, 8);
