@@ -33,14 +33,24 @@ const STILLS = `${import.meta.env.BASE_URL}stills/`;
 let stills: Record<string, string> | null = null;
 let stillsAsked = false;
 
+/** Warm the browser cache with every still (about 1 MB), a few per idle slice, so the shop and the inventory open with their pictures. */
+function prefetchStills(): void {
+  const todo = Object.entries(stills ?? {}).map(([id, h]) => `${STILLS}${id}.webp?${h}`);
+  const step = () => {
+    for (const url of todo.splice(0, 4)) { const img = new Image(); img.decoding = 'async'; img.src = url; }
+    if (todo.length) setTimeout(step, 50);
+  };
+  setTimeout(step, 0);
+}
+
 /** Load the list of the baked stills (once). */
-function loadStills(): void {
-  if (stillsAsked) return;
+export function loadStills(): void {
+  if (stillsAsked || typeof document === 'undefined') return;
   stillsAsked = true;
   void fetch(`${STILLS}manifest.json`)
     .then(async (r) => (r.ok ? ((await r.json()) as { stills?: Record<string, string> }).stills : null))
     .catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the shop stills did not load:', e); return null; })
-    .then((m) => { stills = m ?? {}; thumbsVersion.value += 1; });
+    .then((m) => { stills = m ?? {}; thumbsVersion.value += 1; prefetchStills(); });
 }
 
 export function initThumbs(r: Renderer): void {
@@ -86,9 +96,12 @@ export function hasThumb(id: string): boolean {
 
 /** The picture of an id in the current theme, or null while it is being made (or cannot be made): read `thumbsVersion` to be told. */
 export function thumbOf(id: string): string | null {
-  if (!renderer || !stills || !hasThumb(id)) return null;
+  // The stills need no renderer: the list loads with the first tile, not when the 3D renderer is up.
+  loadStills();
+  if (!stills || !hasThumb(id)) return null;
   const still = stills[id];
   if (still) return `${STILLS}${id}.webp?${still}`;
+  if (!renderer) return null;
   const theme = readTheme(), key = id;
   const hit = cache.get(key);
   if (hit) return hit;

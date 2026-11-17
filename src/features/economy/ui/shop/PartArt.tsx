@@ -467,7 +467,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
   void thumbsVersion.value;
   const url = thumbOf(id);
   if (url) {
-    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} />;
+    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} decoding="async" style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} />;
   }
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
