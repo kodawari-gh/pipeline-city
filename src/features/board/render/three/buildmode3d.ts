@@ -378,7 +378,12 @@ export class BuildStage {
       x.o.rotation.z = x.baseTurn + p.turn;
     }
     this.setStep(p.label);
-    for (const l of a.latches) l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * latchOpen(m, a.t, a.dir);
+    const open = latchOpen(m, a.t, a.dir);
+    for (const l of a.latches) {
+      if (l.userData.leverOf) l.rotation.y = -1.3 * open; // (the load lever lifts about its long side)
+      else if (l.userData.latchOf) l.rotation.y = 0.7 * open; // (a slot's latch tips away from the card)
+      else l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * open;
+    }
     if (a.t >= motionSeconds(m)) {
       // a part going in settles: it dips a little past its seat along the way it came, then comes back (a damped spring, 0.3 s)
       if (a.dir === 'in' && a.t < motionSeconds(m) + SETTLE_SECONDS) {
@@ -583,7 +588,11 @@ export class BuildStage {
     const m = motionFor(kind), p = poseAt(m, 0, dir);
     // (a stick's socket latches swing with it: the ones of its own slot)
     const latches: Object3D[] = [];
-    if (kind === 'ram' && slot) this.machine.root.traverse((o) => { if (o.userData.dimm === slot) latches.push(...o.children); });
+    if (slot) this.machine.root.traverse((o) => {
+      if (kind === 'ram' && o.userData.dimm === slot) latches.push(...o.children);
+      else if (kind === 'cpu' && o.userData.leverOf === slot) latches.push(o);
+      else if (o.userData.latchOf === slot && (kind === 'gpu' || kind === 'npu' || kind === 'nic')) latches.push(o);
+    });
     return new Promise((done) => {
       const list = objs.map((o) => ({ o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z }));
       this.anim = { objs: list, kind, dir, t: 0, latches, done: () => { if (dir === 'out' && objs.length > 1) for (const x of list) x.o.position.set(...x.base); done(); } };
