@@ -153,7 +153,24 @@ export interface HandHost {
   machine(): Machine3D | null;
   snapshot(): Snapshot | null;
   toast(text: string, cx: number, cy: number): void;
+  /** Where a plug in or out goes (the game's store by default; Build my PC has its own game and passes its own). */
+  connect?(id: string, port?: string): void;
+  disconnect?(id: string): void;
 }
+
+/** A scripted step (Build my PC): the hand pulls a plug out and lets it fall, or carries a loose plug to its socket and pushes it in, with no pointer. */
+interface Auto {
+  dir: 'out' | 'in';
+  /** The plug's place and turn when the carry began (set at the first held frame). */
+  from?: Vector3;
+  fromQ?: Quaternion;
+  t: number;
+  speed: number;
+  done: (ok: boolean) => void;
+}
+
+/** Seconds of a scripted pull (against the latch), a lift away from the socket, a carry to a socket; how far (as a share of the plug's engage) a lifted plug goes. */
+const AUTO_PULL_S = 0.55, AUTO_LIFT_S = 0.6, AUTO_CARRY_S = 0.8, AUTO_LIFT = 3.2;
 
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
 const T = (v: Vector3): V3 => [v.x, v.y, v.z];
@@ -174,7 +191,41 @@ export class PlugHand {
   private readonly ray = new Raycaster();
   private readonly plane = new Plane();
 
+  private auto: Auto | null = null;
+
   constructor(private readonly host: HandHost, private readonly canvas: HTMLCanvasElement) {}
+
+  private plugIn_(id: string, port?: string): void { (this.host.connect ?? connectCable)(id, port); }
+  private plugOut_(id: string): void { (this.host.disconnect ?? disconnectCable)(id); }
+
+  /** Pull a seated plug out by itself, lift it clear and let it fall on its cable. Resolves true when it lies loose, false when it cannot (no rig, not seated) or is cancelled. */
+  pullOut(kind: string, speed = 1): Promise<boolean> {
+    const s = this.host.snapshot();
+    if (!s?.cables.find((c) => c.id === kind)?.connected) return Promise.resolve(false);
+    return this.script(kind, 'out', speed);
+  }
+
+  /** Carry a loose plug to its socket and push it in. Resolves true when it is seated, false when it cannot (no rig, nothing takes it) or is cancelled. */
+  plugIn(kind: string, speed = 1): Promise<boolean> {
+    if (!this.host.machine()?.rig(kind)?.canSeat) return Promise.resolve(false);
+    return this.script(kind, 'in', speed);
+  }
+
+  private script(kind: string, dir: 'out' | 'in', speed: number): Promise<boolean> {
+    this.cancel();
+    return new Promise((resolve) => {
+      if (!this.grab(kind, 0, 0)) { resolve(false); return; }
+      this.auto = { dir, t: 0, speed, done: resolve };
+    });
+  }
+
+  /** Stop a scripted step at once (the stage closed): the cable goes back to the built one. */
+  cancel(): void {
+    const a = this.auto;
+    this.auto = null;
+    this.finish();
+    a?.done(false);
+  }
 
   /** The cable held now (also while it slides in, falls or hands back), or null. */
   get kind(): string | null { return this.live?.rig.id ?? null; }
@@ -241,11 +292,12 @@ export class PlugHand {
     l.t += dt;
     switch (l.phase) {
       case 'pull': {
-        const p = pullOffset(Math.hypot(this.px - this.sx, this.py - this.sy));
+        const a = this.auto, ease = a ? Math.min(1, (l.t * a.speed) / AUTO_PULL_S) : 0;
+        const p = pullOffset(a ? POP_PX * (ease * ease * (3 - 2 * ease)) : Math.hypot(this.px - this.sx, this.py - this.sy));
         if (p.popped) {
           // the loose cable the sim's answer builds (hidden while held) takes the strands as they are, so nothing hangs again
           this.host.machine()?.rest.set(rig.id, this.restOf(l));
-          disconnectCable(rig.id); l.phase = 'held'; l.t = 0; this.hold(l, dt, cam);
+          this.plugOut_(rig.id); l.phase = 'held'; l.t = 0; this.hold(l, dt, cam);
         }
         else this.slide(l, p.out, 1);
         break;
@@ -260,7 +312,7 @@ export class PlugHand {
       case 'insert': {
         const dur = insertTime(rig.engage);
         this.slide(l, insertOffset(l.t, dur), Math.max(0, 1 - l.t / dur));
-        if (l.t >= dur + CLICK_S) { connectCable(rig.id, l.port); l.phase = 'wait'; l.t = 0; }
+        if (l.t >= dur + CLICK_S) { this.plugIn_(rig.id, l.port); l.phase = 'wait'; l.t = 0; }
         break;
       }
       case 'wait': {
@@ -313,6 +365,7 @@ export class PlugHand {
    * parts it passes or into the tray however slanted the view. Off the walls it goes on at its height over the deck.
    */
   private hold(l: Live, dt: number, cam: PerspectiveCamera) {
+    if (this.auto) { this.autoHold(l, dt); return; }
     const rig = l.rig, r = this.canvas.getBoundingClientRect(), up = V(rig.deck.n);
     this.ray.setFromCamera(new Vector2(((this.px - r.left) / r.width) * 2 - 1, -((this.py - r.top) / r.height) * 2 + 1), cam);
     const on = hover(T(this.ray.ray.origin), T(this.ray.ray.direction), l.space, CLEAR, rig.deck.n);
@@ -347,6 +400,38 @@ export class PlugHand {
     const p = l.pose.at;
     for (let j = 0; j < 3; j++) { const [x, v] = springStep(p[j]!, l.vel.getComponent(j), goal.getComponent(j), OMEGA, dt); p[j] = x; l.vel.setComponent(j, v); }
     l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));
+  }
+
+  /**
+   * A scripted hold (no pointer): out, the plug rises straight out of its socket along its axis, hanging more and more by its cable, then falls;
+   * in, it is carried over an arc from where it lies to the point in front of its socket, squares up, then slides in as a dropped plug does.
+   * The spring, the reach of the cable and the clearance are the player's own, so the cable never stretches or goes through a part.
+   */
+  private autoHold(l: Live, dt: number) {
+    const a = this.auto!, rig = l.rig, up = V(rig.deck.n), pre = this.preSeat(l);
+    a.t += dt * a.speed;
+    const out = a.dir === 'out', span = out ? AUTO_LIFT_S : AUTO_CARRY_S, u = Math.min(1, a.t / span), e = u * u * (3 - 2 * u);
+    let goal: Vector3, w: number;
+    if (out) {
+      goal = pre.clone().addScaledVector(V(l.seat.axis), rig.engage * AUTO_LIFT * e);
+      w = 1 - e;
+    } else {
+      a.from ??= V(l.pose.at);
+      goal = a.from.clone().lerp(pre, e).addScaledVector(up, Math.sin(Math.PI * u) * rig.engage * 0.6);
+      w = e;
+    }
+    // its turn: hanging along its cable, squared to the socket as it comes near (as `hold`)
+    const fixed = V(middle(rig.fixed).at), m = middle(l.exits), toward = fixed.clone().sub(V(l.pose.at)).projectOnPlane(up);
+    const back = (toward.lengthSq() > 1 ? toward.normalize() : new Vector3(0, -1, 0)).add(new Vector3(0, 0.7, 0)).normalize();
+    const turn = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), back), l.free * (1 - w));
+    const reach = (share: number) => goal.copy(V(withinCable(rig, l.exits, l.lengths, T(goal), turn, share, rig.deck.n)));
+    reach(!out && u >= 1 ? 1 : REACH);
+    if (!out && u < 1) { goal.copy(V(keepClear(T(goal), l.space, CLEAR))); reach(REACH); }
+    const p = l.pose.at;
+    for (let j = 0; j < 3; j++) { const [x, v] = springStep(p[j]!, l.vel.getComponent(j), goal.getComponent(j), OMEGA, dt); p[j] = x; l.vel.setComponent(j, v); }
+    l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));
+    if (out && a.t >= AUTO_LIFT_S + 0.1) this.fall(l);
+    else if (!out && a.t >= AUTO_CARRY_S + 0.12) { this.snapped = true; l.phase = 'insert'; l.t = 0; l.off = V(l.pose.at).sub(pre); }
   }
 
   /** Put the plug a socket takes in the hand (in the rig's seat, as every model is built): its model and its strands' exits. */
@@ -400,6 +485,12 @@ export class PlugHand {
     this.root.remove(l.pivot, l.mesh);
     disposeTree(l.pivot);
     disposeTree(l.mesh);
+    const a = this.auto;
+    if (a) {
+      this.auto = null;
+      // (a plug the sim refused falls back loose: the step did not seat it)
+      a.done(a.dir === 'out' || !!this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected);
+    }
   }
 
   /** Hide the built cable while the hand holds it (it may be built again meanwhile: a plug in or out), or show it again. */

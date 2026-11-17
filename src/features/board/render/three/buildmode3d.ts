@@ -35,7 +35,8 @@ import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, s
 import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { motionFor, motionSeconds, poseAt } from './buildmotion';
-import { Machine3D } from './machine3d';
+import { Machine3D, machineKey } from './machine3d';
+import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import type { BuildLayout, BuildPreset } from '@/features/board/sim/buildspecs';
 import type { BenchKind, BenchResult } from '@/features/sandbox/sim/pcbench';
@@ -132,6 +133,7 @@ export class BuildStage {
   private readonly moved = new ViewWatch();
   /** The power and airflow lenses (the `powerLens` / `airflowLens` signals), over the machine as in the game. */
   private readonly lens: Lens3D;
+  private readonly hand: PlugHand;
   private readonly host: HTMLElement;
   private view: OrbitView;
   private goal: OrbitView;
@@ -173,6 +175,13 @@ export class BuildStage {
     renderer.setOpaqueSort(byProgram);
     this.post = new Post(renderer, scene, camera, this.W, this.H);
     this.lens = new Lens3D(scene);
+    // the hand that pulls a cable's plug out and pushes it in by itself (plughand3d.ts `pullOut`, `plugIn`), on this stage's own game
+    this.hand = new PlugHand({
+      machine: () => this._machine, snapshot: () => this.snapshot, toast: (t) => this.note(t),
+      connect: (id, port) => { this.edit((g) => g.connectCable(id, port)); },
+      disconnect: (id) => { this.edit((g) => g.disconnectCable(id)); },
+    }, renderer.domElement);
+    scene.add(this.hand.root);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
     this.cleanup.push(effect(() => {
       const g = effective.value;
@@ -222,8 +231,28 @@ export class BuildStage {
     return fitRect({ x: CASE_RECT.x, y: CASE_RECT.y, w: CASE_RECT.w, h: CASE_RECT.h }, BOARD_Z, this.W / this.H, START, 0.55);
   }
 
+  /** What the machine builds cost since the stage opened (a swap's cost, read by the bench through `window.__build` in dev; `docs/render/load.md`). */
+  readonly cost = { builds: 0, buildMs: 0, skipped: 0 };
+  /** What the machine on the stage was built from (`machineKey`): a redraw of the same parts builds nothing (cables and the key sync themselves). */
+  private builtKey = '';
+
   private rebuild(): void {
     if (this.dead) return;
+    this.snaps.drop();
+    const key = machineKey(this.snapshot);
+    if (this._machine && key === this.builtKey) {
+      // the same tiers, parts and sockets: the machine stands as it is (the end of a job after a step that built it already, a cable the hand moved)
+      this.cost.skipped++;
+      const st = this.status.peek();
+      this.status.value = { ...st, rev: st.rev + 1 };
+      this.demand.ask();
+      return;
+    }
+    const t0 = performance.now();
+    try { this.rebuildNow(); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
+  }
+
+  private rebuildNow(): void {
     if (this.bench.peek()) this.bench.value = null;
     // (the redraw always reads the game as it is now)
     this.snaps.drop();
@@ -302,6 +331,7 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
+    this.hand.frame(Math.min(dt, 0.05) * this.speed.peek(), camera);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
     // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
     if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
@@ -320,7 +350,7 @@ export class BuildStage {
     this.post.setEye(this.eye.step(dt));
     // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
     const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
-    const busy = !!this.anim || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
+    const busy = !!this.anim || !!this.hand.kind || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
       || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
     // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
     this.drew = this.demand.want(now, busy, this.bakes.size > 0);
@@ -583,6 +613,9 @@ export class BuildStage {
     if (isCableNode(node)) {
       const id = node.slice(6);
       if (!OUTSIDE.has(id)) await this.door(true);
+      // the plug comes out as a player's hand pulls it: against its latch, free, lifted, then it falls on its cable (the built cable is hidden meanwhile)
+      this.setStep('Pull the plug out of its socket');
+      if (await this.hand.pullOut(id)) { undo?.push({ t: 'cable', id }); this.bump(); return null; }
       await this.play(node, 'cable', 'out');
       this.edit((g) => g.disconnectCable(id));
       undo?.push({ t: 'cable', id });
@@ -607,6 +640,10 @@ export class BuildStage {
       // (the PC's cord goes into the supply's inlet: with the supply out it stays unplugged)
       if (u.id === 'pcmains' && !this.board.devices.some((d) => deviceSpec(d).kind === 'psu')) return;
       this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === u.id)?.name ?? u.id}`);
+      // the loose plug is carried to its socket and pushed in; a cable with no rig (or one the game refuses) is connected at once
+      this.setStep('Push the plug home');
+      if (await this.hand.plugIn(u.id)) { this.bump(); return; }
+      if (this.dead) return;
       this.edit((g) => g.connectCable(u.id));
       this.rebuild();
       await this.play(cableNode(u.id), 'cable', 'in');
@@ -862,6 +899,7 @@ export class BuildStage {
     for (const f of this.cleanup) f();
     this.cleanup.length = 0;
     this.anim = null;
+    this.hand.cancel();
     this.onGrab = null;
     setLayoutTier(...this.was);
     if (import.meta.env.DEV) {
