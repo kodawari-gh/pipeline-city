@@ -479,6 +479,9 @@ export class PlugHand {
   private finish() {
     const l = this.live;
     if (!l) return;
+    // (a plug the sim took: the built cable stands seated now, not as it lay loose before the hand took it)
+    const mc = this.host.machine();
+    if (mc && this.host.snapshot()?.cables.find((c) => c.id === l.rig.id)?.connected) mc.setCable(l.rig.id, true);
     this.hide(false);
     this.live = null;
     this.hidden = null;

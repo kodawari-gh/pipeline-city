@@ -284,6 +284,8 @@ export class BuildStage {
     if (this._machine && key === this.builtKey) {
       // the same tiers, parts and sockets: the machine stands as it is (the end of a job after a step that built it already, a cable the hand moved)
       this.cost.skipped++;
+      // (a cable plugged in or out by the game's answer, not by the hand: it hangs as the game says)
+      this._machine.syncCables(this.snapshot, roomGeo());
       const st = this.status.peek();
       this.status.value = { ...st, rev: st.rev + 1 };
       this.demand.ask();
