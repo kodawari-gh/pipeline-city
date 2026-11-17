@@ -170,7 +170,7 @@ interface Auto {
 }
 
 /** Seconds of a scripted pull (against the latch), a lift away from the socket, a carry to a socket; how far (as a share of the plug's engage) a lifted plug goes. */
-const AUTO_PULL_S = 0.3, AUTO_LIFT_S = 0.3, AUTO_CARRY_S = 0.4, AUTO_LIFT = 3.2, AUTO_FALL_S = 0.35;
+const AUTO_PULL_S = 0.3, AUTO_LIFT_S = 0.3, AUTO_CARRY_S = 0.4, AUTO_LIFT = 3.2;
 
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
 const T = (v: Vector3): V3 => [v.x, v.y, v.z];
@@ -329,16 +329,17 @@ export class PlugHand {
       }
       case 'fall': {
         const sp = l.spine!;
-        sp.step(STEPS);
+        // (a scripted fall keeps the job's pace; it lasts until the cable rests: a cable handed over in the air stays in the air)
+        sp.step(this.auto ? Math.ceil(STEPS * this.auto.speed) : STEPS);
         // the plug turns the least way that lines its cable up with the cable's tip, so it keeps its roll as it falls
         const tip = sp.tip(), m = middle(l.exits), out = V(m.dir).applyQuaternion(l.pose.q);
         const q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(out, V(tip.dir).negate().normalize()).multiply(l.pose.q), l.free);
         l.pose = { at: looseAt(rig, l.exits, l.lengths, { at: T(V(tip.at).sub(V(m.at).sub(V(rig.seat.at)).applyQuaternion(q))), q }), q };
-        if (sp.resting || l.t > (this.auto ? AUTO_FALL_S : FALL_MAX_S)) {
-          // the built cable lies just as the held one does: hand over at once
+        if (sp.resting || l.t > FALL_MAX_S) {
+          // the built cable lies just as the held one does, loose: hand over at once (a cable left as it was built stood seated for a frame)
           setPose(l.pivot, l.pose);
           const mc = this.host.machine();
-          if (mc) { mc.rest.set(rig.id, this.restOf(l)); mc.setCable(rig.id); }
+          if (mc) { mc.rest.set(rig.id, this.restOf(l)); mc.setCable(rig.id, false); }
           this.finish();
           return;
         }

@@ -538,14 +538,17 @@ export class Machine3D {
       case 'cooler': {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
-        const m = this.model(g, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
-        if (lowDetail()) { const f = coolerFoot(visual); g.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round))); }
-        this.fades.push(g);
+        // (the zoom fades a group inside the part: `fadeTree` sets `visible` each frame, and Build my PC hides the part itself while it is off)
+        const fade = new Group();
+        g.add(fade);
+        const m = this.model(fade, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
+        if (lowDetail()) { const f = coolerFoot(visual); fade.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round))); }
+        this.fades.push(fade);
         this.pump = !!(spec as { loop?: unknown }).loop;
-        this.cooler = g;
+        this.cooler = fade;
         this.reveal(COOLER, BOARD_Z + 400, (z) => {
           const a = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
-          fadeTree(g, a);
+          fadeTree(fade, a);
           if (this.hoses) fadeTree(this.hoses.body, a);
         }, this.pump);
         this.softSkin(d.id, ...m.skin);
