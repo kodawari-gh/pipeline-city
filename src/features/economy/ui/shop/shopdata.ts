@@ -4,6 +4,7 @@ import type { DeviceKind } from '@/features/board/sim/specs';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { getOsSpec } from '@/features/os/sim';
+import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim/specs';
 import { KIND_LABEL } from '@/core/ui/logic';
 import { boardId, caseId, ladderFor, type IconName, type LadderStep } from './picker';
 
@@ -37,6 +38,12 @@ export function galleryGroups(): GalleryGroup[] {
   for (const k of GALLERY_KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
   return out.filter((g) => g.items.length > 0);
 }
+
+/** Ids that get a baked still but no 3D model: their picture is the board's own art (routers, internet plans), drawn by `tools/stills.mjs`. (An OS is software: it keeps its drawn disc.) */
+export const artStillIds = (): string[] => [...ROUTER_SPECS.map((r) => r.id), ...ISP_SPECS.map((p) => p.id)];
+
+/** Every id that must have a baked still: all the gallery's parts, the routers and the plans. */
+export const stillIds = (): string[] => [...galleryGroups().flatMap((g) => g.items.map((i) => i.id)), ...artStillIds()];
 
 export interface ShopSection { kind: ShopKind; label: string; icon: IconName; items: LadderStep[] }
 

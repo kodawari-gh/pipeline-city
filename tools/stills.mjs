@@ -1,7 +1,7 @@
 // `npm run stills`: the shop's part pictures as 3D stills. It opens the game's page in a headless Chrome on the real GPU (the dev server),
-// builds each part the gallery shows (`galleryGroups`, `buildShowcaseModel`), renders it in the showcase's studio on a clear ground
+// builds each part the gallery shows (and each router and plan from its 2D art) (`galleryGroups`, `buildShowcaseModel`), renders it in the showcase's studio on a clear ground
 // (`renderStill`, core/render/three/viewer.ts) and writes `public/stills/`: `<id>.webp` and `manifest.json` (the size, each id's hash).
-// `thumbOf` (board/render/thumbs.ts) serves them; the ids without a still (an OS, a router, a plan) keep their drawn art.
+// `thumbOf` (board/render/thumbs.ts) serves them; an OS (software) keeps its drawn art. Routers and plans are baked from the board's 2D art.
 // Bake again after a change to a part's model: the tiles do not follow the code on their own (`stills.test.ts` checks the list only).
 //   --only a,b    render only these ids again; the others' files stay
 //   --size WxH    the pictures' size (480x336: a tile's 120 x 84 at 4x)
@@ -46,23 +46,33 @@ try {
   console.log('GL renderer:', gl);
   if (/swiftshader|llvmpipe|software/i.test(gl) && !process.env.SOFTWARE) { console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).'); process.exitCode = 2; throw new Error('software GL'); }
   const ids = await p.evaluate(async () => {
-    const [{ galleryGroups }, { buildShowcaseModel }, { renderStill }, { startBaker, bakeRenderer }] = await Promise.all([
+    const [{ stillIds, artStillIds }, { buildShowcaseModel }, { renderStill }, { startBaker, bakeRenderer }, { drawThumb }, { builtinTheme }] = await Promise.all([
       import('/src/features/economy/ui/shop/shopdata.ts'), import('/src/features/board/render/three/showcase.ts'),
       import('/src/core/render/three/viewer.ts'), import('/src/features/board/render/three/bake.ts'),
+      import('/src/features/board/render/thumbart.ts'), import('/src/core/render/theme.ts'),
     ]);
+    const art = new Set(artStillIds());
     await document.fonts.ready;
     // the parts' 2D art (the labels, the die, the PCB) is drawn by the bake's Pixi renderer
     startBaker();
     for (let i = 0; i < 200 && !bakeRenderer(); i++) await new Promise((r) => setTimeout(r, 50));
     window.__still = async (id, w, h, q) => {
+      if (art.has(id)) { // no 3D model: the board's own art, fitted into the still's shape
+        const src = drawThumb(bakeRenderer(), id, builtinTheme());
+        if (!src) return null;
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const k = Math.min(w / src.width, h / src.height), g = c.getContext('2d');
+        g.drawImage(src, (w - src.width * k) / 2, (h - src.height * k) / 2, src.width * k, src.height * k);
+        return c.toDataURL('image/webp', q);
+      }
       const o = buildShowcaseModel(id);
       return o ? (await renderStill(o, w, h)).toDataURL('image/webp', q) : null;
     };
-    return galleryGroups().flatMap((g) => g.items.map((i) => i.id));
+    return stillIds();
   });
   const todo = ONLY.length ? ids.filter((id) => ONLY.includes(id)) : ids;
   const unknown = ONLY.filter((id) => !ids.includes(id));
-  if (unknown.length) console.log('not in the gallery:', unknown.join(' '));
+  if (unknown.length) console.log('not in the still list:', unknown.join(' '));
   mkdirSync(out, { recursive: true });
   const stills = { ...keep };
   let bytes = 0;
