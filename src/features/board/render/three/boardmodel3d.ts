@@ -98,6 +98,8 @@ export interface Board3D {
   small: Group;
   /** The lights that follow the board's power: the chipset's and the I/O's glow (the case's accent), the lamps (their own colour). */
   lights: Spin[];
+  /** The CPU socket's gold contacts alone (they show only with no CPU on them): a patch that takes the CPU out adds this, one that fits it removes it. */
+  contacts: () => Group;
 }
 
 /**
@@ -156,5 +158,5 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
   if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
   if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
-  return { root: g, sockets, small, lights };
+  return { root: g, sockets, small, lights, contacts: () => buildSolids(solids.filter((x) => x.kind === 'lga'), true, sk.capSleeve) };
 }

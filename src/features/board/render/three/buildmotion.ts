@@ -203,7 +203,7 @@ export function placed(base: readonly [number, number, number], pivot: readonly 
 }
 
 /** How long (s) a part takes to fade at the far end of its way, at most `FADE_SHARE` of its motion. */
-export const FADE_SECONDS = 0.3, FADE_SHARE = 0.35;
+export const FADE_SECONDS = 0.3, FADE_SHARE = 0.35, FADE_SHARE_MAX = 0.5;
 
 /**
  * How solid a part is drawn `t` seconds into a motion (`PartFade`): 1 at its seat and along most of the way, fading to 0 over the last stretch of
@@ -212,7 +212,8 @@ export const FADE_SECONDS = 0.3, FADE_SHARE = 0.35;
 export function solidAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): number {
   const total = motionSeconds(m);
   if (!m.keys.some((x) => !x.hold)) return 1;
-  const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)), f = Math.min(FADE_SECONDS, total * FADE_SHARE);
+  // (the fade runs across the whole last lift, the carry away: a cooler that rises over the CPU is gone by the time it blocks the view of it)
+  const s = Math.max(0, Math.min(total, dir === 'out' ? t : total - t)), f = Math.min(Math.max(FADE_SECONDS, m.keys[m.keys.length - 1]!.sec), total * FADE_SHARE_MAX);
   return f > 0 ? 1 - ease(unit((s - (total - f)) / f)) : 1;
 }
 

@@ -63,6 +63,44 @@ describe('a patched machine stands as a built one', () => {
     }, 60_000);
   }
 
+  it('takes the CPU, an air cooler with its fan and a heat sink out and puts them back', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
+    const snap = () => g.snapshot();
+    const ok = (r: { ok: boolean }, what: string) => { if (!r.ok) throw new Error(`${what}: ${JSON.stringify(r)}`); };
+    // (the maxed machine has a liquid loop: its pump goes, an air tower with a fan takes its seat; the hoses are the build's, not a patch's)
+    for (const d of snap().devices.filter((x) => x.kind === 'radiator' || x.kind === 'cooler')) ok(g.uninstall(d.id), 'out');
+    const tower = g.purchase('cooler1'); ok(tower, 'buy'); ok(g.install((tower as { invId: string }).invId, 'cooler0'), 'tower');
+    const fan = g.purchase('fan120'); ok(fan, 'buy'); ok(g.install((fan as { invId: string }).invId, 'cooler0.fan0'), 'fan');
+    const m = stage(snap());
+    const same = (what: string) => {
+      const got = shape(m), want = fresh(g);
+      expect(got.tagged.filter((t) => !t.startsWith('cable')), `${what}: sockets`).toEqual(want.tagged.filter((t) => !t.startsWith('cable')));
+      // (a bare CPU socket is the board's own mesh in a build and an unseen drop box in a patch: the tag is the same, as `sockets` says)
+      // (and the bare socket's gold contacts are one more draw of their own, where a build merges them into the board's)
+      const { cpu0: _a, ...a } = got.parts, { cpu0: _b, ...b } = want.parts;
+      if (what === 'cpu out') { delete a.case; delete b.case; }
+      expect(a, what).toEqual(b);
+    };
+    const step = (what: string, act: () => { ok: boolean }) => { ok(act(), what); expect(m.patch(snap(), roomGeo()), `${what}: a patch`).toBe(true); same(what); };
+    const find = (kind: string, slot?: string) => snap().devices.find((x) => x.kind === kind && (!slot || x.slot === slot))!;
+    const gone: { id: string; spec: string; slot: string; inv: string }[] = [];
+    const out = (kind: string, slot?: string) => step(`${kind} out`, () => { const d = find(kind, slot), r = g.uninstall(d.id); if (r.ok) gone.push({ id: d.id, spec: d.spec, slot: d.slot, inv: r.invId! }); return r; });
+    const back = () => { const u = gone.pop()!; step(`${u.spec} back`, () => g.install(u.inv, u.slot)); };
+    out('fan', 'cooler0.fan0'); out('cooler'); out('cpu');
+    back(); back(); back();
+    const sink = snap().devices.find((x) => x.kind === 'vrm-sink');
+    if (sink) { out('fan', `${sink.slot}.fan0`); out('vrm-sink'); back(); back(); }
+  }, 120_000);
+
+  it('asks for a build for a liquid pump (its hoses join it)', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
+    const m = stage(g.snapshot());
+    const rad = g.snapshot().devices.find((x) => x.kind === 'radiator'), pump = g.snapshot().devices.find((x) => x.kind === 'cooler');
+    if (rad) g.uninstall(rad.id);
+    if (pump) g.uninstall(pump.id);
+    expect(m.patch(g.snapshot(), roomGeo())).toBe(false);
+  }, 60_000);
+
   it('asks for a build when the change is more than a stick', () => {
     const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     const m = stage(g.snapshot());

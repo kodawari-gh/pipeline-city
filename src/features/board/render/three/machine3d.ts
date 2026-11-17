@@ -32,7 +32,7 @@ import type { RoomGeo } from '@/features/room/render/shell/room';
 import type { LightId } from '@/features/room/render/three/roomlights';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, USB_PORT, VIDEO_Y, nicY, routerLan,
+  LAYOUT_CASE, ETH0_RECT, PCIE_RAILS, PKG, SOCKET_E, USB_PORT, VIDEO_Y, nicY, routerLan,
 } from '../layout/layout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
@@ -132,8 +132,20 @@ type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area
 interface Owned { id: string; kind: string; slot: string; roots: Object3D[]; reveals: Reveal[]; fades: Object3D[]; apart: Object3D[]; fans: Fan[]; obstacles: Object3D[]; keep: Object3D[]; caseRoots: Object3D[]; rails: Rail[] }
 
 const keyOf = (d: { spec: string; slot: string }): string => `${d.spec}@${d.slot}`;
-/** The parts a patch may add or take away: a stick, an M.2 drive, a card. Their sockets, cables and bank are all it must keep right. */
-const patchable = (d: DeviceSnap): boolean => d.kind === 'ram' || d.kind === 'gpu' || d.kind === 'npu' || d.kind === 'nic' || (d.kind === 'storage' && driveKindOf((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '') === 'ssd-nvme');
+/**
+ * The parts a patch may add or take away: a stick, an M.2 drive, a card, the CPU, an air cooler, a VRM or memory heat sink, and a fan on one of those
+ * (the host is built again with it). Not a liquid loop's pump (the hoses join it), a radiator, a case fan, a PSU, a cable or a case or board.
+ */
+const patchable = (d: DeviceSnap): boolean => {
+  const spec = getSpec(d.spec) as { visual?: string; loop?: unknown } | undefined;
+  switch (d.kind) {
+    case 'ram': case 'gpu': case 'npu': case 'nic': case 'cpu': case 'vrm-sink': case 'ram-sink': return true;
+    case 'cooler': return !spec?.loop;
+    case 'fan': return fanHost(d.slot) !== null;
+    case 'storage': return driveKindOf(spec?.visual ?? '') === 'ssd-nvme';
+    default: return false;
+  }
+};
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
 
@@ -180,6 +192,9 @@ export class Machine3D {
   /** The board's sockets by id (tagged while empty: a pick or a drop finds the socket). */
   private sockets = new Map<string, Object3D>();
   private pickBox: (r: RectLike, z0: number, z1: number, id: string) => void = () => {};
+  /** The bare CPU socket's gold contacts (made by the board model, added while no CPU stands on the socket). */
+  private contacts: (() => Group) | null = null;
+  private bare: Group | null = null;
   private blankTone = 0;
   /** The memory map's reveal and rail, made again when the bank changes. */
   private ramBits: { reveal: Reveal; rail: Rail } | null = null;
@@ -382,6 +397,11 @@ export class Machine3D {
       const zc = m.side === 'rear' ? REAR_ZC : FAN_ZC, d = Math.min(m.side === 'top' ? m.rect.w : m.rect.h, FAN_MAX);
       pickBox(m.rect, zc - d / 2, zc + d / 2, m.id);
     }
+    this.hostFanPicks(s, filled, pickBox);
+  }
+
+  /** The same for the free fan spots of the heatsinks (a patch makes these again when a host or its fan comes or goes). */
+  private hostFanPicks(s: Snapshot, filled: ReadonlySet<string>, pickBox: (r: RectLike, z0: number, z1: number, id: string) => void) {
     for (const [id, r] of slotRects(s)) {
       const host = fanHost(id);
       if (!host || filled.has(id)) continue;
@@ -467,6 +487,7 @@ export class Machine3D {
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const b = boardModel(this.art, this.T, GEO.tier, { filled, ...(s ? { feat: s.board.features } : {}) });
     this.sockets = b.sockets;
+    this.contacts = b.contacts;
     for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
     for (const l of b.lights) this.spin(l);
     this.root.add(b.root);
@@ -962,8 +983,17 @@ export class Machine3D {
     if (this.tiers !== `${s.boardTier}|${s.caseTier}` || this.graveyard.length >= GRAVE_MAX) return false;
     const cur = new Map(this.devs.map((d) => [keyOf(d), d])), nxt = new Map(s.devices.map((d) => [keyOf(d), d]));
     const gone = [...cur].filter(([k]) => !nxt.has(k)).map(([, d]) => d), came = [...nxt].filter(([k]) => !cur.has(k)).map(([, d]) => d);
-    const all = [...cur.values(), ...nxt.values()];
-    for (const d of [...gone, ...came]) if (!patchable(d) || all.some((x) => x.slot.startsWith(`${d.slot}.`))) return false;
+    // a fan on a heatsink is part of its host's model: the host is built again, with the fan or without it
+    let hosts = false;
+    for (const d of [...gone, ...came]) {
+      const h = d.kind === 'fan' ? fanHost(d.slot) : null;
+      if (h === null) continue;
+      hosts = true;
+      const was = this.devs.find((x) => x.slot === h), is = s.devices.find((x) => x.slot === h);
+      if (was && !gone.includes(was)) gone.push(was);
+      if (is && !came.includes(is)) came.push(is);
+    }
+    for (const d of [...gone, ...came]) if (!patchable(d)) return false;
     if (gone.some((d) => !this.owned.has(keyOf(d)))) return false;
     // ---- what goes
     const drop = <T>(list: T[], out: readonly T[]): void => { for (const x of out) { const i = list.indexOf(x); if (i >= 0) list.splice(i, 1); } };
@@ -976,7 +1006,16 @@ export class Machine3D {
       this.skins.delete(o.id);
       if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
       this.cards.delete(d.slot);
+      if (d.kind === 'cooler') { this.cooler = null; this.pump = false; }
       this.owned.delete(keyOf(d));
+    }
+    // (a part that stands as it was under a new id, a refit one: its look follows the new id)
+    for (const [k, d] of nxt) {
+      const o = this.owned.get(k);
+      if (!o || o.id === d.id) continue;
+      const sk = this.skins.get(o.id);
+      if (sk) { this.skins.delete(o.id); this.skins.set(d.id, sk); }
+      o.id = d.id;
     }
     this.ram = null;
     for (const x of this.ramSticks) { const r = { x: DIMM_X(x.idx), y: DIMM_Y(x.idx), w: DIMM_W, h: DIMM_H }; this.ram = this.ram ? union(this.ram, r) : r; }
@@ -992,6 +1031,11 @@ export class Machine3D {
     if (gone.some((d) => d.kind === 'ram') || came.some((d) => d.kind === 'ram')) this.buildRamMap();
     for (const d of gone) this.fill(d.slot, false, added);
     for (const d of came) this.fill(d.slot, true, added);
+    // (the free fan spots of the heatsinks: a host or a fan came or went)
+    if (hosts || [...gone, ...came].some((d) => d.kind === 'cooler' || d.kind === 'vrm-sink' || d.kind === 'ram-sink')) {
+      for (const [id, o] of this.picks) if (/\.fan\d+$/.test(id)) { o.removeFromParent(); o.traverse((x) => (x as Mesh).geometry?.dispose?.()); this.picks.delete(id); }
+      this.hostFanPicks(s, new Set(s.devices.map((d) => d.slot)), this.pickBox);
+    }
     // ---- the new pieces merge among themselves, as the build merges each part
     if (this.merged && added.length) {
       const holder = new Group(), skip = [...this.keep], apart = [...this.fades, ...this.apart];
@@ -1006,11 +1050,27 @@ export class Machine3D {
 
   /** A socket takes a part or is freed: its latches, its drop box, its plate or its tag follow. New pieces go on `added`. */
   private fill(slot: string, filled: boolean, added: Object3D[]): void {
+    const freeBox = (o: Object3D) => { o.removeFromParent(); o.traverse((x) => (x as Mesh).geometry?.dispose?.()); };
+    if (slot === 'cpu0') {
+      // the socket is merged into the board by now, so a bare one is picked by an unseen box over it; its gold contacts show
+      const pick = this.picks.get(slot);
+      if (filled && pick) { freeBox(pick); this.picks.delete(slot); }
+      else if (!filled && !pick) this.pickBox(grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, slot);
+      if (filled && this.bare) { freeBox(this.bare); this.bare = null; }
+      else if (!filled && !this.bare && this.contacts) { this.bare = this.contacts(); this.root.add(this.bare); }
+      return;
+    }
+    if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(slot)) {
+      // the seat of a module, a cooler or a sink: an unseen box where it is bare (low: the cooler's seat is round the CPU socket, which wins the ray)
+      const pick = this.picks.get(slot), r = this.rects.get(slot);
+      if (filled && pick) { freeBox(pick); this.picks.delete(slot); }
+      else if (!filled && !pick && r) this.pickBox(r, BOARD_Z, BOARD_Z + 40, slot);
+      return;
+    }
     const m = /^(dimm|m2|pcie)(\d+)$/.exec(slot);
     if (!m) return;
     const i = Number(m[2]), sock = this.sockets.get(slot), pick = this.picks.get(slot);
     if (sock) { if (filled) delete sock.userData.id; else tag(sock, slot); }
-    const freeBox = (o: Object3D) => { o.removeFromParent(); o.traverse((x) => (x as Mesh).geometry?.dispose?.()); };
     if (m[1] === 'pcie') {
       const b = this.blanks.get(slot);
       if (filled && b) { freeBox(b); this.blanks.delete(slot); }
