@@ -46,25 +46,27 @@ try {
     // (a part inside another by design: a fan on a heatsink or radiator, a stick in a heatsink's reach: pairs whose box already holds most of the smaller one at the seat are the same assembly)
     const still = parts.map((x) => ({ ...x, b: box(x.o) }));
     const report = [];
+    // (a radiator leaves with its fans as one assembly, so the fans on it move with it and are not checked alone)
+    const rad = still.find((x) => x.kind === 'radiator'), onRad = (x) => !!rad && x.kind === 'fan' && /^(top|front)\d/.test(x.d.slot);
     for (const m of still) {
       if (KINDS.length && !KINDS.includes(m.kind)) continue;
-      const motion = BM.motionFor(BS.motionOf(m.kind, m.d.slot));
+      if (onRad(m)) continue;
+      const crew = m === rad ? still.filter(onRad) : [];
+      const motion = BM.motionFor(m === rad && crew.length ? 'assembly' : BS.motionOf(m.kind, m.d.slot));
       const total = BM.motionSeconds(motion), seat = new Map();
       for (const o of still) if (o !== m) seat.set(o, share(m.b, o.b));
       const hits = new Map();
       for (let i = 0; i <= STEPS; i++) {
         const t = (total * i) / STEPS, pose = BM.poseAt(motion, t, 'out');
-        m.o.position.set(m.base.x + pose.offset[0], m.base.y + pose.offset[1], m.base.z + pose.offset[2]);
-        m.o.rotation.z = m.baseZ + pose.turn;
-        m.o.updateWorldMatrix(true, true);
+        for (const x of [m, ...crew]) { x.o.position.set(x.base.x + pose.offset[0], x.base.y + pose.offset[1], x.base.z + pose.offset[2]); x.o.rotation.z = x.baseZ + pose.turn; x.o.updateWorldMatrix(true, true); }
         const mb = box(m.o);
         for (const o of still) {
-          if (o === m) continue;
+          if (o === m || crew.includes(o)) continue;
           const s = share(mb, o.b) - (seat.get(o) ?? 0);
           if (s > MIN) { const h = hits.get(o.name) ?? { with: o.name, worst: 0, at: 0 }; if (s > h.worst) { h.worst = s; h.at = Math.round((t / total) * 100); } hits.set(o.name, h); }
         }
       }
-      m.o.position.copy(m.base); m.o.rotation.z = m.baseZ; m.o.updateWorldMatrix(true, true);
+      for (const x of [m, ...crew]) { x.o.position.copy(x.base); x.o.rotation.z = x.baseZ; x.o.updateWorldMatrix(true, true); }
       if (hits.size) report.push({ part: m.name, clips: [...hits.values()].sort((a, b) => b.worst - a.worst).map((h) => ({ with: h.with, share: Math.round(h.worst * 100) / 100, atPct: h.at })) });
     }
     return report;

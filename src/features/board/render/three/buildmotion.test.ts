@@ -86,4 +86,12 @@ describe('a card tips out of its slot', () => {
     }
     expect(poseAt(motionFor('ram'), 0.5).tilt).toBe(0);
   });
+
+  it('a radiator and its fans leave together, along the way the panel opens (never into each other)', () => {
+    for (const kind of ['assembly', 'fan-rad']) {
+      expect(motionKinds(), kind).toContain(kind);
+      const end = poseAt(motionFor(kind), motionSeconds(motionFor(kind)), 'out').offset;
+      expect(Math.abs(end[2]), kind).toBeGreaterThan(Math.abs(end[0]) + Math.abs(end[1]));
+    }
+  });
 });

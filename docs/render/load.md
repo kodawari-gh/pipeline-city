@@ -232,3 +232,11 @@ Motion (ANIM-05): a hold presses the part in and rocks it (`poseAt`); DIMM latch
 ## Pace of Build my PC (2026-11-17)
 
 Every action plays in about 1 s (`ACTION_SECONDS` in `buildmotion.ts`; the case and the board 1.5 s); the cable hand pulls out in 0.3 s, lifts 0.3 s, falls 0.35 s at most, and carries in 0.4 s. The side panel opens once, when a step needs the inside, waits only for the first 40 % of its swing (`DOOR_WAIT`) and stays open after the job: the player shuts it with its button (a shell or board swap shuts it, it needs the room). In a chain of more than two steps the parts in the way play at 2.5x (`QUICK`); the part the player asked about plays at 1x. Space, Escape or the Skip button fast-forwards the job (6x, `skip()`). Measured with `npm run bench:swap` (wall ms, includes the single 0.5 s build): RAM out 2.1 s (door opening included), NIC out 2.7 s (its cable included), CPU out with six blockers 6.2 s (was 28 s; a fan lead in a chain is pulled 1.8x faster again, `CABLE_QUICK`), the 24-pin 1.0 s.
+
+## Clipping (2026-11-17)
+
+`npm run clip:check` plays each part's way out in small steps and lists the parts whose boxes grow into another part's box (axis-aligned boxes: a slanted part can show a false hit, so look with `npm run shot`). It lists, it does not fail.
+
+- A radiator leaves with its fans as one piece (motion `assembly`: screws out through the panel, then all of them along the side opening). The fans sit between the panel and the radiator and are screwed through both, so a fan alone on a radiator's mount uses `fan-rad`: it slides out along the radiator, never through it. `takeOutRadiator`, `putBackAssembly` and the group restore in `fit` play the assembly in both directions.
+- The cooler's twist is 0.06 rad (was 0.18): the wide twist swung it into the rear fan.
+- Open: the remaining hits are small (cooler and rear fan 14%, rear fan 6%): box artefacts at the seat. The checker does not test case walls or cables yet.

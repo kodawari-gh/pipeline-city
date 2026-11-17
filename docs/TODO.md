@@ -15,9 +15,11 @@ Source of truth for tasks in this repository. Rewritten 2026-11-17 for one theme
 
 ## Where things stand (2026-11-17, branch `main`)
 
-No open tasks. The ANIM work is done and written up in `docs/render/load.md` ("Swap cost", "Pace of Build my PC").
+No open tasks. The ANIM work and the radiator/clipping work are done and written up in `docs/render/load.md` ("Swap cost", "Pace of Build my PC").
 
 Fixed: the side panel opened and shut on every action (it stays open now, the player shuts it); steps took 1.5 to 2.5 s each plus the door's 1 to 1.9 s (now about 1 s, the door overlaps the work); a long chain took 28 s (CPU out with six blockers: 6.2 s, and Space, Escape or the Skip button fast-forwards it); a fan's cable in a chain is pulled 1.8x faster again (`CABLE_QUICK`).
+
+Clipping: the radiator and its fans come out and go back as one assembly; `npm run clip:check` lists the rest (docs/render/load.md "Clipping"). To extend: case walls and cables in the checker.
 
 Decisions (2026-11-17, the agent's, as the attended-session rule allows):
 - ANIM-08 (the 0.5 s build freezing the picture): accepted. The build runs when the part is already hidden, so the frame the player sees before and after it is the same picture: only input waits, for 0.5 s, once per job. A patch that builds one part in place would save that, but it has to keep the merged groups and the shared materials right (`docs/render/three.md` "Merges"), for a pause nobody sees. Take it up again if a profile on a real device shows the stall as a hitch.

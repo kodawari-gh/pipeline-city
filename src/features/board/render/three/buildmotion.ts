@@ -38,7 +38,7 @@ const MOTIONS: Record<string, Motion> = {
   cable: CABLE,
   ram: { keys: [hold(0.35, 'Press the two latches out', 'Click the two latches shut'), ...lift(260, [0, 0, 2200], [0.5, 0.7], ['Lift the stick out of its socket', 'Take the stick away', 'Bring the stick over the socket', 'Press the stick home'])] },
   cpu: { keys: [hold(0.45, 'Lift the load lever', 'Lower the load lever and lock it'), ...lift(200, [0, 0, 2600], [0.5, 0.7], ['Lift the CPU straight up', 'Take the CPU away', 'Bring the CPU over the socket', 'Lower the CPU into the socket'])] },
-  cooler: { keys: [hold(0.5, 'Undo the four mounting screws', 'Tighten the four mounting screws'), k([0, 0, 420], 0.6, 'Twist the cooler free', 'Press the cooler onto the CPU', 0.18), k([0, 0, 3200], 0.9, 'Lift the cooler away', 'Bring the cooler over the CPU', 0.18)] },
+  cooler: { keys: [hold(0.5, 'Undo the four mounting screws', 'Tighten the four mounting screws'), k([0, 0, 420], 0.6, 'Twist the cooler free', 'Press the cooler onto the CPU', 0.06), k([0, 0, 3200], 0.9, 'Lift the cooler away', 'Bring the cooler over the CPU', 0.06)] },
   radiator: { keys: [hold(0.5, 'Undo the radiator screws', 'Tighten the radiator screws'), k([0, 0, 500], 0.6, 'Pull the radiator off the fan mount', 'Press the radiator onto the fan mount'), k([0, 0, 3600], 0.9, 'Lift the radiator away', 'Bring the radiator over the mount')] },
   gpu: { tilt: 0.07, keys: [hold(0.5, 'Undo the bracket screws', 'Tighten the bracket screws'), hold(0.35, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 520], 0.6, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3600], 0.9, 'Lift the card away', 'Bring the card over the slot')] },
   npu: { tilt: 0.07, keys: [hold(0.45, 'Undo the bracket screw', 'Tighten the bracket screw'), hold(0.3, 'Press the slot latch', 'The slot latch clicks'), k([0, 0, 480], 0.55, 'Pull the card out of the slot', 'Press the card into the slot'), k([0, 0, 3200], 0.8, 'Lift the card away', 'Bring the card over the slot')] },
@@ -57,6 +57,11 @@ const MOTIONS: Record<string, Motion> = {
   'fan-front': fanMotion([-160, 0, 0]),
   'fan-top': fanMotion([0, -160, 0]),
   'fan-rear': fanMotion([160, 0, 0]),
+  // a fan on a radiator's mount is sandwiched between the case panel and the radiator (the screws go through the panel, the fan and into the radiator): it slides out along the
+  // radiator, never down into it
+  'fan-rad': { keys: [hold(0.4, 'Undo the fan screws', 'Tighten the fan screws'), k([0, 0, 3000], 0.8, 'Slide the fan out along the radiator', 'Slide the fan in along the radiator')] },
+  // the radiator with the fans on it: the screws come out through the case panel, and the whole assembly leaves together
+  assembly: { keys: [hold(0.5, 'Undo the screws through the panel', 'Tighten the screws through the panel'), k([0, 0, 500], 0.6, 'Pull the radiator and its fans off the panel', 'Press the radiator and its fans onto the panel'), k([0, 0, 3600], 0.9, 'Carry the radiator away with its fans', 'Bring the radiator and its fans over the mount')] },
   display: { keys: [hold(0.3, 'Switch the monitor off', 'Switch the monitor on'), k([0, 600, 0], 0.5, 'Lift the monitor off the desk', 'Set the monitor on the desk'), k([0, 600, 3400], 0.9, 'Carry the monitor away', 'Bring the monitor over the desk')] },
   // (the board stands on its studs: it lifts just off them, slides its ports out of the rear opening, and only then comes away)
   board: { keys: [hold(0.6, 'Undo the board screws', 'Tighten the board screws'), k([0, 0, 90], 0.4, 'Lift the board off its standoffs', 'Lower the board onto its standoffs'), k([260, 0, 90], 0.5, 'Slide the ports out of the rear opening', 'Slide the ports into the rear opening'), k([260, 0, 4200], 1.0, 'Take the board away', 'Bring the board over the tray')] },
