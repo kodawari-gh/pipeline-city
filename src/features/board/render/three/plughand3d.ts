@@ -170,7 +170,7 @@ interface Auto {
 }
 
 /** Seconds of a scripted pull (against the latch), a lift away from the socket, a carry to a socket; how far (as a share of the plug's engage) a lifted plug goes. */
-const AUTO_PULL_S = 0.55, AUTO_LIFT_S = 0.6, AUTO_CARRY_S = 0.8, AUTO_LIFT = 3.2;
+const AUTO_PULL_S = 0.3, AUTO_LIFT_S = 0.3, AUTO_CARRY_S = 0.4, AUTO_LIFT = 3.2, AUTO_FALL_S = 0.35;
 
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
 const T = (v: Vector3): V3 => [v.x, v.y, v.z];
@@ -334,7 +334,7 @@ export class PlugHand {
         const tip = sp.tip(), m = middle(l.exits), out = V(m.dir).applyQuaternion(l.pose.q);
         const q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(out, V(tip.dir).negate().normalize()).multiply(l.pose.q), l.free);
         l.pose = { at: looseAt(rig, l.exits, l.lengths, { at: T(V(tip.at).sub(V(m.at).sub(V(rig.seat.at)).applyQuaternion(q))), q }), q };
-        if (sp.resting || l.t > FALL_MAX_S) {
+        if (sp.resting || l.t > (this.auto ? AUTO_FALL_S : FALL_MAX_S)) {
           // the built cable lies just as the held one does: hand over at once
           setPose(l.pivot, l.pose);
           const mc = this.host.machine();
@@ -430,8 +430,8 @@ export class PlugHand {
     const p = l.pose.at;
     for (let j = 0; j < 3; j++) { const [x, v] = springStep(p[j]!, l.vel.getComponent(j), goal.getComponent(j), OMEGA, dt); p[j] = x; l.vel.setComponent(j, v); }
     l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));
-    if (out && a.t >= AUTO_LIFT_S + 0.1) this.fall(l);
-    else if (!out && a.t >= AUTO_CARRY_S + 0.12) { this.snapped = true; l.phase = 'insert'; l.t = 0; l.off = V(l.pose.at).sub(pre); }
+    if (out && a.t >= AUTO_LIFT_S + 0.04) this.fall(l);
+    else if (!out && a.t >= AUTO_CARRY_S + 0.04) { this.snapped = true; l.phase = 'insert'; l.t = 0; l.off = V(l.pose.at).sub(pre); }
   }
 
   /** Put the plug a socket takes in the hand (in the rig's seat, as every model is built): its model and its strands' exits. */

@@ -72,7 +72,9 @@ const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
  */
 export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
-const SETTLE_SECONDS = 0.35, SETTLE_DEPTH = 55;
+/** The share of the panel's swing to wait for, the speed of the parts in the way in a chain of more than two steps, and of a skip. */
+const DOOR_WAIT = 0.4, QUICK = 2.5, SKIP = 6;
+const SETTLE_SECONDS = 0.2, SETTLE_DEPTH = 40;
 /** The tile bakes' time in a tick that follows a drawn frame, and in one that follows none (ms); the drawn frames between two rank refreshes. */
 const BAKE_MS = 6, BAKE_STILL_MS = 12, RANK_EVERY = 32;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -109,6 +111,12 @@ export class BuildStage {
   readonly benching = signal<BenchKind | 'start' | null>(null);
   /** Playback speed: 1 is the animations' own time. */
   readonly speed = signal(1);
+  /** A long chain of steps plays its parts in the way faster (`QUICK`), and a press of Space or Escape fast-forwards what is left of a job. */
+  private pace = 1;
+  private skipping = false;
+  private rate(): number { return this.speed.peek() * this.pace * (this.skipping ? SKIP : 1); }
+  /** Fast-forward the job that runs now (its steps all play, quicker). */
+  skip(): void { if (this.status.peek().busy) this.skipping = true; }
   /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
   get game(): Game { return this.alive(this._game); }
   set game(g: Game) { this._game = g; }
@@ -198,6 +206,10 @@ export class BuildStage {
     });
     ro.observe(host);
     this.cleanup.push(() => ro.disconnect());
+    // Space or Escape fast-forwards the step that plays (a long chain is a lot to watch twice)
+    const onKey = (e: KeyboardEvent) => { if ((e.code === 'Space' || e.key === 'Escape') && this.status.peek().busy) { this.skip(); e.preventDefault(); } };
+    document.addEventListener('keydown', onKey);
+    this.cleanup.push(() => document.removeEventListener('keydown', onKey));
     // a restored context lost the studio's environment map (a render target's picture): made again, then a frame
     const restored = () => { restoreStudioEnv(scene, this.ctx.pmrem); this.demand.ask(); };
     renderer.domElement.addEventListener('webglcontextrestored', restored);
@@ -332,14 +344,14 @@ export class BuildStage {
     this.machine.setOpen(this.wantOpen, true);
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
-    this.hand.frame(Math.min(dt, 0.05) * this.speed.peek(), camera);
+    this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
     // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
     if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
     else this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
     // (the art's density follows the `textures` setting as the board's view does: Low draws it at half what the screen needs)
     this.machine.lod(camera, this.H, renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1));
-    this.step(dt * this.speed.peek());
+    this.step(dt * this.rate());
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
     this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
@@ -610,7 +622,8 @@ export class BuildStage {
     if (this.wantOpen === open) return;
     this.wantOpen = open;
     this.setStep(open ? 'Undo the side panel' : 'Close the side panel');
-    await sleep((DOOR_SECONDS[CASE_KIND[LAYOUT_CASE] ?? 'gamer'] * 1000 + 250) / this.speed.peek());
+    // (the work starts while the panel is still swinging: it is out of the way after the first part of its swing)
+    await sleep((DOOR_SECONDS[CASE_KIND[LAYOUT_CASE] ?? 'gamer'] * 1000 * DOOR_WAIT) / this.rate());
   }
 
   private labelOf(node: string, verb: 'Take out' | 'Put back'): string {
@@ -706,10 +719,12 @@ export class BuildStage {
   private async job(work: () => Promise<void>): Promise<void> {
     if (this.status.peek().busy || this.dead) return;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
+    this.pace = 1; this.skipping = false;
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
-        await this.door(false);
+        // (the side panel stays open for the next step: the player closes it with its button)
+        this.pace = 1; this.skipping = false;
         this.status.value = { ...this.status.peek(), busy: false, step: '' };
         this.rebuild();
       }
@@ -732,8 +747,11 @@ export class BuildStage {
       const undo: Undo[] = [], steps = this.plan(node);
       const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
       if (gone) this.record({ t: 'remove', spec: gone.spec, slot: gone.slot });
-      for (const n of steps) await this.takeOut(n, n === node ? null : undo);
+      const quick = steps.length > 2 ? QUICK : 1;
+      for (const n of steps) { this.pace = n === node ? 1 : quick; await this.takeOut(n, n === node ? null : undo); }
+      this.pace = quick;
       for (const u of undo.reverse()) await this.putBack(u);
+      this.pace = 1;
       this.note(`Done: ${steps.length} step${steps.length === 1 ? '' : 's'}`);
     }
   }
@@ -760,7 +778,9 @@ export class BuildStage {
       const undo: Undo[] = [];
       // (the parts in the way are hidden, not built again: the one build below has them all back)
       this.deferring = true;
-      try { for (const n of steps) await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo); } finally { this.deferring = false; }
+      try {
+        for (const n of steps) { this.pace = steps.length > 2 && !(occupant && n === devNode(occupant.id)) ? QUICK : 1; await this.takeOut(n, occupant && n === devNode(occupant.id) ? null : undo); }
+      } finally { this.deferring = false; this.pace = 1; }
       let fresh: { id: string; kind: string; slot: string } | null = null;
       const bought = this.edit((g) => g.purchase(itemId));
       if (!bought.ok) this.note(`Cannot get ${spec.name}: ${bought.reason}`);
@@ -787,7 +807,8 @@ export class BuildStage {
       this.rebuild();
       const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
       for (const x of shown) if (x.obj) x.obj.visible = false;
-      for (const x of shown) { if (x.obj) x.obj.visible = true; await this.seat(devNode(x.id), motionOf(x.kind, x.slot)); }
+      for (const [i, x] of shown.entries()) { this.pace = i === 0 || shown.length < 3 ? 1 : QUICK; if (x.obj) x.obj.visible = true; await this.seat(devNode(x.id), motionOf(x.kind, x.slot)); }
+      this.pace = 1;
       for (const u of cables) await this.putBack(u);
       await this.plugNeeded();
     });

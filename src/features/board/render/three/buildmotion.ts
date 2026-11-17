@@ -63,6 +63,17 @@ const MOTIONS: Record<string, Motion> = {
   case: { keys: [k([0, 0, 0], 0.4, 'Set the case aside', 'Set the case down'), k([0, 0, 5200], 1.1, 'Take the case away', 'Bring the case over the desk')] },
 };
 
+/**
+ * Every action takes about a second, whatever the part (a player does this many times; the point is to see how it comes apart, not to wait): the keys above
+ * give the shape and the proportions, and this sets the length. The shell and the board are bigger and take a little longer.
+ */
+export const ACTION_SECONDS = 1.0, BIG_SECONDS = 1.5;
+const BIG = new Set(['case', 'board']);
+for (const [kind, m] of Object.entries(MOTIONS)) {
+  const total = m.keys.reduce((t, x) => t + x.sec, 0), want = BIG.has(kind) ? BIG_SECONDS : ACTION_SECONDS;
+  if (total > want) MOTIONS[kind] = { ...m, keys: m.keys.map((x) => ({ ...x, sec: Math.max(0.06, (x.sec * want) / total) })) };
+}
+
 /** The motion for a kind of part (every kind has one; an unknown kind gets the plain lift). */
 export function motionFor(kind: NodeKind | string): Motion {
   return MOTIONS[kind] ?? MOTIONS.tpm!;

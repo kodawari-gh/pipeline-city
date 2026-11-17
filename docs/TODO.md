@@ -20,3 +20,11 @@ Done and removed: ANIM-01 (`npm run bench:swap`, numbers in `docs/render/load.md
 ## ANIM: animation and swap cost in Build my PC
 
 No open tasks. ANIM-05 is done: every hold presses and rocks the part; DIMM latches and the CPU load lever move (`latchOpen`; a PCIe slot latch was tried and dropped: its hinge group added 4 draws at High); a card tips out of its slot (`Pose.tilt`). Decided 2026-11-17: no separate screw objects. The screws are part of the fused part meshes, and the press-and-rock of the hold stands for turning them; a real screw would add draws and a build step for a detail below the zoom where it shows. Take it up again if a close-up asks for it.
+
+## Gaps in the flow, assessed 2026-11-17 (after the pace change)
+
+Fixed: the side panel opened and shut on every action (now it stays open); steps took 1.5 to 2.5 s each plus the door's 1 to 1.9 s (now about 1 s, the door overlaps the work); a long chain took 28 s (now 8.7 s, and it can be skipped).
+
+- [ ] ANIM-07 [auto] [look: low] Fan cables come out one by one: removing a radiator unplugs and replugs each case fan's cable as its own 1 s step. Play consecutive cable steps of one kind together (the hand holds one plug now; the others can use the old group lift at 2.5x) or as one beat with a count. Files: buildmode3d.ts `removeSteps`, plughand3d.ts. Done when: a CPU removal with six fans takes under 6 s.
+- [ ] ANIM-08 [auto] [look: none] The 0.5 s build at the end of a permanent change freezes the picture (the frame gap in `bench:swap`). Patch the new part in place (ANIM-02's left half), or build it on the frame before the part lands and show it hidden. Done when: the gap is under 100 ms for a RAM swap.
+- [ ] ANIM-09 [owner] [look: low] Everything is locked while a job runs (shelf tiles dim, buttons disabled). Queue the next click instead? It changes how the screen feels: the owner chooses. Also: the camera does not follow the part; a long lift can leave the frame.

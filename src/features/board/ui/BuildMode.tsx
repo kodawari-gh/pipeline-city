@@ -244,6 +244,7 @@ export function BuildMode() {
           <i class="bld-sep" aria-hidden="true" />
           <button disabled={busy || !stage?.canUndo} title="Undo the last fit or removal" onClick={() => stage?.undo()}>Undo</button>
           <button disabled={busy || !stage?.canRedo} title="Redo" onClick={() => stage?.redo()}>Redo</button>
+          {busy && <button title="Fast-forward the steps that play (Space or Escape)" onClick={() => stage?.skip()}>Skip</button>}
           <i class="bld-sep" aria-hidden="true" />
           <div class="seg" role="group" aria-label="Camera">
             {(['front', 'angle', 'side', 'top'] as const).map((v) => <button key={v} disabled={!stage} onClick={() => stage?.preset(v)}>{v[0]!.toUpperCase() + v.slice(1)}</button>)}
