@@ -209,3 +209,18 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 **Programs and precision (GFX-05). Decided 2026-11-17: not built.** Measured (real GPU, dev server, `renderer.info.programs`): the menu links 123 programs at the phone's first-start tier: 65 physical or standard, 35 shader materials (the post passes and the city's layers), 12 basic, 7 depth, 4 others. A sandbox game holds 124 at High and 102 at Low. Of the physical ones, 57 share one light set and differ only by their maps and UV channels, the lightmap, and the hooks (`box`, `ao`, `pal`, `haze`); the others take other light counts. So the target of under 60 needs the material work of MACH-01 first (which is parked, `three.md` "Merges"): no cheaper cut reaches it. `mediump` for the post passes and the city gives a gain on phone ALUs only (a desktop GPU runs it as `highp`), and the HDR chain with bloom is where banding shows, so it would need a shot on a phone GPU that this machine cannot give. Phone cost no longer constrains a decision, so neither is done. Take both up again with MACH-01.
 
 To measure: `tools/bench3d.mjs` times frames. For the boot, poll the `.boot-stage` text and the gaps between `requestAnimationFrame`s in a fresh Chrome profile, and a kept profile for the shader cache.
+
+## Swap cost (2026-11-17, ANIM-01 to ANIM-06)
+
+`npm run bench:swap -- out.json` plays four swaps in Build my PC (High, RTX 5080, dev server): RAM out, RAM back, NIC out, CPU out (the cooler, radiator and fans come out first), then the 24-pin unplug. `BuildStage.cost` (`window.__build.cost`) counts full builds, their ms and skipped builds.
+
+| Step | Before | After |
+|---|---|---|
+| RAM out | 1 build (0.78 s) + 1 skipped | same |
+| NIC out | 1 build | 1 build |
+| CPU out (with its blockers) | 8 builds, 4.96 s | 1 build, 0.76 s |
+| 24-pin unplug | 1 build (old slide) | 0 builds, longest frame gap 31 ms |
+
+How it works. A cable step uses the real plug hand (`PlugHand.pullOut`, `plugIn`; `autoHold` in `plughand3d.ts`): the plug pulls out against its latch, lifts, falls on its rope; plugging in carries it over an arc and pushes it in. No build. `BuildStage.rebuild` builds nothing when `machineKey` is the key of the machine on the stage. In `remove`, a blocker is hidden where it ended (`held`) and shown again, under its new id, when it goes back; only the part that really leaves forces the one build at the job's end. `fit` still builds at the install and at each put-back.
+
+Programs stay at 45 to 47 across the swaps and the longest frame gap equals the build ms, so the hitch is the build, not a program link. Left: patch a single part in place (a fit still builds the whole machine, about 0.7 s).

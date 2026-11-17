@@ -48,3 +48,18 @@ describe('build motions', () => {
     expect(poseAt(m, 0.05, 'in').label).toMatch(/Bring/);
   });
 });
+
+describe('a hold (a latch, a screw) is not a freeze', () => {
+  it('presses the part in mid-hold and leaves it at home at both ends', () => {
+    const m = motionFor('ram'), first = m.keys[0]!.sec;
+    expect(poseAt(m, 0).offset).toEqual([0, 0, 0]);
+    expect(poseAt(m, first / 2).offset[2]).toBeLessThan(-1);
+    expect(poseAt(m, first / 2).turn).not.toBe(0);
+    expect(poseAt(m, first).offset[2]).toBeCloseTo(0, 6);
+    expect(poseAt(m, first, 'out').turn).toBeCloseTo(0, 6);
+  });
+  it('a plain pull has no press', () => {
+    const m = motionFor('cable');
+    expect(poseAt(m, m.keys[0]!.sec / 2).offset[2]).toBeGreaterThan(0);
+  });
+});

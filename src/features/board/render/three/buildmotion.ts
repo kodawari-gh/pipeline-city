@@ -82,6 +82,9 @@ export interface Pose {
   out: number;
 }
 
+/** How far (layout units) a part presses in, and how far it rocks (rad), while a latch or a screw is worked. */
+export const HOLD_PRESS = -14, HOLD_ROCK = 0.012;
+
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
 /**
@@ -97,7 +100,10 @@ export function poseAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): Pose {
       const u = key.sec > 0 ? ease(Math.max(0, Math.min(1, left / key.sec))) : 1;
       const offset: [number, number, number] = [from[0] + (key.at[0] - from[0]) * u, from[1] + (key.at[1] - from[1]) * u, from[2] + (key.at[2] - from[2]) * u];
       const far = m.keys[m.keys.length - 1]!.at, reach = Math.hypot(...far) || 1;
-      return { offset, turn: fromTurn + ((key.turn ?? 0) - fromTurn) * u, label: dir === 'out' ? key.remove : key.fit, out: Math.min(1, Math.hypot(...offset) / reach) };
+      // a hold (a latch, a screw, a lever): the part does not travel but it does not freeze: it presses in and rocks a little (zero at both ends)
+      const held = key.at === from && from === HOME, raw = key.sec > 0 ? Math.max(0, Math.min(1, left / key.sec)) : 0, bump = held ? Math.sin(Math.PI * raw) : 0;
+      if (held) { offset[2] += HOLD_PRESS * bump; }
+      return { offset, turn: fromTurn + ((key.turn ?? 0) - fromTurn) * u + (held ? HOLD_ROCK * Math.sin(2 * Math.PI * raw) * bump : 0), label: dir === 'out' ? key.remove : key.fit, out: Math.min(1, Math.hypot(...offset) / reach) };
     }
     left -= key.sec;
     from = key.at;
