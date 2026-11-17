@@ -6,7 +6,7 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 ## Look
 
-- **Studio look (2026-11-09)**: the glass rule also adds a top sheen, blur 1.1rem + saturate, a 1rem radius and a soft shadow; buttons have a faint fill and an accent-tinted hover; `kbd` is global; section labels are 0.09 to 0.1em spaced (`.pblock h3`, `.dock h3`, `.stat .label`); the shelf and almanac heads and `.menu-h` are 0.18em (the last block of `ui.css`, line 1243 overrides the earlier 0.09em of `.menu-h`); selected tiles glow. Gallery and Build my PC (`.mode`) keep their own always-dark tokens. Checked on the board HUD in dark only; shop, almanac and narrow screens are not checked.
+- **Studio look (2026-11-09)**: the glass rule also adds a top sheen, blur 1.1rem + saturate, a 1rem radius and a soft shadow; buttons have a faint fill and an accent-tinted hover; `kbd` is global; section labels are 0.09 to 0.1em spaced (`.pblock h3`, `.dock h3`, `.stat .label`); the shelf and almanac heads and `.menu-h` are 0.18em (the last block of `ui.css`, line 1243 overrides the earlier 0.09em of `.menu-h`); selected tiles glow. Gallery and Build my PC (`.mode`) keep their own always-dark tokens (see "Studio screens"). Checked on the board HUD in dark only; shop, almanac and narrow screens are not checked.
 - **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(1.1rem) saturate(130%)`, a 1px hairline (`--glass-line`), a 1rem radius and a soft shadow (`0 1.2rem 2.6rem rgba(0,0,0,.32)`). Tokens are on `:root`. Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in dark.
 - **Small type** (all rem): 0.8rem body (`--fs-body`), 0.667rem uppercase labels (`--fs-label`; section heads 0.633rem, table heads and eyebrows 0.65rem), 1rem titles (`--fs-title`).
 - **Shared panel look** (end of `ui.css`): tokens `--fs-label`, `--fs-body`, `--fs-title`, `--r-tile`; one tile corner, one hover and selected state (`.rung`, `.tile`, `.os-tile`), one section label, one title size. Mono is for numbers and code only. Hover ring on the board is neutral (cyan = selected, yellow = tutorial target).
@@ -48,6 +48,7 @@ Paths are from the repo root. `src/core/ui/` holds the shared UI; the shop, tuto
 | `src/core/ui/worldDrag.ts` | `beginPartDrag(invId, event)`: a thin wrapper over the renderer's hook (`src/features/board/render/board.ts`). |
 | `src/features/tutorial/ui/TutorialCard.tsx` | The tutorial: welcome and next-lesson modals, the bottom-centre card, the camera glide, the animated pointer, the card lift. Writes `highlight`. Opens the shelf on install steps. |
 | `src/core/ui/kit/Hover.tsx` | `Tooltip` (follows `hover`). |
+| `src/core/ui/kit/ModeKit.tsx`, `src/core/ui/kit/clearance.ts` (+ `clearance.test.ts`) | Shared by the two studio screens: the key-hint line (`ModeKeys`, `VIEW_KEYS`) and the pure `clearance()` that measures what the glass panels cover of the stage (see "Studio screens"). |
 | `src/core/ui/panels/Toasts.tsx` | `Notice` (a refused action, plain words, dismissible, clears after 6 s) and hint toasts. |
 | `src/core/ui/panels/Stats.tsx`, `src/core/ui/kit/Meter.tsx` | Nerd stats drawer (CPI/IPC, stalls, cache, power, device temps, sparkline) and the small bar. |
 | `src/core/ui/panels/Graphics.tsx` | The graphics drawer: presets and each option (see "Graphics panel"). |
@@ -70,6 +71,15 @@ Paths are from the repo root. `src/core/ui/` holds the shared UI; the shop, tuto
 
 ## Shop (`shop/Shop.tsx`, `Showcase.tsx`; the menu review is `docs/MENU_REVIEW.md`)
 Near full-screen modal, three fixed zones: category rail (counts), tiles of the chosen category, the picked part. The detail pane shows a 3D showcase (`Showcase.tsx`: its own small WebGL context, built on first use; the viewer is `core/render/three/viewer.ts`, the parts are `features/board/render/three/showcase.ts`) over the stat bars. `hasModel(kind)` (`shopdata.ts`) says which kinds have a model; the rest show their picture. The part builders read the layout's module state, so `showcase.ts` sets the biggest tier and puts the live one back. Arrow keys move the pick; Esc closes the 3D view first, then the shop. Faces that the case bakes from 2D art (cards, drive labels) are plain in the showcase.
+
+## Studio screens (Gallery `shop/Gallery.tsx`, Build my PC `features/board/ui/BuildMode.tsx`; checked 2026-11-18 at 1600x900, 1280x720, 800x900 and 390x844)
+Both screens are one design: a full-screen 3D stage under glass panels, with the `.mode` always-dark tokens (type scale `--m-xs` to `--m-xl`, radii `--m-r-*`). Change a shared rule in the `.mode` block of `ui.css`, never in one screen only.
+- **Layout**: a glass panel at the left (Gallery: the category rail; Build: the shelf), a glass bar at the bottom (Gallery: the part and its tiers; Build: side panel, speed, undo, views, power), the key hints under it (`ModeKeys` and `VIEW_KEYS`: the same words and caps on both), and one pill at the top right (`.mode-bar.mode-top`) with the **Graphics** button, then Close. Gallery's pill also holds Spin and Reset. The Graphics drawer opens on the right of both (a bottom sheet on a phone).
+- **Categories**: both take their order from `STUDIO_KINDS` (`shopdata.ts`: cases, boards, then the shop's order; Build leaves out the monitor). Build shows the icon of each kind, Gallery the icon, the name and the count.
+- **Part art**: Build's tiles use `PartArt` with `fill` (the tile's full width; the picture is the baked still, `thumbOf`).
+- **Framing (Gallery)**: the panels hide part of the stage. `clearance()` measures the strips they cover and `Viewer.setInsets` moves the picture (`camera.setViewOffset`), so the part sits in the free area. `holdHeight` (`viewer.ts`) takes the 8 corners of the part box at 12 turntable angles and sets the camera height so a long part stays in the frame while it turns. The floor is a dark disc with a radial alpha fade (no hard edge); its colour is close to Build's floor.
+- **Narrow (below 52em)**: the stage is a rounded card at the top and the panels stack below it (flex `order`). Not changed by the Graphics drawer.
+- Known gap: at phone width the Graphics drawer's Tier row (shared panel) is wider than the sheet; its last button is cut off.
 
 ## Picker (`PickerCard.tsx` + `picker.ts`)
 

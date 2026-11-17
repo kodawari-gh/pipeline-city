@@ -29,7 +29,11 @@ export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', '
 export interface GalleryItem { id: string; name: string; note: string }
 export interface GalleryGroup { key: string; kind: string; items: GalleryItem[] }
 
-const GALLERY_KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'gpu', 'npu', 'nic', 'tpm'];
+/** The device kinds the studio screens list, in the shop's order (so the Gallery, Build my PC and the shop agree on where a category sits). */
+const GALLERY_KINDS = SHOP_ORDER.filter((k): k is DeviceKind => hasModel(k) && k !== 'case');
+
+/** Every category of the studio screens, cases and boards first: the Gallery's rail and Build my PC's shelf (which has no monitor) take their order from it. */
+export const STUDIO_KINDS: readonly string[] = ['case', 'board', ...GALLERY_KINDS];
 
 /** Every part the showcase can build, by category (cases first, as the shop lists them): the gallery's list, and the shop's stills (`tools/stills.mjs`). */
 export function galleryGroups(): GalleryGroup[] {

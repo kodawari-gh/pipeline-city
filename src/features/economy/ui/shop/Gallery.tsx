@@ -1,18 +1,24 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { galleryOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
+import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { Showcase } from './Showcase';
 import { galleryGroups, kindIcon, kindLabel } from './shopdata';
 
 // The GALLERY (main menu): every part with a 3D model, large, on the showcase's turntable. It is the "studio" look shared with Build my PC
 // (ui.css, `.mode`): the model fills the screen, a glass category list floats on the left and a dock with the part's name, its variants and
-// the keys floats at the bottom. Left and Right (or the dock) change the part, Up and Down the category, Escape closes.
+// the keys floats at the bottom, the view's buttons and Close at the top right. The part sits clear of the rail and the dock. Left and Right
+// (or the dock) change the part, Up and Down the category, Escape closes.
+
+const KEYS: readonly ModeKey[] = [...VIEW_KEYS, [['←', '→'], 'part'], [['↑', '↓'], 'category'], ['Esc', 'leave']];
 
 export function Gallery() {
   const open = galleryOpen.value;
   const all = useMemo(galleryGroups, []);
   const [gi, setGi] = useState(0);
   const [ii, setIi] = useState(0);
+  const rail = useRef<HTMLElement>(null);
+  const dock = useRef<HTMLElement>(null);
   const group = all[gi]!, at = Math.min(ii, group.items.length - 1), item = group.items[at]!;
   const n = group.items.length;
 
@@ -37,9 +43,9 @@ export function Gallery() {
   return (
     <div class="gallery mode" role="dialog" aria-modal="true" aria-label="Gallery">
       <div class="gal-main">
-        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} />
+        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} studio={{ avoid: () => [rail.current, dock.current] }} />
       </div>
-      <nav class="gal-rail mode-panel" aria-label="Categories">
+      <nav class="gal-rail mode-panel" aria-label="Categories" ref={rail}>
         <header class="mode-head"><span class="mode-eyebrow">Every part in 3D</span><b>Gallery</b></header>
         <div class="gal-cats">
           {all.map((g, i) => (
@@ -50,7 +56,7 @@ export function Gallery() {
         </div>
       </nav>
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { galleryOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <section class="gal-dock mode-panel" aria-label="Part">
+      <section class="gal-dock mode-panel" aria-label="Part" ref={dock}>
         <div class="gal-title">
           <button class="gal-arrow" aria-label="Previous part" title="Previous part (←)" onClick={() => setIi((i) => (i - 1 + n) % n)}>‹</button>
           <div class="gal-name">
@@ -66,10 +72,7 @@ export function Gallery() {
             ))}
           </div>
         )}
-        <div class="mode-keys" aria-hidden="true">
-          <span><kbd>Drag</kbd>turn</span><span><kbd>Right-drag</kbd>pan</span><span><kbd>Scroll</kbd>zoom</span>
-          <span><kbd>←</kbd><kbd>→</kbd>part</span><span><kbd>↑</kbd><kbd>↓</kbd>category</span><span><kbd>Esc</kbd>leave</span>
-        </div>
+        <ModeKeys keys={KEYS} />
       </section>
     </div>
   );

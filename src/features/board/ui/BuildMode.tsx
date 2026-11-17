@@ -4,8 +4,9 @@ import { airflowLens, powerLens } from '@/app/hover';
 import { BUILD_PRESETS, specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
 import { deleteBuild, savedBuilds, saveBuild } from './savedbuilds';
 import { Icon } from '@/core/ui/kit/Icons';
+import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
-import { kindIcon, kindLabel } from '@/features/economy/ui/shop/shopdata';
+import { kindIcon, kindLabel, STUDIO_KINDS } from '@/features/economy/ui/shop/shopdata';
 import { devNode } from '@/features/board/sim/removal';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 
@@ -17,8 +18,11 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // everything in its way; the order is `sim/removal.ts`). A press without a move is a click: a shelf part fits in the first free socket,
 // a machine part is selected. Styles: ui.css (the Build my PC section). Escape leaves.
 
-const KINDS = ['case', 'board', 'cpu', 'cooler', 'fan', 'radiator', 'ram', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu', 'vrm-sink', 'ram-sink'];
+/** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case). */
+const KINDS = STUDIO_KINDS.filter((k) => k !== 'display');
 const SPEEDS = [0.5, 1, 2, 4];
+/** The hint under the toolbar: the camera in the Gallery's words. */
+const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'reset'], ['Esc', 'leave']];
 /** Pixels a press may move before it is a drag. */
 const SLOP = 6;
 
@@ -202,7 +206,7 @@ export function BuildMode() {
       onPointerDown={(e) => { if (e.button === 0 && !busy) begin({ from: 'shelf', item: t.item, spec: t.spec, name: t.name }, e, () => stageRef.current?.fit(t.item)); }}
       onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); stageRef.current?.fit(t.item); } }}
     >
-      <span class="bld-art"><PartArt id={t.spec} size={52} label={t.name} /></span>
+      <span class="bld-art"><PartArt id={t.spec} fill label={t.name} /></span>
       <span class="bld-tname">{t.name}</span>
     </div>
   );
@@ -218,7 +222,7 @@ export function BuildMode() {
           <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All (${parts.length})`} onClick={() => setKind('all')}>All</button>
           {KINDS.map((k) => (
             <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
-              <Icon name={kindIcon(k)} size={14} />{k === kind && <span>{kindLabel(k)}</span>}
+              <Icon name={kindIcon(k)} size={14} />
             </button>
           ))}
         </div>
@@ -233,29 +237,31 @@ export function BuildMode() {
         <span class="mode-hint bld-hint">Drop a machine part here to take it out.</span>
       </aside>
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
+      <div class="mode-bar mode-top" role="toolbar" aria-label="View">
+        <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}>Graphics</button>
+      </div>
       <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>
-      <div class="bld-bar mode-panel">
+      <div class="bld-bar mode-bar" role="toolbar" aria-label="Machine">
           <button class={insideOpen ? 'on' : ''} aria-pressed={insideOpen} disabled={busy || !stage} title="Open or shut the side panel: the parts inside are only in reach with it open"
             onClick={() => { if (stage) { stage.openInside(!insideOpen); redraw((n) => n + 1); } }}>Side panel</button>
-          <i class="bld-sep" aria-hidden="true" />
+          <i class="mode-sep" aria-hidden="true" />
           <div class="seg" role="group" aria-label="Speed">
             {SPEEDS.map((x) => <button key={x} class={stage?.speed.value === x ? 'on' : ''} aria-pressed={stage?.speed.value === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
           </div>
-          <i class="bld-sep" aria-hidden="true" />
+          <i class="mode-sep" aria-hidden="true" />
           <button disabled={busy || !stage?.canUndo} title="Undo the last fit or removal" onClick={() => stage?.undo()}>Undo</button>
           <button disabled={busy || !stage?.canRedo} title="Redo" onClick={() => stage?.redo()}>Redo</button>
           {busy && <button title="Fast-forward the steps that play (Space or Escape)" onClick={() => stage?.skip()}>Skip</button>}
-          <i class="bld-sep" aria-hidden="true" />
+          <i class="mode-sep" aria-hidden="true" />
           <div class="seg" role="group" aria-label="Camera">
             {(['front', 'angle', 'side', 'top'] as const).map((v) => <button key={v} disabled={!stage} onClick={() => stage?.preset(v)}>{v[0]!.toUpperCase() + v.slice(1)}</button>)}
             <button disabled={!stage || !sel} title="Fly to the selected part" onClick={() => { if (sel) stage?.focusDevice(sel); }}>Focus</button>
           </div>
-          <i class="bld-sep" aria-hidden="true" />
+          <i class="mode-sep" aria-hidden="true" />
           <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!stage} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}>Power</button>
           <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!stage} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}>Airflow</button>
-          <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}>Graphics</button>
       </div>
-      <div class="mode-hint bld-tip">Drag empty space to turn · right-drag to move · scroll to zoom · double-click to reset</div>
+      <div class="bld-tip"><ModeKeys keys={KEYS} /></div>
       <aside class="bld-inst mode-panel">
         <header class="mode-head"><span class="mode-eyebrow">{devices.length} fitted</span><b>In the machine</b></header>
         <div class="bld-presets" role="group" aria-label="Start from">

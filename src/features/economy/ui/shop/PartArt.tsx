@@ -462,12 +462,14 @@ function PlanPlate({ tier, down }: { tier: number; down: number }) {
 }
 
 /** Illustration for a spec id or a board tier id (`board1`). Unknown ids draw nothing. */
-export function PartArt({ id, size = 64, label }: { id: string; size?: number; label?: string }) {
+export function PartArt({ id, size = 64, label, fill }: { id: string; size?: number; label?: string; fill?: boolean }) {
   // the real thing first: the picture the board's own art renders (reading the version re-renders this when it arrives)
   void thumbsVersion.value;
   const url = thumbOf(id);
+  // (`fill`: as wide as its box, whatever that is; else `size` design units)
+  const width = fill ? '100%' : rem(size);
   if (url) {
-    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} decoding="async" style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} />;
+    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} decoding="async" style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }} />;
   }
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
@@ -501,7 +503,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
   }
   if (!body) return null;
   return (
-    <svg class="art" style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} viewBox={`0 0 ${VB.w} ${VB.h}`}
+    <svg class="art" style={{ width, aspectRatio: `${VB.w} / ${VB.h}` }} viewBox={`0 0 ${VB.w} ${VB.h}`}
       role="img" aria-label={label ?? id}>
       {body}
     </svg>

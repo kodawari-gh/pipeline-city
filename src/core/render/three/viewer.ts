@@ -1,6 +1,6 @@
 // The showcase viewer: one part on a turntable, turned and zoomed by the player (shop preview). It owns a small WebGL context, built on the first
 // part and disposed with `dispose`. The camera is the board's orbit (`camera.ts`) with the full turn allowed.
-import { ACESFilmicToneMapping, AmbientLight, Box3, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, AmbientLight, Box3, CanvasTexture, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, NoColorSpace, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
@@ -8,9 +8,14 @@ import { SEG, anisotropy, refilter } from './geometry';
 import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
 
+/** The strips of the stage that panels float over (CSS pixels): the part is framed and centred in what is left. */
+export interface StageInsets { left: number; right: number; top: number; bottom: number }
+
 export interface Viewer {
   /** Show another part (null: an empty stage). The old one is disposed. */
   setObject: (o: Object3D | null) => void;
+  /** Keep the part clear of the panels over the stage (Gallery: the categories and the dock). Zero all round: the whole stage. */
+  setInsets: (i: StageInsets) => void;
   /** Back to the first view. */
   reset: () => void;
   setAutoTurn: (on: boolean) => void;
@@ -34,10 +39,51 @@ const STILL_FILL = 0.9;
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
-/** The view that frames a box of this size (its largest side, the fov and the zoom factor). */
-export function frameView(size: Vector3, centre: Vector3, zoom: number, yaw: number, pitch: number): OrbitView {
-  const side = Math.max(size.x, size.y, size.z, 1);
-  return { x: centre.x, y: centre.y, z: centre.z, yaw, pitch, fov: FOV, height: side * 1.05 * zoom };
+/** The view that frames a box of this size (`base`: the height it shows at zoom 1, by default the box's largest side plus a margin). */
+export function frameView(size: Vector3, centre: Vector3, zoom: number, yaw: number, pitch: number, base = Math.max(size.x, size.y, size.z, 1) * 1.05): OrbitView {
+  return { x: centre.x, y: centre.y, z: centre.z, yaw, pitch, fov: FOV, height: base * zoom };
+}
+
+/** Breathing room round a part that the turntable frames. */
+const FIT = 1.08;
+const probe = new PerspectiveCamera(FOV, 1, 1, 1e6), corner = new Vector3();
+
+/**
+ * The height a view must show to hold a part (a box of this size round `centre`) in the free part of a stage: `fw` x `fh` of its `w` x `h`
+ * pixels. The box's corners are projected from twelve turns of the table at the first pitch, and the height is set again until the widest
+ * just fits, so a tall box (a case) or a long one (a stick coming at the camera) is not cut off at any angle of the turn.
+ */
+export function holdHeight(size: Vector3, centre: Vector3, w: number, h: number, fw: number, fh: number): number {
+  let height = Math.max(size.x, size.y, size.z, 1) * 2;
+  const halfW = Math.max(1, fw) / w, halfH = Math.max(1, fh) / h; // (the free rectangle's half-size in the stage's -1..1 space)
+  for (let i = 0; i < 4; i++) {
+    let widest = 0;
+    for (let k = 0; k < 12; k++) {
+      applyView(probe, { x: centre.x, y: centre.y, z: centre.z, yaw: (k * Math.PI) / 6, pitch: START.pitch, fov: FOV, height }, w / h);
+      probe.updateMatrixWorld(true);
+      for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
+        corner.set(centre.x + sx * size.x, centre.y + sy * size.y, centre.z + sz * size.z).project(probe);
+        widest = Math.max(widest, Math.abs(corner.x) / halfW, Math.abs(corner.y) / halfH);
+      }
+    }
+    height *= Math.max(widest, 0.05) * FIT;
+  }
+  return height;
+}
+
+/** A soft round fade for the floor's alpha: solid under the part, gone at the rim, so the floor has no edge to see. */
+function floorFade(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!, ramp = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  ramp.addColorStop(0, '#fff');
+  ramp.addColorStop(0.5, '#fff');
+  ramp.addColorStop(1, '#000');
+  g.fillStyle = ramp;
+  g.fillRect(0, 0, 128, 128);
+  const t = new CanvasTexture(c);
+  t.colorSpace = NoColorSpace;
+  return t;
 }
 
 function disposeTree(o: Object3D): void {
@@ -68,13 +114,15 @@ function studio(antialias: boolean, still = false) {
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   scene.add(key, key.target, rim, rim.target);
-  const floor = new Mesh(new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x1a1d26), roughness: 0.6, metalness: 0.2 }));
+  // the floor of Build my PC's stage (`buildmode3d.ts`: the same roughness and metal), faded out at the rim over the studio's backdrop. This studio's key light
+  // is about three times as strong as that stage's, so the paint is as much darker: lit, the two floors come out as one grey
+  const floor = new Mesh(new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x0c0f18), roughness: 0.55, metalness: 0.25, ...(still ? {} : { transparent: true, alphaMap: floorFade() }) }));
   floor.receiveShadow = true;
   scene.add(floor);
   /** Light a part of this size round this centre. */
   const place = (size: Vector3, centre: Vector3) => {
     const r = Math.max(size.x, size.y, size.z, 1);
-    floor.scale.setScalar(r * 0.8);
+    floor.scale.setScalar(r * 1.5);
     floor.position.set(centre.x, centre.y - size.y / 2 - r * 0.01, centre.z);
     key.position.set(centre.x + r * 1.5, centre.y + r * 2, centre.z + r * 1.2);
     key.target.position.copy(centre);
@@ -159,7 +207,11 @@ export function mountViewer(host: HTMLElement): Viewer {
   // the view's target moved off the part's centre (a right drag), kept inside the part's box
   const pan = new Vector3(), at = new Vector3(), RIGHT = new Vector3(), UP = new Vector3();
 
-  const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch);
+  // what the panels leave free of the stage, and the stage's size (both in CSS pixels): the part is framed in it
+  let ins: StageInsets = { left: 0, right: 0, top: 0, bottom: 0 }, stageW = 1, stageH = 1, freeW = 1, freeH = 1, base = 1;
+  /** The height the view shows at zoom 1: the part fits the free stage at every turn of the table (set again with a new part or a new layout). */
+  const refit = () => { base = holdHeight(size, centre, stageW, stageH, freeW, freeH); };
+  const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
   const place = () => light(size, centre);
   const setObject = (o: Object3D | null) => {
     if (obj) { scene.remove(obj); for (const h of hooks) h.dispose?.(); disposeTree(obj); }
@@ -174,15 +226,27 @@ export function mountViewer(host: HTMLElement): Viewer {
       b.getCenter(centre);
     } else { size = new Vector3(1, 1, 1); centre = new Vector3(); }
     place();
+    refit();
     view = goal();
     demand.ask();
   };
   // drawn on demand (docs/render/load.md): a still part draws no frame; a new part, size or setting, a baked tile or a camera move draws one
   const demand = new DrawGate(), moved = new ViewWatch();
+  // the free part of the stage centres on the picture: the projection slides over by half of what the panels cover on each side
+  const layout = () => {
+    stageW = Math.max(1, host.clientWidth);
+    stageH = Math.max(1, host.clientHeight);
+    const l = clamp(ins.left, 0, stageW * 0.6), r = clamp(ins.right, 0, stageW * 0.6), t = clamp(ins.top, 0, stageH * 0.6), b = clamp(ins.bottom, 0, stageH * 0.6);
+    freeW = stageW - l - r;
+    freeH = stageH - t - b;
+    if (l || r || t || b) camera.setViewOffset(stageW, stageH, (r - l) / 2, (b - t) / 2, stageW, stageH);
+    else camera.clearViewOffset();
+    refit();
+    demand.ask();
+  };
   const resize = () => {
-    const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
-    renderer.setSize(w, h, false);
-    demand.ask(); // (a new size clears the canvas)
+    renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false);
+    layout(); // (a new size clears the canvas: the layout asks for a frame)
   };
   // the graphics settings (`app/graphics.ts`): the pixels drawn, the brightness, the shadows and the texture filtering
   const stopSettings = effect(() => {
@@ -258,6 +322,7 @@ export function mountViewer(host: HTMLElement): Viewer {
 
   return {
     setObject, reset, resize,
+    setInsets: (i) => { ins = i; layout(); },
     setAutoTurn: (on) => { auto = on; },
     dispose: () => {
       dead = true;
@@ -266,6 +331,7 @@ export function mountViewer(host: HTMLElement): Viewer {
       for (const h of hooks) h.dispose?.();
       if (obj) disposeTree(obj);
       floor.geometry.dispose();
+      (floor.material as MeshStandardMaterial).alphaMap?.dispose();
       (floor.material as MeshStandardMaterial).dispose();
       obj = null;
       hooks = [];
