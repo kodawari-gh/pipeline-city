@@ -238,5 +238,5 @@ Every action plays in about 1 s (`ACTION_SECONDS` in `buildmotion.ts`; the case 
 `npm run clip:check` plays each part's way out in small steps and lists the parts whose boxes grow into another part's box (axis-aligned boxes: a slanted part can show a false hit, so look with `npm run shot`). It lists, it does not fail.
 
 - A radiator leaves with its fans as one piece (motion `assembly`: screws out through the panel, then all of them along the side opening). The fans sit between the panel and the radiator and are screwed through both, so a fan alone on a radiator's mount uses `fan-rad`: it slides out along the radiator, never through it. `takeOutRadiator`, `putBackAssembly` and the group restore in `fit` play the assembly in both directions.
-- The cooler's twist is 0.06 rad (was 0.18): the wide twist swung it into the rear fan.
-- Open: the remaining hits are small (cooler and rear fan 14%, rear fan 6%): box artefacts at the seat. The checker does not test case walls or cables yet.
+- The cooler has no twist (even 0.18 rad swung it into the rear fan) and the rear fan pulls straight along the panel, not toward the cooler.
+- `npm run clip:check` lists no clip over 4% now. It does not test case walls or cables yet.
