@@ -210,8 +210,10 @@ export class BuildStage {
     this.cleanup.push(() => ro.disconnect());
     // Space or Escape fast-forwards the step that plays (a long chain is a lot to watch twice)
     const onKey = (e: KeyboardEvent) => { if ((e.code === 'Space' || e.key === 'Escape') && this.status.peek().busy) { this.skip(); e.preventDefault(); } };
-    document.addEventListener('keydown', onKey);
-    this.cleanup.push(() => document.removeEventListener('keydown', onKey));
+    if (typeof document !== 'undefined') {
+      document.addEventListener('keydown', onKey);
+      this.cleanup.push(() => document.removeEventListener('keydown', onKey));
+    }
     // a restored context lost the studio's environment map (a render target's picture): made again, then a frame
     const restored = () => { restoreStudioEnv(scene, this.ctx.pmrem); this.demand.ask(); };
     renderer.domElement.addEventListener('webglcontextrestored', restored);
