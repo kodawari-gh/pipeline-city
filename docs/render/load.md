@@ -171,7 +171,7 @@ The optimized build, served with gzip like a real host, Chrome with the real GPU
 
 What bought it: rule 8 (the city's environment, 2 s), rule 9 (the mouse and the hoodie, 0.9 s on the same task), and the sliced city (the longest city task fell from 2.7 s to 0.3 s: the same total, a page that stays alive). The first long task of a cold run (1.1 s before the first paint, in the 2D canvas test of the Pixi chunk) is the browser starting its GPU process: it is absent in a warm browser (first paint at 88 ms). A real visitor has a GPU process already, so judge the cold run without it.
 
-`npm run bench:boot` (BOOT-06, `tools/bench-boot.mjs`) prints this table. It builds the game, serves it with gzip, loads it cold (a fresh profile) and warm (the same profile again) in Chrome on the real GPU, and prints the rows above, the time of each stage and the lists behind the rows: the programs linked at or after the first draw (with their defines), the driver calls that waited, the main-thread tasks over 100 ms. `--runs 3` shows the middle run and the range, `--cpu 4` a slow laptop, `--dist <dir>` skips the build. It starts the browser's GPU process before the cold load, as a visitor's browser has one; `--no-prewarm` leaves that start (about 1.1 s) in the cold run, which is the 1.2 to 1.5 s of the menu row. It exits with 1 when a visit is no measurement (the boot failed, or a stage that it reads was renamed: `Building the world`, `Assembling the machine`, `Lighting the room`). The row to watch for BOOT-05 is `Building the world to Assembling the machine`: 3.2 s cold at `c9a3b58b` (boot done 6.8 to 7.0 s cold, 4.3 s warm, the menu at 0.15 s, 138 programs, none at or after the first draw), 2.7 s cold at `037c5ec4` ("The city's heavy steps").
+`npm run bench:boot` (BOOT-06, `tools/bench-boot.mjs`) prints this table. It builds the game, serves it with gzip, loads it cold (a fresh profile) and warm (the same profile again) in Chrome on the real GPU, and prints the rows above, the time of each stage and the lists behind the rows: the programs linked at or after the first draw (with their defines), the driver calls that waited, the main-thread tasks over 100 ms. `--runs 3` shows the middle run and the range, `--cpu 4` a slow laptop, `--dist <dir>` skips the build. It starts the browser's GPU process before the cold load, as a visitor's browser has one; `--no-prewarm` leaves that start (about 1.1 s) in the cold run, which is the 1.2 to 1.5 s of the menu row. It exits with 1 when a visit is no measurement (the boot failed, or a stage that it reads was renamed: `Building the world`, `Assembling the machine`, `Lighting the room`). The row to watch for BOOT-05 is `Building the world to Assembling the machine`: 3.2 s cold at `c9a3b58b` (boot done 6.8 to 7.0 s cold, 4.3 s warm, the menu at 0.15 s, 138 programs, none at or after the first draw), 2.7 s cold at `037c5ec4`, 2.3 s with the trees' spline ("The city's heavy steps").
 
 To find which meshes use a late program: the dev server's `window.__board.scene` and `renderer.properties.get(material).currentProgram` name them. For Build my PC, `window.__build.linking` is its first batch: the programs in `__build.ctx.renderer.info.programs` that are not in it were made later.
 
@@ -191,26 +191,29 @@ The room is not in the scene while it builds: `rebuild(true, { room, key })` tak
 
 `Building the world` to `Assembling the machine`, from `npm run bench:boot -- --runs 3` (the set-up above):
 
-| | At `c9a3b58b` | At `037c5ec4` |
-|---|---|---|
-| Cold | 3.4 s | 2.7 s |
-| Warm | 3.1 s | 2.5 s |
-| Boot done, cold | 7.9 s | 7.0 s |
-| Boot done, warm | 4.6 s | 4.0 s |
+| | At `c9a3b58b` | At `037c5ec4` | With the spline |
+|---|---|---|---|
+| Cold | 3.4 s | 2.7 s | 2.3 s |
+| Warm | 3.1 s | 2.5 s | 2.1 s |
+| Boot done, cold | 7.9 s | 7.0 s | 6.2 s |
+| Boot done, warm | 4.6 s | 4.0 s | 3.4 s |
+
+The three runs were hours apart on a shared machine. `Merging the streets` read 0.20 s, then 0.15 s with no change to its code: so some of the last column's gain is the machine. The gain of the spline is measured alone: `Planting the trees` 0.32 s to 0.21 s.
 
 The goal of BOOT-05 is under 1.5 s cold. It is not met. What was done:
 
 - **The street merge** (`sweptMerge`, `outside/sweep.ts`): it moves the points of every mesh into shared columns, and builds no geometry for each mesh. 0.38 s to 0.17 s in node; 0.20 s as a stage. The old way stays as `sweptMergeReference`, and `sweep.test.ts` checks that both give the same bytes.
 - **The room's occlusion on a pool of workers** (`aopool.ts`, `aojob.ts`, `aojob.worker.ts`, `vertexAoPooled`): the page sends each group to a worker, the largest first, and applies the answers in group order, so the result equals the sync path. A job that fails runs on the page's thread. No pool with fewer than 4 cores. `Shading the corners`: 1.1 s to 0.43 s cold.
 - **The buildings' massing during the texture wait** (`massSteps`, `OutsideView.make(…, early)`): the massing runs in slices while the baked maps load, and `build()` takes its result. The net gain is 0.1 s: a part of the texture chain (the loader's import, the uploads) runs on the same thread.
+- **A spline that keeps its coefficients** (`spline.ts`, used by `taperTube`): three's `CatmullRomCurve3` works the four coefficients of a piece out again at every `getPoint` (three `Math.pow` calls and the set-up of each axis), and each limb builds a length table of 200 points, so `getPoint` was the top Three cost in a node profile of the city. `Spline` works each piece out once and gives the same bits: `spline.test.ts` compares its points, lengths, tangents, frames and a tube with three's, and the High golden (`highident.expected.json`) did not change. The city build in node: 1.09 s to 0.92 s; `Planting the trees` in the browser: 0.32 s to 0.21 s.
 
-Where the 2.7 s cold goes now: `Building the world` 0.75 s (about 0.28 s of it massing, the rest waits for the baked maps and their loader), `Laying the streets` 0.16 s, `Merging the streets` 0.20 s, `Raising the towers` 0.02 s, `Planting the trees` 0.32 s, `Furnishing the room` 0.48 s, `Setting the desk` 0.10 s, `Shading the corners` 0.43 s, `Tidying the room` 0.16 s, `Assembling the machine` 0.25 s.
+Where the 2.3 s cold goes now: `Building the world` 0.65 s (about 0.28 s of it massing, the rest waits for the baked maps and their loader), `Laying the streets` 0.17 s, `Merging the streets` 0.15 s, `Raising the towers` 0.03 s, `Planting the trees` 0.21 s, `Furnishing the room` 0.41 s, `Setting the desk` 0.09 s, `Shading the corners` 0.42 s, `Tidying the room` 0.15 s, `Assembling the machine` 0.21 s.
 
 What is left, by gain:
 
 - **Massing in a worker (about 0.27 s).** The data of each `Building` in, typed arrays out.
-- **`plantTrees` (0.32 s).** `taperTube` (`loft.ts`) makes a new curve for each limb, and each curve builds a length table of 200 points: `CatmullRomCurve3.getPoint` is the top Three cost in a node profile of the city. Fewer divisions move the limbs by a small amount and need a new High golden (`highident.expected.json`).
-- **The first machine (0.25 s) beside the occlusion wait (0.43 s).** `rebuild` and `Room3D.make` would need to split.
+- **The first machine (0.21 s) beside the occlusion wait (0.42 s).** `rebuild` and `Room3D.make` would need to split.
+- **The turns (not measured).** Each `await turn()` is a `setTimeout(0)` in a chain, which a browser holds for 4 ms after five nested ones; a boot has about 40. A `MessageChannel` turn has no such wait. The massing's turns must stay timers: the texture chain's tasks need the gaps.
 - **`sweptMerge` with the matrix maths inline** (0.05 to 0.08 s).
 - **Rejected: a baked occlusion.** The room's plants take a running seed, so two builds are not the same and a bake does not match the room; the file would also change with every art edit.
 - **Not in this stretch:** a rebuild at a tier change (Low to High) is still one task of about 2.2 s (`new Room3D` is sync), and the cold `Preparing the shaders` (2.7 s) is the GPU driver (BOOT-02, BOOT-03).
@@ -325,7 +328,7 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 
 ## What can still go faster
 
-- **The build (2.7 s cold from `Building the world` to `Assembling the machine`).** Pure JS. The city and the room build a step at a time, the room's occlusion runs on workers and the buildings' massing overlaps the texture wait. What is left, by gain, is in "The city's heavy steps": massing in a worker, `plantTrees`, the first machine beside the occlusion wait.
+- **The build (2.3 s cold from `Building the world` to `Assembling the machine`).** Pure JS. The city and the room build a step at a time, the room's occlusion runs on workers, the buildings' massing overlaps the texture wait and the trees' tubes use a spline that keeps its coefficients. What is left, by gain, is in "The city's heavy steps": massing in a worker, the first machine beside the occlusion wait, the turns.
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.55 s).** Texture and geometry uploads: no program links in it now (rule 11). `renderer.initTexture` during the link could spread it.
 - **Build my PC's machine build (0.9 s cold).** It runs in slices now (BOOT-04), so the page answers meanwhile; the work is the same. The cables' `settle` (0.18 s) could be cached or baked; the second build in a session reads it from `hang`'s cache.
