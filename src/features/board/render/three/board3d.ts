@@ -170,19 +170,30 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const held = rail && m.rails.find((x) => x.id === rail!.r.id);
     rail = held ? { r: held, pull: NO_PULL } : null;
   };
-  /** `roomOnly`: the boot builds the room, lets the page take a turn, then calls again for the machine. */
-  const rebuild = (roomOnly = false) => {
+  /** What the board shows: the game's snapshot, or the dev preview's board and case in its place. */
+  const current = () => {
     const live = snapshot.peek();
-    const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
+    return preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
+  };
+  /** The tiers the room stands at for a snapshot, and its key. */
+  const roomAt = (s: ReturnType<typeof current>) => {
     const tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
     // (the room's parts are built coarser at Low and merged there: a tier change across the Low line rebuilds it, as the machine's key does)
-    const rk = `${tier}|${caseTier}|${lowDetail() ? 'low' : 'high'}`;
+    return { tier, caseTier, key: `${tier}|${caseTier}|${lowDetail() ? 'low' : 'high'}` };
+  };
+  /**
+   * `roomOnly`: the boot builds the room, lets the page take a turn, then calls again for the machine. `made`: the room the boot built a step
+   * at a time (`Room3D.make`), and the key it was built for: it stands in for the new room unless the snapshot has moved on meanwhile.
+   */
+  const rebuild = (roomOnly = false, made: { room: Room3D; key: string } | null = null) => {
+    const s = current(), { tier, caseTier, key: rk } = roomAt(s);
+    if (made && made.key !== rk) { made.room.dispose(); disposeTree(made.room.root); made = null; }
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
       // (the old room's materials go once their programs have linked: one deleted while it links logs GL warnings)
       if (room) { const old = room.root; uncheap(old); scene.remove(old); room.dispose(); freeWhenLinked(renderer, old, () => disposeTree(old)); }
-      room = new Room3D(studio);
+      room = made?.room ?? new Room3D(studio);
       blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
@@ -228,7 +239,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   bootStage('Furnishing the room', 0.3);
   await turn();
-  rebuild(true);
+  // (the room builds a slice at a time, a turn between, no paint: the city's programs link meanwhile and a paint would wait for them)
+  const first = roomAt(current());
+  setLayoutTier(first.tier, first.caseTier);
+  rebuild(true, { room: await Room3D.make(studio, async (label, share) => { bootStage(label, 0.3 + 0.04 * share); await turn(); }, turn), key: first.key });
   bootStage('Assembling the machine', 0.34);
   await turn();
   rebuild();

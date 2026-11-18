@@ -29,7 +29,7 @@ import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { lowDetail } from '@/core/render/three/detail';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
-import { vertexAo } from '@/core/render/three/vertexao';
+import { vertexAoSteps } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { NYLON, cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
@@ -399,6 +399,9 @@ export function mergeAfterBake(root: Object3D, envs: RoomEnv, skip: readonly Obj
 /** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
 let areaLights = false;
 
+/** A step of `Room3D.make`: what comes next, and how far along the build is (0 to 1). */
+interface RoomStep { label: string; share: number }
+
 export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */ isp: number; ispName: string; mail: boolean; t: number }
 
 export class Room3D {
@@ -424,16 +427,16 @@ export class Room3D {
   private bedLight = new PointLight(LANTERN, 0, 0, 2);
   /** The screen's glow on the keyboard and the desk: an area light on its face, lighting only what is in front of it. */
   private screenLight = new RectAreaLight(0xa8cfff, 0, 1, 1);
-  private outside: OutsideView;
+  private outside!: OutsideView;
   /** The detail of the city in the window (`setCityDetail`). */
   cityDetail: CityDetail = 'high';
-  private window: Group;
+  private window!: Group;
   private blinds: Mesh[] = [];
   private blindK = 0;
   private sunKey = -1;
   private keysKey = '';
-  private lamp: Lamp;
-  private monitor: Monitor;
+  private lamp!: Lamp;
+  private monitor!: Monitor;
   private monitorSpot!: Mesh;
   private routerBody!: Group;
   private routerTier = 0;
@@ -442,12 +445,12 @@ export class Room3D {
   private ispText: { cv: HTMLCanvasElement; tex: CanvasTexture; shown: string } | null = null;
   private routerBuild!: (tier: number) => void;
   private routerSpot!: Mesh;
-  private clock: DigitalClock;
-  private cup: Cup;
-  private shade: MeshStandardMaterial;
-  private bulbGlow: MeshStandardMaterial;
+  private clock!: DigitalClock;
+  private cup!: Cup;
+  private shade!: MeshStandardMaterial;
+  private bulbGlow!: MeshStandardMaterial;
   /** The tall paper lantern by the bookcase, and its bulb's light (it comes on at dusk). */
-  private floorLamp: Lantern;
+  private floorLamp!: Lantern;
   private floorLight = new PointLight(LANTERN, 0, 0, 2);
   /** The warm strips under the bookcase's boards and the east shelf (`shelfStrips`): their lines and their lights. */
   private strips = shelfStrips();
@@ -457,32 +460,59 @@ export class Room3D {
   /** The arc lamp over the desk east of the case: an overhead cozy light (on at every hour: `ARC_LM`). */
   private arc = arcLamp();
   /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
-  private ledGlow: MeshStandardMaterial;
-  private ledUnder: RectAreaLight;
-  private ledHalo: RectAreaLight;
+  private ledGlow!: MeshStandardMaterial;
+  private ledUnder!: RectAreaLight;
+  private ledHalo!: RectAreaLight;
   /** The LED strip under the desk's front edge, the same light. */
   private deskLed = new RectAreaLight(NEON_WASH, 0, 1, 1);
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
-  private envs: RoomEnv;
+  private envs!: RoomEnv;
   /** What a Low merge tells the reflections' register of a palette material (the register exists once the room is built). */
   private readonly envTwin = (src: Material, copy: Material): void => { (this.envs as RoomEnv | undefined)?.twin(src, copy); };
   private probe = false;
   /** The room's box for the probe's reflections (boxenv.ts): on once the probe holds the room. */
-  private box: BoxEnv;
+  private box!: BoxEnv;
   /** Where the room's probe sees from (world): over the desk's front, in the room's middle height. */
   readonly probeAt: [number, number, number];
   /**
    * Resolves once the bake's lightmap is on the meshes (or there is none): it changes their programs, so they are linked after it
-   * (`docs/render/load.md`). The bake's files load once a page.
+   * (`docs/render/load.md`). The bake's files load once a page. Set when the room is built (`assemble`).
    */
-  readonly ready: Promise<void>;
+  ready!: Promise<void>;
   /** What the room's light depends on, coarsely: a new value asks for a new capture of the probe. */
   lightKey = '';
 
-  constructor(env: Texture | null = null) {
-    this.geo = roomGeo();
+  /**
+   * `defer`: build the fields only; the caller runs `assemble` (`make` does, a step at a time, so the page can answer between them). Without
+   * it the room is built at once, which holds the page for 1.2 to 1.6 s (docs/render/load.md).
+   */
+  constructor(env: Texture | null = null, defer = false) {
+    const g = this.geo = roomGeo();
+    this.probeAt = [(g.desk.x0 + g.desk.x1) / 2, -g.ys + 3500, DESK_D + 5000];
+    if (!defer) { const run = this.assemble(env); while (!run.next().done) { /* every step in a row */ } }
+  }
+
+  /**
+   * The room built a step at a time: `between` runs before each (told its name and how far along the build is, 0 to 1), so the boot screen can
+   * say it and the page can paint; `slice` runs between the finer slices of a long step (the baked occlusion) and need not paint. The same
+   * room as `new Room3D(env)`.
+   */
+  static async make(env: Texture | null, between: (label: string, share: number) => Promise<void>, slice: () => Promise<void> = () => new Promise((done) => setTimeout(done, 0))): Promise<Room3D> {
+    const room = new Room3D(env, true), run = room.assemble(env);
+    for (let step = run.next(); !step.done; step = run.next()) await (step.value ? between(step.value.label, step.value.share) : slice());
+    return room;
+  }
+
+  /**
+   * The room's geometry and lights, in steps. A `yield` with a name says what comes next and how far along the build is (0 to 1); a bare one
+   * only offers a turn to the page. The constructor runs them in a row.
+   */
+  private *assemble(env: Texture | null): Generator<RoomStep | void> {
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     if (!areaLights) { RectAreaLightUniformsLib.init(); areaLights = true; }
+    // the models that load late (the mouse, the hoodie) join once the room is built: its merges and its bake must not see them
+    let built!: () => void;
+    const until = new Promise<void>((done) => { built = done; });
     const graphite = mat(0x2a2d32, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
     const chrome = mat(0xb9babf, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2d32, { roughness: 0.5 });
@@ -555,10 +585,12 @@ export class Room3D {
     R.add(softBox({ x: B.x0, y: B.top, w: B.x1 - B.x0, h: 600 }, B.z0, B.z1, stone, 60));
     R.add(softBox({ x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 }, B.z0 + 300, B.z1 - 700, trim, 40));
     R.add(aloe(B.x1 - 2600, B.top, (B.z0 + B.z1) / 2));
+    yield;
 
     // ---- the furniture: the bed and its LED strips, the bedside drawer and its lantern, the bookcase, the door, the ceiling light, a print over
     // the bed, plants ----
     const bd = bed(), ns = nightstand();
+    yield;
     this.ledGlow = bd.glow; this.ledUnder = bd.under; this.ledHalo = bd.halo;
     // (every strip casts the one pale wash, the desk's too)
     this.ledUnder.color.setHex(NEON_WASH); this.ledHalo.color.setHex(NEON_WASH);
@@ -583,6 +615,7 @@ export class Room3D {
     // (the arc lamp's shadow reaches from its dome to the floor)
     const al = this.arc.light;
     Object.assign(al.shadow.camera, { near: 300, far: 60000 }); al.shadow.bias = -0.0005; al.shadow.normalBias = 10;
+    yield { label: 'Setting the desk', share: 0.2 };
 
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
     // unit at the east end, a cable tray under its back edge ----
@@ -626,13 +659,13 @@ export class Room3D {
     });
     const matEnd = kx + 4800;
     R.add(softBox({ x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
-    this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o));
+    this.mouse = mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o), until);
     R.add(keyboard(kx, ys, kz), this.mouse, notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x131518, { roughness: 0.6 });
     R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, SEG.drum), post(grommet.x, under + 300, grommet.z, 300, 300, cap, SEG.disc));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
-    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
+    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o), until));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
     R.add(mess(pedX, under, grommet));
     // (the tea by the mat's end: west of the PC's mains cord, which runs from the case's side to the desk's grommet and must stay in view)
@@ -802,15 +835,16 @@ export class Room3D {
     this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 200);
     this.screenLight.rotation.y = Math.PI;
     R.add(this.screenLight);
-    this.probeAt = [cx, deskTop + 3500, DESK_D + 5000];
 
     // the room's own reflections: the studio's environment at first, set on each of its materials so the evening can dim them, then the probe's;
     // a model that loads late (the mouse, the hoodie) joins them
     this.box = boxEnv([WEST_X, -FLOOR_Y, 0], [EAST_X, -CEIL_Y, FRONT_Z], this.probeAt);
     this.envs = new RoomEnv(env, this.box);
     this.envs.adopt(R);
-    // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
-    vertexAo(R);
+    // the props' and the plants' baked occlusion (cast once here, a slice at a time: it is 0.99 s), then the still scenery in few draws
+    yield { label: 'Shading the corners', share: 0.4 };
+    yield* vertexAoSteps(R);
+    yield { label: 'Tidying the room', share: 0.95 };
     mergeStatic(R);
     this.share();
     // the monitor's empty place on the desk: an unseen box a part dragged from the inventory lands on (`display0`), there only while no monitor stands
@@ -819,6 +853,7 @@ export class Room3D {
     R.add(unseen(this.monitorSpot));
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's. Then the still scenery by palette
     this.ready = roomBake().then((b) => { if (this.gone) return; if (b) this.takeBake(b); this.mergeByPalette(); });
+    built();
   }
 
   /**

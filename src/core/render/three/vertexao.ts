@@ -75,6 +75,17 @@ const worldBox = (m: Mesh): Box3 => {
  * patched material gets `_ao` fully open. Call it once the root is built, before `mergeStatic` (which keeps `_ao`). Returns the points cast.
  */
 export function vertexAo(root: Object3D): number {
+  const run = vertexAoSteps(root);
+  let step = run.next();
+  while (!step.done) step = run.next();
+  return step.value;
+}
+
+/**
+ * `vertexAo` a group at a time: it yields after each group (the largest take 0.2 to 0.3 s), so a caller can paint between them (`Room3D.make`).
+ * The last step patches the materials. Its return value is the points cast.
+ */
+export function* vertexAoSteps(root: Object3D): Generator<void, number> {
   root.updateMatrixWorld(true);
   const groups: Object3D[] = [];
   const find = (o: Object3D): void => { if (typeof o.userData.ao === 'number') groups.push(o); else for (const c of o.children) find(c); };
@@ -120,6 +131,7 @@ export function vertexAo(root: Object3D): number {
       at += k;
     }
     cast += n;
+    yield;
   }
   for (const m of patched) bakedAo(m);
   root.traverse((o) => {

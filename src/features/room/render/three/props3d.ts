@@ -397,9 +397,9 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
 /**
  * A soft white mouse on the mat: the owner's model, scaled to the shell's length and set on its flat base. Until it loads, and when it fails, the
  * primitive shell stays: a palm-high shell on a flat base, a scroll wheel between its two buttons. `loaded` gets the model once it is in (the
- * room gives it its reflections).
+ * room gives it its reflections). The model joins no sooner than `until` settles (the room's build, which must not see it: `Room3D.make`).
  */
-export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void): Group {
+export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void, until?: Promise<unknown>): Group {
   const g = new Group(), prim = new Group(), shell = mat(0x959aa3, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, SEG.drum, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
@@ -422,7 +422,7 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
   }
   g.add(prim);
   // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat
-  void loadModel(MOUSE_MODEL).then((m) => {
+  void loadModel(MOUSE_MODEL, until).then((m) => {
     if (!m || tornDown(g)) return;
     const model = m.clone(true);
     model.rotation.y = Math.PI / 2;

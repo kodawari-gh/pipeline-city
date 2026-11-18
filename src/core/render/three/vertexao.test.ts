@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, type BufferAttribute } from 'three';
-import { vertexAo } from './vertexao';
+import { vertexAo, vertexAoSteps } from './vertexao';
 
 /** A plate 1000 wide with a cap 100 wide on it (the cap's group asks for the occlusion), a second cap elsewhere in the cap's material. */
 function scene() {
@@ -47,5 +47,39 @@ describe('vertexAo', () => {
     (cap.material as MeshStandardMaterial).emissive = new Color(0xffffff);
     expect(vertexAo(root)).toBe(0);
     expect(cap.geometry.attributes._ao).toBeUndefined();
+  });
+});
+
+describe('vertexAoSteps', () => {
+  /** The scene with a second group (a cap of its own material, further along the plate). */
+  const two = () => {
+    const s = scene(), more = new Mesh(new BoxGeometry(100, 100, 100), new MeshStandardMaterial()), group = new Group();
+    more.position.set(-300, 50, 0);
+    group.userData.ao = 200;
+    group.add(more);
+    s.root.add(group);
+    return s;
+  };
+
+  it('yields once for each group, patches the materials at the end, and casts what vertexAo casts', () => {
+    const whole = two(), steps = two();
+    const cast = vertexAo(whole.root), run = vertexAoSteps(steps.root);
+    let yields = 0, step = run.next();
+    while (!step.done) {
+      yields++;
+      // (nothing patched while groups remain: the page may draw between the steps)
+      expect(steps.capM.customProgramCacheKey()).not.toContain('|ao');
+      step = run.next();
+    }
+    expect(yields).toBe(2);
+    expect(step.value).toBe(cast);
+    expect(steps.capM.customProgramCacheKey()).toContain('|ao');
+    expect(Array.from((steps.cap.geometry.attributes._ao as BufferAttribute).array)).toEqual(Array.from((whole.cap.geometry.attributes._ao as BufferAttribute).array));
+  });
+
+  it('ends at once for a root with no group that asks', () => {
+    const run = vertexAoSteps(new Group()), step = run.next();
+    expect(step.done).toBe(true);
+    expect(step.value).toBe(0);
   });
 });

@@ -31,10 +31,11 @@ const ribs = (base: string) => paint(64, 64, (c, w, h) => {
 /**
  * The hoodie the chair wears, folded over its back: the body down behind it, the hood over its front, the sleeves down the sides. Added to
  * `c` once the model loads (the chair stands bare until then, and when it fails); not while `alive` is false. The knit and the rib take the
- * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair). `loaded` gets it once it is in.
+ * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair). `loaded` gets it once it is in, and no
+ * sooner than `until` settles (the room's build: `Room3D.make`).
  */
-function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void): void {
-  void loadModel(HOODIE_MODEL).then((m) => {
+function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, until?: Promise<unknown>): void {
+  void loadModel(HOODIE_MODEL, until).then((m) => {
     if (!m || !alive()) return;
     const knit = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
     const rib = cloth(0xffffff, { map: ribs('#434b3a'), side: DoubleSide });
@@ -70,8 +71,11 @@ function can(x: number, y: number, z: number, r: number, h: number, m: Material,
   return o;
 }
 
-/** The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk; `loaded` gets the hoodie. */
-export function deskChair(x: number, z: number, turn: number, loaded?: (o: Object3D) => void): Group {
+/**
+ * The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk; `loaded` gets the
+ * hoodie, no sooner than `until` settles.
+ */
+export function deskChair(x: number, z: number, turn: number, loaded?: (o: Object3D) => void, until?: Promise<unknown>): Group {
   const root = new Group(), c = new Group();
   const black = mat(0x1d1e22, { roughness: 0.45 }), steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.28 });
   const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
@@ -130,7 +134,7 @@ export function deskChair(x: number, z: number, turn: number, loaded?: (o: Objec
     c.add(slab(s * 268, 662, 0, 72, 28, 250, black, 12));
   }
 
-  hoodie(c, () => !tornDown(root), loaded);
+  hoodie(c, () => !tornDown(root), loaded, until);
 
   c.rotation.y = turn;
   c.position.set(x, -FLOOR_Y, z);

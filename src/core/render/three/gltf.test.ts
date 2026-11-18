@@ -90,6 +90,19 @@ describe('modelsIn (the boot waits for the models its scene asked for)', () => {
     await expect(modelsIn(5)).resolves.toBeUndefined();
   });
 
+  it('holds a model back until `until` settles (a build that must not see it), and modelsIn waits for it too', async () => {
+    let open = () => {};
+    const until = new Promise<void>((done) => { open = done; });
+    let got: unknown = 'none';
+    void loadModel(urlOf(TRIANGLE, 'held'), until).then((m) => { got = m; });
+    await new Promise((done) => setTimeout(done, 50));
+    expect(got).toBe('none');
+    open();
+    await modelsIn();
+    expect(got).not.toBe('none');
+    expect(got).not.toBeNull();
+  });
+
   it('gives up after its time on a slow model, which still reaches its user later', async () => {
     const real = globalThis.fetch;
     let arrive = () => {};

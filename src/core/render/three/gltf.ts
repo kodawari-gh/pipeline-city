@@ -46,12 +46,15 @@ async function sceneOf(url: string): Promise<Object3D> {
 /** The loads that have not ended: each ends when the model is there (or has failed), and its users, which came first, have had it. */
 const pending = new Set<Promise<unknown>>();
 
-/** The model of a url, loaded once; null when it cannot be loaded (or a texture of it: the primitives stay). */
-export function loadModel(url: string): Promise<Object3D | null> {
+/**
+ * The model of a url, loaded once; null when it cannot be loaded (or a texture of it: the primitives stay). With `until` the model is not
+ * given before that settles: a build that must not see it (the room's merges and its bake, `Room3D.make`) runs meanwhile.
+ */
+export function loadModel(url: string, until?: Promise<unknown>): Promise<Object3D | null> {
   let p = cache.get(url);
   if (!p) { p = sceneOf(url).catch(() => null); cache.set(url, p); }
   // (a model that comes in changes a still view: its users add it before the next frame, which then draws, docs/render/load.md)
-  const done = p.then((m) => { sceneChanged(); return m; });
+  const done = (until ? Promise.all([p, until]).then(([m]) => m) : p).then((m) => { sceneChanged(); return m; });
   pending.add(done);
   void done.then(() => pending.delete(done));
   return done;
