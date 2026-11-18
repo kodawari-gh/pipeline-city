@@ -29,7 +29,8 @@ import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
 import { lowDetail } from '@/core/render/three/detail';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, loadDirect, type Bake } from '@/core/render/three/lightmapmix';
-import { vertexAoSteps } from '@/core/render/three/vertexao';
+import { makeAoPool, type AoPool } from '@/core/render/three/aopool';
+import { vertexAoPooled, vertexAoSteps } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { NYLON, cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
@@ -497,9 +498,17 @@ export class Room3D {
    * say it and the page can paint; `slice` runs between the finer slices of a long step (the baked occlusion) and need not paint. The same
    * room as `new Room3D(env)`.
    */
-  static async make(env: Texture | null, between: (label: string, share: number) => Promise<void>, slice: () => Promise<void> = () => new Promise((done) => setTimeout(done, 0))): Promise<Room3D> {
-    const room = new Room3D(env, true), run = room.assemble(env);
-    for (let step = run.next(); !step.done; step = run.next()) await (step.value ? between(step.value.label, step.value.share) : slice());
+  static async make(
+    env: Texture | null, between: (label: string, share: number) => Promise<void>, slice: () => Promise<void> = () => new Promise((done) => setTimeout(done, 0)),
+    pool: AoPool | null = makeAoPool(),
+  ): Promise<Room3D> {
+    const room = new Room3D(env, true), run = room.assemble(env, pool && { pool, slice });
+    try {
+      for (let step = run.next(); !step.done; step = run.next()) {
+        const v = step.value;
+        await (v instanceof Promise ? v : v ? between(v.label, v.share) : slice());
+      }
+    } finally { pool?.dispose(); }
     return room;
   }
 
@@ -507,7 +516,7 @@ export class Room3D {
    * The room's geometry and lights, in steps. A `yield` with a name says what comes next and how far along the build is (0 to 1); a bare one
    * only offers a turn to the page. The constructor runs them in a row.
    */
-  private *assemble(env: Texture | null): Generator<RoomStep | void> {
+  private *assemble(env: Texture | null, ao: { pool: AoPool; slice: () => Promise<void> } | null = null): Generator<RoomStep | Promise<unknown> | void> {
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     if (!areaLights) { RectAreaLightUniformsLib.init(); areaLights = true; }
     // the models that load late (the mouse, the hoodie) join once the room is built: its merges and its bake must not see them
@@ -841,9 +850,10 @@ export class Room3D {
     this.box = boxEnv([WEST_X, -FLOOR_Y, 0], [EAST_X, -CEIL_Y, FRONT_Z], this.probeAt);
     this.envs = new RoomEnv(env, this.box);
     this.envs.adopt(R);
-    // the props' and the plants' baked occlusion (cast once here, a slice at a time: it is 0.99 s), then the still scenery in few draws
+    // the props' and the plants' baked occlusion (cast once here: 0.8 s on this thread a slice at a time, 0.3 s on a pool of workers that `make`
+    // gives it, the page waiting), then the still scenery in few draws
     yield { label: 'Shading the corners', share: 0.4 };
-    yield* vertexAoSteps(R);
+    if (ao) yield vertexAoPooled(R, ao.pool, ao.slice); else yield* vertexAoSteps(R);
     yield { label: 'Tidying the room', share: 0.95 };
     mergeStatic(R);
     this.share();

@@ -4,13 +4,9 @@
 // behind the clock) block the rays, so the keys' gaps, the lamp's joints and a plant's inner leaves darken. A glow, a screen and a see-through
 // mesh take none.
 import { Box3, Float32BufferAttribute, FrontSide, Matrix3, Vector3, type BufferGeometry, type Material, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { runAoJob, type AoJob } from './aojob';
+import type { AoPool } from './aopool';
 import { bakedAo } from './bakedao';
-import { occlusion } from './cloth/occlusion';
-
-/** The rays cast a side from each point. */
-const RAYS = 24;
-/** No solid: only triangles block. */
-const open = () => Infinity;
 
 /** Is it drawn? Its own flag and all those above it. */
 const shown = (o: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false; return true; };
@@ -81,22 +77,29 @@ export function vertexAo(root: Object3D): number {
   return step.value;
 }
 
-/**
- * `vertexAo` a group at a time: it yields after each group (the largest take 0.2 to 0.3 s), so a caller can paint between them (`Room3D.make`).
- * The last step patches the materials. Its return value is the points cast.
- */
-export function* vertexAoSteps(root: Object3D): Generator<void, number> {
+/** One group's cast: the meshes that take its occlusion, and the job that casts it (`aojob.ts`). */
+interface Cast { targets: Mesh[]; job: AoJob }
+
+/** What the casts and their answers share: the groups that ask, the meshes that block their rays, and what the answers have patched so far. */
+interface Ao { root: Object3D; groups: Object3D[]; blockers: { m: Mesh; box: Box3 }[]; soupOf: (m: Mesh) => Soup; patched: Set<Material>; owned: Set<BufferGeometry>; cast: number }
+
+/** The groups under `root` that ask for the occlusion, and the meshes that block their rays. Null: no group asks. */
+function startAo(root: Object3D): Ao | null {
   root.updateMatrixWorld(true);
   const groups: Object3D[] = [];
   const find = (o: Object3D): void => { if (typeof o.userData.ao === 'number') groups.push(o); else for (const c of o.children) find(c); };
   find(root);
-  if (!groups.length) return 0;
+  if (!groups.length) return null;
   const blockers: { m: Mesh; box: Box3 }[] = [];
   root.traverse((o) => { if (blocks(o)) blockers.push({ m: o, box: worldBox(o) }); });
-  const patched = new Set<Material>(), owned = new Set<BufferGeometry>(), soups = new Map<Mesh, Soup>();
+  const soups = new Map<Mesh, Soup>();
   // (the wall and the desk block for many groups)
   const soupOf = (m: Mesh): Soup => { let s = soups.get(m); if (!s) soups.set(m, (s = soup(m))); return s; };
-  let cast = 0;
+  return { root, groups, blockers, soupOf, patched: new Set(), owned: new Set(), cast: 0 };
+}
+
+/** The groups' casts, one for each group with a mesh to take it, each made when asked for (its arrays take 1 to 10 ms). */
+function* casts({ groups, blockers, soupOf }: Ao): Generator<Cast> {
   for (const grp of groups) {
     const reach = grp.userData.ao as number, targets: Mesh[] = [];
     grp.traverse((o) => { if (takes(o)) targets.push(o); });
@@ -119,20 +122,27 @@ export function* vertexAoSteps(root: Object3D): Generator<void, number> {
     const n = targets.reduce((s, t) => s + t.geometry.attributes.position!.count, 0), one = new Uint8Array(n);
     at = 0;
     for (const t of targets) { const k = t.geometry.attributes.position!.count; if ((t.material as Material).side === FrontSide) one.fill(1, at, at + k); at += k; }
-    const ao = occlusion(pos, nrm, tris, weld, open, RAYS, reach, 0, n, one);
-    at = 0;
-    for (const t of targets) {
-      const k = t.geometry.attributes.position!.count;
-      // a geometry another baked mesh already holds gets a copy of its own
-      if (owned.has(t.geometry)) t.geometry = t.geometry.clone();
-      owned.add(t.geometry);
-      t.geometry.setAttribute('_ao', new Float32BufferAttribute(ao.slice(2 * at, 2 * (at + k)), 2));
-      patched.add(t.material as Material);
-      at += k;
-    }
-    cast += n;
-    yield;
+    yield { targets, job: { pos, nrm, tris, weld, one, reach, cast: n } };
   }
+}
+
+/** Puts a cast's open shares on its meshes. */
+function apply(a: Ao, { targets, job }: Cast, ao: Float32Array): void {
+  let at = 0;
+  for (const t of targets) {
+    const k = t.geometry.attributes.position!.count;
+    // a geometry another baked mesh already holds gets a copy of its own
+    if (a.owned.has(t.geometry)) t.geometry = t.geometry.clone();
+    a.owned.add(t.geometry);
+    t.geometry.setAttribute('_ao', new Float32BufferAttribute(ao.slice(2 * at, 2 * (at + k)), 2));
+    a.patched.add(t.material as Material);
+    at += k;
+  }
+  a.cast += job.cast;
+}
+
+/** Patches the materials the answers reached and opens the other meshes that use them. Returns the points cast. */
+function finish({ root, patched, cast }: Ao): number {
   for (const m of patched) bakedAo(m);
   root.traverse((o) => {
     const m = o as Mesh;
@@ -140,4 +150,34 @@ export function* vertexAoSteps(root: Object3D): Generator<void, number> {
     m.geometry.setAttribute('_ao', new Float32BufferAttribute(new Float32Array(2 * m.geometry.attributes.position!.count).fill(1), 2));
   });
   return cast;
+}
+
+/**
+ * `vertexAo` a group at a time: it yields after each group (the largest take 0.2 to 0.3 s), so a caller can paint between them (`Room3D.make`).
+ * The last step patches the materials. Its return value is the points cast.
+ */
+export function* vertexAoSteps(root: Object3D): Generator<void, number> {
+  const a = startAo(root);
+  if (!a) return 0;
+  for (const c of casts(a)) { apply(a, c, runAoJob(c.job)); yield; }
+  return finish(a);
+}
+
+/**
+ * `vertexAoSteps` with the casts on a pool of workers (`aopool.ts`): this thread makes the arrays of each group, the largest group first (a few
+ * ms each; `slice` after each gives the page a turn), and a worker casts them as soon as they are made. The answers go on the meshes in the
+ * groups' order, so the result is `vertexAoSteps`' to the last bit. A cast a worker cannot make is made here. Returns the points cast.
+ */
+export async function vertexAoPooled(root: Object3D, pool: AoPool, slice: () => Promise<void>): Promise<number> {
+  const a = startAo(root);
+  if (!a) return 0;
+  const size = (g: Object3D): number => { let n = 0; g.traverse((o) => { if (takes(o)) n += o.geometry.attributes.position!.count; }); return n; };
+  const largest = a.groups.map((g, at) => ({ g, at, n: size(g) })).sort((p, q) => q.n - p.n);
+  const asked: { c: Cast; ao: Promise<Float32Array> }[] = [];
+  for (const { g, at } of largest) {
+    for (const c of casts({ ...a, groups: [g] })) asked[at] = { c, ao: pool.run(c.job).catch(() => runAoJob(c.job)) };
+    await slice();
+  }
+  for (const x of asked) if (x) apply(a, x.c, await x.ao);
+  return finish(a);
 }

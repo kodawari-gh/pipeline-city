@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { Mesh } from 'three';
+import { inlinePool, type AoPool } from '@/core/render/three/aopool';
 import { Room3D } from './room3d';
 
 /** What the room asked `loadModel` for: the file, and the promise its model waits for. */
@@ -50,4 +51,32 @@ it('Room3D.make builds the same room a step at a time, and the late models join 
   const a = census(made), b = census(whole);
   expect(Math.abs(a.meshes - b.meshes)).toBeLessThanOrEqual(3);
   expect(Math.abs(a.vertices - b.vertices) / b.vertices).toBeLessThan(0.01);
+}, 180000);
+
+// BOOT-05: the baked occlusion is the room's longest step (0.8 s on the page's thread); `make` casts it on a pool of workers when it has one
+it('Room3D.make casts the baked occlusion on the pool it is given, the largest group first, and stops the pool', async () => {
+  const inner = inlinePool(), asked: number[] = [], labels: string[] = [];
+  let stopped = 0;
+  const pool: AoPool = { run: (job) => { asked.push(job.cast); return inner.run(job); }, dispose: () => { stopped++; } };
+  const made = await Room3D.make(null, async (label) => { labels.push(label); }, async () => undefined, pool);
+  expect(labels).toEqual(['Setting the desk', 'Shading the corners', 'Tidying the room']);
+  expect(asked.length).toBeGreaterThanOrEqual(5);
+  expect(asked).toEqual([...asked].sort((x, y) => y - x));
+  expect(stopped).toBe(1);
+  // (the meshes the groups hold carry their open shares, from 0 to 1, through the merge)
+  let baked = 0;
+  made.root.traverse((o) => {
+    const a = (o as Mesh).geometry?.attributes._ao;
+    if (!a) return;
+    baked++;
+    expect(Array.from(a.array).every((v) => v >= 0 && v <= 1)).toBe(true);
+  });
+  expect(baked).toBeGreaterThan(10);
+}, 180000);
+
+it('Room3D.make stops its pool when the build throws', async () => {
+  let stopped = 0;
+  const pool: AoPool = { run: () => Promise.reject(new Error('no')), dispose: () => { stopped++; } };
+  await expect(Room3D.make(null, async () => { throw new Error('the page went away'); }, async () => undefined, pool)).rejects.toThrow('the page went away');
+  expect(stopped).toBe(1);
 }, 180000);
