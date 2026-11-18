@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ladderFor } from './picker';
-import { currentSpecFor, KIND_ICON, kindIcon, kindLabel, SHOP_ORDER, shopFor } from './shopdata';
+import { currentSpecFor, galleryGroups, KIND_ICON, kindIcon, kindLabel, priceOf, SHOP_ORDER, shopFor, splitName, STUDIO_KINDS } from './shopdata';
 import { snap } from '@/core/ui/testdata';
 
 describe('the shop', () => {
@@ -30,5 +30,24 @@ describe('the shop', () => {
   it('names the part fitted now, for the stat bars', () => {
     expect(currentSpecFor(snap(), 'board')).toBe('board0');
     expect(currentSpecFor(snap(), 'os')).toBeNull();
+  });
+});
+
+describe('the gallery', () => {
+  it('splits a part name from the detail in its brackets', () => {
+    expect(splitName('Tiny-5F+I (front end: I-cache, 2-bit predictor)')).toEqual({ title: 'Tiny-5F+I', detail: 'front end: I-cache, 2-bit predictor' });
+    expect(splitName('Liquid loop')).toEqual({ title: 'Liquid loop', detail: '' });
+    expect(splitName('Tiny (a (b))')).toEqual({ title: 'Tiny', detail: 'a (b)' });
+  });
+
+  it('lists the studio categories in order, every part with its tier and a price', () => {
+    const groups = galleryGroups();
+    expect(groups.map((g) => g.kind)).toEqual(STUDIO_KINDS.filter((k) => groups.some((g) => g.kind === k)));
+    for (const g of groups) {
+      for (const i of g.items) {
+        expect(Number.isInteger(i.tier) && i.tier >= 0, `${i.id} tier`).toBe(true);
+        expect(priceOf(i.id), `${i.id} price`).not.toBeNull();
+      }
+    }
   });
 });

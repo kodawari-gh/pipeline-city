@@ -51,8 +51,9 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
 
   useEffect(() => { viewer.current?.setAutoTurn(turning); }, [turning, state]);
 
-  const spin = <button class={turning ? 'on' : ''} aria-pressed={turning} title="Turn by itself" onClick={() => setTurning(!turning)}>Spin</button>;
-  const reset = <button title="Reset the view (double-click)" onClick={() => viewer.current?.reset()}>Reset</button>;
+  // (in the studio the buttons carry an icon, as Build my PC's view options do)
+  const spin = <button class={turning ? 'on' : ''} aria-pressed={turning} title="Turn by itself" onClick={() => setTurning(!turning)}>{studio && <Icon name="spin" size={12} />}Spin</button>;
+  const reset = <button title="Reset the view (double-click)" onClick={() => viewer.current?.reset()}>{studio && <Icon name="reset" size={12} />}Reset</button>;
   return (
     <div class={`showcase ${studio ? 'studio' : ''}`} role="group" aria-label="3D view">
       <div class="showcase-host" ref={host} />
@@ -60,11 +61,11 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
       {state === 'none' && <div class="showcase-note mute">No 3D model for this item yet.</div>}
       {state === 'failed' && <div class="showcase-note mute">3D view is not available here.</div>}
       {studio ? (
-        <div class="showcase-bar mode-bar mode-top" role="toolbar" aria-label="View">
+        <div class="showcase-bar mode-bar mode-top bld-util" role="toolbar" aria-label="View">
           {spin}
           {reset}
           <i class="mode-sep" aria-hidden="true" />
-          <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}>Graphics</button>
+          <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
         </div>
       ) : (
         <div class="showcase-bar">

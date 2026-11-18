@@ -679,6 +679,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 @media (prefers-reduced-motion: reduce) {
   .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i, .title, .hud, .stack { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
+  .bench, .bench-scrim, .bench-wait i { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }
 
@@ -1256,29 +1257,31 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode-top { top: 1rem; right: 4.3rem; }
 /* the hint line: keys in caps, then what they do */
 .mode-keys { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: var(--m-xs); color: var(--mute); }
-/* Gallery: the stage fills the screen like Build my PC's; the part sits in what the rail and the dock leave free (`kit/clearance.ts`). */
+/* Gallery: the stage fills the screen like Build my PC's; the part sits in what the shelf, the summary, the right column and the foot leave free (`kit/clearance.ts`).
+   The HUD is Build my PC's (`PartShelf`, `.bld-read`, `.bld-foot`, the glass panels); the Gallery's own are the part's card and the stepper. */
 .gal-main { position: absolute; inset: 0; display: flex; }
 .gal-main .showcase { flex: 1; min-height: 0; min-width: 0; margin: 0; }
 .gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; border-radius: 0; background: none; }
 .gal-main .showcase-bar { position: absolute; }
-.gal-rail { left: 1rem; top: 1rem; bottom: 1rem; width: 14rem; }
-.gal-cats { display: flex; flex-direction: column; gap: 0.15rem; overflow-y: auto; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
-.mode .gal-cat { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.55rem; text-align: left; padding: 0.5rem 0.6rem; font-size: var(--m-md); color: var(--mute); background: transparent; border-color: transparent; white-space: nowrap; }
-.mode .gal-cat:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
-.mode .gal-cat.on { color: var(--ink); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 85%); border-color: transparent; }
-.gal-cat.on::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 0.2rem; border-radius: 99rem; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
-.gal-cat.on svg { color: var(--accent); }
-.gal-cat em { font: normal var(--m-xs) var(--mono); opacity: 0.55; }
-.gal-dock { left: 16rem; right: 1rem; bottom: 1rem; gap: 0.7rem; }
-.gal-title { display: flex; align-items: center; gap: 0.9rem; }
-.gal-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
-.gal-line { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; }
-.gal-line b { font: 750 var(--m-xl)/1.1 var(--ui); letter-spacing: -0.015em; }
-.gal-line .mute { font-size: var(--m-md); }
-.mode .gal-arrow { flex: none; width: 2.5rem; height: 2.5rem; padding: 0; display: grid; place-items: center; border-radius: 50%; font-size: 1.5rem; line-height: 1; }
-.gal-items { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-/* the chips: the Gallery's variants, Build my PC's presets */
-.mode .gal-items button, .mode .bld-presets button { padding: 0.3rem 0.75rem; border-radius: var(--m-r-pill); }
+.gal-kind { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.85rem 0.4rem 0.65rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.gal-read .bld-fig .bld-pips { margin: 0.3rem 0 0.15rem; }
+/* the right column is as tall as the screen (so the part keeps clear of all of it) and holds the card at its top */
+.gal-side { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 0.7rem; pointer-events: none; }
+.gal-side > * { pointer-events: auto; }
+.gal-side > .mode-panel { position: static; flex: none; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+.gal-part { gap: 0.9rem; }
+.gal-part .mode-head b { overflow-wrap: anywhere; }
+.gal-detail { font-size: var(--m-sm); line-height: 1.35; color: var(--mute); }
+.gal-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.gal-stat { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0.25rem 0.6rem; }
+.gal-stat > span:first-child { display: inline-flex; align-items: center; gap: 0.35rem; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.gal-stat > b { font: 650 var(--m-md) var(--mono); }
+.gal-stat .bld-bar { grid-column: 1 / -1; }
+.gal-step { flex-wrap: nowrap; gap: 0.5rem; }
+.gal-pos { min-width: 5.5rem; text-align: center; font: 500 var(--m-sm) var(--mono); color: var(--mute); }
+.gal-pos b { color: var(--ink); font-weight: 700; }
+/* the chips: Build my PC's presets */
+.mode .bld-presets button { padding: 0.3rem 0.75rem; border-radius: var(--m-r-pill); }
 @media (max-width: 52em) {
   /* narrow screens stack the studio: the stage, its toolbar and hints, then the panels (the Gallery and Build my PC in the same order) */
   .mode { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; overflow-y: auto; }
@@ -1288,13 +1291,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .gal-main .mode-top { top: 0; right: 2.9rem; }
   /* (the stage is a card of its own here, not the screen's backdrop) */
   .gal-main, .bld-host { border-radius: var(--m-r-panel); overflow: hidden; border: 1px solid var(--glass-line); }
-  .gal-cats { flex-direction: row; flex-wrap: wrap; }
+  .gal-side { position: static; width: auto; pointer-events: auto; }
 }
 
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
    Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
-   the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). */
-.build { --bld-l: 23rem; --bld-r: 19rem; --bld-u: 25rem; }
+   the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). The Gallery has the same layout. */
+.build, .gallery { --bld-l: 23rem; --bld-r: 19rem; --bld-u: 25rem; }
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
@@ -1318,6 +1321,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-tile { position: relative; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem 0.35rem 0.45rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
 .bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.12rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35), 0 0 1rem color-mix(in srgb, var(--accent) 12%, transparent); }
 .bld-tile:active { cursor: grabbing; transform: none; }
+/* (the Gallery's shown part) */
+.bld-tile.on { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), rgba(255, 255, 255, 0.03)); box-shadow: 0 0 0 1px var(--accent), 0 0 1.2rem color-mix(in srgb, var(--accent) 24%, transparent); }
+.gallery .bld-tile { cursor: pointer; touch-action: auto; }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
 .bld-art { display: block; width: 100%; border-radius: var(--m-r-row); overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-art .art { display: block; width: 100%; height: auto; }
@@ -1360,33 +1366,46 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* What is fitted: how to start (a preset, a saved build), the last benchmark, the parts by kind, what was done. */
 .bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: calc(var(--bld-r) - 1rem); }
-.bld-start { display: flex; flex-direction: column; gap: 0.4rem; flex: none; }
+.bld-start { flex: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.bld-start > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.bld-start > summary::-webkit-details-marker { display: none; }
+.bld-start > summary::after { content: ''; width: 0.4rem; height: 0.4rem; border-right: 1px solid var(--mute); border-bottom: 1px solid var(--mute); transform: translateY(-0.1rem) rotate(45deg); transition: transform .15s; }
+.bld-start[open] > summary::after { transform: translateY(0.1rem) rotate(-135deg); }
 .bld-start .bld-sub { margin: 0; }
 .bld-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .mode .bld-presets button { display: inline-flex; align-items: center; gap: 0.3rem; }
+/* the ready-made machines: three cards in a row, each with its tier pips and what it fits besides */
+.mode .bld-presets .bld-preset { flex: 1 1 0; min-width: 0; flex-direction: column; align-items: flex-start; gap: 0.25rem; padding: 0.5rem 0.55rem; border-radius: var(--m-r-card); text-align: left; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
+.mode .bld-presets .bld-preset:hover:not(:disabled) { transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.bld-preset b { font: 700 var(--m-sm) var(--ui); }
+.bld-preset em { display: flex; flex-wrap: wrap; gap: 0 0.5rem; font: normal var(--m-xs)/1.35 var(--mono); color: var(--mute); white-space: normal; }
 .bld-saved { display: inline-flex; }
 .mode .bld-saved button:first-child { border-radius: 99rem 0 0 99rem; }
 .mode .bld-saved button + button { padding: 0.3rem 0.45rem; border-radius: 0 99rem 99rem 0; }
-.bld-bench { flex: none; display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem 0.7rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: var(--glass-hi); }
+/* the benchmark card: the overall score, a bar per group of the almanac (its colour), and the two ways in */
+.bld-bench { flex: none; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.65rem 0.75rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: var(--glass-hi); }
 .bld-bench .bld-sub { margin: 0; }
-.bld-overall { display: flex; align-items: baseline; gap: 0.5rem; }
+.bld-bench .mode-hint { margin: 0; }
+.bld-bench .bld-cacts { margin-top: 0.2rem; }
+.bld-benchhead { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.bld-benchhead .bld-sub { display: inline-flex; align-items: center; gap: 0.35rem; }
 .bld-overall b { font: 750 var(--m-xl)/1 var(--mono); color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
-.bld-overall span { font: 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
-.bld-score { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) 2.6rem; align-items: center; gap: 0.5rem; font-size: var(--m-sm); }
-.bld-score > span:first-child { color: var(--mute); }
+.bld-score { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr) 2.6rem; align-items: center; gap: 0.5rem; font-size: var(--m-sm); }
+.bld-score > span:first-child { color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bld-score b { text-align: right; font: 600 var(--m-sm) var(--mono); }
 .bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
-.bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent)); }
+.bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g, var(--accent)) 55%, transparent), var(--g, var(--accent))); }
 .bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
 .bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.3rem; border: 1px solid transparent; border-radius: var(--m-r-row); cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
 .bld-list li:hover { background: var(--glass-hi); border-color: var(--glass-line); }
 .bld-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .bld-list li.bld-grp { gap: 0.4rem; padding: 0.55rem 0.3rem 0.15rem; cursor: default; border-color: transparent; background: none; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
-.bld-grp em { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.bld-grp em, .bld-grp i { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.bld-grp i { margin-left: auto; }
 .bld-list li.bld-none { flex-direction: column; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.4rem 0.8rem; text-align: center; cursor: default; color: var(--mute); border: 0.133rem dashed var(--glass-line); background: none; }
 .bld-none b { color: var(--ink); font-size: var(--m-md); }
 .bld-none span { font-size: var(--m-sm); }
-.bld-thumb { flex: none; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.bld-thumb { flex: none; width: 2.4rem; height: 2.4rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
 .bld-row em { font: normal var(--m-xs) var(--mono); color: var(--mute); }
 .bld-name { font-size: var(--m-md); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1446,14 +1465,75 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-ghost.no em { color: var(--bad); }
 .bld-toast { position: fixed; z-index: 95; transform: translate(-50%, calc(-100% - 1rem)); pointer-events: none; padding: 0.45rem 0.8rem; border-radius: var(--m-r-card); border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); background: rgba(10, 14, 32, 0.94); color: var(--warn); font: 600 var(--m-sm) var(--ui); white-space: nowrap; box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); animation: fade-in .2s ease both; }
 
+/* The benchmark screen (BuildBench.tsx): a sheet over the stage, centred between the shelf and what is fitted (both stay in view: the card on the right fills as the scores come in).
+   Its head holds the overall score, then the quick picks, a tab for each group of the almanac's jobs (its colour) and a row for each task, then the run buttons. */
+.bench-scrim { position: absolute; inset: 0; z-index: 5; background: rgba(5, 7, 16, 0.55); animation: fade-in .2s ease both; }
+.bench { z-index: 6; top: 4.3rem; bottom: 1rem; left: calc(var(--bld-l) + 1rem); right: calc(var(--bld-r) + 1rem); width: 46rem; max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem); margin: 0 auto; gap: 0.75rem; --panel: rgba(9, 12, 28, 0.9); animation: fade-in .2s ease both; }
+.bench-head { position: relative; display: flex; align-items: flex-start; gap: 1rem; padding-right: 2.9rem; }
+.bench-head .mode-head { flex: 1; min-width: 0; }
+.bench-total { display: grid; grid-template-columns: auto auto; justify-content: end; align-items: baseline; gap: 0.15rem 0.55rem; text-align: right; }
+.bench-total b { font: 750 var(--m-xl)/1 var(--mono); color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
+.bench-total span { font: 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.bench-total .bench-delta { grid-column: 1 / -1; justify-self: end; }
+.mode .bench-close { position: absolute; top: 0; right: 0; width: 2.1rem; height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.bench-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
+.bench-bar .mode-hint { flex: 1; min-width: 8rem; }
+.mode .bench-bar button, .mode .bench-foot button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.8rem; border-radius: var(--m-r-pill); font-size: var(--m-sm); }
+.bench-bar em, .bench-foot em { font: normal var(--m-xs) var(--mono); opacity: 0.7; }
+.bench-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.mode .bench-tabs button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: var(--m-r-pill); font-size: var(--m-sm); color: var(--mute); background: transparent; }
+.mode .bench-tabs button:hover:not(:disabled) { color: var(--ink); }
+.mode .bench-tabs button.on { color: var(--ink); background: color-mix(in srgb, var(--g) 16%, transparent); border-color: color-mix(in srgb, var(--g) 60%, transparent); }
+.bench-tabs i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--g); box-shadow: 0 0 0.5rem color-mix(in srgb, var(--g) 60%, transparent); }
+.bench-tabs b { font: 700 var(--m-xs) var(--mono); color: var(--g); }
+.bench-tabs em { font: normal var(--m-xs) var(--mono); padding: 0 0.35rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.1); color: var(--ink); }
+.bench-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem; scrollbar-width: thin; --g: var(--accent); }
+.bench-row { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) auto 1.9rem; align-items: center; gap: 0.6rem; padding: 0.4rem 0.5rem; border: 1px solid transparent; border-radius: var(--m-r-row); background: var(--glass-hi); transition: background .15s, border-color .15s; }
+.bench-row:hover { border-color: var(--glass-line); }
+.bench-row.live { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.bench-row.off .bench-pick, .bench-row.off .bench-name { opacity: 0.5; }
+.bench-pick { display: grid; place-items: center; align-self: stretch; cursor: pointer; }
+.bench-pick input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.bench-pick input:disabled { cursor: default; }
+.bench-name { min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.bench-name b { font: 600 var(--m-md) var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bench-name em { font: normal var(--m-xs) var(--mono); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* what a row says on its right: the time, the bar (par is its middle), the score, the change; or what the machine lacks; or that it runs now */
+.bench-out { display: grid; grid-template-columns: 3.8rem 6rem 2.8rem 3.1rem; align-items: center; gap: 0.5rem; }
+.bench-time { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.25rem; font: 500 var(--m-sm) var(--mono); color: var(--mute); white-space: nowrap; }
+.bench-time svg { color: var(--warn); }
+.bench-meter { position: relative; height: 0.35rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.09); overflow: hidden; }
+.bench-meter::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.4); }
+.bench-meter i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g) 50%, transparent), var(--g)); }
+.bench-score { font: 750 var(--m-md) var(--mono); text-align: right; }
+.bench-delta { font: normal 650 var(--m-xs) var(--mono); letter-spacing: 0; white-space: nowrap; text-align: right; color: var(--mute); }
+.bench-delta.up { color: var(--ok); }
+.bench-delta.down { color: var(--bad); }
+.bench-why { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem; min-width: 0; max-width: 17rem; font: 500 var(--m-sm) var(--ui); color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bench-why svg { flex: none; }
+.bench-wait { display: inline-flex; align-items: center; gap: 0.45rem; font: 600 var(--m-sm) var(--ui); color: var(--accent); }
+.bench-wait i { width: 0.8rem; height: 0.8rem; border-radius: 50%; border: 0.15rem solid color-mix(in srgb, var(--accent) 28%, transparent); border-top-color: var(--accent); animation: bench-spin .8s linear infinite; }
+@keyframes bench-spin { to { transform: rotate(360deg); } }
+.bench-idle { font: normal var(--m-sm) var(--mono); color: var(--mute); opacity: 0.8; }
+.mode .bench-one { width: 1.9rem; height: 1.9rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--accent); }
+.bench-foot { display: flex; align-items: center; gap: 0.6rem; padding-top: 0.7rem; border-top: 1px solid var(--glass-line); }
+.bench-note { flex: 1; min-width: 0; }
+.bench-progress { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--m-sm); }
+.bench-progress b { font-weight: 650; }
+.mode .bench-foot .bench-go { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.mode .bench-foot .bench-go:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
+.mode .bench-foot .bench-stop { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
-  .build { --bld-l: 20rem; --bld-r: 17rem; }
+  .build, .gallery { --bld-l: 20rem; --bld-r: 17rem; }
 }
 @media (max-width: 70em) {
   /* (what the panels leave between them no longer holds the summary in one row: it wraps to two) */
   .bld-read { flex-wrap: wrap; justify-content: center; gap: 0.5rem 0.9rem; }
   .bld-read .mode-sep { display: none; }
+  /* (nor the benchmark sheet: it takes the width of the screen, over the panels) */
+  .bench { left: 1rem; right: 1rem; max-width: none; width: auto; }
 }
 @media (max-width: 52em) {
   .bld-host { position: relative; inset: auto; height: 60vh; flex: none; order: 0; }
@@ -1471,10 +1551,20 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .bld-list { flex: none; max-height: 18rem; }
   .bld-dock { max-width: 100%; }
   .bld-dock .mode-bar { flex-wrap: wrap; max-width: 100%; }
+  .bld-presets .bld-preset { flex-basis: 8rem; }
+  /* (the benchmark sheet is a page over the page here: the panels are not beside it) */
+  .bench-scrim { position: fixed; }
+  .bench { position: fixed; inset: 0.6rem; max-width: none; margin: 0; }
 }
 @media (max-width: 36em) {
   /* a phone: the summary is a small card, the ready line over three figures over the benchmark */
   .bld-read { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; gap: 0.6rem 0.4rem; padding: 0.6rem; }
   .bld-read .mode-sep, .bld-tools .mode-sep { display: none; }
-  .bld-read .bld-ready, .bld-read .bld-bench-btn { grid-column: 1 / -1; }
+  .bld-read .bld-ready, .bld-read .bld-bench-btn, .bld-read .gal-kind { grid-column: 1 / -1; justify-self: center; }
+  /* a task row takes two lines: its name and its button, then its result under the name */
+  .bench-row { grid-template-columns: 1.4rem minmax(0, 1fr) 1.9rem; row-gap: 0.3rem; }
+  .bench-row > :nth-child(3) { grid-column: 2 / 4; grid-row: 2; justify-self: start; }
+  .bench-row > .bench-one { grid-column: 3; grid-row: 1; }
+  .bench-out { grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem 3rem; }
+  .bench-total span { display: none; }
 }

@@ -3,6 +3,7 @@ import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { specSheet } from '@/features/board/sim/buildspecs';
+import { overallOfRuns } from './benchhud';
 import { powerMeter, readiness } from './buildhud';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -15,14 +16,15 @@ const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 /**
  * The summary over the stage: can it start, what it costs, what it draws against its supply (the bar is full load over the supply's rating, green
- * to red), how many parts, and the benchmark. From the part tables; the machine is not run here. `rev` draws it again on a change.
+ * to red), how many parts, and the benchmark (its button opens the benchmark screen). From the part tables; the machine is not run here. `rev` draws it
+ * again on a change.
  */
-export function Readout({ stage, rev }: { stage: Stage; rev: number | undefined }) {
+export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | undefined; onBench: () => void }) {
   void rev;
   const s = stage.snapshot;
   const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec) });
   const ready = readiness(stage.board, stage.cables), meter = powerMeter(sheet);
-  const result = stage.bench.value, running = stage.benching.value;
+  const score = overallOfRuns(stage.bench.value, {}), running = stage.benching.value;
   return (
     <section class="bld-read mode-bar" aria-label="Build summary">
       <span class={`bld-ready ${ready.ok ? 'ok' : 'bad'}`} title={ready.ok ? 'Every part the power-on test needs is fitted.' : `It would not start: ${ready.line.charAt(0).toLowerCase()}${ready.line.slice(1)}.`}>
@@ -37,8 +39,8 @@ export function Readout({ stage, rev }: { stage: Stage; rev: number | undefined 
       </span>
       <span class="bld-fig" title="The case and the board count as one each"><b>{sheet.parts}</b><em>Parts</em></span>
       <i class="mode-sep" aria-hidden="true" />
-      <button class="bld-bench-btn" disabled={!!running || stage.status.value.busy} title="Run short fixed jobs on this machine and score them. A stock mid build scores about 1000." onClick={() => stage.runBenchmark()}>
-        <Icon name="gauge" size={13} />{running ? 'Running…' : result ? <>Score <b>{Math.round(result.overall)}</b></> : 'Benchmark'}
+      <button class="bld-bench-btn" aria-haspopup="dialog" title="Run the almanac's jobs on this machine and score them: one, a set, or all. 1000 is par." onClick={onBench}>
+        <Icon name="gauge" size={13} />{running ? (running.total ? `Running ${running.n}/${running.total}` : 'Running…') : score.n ? <>Score <b>{score.overall}</b></> : 'Benchmark'}
       </button>
     </section>
   );

@@ -8,6 +8,7 @@ import { TooltipBubble } from '@/core/ui/kit/Hover';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
 import { STUDIO_KINDS } from '@/features/economy/ui/shop/shopdata';
+import { BuildBench } from './BuildBench';
 import { BuildCard } from './BuildCard';
 import { BuildMachine } from './BuildMachine';
 import { BuildShelf } from './BuildShelf';
@@ -24,6 +25,7 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // it), a click on the shut side panel opens it. Drag a part onto the PC: the sockets it fits light up, and it fits the one it lands on. Drag a part off
 // the PC onto the shelf to take it out (with everything in its way; the order is `sim/removal.ts`). Styles: ui.css (the Build my PC section).
 // Keys as the game's: O the side panel, P and A the overlays. Also F focus, R reset, Delete take out, Ctrl+Z / Ctrl+Y, Escape lets go, then leaves.
+// The benchmark (the summary's button, or the right panel's card) is a sheet over the stage (`BuildBench.tsx`): while it is open the stage's keys wait and Escape closes it first.
 
 /** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case). */
 const KINDS = STUDIO_KINDS.filter((k) => k !== 'display');
@@ -44,6 +46,10 @@ export function BuildMode() {
   const [kind, setKind] = useState('cpu');
   const [saved, setSaved] = useState<SavedBuild[]>(() => savedBuilds());
   const [toast, setToast] = useState<{ text: string; x: number; y: number } | null>(null);
+  // the benchmark sheet, and the same for the key handler, which outlives the render it was made in
+  const [bench, setBench] = useState(false);
+  const benchRef = useRef(false);
+  benchRef.current = bench;
   const toastTimer = useRef(0);
   const note = (text: string, x: number, y: number) => {
     setToast({ text, x, y });
@@ -72,17 +78,19 @@ export function BuildMode() {
     }).catch(() => setFailed(true));
     const onKey = (e: KeyboardEvent) => {
       const st = stageRef.current;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // (a box on the benchmark sheet keeps the keys: Escape still leaves)
+      if (e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox')) return;
       const busy = !!st?.status.peek().busy;
       if (e.key === 'Escape') {
         // (the stage fast-forwards the step that plays; the graphics drawer shuts itself)
         if (busy) return;
-        if (air.current) cancel();
+        if (benchRef.current) setBench(false);
+        else if (air.current) cancel();
         else if (st?.selected.peek()) st.select(null);
         else if (!graphicsOpen.peek()) buildOpen.value = false;
         return;
       }
-      if (e.altKey || !st) return;
+      if (e.altKey || !st || benchRef.current) return;
       const k = e.key.toLowerCase();
       if (e.ctrlKey || e.metaKey) {
         if (k === 'z' && !e.shiftKey) { e.preventDefault(); void st.undo(); }
@@ -108,6 +116,7 @@ export function BuildMode() {
       setStage(null);
       setFailed(false);
       setToast(null);
+      setBench(false);
     };
   }, [open]);
 
@@ -131,13 +140,14 @@ export function BuildMode() {
         fit={(item) => { void stageRef.current?.fit(item); }}
         taking={drag?.from === 'machine'} over={drag?.over === 'bin'}
       />
-      {stage && <Readout stage={stage} rev={rev} />}
+      {stage && <Readout stage={stage} rev={rev} onBench={() => setBench(true)} />}
       <ViewOptions ready={!!stage} />
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} />
+      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} />
       <Foot stage={stage} hint={hint} />
-      {stage && picked && !drag && <BuildCard stage={stage} id={picked} avoid={avoid} />}
-      {stage && hover && !drag && !busy && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
+      {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
+      {stage && picked && !drag && !bench && <BuildCard stage={stage} id={picked} avoid={avoid} />}
+      {stage && hover && !drag && !busy && !bench && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
       {drag && <Ghost drag={drag} />}
       {toast && <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>{toast.text}</div>}
     </div>

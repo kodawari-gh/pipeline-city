@@ -1,193 +1,289 @@
-// "Build my PC" benchmark: short fixed jobs per task type, scored in work per simulated second. Pure TS, no DOM.
+// "Build my PC" benchmark: the almanac's jobs, run on a copy of the machine and scored against a reference machine. Pure TS, no DOM.
 //
-// Method. Each kind runs one fixed job on a copy of the machine:
-//   compute  cli.crc (CPU clock, branches)           memory   mem.stream (RAM bandwidth, open rows)
-//   network  web.page (link plan, router, CPU)       gpu      gpu.render (a card, else not applicable)
-//   npu      npu.infer (an NPU, else not applicable)
-//   storage  no fixed job reads a drive in place, so the bench drives the OS drive's port directly: 64 sequential
-//            block reads, then 64 scattered ones (stride 37). The port's own clock sets the time.
-// The job's work is `Key.work` (the reference step count of the generated program, the same on every machine).
-// Its time is the game's own execution time: `Game.lastCompleted.execTicks`, where one base tick is one simulated
-// second at 1x. So for a job: rate = work / seconds (storage: bytes / seconds).
+// Tasks (`benchtasks.ts`, which a screen loads alone). Every kind of job in the almanac is a task: the player picks any of them, one or a set. One more is not
+// a job, the drive test: no job reads a drive in place, so it drives the OS drive's port directly (64 sequential block reads, then 64 scattered ones, stride 37;
+// the port's own clock sets the time).
 //
-// Score. score = 1000 x rate / REFERENCE_RATE[kind], rounded. REFERENCE_RATE is the rate of `referenceBuild()`, a mid
-// machine with every part kind fitted (Mainstream board, 250 W PSU, cpu2, ram2, NVMe with the OS, GbE card with a
-// router and a Cable plan, a GPU and an NPU), so that machine scores about 1000 on every kind. A kind the machine
-// does not have is null with a note. overall = geometric mean of the scores that are not null (0 when none is).
+// A run. A task runs its generator template at `BenchTask.scale` on a fresh copy of the machine (`Game.fromSave`): no keys, no inventory (so the bot installs
+// nothing), no arrivals (`setJobClasses` turns them all off), a fixed random state. Same build and same task, same score, whatever else was picked. The copy
+// boots (OS up, link up for a network job), the key is added with `spawnKey` and the game's own bot plugs it. The time is the game's execution time,
+// `Game.lastCompleted.execTicks`: one base tick is one simulated second at 1x. The work is `Key.work`, the reference step count of the program, the same
+// on every machine. So rate = work / seconds (the drive test: bytes / seconds).
 //
-// Copy and determinism. The bench never touches the live game. Each kind runs on a fresh `Game.fromSave` copy of
-// the build: no keys, no inventory (so the bot installs nothing from it), no arrivals (`setJobClasses` turns them
-// all off), a fixed random state (the player's history does not change the score). Same build -> same score.
+// Score. score = 1000 x rate / REFERENCE_RATE[task], rounded. The reference is a machine built for the task (`referenceRig`): a mid machine (Mainstream
+// board, 250 W PSU, cpu2, ram2, NVMe with the OS, GbE card, router and a Cable plan, a GPU and an NPU) that has what the job needs too (a fibre plan, a TPM
+// with ECC memory, a multicore CPU under OS 4). It scores about 1000 on its task, by construction (`pcbench.test.ts`). Higher is better. overall = the
+// geometric mean of the scores that are not null (0 when none is).
 //
-// Cost. Each kind boots its own copy (a few hundred base ticks) and runs its job. About 0.3 ms per base tick.
-// `runBench` yields to the event loop between kinds so the UI can show progress.
+// What cannot run says why (`benchIssue`, from the needs the almanac lists, and a card for the jobs a card does: without one they run on the CPU for
+// minutes). A machine that crashes during a run (a thermal error, a VRM droop) says so: the time includes the restarts, and after `CRASH_LIMIT` it stops.
+//
+// Cost. Every task boots its own copy (8 to 13 base ticks with an OS) and runs 20 to 1900 base ticks, about 0.3 ms each (a threaded job 0.5 ms): all 51 tasks
+// take about 6 s on the reference machine, a weaker machine up to 4 times longer. The run is sliced: it gives the event loop a turn every `SLICE_MS`, so the
+// 3D stage keeps drawing, and it stops at once on `Stop.aborted`. A job that has run 8 times the reference time is given up (`LIMIT_FACTOR`).
 
 import { Game } from "@/worker/game/game";
 import { Prng } from "@/core/sim/prng";
 import { BLOCK_BYTES, STORAGE_REG } from "@/core/sim/memmap";
 import { deviceSpec } from "../../board/sim";
 import { Operator } from "../../economy/sim/operator";
-import { JOB_CLASSES } from "../../economy/sim/levels";
-import { JOB_DEX } from "../../jobs/sim/jobdex";
+import { describeNeed, JOB_CLASSES, needsMet, type Need } from "../../economy/sim/levels";
+import { getOsSpec } from "../../os/sim";
+import { BENCH_TASKS, type BenchTask, type RigId, type TaskResult } from "./benchtasks";
 
-export type BenchKind = "compute" | "memory" | "storage" | "network" | "gpu" | "npu";
-export interface BenchScore { kind: BenchKind; score: number | null; note?: string }
-export interface BenchResult { scores: BenchScore[]; overall: number }
+export { BENCH_GROUPS, BENCH_TASKS, benchTask, overallOf, QUICK_TASKS, type BenchGroup, type BenchTask, type RigId, type TaskResult } from "./benchtasks";
 
-/** The kinds in the order they run and print. */
-export const BENCH_KINDS: readonly BenchKind[] = ["compute", "memory", "storage", "network", "gpu", "npu"];
+/** Where a run is stopped from: set `aborted` and it ends at the next tick. */
+export interface Stop { aborted: boolean }
 
-/** The fixed job per kind (not storage). Scales keep each run to a few hundred base ticks on the reference build. */
-const JOBS: Record<Exclude<BenchKind, "storage">, { template: string; scale: number }> = {
-  compute: { template: "cli.crc", scale: 16 },
-  memory: { template: "mem.stream", scale: 8 },
-  network: { template: "web.page", scale: 8 },
-  gpu: { template: "gpu.render", scale: 1 },
-  npu: { template: "npu.infer", scale: 4 },
-};
-
-/** The storage plan: sequential blocks from 0, then scattered blocks (stride 37 blocks apart). */
-const STORAGE_SEQ = 64;
-const STORAGE_SCATTER = 64;
-const STORAGE_STRIDE = 37;
-
-/** Give up on a job after this many base ticks (a stalled or very weak machine). */
-const MAX_JOB_TICKS = 6000;
-/** Boot wait (OS up, link up) before the job starts. */
-const MAX_BOOT_TICKS = 3000;
+// ---------- the reference ----------
 
 /**
- * Rate of the reference build (work per second; storage in bytes per second), measured on `referenceBuild()`.
- * Test `pcbench.test.ts` checks that build scores about 1000 on every kind: re-measure these when the sim's balance moves.
+ * Rate of the reference machine per task (work per second; the drive test in bytes per second), measured by `measureTask` on `referenceRig(task.rig)`.
+ * `pcbench.test.ts` checks every task scores about 1000 there: when the sim's balance moves it names the rate to put here.
  */
-export const REFERENCE_RATE: Record<BenchKind, number> = {
-  compute: 34.792,
-  memory: 8.271,
-  storage: 20605.205,
-  network: 6.165,
-  gpu: 327.968,
-  npu: 27.914,
+export const REFERENCE_RATE: Record<string, number> = {
+  // everyday
+  log: 2.2, calc: 1.77778, checksum: 1.60526, fib: 6.96552, reverse: 4.65116, gcd: 10.6538, popcount: 13.1633, sort: 8.64557, matmul: 13.5676, crc: 20.9444,
+  // memory
+  scan: 1.73733, chase: 1.19483, stream: 8.03061, stencil: 12.1754, transpose: 9.35461, sieve: 27.6903, db: 1.91009, hashtab: 4.62058,
+  // network
+  page: 5.91946, api: 2.78462, dns: 7.97619, form: 16.625, search: 11.8817, upload: 5.53333, image: 11.3675, video: 7.73171,
+  // trust
+  secure: 8.21429, verify: 5.54545, measure: 5.96774, encrypt: 18.5094, vault: 6.84615, rotate: 6.95238, attest: 7.69231,
+  // accelerators
+  vadd: 288.575, saxpy: 298.621, thresh: 280.784, blur3: 327.968, poly: 304.599, mandel: 363.067, sphere: 312.722, perceptron: 22.6471, npu: 22.8142, deep: 24.3631,
+  // high-performance
+  "hpc-reduce": 4.30426, "hpc-matmul": 15.9052, "hpc-nbody": 17.1351, "hpc-montecarlo": 15.879, "hpc-sort": 20.0298, "hpc-bfs": 7.23805, "hpc-fft": 9.71159,
+  // the drive test (bytes per second)
+  disk: 20605.2,
 };
 
-/** The kinds this machine has the hardware for. Storage, network, gpu and npu need a fitted part; compute and memory always apply. */
-export function benchKinds(game: Game): BenchKind[] {
-  return BENCH_KINDS.filter((k) => applies(game, k).ok);
-}
-
-/** Run every requested kind (default: all six, in order). Kinds without the hardware score null. Does not change `game`. */
-export async function runBench(game: Game, onProgress?: (kind: BenchKind) => void, kinds?: BenchKind[]): Promise<BenchResult> {
-  const list = BENCH_KINDS.filter((k) => (kinds ?? BENCH_KINDS).includes(k));
-  const scores: BenchScore[] = [];
-  for (const kind of list) {
-    onProgress?.(kind);
-    scores.push(scoreOf(game, kind));
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-  return { scores, overall: overallOf(scores) };
-}
-
-/** Geometric mean of the scores that are not null; 0 when none is. */
-export function overallOf(scores: readonly BenchScore[]): number {
-  const got = scores.map((s) => s.score).filter((s): s is number => s !== null && s > 0);
-  if (got.length === 0) return 0;
-  return Math.round(Math.exp(got.reduce((sum, s) => sum + Math.log(s), 0) / got.length));
-}
-
-/** The mid machine the reference rates were measured on (see the header). Exported for the test and for re-measuring. */
+/** The mid machine the reference rates are measured on (see the header). Exported for the test and for re-measuring. */
 export function referenceBuild(): Game {
+  return rig({});
+}
+
+const MID = { board: "board2", psu: "psu2", cpu: "cpu2", ram: "ram2", storage: "nvme2", nic: "nic1", router: "router2", gpu: "gpu1", npu: "npu1", os: "os1" };
+
+function rig(over: Partial<Record<keyof typeof MID | "tpm", string>>, isp = "isp2"): Game {
   const g = new Game({ seed: 1, sandbox: true, preassembled: true });
-  for (const id of ["board2", "psu2", "cpu2", "ram2", "nvme2", "nic1", "router2", "gpu1", "npu1", "os1"]) {
+  // (the stock stick holds 16K and is not ECC: a rig with its own memory drops it)
+  if (over.ram) for (const d of g.snapshot().devices) if (d.kind === "ram") g.uninstall(d.id);
+  for (const id of Object.values({ ...MID, ...over })) {
     const b = g.purchase(id);
     if (!b.ok) throw new Error(`reference build: buy ${id}: ${b.reason}`);
     const r = g.install(b.invId);
     if (!r.ok) throw new Error(`reference build: install ${id}: ${r.reason}`);
   }
-  const plan = g.purchase("isp2"); // a plan needs no install: it is the link's ISP
-  if (!plan.ok) throw new Error(`reference build: isp2: ${plan.reason}`);
+  const plan = g.purchase(isp); // a plan needs no install: it is the link's ISP
+  if (!plan.ok) throw new Error(`reference build: ${isp}: ${plan.reason}`);
   const lan = g.connectLan();
   if (!lan.ok) throw new Error(`reference build: lan: ${lan.reason}`);
   return g;
 }
 
-// ---------- applicability ----------
+/** The biggest machine with only a CPU (and two sticks of memory: more draw the memory VRM down under a threaded load) of its own. */
+function coresRig(cpu: string): Game {
+  const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
+  let kept = 0;
+  for (const d of g.snapshot().devices) if (d.kind === "ram" && ++kept > 2) g.uninstall(d.id);
+  const b = g.purchase(cpu);
+  if (!b.ok) throw new Error(`reference build: buy ${cpu}: ${b.reason}`);
+  const r = g.install(b.invId);
+  if (!r.ok) throw new Error(`reference build: install ${cpu}: ${r.reason}`);
+  return g;
+}
 
-function applies(game: Game, kind: BenchKind): { ok: true } | { ok: false; note: string } {
-  const has = (k: string): boolean => game.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === k);
-  switch (kind) {
-    case "compute":
-    case "memory":
-      return { ok: true };
-    case "storage":
-      return has("storage") ? { ok: true } : { ok: false, note: "no storage drive fitted" };
-    case "network":
-      return has("nic") ? { ok: true } : { ok: false, note: "no network card fitted" };
-    case "gpu":
-      return has("gpu") ? { ok: true } : { ok: false, note: "no GPU fitted" };
-    case "npu":
-      return has("npu") ? { ok: true } : { ok: false, note: "no NPU fitted" };
+/** The machine a task is scored against: the mid machine, plus what the job needs (ECC memory and a TPM, a fibre plan) or, for the threaded jobs, a multicore CPU on the biggest shell. */
+export function referenceRig(id: RigId): Game {
+  switch (id) {
+    case "mid": return rig({});
+    case "fibre": return rig({}, "isp3");
+    case "trust": return rig({ ram: "ram3", tpm: "tpm1" });
+    case "trust2": return rig({ ram: "ram3", tpm: "tpm2" });
+    case "cores2": return coresRig("cpu2d");
+    case "cores4": return coresRig("cpu3t");
+    case "cores8": return coresRig("cpu5s");
   }
 }
 
-// ---------- one kind ----------
+// ---------- what can run ----------
 
-function scoreOf(game: Game, kind: BenchKind): BenchScore {
-  const ok = applies(game, kind);
-  if (!ok.ok) return { kind, score: null, note: ok.note };
-  if (!game.sandbox) return { kind, score: null, note: "the bench needs a sandbox game" };
-  const rate = kind === "storage" ? storageRate(game) : jobRate(game, kind);
-  if ("note" in rate) return { kind, score: null, note: rate.note };
-  return { kind, score: Math.round((1000 * rate.value) / REFERENCE_RATE[kind]) };
+/** A need, as the bench says it (the almanac's phrase for the OS and the cores does not name the tier or the count). */
+function say(n: Need): string {
+  if (n.kind === "os") return n.min > 1 ? `${getOsSpec(`os${n.min}`)?.name ?? `OS ${n.min}`} or newer` : "an OS";
+  if (n.kind === "cores") return `a CPU with ${n.min} logical cores`;
+  return describeNeed(n).long;
+}
+
+/** "a", "a and b", "a, b and c". */
+const listOf = (items: readonly string[]): string => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
+
+const has = (game: Game, kind: string): boolean => game.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === kind);
+
+/**
+ * Why each of the tasks (all when `ids` is omitted) cannot run on this machine as it stands; null when it can. The machine is not run: this reads the parts
+ * and the link's wiring (a plan, a router, the cable, an OS and its memory; whether the link is up needs the machine on). Worked out once for all of them.
+ */
+export function benchIssues(game: Game, ids?: readonly string[]): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  const tasks = BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
+  if (!game.sandbox) return new Map(tasks.map((t) => [t.id, "The benchmark needs a sandbox game"]));
+  const link = game.computeLink();
+  const wired = link.state !== "no-device" && link.state !== "no-cable" && link.state !== "no-os" && link.port.mbps > 0;
+  const caps = game.capsWith(wired), gpu = has(game, "gpu"), npu = has(game, "npu");
+  for (const t of tasks) {
+    const missing = t.needs.filter((n) => !needsMet([n], caps).ok);
+    let why: string | null = null;
+    if (t.template === null) why = has(game, "storage") ? null : "Needs a storage drive";
+    else if (!wired && missing.some((n) => n.kind === "net")) why = link.reason ? `${link.reason.charAt(0).toUpperCase()}${link.reason.slice(1)}` : "Needs a network link";
+    else if (missing.length > 0) why = `Needs ${listOf(missing.map(say))}`;
+    else if (t.accel === "gpu" && !gpu) why = "Needs a graphics card: without one it runs on the CPU, many times slower";
+    else if (t.accel === "npu" && !npu && !gpu) why = "Needs an AI card or a graphics card: without one it runs on the CPU, many times slower";
+    out.set(t.id, why);
+  }
+  return out;
+}
+
+/** Why this task cannot run on this machine as it stands, or null when it can (`benchIssues` for one). */
+export const benchIssue = (game: Game, task: BenchTask): string | null => benchIssues(game, [task.id]).get(task.id) ?? null;
+
+/** The tasks of `ids` (all when omitted) this machine can run. */
+export function benchable(game: Game, ids?: readonly string[]): BenchTask[] {
+  const issues = benchIssues(game, ids);
+  return BENCH_TASKS.filter((t) => issues.has(t.id) && issues.get(t.id) === null);
+}
+
+// ---------- a run ----------
+
+/**
+ * A job is given up when it has run `LIMIT_FACTOR` times the reference time (a machine that slow has no useful score), but not before `MIN_JOB_TICKS` and not
+ * after `MAX_JOB_TICKS` base ticks. A boot is given up after `MAX_BOOT_TICKS`, and a machine that crashes `CRASH_LIMIT` times.
+ */
+const LIMIT_FACTOR = 8, MIN_JOB_TICKS = 600, MAX_JOB_TICKS = 16000, MAX_BOOT_TICKS = 3000, CRASH_LIMIT = 4;
+/** The event loop gets a turn after this many milliseconds of work. */
+const SLICE_MS = 8;
+
+const now = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+/** A turn of the event loop. A message is a task like a timer, without the timer's 4 ms floor (a run would take half as long again). */
+function yieldTurn(): Promise<void> {
+  if (typeof MessageChannel === "undefined") return new Promise((resolve) => setTimeout(resolve, 0));
+  return new Promise((resolve) => {
+    const c = new MessageChannel();
+    c.port1.onmessage = () => {
+      c.port1.close();
+      resolve();
+    };
+    c.port2.postMessage(0);
+  });
+}
+
+/** Hands the event loop a turn every `SLICE_MS`: a run of seconds does not freeze the page. */
+class Pace {
+  private since = now();
+  due(): boolean { return now() - this.since >= SLICE_MS; }
+  async turn(): Promise<void> {
+    await yieldTurn();
+    this.since = now();
+  }
+}
+
+/** Run `ids` (the tasks, in the almanac's order; all when omitted) one after the other, each on its own copy. Does not change `game`. Stops after `stop.aborted`. */
+export async function runBenchTasks(
+  game: Game,
+  ids?: readonly string[],
+  opts: { stop?: Stop; onStart?: (task: BenchTask, index: number, total: number) => void; onResult?: (result: TaskResult, task: BenchTask) => void } = {},
+): Promise<TaskResult[]> {
+  const list = BENCH_TASKS.filter((t) => !ids || ids.includes(t.id));
+  const stop = opts.stop ?? { aborted: false }, pace = new Pace(), out: TaskResult[] = [];
+  for (let i = 0; i < list.length && !stop.aborted; i++) {
+    const task = list[i]!;
+    opts.onStart?.(task, i, list.length);
+    const result = await runTask(game, task, task.scale, pace, stop);
+    if (stop.aborted) break; // (a run that was stopped has no result)
+    out.push(result);
+    opts.onResult?.(result, task);
+    await pace.turn();
+  }
+  return out;
+}
+
+/** One task, run now at `scale` (the reference rates are measured at the task's own). Not sliced: for the tests and for re-measuring. */
+export async function measureTask(game: Game, task: BenchTask, scale = task.scale): Promise<TaskResult> {
+  return runTask(game, task, scale, new Pace(), { aborted: false });
+}
+
+async function runTask(game: Game, task: BenchTask, scale: number, pace: Pace, stop: Stop): Promise<TaskResult> {
+  const none = (note: string): TaskResult => ({ id: task.id, score: null, seconds: null, note });
+  const issue = benchIssue(game, task);
+  if (issue) return none(issue);
+  const ref = REFERENCE_RATE[task.id];
+  const g = await bootedCopy(game, task, pace, stop);
+  if (!(g instanceof Game)) return none(g.note);
+  const run = task.template === null ? storageRate(g) : await jobRate(g, task, scale, ref, pace, stop);
+  if ("note" in run) return none(run.note);
+  const crashed = g.errors > 0 ? faultOf(g) ?? "the machine crashed" : undefined;
+  return { id: task.id, score: ref ? Math.round((1000 * run.rate) / ref) : null, seconds: run.seconds, rate: run.rate, ...(ref ? {} : { note: "No reference rate for this task yet" }), ...(crashed ? { crashed } : {}) };
+}
+
+/** The first thing the copy logged as a fault since it was made, as a cause ("VRM voltage droop"). */
+function faultOf(g: Game): string | null {
+  const l = g.log.find((x) => x.kind === "fault");
+  return l ? l.text.replace(/: the machine crashed and rebooted$/, "") : null;
 }
 
 /** A copy of the build, powered and booted (OS up, and the link up for a network job). Never the live game. */
-function bootedCopy(game: Game, kind: BenchKind): Game | { note: string } {
+async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): Promise<Game | { note: string }> {
   // (fromSave resets the power, the tray and the drives' in-flight commands; the copy starts cold, as a saved game does.)
   const s = game.toSave();
   const g = Game.fromSave({ ...s, tray: [], plugged: null, inventory: [], prngState: new Prng(s.seed).getState() });
   g.setJobClasses(JOB_CLASSES.map((c) => c.id)); // no arrivals: the job is the only key
+  g.errors = 0; // (the save keeps the player's count and log: only what this copy does counts)
+  g.log = [];
   if (!g.powered) g.powerButton();
   const op = new Operator(g);
-  const ready = (): boolean => (!g.hasOs() || !!g.snapshot().os?.up) && (kind !== "network" || g.linkUsable);
-  for (let t = 0; t < MAX_BOOT_TICKS && !ready(); t++) {
+  const link = task.needs.some((n) => n.kind === "net");
+  const ready = (): boolean => (!g.hasOs() || !!g.snapshot().os?.up) && (!link || g.linkUsable);
+  for (let t = 0; t < MAX_BOOT_TICKS && !ready() && g.errors < CRASH_LIMIT; t++) {
+    if (stop.aborted) return { note: "stopped" };
     g.advanceBaseTick();
     op.step();
+    if (pace.due()) await pace.turn();
   }
-  if (!ready()) return { note: kind === "network" ? "no network link (an OS and a linked router are needed)" : "the OS did not come up" };
+  if (!ready()) return { note: g.errors > 0 ? `The machine crashed: ${faultOf(g) ?? "it would not stay up"}` : link ? "No network link (an OS and a linked router are needed)" : "The OS did not come up" };
   return g;
 }
 
-/** Work per second of the fixed job, or a note when it could not run. */
-function jobRate(game: Game, kind: Exclude<BenchKind, "storage">): { value: number } | { note: string } {
-  const job = JOBS[kind];
-  // A job the RAM cannot hold never starts (the key waits for it): say so instead of waiting out the timeout.
-  const ram = JOB_DEX.find((e) => e.template === job.template)?.needs?.find((n) => n.kind === "ram");
-  if (ram?.kind === "ram" && game.installedRamBytes() < ram.minBytes) {
-    return { note: `needs ${Math.ceil(ram.minBytes / 1024)} KB of RAM, this machine has ${Math.floor(game.installedRamBytes() / 1024)} KB` };
-  }
-  const g = bootedCopy(game, kind);
-  if (!(g instanceof Game)) return g;
-  const r = g.spawnKey(job.template, job.scale);
+/** Work per second of the task's job on the booted copy, or a note when it could not run or finish. `ref` is the reference rate (undefined when there is none). */
+async function jobRate(g: Game, task: BenchTask, scale: number, ref: number | undefined, pace: Pace, stop: Stop): Promise<{ rate: number; seconds: number } | { note: string }> {
+  const r = g.spawnKey(task.template!, scale);
   if (!r.ok) return { note: r.reason };
+  const queued = g.snapshot().tray.find((k) => k.id === r.keyId);
+  if (queued && !queued.runnable) return { note: `Needs ${listOf(queued.missing)}` };
   const work = g.tray.waiting().find((k) => k.id === r.keyId)?.work ?? 0;
+  const limit = ref ? Math.min(MAX_JOB_TICKS, Math.max(MIN_JOB_TICKS, Math.ceil((LIMIT_FACTOR * work) / ref))) : MAX_JOB_TICKS;
   const op = new Operator(g);
-  for (let t = 0; t < MAX_JOB_TICKS && g.lastCompleted?.id !== r.keyId; t++) {
+  for (let t = 0; t < limit && g.lastCompleted?.id !== r.keyId && g.errors < CRASH_LIMIT; t++) {
+    if (stop.aborted) return { note: "stopped" };
     g.advanceBaseTick();
     op.step();
+    if (pace.due()) await pace.turn();
   }
   const done = g.lastCompleted;
-  if (!done || done.id !== r.keyId) return { note: `the job did not finish in ${MAX_JOB_TICKS} s` };
-  return { value: work / Math.max(1, done.execTicks) };
+  if (!done || done.id !== r.keyId) return { note: g.errors >= CRASH_LIMIT ? `The machine kept crashing: ${faultOf(g) ?? "it would not stay up"}` : `The job did not finish in ${limit} s` };
+  const seconds = Math.max(1, done.execTicks);
+  return { rate: work / seconds, seconds };
 }
 
 /** Bytes per second of the storage plan on the OS drive (or the first drive), timed by the port's own clock. */
-function storageRate(game: Game): { value: number } | { note: string } {
-  const g = bootedCopy(game, "storage");
-  if (!(g instanceof Game)) return g;
+function storageRate(g: Game): { rate: number; seconds: number } | { note: string } {
   const port = g.osPort() ?? g.ports.find((p) => p.media !== null) ?? null;
-  if (!port?.media) return { note: "no drive is attached" };
+  if (!port?.media) return { note: "No drive is attached" };
   const clock = g.machine.clock;
   const rate = clock.getRate(port.name);
-  if (rate.mul <= 0) return { note: "the drive's clock is stopped" };
+  if (rate.mul <= 0) return { note: "The drive's clock is stopped" };
   const blocks = port.media.blocks;
   const plan: number[] = [];
   for (let i = 0; i < STORAGE_SEQ; i++) plan.push(i % blocks);
@@ -197,9 +293,12 @@ function storageRate(game: Game): { value: number } | { note: string } {
     for (let k = 0; k < 4; k++) port.write(STORAGE_REG.LBA + k, (lba >>> (8 * k)) & 0xff);
     port.write(STORAGE_REG.CMD, 1); // 1 = read block LBA into the buffer
     for (let guard = 0; port.isBusy && guard < 1_000_000; guard++) clock.advance(1);
-    if (port.isBusy) return { note: "the drive did not answer" };
+    if (port.isBusy) return { note: "The drive did not answer" };
   }
   const domainTicks = clock.ticks(port.name) - before;
   const seconds = (domainTicks * rate.div) / rate.mul; // domain ticks per base tick = mul / div; one base tick = 1 s
-  return { value: (plan.length * BLOCK_BYTES) / Math.max(1e-9, seconds) };
+  return { rate: (plan.length * BLOCK_BYTES) / Math.max(1e-9, seconds), seconds: Math.max(1, Math.round(seconds)) };
 }
+
+/** The storage plan: sequential blocks from 0, then scattered blocks (stride 37 blocks apart). */
+const STORAGE_SEQ = 64, STORAGE_SCATTER = 64, STORAGE_STRIDE = 37;

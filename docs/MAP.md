@@ -47,7 +47,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 | `economy` | money, shop, levels, contracts, power bill, clients (`GAME`, `PROGRESSION`, `TECHTREE`) | `sim` `ui/{shop,progress}` |
 | `jobs` | seeded job generator, job dex, job log, almanac (`JOBS`, `GEN`) | `sim/gen` `ui` |
 | `room` | desk, wall, monitor, props, light (`room`, `shell`, `light`) | `render/{shell,desk/props}` |
-| `sandbox` | sandbox tools, speed benchmark (`SANDBOX`) | `sim` `ui` |
+| `sandbox` | sandbox tools, speed benchmark, PC benchmark (`pcbench`, `benchtasks`; `SANDBOX`) | `sim` `ui` |
 | `tutorial` | tutorial steps, anchors, highlight | `ui` |
 
 ## How the pieces fit

@@ -26,7 +26,26 @@ export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'bo
 /** Has this kind a 3D model in the showcase? (Boards, software, routers and plans are not parts you can turn in your hand.) */
 export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'router', 'isp'].includes(k);
 
-export interface GalleryItem { id: string; name: string; note: string }
+/** The list price of a catalogue item (a part, a board tier or a case tier), or null for an id it does not know. */
+export function priceOf(item: string): number | null {
+  const shell = /^(board|case)(\d+)$/.exec(item);
+  if (shell) return (shell[1] === 'board' ? BOARD_TIERS : CASE_TIERS)[Number(shell[2])]?.price ?? null;
+  return getSpec(item)?.price ?? null;
+}
+
+/** A part's name in two: the name, and what the catalogue says of it in brackets (`Tiny-5F+I (front end: I-cache)` is `Tiny-5F+I` and `front end: I-cache`). */
+export function splitName(name: string): { title: string; detail: string } {
+  const m = /^(.*?)\s+\((.*)\)$/.exec(name);
+  return m ? { title: m[1]!, detail: m[2]! } : { title: name, detail: '' };
+}
+
+/** How many of `n` pips a tier lights: at least one, all of them at the kind's top tier. */
+export function pips(tier: number, top: number, n = 5): number {
+  if (top <= 0) return n;
+  return Math.max(1, Math.min(n, Math.round((tier / top) * n)));
+}
+
+export interface GalleryItem { id: string; name: string; note: string; tier: number }
 export interface GalleryGroup { key: string; kind: string; items: GalleryItem[] }
 
 /** The device kinds the studio screens list, in the shop's order (so the Gallery, Build my PC and the shop agree on where a category sits). */
@@ -37,9 +56,9 @@ export const STUDIO_KINDS: readonly string[] = ['case', 'board', ...GALLERY_KIND
 
 /** Every part the showcase can build, by category (cases first, as the shop lists them): the gallery's list, and the shop's stills (`tools/stills.mjs`). */
 export function galleryGroups(): GalleryGroup[] {
-  const out: GalleryGroup[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case` })) }];
-  out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard' })) });
-  for (const k of GALLERY_KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
+  const out: GalleryGroup[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case`, tier: c.tier })) }];
+  out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard', tier: b.tier })) });
+  for (const k of GALLERY_KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}`, tier: s.tier })) });
   return out.filter((g) => g.items.length > 0);
 }
 

@@ -3,7 +3,7 @@
 import type { Board } from '@/features/board/sim/board';
 import { bootCheck, type Cables } from '@/features/board/sim/cables';
 import type { SpecSheet } from '@/features/board/sim/buildspecs';
-import { BOARD_TIERS, CASE_TIERS, getSpec } from '@/features/board/sim/specs';
+import { getSpec } from '@/features/board/sim/specs';
 
 export interface Readiness { ok: boolean; line: string }
 
@@ -40,18 +40,8 @@ export function groupByKind<D extends { spec: string }>(devices: readonly D[], o
   return [...by].map(([kind, items]) => ({ kind, items })).sort((a, b) => rank(a.kind) - rank(b.kind));
 }
 
-/** The list price of a catalogue item (a part, a board tier or a case tier), or null for an id it does not know. */
-export function priceOf(item: string): number | null {
-  const shell = /^(board|case)(\d+)$/.exec(item);
-  if (shell) return (shell[1] === 'board' ? BOARD_TIERS : CASE_TIERS)[Number(shell[2])]?.price ?? null;
-  return getSpec(item)?.price ?? null;
-}
-
-/** How many of `n` pips a tier lights: at least one, all of them at the kind's top tier. */
-export function pips(tier: number, top: number, n = 5): number {
-  if (top <= 0) return n;
-  return Math.max(1, Math.min(n, Math.round((tier / top) * n)));
-}
+// (what a tile costs and how many pips a tier lights are the catalogue's: the Gallery's shelf says them the same way)
+export { pips, priceOf } from '@/features/economy/ui/shop/shopdata';
 
 export interface HintState {
   busy: boolean;

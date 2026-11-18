@@ -94,7 +94,7 @@ export function demand(this: Game): number {
   return demandRate(this.cfg, this.reputation(), levelDemandMul(this.level));
 }
 
-/** What the machine can offer a job right now. Network, TPM, GPU, NPU and multicore do not exist yet. */
+/** What the machine can offer a job right now. `cores` counts logical cores (docs/MULTICORE.md: a job's need is its thread count). */
 export function caps(this: Game): Caps {
   return this.capsWith(this.linkUsable);
 }
@@ -104,7 +104,7 @@ export function capsWith(this: Game, netOk: boolean): Caps {
   const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
   const tpms = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "tpm");
   const tpm = tpms.length > 0;
-  return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), ...this.fsCaps(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+  return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), cores: this.cpuLogicalCores(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), ...this.fsCaps(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
 }
 
 export function runnable(this: Game, k: Key, caps = this.caps()): boolean {

@@ -2,7 +2,7 @@ import type { IconName } from '@/features/economy/ui/shop/picker';
 import { rem } from './units';
 
 /** The icons of the studio screens' controls, beside the part and category ones (`IconName`). */
-type HudIcon = 'undo' | 'redo' | 'panel' | 'focus' | 'wind' | 'sliders' | 'eject' | 'skip' | 'save';
+type HudIcon = 'undo' | 'redo' | 'panel' | 'focus' | 'wind' | 'sliders' | 'eject' | 'skip' | 'save' | 'stop' | 'spin' | 'reset' | 'prev' | 'next';
 
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
@@ -59,6 +59,12 @@ const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'ex
   eject: ['M8 2.6 3.4 9.2h9.2z', 'M3.4 12.2h9.2'],
   skip: ['M2.6 3.2 7.4 8l-4.8 4.8z', 'M8.6 3.2 13.4 8l-4.8 4.8z'],
   save: ['M3 2.5h7.8l2.2 2.2v8.8H3z', 'M5.4 2.5v3.4h4.4V2.5', 'M5.4 13.5V9.4h5.2v4.1'],
+  stop: ['M4.4 4.4h7.2v7.2H4.4z'],
+  // (the Gallery's view buttons and its part stepper)
+  spin: ['M15 2.8v3.9h-3.9', 'M13.66 10a6 6 0 1 1-1.41-6.24L15 6.7'],
+  reset: ['M2.5 6V2.5H6', 'M10 2.5h3.5V6', 'M13.5 10v3.5H10', 'M6 13.5H2.5V10'],
+  prev: ['M10 3 5 8l5 5'],
+  next: ['M6 3l5 5-5 5'],
 };
 
 export function Icon({ name, size = 14, class: cls }: { name: keyof typeof PATHS; size?: number; class?: string }) {

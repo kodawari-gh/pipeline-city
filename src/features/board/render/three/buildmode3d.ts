@@ -3,7 +3,7 @@
 // What has to come out before what is the removal graph (`sim/removal.ts`); how each step looks is `buildmotion.ts`. A swap or a removal takes out
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
-import { effect, signal } from '@preact/signals';
+import { computed, effect, signal } from '@preact/signals';
 import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight, type Material, type Object3D } from 'three';
 import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
@@ -42,10 +42,14 @@ import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import type { BuildLayout, BuildPreset } from '@/features/board/sim/buildspecs';
-import type { BenchKind, BenchResult } from '@/features/sandbox/sim/pcbench';
+import type { Stop } from '@/features/sandbox/sim/pcbench';
+import type { TaskResult } from '@/features/sandbox/sim/benchtasks';
 
 /** A part in the bin: what a player can fit. */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
+
+/** How far the benchmark has got: the task that runs now (null while the benchmark's code loads) and its place among the tasks picked. */
+export interface BenchProgress { id: string | null; n: number; total: number }
 
 
 export interface BuildStatus {
@@ -122,9 +126,20 @@ export function binParts(): BinPart[] {
 
 export class BuildStage {
   readonly status = signal<BuildStatus>({ busy: false, step: '', log: [], rev: 0 });
-  /** The last benchmark of the machine as it stands (cleared by any change), and the kind being run now. */
-  readonly bench = signal<BenchResult | null>(null);
-  readonly benching = signal<BenchKind | 'start' | null>(null);
+  /** What the benchmark has scored on the machine as it stands, by task id (any change to the machine empties it), and how far a run has got (null: none runs). */
+  readonly bench = signal<Readonly<Record<string, TaskResult>>>({});
+  /** The scores of the machine before the last change that had any: the screen shows the change from them. */
+  readonly benchWas = signal<Readonly<Record<string, TaskResult>>>({});
+  readonly benching = signal<BenchProgress | null>(null);
+  private benchStop: Stop = { aborted: false };
+  /** The benchmark's code carries the game's whole sim: it loads when the benchmark screen opens (`loadBench`), not with the stage. */
+  private benchMod: typeof import('@/features/sandbox/sim/pcbench') | null = null;
+  private readonly benchLoaded = signal(false);
+  /** Why each benchmark task cannot run on the machine as it stands (null: it can), by task id; null until `loadBench` has loaded the code. */
+  readonly benchIssues = computed((): ReadonlyMap<string, string | null> | null => {
+    void this.status.value.rev; // (every change of the machine ends in a new `rev`)
+    return this.benchLoaded.value && this.benchMod && !this.dead ? this.benchMod.benchIssues(this.game) : null;
+  });
   /** Playback speed: 1 is the animations' own time. */
   readonly speed = signal(1);
   /** A long chain of steps plays its parts in the way faster (`QUICK`), and a press of Space or Escape fast-forwards what is left of a job. */
@@ -135,7 +150,7 @@ export class BuildStage {
   skip(): void { if (this.status.peek().busy) this.skipping = true; }
   /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
   get game(): Game { return this.alive(this._game); }
-  set game(g: Game) { this._game = g; }
+  set game(g: Game) { this._game = g; this.benchChanged(); }
   private _game: Game | null = null;
   private readonly snaps = new SnapCache();
   private _machine: Machine3D | null = null;
@@ -282,7 +297,14 @@ export class BuildStage {
   get cables(): Cables { return this.game.cables; }
   /** Every change to the stage's game goes through here (install, uninstall, purchase, a cable): it drops the kept snapshot. */
   private edit<T>(change: (g: Game) => T): T {
-    try { return change(this.game); } finally { this.snaps.drop(); this.demand.ask(); }
+    try { return change(this.game); } finally { this.snaps.drop(); this.benchChanged(); this.demand.ask(); }
+  }
+
+  /** The machine changed: the scores no longer describe it (they stay as the ones to compare with), and a run on its old copy ends. */
+  private benchChanged(): void {
+    this.benchStop.aborted = true;
+    const now = this.bench.peek();
+    if (Object.keys(now).length) { this.benchWas.value = now; this.bench.value = {}; }
   }
 
   // ------------------------------------------------------------------ drawing
@@ -322,7 +344,6 @@ export class BuildStage {
 
   private rebuildNow(): void {
     this.held.clear();
-    if (this.bench.peek()) this.bench.value = null;
     // (the redraw always reads the game as it is now)
     this.snaps.drop();
     const s = this.snapshot, tier = s.boardTier, caseTier = Math.max(tier, s.caseTier);
@@ -1234,16 +1255,36 @@ export class BuildStage {
     if (s.router && s.isp) g.connectLan();
   }
 
-  /** Run the benchmark on the machine as it is (a copy runs; the stage's game is not changed). */
-  async runBenchmark(): Promise<void> {
+  /** Load the benchmark's code (once): `benchIssues` has an answer after it. */
+  async loadBench(): Promise<void> {
+    if (this.benchMod || this.dead) return;
+    this.benchMod = await import('@/features/sandbox/sim/pcbench');
+    if (!this.dead) this.benchLoaded.value = true;
+  }
+
+  /**
+   * Run the benchmark's tasks (`ids`; every task this machine can run when omitted) on copies of the machine as it stands, one after the other (the stage's game
+   * is not changed). Each result lands in `bench` as it comes. A change to the machine or `stopBenchmark` ends the run: the task in progress has no result.
+   */
+  async runBenchmark(ids?: readonly string[]): Promise<void> {
     if (this.dead || this.benching.peek() || this.status.peek().busy) return;
-    this.benching.value = 'start';
+    const stop: Stop = this.benchStop = { aborted: false };
+    this.benching.value = { id: null, n: 0, total: 0 };
     try {
-      const { runBench } = await import('@/features/sandbox/sim/pcbench');
-      const r = await runBench(this.game, (k) => { this.benching.value = k; });
-      if (!this.dead) this.bench.value = r;
+      await this.loadBench();
+      if (this.dead || stop.aborted || !this.benchMod) return;
+      const { benchable, runBenchTasks } = this.benchMod;
+      const list = benchable(this.game, ids).map((t) => t.id);
+      await runBenchTasks(this.game, list, {
+        stop,
+        onStart: (t, i, n) => { this.benching.value = { id: t.id, n: i + 1, total: n }; },
+        onResult: (r) => { this.bench.value = { ...this.bench.peek(), [r.id]: r }; },
+      });
     } finally { this.benching.value = null; }
   }
+
+  /** End the benchmark that runs now (the task in progress has no result). */
+  stopBenchmark(): void { this.benchStop.aborted = true; }
 
   /** What is in the machine now, to save under a name (`loadLayout` builds it again). */
   get layout(): BuildLayout {
@@ -1311,6 +1352,7 @@ export class BuildStage {
   dispose(): void {
     if (this.dead) return;
     this.dead = true;
+    this.benchStop.aborted = true; // (a run holds the game: it lets go at its next tick)
     cancelAnimationFrame(this.raf);
     for (const f of this.cleanup) f();
     this.cleanup.length = 0;

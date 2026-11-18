@@ -223,7 +223,7 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 - **FOV:** 28°; start view yaw 0.6, pitch 0.4 rad (`viewer.ts:32`).
 - **Framing:** `frameView` sets height to the part's largest bbox side × 1.05 × zoom (`viewer.ts:39-41`). `renderStill` then scales so the projected bbox corners fill `STILL_FILL` 0.9 of the tile (`:33,122-129`).
 - **Stills size:** 480 × 336 px (a 120 × 84 shop tile at 4×; `tools/stills.mjs:19`). Measured silhouette fill 0.66–0.86, median 0.81.
-- **Gallery:** `.gal-main` is `inset: 0 0 9.5rem 16rem` (`ui.css:1264`). At 1920 × 1080 the root font-size is 16.2 px (`ui.css:39`), so the stage is **1,661 × 926**. Zoom defaults to 1 and ranges from 0.06 to 2.5 (`VIEW_LIMITS`). A 120 mm fan on its own is about **863 px** across at zoom 1.
+- **Gallery:** `.gal-main` is `inset: 0` since 2026-11-18: the stage fills the screen under the glass panels, and `Viewer.setInsets` keeps the part clear of them (`docs/UI.md` "Studio screens"). The earlier figures (a 1,661 × 926 stage at 1920 × 1080, a 120 mm fan about 863 px across) were for the old inset stage and are not re-measured. Zoom defaults to 1 and ranges from 0.06 to 2.5 (`VIEW_LIMITS`).
 - **Shop preview:** `.showcase-host` is 16 rem tall (259 px at that font size, `ui.css:849`); its width is the shop detail column (not measured).
 - **Near/Far:** hug the part (`aim` in `viewer.ts`).
 

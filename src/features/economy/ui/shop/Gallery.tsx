@@ -1,24 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { galleryOpen } from '@/core/ui/state';
+import { galleryOpen, graphicsOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
-import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
+import { GalleryFoot, GalleryPart, GalleryRead } from './GalleryHud';
+import { PartShelf, type ShelfPart } from './PartShelf';
 import { Showcase } from './Showcase';
-import { galleryGroups, kindIcon, kindLabel } from './shopdata';
+import { galleryGroups } from './shopdata';
 
-// The GALLERY (main menu): every part with a 3D model, large, on the showcase's turntable. It is the "studio" look shared with Build my PC
-// (ui.css, `.mode`): the model fills the screen, a glass category list floats on the left and a dock with the part's name, its variants and
-// the keys floats at the bottom, the view's buttons and Close at the top right. The part sits clear of the rail and the dock. Left and Right
-// (or the dock) change the part, Up and Down the category, Escape closes.
-
-const KEYS: readonly ModeKey[] = [...VIEW_KEYS, [['←', '→'], 'part'], [['↑', '↓'], 'category'], ['Esc', 'leave']];
+// The GALLERY (main menu): every part with a 3D model, large, on the showcase's turntable. It is the "studio" look shared with Build my PC (ui.css, `.mode`) and
+// has its HUD: the shelf of parts on the left (`PartShelf`: a click shows the part), the summary over the stage, the part's card on the right, the view options at
+// the top right, and the foot with the stepper and the keys. The model fills the screen and sits clear of them all. Left and Right (or the stepper) change the
+// part, Up and Down the category, Escape closes.
 
 export function Gallery() {
   const open = galleryOpen.value;
   const all = useMemo(galleryGroups, []);
+  const kinds = useMemo(() => all.map((g) => g.kind), [all]);
+  const parts = useMemo<ShelfPart[]>(() => all.flatMap((g) => g.items.map((i) => ({ id: i.id, name: i.name, kind: g.kind, tier: i.tier }))), [all]);
   const [gi, setGi] = useState(0);
   const [ii, setIi] = useState(0);
-  const rail = useRef<HTMLElement>(null);
-  const dock = useRef<HTMLElement>(null);
+  const shelf = useRef<HTMLElement>(null);
+  const read = useRef<HTMLElement>(null);
+  const side = useRef<HTMLDivElement>(null);
+  const foot = useRef<HTMLDivElement>(null);
   const group = all[gi]!, at = Math.min(ii, group.items.length - 1), item = group.items[at]!;
   const n = group.items.length;
 
@@ -27,7 +30,8 @@ export function Gallery() {
     const step = (d: number) => setIi((i) => (i + d + n) % n);
     const cat = (d: number) => { setGi((g) => (g + d + all.length) % all.length); setIi(0); };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') galleryOpen.value = false;
+      // (the graphics drawer shuts itself on Escape: the Gallery stays)
+      if (e.key === 'Escape') { if (!graphicsOpen.peek()) galleryOpen.value = false; return; }
       else if (e.key === 'ArrowRight') step(1);
       else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowDown') cat(1);
@@ -43,37 +47,24 @@ export function Gallery() {
   return (
     <div class="gallery mode" role="dialog" aria-modal="true" aria-label="Gallery">
       <div class="gal-main">
-        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} studio={{ avoid: () => [rail.current, dock.current] }} />
+        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} studio={{ avoid: () => [shelf.current, read.current, side.current, foot.current] }} />
       </div>
-      <nav class="gal-rail mode-panel" aria-label="Categories" ref={rail}>
-        <header class="mode-head"><span class="mode-eyebrow">Every part in 3D</span><b>Gallery</b></header>
-        <div class="gal-cats">
-          {all.map((g, i) => (
-            <button key={g.key} class={`gal-cat ${i === gi ? 'on' : ''}`} aria-pressed={i === gi} onClick={() => { setGi(i); setIi(0); }}>
-              <Icon name={kindIcon(g.kind)} size={14} /><span>{kindLabel(g.kind)}</span><em>{g.items.length}</em>
-            </button>
-          ))}
-        </div>
-      </nav>
+      <PartShelf
+        shelf={shelf}
+        eyebrow="Every part in 3D"
+        title="Gallery"
+        kinds={kinds}
+        parts={parts}
+        kind={group.kind}
+        setKind={(k) => { setGi(Math.max(0, kinds.indexOf(k))); setIi(0); }}
+        current={item.id}
+        tip={(p) => `Show ${p.name}`}
+        onActivate={(p) => setIi(Math.max(0, group.items.findIndex((x) => x.id === p.id)))}
+      />
+      <GalleryRead read={read} group={group} item={item} at={at} />
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { galleryOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <section class="gal-dock mode-panel" aria-label="Part" ref={dock}>
-        <div class="gal-title">
-          <button class="gal-arrow" aria-label="Previous part" title="Previous part (←)" onClick={() => setIi((i) => (i - 1 + n) % n)}>‹</button>
-          <div class="gal-name">
-            <span class="mode-eyebrow">{kindLabel(group.kind)} · {at + 1} of {n}</span>
-            <span class="gal-line"><b>{item.name}</b><span class="mute">{item.note}</span></span>
-          </div>
-          <button class="gal-arrow" aria-label="Next part" title="Next part (→)" onClick={() => setIi((i) => (i + 1) % n)}>›</button>
-        </div>
-        {n > 1 && (
-          <div class="gal-items" role="listbox" aria-label="Parts">
-            {group.items.map((x, i) => (
-              <button key={x.id} role="option" aria-selected={x === item} class={x === item ? 'on' : ''} onClick={() => setIi(i)}>{x.name}</button>
-            ))}
-          </div>
-        )}
-        <ModeKeys keys={KEYS} />
-      </section>
+      <GalleryPart side={side} group={group} item={item} />
+      <GalleryFoot foot={foot} at={at} n={n} step={(d) => setIi((i) => (i + d + n) % n)} />
     </div>
   );
 }
