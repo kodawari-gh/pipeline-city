@@ -9,15 +9,18 @@ From the page's first paint to the game: the boot screen, the build, the shader 
 | `Loading` | 0.04 | `index.html` paints the screen before any script runs | no |
 | `Loading the 3D world` | 0.08 | `main.tsx` imports the 3D chunk | no |
 | `Starting the renderer` | 0.10 | `createRenderContext`, `Post`, the light bake's files start to load (`preloadRoomBake`) | about 0.2 s |
-| `Building the world` | 0.14 | `prepareCity`, then the first `rebuild`: the city, the room and the machine | about 2.8 s |
-| `Loading the light` | 0.36 | waits for `Room3D.ready`: the bake's lightmap on the meshes | no |
+| `Building the world` (`Laying the streets`, `Merging the streets`, `Raising the towers`, `Planting the trees`, `Painting the sky`) | 0.14 to 0.28 | `prepareCity`: the city builds a step at a time (`OutsideView.make`), a paint between, so the bar and the menu stay alive | chunks of 0.15 to 0.3 s |
+| `Starting the city shaders` | 0.28 | the city's sky environment stands, then its programs start (rule 8) | about 0.1 s |
+| `Furnishing the room` | 0.30 | `rebuild(true)`: `Room3D`, one task | about 1.2 s |
+| `Assembling the machine` | 0.34 | `rebuild()`: the first machine | about 0.2 s |
+| `Loading the light` | 0.36 | waits for `Room3D.ready` (the bake's lightmap on the meshes) and `modelsIn` (the mouse and the hoodie: rule 9) | no |
 | `Preparing the shaders` | 0.38 to 0.90 | the first frame starts every program (`startPrograms`) and the frame draws nothing until they link | no, but see "Frames stop" |
-| `Lighting the room` | 0.92 | the first real frames: the probe takes its bounces | about 0.6 s (first draw) |
-| `Ready` | 1 | `bootDone`: the screen fades over 0.9 s, the menu shows under it | no |
+| `Lighting the room` | 0.92 | the first real frames: the probe takes its bounces | about 0.4 s (first draw) |
+| `Ready` | 1 | `bootDone`: the screen fades over 0.9 s; the menu has stood over it since the first paint | no |
 
-The bar only grows (`bootStage`). A stage that the page cannot paint before its work is not seen: `nextPaint` waits for a paint before the build. Do not wait for a paint after programs start: the paint waits for the driver.
+The bar only grows (`bootStage`). A stage that the page cannot paint before its work is not seen: `nextPaint` waits for a paint before the build. Do not wait for a paint after programs start: the paint waits for the driver. Between the room and the machine only a `turn` (a timeout of 0) lets the page breathe.
 
-The screen goes when the probe has settled, or at the latest `REVEAL_MS` after the link. The new game dialog waits for `booted`, so it never shows behind the boot screen.
+The screen goes when the probe has settled, or at the latest `REVEAL_MS` after the link. **The menu does not wait for it.** `main.tsx` calls `bootMenu` after `render`: `#boot.menu` (`index.html`) drops the screen's z-index, hides its title, cells and log, and puts its bar at the foot, and the HUD, which follows it in the markup, paints over it. Build my PC, Gallery and the graphics settings stay off until `booted` (`MainMenu`'s `ready`). A game chosen before `booted` waits in `startSim` (`store.ts`): `starting` shows "Getting the room ready…", the last choice wins, and it starts when `booted` turns true (its first machine would be built twice, and the page is busy). `bootFail` takes `menu` off, so the failure covers the menu.
 
 ## The boot screen
 
@@ -72,11 +75,14 @@ A program first drawn before it has linked holds the frame and the page. On ANGL
 6. **A new machine links behind the old one.** `rebuild` holds it in `next`, and the frame swaps them once its programs have linked. A new room or new graphics settings set `warmed = false`: the frame holds the last picture until they link.
 7. **The area lights in a plain loop.** three writes a light's shading out once per light. The area lights' shading is long, and with the room's 12 lights the D3D compiler took about 1 s on each lit program. `arealoop.ts` makes it a loop: the same sums, a third of the time. Import it before a program reads `lights_fragment_begin`.
 
-Some programs still link inside the first frame: the `LightmapMix` quad, and the shadows' depth and distance programs, which three makes at the first shadow draw for the lights of that moment. Together they take about 250 ms.
+8. **Start a lit program as it will be drawn, environment map and all.** Three keys a lit program by its environment (`envMapMode`, its size). A program started with none is made again at its first draw, when the scene has one, and that link holds the page: the city's sky environment (`OutsideView.draw` filters it at the first draw) made about 10 lit programs, a 3 s task at the end of the wait. `OutsideView.startPrograms` calls `standEnv` first: the PMREM target stands on the (still blank) sky cube and sits on `scene.environment`, so the keys match, and `draw` refills the same target later. The same holds for anything that changes a key: a light, a fog, the shadows, a material's `side`.
+9. **Models join the scene before the programs start.** A glTF model that comes in after the batch (the mouse and the hoodie came 20 ms after it) links its own programs at its first draw: 0.45 s for the mouse's double-sided standard material and 0.4 s for the hoodie's physical cloth. `loadModel` keeps its loads in `pending`, and `modelsIn()` (`gltf.ts`) waits for them and for their users, or 2 s at most; the boot calls it after `Room3D.ready`. A model that arrives later still links at its first draw (a slow network): there is no start for it yet.
+
+Some programs still link inside the first frame: the shadows' depth programs (6, made at the first shadow draw: three makes them, `compile` does not), the `map` / `k` shader that lights the screen, and the sky's `textureCube` pass. Together they take about 0.2 s. A wake of each program's first use a few a frame (`getUniforms`) before the first draw was tried: it split the first frame's task in two and saved nothing (352 to 394 ms with or without it), so it is not kept.
 
 ## The city stays
 
-`OutsideView` takes about 1.6 s to build and does not depend on the tier, so `room3d.ts` keeps one for every room (`theCity`). `Room3D.dispose` takes the quad out of the root, so call it before `disposeTree(room.root)`. `prepareCity` builds it first and starts its programs, which then link while the room builds.
+`OutsideView` takes about 1.6 s to build and does not depend on the tier, so `room3d.ts` keeps one for every room (`theCity`). `Room3D.dispose` takes the quad out of the root, so call it before `disposeTree(room.root)`. `prepareCity` builds it first, a step at a time (`OutsideView.make` runs the constructor's generator `build` and awaits `between` after each of its five steps, which paints and sets the label), and starts its programs, which then link while the room builds. The sync constructor runs the same steps in a row (`defer` is the async path's).
 
 ## Frames stop while the driver links
 
@@ -133,6 +139,23 @@ Chrome, ANGLE D3D11, 1600x900, an optimized build without minifying, to the end 
 A game's start at the same tier (a new campaign) builds no room. The dev server adds 4 to 5 s, mostly its module load, before the first stage.
 
 Measure the 3D renderer, the game's only view. `npm run shot -- --prod` shoots the same build.
+
+### Boot, 2026-11-18 (the menu review)
+
+The optimized build, served with gzip like a real host, Chrome with the real GPU (RTX 5080, ANGLE D3D11), 1600x900, a fresh profile for the cold run and the same profile twice for the warm one. "Boot done" is `booted` (the screen then fades for 0.9 s):
+
+| | Before | After |
+|---|---|---|
+| Cold, first visit: boot done | 9.8 s | 7.2 s |
+| Warm, second visit (HTTP cache, shader cache, GPU process up): boot done | not measured | 3.8 s |
+| The menu shows over the screen | after the boot (9.8 s) | 1.2 to 1.5 s cold, 0.2 s warm |
+| Slow driver calls (`getProgramInfoLog` over 4 ms), total | 3.1 s (23 calls) | 0.38 s (13 calls) |
+| Programs linked at or after the first draw | 18 | 8 (6 depth programs and 2 shaders, no lit program) |
+| Longest main-thread task | 3.3 s (the first draw) | 1.2 s (`Room3D`, `Furnishing the room`) |
+
+What bought it: rule 8 (the city's environment, 2 s), rule 9 (the mouse and the hoodie, 0.9 s on the same task), and the sliced city (the longest city task fell from 2.7 s to 0.3 s: the same total, a page that stays alive). The first long task of a cold run (1.1 s before the first paint, in the 2D canvas test of the Pixi chunk) is the browser starting its GPU process: it is absent in a warm browser (first paint at 88 ms). A real visitor has a GPU process already, so judge the cold run without it.
+
+To find a late program: patch `linkProgram`, `shaderSource` and `attachShader` before the page runs, read `#define SHADER_TYPE` and the defines of each program, and diff those linked after the batch against the early program of the same type. The dev server's `window.__board.scene` and `renderer.properties.get(material).currentProgram` then name the meshes that use it.
 
 ### Memory per screen (PHONE-03, 2026-11-16)
 
@@ -204,7 +227,7 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 
 ## What can still go faster
 
-- **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker.
+- **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker. The city builds a step at a time now; the room does not: `Room3D`'s constructor is one 1.2 s task (the menu, over the screen, cannot answer a hover or a click meanwhile). Its tail (`vertexAo`, `mergeStatic`) could be a generator as the city's `build` is (its fields are `readonly`: they need `!`, as `OutsideView`'s got).
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.6 s).** Texture uploads and first uniforms. `renderer.initTexture` during the link could spread it.
 

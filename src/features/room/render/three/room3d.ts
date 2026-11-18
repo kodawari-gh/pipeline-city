@@ -158,16 +158,27 @@ export const preloadRoomBake = (renderer?: WebGLRenderer): void => { bakeRendere
 let city: OutsideView | null = null;
 /** The city's detail now: Low graphics (`isLow`) build the cut city, any other settings the full one. */
 const wantedDetail = (): CityDetail => (isLow(effective.peek()) ? 'low' : 'high');
-const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
+/** The window's quad for the city: its middle, its size and the depth of the glass. */
+const cityQuad = () => [WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z] as const;
+/** A city of another detail than wanted goes (the graphics settings crossed the Low line). */
+const dropOldCity = (detail: CityDetail): void => {
   if (city && city.detail !== detail) { city.mesh.removeFromParent(); city.dispose(); city = null; }
-  return (city ??= new OutsideView(WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z, detail));
+};
+const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
+  dropOldCity(detail);
+  return (city ??= new OutsideView(...cityQuad(), detail));
 };
 /**
  * Builds the city in the window before the room, its sun's shadow at `shadows` of the graphics settings, and starts linking its programs
- * (`compile.ts`): the driver links them while the page builds the room.
+ * (`compile.ts`): the driver links them while the page builds the room. The city builds a step at a time: `between` runs before each (and
+ * before the programs start), told its name and how far along the work is (0 to 1), so the boot screen can say it and the page can paint.
+ * Once the programs start, the caller must not wait for a paint: it would wait for the driver.
  */
-export function prepareCity(r: WebGLRenderer, shadows: number): void {
-  const c = theCity();
+export async function prepareCity(r: WebGLRenderer, shadows: number, between: (label: string, share: number) => Promise<void> = () => Promise.resolve()): Promise<void> {
+  const detail = wantedDetail();
+  dropOldCity(detail);
+  const c = (city ??= await OutsideView.make(...cityQuad(), detail, between));
+  await between('Starting the city shaders', 1);
   c.setShadows(shadows);
   c.startPrograms(r);
 }

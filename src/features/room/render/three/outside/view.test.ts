@@ -308,3 +308,16 @@ describe('OutsideView ambient motion', () => {
     expect(c.traffic.t).toBeGreaterThan(t0);
   });
 });
+
+describe('OutsideView.make (the boot builds the city a step at a time)', () => {
+  it('names each step in order, and builds the city that `new` builds', async () => {
+    const steps: { label: string; share: number }[] = [];
+    const whole = new OutsideView(0, 0, 10, 10, 0, 'high');
+    const stepped = await OutsideView.make(0, 0, 10, 10, 0, 'high', async (label, share) => { steps.push({ label, share }); });
+    expect(steps.map((s) => s.label)).toEqual(['Laying the streets', 'Merging the streets', 'Raising the towers', 'Planting the trees', 'Painting the sky']);
+    expect(steps.map((s) => s.share)).toEqual([...steps.map((s) => s.share)].sort((a, b) => a - b));
+    expect(steps[0]!.share).toBe(0);
+    expect(steps.every((s) => s.share < 1)).toBe(true);
+    expect(debugStats(stepped)).toEqual(debugStats(whole));
+  }, 180000);
+});

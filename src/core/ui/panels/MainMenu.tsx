@@ -12,7 +12,8 @@ import { newGameOpen, openNewGame } from './NewGame';
 
 const settingsOpen = signal(false);
 
-export function MainMenu() {
+/** `ready`: the 3D world is up. Build my PC, Gallery and the graphics settings need it; the rest of the menu works while it loads (a game chosen starts after, `startSim`). */
+export function MainMenu({ ready = true }: { ready?: boolean }) {
   const offer = autosaveOffer.value;
   const list = useRef<HTMLDivElement>(null);
   const modal = newGameOpen.value || settingsOpen.value || galleryOpen.value || buildOpen.value;
@@ -23,7 +24,7 @@ export function MainMenu() {
   }, [modal]);
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    const items = [...(list.current?.querySelectorAll<HTMLElement>('.mm-btn') ?? [])];
+    const items = [...(list.current?.querySelectorAll<HTMLElement>('.mm-btn:not(:disabled)') ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     if (!items.length) return;
     e.preventDefault();
@@ -41,20 +42,20 @@ export function MainMenu() {
         )}
         <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game<span class="mm-d">Guided campaign</span></span></button>
         <button class="mm-btn" onClick={() => openNewGame('sandbox')}><Icon name="box" size={14} /><span class="mm-t">Sandbox<span class="mm-d">Everything unlocked</span></span></button>
-        <button class="mm-btn" onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">Fit and swap parts</span></span></button>
-        <button class="mm-btn" onClick={() => { galleryOpen.value = true; }}><Icon name="eye" size={14} /><span class="mm-t">Gallery<span class="mm-d">Every part in 3D</span></span></button>
+        <button class="mm-btn" disabled={!ready} onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">{ready ? 'Fit and swap parts' : 'Getting ready…'}</span></span></button>
+        <button class="mm-btn" disabled={!ready} onClick={() => { galleryOpen.value = true; }}><Icon name="eye" size={14} /><span class="mm-t">Gallery<span class="mm-d">{ready ? 'Every part in 3D' : 'Getting ready…'}</span></span></button>
         <label class="mm-btn btn" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement).click(); } }}>
           <Icon name="import" size={14} /><span class="mm-t">Load from file<span class="mm-d">A game you exported</span></span>
           <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void loadFromFile(f); e.currentTarget.value = ''; }} />
         </label>
         <button class="mm-btn" onClick={() => { settingsOpen.value = true; }}><Icon name="sliders" size={14} /><span class="mm-t">Settings<span class="mm-d">Size and graphics</span></span></button>
       </nav>
-      <SettingsCard />
+      <SettingsCard ready={ready} />
     </>
   );
 }
 
-function SettingsCard() {
+function SettingsCard({ ready }: { ready: boolean }) {
   const open = settingsOpen.value;
   useEffect(() => {
     if (!open) return;
@@ -71,7 +72,7 @@ function SettingsCard() {
           <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
           <b class="value">{Math.round(uiScale.value * 100)}%</b>
         </label>
-        <div class="mm-row"><span>Picture</span><button onClick={toggleGraphics} aria-haspopup="dialog">Graphics…</button></div>
+        <div class="mm-row"><span>Picture</span><button disabled={!ready} title={ready ? undefined : 'Available when the room is ready'} onClick={toggleGraphics} aria-haspopup="dialog">Graphics…</button></div>
         <div class="pactions"><button class="primary" autofocus onClick={() => { settingsOpen.value = false; }}>Done</button></div>
       </div>
     </div>

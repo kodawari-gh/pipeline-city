@@ -517,6 +517,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mm-btn { display: flex; align-items: center; gap: 0.7rem; width: clamp(13rem, 24vw, 17rem); padding: 0.7rem 1.1rem; box-sizing: border-box; font-size: 0.95rem; cursor: pointer; background: color-mix(in srgb, var(--menu-solid) 84%, transparent); backdrop-filter: blur(0.5rem); border-radius: 0.6rem; box-shadow: 0 0.2rem 1rem rgba(2, 6, 18, .35); transition: transform .15s ease, border-color .15s ease; }
 .mm-btn:hover:not(:disabled), .mm-btn:focus-visible { transform: translateX(0.2rem); }
 .mm-btn.primary { background: var(--accent); }
+.mm-btn:disabled { opacity: .5; cursor: default; }
 .mm-t { display: flex; flex-direction: column; line-height: 1.2; }
 .mm-d { font: 500 0.78rem var(--mono); opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-t { min-width: 0; }

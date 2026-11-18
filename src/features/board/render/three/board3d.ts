@@ -31,6 +31,7 @@ import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { freeWhenLinked, linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
+import { modelsIn } from '@/core/render/three/gltf';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
@@ -94,6 +95,8 @@ const MIN_TARGET_PX = 10;
 
 /** After the page's next paint: the boot screen shows its stage before the work that holds the page. */
 const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+/** After the page's pending tasks (a click, a key): no wait for a paint, which would wait for the driver while programs link. */
+const turn = (): Promise<void> => new Promise((done) => setTimeout(done, 0));
 
 /**
  * Mounts the 3D world behind the boot screen (docs/render/load.md): it builds the room and the machine, waits for the room's light bake, links
@@ -167,7 +170,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const held = rail && m.rails.find((x) => x.id === rail!.r.id);
     rail = held ? { r: held, pull: NO_PULL } : null;
   };
-  const rebuild = () => {
+  /** `roomOnly`: the boot builds the room, lets the page take a turn, then calls again for the machine. */
+  const rebuild = (roomOnly = false) => {
     const live = snapshot.peek();
     const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
     const tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
@@ -191,6 +195,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       // (the frame links the new room's programs before it draws it)
       warmed = false;
     }
+    if (roomOnly) return;
     const mk = machineKey(s);
     if (mk !== machKey || !machine) {
       machKey = mk;
@@ -215,11 +220,17 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     for (const r of [room.root, machine?.root, next?.m.root]) if (r) cheaps.get(r)?.sync();
     demand.ask(); // (a save loaded, a part fitted, a plug in or out)
   };
-  // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
+  // the city in the window first: its programs link on the driver's threads while the room is built. The city builds a step at a time, a
+  // paint between (nothing links yet); once its programs start, no paint is waited for (it would wait for them), only a turn for the page
   bootStage('Building the world', 0.14);
   await Promise.all([nextPaint(), baked]);
-  prepareCity(renderer, effective.peek().shadows);
+  await prepareCity(renderer, effective.peek().shadows, async (label, share) => { bootStage(label, 0.14 + 0.14 * share); await nextPaint(); });
   setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
+  bootStage('Furnishing the room', 0.3);
+  await turn();
+  rebuild(true);
+  bootStage('Assembling the machine', 0.34);
+  await turn();
   rebuild();
 
   // ---- camera ----
@@ -777,6 +788,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the light bake's lightmap changes the room's programs: they link after it
   bootStage('Loading the light', 0.36);
   await (room as Room3D | null)?.ready;
+  // the models the room asked for (the mouse, the hoodie) are in before the programs start: one that joins after them links its own at the first draw
+  await modelsIn();
   bootStage('Preparing the shaders', 0.38);
   requestAnimationFrame(frame);
   await shown;

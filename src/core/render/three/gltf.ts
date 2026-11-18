@@ -43,12 +43,31 @@ async function sceneOf(url: string): Promise<Object3D> {
   return g.scene;
 }
 
+/** The loads that have not ended: each ends when the model is there (or has failed), and its users, which came first, have had it. */
+const pending = new Set<Promise<unknown>>();
+
 /** The model of a url, loaded once; null when it cannot be loaded (or a texture of it: the primitives stay). */
 export function loadModel(url: string): Promise<Object3D | null> {
   let p = cache.get(url);
   if (!p) { p = sceneOf(url).catch(() => null); cache.set(url, p); }
   // (a model that comes in changes a still view: its users add it before the next frame, which then draws, docs/render/load.md)
-  return p.then((m) => { sceneChanged(); return m; });
+  const done = p.then((m) => { sceneChanged(); return m; });
+  pending.add(done);
+  void done.then(() => pending.delete(done));
+  return done;
+}
+
+/**
+ * Resolves once the models asked for so far are in, their users having added them (they ask first, so they hear first), or after `ms`: a model
+ * that is slow must not hold the page. A scene whose programs start before its models are in links the models' own at their first draw, each
+ * holding the page for its link, 0.4 s for a lit one (docs/render/load.md).
+ */
+export function modelsIn(ms = 2000): Promise<void> {
+  if (!pending.size) return Promise.resolve();
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms);
+    void Promise.all([...pending]).then(() => { clearTimeout(timer); done(); });
+  });
 }
 
 /**

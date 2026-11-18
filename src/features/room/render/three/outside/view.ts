@@ -164,9 +164,10 @@ export class OutsideView {
   private target: WebGLRenderTarget | null = null;
   /** The scale (`SUPER` or 1) the target was made at. */
   private targetSS = 1;
-  private kit: Kit;
-  private sky: ShaderMaterial;
-  private dome: Mesh;
+  // (the fields set in `build` carry a `!`: the geometry is made there, a step at a time or all at once)
+  private kit!: Kit;
+  private sky!: ShaderMaterial;
+  private dome!: Mesh;
   private env = new WebGLCubeRenderTarget(128, { type: HalfFloatType });
   private envCam = new CubeCamera(0.5, 1000, this.env);
   private envScene = new Scene();
@@ -181,9 +182,9 @@ export class OutsideView {
   lamps: PointLight[] = [];
   /** Low's buildings' analytic lamp term (null at High, where the PointLights light the walls). */
   lowLamps: LowLamps | null = null;
-  private leaf: LeafUniforms;
-  private facade: FacadeUniforms;
-  private steam: SteamUniforms;
+  private leaf!: LeafUniforms;
+  private facade!: FacadeUniforms;
+  private steam!: SteamUniforms;
   private haze: HazeUniforms = {
     hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3(0, 1, 0) }, hzDensity: { value: HAZE_DAY }, hzFall: { value: HAZE_FALL },
     hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
@@ -191,8 +192,8 @@ export class OutsideView {
   private traffic = new Traffic();
   private carLight: CarLight = { night: { value: 0 } };
   private lampLight: LampUniforms = { lampNight: { value: 0 } };
-  private fleet: Fleet;
-  private signals: Signals;
+  private fleet!: Fleet;
+  private signals!: Signals;
   private glow = new CityGlow();
   private mirror = new GlassMirror();
   /** How much the room shows in the glass at this hour. */
@@ -240,8 +241,11 @@ export class OutsideView {
   /** The Low cut of the steam and leaves' clock (`clock`, `detail.ts`): they stand at `STILL_T`. */
   private clockCut = false;
 
-  /** The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`). */
-  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high', cuts: CityCuts = cityCuts(detail)) {
+  /**
+   * The window's quad (room units: its middle, its size, the depth of the glass). `detail`: how much of the city is built (`detail.ts`).
+   * `defer`: build only the quad; the caller runs `build` (`make` does, a step at a time).
+   */
+  constructor(cx: number, cy: number, w: number, h: number, z: number, readonly detail: CityDetail = 'high', private readonly cuts: CityCuts = cityCuts(detail), defer = false) {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
       uniforms: {
@@ -260,7 +264,16 @@ export class OutsideView {
       if (live) this.sight.begin(r.getContext() as QueryGL);
     };
     this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
+    if (!defer) { const run = this.build(); while (!run.next().done) { /* every step in a row */ } }
+  }
 
+  /**
+   * The city's geometry and lights, in steps. Each `yield` names the work that comes next and how far along the city is (0 to 1): a caller may
+   * give the page a turn there (`make`); the constructor runs the steps in a row. The city holds the page for about 1.6 s in all (docs/render/load.md).
+   */
+  private *build(): Generator<{ label: string; share: number }> {
+    const { cuts } = this;
+    yield { label: 'Laying the streets', share: 0 };
     // the streets merged by material (their many small things in bearing order, cut by a sweep); the buildings on their facade's material,
     // ring by ring, the trees and the land in their own
     // (each Low cut by its flag, `detail.ts`: High has none)
@@ -271,6 +284,7 @@ export class OutsideView {
     const still = new Group(), st = street(k, ts, on(cuts.streets), on(cuts.furniture));
     still.add(st.group);
     // (with the palette cut the plain materials, which differ only in colour and shine, are palette meshes; each is swept like the plain ones, or it would draw whole)
+    yield { label: 'Merging the streets', share: 0.2 };
     const palette: Material[] = [];
     if (cuts.palette) {
       mergePalette(still);
@@ -286,6 +300,7 @@ export class OutsideView {
     const lampAt = [...st.lights].sort((a, b) => a.distanceTo(LAMPS_AT) - b.distanceTo(LAMPS_AT)).slice(0, LIT_LAMPS);
     const lowFac = cuts.facade ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
     this.lowLamps = lowFac?.lamps ?? null;
+    yield { label: 'Raising the towers', share: 0.4 };
     const blocks = buildings(), washes: SignWash[] = [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
     const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
@@ -298,12 +313,14 @@ export class OutsideView {
     this.steam = steam?.u ?? steamUniforms();
     const ground = land(k);
     this.scene.add(still, ...mass, ground, ...(steam ? [steam.mesh] : []), signLight);
+    yield { label: 'Planting the trees', share: 0.7 };
     const plants = plantTrees(ts, k, on(cuts.trees));
     this.sweeps.push(...plants.sweeps);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
     // (`?debug` layers: the streets with the land under them, the buildings, the trees: each hides alone)
     this.parts = { streets: [still, ground], buildings: [...mass], trees: [...plants.meshes], steam: steam ? [steam.mesh] : [], signs: [signLight] };
+    yield { label: 'Painting the sky', share: 0.9 };
     // the cars, moving and parked, and the signals' lamps
     this.fleet = cuts.fleet ? new Fleet(this.traffic, parked(), this.carLight, this.haze, LOW_FLEET, 1) : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
@@ -341,6 +358,16 @@ export class OutsideView {
       this.scene.add(l);
     }
     this.setShadows(3);
+  }
+
+  /**
+   * The city built a step at a time: `between` runs before each step, told its name and how far along the city is, so the page can paint and
+   * answer a click between the long steps (the boot, `prepareCity`). The same city as `new OutsideView(…)`.
+   */
+  static async make(cx: number, cy: number, w: number, h: number, z: number, detail: CityDetail, between: (label: string, share: number) => Promise<void>): Promise<OutsideView> {
+    const view = new OutsideView(cx, cy, w, h, z, detail, cityCuts(detail), true), run = view.build();
+    for (let step = run.next(); !step.done; step = run.next()) await between(step.value.label, step.value.share);
+    return view;
   }
 
   /** The sun's shadow map at `level` of the graphics settings. */
@@ -580,7 +607,20 @@ export class OutsideView {
 
   /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, and with the `room` it stands in, its glass's. */
   startPrograms(r: WebGLRenderer, room?: Scene): Program[] {
+    this.standEnv(r);
     return [...startPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam), ...(room ? this.mirror.startPrograms(r, room) : [])];
+  }
+
+  /**
+   * The sky's filtered environment on the city's scene, as `draw` keeps it (its first draw fills it with the sky). Three keys every lit program
+   * by it (`envMapMode`, its size): programs started with none were made again, each at its first draw, and those links held the page for
+   * 3 s (docs/render/load.md). The PMREM's own programs link here, before the batch: a wait for one program is a wait for all before it.
+   */
+  private standEnv(r: WebGLRenderer): void {
+    if (this.envMap) return;
+    this.pmrem ??= new PMREMGenerator(r);
+    this.envMap = this.pmrem.fromCubemap(this.env.texture, this.envMap);
+    this.scene.environment = this.envMap.texture;
   }
 
   dispose(): void {

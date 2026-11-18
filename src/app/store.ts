@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { parseSave } from '../worker/game/save';
 import type { CrashReport, FromSim, SaveV1, Snapshot, Speed, ToSim } from '../worker/protocol';
+import { booted } from './boot';
 import { SAY } from './say';
 
 /** Latest sim snapshot (null until the sim has started). */
@@ -65,8 +66,19 @@ function stopWorker() {
   speed.value = DEFAULT_SPEED;
 }
 
+/** Ends the wait of a game chosen before the world has loaded (`startSim`). */
+let waitForBoot: (() => void) | null = null;
+
 /** (Re)start the worker with a save, or a new random game. */
 export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
+  // The menu shows over the boot screen while the world loads. A game chosen now waits for the screen to go: it starts at once after, and the
+  // menu says so (`starting`). Started now, its first machine would be built twice, and the page is busy building the room.
+  if (!booted.peek()) {
+    starting.value = true;
+    waitForBoot?.(); // (a later choice replaces an earlier one that still waits)
+    waitForBoot = booted.subscribe((b) => { if (b) { waitForBoot?.(); waitForBoot = null; startSim(save, opts); } });
+    return;
+  }
   if (save) saveHooks.restore(save);
   stopWorker();
   lastError.value = null;

@@ -61,6 +61,8 @@ export function bootFail(error: unknown): void {
   if (!el) return;
   const text = error instanceof Error ? error.message : String(error);
   const webgl = /webgl/i.test(text);
+  // (the screen covers the menu again: a game started now could never show)
+  el.classList.remove('menu');
   el.classList.add('fail');
   const stage = el.querySelector('.boot-stage'), help = el.querySelector('.boot-help');
   if (stage) stage.textContent = webgl ? 'WebGL is not available' : 'The 3D world could not start';
@@ -69,6 +71,14 @@ export function bootFail(error: unknown): void {
       ? 'Pipeline City draws its world with WebGL 2. Your browser has it switched off, or does not support it. Turn on hardware acceleration in the browser settings, or try another browser.'
       : 'Reload the page to try again. If it fails again, try another browser.';
   }
+}
+
+/**
+ * The menu stands over the boot screen while the world loads (`#boot.menu`, index.html): the title and the buttons are the page's own, so the
+ * screen keeps its picture and a thin line of progress at its foot. A game chosen now starts when the screen goes (`startSim`).
+ */
+export function bootMenu(): void {
+  if (typeof document !== 'undefined') document.getElementById('boot')?.classList.add('menu');
 }
 
 /** The board can be seen: the boot screen fades out and goes. */

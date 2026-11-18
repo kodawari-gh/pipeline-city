@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { loadAutosaveOffer } from './store';
-import { bootFail, bootStage } from './boot';
+import { bootFail, bootMenu, bootStage } from './boot';
 import { Hud } from '../core/ui/Hud';
 
 // The main menu (Continue when an autosave exists, New game, Load game, Settings) shows once the boot screen has gone. The sim only starts once the player chooses.
@@ -11,6 +11,7 @@ const host = document.getElementById('board')!;
 bootStage('Loading the 3D world', 0.08);
 void import('../features/board/render/three/board3d').then((m) => m.mountBoard3d(host)).catch((e: unknown) => { bootFail(e); throw e; });
 render(<Hud />, document.getElementById('hud')!);
+bootMenu(); // (the menu shows at once, over the boot screen: the screen keeps its picture and a progress line)
 
 // No browser right-click menu anywhere in the game. Text fields keep theirs (copy and paste), and the dev server keeps it for Inspect.
 if (!import.meta.env.DEV) {

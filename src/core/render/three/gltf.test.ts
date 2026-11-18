@@ -3,7 +3,7 @@ import * as fsMod from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { BoxGeometry, Box3, Mesh, MeshBasicMaterial, Texture, Vector3, type MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { fitModel, ktx2Support, loadModel, type Ktx2 } from './gltf';
+import { fitModel, ktx2Support, loadModel, modelsIn, type Ktx2 } from './gltf';
 
 const fs = fsMod as any;
 // (three's file loader tells its progress with a browser event that Node does not have)
@@ -72,6 +72,39 @@ describe('glTF models', () => {
     const box = new Box3().setFromObject(gltf.scene);
     expect(box.max.y - box.min.y).toBeCloseTo(8);
     expect((box.min.x + box.max.x) / 2).toBeCloseTo(14);
+  });
+});
+
+describe('modelsIn (the boot waits for the models its scene asked for)', () => {
+  it('waits until the users of the models have them', async () => {
+    const used: string[] = [];
+    void loadModel(urlOf(TRIANGLE, 'wait-a')).then(() => { used.push('a'); });
+    void loadModel(urlOf(TRIANGLE, 'wait-b')).then(() => { used.push('b'); });
+    expect(used).toEqual([]);
+    await modelsIn();
+    expect(used.sort()).toEqual(['a', 'b']);
+  });
+
+  it('is done at once when no load is under way', async () => {
+    await modelsIn();
+    await expect(modelsIn(5)).resolves.toBeUndefined();
+  });
+
+  it('gives up after its time on a slow model, which still reaches its user later', async () => {
+    const real = globalThis.fetch;
+    let arrive = () => {};
+    globalThis.fetch = (() => new Promise<Response>((done) => { arrive = () => done(new Response(TRIANGLE)); })) as typeof fetch;
+    try {
+      let used = false;
+      void loadModel('http://localhost/slow-model.glb').then(() => { used = true; });
+      await modelsIn(20);
+      expect(used).toBe(false);
+      arrive();
+      await modelsIn();
+      expect(used).toBe(true);
+    } finally {
+      globalThis.fetch = real;
+    }
   });
 });
 

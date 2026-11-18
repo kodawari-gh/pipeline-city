@@ -307,17 +307,21 @@ function Starting({ text = 'Starting…' }: { text?: string }) {
 
 export function Hud() {
   const s = snapshot.value;
-  // (the menu waits for the boot screen, app/boot.ts)
+  // (the menu shows over the boot screen while the world loads, app/boot.ts: what needs the 3D world waits for `booted`, and a game chosen
+  // meanwhile starts when the screen goes, `startSim`)
   // (a game that is starting stands in place of the menu; the notice shows a refused file here as in a game)
   if (!s) {
-    return booted.value ? (
+    const ready = booted.value;
+    return (
       <>
         <Title on={!galleryOpen.value && !buildOpen.value} quick={galleryOpen.value || buildOpen.value} />
-        {starting.value ? <Starting /> : <MainMenu />}
-        <NewGameDialog /><Gallery /><BuildMode /><GraphicsModal /><ConfirmDialog />
+        {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} /> : <MainMenu ready={ready} />}
+        <NewGameDialog />
+        {ready && <><Gallery /><BuildMode /><GraphicsModal /></>}
+        <ConfirmDialog />
         <div class="stack"><Notice /></div>
       </>
-    ) : null;
+    );
   }
   return (
     <>
