@@ -19,7 +19,7 @@ import { lowDetail } from '@/core/render/three/detail';
 import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
-import { mergeSiblings } from '@/core/render/three/merge';
+import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { tag, unseen } from '@/core/render/three/pick';
@@ -91,6 +91,8 @@ const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_F
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
+/** How long `Machine3D.make` builds before the page has its turn (ms): a task is this long plus the longest step (the board's model, 0.1 s). */
+const SLICE_MS = 30;
 const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
 /**
  * Low's case shadow: how far inside the body its box sits, and what each face lets in (the top filter a fifth, steel none). The glass side
@@ -243,7 +245,7 @@ export class Machine3D {
   /** The CPU cooler's group: in the room the loop's hoses join it (they fade, merge and stand in with it). */
   private cooler: Group | null = null;
   /** The loop's hoses (they fade with the cooler; Build my PC takes them off and puts them on, `buildmode3d.ts`), or null: no pump or no radiator, or the room (they join the cooler). */
-  readonly hoses: LoopHoses | null = null;
+  hoses: LoopHoses | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
@@ -269,7 +271,7 @@ export class Machine3D {
   /** The board's small parts (`boardModel`): shown by the zoom, so their stand-ins are theirs (`lodScope`). */
   private small: Object3D | null = null;
   /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
-  readonly partLod: PartLod | null = null;
+  partLod: PartLod | null = null;
   /** The case's box (the root's space): the distance LOD reads the zoom at its nearest point. */
   /** The case's body less half a wall: what its walls shade at Low (`setCaseShade`); the feet and the walls' outer faces stay out of it. */
   private readonly shadeBox = new Box3(new Vector3(CASE.x + SHADE_IN, -(CASE.y + CASE.h) + SHADE_IN, CASE_Z + SHADE_IN), new Vector3(CASE.x + CASE.w - SHADE_IN, -CASE.y - SHADE_IN, FRONT - SHADE_IN));
@@ -278,9 +280,9 @@ export class Machine3D {
   /**
    * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has
    * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two). `lod`: false builds it
-   * without the distance stand-ins (the tests compare the two).
+   * without the distance stand-ins (the tests compare the two). `defer`: leave the build to `make`, which runs it a slice at a time.
    */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge) {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false) {
     this.art = new ArtSet(q);
     this.merged = merge;
     this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
@@ -288,17 +290,46 @@ export class Machine3D {
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2, radiatorGrade((getSpec(radDev!.spec) as { visual?: string } | undefined)?.visual ?? '')), count: span.ids.length, span };
     this.devs = s?.devices ?? [];
+    if (!defer) { const run = this.assemble(s, geo, merge, lod); while (!run.next().done) {} }
+  }
+
+  /**
+   * The machine built a slice at a time, as `Room3D.make` builds the room (docs/render/load.md "Build my PC, first open"): the steps are the
+   * constructor's, and `slice` (a task of its own; the page answers in it) is awaited only when `budget` ms have passed since the last one.
+   * `stop` ends the build (null): the caller no longer wants it. The machine is not in a scene while it builds.
+   */
+  static async make(
+    s: Snapshot | null, geo: RoomGeo, q: BakeQueue, chips: Chips3D | null, inRoom: boolean,
+    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean } = {},
+  ): Promise<Machine3D | null> {
+    const merge = o.merge ?? true, lod = o.lod ?? merge, slice = o.slice ?? (() => new Promise<void>((done) => setTimeout(done, 0))), budget = o.budget ?? SLICE_MS;
+    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true), run = m.assemble(s, geo, merge, lod);
+    let from = performance.now();
+    for (let step = run.next(); !step.done; step = run.next()) {
+      if (performance.now() - from < budget) continue;
+      await slice();
+      if (o.stop?.()) return null;
+      from = performance.now();
+    }
+    return m;
+  }
+
+  /** The build: a `yield` at each point where the page may have its turn (`make`); the constructor runs it to the end. */
+  private *assemble(s: Snapshot | null, geo: RoomGeo, merge: boolean, lod: boolean): Generator<void> {
     this.buildCase();
+    yield;
     this.buildBoard(s);
+    yield;
     if (s) {
       this.rects = slotRects(s);
-      for (const d of s.devices) this.build(d);
+      for (const d of s.devices) { this.build(d); yield; }
       this.buildRamMap();
       this.root.updateMatrixWorld(true);
       for (const o of this.obstacles) {
         const b = new Box3().setFromObject(o);
         if (!b.isEmpty()) this.solids.set(o, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
       }
+      yield;
       // the loop's hoses, only with its pump and a radiator both fitted (`hasLoop`): stiff braided hoses arcing from the pump's ports to the
       // radiator's. The room never moves them: they join the cooler (its merges, its stand-ins, its fade). Build my PC poses them live, so
       // there they stay as they are (`keep`) and fade with the cooler.
@@ -311,14 +342,16 @@ export class Machine3D {
           this.fades.push(h.body);
           this.root.add(h.root);
         }
+        yield;
       }
       this.root.add(this.wires);
-      this.setCables(s, geo);
+      yield* this.cablesSteps(s, geo);
     }
     this.rgb.position.set(BD.x + BD.w / 2, -(BD.y + BD.h / 2), FRONT - 900);
     this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
     this.root.add(this.rgb, this.spill);
-    if (merge) this.share();
+    if (merge) yield* this.share();
+    yield;
     if (lod) this.partLod = new PartLod(this.root, () => this.lodScope());
   }
 
@@ -349,9 +382,9 @@ export class Machine3D {
    * (`mergeSiblings`), then equal materials as one in each part (`shareMaterials`). The cables (built again alone) and `keep` stay as they
    * are; each fade (`fades`, `apart`) keeps its materials. The state looks are `own`: the skins, the rings and strips, the case's LEDs.
    */
-  private share(): void {
+  private *share(): Generator<void> {
     const skip = [this.wires, ...this.keep], apart = [...this.fades, ...this.apart];
-    mergeSiblings(this.root, { skip, apart, pbr: true });
+    yield* mergeSiblingsSteps(this.root, { skip, apart, pbr: true });
     // (at Low, equal materials of different parts become one too: PHONE-01; High keeps one set per part, as it was)
     shareMaterials(this.root, { skip, apart, across: lowDetail() });
   }
@@ -684,7 +717,7 @@ export class Machine3D {
    * from its port into the gutter; the fans' cords run to their headers and the hub; the loop's hoses arc to the radiator. Out of the case the
    * video cable drapes over the desk to the monitor, the mains cords drop through the desk's grommet to the wall socket.
    */
-  private buildCables(s: Snapshot, geo: RoomGeo) {
+  private *buildCables(s: Snapshot, geo: RoomGeo): Generator<void> {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
     const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T), deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
@@ -700,6 +733,7 @@ export class Machine3D {
         seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
       }, on('atx'));
       this.wires.add(g);
+      yield;
     }
     // ---- the CPU's 8-pin: from a slot in the tray over the board's top edge, down into the socket from the glass side
     if (has('cpu')) {
@@ -712,11 +746,12 @@ export class Machine3D {
         seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
       }, on('cpu'));
       this.wires.add(g);
+      yield;
     }
     // ---- the PCIe leads: each from its own grommet in the gutter up into a card's top edge, or loose
     const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
     const deals = assignLeads(cards);
-    s.cables.filter((c) => isPcieKind(c.id)).forEach((c, k) => {
+    for (const [k, c] of s.cables.filter((x) => isPcieKind(x.id)).entries()) {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
       // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
@@ -731,7 +766,8 @@ export class Machine3D {
         seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, c.connected, sock ? () => card!.alsoFade(g) : undefined);
       this.wires.add(g);
-    });
+      yield;
+    }
     // ---- SATA: each drive's data cable from its port on the board's edge into a slot in the gutter; at the drive, its data and power cables
     // leave the sockets on its end and go back through the cage
     const sataSlot = GEO.sata.length ? { x: gx - 30, y: GEO.sata[0]!.y - 60, w: 60, h: GEO.sata[GEO.sata.length - 1]!.y + GEO.sata[GEO.sata.length - 1]!.h - GEO.sata[0]!.y + 120 } : null;
@@ -749,6 +785,7 @@ export class Machine3D {
         g.add(p.root, hung(p.end, back, look, { planes: [], solids: [] }, { slack: 1.15, extra: 60, stiff: 0.7, n: 16 }));
       }
       this.wires.add(g);
+      yield;
     }
     // ---- the fans' cords: from the fan to its header; the case fans' from the slot in the tray over the hub to the hub's headers
     const fanLook: Look = { r: 11, base: '#14161c', accent: T.mul }, hubSlot = grommet(FAN_SLOT, this.grommets);
@@ -791,11 +828,13 @@ export class Machine3D {
         } else this.addRig(g, cord(anchor, fenv, { slack: 1.3, extra: 160, n: 20 }, header()), plugged);
       }
       this.wires.add(g);
+      yield;
     }
     // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers
     this.panelLeads = frontPanelLeads(this.caseEnv());
     this.wires.add(this.panelLeads);
-    this.buildRoomCords(s, geo);
+    yield;
+    yield* this.buildRoomCords(s, geo);
   }
 
   /**
@@ -804,7 +843,7 @@ export class Machine3D {
    * cords (the PC's from the PSU's inlet in the case's rear wall, the monitor's from its back) drop through the desk's grommet to the wall
    * socket. A cord that is out lies loose from its device.
    */
-  private buildRoomCords(s: Snapshot, geo: RoomGeo) {
+  private *buildRoomCords(s: Snapshot, geo: RoomGeo): Generator<void> {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
     const deskTop = -geo.ys, under = -(geo.ys + DESK_TOP), m = MONITOR, mz = MONITOR_Z;
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
@@ -849,6 +888,7 @@ export class Machine3D {
         seated: (ex) => [hangPts(grom, ex[0]!, video, env, pc)], deck, n: pc.n, stiff: pc.stiff, lead: video.r * 2.5,
       }, on('video'));
       this.wires.add(g);
+      yield;
     }
     const mains = (id: string, from: RopeEnd, socket: { x: number; y: number }, dx: number) => {
       if (!has(id)) return;
@@ -895,6 +935,7 @@ export class Machine3D {
         seated: (ex) => [hangPts(from, ex[0]!, look, env, o)], deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, on('lan'));
       this.wires.add(g);
+      yield;
     }
     // (the inlet is the power supply's: with no supply fitted there is nothing to hold the cord)
     const psu = s.devices.find((d) => d.kind === 'psu');
@@ -903,6 +944,7 @@ export class Machine3D {
       const visual = (getSpec(psu.spec) as { visual?: string } | undefined)?.visual ?? 'psu-basic', inlet = mainsInlet(this.plan, visual);
       if (has('pcmains')) this.wires.add(mainsPlug(this.plan, visual));
       mains('pcmains', { at: [CASE.x - PLUG_TAIL, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+      yield;
     }
     mains('monmains', { at: seats.power.at, dir: seats.power.axis }, geo.socket.mon, -60);
   }
@@ -950,6 +992,12 @@ export class Machine3D {
 
   /** Build all the cables and the key again: the parts stay as they are. */
   setCables(s: Snapshot, geo: RoomGeo): void {
+    const run = this.cablesSteps(s, geo);
+    while (!run.next().done) {}
+  }
+
+  /** `setCables`, with a `yield` after each cable's build (`assemble`: the page has its turn between them). */
+  private *cablesSteps(s: Snapshot, geo: RoomGeo): Generator<void> {
     for (const u of this.unfade.values()) u();
     this.unfade.clear();
     this.built.clear();
@@ -959,7 +1007,7 @@ export class Machine3D {
     this.key = null;
     this.cableIds = s.cables.map((c) => c.id).join(',');
     this.videoKey = videoKey(s);
-    this.buildCables(s, geo);
+    yield* this.buildCables(s, geo);
     // the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
     mergeSiblings(this.wires);
     this.partLod?.build(this.wires); // (the still parts of the new cables, their rigs too; the key stays out)

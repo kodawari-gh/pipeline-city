@@ -3,7 +3,7 @@ import { BoxGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Grou
 import { DARK_METAL } from './cheapmaterials';
 import { setLowDetail } from './detail';
 import { own } from './materials';
-import { glows, mergePalette, mergeSiblings, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
+import { glows, mergePalette, mergeSiblings, mergeSiblingsSteps, mergeStatic, mergeWithin, palettePatch, partsOf } from './merge';
 import { idOf, seeThrough, tag } from './pick';
 
 describe('mergeStatic', () => {
@@ -313,5 +313,22 @@ describe('mergeSiblings', () => {
     const [l, b] = [lid, body].map((g) => g.children[0] as Mesh);
     expect(l!.material).not.toBe(b!.material);
     expect(b!.material).toBe(out.find((m) => m.parent === part && m.raycast !== none)!.material);
+  });
+
+  it('in steps (`mergeSiblingsSteps`) it yields after each set, with the sets after it still whole, and ends with the count of the one call', () => {
+    const root = new Group(), part = tag(new Group(), 'ram0');
+    const a = new Mesh(box(), grey(1)), b = new Mesh(box(), grey(2)), c = new Mesh(box(), grey(3)), d = new Mesh(box(), grey(4));
+    a.castShadow = b.castShadow = true; // (two sets: they differ in how they cast)
+    part.add(a, b, c, d);
+    root.add(part);
+    const run = mergeSiblingsSteps(root), merged = () => part.children.filter((x) => x.name === 'merged').length;
+    let step = run.next(), yields = 0;
+    expect(merged()).toBe(1);
+    expect(c.parent).toBe(part);
+    for (; !step.done; step = run.next()) yields++;
+    expect(yields).toBe(2);
+    expect(step.value).toBe(4);
+    expect(merged()).toBe(2);
+    expect(part.children).toHaveLength(2);
   });
 });

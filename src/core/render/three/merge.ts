@@ -337,6 +337,12 @@ function loose(m: Mesh): boolean {
  * material that glows, fades, has a writer (`own`) or a patch of unknown inputs. Returns how many meshes were merged.
  */
 export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
+  const run = mergeSiblingsSteps(root, o);
+  for (let step = run.next(); ; step = run.next()) if (step.done) return step.value;
+}
+
+/** `mergeSiblings` in steps: it yields after each set it merges, so a caller can give the page a turn between them (`Machine3D.make`). */
+export function* mergeSiblingsSteps(root: Object3D, o: SiblingOptions = {}): Generator<void, number> {
   root.updateMatrixWorld(true);
   const skip = new Set(o.skip ?? []), apart = new Set(o.apart ?? []), ids = new Map<unknown, number>();
   const idOf = (x: unknown): number => { let n = ids.get(x); if (n === undefined) ids.set(x, (n = ids.size)); return n; };
@@ -373,6 +379,7 @@ export function mergeSiblings(root: Object3D, o: SiblingOptions = {}): number {
     parent.add(out);
     out.updateMatrixWorld(); // (it stands where its meshes stood before the next frame: a box or a ray taken now finds it there)
     n += meshes.length;
+    yield;
   }
   freeGone(root, gone);
   return n;

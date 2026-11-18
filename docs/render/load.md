@@ -197,7 +197,20 @@ The same build and machine, from the click on the menu's button to the end of th
 | Slow driver calls (`getProgramInfoLog` over 4 ms) | 15 calls, 0.41 s | 2 to 3 calls, 0.04 s |
 | Longest main-thread task | 2.1 s (the first draw) | 1.1 s (`BuildStage.open`: the machine's build) |
 
-The machine's build (`Machine3D`'s constructor, 0.9 s cold, 0.5 s warm) is now the longest task. Where its time goes: the cables (0.23 s: `settle` runs `relax` 0.18 s), `mergeSiblings` (0.19 s), the devices (0.2 s), the rigs (0.13 s). The skeleton's spinner and pulse run on the compositor, so they keep moving; the page does not answer a click meanwhile. The Gallery's first open is in the next section.
+The machine's build (`Machine3D`'s constructor, 0.9 s cold, 0.5 s warm) was then the longest task. Where its time went (ms, inclusive): the cables 231 (`buildCables` 220: `settle` runs `relax` 177, the rigs 100, the room's cords 92), the devices 217 (`nvmeStick` 53, `cpuModel` 42, `cardModel` 39), `share` 187 (`mergeSiblings`' `paletteMesh` 161), the board 107, the stand-ins (`PartLod`) 76, the case 61, the loop's hoses 32. The skeleton's spinner and pulse run on the compositor, so they kept moving; the page did not answer a click meanwhile. The Gallery's first open is in the next section.
+
+#### The machine's build in slices (BOOT-04)
+
+`Machine3D`'s constructor body is a generator, `assemble`, as the room's is (BOOT-01): the constructor runs it in a row (the game's rebuilds, the tests), `Machine3D.make` runs it a slice at a time. A `yield` stands after the case, the board, each device, the hoses, each cable (`cablesSteps`, `buildCables`, `buildRoomCords`) and each set that `mergeSiblingsSteps` merges (`share`), and before the stand-ins. `make` awaits a turn (`setTimeout` 0) only when 30 ms (`SLICE_MS`) have passed since the last one: a fast machine gives few turns, a slow one more, and a task is the budget plus the longest step (the board's model, 0.1 s). `BuildStage.open` builds its first machine this way (`buildFirst`); a later build and the patches stay one task (see "Swap cost"). While the stage has no machine its pointer handlers answer nothing (`idAt`, `partAt`, `slotAt`, `pointerOver`), and `stop` ends the build when the player leaves (`dispose` sets `dead`; `open` returns the closed stage).
+
+| Build my PC, optimized build, real GPU | Before | After |
+|---|---|---|
+| First open, click to the first picture | 1.8 s | 1.8 s |
+| Second open | 1.0 s | 1.1 s |
+| Longest main-thread task, first open | 1.15 s (`BuildStage.open`) | 0.25 s (the WebGL context in `BuildStage`'s constructor); the machine's slices are 0.11 s at most |
+| Tasks over 50 ms, first open (ms) | 1146, 277, 90, 115 | 251, 107, 57, 55, 50, 103, 166, 89, 117 |
+
+The total did not change: the build is 0.9 s of work either way, and the turns between slices cost a few ms. The 0.9 s task is now slices of 0.11 s at most (the profile shows the main thread busy from 0.45 s to 1.45 s after the click, in steps of one device, one cable or one merged set). The next longest tasks: the WebGL context in the stage's constructor (0.25 s, which the stage needs before anything else), and the first frames (0.17 s: the art's tiles bake in them and the programs start).
 
 ### The Gallery's first open (2026-11-18, BOOT-07)
 
@@ -285,7 +298,7 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 - **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker. The city and the room build a step at a time now (the room's `vertexAo` alone is 0.99 s: "The room's build in slices").
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.55 s).** Texture and geometry uploads: no program links in it now (rule 11). `renderer.initTexture` during the link could spread it.
-- **Build my PC's machine build (0.9 s cold).** One task, `Machine3D`'s constructor, at the first open (numbers under "Build my PC, first open"). The cables' `settle` (0.18 s) could run in a later task: the cables would hang straight for a frame or two.
+- **Build my PC's machine build (0.9 s cold).** It runs in slices now (BOOT-04), so the page answers meanwhile; the work is the same. The cables' `settle` (0.18 s) could be cached or baked; the second build in a session reads it from `hang`'s cache.
 
 **Programs and precision (GFX-05). Decided 2026-11-17: not built.** Measured (real GPU, dev server, `renderer.info.programs`): the menu links 123 programs at the phone's first-start tier: 65 physical or standard, 35 shader materials (the post passes and the city's layers), 12 basic, 7 depth, 4 others. A sandbox game holds 124 at High and 102 at Low. Of the physical ones, 57 share one light set and differ only by their maps and UV channels, the lightmap, and the hooks (`box`, `ao`, `pal`, `haze`); the others take other light counts. So the target of under 60 needs the material work of MACH-01 first (which is parked, `three.md` "Merges"): no cheaper cut reaches it. `mediump` for the post passes and the city gives a gain on phone ALUs only (a desktop GPU runs it as `highp`), and the HDR chain with bloom is where banding shows, so it would need a shot on a phone GPU that this machine cannot give. Phone cost no longer constrains a decision, so neither is done. Take both up again with MACH-01.
 

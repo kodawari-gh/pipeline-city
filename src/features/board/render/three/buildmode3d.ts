@@ -309,7 +309,9 @@ export class BuildStage {
     if (signal?.aborted) s.dispose(); else signal?.addEventListener('abort', () => s.dispose(), { once: true });
     if (s.dead) return s;
     s.game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
-    s.rebuild();
+    // (the machine builds a slice at a time: the page answers meanwhile, and a player who leaves frees the stage at once)
+    await s.buildFirst();
+    if (s.dead) return s;
     if (import.meta.env.DEV) (window as unknown as { __build?: BuildStage }).__build = s;
     s.last = performance.now();
     s.raf = requestAnimationFrame(s.frame);
@@ -369,7 +371,19 @@ export class BuildStage {
     try { this.rebuildNow(); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
 
-  private rebuildNow(): void {
+  /** The stage's first machine, built a slice at a time (`Machine3D.make`; a machine built in one task held the page for 0.9 s): `rebuild` for a stage with none. */
+  private async buildFirst(): Promise<void> {
+    const t0 = performance.now();
+    this.snaps.drop();
+    const s = this.snapshot, key = machineKey(s), tier = s.boardTier;
+    setLayoutTier(tier, Math.max(tier, s.caseTier));
+    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, { stop: () => this.dead });
+    if (this.dead) { made?.dispose(); return; }
+    try { this.rebuildNow(made ?? undefined); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
+  }
+
+  /** The machine for the snapshot, now. `made`: one built already (`buildFirst`), in place of building it here. */
+  private rebuildNow(made?: Machine3D): void {
     this.held.clear();
     // (the redraw always reads the game as it is now)
     this.snaps.drop();
@@ -380,7 +394,7 @@ export class BuildStage {
     const { scene } = this.ctx;
     const old = this._machine;
     if (old) { scene.remove(old.root); old.dispose(); }
-    this._machine = new Machine3D(s, roomGeo(), this.bakes, null, false);
+    this._machine = made ?? new Machine3D(s, roomGeo(), this.bakes, null, false);
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
@@ -669,13 +683,13 @@ export class BuildStage {
 
   /** The device under a client point (its id), when the side panel is open; else null. */
   partAt(x: number, y: number): string | null {
-    if (this.dead || !this.machine.doorOpen) return null; // (a pointer event can land after the close)
+    if (this.dead || !this._machine || !this.machine.doorOpen) return null; // (a pointer event can land after the close, or before the machine is built)
     return deviceFor(this.hitId(x, y), this.board)?.id ?? null;
   }
 
   /** The socket under a client point: a part's slot, or an empty socket's id; null off the board or with the panel shut. */
   slotAt(x: number, y: number): string | null {
-    if (this.dead || !this.machine.doorOpen) return null;
+    if (this.dead || !this._machine || !this.machine.doorOpen) return null;
     const id = this.hitId(x, y);
     return deviceFor(id, this.board)?.slot ?? socketFor(id, this.board);
   }
@@ -683,7 +697,7 @@ export class BuildStage {
   // ------------------------------------------------------------------ the pointer, as in the game (board3d.ts): outline, name, pick, open
   /** What the pointer means at a client point: a fitted device (its id), an empty socket (its id), or the shut case's side panel (`case.side`); null for the rest. */
   idAt(x: number, y: number): string | null {
-    if (this.dead) return null;
+    if (this.dead || !this._machine) return null;
     if (!this.machine.doorOpen) {
       // (the case hides what is inside it: its side panel answers, and a click on it opens it)
       const r = this.ctx.renderer.domElement.getBoundingClientRect();
@@ -695,7 +709,7 @@ export class BuildStage {
 
   /** The pointer moved over the canvas with no button down: name what it is over (the ray at most every 30 ms: the pointer outruns the draws). */
   private pointerOver(x: number, y: number, el: HTMLElement): void {
-    if (this.dead) return;
+    if (this.dead || !this._machine) return;
     if (this.carried || this.status.peek().busy) { if (this.hover.peek()) this.hover.value = null; return; }
     const now = performance.now(), was = this.hover.peek();
     if (now - this.hoverTime < 30) { if (was) this.hover.value = { ...was, x, y }; return; }
