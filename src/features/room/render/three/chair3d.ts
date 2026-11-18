@@ -5,7 +5,7 @@
 import { CylinderGeometry, DoubleSide, Group, Mesh, type Material, type Object3D } from 'three';
 import { bakedAo } from '@/core/render/three/bakedao';
 import { SEG, paint, rod, softBox, tornDown, tube } from '@/core/render/three/geometry';
-import { loadModel } from '@/core/render/three/gltf';
+import { joinModel, loadModel } from '@/core/render/three/gltf';
 import { cloth, mat } from '@/core/render/three/materials';
 import { cushion, floorShadow, weave } from './furniture3d';
 import { FLOOR_Y } from './roomplan';
@@ -48,8 +48,8 @@ function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void, 
       mesh.castShadow = mesh.receiveShadow = true;
     });
     o.scale.setScalar(MM);
-    c.add(o);
-    loaded?.(o);
+    // (a model that comes in after the first draw shows once its programs have linked: `joinModel`)
+    joinModel(c, o, { prepare: () => loaded?.(o), alive });
   });
 }
 

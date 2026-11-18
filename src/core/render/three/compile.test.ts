@@ -126,6 +126,15 @@ describe('ProgramGate', () => {
     expect(gate.ready(LINK_MAX_MS + 5)).toBe(false); // (the wait began again at this call)
     expect(gate.ready(2 * LINK_MAX_MS + 10)).toBe(true);
   });
+
+  it('says it has started from the first call to a reset (a model that joins before that is in the batch)', () => {
+    const { gate } = rig();
+    expect(gate.started).toBe(false);
+    gate.ready(0);
+    expect(gate.started).toBe(true);
+    gate.reset();
+    expect(gate.started).toBe(false);
+  });
 });
 
 describe('freeWhenLinked', () => {

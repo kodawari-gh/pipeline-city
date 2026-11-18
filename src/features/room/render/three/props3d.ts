@@ -8,7 +8,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BRANDS, drawMark } from '@/core/render/brands';
 import { SEG, anisotropy, paint, place, post, rectBox, rod, softBox, tornDown, tube, type RectLike } from '@/core/render/three/geometry';
-import { loadModel } from '@/core/render/three/gltf';
+import { joinModel, loadModel } from '@/core/render/three/gltf';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { mergeWithin } from '@/core/render/three/merge';
@@ -433,9 +433,8 @@ export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D
     // one colour: the shell's, in place of the model's own materials; both sides drawn, the file's faces are not all wound one way
     const skin = shell.clone(); skin.side = DoubleSide;
     model.traverse((o) => { if (o instanceof Mesh) { o.material = skin; place(o); } });
-    g.add(model);
-    prim.visible = false;
-    loaded?.(model);
+    // (a model that comes in after the first draw shows once its programs have linked, and the shell goes with it: `joinModel`)
+    joinModel(g, model, { prepare: () => loaded?.(model), shown: () => { prim.visible = false; }, alive: () => !tornDown(g) });
   });
   return g;
 }

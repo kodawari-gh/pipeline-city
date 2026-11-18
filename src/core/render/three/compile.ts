@@ -173,6 +173,9 @@ export class ProgramGate {
 
   constructor(private readonly start: () => Program[]) {}
 
+  /** Have the programs started (a first `ready`, and no `reset` since)? A model that joins before that is in the batch (`joinModel`). */
+  get started(): boolean { return this.linking !== null; }
+
   ready(now = performance.now()): boolean {
     if (!this.linking) { this.from = now; this.linking = this.start(); }
     if (!linked(this.linking)) return now - this.from > LINK_MAX_MS;

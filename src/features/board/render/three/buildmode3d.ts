@@ -38,6 +38,7 @@ import { PSU_BODY, PSU_COVER } from './basement3d';
 import { latchOpen, motionFor, motionSeconds, placed, poseAt, solidAt, type Pose } from './buildmotion';
 import { PartFade } from './partfade';
 import { ProgramGate, startPrograms } from '@/core/render/three/compile';
+import { warmLateModels } from '@/core/render/three/gltf';
 import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
@@ -259,6 +260,8 @@ export class BuildStage {
     scene.matrixWorldAutoUpdate = false;
     renderer.setOpaqueSort(byProgram);
     this.post = new Post(renderer, scene, camera, this.W, this.H);
+    // (a model that joins after the first picture's programs have started, a slow network, links its own while it is hidden: `joinModel`; its parts fade)
+    warmLateModels(scene, (model) => (this.programs.started ? startPrograms(renderer, model, camera, { scene, fades: [model] }) : null));
     this.lens = new Lens3D(scene);
     // the hand that pulls a cable's plug out and pushes it in by itself (plughand3d.ts `pullOut`, `plugIn`), on this stage's own game
     this.hand = new PlugHand({

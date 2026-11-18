@@ -31,7 +31,7 @@ import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
 import { freeWhenLinked, linked, programDone, startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
-import { modelsIn } from '@/core/render/three/gltf';
+import { modelsIn, warmLateModels } from '@/core/render/three/gltf';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
@@ -144,6 +144,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * linked the frame draws nothing, and the canvas keeps its last picture.
    */
   let linking: Program[] | null = null, warmed = false;
+  // a model that joins after those programs have started (a slow network: the mouse, the hoodie, a part's) links its own while it is hidden (`joinModel`)
+  warmLateModels(scene, (model) => (warmed ? [...startPrograms(renderer, model, camera, { scene }), ...startShadowPrograms(renderer, scene, camera, model)] : null));
   /** The furniture the eye keeps out of (`eyeBlocks`), for the room as built. */
   let blocks: Room[] = [];
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */

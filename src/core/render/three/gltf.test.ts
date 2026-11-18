@@ -1,9 +1,10 @@
 // @ts-ignore
 import * as fsMod from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { BoxGeometry, Box3, Mesh, MeshBasicMaterial, Texture, Vector3, type MeshStandardMaterial } from 'three';
+import { BoxGeometry, Box3, Group, Mesh, MeshBasicMaterial, Texture, Vector3, type MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { fitModel, ktx2Support, loadModel, modelsIn, type Ktx2 } from './gltf';
+import type { Program } from './compile';
+import { fitModel, joinModel, ktx2Support, loadModel, modelsIn, warmLateModels, type Ktx2 } from './gltf';
 
 const fs = fsMod as any;
 // (three's file loader tells its progress with a browser event that Node does not have)
@@ -117,6 +118,89 @@ describe('modelsIn (the boot waits for the models its scene asked for)', () => {
       expect(used).toBe(true);
     } finally {
       globalThis.fetch = real;
+    }
+  });
+});
+
+describe('joinModel (a model that comes in late links its programs while it is hidden)', () => {
+  /** A program that links when `up.on` is set. */
+  const rig = () => {
+    const up = { on: false }, scene = new Group(), parent = new Group(), model = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
+    scene.add(parent);
+    const order: string[] = [], start = vi.fn((_m: unknown, _p: unknown) => { order.push('warm'); return [{ isReady: () => up.on }] as Program[]; });
+    return { up, scene, parent, model, order, start };
+  };
+
+  it('joins and shows at once in a scene that holds nothing, prepare first', () => {
+    const { parent, model, order } = rig();
+    joinModel(parent, model, { prepare: () => order.push('prepare'), shown: () => order.push('shown') });
+    expect(model.parent).toBe(parent);
+    expect(model.visible).toBe(true);
+    expect(order).toEqual(['prepare', 'shown']);
+  });
+
+  it('joins and shows at once while the scene has not started its programs (its batch takes the model)', () => {
+    const { scene, parent, model, order } = rig();
+    warmLateModels(scene, () => null);
+    joinModel(parent, model, { shown: () => order.push('shown') });
+    expect(model.visible).toBe(true);
+    expect(order).toEqual(['shown']);
+  });
+
+  it('holds the model hidden until its programs have linked, warms it after prepare, and shows it then', () => {
+    vi.useFakeTimers();
+    try {
+      const { up, scene, parent, model, order, start } = rig();
+      warmLateModels(scene, start);
+      joinModel(parent, model, { prepare: () => order.push('prepare'), shown: () => order.push('shown') });
+      expect(start).toHaveBeenCalledWith(model, parent);
+      expect(order).toEqual(['prepare', 'warm']);
+      expect(model.parent).toBe(parent);
+      expect(model.visible).toBe(false);
+      vi.advanceTimersByTime(200);
+      expect(model.visible).toBe(false);
+      expect(order).toEqual(['prepare', 'warm']);
+      up.on = true;
+      vi.advanceTimersByTime(40);
+      expect(model.visible).toBe(true);
+      expect(order).toEqual(['prepare', 'warm', 'shown']);
+      vi.advanceTimersByTime(200);
+      expect(order).toEqual(['prepare', 'warm', 'shown']); // (once)
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a model that was hidden before it joined stays hidden when its programs have linked', () => {
+    vi.useFakeTimers();
+    try {
+      const { up, scene, parent, model, start } = rig();
+      warmLateModels(scene, start);
+      model.visible = false;
+      joinModel(parent, model);
+      up.on = true;
+      vi.advanceTimersByTime(40);
+      expect(model.visible).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows nothing once the parent is gone (`alive`), and asks no more', () => {
+    vi.useFakeTimers();
+    try {
+      const { up, scene, parent, model, order, start } = rig();
+      let alive = true;
+      warmLateModels(scene, start);
+      joinModel(parent, model, { shown: () => order.push('shown'), alive: () => alive });
+      alive = false;
+      up.on = true;
+      vi.advanceTimersByTime(200);
+      expect(order).toEqual(['warm']);
+      expect(model.visible).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

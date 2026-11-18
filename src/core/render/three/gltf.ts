@@ -3,6 +3,7 @@
 import { Box3, Vector3, type Group, type Object3D, type WebGLRenderer } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { ProgramGate, type Program } from './compile';
 import { sceneChanged } from './ondemand';
 
 // Models may carry meshopt-compressed geometry (`npm run bake:models`).
@@ -74,6 +75,47 @@ export function modelsIn(ms = 2000): Promise<void> {
 }
 
 /**
+ * How a scene starts the programs of a model that joins it late (`joinModel`). It gets the model, set up as it will be drawn, and the parent it
+ * stands on, and returns the programs it started (`startPrograms` and `startShadowPrograms`, with the scene's renderer, camera and lights); or
+ * null while the scene's own programs have not started: the model then joins at once, and the scene's batch takes it.
+ */
+export type WarmModel = (model: Object3D, parent: Object3D) => Program[] | null;
+/** The scenes that hold their late models, by scene (a scene that goes takes its entry with it). */
+const warmers = new WeakMap<Object3D, WarmModel>();
+
+/** A scene's owner says how a model that joins after its programs have started is warmed (`joinModel`). */
+export function warmLateModels(scene: Object3D, warm: WarmModel): void { warmers.set(scene, warm); }
+
+/** How often a held model asks the driver whether its programs have linked (ms). */
+const LOOK_MS = 16;
+
+/**
+ * Puts `model` on `parent`. In a scene whose programs have started (`warmLateModels`) a model that comes in late (a slow network) would link
+ * its own at its first draw, 0.4 s for a lit one with the page held (docs/render/load.md). So it joins hidden, its programs start, and it shows
+ * once they have linked (`ProgramGate`: and each has had its first use); `shown` runs then, and not before: the primitives it replaces hide in it.
+ * `prepare` runs first, once the model is on the parent: what changes its programs (the room's environment) must be done before they start.
+ * Anywhere else, or before the scene's programs have started, it joins and shows at once. `alive` false ends the wait (the parent is gone).
+ */
+export function joinModel(parent: Object3D, model: Object3D, { prepare, shown, alive = () => true }: { prepare?: () => void; shown?: () => void; alive?: () => boolean } = {}): void {
+  parent.add(model);
+  prepare?.();
+  let top = parent;
+  while (top.parent) top = top.parent;
+  const programs = warmers.get(top)?.(model, parent) ?? null;
+  if (!programs) { shown?.(); return; }
+  const was = model.visible, gate = new ProgramGate(() => programs);
+  model.visible = false;
+  const look = (): void => {
+    if (!alive()) return;
+    if (!gate.ready()) { setTimeout(look, LOOK_MS); return; }
+    model.visible = was;
+    shown?.();
+    sceneChanged();
+  };
+  look();
+}
+
+/**
  * Scale `o` to fit the layout rect `r` (x right, y down) and stand it on depth `z0`, no taller than up to `z1`; its middle goes to the rect's middle.
  * Evenly by default; `stretch`: x and y each fill the rect (a part that is only a block, like a heat sink), the height keeps to the smaller of them.
  */
@@ -93,7 +135,6 @@ export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: n
 export function useModel(parent: Group, url: string, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, replace: Object3D[], alive: () => boolean = () => true, stretch = false): void {
   void loadModel(url).then((m) => {
     if (!m || !alive()) return;
-    parent.add(fitModel(m.clone(true), r, z0, z1, stretch));
-    for (const o of replace) o.visible = false;
+    joinModel(parent, fitModel(m.clone(true), r, z0, z1, stretch), { shown: () => { for (const o of replace) o.visible = false; }, alive });
   });
 }
