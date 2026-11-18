@@ -550,35 +550,38 @@ export interface MassRing { geometry: BufferGeometry; balls: Sphere[]; at: numbe
 
 /** The buildings, one geometry for each ring round the window, each ring's buildings in their bearing's order. `washes` takes the signs that light a wall (`signlight.ts`). */
 export function massGeometries(bs: readonly Building[], washes: SignWash[] = [], detail: CityDetail = 'high'): MassRing[] {
+  const run = massSteps(bs, washes, detail, Infinity);
+  let step = run.next();
+  while (!step.done) step = run.next();
+  return step.value;
+}
+
+/**
+ * `massGeometries` a building at a time: it yields when `budget` ms have passed since its last yield (or its start), so a caller can give the page
+ * a turn. The boot builds the rings while the baked textures load (`OutsideView.make`): a turn every 20 ms lets that load go on.
+ */
+export function* massSteps(bs: readonly Building[], washes: SignWash[] = [], detail: CityDetail = 'high', budget = 20): Generator<void, MassRing[]> {
   const away = (b: Building): number => Math.hypot((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0, b.tiers[0]!.z1);
   const mid = (b: Building): number => bearing((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, (b.tiers[0]!.z0 + b.tiers[0]!.z1) / 2);
   const rings = RINGS.map(() => [] as Building[]);
   for (const b of bs) rings[RINGS.findIndex((r) => away(b) < r)]!.push(b);
-  if (detail === 'low') {
-    // the rings past the near ones merge into one mesh. A building within `LOW_WHOLE` is whole (its parapet, its roof's plant and its
-    // signs are High's: the window looks down on them); past it, a plain block
-    const keep = rings.slice(0, LOW_NEAR_RINGS), far = rings.slice(LOW_NEAR_RINGS).flat();
-    return [...keep, far].filter((r) => r.length).map((ring, k, all) => {
-      const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = k === all.length - 1 && far.length > 0;
-      m.washes = washes;
-      for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
-        if (blocks && away(b) >= LOW_WHOLE) block(m, b, away(b)); else building(m, b, away(b));
-        balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
-        at.push(m.vertices);
-      }
-      return { geometry: m.geometry(), balls, at };
-    });
-  }
-  return rings.filter((r) => r.length).map((ring) => {
-    const m = new Mass(), balls: Sphere[] = [], at = [0];
+  // At Low the rings past the near ones merge into one mesh. A building within `LOW_WHOLE` is whole (its parapet, its roof's plant and its
+  // signs are High's: the window looks down on them); past it, a plain block
+  const low = detail === 'low', far = low ? rings.slice(LOW_NEAR_RINGS).flat() : [];
+  const made = (low ? [...rings.slice(0, LOW_NEAR_RINGS), far] : rings).filter((r) => r.length), out: MassRing[] = [];
+  let from = performance.now();
+  for (const [k, ring] of made.entries()) {
+    const m = new Mass(), balls: Sphere[] = [], at = [0], blocks = low && k === made.length - 1 && far.length > 0;
     m.washes = washes;
     for (const b of ring.sort((p, q) => mid(p) - mid(q))) {
-      building(m, b, away(b));
+      if (blocks && away(b) >= LOW_WHOLE) block(m, b, away(b)); else building(m, b, away(b));
       balls.push(ballOf(m.positions, at[at.length - 1]!, m.vertices));
       at.push(m.vertices);
+      if (performance.now() - from >= budget) { yield; from = performance.now(); }
     }
-    return { geometry: m.geometry(), balls, at };
-  });
+    out.push({ geometry: m.geometry(), balls, at });
+  }
+  return out;
 }
 
 /**

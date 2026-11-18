@@ -175,10 +175,13 @@ const theCity = (detail: CityDetail = wantedDetail()): OutsideView => {
  * before the programs start), told its name and how far along the work is (0 to 1), so the boot screen can say it and the page can paint.
  * Once the programs start, the caller must not wait for a paint: it would wait for the driver.
  */
-export async function prepareCity(r: WebGLRenderer, shadows: number, between: (label: string, share: number) => Promise<void> = () => Promise.resolve()): Promise<void> {
+export async function prepareCity(
+  r: WebGLRenderer, shadows: number, between: (label: string, share: number) => Promise<void> = () => Promise.resolve(), until?: Promise<void>,
+): Promise<void> {
   const detail = wantedDetail();
   dropOldCity(detail);
-  const c = (city ??= await OutsideView.make(...cityQuad(), detail, between));
+  // `until`: the baked textures, still loading: the buildings, which need none, build while they do (`OutsideView.make`)
+  const c = (city ??= await OutsideView.make(...cityQuad(), detail, between, until && { until, turn: () => new Promise<void>((done) => setTimeout(done, 0)) }));
   await between('Starting the city shaders', 1);
   c.setShadows(shadows);
   c.startPrograms(r);

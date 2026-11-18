@@ -27,7 +27,7 @@ import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
-import { GRID, M, buildings, parked, toOutside, trees } from './plan';
+import { GRID, M, buildings, parked, toOutside, trees, type Building } from './plan';
 import { Sight, outsideDraws, type QueryGL } from './sight';
 import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
@@ -36,7 +36,7 @@ import { Signals, street } from './street';
 import { SunMap } from './sunmap';
 import { Sweep, sweptMerge } from './sweep';
 import { lowFacadeMaterial, type LowLamps } from './lowfacade';
-import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
+import { facadeMaterial, massGeometries, massSteps, type FacadeUniforms, type MassRing } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
 
@@ -228,6 +228,8 @@ export class OutsideView {
   private sunBox = new Frustum();
   private sunOf = new Matrix4();
   private sweeps: Sweep[] = [];
+  /** The buildings' geometry, built before the textures were in (`massing`): `build` takes it in place of building it. */
+  private early: { blocks: Building[]; washes: SignWash[]; rings: MassRing[] } | null = null;
   /** The camera's view at the last cut, and whether that cut kept all of it (for the sun's shadows). */
   private cutOf = new Matrix4();
   private cutAll = false;
@@ -272,6 +274,15 @@ export class OutsideView {
   }
 
   /**
+   * The buildings' geometry, which needs no texture, a slice at a time (`massSteps`; a `yield` is a turn for the page): the boot builds it while
+   * the baked textures load (`make`), and `build` takes it in place of building it. The same geometry as `build` makes.
+   */
+  private *massing(): Generator<void> {
+    const blocks = buildings(), washes: SignWash[] = [];
+    this.early = { blocks, washes, rings: yield* massSteps(blocks, washes, this.cuts.far ? 'low' : 'high') };
+  }
+
+  /**
    * The city's geometry and lights, in steps. Each `yield` names the work that comes next and how far along the city is (0 to 1): a caller may
    * give the page a turn there (`make`); the constructor runs the steps in a row. The city holds the page for about 1.6 s in all (docs/render/load.md).
    */
@@ -305,13 +316,14 @@ export class OutsideView {
     const lowFac = cuts.facade ? lowFacadeMaterial(lampAt) : null, facade = lowFac ?? facadeMaterial();
     this.lowLamps = lowFac?.lamps ?? null;
     yield { label: 'Raising the towers', share: 0.4 };
-    const blocks = buildings(), washes: SignWash[] = [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
-    const mass = massGeometries(blocks, washes, on(cuts.far)).map((r) => {
+    const early = this.early, blocks = early?.blocks ?? buildings(), washes: SignWash[] = early?.washes ?? [], steam = cuts.steam ? null : roofSteam(blocks, this.haze);
+    const mass = (early?.rings ?? massGeometries(blocks, washes, on(cuts.far))).map((r) => {
       const m = new Mesh(r.geometry, facade.mat);
       m.castShadow = m.receiveShadow = true;
       this.sweeps.push(new Sweep(r.balls, [{ mesh: m, at: r.at }]));
       return m;
     });
+    this.early = null;
     const signLight = signWashes(washes, this.haze, facade.u.night);
     this.facade = facade.u;
     this.steam = steam?.u ?? steamUniforms();
@@ -366,10 +378,21 @@ export class OutsideView {
 
   /**
    * The city built a step at a time: `between` runs before each step, told its name and how far along the city is, so the page can paint and
-   * answer a click between the long steps (the boot, `prepareCity`). The same city as `new OutsideView(…)`.
+   * answer a click between the long steps (the boot, `prepareCity`). The same city as `new OutsideView(…)`. `early`: the boot builds the buildings
+   * first, in slices with `turn` between, while `until` (the baked textures) loads, and the first step waits for `until`.
    */
-  static async make(cx: number, cy: number, w: number, h: number, z: number, detail: CityDetail, between: (label: string, share: number) => Promise<void>): Promise<OutsideView> {
-    const view = new OutsideView(cx, cy, w, h, z, detail, cityCuts(detail), true), run = view.build();
+  static async make(
+    cx: number, cy: number, w: number, h: number, z: number, detail: CityDetail, between: (label: string, share: number) => Promise<void>,
+    early?: { until: Promise<void>; turn: () => Promise<void> },
+  ): Promise<OutsideView> {
+    const view = new OutsideView(cx, cy, w, h, z, detail, cityCuts(detail), true);
+    if (early) {
+      // the buildings need no texture: they build in slices while the textures (`until`) load, a turn between for that load to go on
+      const mass = view.massing();
+      for (let step = mass.next(); !step.done; step = mass.next()) await early.turn();
+      await early.until;
+    }
+    const run = view.build();
     for (let step = run.next(); !step.done; step = run.next()) await between(step.value.label, step.value.share);
     return view;
   }

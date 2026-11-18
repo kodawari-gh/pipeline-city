@@ -320,6 +320,24 @@ describe('OutsideView.make (the boot builds the city a step at a time)', () => {
     expect(steps.every((s) => s.share < 1)).toBe(true);
     expect(debugStats(stepped)).toEqual(debugStats(whole));
   }, 180000);
+
+  // BOOT-05: the buildings need no texture, so the boot builds them while the baked textures load, and the first step waits for the textures
+  it('with `early`: builds the buildings in turns while `until` is pending, waits for it before the first step, and builds the same city', async () => {
+    const events: string[] = [], whole = new OutsideView(0, 0, 10, 10, 0, 'high');
+    let release = (): void => {}, turns = 0;
+    const until = new Promise<void>((done) => { release = () => { events.push('until'); done(); }; });
+    const timer = setTimeout(release, 20000);
+    const turn = async (): Promise<void> => { events.push('turn'); if (++turns === 2) release(); await new Promise((r) => setTimeout(r, 0)); };
+    const early = await OutsideView.make(0, 0, 10, 10, 0, 'high', async (label) => { events.push(label); }, { until, turn });
+    clearTimeout(timer);
+    const first = events.indexOf('Laying the streets');
+    expect(events.indexOf('turn')).toBe(0);
+    expect(events.indexOf('until'), 'the textures in before the first step').toBeLessThan(first);
+    expect(events.slice(0, first).filter((e) => e === 'turn').length, 'the turns before the first step').toBe(turns);
+    expect(turns).toBeGreaterThanOrEqual(2);
+    expect(events.slice(first)).toEqual(['Laying the streets', 'Merging the streets', 'Raising the towers', 'Planting the trees', 'Painting the sky']);
+    expect(debugStats(early)).toEqual(debugStats(whole));
+  }, 180000);
 });
 
 // the main canvas outlives the view: a handler left on it keeps the whole view (its city and its textures) alive after a preset change

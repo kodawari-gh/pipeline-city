@@ -236,8 +236,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   // the city in the window first: its programs link on the driver's threads while the room is built. The city builds a step at a time, a
   // paint between (nothing links yet); once its programs start, no paint is waited for (it would wait for them), only a turn for the page
   bootStage('Building the world', 0.14);
-  await Promise.all([nextPaint(), baked]);
-  await prepareCity(renderer, effective.peek().shadows, async (label, share) => { bootStage(label, 0.14 + 0.14 * share); await nextPaint(); });
+  await nextPaint();
+  // (the buildings need no texture: they build in slices while the baked ones load, and the first step that paints with them waits for them)
+  await prepareCity(renderer, effective.peek().shadows, async (label, share) => { bootStage(label, 0.14 + 0.14 * share); await nextPaint(); }, baked);
   setLowDetail(isLow(effective.peek())); // (before the first machine: Low builds coarser heat pipes and labels)
   bootStage('Furnishing the room', 0.3);
   await turn();

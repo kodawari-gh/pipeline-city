@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { LOW_NEAR_RINGS, type CityDetail } from './detail';
 import { buildings, GRID, topOf, type Building } from './plan';
 import { bearing, drawn } from './sweep';
-import { LOW_WHOLE, massGeometries, type MassRing } from './towers';
+import { LOW_WHOLE, massGeometries, massSteps, type MassRing } from './towers';
 
 /** `massGeometries` as the Low cut will call it (the third parameter does not exist yet). */
 const withDetail = massGeometries as (bs: readonly Building[], washes: [], detail?: CityDetail) => MassRing[];
@@ -180,5 +180,24 @@ describe('massGeometries detail', () => {
     }
     expect(strips, 'far blocks with Led corner strips').toBeGreaterThan(0);
     expect(tallest, 'a corner strip runs up a tier, not a band').toBeGreaterThan(2);
+  }, 60000);
+});
+
+// BOOT-05: the boot builds the buildings while the baked textures load, a turn for the page every 20 ms (`OutsideView.make`)
+describe('massSteps', () => {
+  it.each(['high', 'low'] as const)('%s: with no budget it yields after each building, and ends with the rings massGeometries makes', (detail) => {
+    const bs = buildings(), run = massSteps(bs, [], detail, 0);
+    let yields = 0, step = run.next();
+    while (!step.done) { yields++; step = run.next(); }
+    const whole = massGeometries(bs, [], detail);
+    expect(yields).toBe(bs.length);
+    expect(step.value.map((r) => r.at)).toEqual(whole.map((r) => r.at));
+    expect(step.value.map((r) => sum(r.geometry))).toEqual(whole.map((r) => sum(r.geometry)));
+    expect(step.value.map((r) => r.balls.map((b) => b.radius))).toEqual(whole.map((r) => r.balls.map((b) => b.radius)));
+  }, 60000);
+
+  it('never yields with an endless budget (`massGeometries`)', () => {
+    const run = massSteps(buildings(), [], 'high', Infinity);
+    expect(run.next().done).toBe(true);
   }, 60000);
 });
