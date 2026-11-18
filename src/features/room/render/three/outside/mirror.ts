@@ -6,7 +6,7 @@ import {
   BackSide, DoubleSide, FrontSide, Group, HalfFloatType, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, NormalBlending, PerspectiveCamera, Plane, PlaneGeometry, Vector3, Vector4, WebGLRenderTarget,
   type Light, type Material, type MeshPhysicalMaterial, type MeshStandardMaterial, type Scene, type SkinnedMesh, type WebGLRenderer,
 } from 'three';
-import { startPrograms, type Program } from '@/core/render/three/compile';
+import { startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
 
 /** The picture's size, as a share of the frame's: it is blurred anyway. */
 const SCALE = 0.5;
@@ -86,15 +86,19 @@ export class GlassMirror {
   /** A black for each kind of mesh, front sided and then double sided: one program each, so a mesh's turn does not look its program up again. */
   private blacks = [FrontSide, DoubleSide].flatMap((side) => Array.from({ length: KINDS }, () => new MeshBasicMaterial({ color: 0, side })));
 
-  /** Starts linking the blacks' programs (`compile.ts`), for the room's `scene`, whose lights are in their keys. */
+  /**
+   * Starts linking the blacks' programs (`compile.ts`), and their depth programs (the room's shadow due is drawn in the picture's render, with the
+   * blacks as the casters), for the room's `scene`, whose lights are in their keys.
+   */
   startPrograms(r: WebGLRenderer, scene: Scene): Program[] {
     const root = new Group(), g = new PlaneGeometry(1, 1);
     this.blacks.forEach((m, i) => {
       const kind = i % KINDS, o = kind ? new InstancedMesh(g, m, 1) : new Mesh(g, m);
       if (kind === 2) (o as InstancedMesh).instanceColor = new InstancedBufferAttribute(new Float32Array(3), 3);
+      o.castShadow = true;
       root.add(o);
     });
-    const out = startPrograms(r, root, this.cam, { scene });
+    const out = [...startPrograms(r, root, this.cam, { scene }), ...startShadowPrograms(r, scene, this.cam, root)];
     g.dispose();
     return out;
   }

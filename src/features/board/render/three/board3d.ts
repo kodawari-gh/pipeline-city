@@ -30,7 +30,7 @@ import { Post, roomness } from '@/core/render/three/post';
 import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { caseShaded } from '@/core/render/three/caseshade';
 import { cheapMaterials, probePlan, type Cheap } from '@/core/render/three/cheapmaterials';
-import { freeWhenLinked, linked, programDone, startPrograms, type Program } from '@/core/render/three/compile';
+import { freeWhenLinked, linked, programDone, startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
 import { modelsIn } from '@/core/render/three/gltf';
 import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
@@ -209,7 +209,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       else {
         // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
         cheap(m.root);
-        const programs = whileHidden(machine.root, () => startPrograms(renderer, m.root, camera, { scene, fades: m.fades }));
+        const programs = whileHidden(machine.root, () => [...startPrograms(renderer, m.root, camera, { scene, fades: m.fades }), ...startShadowPrograms(renderer, scene, camera, m.root)]);
         if (linked(programs)) install(m); else next = { m, programs };
       }
     } else if (s) (next?.m ?? machine).syncCables(s, room.geo); // a plug in or out: only its cable hangs again
@@ -714,7 +714,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
     if (!warmed) {
       warmed = true;
-      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...(room?.startPrograms(renderer, scene) ?? []), ...post.startPrograms(renderer)];
+      linking = [
+        ...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...startShadowPrograms(renderer, scene, camera),
+        ...(room?.startPrograms(renderer, scene) ?? []), ...post.startPrograms(renderer), ...probe.startPrograms(renderer),
+      ];
       if (!linked(linking)) { requestAnimationFrame(frame); return; }
       drawn(now);
     }

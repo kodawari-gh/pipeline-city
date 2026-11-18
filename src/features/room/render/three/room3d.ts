@@ -830,10 +830,10 @@ export class Room3D {
   private mergeByPalette(): void { mergeAfterBake(this.root, this.envs, [this.keys, this.mouse]); }
 
   /**
-   * Starts linking the programs the window's view draws with (`compile.ts`): the room's own come with the scene it stands in. Call it after a
-   * first `frame`, so its lights stand as they will be drawn.
+   * Starts linking the programs the window's view draws with (`compile.ts`), and the bake's mix: the room's own come with the scene it stands
+   * in. Call it after a first `frame`, so its lights stand as they will be drawn.
    */
-  startPrograms(r: WebGLRenderer, scene: Scene): Program[] { return this.outside.startPrograms(r, scene); }
+  startPrograms(r: WebGLRenderer, scene: Scene): Program[] { return [...this.outside.startPrograms(r, scene), ...(this.lightmap?.startPrograms(r) ?? [])]; }
 
   /**
    * The baked bounce's light groups: the lights the room scales by one value (a switch, a step of the evening). `tools/bake/` bakes each at

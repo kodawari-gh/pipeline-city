@@ -10,6 +10,7 @@ import {
   type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
 import { ktx2Loader } from './baked';
+import { startPrograms, type Program } from './compile';
 import { shareTex } from './geometry';
 import './arealoop';
 
@@ -327,6 +328,14 @@ export class LightmapMix {
     this.quad = new Mesh(new PlaneGeometry(2, 2), this.mat);
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
+  }
+
+  /** Starts linking the mix's two programs (`compile.ts`): the sum of the groups and the direct light's. The first `mix` would link them at the first draw. */
+  startPrograms(r: WebGLRenderer): Program[] {
+    const was = this.quad.material, out: Program[] = [];
+    for (const m of [this.mat, this.directMat]) { this.quad.material = m; out.push(...startPrograms(r, this.quad, this.cam)); }
+    this.quad.material = was;
+    return out;
   }
 
   /** Does the bake hold, loaded, the direct light of the lamp group `id` (`loadDirect`)? */

@@ -3,6 +3,7 @@
 // warmth on the plaster, the window in the desk's varnish, the dark of the night on the case. Each capture sees the last one on the walls, so a
 // few captures add a bounce each. A capture draws one face a frame: a sixth of a scene draw at a time, never the six in one frame.
 import { BackSide, BoxGeometry, CubeCamera, HalfFloatType, Mesh, Scene, ShaderMaterial, WebGLCubeRenderTarget, type Camera, type CubeTexture, type Light, type LightShadow, type Object3D, type WebGLRenderer } from 'three';
+import { startPrograms, type Program } from './compile';
 
 /** The cube's size: the PMREM's least (256), the same as the studio environment's, so a material keeps its program when it changes to the probe. */
 const SIZE = 256;
@@ -87,6 +88,9 @@ export class Probe {
       this.wash = new Scene().add(box);
     }
   }
+
+  /** Starts linking the calm pass's program (`compile.ts`): the first capture's end would link it then, in a frame of the page. */
+  startPrograms(r: WebGLRenderer): Program[] { return this.wash && this.outCam ? startPrograms(r, this.wash, this.outCam.children[0] as Camera) : []; }
 
   /** The cube a material takes as its `envMap` (once `ready`): three prefilters it again after each capture. */
   get texture(): CubeTexture { return (this.out ?? this.target).texture; }

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Material, Mesh, Scene, type WebGLRenderer } from 'three';
+import {
+  BackSide, BoxGeometry, BufferAttribute, BufferGeometry, Color, DirectionalLight, DoubleSide, Fog, FrontSide, Group, InstancedMesh, Material, Mesh, MeshStandardMaterial,
+  PCFShadowMap, PointLight, Scene, SkinnedMesh, Texture, type Light, type MeshDepthMaterial, type MeshDistanceMaterial, type WebGLRenderer,
+} from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { LINK_MAX_MS, ProgramGate, freeWhenLinked, linked, prime, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
+import { LINK_MAX_MS, ProgramGate, freeWhenLinked, linked, prime, startPassPrograms, startPrograms, startShadowPrograms, whenLinked, type Program } from './compile';
 
 /** A program that links after `n` looks. */
 const after = (n: number): Program => ({ isReady: () => n-- <= 0 });
@@ -201,6 +204,137 @@ describe('startPrograms', () => {
     expect(startPrograms(r, root, null as never, { fades: [lid] })).toHaveLength(2);
     expect(seen).toEqual([false, true]);
     expect(lid.material.transparent).toBe(false);
+  });
+});
+
+describe('startShadowPrograms', () => {
+  interface Seen { lights: Light[]; meshes: Mesh[]; maps: (Texture | null)[]; fog: unknown }
+  /** A renderer whose `compile` notes the scene it is given: the lights and the depth meshes (with their maps, which are let go after). */
+  const rig = (shadows = true) => {
+    const seen: Seen[] = [];
+    const r = {
+      shadowMap: { enabled: shadows, type: PCFShadowMap },
+      getRenderTarget: () => null, setRenderTarget: () => {},
+      compile: (own: Scene) => {
+        const meshes = own.children.filter((o): o is Mesh => (o as Mesh).isMesh), lights = own.children.filter((o): o is Light => (o as Light).isLight);
+        seen.push({ lights, meshes, maps: meshes.map((m) => (m.material as MeshDepthMaterial).map), fog: own.fog });
+        return new Set(meshes.map((m) => m.material as Material));
+      },
+      properties: { get: () => ({ currentProgram: { isReady: () => true } }) },
+    } as unknown as WebGLRenderer;
+    return { r, seen };
+  };
+  const lamp = (point = false) => { const l = point ? new PointLight() : new DirectionalLight(); l.castShadow = true; return l; };
+  const cast = <T extends Mesh>(m: T): T => { m.castShadow = true; return m; };
+  const caster = (material: Material = new MeshStandardMaterial()) => cast(new Mesh(new BoxGeometry(), material));
+  const mat = (m: Mesh) => m.material as MeshDepthMaterial;
+  const cam = null as never;
+
+  it('starts nothing when shadows are off, when no light casts or when nothing casts', () => {
+    const scene = new Scene(), light = lamp(), mesh = caster(), on = rig();
+    scene.add(light, mesh);
+    expect(startShadowPrograms(rig(false).r, scene, cam)).toEqual([]);
+    light.castShadow = false;
+    expect(startShadowPrograms(on.r, scene, cam)).toEqual([]);
+    light.castShadow = true;
+    mesh.castShadow = false;
+    expect(startShadowPrograms(on.r, scene, cam)).toEqual([]);
+    expect(on.seen).toEqual([]);
+  });
+
+  it('makes the depth material three would for each kind of caster: the opposite side, the map kept, one for the same state', () => {
+    const { r, seen } = rig(), scene = new Scene(), flat = new MeshStandardMaterial(), map = new Texture();
+    scene.add(
+      lamp(), caster(flat), caster(flat), caster(new MeshStandardMaterial({ side: BackSide })), caster(new MeshStandardMaterial({ side: DoubleSide })), caster(new MeshStandardMaterial({ map })),
+      // (a shadow side of its own wins: this one is the back sided one's state again)
+      caster(Object.assign(new MeshStandardMaterial(), { shadowSide: FrontSide })),
+    );
+    expect(startShadowPrograms(r, scene, cam)).toHaveLength(4); // (the stub gives each material a program: the six casters make four depth materials)
+    const s = seen[0]!;
+    expect(s.meshes.every((m) => mat(m).isMeshDepthMaterial)).toBe(true);
+    expect(s.meshes.map((m) => mat(m).side)).toEqual([BackSide, FrontSide, DoubleSide, BackSide]);
+    expect(s.maps.map(Boolean)).toEqual([false, false, false, true]);
+  });
+
+  it('copies the alpha test: a map with a test is another program than a map alone', () => {
+    const { r, seen } = rig(), scene = new Scene(), map = new Texture();
+    scene.add(lamp(), caster(new MeshStandardMaterial({ map })), caster(new MeshStandardMaterial({ map, alphaTest: 0.5 })), caster(new MeshStandardMaterial({ alphaToCoverage: true })));
+    startShadowPrograms(r, scene, cam);
+    expect(seen[0]!.meshes.map((m) => mat(m).alphaTest)).toEqual([0, 0.5, 0.5]);
+  });
+
+  it('a point light asks for distance materials too, a lamp that does not cast for none', () => {
+    const { r, seen } = rig(), scene = new Scene();
+    scene.add(lamp(), lamp(true), caster());
+    startShadowPrograms(r, scene, cam);
+    expect(seen[0]!.meshes.map((m) => [mat(m).isMeshDepthMaterial === true, (m.material as MeshDistanceMaterial).isMeshDistanceMaterial === true])).toEqual([[true, false], [false, true]]);
+    const only = rig(), dim = new Scene(), cold = new PointLight();
+    dim.add(lamp(), cold, caster());
+    startShadowPrograms(only.r, dim, cam);
+    expect(only.seen[0]!.meshes).toHaveLength(1);
+  });
+
+  it('makes a mesh of the caster\'s kind: instanced, with its colours, skinned, with no normals', () => {
+    const { r, seen } = rig(), scene = new Scene(), m = new MeshStandardMaterial(), box = new BoxGeometry();
+    const coloured = cast(new InstancedMesh(box, m, 3));
+    coloured.setColorAt(0, new Color());
+    const bare = cast(new Mesh(new BufferGeometry().setAttribute('position', new BufferAttribute(new Float32Array(9), 3)), m));
+    scene.add(lamp(), cast(new Mesh(box, m)), cast(new InstancedMesh(box, m, 3)), coloured, cast(new SkinnedMesh(box, m)), bare);
+    startShadowPrograms(r, scene, cam);
+    const meshes = seen[0]!.meshes;
+    expect(meshes.map((o) => [!!(o as InstancedMesh).isInstancedMesh, !!(o as InstancedMesh).instanceColor, !!(o as SkinnedMesh).isSkinnedMesh])).toEqual([
+      [false, false, false], [true, false, false], [true, true, false], [false, false, true], [false, false, false],
+    ]);
+    // (the caster's own geometry, shared: never freed with the proxies)
+    expect(meshes.slice(0, 4).every((o) => o.geometry === box)).toBe(true);
+    expect(meshes[4]!.geometry).toBe(bare.geometry);
+    expect((meshes[2] as InstancedMesh).instanceColor).toBe(coloured.instanceColor);
+  });
+
+  it('counts the lights of the scene and of the root, each once, and leaves them where they are', () => {
+    const { r, seen } = rig(), scene = new Scene(), root = new Group(), a = lamp(), b = new PointLight();
+    scene.add(a);
+    root.add(b, caster());
+    startShadowPrograms(r, scene, cam, root);
+    expect(seen[0]!.lights).toEqual([a, b]);
+    expect([a.parent, b.parent]).toEqual([scene, root]);
+    // (the root in the scene already: its lights are the scene's)
+    scene.add(root);
+    seen.length = 0;
+    startShadowPrograms(r, scene, cam, root);
+    expect(seen[0]!.lights).toEqual([a, b]);
+  });
+
+  it('draws with no fog, and leaves the scene\'s fog alone', () => {
+    const { r, seen } = rig(), scene = new Scene(), fog = new Fog(0x000000);
+    scene.fog = fog;
+    scene.add(lamp(), caster());
+    startShadowPrograms(r, scene, cam);
+    expect(seen[0]!.fog).toBeNull();
+    expect(scene.fog).toBe(fog);
+  });
+
+  it('counts a hidden caster, not a hidden material', () => {
+    const { r, seen } = rig(), scene = new Scene(), shut = caster(new MeshStandardMaterial({ side: BackSide })), gone = new MeshStandardMaterial({ side: DoubleSide });
+    shut.visible = false;
+    gone.visible = false;
+    scene.add(lamp(), shut, caster(gone));
+    startShadowPrograms(r, scene, cam);
+    expect(seen[0]!.meshes.map((m) => mat(m).side)).toEqual([FrontSide]);
+  });
+
+  it('keeps its depth materials for the next start, and holds no texture after the one it made', () => {
+    const { r, seen } = rig(), scene = new Scene(), map = new Texture();
+    scene.add(lamp(), caster(new MeshStandardMaterial({ map })));
+    startShadowPrograms(r, scene, cam);
+    startShadowPrograms(r, scene, cam);
+    expect(seen[0]!.maps[0]).toBe(map);
+    expect(seen[1]!.meshes[0]!.material).toBe(seen[0]!.meshes[0]!.material);
+    expect(mat(seen[0]!.meshes[0]!).map).toBeNull();
+    // (another renderer has materials of its own: a pool is per renderer)
+    const other = rig();
+    startShadowPrograms(other.r, scene, cam);
+    expect(other.seen[0]!.meshes[0]!.material).not.toBe(seen[0]!.meshes[0]!.material);
   });
 });
 

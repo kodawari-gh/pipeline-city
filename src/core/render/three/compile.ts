@@ -2,7 +2,10 @@
 // to link; drawn before it is linked, it holds the frame, and the page, until it is. `startPrograms` starts the programs a scene needs, and the
 // driver links them on its own threads (KHR_parallel_shader_compile); the page draws on (the boot screen, the last picture) and asks
 // `linked` each frame, or `whenLinked` waits. Without the extension every program is ready at once and links at its first draw, as before.
-import { HalfFloatType, Mesh, OrthographicCamera, PlaneGeometry, WebGLRenderTarget, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer } from 'three';
+import {
+  BackSide, DoubleSide, FrontSide, HalfFloatType, InstancedMesh, Mesh, MeshDepthMaterial, MeshDistanceMaterial, OrthographicCamera, PlaneGeometry, Scene, SkinnedMesh, VSMShadowMap, WebGLRenderTarget,
+  type Camera, type Light, type Material, type Object3D, type PointLight, type Side, type Texture, type WebGLRenderer,
+} from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A program as three keeps it: `isReady` asks the driver whether its link has ended, without waiting; `getUniforms` is its first use (`prime`). */
@@ -62,6 +65,67 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
   for (const m of mats) { quad.material = m; out.push(...startPrograms(r, quad, cam)); }
   quad.geometry.dispose();
   return out;
+}
+
+/** What three's depth pass reads from a material (`WebGLShadowMap.getDepthMaterial`); only some kinds of material have the maps. */
+type Casting = Material & { map?: Texture | null; alphaMap?: Texture | null; displacementMap?: Texture | null; displacementScale?: number; displacementBias?: number };
+/** The side three's depth pass draws a material's faces with: the opposite one, so a lit face does not shadow itself (`WebGLShadowMap`). */
+const SHADOW_SIDE: Record<number, Side> = { [FrontSide]: BackSide, [BackSide]: FrontSide, [DoubleSide]: DoubleSide };
+/** The depth materials `startShadowPrograms` made for a renderer, by the state that keys their program: made once, kept while the renderer lives (a disposed one would free its program). */
+const depthMade = new WeakMap<WebGLRenderer, Map<string, MeshDepthMaterial | MeshDistanceMaterial>>();
+
+/**
+ * Starts linking the programs of the shadows' depth pass. three makes a depth material for each kind of caster when a light first draws its
+ * shadow map, and `compile` does not: the first frame links them (6 in the room, 0.1 s). This makes the same materials in the same state
+ * (`WebGLShadowMap.getDepthMaterial`: the side, the maps, the alpha test), and a mesh of each kind of caster under `root` (default the scene)
+ * with the same geometry, instancing and skin, and compiles them: the programs are the ones the depth pass finds. The lights are the scene's
+ * and `root`'s, as for `startPrograms` (their count is in every program's key). The depth pass is drawn with no fog (`_emptyScene`) and into
+ * a render target: the programs are made so too, in a scene of their own that holds only the lights and these meshes.
+ */
+export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Camera, root: Object3D = scene): Program[] {
+  if (!r.shadowMap.enabled) return [];
+  const lights = new Set<Light>(), kinds = new Set<'depth' | 'distance'>();
+  for (const tree of root === scene ? [scene] : [scene, root]) tree.traverseVisible((o) => {
+    const l = o as Light;
+    if (!l.isLight) return;
+    lights.add(l);
+    if (l.castShadow) kinds.add((l as PointLight).isPointLight ? 'distance' : 'depth');
+  });
+  if (!kinds.size) return [];
+  const vsm = r.shadowMap.type === VSMShadowMap;
+  let pool = depthMade.get(r);
+  if (!pool) depthMade.set(r, (pool = new Map()));
+  const meshes: Mesh[] = [], seen = new Set<string>(), held = new Set<MeshDepthMaterial | MeshDistanceMaterial>();
+  // (the hidden casters count too, as in `startPrograms`: the die under its lid)
+  root.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh || !(m.castShadow || (vsm && m.receiveShadow))) return;
+    const im = o as InstancedMesh, sk = o as SkinnedMesh, g = m.geometry, mp = g.morphAttributes;
+    // (what the geometry and the object make of the program's key: the instances, the skin, the normals, the morph targets)
+    const shape = [im.isInstancedMesh === true, !!im.instanceColor, sk.isSkinnedMesh === true, !!g.attributes.normal, !!mp.position, !!mp.normal, !!mp.color, (mp.position ?? mp.normal ?? mp.color)?.length ?? 0].join();
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+      if (!mat.visible) continue;
+      const c = mat as Casting, side = mat.shadowSide ?? (vsm ? mat.side : SHADOW_SIDE[mat.side]!), test = mat.alphaToCoverage ? 0.5 : mat.alphaTest;
+      for (const kind of kinds) {
+        const state = [kind, side, c.map?.channel ?? '-', c.alphaMap?.channel ?? '-', c.displacementMap?.channel ?? '-', test > 0].join();
+        if (seen.has(state + shape)) continue;
+        seen.add(state + shape);
+        let dm = pool.get(state);
+        if (!dm) pool.set(state, (dm = kind === 'depth' ? new MeshDepthMaterial() : new MeshDistanceMaterial()));
+        Object.assign(dm, { side, map: c.map ?? null, alphaMap: c.alphaMap ?? null, alphaTest: test, displacementMap: c.displacementMap ?? null });
+        held.add(dm);
+        meshes.push(im.isInstancedMesh ? Object.assign(new InstancedMesh(g, dm, 1), { instanceColor: im.instanceColor }) : sk.isSkinnedMesh ? new SkinnedMesh(g, dm) : new Mesh(g, dm));
+      }
+    }
+  });
+  if (!meshes.length) return [];
+  // (the lights stay in their own trees: only this scene's list of children names them)
+  const own = new Scene();
+  own.children = [...lights, ...meshes];
+  try { return startPrograms(r, own, cam); } finally {
+    // (the kept materials hold no texture: they would keep the images of a room that is gone)
+    for (const dm of held) { dm.map = null; dm.alphaMap = null; dm.displacementMap = null; }
+  }
 }
 
 /**

@@ -103,6 +103,20 @@ describe('the baked bounce', () => {
     expect(matB.userData.bakeHash).toBe(entries[2]!.hash);
   });
 
+  it("starts the programs of both its materials, each once, and leaves the quad with the sum's", () => {
+    const bake: Bake = { manifest: { version: 1, encoding: 'rgbm-sqrt', width: 8, height: 8, texelsPerMetre: 50, samples: 1, dark: [], meshes: [], groups: [] }, maps: new Map(), uvs: new Uint16Array(0) };
+    const mix = new LightmapMix(bake), shaders: string[] = [], quad = (mix as unknown as { quad: Mesh }).quad, sum = quad.material;
+    const renderer = {
+      getRenderTarget: () => null, setRenderTarget() { /* none */ },
+      compile: (m: Mesh) => { shaders.push((m.material as ShaderMaterial).fragmentShader); return new Set([m.material as Material]); },
+      properties: { get: () => ({ currentProgram: { isReady: () => true } }) },
+    } as unknown as WebGLRenderer;
+    expect(mix.startPrograms(renderer)).toHaveLength(2);
+    expect(new Set(shaders).size).toBe(2);
+    expect(quad.material).toBe(sum);
+    mix.dispose();
+  });
+
   it("adds a capped lamp group's direct light from its channel, with its hue and its level over the baked one", () => {
     const bounce = new Texture(), packed = new Texture();
     const bake: Bake = {

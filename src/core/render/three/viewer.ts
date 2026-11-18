@@ -4,7 +4,7 @@ import { ACESFilmicToneMapping, AmbientLight, Box3, CanvasTexture, CircleGeometr
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
-import { ProgramGate, startPrograms } from './compile';
+import { ProgramGate, startPrograms, startShadowPrograms } from './compile';
 import { SEG, anisotropy, refilter } from './geometry';
 import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
@@ -215,7 +215,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
   const place = () => light(size, centre);
   // a part's programs link before it is drawn (docs/render/load.md): drawn unlinked, the ten and more of a lit part link at that draw and hold the page for 0.4 s
-  const programs = new ProgramGate(() => startPrograms(renderer, scene, camera, { toCanvas: true }));
+  const programs = new ProgramGate(() => [...startPrograms(renderer, scene, camera, { toCanvas: true }), ...startShadowPrograms(renderer, scene, camera)]);
   const setObject = (o: Object3D | null) => {
     if (obj) { scene.remove(obj); for (const h of hooks) h.dispose?.(); disposeTree(obj); }
     obj = o;

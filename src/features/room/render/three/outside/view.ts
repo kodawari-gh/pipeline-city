@@ -15,7 +15,7 @@ import {
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type Object3D, type WebGLRenderer,
 } from 'three';
 import { mergePalette, mergeStatic } from '@/core/render/three/merge';
-import { startPrograms, type Program } from '@/core/render/three/compile';
+import { startPrograms, startShadowPrograms, type Program } from '@/core/render/three/compile';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
@@ -611,10 +611,13 @@ export class OutsideView {
     this.live = camera;
   }
 
-  /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, and with the `room` it stands in, its glass's. */
+  /**
+   * Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, those of its sun's shadow (drawn with the city, with
+   * the city's own lights: other keys than the room's), and with the `room` it stands in, its glass's.
+   */
   startPrograms(r: WebGLRenderer, room?: Scene): Program[] {
     this.standEnv(r);
-    return [...startPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam), ...(room ? this.mirror.startPrograms(r, room) : [])];
+    return [...startPrograms(r, this.scene, this.cam), ...startShadowPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam), ...(room ? this.mirror.startPrograms(r, room) : [])];
   }
 
   /**

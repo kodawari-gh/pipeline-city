@@ -87,6 +87,21 @@ describe('Probe', () => {
     p.dispose();
   });
 
+  it('starts the program of the calm pass, and has none to start without one', () => {
+    const seen: unknown[] = [];
+    const r = {
+      getRenderTarget: () => null, setRenderTarget: () => {},
+      compile: (root: Scene) => { seen.push(root); return new Set((root.children as Mesh[]).map((m) => m.material)); },
+      properties: { get: () => ({ currentProgram: { isReady: () => true } }) },
+    } as unknown as WebGLRenderer;
+    expect(new Probe(1, 100).startPrograms(r)).toEqual([]);
+    expect(seen).toEqual([]);
+    const p = new Probe(1, 100, 0.5);
+    expect(p.startPrograms(r)).toHaveLength(1);
+    expect(seen).toHaveLength(1);
+    p.dispose();
+  });
+
   it('starts a request made during a capture after it ends', () => {
     const p = new Probe(1, 100), { r, faces } = stub(), scene = new Scene();
     p.request();
