@@ -210,7 +210,11 @@ export class OutsideView {
   private live: Camera | null = null;
   /** Whether the eye sees the window; the eye (its whole view and the frame's size) at the last draw. */
   private sight = new Sight();
+  /** The canvas whose context loss `sight` hears, and that context. The handlers are fields so `dispose` can take them off the canvas: it outlives the view. */
   private sightCanvas: HTMLCanvasElement | null = null;
+  private sightGl: QueryGL | null = null;
+  private readonly onLost = (): void => this.sight.lose();
+  private readonly onRestored = (): void => this.sight.restore();
   private eye = new Matrix4();
   private eyeNow = new Matrix4();
   private eyeFrame = '';
@@ -474,9 +478,11 @@ export class OutsideView {
     if (moved) { this.eye.copy(this.eyeNow); this.eyeFrame = frame; }
     if (this.sightCanvas !== renderer.domElement) {
       // a lost context takes the query with it (see `Sight.lose`)
+      this.unwatch();
       const el = this.sightCanvas = renderer.domElement;
-      el.addEventListener('webglcontextlost', () => this.sight.lose());
-      el.addEventListener('webglcontextrestored', () => this.sight.restore());
+      this.sightGl = renderer.getContext() as QueryGL;
+      el.addEventListener('webglcontextlost', this.onLost);
+      el.addEventListener('webglcontextrestored', this.onRestored);
     }
     this.sight.frame(renderer.getContext() as QueryGL, moved);
     // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
@@ -623,7 +629,17 @@ export class OutsideView {
     this.scene.environment = this.envMap.texture;
   }
 
+  /** Takes `sight`'s handlers off the canvas. A handler left there keeps the whole view alive (its city, its textures) for as long as the page lives. */
+  private unwatch(): void {
+    this.sightCanvas?.removeEventListener('webglcontextlost', this.onLost);
+    this.sightCanvas?.removeEventListener('webglcontextrestored', this.onRestored);
+    this.sightCanvas = null;
+  }
+
   dispose(): void {
+    if (this.sightGl) this.sight.dispose(this.sightGl);
+    this.sightGl = null;
+    this.unwatch();
     this.target?.dispose();
     this.envMap?.dispose();
     this.pmrem?.dispose();

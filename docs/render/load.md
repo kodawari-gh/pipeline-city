@@ -101,6 +101,16 @@ Gallery (`viewer.ts`) and Build my PC (`BuildStage`) each have a WebGL context o
 - `registerLabel` (`camera.ts`) lists each label for the size rule. The list now sweeps itself each time it doubles, and a close calls `sweepLabels`.
 - A closed stage drops its machine, game and snapshots: Preact's effect closure holds the stage object until the next open.
 - Shared caches stay: `roomGeo`, the shared materials, the cached textures. A reopened screen looks the same.
+- A canvas outlives what listens to it. Take each handler off the canvas in the owner's `dispose`.
+
+**A preset change (Low to High) rebuilds the room and the city (2026-11-18).** The change builds a new `Room3D` and city, and frees the old ones. Measured (dev server and optimized build, real GPU, the menu and a running game, heap after a forced GC, the hour pinned with `roomDebug.hour`):
+
+- The GPU did not leak. Each GL count (textures, programs, framebuffers, renderbuffers) is the same after the 2nd and the 10th change.
+- The JS heap did: about 230 MB per change (441 MB at the start, 3.7 GB after 12 changes). `OutsideView.draw` added two anonymous `webglcontextlost` and `webglcontextrestored` handlers to the page's canvas, and `dispose` never took them off. The canvas lives as long as the page, so each dead view kept its whole city.
+- Now the handlers are fields, `dispose` removes them and frees the occlusion query (`Sight.dispose`). Ten changes leave the heap flat: 496 to 501 MB on High, 423 to 429 MB on Low (+5 MB in the first five changes, then none).
+- What still grows is small and Pixi's: `CanvasTextSystem._activeTextures` keeps a null key for each text style ever drawn (about 130 per rebuild), and `CanvasTextMetrics` keeps up to 1000 measurements.
+- Pin the hour before you compare counts. At night the lamps' shadow maps, the city's glow and the mirror add targets, and the new light counts add programs: 221 textures and 120 programs at noon, 243 and 128 later.
+- To find an owner, take a heap snapshot after the 2nd change and one after the 8th, and read the retaining path of each class that grew. `Runtime.queryObjects` gives wrong counts: its result array holds the instances.
 
 The menu has 3 contexts that stay: the room, Pixi's 1x1 shader probe and the Pixi art baker.
 

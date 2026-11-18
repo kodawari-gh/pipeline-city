@@ -94,6 +94,24 @@ describe('Sight', () => {
     expect(s.hidden).toBe(true); // a fresh result
   });
 
+  it('dispose frees the query once, and asks no more', () => {
+    const { gl, begun } = fakeGl(() => true), s = new Sight(), deleted: unknown[] = [];
+    (gl as unknown as { deleteQuery: (q: unknown) => void }).deleteQuery = (q) => deleted.push(q);
+    for (let i = 0; i < 2; i++) frame(s, gl);
+    s.dispose(gl); s.dispose(gl);
+    expect(deleted.length).toBe(1);
+    const b = begun();
+    for (let i = 0; i < 4; i++) frame(s, gl);
+    expect(begun()).toBe(b);
+  });
+
+  it('dispose after a context loss deletes nothing', () => {
+    const { gl } = fakeGl(() => true), s = new Sight(), deleted: unknown[] = [];
+    (gl as unknown as { deleteQuery: (q: unknown) => void }).deleteQuery = (q) => deleted.push(q);
+    frame(s, gl); s.lose(); s.dispose(gl);
+    expect(deleted).toEqual([]);
+  });
+
   it('on context loss never reads the pending query', () => {
     const { gl, polls } = fakeGl(() => false, 5), s = new Sight();
     frame(s, gl); frame(s, gl);

@@ -102,7 +102,7 @@ describe('OutsideView.draw, flat (City 1x)', () => {
     cam = new PerspectiveCamera(50, 1, 0.1, 20000); cam.position.set(0, 0, 3);
     const gl = { createQuery: () => ({}), beginQuery: () => {}, endQuery: () => {}, getQueryParameter: () => true, ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a, QUERY_RESULT: 0x8866, QUERY_RESULT_AVAILABLE: 0x8867 };
     renderer = {
-      domElement: { addEventListener: () => {} }, getDrawingBufferSize: (s: Vector2) => s.set(400, 300), getContext: () => gl,
+      domElement: { addEventListener: () => {}, removeEventListener: () => {} }, getDrawingBufferSize: (s: Vector2) => s.set(400, 300), getContext: () => gl,
       getRenderTarget: () => null, setRenderTarget: () => {}, clear: () => {}, render: () => {},
     } as unknown as WebGLRenderer;
     v.frame(12, 1);
@@ -319,5 +319,37 @@ describe('OutsideView.make (the boot builds the city a step at a time)', () => {
     expect(steps[0]!.share).toBe(0);
     expect(steps.every((s) => s.share < 1)).toBe(true);
     expect(debugStats(stepped)).toEqual(debugStats(whole));
+  }, 180000);
+});
+
+// the main canvas outlives the view: a handler left on it keeps the whole view (its city and its textures) alive after a preset change
+describe('OutsideView.dispose (the canvas it watched)', () => {
+  it('takes its context-loss handlers off the canvas, and frees the query', () => {
+    const v = new Detailed(0, 0, 2, 2, 0, 'low');
+    const room = new Scene(); room.add(v.mesh);
+    const cam = new PerspectiveCamera(50, 1, 0.1, 20000); cam.position.set(0, 0, 3);
+    const on = new Map<string, Set<unknown>>(), query = {}, deleted: unknown[] = [];
+    const gl = { createQuery: () => query, deleteQuery: (q: unknown) => deleted.push(q), beginQuery: () => {}, endQuery: () => {}, getQueryParameter: () => true, ANY_SAMPLES_PASSED_CONSERVATIVE: 0x8d6a, QUERY_RESULT: 0x8866, QUERY_RESULT_AVAILABLE: 0x8867 };
+    const canvas = {
+      addEventListener: (k: string, f: unknown) => { (on.get(k) ?? on.set(k, new Set()).get(k)!).add(f); },
+      removeEventListener: (k: string, f: unknown) => { on.get(k)?.delete(f); },
+    };
+    const renderer = {
+      domElement: canvas, getDrawingBufferSize: (s: Vector2) => s.set(400, 300), getContext: () => gl,
+      getRenderTarget: () => null, setRenderTarget: () => {}, clear: () => {}, render: () => {},
+    } as unknown as WebGLRenderer;
+    v.frame(12, 1);
+    (v as unknown as { envDirty: boolean }).envDirty = false;
+    v.draw(renderer, room, cam, 4);
+    // the quad's draw asks the query: its two hooks
+    v.mesh.onBeforeRender?.(renderer, room, cam, v.mesh.geometry, v.mesh.material as Material, null as never);
+    v.mesh.onAfterRender?.(renderer, room, cam, v.mesh.geometry, v.mesh.material as Material, null as never);
+    expect([...on.values()].map((s) => s.size)).toEqual([1, 1]);
+    // drawing again on the same canvas adds nothing
+    v.draw(renderer, room, cam, 4);
+    expect([...on.values()].map((s) => s.size)).toEqual([1, 1]);
+    v.dispose();
+    expect([...on.values()].map((s) => s.size)).toEqual([0, 0]);
+    expect(deleted).toEqual([query]);
   }, 180000);
 });

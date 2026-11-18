@@ -7,7 +7,7 @@
 export const outsideDraws = (parent: boolean, visible: boolean): boolean => parent && visible;
 
 /** The part of WebGL2 a query takes. */
-export type QueryGL = Pick<WebGL2RenderingContext, 'createQuery' | 'beginQuery' | 'endQuery' | 'getQueryParameter' | 'ANY_SAMPLES_PASSED_CONSERVATIVE' | 'QUERY_RESULT' | 'QUERY_RESULT_AVAILABLE'>;
+export type QueryGL = Pick<WebGL2RenderingContext, 'createQuery' | 'deleteQuery' | 'beginQuery' | 'endQuery' | 'getQueryParameter' | 'ANY_SAMPLES_PASSED_CONSERVATIVE' | 'QUERY_RESULT' | 'QUERY_RESULT_AVAILABLE'>;
 
 export class Sight {
   /** The window is hidden from the eye as it stands. */
@@ -34,6 +34,12 @@ export class Sight {
 
   /** The context is back: the next query is a new one. */
   restore(): void { this.lost = false; }
+
+  /** The view is gone: frees the query (a lost context took it already). */
+  dispose(gl: QueryGL): void {
+    if (this.query && !this.lost) gl.deleteQuery(this.query);
+    this.lose();
+  }
 
   /** Each frame, before anything is drawn: hears the answer if it has come. `moved`: the eye is not where it was last frame. */
   frame(gl: QueryGL, moved: boolean): void {
