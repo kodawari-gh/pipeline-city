@@ -12,16 +12,17 @@ export interface Program { isReady(): boolean; getUniforms?(): unknown }
  * Starts linking the programs `root` draws with, lit by `scene`'s lights (default `root`), and returns them. `root` is the scene, or an object
  * about to join it: then it must not be in the scene yet, or its lights count twice. The hidden parts count too (the die under its lid), and
  * the see-through variant of each opaque material under `fades` (`fadeTree` makes it transparent: another program). The programs are made for
- * a render target (linear, not tone mapped), as the frame draws into the scene's own (`post.ts`). Set the lights as they will be drawn first: a light shown
- * or hidden, or one that casts a shadow or stops, makes every lit program again.
+ * a render target (linear, not tone mapped), as the frame draws into the scene's own (`post.ts`); `toCanvas`: for a frame that draws to the canvas
+ * itself, with the renderer's tone mapping and colour space (the showcase viewer): the key of a program holds both, so the other kind is never used.
+ * Set the lights as they will be drawn first: a light shown or hidden, or one that casts a shadow or stops, makes every lit program again.
  */
-export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [] }: { scene?: Scene; fades?: readonly Object3D[] } = {}): Program[] {
+export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { scene = root as Scene, fades = [], toCanvas = false }: { scene?: Scene; fades?: readonly Object3D[]; toCanvas?: boolean } = {}): Program[] {
   const flip = new Set<Material>();
   for (const f of fades) f.traverse((x) => {
     const m = (x as Mesh).material as Material | Material[] | undefined;
     if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
   });
-  const was = r.getRenderTarget(), rt = new WebGLRenderTarget(1, 1, { type: HalfFloatType }), out = new Set<Program>();
+  const was = r.getRenderTarget(), rt = toCanvas ? null : new WebGLRenderTarget(1, 1, { type: HalfFloatType }), out = new Set<Program>();
   // (each variant a material has made: a see-through double-sided one makes two, its back and its front)
   const take = (mats: Set<Material>) => {
     for (const m of mats) {
@@ -41,7 +42,7 @@ export function startPrograms(r: WebGLRenderer, root: Object3D, cam: Camera, { s
   } finally {
     for (const m of flip) { m.transparent = false; m.needsUpdate = true; }
     r.setRenderTarget(was);
-    rt.dispose();
+    rt?.dispose();
   }
 }
 
@@ -87,6 +88,35 @@ export function prime(left: Program[], ms: number): boolean {
     if (!gone(p)) p.getUniforms?.();
   }
   return !left.length;
+}
+
+/** The longest a first picture waits for its programs to link; then it draws, and the driver finishes the link in that draw. */
+export const LINK_MAX_MS = 15000;
+/** The time a tick spends on the first use of linked programs (`prime`): the page stays alive between the ticks. */
+export const PRIME_MS = 4;
+
+/**
+ * The wait for a scene's programs before it is drawn (docs/render/load.md). Call `ready` in each tick that would draw, and draw when it says so.
+ * The first call starts the programs (`start`: `startPrograms` and what else the draw needs). Each call after asks the driver, without waiting.
+ * Once they have linked, `PRIME_MS` of each tick makes their first use (`prime`), while no upload is queued: at the draw it would wait for the
+ * whole scene's uploads. After `LINK_MAX_MS` the draw goes on and links what is left. `reset` when the scene's materials change (a new part)
+ * or its context came back (the old programs are gone): the next call starts again.
+ */
+export class ProgramGate {
+  private linking: Program[] | null = null;
+  private priming: Program[] | null = null;
+  private from = 0;
+
+  constructor(private readonly start: () => Program[]) {}
+
+  ready(now = performance.now()): boolean {
+    if (!this.linking) { this.from = now; this.linking = this.start(); }
+    if (!linked(this.linking)) return now - this.from > LINK_MAX_MS;
+    this.priming ??= [...this.linking];
+    return prime(this.priming, PRIME_MS);
+  }
+
+  reset(): void { this.linking = this.priming = null; }
 }
 
 /** The programs the materials under `root` have made so far (none is made here). */

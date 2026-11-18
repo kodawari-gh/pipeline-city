@@ -181,7 +181,20 @@ The same build and machine, from the click on the menu's button to the end of th
 | Slow driver calls (`getProgramInfoLog` over 4 ms) | 15 calls, 0.41 s | 2 to 3 calls, 0.04 s |
 | Longest main-thread task | 2.1 s (the first draw) | 1.1 s (`BuildStage.open`: the machine's build) |
 
-The machine's build (`Machine3D`'s constructor, 0.9 s cold, 0.5 s warm) is now the longest task. Where its time goes: the cables (0.23 s: `settle` runs `relax` 0.18 s), `mergeSiblings` (0.19 s), the devices (0.2 s), the rigs (0.13 s). The skeleton's spinner and pulse run on the compositor, so they keep moving; the page does not answer a click meanwhile. The Gallery's first open has no such wait yet: its viewer links the part's programs at the first draw (10 programs, 0.4 s cold, 0.1 s the second time).
+The machine's build (`Machine3D`'s constructor, 0.9 s cold, 0.5 s warm) is now the longest task. Where its time goes: the cables (0.23 s: `settle` runs `relax` 0.18 s), `mergeSiblings` (0.19 s), the devices (0.2 s), the rigs (0.13 s). The skeleton's spinner and pulse run on the compositor, so they keep moving; the page does not answer a click meanwhile. The Gallery's first open is in the next section.
+
+### The Gallery's first open (2026-11-18, BOOT-07)
+
+`ProgramGate` (`compile.ts`) is the wait that `BuildStage` made for its first picture, now shared: start the programs, ask the driver each tick, make the first use of each (`prime`) when all have linked, then draw. `mountViewer` (`viewer.ts`) uses it for each new part and each restored context. The click on the menu's button to the part on the stage, in a profile that has run the boot (optimized build, real GPU):
+
+| | Before | After |
+|---|---|---|
+| Longest task after the click | 381 ms (the first draw) | 192 ms (the context's `getContext`) |
+| Other tasks over 50 ms | 195, 76, 58 ms | 61, 55 ms |
+| Slow driver calls (`getProgramInfoLog` over 4 ms) | 10 calls, 412 ms | 3 calls, 15 ms |
+| Part drawn | +794 ms | +556 ms |
+
+`startPrograms(…, { toCanvas: true })`: the viewer draws to the canvas, tone mapped, and the key of a program holds the tone mapping and the colour space. The default batch is made for a render target (the room's frame, `post.ts`) and has the wrong keys here: the draw then linked 7 programs of its own, 50 ms each, and the first try left 11 programs more than before. The 4 depth programs of the key light's shadow still link at the first shadow draw (15 ms in all; BOOT-02).
 
 ### Memory per screen (PHONE-03, 2026-11-16)
 
@@ -257,7 +270,6 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.6 s).** Texture uploads and first uniforms. `renderer.initTexture` during the link could spread it.
 - **Build my PC's machine build (0.9 s cold).** One task, `Machine3D`'s constructor, at the first open (numbers under "Build my PC, first open"). The cables' `settle` (0.18 s) could run in a later task: the cables would hang straight for a frame or two.
-- **The Gallery's first draw (0.4 s cold).** `Viewer.setObject` could start the part's programs and draw once they link, then `prime` them, as `BuildStage.programsReady` does.
 
 **Programs and precision (GFX-05). Decided 2026-11-17: not built.** Measured (real GPU, dev server, `renderer.info.programs`): the menu links 123 programs at the phone's first-start tier: 65 physical or standard, 35 shader materials (the post passes and the city's layers), 12 basic, 7 depth, 4 others. A sandbox game holds 124 at High and 102 at Low. Of the physical ones, 57 share one light set and differ only by their maps and UV channels, the lightmap, and the hooks (`box`, `ao`, `pal`, `haze`); the others take other light counts. So the target of under 60 needs the material work of MACH-01 first (which is parked, `three.md` "Merges"): no cheaper cut reaches it. `mediump` for the post passes and the city gives a gain on phone ALUs only (a desktop GPU runs it as `highp`), and the HDR chain with bloom is where banding shows, so it would need a shot on a phone GPU that this machine cannot give. Phone cost no longer constrains a decision, so neither is done. Take both up again with MACH-01.
 

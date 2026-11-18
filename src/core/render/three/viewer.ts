@@ -4,6 +4,7 @@ import { ACESFilmicToneMapping, AmbientLight, Box3, CanvasTexture, CircleGeometr
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
 import { applyView, stepView, type OrbitView } from './camera';
+import { ProgramGate, startPrograms } from './compile';
 import { SEG, anisotropy, refilter } from './geometry';
 import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
@@ -213,10 +214,13 @@ export function mountViewer(host: HTMLElement): Viewer {
   const refit = () => { base = holdHeight(size, centre, stageW, stageH, freeW, freeH); };
   const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
   const place = () => light(size, centre);
+  // a part's programs link before it is drawn (docs/render/load.md): drawn unlinked, the ten and more of a lit part link at that draw and hold the page for 0.4 s
+  const programs = new ProgramGate(() => startPrograms(renderer, scene, camera, { toCanvas: true }));
   const setObject = (o: Object3D | null) => {
     if (obj) { scene.remove(obj); for (const h of hooks) h.dispose?.(); disposeTree(obj); }
     obj = o;
     hooks = [];
+    programs.reset();
     pan.set(0, 0, 0);
     if (o) {
       o.traverse((n) => { n.castShadow = true; if (n.userData.frame || n.userData.dispose) hooks.push(n.userData as PartHooks); });
@@ -274,6 +278,8 @@ export function mountViewer(host: HTMLElement): Viewer {
     for (const h of hooks) h.frame?.(camera, H);
     // (the turntable and an eased drag move the picture; at rest it stands)
     if (!demand.want(now, moved.shift(camera, W, H, camera.near, camera.far) >= STILL_PX)) return;
+    // (the programs of a new part first: the ticks until they have linked draw nothing and ask again, the page alive)
+    if (!programs.ready()) { demand.ask(); return; }
     renderer.render(scene, camera);
     moved.mark(camera, W, H);
   };
@@ -316,7 +322,7 @@ export function mountViewer(host: HTMLElement): Viewer {
   el.addEventListener('dblclick', reset);
   el.addEventListener('contextmenu', (e) => e.preventDefault()); // the browser's image menu has no place on a 3D view
   // a restored context lost the studio's environment map: made again, then a frame
-  el.addEventListener('webglcontextrestored', () => { restoreStudioEnv(scene, pmrem); demand.ask(); });
+  el.addEventListener('webglcontextrestored', () => { restoreStudioEnv(scene, pmrem); programs.reset(); demand.ask(); });
   resize();
   raf = requestAnimationFrame(frame);
 

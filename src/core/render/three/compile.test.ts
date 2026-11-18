@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Material, Mesh, Scene, type WebGLRenderer } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { freeWhenLinked, linked, prime, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
+import { LINK_MAX_MS, ProgramGate, freeWhenLinked, linked, prime, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
 
 /** A program that links after `n` looks. */
 const after = (n: number): Program => ({ isReady: () => n-- <= 0 });
@@ -64,6 +64,67 @@ describe('prime', () => {
   });
 });
 
+describe('ProgramGate', () => {
+  /** Programs that link when `up.on` is set; their first uses are counted. */
+  const rig = () => {
+    const up = { on: false }, used = vi.fn(), start = vi.fn((): Program[] => [{ isReady: () => up.on, getUniforms: used }, { isReady: () => up.on, getUniforms: used }]);
+    return { up, used, start, gate: new ProgramGate(start) };
+  };
+
+  it('starts the programs at the first call, once, and is not ready until they link', () => {
+    const { gate, start, up } = rig();
+    expect([gate.ready(0), gate.ready(10), gate.ready(20)]).toEqual([false, false, false]);
+    expect(start).toHaveBeenCalledTimes(1);
+    up.on = true;
+    expect(gate.ready(30)).toBe(true);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the first use of each program once they have linked, never before, and only once', () => {
+    const { gate, up, used } = rig();
+    gate.ready(0); gate.ready(10);
+    expect(used).not.toHaveBeenCalled();
+    up.on = true;
+    expect(gate.ready(20)).toBe(true);
+    expect(used).toHaveBeenCalledTimes(2);
+    gate.ready(30); gate.ready(40);
+    expect(used).toHaveBeenCalledTimes(2);
+  });
+
+  it('is ready at the first call when the programs have linked already', () => {
+    const { gate, up } = rig();
+    up.on = true;
+    expect(gate.ready(0)).toBe(true);
+  });
+
+  it('gives up waiting after LINK_MAX_MS, and the draw links what is left', () => {
+    const { gate } = rig();
+    expect(gate.ready(1000)).toBe(false);
+    expect(gate.ready(1000 + LINK_MAX_MS)).toBe(false);
+    expect(gate.ready(1000 + LINK_MAX_MS + 1)).toBe(true);
+  });
+
+  it('starts again after a reset, and waits for the new programs', () => {
+    const { gate, up, start } = rig();
+    up.on = true;
+    expect(gate.ready(0)).toBe(true);
+    up.on = false;
+    gate.reset();
+    expect(gate.ready(10)).toBe(false);
+    expect(start).toHaveBeenCalledTimes(2);
+    up.on = true;
+    expect(gate.ready(20)).toBe(true);
+  });
+
+  it('a reset restarts the time limit too', () => {
+    const { gate } = rig();
+    gate.ready(0);
+    gate.reset();
+    expect(gate.ready(LINK_MAX_MS + 5)).toBe(false); // (the wait began again at this call)
+    expect(gate.ready(2 * LINK_MAX_MS + 10)).toBe(true);
+  });
+});
+
 describe('freeWhenLinked', () => {
   const tree = (programs: Program[]) => {
     const made = new Material(), fresh = new Material(), root = new Scene();
@@ -104,6 +165,21 @@ describe('startPrograms', () => {
     expect(startPrograms(r, scene, null as never)).toEqual([shared]);
     expect((targets[0] as { isWebGLRenderTarget?: boolean }).isWebGLRenderTarget).toBe(true);
     expect(target).toBe('screen');
+  });
+
+  it('toCanvas: compiles with no target (the program key holds the tone mapping and the colour space of the canvas), and puts the old target back', () => {
+    const shared = after(0), targets: unknown[] = [];
+    let target: unknown = 'screen';
+    const r = {
+      getRenderTarget: () => target,
+      setRenderTarget: (t: unknown) => { target = t; targets.push(t); },
+      compile: () => new Set([new Material()]),
+      properties: { get: () => ({ currentProgram: shared }) },
+    } as unknown as WebGLRenderer;
+    const scene = new Scene();
+    scene.add(new Mesh());
+    expect(startPrograms(r, scene, null as never, { toCanvas: true })).toEqual([shared]);
+    expect(targets).toEqual([null, 'screen']);
   });
 
   it('makes the see-through variant of a fade, each variant once, and leaves the fade opaque', () => {

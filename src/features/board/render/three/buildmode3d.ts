@@ -37,7 +37,7 @@ import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { latchOpen, motionFor, motionSeconds, placed, poseAt, solidAt, type Pose } from './buildmotion';
 import { PartFade } from './partfade';
-import { linked, prime, startPrograms, type Program } from '@/core/render/three/compile';
+import { ProgramGate, startPrograms } from '@/core/render/three/compile';
 import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
@@ -90,10 +90,6 @@ const CABLE_QUICK = 1.8;
 const SETTLE_SECONDS = 0.2, SETTLE_DEPTH = 40;
 /** The tile bakes' time in a tick that follows a drawn frame, and in one that follows none (ms); the drawn frames between two rank refreshes. */
 const BAKE_MS = 6, BAKE_STILL_MS = 12, RANK_EVERY = 32;
-/** The longest the first picture waits for its programs to link (`BuildStage.linking`); then it draws, and the driver finishes the link in that draw. */
-const LINK_MAX_MS = 15000;
-/** The time a tick spends on the first use of the linked programs (`prime`): the page stays alive between the ticks. */
-const PRIME_MS = 4;
 const sleep =(ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The motion of a part in this slot: a fan on a case mount comes off its own wall first (the mount's id starts with its side), a heatsink's fan lifts off it;
@@ -203,11 +199,16 @@ export class BuildStage {
   /**
    * The first picture waits for its programs (docs/render/load.md "Build my PC's first open"). They start to link before the first draw, and the
    * page runs on while the driver links them, as the game's first frame does (`board3d.ts`). Drawn unlinked, the 60 and more programs of the
-   * machine and the passes link at that draw and hold the page for about 2 s.
+   * machine and the passes link at that draw and hold the page for about 2 s. The machine's, the see-through variants of its fades, the passes'.
    */
-  private linking: Program[] | null = null;
-  private priming: Program[] | null = null;
-  private linkFrom = 0;
+  private readonly programs = new ProgramGate(() => {
+    const { scene, camera, renderer } = this.ctx;
+    this.warm = false; // (the fades' programs are in that batch)
+    return [
+      ...startPrograms(renderer, scene, camera, { fades: [this.machine.root, ...(this.monitor ? [this.monitor] : [])] }),
+      ...this.post.startPrograms(renderer),
+    ];
+  });
   private pictured = false;
   private onPicture: () => void = () => {};
   /** Resolves with the first picture, or at the stage's disposal: `open` waits for it, and the skeleton stays up. */
@@ -480,7 +481,7 @@ export class BuildStage {
     // (a still view adds jittered frames to its picture until its edges are smooth: `Post.refine`)
     if (!this.drew) { this.post.refine(); return; }
     // (the first picture: its programs link first; the ticks until then draw nothing, give the tiles their time and ask again)
-    if (!this.pictured && !this.programsReady()) { this.drew = false; this.demand.ask(); return; }
+    if (!this.pictured && !this.programs.ready()) { this.drew = false; this.demand.ask(); return; }
     syncWorld(scene);
     this.post.render();
     if (!this.pictured) { this.pictured = true; this.onPicture(); }
@@ -491,27 +492,6 @@ export class BuildStage {
     if (this.demand.forced || !(++this.frames % RANK_EVERY)) rankMaterials(scene, this.programOf);
     this.eye.read(this.post.meter());
   };
-
-  /**
-   * Is the first picture's programs' work done? The first call starts them (the machine's, the see-through variants of its fades, the passes'),
-   * as the draw will use them. Each call after asks the driver, without waiting. Once they have linked, a few `PRIME_MS` ticks make their first
-   * use (`prime`), while no upload is queued: at the draw it would wait for the whole scene's uploads. After `LINK_MAX_MS` the draw goes on and
-   * links what is left.
-   */
-  private programsReady(): boolean {
-    const { scene, camera, renderer } = this.ctx;
-    if (!this.linking) {
-      this.linkFrom = performance.now();
-      this.linking = [
-        ...startPrograms(renderer, scene, camera, { fades: [this.machine.root, ...(this.monitor ? [this.monitor] : [])] }),
-        ...this.post.startPrograms(renderer),
-      ];
-      this.warm = false; // (the fades' programs are in that batch)
-    }
-    if (!linked(this.linking)) return performance.now() - this.linkFrom > LINK_MAX_MS;
-    this.priming ??= [...this.linking];
-    return prime(this.priming, PRIME_MS);
-  }
 
   private readonly programOf = (m: Material): number =>
     (this.ctx.renderer.properties.get(m) as { currentProgram?: { id: number } }).currentProgram?.id ?? 0;
