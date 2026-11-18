@@ -29,9 +29,9 @@ import { toggleTrace, TracePanel, traceOpen } from '../../features/cpu/ui/TraceP
 import { AlmanacPanel } from '../../features/jobs/ui/AlmanacPanel';
 import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
-import { GraphicsDock } from './panels/Graphics';
+import { GraphicsModal } from './panels/Graphics';
 import {
-  buildOpen, galleryOpen, graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, galleryOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -84,7 +84,7 @@ function PauseKey() {
       if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
-      return !document.querySelector('.modal-back, .ng-back');
+      return !document.querySelector('.modal-back, .ng-back, .gfx-back');
     };
     const down = (e: KeyboardEvent) => {
       if (!mine(e)) return;
@@ -210,7 +210,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <div class="menu-h">View</div>
-          <button role="menuitem" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> {graphicsOpen.value ? 'Hide graphics' : 'Graphics'}</button>
+          <button role="menuitem" aria-haspopup="dialog" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> Graphics</button>
           <label class="scale-row" title="Make the whole interface smaller or larger">
             <span>UI size</span>
             <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
@@ -245,7 +245,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
 export function Hud() {
   const s = snapshot.value;
   // (the menu waits for the boot screen, app/boot.ts)
-  if (!s) return booted.value ? <><Title on={!galleryOpen.value && !buildOpen.value} /><MainMenu /><NewGameDialog /><Gallery /><BuildMode /><GraphicsDock /></> : null;
+  if (!s) return booted.value ? <><Title on={!galleryOpen.value && !buildOpen.value} /><MainMenu /><NewGameDialog /><Gallery /><BuildMode /><GraphicsModal /></> : null;
   return (
     <>
       <Title on={false} />
@@ -280,7 +280,7 @@ export function Hud() {
         </aside>
       )}
       <NetDock />
-      <GraphicsDock />
+      <GraphicsModal />
       <OsModal />
       <TracePanel />
       <AlmanacPanel />

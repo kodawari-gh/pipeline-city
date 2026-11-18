@@ -305,8 +305,8 @@ try {
   // a chosen preset, through the real panel; auto-adjust off, so a slow frame does not change the picture under the numbers
   await p.click('[aria-label=Menu]');
   await p.click('role=menuitem[name=/Graphics/]');
-  if (flag('preset', '')) await p.click(`aside.gfx .gfx-presets >> text=${flag('preset', '')}`);
-  await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+  if (flag('preset', '')) await p.click(`.gfx .gfx-presets [data-id=${flag('preset', '').toLowerCase()}]`);
+  await p.click('.gfx [aria-label=Auto-adjust] >> text=Off');
   // a render scale of the player's own over the preset's (the owner plays Medium at 100 %)
   if (flag('scale', '')) await p.evaluate(async (k) => (await import('/src/app/graphics.ts')).setGraphic('scale', k), Number(flag('scale', '')));
   await p.click('[aria-label="Close graphics"]');

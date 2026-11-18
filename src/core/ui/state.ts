@@ -46,13 +46,13 @@ export const netOpen = signal(false);
 export const osOpen = signal(false);
 export const toggleOs = () => { osOpen.value = !osOpen.value; };
 export const closeOs = () => { osOpen.value = false; };
-/** The graphics drawer: a drawer and not a modal, so the picture stays in view while the settings change. */
+/** The graphics settings: a modal sheet in the middle of the screen (`panels/Graphics.tsx`), over the game, the main menu and both studio screens. */
 export const graphicsOpen = signal(false);
-// The drawers dock on the same side: opening one closes the others.
-export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) { netOpen.value = false; graphicsOpen.value = false; } };
+// The stats and network drawers dock on the same side: opening one closes the other.
+export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) netOpen.value = false; };
 /** The network panel (opened from the HUD chip once a router exists). */
-export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) { statsOpen.value = false; graphicsOpen.value = false; } };
-export const toggleGraphics = () => { graphicsOpen.value = !graphicsOpen.value; if (graphicsOpen.value) { statsOpen.value = false; netOpen.value = false; } };
+export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) statsOpen.value = false; };
+export const toggleGraphics = () => { graphicsOpen.value = !graphicsOpen.value; };
 
 // ---- milestone screen (the ladder of levels; opened from the HUD level bar, the menu and a locked tile) ----
 

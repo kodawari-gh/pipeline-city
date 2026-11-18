@@ -82,7 +82,7 @@ export function BuildMode() {
       if (e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox')) return;
       const busy = !!st?.status.peek().busy;
       if (e.key === 'Escape') {
-        // (the stage fast-forwards the step that plays; the graphics drawer shuts itself)
+        // (the stage fast-forwards the step that plays; the graphics modal shuts itself)
         if (busy) return;
         if (benchRef.current) setBench(false);
         else if (air.current) cancel();

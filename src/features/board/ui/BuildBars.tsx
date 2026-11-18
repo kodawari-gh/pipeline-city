@@ -53,7 +53,7 @@ export function ViewOptions({ ready }: { ready: boolean }) {
       <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!ready} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}><Icon name="bolt" size={12} />Power</button>
       <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!ready} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}><Icon name="wind" size={12} />Airflow</button>
       <i class="mode-sep" aria-hidden="true" />
-      <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
+      <button class={graphicsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
     </div>
   );
 }

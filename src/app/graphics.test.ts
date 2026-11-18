@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   autoStep, awayHeld, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, loopLimit, nextStep, parseGraphics, parseTierRecord, pickTier, presetOf, PRESETS, PRESET_NAMES, resetTierSteps,
-  isLow, loadStart, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
+  isLow, loadStart, resetGraphics, resolveStart, setAutoTier, setGraphic, setPreset, setTier, SlowWatch, stepTier, tierGraphics, TierWatch, tierRecord, type DeviceInfo, type Graphics, type Tier, watchFps,
 } from './graphics';
 
 const dev = (o: Partial<DeviceInfo>): DeviceInfo => ({ renderer: '', cores: 8, memoryGb: 8, width: 1920, height: 1080, dpr: 1, ...o });
@@ -457,6 +457,16 @@ describe('the settings signal', () => {
     expect(graphics.value).toMatchObject({ scale: 0.75, shadows: 2, msaa: 2, ao: 1, bloom: 1, lights: 0, lightShadows: 0, textures: 1, filtering: 4, live: 1, particles: 1 });
     setPreset('high');
     expect(graphics.value).toMatchObject({ scale: 1, shadows: 3, msaa: 4, ao: 2, bloom: 2, lights: 0, lightShadows: 1, textures: 2, filtering: 8, live: 2, particles: 2 });
+  });
+
+  it('Reset to defaults gives back the detected tier and the three options a preset leaves alone', () => {
+    setGraphic('auto', true);
+    setGraphic('fps', 120);
+    setGraphic('brightness', 1.2);
+    setGraphic('shadows', 1);
+    resetGraphics();
+    expect(tierRecord.value.mode).toBe('auto');
+    expect(graphics.value).toMatchObject({ ...PRESETS[tierRecord.value.tier], fps: 60, brightness: 1, auto: false });
   });
 
   it('auto-adjust off ignores the step', () => {

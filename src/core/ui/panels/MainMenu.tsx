@@ -70,7 +70,7 @@ function SettingsCard() {
           <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
           <b class="value">{Math.round(uiScale.value * 100)}%</b>
         </label>
-        <div class="mm-row"><span>Picture</span><button onClick={toggleGraphics} aria-pressed={graphicsOpen.value}>{graphicsOpen.value ? 'Hide graphics' : 'Graphics…'}</button></div>
+        <div class="mm-row"><span>Picture</span><button onClick={toggleGraphics} aria-haspopup="dialog">Graphics…</button></div>
         <div class="pactions"><button class="primary" autofocus onClick={() => { settingsOpen.value = false; }}>Done</button></div>
       </div>
     </div>

@@ -84,8 +84,8 @@ try {
   // the graphics preset, in the real panel, auto-adjust off (shot.mjs's steps)
   await p.click('[aria-label=Menu]');
   await p.click('role=menuitem[name=/Graphics/]');
-  await p.click(`aside.gfx .gfx-presets >> text=${PRESET}`);
-  await p.click('aside.gfx [aria-label=Auto-adjust] >> text=Off');
+  await p.click(`.gfx .gfx-presets [data-id=${PRESET.toLowerCase()}]`);
+  await p.click('.gfx [aria-label=Auto-adjust] >> text=Off');
   await p.click('[aria-label="Close graphics"]');
   const g = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics') ?? 'null'));
   const t = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics.tier') ?? 'null'));

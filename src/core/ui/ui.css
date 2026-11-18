@@ -443,22 +443,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .kv b, .bar-row b { font-family: var(--mono); font-weight: 600; }
 .bar-row { display: grid; grid-template-columns: 6rem 1fr 3.867rem; align-items: center; gap: 0.4rem; font-size: 0.733rem; margin: 0.133rem 0; }
 
-/* Graphics drawer (a dock, so the picture stays in view): the numbers, the presets, then a row per option with its one-line help */
-.dock.gfx { width: 21rem; }
-.gfx .seg > button.on { background: var(--accent); color: var(--on); border-color: var(--accent); }
-.gfx-stats { display: flex; justify-content: space-between; gap: 0.533rem; margin-bottom: 0.533rem; font-size: 0.7rem; color: var(--mute); }
-.gfx-stats b { font-family: var(--mono); font-weight: 600; color: var(--ink); }
-.gfx-presets { display: flex; width: 100%; }
-.gfx-presets > button { flex: 1; justify-content: center; font-family: var(--ui); padding: 0.333rem 0.267rem; }
-.gfx-custom { margin-top: 0.333rem; font-size: 0.667rem; color: var(--mute); }
-.gfx-note { display: flex; align-items: center; justify-content: space-between; gap: 0.533rem; margin-top: 0.4rem; padding: 0.333rem 0.467rem; font-size: 0.667rem; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: 0.467rem; }
-.gfx-row { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 0.533rem; margin: 0.267rem 0 0.4rem; font-size: 0.733rem; }
-.gfx-row .seg > button { padding: 0.133rem 0.333rem; font-size: 0.667rem; }
-.gfx-help { grid-column: 1 / -1; margin-top: 0.133rem; font-size: 0.633rem; color: var(--mute); }
-.gfx-slider { grid-template-columns: minmax(0, 1fr) minmax(0, 8rem) 2.6rem; }
-.gfx-slider input { width: 100%; min-width: 0; margin: 0; accent-color: var(--accent); }
-.gfx-slider .value { font-family: var(--mono); font-weight: 600; font-size: 0.7rem; text-align: right; }
-.gfx .pactions { margin-top: 0.667rem; justify-content: flex-end; }
+/* (the graphics settings are a modal now: `.gfx-back` at the end of this file) */
 .bar-row b { text-align: right; }
 .dev { margin-bottom: 0.4rem; }
 .spark { width: 100%; height: 2.4rem; }
@@ -555,7 +540,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .hide-narrow { display: none; }
   .lvl-name, .lvl-num { display: none; }
   .lvl-bar { width: 2.667rem; }
-  .dock, .dock.gfx { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
+  .dock { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
   .tooltip { max-width: calc(100vw - 1.1rem); }
   .tile { width: 6rem; }
   .inv-hint { display: none; }
@@ -1225,13 +1210,15 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* The gallery (features/economy/ui/shop/Gallery.tsx): the shop's 3D view, large, over the main menu. */
 /* The two part-viewing screens (Gallery, Build my PC) are one "studio": the dark 3D stage fills the screen and glass panels float over it. The tokens are redefined on `.mode`, so the studio is dark and every kit rule inside it follows.
    Both are built from the same pieces (`kit/ModeKit.tsx`): `.mode-panel` and `.mode-bar` (glass), `.mode-head`, `.mode-eyebrow`, `.mode-keys`, `.mode-close`, and `.mode-top` (the bar beside Close). One type scale (`--m-*`) and one set of radii serve both. */
-.mode { position: fixed; inset: 0; z-index: 70; overflow: hidden; animation: fade-in .3s ease both; color: var(--ink);
+/* (the tokens are the studio's; the graphics modal, `.gfx-back` at the end of this file, wears them too) */
+.mode, .gfx-back {
   --ink: #e9eeff; --mute: #8f9bc4; --accent: #3be3ff; --on: #07101f; --bad: #ff5a78; --tile: #141c3f; --menu-solid: #0a0e22;
   --glass-line: rgba(150, 170, 255, 0.15); --glass-hi: rgba(255, 255, 255, 0.045); --panel: rgba(10, 14, 32, 0.66);
   /* type: labels and keys, buttons and hints, list rows, a panel's title, the part's name */
   --m-xs: var(--fs-label); --m-sm: 0.733rem; --m-md: var(--fs-body); --m-lg: 1.2rem; --m-xl: 1.45rem;
   /* radii: a panel, a card, a row or small button; a pill is a bar's button or a chip */
-  --m-r-panel: 1rem; --m-r-card: 0.8rem; --m-r-row: 0.6rem; --m-r-pill: 99rem;
+  --m-r-panel: 1rem; --m-r-card: 0.8rem; --m-r-row: 0.6rem; --m-r-pill: 99rem; }
+.mode { position: fixed; inset: 0; z-index: 70; overflow: hidden; animation: fade-in .3s ease both; color: var(--ink);
   /* (the Gallery's backdrop; Build my PC's stage paints a flat #1b1f2b of its own, so the gradient is that colour over most of the screen) */
   background: radial-gradient(120% 90% at 50% 38%, #232836 0%, #1b1f2b 50%, #0d0f15 100%); }
 .mode::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 10rem rgba(0, 0, 0, 0.5); }
@@ -1301,8 +1288,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
-/* the graphics dock opens over the studio screens (the mode covers the screen at z-index 70) */
-.mode ~ .dock.gfx { z-index: 80; }
 
 /* The shelf: a rail of category icons, then the tiles of the chosen one (or of all, under their headings). While a machine part is dragged out it is the drop zone. */
 .bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: calc(var(--bld-l) - 1rem); overflow: hidden; transition: border-color .15s, box-shadow .15s; }
@@ -1567,4 +1552,107 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .bench-row > .bench-one { grid-column: 3; grid-row: 1; }
   .bench-out { grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem 3rem; }
   .bench-total span { display: none; }
+}
+
+/* The graphics settings (panels/Graphics.tsx): a sheet in the middle of the screen, in the studio's look (the `--m-*` tokens are shared with `.mode`, top of that block). It opens over the
+   main menu, the game and both studio screens. The dim is darkest under the sheet and almost gone at the edges, so the picture round it keeps its light while the options change; Peek,
+   held, fades the sheet and the dim. The sheet has no blur: it is nearly solid, and a blur over the live picture would cost frames the sheet's own FPS readout counts. */
+/* (one definite cell: the sheet's `max-height: 100%` is the screen less the padding, and its body scrolls when it does not fit) */
+.gfx-back { position: fixed; inset: 0; z-index: 60; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 1rem; box-sizing: border-box; color: var(--ink); pointer-events: auto; animation: fade-in .25s ease both; }
+.mode ~ .gfx-back { z-index: 80; }
+.title:not(.gone) ~ .gfx-back { z-index: 86; }
+.gfx-back::before { content: ''; position: absolute; inset: 0; pointer-events: none; transition: opacity .2s ease; background: radial-gradient(ellipse 72% 78% at 50% 50%, rgba(2, 6, 18, 0.62), rgba(2, 6, 18, 0.16)); }
+.gfx { position: relative; display: flex; flex-direction: column; gap: 0.8rem; width: min(100%, 46rem); max-height: 100%; box-sizing: border-box; padding: 0.9rem 1rem; outline: none; border: 1px solid var(--glass-line); border-radius: var(--m-r-panel);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), rgba(9, 12, 28, 0.93); box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: pop-in .3s ease; transition: opacity .18s ease, transform .18s ease; }
+.gfx-back.peek::before { opacity: 0; }
+.gfx-back.peek .gfx { opacity: 0; transform: scale(0.985); pointer-events: none; }
+.gfx button { font: 600 var(--m-sm) var(--ui); }
+.gfx button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); border-color: rgba(150, 170, 255, 0.35); }
+.gfx button:focus-visible { outline: 0.133rem solid var(--accent); outline-offset: 0.1rem; }
+/* the head: the title, the numbers (the frame rate in the accent, amber under 90% of the limit, red under 30) and Close */
+.gfx-head { position: relative; flex: none; display: flex; align-items: flex-start; gap: 1rem; padding-right: 2.9rem; }
+.gfx-head .mode-head { flex: 1; min-width: 0; }
+.gfx-stats { display: flex; align-items: flex-end; gap: 1.2rem; }
+.gfx-fig { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.1; }
+.gfx-fig b { font: 700 var(--m-md) var(--mono); letter-spacing: -0.01em; white-space: nowrap; }
+.gfx-fig em { font: normal 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+.gfx-fps b { font-size: var(--m-xl); font-weight: 750; line-height: 1; color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
+.gfx-fps.warn b { color: var(--warn); text-shadow: 0 0 1rem color-mix(in srgb, var(--warn) 40%, transparent); }
+.gfx-fps.bad b { color: var(--bad); text-shadow: 0 0 1rem color-mix(in srgb, var(--bad) 40%, transparent); }
+.gfx-fps.none b { color: var(--mute); text-shadow: none; }
+.gfx .gfx-close { position: absolute; top: 0; right: 0; width: 2.1rem; height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+/* the body scrolls (the head and the foot stay): quality, then the tabs and the options of the open one */
+.gfx-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.8rem; overflow-y: auto; margin: 0 -0.5rem; padding: 0 0.5rem 0.1rem; scrollbar-width: thin; }
+.gfx-body > * { flex: none; }
+.gfx-quality { display: flex; flex-direction: column; gap: 0.6rem; }
+.gfx-label { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 1.4rem; }
+.gfx-custom { padding: 0.1rem 0.6rem; border-radius: var(--m-r-pill); font: 650 var(--m-xs) var(--ui); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+/* the presets: four cards, each with its level in pips (Build my PC's tiles have the same) and a line */
+.gfx-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+.gfx .gfx-presets button { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0.3rem; padding: 0.6rem 0.7rem; border-radius: var(--m-r-card); text-align: left; white-space: normal; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); transition: transform .15s, border-color .15s, box-shadow .15s, background .15s; }
+.gfx .gfx-presets button:hover:not(:disabled):not([aria-checked="true"]) { transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.gfx .gfx-presets button[aria-checked="true"] { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), rgba(255, 255, 255, 0.03)); box-shadow: 0 0 0 1px var(--accent), 0 0 1.2rem color-mix(in srgb, var(--accent) 24%, transparent); }
+.gfx-presets b { font: 700 var(--m-md) var(--ui); }
+.gfx-presets [aria-checked="true"] b { color: var(--accent); }
+.gfx-presets em { font: normal var(--m-sm)/1.3 var(--ui); color: var(--mute); }
+.gfx-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
+.gfx-tier-name { font: 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.gfx-tier-note { flex: 1 1 14rem; min-width: 0; font-size: var(--m-sm); color: var(--mute); }
+.gfx-note { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: var(--m-r-row); font-size: var(--m-sm); color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent); }
+.gfx-note > span { flex: 1; min-width: 0; }
+.gfx .gfx-note button { padding: 0.2rem 0.8rem; border-radius: var(--m-r-pill); }
+/* a row of exclusive choices: the studio's pill (as in `.mode-bar .seg`), the chosen one tinted in the accent */
+.gfx-seg { display: inline-flex; flex-wrap: wrap; gap: 0.1rem; padding: 0.15rem; border-radius: var(--m-r-pill); background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.gfx .gfx-seg button { justify-content: center; min-width: 2.4rem; margin: 0; padding: 0.25rem 0.7rem; border-color: transparent; border-radius: var(--m-r-pill); background: transparent; font-family: var(--mono); }
+.gfx .gfx-seg button:hover:not(:disabled):not([aria-checked="true"]) { background: rgba(255, 255, 255, 0.08); border-color: transparent; }
+.gfx .gfx-seg button[aria-checked="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+/* the groups of options: a tab for each, then a row for each option (its name and line, and its control) */
+.gfx-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.gfx .gfx-tabs button { gap: 0.4rem; padding: 0.3rem 0.85rem; border-radius: var(--m-r-pill); color: var(--mute); background: transparent; }
+.gfx .gfx-tabs button:hover:not(:disabled):not([aria-selected="true"]) { color: var(--ink); }
+.gfx .gfx-tabs button[aria-selected="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.gfx-list { display: flex; flex-direction: column; gap: 0.25rem; min-height: 16.4rem; /* (the tallest tab: the sheet keeps its height as the tabs change) */ }
+.gfx-opt { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.4rem 1rem; padding: 0.5rem 0.7rem; border: 1px solid transparent; border-radius: var(--m-r-row); background: var(--glass-hi); transition: background .15s, border-color .15s; }
+.gfx-opt:hover, .gfx-opt:focus-within { border-color: var(--glass-line); }
+.gfx-name { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.gfx-name b { font: 600 var(--m-md) var(--ui); }
+.gfx-help { font-size: var(--m-sm); line-height: 1.3; color: var(--mute); }
+.gfx-slide { display: flex; align-items: center; gap: 0.7rem; width: 15rem; }
+.gfx-val { flex: none; min-width: 2.8rem; text-align: right; font: 700 var(--m-md) var(--mono); }
+/* the slider: a thin track filled to the value (`--p`, set by the component), a round thumb */
+.gfx input[type="range"] { --p: 50%; flex: 1; min-width: 0; height: 1.3rem; margin: 0; padding: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.gfx input[type="range"]::-webkit-slider-runnable-track { height: 0.3rem; border-radius: var(--m-r-pill); background: linear-gradient(90deg, var(--accent) var(--p), rgba(255, 255, 255, 0.14) var(--p)); }
+.gfx input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; box-sizing: border-box; width: 1.05rem; height: 1.05rem; margin-top: -0.375rem; border-radius: 50%; border: 0.15rem solid var(--accent); background: var(--ink); box-shadow: 0 0 0.7rem color-mix(in srgb, var(--accent) 55%, transparent); }
+.gfx input[type="range"]::-moz-range-track { height: 0.3rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.14); }
+.gfx input[type="range"]::-moz-range-progress { height: 0.3rem; border-radius: var(--m-r-pill); background: var(--accent); }
+.gfx input[type="range"]::-moz-range-thumb { box-sizing: border-box; width: 1.05rem; height: 1.05rem; border-radius: 50%; border: 0.15rem solid var(--accent); background: var(--ink); box-shadow: 0 0 0.7rem color-mix(in srgb, var(--accent) 55%, transparent); }
+/* the foot: Peek, a line, Reset, and Done (the one strong button) */
+.gfx-foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; padding-top: 0.7rem; border-top: 1px solid var(--glass-line); }
+.gfx-kept { flex: 1; min-width: 0; }
+.gfx .gfx-foot button { padding: 0.3rem 0.85rem; border-radius: var(--m-r-pill); }
+.gfx .gfx-foot .gfx-done { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.gfx .gfx-foot .gfx-done:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); border-color: var(--accent); }
+.gfx .gfx-peek { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+@media (max-width: 52em) {
+  .gfx-back { padding: 0.5rem; }
+  .gfx { padding: 0.8rem; }
+  .gfx-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* (an option's control goes under its name) */
+  .gfx-opt { grid-template-columns: minmax(0, 1fr); }
+  .gfx-slide { width: 100%; }
+  .gfx-list { min-height: 0; }
+}
+@media (max-width: 36em) {
+  .gfx-head { flex-wrap: wrap; gap: 0.6rem; }
+  .gfx-head .mode-head { flex: 1 1 100%; }
+  .gfx-kept { display: none; }
+  .gfx-foot { justify-content: flex-end; }
+}
+/* a short screen (a phone on its side): less air, no lines under the preset names */
+@media (max-height: 34em) {
+  .gfx-back { padding: 0.4rem; }
+  .gfx { gap: 0.5rem; padding: 0.6rem 0.8rem; }
+  .gfx-presets em { display: none; }
+  .gfx-list { min-height: 0; }
 }

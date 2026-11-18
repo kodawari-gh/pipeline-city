@@ -65,7 +65,7 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
           {spin}
           {reset}
           <i class="mode-sep" aria-hidden="true" />
-          <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
+          <button class={graphicsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
         </div>
       ) : (
         <div class="showcase-bar">

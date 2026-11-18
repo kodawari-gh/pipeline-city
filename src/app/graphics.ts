@@ -370,7 +370,8 @@ export function setPreset(id: Preset) {
 export function setTier(tier: Tier) { commit(tierGraphics(tier, graphics.value), { mode: 'manual', tier, reason: 'chosen' }); }
 /** Back to detection. */
 export function setAutoTier(d: { tier: Tier; reason: string } = detect()) { commit(tierGraphics(d.tier, graphics.value), { mode: 'auto', ...d }); }
-export function resetGraphics() { setAutoTier(); }
+/** The panel's "Reset to defaults": the detected tier's picture, and the frame limit, the brightness and auto-adjust back at their defaults too (a preset leaves those three alone). */
+export function resetGraphics() { const d = detect(); commit(tierGraphics(d.tier, DEFAULTS), { mode: 'auto', ...d }); }
 
 let stepped = false;
 /** For tests: allow one more step. */

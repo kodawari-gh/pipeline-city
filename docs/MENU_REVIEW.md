@@ -20,7 +20,7 @@ A long-running pass over every menu. One menu per task. Look at the real screen 
 | Inventory shelf | done 2026-11-07 | Filter chips now carry words, not bare icons. Lock icons on tiles still have only a tooltip. |
 | Picker (board bubble) | done, pass 2 | "3D view" button opens the shop on that part (`openShopAt`). Temperatures read "25 °C"; the speed chip reads "0.00x clock" (tooltip explains). |
 | OS panel | done, pass 2 | Banner says the machine is off; a hint under the graph says how to start it, so the lower half is no longer empty. |
-| Graphics panel | reviewed, no change | Preset row, grouped sections, one help line each. Side panel keeps the picture visible. |
+| Graphics panel | redone 2026-11-18 | A centred modal in the studio look (UI.md "Graphics panel"): preset cards, tier row, three tabs, and Peek to see the picture without it. |
 | Main menu (`...`) | done 2026-11-07 | Help group, icons on every row, red New game. |
 | Start menu / load screen | reviewed, no change | New game (Campaign/Sandbox) and the saved-game "Welcome back" (New game / Continue) are both clear. |
 | Tutorial cards, hints | done, pass 2 | All 97 dialogue pages of the 38 steps were rendered in the real card at its real width (harness, 2026-11-07): heights 130-145 px, none overflows. The "Click to continue" cue had covered one-line pages; it now has its own row. `steps.test.ts` keeps the text short. |
