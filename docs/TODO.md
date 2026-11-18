@@ -15,7 +15,7 @@ Source of truth for tasks in this repository. Rewritten 2026-11-17 for one theme
 
 ## Where things stand (2026-11-17, branch `main`)
 
-Open: BOOT-01 to BOOT-07 and UX-01 (the menu review, 2026-11-18, below). The ANIM work and the radiator/clipping work are done and written up in `docs/render/load.md` ("Swap cost", "Pace of Build my PC").
+Open: BOOT-01 to BOOT-07 (the menu review, 2026-11-18, below). The ANIM work and the radiator/clipping work are done and written up in `docs/render/load.md` ("Swap cost", "Pace of Build my PC").
 
 Fixed: the side panel opened and shut on every action (it stays open now, the player shuts it); steps took 1.5 to 2.5 s each plus the door's 1 to 1.9 s (now about 1 s, the door overlaps the work); a long chain took 28 s (CPU out with six blockers: 6.2 s, and Space, Escape or the Skip button fast-forwards it); a fan's cable in a chain is pulled 1.8x faster again (`CABLE_QUICK`).
 
@@ -36,4 +36,3 @@ Done: the menu stands over the boot screen, a game chosen early waits, the way b
 - [ ] BOOT-05 [auto] [look: none] The city's heavy steps (`plantTrees`, `vertexAo`, `mergeStatic`, `massGeometries`, 0.35 to 0.6 s each) run at every boot. Bake and commit their results, or run them in a worker. Files: outside/view.ts, tools/bake. Done when: `Building the world` to `Assembling the machine` takes under 1.5 s cold.
 - [ ] BOOT-06 [auto] [look: none] Put the boot measurement in the repo (`npm run bench:boot`): a static host with gzip, a cold and a warm profile, the stage times, the long tasks, and the programs linked after the batch with their defines. Files: tools/bench-boot.mjs, package.json. Done when: it prints the table of docs/render/load.md "Boot, 2026-11-18".
 - [ ] BOOT-07 [auto] [look: none] The Gallery's first draw links 10 programs at once: one task of 0.4 s cold (0.1 s the second time). `Viewer.setObject` starts the part's programs, draws once they link, then makes their first use (`prime`, as `BuildStage.programsReady`). Files: viewer.ts, a test beside it. Done when: no task over 0.2 s at the first open (`galprof.mjs`-style: a `longtask` observer, a fresh profile).
-- [ ] UX-01 [auto] [look: low] The Gallery's category rail shows icons only, and its labels are clipped by the rail's overflow (a tooltip and the heading exist). Show the text label beside each icon, or widen the rail. Files: Gallery.tsx, ui.css. Done when: every category reads without a hover, a `npm run shot` before and after.

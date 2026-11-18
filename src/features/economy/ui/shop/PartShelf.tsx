@@ -2,7 +2,7 @@ import type { ComponentChildren, RefObject } from 'preact';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from './PartArt';
-import { kindIcon, kindLabel, pips, priceOf } from './shopdata';
+import { kindIcon, kindLabel, pips, priceOf, railLabel } from './shopdata';
 
 /** A part the shelf lists: its catalogue id, name, kind (the rail's category) and tier. */
 export interface ShelfPart { id: string; name: string; kind: string; tier: number }
@@ -10,8 +10,8 @@ export interface ShelfPart { id: string; name: string; kind: string; tier: numbe
 const money = (n: number): string => (n <= 0 ? 'free' : `$${n.toLocaleString('en-US')}`);
 
 /**
- * The studio's shelf, the left panel of both studio screens (the Gallery and Build my PC): a rail of category icons (the name and the count in its tooltip),
- * then the tiles of the chosen category (or of all, under their headings): the part's picture, its name, its tier as pips and its price. What a tile does
+ * The studio's shelf, the left panel of both studio screens (the Gallery and Build my PC): a rail of categories (an icon and a short name each; the full
+ * name and the count in its tooltip), then the tiles of the chosen category (or of all, under their headings): the part's picture, its name, its tier as pips and its price. What a tile does
  * is the screen's: the Gallery's click shows the part (`current` is the one shown), Build my PC's press starts a drag (`onPress`) and Enter fits it
  * (`onActivate`). Styles: ui.css (the shelf, `.bld-*`).
  */
@@ -82,12 +82,12 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
         <div class="bld-rail" role="tablist" aria-label="Part kinds">
           {all && (
             <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All parts (${parts.length})`} aria-label="All parts" onClick={() => setKind('all')}>
-              <Icon name="grid" size={14} />
+              <Icon name="grid" size={14} /><span class="bld-rl" aria-hidden="true">All</span>
             </button>
           )}
           {kinds.map((k) => (
             <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
-              <Icon name={kindIcon(k)} size={14} />
+              <Icon name={kindIcon(k)} size={14} /><span class="bld-rl" aria-hidden="true">{railLabel(k)}</span>
             </button>
           ))}
         </div>

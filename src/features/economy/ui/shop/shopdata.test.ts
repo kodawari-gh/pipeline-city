@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ladderFor } from './picker';
-import { currentSpecFor, galleryGroups, KIND_ICON, kindIcon, kindLabel, priceOf, SHOP_ORDER, shopFor, splitName, STUDIO_KINDS } from './shopdata';
+import { currentSpecFor, galleryGroups, KIND_ICON, kindIcon, kindLabel, priceOf, railLabel, SHOP_ORDER, shopFor, splitName, STUDIO_KINDS } from './shopdata';
 import { snap } from '@/core/ui/testdata';
 
 describe('the shop', () => {
@@ -18,6 +18,15 @@ describe('the shop', () => {
     const icons = SHOP_ORDER.map((k) => kindIcon(k));
     expect(new Set(icons).size).toBe(SHOP_ORDER.length);
     expect(kindIcon('something-new')).toBe('box');
+  });
+
+  it('gives each rail button a short label of its own, and the full one stays in the heading', () => {
+    const short = SHOP_ORDER.map((k) => railLabel(k));
+    expect(new Set(short).size).toBe(SHOP_ORDER.length);
+    for (const s of short) { expect(s.length).toBeLessThanOrEqual(9); expect(s).not.toMatch(/\s{2,}/); }
+    expect(railLabel('cpu')).toBe('Processor');
+    expect(railLabel('psu')).toBe('Power');
+    expect(railLabel('something-new')).toBe('something-new');
   });
 
   it('shows every tier of a kind once, and none is outgrown', () => {

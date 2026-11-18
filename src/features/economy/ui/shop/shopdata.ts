@@ -20,6 +20,15 @@ export const SHOP_ORDER: ShopKind[] = ['case', 'board', 'cpu', 'cooler', 'fan', 
 
 /** Category name as the shelf and the shop say it ("Software" for the OS group). */
 export const kindLabel = (k: string): string => (k === 'os' ? 'Software' : KIND_LABEL[k as ShopKind] ?? k);
+/**
+ * A category's short name for the shelf's rail, where it stands beside its icon in a column of about 4 rem: one word, 9 letters at most. The heading,
+ * the tooltip and the screen reader say it in full (`kindLabel`).
+ */
+const RAIL_LABEL: Partial<Record<ShopKind, string>> = {
+  board: 'Board', psu: 'Power', display: 'Monitor', storage: 'Drive', nic: 'Network', gpu: 'Graphics', npu: 'AI card', tpm: 'Secure',
+  'vrm-sink': 'VRM sink', 'ram-sink': 'RAM sink', os: 'Software', isp: 'Internet',
+};
+export const railLabel = (k: string): string => RAIL_LABEL[k as ShopKind] ?? kindLabel(k);
 /** The icon of a category, with a plain box for anything unknown. */
 export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'box';
 

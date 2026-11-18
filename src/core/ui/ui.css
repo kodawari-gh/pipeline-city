@@ -1304,7 +1304,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
    Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
    the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). The Gallery has the same layout. */
-.build, .gallery { --bld-l: 23rem; --bld-r: 19rem; --bld-u: 25rem; }
+.build, .gallery { --bld-l: 26.5rem; --bld-r: 19rem; --bld-u: 25rem; }
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
@@ -1317,9 +1317,12 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: calc(var(--bld-l) - 1rem); overflow: hidden; transition: border-color .15s, box-shadow .15s; }
 .bld-bin.taking { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 0 2.4rem color-mix(in srgb, var(--accent) 30%, transparent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
-.bld-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0.6rem; }
+.bld-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: 6.1rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0.6rem; }
 .bld-rail { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: none; }
-.mode .bld-rail button { position: relative; flex: none; height: 2.4rem; padding: 0; display: grid; place-items: center; color: var(--mute); background: transparent; border-color: transparent; }
+/* (a category: its icon and its short name, so the rail reads without a hover; the tooltip and the heading say the full name) */
+.mode .bld-rail button { position: relative; flex: none; height: 2.4rem; padding: 0 0.3rem 0 0.7rem; display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem; color: var(--mute); background: transparent; border-color: transparent; }
+.bld-rl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--m-sm) var(--ui); letter-spacing: 0.01em; }
+.bld-rail button svg { flex: none; }
 .mode .bld-rail button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
 .mode .bld-rail button.on { color: var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 90%); border-color: transparent; }
 .bld-rail button.on::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 0.2rem; border-radius: 99rem; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
@@ -1535,7 +1538,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
-  .build, .gallery { --bld-l: 20rem; --bld-r: 17rem; }
+  .build, .gallery { --bld-l: 23.5rem; --bld-r: 17rem; }
 }
 @media (max-width: 70em) {
   /* (what the panels leave between them no longer holds the summary in one row: it wraps to two) */
@@ -1553,7 +1556,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .bld-inst { order: 4; }
   .bld-shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 24rem); }
   .bld-rail { flex-direction: row; flex-wrap: wrap; }
-  .mode .bld-rail button { width: 2.4rem; }
+  .mode .bld-rail button { width: auto; padding: 0 0.7rem; }
   .mode .bld-rail button.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .bld-rail button.on::before { left: 22%; right: 22%; top: auto; bottom: 0; width: auto; height: 0.2rem; }
   .bld-tiles { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
