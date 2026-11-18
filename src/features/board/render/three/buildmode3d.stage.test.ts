@@ -25,7 +25,7 @@ vi.mock('@/core/render/three/post', () => ({
     refine = rig.refine;
     meter = () => null;
     metered = () => rig.lum;
-    setEye() {} setReach() {} apply() {} setSize() {}
+    setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {}
   },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
@@ -129,5 +129,24 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
     stage.status.value = { ...stage.status.value, busy: false };
     now += TICK; stage.frame(now);
     expect(lastHold().held).toEqual([]);
+  });
+});
+
+describe('BuildStage.frame and the shut side panel', () => {
+  it('lets the panel take a click while no step plays, and not while one does (machine3d.ts: the plate over it answers a ray only then)', () => {
+    const setOpen = vi.fn();
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
+    s._machine = { moving: false, doorOpen: false, frame() {}, setOpen, holdDetail() {}, lod() {}, root: new Group() };
+    s._game = {};
+    s.snaps = { of: () => ({}), drop() {} };
+    const stage = s as unknown as { frame: (now: number) => void; status: { value: { busy: boolean; step: string; log: string[]; rev: number } } };
+    stage.frame(1000 + TICK);
+    expect(setOpen).toHaveBeenLastCalledWith(false, false);
+    stage.status.value = { ...stage.status.value, busy: true };
+    stage.frame(1000 + 2 * TICK);
+    expect(setOpen).toHaveBeenLastCalledWith(false, true);
   });
 });

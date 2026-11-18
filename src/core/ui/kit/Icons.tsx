@@ -1,9 +1,12 @@
 import type { IconName } from '@/features/economy/ui/shop/picker';
 import { rem } from './units';
 
+/** The icons of the studio screens' controls, beside the part and category ones (`IconName`). */
+type HudIcon = 'undo' | 'redo' | 'panel' | 'focus' | 'wind' | 'sliders' | 'eject' | 'skip' | 'save';
+
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
-const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'export' | 'import', string[]> = {
+const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'export' | 'import' | HudIcon, string[]> = {
   board: ['M2 2.5h12v11H2z', 'M4.5 5h3v3h-3z', 'M9.5 5h2M9.5 7.5h2M4.5 10.5h7'],
   case: ['M4.4 1.8h7.2v12.4H4.4z', 'M6.4 4.4h3.2M6.4 6.4h3.2', 'M8 12h.01'],
   heatsink: ['M2 13.2h12', 'M3.8 13.2V7.5M6.6 13.2V3.2M9.4 13.2V3.2M12.2 13.2V7.5'],
@@ -46,6 +49,16 @@ const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'ex
   stats: ['M3 13.5V9M8 13.5V4.5M13 13.5V7'],
   export: ['M8 2.5v8', 'M5 7.5 8 10.5l3-3', 'M2.5 11.5v2h11v-2'],
   import: ['M8 10.5v-8', 'M5 5.5 8 2.5l3 3', 'M2.5 11.5v2h11v-2'],
+  // the studio screens' controls (Build my PC)
+  undo: ['M5.8 3.2 2.6 6.4l3.2 3.2', 'M2.6 6.4h6.3a4.2 4.2 0 0 1 0 8.4H6.4'],
+  redo: ['M10.2 3.2l3.2 3.2-3.2 3.2', 'M13.4 6.4H7.1a4.2 4.2 0 0 0 0 8.4h2.5'],
+  panel: ['M2.5 2.5h8v11h-8z', 'M10.5 4l3 1.2v6.6l-3 1.2', 'M7.6 8h.01'],
+  focus: ['M8 5.3a2.7 2.7 0 1 0 0 5.4 2.7 2.7 0 0 0 0-5.4z', 'M8 1.6v2.4M8 12v2.4M1.6 8H4M12 8h2.4'],
+  wind: ['M1.8 5.6h7.4a2.1 2.1 0 1 0-2.1-2.1', 'M1.8 8.6h10.4a2.1 2.1 0 1 1-2.1 2.1', 'M1.8 11.6h4.2'],
+  sliders: ['M2.5 5h6.2M11.6 5h1.9M2.5 11h2.2M7.6 11h5.9', 'M10.2 3.3a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z', 'M6.2 9.3a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z'],
+  eject: ['M8 2.6 3.4 9.2h9.2z', 'M3.4 12.2h9.2'],
+  skip: ['M2.6 3.2 7.4 8l-4.8 4.8z', 'M8.6 3.2 13.4 8l-4.8 4.8z'],
+  save: ['M3 2.5h7.8l2.2 2.2v8.8H3z', 'M5.4 2.5v3.4h4.4V2.5', 'M5.4 13.5V9.4h5.2v4.1'],
 };
 
 export function Icon({ name, size = 14, class: cls }: { name: keyof typeof PATHS; size?: number; class?: string }) {

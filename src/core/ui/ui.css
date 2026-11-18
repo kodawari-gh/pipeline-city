@@ -28,7 +28,7 @@ body { font: 0.8rem/1.35 var(--ui); }
 /* Glass: every panel and bar. Translucent, blurred, hairline border, no shadow. */
 .card, .hud-side, .dock, .picker, .tut, .inv, .menu-pop, .notice, .toast {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), var(--panel); border: 1px solid var(--glass-line); border-radius: 1rem;
-  backdrop-filter: blur(1.1rem) saturate(130%); -webkit-backdrop-filter: blur(1.1rem) saturate(130%); box-sizing: border-box;
+  -webkit-backdrop-filter: blur(1.1rem) saturate(130%); backdrop-filter: blur(1.1rem) saturate(130%); box-sizing: border-box;
   box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
@@ -473,7 +473,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .tooltip {
   position: fixed; left: 0; top: 0; z-index: 50; max-width: 17rem; pointer-events: none !important; padding: 0.4rem 0.55rem; border-radius: 0.55rem;
   background: var(--panel); border: 1px solid var(--glass-line); font-size: 0.77rem;
-  backdrop-filter: blur(0.67rem); -webkit-backdrop-filter: blur(0.67rem);
+  -webkit-backdrop-filter: blur(0.67rem); backdrop-filter: blur(0.67rem);
 }
 .tooltip b { font-size: 0.8rem; }
 .notice {
@@ -1289,72 +1289,192 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   /* (the stage is a card of its own here, not the screen's backdrop) */
   .gal-main, .bld-host { border-radius: var(--m-r-panel); overflow: hidden; border: 1px solid var(--glass-line); }
   .gal-cats { flex-direction: row; flex-wrap: wrap; }
-  .bld-host { position: relative !important; inset: auto !important; height: 60vh; flex: none; order: 0; }
-  .bld-step, .bld-bar, .bld-tip { position: static !important; width: auto !important; max-width: none !important; margin: 0 !important; }
-  .bld-step { order: 1; }
-  .bld-bar { order: 2; }
-  .bld-tip { order: 3; }
-  .bld-bin { order: 4; }
-  .bld-inst { order: 5; }
-  .bld-parts { flex: none; max-height: 24rem; }
-  .bld-list { flex: none; max-height: 18rem; }
 }
 
-/* Build my PC (features/board/ui/BuildMode.tsx): the machine alone on a stage, a bin of parts on the left, what is fitted on the right. */
+/* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
+   Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
+   the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). */
+.build { --bld-l: 23rem; --bld-r: 19rem; --bld-u: 25rem; }
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
-.bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: 19rem; transition: border-color .15s, box-shadow .15s; }
-.bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
-.bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: 17rem; }
-/* the categories: every one at once as an icon, two rows (the Gallery's rail lists them with their names; the order is the same) */
-.bld-kinds { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.25rem; flex: none; }
-.mode .bld-kinds button { height: 2rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--m-r-row); color: var(--mute); background: transparent; }
-.mode .bld-kinds button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); }
-.mode .bld-kinds button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
-.bld-parts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.2rem; margin: 0 -0.3rem; padding: 0 0.3rem; scrollbar-width: thin; }
-.bld-sub { margin-top: 0.3rem; }
-.bld-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.35rem; }
-.bld-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; padding: 0.45rem 0.4rem 0.55rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
-.bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35); }
-.bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
-.bld-art { display: grid; place-items: center; width: 100%; border-radius: var(--m-r-row); overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
-.bld-art .art { display: block; }
-.bld-tname { font-size: var(--m-sm); line-height: 1.25; text-align: center; }
-.bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, -60%); pointer-events: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem 0.4rem 0.4rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); font-size: var(--m-sm); white-space: nowrap; }
-.bld-ghost em { display: block; font-style: normal; color: var(--mute); }
-.bld-ghost.stage, .bld-ghost.bin { border-color: var(--accent); box-shadow: 0 0 1.2rem color-mix(in srgb, var(--accent) 40%, transparent), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); }
-.bld-step { position: absolute; left: 20.5rem; right: 18.5rem; bottom: 5.6rem; z-index: 2; text-align: center; font: 650 1.05rem var(--ui); text-shadow: 0 0.1rem 0.6rem #000; pointer-events: none; }
-.bld-bar { left: 20rem; right: 18.5rem; bottom: 1.9rem; margin: 0 auto; width: max-content; max-width: calc(100% - 39rem); }
 /* the graphics dock opens over the studio screens (the mode covers the screen at z-index 70) */
 .mode ~ .dock.gfx { z-index: 80; }
-.bld-step { bottom: 8rem; }
-.bld-ghost.no { border-color: var(--bad); }
-.bld-ghost.no em { color: var(--bad); }
-.bld-presets { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+/* The shelf: a rail of category icons, then the tiles of the chosen one (or of all, under their headings). While a machine part is dragged out it is the drop zone. */
+.bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: calc(var(--bld-l) - 1rem); overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.bld-bin.taking { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 0 2.4rem color-mix(in srgb, var(--accent) 30%, transparent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
+.bld-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0.6rem; }
+.bld-rail { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: none; }
+.mode .bld-rail button { position: relative; flex: none; height: 2.4rem; padding: 0; display: grid; place-items: center; color: var(--mute); background: transparent; border-color: transparent; }
+.mode .bld-rail button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
+.mode .bld-rail button.on { color: var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 90%); border-color: transparent; }
+.bld-rail button.on::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 0.2rem; border-radius: 99rem; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
+.bld-parts { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; margin-right: -0.3rem; padding-right: 0.3rem; scrollbar-width: thin; }
+.bld-sub { display: flex; align-items: baseline; gap: 0.5rem; margin: 0 0 0.4rem; }
+.bld-sub .mute { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.bld-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.bld-tile { position: relative; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem 0.35rem 0.45rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.12rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35), 0 0 1rem color-mix(in srgb, var(--accent) 12%, transparent); }
+.bld-tile:active { cursor: grabbing; transform: none; }
+.bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
+.bld-art { display: block; width: 100%; border-radius: var(--m-r-row); overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.bld-art .art { display: block; width: 100%; height: auto; }
+.bld-tname { padding: 0 0.15rem; font-size: var(--m-sm); line-height: 1.25; min-height: 2.5em; }
+.bld-tmeta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.2rem 0.3rem; padding: 0 0.15rem; }
+.bld-pips { display: inline-flex; gap: 0.15rem; }
+.bld-pips i { width: 0.5rem; height: 0.22rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.14); }
+.bld-pips i.on { background: var(--accent); box-shadow: 0 0 0.3rem color-mix(in srgb, var(--accent) 70%, transparent); }
+.bld-price { font: 600 var(--m-xs) var(--mono); color: var(--mute); }
+.bld-bin-note { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; padding: 1.5rem; text-align: center; border-radius: inherit; background: color-mix(in srgb, #0a0e22 86%, transparent); color: var(--accent); opacity: 0; pointer-events: none; transition: opacity .15s, background .15s; }
+.bld-bin-note::before { content: ''; position: absolute; inset: 0.6rem; border: 0.133rem dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: var(--m-r-card); }
+.bld-bin-note b { font: 700 var(--m-md) var(--ui); }
+.bld-bin-note span { font-size: var(--m-sm); color: var(--mute); }
+.bld-bin.taking .bld-bin-note { opacity: 1; }
+.bld-bin.drop .bld-bin-note { background: color-mix(in srgb, var(--accent) 16%, #0a0e22); }
+.bld-bin.drop .bld-bin-note b { color: var(--ink); }
+.bld-bin.drop .bld-bin-note::before { border-style: solid; border-color: var(--accent); }
+
+/* The summary at the top: can it start, what it costs, what it draws against its supply, how many parts, the benchmark. */
+.bld-read { top: 1rem; left: calc(var(--bld-l) + 1rem); right: var(--bld-u); margin: 0 auto; width: max-content; max-width: calc(100% - var(--bld-l) - var(--bld-u) - 1rem); flex-wrap: nowrap; gap: 0.9rem; padding: 0.35rem 0.4rem 0.35rem 0.45rem; }
+.bld-ready { display: inline-flex; align-items: center; gap: 0.4rem; max-width: 15rem; padding: 0.4rem 0.85rem 0.4rem 0.6rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bld-ready.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent); }
+.bld-ready.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 38%, transparent); }
+.bld-fig { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; line-height: 1.1; }
+.bld-fig b { font: 700 var(--m-md) var(--mono); letter-spacing: -0.01em; white-space: nowrap; }
+.bld-fig em { font: normal 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+.bld-power { min-width: 6.4rem; }
+.bld-meter { align-self: stretch; height: 0.28rem; margin-top: 0.2rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.bld-meter i { display: block; height: 100%; border-radius: inherit; background: var(--ok); transition: width .3s ease, background .3s; }
+.bld-power.none .bld-meter i { background: var(--mute); }
+.bld-power.warn .bld-meter i { background: var(--warn); }
+.bld-power.bad .bld-meter i { background: var(--bad); }
+.bld-power.warn b { color: var(--warn); }
+.bld-power.bad b { color: var(--bad); }
+.mode .bld-read .bld-bench-btn { padding: 0.45rem 0.9rem; font-weight: 650; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.mode .bld-read .bld-bench-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
+.bld-bench-btn b { font-family: var(--mono); }
+.bld-util { flex-wrap: nowrap; }
+.mode .bld-util button { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+/* What is fitted: how to start (a preset, a saved build), the last benchmark, the parts by kind, what was done. */
+.bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: calc(var(--bld-r) - 1rem); }
+.bld-start { display: flex; flex-direction: column; gap: 0.4rem; flex: none; }
+.bld-start .bld-sub { margin: 0; }
+.bld-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.mode .bld-presets button { display: inline-flex; align-items: center; gap: 0.3rem; }
 .bld-saved { display: inline-flex; }
 .mode .bld-saved button:first-child { border-radius: 99rem 0 0 99rem; }
 .mode .bld-saved button + button { padding: 0.3rem 0.45rem; border-radius: 0 99rem 99rem 0; }
-.bld-specs dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.8rem; margin: 0.2rem 0; font-size: var(--m-sm); }
-.bld-specs dt { color: var(--mute); }
-.bld-specs dd { margin: 0; text-align: right; font-family: var(--mono); }
-.bld-specs dd.bad { color: var(--bad); }
-.bld-meter { height: 0.3rem; border-radius: 99rem; background: var(--glass-hi); overflow: hidden; }
-.bld-meter i { display: block; height: 100%; background: var(--accent); }
-.bld-meter.bad i { background: var(--bad); }
-.bld-list li.bld-grp { padding: 0.35rem 0.3rem 0.05rem; cursor: default; border-color: transparent; background: none; }
-.bld-list li.bld-grp:hover { background: none; border-color: transparent; }
-.bld-tip { position: absolute; left: 20rem; right: 18.5rem; bottom: 0.7rem; z-index: 2; text-shadow: 0 0.1rem 0.5rem #000; }
-.bld-tip .mode-keys { justify-content: center; }
-.bld-hint { margin-top: auto; }
+.bld-bench { flex: none; display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem 0.7rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: var(--glass-hi); }
+.bld-bench .bld-sub { margin: 0; }
+.bld-overall { display: flex; align-items: baseline; gap: 0.5rem; }
+.bld-overall b { font: 750 var(--m-xl)/1 var(--mono); color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
+.bld-overall span { font: 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.bld-score { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) 2.6rem; align-items: center; gap: 0.5rem; font-size: var(--m-sm); }
+.bld-score > span:first-child { color: var(--mute); }
+.bld-score b { text-align: right; font: 600 var(--m-sm) var(--mono); }
+.bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
+.bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent)); }
 .bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
-.bld-thumb { flex: none; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
-.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.3rem 0.2rem 0.3rem; border: 1px solid transparent; border-radius: var(--m-r-row); cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
+.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.3rem; border: 1px solid transparent; border-radius: var(--m-r-row); cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
 .bld-list li:hover { background: var(--glass-hi); border-color: var(--glass-line); }
 .bld-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bld-list li.bld-grp { gap: 0.4rem; padding: 0.55rem 0.3rem 0.15rem; cursor: default; border-color: transparent; background: none; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
+.bld-grp em { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.bld-list li.bld-none { flex-direction: column; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.4rem 0.8rem; text-align: center; cursor: default; color: var(--mute); border: 0.133rem dashed var(--glass-line); background: none; }
+.bld-none b { color: var(--ink); font-size: var(--m-md); }
+.bld-none span { font-size: var(--m-sm); }
+.bld-thumb { flex: none; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.bld-row em { font: normal var(--m-xs) var(--mono); color: var(--mute); }
 .bld-name { font-size: var(--m-md); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mode .bld-list li button { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0.75; }
+.mode .bld-list li button { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0.6; }
 .bld-list li:hover button { opacity: 1; }
 .mode .bld-list li button:hover:not(:disabled) { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
-.bld-log { margin: 0; padding-left: 1.1rem; font-size: var(--m-sm); color: var(--mute); overflow-y: auto; min-height: 0; max-height: 9rem; flex: none; }
+.bld-history { flex: none; padding-top: 0.5rem; border-top: 1px solid var(--glass-line); font-size: var(--m-sm); color: var(--mute); }
+.bld-history summary { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; list-style: none; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; }
+.bld-history summary::-webkit-details-marker { display: none; }
+.bld-history summary::after { content: ''; margin-left: auto; width: 0.4rem; height: 0.4rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-0.1rem) rotate(45deg); transition: transform .15s; }
+.bld-history[open] summary::after { transform: translateY(0.1rem) rotate(-135deg); }
+.bld-history summary em { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.bld-log { margin: 0.4rem 0 0; padding-left: 1.1rem; overflow-y: auto; min-height: 0; max-height: 9rem; }
+
+/* The bottom: the line of what to do now (or the step that plays, with its Skip), the machine's tools, the camera, the keys. */
+.bld-foot { position: absolute; z-index: 3; left: calc(var(--bld-l) + 1rem); right: calc(var(--bld-r) + 1rem); bottom: 1rem; margin: 0 auto; width: max-content; max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem); display: flex; flex-direction: column; align-items: center; gap: 0.55rem; pointer-events: none; }
+.bld-foot > * { pointer-events: auto; }
+.bld-hint { display: inline-flex; align-items: center; gap: 0.6rem; max-width: 100%; padding: 0.45rem 1rem; border-radius: var(--m-r-pill); border: 1px solid var(--glass-line); background: var(--panel); backdrop-filter: blur(1.1rem) saturate(1.3); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07); font: 600 var(--m-md) var(--ui); }
+.bld-hint > i { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
+.bld-hint.busy { padding-right: 0.4rem; }
+.bld-hint.busy > i { animation: bld-pulse 1s ease-in-out infinite; }
+.mode .bld-hint button { padding: 0.25rem 0.7rem; font-size: var(--m-sm); border-radius: var(--m-r-pill); }
+@keyframes bld-pulse { 50% { opacity: 0.3; transform: scale(0.7); } }
+.bld-dock { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+.bld-dock .mode-bar { position: static; flex-wrap: nowrap; }
+.mode .mode-bar .bld-door { display: inline-flex; align-items: center; gap: 0.4rem; }
+.bld-door em { font: normal var(--m-xs) var(--mono); padding: 0.05rem 0.45rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.08); color: var(--mute); }
+.bld-door.on em { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.mode .mode-bar .bld-ico { width: 2.1rem; height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.bld-foot .mode-keys { justify-content: center; text-shadow: 0 0.1rem 0.5rem #000; }
+
+/* Over the stage: the picked part's card (the game's picker, with its tail), the tooltip's last line, the part on the pointer, the note of a drop that did nothing. */
+.bld-card { width: 19rem; }
+.bld-chead { display: flex; align-items: center; gap: 0.7rem; padding-right: 1.4rem; }
+.bld-cart { flex: none; display: grid; place-items: center; width: 3.6rem; height: 3.6rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.12), rgba(255, 255, 255, 0.03) 72%); }
+.bld-ctitle { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.bld-ctitle em { font: normal 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.bld-ctitle b { font: 700 0.9rem/1.2 var(--ui); }
+.bld-ctitle .mute { font-size: var(--m-sm); }
+.bld-cstats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.8rem; margin: 0.7rem 0 0; }
+.bld-cstats > div { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; }
+.bld-cstats dt { display: flex; align-items: center; gap: 0.3rem; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); }
+.bld-cstats dd { margin: 0; font: 600 var(--m-md) var(--mono); }
+.bld-cacts { display: flex; gap: 0.4rem; margin-top: 0.8rem; }
+.mode .bld-cacts button { flex: 1; justify-content: center; padding: 0.4rem 0.6rem; font-size: var(--m-sm); }
+.mode .bld-cacts button.primary { flex: 1.5; color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.mode .bld-cacts button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
+.bld-cacts em { font: normal var(--m-xs) var(--mono); opacity: 0.7; }
+.bld-card .mode-hint { margin-top: 0.6rem; }
+.tooltip .tip-act { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid var(--glass-line); color: var(--accent); font-size: 0.7rem; }
+.bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, calc(-100% - 1.1rem)); pointer-events: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem 0.4rem 0.4rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); font-size: var(--m-sm); white-space: nowrap; transition: border-color .12s, box-shadow .12s; }
+.bld-ghost b { display: block; font-size: var(--m-md); }
+.bld-ghost em { display: block; font-style: normal; color: var(--mute); }
+.bld-ghost.ok { border-color: var(--ok); box-shadow: 0 0 1.2rem color-mix(in srgb, var(--ok) 35%, transparent), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); }
+.bld-ghost.ok em { color: var(--ok); }
+.bld-ghost.no { border-color: var(--bad); }
+.bld-ghost.no em { color: var(--bad); }
+.bld-toast { position: fixed; z-index: 95; transform: translate(-50%, calc(-100% - 1rem)); pointer-events: none; padding: 0.45rem 0.8rem; border-radius: var(--m-r-card); border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); background: rgba(10, 14, 32, 0.94); color: var(--warn); font: 600 var(--m-sm) var(--ui); white-space: nowrap; box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); animation: fade-in .2s ease both; }
+
+/* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
+@media (max-width: 80em) {
+  .build { --bld-l: 20rem; --bld-r: 17rem; }
+}
+@media (max-width: 70em) {
+  /* (what the panels leave between them no longer holds the summary in one row: it wraps to two) */
+  .bld-read { flex-wrap: wrap; justify-content: center; gap: 0.5rem 0.9rem; }
+  .bld-read .mode-sep { display: none; }
+}
+@media (max-width: 52em) {
+  .bld-host { position: relative; inset: auto; height: 60vh; flex: none; order: 0; }
+  .bld-read, .bld-foot { position: static; width: auto; max-width: none; margin: 0; }
+  .bld-read { order: 1; flex-wrap: wrap; justify-content: center; }
+  .bld-foot { order: 2; }
+  .bld-bin { order: 3; }
+  .bld-inst { order: 4; }
+  .bld-shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 24rem); }
+  .bld-rail { flex-direction: row; flex-wrap: wrap; }
+  .mode .bld-rail button { width: 2.4rem; }
+  .mode .bld-rail button.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .bld-rail button.on::before { left: 22%; right: 22%; top: auto; bottom: 0; width: auto; height: 0.2rem; }
+  .bld-tiles { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+  .bld-list { flex: none; max-height: 18rem; }
+  .bld-dock { max-width: 100%; }
+  .bld-dock .mode-bar { flex-wrap: wrap; max-width: 100%; }
+}
+@media (max-width: 36em) {
+  /* a phone: the summary is a small card, the ready line over three figures over the benchmark */
+  .bld-read { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; gap: 0.6rem 0.4rem; padding: 0.6rem; }
+  .bld-read .mode-sep, .bld-tools .mode-sep { display: none; }
+  .bld-read .bld-ready, .bld-read .bld-bench-btn { grid-column: 1 / -1; }
+}

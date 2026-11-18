@@ -18,7 +18,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
   };
 });
 vi.mock('@/core/render/three/post', () => ({
-  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} apply() {} setSize() {} dispose() {} },
+  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {} dispose() {} },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} dispose() {} } }));
 

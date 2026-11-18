@@ -1,154 +1,56 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { buildOpen, graphicsOpen, toggleGraphics } from '@/core/ui/state';
+import { buildOpen, graphicsOpen } from '@/core/ui/state';
 import { airflowLens, powerLens } from '@/app/hover';
-import { BUILD_PRESETS, specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
-import { deleteBuild, savedBuilds, saveBuild } from './savedbuilds';
-import { Icon } from '@/core/ui/kit/Icons';
-import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
-import { PartArt } from '@/features/economy/ui/shop/PartArt';
-import { kindIcon, kindLabel, STUDIO_KINDS } from '@/features/economy/ui/shop/shopdata';
+import type { SavedBuild } from '@/features/board/sim/buildspecs';
 import { devNode } from '@/features/board/sim/removal';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
+import { TooltipBubble } from '@/core/ui/kit/Hover';
+import { Icon } from '@/core/ui/kit/Icons';
+import { PartArt } from '@/features/economy/ui/shop/PartArt';
+import { STUDIO_KINDS } from '@/features/economy/ui/shop/shopdata';
+import { BuildCard } from './BuildCard';
+import { BuildMachine } from './BuildMachine';
+import { BuildShelf } from './BuildShelf';
+import { Foot, Readout, ViewOptions } from './BuildBars';
+import { hintLine } from './buildhud';
+import { useBuildDrag, type Drag } from './builddrag';
+import { savedBuilds } from './savedbuilds';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
 type Part = import('../render/three/buildmode3d').BinPart;
 
-// BUILD MY PC (main menu): the machine alone on a stage. A free sandbox: no inventory, no money. The shelf on the left holds every
-// catalogue part, unlimited. Drag one onto the PC to fit it on the socket it lands on. Drag a part off the PC onto the shelf to take it out (with
-// everything in its way; the order is `sim/removal.ts`). A press without a move is a click: a shelf part fits in the first free socket,
-// a machine part is selected. Styles: ui.css (the Build my PC section). Escape leaves.
+// BUILD MY PC (main menu): the machine alone on a stage. A free sandbox: no inventory, no money. The shelf on the left holds every catalogue part,
+// unlimited. The machine answers as the game's board does: the part under the pointer is outlined and named, a click picks it (its card opens beside
+// it), a click on the shut side panel opens it. Drag a part onto the PC: the sockets it fits light up, and it fits the one it lands on. Drag a part off
+// the PC onto the shelf to take it out (with everything in its way; the order is `sim/removal.ts`). Styles: ui.css (the Build my PC section).
+// Keys as the game's: O the side panel, P and A the overlays. Also F focus, R reset, Delete take out, Ctrl+Z / Ctrl+Y, Escape lets go, then leaves.
 
 /** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case). */
 const KINDS = STUDIO_KINDS.filter((k) => k !== 'display');
-const SPEEDS = [0.5, 1, 2, 4];
-/** The hint under the toolbar: the camera in the Gallery's words. */
-const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'reset'], ['Esc', 'leave']];
-/** Pixels a press may move before it is a drag. */
-const SLOP = 6;
 
-type Over = 'bin' | 'stage' | null;
-type Source = { from: 'shelf' | 'machine'; item: string; spec: string; name: string };
-/** `target`: for a shelf part over the stage, the socket it would fit in ('' when none takes it, undefined when not over the stage). */
-type Drag = Source & { x: number; y: number; over: Over; target?: string };
-interface Tile { item: string; spec: string; name: string }
-
-/** Is a client point inside an element's box? */
-const within = (el: HTMLElement | null, x: number, y: number): boolean => {
-  const r = el?.getBoundingClientRect();
-  return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-};
-
-/** Is a client point over the stage itself (the stage fills the screen; the panels float over it and are not the stage)? */
-const onStage = (el: HTMLElement | null, x: number, y: number): boolean => {
-  const hit = document.elementFromPoint(x, y);
-  return !!el && !!hit && el.contains(hit);
-};
-
-const hintFor = (d: Drag): string => {
-  if (d.from === 'shelf') {
-    if (d.over !== 'stage') return 'Drag it onto the PC';
-    return d.target === '' ? 'Fits no socket here' : d.target ? `Let go to fit it in ${d.target}` : 'Let go to fit it here';
-  }
-  return d.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
-};
-
-/** The fitted devices grouped by kind, in the shelf's kind order. */
-const byKind = <D extends { spec: string }>(devices: readonly D[]): [string, D[]][] => {
-  const m = new Map<string, D[]>();
-  for (const d of devices) { const k = DEVICE_SPECS[d.spec]?.kind ?? 'other'; (m.get(k) ?? m.set(k, []).get(k)!).push(d); }
-  const rank = (k: string) => { const i = KINDS.indexOf(k); return i < 0 ? 99 : i; };
-  return [...m].sort((a, b) => rank(a[0]) - rank(b[0]));
-};
-
-const BENCH_NAME: Record<string, string> = { compute: 'Compute', memory: 'Memory', storage: 'Storage', network: 'Network', gpu: 'Graphics', npu: 'AI' };
-const money =(n: number) => `$${n.toLocaleString('en-US')}`;
-
-/** The spec sheet: budget and power draw against the supply (from the part tables; the machine is not run). `rev` redraws it on a change. */
-function Specs({ stage, rev }: { stage: Stage; rev: number | undefined }) {
-  void rev;
-  const s = stage.snapshot;
-  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec) });
-  const over = sheet.headroom !== null && sheet.headroom > 1;
-  const result = stage.bench.value, running = stage.benching.value;
-  return (
-    <section class="bld-specs" aria-label="PC specs">
-      <div class="bld-sub">Specs</div>
-      <dl>
-        <dt>Budget</dt><dd>{money(sheet.budget)}</dd>
-        <dt>Parts</dt><dd>{sheet.parts}</dd>
-        <dt>Power</dt><dd class={over ? 'bad' : ''}>{sheet.idleW}–{sheet.loadW} W</dd>
-        <dt>Supply</dt><dd>{sheet.psuW ? `${sheet.psuW} W` : 'none'}</dd>
-      </dl>
-      {sheet.headroom !== null && <div class={`bld-meter ${over ? 'bad' : ''}`} role="img" aria-label={`Full load is ${Math.round(sheet.headroom * 100)}% of the supply`}><i style={{ width: `${Math.min(100, sheet.headroom * 100)}%` }} /></div>}
-      <div class="bld-sub">Benchmark</div>
-      {result ? (
-        <dl>
-          {result.scores.map((b) => <><dt>{BENCH_NAME[b.kind]}</dt><dd title={b.note}>{b.score === null ? '—' : Math.round(b.score)}</dd></>)}
-          <dt><b>Overall</b></dt><dd><b>{Math.round(result.overall)}</b></dd>
-        </dl>
-      ) : <div class="mode-hint">{running ? `Running ${running === 'start' ? '…' : BENCH_NAME[running]}…` : 'Not run yet. A stock mid build scores about 1000.'}</div>}
-      <button disabled={!!running || stage.status.value.busy} title="Run short fixed jobs on this machine and score them" onClick={() => stage.runBenchmark()}>{result ? 'Run again' : 'Benchmark'}</button>
-    </section>
-  );
-}
+/** The hover line of what a click or a drag does: for a part, a socket, the case's side panel. */
+const doesOf = (id: string, stage: Stage): string => (id === 'case.side' ? 'Click to open it' : stage.board.devices.some((d) => d.id === id) ? 'Click to pick it · drag it onto the shelf to take it out' : 'Drop a part here to fit it');
 
 export function BuildMode() {
   const open = buildOpen.value;
+  const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
-  const bin = useRef<HTMLElement>(null);
+  const shelf = useRef<HTMLElement>(null);
   const [stage, setStage] = useState<Stage | null>(null);
-  // the stage for the drag handlers, which outlive the render they were made in
+  // the stage for the handlers, which outlive the render they were made in
   const stageRef = useRef<Stage | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [failed, setFailed] = useState(false);
   const [kind, setKind] = useState('cpu');
   const [saved, setSaved] = useState<SavedBuild[]>(() => savedBuilds());
-  const [sel, setSel] = useState<string | null>(null);
-  const [drag, setDrag] = useState<Drag | null>(null);
-  const [, redraw] = useState(0);
-  const endDrag = useRef<() => void>(() => {});
-
-  // (the drag handlers read only refs and setters, so the copies made at open stay right)
-  const begin = (src: Source, e: PointerEvent, click: () => void) => {
-    const sx = e.clientX, sy = e.clientY;
-    let moving = false;
-    const where = (x: number, y: number): Over => (within(bin.current, x, y) ? 'bin' : onStage(host.current, x, y) ? 'stage' : null);
-    const move = (m: PointerEvent) => {
-      if (!moving) {
-        if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) return;
-        moving = true;
-        // a shelf part can only land on a socket with the case open
-        if (src.from === 'shelf' && stageRef.current && !stageRef.current.insideOpen) { stageRef.current.openInside(true); redraw((n) => n + 1); }
-      }
-      const over = where(m.clientX, m.clientY);
-      const target = src.from === 'shelf' && over === 'stage' ? stageRef.current?.dropTarget(src.item, m.clientX, m.clientY) ?? '' : undefined;
-      stageRef.current?.showTarget(target || null);
-      setDrag({ ...src, x: m.clientX, y: m.clientY, over, target });
-    };
-    const end = (u: PointerEvent | null) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-      endDrag.current = () => {};
-      stageRef.current?.showTarget(null);
-      setDrag(null);
-      if (!moving) { if (u) click(); return; }
-      if (u) drop(src, u.clientX, u.clientY);
-    };
-    const up = (u: PointerEvent) => end(u);
-    const cancel = () => end(null);
-    endDrag.current = () => end(null);
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
+  const [toast, setToast] = useState<{ text: string; x: number; y: number } | null>(null);
+  const toastTimer = useRef(0);
+  const note = (text: string, x: number, y: number) => {
+    setToast({ text, x, y });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   };
-
-  const drop = (src: Source, x: number, y: number) => {
-    const st = stageRef.current;
-    if (!st) return;
-    if (src.from === 'machine') { if (within(bin.current, x, y)) void st.remove(devNode(src.item)); return; }
-    if (onStage(host.current, x, y)) void st.fit(src.item, st.slotAt(x, y) ?? undefined);
-  };
+  const { drag, begin, cancel, air } = useBuildDrag(stageRef, host, shelf, note);
 
   useEffect(() => {
     if (!open) return;
@@ -161,24 +63,51 @@ export function BuildMode() {
         s.onGrab = (device, e) => {
           const d = s!.board.devices.find((v) => v.id === device);
           if (!d) return;
-          begin({ from: 'machine', item: device, spec: d.spec, name: DEVICE_SPECS[d.spec]?.name ?? d.spec }, e, () => setSel(device));
+          begin({ from: 'machine', item: device, spec: d.spec, name: DEVICE_SPECS[d.spec]?.name ?? d.spec }, e, () => s!.select(device));
         };
         stageRef.current = s;
         setParts(m.binParts());
         setStage(s);
       } catch { setFailed(true); }
     }).catch(() => setFailed(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') buildOpen.value = false; };
+    const onKey = (e: KeyboardEvent) => {
+      const st = stageRef.current;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const busy = !!st?.status.peek().busy;
+      if (e.key === 'Escape') {
+        // (the stage fast-forwards the step that plays; the graphics drawer shuts itself)
+        if (busy) return;
+        if (air.current) cancel();
+        else if (st?.selected.peek()) st.select(null);
+        else if (!graphicsOpen.peek()) buildOpen.value = false;
+        return;
+      }
+      if (e.altKey || !st) return;
+      const k = e.key.toLowerCase();
+      if (e.ctrlKey || e.metaKey) {
+        if (k === 'z' && !e.shiftKey) { e.preventDefault(); void st.undo(); }
+        else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); void st.redo(); }
+        return;
+      }
+      const picked = st.selected.peek();
+      if (k === 'o') { if (!busy) st.openInside(!st.insideOpen); }
+      else if (k === 'p') powerLens.value = !powerLens.value;
+      else if (k === 'a') airflowLens.value = !airflowLens.value;
+      else if (k === 'f') { if (picked) st.focusDevice(picked); }
+      else if (k === 'r' || k === 'home') st.resetView();
+      else if ((k === 'delete' || k === 'backspace') && picked && !busy) { e.preventDefault(); void st.remove(devNode(picked)); }
+    };
     window.addEventListener('keydown', onKey);
     return () => {
       dead = true;
       window.removeEventListener('keydown', onKey);
-      endDrag.current();
+      cancel();
+      window.clearTimeout(toastTimer.current);
       stageRef.current = null;
       s?.dispose();
       setStage(null);
       setFailed(false);
-      setDrag(null);
+      setToast(null);
     };
   }, [open]);
 
@@ -187,126 +116,45 @@ export function BuildMode() {
   const busy = !!st?.busy;
   if (!open) return null;
   void rev;
-  const devices = stage ? stage.board.devices : [];
-  const name = (spec: string) => DEVICE_SPECS[spec]?.name ?? spec;
-  const insideOpen = stage?.insideOpen ?? false;
-  const tilesOf = (k: string): Tile[] => parts.filter((p) => p.kind === k).map((p) => ({ item: p.id, spec: p.id, name: p.name }));
-  const count = (k: string) => parts.filter((p) => p.kind === k).length;
-  const shown = kind === 'all' ? KINDS : [kind];
-
-  const tile = (t: Tile) => (
-    <div
-      key={t.item}
-      role="button"
-      tabIndex={0}
-      data-item={t.item}
-      class={`bld-tile ${busy ? 'dim' : ''}`}
-      aria-disabled={busy}
-      title={`${t.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`}
-      onPointerDown={(e) => { if (e.button === 0 && !busy) begin({ from: 'shelf', item: t.item, spec: t.spec, name: t.name }, e, () => stageRef.current?.fit(t.item)); }}
-      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); stageRef.current?.fit(t.item); } }}
-    >
-      <span class="bld-art"><PartArt id={t.spec} fill label={t.name} /></span>
-      <span class="bld-tname">{t.name}</span>
-    </div>
-  );
+  const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
+  const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', '.bld-foot', '.bld-util'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
+  const hint = hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage?.open.value ?? false, fitted: stage ? stage.board.devices.length : 0 });
 
   return (
-    <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC">
+    <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
       {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
-      <aside class={`bld-bin mode-panel ${drag?.from === 'machine' && drag.over === 'bin' ? 'drop' : ''}`} ref={bin}>
-        <header class="mode-head"><span class="mode-eyebrow">Workshop</span><b>Build my PC</b></header>
-        <div class="bld-kinds" role="tablist" aria-label="Part kinds">
-          <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All (${parts.length})`} onClick={() => setKind('all')}>All</button>
-          {KINDS.map((k) => (
-            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
-              <Icon name={kindIcon(k)} size={14} />
-            </button>
-          ))}
-        </div>
-        <div class="bld-parts" aria-label="Parts">
-          {shown.map((k) => (
-            <section key={k}>
-              <div class="bld-sub">{kindLabel(k)} <span class="mute">{count(k)}</span></div>
-              <div class="bld-tiles">{tilesOf(k).map(tile)}</div>
-            </section>
-          ))}
-        </div>
-        <span class="mode-hint bld-hint">Drop a machine part here to take it out.</span>
-      </aside>
+      <BuildShelf
+        shelf={shelf} kinds={KINDS} parts={parts} kind={kind} setKind={setKind} busy={busy}
+        press={(t, e) => begin({ from: 'shelf', ...t }, e, () => { void stageRef.current?.fit(t.item); })}
+        fit={(item) => { void stageRef.current?.fit(item); }}
+        taking={drag?.from === 'machine'} over={drag?.over === 'bin'}
+      />
+      {stage && <Readout stage={stage} rev={rev} />}
+      <ViewOptions ready={!!stage} />
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <div class="mode-bar mode-top" role="toolbar" aria-label="View">
-        <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}>Graphics</button>
-      </div>
-      <div class="bld-step" aria-live="polite">{st?.step || (busy ? '…' : 'Drag a part onto the PC, or off it onto the shelf')}</div>
-      <div class="bld-bar mode-bar" role="toolbar" aria-label="Machine">
-          <button class={insideOpen ? 'on' : ''} aria-pressed={insideOpen} disabled={busy || !stage} title="Open or shut the side panel: the parts inside are only in reach with it open"
-            onClick={() => { if (stage) { stage.openInside(!insideOpen); redraw((n) => n + 1); } }}>Side panel</button>
-          <i class="mode-sep" aria-hidden="true" />
-          <div class="seg" role="group" aria-label="Speed">
-            {SPEEDS.map((x) => <button key={x} class={stage?.speed.value === x ? 'on' : ''} aria-pressed={stage?.speed.value === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
-          </div>
-          <i class="mode-sep" aria-hidden="true" />
-          <button disabled={busy || !stage?.canUndo} title="Undo the last fit or removal" onClick={() => stage?.undo()}>Undo</button>
-          <button disabled={busy || !stage?.canRedo} title="Redo" onClick={() => stage?.redo()}>Redo</button>
-          {busy && <button title="Fast-forward the steps that play (Space or Escape)" onClick={() => stage?.skip()}>Skip</button>}
-          <i class="mode-sep" aria-hidden="true" />
-          <div class="seg" role="group" aria-label="Camera">
-            {(['front', 'angle', 'side', 'top'] as const).map((v) => <button key={v} disabled={!stage} onClick={() => stage?.preset(v)}>{v[0]!.toUpperCase() + v.slice(1)}</button>)}
-            <button disabled={!stage || !sel} title="Fly to the selected part" onClick={() => { if (sel) stage?.focusDevice(sel); }}>Focus</button>
-          </div>
-          <i class="mode-sep" aria-hidden="true" />
-          <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!stage} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}>Power</button>
-          <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!stage} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}>Airflow</button>
-      </div>
-      <div class="bld-tip"><ModeKeys keys={KEYS} /></div>
-      <aside class="bld-inst mode-panel">
-        <header class="mode-head"><span class="mode-eyebrow">{devices.length} fitted</span><b>In the machine</b></header>
-        <div class="bld-presets" role="group" aria-label="Start from">
-          {BUILD_PRESETS.map((p) => <button key={p.name} disabled={busy || !stage} title={`Build a ${p.name.toLowerCase()} machine`} onClick={() => stage?.buildPreset(p)}>{p.name}</button>)}
-          <button disabled={busy || !stage} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
-          <button disabled={busy || !stage} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
-        </div>
-        <div class="bld-presets" role="group" aria-label="Saved builds">
-          <button disabled={busy || !stage} title="Save this machine under a name" onClick={() => {
-            const n = window.prompt('Name this build', `My build ${saved.length + 1}`)?.trim();
-            if (n && stage) setSaved(saveBuild(n, stage.layout));
-          }}>Save…</button>
-          {saved.map((b) => (
-            <span key={b.name} class="bld-saved">
-              <button disabled={busy || !stage} title={`Load ${b.name}`} onClick={() => stage?.loadLayout(b.layout, b.name)}>{b.name}</button>
-              <button aria-label={`Delete ${b.name}`} title="Delete this saved build" onClick={() => setSaved(deleteBuild(b.name))}><Icon name="close" size={9} /></button>
-            </span>
-          ))}
-        </div>
-        {stage && <Specs stage={stage} rev={rev} />}
-        <ul class="bld-list">
-          {byKind(devices).map(([k, list]) => [
-            <li key={`h-${k}`} class="bld-sub bld-grp">{kindLabel(k)}{list.length > 1 ? ` ×${list.length}` : ''}</li>,
-            ...list.map((d) => (
-            <li key={d.id} class={sel === d.id ? 'on' : ''} onPointerDown={(e) => {
-              if (e.button === 0 && !busy) begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () => setSel(d.id));
-            }}>
-              <span class="bld-thumb"><PartArt id={d.spec} size={28} /></span>
-              <span class="bld-row"><span class="bld-name" title={`${name(d.spec)} (${d.slot})`}>{name(d.spec)}</span></span>
-              <button disabled={busy} aria-label={`Remove ${name(d.spec)}`} title={`Remove with everything in the way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
-                onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="close" size={11} /></button>
-            </li>
-            )),
-          ])}
-          {devices.length === 0 && <li class="mute">Nothing fitted yet.</li>}
-        </ul>
-        {(st?.log.length ?? 0) > 0 && <div class="bld-sub">What was done</div>}
-        {(st?.log.length ?? 0) > 0 && <ol class="bld-log">{st!.log.slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>}
-      </aside>
-      {drag && (
-        <div class={`bld-ghost ${drag.over ?? ''} ${drag.target === '' ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
-          <PartArt id={drag.spec} size={44} />
-          <span><b>{drag.name}</b><em>{hintFor(drag)}</em></span>
-        </div>
-      )}
+      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} />
+      <Foot stage={stage} hint={hint} />
+      {stage && picked && !drag && <BuildCard stage={stage} id={picked} avoid={avoid} />}
+      {stage && hover && !drag && !busy && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
+      {drag && <Ghost drag={drag} />}
+      {toast && <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>{toast.text}</div>}
+    </div>
+  );
+}
+
+/** The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). */
+function Ghost({ drag }: { drag: Drag }) {
+  const ok = drag.from === 'shelf' ? !!drag.target : drag.over === 'bin';
+  const no = drag.target === '';
+  const says = drag.from === 'shelf'
+    ? (drag.over !== 'stage' ? 'Drag it onto the PC' : no ? 'Fits no socket here' : drag.target ? `Let go to fit it in ${drag.target}` : 'Let go to fit it here')
+    : (drag.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out');
+  return (
+    <div class={`bld-ghost ${ok ? 'ok' : ''} ${no ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
+      <PartArt id={drag.spec} size={44} />
+      <span><b>{drag.name}</b><em>{says}</em></span>
     </div>
   );
 }

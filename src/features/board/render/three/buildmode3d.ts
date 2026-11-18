@@ -17,7 +17,7 @@ import { SEG, anisotropy, disposeTree, refilter } from '@/core/render/three/geom
 import { lowDetail } from '@/core/render/three/detail';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext, restoreStudioEnv } from '@/core/render/three/init';
 import { Eye } from '@/core/render/three/eye';
-import { findById, idOf, pick, seeThrough, tag } from '@/core/render/three/pick';
+import { findById, idOf, ownerOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -29,6 +29,7 @@ import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
 import { freeBakePools, startBaker } from './bake';
+import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpick';
 import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
@@ -78,6 +79,8 @@ export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 /** The share of the panel's swing to wait for, the speed of the parts in the way in a chain of more than two steps, and of a skip. */
 const DOOR_WAIT = 0.4, QUICK = 2.5, SKIP = 6;
+/** Pixels a press may move and still be a click (not a turn of the view). */
+const CLICK_SLOP = 5;
 /** A cable in a chain (a fan's lead) is pulled this much faster again: it is the same small motion each time. */
 const CABLE_QUICK = 1.8;
 const SETTLE_SECONDS = 0.2, SETTLE_DEPTH = 40;
@@ -189,6 +192,20 @@ export class BuildStage {
   private frames = 0;
   /** A press on a part inside the open case (no busy job) hands the device id and the press here: the UI drags it. */
   onGrab: ((device: string, e: PointerEvent) => void) | null = null;
+  /** What the pointer is over, as in the game (`hover`, app/hover.ts): a fitted device, an empty socket or the case's side panel, and where the pointer is. */
+  readonly hover = signal<{ id: string; x: number; y: number } | null>(null);
+  /** The fitted device the player picked (its id): outlined, and the card's subject. A job that moves parts lets go of it (`job`). */
+  readonly selected = signal<string | null>(null);
+  /** Counts up when the camera moves or the stage resizes: what is placed by a part's screen box measures it again (`anchorOf`). */
+  readonly viewRev = signal(0);
+  /** Is the side panel open (or opening)? `insideOpen`, as a signal for the toolbar. */
+  readonly open = signal(false);
+  /** What the UI drags now (a catalogue item off the shelf, a fitted device out of the machine), and the part it points at without a drag (a row it hovers). */
+  private carried: { item: string } | { device: string } | null = null;
+  private glowing: string | null = null;
+  private outlineKey = '';
+  private viewKey = '';
+  private hoverTime = 0;
 
   private constructor(host: HTMLElement) {
     this.host = host;
@@ -384,7 +401,12 @@ export class BuildStage {
     const { scene, camera, renderer } = this.ctx;
     this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);
     applyView(camera, this.view, this.W / this.H);
-    this.machine.setOpen(this.wantOpen || this.jobOpen, true);
+    const vk = `${this.view.x}|${this.view.y}|${this.view.z}|${this.view.yaw}|${this.view.pitch}|${this.view.height}|${this.W}|${this.H}`;
+    if (vk !== this.viewKey) { this.viewKey = vk; this.viewRev.value++; }
+    // (busy: the shut side panel's plate takes a ray only while no step plays, so a click on it opens it: `idAt`)
+    this.machine.setOpen(this.wantOpen || this.jobOpen, this.status.peek().busy || !!this.anim);
+    const inside = this.insideOpen;
+    if (inside !== this.open.peek()) this.open.value = inside;
     const snap = this.snapshot;
     this.machine.frame(snap, dt);
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
@@ -395,6 +417,7 @@ export class BuildStage {
     // (the art's density follows the `textures` setting as the board's view does: Low draws it at half what the screen needs)
     this.machine.lod(camera, this.H, renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1));
     this.step(dt * this.rate());
+    this.syncOutline();
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
     this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
@@ -474,38 +497,48 @@ export class BuildStage {
 
   // ------------------------------------------------------------------ the camera
   private listen(el: HTMLCanvasElement): void {
-    let drag: { x: number; y: number; pan: boolean } | null = null;
+    let drag: { x: number; y: number; pan: boolean; moved: number } | null = null;
     const down = (e: PointerEvent) => {
       if (e.button === 0 && !e.shiftKey && this.onGrab && !this.status.peek().busy) {
         const id = this.partAt(e.clientX, e.clientY);
         if (id) { this.onGrab(id, e); return; }
       }
       el.setPointerCapture(e.pointerId);
-      drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
+      drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
     };
     const move = (e: PointerEvent) => {
-      if (!drag) return;
+      if (!drag) { this.pointerOver(e.clientX, e.clientY, el); return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      drag.x = e.clientX; drag.y = e.clientY;
+      drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+      if (drag.moved > CLICK_SLOP && this.hover.peek()) { this.hover.value = null; el.style.cursor = ''; }
       if (drag.pan) { const k = this.goal.height / this.H; this.goal = panBy(this.goal, -dx * k, dy * k); }
       else this.goal = orbitBy(this.goal, -dx * 0.006, dy * 0.006);
     };
-    const up = () => { drag = null; };
+    // (a press that hardly moved is a click: the side panel opens, empty space lets go of the picked part)
+    const up = (e: PointerEvent) => {
+      const d = drag;
+      drag = null;
+      if (d && !d.pan && e.button === 0 && d.moved <= CLICK_SLOP) this.click(e.clientX, e.clientY);
+    };
+    const cancel = () => { drag = null; };
+    const leave = () => { if (!drag) { this.hover.value = null; el.style.cursor = ''; } };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
       this.goal = zoomAt(this.goal, Math.exp(e.deltaY * 0.0012), ((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1), this.W / this.H);
     };
     const menu = (e: Event) => e.preventDefault();
-    const reset = () => { this.goal = this.frameView(); };
+    // (a double click on a part flies to it; on anything else it frames the machine again)
+    const reset = (e: MouseEvent) => { const id = this.idAt(e.clientX, e.clientY), d = deviceFor(id, this.board); if (d) this.focusDevice(d.id); else this.goal = this.frameView(); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('pointerleave', leave);
     el.addEventListener('wheel', wheel, { passive: false });
     el.addEventListener('contextmenu', menu);
     el.addEventListener('dblclick', reset);
-    this.cleanup.push(() => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', menu); el.removeEventListener('dblclick', reset); });
+    this.cleanup.push(() => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', cancel); el.removeEventListener('pointerleave', leave); el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', menu); el.removeEventListener('dblclick', reset); });
   }
 
   resetView(): void { this.goal = this.frameView(); }
@@ -586,18 +619,109 @@ export class BuildStage {
   /** The device under a client point (its id), when the side panel is open; else null. */
   partAt(x: number, y: number): string | null {
     if (this.dead || !this.machine.doorOpen) return null; // (a pointer event can land after the close)
-    const id = this.hitId(x, y);
-    return id && this.board.devices.some((d) => d.id === id) ? id : null;
+    return deviceFor(this.hitId(x, y), this.board)?.id ?? null;
   }
 
   /** The socket under a client point: a part's slot, or an empty socket's id; null off the board or with the panel shut. */
   slotAt(x: number, y: number): string | null {
     if (this.dead || !this.machine.doorOpen) return null;
     const id = this.hitId(x, y);
-    if (!id) return null;
-    const d = this.board.devices.find((v) => v.id === id);
-    if (d) return d.slot;
-    return boardSlots(this.board).some((s) => s.id === id) ? id : null;
+    return deviceFor(id, this.board)?.slot ?? socketFor(id, this.board);
+  }
+
+  // ------------------------------------------------------------------ the pointer, as in the game (board3d.ts): outline, name, pick, open
+  /** What the pointer means at a client point: a fitted device (its id), an empty socket (its id), or the shut case's side panel (`case.side`); null for the rest. */
+  idAt(x: number, y: number): string | null {
+    if (this.dead) return null;
+    if (!this.machine.doorOpen) {
+      // (the case hides what is inside it: its side panel answers, and a click on it opens it)
+      const r = this.ctx.renderer.domElement.getBoundingClientRect();
+      return idOf(pick(this.machine.caseRoots, this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1))) === 'case.side' ? 'case.side' : null;
+    }
+    const id = this.hitId(x, y);
+    return deviceFor(id, this.board)?.id ?? socketFor(id, this.board);
+  }
+
+  /** The pointer moved over the canvas with no button down: name what it is over (the ray at most every 30 ms: the pointer outruns the draws). */
+  private pointerOver(x: number, y: number, el: HTMLElement): void {
+    if (this.dead) return;
+    if (this.carried || this.status.peek().busy) { if (this.hover.peek()) this.hover.value = null; return; }
+    const now = performance.now(), was = this.hover.peek();
+    if (now - this.hoverTime < 30) { if (was) this.hover.value = { ...was, x, y }; return; }
+    this.hoverTime = now;
+    const id = this.idAt(x, y);
+    this.hover.value = id ? { id, x, y } : null;
+    el.style.cursor = id ? 'pointer' : '';
+  }
+
+  /** A click on the canvas that picked no part: the side panel opens or shuts; anywhere else lets go of the picked part. */
+  private click(x: number, y: number): void {
+    if (this.status.peek().busy) return;
+    if (this.idAt(x, y) === 'case.side') { this.openInside(!this.insideOpen); this.hover.value = null; return; }
+    this.select(null);
+  }
+
+  /** Pick a fitted device by its id (null lets go): it is outlined, and the UI's card is about it. */
+  select(id: string | null): void {
+    const known = id !== null && this.board.devices.some((d) => d.id === id);
+    const next = known ? id : null;
+    if (this.selected.peek() !== next) this.selected.value = next;
+    this.demand.ask();
+  }
+
+  /** The UI starts (or ends, with null) a drag: a shelf part's sockets are outlined while it is held, a machine part's own outline stays. */
+  carry(c: { item: string } | { device: string } | null): void {
+    this.carried = c;
+    if (c) this.hover.value = null;
+    this.ctx.renderer.domElement.style.cursor = c ? 'grabbing' : '';
+    this.demand.ask();
+  }
+
+  /** Point at a fitted device without the pointer (the machine's list under the cursor outlines its part); null stops. */
+  glow(id: string | null): void {
+    if (this.glowing === id) return;
+    this.glowing = id;
+    this.demand.ask();
+  }
+
+  /** The scene object to outline for an id: a device's own, or an empty socket's (or the side panel's) box. */
+  private outlineOf(id: string): Object3D | null {
+    if (this.board.devices.some((d) => d.id === id)) return this.objectOf(devNode(id));
+    const o = findById(this.machine.root, id);
+    return o ? ownerOf(o) : null;
+  }
+
+  /** The ids to outline now, as the game draws them (board3d.ts): the hovered part, the picked one, and while a shelf part is held every socket that takes it. */
+  private outlineIds(): string[] {
+    if (this.status.peek().busy || this.anim) return [];
+    const c = this.carried;
+    if (c && 'item' in c) { const f = fitSlots(this.board, c.item); return [...f.free, ...f.swap].map((s) => this.board.devices.find((d) => d.slot === s)?.id ?? s); }
+    if (c) return [c.device];
+    return [...new Set([this.hover.peek()?.id, this.selected.peek(), this.glowing].filter((x): x is string => !!x))];
+  }
+
+  /** Hand the pass the outlined objects, when the ids or the machine changed. */
+  private syncOutline(): void {
+    const sel = this.selected.peek();
+    if (sel && !this.board.devices.some((d) => d.id === sel)) this.selected.value = null;
+    const ids = this.outlineIds(), key = `${this.status.peek().rev}|${ids.join(',')}`;
+    if (key === this.outlineKey) return;
+    this.outlineKey = key;
+    const objs: Object3D[] = [];
+    for (const id of ids) { const o = this.outlineOf(id); if (o) objs.push(o); }
+    this.post.setOutlined(objs);
+    this.demand.ask();
+  }
+
+  /** The client rectangle of a fitted device or a socket as drawn now, for what is placed by it (the card); null when it is not on the screen. */
+  anchorOf(id: string): Rect | null {
+    if (this.dead || !this._machine) return null;
+    const o = this.outlineOf(id);
+    if (!o) return null;
+    const { camera, renderer } = this.ctx, r = renderer.domElement.getBoundingClientRect();
+    camera.updateMatrixWorld(true);
+    o.updateWorldMatrix(true, true);
+    return screenRect(new Box3().setFromObject(o), camera, { x: r.left, y: r.top, w: r.width, h: r.height });
   }
 
   /** Dev and checks: put the camera exactly here (the flicker check nudges it a pixel at a time). */
@@ -897,6 +1021,9 @@ export class BuildStage {
 
   private async job(work: () => Promise<void>): Promise<void> {
     if (this.status.peek().busy || this.dead) return;
+    // (the picked part is the one in its socket after the job: a part that came out and went back in has a new id)
+    const sel = this.selected.peek(), was = sel ? this.board.devices.find((d) => d.id === sel) : undefined;
+    this.hover.value = null;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
     this.pace = 1; this.skipping = false;
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
@@ -910,6 +1037,7 @@ export class BuildStage {
         if (h && !h.root.visible) { h.rest(); h.root.visible = true; this.demand.ask(); }
         this.status.value = { ...this.status.peek(), busy: false, step: '' };
         this.rebuild();
+        this.selected.value = was ? this.board.devices.find((d) => d.slot === was.slot && d.spec === was.spec)?.id ?? null : null;
       }
     }
   }

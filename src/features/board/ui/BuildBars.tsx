@@ -1,0 +1,95 @@
+import { airflowLens, powerLens } from '@/app/hover';
+import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
+import { Icon } from '@/core/ui/kit/Icons';
+import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
+import { specSheet } from '@/features/board/sim/buildspecs';
+import { powerMeter, readiness } from './buildhud';
+
+type Stage = import('../render/three/buildmode3d').BuildStage;
+
+const SPEEDS = [0.5, 1, 2, 4];
+const VIEWS = ['front', 'angle', 'side', 'top'] as const;
+/** The hints under the dock: the camera in the Gallery's words, then what is Build's own. */
+const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'focus or reset'], ['O', 'side panel'], ['Esc', 'leave']];
+const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
+
+/**
+ * The summary over the stage: can it start, what it costs, what it draws against its supply (the bar is full load over the supply's rating, green
+ * to red), how many parts, and the benchmark. From the part tables; the machine is not run here. `rev` draws it again on a change.
+ */
+export function Readout({ stage, rev }: { stage: Stage; rev: number | undefined }) {
+  void rev;
+  const s = stage.snapshot;
+  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec) });
+  const ready = readiness(stage.board, stage.cables), meter = powerMeter(sheet);
+  const result = stage.bench.value, running = stage.benching.value;
+  return (
+    <section class="bld-read mode-bar" aria-label="Build summary">
+      <span class={`bld-ready ${ready.ok ? 'ok' : 'bad'}`} title={ready.ok ? 'Every part the power-on test needs is fitted.' : `It would not start: ${ready.line.charAt(0).toLowerCase()}${ready.line.slice(1)}.`}>
+        <Icon name={ready.ok ? 'check' : 'warn'} size={13} />{ready.line}
+      </span>
+      <i class="mode-sep" aria-hidden="true" />
+      <span class="bld-fig" title="List price of the case, the board and every part"><b>{money(sheet.budget)}</b><em>Budget</em></span>
+      <span class={`bld-fig bld-power ${meter.tone}`} title={sheet.psuW ? `Idle to full load, against the ${sheet.psuW} W supply: ${meter.pct}% at full load.` : 'No power supply is fitted.'}>
+        <b>{sheet.idleW}–{sheet.loadW} W</b>
+        <em>{sheet.psuW ? `of ${sheet.psuW} W` : 'no supply'}</em>
+        <span class="bld-meter" role="img" aria-label={`Full load is ${meter.pct}% of the supply`}><i style={{ width: `${meter.pct}%` }} /></span>
+      </span>
+      <span class="bld-fig" title="The case and the board count as one each"><b>{sheet.parts}</b><em>Parts</em></span>
+      <i class="mode-sep" aria-hidden="true" />
+      <button class="bld-bench-btn" disabled={!!running || stage.status.value.busy} title="Run short fixed jobs on this machine and score them. A stock mid build scores about 1000." onClick={() => stage.runBenchmark()}>
+        <Icon name="gauge" size={13} />{running ? 'Running…' : result ? <>Score <b>{Math.round(result.overall)}</b></> : 'Benchmark'}
+      </button>
+    </section>
+  );
+}
+
+/** The top right: the overlays on the machine (the game's P and A), the graphics settings. Close sits beside it. */
+export function ViewOptions({ ready }: { ready: boolean }) {
+  return (
+    <div class="mode-bar mode-top bld-util" role="toolbar" aria-label="View options">
+      <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!ready} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}><Icon name="bolt" size={12} />Power</button>
+      <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!ready} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}><Icon name="wind" size={12} />Airflow</button>
+      <i class="mode-sep" aria-hidden="true" />
+      <button class={graphicsOpen.value ? 'on' : ''} aria-pressed={graphicsOpen.value} title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
+    </div>
+  );
+}
+
+/**
+ * The bottom: the one line that says what to do now (or the step that plays, with its Skip), then two bars: the machine (the side panel, undo and
+ * redo, the speed of the steps) and the camera (the views, and the picked part).
+ */
+export function Foot({ stage, hint }: { stage: Stage | null; hint: string }) {
+  const st = stage?.status.value;
+  const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value;
+  return (
+    <div class="bld-foot">
+      <div class={`bld-hint ${busy ? 'busy' : ''}`} aria-live="polite">
+        <i aria-hidden="true" /><span>{hint}</span>
+        {busy && <button title="Fast-forward the steps that play (Space)" onClick={() => stage?.skip()}><Icon name="skip" size={11} />Skip</button>}
+      </div>
+      <div class="bld-dock">
+        <div class="mode-bar bld-tools" role="toolbar" aria-label="Machine">
+          <button class={`bld-door ${open ? 'on' : ''}`} aria-pressed={open} disabled={busy || !stage} title="Open or shut the side panel (O): the parts inside are only in reach with it open" onClick={() => stage?.openInside(!open)}>
+            <Icon name="panel" size={13} />Side panel<em>{open ? 'open' : 'shut'}</em>
+          </button>
+          <i class="mode-sep" aria-hidden="true" />
+          <button class="bld-ico" disabled={busy || !stage?.canUndo} title="Undo the last fit or removal (Ctrl+Z)" aria-label="Undo" onClick={() => stage?.undo()}><Icon name="undo" size={14} /></button>
+          <button class="bld-ico" disabled={busy || !stage?.canRedo} title="Redo (Ctrl+Y)" aria-label="Redo" onClick={() => stage?.redo()}><Icon name="redo" size={14} /></button>
+          <i class="mode-sep" aria-hidden="true" />
+          <div class="seg" role="group" aria-label="Speed of the steps">
+            {SPEEDS.map((x) => <button key={x} class={speed === x ? 'on' : ''} aria-pressed={speed === x} onClick={() => { if (stage) stage.speed.value = x; }}>{x}x</button>)}
+          </div>
+        </div>
+        <div class="mode-bar bld-views" role="toolbar" aria-label="Camera">
+          <div class="seg" role="group" aria-label="View">
+            {VIEWS.map((v) => <button key={v} disabled={!stage} onClick={() => stage?.preset(v)}>{v[0]!.toUpperCase() + v.slice(1)}</button>)}
+          </div>
+          <button disabled={!stage || !picked} title="Fly to the picked part (F)" onClick={() => { if (picked) stage?.focusDevice(picked); }}><Icon name="focus" size={13} />Focus</button>
+        </div>
+      </div>
+      <ModeKeys keys={KEYS} />
+    </div>
+  );
+}
