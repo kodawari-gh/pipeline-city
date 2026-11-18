@@ -18,13 +18,14 @@ vi.mock('@/core/render/three/init', async (orig) => {
   };
 });
 vi.mock('@/core/render/three/post', () => ({
-  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {} dispose() {} },
+  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {} dispose() {} startPrograms = () => []; },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} dispose() {} } }));
+vi.mock('./bake', async (orig) => ({ ...(await orig<typeof import('./bake')>()), startBaker: () => {} })); // (no Pixi renderer in a test)
 
 import { BuildStage } from './buildmode3d';
 
-type Closed = { runBenchmark(): Promise<void>; plan(n: string): string[]; partAt(x: number, y: number): string | null; slotAt(x: number, y: number): string | null; dispose(): void; benching: { value: unknown } };
+type Closed = { runBenchmark(): Promise<void>; plan(n: string): string[]; partAt(x: number, y: number): string | null; slotAt(x: number, y: number): string | null; dispose(): void; benching: { value: unknown }; picture: Promise<void> };
 
 describe('a closed BuildStage', () => {
   let stage: Closed;
@@ -41,6 +42,18 @@ describe('a closed BuildStage', () => {
     stage = s as unknown as Closed;
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('ends the wait of an `open` that has no first picture yet', async () => {
+    stage.dispose();
+    await expect(stage.picture).resolves.toBeUndefined();
+  });
+
+  it('opens closed and at once for a signal that has aborted: no game, no machine, no wait (a player who left before the stage began)', async () => {
+    const s = await BuildStage.open({ clientWidth: 400, clientHeight: 800 } as HTMLElement, AbortSignal.abort());
+    expect((s as unknown as { _game: unknown })._game).toBeNull();
+    expect((s as unknown as { dead: boolean }).dead).toBe(true);
+    vi.runAllTimers(); // (the second half of its close)
+  });
 
   it('answers a benchmark, a plan and a pointer query with nothing, whether or not its game is gone', async () => {
     stage.dispose();

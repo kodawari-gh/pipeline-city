@@ -78,7 +78,9 @@ A program first drawn before it has linked holds the frame and the page. On ANGL
 8. **Start a lit program as it will be drawn, environment map and all.** Three keys a lit program by its environment (`envMapMode`, its size). A program started with none is made again at its first draw, when the scene has one, and that link holds the page: the city's sky environment (`OutsideView.draw` filters it at the first draw) made about 10 lit programs, a 3 s task at the end of the wait. `OutsideView.startPrograms` calls `standEnv` first: the PMREM target stands on the (still blank) sky cube and sits on `scene.environment`, so the keys match, and `draw` refills the same target later. The same holds for anything that changes a key: a light, a fog, the shadows, a material's `side`.
 9. **Models join the scene before the programs start.** A glTF model that comes in after the batch (the mouse and the hoodie came 20 ms after it) links its own programs at its first draw: 0.45 s for the mouse's double-sided standard material and 0.4 s for the hoodie's physical cloth. `loadModel` keeps its loads in `pending`, and `modelsIn()` (`gltf.ts`) waits for them and for their users, or 2 s at most; the boot calls it after `Room3D.ready`. A model that arrives later still links at its first draw (a slow network): there is no start for it yet.
 
-Some programs still link inside the first frame: the shadows' depth programs (6, made at the first shadow draw: three makes them, `compile` does not), the `map` / `k` shader that lights the screen, and the sky's `textureCube` pass. Together they take about 0.2 s. A wake of each program's first use a few a frame (`getUniforms`) before the first draw was tried: it split the first frame's task in two and saved nothing (352 to 394 ms with or without it), so it is not kept.
+10. **A first picture waits for its programs and uses each once (Build my PC).** `BuildStage.frame` draws nothing until `programsReady`. The first call starts the machine's programs, the see-through variants of its fades and the passes' (`startPrograms`, `Post.startPrograms`). The ticks after ask the driver without waiting, so the page stays alive. Once all have linked, `prime` makes the first use of each (`getUniforms`, 4 ms a tick). `BuildStage.open` waits for the first picture, so the skeleton stays up until it. A first use waits for the driver to finish every command sent before it. At the first draw those are the scene's uploads: 15 of the 74 programs took 0.41 s that way. With the queue empty the same calls take 0.04 s. After 15 s (`LINK_MAX_MS`) the draw goes on and links what is left.
+
+Some programs still link inside the first frame: the shadows' depth programs (6, made at the first shadow draw: three makes them, `compile` does not), the `map` / `k` shader that lights the screen, and the sky's `textureCube` pass. Together they take about 0.2 s. A wake of each program's first use a few a frame (`getUniforms`) before the boot's first draw was tried: it split the first frame's task in two and saved nothing (352 to 394 ms with or without it), so the boot does not keep it. In Build my PC's first open the same step saves 0.5 s (rule 10).
 
 ## The city stays
 
@@ -155,7 +157,21 @@ The optimized build, served with gzip like a real host, Chrome with the real GPU
 
 What bought it: rule 8 (the city's environment, 2 s), rule 9 (the mouse and the hoodie, 0.9 s on the same task), and the sliced city (the longest city task fell from 2.7 s to 0.3 s: the same total, a page that stays alive). The first long task of a cold run (1.1 s before the first paint, in the 2D canvas test of the Pixi chunk) is the browser starting its GPU process: it is absent in a warm browser (first paint at 88 ms). A real visitor has a GPU process already, so judge the cold run without it.
 
-To find a late program: patch `linkProgram`, `shaderSource` and `attachShader` before the page runs, read `#define SHADER_TYPE` and the defines of each program, and diff those linked after the batch against the early program of the same type. The dev server's `window.__board.scene` and `renderer.properties.get(material).currentProgram` then name the meshes that use it.
+To find a late program: patch `linkProgram`, `shaderSource` and `attachShader` before the page runs, read `#define SHADER_TYPE` and the defines of each program, and diff those linked after the batch against the early program of the same type. The dev server's `window.__board.scene` and `renderer.properties.get(material).currentProgram` then name the meshes that use it. For Build my PC, `window.__build.linking` is its first batch: the programs in `__build.ctx.renderer.info.programs` that are not in it were made later.
+
+### Build my PC, first open (2026-11-18, BOOT-04)
+
+The same build and machine, from the click on the menu's button to the end of the skeleton, in a profile that has run the boot (the driver's cache is warm for the room's programs; the second open is in the same session):
+
+| | Before | After |
+|---|---|---|
+| First open, click to the first picture | 3.5 s | 1.8 s |
+| Second open | 1.4 s | 1.0 s |
+| The first draw (one task) | 2.1 s | 0.12 s |
+| Slow driver calls (`getProgramInfoLog` over 4 ms) | 15 calls, 0.41 s | 2 to 3 calls, 0.04 s |
+| Longest main-thread task | 2.1 s (the first draw) | 1.1 s (`BuildStage.open`: the machine's build) |
+
+The machine's build (`Machine3D`'s constructor, 0.9 s cold, 0.5 s warm) is now the longest task. Where its time goes: the cables (0.23 s: `settle` runs `relax` 0.18 s), `mergeSiblings` (0.19 s), the devices (0.2 s), the rigs (0.13 s). The skeleton's spinner and pulse run on the compositor, so they keep moving; the page does not answer a click meanwhile. The Gallery's first open has no such wait yet: its viewer links the part's programs at the first draw (10 programs, 0.4 s cold, 0.1 s the second time).
 
 ### Memory per screen (PHONE-03, 2026-11-16)
 
@@ -230,6 +246,8 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 - **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker. The city builds a step at a time now; the room does not: `Room3D`'s constructor is one 1.2 s task (the menu, over the screen, cannot answer a hover or a click meanwhile). Its tail (`vertexAo`, `mergeStatic`) could be a generator as the city's `build` is (its fields are `readonly`: they need `!`, as `OutsideView`'s got).
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.6 s).** Texture uploads and first uniforms. `renderer.initTexture` during the link could spread it.
+- **Build my PC's machine build (0.9 s cold).** One task, `Machine3D`'s constructor, at the first open (numbers under "Build my PC, first open"). The cables' `settle` (0.18 s) could run in a later task: the cables would hang straight for a frame or two.
+- **The Gallery's first draw (0.4 s cold).** `Viewer.setObject` could start the part's programs and draw once they link, then `prime` them, as `BuildStage.programsReady` does.
 
 **Programs and precision (GFX-05). Decided 2026-11-17: not built.** Measured (real GPU, dev server, `renderer.info.programs`): the menu links 123 programs at the phone's first-start tier: 65 physical or standard, 35 shader materials (the post passes and the city's layers), 12 basic, 7 depth, 4 others. A sandbox game holds 124 at High and 102 at Low. Of the physical ones, 57 share one light set and differ only by their maps and UV channels, the lightmap, and the hooks (`box`, `ao`, `pal`, `haze`); the others take other light counts. So the target of under 60 needs the material work of MACH-01 first (which is parked, `three.md` "Merges"): no cheaper cut reaches it. `mediump` for the post passes and the city gives a gain on phone ALUs only (a desktop GPU runs it as `highp`), and the HDR chain with bloom is where banding shows, so it would need a shot on a phone GPU that this machine cannot give. Phone cost no longer constrains a decision, so neither is done. Take both up again with MACH-01.
 

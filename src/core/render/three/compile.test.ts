@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Material, Mesh, Scene, type WebGLRenderer } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { freeWhenLinked, linked, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
+import { freeWhenLinked, linked, prime, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
 
 /** A program that links after `n` looks. */
 const after = (n: number): Program => ({ isReady: () => n-- <= 0 });
@@ -27,6 +27,40 @@ describe('whenLinked', () => {
     // a destroyed program (three sets its `program` to undefined) never links: it does not hold the wait
     expect(linked([after(0), { isReady: () => false, program: undefined } as Program])).toBe(true);
     expect(linked([{ isReady: () => false, program: {} } as Program])).toBe(false);
+  });
+});
+
+describe('prime', () => {
+  it('makes the first use of each program, once, and empties the list', () => {
+    const uses = [0, 0, 0];
+    const left: Program[] = uses.map((_, i) => ({ isReady: () => true, getUniforms: () => { uses[i] = (uses[i] ?? 0) + 1; } }));
+    expect(prime(left, 1000)).toBe(true);
+    expect(left).toEqual([]);
+    expect(uses).toEqual([1, 1, 1]);
+    expect(prime(left, 1000)).toBe(true); // (nothing left: nothing is used again)
+    expect(uses).toEqual([1, 1, 1]);
+  });
+
+  it('stops at its time and takes the rest at the next call', () => {
+    let used = 0, t = 0;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => t);
+    try {
+      const left: Program[] = Array.from({ length: 5 }, () => ({ isReady: () => true, getUniforms: () => { used++; t += 1; } }));
+      expect(prime(left, 2)).toBe(false); // (2 ms: two programs)
+      expect(used).toBe(2);
+      expect(prime(left, 10)).toBe(true);
+      expect(used).toBe(5);
+    } finally { spy.mockRestore(); }
+  });
+
+  it('leaves a destroyed program alone (the driver would log an invalid value for its deleted program) and one with no first use', () => {
+    let used = 0;
+    const left = [
+      { isReady: () => false, program: undefined, getUniforms: () => { used++; } },
+      { isReady: () => true },
+    ] as Program[];
+    expect(prime(left, 1000)).toBe(true);
+    expect(used).toBe(0);
   });
 });
 

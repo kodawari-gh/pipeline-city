@@ -5,8 +5,8 @@
 import { HalfFloatType, Mesh, OrthographicCamera, PlaneGeometry, WebGLRenderTarget, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
-/** A program as three keeps it: `isReady` asks the driver whether its link has ended, without waiting. */
-export interface Program { isReady(): boolean }
+/** A program as three keeps it: `isReady` asks the driver whether its link has ended, without waiting; `getUniforms` is its first use (`prime`). */
+export interface Program { isReady(): boolean; getUniforms?(): unknown }
 
 /**
  * Starts linking the programs `root` draws with, lit by `scene`'s lights (default `root`), and returns them. `root` is the scene, or an object
@@ -67,10 +67,27 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
  * Has its link ended, or is the program gone? Three sets a destroyed program's `program` to undefined (its material was disposed while it
  * linked: a machine built again, a Lambert of Low dropped). The driver never calls such a program ready, so a wait on it would not end.
  */
-export const programDone = (p: Program): boolean => ('program' in p && (p as { program?: unknown }).program === undefined) || p.isReady();
+const gone = (p: Program): boolean => 'program' in p && (p as { program?: unknown }).program === undefined;
+export const programDone = (p: Program): boolean => gone(p) || p.isReady();
 
 /** Are they all linked (or gone)? */
 export const linked = (programs: readonly Program[]): boolean => programs.every(programDone);
+
+/**
+ * Makes the first use of linked programs now, for as long as `ms`, and takes them off `left`. Returns whether none is left. A program's first
+ * use (`getUniforms`: three asks the driver for the link's log and the program's uniforms) waits for the driver to finish all the commands sent
+ * before it. At the first draw those are the uploads of the whole scene: the 66 programs of a machine cost 0.4 s that way, with the page held.
+ * With the queue empty each takes a fraction of a millisecond. Only for programs that have linked (`linked`): the first use of one that has not
+ * waits for its link.
+ */
+export function prime(left: Program[], ms: number): boolean {
+  const end = performance.now() + ms;
+  while (left.length && performance.now() < end) {
+    const p = left.pop()!;
+    if (!gone(p)) p.getUniforms?.();
+  }
+  return !left.length;
+}
 
 /** The programs the materials under `root` have made so far (none is made here). */
 export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {

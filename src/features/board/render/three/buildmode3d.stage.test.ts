@@ -26,6 +26,7 @@ vi.mock('@/core/render/three/post', () => ({
     meter = () => null;
     metered = () => rig.lum;
     setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {}
+    startPrograms = () => [];
   },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));

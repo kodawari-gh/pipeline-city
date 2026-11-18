@@ -61,10 +61,12 @@ export function BuildMode() {
   useEffect(() => {
     if (!open) return;
     let dead = false, s: Stage | null = null;
+    // (the stage's first picture takes a moment: a player who leaves meanwhile frees it at once, `BuildStage.open`)
+    const leaving = new AbortController();
     import('../render/three/buildmode3d').then(async (m) => {
       if (dead || !host.current) return;
       try {
-        s = await m.BuildStage.open(host.current);
+        s = await m.BuildStage.open(host.current, leaving.signal);
         if (dead) { s.dispose(); return; }
         s.onGrab = (device, e) => {
           const d = s!.board.devices.find((v) => v.id === device);
@@ -108,6 +110,7 @@ export function BuildMode() {
     window.addEventListener('keydown', onKey);
     return () => {
       dead = true;
+      leaving.abort();
       window.removeEventListener('keydown', onKey);
       cancel();
       window.clearTimeout(toastTimer.current);
