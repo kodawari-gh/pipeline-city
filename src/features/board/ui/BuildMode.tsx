@@ -127,12 +127,15 @@ export function BuildMode() {
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
   const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', '.bld-foot', '.bld-util'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
-  const hint = hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage?.open.value ?? false, fitted: stage ? stage.board.devices.length : 0 });
+  // (before the stage is open the machine is not known: the line says so, it does not say the case is empty)
+  const hint = !stage
+    ? (failed ? '3D is not available here.' : 'Getting the workshop ready…')
+    : hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length });
 
   return (
     <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
-      {!stage && !failed && <div class="bld-note mute">Loading the workshop…</div>}
+      {!stage && !failed && <div class="bld-note mute" role="status"><span class="bld-wait"><i class="starting-ring" aria-hidden="true" />Loading the workshop…</span></div>}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
       <BuildShelf
         shelf={shelf} kinds={KINDS} parts={parts} kind={kind} setKind={setKind} busy={busy}

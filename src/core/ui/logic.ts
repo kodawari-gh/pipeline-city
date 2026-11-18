@@ -8,6 +8,7 @@ import { describeTpmId } from '../../features/tpm/ui/tpmdesc';
 import { describeNpuId } from '../../features/npu/ui/npudesc';
 import { BANDWIDTH_NERD, describeNet } from '../../features/network/ui/netdesc';
 import { INERT_REGIONS } from '../../app/hover';
+import { SAY } from '../../app/say';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 /** A card's PCIe power in a spec line: slot power only, or its lead count. */
@@ -538,10 +539,32 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
 export const isOsActivity = (phase: Snapshot['phase']) =>
   phase === 'booting-os' || phase === 'ingesting' || phase === 'running-os' || phase === 'flashing';
 
+/** How long ago, in the player's words: "just now", "5 min ago", "3 h ago", "2 days ago". */
+export function fmtAgo(ms: number): string {
+  const m = Math.floor(Math.max(0, ms) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+
+/**
+ * What a saved game is, in the menu's words: its level (a campaign) or "Sandbox", and when it was saved ("Level 3 · 5 min ago").
+ * `at` is when it was saved (ms), if it is known; an older save with no level shows its money.
+ */
+export function saveSummary(save: { sandbox?: boolean; level?: number; money: number }, at: number | null, now: number): string {
+  const what = save.sandbox ? 'Sandbox' : save.level ? `Level ${save.level}` : fmtMoney(save.money);
+  return at === null ? what : `${what} · ${fmtAgo(now - at)}`;
+}
+
 /**
  * The sim refuses out-of-order actions with "<call>: <reason>". Show just the reason, as a plain sentence.
  */
 export function friendlyError(message: string): string {
+  // a message the app wrote for the player (a bad file, a game that would not start) is already plain: shown as it is
+  if (message.startsWith(SAY)) return message.slice(SAY.length);
   const m = /^[a-zA-Z]+: (.*)$/.exec(message);
   const reason = (m ? m[1]! : message).trim();
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;

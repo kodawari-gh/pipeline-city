@@ -1,13 +1,14 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { autosaveOffer, importSave, startSim } from '@/app/store';
-import { fmtMoney, fmtTicks } from '../logic';
+import { autosaveAt, autosaveOffer, startSim } from '@/app/store';
+import { saveSummary } from '../logic';
 import { Icon } from '../kit/Icons';
 import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
+import { loadFromFile } from './loadgame';
 import { newGameOpen, openNewGame } from './NewGame';
 
-// The MAIN MENU, over the live room before a game: Continue (when an autosave exists), New game, Load game, Settings.
-// Styles: ui.css (the Main menu section). Arrow keys move between the entries, Enter picks.
+// The MAIN MENU, over the live room before a game: Continue (when an autosave exists), New game, Sandbox, Build my PC, Gallery, Load from file, Settings.
+// Every entry has a caption, so the rows are one height. Styles: ui.css (the Main menu section). Arrow keys move between the entries, Enter picks.
 
 const settingsOpen = signal(false);
 
@@ -35,18 +36,18 @@ export function MainMenu() {
         {offer && (
           <button class="mm-btn primary" onClick={() => startSim(offer)}>
             <Icon name="play" size={14} />
-            <span class="mm-t">Continue<span class="mm-d">{offer.sandbox ? 'Sandbox' : fmtMoney(offer.money)} · {fmtTicks(offer.baseTick)}</span></span>
+            <span class="mm-t">Continue<span class="mm-d">{saveSummary(offer, autosaveAt.value, Date.now())}</span></span>
           </button>
         )}
-        <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game</span></button>
+        <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game<span class="mm-d">Guided campaign</span></span></button>
         <button class="mm-btn" onClick={() => openNewGame('sandbox')}><Icon name="box" size={14} /><span class="mm-t">Sandbox<span class="mm-d">Everything unlocked</span></span></button>
-        <button class="mm-btn" onClick={() => { buildOpen.value = true; }}><Icon name="cpu" size={14} /><span class="mm-t">Build my PC<span class="mm-d">Fit and swap parts</span></span></button>
-        <button class="mm-btn" onClick={() => { galleryOpen.value = true; }}><Icon name="cpu" size={14} /><span class="mm-t">Gallery<span class="mm-d">Every part in 3D</span></span></button>
+        <button class="mm-btn" onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">Fit and swap parts</span></span></button>
+        <button class="mm-btn" onClick={() => { galleryOpen.value = true; }}><Icon name="eye" size={14} /><span class="mm-t">Gallery<span class="mm-d">Every part in 3D</span></span></button>
         <label class="mm-btn btn" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement).click(); } }}>
-          <Icon name="import" size={14} /><span class="mm-t">Load game</span>
-          <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) importSave(f); e.currentTarget.value = ''; }} />
+          <Icon name="import" size={14} /><span class="mm-t">Load from file<span class="mm-d">A game you exported</span></span>
+          <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void loadFromFile(f); e.currentTarget.value = ''; }} />
         </label>
-        <button class="mm-btn" onClick={() => { settingsOpen.value = true; }}><Icon name="screen" size={14} /><span class="mm-t">Settings</span></button>
+        <button class="mm-btn" onClick={() => { settingsOpen.value = true; }}><Icon name="sliders" size={14} /><span class="mm-t">Settings<span class="mm-d">Size and graphics</span></span></button>
       </nav>
       <SettingsCard />
     </>

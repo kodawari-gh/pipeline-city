@@ -53,6 +53,10 @@ export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (stats
 /** The network panel (opened from the HUD chip once a router exists). */
 export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) statsOpen.value = false; };
 export const toggleGraphics = () => { graphicsOpen.value = !graphicsOpen.value; };
+/** The in-game menu (the "…" button in the bar). Esc opens it when nothing else is open (`Hud.tsx`). */
+export const gameMenuOpen = signal(false);
+/** The controls reference: every key and mouse move of the game (`panels/Controls.tsx`; the menu's Help, and the ? key). */
+export const controlsOpen = signal(false);
 
 // ---- milestone screen (the ladder of levels; opened from the HUD level bar, the menu and a locked tile) ----
 

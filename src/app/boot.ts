@@ -52,6 +52,25 @@ export function saveStill(src: HTMLCanvasElement): void {
   } catch { /* no storage, or a tainted canvas: the next boot has no still */ }
 }
 
+/**
+ * The 3D world could not start (no WebGL, or the renderer threw): the boot screen stays and says so, with a way to try again. Before this the screen
+ * went on its way and the game started on a black view with a HUD and no board.
+ */
+export function bootFail(error: unknown): void {
+  const el = typeof document === 'undefined' ? null : document.getElementById('boot');
+  if (!el) return;
+  const text = error instanceof Error ? error.message : String(error);
+  const webgl = /webgl/i.test(text);
+  el.classList.add('fail');
+  const stage = el.querySelector('.boot-stage'), help = el.querySelector('.boot-help');
+  if (stage) stage.textContent = webgl ? 'WebGL is not available' : 'The 3D world could not start';
+  if (help) {
+    help.textContent = webgl
+      ? 'Pipeline City draws its world with WebGL 2. Your browser has it switched off, or does not support it. Turn on hardware acceleration in the browser settings, or try another browser.'
+      : 'Reload the page to try again. If it fails again, try another browser.';
+  }
+}
+
 /** The board can be seen: the boot screen fades out and goes. */
 export function bootDone(): void {
   if (booted.peek()) return;

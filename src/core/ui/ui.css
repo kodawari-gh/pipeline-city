@@ -90,7 +90,8 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .seg > :last-child { border-radius: 0 0.467rem 0.467rem 0; }
 .menu { position: relative; }
 /* (inside the bar's glass its own blur does nothing, so it is nearly opaque: what is behind it must not show through the words) */
-.menu-pop { background: color-mix(in srgb, var(--panel) 20%, var(--menu-solid, #0a0e22)); position: absolute; right: 0; top: calc(100% + 0.4rem); display: flex; flex-direction: column; gap: 0.133rem; min-width: 12.667rem; padding: 0.333rem; z-index: 35; }
+.menu-pop { background: color-mix(in srgb, var(--panel) 20%, var(--menu-solid, #0a0e22)); position: absolute; right: 0; top: calc(100% + 0.4rem); display: flex; flex-direction: column; gap: 0.133rem; min-width: 12.667rem; padding: 0.333rem; z-index: 35; max-height: calc(100vh - 5rem); overflow-y: auto; scrollbar-width: thin; }
+.menu-pop button:focus-visible, .menuitem:focus-within { background: var(--glass-hi); outline: 0.133rem solid var(--accent); outline-offset: -0.133rem; }
 .menu-pop button, .menuitem { border: 0; background: transparent; width: 100%; justify-content: flex-start; padding: 0.333rem 0.467rem; font-weight: 500; }
 .menu-pop button:hover, .menuitem:hover { background: var(--glass-hi); }
 .menu-pop button.danger { color: var(--bad); }
@@ -507,6 +508,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   font: 750 6vmin/1.15 var(--ui); letter-spacing: .04em; color: #e2eaff; text-shadow: 0 0.2vmin 2.4vmin rgba(2, 6, 18, .6); transition: opacity .8s ease;
 }
 .title.gone { opacity: 0; }
+/* A studio screen (Gallery, Build my PC) opens over the menu: the title must not show through it as it fades. */
+.title.quick { transition-duration: .12s; }
 /* Before a game the dialogs dim the room less: it is the title screen's picture. */
 .title:not(.gone) ~ .ng-back, .title:not(.gone) ~ .modal-back { background: radial-gradient(ellipse 80% 70% at 50% 58%, rgba(4, 8, 24, .12), rgba(4, 8, 24, .6)); }
 /* The main menu (panels/MainMenu.tsx): a column under the title, over the live room. */
@@ -515,7 +518,22 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mm-btn:hover:not(:disabled), .mm-btn:focus-visible { transform: translateX(0.2rem); }
 .mm-btn.primary { background: var(--accent); }
 .mm-t { display: flex; flex-direction: column; line-height: 1.2; }
-.mm-d { font: 500 0.7rem var(--mono); opacity: .8; }
+.mm-d { font: 500 0.78rem var(--mono); opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-t { min-width: 0; }
+/* A game is starting: the ring and the word stand where the menu's buttons were (Hud.tsx `Starting`). The ring turns by transform, so it turns while the page is busy. */
+.starting { position: fixed; top: 35vh; left: 50%; translate: -50% 0; z-index: 58; display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem; box-sizing: border-box; font-size: 1.05rem; letter-spacing: .03em; color: var(--ink); background: color-mix(in srgb, var(--menu-solid) 84%, transparent); backdrop-filter: blur(0.5rem); border-radius: 0.6rem; box-shadow: 0 0.2rem 1rem rgba(2, 6, 18, .35); animation: fade-in .2s ease both; }
+.starting-ring { width: 1.3rem; height: 1.3rem; box-sizing: border-box; border-radius: 50%; border: 0.18rem solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: starting-turn .8s linear infinite; }
+@keyframes starting-turn { to { transform: rotate(360deg); } }
+/* The controls reference (panels/Controls.tsx): the mouse and the keys, two columns that stack on a narrow screen. */
+.ctl { width: min(100%, 46rem); }
+.ctl-cols { display: flex; gap: 0.5rem 1.6rem; flex-wrap: wrap; }
+.ctl-cols section { flex: 1 1 18rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.ctl h3 { margin: 0 0 0.2rem; font: 600 0.75rem var(--ui); text-transform: uppercase; letter-spacing: .09em; color: var(--mute); }
+.ctl-row { display: grid; grid-template-columns: 8.4rem 1fr; gap: 0.6rem; align-items: baseline; font-size: 0.85rem; }
+.ctl-k { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem; }
+.ctl-k i { font-style: normal; color: var(--mute); font-size: 0.75rem; margin-right: 0.2rem; }
+.ctl kbd { font-size: 0.78rem; padding: 0.1rem 0.45rem; }
+.modal button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
 .mm-card { background: color-mix(in srgb, var(--menu-solid) 94%, transparent); backdrop-filter: blur(0.6rem); }
 .mm-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; }
 .mm-row.scale-row { padding: 0; }
@@ -565,6 +583,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .ng-sub button.on { background: var(--accent); color: var(--on); }
 .ng-actions { display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .ng-warn { color: var(--bad); margin-right: auto; }
+.ng-note { display: flex; align-items: center; gap: 0.4rem; color: var(--warn); font-size: 0.85rem; }
 
 /* HUD level bar (Levels.tsx): level badge, name, thin progress to the next threshold, the client base as a fraction. */
 .lvl { gap: 0.4rem; padding: 0.2rem 0.5rem 0.2rem 0.25rem; border-radius: 99rem; background: var(--glass-hi); }
@@ -1288,6 +1307,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
+.bld-wait { display: flex; align-items: center; gap: 0.7rem; font-size: var(--m-lg, 1.2rem); letter-spacing: .03em; color: var(--ink); text-shadow: 0 0.1rem 0.8rem rgba(2, 6, 18, .8); }
+/* The right panel's rows while the stage opens: they pulse (opacity only), and are not rows to grab. */
+.bld-list li.bld-skel { height: 2.4rem; padding: 0; cursor: default; pointer-events: none; background: var(--glass-hi); border-color: var(--glass-line); animation: bld-pulse 1s ease-in-out infinite alternate; }
+@keyframes bld-pulse { from { opacity: .35; } to { opacity: 1; } }
 
 /* The shelf: a rail of category icons, then the tiles of the chosen one (or of all, under their headings). While a machine part is dragged out it is the drop zone. */
 .bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: calc(var(--bld-l) - 1rem); overflow: hidden; transition: border-color .15s, box-shadow .15s; }

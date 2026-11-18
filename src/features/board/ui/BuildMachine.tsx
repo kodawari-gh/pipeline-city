@@ -93,7 +93,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
 
   return (
     <aside class="bld-inst mode-panel">
-      <header class="mode-head"><span class="mode-eyebrow">{devices.length} fitted{worth > 0 ? ` · ${money(worth)}` : ''}</span><b>In the machine</b></header>
+      <header class="mode-head"><span class="mode-eyebrow">{stage ? `${devices.length} fitted${worth > 0 ? ` · ${money(worth)}` : ''}` : 'Loading…'}</span><b>In the machine</b></header>
       {/* (the summary's click is the player's say: until then the section is open for a bare machine and shut for a built one) */}
       <details class="bld-start" open={showStart}>
         <summary onClick={(e) => { e.preventDefault(); setStartOpen(!showStart); }}><span class="bld-sub">Start from</span></summary>
@@ -153,7 +153,9 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
             </Fragment>
           );
         })}
-        {devices.length === 0 && <li class="bld-none"><Icon name="box" size={20} /><b>Nothing fitted yet</b><span>Drag a part from the shelf onto the PC.</span></li>}
+        {/* (until the stage is open the machine is not known: rows that wait, not a claim that the case is empty) */}
+        {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `${i * 0.15}s` }} />)}
+        {stage && devices.length === 0 && <li class="bld-none"><Icon name="box" size={20} /><b>Nothing fitted yet</b><span>Drag a part from the shelf onto the PC.</span></li>}
       </ul>
       {log.length > 0 && (
         <details class="bld-history">

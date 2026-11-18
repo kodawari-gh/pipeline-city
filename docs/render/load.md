@@ -22,6 +22,7 @@ The screen goes when the probe has settled, or at the latest `REVEAL_MS` after t
 ## The boot screen
 
 - Four cells; one lights at a time and hops along (0.2 s a step), over a boot log of the stages done. All CSS: only transform and opacity move, so it runs while the build holds the main thread. It stops in the driver's link gaps (see below).
+- If the world cannot start (no WebGL, or the renderer throws), `main.tsx` calls `bootFail` (`boot.ts`): the screen stays, the bar and cells go, and it says why ("WebGL is not available" with help) and offers Try again. It used to fade out onto a black view with a HUD and no board. Tested with `--disable-3d-apis`.
 - The still: `saveStill` (`boot.ts`) copies the canvas (480 px JPEG) into `localStorage` `pc.bootStill` every 30 s while a game runs, from the overview's fixed angle (its own draw, whatever the player looks at). The next boot shows it, blurred, behind the screen. First visit: the shipped `public/boot-still.jpg`; if that is missing, no still.
 
 ## Menu and flight
@@ -29,6 +30,7 @@ The screen goes when the probe has settled, or at the latest `REVEAL_MS` after t
 - Without a snapshot the camera holds the room's overview and sways slowly (`menuView`, `MENU_SWAY`, `MENU_S`; no sway with `prefers-reduced-motion`).
 - `.title` (`Hud.tsx`) stands where the boot screen's title stands, in the same type, so the name stays while the screen fades. It fades out as the game starts.
 - At the game's start the camera flies from the menu's view to the overview (`flyToRoom`), and the HUD fades in (`hud-in`).
+- Between Start and that flight the page is busy for about 2 s: the worker's first snapshot sets `snapshot`, and the effect in `mountBoard3d` rebuilds the machine (a sandbox at another tier also the room) inside that one task. The menu's buttons give way to `Starting…` (`starting` in `store.ts`) at the click, before the work. Its ring turns by transform, so the compositor keeps it going. Main menu from a game needs no reload: `leaveSim` stops the worker and sets `snapshot` to null, and the room goes back to its sway.
 - Gallery and Build my PC cover the whole screen with their own context: the room's frame is skipped meanwhile (`covered` in `board3d.ts`). The canvas keeps its last picture and the room's time stands still, so the room is the same on return. A new picture's programs (a graphics change made there) still link while it is covered.
 
 ## Draw on demand

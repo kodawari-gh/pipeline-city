@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { parseSave } from '../worker/game/save';
 import type { CrashReport, FromSim, SaveV1, Snapshot, Speed, ToSim } from '../worker/protocol';
+import { SAY } from './say';
 
 /** Latest sim snapshot (null until the sim has started). */
 export const snapshot = signal<Snapshot | null>(null);
@@ -24,9 +25,21 @@ export const lastError = signal<string | null>(null);
 export const crash = signal<CrashReport | null>(null);
 /** An autosave found on startup; the HUD offers it before the sim starts. */
 export const autosaveOffer = signal<SaveV1 | null>(null);
+/** When the autosave was written (ms since 1970), if it is known: the menu says how long ago ("Level 3 · 5 min ago"). */
+export const autosaveAt = signal<number | null>(null);
+/** A game is starting: the worker boots and its first snapshot has not come. The menu shows "Starting…" in place of its buttons, so the click is seen at once. */
+export const starting = signal(false);
+/** The player pressed Main menu: the game saves, then the room goes back to its title, which holds the page for about a second. The HUD says "Saving…" meanwhile. */
+export const leaving = signal(false);
+
+/** After the page's next paint: what was just set shows before the work that holds the page. */
+const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
 
 const AUTOSAVE_KEY = 'pipeline-city.autosave';
+const AUTOSAVE_AT_KEY = 'pipeline-city.autosave.at';
 const AUTOSAVE_EVERY_MS = 10_000;
+/** A sim that does not answer a save request in this long (ms) does not keep the player in the game (`leaveSim`). */
+const LEAVE_WAIT_MS = 1500;
 
 /** UI hooks, set by `ui/state.ts`: add per-viewer state (the tutorial's) to every save, and take it back from a loaded one. */
 export const saveHooks = {
@@ -40,24 +53,37 @@ let saveWaiters: Array<(s: SaveV1) => void> = [];
 
 const send = (m: ToSim) => worker?.postMessage(m);
 
-/** (Re)start the worker with a save, or a new random game. */
-export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
-  if (save) saveHooks.restore(save);
+/** Stops the worker and its autosave: no game runs (the snapshot is null, as before the first game). */
+function stopWorker() {
   worker?.terminate();
+  worker = null;
   clearInterval(autosaveTimer);
   saveWaiters = [];
   snapshot.value = null;
-  lastError.value = null;
   crash.value = null;
-  autosaveOffer.value = null;
+  starting.value = false;
   speed.value = DEFAULT_SPEED;
+}
+
+/** (Re)start the worker with a save, or a new random game. */
+export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
+  if (save) saveHooks.restore(save);
+  stopWorker();
+  lastError.value = null;
+  autosaveOffer.value = null;
+  starting.value = true;
   const w = new Worker(new URL('../worker/worker.ts', import.meta.url), { type: 'module' });
   worker = w;
+  w.onerror = () => {
+    if (w !== worker) return;
+    lastError.value = SAY + 'The game could not start. Reload the page and try again.';
+    starting.value = false;
+  };
   w.onmessage = (e: MessageEvent<FromSim>) => {
     if (w !== worker) return;
     const m = e.data;
-    if (m.type === 'snapshot') snapshot.value = m.snapshot;
-    else if (m.type === 'error') lastError.value = m.message;
+    if (m.type === 'snapshot') { snapshot.value = m.snapshot; starting.value = false; }
+    else if (m.type === 'error') { lastError.value = m.message; if (!snapshot.peek()) starting.value = false; }
     else if (m.type === 'crash') {
       crash.value = m.report;
       speed.value = 0; // the sim paused itself
@@ -82,19 +108,53 @@ function requestSave(then: (s: SaveV1) => void) {
 function autosave(save: SaveV1) {
   try {
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(save));
+    const at = Date.now();
+    localStorage.setItem(AUTOSAVE_AT_KEY, String(at));
+    autosaveAt.value = at;
   } catch {
     /* storage unavailable or full: ignore */
   }
+}
+
+/** Save the game now, as the autosave does every 10 s (the menu's "Save now"); `done` runs once it is written. */
+export function saveNow(done?: () => void): void {
+  requestSave((save) => { autosave(save); done?.(); });
+}
+
+/**
+ * Ends the game that runs and brings the main menu back (no page reload: the 3D world stays built). The game as it stands is kept as the autosave
+ * first, so Continue brings it back. A sim that does not answer within `LEAVE_WAIT_MS` is left with the autosave it had.
+ */
+export function leaveSim(): void {
+  if (!worker || !snapshot.peek()) { stopWorker(); loadAutosaveOffer(); return; }
+  let left = false;
+  leaving.value = true;
+  const leave = (save?: SaveV1) => {
+    if (left) return;
+    left = true;
+    if (save) autosave(save);
+    // (the room's rebuild for the title holds the page: let "Saving…" paint first)
+    void nextPaint().then(() => {
+      stopWorker();
+      loadAutosaveOffer();
+      leaving.value = false;
+    });
+  };
+  requestSave(leave);
+  setTimeout(() => leave(), LEAVE_WAIT_MS);
 }
 
 /** Read the autosave, if any and valid, and offer it in the HUD. Returns whether one was found. */
 export function loadAutosaveOffer(): boolean {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
-    if (!raw) return false;
+    if (!raw) { autosaveOffer.value = null; return false; }
+    const at = Number(localStorage.getItem(AUTOSAVE_AT_KEY));
+    autosaveAt.value = Number.isFinite(at) && at > 0 ? at : null;
     autosaveOffer.value = parseSave(JSON.parse(raw));
     return true;
   } catch {
+    autosaveOffer.value = null;
     return false;
   }
 }
@@ -185,12 +245,20 @@ export function exportCrashSave(r: CrashReport) {
   if (r.save) download(`pipeline-city-${r.tick}.json`, JSON.stringify(r.save, null, 1));
 }
 
+/** Read a save file and check it. A file that is no save sets `lastError` (in the player's words) and gives null. Nothing starts: the caller may ask first (`panels/loadgame.ts`). */
+export async function readSaveFile(file: File): Promise<SaveV1 | null> {
+  try {
+    return parseSave(JSON.parse(await file.text()));
+  } catch (e) {
+    lastError.value = e instanceof SyntaxError
+      ? SAY + 'That file is not a Pipeline City save.'
+      : SAY + `That save cannot be loaded: ${(e as Error).message.replace(/^save: /, '')}.`;
+    return null;
+  }
+}
+
 /** Read a save file, validate it, and restart the sim from it. Errors go to `lastError`. */
 export async function importSave(file: File) {
-  try {
-    const save = parseSave(JSON.parse(await file.text()));
-    startSim(save);
-  } catch (e) {
-    lastError.value = e instanceof SyntaxError ? 'save: not valid JSON' : (e as Error).message;
-  }
+  const save = await readSaveFile(file);
+  if (save) startSim(save);
 }

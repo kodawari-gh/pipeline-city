@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  billChip, cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
-  fitFilterFor, fitsFilter, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
+  billChip, cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtAgo, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
+  fitFilterFor, fitsFilter, saveSummary, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
 } from './logic';
+import { SAY } from '../../app/say';
 import { inventoryGroups } from './logic';
 import { REGIONS } from './regions';
 import { getSpec } from '../../features/board/sim/specs';
@@ -96,6 +97,29 @@ describe('refusal text', () => {
   });
   it('keeps a reason that already ends with punctuation', () => {
     expect(friendlyError('plugKey: a key is already plugged in!')).toBe('Not now: A key is already plugged in!');
+  });
+  it('shows the app\'s own sentence as it is, with no "Not now:"', () => {
+    expect(friendlyError(SAY + 'That file is not a Pipeline City save.')).toBe('That file is not a Pipeline City save.');
+  });
+});
+
+describe('saved games in the menu', () => {
+  it('says how long ago in the player\'s words', () => {
+    expect(fmtAgo(20_000)).toBe('just now');
+    expect(fmtAgo(5 * 60_000 + 10_000)).toBe('5 min ago');
+    expect(fmtAgo(3 * 3_600_000)).toBe('3 h ago');
+    expect(fmtAgo(24 * 3_600_000)).toBe('1 day ago');
+    expect(fmtAgo(50 * 3_600_000)).toBe('2 days ago');
+    expect(fmtAgo(-5000)).toBe('just now');
+  });
+  it('names a campaign by its level and a sandbox as one, with the time when it is known', () => {
+    const now = 10_000_000;
+    expect(saveSummary({ level: 3, money: 600 }, now - 5 * 60_000, now)).toBe('Level 3 · 5 min ago');
+    expect(saveSummary({ sandbox: true, level: 8, money: 1e9 }, now - 2 * 3_600_000, now)).toBe('Sandbox · 2 h ago');
+  });
+  it('falls back to the money for an older save with no level, and leaves the time out when it is unknown', () => {
+    expect(saveSummary({ money: 1234 }, null, 0)).toBe('$1,234');
+    expect(saveSummary({ level: 2, money: 5 }, null, 0)).toBe('Level 2');
   });
 });
 

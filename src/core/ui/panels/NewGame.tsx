@@ -2,10 +2,12 @@ import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { snapshot, startSim } from '@/app/store';
 import { resetTutorial } from '../state';
+import { Icon } from '../kit/Icons';
+import { whatWouldBeLost } from './loadgame';
 
 // The NEW GAME dialog: Campaign or Sandbox (docs/SANDBOX.md). Sizes are rem and CSS variables only; the styles are
 // in ui.css (the New game section). Keyboard: Tab stays inside the dialog, Enter or Space picks a choice, Escape closes
-// it when a game can be fallen back on.
+// it when a game can be fallen back on. A game that runs, or an autosave that waits, is named in the dialog and asked about: Start then says what it does.
 
 export const newGameOpen = signal(false);
 /** The mode the dialog opens on (the main menu's Sandbox entry asks for the sandbox). */
@@ -22,6 +24,8 @@ export function NewGameDialog() {
   const dialog = useRef<HTMLDivElement>(null);
   const open = newGameOpen.value;
   const running = snapshot.value !== null;
+  // what this game would take the place of: the game that runs, or the autosave that waits (the menu's Continue)
+  const lost = open ? whatWouldBeLost() : null;
   // (before a game the main menu is behind it: Cancel goes back to it)
   const dismissable = true;
 
@@ -51,7 +55,7 @@ export function NewGameDialog() {
 
   if (!open) return null;
   const start = () => {
-    if (running && !confirm) { setConfirm(true); return; }
+    if (lost && !confirm) { setConfirm(true); return; }
     newGameOpen.value = false;
     setConfirm(false);
     if (mode === 'campaign') resetTutorial(tutorialOn); // every new campaign asks, so a replayed or declined tutorial never carries over
@@ -93,14 +97,16 @@ export function NewGameDialog() {
         )}
         {mode === 'sandbox' && (
           <div class="ng-sub" role="group" aria-label="Sandbox start">
+            <span class="mute ng-q">Start with</span>
             <button class={assembled ? 'on' : ''} aria-pressed={assembled} onClick={() => setAssembled(true)}>Assembled machine</button>
             <button class={!assembled ? 'on' : ''} aria-pressed={!assembled} onClick={() => setAssembled(false)}>Bare board</button>
           </div>
         )}
+        {lost && !confirm && <div class="ng-note"><Icon name="warn" size={13} /> A new game takes the place of {lost}.</div>}
         <div class="ng-actions">
-          {confirm && <span class="ng-warn" role="alert">This discards the game you are playing.</span>}
+          {confirm && <span class="ng-warn" role="alert">This {running ? 'discards' : 'replaces'} {lost}.</span>}
           {dismissable && <button onClick={() => { newGameOpen.value = false; }}>Cancel</button>}
-          <button class="primary" onClick={start}>{confirm ? 'Discard and start' : 'Start'}</button>
+          <button class="primary" onClick={start}>{confirm ? (running ? 'Discard and start' : 'Replace and start') : 'Start'}</button>
         </div>
       </div>
     </div>

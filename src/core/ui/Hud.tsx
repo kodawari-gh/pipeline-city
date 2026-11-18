@@ -1,10 +1,10 @@
 import './ui.css';
-import { useEffect, useState } from 'preact/hooks';
-import { viewInset } from '../../app/hover';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { selected, viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
-import { highlight } from '../../app/interaction';
+import { dragging, highlight } from '../../app/interaction';
 import {
-  exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  exportSave, lastRunSpeed, leaving, saveNow, setSpeed, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
@@ -20,6 +20,10 @@ import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
 import { NewGameDialog, openNewGame } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
+import { ConfirmDialog } from './panels/Confirm';
+import { Controls } from './panels/Controls';
+import { loadFromFile } from './panels/loadgame';
+import { leaveGame } from './leave';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
 import { SandboxTools } from '../../features/sandbox/ui/SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from '../../features/economy/ui/progress/Levels';
@@ -31,7 +35,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { GraphicsModal } from './panels/Graphics';
 import {
-  buildOpen, galleryOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, controlsOpen, galleryOpen, gameMenuOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -73,8 +77,9 @@ function SpeedControl() {
  * The game's name over the live board before a game, where the boot screen had it (index.html): it stays as that screen fades. It fades out
  * as the game starts, and stays in the page for that (the HUD keeps the same element).
  */
-function Title({ on }: { on: boolean }) {
-  return <div class={`title ${on ? '' : 'gone'}`} aria-hidden={!on}>Pipeline City</div>;
+function Title({ on, quick = false }: { on: boolean; quick?: boolean }) {
+  // `quick`: a studio screen covers the room, and the name must not show through it as it fades
+  return <div class={`title ${on ? '' : 'gone'} ${quick ? 'quick' : ''}`} aria-hidden={!on}>Pipeline City</div>;
 }
 
 /** Space pauses and resumes. It leaves text fields and sliders alone, and an open dialog keeps Space for its own buttons. */
@@ -84,7 +89,7 @@ function PauseKey() {
       if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
-      return !document.querySelector('.modal-back, .ng-back, .gfx-back');
+      return !document.querySelector('.modal-back, .ng-back, .gfx-back, .menu-pop');
     };
     const down = (e: KeyboardEvent) => {
       if (!mine(e)) return;
@@ -193,18 +198,80 @@ function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   );
 }
 
-/** Secondary actions: stats, save files, tutorial, hints and a new game. Kept out of the bar. */
+/**
+ * Esc opens the menu when nothing else is open to take it: an open dialog, a picked part's card or a drag keeps Esc for itself. The menu is the game's
+ * pause screen, with the way back to the main menu. ? shows the controls.
+ */
+function MenuKeys() {
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const taken = !!document.querySelector('[role="dialog"], [role="alertdialog"], .menu-pop');
+      if (e.key === '?') {
+        if (taken && !controlsOpen.peek()) return;
+        e.preventDefault();
+        controlsOpen.value = !controlsOpen.peek();
+      } else if (e.key === 'Escape' && !taken && !selected.peek() && !dragging.peek()) gameMenuOpen.value = true;
+    };
+    window.addEventListener('keydown', down);
+    return () => window.removeEventListener('keydown', down);
+  }, []);
+  return null;
+}
+
+/**
+ * The game's menu (the "…" button, or Esc): the game itself (save, the way back to the main menu, files, a new game), tools, the view and help. Kept out of the
+ * bar. It closes on Esc and on a click outside, and the arrows move between its entries.
+ */
 function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
-  const [open, setOpen] = useState(false);
+  const open = gameMenuOpen.value;
+  const root = useRef<HTMLDivElement>(null);
+  const [saved, setSaved] = useState(false);
   const active = currentStep(s, tutorial.value) !== null;
-  const close = () => setOpen(false);
+  const close = () => { gameMenuOpen.value = false; };
+  useEffect(() => {
+    if (!open) return;
+    const items = () => [...(root.current?.querySelectorAll<HTMLElement>('.menu-pop button[role="menuitem"]') ?? [])];
+    items()[0]?.focus();
+    const outside = (e: PointerEvent) => { if (root.current && !root.current.contains(e.target as Node)) close(); };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); root.current?.querySelector<HTMLElement>('button[aria-label="Menu"]')?.focus(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const list = items(), at = list.indexOf(document.activeElement as HTMLElement);
+      if (!list.length) return;
+      e.preventDefault();
+      list[(at + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length]!.focus();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', key);
+    return () => { document.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', key); };
+  }, [open]);
   return (
-    <div class="menu">
-      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-label="Menu" title="Menu" onClick={() => setOpen(!open)}>
+    <div class="menu" ref={root}>
+      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !open; }}>
         <Icon name="menu" size={14} />
       </button>
       {open && (
         <div class="card menu-pop" role="menu">
+          <div class="menu-h">Game</div>
+          <button role="menuitem" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
+          <button role="menuitem" onClick={() => { close(); leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
+          <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
+          <label class="menuitem" title="Load a game file">
+            <Icon name="import" size={13} /> Import game
+            <input
+              type="file" accept="application/json,.json" hidden
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0];
+                if (f) void loadFromFile(f);
+                e.currentTarget.value = '';
+                close();
+              }}
+            />
+          </label>
+          <button class="danger" role="menuitem" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
           <div class="menu-h">Tools</div>
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
@@ -217,22 +284,8 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
               onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
             <b class="value">{Math.round(uiScale.value * 100)}%</b>
           </label>
-          <div class="menu-h">Game</div>
-          <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
-          <label class="menuitem" title="Load a game file">
-            <Icon name="import" size={13} /> Import game
-            <input
-              type="file" accept="application/json,.json" hidden
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                if (f) importSave(f);
-                e.currentTarget.value = '';
-                close();
-              }}
-            />
-          </label>
-          <button class="danger" role="menuitem" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
           <div class="menu-h">Help</div>
+          <button role="menuitem" onClick={() => { close(); controlsOpen.value = true; }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
           {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
           <button role="menuitem" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>
@@ -242,15 +295,36 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   );
 }
 
+/** A game is starting (the worker boots): this stands where the menu was, so the click is seen at once. The ring turns on the compositor, so it turns while the page works. */
+function Starting({ text = 'Starting…' }: { text?: string }) {
+  return (
+    <div class="starting" role="status" aria-live="polite">
+      <i class="starting-ring" aria-hidden="true" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
 export function Hud() {
   const s = snapshot.value;
   // (the menu waits for the boot screen, app/boot.ts)
-  if (!s) return booted.value ? <><Title on={!galleryOpen.value && !buildOpen.value} /><MainMenu /><NewGameDialog /><Gallery /><BuildMode /><GraphicsModal /></> : null;
+  // (a game that is starting stands in place of the menu; the notice shows a refused file here as in a game)
+  if (!s) {
+    return booted.value ? (
+      <>
+        <Title on={!galleryOpen.value && !buildOpen.value} quick={galleryOpen.value || buildOpen.value} />
+        {starting.value ? <Starting /> : <MainMenu />}
+        <NewGameDialog /><Gallery /><BuildMode /><GraphicsModal /><ConfirmDialog />
+        <div class="stack"><Notice /></div>
+      </>
+    ) : null;
+  }
   return (
     <>
       <Title on={false} />
       <InsetReporter />
       <PauseKey />
+      <MenuKeys />
       <header class="hud">
         <div class="hud-side hud-left">
         <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
@@ -281,6 +355,9 @@ export function Hud() {
       )}
       <NetDock />
       <GraphicsModal />
+      <ConfirmDialog />
+      <Controls />
+      {leaving.value && <Starting text="Saving…" />}
       <OsModal />
       <TracePanel />
       <AlmanacPanel />
