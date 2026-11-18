@@ -9,7 +9,7 @@ From the page's first paint to the game: the boot screen, the build, the shader 
 | `Loading` | 0.04 | `index.html` paints the screen before any script runs | no |
 | `Loading the 3D world` | 0.08 | `main.tsx` imports the 3D chunk | no |
 | `Starting the renderer` | 0.10 | `createRenderContext`, `Post`, the light bake's files start to load (`preloadRoomBake`) | about 0.2 s |
-| `Building the world` (`Laying the streets`, `Merging the streets`, `Raising the towers`, `Planting the trees`, `Painting the sky`) | 0.14 to 0.28 | `prepareCity`: the city builds a step at a time (`OutsideView.make`), a paint between, so the bar and the menu stay alive | chunks of 0.15 to 0.3 s |
+| `Building the world` (`Laying the streets`, `Merging the streets`, `Raising the towers`, `Planting the trees`, `Painting the sky`) | 0.14 to 0.28 | `prepareCity`: the city builds a step at a time (`OutsideView.make`), a paint between, so the bar and the menu stay alive; the buildings' massing runs first, while the baked maps load (`early`) | chunks of 0.15 to 0.3 s |
 | `Starting the city shaders` | 0.28 | the city's sky environment stands, then its programs start (rule 8) | about 0.1 s |
 | `Furnishing the room` (`Setting the desk`, `Shading the corners`, `Tidying the room`) | 0.30 to 0.34 | `Room3D.make`: the room builds in slices, a turn between (no paint: the city's programs link); `Shading the corners` casts the baked occlusion on a pool of workers (`aopool.ts`, `vertexAoPooled`: 0.4 s waiting for them, not 1 s on the page's thread; none with fewer than 4 cores); `rebuild(true, made)` puts it in the scene | 1.2 s in slices of 0.28 s at most |
 | `Assembling the machine` | 0.34 | `rebuild()`: the first machine | about 0.2 s |
@@ -171,7 +171,7 @@ The optimized build, served with gzip like a real host, Chrome with the real GPU
 
 What bought it: rule 8 (the city's environment, 2 s), rule 9 (the mouse and the hoodie, 0.9 s on the same task), and the sliced city (the longest city task fell from 2.7 s to 0.3 s: the same total, a page that stays alive). The first long task of a cold run (1.1 s before the first paint, in the 2D canvas test of the Pixi chunk) is the browser starting its GPU process: it is absent in a warm browser (first paint at 88 ms). A real visitor has a GPU process already, so judge the cold run without it.
 
-`npm run bench:boot` (BOOT-06, `tools/bench-boot.mjs`) prints this table. It builds the game, serves it with gzip, loads it cold (a fresh profile) and warm (the same profile again) in Chrome on the real GPU, and prints the rows above, the time of each stage and the lists behind the rows: the programs linked at or after the first draw (with their defines), the driver calls that waited, the main-thread tasks over 100 ms. `--runs 3` shows the middle run and the range, `--cpu 4` a slow laptop, `--dist <dir>` skips the build. It starts the browser's GPU process before the cold load, as a visitor's browser has one; `--no-prewarm` leaves that start (about 1.1 s) in the cold run, which is the 1.2 to 1.5 s of the menu row. It exits with 1 when a visit is no measurement (the boot failed, or a stage that it reads was renamed: `Building the world`, `Assembling the machine`, `Lighting the room`). The row to watch for BOOT-05 is `Building the world to Assembling the machine`: 3.2 s cold at `c9a3b58b` (boot done 6.8 to 7.0 s cold, 4.3 s warm, the menu at 0.15 s, 138 programs, none at or after the first draw).
+`npm run bench:boot` (BOOT-06, `tools/bench-boot.mjs`) prints this table. It builds the game, serves it with gzip, loads it cold (a fresh profile) and warm (the same profile again) in Chrome on the real GPU, and prints the rows above, the time of each stage and the lists behind the rows: the programs linked at or after the first draw (with their defines), the driver calls that waited, the main-thread tasks over 100 ms. `--runs 3` shows the middle run and the range, `--cpu 4` a slow laptop, `--dist <dir>` skips the build. It starts the browser's GPU process before the cold load, as a visitor's browser has one; `--no-prewarm` leaves that start (about 1.1 s) in the cold run, which is the 1.2 to 1.5 s of the menu row. It exits with 1 when a visit is no measurement (the boot failed, or a stage that it reads was renamed: `Building the world`, `Assembling the machine`, `Lighting the room`). The row to watch for BOOT-05 is `Building the world to Assembling the machine`: 3.2 s cold at `c9a3b58b` (boot done 6.8 to 7.0 s cold, 4.3 s warm, the menu at 0.15 s, 138 programs, none at or after the first draw), 2.7 s cold at `037c5ec4` ("The city's heavy steps").
 
 To find which meshes use a late program: the dev server's `window.__board.scene` and `renderer.properties.get(material).currentProgram` name them. For Build my PC, `window.__build.linking` is its first batch: the programs in `__build.ctx.renderer.info.programs` that are not in it were made later.
 
@@ -185,7 +185,35 @@ To find which meshes use a late program: the dev server's `window.__board.scene`
 | `Furnishing the room` to `Assembling the machine` | 1.45 s | 1.65 s (a turn after each of 14 slices) |
 | Long tasks over 100 ms in that window | 1 | 277, 138, 228, 251, 128 ms |
 
-The room is not in the scene while it builds: `rebuild(true, { room, key })` takes it in. `setLayoutTier` runs before `make` (the room reads the layout as it builds), and a made room whose key no longer fits the snapshot (it moved during the build) is disposed and built again. The mouse and the hoodie wait for the end of the build (rule 9). To slice a long occlusion group, `occlusion` (`cloth/occlusion.ts`) would need to keep its state between calls; the largest group is 0.25 s, so it is not done. A baked occlusion would take the 0.99 s away (BOOT-05).
+The room is not in the scene while it builds: `rebuild(true, { room, key })` takes it in. `setLayoutTier` runs before `make` (the room reads the layout as it builds), and a made room whose key no longer fits the snapshot (it moved during the build) is disposed and built again. The mouse and the hoodie wait for the end of the build (rule 9). To slice a long occlusion group, `occlusion` (`cloth/occlusion.ts`) would need to keep its state between calls; the largest group is 0.25 s, so it is not done. The groups now run on a pool of workers instead ("The city's heavy steps").
+
+### The city's heavy steps (2026-11-18, BOOT-05, part done)
+
+`Building the world` to `Assembling the machine`, from `npm run bench:boot -- --runs 3` (the set-up above):
+
+| | At `c9a3b58b` | At `037c5ec4` |
+|---|---|---|
+| Cold | 3.4 s | 2.7 s |
+| Warm | 3.1 s | 2.5 s |
+| Boot done, cold | 7.9 s | 7.0 s |
+| Boot done, warm | 4.6 s | 4.0 s |
+
+The goal of BOOT-05 is under 1.5 s cold. It is not met. What was done:
+
+- **The street merge** (`sweptMerge`, `outside/sweep.ts`): it moves the points of every mesh into shared columns, and builds no geometry for each mesh. 0.38 s to 0.17 s in node; 0.20 s as a stage. The old way stays as `sweptMergeReference`, and `sweep.test.ts` checks that both give the same bytes.
+- **The room's occlusion on a pool of workers** (`aopool.ts`, `aojob.ts`, `aojob.worker.ts`, `vertexAoPooled`): the page sends each group to a worker, the largest first, and applies the answers in group order, so the result equals the sync path. A job that fails runs on the page's thread. No pool with fewer than 4 cores. `Shading the corners`: 1.1 s to 0.43 s cold.
+- **The buildings' massing during the texture wait** (`massSteps`, `OutsideView.make(…, early)`): the massing runs in slices while the baked maps load, and `build()` takes its result. The net gain is 0.1 s: a part of the texture chain (the loader's import, the uploads) runs on the same thread.
+
+Where the 2.7 s cold goes now: `Building the world` 0.75 s (about 0.28 s of it massing, the rest waits for the baked maps and their loader), `Laying the streets` 0.16 s, `Merging the streets` 0.20 s, `Raising the towers` 0.02 s, `Planting the trees` 0.32 s, `Furnishing the room` 0.48 s, `Setting the desk` 0.10 s, `Shading the corners` 0.43 s, `Tidying the room` 0.16 s, `Assembling the machine` 0.25 s.
+
+What is left, by gain:
+
+- **Massing in a worker (about 0.27 s).** The data of each `Building` in, typed arrays out.
+- **`plantTrees` (0.32 s).** `taperTube` (`loft.ts`) makes a new curve for each limb, and each curve builds a length table of 200 points: `CatmullRomCurve3.getPoint` is the top Three cost in a node profile of the city. Fewer divisions move the limbs by a small amount and need a new High golden (`highident.expected.json`).
+- **The first machine (0.25 s) beside the occlusion wait (0.43 s).** `rebuild` and `Room3D.make` would need to split.
+- **`sweptMerge` with the matrix maths inline** (0.05 to 0.08 s).
+- **Rejected: a baked occlusion.** The room's plants take a running seed, so two builds are not the same and a bake does not match the room; the file would also change with every art edit.
+- **Not in this stretch:** a rebuild at a tier change (Low to High) is still one task of about 2.2 s (`new Room3D` is sync), and the cold `Preparing the shaders` (2.7 s) is the GPU driver (BOOT-02, BOOT-03).
 
 ### Build my PC, first open (2026-11-18, BOOT-04)
 
@@ -297,7 +325,7 @@ Shots at the phone profile (412x915 at 2.6, Low, real GPU): the first view and t
 
 ## What can still go faster
 
-- **The build (2.8 s).** Pure JS: `plantTrees` and `vertexAo` take about 0.6 s each, `mergeStatic` and `massGeometries` about 0.35 s each. It could store its results, or run in a worker. The city and the room build a step at a time now (the room's `vertexAo` alone is 0.99 s: "The room's build in slices").
+- **The build (2.7 s cold from `Building the world` to `Assembling the machine`).** Pure JS. The city and the room build a step at a time, the room's occlusion runs on workers and the buildings' massing overlaps the texture wait. What is left, by gain, is in "The city's heavy steps": massing in a worker, `plantTrees`, the first machine beside the occlusion wait.
 - **The link (about 2 s).** About 118 programs, each about 110 KB of GLSL: 50 of them are the physical material's variants (maps, the room's and the city's lights, `onBeforeCompile` hooks). Fewer variants or fewer lights shorten it directly. `renderer.debug.checkShaderErrors = false` gives nothing: the wait moves from `getProgramInfoLog` to `getProgramParameter`.
 - **The first draw (0.55 s).** Texture and geometry uploads: no program links in it now (rule 11). `renderer.initTexture` during the link could spread it.
 - **Build my PC's machine build (0.9 s cold).** It runs in slices now (BOOT-04), so the page answers meanwhile; the work is the same. The cables' `settle` (0.18 s) could be cached or baked; the second build in a session reads it from `hang`'s cache.
