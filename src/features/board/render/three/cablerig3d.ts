@@ -7,6 +7,7 @@ import { Group, Quaternion, Vector3, type Object3D } from 'three';
 import { lowDetail } from '@/core/render/three/detail';
 import { mergeWithin } from '@/core/render/three/merge';
 import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
+import type { RigPower } from './power/runs';
 import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
 
 /** A socket's mouth and the way a plug pulls out of it (a unit vector). */
@@ -51,6 +52,8 @@ export interface CableRig {
   lead: number;
   /** What shows only while it is seated (a wall socket, a second run). */
   extra?: () => Object3D;
+  /** What the power lens follows of it besides its strands: which way the power runs, and what the cable does past its fixed end (docs/render/power.md). */
+  power?: RigPower;
 }
 
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
@@ -199,20 +202,24 @@ function merged(g: Group): Group { mergeWithin(g); return g; }
  * The rig's cable as it stands (Machine3D adds it to the cable's tagged group; the hand hides it while it holds the cable): the plug in its
  * socket with the seated strands, or loose at its rest pose.
  */
-export function rigStatic(rig: CableRig, seated: boolean, rest: Rest | undefined): Group {
+export function rigStatic(rig: CableRig, seated: boolean, rest: Rest | undefined): Group { return rigBuild(rig, seated, rest).group; }
+
+/** `rigStatic`, with the points the strands settled to (from each fixed end to the plug) and whether the plug is in: the power lens follows them. */
+export function rigBuild(rig: CableRig, seated: boolean, rest: Rest | undefined): { group: Group; strands: V3[][]; seated: boolean } {
   const g = new Group(), m = rig.model();
   g.userData.rig = true;
   if (seated && rig.canSeat) {
     m.root.userData.plug = true;
-    g.add(m.root, cableMesh(rig.seated(m.strands), rig.look));
+    const strands = rig.seated(m.strands);
+    g.add(m.root, cableMesh(strands, rig.look));
     if (rig.extra) g.add(rig.extra());
-    return merged(g);
+    return { group: merged(g), strands, seated: true };
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
   pivot.userData.plug = true;
   g.add(pivot, cableMesh(l.strands, rig.look));
-  return merged(g);
+  return { group: merged(g), strands: l.strands, seated: false };
 }
 
 /** `pts` resampled to `n` points evenly along its length. */

@@ -152,13 +152,13 @@ export class Ribbons {
 
 /**
  * A sheet over the whole view, under the ribbons, that turns the room cold: the picture is multiplied by a deep blue, so it goes dark and blue and keeps its
- * light and shade. The parts glow on it by their temperature (`PartSkin.thermal`) and the air is drawn over it.
+ * light and shade. The parts glow on it by their temperature (`PartSkin.thermal`) and the air is drawn over it. `tint`: the colour it multiplies by (the power lens's is less blue).
  */
-export function makeVeil(): Mesh {
+export function makeVeil(tint: readonly [number, number, number] = [0.13, 0.16, 0.32]): Mesh {
   const mat = new ShaderMaterial({
     vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: 'uniform vec3 uTint; void main() { gl_FragColor = vec4(uTint, 1.0); }',
-    uniforms: { uTint: { value: [0.13, 0.16, 0.32] } }, transparent: true, depthTest: false, depthWrite: false,
+    uniforms: { uTint: { value: [...tint] } }, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: ZeroFactor, blendDst: SrcColorFactor, toneMapped: false,
   });
   const m = new Mesh(new PlaneGeometry(2, 2), mat);

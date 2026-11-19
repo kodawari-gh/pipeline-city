@@ -1,137 +1,36 @@
-// The power and airflow lenses in 3D (docs/render/interact.md, lenses). The power lens is the 2D one (`PowerLens`), unchanged and fed the same model: its
-// picture (the room dimmed, the electrical map over it) is drawn by the offscreen Pixi renderer onto a plane that stands at the board's depth and covers
-// the view, drawn over everything: seen flat it is the 2D lens, seen from an angle it is a sheet laid over the machine. The airflow lens is not a sheet:
-// it is the case's air as particles in the machine's own space (`air/view.ts`, docs/render/air.md).
-import { Container } from 'pixi.js';
-import { Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
+// The power and airflow lenses in 3D (docs/render/interact.md, lenses): each is a view in the machine's own space, not a sheet over the picture. The power lens
+// lights the real cables, the board's copper and the parts by what they draw (`power/view.ts`, docs/render/power.md); the airflow lens is the case's air as
+// particles (`air/view.ts`, docs/render/air.md). One is on at a time (`powerLens`, `airflowLens`).
+import type { PerspectiveCamera, Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
-import { assignLeads } from '../../sim/cables';
-import { getSpec } from '../../sim/specs';
 import { airflowLens, powerLens } from '@/app/hover';
-import { cardOrigin, cardPlugs } from '@/core/render/accelart';
-import { builtinTheme } from '@/core/render/theme';
-import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
-import { seeThrough } from '@/core/render/three/pick';
-import { PowerLens, lensModel } from '@/features/room/render/desk/lens';
-import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { LAYOUT_CASE, LAYOUT_TIER, MONITOR } from '../layout/layout';
 import { AirView3D } from './air/view';
 import type { Machine3D } from './machine3d';
-import { slotRects } from './slots3d';
-import { buildBuses, buildCables, type Cable, type Bus, type PcieTarget } from '../wiring/routes';
-import { CORD_KINDS, cordPlan, cordRoute, type CordKind } from '../wiring/cords';
-import { drawLive } from './bake';
-import { liveCrop, livePx, viewOn } from './chips3d';
-import type { RoomGeo } from '@/features/room/render/shell/room';
-
-type Pt = [number, number];
-const Z = BOARD_Z + 300;
-const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
-
-/** The PSU's leads as the 2D board routes them: the PCIe ones to the sockets of the cards they were dealt to. */
-function cablesOf(s: Snapshot): Cable[] {
-  const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
-  const targets = assignLeads(cards).filter((l) => s.cables.some((c) => c.id === l.lead)).map((l): PcieTarget => {
-    const card = cards.find((c) => c.slot === l.slot)!, o = cardOrigin(idx(l.slot), card.visual);
-    return { kind: l.lead, x: o.x + (cardPlugs(card.visual)[l.plug] ?? 0), top: o.y, plug: l.plug };
-  });
-  const hasPsu = s.devices.some((d) => d.kind === 'psu'), hasDisplay = s.devices.some((d) => d.kind === 'display');
-  return buildCables(targets).filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu));
-}
-
-/** How far (world x) a label over [x0, x1] at layout y, on the lens plane, must slide so both its ends are on the screen (seen through `cam`, 3% in from the edge). */
-function keepOnScreen(cam: PerspectiveCamera, x0: number, x1: number, y: number): number {
-  const a = new Vector3(x0, -y, Z).project(cam), b = new Vector3(x1, -y, Z).project(cam), span = b.x - a.x, lim = 0.97;
-  if (!(span > 0) || span > 2 * lim) return 0;
-  const k = (x1 - x0) / span;
-  if (a.x < -lim) return (-lim - a.x) * k;
-  return b.x > lim ? (lim - b.x) * k : 0;
-}
+import { PowerView3D } from './power/view';
 
 export class Lens3D {
-  private readonly T = builtinTheme();
-  private readonly power = new PowerLens();
   private readonly air: AirView3D;
-  private readonly mat = new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
-  private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
-  private readonly both = new Container();
-  private canvas: HTMLCanvasElement | null = null;
-  private tex: CanvasTexture | null = null;
-  private size = '';
-  private powerKey: unknown = null;
-  private buses: Bus[] | null = null;
-  private busKey = '';
-  private t = 0;
-  private at = -Infinity;
+  private readonly power: PowerView3D;
 
-  /** `dom`: the canvas the scene draws on (the air's words are pinned over it). */
+  /** `dom`: the canvas the scene draws on (the words of both lenses are pinned over it). */
   constructor(scene: Scene, dom: HTMLElement | null = null) {
-    this.power.setTheme(this.T);
-    this.mesh.visible = false;
-    this.mesh.renderOrder = 1000;
-    scene.add(this.mesh);
-    this.both.addChild(this.power.root);
     this.air = new AirView3D(scene, dom);
+    this.power = new PowerView3D(scene, dom);
   }
 
   /**
-   * Per frame (after the camera): draw the lens that is on over the view, or hide it. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel.
-   * `machine`: the machine the air runs in (no machine, no air).
+   * Per frame (after the camera): draw the lens that is on, or hide both. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel.
+   * `machine`: the machine the lens runs in (no machine, no lens).
    */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, geo: RoomGeo, dt: number, dpr: number, machine: Machine3D | null = null): void {
+  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, dt: number, dpr: number, machine: Machine3D | null = null): void {
     if (airflowLens.peek() && s && machine) this.air.frame(cam, H * dpr, s, machine, dt);
     else this.air.hide();
-    const wantPower = powerLens.peek() && !!s;
-    if (!wantPower) { this.mesh.visible = false; this.powerKey = null; return; }
-    const snap = s!;
-    const key = [snap, LAYOUT_TIER, LAYOUT_CASE];
-    if (!this.powerKey || (this.powerKey as unknown[]).some((v, i) => v !== key[i])) {
-      this.powerKey = key;
-      const bk = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
-      if (bk !== this.busKey || !this.buses) { this.busKey = bk; this.buses = buildBuses(); }
-      const plan = cordPlan(geo);
-      const cords = CORD_KINDS.map((k: CordKind) => {
-        const pl = plan[k], connected = !!snap.cables.find((c) => c.id === k)?.connected, at: Pt = connected ? pl.outlet : pl.rest;
-        return { kind: k, connected, plugAt: at, route: cordRoute(pl, at), outlet: pl.outlet };
-      });
-      this.power.setModel(lensModel({ s: snap, cords, cables: cablesOf(snap), buses: this.buses, slots: slotRects(snap), monitor: MONITOR }));
-    }
-
-    const now = performance.now();
-    this.t += dt;
-    cam.updateMatrixWorld();
-    const v = viewOn(cam, H, Z), world = { x: -1e5, y: -1e5, w: 2e5, h: 2e5 }, crop = v.zoom > 0 && v.rect ? liveCrop(world, v.rect, 0.05) : null;
-    if (!crop) { this.mesh.visible = false; return; }
-    // the lens draws over the view as a 2D camera at this zoom would show it
-    const z = v.zoom, view = { x: crop.x + crop.w / 2, y: crop.y + crop.h / 2, z, cx: (crop.w * z) / 2, cy: (crop.h * z) / 2, w: crop.w * z, h: crop.h * z, fit: (x0: number, x1: number, y: number) => keepOnScreen(cam, x0, x1, y) };
-    this.power.frame(true, view, dt, now);
-    if (now - this.at < 33) { this.mesh.visible = true; return; }
-    const canvas = (this.canvas ??= document.createElement('canvas'));
-    const got = drawLive(this.both, crop, livePx(crop, z * dpr), canvas);
-    if (!got) { this.mesh.visible = false; return; }
-    this.at = now;
-    const size = `${canvas.width}x${canvas.height}`;
-    if (!this.tex || this.size !== size) {
-      this.tex?.dispose();
-      this.tex = rawSrgb(canvas);
-      this.mat.map = this.tex;
-      this.mat.defines = { ...DECODE_SRGB };
-      this.mat.needsUpdate = true;
-      this.size = size;
-    }
-    this.tex.repeat.set(got.w / canvas.width, got.h / canvas.height);
-    this.tex.offset.set(0, 1 - got.h / canvas.height);
-    this.tex.needsUpdate = true;
-    this.mesh.position.set(crop.x + crop.w / 2, -(crop.y + crop.h / 2), Z);
-    this.mesh.scale.set(crop.w, crop.h, 1);
-    this.mesh.visible = true;
+    if (powerLens.peek() && s && machine) this.power.frame(cam, H * dpr, s, machine, dt);
+    else this.power.hide();
   }
 
   dispose(): void {
     this.air.dispose();
-    this.mesh.removeFromParent();
-    this.mesh.geometry.dispose();
-    this.tex?.dispose();
-    this.mat.dispose();
+    this.power.dispose();
   }
 }

@@ -4,6 +4,7 @@ import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
+import { powerHex, WARN } from './powerscale';
 import { thermalHex } from './thermal';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
@@ -92,10 +93,11 @@ export class PartSkin {
   private level = 0;
   private goal: PartLook = { tint: 1, glow: 0, glowIntensity: 0 };
   private goalGlow = new Color(0);
-  /** The thermal view (the airflow lens): the place on the thermal scale it is eased to (null: not shown), the place it is at, and how far the look has gone over. */
+  /** A lens's view (the airflow lens's, the power lens's): the place on its scale it is eased to (null: not shown), the place it is at, how far the look has gone over, and which view. */
   private goalHeat: number | null = null;
   private heat = 0;
   private over = 0;
+  private lens: LensView = THERMAL_VIEW;
   private shown = new Color(0);
   private hot = new Color(0);
 
@@ -111,7 +113,13 @@ export class PartSkin {
    * The thermal view: the part shows its temperature at place `heat` (0 to 1) on the thermal scale (`thermal.ts`) as a glow of the scale's colour on a darkened
    * body, and eases there. Null brings its own look back.
    */
-  thermal(heat: number | null): void { this.goalHeat = heat; }
+  thermal(heat: number | null): void { this.goalHeat = heat; this.lens = THERMAL_VIEW; }
+
+  /**
+   * The power view: the part shows what it draws at place `level` (0 to 1) on the power scale (`powerscale.ts`): a part that draws nothing stays dark, one that draws
+   * glows amber, brighter with its draw. `warn`: the glow is the warning's red (a supply over its budget). Null brings its own look back.
+   */
+  electric(level: number | null, warn = false): void { this.goalHeat = level; this.lens = warn ? WARN_VIEW : POWER_VIEW; }
 
   /** Still on its way to the state's look (a frame drawn on demand, docs/render/load.md, keeps drawing meanwhile). */
   get easing(): boolean {
@@ -130,10 +138,12 @@ export class PartSkin {
     const on = this.goalHeat !== null;
     this.over += ((on ? 1 : 0) - this.over) * t;
     if (on) this.heat += (this.goalHeat! - this.heat) * t;
-    const k = this.over < 1e-3 ? 0 : this.over, tint = this.tint + (THERMAL_BODY - this.tint) * k;
+    const k = this.over < 1e-3 ? 0 : this.over, v = this.lens, tint = this.tint + (v.body - this.tint) * k;
     this.shown.copy(this.glow);
-    if (k > 0) this.shown.lerp(this.hot.setHex(thermalHex(this.heat)), k);
-    const level = this.level * this.gain * (1 - k) + (THERMAL_GLOW_MIN + THERMAL_GLOW * Math.pow(this.heat, 1.2)) * k;
+    if (k > 0) this.shown.lerp(this.hot.setHex(v.hex(this.heat)), k);
+    // (a part with wide faces glows softer in a lens that asks for it: `soft` is how far its `gain` counts there)
+    const wide = 1 + (this.gain - 1) * v.soft;
+    const level = this.level * this.gain * (1 - k) + (v.floor + v.gain * wide * Math.pow(this.heat, v.bend)) * k;
     this.mats.forEach((m, i) => {
       m.color.copy(this.base[i]!).multiplyScalar(tint);
       m.emissive.copy(this.shown);
@@ -144,6 +154,17 @@ export class PartSkin {
 
 /** The thermal view: how dark a part's own colour goes (it is the glow that shows), and the glow's strength at the cold end and the extra at the hot end. */
 const THERMAL_BODY = 0.35, THERMAL_GLOW_MIN = 0.1, THERMAL_GLOW = 1.5;
+
+/**
+ * How a lens shows a part: the colour at a place on its scale, how dark the body goes, the glow's floor and the extra at the top (its place raised to `bend`),
+ * and how far a skin's own `gain` (a card's wide shroud glows softer) counts, 0 (not at all) to 1.
+ */
+interface LensView { hex: (h: number) => number; body: number; floor: number; gain: number; bend: number; soft: number }
+const THERMAL_VIEW: LensView = { hex: thermalHex, body: THERMAL_BODY, floor: THERMAL_GLOW_MIN, gain: THERMAL_GLOW, bend: 1.2, soft: 0 };
+/** The power view: a part that draws nothing has no glow at all; the veil does the dimming, so the body goes less dark than in the thermal view. The glow is strong: the veil is over it too. */
+const POWER_GLOW = 2.5;
+const POWER_VIEW: LensView = { hex: powerHex, body: 0.6, floor: 0, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
+const WARN_VIEW: LensView = { hex: () => WARN, body: 0.6, floor: 0, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
 
 // ---- shared materials (docs/render/three.md "Merges") ----
 

@@ -12,7 +12,8 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | the case, the bay and the OS screen, far-zoom exterior (LOD), installed devices, rear I/O, PSU face | [`render/case.md`](render/case.md) |
 | router, wall plate, ethernet cable, NIC cards | [`render/net.md`](render/net.md) |
 | the airflow lens: the 3D air as particles, the precomputed flow, collisions, heat exchange, water cooling, the supply's air | [`render/air.md`](render/air.md) |
-| the room: desk props, key rack and mail, USB keys, wall cords, power lens | [`render/room/room.md`](../src/features/room/room.md) |
+| the power lens: the real cables, the board's copper and the parts lit by what they draw, the pulses, the missing cables, the watts | [`render/power.md`](render/power.md) |
+| the room: desk props, key rack and mail, USB keys, wall cords | [`render/room/room.md`](../src/features/room/room.md) |
 | the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
 | the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |
 | the LOD0, LOD1, LOD2, stand-in and card scheme; the city's distance bands and Low cuts; the reveal bands of the chips | [`render/lod.md`](render/lod.md) |

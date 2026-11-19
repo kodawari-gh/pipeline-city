@@ -531,7 +531,7 @@ export class BuildStage {
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
     this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
-    this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio(), this.machine);
+    this.lens.frame(camera, this.H, snap, dt, renderer.getPixelRatio(), this.machine);
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
     // (the meter's reading comes a frame or more after its draw: a tick with no draw takes the last frame's too)

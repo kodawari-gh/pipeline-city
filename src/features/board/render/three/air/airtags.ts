@@ -3,9 +3,11 @@
 import { Vector3 } from 'three';
 import type { PerspectiveCamera } from 'three';
 import { MONO } from '@/core/render/ink';
+import { powerGradient } from '@/core/render/three/powerscale';
 import { thermalGradient } from '@/core/render/three/thermal';
 
-export type TagTone = 'heat' | 'warn' | 'dim';
+/** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint. */
+export type TagTone = 'heat' | 'warn' | 'dim' | 'watts';
 
 export interface AirTag {
   id: string;
@@ -17,10 +19,14 @@ export interface AirTag {
   tempC?: number;
   /** Which side of `at` the pill sits: centred (default), growing to the right, or to the left. */
   anchor?: 'c' | 'l' | 'r';
-  /** The thermal scale in place of words: a bar of the palette with the temperatures at its two ends (C, foot and top). */
+  /** A scale in place of words: a bar of the palette with the values at its two ends (foot and top), in °C on the thermal scale, in W on the power scale (`unit`). */
   scale?: readonly [number, number];
+  /** What `scale` counts: degrees (default) or watts. */
+  unit?: 'C' | 'W';
   /** The pill sits right under the pill of this tag (left edges together), when that one is placed. */
   under?: string;
+  /** A detail: the power lens leaves it out while the machine is small on the screen (the room's view), so the overview keeps only the main words. */
+  minor?: boolean;
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
@@ -40,6 +46,7 @@ const STYLE_ID = 'airtag-style';
 const CSS = `
 .airtag { position: fixed; pointer-events: none; white-space: nowrap; z-index: 6; box-sizing: border-box; background: rgba(4, 6, 15, 0.78); border-radius: 0.35rem; padding: 0.15rem 0.4rem; font: 700 0.8rem ${MONO}; }
 .airtag-heat { color: #ffd9a0; }
+.airtag-watts { color: #ffd37a; }
 .airtag-warn { color: #ff5a78; }
 .airtag-dim { color: #8a97c2; }
 .airtag-arrow { margin-left: 0.3rem; }
@@ -47,6 +54,7 @@ const CSS = `
 .airtag-down { color: #6fd8ff; }
 .airtag-scale { display: flex; align-items: center; gap: 0.4rem; color: #cfd6ee; }
 .airtag-bar { width: 5.5rem; height: 0.45rem; border-radius: 0.25rem; background: ${thermalGradient('to right')}; }
+.airtag-bar-w { background: ${powerGradient('to right')}; }
 `;
 
 interface Trend { temp: number; t: number; slope: number }
@@ -215,15 +223,15 @@ export class AirTags3D {
   }
 
   private writeText(node: PillNode, item: Item): void {
-    const sc = item.tag.scale, key = sc ? `scale|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${item.arrow}|${item.tag.text}`;
+    const sc = item.tag.scale, watts = item.tag.unit === 'W', key = sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${item.arrow}|${item.tag.text}`;
     if (key === node.key) return;
     node.key = key;
     if (sc) {
-      // the scale: the temperatures at the two ends of a bar of the palette
+      // the scale: the values at the two ends of a bar of the palette
       node.el.className = 'airtag airtag-scale';
       node.el.textContent = '';
-      const end = (c: number): HTMLSpanElement => { const s = document.createElement('span'); s.textContent = `${Math.round(c)}°C`; return s; }, bar = document.createElement('span');
-      bar.className = 'airtag-bar';
+      const end = (c: number): HTMLSpanElement => { const s = document.createElement('span'); s.textContent = `${Math.round(c)}${watts ? ' W' : '°C'}`; return s; }, bar = document.createElement('span');
+      bar.className = watts ? 'airtag-bar airtag-bar-w' : 'airtag-bar';
       node.el.appendChild(end(sc[0]));
       node.el.appendChild(bar);
       node.el.appendChild(end(sc[1]));

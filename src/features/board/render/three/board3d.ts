@@ -698,7 +698,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
     chips.frame(camera, H, dt * pace, speed.peek() <= 0, ratio);
     fx.frame(s, dt * worldPace(speed.peek()));
-    if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()), ratio, machine);
+    lens.frame(camera, H, s, dt * worldPace(speed.peek()), ratio, machine);
     boardLive.frame(camera, H, s, gt, dt * pace, speed.peek() <= 0, ratio, !!machine);
     room?.setScreenImage(boardLive.screen);
     cues.frame(menu ? null : s);

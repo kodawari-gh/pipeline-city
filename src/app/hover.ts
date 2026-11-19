@@ -10,7 +10,7 @@ export const hover = signal<Hover | null>(null);
 export interface Inset { top: number; right: number; bottom: number; left: number }
 export const viewInset = signal<Inset>({ top: 0, right: 0, bottom: 0, left: 0 });
 
-// The power lens (docs/render/room/room.md "The power lens"): the UI's button and the P key write it, the renderer draws it.
+// The power lens (docs/render/power.md): the UI's button and the P key write it, the renderer draws it.
 export const powerLens = signal(false);
 // The airflow lens (room.md "The airflow lens"): the A key and the fan button write it. It shares the screen with the power lens, so the two exclude each other.
 export const airflowLens = signal(false);

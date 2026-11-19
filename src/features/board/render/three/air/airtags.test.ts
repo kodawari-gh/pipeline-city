@@ -135,6 +135,24 @@ describe('AirTags3D', () => {
     expect(pills(host)[1]!.textContent).toBe('25°C61°C');
   });
 
+  it('a scale tag in watts shows the draws at the two ends of a bar of the power scale', () => {
+    const t = make();
+    t.set([tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }), tag('scale', [0, 0, 0], '', { scale: [0, 175.2], unit: 'W', under: 'wall' })], 0);
+    t.frame(makeCam(), VIEW);
+    const pill = pills(host)[1]!;
+    expect(pill.className).toContain('airtag-scale');
+    expect(pill.textContent).toBe('0 W175 W');
+    // (its bar is the power scale's, not the thermal one's)
+    expect(pill.children[1]!.className).toContain('airtag-bar-w');
+    // a tag of watts has its own tone
+    expect(pills(host)[0]!.className).toContain('airtag-watts');
+    // the same scale in degrees keeps the thermal bar: the key tells them apart, so a pill that changes unit is written again
+    t.set([tag('wall', [0, 0, 0], 'WALL 54 W', { tone: 'watts' }), tag('scale', [0, 0, 0], '', { scale: [0, 175], under: 'wall' })], 1);
+    t.frame(makeCam(), VIEW);
+    expect(pills(host)[1]!.textContent).toBe('0°C175°C');
+    expect(pills(host)[1]!.children[1]!.className).not.toContain('airtag-bar-w');
+  });
+
   it('hides a tag behind the camera', () => {
     const t = make();
     t.set([tag('a', [0, 0, 50])], 0);

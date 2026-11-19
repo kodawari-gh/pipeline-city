@@ -25,7 +25,7 @@ import { heatOf } from '@/core/render/three/thermal';
 import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
-import { tag, unseen } from '@/core/render/three/pick';
+import { findById, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -72,7 +72,8 @@ import {
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
-import { rigStatic, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
+import { rigBuild, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
+import { inFlowOrder, reversed, type CableRun, type RigPower } from './power/runs';
 import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Plug, rj45Real } from './plugs3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -237,6 +238,9 @@ export class Machine3D {
   private unfade = new Map<string, () => void>();
   /** The draggable cables' rigs by kind, built with the cables; where each loose plug was dropped, kept until the parts change. */
   private rigs = new Map<string, CableRig>();
+  /** The cables as the power lens follows them (`cableRuns`), by cable id: made as each cable is built, and a count that moves whenever one is built again. */
+  private runs = new Map<string, CableRun>();
+  private runsRev = 0;
   readonly rest = new Map<string, Rest>();
   /** The case's own pieces (the shell, the side panel, the fans on its mounts, the light strips): what a case swap lifts away (`buildmode3d.ts`). */
   readonly caseRoots: Object3D[] = [];
@@ -259,6 +263,28 @@ export class Machine3D {
   loopPaths(): readonly (readonly V3[])[] { return this.hosePaths; }
   /** The radiator's lanes and ports as the model has them, for the lens's water (null with no radiator). */
   loopRadiator(): RadiatorFlow | null { return this.rad ? radiatorFlow(this.rad.fit) : null; }
+  /**
+   * The cables that carry power, as the power lens follows them (docs/render/power.md): each one's strands as the sleeves were made from them, in the order the
+   * power goes, and whether its plug is in or a hand holds it. A snapshot of the machine as built: `cablesRev` moves when one of them is built again.
+   */
+  cableRuns(): CableRun[] {
+    const held = this.heldCables();
+    return [...this.runs.values()].map((r) => ({ ...r, held: held.has(r.id) }));
+  }
+  get cablesRev(): number { return this.runsRev; }
+  private readonly heldSet = new Set<string>();
+  /** The cables a hand holds now (the plug hides the built cable: the hand draws its own). The set is reused: read it at once. */
+  heldCables(): ReadonlySet<string> {
+    this.heldSet.clear();
+    for (const [id, b] of this.built) for (const c of b.g.children) if (c.userData.rig && !c.visible) { this.heldSet.add(id); break; }
+    return this.heldSet;
+  }
+  /** A part's box in the machine's space (its device id), or null: the power lens hangs its words over it. */
+  partBox(id: string): { min: V3; max: V3 } | null {
+    const o = findById(this.root, id);
+    const b = o ? new Box3().setFromObject(o) : null;
+    return b && !b.isEmpty() ? { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] } : null;
+  }
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
@@ -620,6 +646,14 @@ export class Machine3D {
     for (const [id, sk] of this.skins) sk.thermal(temps ? heatOf(temps.get(id) ?? lo, lo, hi) : null);
   }
 
+  /**
+   * The power lens's view of the parts (docs/render/power.md): each part with a skin glows by what it draws (`levels`, by device id, 0 to 1 on the power scale; a
+   * part that is not in it draws nothing and stays dark), red for the ids in `warn`. Null puts every part's own look back.
+   */
+  powerGlow(levels: ReadonlyMap<string, number> | null, warn: ReadonlySet<string> = new Set()): void {
+    for (const [id, sk] of this.skins) sk.electric(levels ? (levels.get(id) ?? 0) : null, warn.has(id));
+  }
+
   // ------------------------------------------------------------------ parts
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }
   /** The same with a soft glow: a part with wide faces keeps its own colours under the state's (`PartSkin` gain). */
@@ -801,6 +835,8 @@ export class Machine3D {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
     const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T), deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
+    // (a lead's run from the power supply is behind the tray: the power lens draws a stub of it going on into the grommet)
+    const fed: RigPower = { fed: true };
     this.rigs.clear();
     // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
     if (has('atx')) {
@@ -810,7 +846,7 @@ export class Machine3D {
       this.addRig(g, {
         id: 'atx', name: 'the 24-pin', target: 'atx', look, env, fixed, model: () => atxPlug(r, accent),
         seat: { at: [r.x + r.w, -(r.y + r.h / 2), BOARD_Z + 85], axis: [1, 0, 0] }, canSeat: true, engage: 140,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead, power: fed,
       }, on('atx'));
       this.wires.add(g);
       yield;
@@ -823,7 +859,7 @@ export class Machine3D {
       this.addRig(g, {
         id: 'cpu', name: 'the CPU 8-pin', target: 'cpw', look, env, fixed, model: () => epsPlug(r, accent),
         seat: { at: [r.x + r.w / 2, -(r.y + r.h / 2), BOARD_Z + 160], axis: [0, 0, 1] }, canSeat: true, engage: 110,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead, power: fed,
       }, on('cpu'));
       this.wires.add(g);
       yield;
@@ -843,7 +879,7 @@ export class Machine3D {
         id: c.id, name: 'the card\'s power socket', target: (deal && s.devices.find((d) => d.slot === deal.slot)?.id) ?? null, look, env, fixed,
         model: () => ({ root: standingPlug(at, accent, top), strands: [0, 1, 2, 3].map((i): RopeEnd => ({ at: [at.x + (i - 1.5) * (CARD_PLUG.w / 4), -at.y, top + 2], dir: [0, 0, 1] })) }),
         seat: { at: [at.x, -at.y, at.z], axis: [0, 0, 1] }, canSeat: !!sock, engage: 110,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5, power: fed,
       }, c.connected, sock ? () => card!.alsoFade(g) : undefined);
       this.wires.add(g);
       yield;
@@ -862,7 +898,10 @@ export class Machine3D {
         // its plug pushed into the receptacle, the cable back into the slot in the tray sheet behind its cage (`cageGrommet`)
         const p = drivePlug(power, sock, power ? 0x16171b : 0xb3262f);
         const back: RopeEnd = { at: [slot.x + slot.w * (power ? 0.62 : 0.38), Math.min(-(slot.y + 80), Math.max(-(slot.y + slot.h - 80), sock[1] - 260)), TRAY_Z - 30], dir: [0, 0, 1] };
-        g.add(p.root, hung(p.end, back, look, { planes: [], solids: [] }, { slack: 1.15, extra: 60, stiff: 0.7, n: 16 }));
+        const pts = hangPts(p.end, back, look, { planes: [], solids: [] }, { slack: 1.15, extra: 60, stiff: 0.7, n: 16 });
+        g.add(p.root, cableMesh(pts, look));
+        // (the power cable is the lens's: from the slot behind the cage, where the supply's lead comes in, to the drive)
+        if (power) this.runs.set(`${d.id}:power`, { id: `${d.id}:power`, strands: [reversed(pts)], r: look.r, seated: true, seat: { at: sock, axis: [-1, 0, 0] }, held: false, fed: true });
       }
       this.wires.add(g);
       yield;
@@ -874,9 +913,10 @@ export class Machine3D {
     for (const p of fanCordPlans()) {
       if (!has(p.id)) continue;
       const g = tag(new Group(), 'cable.' + p.id), plugged = on(p.id);
-      const cord = (fixed: RopeEnd, e: Env, o: { slack: number; extra: number; n: number }, rest: Pick<CableRig, 'model' | 'seat' | 'engage' | 'extra'>): CableRig => ({
+      // (the power goes from the header, out to the fan)
+      const cord = (fixed: RopeEnd, e: Env, o: { slack: number; extra: number; n: number }, rest: Pick<CableRig, 'model' | 'seat' | 'engage' | 'extra' | 'power'>): CableRig => ({
         id: p.id, name: 'its fan header', target: null, look: fanLook, env: e, fixed: [fixed], canSeat: true, deck,
-        seated: (ex) => [hangPts(fixed, ex[0]!, fanLook, e, o)], n: o.n, stiff: 0.5, lead: fanLook.r * 2.5, ...rest,
+        seated: (ex) => [hangPts(fixed, ex[0]!, fanLook, e, o)], n: o.n, stiff: 0.5, lead: fanLook.r * 2.5, ...rest, power: { out: true, ...rest.power },
       });
       // a fan's plug on its board header, pushed in from the glass side
       const header = (): Pick<CableRig, 'model' | 'seat' | 'engage'> => ({
@@ -902,8 +942,11 @@ export class Machine3D {
           // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
           const hole = { x: p.seat[0] - 40, y: BD.y + BD.h + 70, w: 80, h: 60 };
           this.wires.add(grommet(hole, this.grommets));
-          this.addRig(g, cord(fromSlot(hole, 1)[0]!, fenv, { slack: 1.25, extra: 120, n: 16 }, {
-            ...header(), extra: () => hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }),
+          const holeEnd = fromSlot(hole, 1)[0]!, hubRun = hangPts(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 });
+          this.addRig(g, cord(holeEnd, fenv, { slack: 1.25, extra: 120, n: 16 }, {
+            ...header(), extra: () => cableMesh(hubRun, fanLook),
+            // (the power goes on from the header, in at the hole, behind the tray to the hub's slot, out to the hub's input)
+            power: { more: [hubRun] },
           }), plugged);
         } else this.addRig(g, cord(anchor, fenv, { slack: 1.3, extra: 160, n: 20 }, header()), plugged);
       }
@@ -987,6 +1030,8 @@ export class Machine3D {
         id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
         engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
         deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
+        // (the power comes from the wall: out of the plug, up through the desk's hole and along the cord to its device)
+        power: { out: true, beyond: [low.at, ...reversed(run)] },
       }, on(id));
       this.wires.add(g);
     };
@@ -1063,7 +1108,10 @@ export class Machine3D {
     if (!rig || !b) return false;
     if (seated !== undefined) b.seated = seated;
     for (const c of [...b.g.children]) if (c.userData.rig) { b.g.remove(c); disposeTree(c); }
-    b.g.add(rigStatic(rig, b.seated, this.rest.get(kind)));
+    const built = rigBuild(rig, b.seated, this.rest.get(kind));
+    b.g.add(built.group);
+    this.runs.set(kind, { id: kind, strands: inFlowOrder(built.strands, rig.power), r: rig.look.r, seated: built.seated, seat: rig.seat, held: false, fed: !!rig.power?.fed });
+    this.runsRev++;
     this.unfade.get(kind)?.();
     this.unfade.delete(kind);
     if (b.seated && b.fade) this.unfade.set(kind, b.fade());
@@ -1082,6 +1130,8 @@ export class Machine3D {
     for (const u of this.unfade.values()) u();
     this.unfade.clear();
     this.built.clear();
+    this.runs.clear();
+    this.runsRev++;
     this.partLod?.drop(this.wires);
     disposeTree(this.wires);
     this.wires.clear();

@@ -67,6 +67,52 @@ describe('part looks', () => {
     expect(skin.easing).toBe(false);
   });
 
+  it('the power view leaves a part that draws nothing dark and makes one that draws glow amber, more with its draw; a warning glows red; null gives the own look back', () => {
+    const m = mat(0x808080), skin = new PartSkin([m]), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
+    skin.set(ON);
+    skin.electric(0);
+    settle();
+    // (nothing drawn: no glow at all, the body a little darker)
+    expect(m.emissiveIntensity).toBeCloseTo(0, 5);
+    expect(m.color.r).toBeLessThan(base);
+    skin.electric(0.3);
+    settle();
+    const low = m.emissiveIntensity;
+    expect(low).toBeGreaterThan(0.5);
+    // (amber: red leads, blue is least)
+    expect(m.emissive.r).toBeGreaterThan(m.emissive.g);
+    expect(m.emissive.g).toBeGreaterThan(m.emissive.b);
+    skin.electric(1);
+    settle();
+    expect(m.emissiveIntensity).toBeGreaterThan(low * 2);
+    skin.electric(1, true);
+    settle();
+    expect(m.emissive.r).toBeGreaterThan(m.emissive.g * 2);
+    expect(m.emissive.r).toBeGreaterThan(m.emissive.b);
+    skin.electric(null);
+    settle();
+    expect(m.color.r).toBeCloseTo(base, 3);
+    expect(m.emissiveIntensity).toBeCloseTo(0, 3);
+    expect(skin.easing).toBe(false);
+    // (and the thermal view still reads its own scale after it)
+    skin.thermal(0);
+    settle();
+    expect(m.emissive.b).toBeGreaterThan(m.emissive.r);
+  });
+
+  it('a part with wide faces glows softer in the power view, and as any part in the thermal view', () => {
+    const plain = mat(0x808080), wide = mat(0x808080), a = new PartSkin([plain]), b = new PartSkin([wide], 0.3), settle = (): void => { for (let i = 0; i < 400; i++) { a.frame(1 / 60); b.frame(1 / 60); } };
+    a.set(ON); b.set(ON);
+    a.electric(0.8); b.electric(0.8);
+    settle();
+    expect(wide.emissiveIntensity).toBeGreaterThan(0);
+    expect(wide.emissiveIntensity).toBeLessThan(plain.emissiveIntensity * 0.8);
+    // (the thermal view, which the airflow lens has settled, does not take the gain in)
+    a.thermal(0.8); b.thermal(0.8);
+    settle();
+    expect(wide.emissiveIntensity).toBeCloseTo(plain.emissiveIntensity, 5);
+  });
+
   it('a skin of the thermal view alone ignores the state, and glows in the view all the same', () => {
     const m = mat(0x808080), skin = new PartSkin([m], 1, false), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
     // (a machine that is off, then burnt, then running hot: the part keeps its own look through all of them)
