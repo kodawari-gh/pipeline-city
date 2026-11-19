@@ -87,6 +87,7 @@ The supply has its own 3D channel (the model's lane `fan.psu`: in from below the
 
 - `window.__air` (dev build): `planNow`, `simNow` (`field.ready`, `inflow`, `banks`), `particlesNow` (`P`, `T`, `K`, `count`), `partsNow`, `cost` (ms a frame), `debug = true` (the plan as lines: the domain white, bodies red and orange, fans as rings with a stick along the flow, vents blue).
 - A picture of the real game: `node tools/shot.mjs <out.png> --view board --wait 9000 --eval "<js>"` with `const h = await import('/src/app/hover.ts'); h.airflowLens.value = true; await (await import('/src/app/store.ts')).powerButton(); await new Promise(r => setTimeout(r, 12000));` (the machine must run: all cables in; the sandbox start has them). `--look x,y,z,yaw,pitch,height` frames a view; `--view cpu` is the die close-up.
+- `npm run aircheck` (`tools/aircheck.mjs`): the lens on each case:board pair of Build my PC, with a basic machine switched on. It checks that the flow is solved, that air comes in, that particles fill the case, that every case fan publishes its speed, that a frame of the lens takes under 3 ms and that the page logs no error. About 2 minutes for ten pairs; `--shots <folder>` saves a picture of each.
 - Tests: `air/*.test.ts` (grid, flow, plan from the real layout, the sim's inlets and exits, the particles' collisions, heat, loop and channel, the tags) and `desk/airflow.test.ts` (the model).
 
 ## What it does not do

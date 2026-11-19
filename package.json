@@ -20,6 +20,7 @@
     "shot": "node tools/shot.mjs",
     "jobsheet": "node tools/jobsheet.mjs",
     "animcheck": "node tools/animcheck.mjs",
+    "aircheck": "node tools/aircheck.mjs",
     "flicker": "node tools/flicker.mjs",
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
