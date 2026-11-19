@@ -217,32 +217,32 @@
     "sum": "3c30e71d"
   },
   "machine/dev11": {
-    "meshes": 9,
-    "draws": 9,
-    "verts": 30330,
+    "meshes": 10,
+    "draws": 10,
+    "verts": 18250,
     "instances": 12,
-    "sum": "9d6907b7"
+    "sum": "f0a8af23"
   },
   "machine/dev12": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 30096,
-    "instances": 24,
-    "sum": "cfc0f9ec"
+    "meshes": 2,
+    "draws": 2,
+    "verts": 30912,
+    "instances": 0,
+    "sum": "edd4e1d7"
   },
   "machine/dev13": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 17496,
-    "instances": 24,
-    "sum": "68d1eb04"
+    "meshes": 2,
+    "draws": 2,
+    "verts": 18312,
+    "instances": 0,
+    "sum": "d4440ba7"
   },
   "machine/dev14": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 11140,
-    "instances": 35,
-    "sum": "fa697f70"
+    "meshes": 6,
+    "draws": 6,
+    "verts": 11740,
+    "instances": 16,
+    "sum": "716abf12"
   },
   "machine/dev15": {
     "meshes": 4,
@@ -464,9 +464,9 @@
   "machine/standin": {
     "meshes": 7,
     "draws": 0,
-    "verts": 234822,
+    "verts": 234534,
     "instances": 0,
-    "sum": "8f47b491"
+    "sum": "4a294868"
   },
   "machine/tpm0": {
     "meshes": 1,

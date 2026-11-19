@@ -67,6 +67,26 @@ describe('part looks', () => {
     expect(skin.easing).toBe(false);
   });
 
+  it('a skin of the thermal view alone ignores the state, and glows in the view all the same', () => {
+    const m = mat(0x808080), skin = new PartSkin([m], 1, false), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
+    // (a machine that is off, then burnt, then running hot: the part keeps its own look through all of them)
+    for (const st of [{ ...ON, powered: false }, { ...ON, burnt: true }, { ...ON, active: true, tempC: 90 }]) {
+      skin.set(st);
+      settle();
+      expect(m.color.r).toBeCloseTo(base, 5);
+      expect(m.emissiveIntensity).toBe(0);
+      expect(skin.easing).toBe(false);
+    }
+    skin.thermal(1);
+    settle();
+    expect(m.emissiveIntensity).toBeGreaterThan(1);
+    expect(m.color.r).toBeLessThan(base * 0.5);
+    skin.thermal(null);
+    settle();
+    expect(m.color.r).toBeCloseTo(base, 3);
+    expect(m.emissiveIntensity).toBeCloseTo(0, 3);
+  });
+
   it('a skin says it eases until it has reached the look', () => {
     const skin = new PartSkin([mat(0x808080)]);
     expect(skin.easing).toBe(false);

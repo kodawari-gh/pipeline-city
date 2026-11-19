@@ -6,8 +6,12 @@ import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 
 quietCanvas();
 
-/** The ceiling of the machine's draws at the overview. It may only fall. (136: the case maker's debossed lockup is one clear decal.) */
-const CEILING = 136;
+/**
+ * The ceiling of the machine's draws at the overview. It may only fall. (136: the case maker's debossed lockup is one clear decal. 143: the airflow lens's
+ * skins. A material that carries a part's temperature joins no palette stand-in, so its meshes draw as one: the radiator's four materials, one for each
+ * sink, and the two hoses (one more than the single draw they were in).)
+ */
+const CEILING = 143;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {

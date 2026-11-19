@@ -1,7 +1,7 @@
 // The airflow lens in 3D (docs/render/air.md): the case's air as particles in the machine's own space, seen as a thermal camera sees it. It makes the air of a
 // machine from its parts' boxes (plan.ts), solves the flow of every fan once (build.ts, a slice per frame), and then only moves particles: they ride the flow,
-// slide round the parts, take heat from the hot ones by the sim's coefficients and leave where air leaves (and go on outside as a jet). The coolant runs on a line of
-// its own. The parts glow by their temperature on the thermal scale (`Machine3D.thermal`), the room goes cold and dark under a veil, and a bar tells the scale.
+// slide round the parts, take heat from the hot ones by the sim's coefficients and leave where air leaves (and go on outside as a jet). The coolant is a liquid of
+// its own, run along the hoses and the radiator's lanes (water.ts). The parts glow by their temperature on the thermal scale (`Machine3D.thermal`), the room goes cold and dark under a veil, and a bar tells the scale.
 // The words (`airflowModel`) are pinned to 3D points as light DOM pills.
 import { Group, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
@@ -13,20 +13,23 @@ import { airflowModel, type AirModel } from '@/features/room/render/desk/airflow
 import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { CASE_FRONT } from '@/features/room/render/three/roomplan';
 import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED } from '../../layout/layout';
+import { COOLER_AIR } from '../cooler3d';
 import { slotRects } from '../slots3d';
 import type { Machine3D } from '../machine3d';
 import { AirTags3D, type AirTag } from './airtags';
 import { AirSim } from './build';
 import { planLines } from './debug';
 import { AirParticles } from './particles';
-import { airParts, airPlan, airReference, loopPath, planKey, PSU_BANK, psuBay, surfaceTemps, type AirPart, type AirPlan } from './plan';
+import { airParts, airPlan, airReference, planKey, PSU_BANK, psuBay, surfaceTemps, type AirPart, type AirPlan } from './plan';
 import { makeVeil, Ribbons } from './ribbons';
+import { Water } from './water';
+import { waterNet } from './waternet';
 import type { LineSegments } from 'three';
 
 /** The share of the air particles by the graphics setting (Off, Low, High): the lens always shows some. */
 const DENSITY = [0.4, 0.7, 1];
-/** Air particles at full density: few, so each can be seen (its trail, its colour). */
-const COUNT = 650;
+/** Air particles at full density: few, each a fine streak, so the flow reads and the heat is what the eye finds. */
+const COUNT = 260;
 /** Milliseconds a frame may spend on solving the flow of a new machine. */
 const SOLVE_MS = 4;
 /** The thermal scale runs from the room's temperature to the hottest part's, over at least this many kelvins (so a cool machine does not look hot) and at most that many. */
@@ -50,6 +53,9 @@ export class AirView3D {
   private sim: AirSim | null = null;
   private particles: AirParticles | null = null;
   private ribbons: Ribbons | null = null;
+  /** The coolant as a liquid, made when the machine has a loop; `waterTried`: it has been looked for since the last rebuild. */
+  private water: Water | null = null;
+  private waterTried = false;
   private model: AirModel | null = null;
   private parts: AirPart[] = [];
   private temps: ReadonlyMap<string, number> = new Map();
@@ -125,6 +131,9 @@ export class AirView3D {
   }
 
   private release(): void {
+    this.water?.dispose();
+    this.water = null;
+    this.waterTried = false;
     this.ribbons?.dispose();
     this.ribbons = null;
     this.particles = null;
@@ -179,8 +188,6 @@ export class AirView3D {
       this.temps = surfaceTemps(snap, this.parts);
       particles.setParts(this.parts);
       this.words(snap);
-      const rad = plan.bodies.find((b) => b.kind === 'radiator'), side = snap.devices.find((d) => d.kind === 'radiator')?.slot === 'rad-front' ? 'front' : 'top';
-      particles.setLoop(snap.board?.loop && rad ? loopPath(machine.loopPaths(), rad, side) : null);
     }
     // the thermal scale: from the room's temperature to a little over the hottest part, eased
     let top = AMBIENT_C;
@@ -191,11 +198,19 @@ export class AirView3D {
     machine.thermal(this.temps, AMBIENT_C, this.hi);
     this.glowing = true;
     const loop = snap.board?.loop;
-    if (sim.field.ready) {
-      particles.step({ dt, ambientC: AMBIENT_C, mixC: airReference(snap), coolant: loop && running ? { flow: loop.flow, hotC: loop.hotC, coldC: loop.coldC } : null });
-    }
+    if (sim.field.ready) particles.step({ dt, ambientC: AMBIENT_C, mixC: airReference(snap) });
     this.ribbons!.frame(cam, pxH, AMBIENT_C, this.hi);
     if (this.ribbons!.mesh.parent !== this.group) this.group.add(this.ribbons!.mesh);
+    // the water: made once the machine has a loop (its hoses are built by then), still when the pump is off
+    if (loop && !this.water && !this.waterTried) {
+      this.waterTried = true;
+      const net = waterNet(machine.loopPaths(), machine.loopRadiator(), COOLER_AIR.pump);
+      if (net) { this.water = new Water(net); this.group.add(this.water.mesh); }
+    }
+    if (this.water) {
+      this.water.mesh.visible = !!loop;
+      if (loop) this.water.frame(cam, pxH, AMBIENT_C, this.hi, loop.hotC, loop.coldC, running ? loop.flow : 0, dt);
+    }
     this.group.visible = true;
     this.tags.show(true);
     if (Math.round(this.hi) !== this.shownHi) this.pushTags();

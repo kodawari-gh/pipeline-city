@@ -18,7 +18,7 @@ attribute vec2 corner;
 attribute vec3 ${POINTS.join(', ')};
 attribute vec3 info;
 uniform float uWidth, uPixel, uPass, uNearFrom, uNearTo;
-varying float vHeat, vAlpha, vEdge, vKind, vCore;
+varying float vHeat, vAlpha, vEdge, vCore;
 varying vec3 vWorld;
 vec3 pick(float t) { return ${pick}; }
 void main() {
@@ -28,58 +28,53 @@ void main() {
   vec3 b = (modelViewMatrix * vec4(pick(min(t + 1.0, ${LAST}.0)), 1.0)).xyz;
   vec3 c = (modelViewMatrix * vec4(pick(max(t - 1.0, 0.0)), 1.0)).xyz;
   float tl = length(b - c);
-  bool water = info.z > 1.5 && info.z < 2.5;
-  // the depth-tested pass has no coolant: it runs inside hoses that would hide it
-  if (uPass < 0.5 && water) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vHeat = 0.0; vAlpha = 0.0; vEdge = 0.0; vKind = 0.0; vCore = 0.0; vWorld = vec3(0.0); return; }
   // the strip lies across the view ray, along the trail as a whole (not each step of it: the head's step is short and turns with every eddy)
   vec3 head = (modelViewMatrix * vec4(p0, 1.0)).xyz, tail = (modelViewMatrix * vec4(p${LAST}, 1.0)).xyz;
   vec3 way = head - tail;
   if (dot(way, way) < 1e-2) way = b - c;
   vec3 cr = cross(way, a);
   vec3 side = dot(cr, cr) > 1e-6 ? normalize(cr) : vec3(1.0, 0.0, 0.0);
-  // a thread from far, a fine streak from close: between a pixel and a few pixels each side, whatever the size the air has in the machine; then it tapers to its tail
+  // a fine thread from far, a thin streak from close: about a pixel each side whatever the size the air has in the machine; then it tapers to its tail
   float px = uPixel * max(-a.z, 1.0);
-  float w = clamp(uWidth * (water ? 1.5 : 1.0), px * 1.1, px * (water ? 4.2 : 3.6)) * (1.0 - 0.7 * t / ${LAST}.0);
+  float w = clamp(uWidth, px * 0.8, px * 2.0) * (1.0 - 0.7 * t / ${LAST}.0);
   w = max(w, px * 0.5);
   gl_Position = projectionMatrix * vec4(a + side * w * corner.y, 1.0);
   vHeat = info.x;
   // a streak close to the eye (the camera of a close-up stands inside the case) fades out: it would be a long line over the part the player came to see
   // (never below zero: a GPU's division can leave the last point a hair under it, and pow() of a negative number is not a number, which blacks the tail out)
   float along = clamp(1.0 - t * ${(1 / LAST).toFixed(7)}, 0.0, 1.0);
-  vAlpha = info.y * pow(max(along, 1e-4), 1.2) * (tl > 1e-3 || t < 0.5 ? 1.0 : 0.0) * smoothstep(uNearFrom, uNearTo, -a.z);
+  vAlpha = info.y * pow(max(along, 1e-4), 1.6) * (tl > 1e-3 || t < 0.5 ? 1.0 : 0.0) * smoothstep(uNearFrom, uNearTo, -a.z);
   vCore = along * along * along;
   vEdge = corner.y;
-  vKind = info.z;
   vWorld = pw;
 }`;
 
 const FRAG = /* glsl */`
 uniform float uPass, uLo, uHi, uStrength, uCold;
 uniform vec3 uXMin, uXMax;
-varying float vHeat, vAlpha, vEdge, vKind, vCore;
+varying float vHeat, vAlpha, vEdge, vCore;
 varying vec3 vWorld;
 ${thermalGlsl()}
 void main() {
-  bool water = vKind > 1.5 && vKind < 2.5;
   bool inside = all(greaterThan(vWorld, uXMin)) && all(lessThan(vWorld, uXMax));
-  // the depth-tested pass draws the air outside the x-ray box; the other draws the coolant and the air inside the box (the supply's unit hides what it holds)
+  // the depth-tested pass draws the air outside the x-ray box; the other draws the air inside it (the supply's unit hides what it holds)
   if (uPass < 0.5) { if (inside) discard; }
-  else if (!water && !inside) discard;
+  else if (!inside) discard;
   float h = pow(clamp((vHeat - uLo) / max(1e-3, uHi - uLo), 0.0, 1.0), ${THERMAL_BEND.toFixed(3)});
-  // the room's own air is a quieter haze than the air that took heat: where the heat goes is what the eye should find
-  float lum = water ? 1.0 : mix(uCold, 1.0, h);
+  // the room's own air is a faint haze, a hint of which way it goes: the air that took heat is what the eye should find
+  float lum = mix(uCold, 1.0, h);
   float soft = 1.0 - vEdge * vEdge;
-  gl_FragColor = vec4(thermal(h) * uStrength * (1.0 + 0.9 * vCore), vAlpha * soft * lum);
+  gl_FragColor = vec4(thermal(h) * uStrength * (1.0 + 0.5 * vCore), vAlpha * soft * lum);
 }`;
 
 /** How bright the streaks add to the picture (the colours are the share of it), and the share of it the room's own air keeps. */
-const STRENGTH = 1.9, COLD_SHARE = 0.55;
+const STRENGTH = 1.3, COLD_SHARE = 0.2;
 /** The distance from the eye, in units, where the streaks begin to show and where they are whole (23000 units a metre: 11 cm to 30 cm). */
 const NEAR_FROM = 2500, NEAR_TO = 7000;
 /** A box no point is inside: the x-ray box when there is none. */
 const NO_BOX: V3 = [1e9, 1e9, 1e9];
 
-/** The particles of one `AirParticles` as meshes: the air (hidden behind the parts it flows round), and the coolant (seen through the hoses it runs in). */
+/** The particles of one `AirParticles` as meshes: the air, hidden behind the parts it flows round (and drawn over the supply's unit, where its fan draws it through). */
 export class Ribbons {
   readonly mesh = new Group();
   private readonly geo = new InstancedBufferGeometry();

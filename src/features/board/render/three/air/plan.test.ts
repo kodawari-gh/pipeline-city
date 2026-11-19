@@ -5,7 +5,8 @@ import { AMBIENT_C } from '../../../sim/specs';
 import { setLayoutTier } from '../../layout/layout';
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { airDomain, airParts, airPlan, airReference, coolantAt, loopPath, pathLine, planKey, pointOn, PSU_BANK, psuBay, psuTempC, surfaceTemps, type AirBody } from './plan';
+import { HOSE_COLD, HOSE_HOT } from '../cooler3d';
+import { airDomain, airParts, airPlan, airReference, planKey, PSU_BANK, psuBay, psuTempC, surfaceTemps, type AirBody } from './plan';
 import type { V3 } from './grid';
 
 setLayoutTier(2, 2);
@@ -230,41 +231,38 @@ describe('the temperatures the thermal view shows', () => {
   });
 });
 
-describe('the lines the particles follow', () => {
-  it('a line has the length of its legs, and a point on it is found by the length', () => {
-    const l = pathLine([[0, 0, 0], [3000, 0, 0], [3000, 4000, 0]]), out: V3 = [0, 0, 0];
-    expect(l.length).toBe(7000);
-    expect(pointOn(l, 1500, out)).toEqual([1500, 0, 0]);
-    expect(pointOn(l, 5000, out)).toEqual([3000, 2000, 0]);
-    expect(pointOn(l, -10, out)).toEqual([0, 0, 0]);
-    expect(pointOn(l, 99999, out)).toEqual([3000, 4000, 0]);
+describe('every part that makes, moves or exchanges heat is in the thermal view', () => {
+  const loop = { coolantC: 40, rejectW: 120, side: 'front' as const, flow: 0.8, hotC: 44, coldC: 36 };
+
+  it('the loop\'s parts have the water\'s temperatures: the pump head the hot leg\'s, each hose its own, the radiator the mean', () => {
+    const pump = dev({ id: 'pump', kind: 'cooler', spec: 'cooler2', slot: 'cooler0', tempC: 25 }), rad = dev({ id: 'rad', kind: 'radiator', spec: 'rad2', slot: 'rad-front', tempC: 25 });
+    const s = running([pump, rad], { board: boardSnap({ tier: 2, loop }) });
+    const body: AirBody = { id: 'rad', kind: 'radiator', min: [d.max[0] - 1800, -3000, d.min[2] + 800], max: [d.max[0] - 900, 3000, d.min[2] + 4000] };
+    const t = surfaceTemps(s, airParts(s, airPlan(s, bodies([body]))));
+    expect(t.get('pump')).toBe(44);
+    expect(t.get(HOSE_HOT)).toBe(44);
+    expect(t.get(HOSE_COLD)).toBe(36);
+    expect(t.get('rad')).toBeCloseTo(40, 5);
+    // no loop, none of them
+    const dry = running([pump]);
+    expect(surfaceTemps(dry, airParts(dry, airPlan(dry, bodies()))).has(HOSE_HOT)).toBe(false);
   });
 
-  it('the loop runs from the pump along the hot hose, through the radiator\'s core to its far end and back, and home on the cold hose', () => {
-    // (the two ports of the pump head are apart: the block between them is the last leg)
-    const hot: V3[] = [[300, 0, 3500], [300, 2000, 3500], [6000, 4000, 4300]], cold: V3[] = [[-300, 0, 3500], [-300, -2000, 3500], [6000, -4000, 4300]];
-    const rad = { min: [7800, -5140, 4300] as V3, max: [8356, 4710, 5000] as V3 };
-    const l = loopPath([hot, cold], rad, 'front')!;
-    expect(l).not.toBeNull();
-    expect(l.hot).toBeGreaterThan(0);
-    expect(l.hot).toBeLessThan(l.rad);
-    expect(l.rad).toBeLessThan(l.cold);
-    expect(l.cold).toBeLessThan(l.length);
-    // the core crosses the radiator along its length, at the middle of its thickness
-    const s = (l.hot + l.rad) / 2, p = pointOn(l, s, [0, 0, 0]);
-    expect(p[0]).toBeGreaterThan(rad.min[0] - 1);
-    expect(p[0]).toBeLessThan(rad.max[0] + 1);
-    expect(loopPath([hot], rad, 'front')).toBeNull();
-    expect(loopPath([hot, cold], undefined, 'front')).toBeNull();
+  it('an air heatsink is not a pump head: its temperature is the fins\'', () => {
+    const tower = dev({ id: 'tw', kind: 'cooler', spec: 'cooler1', slot: 'cooler0', tempC: 30 }), s = running([tower], { board: boardSnap({ tier: 2, loop }) }, 85);
+    const t = surfaceTemps(s, airParts(s, airPlan(s, bodies([{ id: 'tw', kind: 'cooler', min: [-700, -1100, BOARD_Z], max: [700, 1700, BOARD_Z + 2700] }]))));
+    expect(t.get('tw')).toBeLessThan(85);
+    expect(t.get('tw')).not.toBe(44);
   });
 
-  it('the water is hot to the radiator, cooled in its core, cold back to the pump, and warms in the block', () => {
-    const l = { ...pathLine([[0, 0, 0], [1000, 0, 0]]), hot: 200, rad: 500, cold: 900 };
-    expect(coolantAt(l, 0, 58, 38)).toBe(58);
-    expect(coolantAt(l, 200, 58, 38)).toBe(58);
-    expect(coolantAt(l, 350, 58, 38)).toBeCloseTo(48, 5);
-    expect(coolantAt(l, 500, 58, 38)).toBe(38);
-    expect(coolantAt(l, 800, 58, 38)).toBe(38);
-    expect(coolantAt(l, 1000, 58, 38)).toBeCloseTo(58, 5);
+  it('a network card heats the air as the cards do, by its own power', () => {
+    const nic = dev({ id: 'nic', kind: 'nic', spec: 'nic1', slot: 'pcie1', powerW: 12, tempC: 60 });
+    const s = running([nic]), card: AirBody = { id: 'nic', kind: 'nic', slot: 'pcie1', min: [-1500, -1500, BOARD_Z + 300], max: [-1200, -300, BOARD_Z + 1800] };
+    const part = airParts(s, airPlan(s, bodies([card]))).find((p) => p.id === 'nic')!;
+    expect(part).toBeDefined();
+    expect(part.powerW).toBe(12);
+    expect(part.tempC).toBeGreaterThan(AMBIENT_C);
+    expect(part.tempC).toBeLessThan(60);
+    expect(part.ua).toBeGreaterThan(0);
   });
 });

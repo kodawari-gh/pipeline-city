@@ -21,8 +21,8 @@ const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : ar
 const COMBOS = flag('combos', '0:0,1:0,1:1,2:0,2:1,2:2,3:0,3:1,3:2,3:3').split(',').map((s) => s.split(':').map(Number));
 const SHOTS = flag('shots', '');
 const PORT = Number(process.env.PORT || 5245), url = `http://localhost:${PORT}/`;
-/** What a pair must show: the least particles of air in the case (the lens makes some 650 at the High setting, 260 at Off), and the most milliseconds a frame of the lens may take. */
-const MIN_AIR = 250, MAX_MS = 3;
+/** What a pair must show: the least particles of air in the case (the lens makes 260 at the High setting, 104 at Off, an eighth of them the halo), and the most milliseconds a frame of the lens may take. */
+const MIN_AIR = 180, MAX_MS = 3;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
@@ -65,10 +65,10 @@ try {
       B.openInside(true);
       await new Promise((r) => setTimeout(r, 6500));
       const a = window.__air, parts = a.particlesNow, sim = a.simNow, { fanBank } = await import('/src/core/render/fanmotor.ts');
-      // (kinds: 1 air, 2 coolant, 3 jet out of the case, 4 room air drawn in)
+      // (kinds: 1 air, 2 jet out of the case, 3 room air drawn in)
       let air = 0, exhaust = 0, intake = 0, nan = 0;
       for (let i = 0; i < parts.count; i++) {
-        if (parts.K[i] === 1) air++; else if (parts.K[i] === 3) exhaust++; else if (parts.K[i] === 4) intake++;
+        if (parts.K[i] === 1) air++; else if (parts.K[i] === 2) exhaust++; else if (parts.K[i] === 3) intake++;
         const h = i * parts.P.length / parts.cap;
         if (!Number.isFinite(parts.T[i]) || !Number.isFinite(parts.A[i]) || !Number.isFinite(parts.P[h]) || !Number.isFinite(parts.P[h + 1]) || !Number.isFinite(parts.P[h + 2])) nan++;
       }

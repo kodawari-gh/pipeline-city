@@ -82,7 +82,8 @@ export const varnish = (color: number, o: MeshPhysicalMaterialParameters = {}): 
 
 /**
  * The materials of one part that follow its state, each eased toward the current look. `gain` scales the glow: a part with wide faces (a card's
- * shroud, a stick's spreader) glows softer, or the state's colour would cover its own.
+ * shroud, a stick's spreader) glows softer, or the state's colour would cover its own. `follows` false: a skin of the thermal view alone (a radiator, a
+ * heatsink, a hose); power, heat and a burn do not touch it, so out of the airflow lens the part looks as it always did.
  */
 export class PartSkin {
   private base: Color[];
@@ -98,9 +99,10 @@ export class PartSkin {
   private shown = new Color(0);
   private hot = new Color(0);
 
-  constructor(readonly mats: MeshStandardMaterial[], private gain = 1) { this.base = mats.map((m) => own(m).color.clone()); }
+  constructor(readonly mats: MeshStandardMaterial[], private gain = 1, private follows = true) { this.base = mats.map((m) => own(m).color.clone()); }
 
   set(state: PartState): void {
+    if (!this.follows) return;
     this.goal = partLook(state);
     this.goalGlow.setHex(this.goal.glow);
   }

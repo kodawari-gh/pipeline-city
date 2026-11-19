@@ -10,7 +10,7 @@ import { fanMounts } from '@/features/room/render/desk/props/case';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { BOARD_Z, CASE_FRONT, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
 import { basementPlan, psuFan, psuOpening } from '../basement3d';
-import { COOLER_AIR } from '../cooler3d';
+import { COOLER_AIR, HOSE_COLD, HOSE_HOT } from '../cooler3d';
 import { fanDepth } from '../fans3d';
 import { gridShape, type AirBox, type Shape, type V3 } from './grid';
 
@@ -293,13 +293,23 @@ export function psuTempC(s: Snapshot): number {
 /**
  * The temperature each part shows in the thermal view, by device id: the sim's for the part, or what its surface is where the air meets another (a
  * heatsink's fins, a card's shroud, a radiator's core, the supply's casing: the temperature the air's heat exchange uses, so the glow and the air agree).
+ * The loop's parts have none in the sim: a pump head runs at the water that leaves it, each hose at its own water, the radiator at the water's mean.
  */
 export function surfaceTemps(s: Snapshot, parts: readonly AirPart[]): Map<string, number> {
   const m = new Map<string, number>();
   for (const d of s.devices) if (Number.isFinite(d.tempC)) m.set(d.id, d.tempC);
   for (const p of parts) if (m.has(p.id)) m.set(p.id, p.tempC);
+  const loop = s.board?.loop;
+  if (loop) {
+    for (const d of s.devices) if (d.kind === 'cooler' && isLiquid(d.spec)) m.set(d.id, loop.hotC);
+    m.set(HOSE_HOT, loop.hotC);
+    m.set(HOSE_COLD, loop.coldC);
+  }
   return m;
 }
+
+/** Is this cooler spec a pump head (an all-in-one loop's) and not an air heatsink? */
+const isLiquid = (spec: string): boolean => ((getSpec(spec) as { visual?: string } | undefined)?.visual ?? '') === 'cooler-liquid';
 
 /** The case's air temperature the coefficients are worked out against: the room's plus the mean rise of the areas. */
 export function airReference(s: Snapshot): number {
@@ -318,9 +328,8 @@ export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
     if (!d) continue;
     if (d.kind === 'cooler') {
       // an air heatsink takes the processor's heat: its fins sit between the die and the air. A pump head is not one: its heat goes into the coolant.
-      const visual = (getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '';
-      if (visual !== 'cooler-liquid' && cpu) add({ ...b, kind: 'cooler' }, { porous: true, tempC: air + FIN_SHARE * (cpu.tempC - air), powerW: cpu.powerW, label: 'CPU' });
-    } else if (d.kind === 'gpu' || d.kind === 'npu') add({ ...b, kind: d.kind }, { porous: true, tempC: air + CARD_SHARE * (d.tempC - air), powerW: d.powerW, label: d.kind.toUpperCase() });
+      if (!isLiquid(d.spec) && cpu) add({ ...b, kind: 'cooler' }, { porous: true, tempC: air + FIN_SHARE * (cpu.tempC - air), powerW: cpu.powerW, label: 'CPU' });
+    } else if (d.kind === 'gpu' || d.kind === 'npu' || d.kind === 'nic') add({ ...b, kind: d.kind }, { porous: true, tempC: air + CARD_SHARE * (d.tempC - air), powerW: d.powerW, label: d.kind.toUpperCase() });
     else if (d.kind === 'vrm-sink' && s.board) add({ ...b, kind: d.kind }, { porous: true, tempC: air + FIN_SHARE * (s.board.vrm.tempC - air), powerW: s.board.vrm.heatW, label: 'VRM' });
     else if (d.kind === 'ram-sink' && s.board) add({ ...b, kind: d.kind }, { porous: true, tempC: air + FIN_SHARE * (s.board.ramVrm.tempC - air), powerW: s.board.ramVrm.heatW, label: 'MEM VRM' });
     else if (d.kind === 'radiator' && loop) {
@@ -340,54 +349,3 @@ export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
   return out;
 }
 
-// ------------------------------------------------------------------ paths
-
-/** A line the particles follow: the coolant's loop. `cum[i]` is the length up to point `i`. */
-export interface PathLine { pts: V3[]; cum: number[]; length: number }
-
-export function pathLine(pts: readonly V3[]): PathLine {
-  const cum = [0];
-  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]));
-  return { pts: pts.map((p): V3 => [p[0], p[1], p[2]]), cum, length: cum[cum.length - 1] ?? 0 };
-}
-
-/** The point at length `s` along a line (clamped to its ends), into `out`. */
-export function pointOn(l: PathLine, s: number, out: V3): V3 {
-  const n = l.pts.length;
-  if (n === 0) return out;
-  if (s <= 0 || n === 1) { out[0] = l.pts[0]![0]; out[1] = l.pts[0]![1]; out[2] = l.pts[0]![2]; return out; }
-  if (s >= l.length) { const e = l.pts[n - 1]!; out[0] = e[0]; out[1] = e[1]; out[2] = e[2]; return out; }
-  let lo = 1, hi = n - 1;
-  while (lo < hi) { const m = (lo + hi) >> 1; if (l.cum[m]! < s) lo = m + 1; else hi = m; }
-  const a = l.pts[lo - 1]!, b = l.pts[lo]!, span = l.cum[lo]! - l.cum[lo - 1]!, t = span > 0 ? (s - l.cum[lo - 1]!) / span : 0;
-  out[0] = a[0] + (b[0] - a[0]) * t;
-  out[1] = a[1] + (b[1] - a[1]) * t;
-  out[2] = a[2] + (b[2] - a[2]) * t;
-  return out;
-}
-
-/** The liquid loop as one closed line: the hot hose from the pump to the radiator, the radiator's tubes, the cold hose back, and the pump's block. `hot`, `rad`, `cold`: the lengths where each stage ends. */
-export interface LoopPath extends PathLine { hot: number; rad: number; cold: number }
-
-/**
- * The loop's line from the two hoses (the pump's end first in each, the hot one first) and the radiator's box. The coolant crosses the radiator's core along
- * its length to the far tank and comes back on the other port's lane. `side`: the radiator's side, which says which way it is long (a front radiator along y, a top one along x).
- */
-export function loopPath(hoses: readonly (readonly V3[])[], rad: { min: V3; max: V3 } | undefined, side: 'front' | 'top'): LoopPath | null {
-  const [h0, h1] = hoses;
-  if (!h0 || !h1 || h0.length < 2 || h1.length < 2 || !rad) return null;
-  const a = h0[h0.length - 1]!, b = h1[h1.length - 1]!, thick = side === 'front' ? 0 : 1, len = side === 'front' ? 1 : 0, inset = 450;
-  const far = Math.abs(a[len] - rad.min[len]) < Math.abs(a[len] - rad.max[len]) ? rad.max[len] - inset : rad.min[len] + inset, midT = (rad.min[thick] + rad.max[thick]) / 2;
-  const at = (p: V3, l: number, t: number): V3 => { const q: V3 = [p[0], p[1], p[2]]; q[len] = l; q[thick] = t; return q; };
-  const hot = [...h0], core = [at(a, a[len], midT), at(a, far, midT), at(b, far, midT), at(b, b[len], midT), b], cold = [...h1].reverse(), block: V3[] = [h0[0]!];
-  const all = [...hot, ...core, ...cold, ...block], line = pathLine(all), hotEnd = line.cum[hot.length - 1]!, radEnd = line.cum[hot.length + core.length - 1]!, coldEnd = line.cum[hot.length + core.length + cold.length - 1]!;
-  return { ...line, hot: hotEnd, rad: radEnd, cold: coldEnd };
-}
-
-/** The coolant's temperature at length `s` of its loop: hot to the radiator, cooled through it, cold back, heated in the block. */
-export function coolantAt(l: LoopPath, s: number, hotC: number, coldC: number): number {
-  if (s < l.hot) return hotC;
-  if (s < l.rad) return hotC + (coldC - hotC) * ((s - l.hot) / Math.max(1, l.rad - l.hot));
-  if (s < l.cold) return coldC;
-  return coldC + (hotC - coldC) * ((s - l.cold) / Math.max(1, l.length - l.cold));
-}

@@ -47,7 +47,7 @@ import { ArtSet } from './artset3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
-import { LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { HOSE_COLD, HOSE_HOT, LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorFlow, radiatorModel, type Model, type RadiatorAt, type RadiatorFlow } from './cooler3d';
 import type { AirBody } from './air/plan';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
@@ -257,6 +257,8 @@ export class Machine3D {
   /** Where the loop's hoses seat (the hot one first, the pump's end first): the airflow lens runs the coolant along them. Empty with no loop. */
   private hosePaths: V3[][] = [];
   loopPaths(): readonly (readonly V3[])[] { return this.hosePaths; }
+  /** The radiator's lanes and ports as the model has them, for the lens's water (null with no radiator). */
+  loopRadiator(): RadiatorFlow | null { return this.rad ? radiatorFlow(this.rad.fit) : null; }
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
@@ -348,6 +350,8 @@ export class Machine3D {
       if (this.pump && this.rad) {
         const h = new LoopHoses(hoseEnds(this.rad.fit), this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator)));
         this.hosePaths = h.paths();
+        // (each hose's sleeve glows by its own water in the thermal view: the hot one first)
+        h.skins.forEach((m, i) => this.thermalSkin(i ? HOSE_COLD : HOSE_HOT, m));
         if (this.inRoom && this.cooler) this.cooler.add(h.body);
         else {
           this.hoses = h;
@@ -620,6 +624,8 @@ export class Machine3D {
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }
   /** The same with a soft glow: a part with wide faces keeps its own colours under the state's (`PartSkin` gain). */
   private softSkin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats, 0.3)); }
+  /** A skin of the airflow lens alone: a part that has no state look of its own (a radiator, a heatsink, a hose) glows by its heat there and nowhere else. */
+  private thermalSkin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats, 1, false)); }
 
   private buildDevice(d: DeviceSnap) {
     const spec = getSpec(d.spec);
@@ -728,7 +734,8 @@ export class Machine3D {
         // as a real regulator sink (sink3d.ts); its fan sits in the housing over the fins, blowing down into them
         g.userData.sink = true;
         this.obstacles.push(g);
-        const { spot, foot } = sinkBody(g, T, spec.kind, visual);
+        const { spot, foot, skin } = sinkBody(g, T, spec.kind, visual);
+        this.thermalSkin(d.id, ...skin);
         const fit = this.fanFits((slot) => fanHost(slot) === d.slot)[0];
         if (fit && spot) {
           const depth = fanDepth(fit.spec.size), fan = fanPart(fit.spec, spot.w, depth);
@@ -744,6 +751,7 @@ export class Machine3D {
           const { fit, span } = this.rad, m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids));
           m.root.userData.radiator = true;
           this.obstacles.push(m.root);
+          this.thermalSkin(d.id, ...m.skin);
         }
         break;
       }

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AirSim } from './build';
 import type { AirBox, V3 } from './grid';
-import { AIR, AirParticles, COOLANT, EXHAUST, INTAKE, TRAIL, type AirEnv } from './particles';
-import { pathLine, type AirPart, type AirPlan, type PlanFan, type PlanVent } from './plan';
+import { AIR, AirParticles, EXHAUST, INTAKE, TRAIL, type AirEnv } from './particles';
+import type { AirPart, AirPlan, PlanFan, PlanVent } from './plan';
 
 const MIN: V3 = [0, 0, 0], MAX: V3 = [8000, 6000, 4000];
 const intake: PlanFan = { id: 'f0', bank: 'case:front0', kind: 'wall', wall: 1, centre: [0, 3000, 2000], r: 1200, into: true, q: 1e11 };
@@ -11,7 +11,7 @@ const rear: PlanVent = { id: 'rear', wall: 0, centre: [0, 3000, 2000], shape: { 
 const block: AirBox = { id: 'blk', min: [3000, 2000, 1000], max: [4500, 4000, 3000], k: [0, 0, 0] };
 const plan = (boxes: AirBox[] = [block]): AirPlan => ({ key: 'k', min: MIN, max: MAX, boxes, vents: [rear], fans: [intake], bodies: [] });
 const AMBIENT = 25;
-const env = (o: Partial<AirEnv> = {}): AirEnv => ({ dt: 1 / 30, ambientC: AMBIENT, mixC: AMBIENT, coolant: null, ...o });
+const env = (o: Partial<AirEnv> = {}): AirEnv => ({ dt: 1 / 30, ambientC: AMBIENT, mixC: AMBIENT, ...o });
 const isHalo = (k: number): boolean => k === EXHAUST || k === INTAKE;
 const insideCase = (x: number, y: number, z: number): boolean => x > MIN[0] && x < MAX[0] && y > MIN[1] && y < MAX[1] && z > MIN[2] && z < MAX[2];
 
@@ -115,51 +115,6 @@ describe('the air\'s particles', () => {
       return s / p.count;
     };
     expect(heat(6)).toBeGreaterThan(heat(0.5));
-  });
-
-  it('run the coolant round its loop as beads, coloured by the water\'s temperature', () => {
-    const { p } = world([]);
-    const line = pathLine([[1000, 1000, 500], [3000, 1000, 500], [3000, 3000, 500], [1000, 3000, 500]]);
-    p.setLoop({ ...line, hot: 2000, rad: 4000, cold: 6000 });
-    let beads = 0;
-    for (let i = 0; i < p.count; i++) if (p.K[i] === COOLANT) beads++;
-    expect(beads).toBeGreaterThanOrEqual(10);
-    run(p, 60, env({ coolant: { flow: 1, hotC: 60, coldC: 40 } }));
-    for (let i = 0; i < p.count; i++) {
-      if (p.K[i] !== COOLANT) continue;
-      expect(p.T[i]).toBeGreaterThanOrEqual(40 - 1e-6);
-      expect(p.T[i]).toBeLessThanOrEqual(60 + 1e-6);
-      const [x, y, z] = head(p, i);
-      expect(z).toBeCloseTo(500, 3);
-      expect(x).toBeGreaterThanOrEqual(1000 - 1e-3);
-      expect(x).toBeLessThanOrEqual(3000 + 1e-3);
-      expect(y).toBeGreaterThanOrEqual(1000 - 1e-3);
-    }
-    // (no loop, no beads)
-    p.setLoop(null);
-    for (let i = 0; i < p.count; i++) expect(p.K[i]).not.toBe(COOLANT);
-  });
-
-  it('keep the coolant still when the pump gives no flow', () => {
-    const { p } = world([]);
-    p.setLoop({ ...pathLine([[1000, 1000, 500], [3000, 1000, 500], [3000, 3000, 500]]), hot: 1000, rad: 2000, cold: 3000 });
-    run(p, 3, env({ coolant: { flow: 0, hotC: 60, coldC: 40 } }));
-    const before = Array.from(p.P.slice(0, p.count * TRAIL * 3));
-    run(p, 20, env({ coolant: { flow: 0, hotC: 60, coldC: 40 } }));
-    for (let i = 0; i < p.count; i++) if (p.K[i] === COOLANT) expect(head(p, i)).toEqual([before[i * TRAIL * 3], before[i * TRAIL * 3 + 1], before[i * TRAIL * 3 + 2]]);
-  });
-
-  it('a bead of coolant that reaches the end of an open line starts again at the front, with no trail across the line', () => {
-    const { p } = world([]);
-    p.setLoop({ ...pathLine([[500, 500, 500], [2500, 500, 500]]), hot: 800, rad: 1200, cold: 1600 });
-    for (let step = 0; step < 300; step++) {
-      p.step(env({ coolant: { flow: 1, hotC: 60, coldC: 40 } }));
-      for (let i = 0; i < p.count; i++) {
-        if (p.K[i] !== COOLANT) continue;
-        const h = i * TRAIL * 3, tail = h + 3 * (TRAIL - 1);
-        expect(Math.hypot(p.P[h]! - p.P[tail]!, p.P[h + 1]! - p.P[tail + 1]!, p.P[h + 2]! - p.P[tail + 2]!)).toBeLessThan(1500);
-      }
-    }
   });
 
   it('a part warmer than the room sheds warm air in its own place, as much as the heat it gives; a cold part, or one with no coefficient, sheds none', () => {

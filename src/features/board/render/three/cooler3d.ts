@@ -12,6 +12,7 @@ import { drawLockup, drawMark, lockupWidth } from '@/core/render/brands';
 import { bakedTex } from '@/core/render/three/baked';
 import { FAN_SCREW, SEG, drum, extrude, fanSides, instanced, paint, place, rectBox, rounded, shareTex, softBox, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { byDetail } from '@/core/render/three/detail';
+import { mergeStatic } from '@/core/render/three/merge';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { Rope, hang, type Plane, type RopeEnd, type RopeSpec, type Solid, type V3 } from '@/core/render/three/rope';
@@ -314,6 +315,8 @@ export function hose(a: RopeEnd, b: RopeEnd, env: Env): Group {
 /** How far a hose's end slides along its fitting to come off it: past the collar's tip and its ridges, with room. */
 export const HOSE_PULL = 300;
 const UP = new Vector3(0, 1, 0);
+/** The ids the loop's two hoses wear in the thermal view (`Machine3D.thermal`): the airflow lens gives each the temperature of its water. */
+export const HOSE_HOT = 'hose.hot', HOSE_COLD = 'hose.cold';
 /** A hose of the rig: its rope as built, its seated points, its two skins and ferrules, and its live rope while it moves. */
 type Hose = { spec: RopeSpec; seat: V3[]; hi: Sleeve; lo: Sleeve; ferrules: Mesh[]; rope: Rope | null };
 
@@ -327,6 +330,8 @@ export class LoopHoses {
   readonly root = tag(new Group(), 'hoses');
   /** What the zoom fades with the cooler (`fadeTree` sets its `visible` too, so it is not `root`). */
   readonly body = new Group();
+  /** The sleeve of each hose (the hot one first): each its own material, so the thermal view can show each hose's water. */
+  readonly skins: MeshStandardMaterial[] = [];
   private readonly hoses: Hose[] = [];
   /** The ropes' space while they move: the case's walls less the glass (the hoses leave through the open side), and the boxes. */
   private readonly free: Env;
@@ -334,9 +339,10 @@ export class LoopHoses {
   constructor(ends: readonly (readonly [RopeEnd, RopeEnd])[], env: Env) {
     this.root.add(this.body);
     this.free = { planes: env.planes.filter((p) => p.n[2] >= 0), solids: env.solids };
-    const look = sleeveMat(...HOSE_LOOK), ferrule = ferruleMat(), ring = new CylinderGeometry(HOSE_R + 20, HOSE_R + 20, 140, SEG.disc);
+    const ferrule = ferruleMat(), ring = new CylinderGeometry(HOSE_R + 20, HOSE_R + 20, 140, SEG.disc);
     for (const [a, b] of ends) {
-      const spec = hoseRope(a, b, env), seat = hang(spec), steps = samplesFor(seat.length);
+      const look = sleeveMat(...HOSE_LOOK), spec = hoseRope(a, b, env), seat = hang(spec), steps = samplesFor(seat.length);
+      this.skins.push(look);
       // (the lower level: half the steps, 6 sides; the same skin, so it fits the full one; both follow every pose)
       const hi = new Sleeve(1, HOSE_R, steps, SEG.sleeve), lo = new Sleeve(1, HOSE_R, Math.max(SEG.sleeveStepsLow, Math.ceil(steps / 2)), SEG.sleeveLow);
       const ferrules = [0, 1].map(() => place(new Mesh(ring, ferrule)));
@@ -392,14 +398,17 @@ export class LoopHoses {
  * cap; its two ports' x either side of the middle and their depth, on its north side.
  */
 const PUMP = { R: 745, R0: 770, top: L + 1100, portX: 260, portZ: L + 780 };
-/** The coolers' bodies for the airflow lens (air/plan.ts): the tower's fin stack (layout x and y, world z0 to z1) and fan, the stock heatsink's shroud and fan, the pump head's round. */
+/** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
+const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
+/**
+ * The coolers' bodies for the airflow lens (air/plan.ts): the tower's fin stack (layout x and y, world z0 to z1) and fan, the stock heatsink's shroud and fan, the pump
+ * head's round, and where the water goes in it (its ports' x, y and depth, and the cold plate's depth: the water crosses the plate between them).
+ */
 export const COOLER_AIR = {
   tower: { ...STACK, z0: FIN0, z1: FIN1, fan: TOWER_FAN, zc: TOWER_ZC },
   stock: { w: SHROUD.w, z1: SHROUD.z1, fan: STOCK_FAN },
-  pump: { r: PUMP.R0, top: PUMP.top },
+  pump: { r: PUMP.R0, top: PUMP.top, plate: L + 160, portX: PUMP.portX, portY: portY(), portZ: PUMP.portZ },
 } as const;
-/** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
-const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
 
 /** The sides of each round of the pump: one count, so its bands, foot and cap meet edge to edge. The polished chamfer shows each side, so it takes a 120 mm fan's count. */
 const PUMP_SIDES = fanSides(120);
@@ -477,6 +486,14 @@ export function coolerModel(visual: string, fans: readonly FanFit[] = []): Model
 export const radiatorDepth = (): number => Math.min(FAN_LEN, FAN_MAX) + 80;
 /** How far apart the radiator's two ports are across its depth (a G1/4 fitting's hex is 19 mm across), and how far its end tanks stand proud of its core. */
 const PORT_DZ = 700, TANK_LIP = 10;
+/** The side plates' thickness, and the pitch of the flat tubes across the radiator's depth (the model's and the airflow lens's water share one layout). */
+const RAD_PLATE = 34, TUBE_PITCH = 225;
+
+/** The radiator's flat coolant tubes across its depth `D`: how many, their pitch, and the depth where the first one's row starts. */
+export function radiatorTubeLayout(D = radiatorDepth()): { n: number; pitch: number; z0: number } {
+  const inner = D - 2 * RAD_PLATE, n = Math.max(1, Math.round(inner / TUBE_PITCH));
+  return { n, pitch: inner / n, z0: FAN_ZC - D / 2 + RAD_PLATE };
+}
 
 /**
  * The radiator's two ports, on the inboard face of the tank nearer the pump: at the tank's middle, one either side of the radiator's middle depth,
@@ -496,19 +513,24 @@ export function radiatorPorts3d(fit: RadiatorFit): { at: V3; dir: V3 }[] {
  */
 export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly string[]): Model {
   const root = new Group(), fr = frameOf(fit.mount, fit.end), { L } = fr, { v0, v1 } = radiatorCore(fit), t = v1 - v0, side = fit.mount.side;
-  const D = radiatorDepth(), zc = FAN_ZC, z0 = zc - D / 2, z1 = zc + D / 2, hole = Math.min(FAN_LEN, FAN_MAX) * FAN_SCREW, PLATE = 34, fold = D / 2 - hole + 90;
+  const D = radiatorDepth(), zc = FAN_ZC, z0 = zc - D / 2, z1 = zc + D / 2, hole = Math.min(FAN_LEN, FAN_MAX) * FAN_SCREW, PLATE = RAD_PLATE, fold = D / 2 - hole + 90;
   // (neutral brushed aluminium, a satin finish: the cooler's blue ramp at full metalness mirrors the dark case and reads purple there)
-  const unit = new BoxGeometry(1, 1, 1), plateM = radAlu(0x6a6f79, 0.42), tankM = radAlu(0x7b808a, 0.34), tubeM = radAlu(0x858a94, 0.36), dark = mat(0x131518, { roughness: 0.6 });
+  // (two tones, as the palette gives them: the plates and the caps dark, the tanks and the tubes light)
+  const unit = new BoxGeometry(1, 1, 1), plateM = radAlu(0x6a6f79, 0.42), bodyM = radAlu(0x7b808a, 0.35), dark = mat(0x131518, { roughness: 0.6 });
   const item = (r: RectLike, za: number, zb: number) => ({ x: r.x + r.w / 2, y: -(r.y + r.h / 2), z: (za + zb) / 2, sx: r.w, sy: r.h, sz: zb - za });
+  // (plain meshes, not instanced ones: the skin's merge below takes those)
+  const boxes = (m: Material, items: readonly ReturnType<typeof item>[]): Mesh[] =>
+    items.map((it) => { const o = place(new Mesh(unit, m)); o.position.set(it.x, it.y, it.z); o.scale.set(it.sx, it.sy, it.sz); return o; });
   // the core: the fins painted on its faces (fins this fine shimmer as plates; painted, they blend into one tone from afar), the flat tubes a
   // tube's pitch apart across its depth, their edges a little proud of both faces
-  const n = L / FIN_PITCH[grade - 1]!, inner = D - 2 * PLATE, tubes = Math.round(inner / 225), tp = inner / tubes;
-  root.add(instanced(unit, mat(0xffffff, { map: side === 'front' ? tiled(finLadder('v'), 1, n) : tiled(finLadder('u'), n, 1), metalness: 0.5, roughness: 0.5 }), [item(fr.rect(0, v0 + 2, L, t - 4), z0 + PLATE, z1 - PLATE)]));
-  root.add(instanced(unit, tubeM, Array.from({ length: tubes }, (_, k) => item(fr.rect(0, v0, L, t), z0 + PLATE + (k + 0.5) * tp - 20, z0 + PLATE + (k + 0.5) * tp + 20))));
+  const n = L / FIN_PITCH[grade - 1]!, { n: tubes, pitch: tp } = radiatorTubeLayout(D);
+  const finM = mat(0xffffff, { map: side === 'front' ? tiled(finLadder('v'), 1, n) : tiled(finLadder('u'), n, 1), metalness: 0.5, roughness: 0.5 });
+  root.add(...boxes(finM, [item(fr.rect(0, v0 + 2, L, t - 4), z0 + PLATE, z1 - PLATE)]));
+  root.add(...boxes(bodyM, Array.from({ length: tubes }, (_, k) => item(fr.rect(0, v0, L, t), z0 + PLATE + (k + 0.5) * tp - 20, z0 + PLATE + (k + 0.5) * tp + 20))));
   // the side plates, each folded over both faces
   const plates = [z0, z1 - PLATE].map((za) => item(fr.rect(0, v0 - 6, L, t + 12), za, za + PLATE));
   for (const [za, zb] of [[z0, z0 + fold], [z1 - fold, z1]] as const) for (const va of [v0 - 6, v1]) plates.push(item(fr.rect(0, va, L, 6), za, zb));
-  root.add(instanced(unit, plateM, plates));
+  root.add(...boxes(plateM, plates));
   // the fans' screw holes in the folds, on both faces
   const holeGeo = new CylinderGeometry(42, 42, 4, SEG.post);
   if (side === 'front') holeGeo.rotateZ(Math.PI / 2);
@@ -538,12 +560,36 @@ export function radiatorModel(fit: RadiatorFit, grade: 1 | 2 | 3, ids: readonly 
   const CAP = 50;
   for (const near of [true, false]) {
     const u0 = near ? -TANK : L;
-    root.add(softBox(fr.rect(near ? u0 + CAP : u0, v0 - TANK_LIP, TANK - CAP, t + 2 * TANK_LIP), z0 - TANK_LIP, z1 + TANK_LIP, tankM, 24));
+    root.add(softBox(fr.rect(near ? u0 + CAP : u0, v0 - TANK_LIP, TANK - CAP, t + 2 * TANK_LIP), z0 - TANK_LIP, z1 + TANK_LIP, bodyM, 24));
     root.add(softBox(fr.rect(near ? u0 : u0 + TANK - CAP, v0 - TANK_LIP + 8, CAP, t + 2 * TANK_LIP - 16), z0 - TANK_LIP + 8, z1 + TANK_LIP - 8, plateM, 16));
   }
   // the two ports on the near tank's inboard face, a fitting in each; the fill plug on the far one's
   const m = chrome(), inward = new Vector3(fr.inward[0], -fr.inward[1], 0), fill = fr.P(L + TANK / 2, v1 + TANK_LIP);
   for (const p of radiatorPorts3d(fit)) fitting(root, new Vector3(...p.at), inward, m);
   plug(root, new Vector3(fill[0], -fill[1], zc), inward, m);
-  return { root, spins: [], skin: [tankM] };
+  // (what glows in the thermal view: the whole aluminium body, the fins and the tubes with it. A skin's material is left out of the palette merge,
+  // so its still meshes merge here, by material: the plates and caps, the tanks and tubes, the lit edges and the fins are four draws)
+  const skin = [plateM, bodyM, edgeM, finM];
+  mergeStatic(root, { own: true, ok: (x) => skin.includes(x.material as MeshStandardMaterial) });
+  return { root, spins: [], skin };
+}
+
+/** The coolant's way through a radiator, for the airflow lens (`air/plan.ts` `waterNet`): world points, y up. */
+export interface RadiatorFlow {
+  /** Each flat tube, from the near tank's middle (where the ports are) to the far tank's, in the core's middle plane, at its own depth. */
+  tubes: { a: V3; b: V3 }[];
+  /** The two ports (where the fittings screw into the near tank's inboard face, the one nearer the board first), the way a fitting points (inboard), and how far the core's middle plane is from them. */
+  ports: V3[];
+  inward: V3;
+  reach: number;
+  /** Half the core's thickness: the lens draws the water in and the water out a half of it either side of the middle plane. */
+  half: number;
+}
+
+/** The radiator's tubes and ports as the model builds them (`radiatorModel`): the lens runs the water along them. */
+export function radiatorFlow(fit: RadiatorFit): RadiatorFlow {
+  const fr = frameOf(fit.mount, fit.end), { v0, v1 } = radiatorCore(fit), vm = (v0 + v1) / 2, lay = radiatorTubeLayout();
+  const at = (u: number, z: number): V3 => { const p = fr.P(u, vm); return [p[0], -p[1], z]; };
+  const tubes = Array.from({ length: lay.n }, (_, k) => { const z = lay.z0 + (k + 0.5) * lay.pitch; return { a: at(-TANK / 2, z), b: at(fr.L + TANK / 2, z) }; });
+  return { tubes, ports: radiatorPorts3d(fit).map((p) => p.at), inward: [fr.inward[0], -fr.inward[1], 0], reach: v1 + TANK_LIP - vm, half: (v1 - v0) / 2 };
 }

@@ -2,9 +2,9 @@
 // comes in (an intake fan, a vent), pushed round the parts (the parts' boxes stop them: they slide along a face), heated where they pass a hot part
 // (each part's coefficient from the sim, scaled by how fast the air runs over it), lifted by their own warmth, and gone where air leaves. The air that
 // leaves goes on outside the case as a jet, and room air is drawn in toward each intake: the halo, drawn fading out with the distance from the case.
-// The coolant of a liquid loop is particles too, on a line of its own. Structure of arrays, no allocation per step. Pure TS.
+// The coolant of a liquid loop is not here: it is drawn as a liquid (water.ts). Structure of arrays, no allocation per step. Pure TS.
 import type { AirSim } from './build';
-import { coolantAt, pointOn, UNITS_PER_M, type AirPart, type LoopPath } from './plan';
+import { UNITS_PER_M, type AirPart } from './plan';
 import type { V3 } from './grid';
 
 /** What the air does in game time is shown this much slower: the real air crosses a case in a second, too fast to follow. */
@@ -15,9 +15,7 @@ export const TIME_SCALE = 0.5;
  * air moves it on after `TRAIL_WAIT` seconds.
  */
 export const TRAIL = 8;
-const STRETCH_MIN = 110, STRETCH_MAX = 520, STRETCH_S = 0.075, TRAIL_WAIT = 0.3;
-/** A bead of coolant is a short dash, less than the gap to the next: this much of trail between its points, units. */
-const STRETCH_BEAD = 30;
+const STRETCH_MIN = 80, STRETCH_MAX = 340, STRETCH_S = 0.055, TRAIL_WAIT = 0.3;
 /** Air's heat capacity per volume, J per cubic metre and kelvin, and the units cubed in a metre cubed. */
 const RHO_CP = 1.2 * 1005;
 const M3 = UNITS_PER_M ** 3;
@@ -35,26 +33,22 @@ const MIX_TAU = 2.5, TAKE_GAIN = 5;
  * for each `WARM_W` watts it gives the air (at most `WARM_MAX_RATE` a second), when it is `WARM_MIN_K` kelvins over the room; they start `WARM_START` of the way
  * to its warmth; and they may swell the pool by `WARM_EXTRA`.
  */
-const WARM_W = 12, WARM_MAX_RATE = 5, WARM_MIN_K = 6, WARM_START = 0.7, WARM_EXTRA = 120;
+const WARM_W = 12, WARM_MAX_RATE = 3, WARM_MIN_K = 6, WARM_START = 0.7, WARM_EXTRA = 60;
 /** The share of the air's speed the eddies move at, and the speed they have in still air (units per second); how long an eddy lasts, s. */
 const TURB = 0.2, TURB_BASE = 700, TURB_TAU = 0.5;
 /** An axis a box blocks: the air passes less than this share of it. */
 const BLOCK = 0.12;
 const EDGE = 2;
-/** The coolant's speed at full flow, units per second. */
-const COOLANT_SPEED = 7000;
-/** Spacing of the coolant's beads along the line, units. */
-const BEAD = 330;
 
 // The halo: the case's air is the air inside it, but a fan reaches the room. Air that leaves an exit goes on outside as a jet (a ray from the exit that
 // slows and mixes into the room); room air is drawn in toward each intake (a ray to the intake that speeds up as it nears it). Neither is solved: the room
 // is not in the grid. Both are drawn fading out with the distance from the case, over `HALO_K` of its longest side.
 /** The halo's pool as a share of the case's air particles, the share of it that is drawn in, and the share of the air that leaves an exit and goes on as a jet. */
-const HALO_SHARE = 0.2, HALO_IN = 0.45, HALO_TAKE = 0.5;
+const HALO_SHARE = 0.12, HALO_IN = 0.45, HALO_TAKE = 0.5;
 /** How far the halo reaches: a share of the case's longest side, between two limits (units). */
 const HALO_K = 0.5, HALO_MIN = 3200, HALO_MAX = 7500;
 /** How bright the halo is against the air inside. */
-const HALO_ALPHA = 0.85;
+const HALO_ALPHA = 0.55;
 /** A jet: seconds it takes to slow to half, the tangent of its half-angle, and the least speed it leaves at (units per second). */
 const JET_TAU = 0.45, SPREAD = 0.3, SPEED_MIN = 3500;
 /** A draw-in: the distance (units) over which it speeds up toward the intake, and where it counts as arrived. The cone it comes from: the cosine of its half-angle. */
@@ -70,13 +64,12 @@ export interface AirEnv {
   ambientC: number;
   /** The case air's mean temperature: a warm parcel mixes toward it. */
   mixC: number;
-  coolant: { flow: number; hotC: number; coldC: number } | null;
 }
 
 interface PartRt { id: string; lo: V3; hi: V3; tempC: number; rate: number; ua: number; powerW: number; porous: boolean; key: string }
 
 /** Kinds of particle. `EXHAUST` and `INTAKE` are the halo, outside the case. */
-export const AIR = 1, COOLANT = 2, EXHAUST = 3, INTAKE = 4;
+export const AIR = 1, EXHAUST = 2, INTAKE = 3;
 
 export class AirParticles {
   readonly cap: number;
@@ -91,7 +84,7 @@ export class AirParticles {
   private readonly life: Float32Array;
   private readonly tick: Float32Array;
   private readonly eddy: Float32Array;
-  /** A bead: its length along the line. A jet: the speed it left at. A draw-in: the speed at its intake. */
+  /** A jet: the speed it left at. A draw-in: the speed at its intake. */
   private readonly at: Float32Array;
   /** A jet: its direction. A draw-in: the point on the wall it is drawn to. */
   private readonly aux: Float32Array;
@@ -106,7 +99,6 @@ export class AirParticles {
   private nIn = 0;
   private acc = 0;
   private accIn = 0;
-  private loop: LoopPath | null = null;
   private seed: number;
   private readonly u: V3 = [0, 0, 0];
   private readonly q: V3 = [0, 0, 0];
@@ -125,7 +117,7 @@ export class AirParticles {
     this.haloMax = Math.round(target * HALO_SHARE);
     this.inMax = Math.round(this.haloMax * HALO_IN);
     this.exMax = this.haloMax - this.inMax;
-    this.cap = target + 130 + this.haloMax;
+    this.cap = target + WARM_EXTRA + this.haloMax + 10;
     const g = sim.grid;
     this.halo = Math.min(HALO_MAX, Math.max(HALO_MIN, HALO_K * Math.max(g.max[0] - g.min[0], g.max[1] - g.min[1], g.max[2] - g.min[2])));
     this.P = new Float32Array(this.cap * TRAIL * 3);
@@ -181,16 +173,6 @@ export class AirParticles {
     }
     this.parts = rt;
     if (this.warm.length !== rt.length) this.warm = new Float32Array(rt.length);
-  }
-
-  /** The coolant's loop (or null): beads of water run along it. */
-  setLoop(loop: LoopPath | null): void {
-    if (loop === this.loop) return;
-    this.loop = loop;
-    this.drop(COOLANT);
-    if (!loop) return;
-    const n = Math.max(10, Math.min(120, Math.round(loop.length / BEAD)));
-    for (let i = 0; i < n; i++) this.spawnPath((i / n) * loop.length);
   }
 
   private drop(kind: number): void {
@@ -293,16 +275,6 @@ export class AirParticles {
     return false;
   }
 
-  private spawnPath(s: number): void {
-    const line = this.loop;
-    if (!line) return;
-    const i = this.slot(COOLANT, 1e9, 25);
-    if (i < 0) return;
-    this.at[i] = s;
-    const p = pointOn(line, s, this.q);
-    this.put(i, p[0], p[1], p[2]);
-  }
-
   /** Room air a way off an intake, drawn toward it: the halo. It starts in a cone before the opening it comes to, at a distance the halo reaches. */
   private spawnIntake(ambientC: number): boolean {
     if (this.nIn >= this.inMax) return false;
@@ -385,8 +357,8 @@ export class AirParticles {
     for (let i = 0; i < this.count; i++) {
       const kind = this.K[i]!, h = i * TRAIL * 3;
       this.age[i]! += dt;
-      if (kind !== COOLANT && this.age[i]! > this.life[i]!) { this.remove(i--); continue; }
-      let x = this.P[h]!, y = this.P[h + 1]!, z = this.P[h + 2]!, speed = 0, wrapped = false, fade = 1;
+      if (this.age[i]! > this.life[i]!) { this.remove(i--); continue; }
+      let x = this.P[h]!, y = this.P[h + 1]!, z = this.P[h + 2]!, speed = 0, fade = 1;
       if (kind === AIR) {
         o[0] = x; o[1] = y; o[2] = z;
         sim.field.sample(x, y, z, u);
@@ -404,17 +376,6 @@ export class AirParticles {
         this.exchange(i, x, y, z, speed, dtp);
         const Tn = this.T[i]!;
         if (Tn > env.mixC) this.T[i] = Tn + (env.mixC - Tn) * mixK;
-      } else if (kind === COOLANT) {
-        const line = this.loop;
-        if (!line) { this.remove(i--); continue; }
-        const flow = env.coolant?.flow ?? 0, before = this.at[i]!, s = (before + flow * COOLANT_SPEED * dtp) % Math.max(1, line.length);
-        // (a bead that comes round to the line's start leaves no trail across it)
-        wrapped = s < before;
-        this.at[i] = s;
-        const p = pointOn(line, s, this.q);
-        x = p[0]; y = p[1]; z = p[2];
-        speed = flow * COOLANT_SPEED;
-        if (env.coolant) this.T[i] = coolantAt(line, s, env.coolant.hotC, env.coolant.coldC);
       } else {
         // the halo: a jet (rides its ray, slows, mixes into the room) or room air drawn in (rides its ray to the intake, faster as it nears)
         const e = 3 * i, T = this.T[i]!;
@@ -445,20 +406,18 @@ export class AirParticles {
         fade = 1 - k * k * (3 - 2 * k);
         if (fade < 0.015) { this.remove(i--); continue; }
       }
-      if (wrapped) this.put(i, x, y, z);
       this.P[h] = x; this.P[h + 1] = y; this.P[h + 2] = z;
       // the trail: the past moves on after the head has gone a stretch (or a while has passed)
       this.tick[i]! += dt;
-      const stretch = kind !== COOLANT ? Math.max(STRETCH_MIN, Math.min(STRETCH_MAX, speed * TIME_SCALE * STRETCH_S)) : STRETCH_BEAD, ex = x - this.P[h + 3]!, ey = y - this.P[h + 4]!, ez = z - this.P[h + 5]!;
+      const stretch = Math.max(STRETCH_MIN, Math.min(STRETCH_MAX, speed * TIME_SCALE * STRETCH_S)), ex = x - this.P[h + 3]!, ey = y - this.P[h + 4]!, ez = z - this.P[h + 5]!;
       if (ex * ex + ey * ey + ez * ez >= stretch * stretch || this.tick[i]! >= TRAIL_WAIT) {
         this.tick[i] = 0;
         for (let k = TRAIL - 1; k >= 2; k--) { this.P[h + 3 * k] = this.P[h + 3 * (k - 1)]!; this.P[h + 3 * k + 1] = this.P[h + 3 * (k - 1) + 1]!; this.P[h + 3 * k + 2] = this.P[h + 3 * (k - 1) + 2]!; }
         this.P[h + 3] = x; this.P[h + 4] = y; this.P[h + 5] = z;
       }
-      // the fade: in at birth, out at the end; slow air is dimmer than fast (the loop has no end)
+      // the fade: in at birth, out at the end; slow air is dimmer than fast
       const a = this.age[i]!, l = this.life[i]!, bright = Math.min(1, 0.45 + speed / 4500);
       if (kind === AIR) this.A[i] = Math.min(1, a / 0.5) * Math.min(1, (l - a) / Math.max(0.5, 0.25 * l)) * bright;
-      else if (kind === COOLANT) this.A[i] = Math.min(1, a / 0.5);
       else this.A[i] = fade * (kind === INTAKE ? Math.min(1, a / 0.5) : 1) * Math.min(1, (l - a) / 0.6) * bright * HALO_ALPHA;
     }
     this.births(env, dt);

@@ -1,7 +1,8 @@
 // The heatsinks over the board's VRMs (specs `vrm-sink`, `ram-sink`), built into a group in board space: the live board and the showcase share it.
-import { BoxGeometry, Vector2, type Group } from 'three';
+import { BoxGeometry, Mesh, Vector2, type Group, type MeshStandardMaterial } from 'three';
 import type { Theme } from '@/core/render/theme';
-import { SEG, drum, instanced, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { SEG, drum, place, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { mergeStatic } from '@/core/render/three/merge';
 import { NYLON, mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { GEO, RAM_SINK, VRM_SINK } from '../layout/layout';
@@ -11,8 +12,11 @@ import { hexNum, skinOf } from '../skins';
 import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 import { fanDepth } from './fans3d';
 
-/** What the caller needs to fit the sink's fan: its square in the housing (null where the sink has none), the fan's underside and the sink's top, as z. */
-export interface SinkFit { spot: RectLike | null; foot: number; top: number }
+/**
+ * What the caller needs to fit the sink's fan: its square in the housing (null where the sink has none), the fan's underside and the sink's top, as z. `skin`: the
+ * casting's material, which the airflow lens's thermal view makes glow.
+ */
+export interface SinkFit { spot: RectLike | null; foot: number; top: number; skin: MeshStandardMaterial[] }
 
 /**
  * The heights over the board: the thermal pad on the power stages (40 tall), the foot that stands on it, the block over the chokes (150 tall: it
@@ -79,19 +83,24 @@ export function sinkBody(g: Group, T: Theme, kind: 'vrm-sink' | 'ram-sink', visu
     g.add(drum(x, y, BOARD_Z, BOARD_Z + 8, 46, nylon, SEG.disc), drum(x, y, BOARD_Z + 8, Z.foot + 2, 38, anod, SEG.disc));
     g.add(drum(x, y, BOARD_Z - 72, BOARD_Z + 8, 20, steel, SEG.part), drum(x, y, BOARD_Z - 72, BOARD_Z - 64, 50, nylon, SEG.disc), drum(x, y, BOARD_Z - 102, BOARD_Z - 72, 44, steel, SEG.disc));
   }
-  if (!spot || !H) return { spot, foot: Z.root, top };
+  // (the casting's material is a skin's, so the palette merge leaves it: its meshes merge here, by that material, into one draw. Plain meshes merge, an
+  // instanced one does not: the fins and the spokes are `copies`)
+  const copies = (geo: BoxGeometry, m: MeshStandardMaterial, at: readonly { x: number; y: number; z: number; rz?: number }[]): Mesh[] =>
+    at.map((p) => { const o = place(new Mesh(geo, m)); o.position.set(p.x, p.y, p.z); o.rotation.z = p.rz ?? 0; return o; });
+  const done =(fit: Omit<SinkFit, 'skin'>): SinkFit => { mergeStatic(g, { own: true, ok: (m) => m.material === anod }); return { ...fit, skin: [anod] }; };
+  if (!spot || !H) return done({ spot, foot: Z.root, top });
   // the housing: its floor on the rails, a wall down each side (north and south), the fins between them along the rails' channels, the cover
   const cx = spot.x + spot.w / 2, cy = spot.y + spot.h / 2, R = spot.w * 0.46;
   const circle = (rad: number, n = 64) => Array.from({ length: n }, (_, k) => new Vector2(cx + Math.cos((k / n) * Math.PI * 2) * rad, -cy + Math.sin((k / n) * Math.PI * 2) * rad));
   g.add(slab(shapeOf(outlinePts(H, 60)), HEAD.base, HEAD.floor, anod, 6));
   for (const y of [H.y, H.y + H.h - WALL]) g.add(softBox({ x: H.x, y, w: H.w, h: WALL }, HEAD.floor - 4, HEAD.cover + 2, anod, 6));
   const n = Math.floor((H.h - 2 * WALL - HEAD_FIN) / HEAD_PITCH), y0 = H.y + (H.h - (n - 1) * HEAD_PITCH) / 2, fh = HEAD.fan - 8 - HEAD.floor;
-  g.add(instanced(new BoxGeometry(H.w - 16, HEAD_FIN, fh), anod, Array.from({ length: n }, (_, k) => ({ x: H.x + H.w / 2, y: -(y0 + k * HEAD_PITCH), z: HEAD.floor + fh / 2 }))));
+  g.add(...copies(new BoxGeometry(H.w - 16, HEAD_FIN, fh), anod, Array.from({ length: n }, (_, k) => ({ x: H.x + H.w / 2, y: -(y0 + k * HEAD_PITCH), z: HEAD.floor + fh / 2 }))));
   g.add(slab(shapeOf(outlinePts(H, 60), [circle(R)]), HEAD.cover, HEAD.top, anod, 6));
   // the grille in the cover's opening: four spokes from its rim to a round badge, a ring halfway (flush under the cover's face)
   const zg = HEAD.top - 10, spoke = R * 0.72, at = R * 0.28 + spoke / 2;
-  g.add(instanced(new BoxGeometry(spoke, 22, 16), anod, [1, 3, 5, 7].map((k) => ({ x: cx + Math.cos((k * Math.PI) / 4) * at, y: -cy + Math.sin((k * Math.PI) / 4) * at, z: zg, rz: (k * Math.PI) / 4 }))));
+  g.add(...copies(new BoxGeometry(spoke, 22, 16), anod, [1, 3, 5, 7].map((k) => ({ x: cx + Math.cos((k * Math.PI) / 4) * at, y: -cy + Math.sin((k * Math.PI) / 4) * at, z: zg, rz: (k * Math.PI) / 4 }))));
   g.add(slab(shapeOf(circle(R * 0.64 + 9), [circle(R * 0.64 - 9)]), zg - 8, zg + 8, anod));
   g.add(drum(cx, cy, zg - 12, HEAD.top + 4, R * 0.3, anod, SEG.ring), drum(cx, cy, HEAD.top + 4, HEAD.top + 7, R * 0.2, mat(0x959aa3, { metalness: 0.8, roughness: 0.3 }), SEG.ring));
-  return { spot, foot: HEAD.fan, top: HEAD.top };
+  return done({ spot, foot: HEAD.fan, top: HEAD.top });
 }
