@@ -146,7 +146,7 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
     const ch = p.kind === 'choke', at = inside(GEO.vrmPhases, p.x, p.y) ? vrm : inside(GEO.dPhases, p.x, p.y) ? vrm2 : g;
     up(at, { x: p.x - p.w / 2, y: p.y - p.h / 2, w: p.w, h: p.h }, BOARD_Z, BOARD_Z + (ch ? 150 : 40), ch ? choke : chip, ch ? 14 : 6);
   }
-  g.add(vrm, vrm2, slotHardware());
+  g.add(vrm, vrm2, slotHardware(filled.has('cpu0')));
   // the small parts: the controllers, the crystals (metal cans), the header bodies and the solids
   const can = mat(0xb9babf, { metalness: 0.8, roughness: 0.3 });
   for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy]) if (r) up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);

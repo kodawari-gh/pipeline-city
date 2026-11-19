@@ -160,8 +160,14 @@ export function ioCover(feat: IoFeatures = { ethernetMbps: 0, usbPorts: 1, displ
   return { root: io, glow };
 }
 
-/** The hardware round the sockets that the flat drawing cannot show: a steel armour round the PCIe slots the skin armours, the retention latch at each slot's far end, and the CPU socket's load frame and lever. */
-export function slotHardware(): Group {
+/** How far the CPU socket's load lever turns about its long side when it is lifted (radians; a bare socket, or a CPU on its way in or out). */
+export const LEVER_OPEN = -1.3;
+
+/**
+ * The hardware round the sockets that the flat drawing cannot show: a steel armour round the PCIe slots the skin armours, the retention latch at each slot's far end,
+ * and the CPU socket's load frame and lever. `cpuIn`: a CPU sits in the socket, so its lever is down (a bare socket has it lifted, as a bare memory socket has its latches open).
+ */
+export function slotHardware(cpuIn = true): Group {
   const g = new Group();
     const sk = skinOf(GEO.tier), latchM = mat(hexNum(sk.latch), { roughness: 0.5 }), steel = mat(0x959aa3, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
     PCIE_RAILS.forEach((r, i) => {
@@ -184,6 +190,7 @@ export function slotHardware(): Group {
     const lever = new Group();
     lever.position.set(lx, 0, zl);
     lever.userData.leverOf = 'cpu0';
+    if (!cpuIn) lever.rotation.y = LEVER_OPEN;
     const arm = tube(rounded([[lx, -(o.y + 40), zl], [lx, -ys, zl], [lx + 170, -ys, zl]], 40, SEG.corner), 13, steel, SEG.midRound);
     arm.position.set(-lx, 0, -zl);
     const cap = place(new Mesh(new CylinderGeometry(20, 20, 70, SEG.post).rotateZ(Math.PI / 2), latchM));

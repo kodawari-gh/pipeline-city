@@ -42,6 +42,7 @@ import { ACCENT } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
 import { ArtSet } from './artset3d';
+import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
@@ -1145,6 +1146,8 @@ export class Machine3D {
   private fill(slot: string, filled: boolean, added: Object3D[]): void {
     const freeBox = (o: Object3D) => { o.removeFromParent(); o.traverse((x) => (x as Mesh).geometry?.dispose?.()); };
     if (slot === 'cpu0') {
+      // the load lever is down on a CPU and lifted on a bare socket (as a memory socket's latches close on a stick and open without one)
+      this.root.traverse((o) => { if (o.userData.leverOf === slot) o.rotation.y = filled ? 0 : LEVER_OPEN; });
       // the socket is merged into the board by now, so a bare one is picked by an unseen box over it; its gold contacts show
       const pick = this.picks.get(slot);
       if (filled && pick) { freeBox(pick); this.picks.delete(slot); }
