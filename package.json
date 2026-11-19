@@ -19,6 +19,7 @@
     "bench:boot": "node tools/bench-boot.mjs",
     "shot": "node tools/shot.mjs",
     "jobsheet": "node tools/jobsheet.mjs",
+    "animcheck": "node tools/animcheck.mjs",
     "flicker": "node tools/flicker.mjs",
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
