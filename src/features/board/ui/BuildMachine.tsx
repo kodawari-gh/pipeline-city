@@ -68,7 +68,9 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const devices = stage ? stage.board.devices : [];
   const groups = groupByKind(devices, kinds);
   const snap = stage?.snapshot;
-  const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec) }) : null;
+  // (a bare case has no motherboard in it: the game's own board, with no parts, is held aside and does not count)
+  const bare = stage?.bare.value ?? false;
+  const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec), noBoard: bare }) : null;
   const off = busy || !stage;
   const list = useRef<HTMLUListElement>(null);
   // the starting points: the player's click decides; until then they show for an empty machine and are folded away for one with parts
@@ -94,7 +96,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
 
   const shell = snap ? [
     { id: `case${snap.caseTier}`, kind: 'case', name: CASE_TIERS[snap.caseTier]?.name ?? 'Case', note: `${CASE_TIERS[snap.caseTier]?.form ?? ''} case` },
-    { id: `board${snap.boardTier}`, kind: 'board', name: `${BOARD_TIERS[snap.boardTier]?.name ?? ''} board`, note: 'motherboard' },
+    ...(bare ? [] : [{ id: `board${snap.boardTier}`, kind: 'board', name: `${BOARD_TIERS[snap.boardTier]?.name ?? ''} board`, note: 'motherboard' }]),
   ] : [];
 
   return (
@@ -120,6 +122,16 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
                 </button>
               </li>
             ))}
+            {/* (a bare case: the board's place is a dashed row, and a click on it opens the shelf at the boards) */}
+            {bare && (
+              <li class="bld-part shell vacant" key="no-board">
+                <button class="bld-shellbtn" title="Choose a motherboard from the shelf" onClick={() => onShelf('board')}>
+                  <span class="bld-thumb"><Icon name="board" size={16} /></span>
+                  <span class="bld-row"><span class="bld-name">No motherboard</span><em>Pick one from the shelf</em></span>
+                  <Icon name="next" size={10} class="bld-go" />
+                </button>
+              </li>
+            )}
           </>
         )}
         {groups.map(({ kind, items }) => {
@@ -164,7 +176,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
         })}
         {/* (until the stage is open the machine is not known: rows that wait, not a claim that the case is empty) */}
         {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `${i * 0.15}s` }} />)}
-        {stage && devices.length === 0 && <li class="bld-none"><b>Nothing fitted yet</b><span>Drag a part from the shelf onto the PC.</span></li>}
+        {stage && devices.length === 0 && <li class="bld-none"><b>Nothing fitted yet</b><span>{bare ? 'Fit a motherboard first: every other part plugs into it.' : 'Drag a part from the shelf onto the PC.'}</span></li>}
       </ul>
       {stage && <BenchFoot stage={stage} busy={busy} onOpen={onBench} />}
       {log.length > 0 && (

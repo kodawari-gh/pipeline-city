@@ -64,4 +64,11 @@ describe('the stage skips a build that would change nothing (ANIM-02, ANIM-06)',
     g.connectCable('atx');
     expect(key(g)).toBe(before);
   });
+
+  it('keys a bare case by its case alone: the board the game holds aside does not change it', () => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), s = new SnapCache().of(g);
+    expect(machineKey(s, true)).toBe(`bare|${s.caseTier}`);
+    expect(machineKey(s, true)).not.toBe(machineKey(s));
+    expect(machineKey(null, true)).toBe('none');
+  });
 });

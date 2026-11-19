@@ -27,6 +27,11 @@ describe('readiness', () => {
     g.uninstall(cpu.id);
     expect(readiness(g.board, g.cables)).toEqual({ ok: false, line: 'No CPU installed' });
   });
+
+  it('puts the motherboard before everything for a bare case (the boot test does not know it)', () => {
+    const g = full();
+    expect(readiness(g.board, g.cables, true)).toEqual({ ok: false, line: 'No motherboard' });
+  });
 });
 
 describe('powerMeter', () => {
@@ -75,6 +80,16 @@ describe('hintLine', () => {
     expect(hintLine({ ...base, picked: true })).toMatch(/Delete/);
     expect(hintLine({ ...base, open: false })).toMatch(/side panel/);
     expect(hintLine(base)).toMatch(/Drag a part/);
+  });
+
+  it('asks for a motherboard first while the case is bare, and takes a board or a case for what it is', () => {
+    const bare: HintState = { ...base, fitted: 0, bare: true };
+    expect(hintLine(bare)).toMatch(/motherboard/);
+    expect(hintLine({ ...bare, dragging: 'shelf', over: 'stage' })).toMatch(/Fit a motherboard first/);
+    expect(hintLine({ ...bare, dragging: 'shelf', over: 'stage', shell: true })).toMatch(/Let go on the case/);
+    expect(hintLine({ ...bare, dragging: 'shelf', over: null, shell: true })).toMatch(/onto the case/);
+    // (a step in progress is still said first)
+    expect(hintLine({ ...bare, busy: true, step: 'Lower the board' })).toBe('Lower the board');
   });
 });
 

@@ -1428,6 +1428,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-part.shell, .bld-part.shell:hover { padding: 0; cursor: default; touch-action: auto; background: none; border-color: transparent; }
 .mode .bld-shellbtn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.55rem; padding: 0.2rem 0.3rem; text-align: left; background: transparent; border-color: transparent; border-radius: var(--m-r-row); }
 .mode .bld-shellbtn:hover:not(:disabled) { background: var(--glass-hi); border-color: var(--glass-line); }
+/* a bare case: the board's place is a dashed row, in amber (it is what the machine lacks), and a click on it opens the shelf at the boards */
+.mode .bld-part.vacant .bld-shellbtn { border: 0.133rem dashed color-mix(in srgb, var(--warn) 45%, transparent); }
+.mode .bld-part.vacant .bld-shellbtn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--warn) 75%, transparent); }
+.bld-part.vacant .bld-thumb { color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.bld-part.vacant .bld-name { color: var(--warn); }
 .bld-go { flex: none; color: var(--mute); opacity: 0; transition: opacity .15s; }
 .bld-shellbtn:hover .bld-go, .bld-shellbtn:focus-visible .bld-go { opacity: 1; }
 .bld-grp { margin-top: 0.5rem; }

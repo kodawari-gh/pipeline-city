@@ -10,6 +10,14 @@ describe('specSheet', () => {
     expect(s.headroom).toBeNull();
   });
 
+  it('a bare case costs its case only and counts one part: the board is not there', () => {
+    const s = specSheet({ boardTier: 0, caseTier: 1, specs: [], noBoard: true });
+    expect(s.budget).toBe(CASE_TIERS[1]!.price);
+    expect(s.parts).toBe(1);
+    expect(s.loadW).toBe(0);
+    expect(s.headroom).toBeNull();
+  });
+
   it('sums the price and the draw, and rates the load against the supply', () => {
     const s = specSheet({ boardTier: 1, caseTier: 1, specs: ['cpu1', 'psu1', 'nope'] });
     const cpu = getSpec('cpu1')!, psu = getSpec('psu1')!;

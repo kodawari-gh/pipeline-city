@@ -138,6 +138,14 @@ export function BuildMode() {
   const st = stage?.status.value;
   const rev = st?.rev;
   const busy = !!st?.busy;
+  const bare = stage?.bare.value ?? false;
+  // a bare case takes a motherboard first: the shelf shows the boards while it is empty, and the processors once a board is in
+  const wasBare = useRef(false);
+  useEffect(() => {
+    if (bare) setKind('board');
+    else if (wasBare.current) setKind('cpu');
+    wasBare.current = bare;
+  }, [bare]);
   if (!open) return null;
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
@@ -149,7 +157,7 @@ export function BuildMode() {
   // (before the stage is open the machine is not known: the line says so, it does not say the case is empty)
   const hint = !stage
     ? (failed ? '3D is not available here.' : 'Getting the workshop ready…')
-    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length });
+    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, bare, shell: !!drag && /^(case|board)\d$/.test(drag.item) });
 
   return (
     <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
@@ -170,18 +178,18 @@ export function BuildMode() {
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
       {stage && picked && !drag && !bench && <BuildCard stage={stage} id={picked} avoid={avoid} />}
       {stage && hover && !drag && !busy && !bench && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
-      {drag && <Ghost drag={drag} />}
+      {drag && <Ghost drag={drag} bare={bare} />}
       {toast && <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>{toast.text}</div>}
     </div>
   );
 }
 
-/** The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). */
-function Ghost({ drag }: { drag: Drag }) {
+/** The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `bare`: the case has no board, so no part has a socket. */
+function Ghost({ drag, bare }: { drag: Drag; bare: boolean }) {
   const ok = drag.from === 'shelf' ? !!drag.target : drag.over === 'bin';
   const no = drag.target === '';
   const says = drag.from === 'shelf'
-    ? (drag.over !== 'stage' ? 'Drag it onto the PC' : no ? 'Fits no socket here' : drag.target ? `Let go to fit it in ${drag.target}` : 'Let go to fit it here')
+    ? (drag.over !== 'stage' ? 'Drag it onto the PC' : no ? (bare ? 'Fit a motherboard first' : 'Fits no socket here') : drag.target && !/^(case|board)\d$/.test(drag.target) ? `Let go to fit it in ${drag.target}` : 'Let go to fit it here')
     : (drag.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out');
   return (
     <div class={`bld-ghost ${ok ? 'ok' : ''} ${no ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">

@@ -48,7 +48,8 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
       return;
     }
     if (!onStage(host.current, x, y)) return;
-    if (st.dropTarget(src.item, x, y) === null) { note(`${src.name} fits no socket in this machine`, x, y); return; }
+    // (a bare case has no socket at all: the stage's own refusal says why, on the hint line)
+    if (st.dropTarget(src.item, x, y) === null) { if (st.bare.peek()) void st.fit(src.item); else note(`${src.name} fits no socket in this machine`, x, y); return; }
     void st.fit(src.item, st.slotAt(x, y) ?? undefined);
   };
 
@@ -64,7 +65,7 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
         air.current = true;
         st?.carry(src.from === 'shelf' ? { item: src.item } : { device: src.item });
         // a shelf part can only land on a socket with the case open
-        if (src.from === 'shelf' && st && !isShell(src.item) && !st.insideOpen) st.openInside(true);
+        if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) st.openInside(true);
       }
       const over = where(m.clientX, m.clientY);
       const target = src.from === 'shelf' && over === 'stage' ? st?.dropTarget(src.item, m.clientX, m.clientY) ?? '' : undefined;

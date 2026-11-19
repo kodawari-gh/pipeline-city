@@ -61,7 +61,7 @@ import { footShade } from './footshade3d';
 import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
-import { frontPanelLeads } from './casetray3d';
+import { frontPanelLeads, leadCoil } from './casetray3d';
 import {
   TRAY_Z, at, atxPlug, cableMesh, epsPlug, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, type Env, type GrommetStyle, type Look,
 } from './wires3d';
@@ -115,10 +115,13 @@ const underCage = (c: CagePlan): Mesh => {
 };
 
 
-/** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
-export function machineKey(s: Snapshot | null): string {
+/**
+ * What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`).
+ * `noBoard`: the case stands empty (Build my PC's empty start): only the case's tier counts.
+ */
+export function machineKey(s: Snapshot | null, noBoard = false): string {
   if (!s) return 'none';
-  const key = [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',')].join('|');
+  const key = noBoard ? `bare|${s.caseTier}` : [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',')].join('|');
   return lowDetail() ? `${key}|low` : key; // (High's key is what it was)
 }
 
@@ -281,8 +284,9 @@ export class Machine3D {
    * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has
    * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two). `lod`: false builds it
    * without the distance stand-ins (the tests compare the two). `defer`: leave the build to `make`, which runs it a slice at a time.
+   * `noBoard`: the case alone, with no board in it, no part and no cable (`buildEmpty`): Build my PC's empty start.
    */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false) {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, private noBoard = false) {
     this.art = new ArtSet(q);
     this.merged = merge;
     this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
@@ -300,10 +304,10 @@ export class Machine3D {
    */
   static async make(
     s: Snapshot | null, geo: RoomGeo, q: BakeQueue, chips: Chips3D | null, inRoom: boolean,
-    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean } = {},
+    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean; noBoard?: boolean } = {},
   ): Promise<Machine3D | null> {
     const merge = o.merge ?? true, lod = o.lod ?? merge, slice = o.slice ?? (() => new Promise<void>((done) => setTimeout(done, 0))), budget = o.budget ?? SLICE_MS;
-    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true), run = m.assemble(s, geo, merge, lod);
+    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true, o.noBoard ?? false), run = m.assemble(s, geo, merge, lod);
     let from = performance.now();
     for (let step = run.next(); !step.done; step = run.next()) {
       if (performance.now() - from < budget) continue;
@@ -318,9 +322,9 @@ export class Machine3D {
   private *assemble(s: Snapshot | null, geo: RoomGeo, merge: boolean, lod: boolean): Generator<void> {
     this.buildCase();
     yield;
-    this.buildBoard(s);
+    if (this.noBoard) this.buildEmpty(); else this.buildBoard(s);
     yield;
-    if (s) {
+    if (s && !this.noBoard) {
       this.rects = slotRects(s);
       for (const d of s.devices) { this.build(d); yield; }
       this.buildRamMap();
@@ -543,6 +547,23 @@ export class Machine3D {
     PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) { const b = slotBlank(nicY(i), blank); this.blanks.set(`pcie${i}`, b); this.root.add(b); } });
     for (const t of this.cages.flatMap((c) => c.trays)) if (!filled.has(`sata${t.slot}`)) this.root.add(tag(trayHit(t), `sata${t.slot}`));
   }
+
+  /**
+   * The case with no board (`noBoard`): the tray shows its standoffs, the front-panel leads lie coiled on it as a new case ships them (`leadCoil`, what
+   * the shop's showcase shows), and the rear's slot covers stand in their openings. The coil and the covers are the case's own (`caseRoots`): a case
+   * swap lifts them with it. There is no socket, pick box or part: nothing can be fitted until a board comes (`BuildStage.fit`).
+   */
+  private buildEmpty() {
+    const coil = leadCoil();
+    this.root.add(coil);
+    this.caseRoots.push(coil);
+    const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
+    this.blankTone = blank;
+    PCIE_RAILS.forEach((_, i) => { const b = slotBlank(nicY(i), blank); this.blanks.set(`pcie${i}`, b); this.root.add(b); this.caseRoots.push(b); });
+  }
+
+  /** Is this the case alone, with no board in it (`noBoard`)? */
+  get empty(): boolean { return this.noBoard; }
 
   // ------------------------------------------------------------------ parts
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }
@@ -992,6 +1013,7 @@ export class Machine3D {
 
   /** Build all the cables and the key again: the parts stay as they are. */
   setCables(s: Snapshot, geo: RoomGeo): void {
+    if (this.noBoard) return;
     const run = this.cablesSteps(s, geo);
     while (!run.next().done) {}
   }
@@ -1016,6 +1038,7 @@ export class Machine3D {
 
   /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
   syncCables(s: Snapshot, geo: RoomGeo): void {
+    if (this.noBoard) return; // (no board, no cable: the case's leads lie coiled on its tray)
     if (s.cables.map((c) => c.id).join(',') !== this.cableIds || videoKey(s) !== this.videoKey) { this.setCables(s, geo); return; }
     for (const c of s.cables) {
       const b = this.built.get(c.id);
@@ -1033,7 +1056,7 @@ export class Machine3D {
    * too big): the caller builds the machine again.
    */
   patch(s: Snapshot, geo: RoomGeo): boolean {
-    if (this.tiers !== `${s.boardTier}|${s.caseTier}` || this.graveyard.length >= GRAVE_MAX) return false;
+    if (this.noBoard || this.tiers !== `${s.boardTier}|${s.caseTier}` || this.graveyard.length >= GRAVE_MAX) return false;
     const cur = new Map(this.devs.map((d) => [keyOf(d), d])), nxt = new Map(s.devices.map((d) => [keyOf(d), d]));
     const gone = [...cur].filter(([k]) => !nxt.has(k)).map(([, d]) => d), came = [...nxt].filter(([k]) => !cur.has(k)).map(([, d]) => d);
     // a fan on a heatsink is part of its host's model: the host is built again, with the fan or without it

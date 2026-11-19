@@ -15,7 +15,7 @@ interface Start { key: string; icon: IconKey; name: string; note: string; lit: n
 const PRESET_ICON: Record<string, IconKey> = { Budget: 'dollar', Gaming: 'card', Workstation: 'cpu' };
 
 const STARTS: readonly Start[] = [
-  { key: 'empty', icon: 'box', name: 'Empty', note: 'A bare case and board', lit: 0, title: 'Take every part out and start from nothing', said: 'Took every part out', run: (s) => s.clear() },
+  { key: 'empty', icon: 'box', name: 'Empty', note: 'A bare case, no board', lit: 0, title: 'Start from a bare case with no board in it: fit the motherboard, then the parts', said: 'Started from a bare case', run: (s) => s.clear() },
   ...BUILD_PRESETS.map((p): Start => ({
     key: p.name, icon: PRESET_ICON[p.name] ?? 'layers', name: p.name, note: presetBits(p).join(' · '), lit: pips(p.level * 10, 10),
     title: `Build a ${p.name.toLowerCase()} machine: ${presetBits(p).join(', ')}`, said: `Built the ${p.name} machine`, run: (s) => s.buildPreset(p),

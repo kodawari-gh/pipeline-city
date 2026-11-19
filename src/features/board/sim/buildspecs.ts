@@ -27,9 +27,9 @@ export interface SpecSheet {
   headroom: number | null;
 }
 
-/** The sheet of a machine: its board and case tier and its fitted part specs (a part with no spec is skipped). */
-export function specSheet(m: { boardTier: number; caseTier: number; specs: readonly string[] }): SpecSheet {
-  let budget = BOARD_TIERS[m.boardTier]?.price ?? 0, idleW = 0, loadW = 0, psuW = 0, parts = 1;
+/** The sheet of a machine: its board and case tier and its fitted part specs (a part with no spec is skipped). `noBoard`: the case stands empty, there is no board to count. */
+export function specSheet(m: { boardTier: number; caseTier: number; specs: readonly string[]; noBoard?: boolean }): SpecSheet {
+  let budget = m.noBoard ? 0 : BOARD_TIERS[m.boardTier]?.price ?? 0, idleW = 0, loadW = 0, psuW = 0, parts = m.noBoard ? 0 : 1;
   budget += CASE_TIERS[m.caseTier]?.price ?? 0;
   parts += 1;
   for (const id of m.specs) {

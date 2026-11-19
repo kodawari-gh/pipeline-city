@@ -64,6 +64,18 @@ describe('Machine3D.make', () => {
     expect(census(made!)).toEqual(census(whole));
   });
 
+  it('builds a bare case (no board) as the constructor does: the case and its leads, nothing of a board', async () => {
+    const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, true);
+    const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, { budget: 0, slice: async () => {}, noBoard: true });
+    expect(census(made!)).toEqual(census(whole));
+    expect(whole.empty).toBe(true);
+    // (the far stand-ins of the case's own pieces sit on the root as well: they are not a board)
+    expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
+    expect(whole.caseRoots.length).toBeGreaterThan(0);
+    // (far less than the maxed machine: no board, no part, no cable)
+    expect(census(whole).meshes).toBeLessThan(census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false)).meshes!);
+  });
+
   it('builds without the merge or the stand-ins as the constructor does', async () => {
     const whole = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, false, false);
     const made = await Machine3D.make(snap, roomGeo(), new BakeQueue(), null, false, { merge: false, lod: false, budget: 0, slice: async () => {} });
