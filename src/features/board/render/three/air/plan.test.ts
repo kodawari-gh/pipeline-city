@@ -5,7 +5,7 @@ import { AMBIENT_C } from '../../../sim/specs';
 import { setLayoutTier } from '../../layout/layout';
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { airDomain, airParts, airPlan, airReference, coolantAt, loopPath, pathLine, planKey, pointOn, type AirBody } from './plan';
+import { airDomain, airParts, airPlan, airReference, coolantAt, loopPath, pathLine, planKey, pointOn, PSU_BANK, psuBay, psuTempC, surfaceTemps, type AirBody } from './plan';
 import type { V3 } from './grid';
 
 setLayoutTier(2, 2);
@@ -159,6 +159,74 @@ describe('the parts that heat the air', () => {
   it('the air reference rises with the areas\' rise', () => {
     const s = running([], { board: boardSnap({ tier: 2, air: [{ id: 'north', flow: 1, fans: 1, riseC: 6 }, { id: 'cards', flow: 1, fans: 1, riseC: 3 }] }) });
     expect(airReference(s)).toBeCloseTo(AMBIENT_C + 4.5, 5);
+  });
+});
+
+describe('the power supply in the air', () => {
+  const psu = dev({ id: 'ps', kind: 'psu', spec: 'psu2', slot: 'atx-plus', tempC: 25 }), plain = dev({ id: 'ps', kind: 'psu', spec: 'psu1', slot: 'atx', tempC: 25 });
+
+  it('a supply fitted has a bay in the basement with its fan on the floor and its opening in the rear wall; none fitted, no bay', () => {
+    expect(psuBay(running())).toBeNull();
+    const bay = psuBay(running([psu]))!;
+    for (let a = 0; a < 3; a++) expect(bay.max[a]! - bay.min[a]!).toBeGreaterThan(500);
+    expect(bay.fan).not.toBeNull();
+    // the fan is over the unit and its opening is in the rear wall's span of the unit
+    expect(bay.fan!.x).toBeGreaterThan(bay.min[0]);
+    expect(bay.fan!.x).toBeLessThan(bay.max[0]);
+    expect(bay.opening.hw).toBeGreaterThan(100);
+    // a supply with no fan has the bay and no fan
+    expect(psuBay(running([plain]))!.fan).toBeNull();
+  });
+
+  it('the supply\'s unit is a part the air goes through, cut out of the basement; its fan blows up into it and its air leaves by the rear wall', () => {
+    const s = running([psu]), plan = airPlan(s, bodies([{ id: 'basement', kind: 'basement', min: [d.min[0], d.min[1], d.min[2]], max: [d.max[0], d.min[1] + 1500, d.max[2]] }]));
+    const bay = psuBay(s)!, unit = plan.boxes.find((b) => b.id === 'ps')!;
+    expect(unit).toBeDefined();
+    expect(unit.part).toBe('ps');
+    expect(unit.k.every((k) => k > 0 && k < 1)).toBe(true);
+    // (its casing is shut over it and on three sides: the air goes in at the fan and leaves by the rear, not up into the case)
+    for (const [name, axis] of [['lid', 1], ['east', 0], ['south', 2], ['north', 2]] as const) {
+      const wall = plan.boxes.find((b) => b.id === `ps.${name}`)!;
+      expect(wall, name).toBeDefined();
+      expect(wall.k[axis]).toBe(0);
+      expect(wall.k.filter((k) => k === 0).length).toBe(1);
+    }
+    expect(plan.boxes.some((b) => b.id === 'ps.west')).toBe(false);
+    // (the pieces of the basement left round it never cross it: its air is its own)
+    const lap = (a: { min: V3; max: V3 }, b: { min: V3; max: V3 }): boolean => [0, 1, 2].every((i) => Math.min(a.max[i]!, b.max[i]!) - Math.max(a.min[i]!, b.min[i]!) > 1);
+    for (const b of plan.boxes) if (b.id.startsWith('basement')) expect(lap(b, { min: bay.min, max: bay.max })).toBe(false);
+    const fan = plan.fans.find((f) => f.bank === PSU_BANK)!;
+    expect(fan).toBeDefined();
+    expect(fan.kind === 'wall' && fan.wall === 2 && fan.into).toBe(true);
+    const vent = plan.vents.find((v) => v.id === 'psu')!;
+    expect(vent).toBeDefined();
+    expect(vent.wall).toBe(0);
+    // no fan, no opening and no fan to blow
+    const p2 = airPlan(running([plain]), bodies());
+    expect(p2.fans.some((f) => f.bank === PSU_BANK)).toBe(false);
+    expect(p2.vents.some((v) => v.id === 'psu')).toBe(false);
+  });
+
+  it('the supply heats the air by what it loses, by the casing\'s temperature; a machine that is off moves none', () => {
+    const s = running([psu]), part = airParts(s, airPlan(s, bodies())).find((p) => p.id === 'ps')!;
+    expect(part).toBeDefined();
+    expect(part.porous).toBe(true);
+    expect(part.tempC).toBeCloseTo(psuTempC(s), 5);
+    expect(part.powerW).toBeCloseTo(0.1 * 54, 5);
+    expect(part.ua).toBeGreaterThan(0);
+    const off = running([psu], { powered: false, power: { vrmLossW: 0, totalW: 0, budgetW: 250, psuFactor: 1, off: true, tripped: false } });
+    expect(airParts(off, airPlan(off, bodies())).find((p) => p.id === 'ps')!.ua).toBe(0);
+  });
+});
+
+describe('the temperatures the thermal view shows', () => {
+  it('a part shows its own temperature, and a heatsink\'s fins the surface temperature the air\'s heat exchange uses', () => {
+    const tower = dev({ id: 'tw', kind: 'cooler', spec: 'cooler1', slot: 'cooler0', tempC: 30 }), s = running([tower], {}, 85);
+    const parts = airParts(s, airPlan(s, bodies([{ id: 'tw', kind: 'cooler', min: [-700, -1100, BOARD_Z], max: [700, 1700, BOARD_Z + 2700] }]))), t = surfaceTemps(s, parts);
+    expect(t.get('cpu')).toBe(85);
+    const fins = parts.find((p) => p.id === 'tw')!;
+    expect(t.get('tw')).toBe(fins.tempC);
+    expect(fins.tempC).toBeLessThan(85);
   });
 });
 

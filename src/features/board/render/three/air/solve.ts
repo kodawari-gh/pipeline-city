@@ -31,6 +31,8 @@ export interface AirFanDef {
 
 /** The speed no air goes past, units per second (a jet through a gap has to stay sane). */
 export const V_MAX = 90000;
+/** The open share of a face below which it is a wall to the speed of the air. */
+const FACE_MIN = 1e-3;
 
 const EPS = 1e-9;
 const AXES: readonly [number, number][] = [[1, 2], [0, 2], [0, 1]];
@@ -177,10 +179,12 @@ class Cg {
 export function velocityOf(g: AirGrid, phi: Float64Array, jets: readonly Jet[] = [], q = 0): Float32Array {
   const [nx, ny, nz] = g.n, [hx, hy, hz] = g.h, [fx, fy, fz] = g.face, sheet = nx * ny, N = g.cells;
   const sum = new Float64Array(3 * N), cnt = new Uint8Array(3 * N);
+  // (a face counts when a thousandth of it is open or more: a wall's open share is a rounding error above zero, and the potential across it is the whole pressure of the room)
+  const tx = FACE_MIN * hy * hz / hx, ty = FACE_MIN * hx * hz / hy, tz = FACE_MIN * hx * hy / hz;
   for (let k = 0, c = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++, c++) {
-    if (i < nx - 1 && fx[c]! > 0) { const v = (phi[c]! - phi[c + 1]!) / hx; sum[3 * c]! += v; sum[3 * (c + 1)]! += v; cnt[3 * c]!++; cnt[3 * (c + 1)]!++; }
-    if (j < ny - 1 && fy[c]! > 0) { const v = (phi[c]! - phi[c + nx]!) / hy; sum[3 * c + 1]! += v; sum[3 * (c + nx) + 1]! += v; cnt[3 * c + 1]!++; cnt[3 * (c + nx) + 1]!++; }
-    if (k < nz - 1 && fz[c]! > 0) { const v = (phi[c]! - phi[c + sheet]!) / hz; sum[3 * c + 2]! += v; sum[3 * (c + sheet) + 2]! += v; cnt[3 * c + 2]!++; cnt[3 * (c + sheet) + 2]!++; }
+    if (i < nx - 1 && fx[c]! > tx) { const v = (phi[c]! - phi[c + 1]!) / hx; sum[3 * c]! += v; sum[3 * (c + 1)]! += v; cnt[3 * c]!++; cnt[3 * (c + 1)]!++; }
+    if (j < ny - 1 && fy[c]! > ty) { const v = (phi[c]! - phi[c + nx]!) / hy; sum[3 * c + 1]! += v; sum[3 * (c + nx) + 1]! += v; cnt[3 * c + 1]!++; cnt[3 * (c + nx) + 1]!++; }
+    if (k < nz - 1 && fz[c]! > tz) { const v = (phi[c]! - phi[c + sheet]!) / hz; sum[3 * c + 2]! += v; sum[3 * (c + sheet) + 2]! += v; cnt[3 * c + 2]!++; cnt[3 * (c + sheet) + 2]!++; }
   }
   // the fan's own flow: on its face (both cells see it) or, on the wall, through a face of the room's side (only the one cell, and the face counts)
   for (const j of jets) {

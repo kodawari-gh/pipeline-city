@@ -46,6 +46,27 @@ describe('part looks', () => {
     expect(m.emissiveIntensity).toBeCloseTo(0, 3);
   });
 
+  it('the thermal view darkens a skin and makes it glow the scale\'s colour by its place on it, hotter brighter; null gives the own look back', () => {
+    const m = mat(0x808080), skin = new PartSkin([m]), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
+    skin.set(ON);
+    skin.thermal(0);
+    settle();
+    const cold = { r: m.emissive.r, b: m.emissive.b, level: m.emissiveIntensity };
+    // (the body goes dark and the glow is the cold end of the scale: blue)
+    expect(m.color.r).toBeLessThan(base * 0.5);
+    expect(cold.b).toBeGreaterThan(cold.r);
+    skin.thermal(1);
+    settle();
+    expect(m.emissive.r).toBeGreaterThan(0.9);
+    expect(m.emissive.g).toBeGreaterThan(0.8);
+    expect(m.emissiveIntensity).toBeGreaterThan(cold.level * 5);
+    skin.thermal(null);
+    settle();
+    expect(m.color.r).toBeCloseTo(base, 3);
+    expect(m.emissiveIntensity).toBeCloseTo(0, 3);
+    expect(skin.easing).toBe(false);
+  });
+
   it('a skin says it eases until it has reached the look', () => {
     const skin = new PartSkin([mat(0x808080)]);
     expect(skin.easing).toBe(false);

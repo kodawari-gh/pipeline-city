@@ -4,6 +4,7 @@ import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
+import { thermalHex } from './thermal';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
 /** Above this temperature a part starts to glow (3D_STYLE.md "Overheating"). */
@@ -90,6 +91,12 @@ export class PartSkin {
   private level = 0;
   private goal: PartLook = { tint: 1, glow: 0, glowIntensity: 0 };
   private goalGlow = new Color(0);
+  /** The thermal view (the airflow lens): the place on the thermal scale it is eased to (null: not shown), the place it is at, and how far the look has gone over. */
+  private goalHeat: number | null = null;
+  private heat = 0;
+  private over = 0;
+  private shown = new Color(0);
+  private hot = new Color(0);
 
   constructor(readonly mats: MeshStandardMaterial[], private gain = 1) { this.base = mats.map((m) => own(m).color.clone()); }
 
@@ -98,11 +105,18 @@ export class PartSkin {
     this.goalGlow.setHex(this.goal.glow);
   }
 
+  /**
+   * The thermal view: the part shows its temperature at place `heat` (0 to 1) on the thermal scale (`thermal.ts`) as a glow of the scale's colour on a darkened
+   * body, and eases there. Null brings its own look back.
+   */
+  thermal(heat: number | null): void { this.goalHeat = heat; }
+
   /** Still on its way to the state's look (a frame drawn on demand, docs/render/load.md, keeps drawing meanwhile). */
   get easing(): boolean {
     const g = this.glow, w = this.goalGlow;
     return Math.abs(this.goal.tint - this.tint) > 1e-3 || Math.abs(this.goal.glowIntensity - this.level) > 1e-3
-      || (this.goal.glowIntensity > 0 && Math.abs(g.r - w.r) + Math.abs(g.g - w.g) + Math.abs(g.b - w.b) > 1e-3);
+      || (this.goal.glowIntensity > 0 && Math.abs(g.r - w.r) + Math.abs(g.g - w.g) + Math.abs(g.b - w.b) > 1e-3)
+      || Math.abs((this.goalHeat === null ? 0 : 1) - this.over) > 1e-3 || (this.goalHeat !== null && Math.abs(this.goalHeat - this.heat) > 1e-3);
   }
 
   /** Ease over about half a second (3D_STYLE.md "State Transitions"). */
@@ -111,13 +125,23 @@ export class PartSkin {
     this.tint += (this.goal.tint - this.tint) * t;
     this.level += (this.goal.glowIntensity - this.level) * t;
     if (this.goal.glowIntensity > 0) this.glow.lerp(this.goalGlow, t);
+    const on = this.goalHeat !== null;
+    this.over += ((on ? 1 : 0) - this.over) * t;
+    if (on) this.heat += (this.goalHeat! - this.heat) * t;
+    const k = this.over < 1e-3 ? 0 : this.over, tint = this.tint + (THERMAL_BODY - this.tint) * k;
+    this.shown.copy(this.glow);
+    if (k > 0) this.shown.lerp(this.hot.setHex(thermalHex(this.heat)), k);
+    const level = this.level * this.gain * (1 - k) + (THERMAL_GLOW_MIN + THERMAL_GLOW * Math.pow(this.heat, 1.2)) * k;
     this.mats.forEach((m, i) => {
-      m.color.copy(this.base[i]!).multiplyScalar(this.tint);
-      m.emissive.copy(this.glow);
-      m.emissiveIntensity = this.level * this.gain;
+      m.color.copy(this.base[i]!).multiplyScalar(tint);
+      m.emissive.copy(this.shown);
+      m.emissiveIntensity = level;
     });
   }
 }
+
+/** The thermal view: how dark a part's own colour goes (it is the glow that shows), and the glow's strength at the cold end and the extra at the hot end. */
+const THERMAL_BODY = 0.35, THERMAL_GLOW_MIN = 0.1, THERMAL_GLOW = 1.5;
 
 // ---- shared materials (docs/render/three.md "Merges") ----
 

@@ -21,6 +21,7 @@ import { lowDetail } from '@/core/render/three/detail';
 import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
+import { heatOf } from '@/core/render/three/thermal';
 import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
@@ -605,6 +606,14 @@ export class Machine3D {
     const door = this.door?.cm.door, was = door?.visible ?? true;
     if (door) door.visible = false;
     try { return draw(); } finally { if (door) door.visible = was; }
+  }
+
+  /**
+   * The airflow lens's thermal view (docs/render/air.md): each part with a skin glows by its temperature (`temps`, by device id; a part not in it is at the
+   * scale's foot) on the thermal scale from `lo` to `hi`, and eases there. Null puts every part's own look back.
+   */
+  thermal(temps: ReadonlyMap<string, number> | null, lo = 25, hi = 60): void {
+    for (const [id, sk] of this.skins) sk.thermal(temps ? heatOf(temps.get(id) ?? lo, lo, hi) : null);
   }
 
   // ------------------------------------------------------------------ parts

@@ -19,6 +19,13 @@ export const GRID_CELLS = 14000;
 /** The share of a cell's open area below which the cell counts as a wall. */
 const SOLID = 0.02;
 
+/** The cells of a grid over `min`..`max`: how many along each axis and how big (the grid and a plan that snaps walls to its cells agree on them). */
+export function gridShape(min: V3, max: V3, cells = GRID_CELLS): { n: V3; h: V3 } {
+  const size: V3 = [max[0] - min[0], max[1] - min[1], max[2] - min[2]], edge = Math.cbrt((size[0] * size[1] * size[2]) / cells);
+  const n: V3 = [Math.max(2, Math.round(size[0] / edge)), Math.max(2, Math.round(size[1] / edge)), Math.max(2, Math.round(size[2] / edge))];
+  return { n, h: [size[0] / n[0], size[1] / n[1], size[2] / n[2]] };
+}
+
 const AXES: readonly [number, number][] = [[1, 2], [0, 2], [0, 1]];
 
 /** Series share of a slab of share `f` (of the cell along the flow) and openness `k`: 1 free, 0 a wall. */
@@ -44,10 +51,9 @@ export class AirGrid {
   constructor(min: V3, max: V3, readonly boxes: readonly AirBox[], cells = GRID_CELLS) {
     this.min = min;
     this.max = max;
-    const size: V3 = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-    const edge = Math.cbrt((size[0] * size[1] * size[2]) / cells);
-    this.n = [Math.max(2, Math.round(size[0] / edge)), Math.max(2, Math.round(size[1] / edge)), Math.max(2, Math.round(size[2] / edge))];
-    this.h = [size[0] / this.n[0], size[1] / this.n[1], size[2] / this.n[2]];
+    const shape = gridShape(min, max, cells);
+    this.n = shape.n;
+    this.h = shape.h;
     this.cells = this.n[0] * this.n[1] * this.n[2];
     const N = this.cells;
     this.open = [new Float32Array(N).fill(1), new Float32Array(N).fill(1), new Float32Array(N).fill(1)];

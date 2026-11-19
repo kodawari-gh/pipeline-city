@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AirSim } from './build';
 import type { AirBox, V3 } from './grid';
-import { AIR, AirParticles, COOLANT, PSU, TRAIL, type AirEnv } from './particles';
+import { AIR, AirParticles, COOLANT, EXHAUST, INTAKE, TRAIL, type AirEnv } from './particles';
 import { pathLine, type AirPart, type AirPlan, type PlanFan, type PlanVent } from './plan';
 
 const MIN: V3 = [0, 0, 0], MAX: V3 = [8000, 6000, 4000];
@@ -11,7 +11,9 @@ const rear: PlanVent = { id: 'rear', wall: 0, centre: [0, 3000, 2000], shape: { 
 const block: AirBox = { id: 'blk', min: [3000, 2000, 1000], max: [4500, 4000, 3000], k: [0, 0, 0] };
 const plan = (boxes: AirBox[] = [block]): AirPlan => ({ key: 'k', min: MIN, max: MAX, boxes, vents: [rear], fans: [intake], bodies: [] });
 const AMBIENT = 25;
-const env = (o: Partial<AirEnv> = {}): AirEnv => ({ dt: 1 / 30, ambientC: AMBIENT, mixC: AMBIENT, coolant: null, psu: null, ...o });
+const env = (o: Partial<AirEnv> = {}): AirEnv => ({ dt: 1 / 30, ambientC: AMBIENT, mixC: AMBIENT, coolant: null, ...o });
+const isHalo = (k: number): boolean => k === EXHAUST || k === INTAKE;
+const insideCase = (x: number, y: number, z: number): boolean => x > MIN[0] && x < MAX[0] && y > MIN[1] && y < MAX[1] && z > MIN[2] && z < MAX[2];
 
 function world(boxes?: AirBox[], target = 400): { sim: AirSim; p: AirParticles } {
   const sim = new AirSim(plan(boxes), 3000);
@@ -30,6 +32,8 @@ describe('the air\'s particles', () => {
     run(p, 400);
     for (let i = 0; i < p.count; i++) {
       const [x, y, z] = head(p, i);
+      // (the halo is outside the case: it is the air that left it, and the room's air coming in)
+      if (isHalo(p.K[i]!)) { expect(insideCase(x, y, z)).toBe(false); continue; }
       expect(x).toBeGreaterThanOrEqual(MIN[0]);
       expect(x).toBeLessThanOrEqual(MAX[0]);
       expect(y).toBeGreaterThanOrEqual(MIN[1]);
@@ -145,31 +149,44 @@ describe('the air\'s particles', () => {
     for (let i = 0; i < p.count; i++) if (p.K[i] === COOLANT) expect(head(p, i)).toEqual([before[i * TRAIL * 3], before[i * TRAIL * 3 + 1], before[i * TRAIL * 3 + 2]]);
   });
 
-  it('the power supply\'s air runs on its own channel and warms toward the supply\'s temperature', () => {
+  it('a bead of coolant that reaches the end of an open line starts again at the front, with no trail across the line', () => {
     const { p } = world([]);
-    p.setChannel(pathLine([[500, 500, 500], [2500, 500, 500]]));
-    let n = 0;
-    for (let i = 0; i < p.count; i++) if (p.K[i] === PSU) n++;
-    expect(n).toBeGreaterThan(5);
-    run(p, 120, env({ psu: { level: 1, tempC: 60 } }));
-    let warm = 0;
-    for (let i = 0; i < p.count; i++) if (p.K[i] === PSU && p.T[i]! > AMBIENT + 1) warm++;
-    expect(warm).toBeGreaterThan(0);
-    p.setChannel(null);
-    for (let i = 0; i < p.count; i++) expect(p.K[i]).not.toBe(PSU);
-  });
-
-  it('a bead of the supply\'s air that reaches the end of its channel starts again at the front, with no trail across the channel', () => {
-    const { p } = world([]);
-    p.setChannel(pathLine([[500, 500, 500], [2500, 500, 500]]));
+    p.setLoop({ ...pathLine([[500, 500, 500], [2500, 500, 500]]), hot: 800, rad: 1200, cold: 1600 });
     for (let step = 0; step < 300; step++) {
-      p.step(env({ psu: { level: 1, tempC: 60 } }));
+      p.step(env({ coolant: { flow: 1, hotC: 60, coldC: 40 } }));
       for (let i = 0; i < p.count; i++) {
-        if (p.K[i] !== PSU) continue;
+        if (p.K[i] !== COOLANT) continue;
         const h = i * TRAIL * 3, tail = h + 3 * (TRAIL - 1);
         expect(Math.hypot(p.P[h]! - p.P[tail]!, p.P[h + 1]! - p.P[tail + 1]!, p.P[h + 2]! - p.P[tail + 2]!)).toBeLessThan(1500);
       }
     }
+  });
+
+  it('a part warmer than the room sheds warm air in its own place, as much as the heat it gives; a cold part, or one with no coefficient, sheds none', () => {
+    const warmAir = (tempC: number, ua: number): { warm: number; count: number; cap: number } => {
+      const { p } = world([]);
+      p.setParts([{ id: 'cpu', kind: 'cooler', min: [3000, 2000, 1000], max: [4000, 4000, 3000], porous: true, reach: 0, tempC, powerW: 70, ua, label: 'CPU' }]);
+      p.fill(AMBIENT);
+      run(p, 100);
+      let warm = 0;
+      for (let i = 0; i < p.count; i++) if (p.K[i] === AIR && p.T[i]! > AMBIENT + 8) warm++;
+      return { warm, count: p.count, cap: p.cap };
+    };
+    const hot = warmAir(85, 4);
+    expect(hot.warm).toBeGreaterThan(8);
+    expect(hot.count).toBeLessThanOrEqual(hot.cap);
+    expect(warmAir(AMBIENT, 4).warm).toBe(0);
+    expect(warmAir(85, 0).warm).toBe(0);
+    // (a part that gives little heat sheds fewer)
+    expect(warmAir(85, 0.3).warm).toBeLessThan(hot.warm);
+  });
+
+  it('keep no heat particles: a hot part in still air makes no air of its own', () => {
+    const { sim, p } = world([]);
+    sim.levels(() => 0);
+    p.setParts([{ id: 'cpu', kind: 'cooler', min: [3000, 2000, 1000], max: [4000, 4000, 3000], porous: true, reach: 0, tempC: 90, powerW: 120, ua: 4, label: 'CPU' }]);
+    run(p, 300, env());
+    expect(p.count).toBe(0);
   });
 
   it('keep a short trail behind the head, that follows the path it took', () => {
@@ -184,5 +201,105 @@ describe('the air\'s particles', () => {
       expect(d).toBeLessThan(6000);
     }
     expect(trailed).toBeGreaterThan(50);
+  });
+});
+
+describe('the halo: the air outside the case', () => {
+  it('air that leaves by the rear grille goes on outside as a jet that fades out with the distance from the case', () => {
+    const { p } = world([], 400);
+    p.fill(AMBIENT);
+    let seen = 0, far = 0;
+    for (let s = 0; s < 500; s++) {
+      p.step(env());
+      for (let i = 0; i < p.count; i++) {
+        if (p.K[i] !== EXHAUST) continue;
+        seen++;
+        const [x, y, z] = head(p, i);
+        expect(insideCase(x, y, z)).toBe(false);
+        // (it left by the west wall and stays on that side)
+        expect(x).toBeLessThan(MIN[0] + 60);
+        far = Math.max(far, MIN[0] - x);
+        expect(p.A[i]).toBeLessThanOrEqual(1);
+        // whole at the wall, none at the edge of the halo
+        if (MIN[0] - x > p.halo * 0.9) expect(p.A[i]).toBeLessThan(0.1);
+      }
+    }
+    expect(seen).toBeGreaterThan(50);
+    expect(far).toBeGreaterThan(500);
+    expect(far).toBeLessThanOrEqual(p.halo * 1.05);
+  });
+
+  it('a jet keeps the warmth the air had, and mixes into the room as it slows', () => {
+    const { p } = world([]);
+    p.setParts([{ id: 'cpu', kind: 'cooler', min: [300, 2000, 1000], max: [1800, 4000, 3000], porous: true, reach: 0, tempC: 85, powerW: 90, ua: 12, label: 'CPU' }]);
+    p.fill(AMBIENT);
+    const sum = [0, 0], n = [0, 0];
+    for (let s = 0; s < 700; s++) {
+      p.step(env());
+      for (let i = 0; i < p.count; i++) {
+        if (p.K[i] !== EXHAUST) continue;
+        const young = p['age'][i]! < 0.3 ? 0 : p['age'][i]! > 1.1 ? 1 : -1;
+        if (young >= 0) { sum[young]! += p.T[i]!; n[young]!++; }
+      }
+    }
+    expect(n[0]).toBeGreaterThan(20);
+    expect(n[1]).toBeGreaterThan(5);
+    const fresh = sum[0]! / n[0]!, old = sum[1]! / n[1]!;
+    expect(fresh).toBeGreaterThan(AMBIENT + 0.8);
+    expect(old).toBeLessThan(fresh);
+    expect(old).toBeGreaterThanOrEqual(AMBIENT - 1e-3);
+  });
+
+  it('room air is drawn in toward an intake from outside the case, ever nearer, and is gone where it arrives', () => {
+    const { sim, p } = world([], 300);
+    expect(p['spawnIntake'](AMBIENT)).toBe(true);
+    sim.levels(() => 0);
+    const tgt: V3 = [p['aux'][0]!, p['aux'][1]!, p['aux'][2]!], gap = (): number => { const [x, y, z] = head(p, 0); return Math.hypot(x - tgt[0], y - tgt[1], z - tgt[2]); };
+    // (the point it is drawn to is on the intake's wall)
+    expect(tgt[0]).toBeCloseTo(MAX[0], 3);
+    const d0 = gap();
+    expect(d0).toBeGreaterThan(p.halo * 0.1);
+    expect(insideCase(...head(p, 0))).toBe(false);
+    run(p, 6);
+    expect(p.count).toBe(1);
+    expect(gap()).toBeLessThan(d0);
+    for (let s = 0; s < 400 && p.count; s++) { p.step(env()); if (p.count) expect(insideCase(...head(p, 0))).toBe(false); }
+    expect(p.count).toBe(0);
+  });
+
+  it('room air is born on the intake\'s side of the case and comes close to the opening', () => {
+    const { p } = world([], 400);
+    p.fill(AMBIENT);
+    let seen = 0, nearest = Infinity;
+    for (let s = 0; s < 400; s++) {
+      p.step(env());
+      for (let i = 0; i < p.count; i++) {
+        if (p.K[i] !== INTAKE) continue;
+        seen++;
+        const [x] = head(p, i);
+        expect(x).toBeGreaterThan(MAX[0] - 60);
+        nearest = Math.min(nearest, x - MAX[0]);
+      }
+    }
+    expect(seen).toBeGreaterThan(50);
+    expect(nearest).toBeLessThan(900);
+  });
+
+  it('the halo keeps to its own pool: it never takes the case\'s room, and it ages out when the fans stop', () => {
+    const { sim, p } = world([], 300);
+    p.fill(AMBIENT);
+    for (let s = 0; s < 600; s++) {
+      p.step(env());
+      let halo = 0;
+      for (let i = 0; i < p.count; i++) if (isHalo(p.K[i]!)) halo++;
+      expect(halo).toBeLessThanOrEqual(p.haloMax);
+      expect(p.count).toBeLessThanOrEqual(p.cap);
+    }
+    let halo = 0;
+    for (let i = 0; i < p.count; i++) if (isHalo(p.K[i]!)) halo++;
+    expect(halo).toBeGreaterThan(20);
+    sim.levels(() => 0);
+    run(p, 400, env({ dt: 0.1 }));
+    expect(p.count).toBe(0);
   });
 });

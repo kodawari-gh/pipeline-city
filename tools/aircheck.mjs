@@ -1,8 +1,9 @@
 // `node tools/aircheck.mjs [--combos 0:0,1:0,1:1,2:0,2:1,2:2,3:0,3:1,3:2,3:3] [--shots <dir>]` (the defaults)
 // The airflow lens (docs/render/air.md) on each case:board pair of Build my PC, in a headless Chrome on the real GPU, with the dev server (`window.__build`, `window.__air`).
 // Each machine is a basic one with a fan on every mount, switched on (`B.game.powerButton()`: the stage never steps its game, so the fans spin by the snapshot's `powered`),
-// the lens on. After a few seconds it checks that the flow is solved, that air comes in, that particles fill the case, that every case fan publishes its speed (`fanBank`),
-// that a frame of the lens costs under 3 ms, and that the page logged no error.
+// the lens on. After a few seconds it checks that the flow is solved, that air comes in, that particles fill the case, that the air goes on outside as jets and room air is
+// drawn in (the halo), that no particle has a position, a temperature or an alpha that is not a number, that a power supply with a fan is a heat part of the air, that every
+// case fan publishes its speed (`fanBank`), that a frame of the lens costs under 3 ms, and that the page logged no error.
 // Prints one line per pair, then `N machines, M with problems` (exit code 1 when there are problems). Takes about 2 minutes for ten pairs.
 // Options: --combos case:board pairs to run; --shots a folder to save a picture of each pair in (`air-<case><board>.png`; keep it outside the repo).
 // Env: PORT (default 5245; it starts vite when nothing answers). Software GL (SwiftShader, llvmpipe) stops the run.
@@ -20,8 +21,8 @@ const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : ar
 const COMBOS = flag('combos', '0:0,1:0,1:1,2:0,2:1,2:2,3:0,3:1,3:2,3:3').split(',').map((s) => s.split(':').map(Number));
 const SHOTS = flag('shots', '');
 const PORT = Number(process.env.PORT || 5245), url = `http://localhost:${PORT}/`;
-/** What a pair must show: the least particles of air in the case, and the most milliseconds a frame of the lens may take. */
-const MIN_AIR = 800, MAX_MS = 3;
+/** What a pair must show: the least particles of air in the case (the lens makes some 650 at the High setting, 260 at Off), and the most milliseconds a frame of the lens may take. */
+const MIN_AIR = 250, MAX_MS = 3;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
@@ -64,22 +65,33 @@ try {
       B.openInside(true);
       await new Promise((r) => setTimeout(r, 6500));
       const a = window.__air, parts = a.particlesNow, sim = a.simNow, { fanBank } = await import('/src/core/render/fanmotor.ts');
-      let air = 0;
-      for (let i = 0; i < parts.count; i++) if (parts.K[i] === 1) air++;
-      const weak = sim.banks.filter((k) => !k.startsWith('gpu:') && fanBank.level(k) < 0.5);
-      return { ready: sim.field.ready, inflow: sim.inflow, air, fans: a.planNow.fans.length, weak, cost: a.cost, said };
+      // (kinds: 1 air, 2 coolant, 3 jet out of the case, 4 room air drawn in)
+      let air = 0, exhaust = 0, intake = 0, nan = 0;
+      for (let i = 0; i < parts.count; i++) {
+        if (parts.K[i] === 1) air++; else if (parts.K[i] === 3) exhaust++; else if (parts.K[i] === 4) intake++;
+        const h = i * parts.P.length / parts.cap;
+        if (!Number.isFinite(parts.T[i]) || !Number.isFinite(parts.A[i]) || !Number.isFinite(parts.P[h]) || !Number.isFinite(parts.P[h + 1]) || !Number.isFinite(parts.P[h + 2])) nan++;
+      }
+      // (the supply's fan, bank `psu`, is turned by the lens itself: the 3D machine has no fan for it to publish)
+      const weak = sim.banks.filter((k) => !k.startsWith('gpu:') && k !== 'psu' && fanBank.level(k) < 0.5);
+      const psuFan = a.planNow.fans.some((f) => f.bank === 'psu'), psuPart = a.partsNow.some((q) => q.kind === 'psu');
+      return { ready: sim.field.ready, inflow: sim.inflow, air, exhaust, intake, nan, psuFan, psuPart, fans: a.planNow.fans.length, weak, cost: a.cost, said };
     }, [c, b]);
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `air-${c}${b}.png`) });
     const bad = [];
     if (!r.ready) bad.push('the flow was not solved');
     if (!(r.inflow > 0)) bad.push('no air comes in');
     if (r.air < MIN_AIR) bad.push(`only ${r.air} particles of air (at least ${MIN_AIR})`);
+    if (r.exhaust === 0) bad.push('no air goes on outside as a jet');
+    if (r.intake === 0) bad.push('no room air is drawn in toward an intake');
+    if (r.nan > 0) bad.push(`${r.nan} particles with a value that is not a number`);
+    if (r.psuFan && !r.psuPart) bad.push('the supply has a fan but is no heat part of the air');
     if (r.fans === 0) bad.push('the plan has no fan');
     if (r.weak.length) bad.push(`fans that publish no speed: ${r.weak.join(', ')}`);
     if (r.cost > MAX_MS) bad.push(`a frame of the lens takes ${r.cost.toFixed(1)} ms (at most ${MAX_MS})`);
     for (const e of [...new Set(errs)].slice(0, 3)) bad.push('console: ' + e);
     // (`said`: the parts the stage answered for, a refusal or a warning such as "burns out": the machine is still built)
-    console.log(`${bad.length ? 'PROBLEM' : 'ok     '} case${c}:board${b}  air ${r.air}, fans ${r.fans}, ${r.cost.toFixed(2)} ms${r.said.length ? `  (the stage said something of: ${r.said.join(', ')})` : ''}`);
+    console.log(`${bad.length ? 'PROBLEM' : 'ok     '} case${c}:board${b}  air ${r.air}, jets ${r.exhaust}, drawn in ${r.intake}, fans ${r.fans}${r.psuFan ? ' (+ supply)' : ''}, ${r.cost.toFixed(2)} ms${r.said.length ? `  (the stage said something of: ${r.said.join(', ')})` : ''}`);
     for (const m of bad) { console.log('         ' + m); problems.push(`case${c}:board${b}: ${m}`); }
   }
   console.log(`\n${COMBOS.length} machines, ${problems.length} with problems`);

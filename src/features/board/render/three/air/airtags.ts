@@ -3,6 +3,7 @@
 import { Vector3 } from 'three';
 import type { PerspectiveCamera } from 'three';
 import { MONO } from '@/core/render/ink';
+import { thermalGradient } from '@/core/render/three/thermal';
 
 export type TagTone = 'heat' | 'warn' | 'dim';
 
@@ -16,6 +17,10 @@ export interface AirTag {
   tempC?: number;
   /** Which side of `at` the pill sits: centred (default), growing to the right, or to the left. */
   anchor?: 'c' | 'l' | 'r';
+  /** The thermal scale in place of words: a bar of the palette with the temperatures at its two ends (C, foot and top). */
+  scale?: readonly [number, number];
+  /** The pill sits right under the pill of this tag (left edges together), when that one is placed. */
+  under?: string;
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
@@ -40,6 +45,8 @@ const CSS = `
 .airtag-arrow { margin-left: 0.3rem; }
 .airtag-up { color: #ff7a4a; }
 .airtag-down { color: #6fd8ff; }
+.airtag-scale { display: flex; align-items: center; gap: 0.4rem; color: #cfd6ee; }
+.airtag-bar { width: 5.5rem; height: 0.45rem; border-radius: 0.25rem; background: ${thermalGradient('to right')}; }
 `;
 
 interface Trend { temp: number; t: number; slope: number }
@@ -146,17 +153,27 @@ export class AirTags3D {
     for (let i = this.items.length; i < this.nodes.length; i++) this.setVisible(this.nodes[i]!, false);
 
     // Pass 2: measure, then place each pill and push it up while it clashes.
-    const placed: Box[] = [];
+    const placed: Box[] = [], byId = new Map<string, Box>();
     for (const { node, item, x, y } of live) {
       const w = node.el.offsetWidth || node.label * EST_CHAR_W;
       const h = node.el.offsetHeight || EST_H;
       const anchor = item.tag.anchor ?? 'c';
-      const want = anchor === 'l' ? x : anchor === 'r' ? x - w : x - w / 2;
-      const left = fitX(want, w, view);
-      let top = y - h / 2;
-      let s = 0;
-      while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) { top -= h + GAP; s++; }
-      placed.push({ l: left, t: top, r: left + w, b: top + h });
+      const ref = item.tag.under ? byId.get(item.tag.under) : undefined;
+      let left: number, top: number, s = 0;
+      if (ref) {
+        // under its tag's pill: it climbs no higher, it goes down while it clashes
+        left = fitX(ref.l, w, view);
+        top = ref.b + GAP;
+        while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) { top += h + GAP; s++; }
+      } else {
+        const want = anchor === 'l' ? x : anchor === 'r' ? x - w : x - w / 2;
+        left = fitX(want, w, view);
+        top = y - h / 2;
+        while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) { top -= h + GAP; s++; }
+      }
+      const box = { l: left, t: top, r: left + w, b: top + h };
+      placed.push(box);
+      byId.set(item.tag.id, box);
       this.place(node, left, top, w, h);
     }
   }
@@ -198,9 +215,21 @@ export class AirTags3D {
   }
 
   private writeText(node: PillNode, item: Item): void {
-    const key = `${item.tag.tone}|${item.arrow}|${item.tag.text}`;
+    const sc = item.tag.scale, key = sc ? `scale|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${item.arrow}|${item.tag.text}`;
     if (key === node.key) return;
     node.key = key;
+    if (sc) {
+      // the scale: the temperatures at the two ends of a bar of the palette
+      node.el.className = 'airtag airtag-scale';
+      node.el.textContent = '';
+      const end = (c: number): HTMLSpanElement => { const s = document.createElement('span'); s.textContent = `${Math.round(c)}°C`; return s; }, bar = document.createElement('span');
+      bar.className = 'airtag-bar';
+      node.el.appendChild(end(sc[0]));
+      node.el.appendChild(bar);
+      node.el.appendChild(end(sc[1]));
+      node.label = 18;
+      return;
+    }
     node.el.className = `airtag airtag-${item.tag.tone}`;
     node.el.textContent = item.tag.text;
     node.label = item.tag.text.length;

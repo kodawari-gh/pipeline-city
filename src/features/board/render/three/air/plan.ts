@@ -9,9 +9,10 @@ import { LAYOUT_CASE, LAYOUT_TIER, CASE_IN, PCIE_RAILS, REAR_FAN, REAR_FAN_FITTE
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { BOARD_Z, CASE_FRONT, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
+import { basementPlan, psuFan, psuOpening } from '../basement3d';
 import { COOLER_AIR } from '../cooler3d';
 import { fanDepth } from '../fans3d';
-import type { AirBox, Shape, V3 } from './grid';
+import { gridShape, type AirBox, type Shape, type V3 } from './grid';
 
 /** A body of the machine as the 3D model has it: a part's box (by device id and kind), or one of the case's fixed bodies (`board`, `basement`, `cage`, `ram`). */
 export interface AirBody { id: string; kind: string; slot?: string; min: V3; max: V3 }
@@ -117,12 +118,78 @@ function localFans(s: Snapshot, bodies: readonly AirBody[]): PlanFan[] {
   return out;
 }
 
+/** The air passes the supply's casing this well along x, y and z: it goes through the unit, round its parts. */
+const PSU_K: V3 = [0.5, 0.4, 0.5];
+/** The share of the rear opening's area that passes air (a grille). */
+const PSU_GRILLE = 0.7;
+
+/**
+ * The power supply's bay in the machine's space (the basement's plan, world y up), with its fan and its rear opening, or null with no supply fitted. The fan is on
+ * its underside, over the floor's opening: it draws the room's air up through the unit, and the air leaves by the opening in the rear wall.
+ */
+export interface PsuBay { id: string; min: V3; max: V3; fan: { x: number; z: number; r: number } | null; opening: { y: number; z: number; hw: number; hh: number } }
+export function psuBay(s: Snapshot): PsuBay | null {
+  const d = s.devices.find((x) => x.kind === 'psu');
+  if (!d) return null;
+  const u = basementPlan().psu, f = psuFan(u), o = psuOpening(u), fan = !!(getSpec(d.spec) as { fan?: boolean } | undefined)?.fan;
+  return {
+    id: d.id, min: [u.x, -(u.y + u.h), u.z0], max: [u.x + u.w, -u.y, u.z1], fan: fan ? { x: f.x, z: f.z, r: f.r } : null,
+    opening: { y: -(o.y0 + o.y1) / 2, z: (o.z0 + o.z1) / 2, hw: (o.y1 - o.y0) / 2, hh: (o.z1 - o.z0) / 2 },
+  };
+}
+
+/**
+ * The supply's casing: walls over its unit and on its east, south and north sides that the air does not pass. Its fan is under it and its rear is the grille,
+ * so the air goes in at the foot, through the unit and out at the rear, and not up into the case as a box with open faces would let it.
+ * Each wall is a layer of whole cells of the grid, the outermost ones of the unit: a wall of no air shuts the cell it touches along its normal, however thin
+ * it is, so a thin wall inside a cell would shut the cell's whole width (and leave a dead pocket in the unit).
+ */
+function casing(bay: PsuBay): AirBox[] {
+  const dom = airDomain(), { n, h } = gridShape(dom.min, dom.max), { id } = bay;
+  // the cells whose centres are inside the unit, by axis
+  const first = (a: number): number => Math.max(0, Math.ceil((bay.min[a]! - dom.min[a]!) / h[a]! - 0.5));
+  const last = (a: number): number => Math.min(n[a]! - 1, Math.floor((bay.max[a]! - dom.min[a]!) / h[a]! - 0.5));
+  const at = (a: number, i: number): number => dom.min[a]! + i * h[a]!;
+  const [i0, j0, k0, i1, j1, k1] = [first(0), first(1), first(2), last(0), last(1), last(2)];
+  if (i1 < i0 || j1 < j0 || k1 < k0) return [];
+  const span = (a: number, lo: number, hi: number): [number, number] => [at(a, lo), at(a, hi + 1)];
+  const cells = (xs: [number, number], ys: [number, number], zs: [number, number]): { min: V3; max: V3 } => ({ min: [xs[0], ys[0], zs[0]], max: [xs[1], ys[1], zs[1]] });
+  const X = span(0, i0, i1), Y = span(1, j0, j1), Z = span(2, k0, k1);
+  const wall = (name: string, c: { min: V3; max: V3 }, k: V3): AirBox => box(`${id}.${name}`, c.min, c.max, k);
+  return [
+    wall('lid', cells(X, span(1, j1, j1), Z), [1, 0, 1]),
+    wall('east', cells(span(0, i1, i1), Y, Z), [0, 1, 1]),
+    wall('south', cells(X, Y, span(2, k0, k0)), [1, 1, 0]),
+    wall('north', cells(X, Y, span(2, k1, k1)), [1, 1, 0]),
+  ];
+}
+
+/** A slab of wall thinner than this is left out of a cut box: a cell of the grid it touched would be walled off whole by it (a wall of no air shuts its cell, however thin). */
+const SLIVER = 100;
+
+/** A box with a box taken out of it: the slabs that are left (the box as it is when they do not meet). */
+function carve(id: string, out: { min: V3; max: V3 }, hole: { min: V3; max: V3 }, k: V3): AirBox[] {
+  const lo = out.min.map((v, a) => Math.max(v, hole.min[a]!)) as V3, hi = out.max.map((v, a) => Math.min(v, hole.max[a]!)) as V3;
+  if (lo.some((v, a) => v >= hi[a]!)) return [box(id, out.min, out.max, k)];
+  const pieces: AirBox[] = [], min = [...out.min] as V3, max = [...out.max] as V3;
+  for (let a = 0; a < 3; a++) {
+    if (lo[a]! - min[a]! >= SLIVER) { const m = [...max] as V3; m[a] = lo[a]!; pieces.push(box(`${id}.${a}-`, [...min] as V3, m, k)); }
+    if (max[a]! - hi[a]! >= SLIVER) { const n = [...min] as V3; n[a] = hi[a]!; pieces.push(box(`${id}.${a}+`, n, [...max] as V3, k)); }
+    min[a] = lo[a]!;
+    max[a] = hi[a]!;
+  }
+  return pieces;
+}
+
 /** The boxes in the air's way, by the kind of each body. The tower's stack, the stock heatsink and the pump head are the coolers' own boxes. */
 function boxesOf(s: Snapshot, bodies: readonly AirBody[]): AirBox[] {
-  const out: AirBox[] = [], radSide = s.devices.find((d) => d.kind === 'radiator')?.slot === 'rad-front' ? 'front' : 'top';
+  const out: AirBox[] = [], radSide = s.devices.find((d) => d.kind === 'radiator')?.slot === 'rad-front' ? 'front' : 'top', bay = psuBay(s);
   for (const b of bodies) {
     const d = s.devices.find((x) => x.id === b.id), visual = (d && (getSpec(d.spec) as { visual?: string } | undefined)?.visual) || '';
-    if (b.kind === 'cooler') {
+    if (b.kind === 'basement' && bay) {
+      // the supply stands in the basement: its unit is a part the air goes through, the rest of the basement stays a wall
+      out.push(...carve(b.id, b, bay, BODY_K.basement!), box(bay.id, bay.min, bay.max, PSU_K, bay.id), ...casing(bay));
+    } else if (b.kind === 'cooler') {
       if (visual === 'cooler-tower') {
         const t = COOLER_AIR.tower;
         out.push(box(b.id, [t.x, -(t.y + t.h), t.z0], [t.x + t.w, -t.y, t.z1], [0.7, 0.7, 0.03], b.id));
@@ -155,7 +222,21 @@ function ventsOf(s: Snapshot): PlanVent[] {
   // the front panel and the top are meshes
   out.push({ id: 'front', wall: 1, centre: [0, cy, cz], shape: { hw: (d.max[1] - d.min[1]) * 0.45, hh: (d.max[2] - d.min[2]) * 0.45 }, open: 0.12 });
   out.push({ id: 'top', wall: 3, centre: [(d.min[0] + d.max[0]) / 2, 0, cz], shape: { hw: (d.max[0] - d.min[0]) * 0.4, hh: (d.max[2] - d.min[2]) * 0.4 }, open: 0.06 });
+  // the supply's own: its fan's air leaves by the opening in the rear wall
+  const bay = psuBay(s);
+  if (bay?.fan) out.push({ id: 'psu', wall: 0, centre: [0, bay.opening.y, bay.opening.z], shape: { hw: bay.opening.hw, hh: bay.opening.hh }, open: PSU_GRILLE });
   return out;
+}
+
+/** The id the supply's fan speed is published under (the lens turns it: the 3D machine has no fan of its own for it). */
+export const PSU_BANK = 'psu';
+
+/** The supply's fan: a wall fan on the floor under its unit, blowing the room's air up into it. */
+function psuFans(s: Snapshot): PlanFan[] {
+  const bay = psuBay(s);
+  if (!bay?.fan) return [];
+  const r = bay.fan.r * 0.96;
+  return [{ id: `${bay.id}.fan`, bank: PSU_BANK, kind: 'wall', wall: 2, centre: [bay.fan.x, 0, bay.fan.z], r, into: true, q: flowOf(r, 1) }];
 }
 
 /** A key that says when the plan must be made again: the layout, the parts fitted and where their boxes are. */
@@ -167,7 +248,7 @@ export function planKey(s: Snapshot, bodies: readonly AirBody[]): string {
 /** The static plan of a machine. */
 export function airPlan(s: Snapshot, bodies: readonly AirBody[]): AirPlan {
   const { min, max } = airDomain();
-  return { key: planKey(s, bodies), min, max, boxes: boxesOf(s, bodies), vents: ventsOf(s), fans: [...caseFans(s), ...localFans(s, bodies)], bodies: [...bodies] };
+  return { key: planKey(s, bodies), min, max, boxes: boxesOf(s, bodies), vents: ventsOf(s), fans: [...caseFans(s), ...localFans(s, bodies), ...psuFans(s)], bodies: [...bodies] };
 }
 
 // ------------------------------------------------------------------ the heat
@@ -200,6 +281,26 @@ const REACH = 280;
 
 const coefficient = (powerW: number, surfaceC: number, airC: number): number => Math.max(0, powerW) / Math.max(MIN_RISE, surfaceC - airC);
 
+/** The share of the load the supply turns to heat. */
+const PSU_LOSS = 0.1;
+
+/** The supply's casing as the 2D lens has it (`board/render/air.ts`): 30 C at idle, up to 33 K more at full load. */
+export function psuTempC(s: Snapshot): number {
+  const load = s.powered && !s.power.off ? Math.max(0, Math.min(1, s.power.totalW / Math.max(1, s.power.budgetW))) : 0;
+  return 30 + load * 33;
+}
+
+/**
+ * The temperature each part shows in the thermal view, by device id: the sim's for the part, or what its surface is where the air meets another (a
+ * heatsink's fins, a card's shroud, a radiator's core, the supply's casing: the temperature the air's heat exchange uses, so the glow and the air agree).
+ */
+export function surfaceTemps(s: Snapshot, parts: readonly AirPart[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const d of s.devices) if (Number.isFinite(d.tempC)) m.set(d.id, d.tempC);
+  for (const p of parts) if (m.has(p.id)) m.set(p.id, p.tempC);
+  return m;
+}
+
 /** The case's air temperature the coefficients are worked out against: the room's plus the mean rise of the areas. */
 export function airReference(s: Snapshot): number {
   const rises = s.board?.air.map((a) => a.riseC) ?? [];
@@ -213,8 +314,8 @@ export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
     out.push({ id: b.id, kind: b.kind, min: b.min, max: b.max, reach: o.porous ? 0 : REACH, ...o, ua: running ? coefficient(o.powerW, o.tempC, air) : 0 });
   };
   for (const b of plan.boxes) {
-    const d = s.devices.find((x) => x.id === b.id), body = plan.bodies.find((x) => x.id === b.id);
-    if (!d || !body) continue;
+    const d = s.devices.find((x) => x.id === b.id);
+    if (!d) continue;
     if (d.kind === 'cooler') {
       // an air heatsink takes the processor's heat: its fins sit between the die and the air. A pump head is not one: its heat goes into the coolant.
       const visual = (getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '';
@@ -225,6 +326,9 @@ export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
     else if (d.kind === 'radiator' && loop) {
       // the water gives its heat to the air that crosses the core: the coefficient is what the sim says the radiator rejects over the water's rise over the air
       add({ ...b, kind: 'radiator' }, { porous: true, tempC: (loop.hotC + loop.coldC) / 2, powerW: loop.rejectW, label: 'RAD' });
+    } else if (d.kind === 'psu') {
+      // the supply's losses heat the air its fan draws through the unit (the sim has no supply heat: the casing's temperature is the 2D lens's)
+      add({ ...b, kind: 'psu' }, { porous: true, tempC: psuTempC(s), powerW: running ? PSU_LOSS * s.power.totalW : 0, label: 'PSU' });
     }
   }
   // a processor with no cooler on it: its bare package heats the air next to it
@@ -238,7 +342,7 @@ export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
 
 // ------------------------------------------------------------------ paths
 
-/** A line the particles follow: the coolant's loop, the power supply's channel. `cum[i]` is the length up to point `i`. */
+/** A line the particles follow: the coolant's loop. `cum[i]` is the length up to point `i`. */
 export interface PathLine { pts: V3[]; cum: number[]; length: number }
 
 export function pathLine(pts: readonly V3[]): PathLine {

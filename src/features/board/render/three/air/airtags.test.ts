@@ -117,6 +117,24 @@ describe('AirTags3D', () => {
     expect(overlap).toBe(false);
   });
 
+  it('a scale tag shows the temperatures at the two ends of a bar, and sits right under the tag it names', () => {
+    const t = make();
+    t.set([tag('room', [0, 0, 0], 'ROOM 25°C'), tag('scale', [0, 0, 0], '', { scale: [25, 88.4], under: 'room' })], 0);
+    t.frame(makeCam(), VIEW);
+    const [room, scale] = t.boxes();
+    expect(scale!.visible).toBe(true);
+    // (the same left edge, below the room's pill, not over it)
+    expect(scale!.left).toBe(room!.left);
+    expect(scale!.top).toBeGreaterThanOrEqual(room!.top + room!.height);
+    const pill = pills(host)[1]!;
+    expect(pill.className).toContain('airtag-scale');
+    expect(pill.textContent).toBe('25°C88°C');
+    // a new top rewrites it, the same whole degrees do not
+    t.set([tag('room', [0, 0, 0], 'ROOM 25°C'), tag('scale', [0, 0, 0], '', { scale: [25, 61], under: 'room' })], 1);
+    t.frame(makeCam(), VIEW);
+    expect(pills(host)[1]!.textContent).toBe('25°C61°C');
+  });
+
   it('hides a tag behind the camera', () => {
     const t = make();
     t.set([tag('a', [0, 0, 50])], 0);
