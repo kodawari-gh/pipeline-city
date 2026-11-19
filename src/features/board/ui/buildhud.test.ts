@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { deviceSpec } from '@/features/board/sim/board';
-import { groupByKind, hintLine, pips, powerMeter, priceOf, readiness, type HintState } from './buildhud';
+import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
+import { countNames, freeName, groupByKind, hintLine, pips, plural, powerMeter, presetBits, priceOf, readiness, type HintState } from './buildhud';
 
 const full = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
@@ -74,5 +75,34 @@ describe('hintLine', () => {
     expect(hintLine({ ...base, picked: true })).toMatch(/Delete/);
     expect(hintLine({ ...base, open: false })).toMatch(/side panel/);
     expect(hintLine(base)).toMatch(/Drag a part/);
+  });
+});
+
+describe('the words of the right panel', () => {
+  it('counts what a preset fits besides the tiered parts', () => {
+    expect(presetBits({ name: 'a', level: 0.3, ram: 1, storage: 1, gpus: 0, npus: 0 })).toEqual(['1 RAM', '1 drive']);
+    expect(presetBits({ name: 'b', level: 1, ram: 8, storage: 4, gpus: 2, npus: 1 })).toEqual(['8 RAM', '4 drives', '2 GPU', 'AI card']);
+  });
+
+  it('says the ready-made machines rise from a little to a lot', () => {
+    const lit = BUILD_PRESETS.map((p) => pips(p.level * 10, 10));
+    expect(lit).toEqual([...lit].sort((a, b) => a - b));
+    expect(lit[lit.length - 1]).toBe(5);
+  });
+
+  it('writes the names with how many of each, in the order they first appear', () => {
+    expect(countNames(['fan', 'ram', 'fan', 'fan'])).toBe('fan ×3 · ram');
+    expect(countNames([])).toBe('');
+  });
+
+  it('finds a name for a new saved build that no saved build has', () => {
+    expect(freeName([])).toBe('My build 1');
+    expect(freeName(['a', 'b'])).toBe('My build 3');
+    // (a delete leaves a gap: the next name is not the one that is there)
+    expect(freeName(['My build 2'])).toBe('My build 3');
+  });
+
+  it('pluralises', () => {
+    expect([plural(1, 'part'), plural(2, 'part'), plural(0, 'drive')]).toEqual(['1 part', '2 parts', '0 drives']);
   });
 });

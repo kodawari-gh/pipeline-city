@@ -1376,54 +1376,97 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-util { flex-wrap: nowrap; }
 .mode .bld-util button { display: inline-flex; align-items: center; gap: 0.4rem; }
 
-/* What is fitted: how to start (a preset, a saved build), the last benchmark, the parts by kind, what was done. */
+/* What is in the machine (`BuildMachine.tsx`): the header with its Start from button, the starting points (`BuildStart.tsx`), the parts by kind (a group of more than three folds to a line),
+   the benchmark's foot and, with `?debug` in the address, what was done. */
 .bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: calc(var(--bld-r) - 1rem); }
-.bld-start { flex: none; display: flex; flex-direction: column; gap: 0.5rem; }
-.bld-start > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
-.bld-start > summary::-webkit-details-marker { display: none; }
-.bld-start > summary::after { content: ''; width: 0.4rem; height: 0.4rem; border-right: 1px solid var(--mute); border-bottom: 1px solid var(--mute); transform: translateY(-0.1rem) rotate(45deg); transition: transform .15s; }
-.bld-start[open] > summary::after { transform: translateY(0.1rem) rotate(-135deg); }
-.bld-start .bld-sub { margin: 0; }
+.bld-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 0.6rem; }
+.bld-ht { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.mode .bld-startbtn { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border-radius: var(--m-r-pill); font: 600 var(--m-sm) var(--ui); }
+/* (a chevron that points down while its section is shut and up while it is open) */
+.bld-chev { flex: none; width: 0.4rem; height: 0.4rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-0.1rem) rotate(45deg); transition: transform .15s; }
+[aria-expanded="true"] > .bld-chev { transform: translateY(0.1rem) rotate(-135deg); }
+/* the chips of the benchmark screen's task sets (Quick, All, None) */
 .bld-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .mode .bld-presets button { display: inline-flex; align-items: center; gap: 0.3rem; }
-/* the ready-made machines: three cards in a row, each with its tier pips and what it fits besides */
-.mode .bld-presets .bld-preset { flex: 1 1 0; min-width: 0; flex-direction: column; align-items: flex-start; gap: 0.25rem; padding: 0.5rem 0.55rem; border-radius: var(--m-r-card); text-align: left; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
-.mode .bld-presets .bld-preset:hover:not(:disabled) { transform: translateY(-0.1rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
-.bld-preset b { font: 700 var(--m-sm) var(--ui); }
-.bld-preset em { display: flex; flex-wrap: wrap; gap: 0 0.5rem; font: normal var(--m-xs)/1.35 var(--mono); color: var(--mute); white-space: normal; }
-.bld-saved { display: inline-flex; }
-.mode .bld-saved button:first-child { border-radius: 99rem 0 0 99rem; }
-.mode .bld-saved button + button { padding: 0.3rem 0.45rem; border-radius: 0 99rem 99rem 0; }
-/* the benchmark card: the overall score, a bar per group of the almanac (its colour), and the two ways in */
-.bld-bench { flex: none; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.65rem 0.75rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: var(--glass-hi); }
-.bld-bench .bld-sub { margin: 0; }
-.bld-bench .mode-hint { margin: 0; }
-.bld-bench .bld-cacts { margin-top: 0.2rem; }
-.bld-benchhead { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.bld-benchhead .bld-sub { display: inline-flex; align-items: center; gap: 0.35rem; }
-.bld-overall b { font: 750 var(--m-xl)/1 var(--mono); color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
-.bld-score { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr) 2.6rem; align-items: center; gap: 0.5rem; font-size: var(--m-sm); }
-.bld-score > span:first-child { color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bld-score b { text-align: right; font: 600 var(--m-sm) var(--mono); }
+/* the starting points: one list from nothing to everything, each with its icon, what it fits and how high its parts reach; then the saved builds, then Save */
+.bld-start { flex: none; display: flex; flex-direction: column; gap: 0.35rem; max-height: min(28rem, 66%); overflow-y: auto; margin: 0 -0.3rem; padding: 0 0.3rem 0.1rem; scrollbar-width: thin; animation: fade-in .2s ease both; }
+.bld-start .bld-sub { margin: 0.3rem 0 0; }
+.bld-starts { display: flex; flex-direction: column; gap: 0.3rem; }
+.mode .bld-srow { width: 100%; min-width: 0; display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.65rem 0.35rem 0.45rem; text-align: left; border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
+.mode .bld-srow:hover:not(:disabled) { transform: translateY(-0.08rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3), 0 0 0.9rem color-mix(in srgb, var(--accent) 10%, transparent); }
+.mode .bld-srow:active:not(:disabled) { transform: none; }
+.mode .bld-srow:disabled { opacity: 0.5; }
+.bld-sico { flex: none; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: var(--m-r-row); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.bld-smain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.bld-sline { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.bld-smain b { font: 650 var(--m-md) var(--ui); }
+.bld-smain em { font: normal var(--m-sm)/1.3 var(--ui); color: var(--mute); white-space: normal; }
+.bld-srow .bld-pips { flex: none; }
+.bld-srow .bld-pips i { width: 0.6rem; height: 0.26rem; }
+.bld-svrow { display: flex; gap: 0.3rem; }
+.mode .bld-svrow .bld-srow { flex: 1; width: auto; }
+.mode .bld-del { flex: none; min-width: 2.1rem; padding: 0 0.5rem; display: grid; place-items: center; border-radius: var(--m-r-card); color: var(--mute); }
+.mode .bld-del.sure { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, var(--bad) 12%, transparent); font: 650 var(--m-xs) var(--ui); }
+.mode .bld-save { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.5rem; border-style: dashed; border-radius: var(--m-r-card); color: var(--mute); background: transparent; font: 600 var(--m-sm) var(--ui); }
+.mode .bld-save:hover:not(:disabled) { color: var(--ink); }
+.mode .bld-save:disabled { opacity: 0.5; }
+.bld-saveform { display: flex; gap: 0.3rem; }
+.bld-saveform input { flex: 1; min-width: 0; padding: 0.45rem 0.65rem; border-radius: var(--m-r-card); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); background: rgba(5, 8, 20, 0.6); color: var(--ink); font: 500 var(--m-md) var(--ui); outline: none; }
+.bld-saveform input:focus { box-shadow: 0 0 0 0.133rem color-mix(in srgb, var(--accent) 30%, transparent); }
+.mode .bld-saveform button { padding: 0 0.7rem; border-radius: var(--m-r-card); font: 650 var(--m-sm) var(--ui); }
+.mode .bld-saveform button[type="submit"] { color: var(--on); background: var(--accent); border-color: var(--accent); }
+.mode .bld-saveform button[type="submit"]:disabled { opacity: 0.45; }
+/* the bar of a score (the Gallery's stats use it too) */
 .bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
 .bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g, var(--accent)) 55%, transparent), var(--g, var(--accent))); }
+/* the parts: a heading per kind (its count, its price, a chevron to fold it), then a row per part; the case and the board lead and open the shelf at their kind */
 .bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
-.bld-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.3rem; border: 1px solid transparent; border-radius: var(--m-r-row); cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
-.bld-list li:hover { background: var(--glass-hi); border-color: var(--glass-line); }
-.bld-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-.bld-list li.bld-grp { gap: 0.4rem; padding: 0.55rem 0.3rem 0.15rem; cursor: default; border-color: transparent; background: none; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); }
-.bld-grp em, .bld-grp i { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
-.bld-grp i { margin-left: auto; }
-.bld-list li.bld-none { flex-direction: column; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.4rem 0.8rem; text-align: center; cursor: default; color: var(--mute); border: 0.133rem dashed var(--glass-line); background: none; }
+.bld-list > li { flex: none; }
+.bld-part { display: flex; align-items: center; gap: 0.55rem; padding: 0.2rem 0.3rem; border: 1px solid transparent; border-radius: var(--m-r-row); cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s; }
+.bld-part:hover { background: var(--glass-hi); border-color: var(--glass-line); }
+.bld-part.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bld-part.shell, .bld-part.shell:hover { padding: 0; cursor: default; touch-action: auto; background: none; border-color: transparent; }
+.mode .bld-shellbtn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.55rem; padding: 0.2rem 0.3rem; text-align: left; background: transparent; border-color: transparent; border-radius: var(--m-r-row); }
+.mode .bld-shellbtn:hover:not(:disabled) { background: var(--glass-hi); border-color: var(--glass-line); }
+.bld-go { flex: none; color: var(--mute); opacity: 0; transition: opacity .15s; }
+.bld-shellbtn:hover .bld-go, .bld-shellbtn:focus-visible .bld-go { opacity: 1; }
+.bld-grp { margin-top: 0.5rem; }
+.bld-list > .bld-grp:first-child { margin-top: 0; }
+.bld-grp.static { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.3rem; color: var(--mute); font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; }
+.mode .bld-grp button { width: 100%; display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.3rem; border-color: transparent; border-radius: var(--m-r-row); background: none; color: var(--mute); font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; text-align: left; }
+.mode .bld-grp button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
+.bld-gk { display: inline-flex; align-items: center; gap: 0.4rem; }
+.bld-gn, .bld-gp { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.8; }
+.bld-gp { margin-left: auto; }
+.bld-grp button .bld-chev { margin-left: 0.2rem; }
+.bld-fold { padding: 0 0.3rem 0.15rem 1.35rem; font-size: var(--m-sm); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.bld-fold:hover { color: var(--ink); }
+.bld-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.2rem 0.8rem; text-align: center; color: var(--mute); border: 0.133rem dashed var(--glass-line); border-radius: var(--m-r-row); }
 .bld-none b { color: var(--ink); font-size: var(--m-md); }
 .bld-none span { font-size: var(--m-sm); }
-.bld-thumb { flex: none; width: 2.4rem; height: 2.4rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.bld-thumb { flex: none; width: 2.3rem; height: 2.3rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
-.bld-row em { font: normal var(--m-xs) var(--mono); color: var(--mute); }
+.bld-row em { font: normal var(--m-xs) var(--mono); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bld-row em:empty { display: none; }
 .bld-name { font-size: var(--m-md); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mode .bld-list li button { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0.6; }
-.bld-list li:hover button { opacity: 1; }
-.mode .bld-list li button:hover:not(:disabled) { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.bld-cost { flex: none; font: 600 var(--m-xs) var(--mono); color: var(--mute); }
+/* (Take out shows on the row under the pointer, the picked row and by keyboard; on a touch screen it always does) */
+.mode .bld-out { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0; }
+.bld-part:hover .bld-out, .bld-part.on .bld-out, .mode .bld-out:focus-visible { opacity: 1; }
+.mode .bld-out:hover:not(:disabled) { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+@media (hover: none) { .mode .bld-out { opacity: 0.7; } }
+/* the benchmark's foot: its score (and the change from the machine before) or the run, Quick run and Open */
+.bld-bench { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--glass-line); }
+.bld-bh { display: inline-flex; align-items: center; gap: 0.4rem; font: 650 var(--m-sm) var(--ui); color: var(--mute); white-space: nowrap; }
+.bld-overall { display: inline-flex; align-items: baseline; gap: 0.35rem; }
+.bld-overall b { font: 750 var(--m-lg)/1 var(--mono); color: var(--accent); text-shadow: 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); }
+.bld-overall em { font: normal 650 var(--m-xs) var(--mono); color: var(--mute); }
+.bld-overall em.up { color: var(--ok); }
+.bld-overall em.down { color: var(--bad); }
+.bld-bacts { display: flex; gap: 0.3rem; margin-left: auto; }
+.mode .bld-bacts button { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.65rem; border-radius: var(--m-r-pill); font: 600 var(--m-sm) var(--ui); }
+.mode .bld-bacts button.primary { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.mode .bld-bacts button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
 .bld-history { flex: none; padding-top: 0.5rem; border-top: 1px solid var(--glass-line); font-size: var(--m-sm); color: var(--mute); }
 .bld-history summary { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; list-style: none; font: 650 var(--m-xs) var(--ui); letter-spacing: 0.16em; text-transform: uppercase; }
 .bld-history summary::-webkit-details-marker { display: none; }
@@ -1437,8 +1480,12 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-foot > * { pointer-events: auto; }
 .bld-hint { display: inline-flex; align-items: center; gap: 0.6rem; max-width: 100%; padding: 0.45rem 1rem; border-radius: var(--m-r-pill); border: 1px solid var(--glass-line); background: var(--panel); backdrop-filter: blur(1.1rem) saturate(1.3); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07); font: 600 var(--m-md) var(--ui); }
 .bld-hint > i { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
-.bld-hint.busy { padding-right: 0.4rem; }
+.bld-hint.busy, .bld-hint.did, .bld-hint.warn { padding-right: 0.4rem; }
 .bld-hint.busy > i { animation: bld-pulse 1s ease-in-out infinite; }
+/* a refusal ("it fits no socket"): amber, with a × to let it go; it goes by itself after a few seconds */
+.bld-hint.warn { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.bld-hint.warn > i { background: var(--warn); box-shadow: 0 0 0.6rem var(--warn); }
+.mode .bld-hint button.bld-x { display: inline-grid; place-items: center; padding: 0.3rem; line-height: 0; }
 .mode .bld-hint button { padding: 0.25rem 0.7rem; font-size: var(--m-sm); border-radius: var(--m-r-pill); }
 @keyframes bld-pulse { 50% { opacity: 0.3; transform: scale(0.7); } }
 .bld-dock { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
@@ -1539,6 +1586,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
   .build, .gallery { --bld-l: 23.5rem; --bld-r: 17rem; }
+  /* (the right panel is narrower: its Start from button says only Start, or the title would wrap) */
+  .bld-from { display: none; }
 }
 @media (max-width: 70em) {
   /* (what the panels leave between them no longer holds the summary in one row: it wraps to two) */
@@ -1563,7 +1612,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .bld-list { flex: none; max-height: 18rem; }
   .bld-dock { max-width: 100%; }
   .bld-dock .mode-bar { flex-wrap: wrap; max-width: 100%; }
-  .bld-presets .bld-preset { flex-basis: 8rem; }
+  .bld-start { max-height: none; }
+  .bld-from { display: inline; }
   /* (the benchmark sheet is a page over the page here: the panels are not beside it) */
   .bench-scrim { position: fixed; }
   .bench { position: fixed; inset: 0.6rem; max-width: none; margin: 0; }

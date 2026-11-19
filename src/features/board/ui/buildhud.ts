@@ -2,7 +2,7 @@
 // parts by kind, what a tile costs, and the one line that says what to do now.
 import type { Board } from '@/features/board/sim/board';
 import { bootCheck, type Cables } from '@/features/board/sim/cables';
-import type { SpecSheet } from '@/features/board/sim/buildspecs';
+import type { BuildPreset, SpecSheet } from '@/features/board/sim/buildspecs';
 import { getSpec } from '@/features/board/sim/specs';
 
 export interface Readiness { ok: boolean; line: string }
@@ -42,6 +42,34 @@ export function groupByKind<D extends { spec: string }>(devices: readonly D[], o
 
 // (what a tile costs and how many pips a tier lights are the catalogue's: the Gallery's shelf says them the same way)
 export { pips, priceOf } from '@/features/economy/ui/shop/shopdata';
+
+/** `3 parts`, `1 drive`. */
+export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+/** What a preset fits besides the tiered parts, in a few words (`8 RAM`, `4 drives`, `2 GPU`, `AI card`). */
+export function presetBits(p: BuildPreset): string[] {
+  const bits = [`${p.ram} RAM`, plural(p.storage, 'drive')];
+  if (p.gpus) bits.push(`${p.gpus} GPU`);
+  if (p.npus) bits.push('AI card');
+  return bits;
+}
+
+/** The names with how many of each, in the order each first appears: `['fan', 'fan', 'ram']` is `fan ×2 · ram`. */
+export function countNames(names: readonly string[]): string {
+  const by = new Map<string, number>();
+  for (const n of names) by.set(n, (by.get(n) ?? 0) + 1);
+  return [...by].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(' · ');
+}
+
+/** A name for a build to save that no saved build has yet (`My build 3`). */
+export function freeName(taken: readonly string[], base = 'My build'): string {
+  let n = taken.length + 1;
+  while (taken.includes(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
+/** A group of parts of one kind shows its rows when it has this many or fewer; more fold to one line (the player's click decides after that). */
+export const OPEN_UP_TO = 3;
 
 export interface HintState {
   busy: boolean;

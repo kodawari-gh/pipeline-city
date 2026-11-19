@@ -1,70 +1,53 @@
 import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { debugOn } from '@/app/debugflag';
 import { Icon } from '@/core/ui/kit/Icons';
-import { BUILD_PRESETS, type BuildPreset, type SavedBuild } from '@/features/board/sim/buildspecs';
+import { specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
 import { devNode } from '@/features/board/sim/removal';
-import { DEVICE_SPECS } from '@/features/board/sim/specs';
-import { BENCH_GROUPS, QUICK_TASKS } from '@/features/sandbox/sim/benchtasks';
+import { BOARD_TIERS, CASE_TIERS, DEVICE_SPECS, getSpec } from '@/features/board/sim/specs';
+import { QUICK_TASKS } from '@/features/sandbox/sim/benchtasks';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
-import { kindIcon, kindLabel } from '@/features/economy/ui/shop/shopdata';
-import { barPct, groupScore, overallOfRuns } from './benchhud';
-import { groupByKind, pips, priceOf } from './buildhud';
+import { kindIcon, kindLabel, splitName } from '@/features/economy/ui/shop/shopdata';
+import { deltaText, overallOfRuns } from './benchhud';
+import { countNames, groupByKind, OPEN_UP_TO, plural, priceOf } from './buildhud';
 import type { Source } from './builddrag';
-import { deleteBuild, saveBuild } from './savedbuilds';
+import { BuildStart } from './BuildStart';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
 
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
-
-/** What a preset fits besides the tiered parts, in a few words (`8 RAM`, `4 drives`, `2 GPU`, `AI card`). */
-function presetBits(p: BuildPreset): string[] {
-  const bits = [`${p.ram} RAM`, plural(p.storage, 'drive')];
-  if (p.gpus) bits.push(`${p.gpus} GPU`);
-  if (p.npus) bits.push('AI card');
-  return bits;
-}
 
 /**
- * The benchmark in the panel: the overall score and one bar per group of the almanac's jobs, or the invitation to run it. The screen itself (every task,
- * one at a time or in sets) is `BuildBench`; the quick run starts the six that cover each kind of work and opens it.
+ * The benchmark at the panel's foot: one row, the overall score (and its change from the machine before) or what is running, then Quick run and Open.
+ * The scores per group and per task are on the benchmark screen (`BuildBench`); the quick run starts the six tasks that cover each kind of work and opens it.
  */
-function BenchCard({ stage, busy, onOpen }: { stage: Stage; busy: boolean; onOpen: () => void }) {
-  const now = stage.bench.value, was = stage.benchWas.value, run = stage.benching.value;
-  const sum = overallOfRuns(now, was);
+function BenchFoot({ stage, busy, onOpen }: { stage: Stage; busy: boolean; onOpen: () => void }) {
+  const sum = overallOfRuns(stage.bench.value, stage.benchWas.value), run = stage.benching.value;
+  const delta = deltaText(sum.delta);
   return (
     <section class="bld-bench" aria-label="Benchmark">
-      <div class="bld-benchhead">
-        <span class="bld-sub"><Icon name="gauge" size={11} /> Benchmark</span>
-        {sum.n > 0 && <span class="bld-overall" title={`The mean of ${plural(sum.n, 'score')}: 1000 is par`}><b>{sum.overall}</b></span>}
-      </div>
-      {sum.n > 0 ? (
-        BENCH_GROUPS.filter((g) => groupScore(g, now) > 0).map((g) => (
-          <div class="bld-score" key={g.id} style={{ '--g': g.color }}>
-            <span>{g.name}</span>
-            <span class="bld-bar"><i style={{ width: `${barPct(groupScore(g, now))}%` }} /></span>
-            <b>{groupScore(g, now)}</b>
-          </div>
-        ))
-      ) : (
-        <p class="mode-hint">{run ? 'Running the first task…' : 'Score this machine on the almanac’s jobs: one, a set, or all of them.'}</p>
-      )}
-      {run?.id && <div class="mode-hint">{`Running ${run.n} of ${run.total}`}</div>}
-      <div class="bld-cacts">
+      <span class="bld-bh" title="Score this machine on the almanac's jobs. 1000 is par.">
+        <Icon name="gauge" size={12} />
+        {run ? (run.total ? `Running ${run.n} of ${run.total}` : 'Running…') : sum.n > 0
+          ? <span class="bld-overall" title={`The mean of ${plural(sum.n, 'score')}: 1000 is par`}><b>{sum.overall}</b>{delta && <em class={sum.delta! > 0 ? 'up' : 'down'}>{delta}</em>}</span>
+          : 'Benchmark'}
+      </span>
+      <span class="bld-bacts">
         <button class="primary" disabled={busy || !!run} title="Run one task of each kind on a copy of this machine" onClick={() => { void stage.runBenchmark(QUICK_TASKS); onOpen(); }}>
-          <Icon name="play" size={12} />Quick run
+          <Icon name="play" size={11} />Quick run
         </button>
-        <button title="Pick the tasks to run" onClick={onOpen}>Open</button>
-      </div>
+        <button title="Pick the tasks to run, and see every score" onClick={onOpen}>Open</button>
+      </span>
     </section>
   );
 }
 
 /**
- * The right panel: how to start (a preset, a saved build), the benchmark, then the machine's parts by kind with their prices. A row outlines its part on the
- * stage while the pointer is on it, a click picks the part, and a drag takes it out (drop it on the shelf), as the part itself does on the stage.
+ * The right panel: what is in the machine, by kind with its price (a group of more than three folds to one line), the way to start again (the
+ * "Start from" button opens `BuildStart`; an empty machine shows it at once), and the benchmark at the foot. A row outlines its part on the stage while
+ * the pointer is on it, a click picks the part, and a drag takes it out (drop it on the shelf), as the part itself does on the stage.
  */
-export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, selected, onBench }: {
+export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, selected, onBench, onShelf, onStart }: {
   stage: Stage | null;
   /** Counts up with every change of the machine: the list draws again. */
   rev: number | undefined;
@@ -76,87 +59,114 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   selected: string | null;
   /** Open the benchmark screen. */
   onBench: () => void;
+  /** The shelf shows this category (the case and the board are changed from there). */
+  onShelf: (kind: string) => void;
+  /** The machine was replaced by a start (a preset, a saved build, Empty, Full rig): what was done. */
+  onStart: (line: string) => void;
 }) {
   void rev;
   const devices = stage ? stage.board.devices : [];
   const groups = groupByKind(devices, kinds);
-  const log = stage?.status.value.log ?? [];
+  const snap = stage?.snapshot;
+  const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec) }) : null;
   const off = busy || !stage;
   const list = useRef<HTMLUListElement>(null);
-  // the starting points fold away once there is a machine to work on (the player can open them again)
+  // the starting points: the player's click decides; until then they show for an empty machine and are folded away for one with parts
   const [startOpen, setStartOpen] = useState<boolean | null>(null);
-  const showStart = startOpen ?? devices.length < 3;
-  // a part picked on the stage brings its row into view
-  useEffect(() => { list.current?.querySelector('li.on')?.scrollIntoView({ block: 'nearest' }); }, [selected]);
+  const showStart = !!stage && (startOpen ?? devices.length === 0);
+  // a group's fold, by kind: the player's click decides; until then a group of more than a few folds
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+  // a part picked on the stage opens its group and brings its row into view
+  const reveal = useRef(false);
+  useEffect(() => {
+    reveal.current = !!selected;
+    const d = devices.find((x) => x.id === selected), kind = d && getSpec(d.spec)?.kind;
+    if (kind) setFolded((f) => (f[kind] === false ? f : { ...f, [kind]: false }));
+  }, [selected]);
+  useEffect(() => {
+    if (!reveal.current) return;
+    const row = list.current?.querySelector('li.on');
+    if (row) { reveal.current = false; row.scrollIntoView({ block: 'nearest' }); }
+  });
   const name = (spec: string): string => DEVICE_SPECS[spec]?.name ?? spec;
-  const worth = devices.reduce((sum, d) => sum + (priceOf(d.spec) ?? 0), 0);
+  // (the log of what was done is for whoever debugs: `?debug` in the address)
+  const log = debugOn(window.location.search) ? stage?.status.value.log ?? [] : [];
+
+  const shell = snap ? [
+    { id: `case${snap.caseTier}`, kind: 'case', name: CASE_TIERS[snap.caseTier]?.name ?? 'Case', note: `${CASE_TIERS[snap.caseTier]?.form ?? ''} case` },
+    { id: `board${snap.boardTier}`, kind: 'board', name: `${BOARD_TIERS[snap.boardTier]?.name ?? ''} board`, note: 'motherboard' },
+  ] : [];
 
   return (
     <aside class="bld-inst mode-panel">
-      <header class="mode-head"><span class="mode-eyebrow">{stage ? `${devices.length} fitted${worth > 0 ? ` · ${money(worth)}` : ''}` : 'Loading…'}</span><b>In the machine</b></header>
-      {/* (the summary's click is the player's say: until then the section is open for a bare machine and shut for a built one) */}
-      <details class="bld-start" open={showStart}>
-        <summary onClick={(e) => { e.preventDefault(); setStartOpen(!showStart); }}><span class="bld-sub">Start from</span></summary>
-        <div class="bld-presets" role="group" aria-label="Ready-made machines">
-          {BUILD_PRESETS.map((p) => (
-            <button key={p.name} class="bld-preset" disabled={off} title={`Build a ${p.name.toLowerCase()} machine: ${presetBits(p).join(', ')}`} onClick={() => stage?.buildPreset(p)}>
-              <b>{p.name}</b>
-              <span class="bld-pips" role="img" aria-label={`Parts at ${Math.round(p.level * 100)}% of the way up the tiers`}>{Array.from({ length: 5 }, (_, i) => <i key={i} class={i < pips(p.level * 10, 10) ? 'on' : ''} />)}</span>
-              <em>{presetBits(p).map((b) => <span key={b}>{b}</span>)}</em>
-            </button>
-          ))}
-        </div>
-        <div class="bld-presets bld-chips" role="group">
-          <button disabled={off} title="Fit every part" onClick={() => stage?.reset()}>Full rig</button>
-          <button disabled={off} title="Take every part out" onClick={() => stage?.clear()}>Empty</button>
-          <button disabled={off} title="Save this machine under a name" onClick={() => {
-            const n = window.prompt('Name this build', `My build ${saved.length + 1}`)?.trim();
-            if (n && stage) setSaved(saveBuild(n, stage.layout));
-          }}><Icon name="save" size={11} /> Save…</button>
-        </div>
-        {saved.length > 0 && (
-          <div class="bld-presets bld-chips" role="group" aria-label="Saved builds">
-            {saved.map((b) => (
-              <span key={b.name} class="bld-saved">
-                <button disabled={off} title={`Load ${b.name}`} onClick={() => stage?.loadLayout(b.layout, b.name)}>{b.name}</button>
-                <button aria-label={`Delete ${b.name}`} title="Delete this saved build" onClick={() => setSaved(deleteBuild(b.name))}><Icon name="close" size={9} /></button>
-              </span>
+      <header class="mode-head bld-head">
+        <span class="bld-ht"><span class="mode-eyebrow">{sheet ? plural(sheet.parts, 'part') : 'Loading…'}</span><b>In the machine</b></span>
+        <button class={`bld-startbtn ${showStart ? 'on' : ''}`} aria-expanded={showStart} disabled={off} title="Start again from a ready-made machine, or one you saved (Undo brings the old one back)" onClick={() => setStartOpen(!showStart)}>
+          <Icon name="layers" size={12} /><span>Start<span class="bld-from"> from</span></span><i class="bld-chev" aria-hidden="true" />
+        </button>
+      </header>
+      {showStart && <BuildStart stage={stage} saved={saved} setSaved={setSaved} off={off} hasParts={devices.length > 0} done={(line) => { setStartOpen(null); onStart(line); }} />}
+      <ul class="bld-list" ref={list} aria-label="Parts in the machine">
+        {shell.length > 0 && (
+          <>
+            <li class="bld-grp static"><span class="bld-gk"><Icon name="case" size={11} />Case and board</span><span class="bld-gp">{money(shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0))}</span></li>
+            {shell.map((r) => (
+              <li class="bld-part shell" key={r.id}>
+                <button class="bld-shellbtn" title={`Choose another ${r.kind} from the shelf`} onClick={() => onShelf(r.kind)}>
+                  <span class="bld-thumb"><PartArt id={r.id} size={32} /></span>
+                  <span class="bld-row"><span class="bld-name">{r.name}</span><em>{r.note}</em></span>
+                  <span class="bld-cost">{money(priceOf(r.id) ?? 0)}</span>
+                  <Icon name="next" size={10} class="bld-go" />
+                </button>
+              </li>
             ))}
-          </div>
+          </>
         )}
-      </details>
-      {stage && <BenchCard stage={stage} busy={busy} onOpen={onBench} />}
-      <ul class="bld-list" ref={list} aria-label="Fitted parts">
         {groups.map(({ kind, items }) => {
           const sub = items.reduce((sum, d) => sum + (priceOf(d.spec) ?? 0), 0);
+          const open = !(folded[kind] ?? items.length > OPEN_UP_TO);
+          const flip = () => setFolded((f) => ({ ...f, [kind]: open }));
           return (
             <Fragment key={kind}>
-              <li class="bld-grp"><Icon name={kindIcon(kind)} size={11} /><span>{kindLabel(kind)}</span>{items.length > 1 && <em>×{items.length}</em>}{sub > 0 && <i>{money(sub)}</i>}</li>
-              {items.map((d) => {
-                const price = priceOf(d.spec);
+              <li class="bld-grp">
+                <button aria-expanded={open} title={open ? 'Fold this group' : 'Show these parts'} onClick={flip}>
+                  <span class="bld-gk"><Icon name={kindIcon(kind)} size={11} />{kindLabel(kind)}</span>
+                  {items.length > 1 && <em class="bld-gn">×{items.length}</em>}
+                  {sub > 0 && <span class="bld-gp">{money(sub)}</span>}
+                  <i class="bld-chev" aria-hidden="true" />
+                </button>
+              </li>
+              {open ? items.map((d) => {
+                const price = priceOf(d.spec), { title, detail } = splitName(name(d.spec));
+                // (a part alone in its group has its price in the heading and no use for its socket's name)
+                const where = items.length > 1 ? d.slot : '';
                 return (
                   <li
                     key={d.id}
-                    class={selected === d.id ? 'on' : ''}
+                    class={`bld-part ${selected === d.id ? 'on' : ''}`}
                     data-dev={d.id}
                     onPointerEnter={() => stage?.glow(d.id)}
                     onPointerLeave={() => stage?.glow(null)}
                     onPointerDown={(e) => { if (e.button === 0 && !busy) begin({ from: 'machine', item: d.id, spec: d.spec, name: name(d.spec) }, e, () => stage?.select(d.id)); }}
                   >
                     <span class="bld-thumb"><PartArt id={d.spec} size={32} /></span>
-                    <span class="bld-row"><span class="bld-name" title={`${name(d.spec)} (${d.slot})`}>{name(d.spec)}</span><em>{d.slot}{price !== null ? ` · ${money(price)}` : ''}</em></span>
-                    <button disabled={busy} aria-label={`Take out ${name(d.spec)}`} title={`Take it out, with everything in its way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
+                    <span class="bld-row"><span class="bld-name" title={`${name(d.spec)} (${d.slot})`}>{title}</span><em>{[detail, where].filter(Boolean).join(' · ')}</em></span>
+                    {items.length > 1 && price !== null && <span class="bld-cost">{money(price)}</span>}
+                    <button class="bld-out" disabled={busy} aria-label={`Take out ${name(d.spec)}`} title={`Take it out, with everything in its way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
                       onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="eject" size={11} /></button>
                   </li>
                 );
-              })}
+              }) : (
+                <li class="bld-fold" title="Show these parts" onClick={flip}>{countNames(items.map((d) => splitName(name(d.spec)).title))}</li>
+              )}
             </Fragment>
           );
         })}
         {/* (until the stage is open the machine is not known: rows that wait, not a claim that the case is empty) */}
         {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `${i * 0.15}s` }} />)}
-        {stage && devices.length === 0 && <li class="bld-none"><Icon name="box" size={20} /><b>Nothing fitted yet</b><span>Drag a part from the shelf onto the PC.</span></li>}
+        {stage && devices.length === 0 && <li class="bld-none"><b>Nothing fitted yet</b><span>Drag a part from the shelf onto the PC.</span></li>}
       </ul>
+      {stage && <BenchFoot stage={stage} busy={busy} onOpen={onBench} />}
       {log.length > 0 && (
         <details class="bld-history">
           <summary>What was done <em>{log.length}</em></summary>

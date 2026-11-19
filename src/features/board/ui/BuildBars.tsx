@@ -62,14 +62,23 @@ export function ViewOptions({ ready }: { ready: boolean }) {
  * The bottom: the one line that says what to do now (or the step that plays, with its Skip), then two bars: the machine (the side panel, undo and
  * redo, the speed of the steps) and the camera (the views, and the picked part).
  */
-export function Foot({ stage, hint }: { stage: Stage | null; hint: string }) {
+export function Foot({ stage, hint, undo, warn }: {
+  stage: Stage | null;
+  hint: string;
+  /** Set while the hint says what a start just did: puts the old machine back. */
+  undo?: () => void;
+  /** Set while the hint is a refusal (it shows amber): lets it go. */
+  warn?: () => void;
+}) {
   const st = stage?.status.value;
   const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value;
   return (
     <div class="bld-foot">
-      <div class={`bld-hint ${busy ? 'busy' : ''}`} aria-live="polite">
+      <div class={`bld-hint ${busy ? 'busy' : ''} ${undo ? 'did' : ''} ${warn ? 'warn' : ''}`} role={warn ? 'alert' : undefined} aria-live="polite">
         <i aria-hidden="true" /><span>{hint}</span>
         {busy && <button title="Fast-forward the steps that play (Space)" onClick={() => stage?.skip()}><Icon name="skip" size={11} />Skip</button>}
+        {undo && <button title="Put the machine that was here back (Ctrl+Z)" onClick={undo}><Icon name="undo" size={11} />Undo</button>}
+        {warn && <button class="bld-x" aria-label="Dismiss" title="Dismiss" onClick={warn}><Icon name="close" size={10} /></button>}
       </div>
       <div class="bld-dock">
         <div class="mode-bar bld-tools" role="toolbar" aria-label="Machine">

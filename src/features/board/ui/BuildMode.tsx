@@ -56,6 +56,16 @@ export function BuildMode() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   };
+  // what a start (a preset, a saved build, Empty, Full rig) just did, with the swap's count at that moment: the hint line says it, with Undo, while it is still the last thing done
+  const [said, setSaid] = useState<{ text: string; swaps: number } | null>(null);
+  const saidTimer = useRef(0);
+  const say = (text: string) => {
+    const st = stageRef.current;
+    if (!st) return;
+    setSaid({ text, swaps: st.swaps });
+    window.clearTimeout(saidTimer.current);
+    saidTimer.current = window.setTimeout(() => setSaid(null), 8000);
+  };
   const { drag, begin, cancel, air } = useBuildDrag(stageRef, host, shelf, note);
 
   useEffect(() => {
@@ -114,11 +124,13 @@ export function BuildMode() {
       window.removeEventListener('keydown', onKey);
       cancel();
       window.clearTimeout(toastTimer.current);
+      window.clearTimeout(saidTimer.current);
       stageRef.current = null;
       s?.dispose();
       setStage(null);
       setFailed(false);
       setToast(null);
+      setSaid(null);
       setBench(false);
     };
   }, [open]);
@@ -130,10 +142,14 @@ export function BuildMode() {
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
   const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', '.bld-foot', '.bld-util'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
+  // a start's line stays while it is the last thing done (a later change, or Undo itself, makes it stale) and nothing else is going on
+  const flash = stage && said && said.swaps === stage.swaps && stage.lastWasSwap && !busy && !drag ? said.text : null;
+  // a refusal ("it fits no socket") takes the line for a few seconds: the log of what was done is for `?debug` only, the player must still hear a no
+  const refused = stage && !busy && !drag ? stage.refusal.value?.text ?? null : null;
   // (before the stage is open the machine is not known: the line says so, it does not say the case is empty)
   const hint = !stage
     ? (failed ? '3D is not available here.' : 'Getting the workshop ready…')
-    : hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length });
+    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length });
 
   return (
     <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
@@ -149,8 +165,8 @@ export function BuildMode() {
       {stage && <Readout stage={stage} rev={rev} onBench={() => setBench(true)} />}
       <ViewOptions ready={!!stage} />
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} />
-      <Foot stage={stage} hint={hint} />
+      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} />
+      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} />
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
       {stage && picked && !drag && !bench && <BuildCard stage={stage} id={picked} avoid={avoid} />}
       {stage && hover && !drag && !busy && !bench && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
