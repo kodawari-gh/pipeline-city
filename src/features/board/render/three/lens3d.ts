@@ -1,7 +1,7 @@
-// The power and airflow lenses in 3D (docs/render/interact.md, lenses): the 2D lenses themselves (`PowerLens`, `AirflowLens`) run unchanged, fed the
-// same models. Their picture (the room dimmed, the electrical map or the air over it) is drawn by the offscreen Pixi renderer onto a plane that
-// stands at the board's depth and covers the view, drawn over everything: seen flat it is the 2D lens, seen from an angle it is a sheet laid over the
-// machine.
+// The power and airflow lenses in 3D (docs/render/interact.md, lenses). The power lens is the 2D one (`PowerLens`), unchanged and fed the same model: its
+// picture (the room dimmed, the electrical map over it) is drawn by the offscreen Pixi renderer onto a plane that stands at the board's depth and covers
+// the view, drawn over everything: seen flat it is the 2D lens, seen from an angle it is a sheet laid over the machine. The airflow lens is not a sheet:
+// it is the case's air as particles in the machine's own space (`air/view.ts`, docs/render/air.md).
 import { Container } from 'pixi.js';
 import { Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
@@ -12,14 +12,11 @@ import { cardOrigin, cardPlugs } from '@/core/render/accelart';
 import { builtinTheme } from '@/core/render/theme';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
-import { AIR_SOURCES } from '@/features/room/render/desk/airsources';
-import { AirflowLens, airflowModel } from '@/features/room/render/desk/airflow';
 import { PowerLens, lensModel } from '@/features/room/render/desk/lens';
-import { fanMounts, radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import {
-  CASE_GLASS, LAYOUT_CASE, LAYOUT_TIER, MONITOR, REAR_FAN, REAR_FAN_FITTED,
-} from '../layout/layout';
+import { LAYOUT_CASE, LAYOUT_TIER, MONITOR } from '../layout/layout';
+import { AirView3D } from './air/view';
+import type { Machine3D } from './machine3d';
 import { slotRects } from './slots3d';
 import { buildBuses, buildCables, type Cable, type Bus, type PcieTarget } from '../wiring/routes';
 import { CORD_KINDS, cordPlan, cordRoute, type CordKind } from '../wiring/cords';
@@ -54,7 +51,7 @@ function keepOnScreen(cam: PerspectiveCamera, x0: number, x1: number, y: number)
 export class Lens3D {
   private readonly T = builtinTheme();
   private readonly power = new PowerLens();
-  private readonly air = new AirflowLens();
+  private readonly air: AirView3D;
   private readonly mat = new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private readonly both = new Container();
@@ -62,50 +59,43 @@ export class Lens3D {
   private tex: CanvasTexture | null = null;
   private size = '';
   private powerKey: unknown = null;
-  private airKey: unknown = null;
   private buses: Bus[] | null = null;
   private busKey = '';
   private t = 0;
   private at = -Infinity;
 
-  constructor(scene: Scene) {
+  /** `dom`: the canvas the scene draws on (the air's words are pinned over it). */
+  constructor(scene: Scene, dom: HTMLElement | null = null) {
     this.power.setTheme(this.T);
-    this.air.setTheme(this.T);
     this.mesh.visible = false;
     this.mesh.renderOrder = 1000;
     scene.add(this.mesh);
-    this.both.addChild(this.power.root, this.air.root);
+    this.both.addChild(this.power.root);
+    this.air = new AirView3D(scene, dom);
   }
 
-  /** Per frame (after the camera): draw the lens that is on over the view, or hide the plane. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel. */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, geo: RoomGeo, dt: number, dpr: number): void {
-    const wantPower = powerLens.peek() && !!s, wantAir = airflowLens.peek() && !!s;
-    if (!wantPower && !wantAir) { this.mesh.visible = false; this.powerKey = this.airKey = null; return; }
+  /**
+   * Per frame (after the camera): draw the lens that is on over the view, or hide it. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel.
+   * `machine`: the machine the air runs in (no machine, no air).
+   */
+  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, geo: RoomGeo, dt: number, dpr: number, machine: Machine3D | null = null): void {
+    if (airflowLens.peek() && s && machine) this.air.frame(cam, H * dpr, s, machine, dt);
+    else this.air.hide();
+    const wantPower = powerLens.peek() && !!s;
+    if (!wantPower) { this.mesh.visible = false; this.powerKey = null; return; }
     const snap = s!;
-    if (wantPower) {
-      const key = [snap, LAYOUT_TIER, LAYOUT_CASE];
-      if (!this.powerKey || (this.powerKey as unknown[]).some((v, i) => v !== key[i])) {
-        this.powerKey = key;
-        const bk = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
-        if (bk !== this.busKey || !this.buses) { this.busKey = bk; this.buses = buildBuses(); }
-        const plan = cordPlan(geo);
-        const cords = CORD_KINDS.map((k: CordKind) => {
-          const pl = plan[k], connected = !!snap.cables.find((c) => c.id === k)?.connected, at: Pt = connected ? pl.outlet : pl.rest;
-          return { kind: k, connected, plugAt: at, route: cordRoute(pl, at), outlet: pl.outlet };
-        });
-        this.power.setModel(lensModel({ s: snap, cords, cables: cablesOf(snap), buses: this.buses, slots: slotRects(snap), monitor: MONITOR }));
-      }
-    } else this.powerKey = null;
-    if (wantAir) {
-      if (this.airKey !== snap) {
-        this.airKey = snap;
-        const dev = snap.devices.find((d) => d.kind === 'radiator'), span = dev ? radiatorSpan(dev.slot === 'rad-front' ? 'front' : 'top') : null;
-        this.air.setModel(airflowModel({
-          s: snap, mounts: fanMounts(), radiator: span ? { side: span.side as 'front' | 'top', ids: span.ids, rect: span.rect } : null,
-          rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots: slotRects(snap), sources: AIR_SOURCES,
-        }));
-      }
-    } else this.airKey = null;
+    const key = [snap, LAYOUT_TIER, LAYOUT_CASE];
+    if (!this.powerKey || (this.powerKey as unknown[]).some((v, i) => v !== key[i])) {
+      this.powerKey = key;
+      const bk = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
+      if (bk !== this.busKey || !this.buses) { this.busKey = bk; this.buses = buildBuses(); }
+      const plan = cordPlan(geo);
+      const cords = CORD_KINDS.map((k: CordKind) => {
+        const pl = plan[k], connected = !!snap.cables.find((c) => c.id === k)?.connected, at: Pt = connected ? pl.outlet : pl.rest;
+        return { kind: k, connected, plugAt: at, route: cordRoute(pl, at), outlet: pl.outlet };
+      });
+      this.power.setModel(lensModel({ s: snap, cords, cables: cablesOf(snap), buses: this.buses, slots: slotRects(snap), monitor: MONITOR }));
+    }
 
     const now = performance.now();
     this.t += dt;
@@ -114,8 +104,7 @@ export class Lens3D {
     if (!crop) { this.mesh.visible = false; return; }
     // the lens draws over the view as a 2D camera at this zoom would show it
     const z = v.zoom, view = { x: crop.x + crop.w / 2, y: crop.y + crop.h / 2, z, cx: (crop.w * z) / 2, cy: (crop.h * z) / 2, w: crop.w * z, h: crop.h * z, fit: (x0: number, x1: number, y: number) => keepOnScreen(cam, x0, x1, y) };
-    this.power.frame(wantPower, view, dt, now);
-    this.air.frame(wantAir, view, dt, now);
+    this.power.frame(true, view, dt, now);
     if (now - this.at < 33) { this.mesh.visible = true; return; }
     const canvas = (this.canvas ??= document.createElement('canvas'));
     const got = drawLive(this.both, crop, livePx(crop, z * dpr), canvas);
@@ -139,6 +128,7 @@ export class Lens3D {
   }
 
   dispose(): void {
+    this.air.dispose();
     this.mesh.removeFromParent();
     this.mesh.geometry.dispose();
     this.tex?.dispose();

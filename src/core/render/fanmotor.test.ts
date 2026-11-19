@@ -47,6 +47,16 @@ describe('the fan bank and the machine rule', () => {
     expect(fanBank.level('x')).toBe(1);
   });
 
+  it('a fan with only a share of full speed (the 3D machine\'s) is published as a level', () => {
+    fanBank.clear();
+    fanBank.setLevel('case:front0', 0.5);
+    expect(fanBank.level('case:front0')).toBeCloseTo(0.5, 6);
+    fanBank.setLevel('case:front0', 1);
+    expect(fanBank.level('case:front0')).toBe(1);
+    fanBank.setLevel('case:front0', 0);
+    expect(fanBank.get('case:front0')).toBe(0);
+  });
+
   it('the machine is live only when powered, on, not tripped and the board is not burnt', () => {
     const ok = { powered: true, power: { off: false, tripped: false, totalW: 10, budgetW: 100, vrmLossW: 0, psuFactor: 1 } };
     expect(machineLive(snap(ok))).toBe(true);

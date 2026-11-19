@@ -294,7 +294,7 @@ export class BuildStage {
     this.post = new Post(renderer, scene, camera, this.W, this.H);
     // (a model that joins after the first picture's programs have started, a slow network, links its own while it is hidden: `joinModel`; its parts fade)
     warmLateModels(scene, (model) => (this.programs.started ? startPrograms(renderer, model, camera, { scene, fades: [model] }) : null));
-    this.lens = new Lens3D(scene);
+    this.lens = new Lens3D(scene, renderer.domElement);
     // the hand that pulls a cable's plug out and pushes it in by itself (plughand3d.ts `pullOut`, `plugIn`), on this stage's own game
     this.hand = new PlugHand({
       machine: () => this._machine, snapshot: () => this.snapshot, toast: (t) => this.note(t),
@@ -531,7 +531,7 @@ export class BuildStage {
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)
     this.bakes.run(this.drew ? BAKE_MS : BAKE_STILL_MS);
     if (this.marker?.visible) (this.marker.material as MeshBasicMaterial).opacity = 0.22 + 0.14 * Math.sin(now / 160);
-    this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio());
+    this.lens.frame(camera, this.H, snap, roomGeo(), dt, renderer.getPixelRatio(), this.machine);
     this.post.setReach(heightAt(this.view, BOARD_Z));
     // the eye adapts as in the game (`board3d.ts`): a cream case and a black one both read
     // (the meter's reading comes a frame or more after its draw: a tick with no draw takes the last frame's too)

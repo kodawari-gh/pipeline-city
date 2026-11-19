@@ -1,0 +1,289 @@
+// What the airflow view needs to know about a machine (docs/render/air.md), worked out from the layout, the 3D machine's part boxes (`Machine3D.airBodies`)
+// and the sim's snapshot. Two parts: the STATIC plan (the case's air, its boxes, its openings and its fans: it changes only when a part is fitted or
+// removed, so the flow is solved once for it) and the LIVE parts (what is hot, how hot, and the coefficient that moves the heat: they change with every
+// snapshot). No Three here: a test builds a plan from the real layout.
+import type { Snapshot } from '@/worker/protocol';
+import { fanHost } from '../../../sim/board';
+import { AMBIENT_C, getSpec, type FanSpec } from '../../../sim/specs';
+import { LAYOUT_CASE, LAYOUT_TIER, CASE_IN, PCIE_RAILS, REAR_FAN, REAR_FAN_FITTED } from '../../layout/layout';
+import { fanMounts } from '@/features/room/render/desk/props/case';
+import { gpuFanCount } from '@/features/gpu/render/gpulayout';
+import { BOARD_Z, CASE_FRONT, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
+import { COOLER_AIR } from '../cooler3d';
+import { fanDepth } from '../fans3d';
+import type { AirBox, Shape, V3 } from './grid';
+
+/** A body of the machine as the 3D model has it: a part's box (by device id and kind), or one of the case's fixed bodies (`board`, `basement`, `cage`, `ram`). */
+export interface AirBody { id: string; kind: string; slot?: string; min: V3; max: V3 }
+
+/** Units to the metre: a millimetre is 23 units. */
+export const UNITS_PER_M = 23000;
+/** The speed of the air at a basic fan's face at full speed, metres per second. A fan's `airflow` rating scales it. */
+export const FAN_FACE_MS = 1.5;
+/** The tray's face: the air's floor. The case's air is its inside, from the tray to the glass. */
+const TRAY_Z = CASE_Z + 70;
+
+/** A fan of the static plan: a wall fan (`wall` as `AirGrid.vent`) or an inner one (a plane across `axis`). `bank`: the id its speed is published under (`fanBank`). */
+export type PlanFan =
+  | { id: string; bank: string; kind: 'wall'; wall: number; centre: V3; r: number; into: boolean; q: number }
+  | { id: string; bank: string; kind: 'inner'; at: V3; axis: 0 | 1 | 2; dir: 1 | -1; r: number; q: number };
+
+/** An opening in the case's wall: air passes to the room. */
+export interface PlanVent { id: string; wall: number; centre: V3; shape: Shape; open: number }
+
+export interface AirPlan {
+  /** What the plan was made from: a new key means a new solve. */
+  key: string;
+  min: V3;
+  max: V3;
+  boxes: AirBox[];
+  vents: PlanVent[];
+  fans: PlanFan[];
+  /** The case's bodies as given (the view draws them in its debug picture). */
+  bodies: AirBody[];
+}
+
+/** How well air passes each kind of body, along x, y and z. */
+const BODY_K: Record<string, V3> = {
+  board: [0, 0, 0],
+  basement: [0, 0, 0],
+  // the drives stand in the front fans' air with gaps between them
+  cage: [0.45, 0.2, 0.15],
+  // the sticks stand on edge: air runs along them, hardly across
+  ram: [0.3, 0.8, 0.15],
+  nic: [0.1, 0.1, 0.1],
+  'vrm-sink': [0.6, 0.5, 0.05],
+  'ram-sink': [0.6, 0.5, 0.05],
+  // a card's fans blow up into its fins: the air leaves along its length and over its top edge
+  gpu: [0.45, 0.3, 0.45],
+  npu: [0.45, 0.3, 0.45],
+};
+
+const box = (id: string, min: V3, max: V3, k: V3, part?: string): AirBox => ({ id, min, max, k, ...(part ? { part } : {}) });
+const sizeOf = (b: { min: V3; max: V3 }): V3 => [b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]];
+const mid = (b: { min: V3; max: V3 }): V3 => [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+const rateOf = (spec: FanSpec | undefined): number => spec?.airflow ?? 1;
+const flowOf = (r: number, airflow: number): number => FAN_FACE_MS * UNITS_PER_M * airflow * Math.PI * r * r;
+
+/** The case's air as a box: its inside, tray to glass (world: y is up, so the layout's y runs the other way). */
+export function airDomain(): { min: V3; max: V3 } {
+  return { min: [CASE_IN.x, -(CASE_IN.y + CASE_IN.h), TRAY_Z], max: [CASE_IN.x + CASE_IN.w, -CASE_IN.y, CASE_FRONT] };
+}
+
+/** The case fans' discs on the walls, with the fans fitted on them: the radiator's side keeps its fans, which then work through the radiator's core. */
+function caseFans(s: Snapshot): PlanFan[] {
+  const out: PlanFan[] = [], rad = s.devices.find((d) => d.kind === 'radiator'), radSide = rad ? (rad.slot === 'rad-front' ? 'front' : 'top') : null;
+  for (const m of fanMounts()) {
+    const d = s.devices.find((x) => x.kind === 'fan' && x.slot === m.id);
+    if (!d) continue;
+    const spec = getSpec(d.spec) as FanSpec | undefined, dia = Math.min(m.side === 'top' ? m.rect.w : m.rect.h, FAN_MAX), r = (dia / 2) * 0.96, bank = m.side === radSide ? `radiator:${m.id}` : `case:${m.id}`, q = flowOf(r, rateOf(spec));
+    const cy = -(m.rect.y + m.rect.h / 2), cx = m.rect.x + m.rect.w / 2;
+    // the front fans blow in at the east wall, the top fans and the rear fan draw out through the top and the west wall
+    if (m.side === 'front') out.push({ id: m.id, bank, kind: 'wall', wall: 1, centre: [0, cy, FAN_ZC], r, into: true, q });
+    else if (m.side === 'top') out.push({ id: m.id, bank, kind: 'wall', wall: 3, centre: [cx, 0, FAN_ZC], r, into: false, q });
+    else out.push({ id: m.id, bank, kind: 'wall', wall: 0, centre: [0, cy, REAR_ZC], r, into: false, q });
+  }
+  return out;
+}
+
+/** The fans of the parts, by the part's box: the cooler's, the two regulators' sinks, the cards'. */
+function localFans(s: Snapshot, bodies: readonly AirBody[]): PlanFan[] {
+  const out: PlanFan[] = [], fansOf = (host: string) => s.devices.filter((d) => d.kind === 'fan' && fanHost(d.slot) === host);
+  for (const d of s.devices) {
+    const spec = getSpec(d.spec) as { visual?: string } | undefined, visual = spec?.visual ?? '', b = bodies.find((x) => x.id === d.id);
+    if (d.kind === 'cooler') {
+      const fans = fansOf(d.slot);
+      if (visual === 'cooler-tower') {
+        const t = COOLER_AIR.tower, D = fanDepth(120), r = (t.fan / 2) * 0.96, cy = -(t.y + t.h / 2);
+        for (const f of fans) {
+          const spot = Number(f.slot.slice(f.slot.lastIndexOf('.fan') + 4)), at: V3 = [spot ? t.x - D / 2 : t.x + t.w + D / 2, cy, t.zc];
+          out.push({ id: f.id, bank: 'cooler', kind: 'inner', at, axis: 0, dir: -1, r, q: flowOf(r, rateOf(getSpec(f.spec) as FanSpec)) });
+        }
+      } else if (visual === 'cooler-stock' && fans[0]) {
+        const r = (COOLER_AIR.stock.fan / 2) * 0.96;
+        out.push({ id: fans[0].id, bank: 'cooler', kind: 'inner', at: [0, 0, COOLER_AIR.stock.z1 + fanDepth(92) / 2], axis: 2, dir: -1, r, q: flowOf(r, rateOf(getSpec(fans[0].spec) as FanSpec)) });
+      }
+    } else if ((d.kind === 'vrm-sink' || d.kind === 'ram-sink') && b) {
+      const f = fansOf(d.slot)[0];
+      if (!f) continue;
+      const sz = sizeOf(b), c = mid(b), r = Math.min(sz[0], sz[1]) * 0.45;
+      out.push({ id: f.id, bank: d.kind === 'vrm-sink' ? 'vrm' : 'ramvrm', kind: 'inner', at: [c[0], c[1], b.max[2] - 120], axis: 2, dir: -1, r, q: flowOf(r, rateOf(getSpec(f.spec) as FanSpec)) });
+    } else if (d.kind === 'gpu' && b) {
+      // the card stands with its fans on its underside, blowing up into its fins (a neural card has a passive sink: no fan of its own)
+      const sz = sizeOf(b), c = mid(b), n = gpuFanCount(visual), len = sz[0] / n, r = Math.min(len, sz[2]) * 0.46;
+      for (let k = 0; k < n; k++) out.push({ id: `${d.id}.fan${k}`, bank: `gpu:${d.slot}`, kind: 'inner', at: [b.min[0] + (k + 0.5) * len, b.min[1] + 0.2 * sz[1], c[2]], axis: 1, dir: 1, r, q: flowOf(r, 1.5) });
+    }
+  }
+  return out;
+}
+
+/** The boxes in the air's way, by the kind of each body. The tower's stack, the stock heatsink and the pump head are the coolers' own boxes. */
+function boxesOf(s: Snapshot, bodies: readonly AirBody[]): AirBox[] {
+  const out: AirBox[] = [], radSide = s.devices.find((d) => d.kind === 'radiator')?.slot === 'rad-front' ? 'front' : 'top';
+  for (const b of bodies) {
+    const d = s.devices.find((x) => x.id === b.id), visual = (d && (getSpec(d.spec) as { visual?: string } | undefined)?.visual) || '';
+    if (b.kind === 'cooler') {
+      if (visual === 'cooler-tower') {
+        const t = COOLER_AIR.tower;
+        out.push(box(b.id, [t.x, -(t.y + t.h), t.z0], [t.x + t.w, -t.y, t.z1], [0.7, 0.7, 0.03], b.id));
+      } else if (visual === 'cooler-stock') {
+        const w = COOLER_AIR.stock.w / 2;
+        out.push(box(b.id, [-w, -w, BOARD_Z], [w, w, COOLER_AIR.stock.z1], [0.4, 0.4, 0.05], b.id));
+      } else out.push(box(b.id, [-COOLER_AIR.pump.r, -COOLER_AIR.pump.r, BOARD_Z], [COOLER_AIR.pump.r, COOLER_AIR.pump.r, COOLER_AIR.pump.top], [0, 0, 0]));
+    } else if (b.kind === 'radiator') {
+      out.push(box(b.id, b.min, b.max, radSide === 'front' ? [0.3, 0.02, 0.02] : [0.02, 0.3, 0.02], b.id));
+    } else {
+      const k = BODY_K[b.kind];
+      if (k) out.push(box(b.id, b.min, b.max, k, d && (b.kind === 'gpu' || b.kind === 'npu' || b.kind === 'vrm-sink' || b.kind === 'ram-sink') ? b.id : undefined));
+    }
+  }
+  return out;
+}
+
+/** The openings in the case's skin: the rear grille where there is no rear fan, the expansion slots, the front's mesh and the top's. */
+function ventsOf(s: Snapshot): PlanVent[] {
+  const d = airDomain(), out: PlanVent[] = [], hasRear = s.devices.some((x) => x.kind === 'fan' && x.slot === 'rear');
+  const cy = (d.min[1] + d.max[1]) / 2, cz = (d.min[2] + d.max[2]) / 2, ry = -(REAR_FAN.y + REAR_FAN.h / 2), rr = (Math.min(REAR_FAN.h, FAN_MAX) / 2) * 0.9;
+  // the rear: a grille, open to the room, where there is no fan (a fitted fan stopped is shut by its own stiffness)
+  if (!REAR_FAN_FITTED || !hasRear) out.push({ id: 'rear', wall: 0, centre: [0, ry, REAR_ZC], shape: { r: rr }, open: 0.5 });
+  // the expansion slots at the rear, on the board's side: a leak
+  const ys = PCIE_RAILS.map((r) => -(r.y + r.h / 2));
+  if (ys.length) {
+    const y0 = Math.min(...ys) - 300, y1 = Math.max(...ys) + 300;
+    out.push({ id: 'slots', wall: 0, centre: [0, (y0 + y1) / 2, BOARD_Z + 800], shape: { hw: Math.max(300, (y1 - y0) / 2), hh: 800 }, open: 0.12 });
+  }
+  // the front panel and the top are meshes
+  out.push({ id: 'front', wall: 1, centre: [0, cy, cz], shape: { hw: (d.max[1] - d.min[1]) * 0.45, hh: (d.max[2] - d.min[2]) * 0.45 }, open: 0.12 });
+  out.push({ id: 'top', wall: 3, centre: [(d.min[0] + d.max[0]) / 2, 0, cz], shape: { hw: (d.max[0] - d.min[0]) * 0.4, hh: (d.max[2] - d.min[2]) * 0.4 }, open: 0.06 });
+  return out;
+}
+
+/** A key that says when the plan must be made again: the layout, the parts fitted and where their boxes are. */
+export function planKey(s: Snapshot, bodies: readonly AirBody[]): string {
+  const r = (v: number) => Math.round(v);
+  return [LAYOUT_TIER, LAYOUT_CASE, s.devices.map((d) => `${d.id}:${d.spec}:${d.slot}`).join(','), bodies.map((b) => `${b.id}${b.min.map(r)}${b.max.map(r)}`).join(';')].join('|');
+}
+
+/** The static plan of a machine. */
+export function airPlan(s: Snapshot, bodies: readonly AirBody[]): AirPlan {
+  const { min, max } = airDomain();
+  return { key: planKey(s, bodies), min, max, boxes: boxesOf(s, bodies), vents: ventsOf(s), fans: [...caseFans(s), ...localFans(s, bodies)], bodies: [...bodies] };
+}
+
+// ------------------------------------------------------------------ the heat
+
+/** A part that gives its heat to the air (or takes it from the coolant): where it is, how hot it is, and the coefficient that moves the heat. */
+export interface AirPart {
+  id: string;
+  kind: string;
+  min: V3;
+  max: V3;
+  /** The air passes through it (fins, a radiator's core): it heats the air inside its box. Else it heats the air within `reach` of its surface. */
+  porous: boolean;
+  reach: number;
+  /** The temperature of its surface, C (the sim's, less what the cooler's fins lose to the die). */
+  tempC: number;
+  /** The heat it makes now, W. */
+  powerW: number;
+  /** The heat transfer coefficient to the air, W per K: the sim's heat over the surface's temperature above the air's (`AIR_REF`). */
+  ua: number;
+  label: string;
+}
+
+/** The surface of a heatsink's fins over the room, as a share of the die's rise over the room. */
+const FIN_SHARE = 0.7;
+const CARD_SHARE = 0.75;
+/** The smallest rise over the air the coefficient is worked out against, K: below it the part is as cool as the air. */
+const MIN_RISE = 1.5;
+/** How far the air round a plain part's surface takes part in the exchange. */
+const REACH = 280;
+
+const coefficient = (powerW: number, surfaceC: number, airC: number): number => Math.max(0, powerW) / Math.max(MIN_RISE, surfaceC - airC);
+
+/** The case's air temperature the coefficients are worked out against: the room's plus the mean rise of the areas. */
+export function airReference(s: Snapshot): number {
+  const rises = s.board?.air.map((a) => a.riseC) ?? [];
+  return AMBIENT_C + (rises.length ? rises.reduce((a, b) => a + b, 0) / rises.length : 0);
+}
+
+/** The heat of each part now, from the snapshot: `plan`'s bodies say where each part is. */
+export function airParts(s: Snapshot, plan: AirPlan): AirPart[] {
+  const out: AirPart[] = [], air = airReference(s), cpu = s.devices.find((d) => d.kind === 'cpu'), loop = s.board?.loop, running = s.powered && !s.power.off;
+  const add = (b: { id: string; kind: string; min: V3; max: V3 }, o: { porous: boolean; tempC: number; powerW: number; label: string }): void => {
+    out.push({ id: b.id, kind: b.kind, min: b.min, max: b.max, reach: o.porous ? 0 : REACH, ...o, ua: running ? coefficient(o.powerW, o.tempC, air) : 0 });
+  };
+  for (const b of plan.boxes) {
+    const d = s.devices.find((x) => x.id === b.id), body = plan.bodies.find((x) => x.id === b.id);
+    if (!d || !body) continue;
+    if (d.kind === 'cooler') {
+      // an air heatsink takes the processor's heat: its fins sit between the die and the air. A pump head is not one: its heat goes into the coolant.
+      const visual = (getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '';
+      if (visual !== 'cooler-liquid' && cpu) add({ ...b, kind: 'cooler' }, { porous: true, tempC: air + FIN_SHARE * (cpu.tempC - air), powerW: cpu.powerW, label: 'CPU' });
+    } else if (d.kind === 'gpu' || d.kind === 'npu') add({ ...b, kind: d.kind }, { porous: true, tempC: air + CARD_SHARE * (d.tempC - air), powerW: d.powerW, label: d.kind.toUpperCase() });
+    else if (d.kind === 'vrm-sink' && s.board) add({ ...b, kind: d.kind }, { porous: true, tempC: air + FIN_SHARE * (s.board.vrm.tempC - air), powerW: s.board.vrm.heatW, label: 'VRM' });
+    else if (d.kind === 'ram-sink' && s.board) add({ ...b, kind: d.kind }, { porous: true, tempC: air + FIN_SHARE * (s.board.ramVrm.tempC - air), powerW: s.board.ramVrm.heatW, label: 'MEM VRM' });
+    else if (d.kind === 'radiator' && loop) {
+      // the water gives its heat to the air that crosses the core: the coefficient is what the sim says the radiator rejects over the water's rise over the air
+      add({ ...b, kind: 'radiator' }, { porous: true, tempC: (loop.hotC + loop.coldC) / 2, powerW: loop.rejectW, label: 'RAD' });
+    }
+  }
+  // a processor with no cooler on it: its bare package heats the air next to it
+  if (cpu && !s.devices.some((d) => d.kind === 'cooler')) add({ id: cpu.id, kind: 'cpu', min: [-630, -530, BOARD_Z], max: [630, 530, BOARD_Z + 250] }, { porous: false, tempC: cpu.tempC, powerW: cpu.powerW, label: 'CPU' });
+  const ram = s.devices.filter((d) => d.kind === 'ram'), ramBody = plan.bodies.find((b) => b.id === 'ram');
+  if (ramBody && ram.length) add(ramBody, { porous: false, tempC: Math.max(...ram.map((d) => d.tempC)), powerW: ram.reduce((a, d) => a + d.powerW, 0), label: 'RAM' });
+  const drives = s.devices.filter((d) => d.kind === 'storage'), cage = plan.bodies.find((b) => b.id === 'cage');
+  if (cage && drives.length) add(cage, { porous: true, tempC: Math.max(...drives.map((d) => d.tempC)), powerW: drives.reduce((a, d) => a + d.powerW, 0), label: 'DRIVES' });
+  return out;
+}
+
+// ------------------------------------------------------------------ paths
+
+/** A line the particles follow: the coolant's loop, the power supply's channel. `cum[i]` is the length up to point `i`. */
+export interface PathLine { pts: V3[]; cum: number[]; length: number }
+
+export function pathLine(pts: readonly V3[]): PathLine {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]));
+  return { pts: pts.map((p): V3 => [p[0], p[1], p[2]]), cum, length: cum[cum.length - 1] ?? 0 };
+}
+
+/** The point at length `s` along a line (clamped to its ends), into `out`. */
+export function pointOn(l: PathLine, s: number, out: V3): V3 {
+  const n = l.pts.length;
+  if (n === 0) return out;
+  if (s <= 0 || n === 1) { out[0] = l.pts[0]![0]; out[1] = l.pts[0]![1]; out[2] = l.pts[0]![2]; return out; }
+  if (s >= l.length) { const e = l.pts[n - 1]!; out[0] = e[0]; out[1] = e[1]; out[2] = e[2]; return out; }
+  let lo = 1, hi = n - 1;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (l.cum[m]! < s) lo = m + 1; else hi = m; }
+  const a = l.pts[lo - 1]!, b = l.pts[lo]!, span = l.cum[lo]! - l.cum[lo - 1]!, t = span > 0 ? (s - l.cum[lo - 1]!) / span : 0;
+  out[0] = a[0] + (b[0] - a[0]) * t;
+  out[1] = a[1] + (b[1] - a[1]) * t;
+  out[2] = a[2] + (b[2] - a[2]) * t;
+  return out;
+}
+
+/** The liquid loop as one closed line: the hot hose from the pump to the radiator, the radiator's tubes, the cold hose back, and the pump's block. `hot`, `rad`, `cold`: the lengths where each stage ends. */
+export interface LoopPath extends PathLine { hot: number; rad: number; cold: number }
+
+/**
+ * The loop's line from the two hoses (the pump's end first in each, the hot one first) and the radiator's box. The coolant crosses the radiator's core along
+ * its length to the far tank and comes back on the other port's lane. `side`: the radiator's side, which says which way it is long (a front radiator along y, a top one along x).
+ */
+export function loopPath(hoses: readonly (readonly V3[])[], rad: { min: V3; max: V3 } | undefined, side: 'front' | 'top'): LoopPath | null {
+  const [h0, h1] = hoses;
+  if (!h0 || !h1 || h0.length < 2 || h1.length < 2 || !rad) return null;
+  const a = h0[h0.length - 1]!, b = h1[h1.length - 1]!, thick = side === 'front' ? 0 : 1, len = side === 'front' ? 1 : 0, inset = 450;
+  const far = Math.abs(a[len] - rad.min[len]) < Math.abs(a[len] - rad.max[len]) ? rad.max[len] - inset : rad.min[len] + inset, midT = (rad.min[thick] + rad.max[thick]) / 2;
+  const at = (p: V3, l: number, t: number): V3 => { const q: V3 = [p[0], p[1], p[2]]; q[len] = l; q[thick] = t; return q; };
+  const hot = [...h0], core = [at(a, a[len], midT), at(a, far, midT), at(b, far, midT), at(b, b[len], midT), b], cold = [...h1].reverse(), block: V3[] = [h0[0]!];
+  const all = [...hot, ...core, ...cold, ...block], line = pathLine(all), hotEnd = line.cum[hot.length - 1]!, radEnd = line.cum[hot.length + core.length - 1]!, coldEnd = line.cum[hot.length + core.length + cold.length - 1]!;
+  return { ...line, hot: hotEnd, rad: radEnd, cold: coldEnd };
+}
+
+/** The coolant's temperature at length `s` of its loop: hot to the radiator, cooled through it, cold back, heated in the block. */
+export function coolantAt(l: LoopPath, s: number, hotC: number, coldC: number): number {
+  if (s < l.hot) return hotC;
+  if (s < l.rad) return hotC + (coldC - hotC) * ((s - l.hot) / Math.max(1, l.rad - l.hot));
+  if (s < l.cold) return coldC;
+  return coldC + (hotC - coldC) * ((s - l.cold) / Math.max(1, l.length - l.cold));
+}

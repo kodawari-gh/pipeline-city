@@ -376,6 +376,11 @@ export class LoopHoses {
     }
   }
 
+  /** Each hose's seated points (the hot one first, its pump end first): the airflow lens runs the coolant along them. */
+  paths(): V3[][] {
+    return this.hoses.map((h) => h.seat.map((p): V3 => [p[0], p[1], p[2]]));
+  }
+
   /** Back on the fittings as they were built: the seated arcs, and no live rope. */
   rest(): void {
     for (const h of this.hoses) { h.rope = null; this.draw(h, h.seat); }
@@ -387,6 +392,12 @@ export class LoopHoses {
  * cap; its two ports' x either side of the middle and their depth, on its north side.
  */
 const PUMP = { R: 745, R0: 770, top: L + 1100, portX: 260, portZ: L + 780 };
+/** The coolers' bodies for the airflow lens (air/plan.ts): the tower's fin stack (layout x and y, world z0 to z1) and fan, the stock heatsink's shroud and fan, the pump head's round. */
+export const COOLER_AIR = {
+  tower: { ...STACK, z0: FIN0, z1: FIN1, fan: TOWER_FAN, zc: TOWER_ZC },
+  stock: { w: SHROUD.w, z1: SHROUD.z1, fan: STOCK_FAN },
+  pump: { r: PUMP.R0, top: PUMP.top },
+} as const;
 /** How far north of the pump's middle its ports are (on the port block out of the body's round side); world y. */
 const portY = () => Math.sqrt(PUMP.R ** 2 - PUMP.portX ** 2) + 50;
 

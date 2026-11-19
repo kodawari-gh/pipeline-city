@@ -6,7 +6,7 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 
 import type { Snapshot } from '@/worker/protocol';
 import { boardSnap, dev, snap } from '@/core/ui/testdata';
-import { airColor, airSpeed, airflowModel, clipPath, type AirIn, type AirMount } from './airflow';
+import { airColor, airflowModel, clipPath, type AirIn, type AirMount } from './airflow';
 import { AIR_SOURCES, OUTSIDE_THE_CASE } from './airsources';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';
@@ -166,7 +166,7 @@ describe('the airflow lens model', () => {
     expect(r.mounts.length).toBeGreaterThan(0);
   });
 
-  it('a hot CPU makes a hot zone (the air that passes it takes the heat up in the field: airfield.test.ts)', () => {
+  it('a hot CPU makes a hot zone', () => {
     const cool = airflowModel(running(32)), hot = airflowModel(running(88));
     const zc = cool.zones.find((z) => z.id === 'cpu')!, zh = hot.zones.find((z) => z.id === 'cpu')!;
     expect(zh.heat).toBeGreaterThan(zc.heat);
@@ -226,10 +226,9 @@ describe('the airflow lens model', () => {
     expect(bare.lanes.find((l) => l.id === 'rad-front')).toMatchObject({ state: 'dead', strength: 0 });
   });
 
-  it('colours run blue to amber to red, and more airflow moves faster', () => {
+  it('colours run blue to amber to red', () => {
     expect(airColor(0)).toBe('#6fd6ff');
     expect(airColor(0.5)).toBe('#ffb84a');
     expect(airColor(1)).toBe('#ff4538');
-    expect(airSpeed(1)).toBeGreaterThan(airSpeed(0.3));
   });
 });

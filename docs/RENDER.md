@@ -11,6 +11,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | orderly routing, pin map, board tiers, cases and the VRM | [`render/board.md`](render/board.md) |
 | the case, the bay and the OS screen, far-zoom exterior (LOD), installed devices, rear I/O, PSU face | [`render/case.md`](render/case.md) |
 | router, wall plate, ethernet cable, NIC cards | [`render/net.md`](render/net.md) |
+| the airflow lens: the 3D air as particles, the precomputed flow, collisions, heat exchange, water cooling, the supply's air | [`render/air.md`](render/air.md) |
 | the room: desk props, key rack and mail, USB keys, wall cords, power lens | [`render/room/room.md`](../src/features/room/room.md) |
 | the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
 | the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |

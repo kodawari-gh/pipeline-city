@@ -12,6 +12,7 @@ import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type St
 import type { Shown } from '@/features/board/sim/buildspecs';
 import { netPropsVisible } from '@/features/network/render/netvis';
 import { cardOrigin, tpmRect } from '@/core/render/accelart';
+import { fanBank } from '@/core/render/fanmotor';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
@@ -46,6 +47,7 @@ import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import type { AirBody } from './air/plan';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
 import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
@@ -251,6 +253,9 @@ export class Machine3D {
   private cooler: Group | null = null;
   /** The loop's hoses (they fade with the cooler; Build my PC takes them off and puts them on, `buildmode3d.ts`), or null: no pump or no radiator, or the room (they join the cooler). */
   hoses: LoopHoses | null = null;
+  /** Where the loop's hoses seat (the hot one first, the pump's end first): the airflow lens runs the coolant along them. Empty with no loop. */
+  private hosePaths: V3[][] = [];
+  loopPaths(): readonly (readonly V3[])[] { return this.hosePaths; }
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
@@ -341,6 +346,7 @@ export class Machine3D {
       // there they stay as they are (`keep`) and fade with the cooler.
       if (this.pump && this.rad) {
         const h = new LoopHoses(hoseEnds(this.rad.fit), this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator)));
+        this.hosePaths = h.paths();
         if (this.inRoom && this.cooler) this.cooler.add(h.body);
         else {
           this.hoses = h;
@@ -573,6 +579,25 @@ export class Machine3D {
     this.root.updateMatrixWorld(true);
     for (const o of this.caseRoots) if (o !== door && o.visible) box.union(new Box3().setFromObject(o));
     return box;
+  }
+
+  /**
+   * The boxes the air meets, in the machine's space (the airflow lens, air/plan.ts): the case's fixed bodies (the board, the basement, the drive cage, the
+   * memory bank) and each part that stands in the way (cooler, cards, sinks, radiator), by device id. The parts' are the boxes the cables go round.
+   */
+  airBodies(): AirBody[] {
+    const box = (r: RectLike, z0: number, z1: number) => ({ min: [r.x, -(r.y + r.h), z0] as V3, max: [r.x + r.w, -r.y, z1] as V3 });
+    const out: AirBody[] = [
+      { id: 'board', kind: 'board', ...box(BD, CASE_Z, BOARD_Z) },
+      { id: 'basement', kind: 'basement', ...box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT) },
+      { id: 'cage', kind: 'cage', ...cageBox(this.cage) },
+    ];
+    if (this.ram) out.push({ id: 'ram', kind: 'ram', ...box(this.ram, BOARD_Z, BOARD_Z + 380) });
+    for (const o of this.owned.values()) for (const ob of o.obstacles) {
+      const b = this.solids.get(ob);
+      if (b) out.push({ id: o.id, kind: o.kind, slot: o.slot, min: [...b.min] as V3, max: [...b.max] as V3 });
+    }
+    return out;
   }
 
   /** Run `draw` with the side panel taken off: the picture of an open machine, whatever the panel's kind (a steel one hides the inside, a glass one tints it). */
@@ -1189,13 +1214,18 @@ export class Machine3D {
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);
     const rgb = this.accent;
+    const turning = new Map<string, number>();
     for (const f of this.fans) {
       const want = live && (!f.needs || !!s?.cables.some((c) => c.id === f.needs && c.connected)) ? 1 : 0;
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
       if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed; }
+      const bank = f.needs ? this.bankOf(f.needs) : null;
+      if (bank) turning.set(bank, Math.max(turning.get(bank) ?? 0, f.speed));
     }
+    // the speeds the airflow lens blows by: the air moves as fast as the fans on the screen turn
+    for (const [bank, v] of turning) fanBank.setLevel(bank, v);
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
     this.spill.color.copy(rgb);
@@ -1209,6 +1239,15 @@ export class Machine3D {
       this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 1.5 : 0;
       this.leds.disk.emissiveIntensity = this.blink && performance.now() % 240 < 150 ? 1.6 : 0;
     }
+  }
+
+  /** The id a fan's speed goes by in `fanBank` (docs/render/air.md), from the cable it runs on, as the plan of the air names its banks. */
+  private bankOf(needs: string): string | null {
+    if (needs === 'cpufan') return 'cooler';
+    if (needs === 'vrmfan') return 'vrm';
+    if (needs === 'ramfan') return 'ramvrm';
+    const id = needs.startsWith('fan:') ? needs.slice(4) : '';
+    return id && fanMounts().some((m) => m.id === id) ? `${this.rad?.span.ids.includes(id) ? 'radiator' : 'case'}:${id}` : null;
   }
 
   private stripMode: StripMode = 'off';

@@ -8,7 +8,7 @@ import type { Snapshot } from '@/worker/protocol';
 export const FAN_MAX = 12;
 
 /** The speed that counts as "full" for the air a fan blows (a case fan idles near 2, a hot cooler reaches 10+). */
-const FAN_FULL_LEVEL = 7;
+export const FAN_FULL_LEVEL = 7;
 
 /** Whether the machine is running: on, not tripped, board not dead. No fan turns while it is not (the motors coast down). */
 export const machineLive = (s: Snapshot | null | undefined): boolean => !!s && s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
@@ -52,6 +52,8 @@ const speeds = new Map<string, number>();
 /** The speed each fan has right now, by id (`case:front0`, `cooler`, `radiator:top1`, `vrm`, `ramvrm`, `psu`, `gpu:pcie0`). Written by the views that own the fans. */
 export const fanBank = {
   set(id: string, speed: number) { speeds.set(id, speed); },
+  /** A fan that has only a share of full speed (the 3D machine's fans: 0 still, 1 at speed). */
+  setLevel(id: string, level: number) { speeds.set(id, Math.max(0, level) * FAN_FULL_LEVEL); },
   /** 0 for a fan nobody has published. */
   get(id: string): number { return speeds.get(id) ?? 0; },
   /** 0 (still) to 1 (full speed). */

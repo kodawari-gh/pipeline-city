@@ -1,25 +1,16 @@
-import { Container, Graphics, Text } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
-import { currentTextResolution } from '@/core/render/camera';
 import { COOLER, type Rect } from '@/features/board/render/layout/layout';
-import { MONO } from '@/core/render/ink';
-import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
-import { EdgeFan, radiatorSpan } from './props/case';
-import { CoolantFlow, radiatorFit, radiatorGrade, tubeRoutes } from '@/features/board/render/cooler';
-import { fanBank } from '@/core/render/fanmotor';
-import { blades } from '@/features/board/render/devices';
+import { mkLane, pointAt, roundedPath } from '@/features/board/render/wiring/routes';
+import { radiatorSpan } from './props/case';
+import { radiatorFit, radiatorGrade, tubeRoutes } from '@/features/board/render/cooler';
 import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
 import { AMBIENT_C, getSpec, type DeviceKind } from '@/features/board/sim/specs';
-import { AirField, type FieldPort } from './airfield';
-import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
-import type { Theme } from '@/core/render/theme';
 
-// (The case's air itself is `AirField` in airfield.ts: a flow field the particles ride; the lanes here say which fan is a source or a sink.)
-// The airflow lens: one switch that dims the room and shows how the case breathes. Air comes in at the front fans, crosses the board, picks up
-// the heat of every part it passes and leaves at the rear and top fans. Particles run along the lanes: faster with more fans, warmer where the
-// parts are hot. A dead fan, or a case that only takes in or only blows out, shows in red. The model is pure (`airflowModel`, tested);
-// `AirflowLens` only draws it. The lanes are drawn from the fans' cables and the temperatures; the field reads the sim's air of each area (`s.board.air`, board/sim/airflow.ts) for the zone each part sits in.
+// The airflow lens model: pure data, no drawing (the 3D air takes its words from it, `board/render/three/air/view.ts`). Air comes in at the front fans, crosses the
+// board, picks up the heat of every part it passes and leaves at the rear and top fans. One lane per fan; a dead fan, or a case that only takes in
+// or only blows out, is flagged. The lanes come from the fans' cables and the temperatures; the zones read the sim's air of each area (`s.board.air`,
+// board/sim/airflow.ts) for the zone each part sits in.
 
 export type Pt = [number, number];
 export type AirState = 'on' | 'idle' | 'dead';
@@ -40,7 +31,7 @@ export interface AirLane {
   fanIds: string[];
   /** A component's own fan (cooler, card, sink, PSU), not one of the case's. */
   local?: boolean;
-  /** How the fan acts in the case's air (`AirField`): `in` blows air in at `span`, `out` draws it out, `local` stirs it where it stands. */
+  /** How the fan acts in the case's air: `in` blows air in at `span`, `out` draws it out, `local` stirs it where it stands. */
   kind: 'in' | 'out' | 'local';
   /** Where its flow enters or leaves, and the fan's box (where particles are released or absorbed). */
   port: Pt; span: Rect;
@@ -64,7 +55,7 @@ export interface AirZone {
   /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
   flow?: number; riseC?: number;
 }
-/** A word on the lens. `tempC`: the temperature the tag shows, if it shows one: the view follows it and adds a small arrow when it climbs or falls (`TREND_C_PER_S`). */
+/** A word on the lens. `tempC`: the temperature the tag shows, if it shows one: the view follows it and adds a small arrow when it climbs or falls. */
 export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r'; tempC?: number }
 export interface AirModel {
   lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
@@ -105,8 +96,6 @@ const POOR_AIR = 0.7;
 const areaOf = (zoneId: string): AirZoneId | null => (zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : zoneOf(zoneId.split('.')[0] as DeviceKind));
 /** How far a component's own fan blows (world units) before its air joins the case's. */
 const LOCAL_REACH = 1900;
-/** How far the halo of a glow reaches at most (the silhouettes keep a margin of `SHAPE_PAD`, 280). */
-const HALO_MAX = 250;
 
 /** The first `max` world units of a path. */
 export function clipPath(pts: Pt[], max: number): Pt[] {
@@ -255,268 +244,4 @@ export function airflowModel(i: AirIn): AirModel {
   const grade = radiatorGrade(getSpec(s.devices.find((d) => d.kind === 'radiator')?.spec ?? '')?.visual ?? '');
   const loopTubes = span ? tubeRoutes(radiatorFit(span, px, grade), [px - 120, -520], [px + 120, -520]) : null;
   return { lanes, zones, tags, mounts, fanArt: localFans, loopTubes, box: i.glass };
-}
-
-// ---------------------------------------------------------------- drawing
-
-/** `fit`: how far (world x) a tag over [x0, x1] at this y must slide to be whole on the screen (the 3D lens sees its plane at an angle, so only the camera knows). */
-interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number; fit?: (x0: number, x1: number, y: number) => number }
-
-/** Particles a lane carries, by its length, and the cap over the whole view. */
-/** Segments of a stream particle's trail. */
-const TRAIL = 4;
-/** A temperature that moves faster than this (C per game second, smoothed) gets an arrow on its tag. */
-export const TREND_C_PER_S = 0.03;
-const SPACING = 330, MAX_PARTS = 40, MAX_EMBERS = 24, LIFE = 22;
-/** A stable pseudo-random number in 0..1 for a seed (so a particle keeps its own speed, offset and size). */
-const rnd = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
-/** World units per second the air travels. */
-export const airSpeed = (strength: number) => 700 + 1500 * strength;
-
-export class AirflowLens {
-  readonly root = new Container();
-  private dim = new Graphics();
-  /** The case fans seen edge-on (the same art as the live case, `EdgeFan`), redrawn above the dimming so they stay readable. */
-  private fanBox = new Container();
-  private fans: { id: string; f: EdgeFan; state: AirState; fanIds: string[] }[] = [];
-  private rotors: { fanId: string; g: Graphics }[] = [];
-  /** The water in the loop's tubes (only the lens shows it), driven by the pump's speed. */
-  private flow: CoolantFlow | null = null;
-  /** What each temperature tag did last: its value, when it changed (game seconds) and its smoothed slope, C per second. */
-  private trends = new Map<string, { v: number; t: number; slope: number }>();
-  /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
-  private runs = new Map<string, number>();
-  /** The air of the case: a flow field and the particles it carries. */
-  private field = new AirField();
-  private g = new Graphics();
-  private pills = new Graphics();
-  private labels = new Container();
-  private pool: Text[] = [];
-  private lanes = new Map<string, Lane>();
-  private t = 0;
-  model: AirModel | null = null;
-  private T!: Theme;
-
-  constructor() { this.root.addChild(this.dim, this.fanBox, this.g, this.pills, this.labels); this.root.visible = false; }
-
-  setTheme(T: Theme) { this.T = T; }
-
-  setModel(m: AirModel | null) {
-    this.model = m;
-    this.lanes.clear();
-    if (m) for (const l of m.lanes) this.lanes.set(l.id, mkLane(l.pts));
-    // the model is rebuilt with every snapshot: the fans' blades, the rotors and the water keep their motion across it, or they would jump back each time
-    const nth = new Map<string, number>(), key = (id: string) => { const n = nth.get(id) ?? 0; nth.set(id, n + 1); return `${id}#${n}`; };
-    const blade = new Map(this.fans.map((o) => [key(o.id), o.f.offset])), spun = new Map(this.rotors.map((o) => [o.fanId, o.g.rotation])), drops = this.flow?.phase ?? 0;
-    nth.clear();
-    for (const c of this.fanBox.removeChildren()) c.destroy({ children: true });
-    this.fans = []; this.rotors = []; this.flow = null;
-    if (!m) return;
-    const edge = (id: string, r: Rect) => { const f = new EdgeFan(r, this.T); f.offset = blade.get(key(id)) ?? 0; this.fanBox.addChild(f); return f; };
-    for (const mt of m.mounts) this.fans.push({ id: mt.id, f: edge(mt.id, mt.rect), state: mt.state, fanIds: mt.fanIds });
-    // the fans of the components: strips seen edge-on (a graphics card's), and round ones seen face on (a cooler's, a sink's, the PSU's)
-    for (const fa of m.fanArt) {
-      for (const r of fa.edge ?? []) this.fans.push({ id: fa.id, f: edge(fa.id, r), state: 'on', fanIds: [fa.id] });
-      if (fa.rotor) {
-        const { x, y, r, blades: n } = fa.rotor, T = this.T, rg = new Graphics();
-        rg.circle(0, 0, r * 1.14).fill({ color: T.sub, alpha: 0.9 }).stroke({ width: Math.max(4, r * 0.03), color: airColor(0), alpha: 0.7 });
-        blades(rg, n, Math.max(12, r * 0.16), r, T.tile, T.alu, Math.max(3, r * 0.02));
-        rg.circle(0, 0, Math.max(10, r * 0.12)).fill({ color: T.tile }).stroke({ width: Math.max(3, r * 0.02), color: T.alu });
-        rg.position.set(x, y);
-        rg.rotation = spun.get(fa.id) ?? 0;
-        this.fanBox.addChild(rg);
-        this.rotors.push({ fanId: fa.id, g: rg });
-      }
-    }
-    if (m.loopTubes) { this.flow = new CoolantFlow(m.loopTubes); this.flow.phase = drops; this.fanBox.addChild(this.flow); }
-  }
-
-  /** Where a part's silhouette comes from: its hover id to the `Shape` read from its art (`scene.shapes`); the glow falls back to the rect without one. */
-  shapeOf: ((id: string) => Shape | undefined) | null = null;
-  private rings = new WeakMap<Shape, Map<number, number[][] | null>>();
-
-  /** The polygons (flat x, y lists) `e` outside the silhouette (cached: a silhouette never changes), or null for a plain rect. */
-  private outlineOf(shape: Shape | undefined, e: number): number[][] | null {
-    if (!shape) return null;
-    let by = this.rings.get(shape);
-    if (!by) this.rings.set(shape, (by = new Map()));
-    if (!by.has(e)) by.set(e, shape.outline(Math.max(0.5, e))?.map((p) => p.flat()) ?? null);
-    return by.get(e) ?? null;
-  }
-
-  private fillAt(g: Graphics, shape: Shape | undefined, r: Rect, e: number, fill: { color: string; alpha: number }) {
-    const polys = this.outlineOf(shape, e);
-    if (polys) for (const p of polys) g.poly(p).fill(fill);
-    else g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(e + Math.min(r.w, r.h) * 0.12, (Math.min(r.w, r.h) + 2 * e) / 2)).fill(fill);
-  }
-
-  private trace(g: Graphics, shape: Shape | undefined, r: Rect, e: number, stroke: { width: number; color: string; alpha: number }) {
-    const polys = this.outlineOf(shape, e);
-    if (polys) for (const p of polys) g.poly(p).stroke({ ...stroke, join: 'round' });
-    else g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(r.w, r.h) * 0.12).stroke(stroke);
-  }
-
-  get visible() { return this.root.visible; }
-
-  /** 0 (still) to 1 (full speed): how hard a lane blows now, by the real speed of the fans that drive it. */
-  private level(l: AirLane): number {
-    if (l.state === 'dead') return 0;
-    if (!l.fanIds.length) return l.state === 'on' ? l.strength : 0;
-    return l.fanIds.reduce((a, id) => a + fanBank.level(id), 0) / l.fanIds.length;
-  }
-
-  /** `dt` in seconds of game time, so the air stops with the pause. */
-  frame(on: boolean, v: View, dt: number, now: number) {
-    this.root.visible = on && !!this.model;
-    if (!this.root.visible) return;
-    const m = this.model!, T = this.T, z = v.z, px = (n: number) => n / z;
-    this.t += dt;
-    const left = v.x - v.cx / z, top = v.y - v.cy / z, w = v.w / z, h = v.h / z, g = this.g;
-    this.dim.clear().rect(left, top, w, h).fill({ color: '#02040a', alpha: 0.78 });
-    g.clear();
-
-    // the glow of every warm part follows its own outline: soft rounded halos grow out of the part's rect (a stick of RAM glows long and thin,
-    // a VRM phase small and square), redder as it nears its limit, with a hot rim on the part itself
-    for (const zn of m.zones) {
-      const col = airColor(zn.heat), pulse = 1 + 0.08 * Math.sin(now / 420 + zn.rect.x * 0.01);
-      zn.rects.forEach((r, k) => {
-        const shape = this.shapeOf?.(zn.ids[k] ?? '');
-        if (zn.heat < 0.05) { // a cool part: just its outline, so every part that can heat up is on the map
-          this.trace(g, shape, r, 0, { width: px(1.2), color: col, alpha: 0.4 });
-          return;
-        }
-        // soft halos grown from the part's own outline, the outermost first, then the part's tint and a hot rim
-        const base = Math.min(r.w, r.h), pad = Math.max(45, Math.min(base * 0.45, 170)) * pulse;
-        for (let i = 5; i >= 1; i--) this.fillAt(g, shape, r, Math.min(HALO_MAX, pad * i * 0.7), { color: col, alpha: (0.035 + 0.05 * zn.heat) * (1 - (i - 1) * 0.12) });
-        this.fillAt(g, shape, r, 0, { color: col, alpha: 0.12 + 0.28 * zn.heat });
-        this.trace(g, shape, r, 0, { width: px(1.6), color: col, alpha: 0.35 + 0.5 * zn.heat });
-      });
-    }
-    // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame. The face-on rotors turn the same way.
-    for (const o of this.fans) {
-      const speed = o.state === 'dead' ? 0 : o.fanIds.reduce((a, id) => a + fanBank.get(id), 0) / Math.max(1, o.fanIds.length); // the real fan's speed, so it coasts like the real one
-      o.f.spin(speed * dt * 0.8, Math.min(1, speed / 5));
-    }
-    for (const o of this.rotors) o.g.rotation += fanBank.get(o.fanId) * dt;
-    this.flow?.spin(fanBank.get('cooler') * dt * 0.8);
-    for (const mt of m.mounts) {
-      const dead = mt.state === 'dead';
-      g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
-    }
-    // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
-    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l), ...(l.intakeHeat ? { warm: l.intakeHeat } : {}), ...(l.ring ? { ring: l.ring } : {}) }));
-    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flat: zn.flat, flow: zn.flow, riseC: zn.riseC })) });
-    for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
-    for (const p of this.field.parts) {
-      const fade = Math.min(1, p.age * 2, (LIFE - p.age) * 0.5), col = airColor(p.heat), lw = px(1.5 + 0.8 * (p.k - 0.75) * 2) + p.heat * px(0.8);
-      // the trail is the path the particle really took (it bends round the parts and with the flow), as long as its speed makes it, fading toward the tail
-      const pts = [...(p.trail ?? []), [p.x, p.y] as Pt], n = pts.length - 1;
-      for (let k = 0; k < n; k++) {
-        const a = pts[k]!, b = pts[k + 1]!;
-        g.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: lw * (0.5 + 0.5 * (k + 1) / n), color: col, alpha: 0.5 * fade * ((k + 1) / n), cap: 'round', join: 'round' });
-      }
-      g.circle(p.x, p.y, lw * 0.7).fill({ color: '#ffffff', alpha: 0.55 * fade });
-    }
-    // a stream of its own (the PSU's: in from below, through its shroud, out the rear): particles follow the lane, warmer after every part it passes
-    let budget = MAX_PARTS;
-    for (const l of m.lanes) {
-      if (!l.channel) continue;
-      const ln = this.lanes.get(l.id)!;
-      const lvl = this.level(l), faint = lvl < 0.03;
-      if (!faint) { this.path(g, l.pts); g.stroke({ width: px(2), color: airColor(0), alpha: 0.08, cap: 'round', join: 'round' }); }
-      if (faint || ln.len < 10) continue;
-      const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.15 + 0.85 * lvl) * 0.6)));
-      budget -= n;
-      // the air covers distance by the lane's fan speed: it ramps up and dies away with the fans (a coasting fan still blows a little)
-      this.runs.set(l.id, (this.runs.get(l.id) ?? 0) + airSpeed(lvl) * dt);
-      const run = this.runs.get(l.id)!, li = m.lanes.indexOf(l);
-      for (let k = 0; k < n; k++) {
-        // every particle has its own speed, a lane of its own across the stream and a size; its trail is the path it really took (the look of the case's air)
-        const r1 = rnd(k + li * 131), r2 = rnd(k + li * 131 + 7), r3 = rnd(k + li * 131 + 13);
-        const sp = 0.7 + 0.6 * r1;
-        const d = (k * ln.len) / n + run * sp;
-        const u = (((d % ln.len) + ln.len) % ln.len) / ln.len;
-        const heat = laneHeat(l, u);
-        const fade = Math.min(1, u * 8, (1 - u) * 8), col = airColor(heat), lw = px(1.5 + 0.8 * r3 * 2) + heat * px(0.8);
-        const off = (r2 - 0.5) * 2 * (60 + 70 * heat) + Math.sin(d / 500 + k * 2.3) * 14, step = (60 + 50 * sp) / TRAIL;
-        const pts: Pt[] = [];
-        for (let j = 0; j <= TRAIL; j++) pts.push(pointAt(ln, d - j * step));
-        const at = pts.map((p, j): Pt => {
-          const a = pts[Math.max(0, j - 1)]!, b = pts[Math.min(TRAIL, j + 1)]!, tx = a[0] - b[0], ty = a[1] - b[1], tl = Math.hypot(tx, ty) || 1;
-          return [p[0] - (ty / tl) * off, p[1] + (tx / tl) * off];
-        });
-        for (let j = 0; j < TRAIL; j++) {
-          const q = 1 - j / TRAIL; // the head is the first point: full, fading toward the tail
-          g.moveTo(at[j]![0], at[j]![1]).lineTo(at[j + 1]![0], at[j + 1]![1]).stroke({ width: lw * (0.5 + 0.5 * q), color: col, alpha: 0.5 * fade * q, cap: 'round', join: 'round' });
-        }
-        g.circle(at[0]![0], at[0]![1], lw * 0.7).fill({ color: '#ffffff', alpha: 0.55 * fade });
-      }
-    }
-    // embers: hot parts shed warm motes that rise, drift and fade
-    let eb = MAX_EMBERS;
-    for (const zn of m.zones) {
-      if (zn.heat < 0.12 || zn.id === 'psu') continue;
-      const n = Math.min(eb, Math.ceil(zn.heat * 14)); eb -= n;
-      const [zx, zy] = mid(zn.rect);
-      for (let k = 0; k < n; k++) {
-        const r1 = rnd(k * 3 + zx), r2 = rnd(k * 5 + zy), life = 2.2 + 2 * r1, ph = ((this.t / life + k / n + r2) % 1 + 1) % 1;
-        const x = zx + (r2 - 0.5) * zn.rect.w * 0.9 + Math.sin(this.t * 1.6 + k) * 90 * ph, y = zy - ph * (500 + 900 * zn.heat) + (r1 - 0.5) * zn.rect.h * 0.4;
-        g.circle(x, y, px(1.4 + 1.8 * r1) * (1 - ph * 0.5)).fill({ color: airColor(Math.min(1, zn.heat + 0.2)), alpha: 0.7 * Math.sin(Math.PI * ph) });
-      }
-    }
-    this.tags(m.tags, z, { left, top, w, h }, v.fit);
-  }
-
-  private path(g: Graphics, pts: Pt[]) {
-    g.moveTo(pts[0]![0], pts[0]![1]);
-    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
-  }
-
-  /** The words, a constant 13 px on screen whatever the zoom; Texts are pooled. */
-  /** 1 while a temperature climbs, -1 while it falls, 0 when it holds (the sim ticks once a second, so the slope is smoothed over the last few ticks). */
-  private trendOf(id: string, v: number): number {
-    const st = this.trends.get(id);
-    if (!st) { this.trends.set(id, { v, t: this.t, slope: 0 }); return 0; }
-    if (v !== st.v && this.t > st.t) {
-      st.slope = st.slope * 0.8 + ((v - st.v) / (this.t - st.t)) * 0.2;
-      st.v = v; st.t = this.t;
-    }
-    return st.slope > TREND_C_PER_S ? 1 : st.slope < -TREND_C_PER_S ? -1 : 0;
-  }
-
-  private tags(tags: AirTag[], z: number, view: { left: number; top: number; w: number; h: number }, fit?: View['fit']) {
-    const T = this.T, pad = 5 / z;
-    this.pills.clear();
-    // the tags keep their size on the screen, so how near they sit depends on the zoom: each one that would cover an earlier one moves up until it is clear
-    const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
-    tags.forEach((tag, i) => {
-      let t = this.pool[i];
-      if (!t) {
-        t = new Text({ text: '', style: { fontFamily: MONO, fontSize: 13, fontWeight: '700', fill: '#ffffff' }, resolution: currentTextResolution() });
-        this.pool[i] = t; this.labels.addChild(t);
-      }
-      if (t.text !== tag.text) t.text = tag.text;
-      t.style.fill = tag.tone === 'warn' ? T.bad : tag.tone === 'dim' ? T.mute : '#ffd9a0';
-      t.anchor.set(tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? 1 : 0.5, 0.5);
-      t.scale.set(1 / z);
-      t.visible = true;
-      const w = t.width, h = t.height, trend = tag.tempC === undefined ? 0 : this.trendOf(tag.id, tag.tempC), ax = trend ? 15 / z : 0;
-      // a tag stays whole on the screen: slid in from the edge it would run off
-      const full = w + 2 * pad + ax, from = tag.at[0] - (tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? w : w / 2) - pad;
-      const dx = fit ? fit(from, from + full, tag.at[1]) : Math.max(view.left - from, Math.min(0, view.left + view.w - (from + full)));
-      const x0 = from + pad + dx;
-      const box = (y: number) => ({ x0: x0 - pad, x1: x0 + w + pad + ax, y0: y - h / 2 - pad, y1: y + h / 2 + pad });
-      let y = tag.at[1];
-      for (let k = 0; k < 12 && placed.some((p) => p.x0 < box(y).x1 && p.x1 > box(y).x0 && p.y0 < box(y).y1 && p.y1 > box(y).y0); k++) y -= h + pad;
-      placed.push(box(y));
-      t.position.set(tag.at[0] + dx, y);
-      this.pills.roundRect(x0 - pad, y - h / 2 - pad * 0.4, w + 2 * pad + ax, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
-      if (trend) {
-        // a small triangle at the end of the pill: up and warm while it climbs, down and cool while it falls
-        const cx = x0 + w + pad + 3 / z, cy = y, r = 5 / z, up = trend > 0;
-        this.pills.poly(up ? [cx, cy - r, cx - r, cy + r * 0.8, cx + r, cy + r * 0.8] : [cx, cy + r, cx - r, cy - r * 0.8, cx + r, cy - r * 0.8]).fill({ color: up ? '#ff7a4a' : '#6fd8ff' });
-      }
-    });
-    for (let i = tags.length; i < this.pool.length; i++) this.pool[i]!.visible = false;
-  }
 }
