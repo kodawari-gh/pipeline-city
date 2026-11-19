@@ -202,13 +202,25 @@ export function installedPsu(board: Board): { dev: InstalledDevice; spec: PsuSpe
   return null;
 }
 
+/** What `install` checks besides the shape of the part. */
+export interface InstallOpts {
+  /**
+   * Hold the power rules (default true): a PSU needs the watts of what is installed, a part must not push the rated load past an installed PSU, and a card
+   * needs PCIe power leads. With false only the shape decides (the slot's type and size and its lanes, one radiator): a part that draws too much goes in, and
+   * the machine then behaves as it would: the supply browns out or trips (`ThermalModel`), a card with no lead does not start (`bootCheck`), `checkCompat` says so.
+   */
+  power?: boolean;
+}
+
 /**
  * Install a device. Needs a free slot of the spec's type (a given `slotId` must match and be free,
  * otherwise the first free one is used). A PSU needs a matching connector and enough watts for the
- * rated load of what is installed; any other device must not push the rated load past an installed PSU.
+ * rated load of what is installed; any other device must not push the rated load past an installed PSU
+ * (both only with `opts.power`, which is on by default).
  * Only one CPU/PSU/cooler/display per board falls out of the slot counts.
  */
-export function install(board: Board, specId: string, slotId?: string): Result<{ id: string; slot: string }> {
+export function install(board: Board, specId: string, slotId?: string, opts: InstallOpts = {}): Result<{ id: string; slot: string }> {
+  const power = opts.power !== false;
   const spec = getSpec(specId);
   if (!spec) return { ok: false, reason: `unknown device "${specId}"` };
   let slot: SlotInfo | undefined;
@@ -236,16 +248,16 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
     }
   }
   if (spec.kind === "radiator" && fittedRadiator(board)) return { ok: false, reason: "the loop already has a radiator: take it out first" };
-  if ((spec.kind === "gpu" || spec.kind === "npu") && cardLeads(spec) > 0) {
+  if (power && (spec.kind === "gpu" || spec.kind === "npu") && cardLeads(spec) > 0) {
     // The card draws more than the slot's share (PCIE_SLOT_W): it needs PCIe power leads, and the board needs a connector for them.
     if (board.tier < PCIE_POWER_MIN_TIER) return { ok: false, reason: `${spec.name} draws ${spec.loadW} W, more than a PCIe slot gives (${PCIE_SLOT_W} W), and this board has no PCIe power connector` };
     const need = pcieLeadsNeeded(board) + cardLeads(spec), psu = installedPsu(board);
     if (psu && psu.spec.pcieLeads < need) return { ok: false, reason: `${spec.name} brings the cards to ${need} PCIe power lead${need === 1 ? "" : "s"} but the PSU has ${psu.spec.pcieLeads}` };
   }
-  if (spec.kind === "psu") {
+  if (power && spec.kind === "psu") {
     const need = ratedLoadW(board);
     if (spec.watts < need) return { ok: false, reason: `${spec.name} gives ${spec.watts} W but installed parts need ${need} W` };
-  } else {
+  } else if (power) {
     const psu = installedPsu(board);
     if (psu) {
       const need = ratedLoadW(board, spec);

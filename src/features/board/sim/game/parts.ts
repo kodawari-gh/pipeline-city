@@ -99,6 +99,7 @@ export function install(this: Game, invId: string, slotId?: string): Result<{ de
   this.removeItem(item.id);
   if (r.replaced) {
     const old = r.replaced;
+    this.releaseOs(old);
     this.disks.delete(old.id);
     if (!old.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.spec });
   }
@@ -225,7 +226,8 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
   if (this.powered) return { ok: false, reason: "power the machine off first" };
   const dev = this.board.devices.find((d) => d.id === deviceId);
   if (!dev) return { ok: false, reason: `no installed device "${deviceId}"` };
-  if (this.os?.deviceId === deviceId) return { ok: false, reason: `the OS is installed on ${deviceSpec(dev).name}: uninstall the OS first` };
+  if (this.os?.deviceId === deviceId && !this.looseFit) return { ok: false, reason: `the OS is installed on ${deviceSpec(dev).name}: uninstall the OS first` };
+  this.releaseOs(dev);
   const r = boardUninstall(this.board, deviceId);
   if (!r.ok) return r;
   this.disks.delete(deviceId);
@@ -245,6 +247,31 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
   this.afterBoardChange();
   this.note("install", `${deviceSpec(dev).name} removed`);
   return { ok: true, invId };
+}
+
+/**
+ * Build my PC (`looseFit`): the drive that holds the OS leaves, so the OS goes back to the inventory with a wiped drive, and the socket it left is
+ * remembered (`keepOs` puts it back there). In any other game the drive is refused before this, and nothing happens.
+ */
+export function releaseOs(this: Game, dev: InstalledDevice): void {
+  if (!this.looseFit || this.os?.deviceId !== dev.id) return;
+  this.osSlot = dev.slot;
+  this.uninstallOs();
+}
+
+/**
+ * Build my PC (`looseFit`): the OS follows its drive. With no OS installed and one in the inventory, it goes on the drive in the socket it left, or on the
+ * first drive that can hold it; with no such drive it waits there. The stage calls it when a job ends (a part that is only in the way comes out and goes
+ * back, and the OS must land where it was). A game with no loose fit, a running machine or no OS item: nothing happens.
+ */
+export function keepOs(this: Game): void {
+  if (!this.looseFit || this.os || this.powered) return;
+  const item = this.inventory.find((i) => getOsSpec(i.spec));
+  const spec = item && getOsSpec(item.spec);
+  if (!item || !spec) return;
+  const drives = this.board.devices.filter((d) => deviceSpec(d).kind === "storage").sort((a, b) => Number(b.slot === this.osSlot) - Number(a.slot === this.osSlot));
+  const home = drives.find((d) => !this.osBlock(spec, d));
+  if (home) this.installOs(item, spec, home.slot);
 }
 
 /** Plug a cable in (needs its source part installed). Only while off. */
@@ -423,15 +450,15 @@ export function placeInto(this: Game, board: Board, specId: string, slotId?: str
     if (slot === undefined) {
       const slots = boardSlots(board);
       occupant = findDevices(board, spec.kind).find((d) => slotRefusal(slots.find((s) => s.id === d.slot)!, spec) === null);
-      if (!occupant) return boardInstall(board, specId); // fails with the board's own reason
+      if (!occupant) return boardInstall(board, specId, undefined, { power: !this.looseFit }); // fails with the board's own reason
       slot = occupant.slot;
     }
   }
-  if (occupant && occupant.id === this.os?.deviceId) return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
+  if (occupant && occupant.id === this.os?.deviceId && !this.looseFit) return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
   if (spec.kind === "cooler" && !findDevices(board, "cpu").length) return { ok: false, reason: "install the CPU first: the cooler mounts on it" };
   const backup = boardToJson(board);
   if (occupant) boardUninstall(board, occupant.id);
-  const r = boardInstall(board, specId, slot);
+  const r = boardInstall(board, specId, slot, { power: !this.looseFit });
   if (!r.ok) {
     const b = boardFromJson(backup);
     board.devices = b.devices;

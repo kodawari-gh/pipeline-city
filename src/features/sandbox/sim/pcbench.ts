@@ -17,6 +17,8 @@
 //
 // What cannot run says why (`benchIssue`, from the needs the almanac lists, and a card for the jobs a card does: without one they run on the CPU for
 // minutes). A machine that crashes during a run (a thermal error, a VRM droop) says so: the time includes the restarts, and after `CRASH_LIMIT` it stops.
+// A machine that does not start or stops says the cause (`stoppedBy`: the power button does nothing, the power-on check fails, the supply trips, a part burns out),
+// and one that runs slower than its parts allow says why (`TaskResult.slowed`: a supply too small, a part that ran hot): no silent low score.
 //
 // Cost. Every task boots its own copy (8 to 13 base ticks with an OS) and runs 20 to 1900 base ticks, about 0.3 ms each (a threaded job 0.5 ms): all 51 tasks
 // take about 6 s on the reference machine, a weaker machine up to 4 times longer. The run is sliced: it gives the event loop a turn every `SLICE_MS`, so the
@@ -25,7 +27,8 @@
 import { Game } from "@/worker/game/game";
 import { Prng } from "@/core/sim/prng";
 import { BLOCK_BYTES, STORAGE_REG } from "@/core/sim/memmap";
-import { deviceSpec } from "../../board/sim";
+import { deviceSpec, fullDrawW, installedPsu, type DeviceKind } from "../../board/sim";
+import { KIND_NAME } from "../../board/sim/buildalerts";
 import { Operator } from "../../economy/sim/operator";
 import { describeNeed, JOB_CLASSES, needsMet, type Need } from "../../economy/sim/levels";
 import { getOsSpec } from "../../os/sim";
@@ -225,7 +228,7 @@ async function runTask(game: Game, task: BenchTask, scale: number, pace: Pace, s
   const run = task.template === null ? storageRate(g) : await jobRate(g, task, scale, ref, pace, stop);
   if ("note" in run) return none(run.note);
   const crashed = g.errors > 0 ? faultOf(g) ?? "the machine crashed" : undefined;
-  return { id: task.id, score: ref ? Math.round((1000 * run.rate) / ref) : null, seconds: run.seconds, rate: run.rate, ...(ref ? {} : { note: "No reference rate for this task yet" }), ...(crashed ? { crashed } : {}) };
+  return { id: task.id, score: ref ? Math.round((1000 * run.rate) / ref) : null, seconds: run.seconds, rate: run.rate, ...(ref ? {} : { note: "No reference rate for this task yet" }), ...(crashed ? { crashed } : {}), ...(run.slowed ? { slowed: run.slowed } : {}) };
 }
 
 /** The first thing the copy logged as a fault since it was made, as a cause ("VRM voltage droop"). */
@@ -234,7 +237,49 @@ function faultOf(g: Game): string | null {
   return l ? l.text.replace(/: the machine crashed and rebooted$/, "") : null;
 }
 
-/** A copy of the build, powered and booted (OS up, and the link up for a network job). Never the live game. */
+/**
+ * What has stopped a copy for good, in the machine's own terms (the benchmark says the cause, not "it did not finish"): a supply that tripped, the board's
+ * regulators that burnt out, a start-up check that fails. Null while the machine can still run.
+ */
+function stoppedBy(g: Game): string | null {
+  if (g.thermal.power.tripped) return `The power supply tripped: the parts draw ${Math.round(fullDrawW(g.board))} W at full load and it gives ${installedPsu(g.board)?.spec.watts ?? 0} W`;
+  if (g.board.burnt) return "The board's voltage regulators burnt out: they ran too hot or too hard";
+  // (a CPU that burnt out in the run fails the power-on check as well, which says only "burnt out": the heat is the cause)
+  if (g.postError) return burntPart(g, "cpu") ?? `The machine does not start: ${g.postError.reason}`;
+  return null;
+}
+
+/** The first part that burnt out (a burnt card or drive does not stop the others: this is for a job that did not finish), as a cause. `kind`: only a part of that kind. */
+function burntPart(g: Game, kind?: DeviceKind): string | null {
+  const d = g.board.devices.find((x) => x.burnt && KIND_NAME[deviceSpec(x).kind] && (!kind || deviceSpec(x).kind === kind));
+  return d ? `The ${KIND_NAME[deviceSpec(d).kind]} burnt out: it ran too hot` : null;
+}
+
+/**
+ * What slows the machine right now below what its parts allow, and why: the supply too small for the load (every clock is cut to what it can carry), or the
+ * part that throttles from heat (the board's regulators too). Null at full speed. `Slow` keeps the worst of a run.
+ */
+function slowNow(g: Game): { speed: number; why: string } | null {
+  const th = g.thermal;
+  if (th.power.off) return null;
+  const found = [{ speed: th.power.psuFactor, why: `The power supply is too small (${Math.round(th.power.budgetW)} W for ${Math.round(fullDrawW(g.board))} W at full load)` }];
+  for (const d of g.board.devices) {
+    const name = KIND_NAME[deviceSpec(d).kind], st = th.state(d.id);
+    if (name && st) found.push({ speed: st.throttle, why: `The ${name} ran hot (${Math.round(st.tempC)} C)` });
+  }
+  found.push({ speed: th.vrm.throttle, why: `The board's voltage regulator ran hot (${Math.round(th.vrm.tempC)} C)` }, { speed: th.ramVrm.throttle, why: `The memory's regulator ran hot (${Math.round(th.ramVrm.tempC)} C)` });
+  const worst = found.reduce((a, b) => (b.speed < a.speed ? b : a));
+  return worst.speed < 0.995 ? worst : null;
+}
+
+/** The slowest the machine ran in a job and the cause, as the result says it ("The CPU ran hot (88 C): it ran at 80% of its speed"). */
+class Slow {
+  private worst: { speed: number; why: string } | null = null;
+  look(g: Game): void { const s = slowNow(g); if (s && (!this.worst || s.speed < this.worst.speed)) this.worst = s; }
+  get text(): string | undefined { return this.worst ? `${this.worst.why}: it ran at ${Math.round(this.worst.speed * 100)}% of its speed` : undefined; }
+}
+
+/** A copy of the build, powered and booted (OS up, and the link up for a network job). Never the live game. A copy that cannot come up says why. */
 async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): Promise<Game | { note: string }> {
   // (fromSave resets the power, the tray and the drives' in-flight commands; the copy starts cold, as a saved game does.)
   const s = game.toSave();
@@ -242,43 +287,47 @@ async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): 
   g.setJobClasses(JOB_CLASSES.map((c) => c.id)); // no arrivals: the job is the only key
   g.errors = 0; // (the save keeps the player's count and log: only what this copy does counts)
   g.log = [];
-  if (!g.powered) g.powerButton();
+  if (!g.powered) {
+    const pressed = g.powerButton();
+    if (!pressed.ok) return { note: `The machine does not switch on: ${pressed.reason.replace(/^no power: /, "")}` };
+  }
   const op = new Operator(g);
   const link = task.needs.some((n) => n.kind === "net");
   const ready = (): boolean => (!g.hasOs() || !!g.snapshot().os?.up) && (!link || g.linkUsable);
-  for (let t = 0; t < MAX_BOOT_TICKS && !ready() && g.errors < CRASH_LIMIT; t++) {
+  for (let t = 0; t < MAX_BOOT_TICKS && !ready() && g.errors < CRASH_LIMIT && !stoppedBy(g); t++) {
     if (stop.aborted) return { note: "stopped" };
     g.advanceBaseTick();
     op.step();
     if (pace.due()) await pace.turn();
   }
-  if (!ready()) return { note: g.errors > 0 ? `The machine crashed: ${faultOf(g) ?? "it would not stay up"}` : link ? "No network link (an OS and a linked router are needed)" : "The OS did not come up" };
+  if (!ready()) return { note: stoppedBy(g) ?? burntPart(g) ?? (g.errors > 0 ? `The machine crashed: ${faultOf(g) ?? "it would not stay up"}` : link ? "No network link (an OS and a linked router are needed)" : "The OS did not come up") };
   return g;
 }
 
 /** Work per second of the task's job on the booted copy, or a note when it could not run or finish. `ref` is the reference rate (undefined when there is none). */
-async function jobRate(g: Game, task: BenchTask, scale: number, ref: number | undefined, pace: Pace, stop: Stop): Promise<{ rate: number; seconds: number } | { note: string }> {
+async function jobRate(g: Game, task: BenchTask, scale: number, ref: number | undefined, pace: Pace, stop: Stop): Promise<{ rate: number; seconds: number; slowed?: string } | { note: string }> {
   const r = g.spawnKey(task.template!, scale);
   if (!r.ok) return { note: r.reason };
   const queued = g.snapshot().tray.find((k) => k.id === r.keyId);
   if (queued && !queued.runnable) return { note: `Needs ${listOf(queued.missing)}` };
   const work = g.tray.waiting().find((k) => k.id === r.keyId)?.work ?? 0;
   const limit = ref ? Math.min(MAX_JOB_TICKS, Math.max(MIN_JOB_TICKS, Math.ceil((LIMIT_FACTOR * work) / ref))) : MAX_JOB_TICKS;
-  const op = new Operator(g);
-  for (let t = 0; t < limit && g.lastCompleted?.id !== r.keyId && g.errors < CRASH_LIMIT; t++) {
+  const op = new Operator(g), slow = new Slow();
+  for (let t = 0; t < limit && g.lastCompleted?.id !== r.keyId && g.errors < CRASH_LIMIT && !stoppedBy(g); t++) {
     if (stop.aborted) return { note: "stopped" };
     g.advanceBaseTick();
     op.step();
+    slow.look(g);
     if (pace.due()) await pace.turn();
   }
   const done = g.lastCompleted;
-  if (!done || done.id !== r.keyId) return { note: g.errors >= CRASH_LIMIT ? `The machine kept crashing: ${faultOf(g) ?? "it would not stay up"}` : `The job did not finish in ${limit} s` };
+  if (!done || done.id !== r.keyId) return { note: stoppedBy(g) ?? burntPart(g) ?? (g.errors >= CRASH_LIMIT ? `The machine kept crashing: ${faultOf(g) ?? "it would not stay up"}` : `The job did not finish in ${limit} s`) };
   const seconds = Math.max(1, done.execTicks);
-  return { rate: work / seconds, seconds };
+  return { rate: work / seconds, seconds, slowed: slow.text };
 }
 
 /** Bytes per second of the storage plan on the OS drive (or the first drive), timed by the port's own clock. */
-function storageRate(g: Game): { rate: number; seconds: number } | { note: string } {
+function storageRate(g: Game): { rate: number; seconds: number; slowed?: string } | { note: string } {
   const port = g.osPort() ?? g.ports.find((p) => p.media !== null) ?? null;
   if (!port?.media) return { note: "No drive is attached" };
   const clock = g.machine.clock;

@@ -2,6 +2,7 @@
 // parts by kind, what a tile costs, and the one line that says what to do now.
 import type { Board } from '@/features/board/sim/board';
 import { bootCheck, type Cables } from '@/features/board/sim/cables';
+import type { Alert } from '@/features/board/sim/buildalerts';
 import type { BuildPreset, Shown, SpecSheet } from '@/features/board/sim/buildspecs';
 import { getSpec } from '@/features/board/sim/specs';
 
@@ -23,9 +24,30 @@ export function readiness(board: Board, cables: Cables, shown: Shown = 'machine'
   return { ok: true, line: 'Ready to start' };
 }
 
+// (what is wrong with the machine, as a list, is the sim's: `sim/buildalerts.ts`, worked out once per change by the stage: `BuildStage.alerts`)
+export type { Alert, AlertLevel } from '@/features/board/sim/buildalerts';
+
 export type Tone = 'none' | 'ok' | 'warn' | 'bad';
 
-/** The power meter: how full the supply is at full load (in percent, held at 100 for the bar), and the colour that says so. */
+/** The pill at the top: the machine's state at a glance, in one colour and a few words. `alerts` are the list the panel shows. */
+export interface Pill { tone: 'ok' | 'warn' | 'bad'; label: string; title: string; alerts: readonly Alert[] }
+
+/**
+ * What the summary's pill says of `alerts` (`BuildStage.alerts`). Green: it starts and nothing is overloaded. Amber: a part is missing, or it runs badly. Red:
+ * something breaks. One problem gives its own words, several give their count. With a bare case or an empty stage the pill says what is missing.
+ */
+export function pillOf(alerts: readonly Alert[], shown: Shown = 'machine'): Pill {
+  if (shown !== 'machine') {
+    const line = shown === 'nothing' ? 'No case' : 'No motherboard';
+    return { tone: 'warn', label: line, title: `${line}: there is no machine to start yet.`, alerts: [] };
+  }
+  if (!alerts.length) return { tone: 'ok', label: 'Ready to start', title: 'Every part the power-on test needs is fitted, and nothing is overloaded.', alerts };
+  const tone = alerts.some((a) => a.level === 'bad') ? 'bad' : 'warn';
+  const one = alerts.length === 1;
+  return { tone, label: one ? alerts[0]!.title : `${alerts.length} ${tone === 'bad' ? 'problems' : 'warnings'}`, title: one ? alerts[0]!.text : alerts.map((a) => `${a.title}: ${a.text}`).join('\n'), alerts };
+}
+
+/** The power meter: how full the supply is at full load (in percent, held at 100 for the bar), and the colour that says so: red from the first watt over (the machine slows down). */
 export function powerMeter(sheet: Pick<SpecSheet, 'headroom'>): { pct: number; tone: Tone } {
   const h = sheet.headroom;
   if (h === null) return { pct: 0, tone: 'none' };

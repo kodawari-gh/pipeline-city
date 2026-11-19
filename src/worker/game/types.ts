@@ -34,6 +34,12 @@ export interface GameOptions {
    * "Assembled machine" asks for it; tests that rely on the starter machine do not.
    */
   maxed?: boolean;
+  /**
+   * Build my PC's own game (with `sandbox`): a part goes in whenever its shape fits. A PSU too small for the parts, a card with no PCIe lead and the drive that
+   * holds the OS are not refused: the machine runs as it would (the supply browns out or trips, the card does not start, the OS moves to another drive), and
+   * `checkCompat` says so. Not saved: the stage makes its own games.
+   */
+  looseFit?: boolean;
   /** Start at this player level with the client base at its threshold (tests and bots; campaign only, 1 to 18). */
   startLevel?: number;
 }

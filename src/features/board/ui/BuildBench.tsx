@@ -134,8 +134,8 @@ function Row({ task, why, ready, result, was, live, checked, locked, onCheck, on
         <span class="bench-wait" role="status"><i aria-hidden="true" />Running…</span>
       ) : result?.score ? (
         <span class="bench-out">
-          <span class="bench-time" title={result.crashed ? `The machine crashed (${result.crashed}) and restarted: the time includes it` : 'Simulated time the job took'}>
-            {result.crashed && <Icon name="warn" size={11} />}{secondsText(result.seconds ?? 0)}
+          <span class="bench-time" title={result.crashed ? `The machine crashed (${result.crashed}) and restarted: the time includes it` : result.slowed ? `${result.slowed}. The time includes it.` : 'Simulated time the job took'}>
+            {(result.crashed || result.slowed) && <Icon name="warn" size={11} />}{secondsText(result.seconds ?? 0)}
           </span>
           <span class="bench-meter" role="img" aria-label={`Score ${result.score} of a par of 1000`}><i style={{ width: `${barPct(result.score)}%` }} /></span>
           <b class="bench-score">{result.score}</b>

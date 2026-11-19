@@ -11,6 +11,7 @@ import { kindIcon, kindLabel, splitName } from '@/features/economy/ui/shop/shopd
 import { deltaText, overallOfRuns } from './benchhud';
 import { countNames, groupByKind, OPEN_UP_TO, plural, priceOf } from './buildhud';
 import type { Source } from './builddrag';
+import { BuildAlerts } from './BuildAlerts';
 import { BuildStart } from './BuildStart';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -44,8 +45,9 @@ function BenchFoot({ stage, busy, onOpen }: { stage: Stage; busy: boolean; onOpe
 
 /**
  * The right panel: what is in the machine, by kind with its price (a group of more than three folds to one line), the way to start again (the
- * "Start from" button opens `BuildStart`; an empty machine shows it at once), and the benchmark at the foot. A row outlines its part on the stage while
- * the pointer is on it, a click picks the part, and a drag takes it out (drop it on the shelf), as the part itself does on the stage.
+ * "Start from" button opens `BuildStart`; an empty machine shows it at once), what is wrong with it (`BuildAlerts`, at the top, and a mark on the row of
+ * each part it is about), and the benchmark at the foot. A row outlines its part on the stage while the pointer is on it, a click picks the part, and a
+ * drag takes it out (drop it on the shelf), as the part itself does on the stage.
  */
 export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, selected, onBench, onShelf, onStart }: {
   stage: Stage | null;
@@ -72,6 +74,12 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const shown = stage?.shown.value ?? 'machine', bare = shown !== 'machine', none = shown === 'nothing';
   const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec), shown }) : null;
   const off = busy || !stage;
+  // what is wrong with the machine (a part it is about is marked in its row; the list is at the top)
+  const alerts = stage ? stage.alerts : [];
+  const flagOf = (id: string): { level: 'bad' | 'warn'; text: string } | null => {
+    const own = alerts.filter((a) => a.part === id);
+    return own.length ? { level: own.some((a) => a.level === 'bad') ? 'bad' : 'warn', text: own.map((a) => a.text).join(' ') } : null;
+  };
   const list = useRef<HTMLUListElement>(null);
   // the starting points: the player's click decides; until then they show for an empty machine and are folded away for one with parts
   const [startOpen, setStartOpen] = useState<boolean | null>(null);
@@ -109,6 +117,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
         </button>
       </header>
       {showStart && <BuildStart stage={stage} saved={saved} setSaved={setSaved} off={off} hasParts={devices.length > 0} done={(line) => { setStartOpen(null); onStart(line); }} />}
+      <BuildAlerts stage={stage} alerts={alerts} />
       <ul class="bld-list" ref={list} aria-label="Parts in the machine">
         {snap && (
           <>
@@ -149,12 +158,16 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
           const sub = items.reduce((sum, d) => sum + (priceOf(d.spec) ?? 0), 0);
           const open = !(folded[kind] ?? items.length > OPEN_UP_TO);
           const flip = () => setFolded((f) => ({ ...f, [kind]: open }));
+          // (a folded group hides its rows: its heading carries the worst mark of its parts)
+          const flags = items.map((d) => flagOf(d.id)).filter((f) => !!f);
+          const worst = flags.length ? (flags.some((f) => f!.level === 'bad') ? 'bad' : 'warn') : null;
           return (
             <Fragment key={kind}>
               <li class="bld-grp">
                 <button aria-expanded={open} title={open ? 'Fold this group' : 'Show these parts'} onClick={flip}>
                   <span class="bld-gk"><Icon name={kindIcon(kind)} size={11} />{kindLabel(kind)}</span>
                   {items.length > 1 && <em class="bld-gn">×{items.length}</em>}
+                  {!open && worst && <span class={`bld-flag ${worst}`} aria-label="A part here has a problem"><Icon name="warn" size={11} /></span>}
                   {sub > 0 && <span class="bld-gp">{money(sub)}</span>}
                   <i class="bld-chev" aria-hidden="true" />
                 </button>
@@ -163,10 +176,11 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
                 const price = priceOf(d.spec), { title, detail } = splitName(name(d.spec));
                 // (a part alone in its group has its price in the heading and no use for its socket's name)
                 const where = items.length > 1 ? d.slot : '';
+                const flag = flagOf(d.id);
                 return (
                   <li
                     key={d.id}
-                    class={`bld-part ${selected === d.id ? 'on' : ''}`}
+                    class={`bld-part ${selected === d.id ? 'on' : ''} ${flag ? `flagged ${flag.level}` : ''}`}
                     data-dev={d.id}
                     onPointerEnter={() => stage?.glow(d.id)}
                     onPointerLeave={() => stage?.glow(null)}
@@ -174,6 +188,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
                   >
                     <span class="bld-thumb"><PartArt id={d.spec} size={32} /></span>
                     <span class="bld-row"><span class="bld-name" title={`${name(d.spec)} (${d.slot})`}>{title}</span><em>{[detail, where].filter(Boolean).join(' · ')}</em></span>
+                    {flag && <span class={`bld-flag ${flag.level}`} title={flag.text} aria-label={flag.text}><Icon name="warn" size={12} /></span>}
                     {items.length > 1 && price !== null && <span class="bld-cost">{money(price)}</span>}
                     <button class="bld-out" disabled={busy} aria-label={`Take out ${name(d.spec)}`} title={`Take it out, with everything in its way: ${stage?.plan(devNode(d.id)).length ?? 0} steps`}
                       onPointerDown={(e) => e.stopPropagation()} onClick={() => stage?.remove(devNode(d.id))}><Icon name="eject" size={11} /></button>

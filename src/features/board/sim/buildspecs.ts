@@ -37,9 +37,10 @@ export type Shown = 'machine' | 'case' | 'nothing';
 
 /**
  * The sheet of a machine: its board and case tier and its fitted part specs (a part with no spec is skipped). `shown`: a bare case counts its case and no board;
- * with nothing on the stage there is no case to count either.
+ * with nothing on the stage there is no case to count either. `drawW`: the full-load draw the machine itself works out (`fullDrawW`: it counts what the
+ * regulators waste, which the parts' own watts do not); the sheet sums the parts' watts when it is not given.
  */
-export function specSheet(m: { boardTier: number; caseTier: number; specs: readonly string[]; shown?: Shown }): SpecSheet {
+export function specSheet(m: { boardTier: number; caseTier: number; specs: readonly string[]; shown?: Shown; drawW?: number }): SpecSheet {
   const shown = m.shown ?? 'machine';
   let budget = shown === 'machine' ? BOARD_TIERS[m.boardTier]?.price ?? 0 : 0, idleW = 0, loadW = 0, psuW = 0, parts = shown === 'machine' ? 1 : 0;
   if (shown !== 'nothing') { budget += CASE_TIERS[m.caseTier]?.price ?? 0; parts += 1; }
@@ -52,7 +53,6 @@ export function specSheet(m: { boardTier: number; caseTier: number; specs: reado
     loadW += s.loadW;
     if (s.kind === 'psu') psuW = Math.max(psuW, s.watts);
   }
-  idleW = Math.round(idleW);
-  loadW = Math.round(loadW);
-  return { parts, budget, idleW, loadW, psuW, headroom: psuW > 0 ? loadW / psuW : null };
+  if (m.drawW !== undefined) loadW = m.drawW;
+  return { parts, budget, idleW: Math.round(idleW), loadW: Math.round(loadW), psuW, headroom: psuW > 0 ? loadW / psuW : null };
 }

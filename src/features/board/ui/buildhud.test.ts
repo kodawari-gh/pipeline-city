@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { deviceSpec } from '@/features/board/sim/board';
-import { BUILD_PRESETS } from '@/features/board/sim/buildspecs';
-import { countNames, freeName, groupByKind, hintLine, pips, plural, powerMeter, presetBits, priceOf, readiness, type HintState } from './buildhud';
+import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
+import { countNames, freeName, groupByKind, hintLine, pillOf, pips, plural, powerMeter, presetBits, priceOf, readiness, type Alert, type HintState } from './buildhud';
 
 const full = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
@@ -36,12 +36,45 @@ describe('readiness', () => {
   });
 });
 
+describe('the pill', () => {
+  const alert = (id: string, level: 'bad' | 'warn', title: string): Alert => ({ id, level, title, text: `${title}: the whole sentence.`, part: null });
+
+  it('is green when there is nothing to say', () => {
+    expect(pillOf([])).toMatchObject({ tone: 'ok', label: 'Ready to start', alerts: [] });
+  });
+
+  it('gives one problem its own words, in the colour of its level: amber when the machine runs badly or lacks a part, red when it breaks', () => {
+    expect(pillOf([alert('boot', 'warn', 'No CPU installed')])).toMatchObject({ tone: 'warn', label: 'No CPU installed', title: 'No CPU installed: the whole sentence.' });
+    expect(pillOf([alert('psu-trip', 'bad', 'Supply trips')])).toMatchObject({ tone: 'bad', label: 'Supply trips' });
+  });
+
+  it('counts several, and is red when any of them breaks', () => {
+    expect(pillOf([alert('a', 'warn', 'A'), alert('b', 'warn', 'B')])).toMatchObject({ tone: 'warn', label: '2 warnings' });
+    const two = pillOf([alert('a', 'bad', 'A'), alert('b', 'warn', 'B')]);
+    expect(two).toMatchObject({ tone: 'bad', label: '2 problems' });
+    expect(two.title).toBe('A: A: the whole sentence.\nB: B: the whole sentence.');
+  });
+
+  it('says what is missing for a bare case or an empty stage, whatever the list holds (there is no machine to judge)', () => {
+    expect(pillOf([], 'case')).toMatchObject({ tone: 'warn', label: 'No motherboard', alerts: [] });
+    expect(pillOf([alert('a', 'bad', 'A')], 'nothing')).toMatchObject({ tone: 'warn', label: 'No case', alerts: [] });
+  });
+});
+
 describe('powerMeter', () => {
   it('is empty with no supply', () => expect(powerMeter({ headroom: null })).toEqual({ pct: 0, tone: 'none' }));
   it('goes from ok through warn to bad as the load nears and passes the supply', () => {
     expect(powerMeter({ headroom: 0.4 })).toEqual({ pct: 40, tone: 'ok' });
     expect(powerMeter({ headroom: 0.9 })).toEqual({ pct: 90, tone: 'warn' });
     expect(powerMeter({ headroom: 1.3 })).toEqual({ pct: 100, tone: 'bad' });
+  });
+  it('is red from the first watt over the supply, and a sheet that is given the machine\'s own draw (what the regulators waste too) says so', () => {
+    expect(powerMeter({ headroom: 1.01 })).toEqual({ pct: 100, tone: 'bad' });
+    const parts = { boardTier: 0, caseTier: 0, specs: ['psu0', 'cpu0'] };
+    const listed = specSheet(parts), drawn = specSheet({ ...parts, drawW: listed.psuW + 1 });
+    expect(drawn.loadW).toBe(listed.psuW + 1);
+    expect(powerMeter(drawn).tone).toBe('bad');
+    expect(powerMeter(listed).tone).not.toBe('bad');
   });
 });
 

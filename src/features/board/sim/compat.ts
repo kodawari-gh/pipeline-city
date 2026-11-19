@@ -1,21 +1,22 @@
 // Compatibility checks: does this build work together? Pure and static (no ticks): they read the board as it is and say what will go wrong.
 // Two users: tests (a rig that overloads its own parts fails with a clear message, not a timeout) and, later, the player (warnings and tips in the UI:
 // every issue has an id, a severity, the part it is about and a plain message). `install` still refuses what cannot be fitted at all; these are for what fits but runs badly.
-//   error  it breaks: a part burns, a part has no power, the machine cannot run
+// Build my PC (`Game.looseFit`) also fits a part the power rules would refuse (a supply too small, a card with no lead): Build my PC's panel shows these issues (`buildAlerts`).
+//   error  it breaks: a part burns, a part has no power, the supply trips, the machine cannot run
 //   warn   it runs badly: crashes, throttling, heat
 //   tip    it works, but there is something better to do
 
 import { AMBIENT_C, basicFan, BOARD_TIERS, CASE_TIERS, fanShare } from "./specs";
 import type { CoolerSpec, CpuSpec, RadiatorSpec, RamSpec } from "./specs";
 import { deviceSpec, fanAir, fansOn, findDevices, fittedRadiator, installedPsu, mountFan, pcieLeadsNeeded, ratedLoadW, type Board } from "./board";
-import { clockPowerW, UNFANNED_SHARE } from "./thermal";
+import { clockPowerW, TRIP_RATIO, UNFANNED_SHARE } from "./thermal";
 import { SMT_LOAD_SHARE } from "@/core/sim/memmap";
-import { currentDemand, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_OVERLOAD } from "./vrm";
+import { currentDemand, efficiency, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_OVERLOAD } from "./vrm";
 
 export type CompatSeverity = "error" | "warn" | "tip";
 
 export interface CompatIssue {
-  /** Stable id, for the UI to pick its wording or an icon (`vrm-overload`, `psu-budget`...). */
+  /** Stable id, for the UI to pick its wording or an icon (`vrm-overload`, `psu-brownout`...). */
   id: string;
   severity: CompatSeverity;
   /** The device id the issue is about; null for the board or the machine as a whole. */
@@ -34,12 +35,17 @@ const fmt = (n: number, d = 2) => n.toFixed(d);
 /** The load a CPU draws with every thread busy: 1 for one thread per core, a little more with SMT (the machine's `busyCores` counts the same way). */
 export const cpuFullLoad = (spec: CpuSpec): number => 1 + SMT_LOAD_SHARE * ((spec.threads ?? 1) - 1);
 
+/** A CPU's current demand over the rating of a board tier's VRM at a clock ratio `r` (1 is its base clock), every thread busy and the chip cool. */
+export function vrmRatioOf(boardTier: number, spec: CpuSpec, r = 1): number {
+  return loadRatio(BOARD_TIERS[boardTier]!.vrm, currentDemand(clockPowerW(spec, r, cpuFullLoad(spec)), r));
+}
+
 /** The CPU's current demand over its VRM's rating at a clock, every thread busy and the chip cool (what the VRM sees at the worst moment of a job). */
 export function cpuVrmRatio(board: Board, cpuId: string, clock?: number): number {
   const d = board.devices.find((x) => x.id === cpuId);
   if (!d) return 0;
-  const spec = deviceSpec(d) as CpuSpec, r = (clock ?? d.clock ?? spec.clock.base) / spec.clock.base;
-  return loadRatio(BOARD_TIERS[board.tier]!.vrm, currentDemand(clockPowerW(spec, r, cpuFullLoad(spec)), r));
+  const spec = deviceSpec(d) as CpuSpec;
+  return vrmRatioOf(board.tier, spec, (clock ?? d.clock ?? spec.clock.base) / spec.clock.base);
 }
 
 /** The memory regulator's load for every stick at its clock, flat out. */
@@ -49,6 +55,26 @@ export function ramVrmRatio(board: Board): number {
   let w = 0, rs = 0;
   for (const d of sticks) { const s = deviceSpec(d) as RamSpec, r = (d.clock ?? s.clock!.base) / s.clock!.base; w += clockPowerW(s, r, 1); rs += r; }
   return loadRatio(BOARD_TIERS[board.tier]!.ramVrm, ramDemand(w, rs / sticks.length));
+}
+
+/**
+ * What the machine draws flat out, W: every part at its rated load, the CPU at its clock with every thread busy, and what the two regulators waste on top.
+ * It is the sum `ThermalModel.step` holds against the supply (a draw over the rating slows every clock by rating / draw; over `TRIP_RATIO` times it trips).
+ */
+export function fullDrawW(board: Board): number {
+  let w = ratedLoadW(board);
+  const cpu = findDevices(board, "cpu").find((d) => !d.burnt);
+  if (cpu) {
+    const s = deviceSpec(cpu) as CpuSpec, r = (cpu.clock ?? s.clock.base) / s.clock.base, p = clockPowerW(s, r, cpuFullLoad(s));
+    w += p - s.loadW + lossW(p, efficiency(BOARD_TIERS[board.tier]!.vrm, cpuVrmRatio(board, cpu.id)));
+  }
+  const sticks = findDevices(board, "ram").filter((d) => !d.burnt);
+  if (sticks.length) {
+    let rw = 0;
+    for (const d of sticks) { const s = deviceSpec(d) as RamSpec; rw += clockPowerW(s, (d.clock ?? s.clock!.base) / s.clock!.base, 1); }
+    w += lossW(rw, efficiency(BOARD_TIERS[board.tier]!.ramVrm, ramVrmRatio(board)));
+  }
+  return w;
 }
 
 /** The highest CPU clock (steps of 0.05) at which the CPU's VRM is not overloaded, or null if even the lowest clock is. */
@@ -99,11 +125,13 @@ export function checkCompat(board: Board): CompatIssue[] {
   const psu = installedPsu(board);
   if (!psu) add({ id: "psu-missing", severity: "error", part: null, message: "There is no power supply: the machine cannot start." });
   else {
-    const need = ratedLoadW(board);
-    if (need > psu.spec.watts) add({ id: "psu-budget", severity: "error", part: psu.dev.id, value: need, limit: psu.spec.watts, message: `The parts need ${fmt(need, 0)} W but the power supply gives ${psu.spec.watts} W: it will trip.` });
-    else if (need > psu.spec.watts * 0.9) add({ id: "psu-headroom", severity: "tip", part: psu.dev.id, value: need, limit: psu.spec.watts, message: `The parts use ${fmt((need / psu.spec.watts) * 100, 0)}% of the power supply: an overclock or a hot part can push it over.` });
-    const leads = pcieLeadsNeeded(board);
-    if (leads > psu.spec.pcieLeads) add({ id: "pcie-leads", severity: "error", part: psu.dev.id, value: leads, limit: psu.spec.pcieLeads, message: `The cards need ${leads} PCIe power lead${leads === 1 ? "" : "s"} but the power supply has ${psu.spec.pcieLeads}.` });
+    // (what `ThermalModel.step` does: a draw over the rating slows every clock by rating / draw, a draw over TRIP_RATIO times the rating trips the supply)
+    const need = fullDrawW(board), watts = psu.spec.watts;
+    if (need > watts * TRIP_RATIO) add({ id: "psu-trip", severity: "error", part: psu.dev.id, value: need, limit: watts * TRIP_RATIO, message: `The parts draw ${fmt(need, 0)} W at full load. The power supply gives ${watts} W. It trips and the machine shuts off.` });
+    else if (need > watts) add({ id: "psu-brownout", severity: "warn", part: psu.dev.id, value: need, limit: watts, message: `The parts draw ${fmt(need, 0)} W at full load. The power supply gives ${watts} W. The voltage sags and the machine runs at ${fmt((watts / need) * 100, 0)}% of its speed.` });
+    else if (need > watts * 0.9) add({ id: "psu-headroom", severity: "tip", part: psu.dev.id, value: need, limit: watts, message: `The parts use ${fmt((need / watts) * 100, 0)}% of the power supply: an overclock or a hot part can push it over.` });
+    const leads = pcieLeadsNeeded(board), have = psu.spec.pcieLeads;
+    if (leads > have) add({ id: "pcie-leads", severity: "error", part: psu.dev.id, value: leads, limit: have, message: `The cards need ${leads} PCIe power lead${leads === 1 ? "" : "s"}. The power supply has ${have === 0 ? "none" : have}. A card with no power does not start, and the machine stops at start-up.` });
   }
 
   const cooler = findDevices(board, "cooler").find((d) => !d.burnt), rad = fittedRadiator(board);

@@ -1284,6 +1284,9 @@ export class Machine3D {
   /** Is the side panel open (or opening)? */
   get doorOpen(): boolean { const d = this.door; return !!d && (d.inside || (d.manual ?? d.zoomOpen)); }
 
+  /** How far the side panel has really swung (0 shut, 1 open), as drawn: null when the case has no panel. A step waits for this, not for a clock (`BuildStage.door`). */
+  get doorT(): number | null { return this.door ? this.door.t : null; }
+
   /**
    * Move the side panel toward open or shut at its kind's pace and set its pose (`doorPose`). The zoom opens it from the board view in and shuts
    * it again past a dead band under that, and a new crossing forgets the player's last click. Rays reach the plate that opens it only while it is shut.

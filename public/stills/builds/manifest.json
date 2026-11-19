@@ -2,15 +2,15 @@
  "w": 320,
  "h": 240,
  "stills": {
-  "budget": "433d408b",
-  "full": "41c2775b",
-  "gaming": "199792fd",
-  "workstation": "343654db"
+  "budget": "f3e2f048",
+  "full": "4840213d",
+  "gaming": "ceeafa2b",
+  "workstation": "df78cacc"
  },
  "recipes": {
-  "budget": "755dd08b",
+  "budget": "a7e53c4d",
   "full": "b6fbb4f2",
-  "gaming": "8bf0c7ae",
-  "workstation": "78ff5ec4"
+  "gaming": "e920ab6d",
+  "workstation": "f7a0dc45"
  }
 }

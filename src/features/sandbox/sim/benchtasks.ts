@@ -45,6 +45,8 @@ export interface TaskResult {
   note?: string;
   /** The machine crashed during the run (the first cause, as the game logs it): the time includes the restarts. */
   crashed?: string;
+  /** The machine ran slower than its parts allow while it worked, and why (a supply too small, a part that ran hot): the time includes it. */
+  slowed?: string;
 }
 
 /** Geometric mean of the scores that are not null; 0 when none is. */

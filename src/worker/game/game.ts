@@ -110,6 +110,10 @@ export class Game {
   powered = false;
   /** Sandbox game: free purchases, the sandbox tools work. */
   readonly sandbox: boolean;
+  /** Build my PC's game: only the shape of a part decides whether it fits (`GameOptions.looseFit`). */
+  readonly looseFit: boolean;
+  /** `looseFit` only: the socket the OS's drive was in when it left, where `keepOs` puts the OS back. Not saved. */
+  osSlot: string | null = null;
 
   inventory: InvItem[] = [];
   nextInvId = 1;
@@ -215,6 +219,7 @@ export class Game {
     this.contractRng = newContractRng(this.seed);
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.sandbox = !!opts.sandbox;
+    this.looseFit = this.sandbox && !!opts.looseFit;
     if (this.sandbox) { this.cables.pcmains = true; this.cables.monmains = true; } // a sandbox machine is plugged into the wall from the start
     const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
     this.lvl = this.sandbox ? 1 : start;

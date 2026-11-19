@@ -1358,7 +1358,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-read { top: 1rem; left: calc(var(--bld-l) + 1rem); right: var(--bld-u); margin: 0 auto; width: max-content; max-width: calc(100% - var(--bld-l) - var(--bld-u) - 1rem); flex-wrap: nowrap; gap: 0.9rem; padding: 0.35rem 0.4rem 0.35rem 0.45rem; }
 .bld-ready { display: inline-flex; align-items: center; gap: 0.4rem; max-width: 15rem; padding: 0.4rem 0.85rem 0.4rem 0.6rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bld-ready.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent); }
-.bld-ready.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 38%, transparent); }
+/* (amber: a part is missing or it runs badly; red: something breaks, the supply trips or a card has no power) */
+.bld-ready.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 38%, transparent); }
+.bld-ready.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 45%, transparent); }
 .bld-fig { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; line-height: 1.1; }
 .bld-fig b { font: 700 var(--m-md) var(--mono); letter-spacing: -0.01em; white-space: nowrap; }
 .bld-fig em { font: normal 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
@@ -1370,6 +1372,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-power.bad .bld-meter i { background: var(--bad); }
 .bld-power.warn b { color: var(--warn); }
 .bld-power.bad b { color: var(--bad); }
+.bld-power.bad em { color: var(--bad); }
 .mode .bld-read .bld-bench-btn { padding: 0.45rem 0.9rem; font-weight: 650; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .mode .bld-read .bld-bench-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
 .bld-bench-btn b { font-family: var(--mono); }
@@ -1422,6 +1425,28 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* the bar of a score (the Gallery's stats use it too) */
 .bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
 .bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g, var(--accent)) 55%, transparent), var(--g, var(--accent))); }
+/* what is wrong with the machine (`BuildAlerts.tsx`): at the top of the panel, a row per problem (red: it breaks or will not run; amber: it runs badly or is not finished). A row that
+   names a part outlines it on the stage under the pointer, and a click picks it. The part's own row in the list carries a mark of the same colour. */
+.bld-alerts { flex: none; animation: fade-in .2s ease both; }
+.bld-alerts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; max-height: 14rem; overflow-y: auto; scrollbar-width: thin; }
+.mode .bld-al > button, .bld-al > div { width: 100%; display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.45rem 0.65rem 0.5rem 0.55rem; text-align: left; border-radius: var(--m-r-card); }
+.bld-al > div { border: 1px solid transparent; }
+.mode .bld-al.warn > button, .bld-al.warn > div { color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.mode .bld-al.bad > button, .bld-al.bad > div { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); border-color: color-mix(in srgb, var(--bad) 48%, transparent); }
+.mode .bld-al.warn > button:hover:not(:disabled) { background: color-mix(in srgb, var(--warn) 16%, transparent); border-color: var(--warn); }
+.mode .bld-al.bad > button:hover:not(:disabled) { background: color-mix(in srgb, var(--bad) 17%, transparent); border-color: var(--bad); }
+.bld-ai { flex: none; margin-top: 0.1rem; }
+.bld-at { flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; white-space: normal; }
+.bld-at b { font: 650 var(--m-md) var(--ui); }
+.bld-at em { font: normal var(--m-sm)/1.35 var(--ui); color: var(--ink); opacity: 0.85; white-space: normal; }
+/* the mark on a part's row (and on the heading of a folded group that holds one) */
+.bld-flag { flex: none; display: inline-grid; place-items: center; line-height: 0; }
+.bld-flag.warn { color: var(--warn); }
+.bld-flag.bad { color: var(--bad); }
+.bld-grp .bld-flag { margin-left: auto; }
+.bld-grp .bld-flag ~ .bld-gp { margin-left: 0.4rem; }
+.bld-part.flagged.warn { border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.bld-part.flagged.bad { border-color: color-mix(in srgb, var(--bad) 38%, transparent); }
 /* the parts: a heading per kind (its count, its price, a chevron to fold it), then a row per part; the case and the board lead and open the shelf at their kind */
 .bld-list { list-style: none; margin: 0 -0.3rem; padding: 0 0.3rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; flex: 1 1 0; min-height: 6rem; scrollbar-width: thin; }
 .bld-list > li { flex: none; }

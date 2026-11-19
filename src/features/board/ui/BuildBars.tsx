@@ -2,9 +2,10 @@ import { airflowLens, powerLens } from '@/app/hover';
 import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
+import { fullDrawW } from '@/features/board/sim/compat';
 import { specSheet } from '@/features/board/sim/buildspecs';
 import { overallOfRuns } from './benchhud';
-import { powerMeter, readiness } from './buildhud';
+import { pillOf, powerMeter } from './buildhud';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
 
@@ -15,26 +16,29 @@ const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'focus or reset
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 /**
- * The summary over the stage: can it start, what it costs, what it draws against its supply (the bar is full load over the supply's rating, green
- * to red), how many parts, and the benchmark (its button opens the benchmark screen). From the part tables; the machine is not run here. `rev` draws it
- * again on a change.
+ * The summary over the stage: can it start and will it run well (the pill: green, amber or red, with the problem in words; the list is in the right panel,
+ * `BuildAlerts`), what it costs, what it draws against its supply (the bar is full load over the supply's rating, green to red), how many parts, and the
+ * benchmark (its button opens the benchmark screen). From the part tables and the game's static checks; the machine is not run here. `rev` draws it again
+ * on a change.
  */
 export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | undefined; onBench: () => void }) {
   void rev;
   const s = stage.snapshot, shown = stage.shown.value, bare = shown !== 'machine';
-  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec), shown });
-  const ready = readiness(stage.board, stage.cables, shown), meter = powerMeter(sheet);
+  // (the draw is the machine's own, the one the supply alert quotes: it counts what the regulators waste, which the part list's watts do not)
+  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec), shown, drawW: bare ? undefined : fullDrawW(stage.board) });
+  const status = pillOf(stage.alerts, shown), meter = powerMeter(sheet), over = meter.tone === 'bad';
+  const short = sheet.psuW && sheet.loadW > sheet.psuW ? sheet.loadW - sheet.psuW : 0;
   const score = overallOfRuns(stage.bench.value, {}), running = stage.benching.value;
   return (
     <section class="bld-read mode-bar" aria-label="Build summary">
-      <span class={`bld-ready ${ready.ok ? 'ok' : 'bad'}`} title={ready.ok ? 'Every part the power-on test needs is fitted.' : `It would not start: ${ready.line.charAt(0).toLowerCase()}${ready.line.slice(1)}.`}>
-        <Icon name={ready.ok ? 'check' : 'warn'} size={13} />{ready.line}
+      <span class={`bld-ready ${status.tone}`} role={status.tone === 'bad' ? 'alert' : 'status'} title={status.title}>
+        <Icon name={status.tone === 'ok' ? 'check' : 'warn'} size={13} />{status.label}
       </span>
       <i class="mode-sep" aria-hidden="true" />
       <span class="bld-fig" title="List price of the case, the board and every part"><b>{money(sheet.budget)}</b><em>Budget</em></span>
-      <span class={`bld-fig bld-power ${meter.tone}`} title={sheet.psuW ? `Idle to full load, against the ${sheet.psuW} W supply: ${meter.pct}% at full load.` : shown === 'nothing' ? 'There is no case yet.' : bare ? 'There is no board to draw power yet.' : 'No power supply is fitted.'}>
+      <span class={`bld-fig bld-power ${meter.tone}`} title={sheet.psuW ? `Idle to full load, against the ${sheet.psuW} W supply: ${meter.pct}% at full load.${over ? ' The supply is too small: the machine slows down or trips.' : ''}` : shown === 'nothing' ? 'There is no case yet.' : bare ? 'There is no board to draw power yet.' : 'No power supply is fitted.'}>
         <b>{bare ? '— W' : `${sheet.idleW}–${sheet.loadW} W`}</b>
-        <em>{sheet.psuW ? `of ${sheet.psuW} W` : shown === 'nothing' ? 'no case' : bare ? 'no board' : 'no supply'}</em>
+        <em>{sheet.psuW ? (over ? (short ? `${short} W short` : `over ${sheet.psuW} W`) : `of ${sheet.psuW} W`) : shown === 'nothing' ? 'no case' : bare ? 'no board' : 'no supply'}</em>
         <span class="bld-meter" role="img" aria-label={`Full load is ${meter.pct}% of the supply`}><i style={{ width: `${meter.pct}%` }} /></span>
       </span>
       <span class="bld-fig" title={shown === 'nothing' ? 'Nothing is on the stage yet' : bare ? 'The case counts as one' : 'The case and the board count as one each'}><b>{sheet.parts}</b><em>Parts</em></span>

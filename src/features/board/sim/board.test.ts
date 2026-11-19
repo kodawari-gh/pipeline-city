@@ -5,6 +5,7 @@ import {
   applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, createBoard, engineConfigFor, install, installedPsu,
   machineConfigFor, setClock, ThermalModel, uninstall, upgradeBoard, type Board,
 } from "./index";
+import { pcieLeadsNeeded } from "./board";
 import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, cardLeads, type DeviceSpec } from "./specs";
 
 function ok<T extends { ok: boolean }>(r: T): T {
@@ -82,6 +83,38 @@ describe("slots and PSU validation", () => {
     const small = install(weak, "psu0");
     expect(!small.ok && small.reason).toMatch(/gives 40 W but installed parts need 43 W/);
     expect(install(weak, "psu1").ok).toBe(true);
+  });
+
+  it("with the power rules off only the shape of a part decides (Build my PC)", () => {
+    const loose = { power: false };
+    // a part that pushes the draw past the supply goes in
+    const b2 = createBoard(1);
+    ok(install(b2, "psu0"));
+    ok(install(b2, "cpu2"));
+    ok(install(b2, "ram2"));
+    expect(install(b2, "display0").ok).toBe(false);
+    ok(install(b2, "display0", undefined, loose)); // 43 W on a 40 W supply
+    // a supply smaller than the parts goes in
+    const weak = createBoard(1);
+    ok(install(weak, "cpu2"));
+    ok(install(weak, "ram2"));
+    ok(install(weak, "display0"));
+    expect(install(weak, "psu0").ok).toBe(false);
+    ok(install(weak, "psu0", undefined, loose));
+    // a card with no lead for it, and on the board with no PCIe power connector
+    const start = createBoard(0);
+    expect(install(start, "gpu2").ok).toBe(false); // 90 W needs a lead, and the Starter board has no PCIe power connector
+    ok(install(start, "gpu2", undefined, loose));
+    const top = createBoard(3);
+    ok(install(top, "psu2")); // one lead
+    ok(install(top, "gpu2")); // 90 W: one lead
+    expect(install(top, "gpu3").ok).toBe(false); // 180 W: two more leads, three in all
+    ok(install(top, "gpu3", undefined, loose));
+    expect(pcieLeadsNeeded(top)).toBe(3);
+    // the shape still decides: a socket the part does not fit, and one that is taken
+    expect(install(createBoard(1), "cpu1", "dimm0", loose).ok).toBe(false);
+    expect(install(top, "psu1", undefined, loose).ok).toBe(false);
+    expect(install(createBoard(0), "gpu3", undefined, loose).ok).toBe(false); // x16 Gen5 card in a narrower slot
   });
 
   it("uninstall frees the slot; setClock validates range", () => {
