@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
-import { DOOR_SECONDS, SWING, doorPose, stepDoor } from './casedoor';
+import { DOOR_SECONDS, DOOR_SEES, SWING, doorPose, doorWait, stepDoor } from './casedoor';
 
 describe('the side panel opening', () => {
   it('starts shut and ends swung out past square, for every kind', () => {
@@ -14,7 +14,7 @@ describe('the side panel opening', () => {
   });
 
   it('undoes the Mini\'s thumbscrews and slides its panel back before it swings', () => {
-    const early = doorPose('oem', 0.3), mid = doorPose('oem', 0.5);
+    const early = doorPose('oem', 0.3), mid = doorPose('oem', 0.36);
     expect(early.screws).toBe(1);
     expect(early.swing).toBe(0);
     expect(mid.slide).toBeGreaterThan(200);
@@ -27,6 +27,28 @@ describe('the side panel opening', () => {
     const peak = Math.max(...Array.from({ length: 101 }, (_, i) => doorPose('gamer', i / 100).swing));
     expect(peak).toBeGreaterThan(SWING);
     expect(peak).toBeLessThan(SWING * 1.1);
+  });
+});
+
+describe('how long a step waits for the panel', () => {
+  it('waits until the panel has swung clear, for every kind', () => {
+    for (const k of CASE_KIND) {
+      const w = doorWait(k);
+      expect(w, k).toBeGreaterThanOrEqual(0.4);
+      expect(w, k).toBeLessThan(1);
+      expect(doorPose(k, w).swing, k).toBeGreaterThanOrEqual(0.75 * SWING - 1e-9);
+    }
+  });
+  it('keeps the share the Full tower\'s glass door always had, and gives the steel panels longer', () => {
+    expect(doorWait('show')).toBe(0.4);
+    expect(doorWait('gamer')).toBe(0.4);
+    expect(doorWait('matte')).toBeGreaterThan(0.6);
+    expect(doorWait('oem')).toBeGreaterThan(doorWait('matte'));
+    // (a step on the Mini starts about a second after the click, not at once)
+    expect(doorWait('oem') * DOOR_SECONDS.oem).toBeLessThan(1.2);
+  });
+  it('says which panels hide the inside when they are shut', () => {
+    expect(DOOR_SEES).toEqual({ oem: false, matte: false, gamer: true, show: true });
   });
 });
 

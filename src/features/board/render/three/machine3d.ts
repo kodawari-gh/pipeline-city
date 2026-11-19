@@ -1140,7 +1140,8 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ live
-  frame(s: Snapshot | null, dt: number): void {
+  /** `doorDt`: the side panel's own time, when it runs at another pace than the rest (Build my PC's steps at 2x: the panel keeps up with them). */
+  frame(s: Snapshot | null, dt: number, doorDt = dt): void {
     const live = !!s && s.powered && !s.power.tripped && !s.board.burnt;
     this.ramMap?.update(s?.ram ?? null, performance.now());
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
@@ -1159,7 +1160,7 @@ export class Machine3D {
     this.spill.intensity = this.rgb.intensity * 0.3;
     this.stripMode = stripModeOf(s);
     if (this.strip) stripLight(this.strip, this.stripMode, performance.now());
-    if (this.door) this.swingDoor(dt);
+    if (this.door) this.swingDoor(doorDt);
     this.blink = live && s.storage.some((d) => d.busy);
     if (this.leds) {
       this.leds.on.emissiveIntensity = live ? 1.5 : 0;

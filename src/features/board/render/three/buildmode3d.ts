@@ -20,10 +20,10 @@ import { Eye } from '@/core/render/three/eye';
 import { findById, idOf, ownerOf, pick, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
-import { CASE_KIND } from '@/features/room/render/shell/casedecor';
+import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, hasLoop, HOSES, isCableNode, isDevNode, isPump, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
-import { boardSlots, deviceSpec, fanHost, fittedRadiator, freeSlots, mountFan, slotAccepts, slotFits, type Board, type InstalledDevice, type SlotInfo } from '@/features/board/sim/board';
+import { boardSlots, caseHolds, deviceSpec, fanHost, fittedRadiator, freeSlots, mountFan, slotAccepts, slotFits, upgradeBoard, upgradeCase, type Board, type InstalledDevice, type SlotInfo } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
@@ -33,7 +33,7 @@ import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpi
 import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
-import { DOOR_SECONDS } from './casedoor';
+import { DOOR_SECONDS, DOOR_SEES, doorWait } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { latchOpen, motionFor, motionSeconds, placed, poseAt, solidAt, type Pose } from './buildmotion';
 import { PartFade } from './partfade';
@@ -87,8 +87,8 @@ const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
  */
 export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
-/** The share of the panel's swing to wait for, the speed of the parts in the way in a chain of more than two steps, and of a skip. */
-const DOOR_WAIT = 0.4, QUICK = 2.5, SKIP = 6;
+/** The speed of the parts in the way in a chain of more than two steps, and of a skip. */
+const QUICK = 2.5, SKIP = 6;
 /** Pixels a press may move and still be a click (not a turn of the view). */
 const CLICK_SLOP = 5;
 /** A cable in a chain (a fan's lead) is pulled this much faster again: it is the same small motion each time. */
@@ -128,6 +128,16 @@ export function binParts(): BinPart[] {
   for (const b of BOARD_TIERS) out.push({ id: `board${b.tier}`, name: `${b.name} board`, kind: 'board', tier: b.tier });
   for (const k of ['cpu', 'cooler', 'radiator', 'fan', 'ram', 'vrm-sink', 'ram-sink', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu'] as const) for (const s of specsOfKind(k)) out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
   return out;
+}
+
+/**
+ * Why the game would refuse a new case or board (`itemId`: "case2", "board1"), asked of a copy of the machine with its parts out (a swap takes them out
+ * first, so what they need does not count); null when it takes it. Asked before anything moves: a swap the game refuses must not lift a case off for nothing.
+ */
+export function shellRefusal(board: Board, itemId: string): string | null {
+  const copy: Board = { ...board, devices: [] }, tier = Number(itemId.slice(-1));
+  const r = itemId.startsWith('case') ? upgradeCase(copy, tier) : upgradeBoard(copy, tier);
+  return r.ok ? null : r.reason;
 }
 
 export class BuildStage {
@@ -380,6 +390,13 @@ export class BuildStage {
     try { this.rebuildNow(); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
 
+  /** The machine built again whatever its key says: a swap lifted the old one away, so a skipped build (the same tiers) or a patch would leave the stage empty. */
+  private rebuildAll(): void {
+    if (this.dead) return;
+    const t0 = performance.now();
+    try { this.rebuildNow(); this.builtKey = machineKey(this.snapshot); } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
+  }
+
   /** The stage's first machine, built a slice at a time (`Machine3D.make`; a machine built in one task held the page for 0.9 s): `rebuild` for a stage with none. */
   private async buildFirst(): Promise<void> {
     const t0 = performance.now();
@@ -479,7 +496,8 @@ export class BuildStage {
     const inside = this.insideOpen;
     if (inside !== this.open.peek()) this.open.value = inside;
     const snap = this.snapshot;
-    this.machine.frame(snap, dt);
+    // (the panel keeps the pace of the steps: at 2x it opens in half the time, as the wait for it (`door`) is half)
+    this.machine.frame(snap, dt, this.status.peek().busy ? dt * this.rate() : dt);
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
     // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
@@ -713,7 +731,7 @@ export class BuildStage {
 
   /** Put `g` on the stage in place of the machine, and give the step that puts the old one back. What was picked, lit or scored belonged to the old machine. */
   private swapIn(g: Game, line: string): Step {
-    const left = this.game;
+    const left = this.game, wasSteel = this.steel;
     this.clearRefusal();
     this.swapCount++;
     this.game = g; // (the scores of the old machine become the ones to compare with: `benchChanged`, in the setter)
@@ -721,6 +739,8 @@ export class BuildStage {
     this.glow(null);
     this.status.value = { busy: false, step: '', log: [line], rev: this.status.peek().rev };
     this.rebuild();
+    // (a steel panel opens for the new machine, there is nothing to see shut; a glass one is left to the zoom, as it was)
+    if (this.steel) this.wantOpen = true; else if (wasSteel) this.wantOpen = false;
     return { t: 'swap', game: left };
   }
   private bump(): void { const st = this.status.peek(); this.status.value = { ...st, rev: st.rev + 1 }; }
@@ -959,11 +979,17 @@ export class BuildStage {
     return this.playAll(obj ? [obj] : [], kind, dir, slot);
   }
 
+  /** The kind of the case on the stage: its side panel's look and pace (`casedoor.ts`). */
+  private get caseKind(): CaseKind { return CASE_KIND[LAYOUT_CASE] ?? 'gamer'; }
+  /** Does the shut side panel hide the inside (a steel one, or a window over the upper part only)? A step behind it cannot be seen: it plays with the panel open. */
+  private get steel(): boolean { return !DOOR_SEES[this.caseKind]; }
+
   /**
    * The side panel for a step: it opens once, for the first step that needs the inside, and not at all when it stands open already (a click, the
-   * zoom, the step before). The job holds it open to its end; then the zoom has it (`Machine3D.setOpen`). Only a new case or board shuts it.
+   * zoom, the step before). The job holds it open to its end; then the zoom has it (`Machine3D.setOpen`), or the player when the panel is steel
+   * (`job`). Only a new case or board shuts it. `settle`: wait for the whole swing (the case is about to lift: it must stand shut first).
    */
-  private async door(open: boolean): Promise<void> {
+  private async door(open: boolean, settle = false): Promise<void> {
     const was = this.machine.doorOpen;
     if (open) {
       if (this.jobOpen) return;
@@ -975,8 +1001,9 @@ export class BuildStage {
       this.machine.closeDoor();
     }
     this.setStep(open ? 'Undo the side panel' : 'Close the side panel');
-    // (the work starts while the panel is still swinging: it is out of the way after the first part of its swing)
-    await sleep((DOOR_SECONDS[CASE_KIND[LAYOUT_CASE] ?? 'gamer'] * 1000 * DOOR_WAIT) / this.rate());
+    // (the work starts while the panel is still swinging: it is clear of the inside once it has swung far enough, `doorWait`)
+    const kind = this.caseKind;
+    await sleep((DOOR_SECONDS[kind] * 1000 * (settle ? 1 : doorWait(kind))) / this.rate() + (settle ? 60 : 0));
   }
 
   private labelOf(node: string, verb: 'Take out' | 'Put back'): string {
@@ -1154,8 +1181,10 @@ export class BuildStage {
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
-        // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off)
+        // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off.
+        // A steel panel shows nothing shut, so what the job did stays in view: the panel stays open until the player shuts it)
         this.jobOpen = false;
+        if (this.steel && this.machine.doorOpen) this.wantOpen = true;
         this.pace = 1; this.skipping = false;
         this.hosesOff = false;
         const h = this._machine?.hoses;
@@ -1279,32 +1308,43 @@ export class BuildStage {
   private async fitShell(itemId: string): Promise<void> {
     const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1));
     if (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt) { this.refuse('That one is already fitted'); return; }
-    this.forget(); // (a new case or board is not a step to undo: the history ends here, but a refusal changes nothing)
-    const graph = buildGraph(this.board, this.cables), steps = removalPlan(graph, isCase ? CASE : BOARD);
+    // (asked of the game before anything moves: a case it refuses is not lifted off for nothing, and a refusal keeps the history)
+    const why = shellRefusal(this.board, itemId);
+    if (why) { this.refuse(`Cannot fit it: ${why}`); return; }
+    this.forget(); // (a new case or board is not a step to undo: the history ends here)
+    // the case comes off when it is the new part, and when the new board is too big for it (the sandbox lets the case follow the board: `Game.install`)
+    const newCase = isCase || !caseHolds(this.board, tier), glass = !this.steel;
+    const graph = buildGraph(this.board, this.cables), steps = removalPlan(graph, newCase ? CASE : BOARD);
     const undo: Undo[] = [];
     for (const n of steps) {
       if (n === BOARD || n === CASE) break;
       await this.takeOut(n, undo);
     }
-    await this.door(false);
+    // a glass panel shuts now: the board lifts out behind it. A steel one shows nothing shut, so it stands open for the board and shuts for the case
+    await this.door(!glass);
     // the board first (on a case swap too: the case cannot lift off with it inside), then the case
     this.note('Undo the board screws and lift the board out');
     await this.playAll(this.machine.boardRoots(), 'board', 'out');
-    if (isCase) { this.note('Take the old case away'); await this.playAll(this.machine.caseRoots, 'case', 'out'); }
+    if (newCase) {
+      if (!glass) await this.door(false, true); // (the case lifts with its panel: it must stand shut)
+      this.note('Take the old case away');
+      await this.playAll(this.machine.caseRoots, 'case', 'out');
+    }
     const bought = this.edit((g) => g.purchase(itemId));
     const fitted = bought.ok ? this.edit((g) => g.install(bought.invId)) : bought;
     if (!fitted.ok) this.refuse(`Cannot fit it: ${fitted.reason}`);
-    this.rebuild();
+    this.rebuildAll();
     if (fitted.ok) {
-      const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset;
-      if (isCase) {
+      const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset, shown = board.map((o) => o.visible);
+      if (newCase) {
         // the new case comes down first, the board still held over it (out of sight: it fades in on its own way down)
-        const shown = board.map((o) => o.visible);
         for (const o of board) { o.position.set(o.position.x + far[0], o.position.y + far[1], o.position.z + far[2]); o.visible = false; }
-        this.note(`Set the ${CASE_TIERS[tier]!.name} down`);
+        this.note(`Set the ${CASE_TIERS[this.board.caseTier]!.name} down`);
         await this.playAll(this.machine.caseRoots, 'case', 'in');
-        board.forEach((o, i) => { o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]); o.visible = shown[i]!; });
       }
+      // (a steel panel opens for the board to go in, and for the parts that follow it; the board waits out of sight meanwhile)
+      if (this.steel) await this.door(true);
+      if (newCase) board.forEach((o, i) => { o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]); o.visible = shown[i]!; });
       this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
       await this.playAll(board, 'board', 'in');
     }
