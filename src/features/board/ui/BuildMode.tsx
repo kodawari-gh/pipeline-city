@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { buildOpen, graphicsOpen } from '@/core/ui/state';
 import { airflowLens, powerLens } from '@/app/hover';
-import type { SavedBuild } from '@/features/board/sim/buildspecs';
+import type { SavedBuild, Shown } from '@/features/board/sim/buildspecs';
 import { devNode } from '@/features/board/sim/removal';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { TooltipBubble } from '@/core/ui/kit/Hover';
@@ -14,6 +14,7 @@ import { BuildMachine } from './BuildMachine';
 import { BuildShelf } from './BuildShelf';
 import { Foot, Readout, ViewOptions } from './BuildBars';
 import { hintLine } from './buildhud';
+import { loadBuildStills } from './buildstills';
 import { useBuildDrag, type Drag } from './builddrag';
 import { savedBuilds } from './savedbuilds';
 
@@ -70,6 +71,8 @@ export function BuildMode() {
 
   useEffect(() => {
     if (!open) return;
+    // (the Start list's pictures: their list is small and comes long before the stage does)
+    loadBuildStills();
     let dead = false, s: Stage | null = null;
     // (the stage's first picture takes a moment: a player who leaves meanwhile frees it at once, `BuildStage.open`)
     const leaving = new AbortController();
@@ -138,14 +141,15 @@ export function BuildMode() {
   const st = stage?.status.value;
   const rev = st?.rev;
   const busy = !!st?.busy;
-  const bare = stage?.bare.value ?? false;
-  // a bare case takes a motherboard first: the shelf shows the boards while it is empty, and the processors once a board is in
-  const wasBare = useRef(false);
+  const shown = stage?.shown.value ?? 'machine';
+  // the shelf leads the player: the cases while the stage is empty, the boards while the case is bare, and the processors once a board is in
+  const wasShown = useRef<Shown>('machine');
   useEffect(() => {
-    if (bare) setKind('board');
-    else if (wasBare.current) setKind('cpu');
-    wasBare.current = bare;
-  }, [bare]);
+    if (shown === 'nothing') setKind('case');
+    else if (shown === 'case') setKind('board');
+    else if (wasShown.current !== 'machine') setKind('cpu');
+    wasShown.current = shown;
+  }, [shown]);
   if (!open) return null;
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
@@ -157,7 +161,7 @@ export function BuildMode() {
   // (before the stage is open the machine is not known: the line says so, it does not say the case is empty)
   const hint = !stage
     ? (failed ? '3D is not available here.' : 'Getting the workshop ready…')
-    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, bare, shell: !!drag && /^(case|board)\d$/.test(drag.item) });
+    : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, shown, shell: drag ? shellOf(drag.item) : undefined });
 
   return (
     <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
@@ -178,18 +182,27 @@ export function BuildMode() {
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
       {stage && picked && !drag && !bench && <BuildCard stage={stage} id={picked} avoid={avoid} />}
       {stage && hover && !drag && !busy && !bench && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
-      {drag && <Ghost drag={drag} bare={bare} />}
+      {drag && <Ghost drag={drag} shown={shown} />}
       {toast && <div class="bld-toast" role="status" style={{ left: `${toast.x}px`, top: `${toast.y}px` }}>{toast.text}</div>}
     </div>
   );
 }
 
-/** The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `bare`: the case has no board, so no part has a socket. */
-function Ghost({ drag, bare }: { drag: Drag; bare: boolean }) {
+/** `case` or `board` for a catalogue id that is one of them (the two parts a bare case or an empty stage takes), else nothing. */
+const shellOf = (item: string): 'case' | 'board' | undefined => (/^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : undefined);
+
+/**
+ * The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `shown`: with a bare case no part has a
+ * socket; with nothing on the stage no part has a place but a case.
+ */
+function Ghost({ drag, shown }: { drag: Drag; shown: Shown }) {
   const ok = drag.from === 'shelf' ? !!drag.target : drag.over === 'bin';
   const no = drag.target === '';
+  const none = shown === 'nothing';
   const says = drag.from === 'shelf'
-    ? (drag.over !== 'stage' ? 'Drag it onto the PC' : no ? (bare ? 'Fit a motherboard first' : 'Fits no socket here') : drag.target && !/^(case|board)\d$/.test(drag.target) ? `Let go to fit it in ${drag.target}` : 'Let go to fit it here')
+    ? (drag.over !== 'stage' ? (none ? 'Drag it onto the stage' : 'Drag it onto the PC')
+      : no ? (none ? 'Fit a case first' : shown === 'case' ? 'Fit a motherboard first' : 'Fits no socket here')
+      : drag.target && !/^(case|board)\d$/.test(drag.target) ? `Let go to fit it in ${drag.target}` : none ? 'Let go to bring it in' : 'Let go to fit it here')
     : (drag.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out');
   return (
     <div class={`bld-ghost ${ok ? 'ok' : ''} ${no ? 'no' : ''}`} style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">

@@ -9,6 +9,7 @@
 import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
+import type { Shown } from '@/features/board/sim/buildspecs';
 import { netPropsVisible } from '@/features/network/render/netvis';
 import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
@@ -117,11 +118,11 @@ const underCage = (c: CagePlan): Mesh => {
 
 /**
  * What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`).
- * `noBoard`: the case stands empty (Build my PC's empty start): only the case's tier counts.
+ * `shown` (Build my PC's empty start): a bare case is keyed by its case tier alone; with nothing on the stage the key is the same whatever the game holds.
  */
-export function machineKey(s: Snapshot | null, noBoard = false): string {
+export function machineKey(s: Snapshot | null, shown: Shown = 'machine'): string {
   if (!s) return 'none';
-  const key = noBoard ? `bare|${s.caseTier}` : [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',')].join('|');
+  const key = shown === 'nothing' ? 'nothing' : shown === 'case' ? `bare|${s.caseTier}` : [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).sort().join(',')].join('|');
   return lowDetail() ? `${key}|low` : key; // (High's key is what it was)
 }
 
@@ -284,9 +285,9 @@ export class Machine3D {
    * `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has
    * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two). `lod`: false builds it
    * without the distance stand-ins (the tests compare the two). `defer`: leave the build to `make`, which runs it a slice at a time.
-   * `noBoard`: the case alone, with no board in it, no part and no cable (`buildEmpty`): Build my PC's empty start.
+   * `shown` (Build my PC's empty start): `case` is the case alone, with no board in it, no part and no cable (`buildEmpty`); `nothing` is no case either, an empty root.
    */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, private noBoard = false) {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, readonly shown: Shown = 'machine') {
     this.art = new ArtSet(q);
     this.merged = merge;
     this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
@@ -304,10 +305,10 @@ export class Machine3D {
    */
   static async make(
     s: Snapshot | null, geo: RoomGeo, q: BakeQueue, chips: Chips3D | null, inRoom: boolean,
-    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean; noBoard?: boolean } = {},
+    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean; shown?: Shown } = {},
   ): Promise<Machine3D | null> {
     const merge = o.merge ?? true, lod = o.lod ?? merge, slice = o.slice ?? (() => new Promise<void>((done) => setTimeout(done, 0))), budget = o.budget ?? SLICE_MS;
-    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true, o.noBoard ?? false), run = m.assemble(s, geo, merge, lod);
+    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true, o.shown ?? 'machine'), run = m.assemble(s, geo, merge, lod);
     let from = performance.now();
     for (let step = run.next(); !step.done; step = run.next()) {
       if (performance.now() - from < budget) continue;
@@ -320,11 +321,11 @@ export class Machine3D {
 
   /** The build: a `yield` at each point where the page may have its turn (`make`); the constructor runs it to the end. */
   private *assemble(s: Snapshot | null, geo: RoomGeo, merge: boolean, lod: boolean): Generator<void> {
-    this.buildCase();
+    if (this.shown !== 'nothing') this.buildCase();
     yield;
-    if (this.noBoard) this.buildEmpty(); else this.buildBoard(s);
+    if (this.shown === 'case') this.buildEmpty(); else if (this.shown === 'machine') this.buildBoard(s);
     yield;
-    if (s && !this.noBoard) {
+    if (s && this.shown === 'machine') {
       this.rects = slotRects(s);
       for (const d of s.devices) { this.build(d); yield; }
       this.buildRamMap();
@@ -549,7 +550,7 @@ export class Machine3D {
   }
 
   /**
-   * The case with no board (`noBoard`): the tray shows its standoffs, the front-panel leads lie coiled on it as a new case ships them (`leadCoil`, what
+   * The case with no board (`shown` `case`): the tray shows its standoffs, the front-panel leads lie coiled on it as a new case ships them (`leadCoil`, what
    * the shop's showcase shows), and the rear's slot covers stand in their openings. The coil and the covers are the case's own (`caseRoots`): a case
    * swap lifts them with it. There is no socket, pick box or part: nothing can be fitted until a board comes (`BuildStage.fit`).
    */
@@ -562,8 +563,23 @@ export class Machine3D {
     PCIE_RAILS.forEach((_, i) => { const b = slotBlank(nicY(i), blank); this.blanks.set(`pcie${i}`, b); this.root.add(b); this.caseRoots.push(b); });
   }
 
-  /** Is this the case alone, with no board in it (`noBoard`)? */
-  get empty(): boolean { return this.noBoard; }
+  /** Is there no board in it: the case alone, or no case either (`shown`)? A board's patch, its cables and its parts do not apply to it. */
+  private get noBoard(): boolean { return this.shown !== 'machine'; }
+
+  /** The box of the case without its side panel: the parts, the cables and the mains cord stay in or near it (a picture of the machine frames this: `BuildStage.capture`). */
+  bodyBox(): Box3 {
+    const door = this.door?.cm.door, box = new Box3();
+    this.root.updateMatrixWorld(true);
+    for (const o of this.caseRoots) if (o !== door && o.visible) box.union(new Box3().setFromObject(o));
+    return box;
+  }
+
+  /** Run `draw` with the side panel taken off: the picture of an open machine, whatever the panel's kind (a steel one hides the inside, a glass one tints it). */
+  withoutDoor<T>(draw: () => T): T {
+    const door = this.door?.cm.door, was = door?.visible ?? true;
+    if (door) door.visible = false;
+    try { return draw(); } finally { if (door) door.visible = was; }
+  }
 
   // ------------------------------------------------------------------ parts
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }

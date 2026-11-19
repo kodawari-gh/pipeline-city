@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vitest run src/features/economy/ui/shop/stills.test.ts && vite build",
+    "build": "tsc --noEmit && vitest run src/features/economy/ui/shop/stills.test.ts src/features/board/sim/buildstills.test.ts && vite build",
     "preview": "vite preview",
     "prod": "npm run build && vite preview --open",
     "test": "vitest run",
@@ -22,6 +22,7 @@
     "flicker": "node tools/flicker.mjs",
     "bake": "node tools/bake/bake.mjs",
     "stills": "node tools/stills.mjs",
+    "buildstills": "node tools/buildstills.mjs",
     "brands": "node tools/brandsheet.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
     "bake:lm": "node tools/bake/lightmaps.mjs",

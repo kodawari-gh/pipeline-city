@@ -123,7 +123,7 @@ describe('BuildStage and the side panel', () => {
 
   it('opens a steel case for the machine that replaces the old one, and shuts what it forced when a glass case comes', async () => {
     const s = stage();
-    await s.clear(); // (the empty Mini)
+    await s.buildPreset(BUILD_PRESETS[0]!); // (the Budget machine: a Micro tower, steel)
     expect(hid(s).wantOpen).toBe(true);
     await s.buildPreset(BUILD_PRESETS[1]!); // (the Gaming machine: a Mid tower, glass)
     expect(hid(s).wantOpen).toBe(false);
@@ -131,6 +131,17 @@ describe('BuildStage and the side panel', () => {
     expect(hid(s).wantOpen).toBe(true);
     await s.undo(); // (back to the Mid)
     expect(hid(s).wantOpen).toBe(false);
+  });
+
+  it('holds no panel open for an empty stage (there is no case to open), whatever was forced before', async () => {
+    const s = stage();
+    await s.buildPreset(BUILD_PRESETS[0]!); // (a steel Micro tower: its panel opens)
+    expect(hid(s).wantOpen).toBe(true);
+    await s.clear(); // (nothing on the stage)
+    expect(hid(s).wantOpen).toBe(false);
+    s.openInside(true);
+    expect(hid(s).wantOpen).toBe(false);
+    expect(s.insideOpen).toBe(false);
   });
 
   it('leaves what the player chose on a glass case when another glass machine comes', async () => {

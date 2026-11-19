@@ -11,11 +11,16 @@ describe('specSheet', () => {
   });
 
   it('a bare case costs its case only and counts one part: the board is not there', () => {
-    const s = specSheet({ boardTier: 0, caseTier: 1, specs: [], noBoard: true });
+    const s = specSheet({ boardTier: 0, caseTier: 1, specs: [], shown: 'case' });
     expect(s.budget).toBe(CASE_TIERS[1]!.price);
     expect(s.parts).toBe(1);
     expect(s.loadW).toBe(0);
     expect(s.headroom).toBeNull();
+  });
+
+  it('an empty stage costs nothing and counts no part: the case is not there either', () => {
+    const s = specSheet({ boardTier: 0, caseTier: 0, specs: [], shown: 'nothing' });
+    expect(s).toEqual({ parts: 0, budget: 0, idleW: 0, loadW: 0, psuW: 0, headroom: null });
   });
 
   it('sums the price and the draw, and rates the load against the supply', () => {

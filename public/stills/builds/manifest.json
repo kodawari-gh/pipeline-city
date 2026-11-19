@@ -1,0 +1,16 @@
+{
+ "w": 320,
+ "h": 240,
+ "stills": {
+  "budget": "433d408b",
+  "full": "41c2775b",
+  "gaming": "199792fd",
+  "workstation": "343654db"
+ },
+ "recipes": {
+  "budget": "755dd08b",
+  "full": "b6fbb4f2",
+  "gaming": "8bf0c7ae",
+  "workstation": "78ff5ec4"
+ }
+}

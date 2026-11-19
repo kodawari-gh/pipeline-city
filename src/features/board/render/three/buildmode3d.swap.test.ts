@@ -1,4 +1,4 @@
-// BuildStage's swaps: a preset, a saved build, the full rig and an empty case replace the whole machine, and Undo and Redo bring the machines back
+// BuildStage's swaps: a preset, a saved build, the full rig and an empty stage replace the whole machine, and Undo and Redo bring the machines back
 // (the right panel's "Start from" has no confirm: the way back is Undo).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, PerspectiveCamera, Scene } from 'three';
@@ -77,9 +77,9 @@ describe('BuildStage swaps and Undo', () => {
     await s.clear();
     await s.reset();
     expect(fitted(s)).toBe(full);
-    await s.undo(); // the full rig, undone: the empty case
+    await s.undo(); // the full rig, undone: the empty stage
     expect(fitted(s)).toBe(0);
-    await s.undo(); // the empty case, undone: the budget machine
+    await s.undo(); // the empty stage, undone: the budget machine
     expect(fitted(s)).toBe(budget);
     await s.undo(); // the budget machine, undone: where it began
     expect(fitted(s)).toBe(full);
@@ -122,7 +122,7 @@ describe('BuildStage swaps and Undo', () => {
 
   it('raises a refusal for the hint line, and keeps the history when a case that is already fitted is asked for', async () => {
     const s = stage();
-    await s.clear();
+    await s.buildPreset(BUILD_PRESETS[0]!);
     expect(s.canUndo).toBe(true);
     await s.fit(`case${s.board.caseTier}`);
     expect(s.refusal.peek()?.text).toBe('That one is already fitted');

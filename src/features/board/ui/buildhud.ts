@@ -2,7 +2,7 @@
 // parts by kind, what a tile costs, and the one line that says what to do now.
 import type { Board } from '@/features/board/sim/board';
 import { bootCheck, type Cables } from '@/features/board/sim/cables';
-import type { BuildPreset, SpecSheet } from '@/features/board/sim/buildspecs';
+import type { BuildPreset, Shown, SpecSheet } from '@/features/board/sim/buildspecs';
 import { getSpec } from '@/features/board/sim/specs';
 
 export interface Readiness { ok: boolean; line: string }
@@ -11,10 +11,12 @@ const sentence = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Would the machine start as it stands? The game's own power-on check (`bootCheck`). The cord to the wall is the stage's own business here (a
- * player cannot unplug it), so it counts as plugged. `bare`: the case has no board in it, which the game's check does not know.
+ * player cannot unplug it), so it counts as plugged. `shown`: with a bare case (no board in it) or an empty stage (no case) there is nothing
+ * to start, which the game's check does not know.
  */
-export function readiness(board: Board, cables: Cables, bare = false): Readiness {
-  if (bare) return { ok: false, line: 'No motherboard' };
+export function readiness(board: Board, cables: Cables, shown: Shown = 'machine'): Readiness {
+  if (shown === 'nothing') return { ok: false, line: 'No case' };
+  if (shown === 'case') return { ok: false, line: 'No motherboard' };
   const c = bootCheck(board, { ...cables, pcmains: true });
   if (c.noPower) return { ok: false, line: sentence(c.noPower) };
   if (c.post) return { ok: false, line: sentence(c.post.reason) };
@@ -84,19 +86,21 @@ export interface HintState {
   /** The side panel is open. */
   open: boolean;
   fitted: number;
-  /** The case has no motherboard in it: only a board (or another case) can go in. */
-  bare?: boolean;
-  /** For a part dragged off the shelf: it is a board or a case (the one thing a bare case takes). */
-  shell?: boolean;
+  /** What stands on the stage: with a bare case only a board (or another case) can go in; with nothing, only a case. */
+  shown?: Shown;
+  /** For a part dragged off the shelf: it is a case or a board (the things a bare case or an empty stage takes). */
+  shell?: 'case' | 'board';
 }
 
 /** The one line under the stage: what the player can do now. */
 export function hintLine(h: HintState): string {
   if (h.busy) return h.step || 'Working…';
-  if (h.dragging === 'shelf' && h.bare) return h.shell ? (h.over === 'stage' ? 'Let go on the case to fit it' : 'Drag it onto the case') : 'Fit a motherboard first: every other part plugs into it';
+  if (h.dragging === 'shelf' && h.shown === 'nothing') return h.shell === 'case' ? (h.over === 'stage' ? 'Let go to bring the case in' : 'Drag it onto the stage') : 'Fit a case first: every part goes in it';
+  if (h.dragging === 'shelf' && h.shown === 'case') return h.shell ? (h.over === 'stage' ? 'Let go on the case to fit it' : 'Drag it onto the case') : 'Fit a motherboard first: every other part plugs into it';
   if (h.dragging === 'shelf') return h.over === 'stage' ? 'Let go on a lit socket to fit it' : 'Drag it onto the PC';
   if (h.dragging === 'machine') return h.over === 'bin' ? 'Let go to take it out' : 'Drop it on the shelf to take it out';
-  if (h.bare) return 'The case is empty. Drag a motherboard from the shelf onto it.';
+  if (h.shown === 'nothing') return 'The stage is empty. Click a case on the shelf to bring it in.';
+  if (h.shown === 'case') return 'The case is empty. Drag a motherboard from the shelf onto it.';
   if (h.fitted === 0) return 'The case is empty. Drag a part from the shelf onto the PC.';
   if (h.picked) return 'Drag it onto the shelf to take it out, or press Delete';
   if (!h.open) return 'Click the side panel to reach the parts inside';

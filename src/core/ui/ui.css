@@ -1389,7 +1389,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .mode .bld-presets button { display: inline-flex; align-items: center; gap: 0.3rem; }
 /* the starting points: one list from nothing to everything, each with its icon, what it fits and how high its parts reach; then the saved builds, then Save */
-.bld-start { flex: none; display: flex; flex-direction: column; gap: 0.35rem; max-height: min(28rem, 66%); overflow-y: auto; margin: 0 -0.3rem; padding: 0 0.3rem 0.1rem; scrollbar-width: thin; animation: fade-in .2s ease both; }
+.bld-start { flex: none; display: flex; flex-direction: column; gap: 0.35rem; max-height: min(34rem, 72%); overflow-y: auto; margin: 0 -0.3rem; padding: 0 0.3rem 0.1rem; scrollbar-width: thin; animation: fade-in .2s ease both; }
 .bld-start .bld-sub { margin: 0.3rem 0 0; }
 .bld-starts { display: flex; flex-direction: column; gap: 0.3rem; }
 .mode .bld-srow { width: 100%; min-width: 0; display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.65rem 0.35rem 0.45rem; text-align: left; border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
@@ -1397,8 +1397,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-srow:active:not(:disabled) { transform: none; }
 .mode .bld-srow:disabled { opacity: 0.5; }
 .bld-sico { flex: none; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: var(--m-r-row); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.bld-sico.pic { width: 5rem; height: 3.75rem; overflow: hidden; background: rgba(5, 8, 20, 0.7); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.bld-sico.pic.vacant { background: transparent; box-shadow: none; border: 1px dashed rgba(255, 255, 255, 0.22); color: var(--mute); }
+.bld-sico img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; }
 .bld-smain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
-.bld-sline { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.bld-sline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.15rem 0.5rem; }
 .bld-smain b { font: 650 var(--m-md) var(--ui); }
 .bld-smain em { font: normal var(--m-sm)/1.3 var(--ui); color: var(--mute); white-space: normal; }
 .bld-srow .bld-pips { flex: none; }
@@ -1593,6 +1596,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .build, .gallery { --bld-l: 23.5rem; --bld-r: 17rem; }
   /* (the right panel is narrower: its Start from button says only Start, or the title would wrap) */
   .bld-from { display: none; }
+  /* (and the pictures of the Start list are smaller, to leave the names their room) */
+  .bld-sico.pic { width: 4.4rem; height: 3.3rem; }
 }
 @media (max-width: 70em) {
   /* (what the panels leave between them no longer holds the summary in one row: it wraps to two) */

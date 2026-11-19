@@ -68,9 +68,9 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const devices = stage ? stage.board.devices : [];
   const groups = groupByKind(devices, kinds);
   const snap = stage?.snapshot;
-  // (a bare case has no motherboard in it: the game's own board, with no parts, is held aside and does not count)
-  const bare = stage?.bare.value ?? false;
-  const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec), noBoard: bare }) : null;
+  // (a bare case has no motherboard in it, and an empty stage has no case: the game's own, with no parts, are held aside and do not count)
+  const shown = stage?.shown.value ?? 'machine', bare = shown !== 'machine', none = shown === 'nothing';
+  const sheet = snap ? specSheet({ boardTier: snap.boardTier, caseTier: snap.caseTier, specs: devices.map((d) => d.spec), shown }) : null;
   const off = busy || !stage;
   const list = useRef<HTMLUListElement>(null);
   // the starting points: the player's click decides; until then they show for an empty machine and are folded away for one with parts
@@ -94,10 +94,11 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   // (the log of what was done is for whoever debugs: `?debug` in the address)
   const log = debugOn(window.location.search) ? stage?.status.value.log ?? [] : [];
 
-  const shell = snap ? [
+  const shell = snap && !none ? [
     { id: `case${snap.caseTier}`, kind: 'case', name: CASE_TIERS[snap.caseTier]?.name ?? 'Case', note: `${CASE_TIERS[snap.caseTier]?.form ?? ''} case` },
     ...(bare ? [] : [{ id: `board${snap.boardTier}`, kind: 'board', name: `${BOARD_TIERS[snap.boardTier]?.name ?? ''} board`, note: 'motherboard' }]),
   ] : [];
+  const shellCost = shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0);
 
   return (
     <aside class="bld-inst mode-panel">
@@ -109,9 +110,9 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
       </header>
       {showStart && <BuildStart stage={stage} saved={saved} setSaved={setSaved} off={off} hasParts={devices.length > 0} done={(line) => { setStartOpen(null); onStart(line); }} />}
       <ul class="bld-list" ref={list} aria-label="Parts in the machine">
-        {shell.length > 0 && (
+        {snap && (
           <>
-            <li class="bld-grp static"><span class="bld-gk"><Icon name="case" size={11} />Case and board</span><span class="bld-gp">{money(shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0))}</span></li>
+            <li class="bld-grp static"><span class="bld-gk"><Icon name="case" size={11} />Case and board</span>{shellCost > 0 && <span class="bld-gp">{money(shellCost)}</span>}</li>
             {shell.map((r) => (
               <li class="bld-part shell" key={r.id}>
                 <button class="bld-shellbtn" title={`Choose another ${r.kind} from the shelf`} onClick={() => onShelf(r.kind)}>
@@ -122,8 +123,18 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
                 </button>
               </li>
             ))}
+            {/* (an empty stage: the case's place is a dashed row, and a click on it opens the shelf at the cases) */}
+            {none && (
+              <li class="bld-part shell vacant" key="no-case">
+                <button class="bld-shellbtn" title="Choose a case from the shelf" onClick={() => onShelf('case')}>
+                  <span class="bld-thumb"><Icon name="case" size={16} /></span>
+                  <span class="bld-row"><span class="bld-name">No case</span><em>Pick one from the shelf</em></span>
+                  <Icon name="next" size={10} class="bld-go" />
+                </button>
+              </li>
+            )}
             {/* (a bare case: the board's place is a dashed row, and a click on it opens the shelf at the boards) */}
-            {bare && (
+            {shown === 'case' && (
               <li class="bld-part shell vacant" key="no-board">
                 <button class="bld-shellbtn" title="Choose a motherboard from the shelf" onClick={() => onShelf('board')}>
                   <span class="bld-thumb"><Icon name="board" size={16} /></span>
@@ -176,7 +187,12 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
         })}
         {/* (until the stage is open the machine is not known: rows that wait, not a claim that the case is empty) */}
         {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `${i * 0.15}s` }} />)}
-        {stage && devices.length === 0 && <li class="bld-none"><b>Nothing fitted yet</b><span>{bare ? 'Fit a motherboard first: every other part plugs into it.' : 'Drag a part from the shelf onto the PC.'}</span></li>}
+        {stage && devices.length === 0 && (
+          <li class="bld-none">
+            <b>{none ? 'Nothing on the stage yet' : 'Nothing fitted yet'}</b>
+            <span>{none ? 'Pick a case from the shelf to bring it in.' : bare ? 'Fit a motherboard first: every other part plugs into it.' : 'Drag a part from the shelf onto the PC.'}</span>
+          </li>
+        )}
       </ul>
       {stage && <BenchFoot stage={stage} busy={busy} onOpen={onBench} />}
       {log.length > 0 && (

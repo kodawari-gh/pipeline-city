@@ -28,9 +28,11 @@ describe('readiness', () => {
     expect(readiness(g.board, g.cables)).toEqual({ ok: false, line: 'No CPU installed' });
   });
 
-  it('puts the motherboard before everything for a bare case (the boot test does not know it)', () => {
+  it('puts the motherboard before everything for a bare case, and the case before that on an empty stage (the boot test does not know either)', () => {
     const g = full();
-    expect(readiness(g.board, g.cables, true)).toEqual({ ok: false, line: 'No motherboard' });
+    expect(readiness(g.board, g.cables, 'case')).toEqual({ ok: false, line: 'No motherboard' });
+    expect(readiness(g.board, g.cables, 'nothing')).toEqual({ ok: false, line: 'No case' });
+    expect(readiness(g.board, g.cables, 'machine')).toEqual({ ok: true, line: 'Ready to start' });
   });
 });
 
@@ -83,13 +85,23 @@ describe('hintLine', () => {
   });
 
   it('asks for a motherboard first while the case is bare, and takes a board or a case for what it is', () => {
-    const bare: HintState = { ...base, fitted: 0, bare: true };
+    const bare: HintState = { ...base, fitted: 0, shown: 'case' };
     expect(hintLine(bare)).toMatch(/motherboard/);
     expect(hintLine({ ...bare, dragging: 'shelf', over: 'stage' })).toMatch(/Fit a motherboard first/);
-    expect(hintLine({ ...bare, dragging: 'shelf', over: 'stage', shell: true })).toMatch(/Let go on the case/);
-    expect(hintLine({ ...bare, dragging: 'shelf', over: null, shell: true })).toMatch(/onto the case/);
+    expect(hintLine({ ...bare, dragging: 'shelf', over: 'stage', shell: 'board' })).toMatch(/Let go on the case/);
+    expect(hintLine({ ...bare, dragging: 'shelf', over: null, shell: 'case' })).toMatch(/onto the case/);
     // (a step in progress is still said first)
     expect(hintLine({ ...bare, busy: true, step: 'Lower the board' })).toBe('Lower the board');
+  });
+
+  it('asks for a case first while the stage is empty, and takes a case and nothing else', () => {
+    const none: HintState = { ...base, fitted: 0, shown: 'nothing' };
+    expect(hintLine(none)).toMatch(/stage is empty.*case/);
+    expect(hintLine({ ...none, dragging: 'shelf', over: 'stage', shell: 'case' })).toMatch(/bring the case in/);
+    expect(hintLine({ ...none, dragging: 'shelf', over: null, shell: 'case' })).toMatch(/onto the stage/);
+    expect(hintLine({ ...none, dragging: 'shelf', over: 'stage', shell: 'board' })).toMatch(/Fit a case first/);
+    expect(hintLine({ ...none, dragging: 'shelf', over: 'stage' })).toMatch(/Fit a case first/);
+    expect(hintLine({ ...none, busy: true, step: 'Set the case down' })).toBe('Set the case down');
   });
 });
 

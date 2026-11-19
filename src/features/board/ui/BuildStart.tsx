@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
 import { BUILD_PRESETS, specSheet, type SavedBuild } from '@/features/board/sim/buildspecs';
+import { presetKey } from '@/features/board/sim/buildpreset';
 import { freeName, pips, plural, presetBits } from './buildhud';
+import { buildStillUrl, loadBuildStills } from './buildstills';
 import { deleteBuild, saveBuild } from './savedbuilds';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -9,19 +11,37 @@ type IconKey = Parameters<typeof Icon>[0]['name'];
 
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
-/** One way to start: from nothing up to everything. `lit` is how many of the five pips it lights. */
-interface Start { key: string; icon: IconKey; name: string; note: string; lit: number; title: string; said: string; run: (s: Stage) => unknown }
+/** The size of the picture kept with a saved build (the 4:3 of a thumbnail, as the baked ones). */
+const THUMB = { w: 320, h: 240 };
+
+/**
+ * One way to start: from nothing up to everything. `lit` is how many of the five pips it lights. `pic`: the key of its baked picture (`PICTURE_KEYS`);
+ * Empty has none (it puts nothing on the stage): its row has a dashed frame of the same size.
+ */
+interface Start { key: string; pic?: string; icon: IconKey; name: string; note: string; lit: number; title: string; said: string; run: (s: Stage) => unknown }
 
 const PRESET_ICON: Record<string, IconKey> = { Budget: 'dollar', Gaming: 'card', Workstation: 'cpu' };
 
 const STARTS: readonly Start[] = [
-  { key: 'empty', icon: 'box', name: 'Empty', note: 'A bare case, no board', lit: 0, title: 'Start from a bare case with no board in it: fit the motherboard, then the parts', said: 'Started from a bare case', run: (s) => s.clear() },
+  { key: 'empty', icon: 'box', name: 'Empty', note: 'Nothing on the stage', lit: 0, title: 'Clear the stage: bring a case in from the shelf, then the board, then the parts', said: 'Cleared the stage. Pick a case from the shelf.', run: (s) => s.clear() },
   ...BUILD_PRESETS.map((p): Start => ({
-    key: p.name, icon: PRESET_ICON[p.name] ?? 'layers', name: p.name, note: presetBits(p).join(' · '), lit: pips(p.level * 10, 10),
+    key: p.name, pic: presetKey(p), icon: PRESET_ICON[p.name] ?? 'layers', name: p.name, note: presetBits(p).join(' · '), lit: pips(p.level * 10, 10),
     title: `Build a ${p.name.toLowerCase()} machine: ${presetBits(p).join(', ')}`, said: `Built the ${p.name} machine`, run: (s) => s.buildPreset(p),
   })),
-  { key: 'full', icon: 'star', name: 'Full rig', note: 'Every part the case holds', lit: 5, title: 'Fit every part', said: 'Fitted every part', run: (s) => s.reset() },
+  { key: 'full', pic: 'full', icon: 'star', name: 'Full rig', note: 'Every part the case holds', lit: 5, title: 'Fit every part', said: 'Fitted every part', run: (s) => s.reset() },
 ];
+
+/**
+ * A row's picture: the machine as a thumbnail (a baked one, or the one kept with a saved build), else the row's icon (the pictures load, or there is none).
+ * `frame`: no picture is coming (Empty): a dashed frame of the picture's size holds the icon, so the rows keep their height.
+ */
+function Thumb({ src, icon, size = 14, frame = false }: { src: string | null | undefined; icon: IconKey; size?: number; frame?: boolean }) {
+  return (
+    <span class={`bld-sico ${src ? 'pic' : frame ? 'pic vacant' : ''}`}>
+      {src ? <img src={src} alt="" width={THUMB.w} height={THUMB.h} decoding="async" draggable={false} /> : <Icon name={icon} size={size} />}
+    </span>
+  );
+}
 
 /** Five pips: how high up the tiers a starting point reaches (none for an empty case). */
 function Pips({ lit, label }: { lit: number; label: string }) {
@@ -50,12 +70,16 @@ export function BuildStart({ stage, saved, setSaved, off, hasParts, done }: {
   const input = useRef<HTMLInputElement>(null);
   const saving = naming !== null;
   useEffect(() => { if (saving) { input.current?.focus(); input.current?.select(); } }, [saving]);
+  useEffect(() => { loadBuildStills(); }, []);
   const name = (naming ?? '').trim();
 
   const go = (line: string, run: () => unknown) => { void Promise.resolve(run()).then(() => done(line)); };
   const submit = (e: Event) => {
     e.preventDefault();
-    if (name && stage) { setSaved(saveBuild(name, stage.layout)); setNaming(null); }
+    if (!name || !stage) return;
+    // (the machine as it stands now, with a picture of it: a save without one, a capture that fails, still keeps the build)
+    const layout = stage.layout;
+    void stage.capture(THUMB.w, THUMB.h, 'image/webp', 0.8).catch(() => null).then((thumb) => { setSaved(saveBuild(name, layout, thumb)); setNaming(null); });
   };
 
   return (
@@ -63,7 +87,7 @@ export function BuildStart({ stage, saved, setSaved, off, hasParts, done }: {
       <div class="bld-starts" role="group" aria-label="Ready-made machines">
         {STARTS.map((s) => (
           <button key={s.key} class="bld-srow" disabled={off} title={s.title} onClick={() => go(s.said, () => stage && s.run(stage))}>
-            <span class="bld-sico"><Icon name={s.icon} size={14} /></span>
+            <Thumb src={s.pic ? buildStillUrl(s.pic) : null} icon={s.icon} size={s.pic ? 14 : 18} frame={!s.pic} />
             <span class="bld-smain">
               <span class="bld-sline"><b>{s.name}</b><Pips lit={s.lit} label={s.lit ? `Parts ${Math.round((s.lit / 5) * 100)}% of the way up the tiers` : 'No parts'} /></span>
               <em>{s.note}</em>
@@ -81,7 +105,7 @@ export function BuildStart({ stage, saved, setSaved, off, hasParts, done }: {
               return (
                 <div class="bld-svrow" key={b.name}>
                   <button class="bld-srow" disabled={off} title={`Build ${b.name} again`} onClick={() => go(`Loaded ${b.name}`, () => stage?.loadLayout(b.layout, b.name))}>
-                    <span class="bld-sico"><Icon name="save" size={13} /></span>
+                    <Thumb src={b.thumb} icon="save" size={13} />
                     <span class="bld-smain"><b>{b.name}</b><em>{plural(sheet.parts, 'part')} · {money(sheet.budget)}</em></span>
                   </button>
                   <button

@@ -30,6 +30,7 @@ import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
 import { freeBakePools, startBaker } from './bake';
 import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpick';
+import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
 import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
@@ -42,7 +43,8 @@ import { warmLateModels } from '@/core/render/three/gltf';
 import { Machine3D, machineKey } from './machine3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
-import type { BuildLayout, BuildPreset } from '@/features/board/sim/buildspecs';
+import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
+import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
 import type { Stop } from '@/features/sandbox/sim/pcbench';
 import type { TaskResult } from '@/features/sandbox/sim/benchtasks';
 
@@ -63,9 +65,9 @@ export interface BuildStatus {
   rev: number;
 }
 
-/** One step of the undo history: a part fitted or taken out, or the whole machine swapped for another (`swap`: the game it left, kept to come back to, and whether its case stood bare). */
+/** One step of the undo history: a part fitted or taken out, or the whole machine swapped for another (`swap`: the game it left, kept to come back to, and what stood on the stage for it: a machine, a bare case or nothing). */
 type PartStep = { t: 'fit' | 'remove'; spec: string; slot: string };
-type Step = PartStep | { t: 'swap'; game: Game; bare: boolean };
+type Step = PartStep | { t: 'swap'; game: Game; shown: Shown };
 /** How many whole machines the history keeps (each holds a game): the oldest and the steps before it go first. */
 const KEEP_SWAPS = 8;
 /** How long a refusal stays on the hint line, counted from the end of the job that raised it. */
@@ -76,7 +78,6 @@ const REFUSAL_MS = 6000;
 type Gone = { spec: string; slot: string; invId: string; clock?: number };
 type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: Gone[] } & Gone);
 
-const OUTSIDE = new Set(['video', 'lan', 'pcmains', 'monmains']);
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
@@ -143,10 +144,13 @@ export function shellRefusal(board: Board, itemId: string): string | null {
 export class BuildStage {
   readonly status = signal<BuildStatus>({ busy: false, step: '', log: [], rev: 0 });
   /**
-   * The case stands empty, with no motherboard in it (the "Empty" start): nothing else can be fitted until a board comes (`fit`). The game still has
-   * its own board, with no part on it, held aside; fitting a board lowers it into the case and clears this.
+   * What stands on the stage (`Shown`). The "Empty" start is `nothing`: no case at all, until the player brings one in from the shelf; that case is `case`, bare,
+   * with no motherboard in it, and nothing else can be fitted until a board comes (`fit`); a board lowered into it makes it the `machine`. The sim game always
+   * has a case and a board with no part on it; the stage holds them aside while they are not shown.
    */
-  readonly bare = signal(false);
+  readonly shown = signal<Shown>('machine');
+  /** Is there no board in the case (a bare case, or no case yet)? The parts have no socket then. */
+  readonly bare = computed(() => this.shown.value !== 'machine');
   /** The last refusal (a part that fits no socket, a removal that cannot be done): the hint line shows it for a few seconds, whatever the log (for `?debug`) holds. */
   readonly refusal = signal<{ text: string; n: number } | null>(null);
   private refusalTimer: ReturnType<typeof setTimeout> | undefined;
@@ -373,7 +377,7 @@ export class BuildStage {
   private rebuild(): void {
     if (this.dead) return;
     this.snaps.drop();
-    const bare = this.bare.peek(), key = machineKey(this.snapshot, bare);
+    const shown = this.shown.peek(), key = machineKey(this.snapshot, shown);
     if (this._machine && key === this.builtKey) {
       // the same tiers, parts and sockets: the machine stands as it is (the end of a job after a step that built it already, a cable the hand moved)
       this.cost.skipped++;
@@ -386,8 +390,8 @@ export class BuildStage {
     }
     const t0 = performance.now();
     // a part more or less that a patch can make (a stick, an M.2 drive, a card): the machine stays, only that part is built or hidden
-    // (a case that gains or loses its board is built again: a patch keeps the board it has)
-    if (this._machine && this._machine.empty === bare && this._machine.patch(this.snapshot, roomGeo())) {
+    // (a case that gains or loses its board, or a stage that gains or loses its case, is built again: a patch keeps the board it has)
+    if (this._machine && this._machine.shown === shown && this._machine.patch(this.snapshot, roomGeo())) {
       this.builtKey = key; this.held.clear(); this.warm = true;
       this.cost.patches++; this.cost.patchMs += performance.now() - t0;
       this.bump(); this.demand.ask();
@@ -400,16 +404,16 @@ export class BuildStage {
   private rebuildAll(): void {
     if (this.dead) return;
     const t0 = performance.now();
-    try { this.rebuildNow(); this.builtKey = machineKey(this.snapshot, this.bare.peek()); } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
+    try { this.rebuildNow(); this.builtKey = machineKey(this.snapshot, this.shown.peek()); } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
 
   /** The stage's first machine, built a slice at a time (`Machine3D.make`; a machine built in one task held the page for 0.9 s): `rebuild` for a stage with none. */
   private async buildFirst(): Promise<void> {
     const t0 = performance.now();
     this.snaps.drop();
-    const s = this.snapshot, bare = this.bare.peek(), key = machineKey(s, bare), tier = s.boardTier;
+    const s = this.snapshot, shown = this.shown.peek(), key = machineKey(s, shown), tier = s.boardTier;
     setLayoutTier(tier, Math.max(tier, s.caseTier));
-    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, { stop: () => this.dead, noBoard: bare });
+    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, { stop: () => this.dead, shown });
     if (this.dead) { made?.dispose(); return; }
     try { this.rebuildNow(made ?? undefined); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
@@ -426,7 +430,7 @@ export class BuildStage {
     const { scene } = this.ctx;
     const old = this._machine;
     if (old) { scene.remove(old.root); old.dispose(); }
-    this._machine = made ?? new Machine3D(s, roomGeo(), this.bakes, null, false, true, true, false, this.bare.peek());
+    this._machine = made ?? new Machine3D(s, roomGeo(), this.bakes, null, false, true, true, false, this.shown.peek());
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
@@ -666,6 +670,58 @@ export class BuildStage {
     this.goal = { ...this.frameView(), ...at };
   }
 
+  /**
+   * A picture of the machine as it stands: the whole case seen from the start view with its side panel off, `w` x `h` pixels, as a data URL (null while a
+   * step plays). The baked pictures of the Start list (`tools/buildstills.mjs`) and the thumbnails of the saved builds are these. The view comes back as it was.
+   */
+  async capture(w: number, h: number, type = 'image/webp', quality = 0.85): Promise<string | null> {
+    if (this.dead || this.status.peek().busy || this.shown.peek() === 'nothing') return null; // (an empty stage has no machine to frame)
+    // (the first picture links the programs, and the parts' art comes in over a few frames)
+    for (let i = 0; i < 160 && (!this.pictured || this.bakes.size > 0); i++) await sleep(50);
+    if (this.dead || this.status.peek().busy) return null;
+    const { scene, camera, renderer } = this.ctx, canvas = renderer.domElement, cw = canvas.width, ch = canvas.height, m = this.machine;
+    const win = pictureWindow(cw, ch, w / h), body = m.bodyBox(), size = body.getSize(new Vector3()), mid = body.getCenter(new Vector3());
+    const v = new Vector3(), project = (): Pt[] => {
+      camera.updateMatrixWorld(true);
+      const out: Pt[] = [];
+      for (const x of [body.min.x, body.max.x]) for (const y of [body.min.y, body.max.y]) for (const z of [body.min.z, body.max.z]) {
+        v.set(x, y, z).project(camera);
+        out.push({ x: ((v.x + 1) / 2) * cw, y: ((1 - v.y) / 2) * ch });
+      }
+      return out;
+    };
+    // the start view on the middle of the machine, drawn in or out until the machine fills its share of the window (its box moves as the height changes: a few passes)
+    let view: OrbitView = { ...this.frameView(), x: mid.x, y: mid.y, z: mid.z, height: Math.max(size.x, size.y) * 1.5 };
+    for (let i = 0; i < 4; i++) {
+      applyView(camera, view, cw / ch);
+      view = { ...view, height: view.height * fitFactor(project(), win) };
+    }
+    applyView(camera, view, cw / ch);
+    const crop = centred(project(), win, cw, ch), density = renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1);
+    const monitor = this.monitor, monitorWas = monitor?.visible ?? false;
+    if (monitor) monitor.visible = false;
+    try {
+      return m.withoutDoor(() => {
+        m.holdDetail([m.root]);
+        m.lod(camera, this.H, density);
+        this.post.setReach(heightAt(view, BOARD_Z));
+        syncWorld(scene);
+        this.post.render();
+        // (read at once: the canvas keeps its picture only until the task ends)
+        const out = document.createElement('canvas');
+        out.width = w; out.height = h;
+        const g = out.getContext('2d')!;
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(canvas, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
+        return out.toDataURL(type, quality);
+      });
+    } finally {
+      if (monitor) monitor.visible = monitorWas;
+      applyView(camera, this.view, this.W / this.H);
+      this.demand.ask();
+    }
+  }
+
   /** Fly the camera to a fitted part (its device id); false when it has no model. */
   focusDevice(id: string): boolean {
     const o = this.objectOf(devNode(id));
@@ -678,7 +734,8 @@ export class BuildStage {
 
   /** The socket a part would be fitted in when dropped at a client point (or by a click when `x` is not given): what `fit` picks. Null when none takes it. */
   dropTarget(item: string, x?: number, y?: number): string | null {
-    if (/^(case|board)\d$/.test(item)) return item;
+    // (a case or a board lands on the PC itself; with no case on the stage a board has nothing to land on)
+    if (/^(case|board)\d$/.test(item)) return this.shown.peek() === 'nothing' && item.startsWith('board') ? null : item;
     const spec = getSpec(item);
     if (!spec || this.bare.peek()) return null; // (a bare case has no socket)
     const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
@@ -712,7 +769,7 @@ export class BuildStage {
   }
   /** Do a step, or its opposite (`undo`). The step to keep for the way back: a part's as it was, a swap's as the game it left. */
   private async apply(s: Step, undo: boolean): Promise<Step> {
-    if (s.t === 'swap') return this.swapIn(s.game, undo ? 'Went back to the machine before' : 'Went forward again', s.bare);
+    if (s.t === 'swap') return this.swapIn(s.game, undo ? 'Went back to the machine before' : 'Went forward again', s.shown);
     await this.run(undo ? { ...s, t: s.t === 'fit' ? 'remove' : 'fit' } : s);
     return s;
   }
@@ -737,27 +794,30 @@ export class BuildStage {
 
   /**
    * Put `g` on the stage in place of the machine, and give the step that puts the old one back. What was picked, lit or scored belonged to the old
-   * machine. `bare`: its case stands empty, with no board (`bare`, the signal).
+   * machine. `shown`: what stands on the stage for it (`shown`, the signal): a bare case, or nothing at all.
    */
-  private swapIn(g: Game, line: string, bare = false): Step {
-    const left = this.game, wasBare = this.bare.peek(), wasSteel = this.steel;
+  private swapIn(g: Game, line: string, shown: Shown = 'machine'): Step {
+    const left = this.game, was = this.shown.peek(), wasSteel = this.steel;
     this.clearRefusal();
     this.swapCount++;
-    this.bare.value = bare; // (before the build: it draws the machine as it is now)
+    this.shown.value = shown; // (before the build: it draws the machine as it is now)
     this.game = g; // (the scores of the old machine become the ones to compare with: `benchChanged`, in the setter)
     this.select(null);
     this.glow(null);
     this.status.value = { busy: false, step: '', log: [line], rev: this.status.peek().rev };
     this.rebuild();
-    // (a steel panel opens for the new machine, there is nothing to see shut; a glass one is left to the zoom, as it was)
-    if (this.steel) this.wantOpen = true; else if (wasSteel) this.wantOpen = false;
-    return { t: 'swap', game: left, bare: wasBare };
+    // (a steel panel opens for the new machine, there is nothing to see shut; a glass one is left to the zoom, as it was; with no case there is no panel)
+    if (shown === 'nothing') this.wantOpen = false;
+    else if (this.steel) this.wantOpen = true;
+    else if (wasSteel) this.wantOpen = false;
+    return { t: 'swap', game: left, shown: was };
   }
   private bump(): void { const st = this.status.peek(); this.status.value = { ...st, rev: st.rev + 1 }; }
 
   /** Is the side panel open (or opening)? The case hides what is inside it, so parts and sockets answer only then. */
   get insideOpen(): boolean { return this.wantOpen || this.jobOpen || this.machine.doorOpen; }
   openInside(open: boolean): void {
+    if (this.shown.peek() === 'nothing') return; // (no case, no side panel)
     this.wantOpen = open;
     if (!open) { this.jobOpen = false; this.machine.closeDoor(); }
     this.demand.ask();
@@ -1238,7 +1298,8 @@ export class BuildStage {
     return this.job(async () => {
       const itemId = item;
       if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
-      // (a bare case has no socket: every part plugs into the board)
+      // (a bare case has no socket: every part plugs into the board; with no case there is nothing to plug into)
+      if (this.shown.peek() === 'nothing') { this.refuse('Fit a case first: every part goes in it'); return; }
       if (this.bare.peek()) { this.refuse('Fit a motherboard first: every other part plugs into it'); return; }
       const spec = getSpec(itemId);
       if (!spec) { this.refuse(`Unknown part ${itemId}`); return; }
@@ -1318,20 +1379,22 @@ export class BuildStage {
 
   /**
    * A new board or case: every part comes out first, the machine is swapped as one piece, then the parts go back (what no longer fits stays in the bin).
-   * A bare case has no board and no part to lift: a new case is set down, and a board is lowered into it (the machine then stands as any other). Both are
-   * steps Undo takes back, to the bare case they left (a machine's own new case or board ends the history).
+   * A bare case has no board and no part to lift: a new case is set down, and a board is lowered into it (the machine then stands as any other). With no
+   * case on the stage (`nothing`) the first case is brought in, with nothing to take away. Each is a step Undo takes back, to the bare case or the empty
+   * stage it left (a machine's own new case or board ends the history).
    */
   private async fitShell(itemId: string): Promise<void> {
-    const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1)), bare = this.bare.peek();
-    // (the board the game holds for a bare case is only held aside: its tier is not "already fitted")
-    const held = bare && !isCase && tier === this.board.tier;
-    if (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt && !bare) { this.refuse('That one is already fitted'); return; }
+    const isCase = itemId.startsWith('case'), tier = Number(itemId.slice(-1)), shown = this.shown.peek(), bare = shown !== 'machine', none = shown === 'nothing';
+    if (none && !isCase) { this.refuse('Fit a case first: every part goes in it'); return; }
+    // (what the game holds for a bare case or an empty stage is only held aside: a board of its tier, or a case of its tier on an empty stage, is not "already fitted")
+    const held = isCase ? none && tier === this.board.caseTier : bare && tier === this.board.tier;
+    if (!held && (isCase ? tier === this.board.caseTier : tier === this.board.tier && !this.board.burnt && !bare)) { this.refuse('That one is already fitted'); return; }
     // (asked of the game before anything moves: a case it refuses is not lifted off for nothing, and a refusal keeps the history)
     const why = held ? null : shellRefusal(this.board, itemId);
     if (why) { this.refuse(`Cannot fit it: ${why}`); return; }
     if (bare) {
-      // (the bare case as it stands, to come back to: a copy, as the game is about to change)
-      this.record({ t: 'swap', game: await this.bareGame(this.board.caseTier), bare: true });
+      // (the bare case or the empty stage as it stands, to come back to: a copy, as the game is about to change)
+      this.record({ t: 'swap', game: await bareGame(this.board.caseTier), shown });
       this.swapCount++;
     } else this.forget(); // (a new case or board is not a step to undo: the history ends here)
     if (this.dead) return;
@@ -1344,25 +1407,26 @@ export class BuildStage {
       await this.takeOut(n, undo);
     }
     // a glass panel shuts now: the board lifts out behind it. A steel one shows nothing shut, so it stands open for the board and shuts for the case
-    await this.door(!glass);
+    if (!none) await this.door(!glass);
     // the board first (on a case swap too: the case cannot lift off with it inside), then the case
     if (!bare) {
       this.note('Undo the board screws and lift the board out');
       await this.playAll(this.machine.boardRoots(), 'board', 'out');
     }
-    if (newCase) {
+    if (newCase && !none) {
       if (!glass) await this.door(false, true); // (the case lifts with its panel: it must stand shut)
       this.note('Take the old case away');
       await this.playAll(this.machine.caseRoots, 'case', 'out');
     }
-    // (the board a bare case holds aside, of the tier asked for, is the one that goes in: the game has nothing to change)
+    // (the board a bare case holds aside, of the tier asked for, is the one that goes in: the game has nothing to change. The same for the first case of an empty stage)
     const bought = held ? { ok: true as const, invId: '' } : this.edit((g) => g.purchase(itemId));
     const fitted = held ? bought : bought.ok ? this.edit((g) => g.install(bought.invId)) : bought;
     if (!fitted.ok) this.refuse(`Cannot fit it: ${fitted.reason}`);
-    else if (!isCase) this.bare.value = false; // (a board is in the case: it stands as any machine now)
+    // (a case on an empty stage is a bare case now; a board in the case makes it a machine that stands as any other)
+    else if (isCase) { if (none) this.shown.value = 'case'; } else this.shown.value = 'machine';
     this.rebuildAll();
     if (fitted.ok) {
-      const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset, shown = board.map((o) => o.visible);
+      const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset, seen = board.map((o) => o.visible);
       if (newCase) {
         // the new case comes down first, the board still held over it (out of sight: it fades in on its own way down)
         for (const o of board) { o.position.set(o.position.x + far[0], o.position.y + far[1], o.position.z + far[2]); o.visible = false; }
@@ -1371,7 +1435,7 @@ export class BuildStage {
       }
       // (a steel panel opens for the board to go in, and for the parts that follow it; the board waits out of sight meanwhile)
       if (this.steel) await this.door(true);
-      if (newCase) board.forEach((o, i) => { o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]); o.visible = shown[i]!; });
+      if (newCase) board.forEach((o, i) => { o.position.set(o.position.x - far[0], o.position.y - far[1], o.position.z - far[2]); o.visible = seen[i]!; });
       // (a case set down bare has no board to lower)
       if (!this.bare.peek()) {
         this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
@@ -1386,48 +1450,9 @@ export class BuildStage {
    *  of each to fit. Parts that fit nowhere are skipped. */
   async buildPreset(p: BuildPreset): Promise<void> {
     if (this.status.peek().busy) return;
-    const { Game } = await import('@/worker/game/game');
+    const g = await presetGame(p);
     if (this.dead) return;
-    const g = new Game({ seed: 1, sandbox: true, preassembled: false });
-    for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
-    const pick = (kind: DeviceKind): string | null => {
-      // (a RAID module holds data only: no OS boots from it, so the benchmark's jobs could not run)
-      const all = [...specsOfKind(kind as never)].filter((s) => !(s as { mirror?: boolean }).mirror).sort((a, b) => a.tier - b.tier || a.price - b.price);
-      // (a drive rounds up: the slowest drives make every job wait on the disk)
-      const at = p.level * (all.length - 1);
-      return all.length ? all[Math.min(all.length - 1, kind === 'storage' ? Math.ceil(at) : Math.round(at))]!.id : null;
-    };
-    const put = (id: string | null, slot?: string): boolean => {
-      if (!id) return false;
-      const b = g.purchase(id);
-      return b.ok && g.install(b.invId, slot).ok;
-    };
-    const shell = (list: readonly { tier: number }[]) => Math.round(p.level * (list.length - 1));
-    put(`case${shell(CASE_TIERS)}`);
-    put(`board${shell(BOARD_TIERS)}`);
-    const fill = (kind: DeviceKind, n: number): void => {
-      const id = pick(kind), spec = id ? getSpec(id) : undefined;
-      for (let i = 0; spec && i < n; i++) { const free = freeSlots(g.board, spec.slot, spec)[0]; if (!free || !put(id, free.id)) break; }
-    };
-    fill('psu', 1); fill('cpu', 1); fill('cooler', 1); fill('ram', p.ram); fill('storage', p.storage); fill('gpu', p.gpus); fill('npu', p.npus);
-    fill('nic', 1); fill('display', 1);
-    // fans come in sizes (a heatsink takes 40 mm, a case mount its own): from the chosen tier down, each spec goes in every spot that takes it
-    const fans = [...specsOfKind('fan')].sort((a, b) => a.tier - b.tier || a.price - b.price);
-    for (const f of fans.slice(0, 1 + Math.round(p.level * (fans.length - 1))).reverse()) {
-      for (let i = 0; i < 40; i++) { const free = freeSlots(g.board, f.slot, f)[0]; if (!free || !put(f.id, free.id)) break; }
-    }
-    const t = (n: number) => Math.min(n, 1 + Math.round(p.level * (n - 1)));
-    this.software(g, { os: t(3), router: t(4), isp: t(5) });
-    this.adopt(g, `Built the ${p.name} machine`);
-  }
-
-  /** The OS on the first drive, a router and an ISP plan with the LAN cable (what the benchmark's jobs need). Each is skipped when its tier is 0 or it does not fit. */
-  private software(g: Game, s: { os: number; router: number; isp: number }): void {
-    const buy = (id: string) => { const b = g.purchase(id); return b.ok && g.install(b.invId).ok; };
-    if (s.os && g.board.devices.some((d) => deviceSpec(d).kind === 'storage')) buy(`os${s.os}`);
-    if (s.router) buy(`router${s.router}`);
-    if (s.isp) g.purchase(`isp${s.isp}`);
-    if (s.router && s.isp) g.connectLan();
+    this.record(this.swapIn(g, `Built the ${p.name} machine`));
   }
 
   /** Load the benchmark's code (once): `benchIssues` has an answer after it. */
@@ -1473,49 +1498,26 @@ export class BuildStage {
   /** Build a saved layout at once (no animation). Parts that no longer fit are skipped. */
   async loadLayout(l: BuildLayout, name: string): Promise<void> {
     if (this.status.peek().busy) return;
-    const { Game } = await import('@/worker/game/game');
+    const g = await layoutGame(l);
     if (this.dead) return;
-    const g = new Game({ seed: 1, sandbox: true, preassembled: false });
-    for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
-    const put = (id: string, slot?: string) => { const b = g.purchase(id); return b.ok && g.install(b.invId, slot).ok; };
-    put(`case${l.caseTier}`);
-    put(`board${l.boardTier}`);
-    for (const p of l.parts) put(p.spec, p.slot);
-    this.software(g, { os: l.os ?? 0, router: l.router ?? 0, isp: l.isp ?? 0 });
-    this.adopt(g, `Loaded ${name}`);
-  }
-
-  /** Make `g` the machine: plug every cable it needs and redraw. The machine it replaces stays in the history: Undo brings it back. */
-  private adopt(g: Game, line: string): void {
-    for (const c of cablesOf(g.board)) if (!OUTSIDE.has(c.id) && cableNeeded(g.board, c.id) && !cableBlocked(g.board, c.id)) g.connectCable(c.id);
-    for (const c of OUTSIDE) if (cableNeeded(g.board, c as never)) g.connectCable(c);
-    this.record(this.swapIn(g, line));
+    // (the machine it replaces stays in the history: Undo brings it back)
+    this.record(this.swapIn(g, `Loaded ${name}`));
   }
 
   /** A new sandbox machine: the biggest rig, as at the start. */
   async reset(): Promise<void> {
     if (this.status.peek().busy) return;
-    const { Game } = await import('@/worker/game/game');
+    const g = await fullGame();
     if (this.dead) return;
-    this.record(this.swapIn(new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), 'Fitted every part'));
+    this.record(this.swapIn(g, 'Fitted every part'));
   }
 
-  /** A game with the case of this tier and nothing in it (the game keeps its board with no part on it: the stage holds it aside, `bare`). */
-  private async bareGame(caseTier = 0): Promise<Game> {
-    const { Game } = await import('@/worker/game/game');
-    const g = new Game({ seed: 1, sandbox: true, preassembled: false });
-    // a new game's case holds its two starter fans: Empty means nothing fitted
-    for (const d of g.snapshot().devices) if (d.kind === 'fan') g.uninstall(d.id);
-    if (caseTier !== g.board.caseTier) { const b = g.purchase(`case${caseTier}`); if (b.ok) g.install(b.invId); }
-    return g;
-  }
-
-  /** The smallest case with nothing in it, not even a board: build up from nothing, the board first. */
+  /** Nothing on the stage, not even a case: build up from nothing, the case first (from the shelf), then the board, then the parts. */
   async clear(): Promise<void> {
     if (this.status.peek().busy) return;
-    const g = await this.bareGame();
+    const g = await bareGame();
     if (this.dead) return;
-    this.record(this.swapIn(g, 'Started from a bare case', true));
+    this.record(this.swapIn(g, 'Cleared the stage', 'nothing'));
   }
 
   /**

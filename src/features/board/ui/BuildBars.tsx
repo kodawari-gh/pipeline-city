@@ -21,9 +21,9 @@ const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
  */
 export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | undefined; onBench: () => void }) {
   void rev;
-  const s = stage.snapshot, bare = stage.bare.value;
-  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec), noBoard: bare });
-  const ready = readiness(stage.board, stage.cables, bare), meter = powerMeter(sheet);
+  const s = stage.snapshot, shown = stage.shown.value, bare = shown !== 'machine';
+  const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec), shown });
+  const ready = readiness(stage.board, stage.cables, shown), meter = powerMeter(sheet);
   const score = overallOfRuns(stage.bench.value, {}), running = stage.benching.value;
   return (
     <section class="bld-read mode-bar" aria-label="Build summary">
@@ -32,12 +32,12 @@ export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | u
       </span>
       <i class="mode-sep" aria-hidden="true" />
       <span class="bld-fig" title="List price of the case, the board and every part"><b>{money(sheet.budget)}</b><em>Budget</em></span>
-      <span class={`bld-fig bld-power ${meter.tone}`} title={sheet.psuW ? `Idle to full load, against the ${sheet.psuW} W supply: ${meter.pct}% at full load.` : bare ? 'There is no board to draw power yet.' : 'No power supply is fitted.'}>
+      <span class={`bld-fig bld-power ${meter.tone}`} title={sheet.psuW ? `Idle to full load, against the ${sheet.psuW} W supply: ${meter.pct}% at full load.` : shown === 'nothing' ? 'There is no case yet.' : bare ? 'There is no board to draw power yet.' : 'No power supply is fitted.'}>
         <b>{bare ? '— W' : `${sheet.idleW}–${sheet.loadW} W`}</b>
-        <em>{sheet.psuW ? `of ${sheet.psuW} W` : bare ? 'no board' : 'no supply'}</em>
+        <em>{sheet.psuW ? `of ${sheet.psuW} W` : shown === 'nothing' ? 'no case' : bare ? 'no board' : 'no supply'}</em>
         <span class="bld-meter" role="img" aria-label={`Full load is ${meter.pct}% of the supply`}><i style={{ width: `${meter.pct}%` }} /></span>
       </span>
-      <span class="bld-fig" title={bare ? 'The case counts as one' : 'The case and the board count as one each'}><b>{sheet.parts}</b><em>Parts</em></span>
+      <span class="bld-fig" title={shown === 'nothing' ? 'Nothing is on the stage yet' : bare ? 'The case counts as one' : 'The case and the board count as one each'}><b>{sheet.parts}</b><em>Parts</em></span>
       <i class="mode-sep" aria-hidden="true" />
       <button class="bld-bench-btn" aria-haspopup="dialog" title="Run the almanac's jobs on this machine and score them: one, a set, or all. 1000 is par." onClick={onBench}>
         <Icon name="gauge" size={13} />{running ? (running.total ? `Running ${running.n}/${running.total}` : 'Running…') : score.n ? <>Score <b>{score.overall}</b></> : 'Benchmark'}
@@ -71,7 +71,7 @@ export function Foot({ stage, hint, undo, warn }: {
   warn?: () => void;
 }) {
   const st = stage?.status.value;
-  const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value;
+  const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value, noCase = stage?.shown.value === 'nothing';
   return (
     <div class="bld-foot">
       <div class={`bld-hint ${busy ? 'busy' : ''} ${undo ? 'did' : ''} ${warn ? 'warn' : ''}`} role={warn ? 'alert' : undefined} aria-live="polite">
@@ -82,7 +82,7 @@ export function Foot({ stage, hint, undo, warn }: {
       </div>
       <div class="bld-dock">
         <div class="mode-bar bld-tools" role="toolbar" aria-label="Machine">
-          <button class={`bld-door ${open ? 'on' : ''}`} aria-pressed={open} disabled={busy || !stage} title="Open or shut the side panel (O): the parts inside are only in reach with it open" onClick={() => stage?.openInside(!open)}>
+          <button class={`bld-door ${open ? 'on' : ''}`} aria-pressed={open} disabled={busy || !stage || noCase} title={noCase ? 'There is no case yet: pick one from the shelf' : 'Open or shut the side panel (O): the parts inside are only in reach with it open'} onClick={() => stage?.openInside(!open)}>
             <Icon name="panel" size={13} />Side panel<em>{open ? 'open' : 'shut'}</em>
           </button>
           <i class="mode-sep" aria-hidden="true" />
