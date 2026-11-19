@@ -47,7 +47,7 @@ try {
     await p.evaluate(async (n) => { const g = await import('/src/app/graphics.ts'); g.setPreset?.(n); g.setAuto?.(false); }, name).catch(() => {});
   }
   await p.click('text=Build my PC');
-  await p.waitForSelector('.bld-bar', { timeout: 30000 });
+  await p.waitForSelector('.bld-read', { timeout: 30000 });
   await p.waitForFunction(() => !!window.__build, null, { timeout: 30000 });
   await p.waitForTimeout(4000);
   // a probe for the longest gap between two frames inside a step

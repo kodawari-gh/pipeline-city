@@ -242,7 +242,7 @@ try {
       // (a pointer move each 2 s. Builds from before the no-input cap was dropped (e.g. 0305cab, AwayWatch) would hold the loop to 30 fps after 30 s with no input; the pokes keep old and new builds comparable)
       await p.evaluate(poke);
       if (mode === 'gallery') { await p.click('text=Gallery'); await p.waitForSelector('.gallery', { timeout: 20000 }); }
-      if (mode === 'build') { await p.click('text=Build my PC'); await p.waitForSelector('.bld-bar', { timeout: 30000 }); }
+      if (mode === 'build') { await p.click('text=Build my PC'); await p.waitForSelector('.bld-read', { timeout: 30000 }); }
       if (mode.startsWith('game')) {
         await p.click('text=New game'); await p.waitForSelector('#ng-title', { timeout: 20000 });
         if (mode === 'game-max') { await p.click('.ng-back >> text=Sandbox'); await p.click('text=Assembled machine'); } else await p.click('text=No, I know the game');

@@ -26,7 +26,7 @@ try {
   await p.goto(url);
   await p.waitForTimeout(1500);
   await p.click('text=Build my PC');
-  await p.waitForSelector('.bld-bar', { timeout: 30000 });
+  await p.waitForSelector('.bld-read', { timeout: 30000 });
   await p.waitForFunction(() => !!window.__build, null, { timeout: 30000 });
   await p.waitForTimeout(3000);
   // `--preset level,ram,storage,gpus,npus`: check that machine (as `buildPreset` makes it) instead of the maxed one

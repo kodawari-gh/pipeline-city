@@ -1,4 +1,4 @@
-// `npm run jobsheet -- <out.png> <job> [--focus slot] [--view yaw,pitch,fill] [--speed n] [--cols n] [--crop x,y,w,h] [--max n] [--keep]`
+// `npm run jobsheet -- <out.png> <job> [--preset level,ram,storage,gpus,npus] [--focus slot] [--view yaw,pitch,fill] [--speed n] [--cols n] [--crop x,y,w,h] [--max n] [--keep]`
 // One command, one picture: runs a Build my PC job (`remove:<slot>` or `fit:<spec>:<slot>`, e.g. `fit:cpu2:cpu0`, `remove:vrm-sink0.fan0`) in a headless Chrome
 // on the real GPU, records it with the CDP screencast, picks the middle frame of each step (at most --max, default 16) and writes ONE contact sheet
 // labelled with the steps. The page reads and the sheet is composed in the page: no Python, no per-frame files. Reuses a running dev server (PORT 5245)
@@ -31,9 +31,15 @@ try {
   p.on('console', (m) => { if (m.type() === 'error') console.log('console:', m.text()); });
   await p.goto(url);
   await p.click('text=Build my PC');
-  await p.waitForFunction(() => !!window.__build && !!document.querySelector('.bld-bar'), null, { timeout: 30000 });
+  await p.waitForFunction(() => !!window.__build && !!document.querySelector('.bld-read'), null, { timeout: 30000 });
   const gl = await p.evaluate(() => { const c = document.createElement('canvas').getContext('webgl2'); const e = c?.getExtension('WEBGL_debug_renderer_info'); return e ? c.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; });
   if (/swiftshader|llvmpipe/i.test(gl) && !process.env.SOFTWARE) { console.log('software GL:', gl); process.exit(1); }
+  // `--preset level,ram,storage,gpus,npus`: play the job on that ready-made machine (as `buildPreset` makes it: level 0 is a Mini, 0.3 a Micro, 0.65 a Mid, 1 a Full tower) instead of the maxed one
+  if (flag('preset', '')) {
+    const [level, ram, storage, gpus, npus] = flag('preset', '').split(',').map(Number);
+    await p.evaluate(async (pr) => { await window.__build.buildPreset({ name: 'x', ...pr }); }, { level, ram, storage, gpus, npus });
+    await p.waitForTimeout(2500);
+  }
   // (the machine stands once the first frames draw: aim the camera at the focus part)
   await p.evaluate(async ([FOCUS, VIEW]) => {
     const B = window.__build;
