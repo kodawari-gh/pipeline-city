@@ -34,6 +34,7 @@ import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
 import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
+import { LEVER_OPEN } from './boardhw3d';
 import { DOOR_SECONDS, DOOR_SEES, doorWait } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { latchOpen, motionFor, motionSeconds, placed, poseAt, solidAt, type Pose } from './buildmotion';
@@ -222,7 +223,7 @@ export class BuildStage {
    * itself (the hoses) and an `end` that puts them away. `fade` draws them see-through at the far end of their way (`solidAt`).
    */
   private anim: {
-    objs: { o: Object3D; base: [number, number, number]; baseTurn: number; pivot: [number, number] }[];
+    objs: { o: Object3D; base: [number, number, number]; baseTurn: number; baseTilt: number; pivot: [number, number] }[];
     kind: string; dir: 'out' | 'in'; t: number; latches: Object3D[]; done: () => void;
     drive?: (p: Pose, steps: number) => void; end?: () => void; fade?: PartFade;
   } | null = null;
@@ -568,14 +569,14 @@ export class BuildStage {
     for (const x of a.objs) {
       x.o.position.set(...placed(x.base, x.pivot, p.turn, p.offset));
       x.o.rotation.z = x.baseTurn + p.turn;
-      if (p.tilt || x.o.rotation.y) x.o.rotation.y = p.tilt;
+      x.o.rotation.y = x.baseTilt + p.tilt; // (a card tips about y; a fan on a side mount is built with its own quarter turn about y, which the motion keeps)
     }
     a.drive?.(p, ropeSteps(dt));
     a.fade?.set(solidAt(m, a.t, a.dir));
     this.setStep(p.label);
     const open = latchOpen(m, a.t, a.dir);
     for (const l of a.latches) {
-      if (l.userData.leverOf) l.rotation.y = -1.3 * open; // (the load lever lifts about its long side)
+      if (l.userData.leverOf) l.rotation.y = LEVER_OPEN * open; // (the load lever lifts about its long side)
       else l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * open;
     }
     if (a.t >= motionSeconds(m)) {
@@ -589,7 +590,7 @@ export class BuildStage {
       // a part that went in is at its seat; a part that came out has faded where its way ended and is hidden there. This frame draws before the
       // job goes on (`done` resumes it after the draw): a part put back at its seat here showed there for a frame, then vanished. The fade's
       // copies go after the hide, or the part would show solid for a frame.
-      if (a.dir === 'in') for (const x of a.objs) { x.o.position.set(x.base[0], x.base[1], x.base[2]); x.o.rotation.z = x.baseTurn; }
+      if (a.dir === 'in') for (const x of a.objs) { x.o.position.set(x.base[0], x.base[1], x.base[2]); x.o.rotation.z = x.baseTurn; x.o.rotation.y = x.baseTilt; }
       else for (const x of a.objs) x.o.visible = false;
       a.end?.();
       a.fade?.end();
@@ -1046,12 +1047,12 @@ export class BuildStage {
     return new Promise((done) => {
       const list = objs.map((o) => {
         const c = mid && o.parent ? o.parent.worldToLocal(mid.clone()) : o.position;
-        return { o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z, pivot: [c.x, c.y] as [number, number] };
+        return { o, base: [o.position.x, o.position.y, o.position.z] as [number, number, number], baseTurn: o.rotation.z, baseTilt: o.rotation.y, pivot: [c.x, c.y] as [number, number] };
       });
       const fade = objs.length ? new PartFade(objs) : undefined;
       fade?.set(solidAt(m, 0, dir));
       this.anim = { objs: list, kind, dir, t: 0, latches, done, ...(fade ? { fade } : {}) };
-      for (const x of list) { x.o.position.set(...placed(x.base, x.pivot, p.turn, p.offset)); x.o.rotation.z = x.baseTurn + p.turn; }
+      for (const x of list) { x.o.position.set(...placed(x.base, x.pivot, p.turn, p.offset)); x.o.rotation.z = x.baseTurn + p.turn; x.o.rotation.y = x.baseTilt + p.tilt; }
     });
   }
 
@@ -1164,7 +1165,7 @@ export class BuildStage {
     }
     // a part of a removal (`remove`) stays built: it is hidden where it ended, and a part that goes back is shown again (no build for each step)
     const obj = this.deferring && kind !== 'display' && kind !== 'psu' ? this.objectOf(node) : null;
-    const home = obj ? { p: obj.position.clone(), z: obj.rotation.z } : null;
+    const home = obj ? { p: obj.position.clone(), z: obj.rotation.z, y: obj.rotation.y } : null;
     await this.unseat(node, motionOf(kind, d.slot, this.board));
     const r = this.edit((g) => g.uninstall(d.id));
     if (!r.ok) { this.refuse(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
@@ -1201,7 +1202,7 @@ export class BuildStage {
   private async takeOutRadiator(d: InstalledDevice, undo: Undo[] | null): Promise<{ inv: string | null } | null> {
     const fans = this.railFans(), parts = [d, ...fans], objs = parts.map((x) => this.objectOf(devNode(x.id)));
     if (!fans.length || objs.some((o) => !o)) return null;
-    const homes = objs.map((o) => ({ p: o!.position.clone(), z: o!.rotation.z }));
+    const homes = objs.map((o) => ({ p: o!.position.clone(), z: o!.rotation.z, y: o!.rotation.y }));
     this.note(`Take out ${deviceSpec(d).name} with its ${fans.length} fan${fans.length === 1 ? '' : 's'}`);
     await this.playAll(objs as Object3D[], 'assembly', 'out');
     if (this.dead) return { inv: null };
@@ -1242,13 +1243,13 @@ export class BuildStage {
   }
 
   /** A held part goes back under the id the game gave it, at its place, shown. */
-  private refit(kept: { obj: Object3D; id: string; p: Vector3; z: number }, id: string): void {
+  private refit(kept: { obj: Object3D; id: string; p: Vector3; z: number; y: number }, id: string): void {
     kept.obj.traverse((o) => { const i = o.userData.id; if (typeof i === 'string' && (i === kept.id || i.startsWith(kept.id + '.'))) o.userData.id = id + i.slice(kept.id.length); });
-    kept.obj.position.copy(kept.p); kept.obj.rotation.z = kept.z; kept.obj.visible = true;
+    kept.obj.position.copy(kept.p); kept.obj.rotation.z = kept.z; kept.obj.rotation.y = kept.y; kept.obj.visible = true;
   }
 
-  /** Parts a removal took out and keeps built, by `spec@slot`: hidden at the far end of their way, with the place and id they had. */
-  private readonly held = new Map<string, { obj: Object3D; id: string; p: Vector3; z: number }>();
+  /** Parts a removal took out and keeps built, by `spec@slot`: hidden at the far end of their way, with the place, the turns and the id they had. */
+  private readonly held = new Map<string, { obj: Object3D; id: string; p: Vector3; z: number; y: number }>();
   private deferring = false;
   /** The parts this job took out and could not put back, in the order they would go back (`Along`): the step it records keeps them for Undo. */
   private stayed: Along[] = [];
