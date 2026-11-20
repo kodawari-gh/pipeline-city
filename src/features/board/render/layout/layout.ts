@@ -304,6 +304,8 @@ export let WALL_PLATE: Rect = { x: WALL_PLATE_X, y: 0, w: 460 * NET_K, h: 420 * 
 export let WALL_Y = 0;
 export let WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: 0 };
 export let ISP_ROW_Y = 0;
+/** The ISP's wall plate as the 3D room draws it: on the column under the letterbox, right of the monitor (layout units, y down). The network lens hangs its words on it. */
+export const ispPlate = (): Rect => ({ x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h });
 /** Vertical run of the ethernet cable in the gap between the monitor and the case (west of the PC's power plug and cord; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = IO_X - 950;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */

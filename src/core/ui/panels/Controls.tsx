@@ -23,6 +23,7 @@ const KEYS: readonly Row[] = [
   [['O'], 'Open or close the side panel'],
   [['P'], 'Power lens'],
   [['A'], 'Airflow lens'],
+  [['N'], 'Network lens'],
   [['Esc'], 'Close what is open, or open the menu'],
   [['?'], 'This list'],
 ];

@@ -13,6 +13,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | router, wall plate, ethernet cable, NIC cards | [`render/net.md`](render/net.md) |
 | the airflow lens: the 3D air as particles, the precomputed flow, collisions, heat exchange, water cooling, the supply's air | [`render/air.md`](render/air.md) |
 | the power lens: the real cables, the board's copper and the parts lit by what they draw, the pulses, the missing cables, the watts | [`render/power.md`](render/power.md) |
+| the network lens: the plan's line and the LAN lead lit by the link, the in and out comets, the limit words, the camera | [`render/net.md`](render/net.md) ("The network lens") |
 | the room: desk props, key rack and mail, USB keys, wall cords | [`render/room/room.md`](../src/features/room/room.md) |
 | the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
 | the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |

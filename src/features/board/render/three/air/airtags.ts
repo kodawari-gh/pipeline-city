@@ -7,10 +7,12 @@ import { powerGradient, ROLE_HEX, ROLE_WORD, type Role } from '@/core/render/thr
 import { thermalGradient } from '@/core/render/three/thermal';
 
 const ROLES: readonly Role[] = ['source', 'hub', 'use'];
+/** The network lens's legend: the two ways data goes (the chips' colours are the pulses'), by the class of the chip and its word. */
+const NET_LEGEND: readonly (readonly [string, string])[] = [['in', 'coming in'], ['out', 'going out']];
 const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
-/** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint. */
-export type TagTone = 'heat' | 'warn' | 'dim' | 'watts';
+/** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint; `net`: a link's speed (the network lens); `limit`: the slowest link, or a link that needs care. */
+export type TagTone = 'heat' | 'warn' | 'dim' | 'watts' | 'net' | 'limit';
 
 export interface AirTag {
   id: string;
@@ -32,8 +34,8 @@ export interface AirTag {
   minor?: boolean;
   /** The power lens: what the node does with power (a chip of its colour starts the pill): it brings it in (source), hands it on (hub) or uses it. */
   role?: Role;
-  /** The legend of the three roles in place of words (the chips and their names). */
-  legend?: boolean;
+  /** The legend in place of words (the chips and their names): `true` the three roles of the power lens, `'net'` the two ways data goes in the network lens. */
+  legend?: boolean | 'net';
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
@@ -57,6 +59,11 @@ const CSS = `
 .airtag-watts { color: #ffd37a; }
 .airtag-warn { color: #ff5a78; }
 .airtag-dim { color: #8a97c2; }
+.airtag-net { color: #8fe3fb; }
+.airtag-limit { color: #ffd37a; }
+.airtag-chip-in, .airtag-chip-out { border-radius: 50%; }
+.airtag-chip-in { background: #5fe0ff; box-shadow: 0 0 0.3rem #5fe0ff; }
+.airtag-chip-out { background: #b79cff; box-shadow: 0 0 0.3rem #b79cff; }
 .airtag-arrow { margin-left: 0.3rem; }
 .airtag-up { color: #ff7a4a; }
 .airtag-down { color: #6fd8ff; }
@@ -255,17 +262,18 @@ export class AirTags3D {
 
   private writeText(node: PillNode, item: Item): void {
     const sc = item.tag.scale, watts = item.tag.unit === 'W', role = item.tag.role;
-    const key = item.tag.legend ? 'legend' : sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
+    const key = item.tag.legend ? `legend|${item.tag.legend}` : sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
     if (key === node.key) return;
     node.key = key;
     if (item.tag.legend) {
       // the legend: a chip of each role's colour and its word
       node.el.className = 'airtag airtag-legend';
       node.el.textContent = '';
-      for (const r of ROLES) {
+      const entries: readonly (readonly [string, string])[] = item.tag.legend === 'net' ? NET_LEGEND : ROLES.map((r) => [r, ROLE_WORD[r]] as const);
+      for (const [kind, text] of entries) {
         const span = document.createElement('span'), chip = document.createElement('i'), word = document.createElement('span');
-        chip.className = `airtag-chip airtag-chip-${r}`;
-        word.textContent = ROLE_WORD[r];
+        chip.className = `airtag-chip airtag-chip-${kind}`;
+        word.textContent = text;
         span.appendChild(chip);
         span.appendChild(word);
         node.el.appendChild(span);

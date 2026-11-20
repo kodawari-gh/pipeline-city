@@ -1,12 +1,15 @@
 # Rendering: network props
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/network/render/net.ts`, `src/features/network/render/netvis.ts`. The network itself: [`NETWORK.md`](../NETWORK.md).
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/network/render/net.ts`, `src/features/network/render/netvis.ts`, `src/features/network/render/lens/` (the network lens). The network itself: [`NETWORK.md`](../NETWORK.md).
 
 ## Files
 
 | File | Role |
 |---|---|
 | `net.ts` | the network props: router, wall plate, ISP line, ethernet cable, NIC card art, link LEDs and traffic pulses (see Network) |
+| `lens/shape.ts` | the network lens, pure: the anchors (plate, router, LAN lead, OS drive), the lines (`netShape`), the numbers and tags of one snapshot (`netDraw`), `speedLevel` (see The network lens) |
+| `lens/flows.ts` | the network lens: the lines as one instanced mesh of strips that face the camera, and the comet shader |
+| `lens/view.ts` | the network lens: `NetView3D` (veil, lines, tags), hosted by `Lens3D` in the board feature |
 
 ## Network (router, wall plate, ethernet cable, NIC cards)
 
@@ -48,4 +51,22 @@ The group is drawn only when it matters: a router or a plan exists, a router is 
 **LOD.** The router, wall plate, cable and jack LEDs are external: the far-zoom view keeps them. The 2D layer that held them (`NetView.root`) and its far-zoom hit rule were removed with the 2D board.
 
 **Verified before the 2D board was removed** (headless Chrome, software GL, sandbox saves, real mouse events through `beginPartDrag` and the canvas; 1360x800 dark and light, 1920x1080 light): a router dragged from the inventory onto its spot installs (and is refused on a PCIe slot, a NIC on the router spot); all four router looks, the wall plate with plans 1 to 4; NIC cards `nic1`, `nic2`, `nic3` dropped on PCIe slots; the plug dragged onto `eth0` and onto a NIC jack, pulled out again (disconnects, plug back at rest) and re-plugged, all while the PC was on or off; power on, OS up, link up, downloads with pulses, the retired tray look; power off (router power and WAN lights stay, jack LEDs go dark, the tray says `NET DOWN`); two screenshots of a paused frame are byte-identical and differ again after the resume; far zoom with the router, cable and the NIC jack on the rear plate, and hover ids `router`, `wall`, `cable.lan`, `eth0` at far zoom; `anchorOf`, `hasTarget`, `flyTo` and a highlight for the new ids. Upload pulses and a `link-down` amber LED were checked with a spoofed snapshot (both directions drawn), not from a real upload; `saturated` came from a real run (spool full). Not verified: touch, the burnt-card dimming, the plugged-key-over-cable overlap. Not re-checked on the 3D board.
+
+## The network lens
+
+The lens shows the path data takes, in the room's own space: plan, router, LAN lead, port, OS drive. It opens with the `N` key or the dock's **Network** button (`NetLensButton` in `economy/ui/shop/Inventory.tsx`; the key is in the Controls list). It shares the screen with the power and airflow lenses: `networkLens` in `src/app/hover.ts` is a signal, and turning one lens on turns the other two off (`hover.test.ts`). It is ready when `netLensReady(s)` is true: unlock level 4, a router or plan, a router in the inventory, or the LAN lead plugged in. It is in the room game only (not in Build my PC).
+
+**Layers.** `Lens3D` (board feature) hosts `NetView3D` next to the power and airflow views, draws it when `networkLens` is on and hides it otherwise. `NetView3D` owns the veil (`makeVeil(NET_VEIL)`: a cool blue that dims the room but lets the machine read), the lines (`NetFlows`) and the pinned words (`AirTags3D`, the same pills as the airflow lens).
+
+**Shape and draw.** As in the power lens, what is built once is split from what changes. `anchorsOf(s, machine)` finds the places: the wall plate (`ispPlate()` in `layout.ts`, the one `room3d.ts` uses), the router (`ROUTER_SPOT`), the lead (`Machine3D.cableRuns()`, run `'lan'`: strands, seated, the jack, its radius) and the OS drive (`Machine3D.partBox`). `netShape(anchors)` makes two lines: the **plan's line** (`ispLine`: from the plate's west side along the wall to the router's back; it is a line of the lens only, there is no real cable there) and one line for each strand of the **LAN lead** (router jack to plug, lifted by the cable's radius so it sits on the cable). The shape is rebuilt when the machine or `machine.cablesRev` changes. A new snapshot only runs `netDraw(shape, s, anchors)`: for each line the down and up pace (`speedLevel` of the ladder's `downMbps` and `upMbps`, log scale 10 Mbit to 20 Gbit; 0 for a way that has no transfer), its state, and the tags.
+
+**Look** (`flows.ts`, one draw call). Each straight stretch of a line is a strip that turns to face the camera, never finer than two pixels each side, additive, depth-tested, drawn after the room (`renderOrder` 1002). The shader finds the pulses, nothing moves on the CPU. Data coming in is a **cyan** comet that runs toward the machine; results going out are **violet** and run back; with both ways busy each has its own lane across the line, so the two colours do not add up to white. The faster the link, the faster and closer the comets. Link up with nothing moving: a faint slow trickle coming in. A line that needs setup (`no-os`): a dim thread. A lead that is out (not plugged in, with a router or a plan present) or a link that is `down`: **red**, pulsing, still. The plan's line is lit only with both a plan and a router. With neither, nothing is lit. The comets run on game time (`dt`: a pause holds them); the red pulse runs on the real clock.
+
+**Words.** Four pills, from the same ladder as the network panel (`limiterLadder`): `Plan` over the plate, `Router` over the router (with the clients being served), `Port` at the jack, `Drive` over the OS drive. The slowest piece is amber and ends with `limit`. A missing piece says so in the warn colour (`No plan · click the plate`, `No router · drop one here`, `Port · plug the cable in`). When the state chip says warn or bad, one more pill (`link`) carries it under the router. The legend (`legend: 'net'`: a cyan dot `coming in`, a violet dot `going out`) sits under the `link` pill when there is one, else under the router. Tones: `net` (cyan), `limit` (amber), `warn`.
+
+**Camera.** Turning the lens on flies to `netWindow()` fitted with `inFree(.., CASE_Z, ROOM_ANGLE, 0.86)`, but only when the camera is clearly higher than that fit (`goal.height > fit.height * 1.1`): a player who is already close is not moved. The view before the flight is remembered. Turning the lens off flies back (to the room overview, or to that view) only when nothing moved the camera in between (`goal` still the lens's own).
+
+**Check tool.** In dev, `window.__net` is the `NetView3D` (`shapeNow`, `drawNow`, `anchorsNow`, `flowsNow`). Tests: `lens/shape.test.ts` (levels, shape, states, words, `netLensReady`), `src/app/hover.test.ts`.
+
+**Limits of the first version.** The plan's line is short and a lens-only line. The lead is thin from far. There is no ring on an open jack (only the `Port` word). Nothing inside the case (PCIe to chipset to RAM and drive) yet.
 

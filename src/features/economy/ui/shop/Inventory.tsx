@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '@/worker/game/game';
-import { airflowLens, powerLens, selected } from '@/app/hover';
+import { airflowLens, networkLens, powerLens, selected } from '@/app/hover';
+import { netLensReady } from '@/features/network/render/netvis';
 import { dragging, highlight, overInventory } from '@/app/interaction';
 import { cancelSwap, sell } from '@/app/store';
 import { SELL_RATE } from '../../sim/economy';
@@ -70,6 +71,18 @@ function AirflowButton() {
   );
 }
 
+/** The network lens switch (once there is a network to light): dims the room and lights the path data takes, from the plan's wall plate to the router and down the LAN lead (the N key does the same). */
+function NetLensButton({ s }: { s: Snapshot }) {
+  const on = networkLens.value;
+  if (!on && !netLensReady(s)) return null;
+  return (
+    <button class={`invbtn ${on ? 'on' : ''}`} data-hud="netlens" aria-pressed={on} aria-label="Network lens" title="Network lens (N): see the path data takes, and which link is the slowest" onClick={() => { networkLens.value = !networkLens.value; }}>
+      <Icon name="net" size={14} />
+      <span class="hide-narrow">Network</span>
+    </button>
+  );
+}
+
 /** The almanac button: every kind of job, what it needs, its code and how to do it better. */
 function AlmanacButton() {
   const open = almanacOpen.value;
@@ -106,13 +119,13 @@ function OsButton({ s }: { s: Snapshot }) {
 
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  // one glass bar in three groups: what the player owns and buys, the two lenses on the machine, the references and monitors
+  // one glass bar in three groups: what the player owns and buys, the lenses on the machine, the references and monitors
   return (
     <div class="invbar">
       <div class="dockbar" role="toolbar" aria-label="Panels">
         <InventoryButton s={s} /><ShopButton />
         <i class="dock-sep" aria-hidden="true" />
-        <LensButton /><AirflowButton />
+        <LensButton /><AirflowButton /><NetLensButton s={s} />
         <i class="dock-sep" aria-hidden="true" />
         <AlmanacButton /><LogButton /><OsButton s={s} />
       </div>

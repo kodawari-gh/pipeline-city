@@ -19,7 +19,7 @@ import {
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
-import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
+import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
@@ -801,7 +801,7 @@ export class Room3D {
     wallPlate(socket, { rect: plate, outlets: [g.socket.mon, g.socket.pc], face: ROOM_SOCKET.face, k: ROOM_SOCKET.k, look: { plate: graphite, black: mat(0x050608, { roughness: 0.6 }) } });
     mergeWithin(socket, { twin: this.envTwin }); // (the plate and its six holes in two draws, every tier)
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
-    const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
+    const ISP_PLATE: Rect = ispPlate();
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');
     // the ISP line's tier: five small lights along the wall plate, lit up to the plan's tier
     for (let k = 0; k < 5; k++) {

@@ -35,6 +35,8 @@ export const ROLE_WORD: Readonly<Record<Role, string>> = { source: 'source', hub
  * so it keeps its look under the veil.
  */
 export const POWER_VEIL: readonly [number, number, number] = [0.07, 0.075, 0.105];
+/** The network lens's veil: a deep blue, lighter than the power lens's, so the router, the plate and the machine stay in view under the lit path. */
+export const NET_VEIL: readonly [number, number, number] = [0.18, 0.22, 0.36];
 /** What a power part's colour and glow are multiplied by to read under `POWER_VEIL` as they did under the first veil (0.155 on average). */
 export const POWER_LIFT = 0.155 / ((POWER_VEIL[0] + POWER_VEIL[1] + POWER_VEIL[2]) / 3);
 

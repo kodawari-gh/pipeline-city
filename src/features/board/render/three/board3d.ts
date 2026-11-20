@@ -7,7 +7,8 @@ import { Box3, Vector3, type Object3D, type WebGLCubeRenderTarget } from 'three'
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
-import { airflowLens, hover, powerLens, selected, viewInset, INERT_REGIONS } from '@/app/hover';
+import { airflowLens, hover, networkLens, powerLens, selected, viewInset, INERT_REGIONS } from '@/app/hover';
+import { netLensReady } from '@/features/network/render/netvis';
 import { cameraRev, highlight } from '@/app/interaction';
 import type { FlyOpts } from '@/core/render/camera';
 import { setWorldAnchors, type Anchor } from '../board';
@@ -37,7 +38,7 @@ import { bootDone, bootStage, saveStill } from '@/app/boot';
 import { PROBE_K, Room3D, cityLayers, cityMesh, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
-import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
+import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, ispPlate, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
@@ -328,6 +329,28 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
+  /** The network lens's window: the plan's plate, the router and the machine, so that the path reads from end to end (a margin above for the words). */
+  const netWindow = (): Box => {
+    const p = ispPlate(), r = ROUTER_SPOT, c = CASE, x0 = Math.min(p.x, r.x, c.x) - 600, x1 = Math.max(p.x + p.w, r.x + r.w, c.x + c.w) + 600;
+    const y0 = Math.min(p.y, r.y, c.y) - 900, y1 = Math.max(p.y + p.h, r.y + r.h, c.y + c.h) + 300;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  };
+  /**
+   * The network lens brings the camera in to its window when the view is farther out than that (a view already as close, in the case or at the board, stays as the
+   * player has it). `netGoal` is the view it flew to and `netBack` where it came from: when the lens ends and the player has not moved the view since, the camera goes back.
+   */
+  let netGoal: OrbitView | null = null, netBack: { view: OrbitView; overview: boolean } | null = null;
+  networkLens.subscribe((on) => {
+    if (menu || !machine) return;
+    if (on) {
+      const to = inFree(netWindow(), CASE_Z, ROOM_ANGLE, 0.86);
+      if (goal.height > to.height * 1.1) { netBack = { view: goal, overview: atOverview }; flyTo(to); netGoal = goal; }
+    } else if (netGoal) {
+      const kept = goal === netGoal, back = netBack;
+      netGoal = netBack = null;
+      if (kept && back) { if (back.overview) flyToRoom(); else flyTo(back.view); }
+    }
+  });
   /** The first graphics card's die, framed close enough that the shroud has faded (`DEVICE_LOD.gpu.fade`) and the blocks read. */
   const flyToGpu = () => {
     const d = snapshot.peek()?.devices.find((x) => x.kind === 'gpu');
@@ -588,12 +611,16 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   /** What the cards and the pointer line place themselves by: they measure again when this changes (`cameraRev`). */
   let revKey = '';
 
+  /** The N key: the network lens, once there is a network to light (a lens that is on can always be turned off). */
+  const toggleNetLens = () => { const s = snapshot.peek(); if (networkLens.value || (s && netLensReady(s))) networkLens.value = !networkLens.value; };
   const onKey = (e: KeyboardEvent) => {
     if (menu) return; // the main menu's room is a picture: no keys, no pointer
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const k = e.key.toLowerCase();
+    // (the network lens frames its path from the overview itself: it must find the view as the player left it)
+    if (k === 'n') { toggleNetLens(); return; }
     cancelFlight();
     atOverview = false;
-    const k = e.key.toLowerCase();
     if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value; else if (k === 'o') machine?.toggleDoor();
   };
   window.addEventListener('keydown', onKey);
