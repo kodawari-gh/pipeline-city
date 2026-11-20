@@ -16,9 +16,9 @@
   "machine/Group#47": {
     "meshes": 24,
     "draws": 19,
-    "verts": 52056,
+    "verts": 52992,
     "instances": 186,
-    "sum": "0e368175"
+    "sum": "4cb7a6a5"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -140,18 +140,18 @@
     "sum": "58e3d48b"
   },
   "machine/cable.monmains": {
-    "meshes": 4,
-    "draws": 3,
-    "verts": 9964,
-    "instances": 0,
-    "sum": "93edf69e"
+    "meshes": 5,
+    "draws": 4,
+    "verts": 16276,
+    "instances": 16,
+    "sum": "fef53daf"
   },
   "machine/cable.pcmains": {
-    "meshes": 4,
-    "draws": 3,
-    "verts": 9964,
-    "instances": 0,
-    "sum": "2ddb2957"
+    "meshes": 5,
+    "draws": 4,
+    "verts": 16276,
+    "instances": 16,
+    "sum": "31cc4556"
   },
   "machine/cable.ramfan": {
     "meshes": 2,
@@ -791,11 +791,11 @@
     "sum": "e9b91a7b"
   },
   "room/socket": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1148,
+    "meshes": 1,
+    "draws": 1,
+    "verts": 4464,
     "instances": 0,
-    "sum": "e21e01ca"
+    "sum": "f05f590a"
   },
   "room/tray": {
     "meshes": 1,

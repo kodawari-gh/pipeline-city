@@ -1,9 +1,11 @@
-// The Swiss triple socket (swisssocket3d.ts): the pinwheel's plan (where each recess and its holes stand, how a plug is turned in it) and the socket built from it.
+// The Swiss sockets (swisssocket3d.ts): the triple socket's pinwheel (where each recess and its holes stand, how a plug is turned in it) and the socket built from it,
+// a recess at any scale, and the room's two-gang wall plate.
 import { describe, expect, it } from 'vitest';
 import { Box3, Group, Mesh, MeshStandardMaterial } from 'three';
 import { mat } from '@/core/render/three/materials';
+import { roomGeo } from '@/features/room/render/shell/room';
 import { lozenge, SWISS, T13 } from './plugs3d';
-import { inPinwheel, pinHoles, pinwheel, TRIPLE, tripleSocket } from './swisssocket3d';
+import { inPinwheel, pinHoles, pinwheel, recessHoles, recessOutline, ROOM_SOCKET, TRIPLE, tripleSocket, wallPlate } from './swisssocket3d';
 import { quietCanvas } from './testutil';
 
 quietCanvas();
@@ -98,5 +100,94 @@ describe('tripleSocket', () => {
       expect(b.max.z).toBeCloseTo(floor + 0.3 * MM, 0);
       expect((b.max.x - b.min.x) / MM).toBeCloseTo(T13.hole, 1);
     }
+  });
+});
+
+describe('a recess of a plate', () => {
+  const box = (p: { x: number; y: number }[]): { x0: number; x1: number; y0: number; y1: number } => ({
+    x0: Math.min(...p.map((q) => q.x)), x1: Math.max(...p.map((q) => q.x)), y0: Math.min(...p.map((q) => q.y)), y1: Math.max(...p.map((q) => q.y)),
+  });
+
+  it('is the traced hexagon at the scale it is drawn at, 39 x 22.1 mm, round its middle', () => {
+    for (const k of [14, 23]) {
+      const b = box(recessOutline({ x: 100, y: 200, roll: 0 }, k));
+      expect((b.x1 - b.x0) / k).toBeGreaterThan(38.5);
+      expect((b.x1 - b.x0) / k).toBeLessThan(39.5);
+      expect((b.y1 - b.y0) / k).toBeCloseTo(22.1, 1);
+      expect((b.x0 + b.x1) / 2).toBeCloseTo(100, 0);
+      expect((b.y0 + b.y1) / 2).toBeCloseTo(200, 0);
+    }
+  });
+
+  it('turns with a plug: a quarter turn stands the hexagon on its end', () => {
+    const b = box(recessOutline({ x: 0, y: 0, roll: Math.PI / 2 }, 10));
+    expect((b.y1 - b.y0) / 10).toBeGreaterThan(38.5);
+    expect((b.x1 - b.x0) / 10).toBeCloseTo(22.1, 1);
+  });
+
+  it('puts the three holes where the plug\'s pins go: the live and the neutral one 19 apart, the earth one 5 under them, all turned with it', () => {
+    const [l, n, e] = recessHoles({ x: 50, y: 70, roll: 0 }, 14);
+    expect(l![0]).toBeCloseTo(50 - (T13.pitch / 2) * 14, 5);
+    expect(n![0]).toBeCloseTo(50 + (T13.pitch / 2) * 14, 5);
+    expect(l![1]).toBeCloseTo(70 + T13.ln * 14, 5);
+    expect(e![0]).toBeCloseTo(50, 5);
+    expect(e![1]).toBeCloseTo(70 + (T13.ln - T13.earth) * 14, 5);
+    // (the earth hole stays on the same side of the pair, turned with the recess)
+    const [l2, n2, e2] = recessHoles({ x: 0, y: 0, roll: Math.PI }, 14);
+    expect(l2![0]).toBeCloseTo((T13.pitch / 2) * 14, 5);
+    expect(n2![0]).toBeCloseTo(-(T13.pitch / 2) * 14, 5);
+    expect(e2![1]).toBeCloseTo(-(T13.ln - T13.earth) * 14, 5);
+  });
+});
+
+describe('wallPlate', () => {
+  const look = { plate: mat(0x2a2d32), black: mat(0x050608) };
+  const g = roomGeo(), p = g.socket.plate, { k, face } = ROOM_SOCKET, floor = face - T13.deep * k;
+  const build = (): { plate: Group; root: Group } => {
+    const root = new Group();
+    return { plate: wallPlate(root, { rect: p, outlets: [g.socket.mon, g.socket.pc], face, k, look }), root };
+  };
+
+  it('builds the room\'s plate over its layout rect, from the wall to the face and not past it', () => {
+    const { plate, root } = build(), b = new Box3().setFromObject(plate);
+    expect(root.children).toContain(plate);
+    expect(b.min.x).toBeCloseTo(p.x, 0);
+    expect(b.max.x).toBeCloseTo(p.x + p.w, 0);
+    expect(b.min.y).toBeCloseTo(-(p.y + p.h), 0);
+    expect(b.max.y).toBeCloseTo(-p.y, 0);
+    expect(b.min.z).toBeGreaterThanOrEqual(-2);
+    expect(b.max.z).toBeLessThanOrEqual(face + 1);
+    expect(b.max.z).toBeGreaterThan(face - 2);
+  });
+
+  it('cuts a recess for each outlet down to its floor, 13 mm under the face, with three black holes in it', () => {
+    const { plate } = build();
+    const holes = plate.children.filter((o) => (o as Mesh).isMesh && ((o as Mesh).material as MeshStandardMaterial) === look.black);
+    expect(holes).toHaveLength(6);
+    for (const h of holes) {
+      const b = new Box3().setFromObject(h);
+      expect(b.max.z).toBeCloseTo(floor + 0.3 * k, 0);
+      expect((b.max.x - b.min.x) / k).toBeCloseTo(T13.hole, 1);
+    }
+  });
+
+  it('fits the room\'s layout: both recesses upright on the plate at the outlets, a web between them, the frame clear of them', () => {
+    const rs = [g.socket.mon, g.socket.pc].map((o) => recessOutline({ x: o.x, y: -o.y, roll: 0 }, k));
+    const [a, c] = rs.map((r) => ({ x0: Math.min(...r.map((q) => q.x)), x1: Math.max(...r.map((q) => q.x)), y0: Math.min(...r.map((q) => q.y)), y1: Math.max(...r.map((q) => q.y)) }));
+    // (the monitor's is the west one: its outlet stands at 0.28 of the plate, the PC's at 0.72)
+    expect(a!.x1).toBeLessThan(c!.x0 - 5 * k);
+    // (the frame's rim, 5.5 mm, and a little more of the insert)
+    for (const r of [a!, c!]) {
+      expect(r.x0).toBeGreaterThan(p.x + 7 * k);
+      expect(r.x1).toBeLessThan(p.x + p.w - 7 * k);
+      expect(r.y0).toBeGreaterThan(-(p.y + p.h) + 7 * k);
+      expect(r.y1).toBeLessThan(-p.y - 7 * k);
+    }
+  });
+
+  it('is deep enough for a plug: the head and the pins go in at most as far as the wall', () => {
+    expect(floor).toBeGreaterThan(0);
+    // (the head fills the recess, the pins go through the floor into the wall's depth)
+    expect(SWISS.head.l).toBeLessThanOrEqual(T13.deep);
   });
 });

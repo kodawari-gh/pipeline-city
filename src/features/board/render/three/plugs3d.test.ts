@@ -5,7 +5,7 @@ import { IO_HALF, IO_Z } from './boardhw3d';
 import { OUTPUTS } from './gpu3d';
 import { MOUTH } from './nic3d';
 import {
-  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissLength, swissPlug, swissReal, T13,
+  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissEngage, swissLength, swissPlug, swissReal, T13,
 } from './plugs3d';
 
 const MM = 23, VIDEO_R = 34, LAN_R = 40;
@@ -64,6 +64,21 @@ describe('the cables plugs', () => {
     expect((b.max.x - b.min.x) / MM).toBeLessThan(41);
     expect((b.max.y - b.min.y) / MM).toBeGreaterThan(22);
     expect((b.max.y - b.min.y) / MM).toBeLessThan(23.6);
+  });
+
+  it('builds the room\'s Swiss plug at its own scale: the head at 14 a mm, the boot kept to the 70 cord, drawn out far enough to clear the pins', () => {
+    const k = 14, f = swissReal(70, 0x18181b, k), plug = swissPlug(f), b = new Box3().setFromObject(plug.body);
+    // (a cord of 70 needs the boot of a plug 23 units a mm: the grip is 11 mm high at its end and the cord takes 55 of it)
+    expect(swissLength(f)).toBeCloseTo((SWISS.l * (2 * 70)) / 0.55 / (22 * SWISS.grip.scale));
+    expect(plug.l).toBeCloseTo(swissLength(f));
+    expect(b.min.z).toBeCloseTo(-plug.l - (SWISS.head.l + SWISS.pin.l) * k, 0);
+    expect((b.max.x - b.min.x) / k).toBeGreaterThan(39);
+    expect((b.max.x - b.min.x) / k).toBeLessThan(41);
+    // (lined up to go in, the head and the pins are out of the recess and the holes)
+    expect(swissEngage(k)).toBeGreaterThan((SWISS.head.l + SWISS.pin.l) * k);
+    expect(swissEngage(k)).toBeLessThan((SWISS.head.l + SWISS.pin.l + 2) * k);
+    // (and at the studio's scale it is a plug of the same drawing)
+    expect(swissReal(70, 0x18181b).k).toBe(MM);
   });
 
   it('puts the three pins over the three holes of a socket: live and neutral 19 apart, the earth pin 5 under them, all 4 across', () => {

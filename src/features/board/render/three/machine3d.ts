@@ -73,9 +73,10 @@ import {
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
-import { rigBuild, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
+import { rigBuild, seatPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { inFlowOrder, reversed, type CableRun, type RigPower } from './power/runs';
-import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, swissPlug, swissReal } from './plugs3d';
+import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, swissEngage, swissPlug, swissReal } from './plugs3d';
+import { ROOM_SOCKET } from './swisssocket3d';
 import { JACK_SINK, MM as WALL_MM, routerSolid, routerTier, type StageWall } from './studiowall3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -315,6 +316,8 @@ export class Machine3D {
   private small: Object3D | null = null;
   /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
   partLod: PartLod | null = null;
+  /** The wall socket's plate in the world (y up), the power lens's source plate: the studio's own, or the room's two-gang plate. */
+  readonly outlet: { x: number; y: number; hx: number; hy: number };
   /** The case's box (the root's space): the distance LOD reads the zoom at its nearest point. */
   /** The case's body less half a wall: what its walls shade at Low (`setCaseShade`); the feet and the walls' outer faces stay out of it. */
   private readonly shadeBox = new Box3(new Vector3(CASE.x + SHADE_IN, -(CASE.y + CASE.h) + SHADE_IN, CASE_Z + SHADE_IN), new Vector3(CASE.x + CASE.w - SHADE_IN, -CASE.y - SHADE_IN, FRONT - SHADE_IN));
@@ -329,6 +332,8 @@ export class Machine3D {
    */
   constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, readonly shown: Shown = 'machine', readonly wall: StageWall | null = null) {
     this.art = new ArtSet(q);
+    const p = geo.socket.plate;
+    this.outlet = wall ? wall.plan.plate : { x: p.x + p.w / 2, y: -(p.y + p.h / 2), hx: p.w / 2, hy: p.h / 2 };
     this.merged = merge;
     this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
     chips?.setScene(s);
@@ -1090,7 +1095,8 @@ export class Machine3D {
       // the cord runs from its device through the desk's grommet for good; what the player moves is the plug under the desk. It lies loose on the
       // floor by the wall socket (nothing to weave through the desk) and goes into its outlet, out of the wall
       const g = tag(new Group(), 'cable.' + id), hole: V3 = [dg.x + dx, deskTop + 10, dg.z], low: RopeEnd = { at: [dg.x + dx, under - 10, dg.z], dir: [0, -1, 0] };
-      const seat: Seat = { at: [socket.x, -socket.y, 100], axis: [0, 0, 1] }, o = { slack: 1.1, extra: 700, stiff: 0.4, n: 30 };
+      // (the room's plate is drawn small, swisssocket3d.ts `ROOM_SOCKET`: its Swiss plug is built at the same scale, upright, its earth pin down)
+      const seat: Seat = { at: [socket.x, -socket.y, ROOM_SOCKET.face], axis: [0, 0, 1] }, o = { slack: 1.1, extra: 700, stiff: 0.4, n: 30 };
       const floor: Env = { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }, { n: [0, -1, 0], d: -under }], solids: [] }, ground = floor.planes[0]!;
       const run = hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, { slack: 1.1, extra: 500, stiff: 0.4, n: 30 });
       g.add(cableMesh(run, cord));
@@ -1099,8 +1105,8 @@ export class Machine3D {
       grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false });
       g.add(unseen(grab));
       this.addRig(g, {
-        id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
-        engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
+        id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => seatPlug(seat, swissPlug(swissReal(cord.r, hexNum(cord.base), ROOM_SOCKET.k))), seat, canSeat: true,
+        engage: swissEngage(ROOM_SOCKET.k), seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
         deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
         // (the power comes from the wall: out of the plug, up through the desk's hole and along the cord to its device)
         power: { out: true, beyond: [low.at, ...reversed(run)] },
@@ -1116,7 +1122,7 @@ export class Machine3D {
       const seat: Seat = { at, axis: [0, 0, 1] }, o = { slack: 1.4, extra: 600, stiff: 0.4, n: 40 }, ground = stage.planes[0]!;
       this.addRig(g, {
         id, name: 'the wall socket', target: 'socket', look: cord, env: stage, fixed: [from], model: () => seatPlug(seat, swissPlug(swissReal(cord.r, hexNum(cord.base))), roll), seat, canSeat: true,
-        engage: 320, seated: (ex) => [hangPts(from, ex[0]!, cord, stage, o)], deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5, power: { out: true },
+        engage: swissEngage(WALL_MM), seated: (ex) => [hangPts(from, ex[0]!, cord, stage, o)], deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5, power: { out: true },
       }, on(id));
       this.wires.add(g);
     };

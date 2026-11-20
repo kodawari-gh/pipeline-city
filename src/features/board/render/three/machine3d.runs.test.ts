@@ -1,13 +1,15 @@
 // What the power lens follows of the machine (docs/render/power.md): `Machine3D.cableRuns` (each cable's strands as the sleeves are made from them, in the order the
 // power goes), `cablesRev`, `heldCables` and `partBox`.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Object3D } from 'three';
+import { Box3, type Object3D } from 'three';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { Game } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 import { Machine3D } from './machine3d';
+import { SWISS, swissEngage } from './plugs3d';
 import type { CableRun } from './power/runs';
+import { ROOM_SOCKET } from './swisssocket3d';
 import { quietCanvas } from './testutil';
 
 quietCanvas();
@@ -60,6 +62,26 @@ describe('Machine3D.cableRuns', () => {
       // (world y is up: the wall socket is under the desk, its device above it)
       expect(s[0]![1], id).toBeLessThan(s[s.length - 1]![1]!);
     }
+  });
+
+  it('plugs each mains cord into its recess of the room\'s Swiss plate: the seat on the plate\'s face, a type 12 plug at the plate\'s scale, drawn out clear of its pins', () => {
+    const g = roomGeo(), m = machine(maxed());
+    for (const [id, o] of [['pcmains', g.socket.pc], ['monmains', g.socket.mon]] as const) {
+      const rig = m.rig(id)!;
+      expect(rig.seat.at, id).toEqual([o.x, -o.y, ROOM_SOCKET.face]);
+      expect(rig.seat.axis, id).toEqual([0, 0, 1]);
+      expect(rig.engage, id).toBe(swissEngage(ROOM_SOCKET.k));
+      expect(rig.engage, id).toBeGreaterThan((SWISS.head.l + SWISS.pin.l) * ROOM_SOCKET.k);
+      // (the plug is 39 mm across at the plate's scale, as the recess it goes into)
+      const b = new Box3().setFromObject(rig.model().root), across = (b.max.x - b.min.x) / ROOM_SOCKET.k;
+      expect(across, id).toBeGreaterThan(39);
+      expect(across, id).toBeLessThan(41);
+    }
+  });
+
+  it('hands the lens the room\'s plate as the source: its outline, y up', () => {
+    const p = roomGeo().socket.plate;
+    expect(machine(maxed()).outlet).toEqual({ x: p.x + p.w / 2, y: -(p.y + p.h / 2), hx: p.w / 2, hy: p.h / 2 });
   });
 
   it('says which cables come in behind the tray from the supply', () => {

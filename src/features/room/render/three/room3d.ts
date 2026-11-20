@@ -22,6 +22,7 @@ import type { KeySnap } from '@/worker/game/types';
 import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
 import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
+import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { glows, mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
@@ -796,8 +797,9 @@ export class Room3D {
     mergeWithin(box, { twin: this.envTwin });
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
-    socket.add(softBox(plate, 0, 80, graphite, 30));
-    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x131518, { roughness: 0.6 }), SEG.disc));
+    // (a two-gang Swiss plate: a type 13 recess for each cord's type 12 plug, the plug is the machine's: `Machine3D.buildRoomCords`)
+    wallPlate(socket, { rect: plate, outlets: [g.socket.mon, g.socket.pc], face: ROOM_SOCKET.face, k: ROOM_SOCKET.k, look: { plate: graphite, black: mat(0x050608, { roughness: 0.6 }) } });
+    mergeWithin(socket, { twin: this.envTwin }); // (the plate and its six holes in two draws, every tier)
     // the ISP's wall plate: on the column under the letterbox, right of the monitor, where the room's view sees it (the 2D plate is under the desk)
     const ISP_PLATE: Rect = { x: OUTBOX.x + (OUTBOX.w - WALL_PLATE.w) / 2, y: -1700, w: WALL_PLATE.w, h: WALL_PLATE.h };
     const plateBox = tag(softBox(ISP_PLATE, 0, 80, graphite, 30), 'wall');

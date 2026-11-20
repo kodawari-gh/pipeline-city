@@ -94,9 +94,8 @@ export class PowerView3D {
   /** Make the lines of a new machine. */
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
-    // (on the studio's wall the source is its real plate: the lens's plate takes its outline, lying just over its face)
-    const box = machine.wall?.plan.plate;
-    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290, ...(box ? { outlet: { box, lift: 14 } } : {}) });
+    // (the source is the real wall plate, the studio's or the room's: the lens's plate takes its outline, lying just over its face)
+    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290, outlet: { box: machine.outlet, lift: 14 } });
     this.shape = shape;
     this.flows = new PowerFlows(shape);
     this.group.add(this.flows.mesh);

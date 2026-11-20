@@ -252,8 +252,10 @@ const SWISS_GRIP_H = 22 * SWISS.grip.scale;
 
 /** A mains plug for one socket: `k` units a mm, the cord's radius and the plug's colour. */
 export interface SwissFit { k: number; cable: number; tone: number }
-export const swissReal = (cable: number, tone: number): SwissFit => ({ k: MM, cable, tone });
+export const swissReal = (cable: number, tone: number, k: number = MM): SwissFit => ({ k, cable, tone });
 export const swissLength = (f: SwissFit): number => SWISS.l * bootScale(f.k, f.cable, SWISS_GRIP_H, 0.55);
+/** How far a Swiss plug is drawn out of its mouth when it lines up to go in: its head and its pins clear of the recess and of the holes in its floor. */
+export const swissEngage = (k: number): number => Math.ceil((SWISS.head.l + SWISS.pin.l + 1) * k);
 
 /** The recess's outline `inset` mm in, as a shape of `k` units a mm (a plug's head, a socket's mouth). */
 export function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
