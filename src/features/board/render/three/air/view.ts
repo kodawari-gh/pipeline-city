@@ -6,6 +6,7 @@
 import { Group, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { effective } from '@/app/graphics';
+import { viewInset } from '@/app/hover';
 import { FAN_FULL_LEVEL, FanMotor, fanBank, machineLive } from '@/core/render/fanmotor';
 import { AMBIENT_C } from '../../../sim/specs';
 import { AIR_SOURCES } from '@/features/room/render/desk/airsources';
@@ -215,7 +216,7 @@ export class AirView3D {
     this.tags.show(true);
     if (Math.round(this.hi) !== this.shownHi) this.pushTags();
     const r = this.dom?.getBoundingClientRect();
-    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height });
+    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height, minTop: viewInset.peek().top }); // (a label under the HUD bar cannot be read)
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

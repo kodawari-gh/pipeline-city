@@ -5,6 +5,7 @@
 // What is built once (the shape) changes only when a cable, a part or the board does; a snapshot only rewrites a few numbers.
 import { Box3, Group, Vector3, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
+import { viewInset } from '@/app/hover';
 import { POWER_VEIL } from '@/core/render/three/powerscale';
 import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
 import { LAYOUT_CASE, LAYOUT_TIER } from '../../layout/layout';
@@ -163,7 +164,7 @@ export class PowerView3D {
     this.group.visible = true;
     this.tags.show(true);
     const r = this.dom?.getBoundingClientRect();
-    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height });
+    if (r) this.tags.frame(cam, { left: r.left, top: r.top, width: r.width, height: r.height, minTop: viewInset.peek().top });
     this.cost += (performance.now() - t0 - this.cost) * 0.05;
   }
 

@@ -106,7 +106,18 @@ function OsButton({ s }: { s: Snapshot }) {
 
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AirflowButton /><AlmanacButton /><LogButton /><OsButton s={s} /></div>;
+  // one glass bar in three groups: what the player owns and buys, the two lenses on the machine, the references and monitors
+  return (
+    <div class="invbar">
+      <div class="dockbar" role="toolbar" aria-label="Panels">
+        <InventoryButton s={s} /><ShopButton />
+        <i class="dock-sep" aria-hidden="true" />
+        <LensButton /><AirflowButton />
+        <i class="dock-sep" aria-hidden="true" />
+        <AlmanacButton /><LogButton /><OsButton s={s} />
+      </div>
+    </div>
+  );
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */

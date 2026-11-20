@@ -117,6 +117,22 @@ describe('AirTags3D', () => {
     expect(overlap).toBe(false);
   });
 
+  it('never lets a pill rise past minTop (the HUD bar), and sends the one that clashes down, not up', () => {
+    const t = make();
+    t.set([tag('a', [0, 0, 0], 'AAAA'), tag('b', [0, 0, 0], 'BBBB')], 0);
+    // the origin is at y 450; a bar that ends at y 480 is in the way of both
+    t.frame(makeCam(), { ...VIEW, minTop: 480 });
+    const [a, b] = t.boxes();
+    expect(a!.top).toBeGreaterThanOrEqual(480);
+    expect(b!.top).toBeGreaterThanOrEqual(480);
+    expect(a!.top < b!.top + b!.height && b!.top < a!.top + a!.height).toBe(false);
+    // a bar far above them changes nothing: the second one climbs, as it always did
+    t.frame(makeCam(), { ...VIEW, minTop: 100 });
+    const [c, d] = t.boxes();
+    expect(d!.top).toBeLessThan(c!.top);
+    expect(d!.top).toBeGreaterThanOrEqual(100);
+  });
+
   it('a scale tag shows the temperatures at the two ends of a bar, and sits right under the tag it names', () => {
     const t = make();
     t.set([tag('room', [0, 0, 0], 'ROOM 25°C'), tag('scale', [0, 0, 0], '', { scale: [25, 88.4], under: 'room' })], 0);

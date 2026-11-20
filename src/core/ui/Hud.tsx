@@ -331,17 +331,31 @@ export function Hud() {
       <MenuKeys />
       <header class="hud">
         <div class="hud-side hud-left">
-        <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
-        <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
-        <Reputation s={s} />
-        <PowerBill s={s} />
-        <PhaseChip s={s} />
-        <NetChipButton s={s} />
-        <OsChipButton s={s} />
-        {s.sandbox && <SandboxTools s={s} />}
-        {s.sandbox && <SandboxJobs s={s} />}
+          {/* what the player earns and spends, then what the machine is doing, then (a sandbox) its tools: three groups with a hairline between */}
+          <div class="hud-grp hud-econ">
+            <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
+            <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
+            <Reputation s={s} />
+            <PowerBill s={s} />
+          </div>
+          <i class="hud-sep" aria-hidden="true" />
+          <div class="hud-grp hud-sys">
+            <PhaseChip s={s} />
+            <NetChipButton s={s} />
+            <OsChipButton s={s} />
+          </div>
+          {s.sandbox && (
+            <>
+              <i class="hud-sep" aria-hidden="true" />
+              <div class="hud-grp hud-sbx" role="group" aria-label="Sandbox">
+                <SandboxTools s={s} />
+                <SandboxJobs s={s} />
+              </div>
+            </>
+          )}
         </div>
-        <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>
+        {/* (a sandbox pins the rules level: its Jobs button says it, so the bar has no second pill for it) */}
+        {!s.sandbox && <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>}
         <div class="hud-side hud-right">
         <SpeedControl />
         <Menu s={s} />

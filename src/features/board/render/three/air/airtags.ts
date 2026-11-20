@@ -39,7 +39,8 @@ export interface AirTag {
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
 export const TREND_C_PER_S = 0.03;
 
-export interface TagView { left: number; top: number; width: number; height: number } // the canvas rect in CSS px
+/** The canvas rect in CSS px. `minTop`: the lowest a pill may sit (the foot of the HUD bar: a label under the bar cannot be read). */
+export interface TagView { left: number; top: number; width: number; height: number; minTop?: number }
 
 /** Gap (CSS px) kept between pills. Also the step a pill climbs to clear another one. */
 const GAP = 4;
@@ -99,6 +100,20 @@ function step(old: Trend | undefined, temp: number, now: number): Trend {
 /** True when a box would touch a placed one, with the gap kept around it. */
 function overlaps(l: number, t: number, w: number, h: number, placed: readonly Box[]): boolean {
   return placed.some((p) => l < p.r + GAP && l + w > p.l - GAP && t < p.b + GAP && t + h > p.t - GAP);
+}
+
+/**
+ * Where a pill settles: it climbs while it clashes with a placed one. It never climbs past `floor` (the foot of the HUD bar): there it turns
+ * and goes down instead. With no floor this is the plain climb.
+ */
+function settle(left: number, top: number, w: number, h: number, placed: readonly Box[], floor: number): number {
+  let dir = -1;
+  if (top < floor) { top = floor; dir = 1; }
+  for (let s = 0; s < MAX_STEPS && overlaps(left, top, w, h, placed); s++) {
+    top += dir * (h + GAP);
+    if (dir < 0 && top < floor) { top = floor; dir = 1; }
+  }
+  return top;
 }
 
 /** Slide a pill in from the edge so it stays whole inside the view. */
@@ -193,8 +208,7 @@ export class AirTags3D {
       } else {
         const want = anchor === 'l' ? x : anchor === 'r' ? x - w : x - w / 2;
         left = fitX(want, w, view);
-        top = y - h / 2;
-        while (s < MAX_STEPS && overlaps(left, top, w, h, placed)) { top -= h + GAP; s++; }
+        top = settle(left, y - h / 2, w, h, placed, view.minTop ?? -Infinity);
       }
       const box = { l: left, t: top, r: left + w, b: top + h };
       placed.push(box);
