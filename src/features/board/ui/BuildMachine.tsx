@@ -12,6 +12,7 @@ import { deltaText, overallOfRuns } from './benchhud';
 import { countNames, groupByKind, OPEN_UP_TO, plural, priceOf } from './buildhud';
 import type { Source } from './builddrag';
 import { BuildAlerts } from './BuildAlerts';
+import { BuildNet } from './BuildNet';
 import { BuildStart } from './BuildStart';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -208,6 +209,8 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
             <span>{none ? 'Pick a case from the shelf to bring it in.' : bare ? 'Fit a motherboard first: every other part plugs into it.' : 'Drag a part from the shelf onto the PC.'}</span>
           </li>
         )}
+        {/* (the OS, the router and the internet plan: not parts of the board, so they have rows of their own, and the link they make) */}
+        {snap && <BuildNet stage={stage} snap={snap} busy={busy} onShelf={onShelf} />}
       </ul>
       {stage && <BenchFoot stage={stage} busy={busy} onOpen={onBench} />}
       {log.length > 0 && (

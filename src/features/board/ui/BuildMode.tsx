@@ -8,6 +8,7 @@ import { TooltipBubble } from '@/core/ui/kit/Hover';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from '@/features/economy/ui/shop/PartArt';
 import { STUDIO_KINDS } from '@/features/economy/ui/shop/shopdata';
+import { NET_KINDS, netKindOf } from '@/features/board/sim/buildnet';
 import { BuildBench } from './BuildBench';
 import { BuildCard } from './BuildCard';
 import { BuildMachine } from './BuildMachine';
@@ -28,8 +29,8 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // Keys as the game's: O the side panel, P and A the overlays. Also F focus, R reset, Delete take out, Ctrl+Z / Ctrl+Y, Escape lets go, then leaves.
 // The benchmark (the summary's button, or the right panel's card) is a sheet over the stage (`BuildBench.tsx`): while it is open the stage's keys wait and Escape closes it first.
 
-/** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case). */
-const KINDS = STUDIO_KINDS.filter((k) => k !== 'display');
+/** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case), then the network: the OS, the router and the internet plan. */
+const KINDS = [...STUDIO_KINDS.filter((k) => k !== 'display'), ...NET_KINDS];
 
 /** The hover line of what a click or a drag does: for a part, a socket, the case's side panel. */
 const doesOf = (id: string, stage: Stage): string => (id === 'case.side' ? 'Click to open it' : stage.board.devices.some((d) => d.id === id) ? 'Click to pick it · drag it onto the shelf to take it out' : 'Drop a part here to fit it');
@@ -188,8 +189,8 @@ export function BuildMode() {
   );
 }
 
-/** `case` or `board` for a catalogue id that is one of them (the two parts a bare case or an empty stage takes), else nothing. */
-const shellOf = (item: string): 'case' | 'board' | undefined => (/^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : undefined);
+/** `case` or `board` for a catalogue id that is one of them (the two parts a bare case or an empty stage takes), `net` for an OS, a router or an internet plan, else nothing. */
+const shellOf = (item: string): 'case' | 'board' | 'net' | undefined => (/^case\d$/.test(item) ? 'case' : /^board\d$/.test(item) ? 'board' : netKindOf(item) ? 'net' : undefined);
 
 /**
  * The part on the pointer: its picture and name, and what a let-go would do (green: it fits, red: it fits nowhere). `shown`: with a bare case no part has a
@@ -199,7 +200,10 @@ function Ghost({ drag, shown }: { drag: Drag; shown: Shown }) {
   const ok = drag.from === 'shelf' ? !!drag.target : drag.over === 'bin';
   const no = drag.target === '';
   const none = shown === 'nothing';
-  const says = drag.from === 'shelf'
+  const net = shellOf(drag.item) === 'net';
+  const says = drag.from === 'shelf' && net
+    ? (drag.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage')
+    : drag.from === 'shelf'
     ? (drag.over !== 'stage' ? (none ? 'Drag it onto the stage' : 'Drag it onto the PC')
       : no ? (none ? 'Fit a case first' : shown === 'case' ? 'Fit a motherboard first' : 'Fits no socket here')
       : drag.target && !/^(case|board)\d$/.test(drag.target) ? `Let go to fit it in ${drag.target}` : none ? 'Let go to bring it in' : 'Let go to fit it here')

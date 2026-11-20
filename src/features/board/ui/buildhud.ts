@@ -5,6 +5,7 @@ import { bootCheck, type Cables } from '@/features/board/sim/cables';
 import type { Alert } from '@/features/board/sim/buildalerts';
 import type { BuildPreset, Shown, SpecSheet } from '@/features/board/sim/buildspecs';
 import { getSpec } from '@/features/board/sim/specs';
+import type { NetSnap } from '@/worker/game/types';
 
 export interface Readiness { ok: boolean; line: string }
 
@@ -93,6 +94,23 @@ export function freeName(taken: readonly string[], base = 'My build'): string {
   return `${base} ${n}`;
 }
 
+/** A speed in Mbit/s, in Gbit/s from a thousand. */
+export const rate = (mbps: number): string => (mbps >= 1000 ? `${+(mbps / 1000).toFixed(1)} Gbit/s` : `${Math.round(mbps)} Mbit/s`);
+
+/**
+ * What the machine's link says (the network rows' last line): the speed it gets and what holds it back, or what is missing (a router, a plan, an OS, the
+ * cable). `tone`: amber while something is missing or the machine is off, green once the link is up.
+ */
+export function linkLine(n: Pick<NetSnap, 'state' | 'reason' | 'bandwidth' | 'router' | 'isp'>): { tone: 'ok' | 'warn'; text: string } {
+  // (the game's words say "buy one" and "install one next to the monitor": here the shelf has them)
+  if (!n.router || !n.isp) return { tone: 'warn', text: `No ${!n.router && !n.isp ? 'router and no internet plan' : !n.router ? 'router' : 'internet plan'}: pick ${!n.router && !n.isp ? 'them' : 'one'} from the shelf` };
+  if (n.state === 'no-cable') return { tone: 'warn', text: 'The ethernet cable is not plugged in' };
+  if (n.state === 'no-os') return { tone: 'warn', text: n.reason ?? 'The OS is missing' };
+  const b = n.bandwidth, off = n.state === 'down';
+  const speed = `${rate(b.downMbps)} down · ${rate(b.upMbps)} up${b.binding ? ` · held back by the ${b.binding}` : ''}`;
+  return { tone: off ? 'warn' : 'ok', text: off && n.reason ? `${speed} (${n.reason})` : speed };
+}
+
 /** A group of parts of one kind shows its rows when it has this many or fewer; more fold to one line (the player's click decides after that). */
 export const OPEN_UP_TO = 3;
 
@@ -110,13 +128,14 @@ export interface HintState {
   fitted: number;
   /** What stands on the stage: with a bare case only a board (or another case) can go in; with nothing, only a case. */
   shown?: Shown;
-  /** For a part dragged off the shelf: it is a case or a board (the things a bare case or an empty stage takes). */
-  shell?: 'case' | 'board';
+  /** For a part dragged off the shelf: it is a case or a board (the things a bare case or an empty stage takes), or `net`: an OS, a router or an internet plan (they fit the room, whatever stands on the stage). */
+  shell?: 'case' | 'board' | 'net';
 }
 
 /** The one line under the stage: what the player can do now. */
 export function hintLine(h: HintState): string {
   if (h.busy) return h.step || 'Working…';
+  if (h.dragging === 'shelf' && h.shell === 'net') return h.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage';
   if (h.dragging === 'shelf' && h.shown === 'nothing') return h.shell === 'case' ? (h.over === 'stage' ? 'Let go to bring the case in' : 'Drag it onto the stage') : 'Fit a case first: every part goes in it';
   if (h.dragging === 'shelf' && h.shown === 'case') return h.shell ? (h.over === 'stage' ? 'Let go on the case to fit it' : 'Drag it onto the case') : 'Fit a motherboard first: every other part plugs into it';
   if (h.dragging === 'shelf') return h.over === 'stage' ? 'Let go on a lit socket to fit it' : 'Drag it onto the PC';

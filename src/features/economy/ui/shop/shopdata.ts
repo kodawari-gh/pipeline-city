@@ -35,11 +35,11 @@ export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'bo
 /** Has this kind a 3D model in the showcase? (Boards, software, routers and plans are not parts you can turn in your hand.) */
 export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'router', 'isp'].includes(k);
 
-/** The list price of a catalogue item (a part, a board tier or a case tier), or null for an id it does not know. */
+/** The list price of a catalogue item (a part, a board tier or a case tier, an OS, a router or an internet plan), or null for an id it does not know. */
 export function priceOf(item: string): number | null {
   const shell = /^(board|case)(\d+)$/.exec(item);
   if (shell) return (shell[1] === 'board' ? BOARD_TIERS : CASE_TIERS)[Number(shell[2])]?.price ?? null;
-  return getSpec(item)?.price ?? null;
+  return getSpec(item)?.price ?? getOsSpec(item)?.price ?? ROUTER_SPECS.find((r) => r.id === item)?.price ?? ISP_SPECS.find((p) => p.id === item)?.price ?? null;
 }
 
 /** A part's name in two: the name, and what the catalogue says of it in brackets (`Tiny-5F+I (front end: I-cache)` is `Tiny-5F+I` and `front end: I-cache`). */

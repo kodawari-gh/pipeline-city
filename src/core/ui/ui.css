@@ -1477,6 +1477,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.2rem 0.8rem; text-align: center; color: var(--mute); border: 0.133rem dashed var(--glass-line); border-radius: var(--m-r-row); }
 .bld-none b { color: var(--ink); font-size: var(--m-md); }
 .bld-none span { font-size: var(--m-sm); }
+/* the link the network rows make: one line of what the machine gets, and what holds it back */
+.bld-link { display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.25rem 0.3rem; font: var(--m-xs) var(--mono); color: var(--mute); }
+.bld-link .icon, .bld-link svg { flex: none; margin-top: 0.1rem; }
+.bld-link.ok { color: var(--ok); }
+.bld-link.warn { color: var(--warn); }
 .bld-thumb { flex: none; width: 2.3rem; height: 2.3rem; display: grid; place-items: center; border-radius: 0.5rem; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
 .bld-row { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
 .bld-row em { font: normal var(--m-xs) var(--mono); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -28,6 +28,7 @@ import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/boa
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
+import type { Result } from '@/worker/game/types';
 import { freeBakePools, startBaker } from './bake';
 import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpick';
 import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
@@ -46,12 +47,15 @@ import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
+import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
+import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';
+import { OS_SPECS } from '@/features/os/sim';
 import { buildAlerts, newAlerts, standing, type Alert } from '@/features/board/sim/buildalerts';
 import type { Stop } from '@/features/sandbox/sim/pcbench';
 import type { TaskResult } from '@/features/sandbox/sim/benchtasks';
 
-/** A part in the bin: what a player can fit. */
-export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case'; tier: number }
+/** A part in the bin: what a player can fit (an OS, a router or an internet plan too: they are fitted to the room, not to a socket, `fitNet`). */
+export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case' | NetKind; tier: number }
 
 /** How far the benchmark has got: the task that runs now (null while the benchmark's code loads) and its place among the tasks picked. */
 export interface BenchProgress { id: string | null; n: number; total: number }
@@ -71,7 +75,9 @@ export interface BuildStatus {
 type PartStep = { t: 'fit' | 'remove'; spec: string; slot: string; along?: Along[] };
 /** A part the step took out and could not put back (a fan whose heatsink went, a cooler whose CPU went): it stays out, and Undo brings it back after the part. */
 type Along = { spec: string; slot: string };
-type Step = PartStep | { t: 'swap'; game: Game; shown: Shown };
+/** The OS, the router or the internet plan changed from one item to another (ids; null for none): Undo sets the one it was. */
+type NetStep = { t: 'net'; kind: NetKind; from: string | null; to: string | null };
+type Step = PartStep | NetStep | { t: 'swap'; game: Game; shown: Shown };
 /** How many whole machines the history keeps (each holds a game): the oldest and the steps before it go first. */
 const KEEP_SWAPS = 8;
 /** How long a refusal stays on the hint line, counted from the end of the job that raised it. */
@@ -132,6 +138,10 @@ export function binParts(): BinPart[] {
   const out: BinPart[] = CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, kind: 'case', tier: c.tier }));
   for (const b of BOARD_TIERS) out.push({ id: `board${b.tier}`, name: `${b.name} board`, kind: 'board', tier: b.tier });
   for (const k of ['cpu', 'cooler', 'radiator', 'fan', 'ram', 'vrm-sink', 'ram-sink', 'storage', 'gpu', 'npu', 'nic', 'tpm', 'psu'] as const) for (const s of specsOfKind(k)) out.push({ id: s.id, name: s.name, kind: k, tier: s.tier });
+  // (the network: an OS goes on a drive, a router stands by the wall, a plan comes in by the wall jack; an OS the game lists as later is not for sale)
+  for (const s of OS_SPECS) if (!s.later) out.push({ id: s.id, name: s.name, kind: 'os', tier: s.tier });
+  for (const s of ROUTER_SPECS) out.push({ id: s.id, name: s.name, kind: 'router', tier: s.tier });
+  for (const s of ISP_SPECS) out.push({ id: s.id, name: s.name, kind: 'isp', tier: s.tier });
   return out;
 }
 
@@ -775,6 +785,8 @@ export class BuildStage {
   dropTarget(item: string, x?: number, y?: number): string | null {
     // (a case or a board lands on the PC itself; with no case on the stage a board has nothing to land on)
     if (/^(case|board)\d$/.test(item)) return this.shown.peek() === 'nothing' && item.startsWith('board') ? null : item;
+    // (an OS, a router and a plan fit the room, not a socket: any drop on the stage takes them)
+    if (netKindOf(item)) return item;
     const spec = getSpec(item);
     if (!spec || this.bare.peek()) return null; // (a bare case has no socket)
     const fits = (s: SlotInfo) => slotAccepts(s.type, spec.slot) && slotFits(s, spec);
@@ -812,6 +824,11 @@ export class BuildStage {
    */
   private async apply(s: Step, undo: boolean): Promise<Step> {
     if (s.t === 'swap') return this.swapIn(s.game, undo ? 'Went back to the machine before' : 'Went forward again', s.shown);
+    if (s.t === 'net') {
+      const to = undo ? s.from : s.to, r = this.setNetItem(s.kind, to);
+      if (!r.ok) this.refuse(`Cannot ${to ? `fit ${netName(to)}` : 'take it out'}: ${r.reason}`);
+      return s;
+    }
     await this.run(undo ? { t: s.t === 'fit' ? 'remove' : 'fit', spec: s.spec, slot: s.slot } : s);
     if (undo) for (const a of s.along ?? []) await this.run({ t: 'fit', spec: a.spec, slot: a.slot });
     return s;
@@ -1367,6 +1384,7 @@ export class BuildStage {
     return this.job(async () => {
       const itemId = item;
       if (/^(case|board)\d$/.test(itemId)) return this.fitShell(itemId);
+      if (netKindOf(itemId)) return this.fitNet(itemId);
       // (a bare case has no socket: every part plugs into the board; with no case there is nothing to plug into)
       if (this.shown.peek() === 'nothing') { this.refuse('Fit a case first: every part goes in it'); return; }
       if (this.bare.peek()) { this.refuse('Fit a motherboard first: every other part plugs into it'); return; }
@@ -1447,6 +1465,39 @@ export class BuildStage {
       await this.connectHoses();
       for (const u of cables) await this.putBack(u);
       await this.plugNeeded();
+    });
+  }
+
+  /** Put an OS, a router or an internet plan in its place (`id`), or take it out (`id` null): the game's own answer, and no step is recorded here. */
+  private setNetItem(kind: NetKind, id: string | null): Result {
+    const r = this.edit((g) => setNet(g, kind, id));
+    if (r.ok) this.bump();
+    return r;
+  }
+
+  /**
+   * An OS, a router or an internet plan from the shelf. They fit the room, not a socket: the OS goes on the first drive that holds it (the one it
+   * replaces comes off), the router stands by the wall and is cabled to the machine's jack, and the plan comes in by the wall jack. Each replaces
+   * the one of its kind; the same item again is refused. Undo sets the item that was there.
+   */
+  private async fitNet(itemId: string): Promise<void> {
+    const kind = netKindOf(itemId)!, was = netState(this.game)[kind], name = netName(itemId);
+    if (was === itemId) { this.refuse(`${name} is already in place`); return; }
+    const r = this.setNetItem(kind, itemId);
+    if (!r.ok) { this.refuse(`Cannot fit ${name}: ${r.reason}`); return; }
+    this.record({ t: 'net', kind, from: was, to: itemId });
+    this.note(`Fit ${name}`);
+  }
+
+  /** Take the OS, the router or the internet plan out (what the right panel's row does). Undo puts it back. */
+  removeNet(kind: NetKind): Promise<void> {
+    return this.job(async () => {
+      const was = netState(this.game)[kind];
+      if (!was) return;
+      const r = this.setNetItem(kind, null);
+      if (!r.ok) { this.refuse(`Cannot take ${netName(was)} out: ${r.reason}`); return; }
+      this.record({ t: 'net', kind, from: was, to: null });
+      this.note(`Took out ${netName(was)}`);
     });
   }
 

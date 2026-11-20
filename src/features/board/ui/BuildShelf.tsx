@@ -1,5 +1,6 @@
 import type { RefObject } from 'preact';
 import { Icon } from '@/core/ui/kit/Icons';
+import { netKindOf } from '@/features/board/sim/buildnet';
 import { PartShelf } from '@/features/economy/ui/shop/PartShelf';
 
 type Part = import('../render/three/buildmode3d').BinPart;
@@ -38,7 +39,9 @@ export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fi
       setKind={setKind}
       all
       dim={busy}
-      tip={(p) => `${p.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`}
+      tip={(p) => (netKindOf(p.id)
+        ? `${p.name}. Drag it onto the stage, or click, to ${p.kind === 'os' ? 'install it on the first drive that holds it' : p.kind === 'router' ? 'stand it by the wall, cabled to the PC' : 'bring it in by the wall jack'}.`
+        : `${p.name}. Drag it onto the PC to fit it, or click to fit it in the first free socket.`)}
       onPress={(p, e) => press({ item: p.id, spec: p.id, name: p.name }, e)}
       onActivate={(p) => fit(p.id)}
     >

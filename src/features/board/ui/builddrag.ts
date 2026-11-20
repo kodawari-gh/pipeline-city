@@ -2,6 +2,7 @@
 // window listeners, so the drag goes on over the panels; the stage outlines what the part fits while it is held (`BuildStage.carry`).
 import type { RefObject } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { netKindOf } from '@/features/board/sim/buildnet';
 import { devNode } from '@/features/board/sim/removal';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
@@ -26,7 +27,8 @@ const onStage = (el: HTMLElement | null, x: number, y: number): boolean => {
   return !!el && !!hit && el.contains(hit);
 };
 
-const isShell = (item: string): boolean => /^(case|board)\d$/.test(item);
+/** A catalogue id that has no socket on the board: a case or a board, or an OS, a router or an internet plan (fitted to the room). */
+const isShell = (item: string): boolean => /^(case|board)\d$/.test(item) || netKindOf(item) !== null;
 
 /**
  * The drag. `begin(src, e, click)` takes a press: a move past the slop is a drag (the ghost follows; a shelf part opens the side panel and outlines

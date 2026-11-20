@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '@/worker/game/game';
 import { deviceSpec } from '@/features/board/sim/board';
 import { BUILD_PRESETS, specSheet } from '@/features/board/sim/buildspecs';
-import { countNames, freeName, groupByKind, hintLine, pillOf, pips, plural, powerMeter, presetBits, priceOf, readiness, type Alert, type HintState } from './buildhud';
+import { countNames, freeName, groupByKind, hintLine, linkLine, pillOf, pips, plural, powerMeter, presetBits, priceOf, rate, readiness, type Alert, type HintState } from './buildhud';
 
 const full = () => new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
 
@@ -96,11 +96,47 @@ describe('priceOf and pips', () => {
     expect(priceOf('case1')).toBeGreaterThanOrEqual(0);
     expect(priceOf('nothing')).toBeNull();
   });
+  it('prices an OS, a router and an internet plan (the shelf shows them with their prices)', () => {
+    for (const id of ['os1', 'router2', 'isp3']) expect(priceOf(id), id).toBeGreaterThan(0);
+    expect(priceOf('router2')).toBeLessThan(priceOf('router4')!);
+  });
   it('lights at least one pip and all of them at the top tier', () => {
     expect(pips(0, 7)).toBe(1);
     expect(pips(7, 7)).toBe(5);
     expect(pips(3, 7)).toBe(2);
     expect(pips(0, 0)).toBe(5);
+  });
+});
+
+describe('rate and linkLine', () => {
+  const net = (o: Partial<Parameters<typeof linkLine>[0]>): Parameters<typeof linkLine>[0] => ({
+    state: 'link-up', reason: null, bandwidth: { downMbps: 100, upMbps: 10, clients: 2, binding: 'router' },
+    router: { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' }, isp: { id: 'isp2', name: 'Cable', downMbps: 200, upMbps: 50, clients: 4 }, ...o,
+  });
+
+  it('writes a speed in Mbit/s, and in Gbit/s from a thousand', () => {
+    expect(rate(100)).toBe('100 Mbit/s');
+    expect(rate(1000)).toBe('1 Gbit/s');
+    expect(rate(2500)).toBe('2.5 Gbit/s');
+    expect(rate(49.6)).toBe('50 Mbit/s');
+  });
+
+  it('says what is missing, in amber, in the words of the shelf: the router, the plan, the cable, the OS', () => {
+    expect(linkLine(net({ state: 'no-device', router: null, reason: 'no router: install one next to the monitor' }))).toEqual({ tone: 'warn', text: 'No router: pick one from the shelf' });
+    expect(linkLine(net({ state: 'no-device', isp: null }))).toEqual({ tone: 'warn', text: 'No internet plan: pick one from the shelf' });
+    expect(linkLine(net({ state: 'no-device', router: null, isp: null }))).toEqual({ tone: 'warn', text: 'No router and no internet plan: pick them from the shelf' });
+    expect(linkLine(net({ state: 'no-cable' }))).toEqual({ tone: 'warn', text: 'The ethernet cable is not plugged in' });
+    expect(linkLine(net({ state: 'no-os', reason: 'needs an OS: the network runs inside it' }))).toEqual({ tone: 'warn', text: 'needs an OS: the network runs inside it' });
+  });
+
+  it('says the speed and what holds it back once the link is up, in green', () => {
+    expect(linkLine(net({}))).toEqual({ tone: 'ok', text: '100 Mbit/s down · 10 Mbit/s up · held back by the router' });
+  });
+
+  it('says the speed it would have, in amber, while the machine is off', () => {
+    const l = linkLine(net({ state: 'down', reason: 'the machine is off' }));
+    expect(l.tone).toBe('warn');
+    expect(l.text).toMatch(/^100 Mbit\/s down.*\(the machine is off\)$/);
   });
 });
 
@@ -115,6 +151,14 @@ describe('hintLine', () => {
     expect(hintLine({ ...base, picked: true })).toMatch(/Delete/);
     expect(hintLine({ ...base, open: false })).toMatch(/side panel/);
     expect(hintLine(base)).toMatch(/Drag a part/);
+  });
+
+  it('takes an OS, a router or a plan whatever stands on the stage: it fits the room, not a socket', () => {
+    for (const shown of ['machine', 'case', 'nothing'] as const) {
+      const h: HintState = { ...base, shown, shell: 'net', dragging: 'shelf' };
+      expect(hintLine({ ...h, over: 'stage' })).toBe('Let go to fit it');
+      expect(hintLine({ ...h, over: null })).toBe('Drag it onto the stage');
+    }
   });
 
   it('asks for a motherboard first while the case is bare, and takes a board or a case for what it is', () => {
