@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allCables, bootCheck, cableBlocked, cardLeadIds, cardPowered, cableNeeded, cablesOf, caseMounts, connectCable, createBoard, disconnectCable, install, noCables, pruneCables, uninstall, type Board, type Cables } from "./index";
+import { allCables, bootCheck, cableBlocked, cablesLost, cardLeadIds, cardPowered, cableNeeded, cablesOf, caseMounts, connectCable, createBoard, disconnectCable, install, noCables, pruneCables, uninstall, type Board, type Cables } from "./index";
 
 const ok = <T extends { ok: boolean }>(r: T): T => { expect(r.ok).toBe(true); return r; };
 
@@ -165,5 +165,33 @@ describe("fan cables", () => {
     for (const id of ["pcie", "pcie2", "pcie3"] as const) ok(connectCable(b, cables, id));
     expect(cardPowered(b, cables, big) && cardPowered(b, cables, small)).toBe(true);
     expect(cableBlocked(rig("psu2"), "pcie2")).toBe("this PSU has only 1 PCIe power lead");
+  });
+});
+
+describe("cables that go with their part", () => {
+  const idOf = (b: Board, spec: string): string => b.devices.find((d) => d.spec === spec)!.id;
+
+  it("the PSU takes its leads and its cord with it, and no other cable", () => {
+    const b = rig("psu4", ["gpu3", "gpu2"]);
+    const lost = cablesLost(b, idOf(b, "psu4"));
+    for (const id of ["atx", "cpu", "pcmains", "pcie", "pcie2", "pcie3"]) expect(lost).toContain(id);
+    expect(lost).not.toContain("cpufan");
+    expect(lost).not.toContain("sysfan");
+    expect(lost).not.toContain("lan");
+  });
+
+  it("a monitor takes the video cable and its cord, a fan its cord, a card the leads no card needs", () => {
+    const b = rig("psu4", ["gpu3", "gpu2", "fan140", "display1"]);
+    expect(cablesLost(b, idOf(b, "display1")).sort()).toEqual(["monmains", "video"]);
+    expect(cablesLost(b, idOf(b, "fan140"))).toEqual(["fan:front0"]);
+    // the big card asks for two of the three leads: without it the last two are not needed
+    expect(cablesLost(b, idOf(b, "gpu3")).length).toBeGreaterThan(0);
+    expect(cablesLost(b, idOf(b, "gpu3")).every((id) => id.startsWith("pcie"))).toBe(true);
+  });
+
+  it("a part with no cable of its own loses none", () => {
+    const b = rig("psu2");
+    expect(cablesLost(b, idOf(b, "ram0"))).toEqual([]);
+    expect(cablesLost(b, idOf(b, "cpu0"))).toEqual([]);
   });
 });

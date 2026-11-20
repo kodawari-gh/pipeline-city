@@ -53,7 +53,7 @@ describe("the bare start", () => {
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
     // the ethernet cable joined with the network; the Mini tower's hub cable and two front fans' cables need only the case (no cooler yet: no CPU fan cable)
     expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["pcmains", false], ["monmains", false], ["sysfan", false], ["lan", false], ["fan:front0", false], ["fan:front1", false]]);
-    expect(s.cables.filter((c) => !["pcmains", "monmains", "sysfan"].includes(c.id) && !c.id.startsWith("fan:")).every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (the wall cords and the case's fans need no part)
+    expect(s.cables.filter((c) => c.id !== "sysfan" && !c.id.startsWith("fan:")).every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (only the case's hub and fans need no part: the wall cords belong to the PSU and the monitor)
     expect(s.noPowerReason).toMatch(/PSU/);
     expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "rad-front", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
   });
@@ -639,25 +639,40 @@ describe("auto-eject and quick boots (no OS)", () => {
 });
 
 describe("the cords from the wall", () => {
-  it("start loose in a campaign, plugged in a sandbox and in a preassembled machine", () => {
+  const cords = (g: Game) => g.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains");
+
+  it("start loose in a campaign, plugged in as their part goes into a sandbox, and plugged in a preassembled machine", () => {
     const g = bare();
-    expect(g.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").map((c) => c.connected)).toEqual([false, false]);
+    expect(cords(g).map((c) => c.connected)).toEqual([false, false]);
+    // (a sandbox plugs the cord with its part: a PSU for the PC's, a monitor for the monitor's)
     const sb = new Game({ seed: 1, sandbox: true });
-    expect(sb.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
+    expect(cords(sb).map((c) => c.connected)).toEqual([false, false]);
+    sb.install("inv2");
+    expect(cords(sb).map((c) => [c.id, c.connected])).toEqual([["pcmains", true], ["monmains", false]]);
+    sb.install("inv4");
+    expect(cords(sb).every((c) => c.connected)).toBe(true);
     const pre = new Game({ seed: 1, sandbox: true, preassembled: true });
     expect(pre.snapshot().progress.mainsConnected).toBe(true);
+    expect(cords(pre).every((c) => c.connected)).toBe(true);
   });
 
-  it("need no part, can be plugged and pulled while the machine runs, and stay in the wall when a part is swapped", () => {
+  it("belong to their parts: the PC's to the PSU, the monitor's to the monitor, with the video cable; they come off with the part and cannot be plugged without it", () => {
     const g = assembled();
     expect(g.connectCable("pcmains")).toMatchObject({ ok: false, reason: expect.stringMatching(/already connected/) });
     bootWithKey(g);
     expect(g.disconnectCable("monmains").ok).toBe(true); // a running machine: allowed
     expect(g.connectCable("monmains").ok).toBe(true);
     g.powerButton();
-    g.uninstall(g.snapshot().devices.find((d) => d.kind === "psu")!.id);
     g.uninstall(g.snapshot().devices.find((d) => d.kind === "display")!.id);
-    expect(g.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
+    // (no monitor: no video cable, no cord)
+    expect(cords(g).find((c) => c.id === "monmains")).toMatchObject({ connected: false, blocked: expect.stringMatching(/no monitor installed/) });
+    expect(g.snapshot().cables.find((c) => c.id === "video")).toMatchObject({ connected: false, blocked: expect.stringMatching(/no monitor installed/) });
+    expect(g.connectCable("monmains")).toMatchObject({ ok: false, reason: expect.stringMatching(/no monitor installed/) });
+    expect(g.connectCable("video").ok).toBe(false);
+    expect(cords(g).find((c) => c.id === "pcmains")!.connected).toBe(true);
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "psu")!.id);
+    expect(cords(g).find((c) => c.id === "pcmains")).toMatchObject({ connected: false, blocked: expect.stringMatching(/no PSU installed/) });
+    expect(g.connectCable("pcmains")).toMatchObject({ ok: false, reason: expect.stringMatching(/no PSU installed/) });
   });
 
   it("pulling the PC's cord on a running machine cuts the power: a hard power-off, and the button refuses until it is back", () => {
@@ -714,5 +729,14 @@ describe("the cords from the wall", () => {
     const l = Game.fromSave(save);
     expect(l.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
     expect(l.snapshot().progress.mainsConnected).toBe(true);
+  });
+
+  it("a save from before the cords has none plugged for a part it lacks (no monitor, no monitor cord)", () => {
+    const g = assembled();
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "display")!.id);
+    const save = JSON.parse(JSON.stringify(g.toSave()));
+    delete save.cables.pcmains; delete save.cables.monmains;
+    const l = Game.fromSave(save);
+    expect(cords(l).map((c) => [c.id, c.connected])).toEqual([["pcmains", true], ["monmains", false]]);
   });
 });

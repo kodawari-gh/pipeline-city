@@ -236,3 +236,54 @@ export function resample(pts: readonly V3[], n: number): V3[] {
   }
   return out;
 }
+
+// ------------------------------------------------------------------ the reel
+// A cable run out of its hole, or taken back into it (Build my PC: a part's cables come out as it goes in, and go back as it comes out). Not physics: the
+// plug travels along the path its cable will have (the strands' own polylines, from their fixed ends to the plug standing where it ends), and the cable
+// is the part of that path behind it. So a fed cable ends exactly as the built one stands, and a reeled one goes back along the way it lies.
+
+/** The point of a polyline `s` along it (held to its ends) and the way it runs there (a polyline with no length runs along +z). */
+export function along(pts: readonly V3[], s: number): { at: V3; dir: V3 } {
+  let acc = 0, dir: V3 = [0, 0, 1], seen = false;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!, b = pts[i]!, l = dist(a, b);
+    if (l > 0) { dir = [(b[0] - a[0]) / l, (b[1] - a[1]) / l, (b[2] - a[2]) / l]; seen = true; }
+    if (l > 0 && (s <= acc + l || i === pts.length - 1)) {
+      const u = Math.min(1, Math.max(0, (s - acc) / l));
+      return { at: [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u], dir };
+    }
+    acc += l;
+  }
+  return { at: [...(pts[pts.length - 1] ?? [0, 0, 0])] as V3, dir: seen ? dir : [0, 0, 1] };
+}
+
+/** The first `f` (0 to 1) of a polyline by length, as `n` points spread evenly over that part (at 0 all of them lie on its start). */
+export function prefixOf(pts: readonly V3[], f: number, n = pts.length): V3[] {
+  const want = lengthOf(pts) * Math.min(1, Math.max(0, f));
+  return Array.from({ length: n }, (_, i) => along(pts, (want * i) / Math.max(1, n - 1)).at);
+}
+
+/** A cable as the reel draws it: the plug's pose and size (0 to 1: it comes out of its hole small and grows), and each strand's points. */
+export interface Reeled { pose: Pose; size: number; strands: V3[][] }
+
+const smooth = (x: number): number => { const u = Math.min(1, Math.max(0, x)); return u * u * (3 - 2 * u); };
+
+/**
+ * The cable with its plug `f` of the way along its run (0: still in the hole, 1: at its end). `strands` are the paths from each fixed end to where the
+ * plug's exits stand when the plug is at `end` (the seated cable's, or the loose cable's). The plug follows its cable, its back to the strands, and
+ * takes its end turn over the last of the way; the strands' tips are drawn to its exits, so the cable stays whole all along. The plug is small at the
+ * start of the run (a connector does not fit through its slot: it comes out of it) and grows over its first stretch.
+ */
+export function reelAt(rig: CableRig, exits: readonly RopeEnd[], strands: readonly V3[][], end: Pose, f: number): Reeled {
+  const k = Math.min(1, Math.max(0, f)), n = rig.n, lens = strands.map(lengthOf), m = middle(exits), seat = V(rig.seat.at);
+  const tips = strands.map((s, i) => along(s, lens[i]! * k)), mid = middle(tips);
+  const mean = lens.reduce((a, b) => a + b, 0) / Math.max(1, lens.length), size = smooth((k * mean) / (2 * rig.engage));
+  const run = poseOnTip(rig.seat, exits, mid, freedom(rig, exits, lens)), q = run.q.slerp(end.q, smooth((k - 0.7) / 0.3));
+  const at = V(mid.at).sub(V(m.at).sub(seat).applyQuaternion(q).multiplyScalar(size));
+  const out = strands.map((s, i) => {
+    // the plug's exit for this strand, and how far the strand's own tip is from it
+    const e = V(exits[i]!.at).sub(V(m.at)).applyQuaternion(q).multiplyScalar(size).add(V(mid.at)), d = e.sub(V(tips[i]!.at));
+    return prefixOf(s, k, n).map((p, j): V3 => { const w = (j / Math.max(1, n - 1)) ** 2; return [p[0] + d.x * w, p[1] + d.y * w, p[2] + d.z * w]; });
+  });
+  return { pose: { at: T(at), q }, size, strands: out };
+}

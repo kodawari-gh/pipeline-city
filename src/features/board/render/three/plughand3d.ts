@@ -11,7 +11,7 @@ import { Rope, lengthOf, type Plane as RopePlane, type RopeEnd, type Solid, type
 import { Sleeve } from '@/core/render/three/sleeve';
 import type { Snapshot } from '@/worker/protocol';
 import { samplesFor, sleeveMat } from './cables3d';
-import { exitAt, freedom, looseAt, looseState, middle, pivotOf, resample, setPose, spineEnv, spineLength, withinCable, type CableRig, type Pose, type Rest, type Seat } from './cablerig3d';
+import { exitAt, freedom, looseAt, looseState, middle, pivotOf, reelAt, resample, setPose, spineEnv, spineLength, withinCable, type CableRig, type Pose, type Rest, type Seat } from './cablerig3d';
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
@@ -37,6 +37,19 @@ export function springStep(x: number, v: number, goal: number, w: number, dt: nu
 
 /** How long a plug takes to slide in over `engage` units: longer for a long run (a mains plug fed through the desk). */
 export const insertTime = (engage: number): number => Math.min(0.4, INSERT_S * Math.max(1, engage / 300));
+
+/** Seconds a cable of this length (the mean of its strands') takes to run out of its hole to its end, or to be taken back: a longer one is a longer run. */
+export const reelTime = (len: number): number => Math.min(1.8, 0.5 + len / 2600);
+
+/**
+ * How far along its run a cable is `t` seconds in (0 to 1). A run takes `run` seconds, eased at both ends, up to the share `pre` of the way; a push-in (`push` more
+ * seconds, 0 for none) then takes the plug the rest of the way, speeding into the latch as `insertOffset` does. `pre` 1 and no push: the run alone.
+ */
+export function reelShare(t: number, run: number, push: number, pre: number): number {
+  if (t < run || push <= 0) { const u = Math.min(1, Math.max(0, t / run)); return pre * u * u * (3 - 2 * u); }
+  const u = Math.min(1, (t - run) / push);
+  return pre + (1 - pre) * u * u;
+}
 
 /** How far out of its socket a plug sliding in is at `t` (its engage's share, 1 to 0, speeding into the latch), then the click's nudge past 0. */
 export function insertOffset(t: number, dur = INSERT_S): number {
@@ -169,6 +182,32 @@ interface Auto {
   done: (ok: boolean) => void;
 }
 
+/**
+ * A cable run out of its hole or taken back into it (Build my PC, `cablerig3d.ts` "the reel"). `in`: run out to its socket, pushed in; `loose`: run out to
+ * where it lies; `out`: taken back from where it lies, and gone (its part is leaving).
+ */
+interface Reel {
+  rig: CableRig;
+  exits: RopeEnd[];
+  pivot: Group;
+  sleeve: Sleeve;
+  mesh: Mesh;
+  mode: 'in' | 'loose' | 'out';
+  /** Each strand's path to the end of the run, and the plug's pose there. */
+  path: V3[][];
+  end: Pose;
+  /** Seconds into the run (at the job's pace), the run's seconds, the push-in's, and the share of the way where the push-in starts. */
+  t: number;
+  run: number;
+  push: number;
+  pre: number;
+  speed: number;
+  /** Seconds the plug has stood home, waiting for the sim to take it. */
+  waited: number;
+  pushed: boolean;
+  done: (ok: boolean) => void;
+}
+
 /** Seconds of a scripted pull (against the latch), a lift away from the socket, a carry to a socket; how far (as a share of the plug's engage) a lifted plug goes. */
 const AUTO_PULL_S = 0.3, AUTO_LIFT_S = 0.3, AUTO_CARRY_S = 0.4, AUTO_LIFT = 3.2;
 
@@ -192,6 +231,7 @@ export class PlugHand {
   private readonly plane = new Plane();
 
   private auto: Auto | null = null;
+  private reel: Reel | null = null;
 
   constructor(private readonly host: HandHost, private readonly canvas: HTMLCanvasElement) {}
 
@@ -219,20 +259,62 @@ export class PlugHand {
     });
   }
 
+  /**
+   * Run a cable out of its hole (a part just went in, and its cable with it): the plug comes out small, travels along the path its cable will have, and
+   * (`plug`) is pushed home at its socket, or (not `plug`) comes to rest where it lies. Resolves true when it is plugged (when it lies), false when it
+   * cannot (no rig, nothing takes the plug, the game refuses) or is cancelled: the built cable stands as it is then.
+   */
+  feed(kind: string, plug: boolean, speed = 1): Promise<boolean> {
+    const rig = this.host.machine()?.rig(kind);
+    if (!rig || (plug && !rig.canSeat)) return Promise.resolve(false);
+    return this.startReel(kind, plug ? 'in' : 'loose', speed);
+  }
+
+  /** Take a loose cable back into its hole along the way it lies (its part is leaving): it is gone, the built cable stays hidden. Resolves true when done, false when it cannot (no rig, still plugged). */
+  stow(kind: string, speed = 1): Promise<boolean> {
+    if (!this.host.machine()?.rig(kind) || this.host.snapshot()?.cables.find((c) => c.id === kind)?.connected) return Promise.resolve(false);
+    return this.startReel(kind, 'out', speed);
+  }
+
+  private startReel(kind: string, mode: Reel['mode'], speed: number): Promise<boolean> {
+    this.cancel();
+    return new Promise((resolve) => {
+      const m = this.host.machine(), rig = m?.rig(kind);
+      if (!m || !rig) { resolve(false); return; }
+      const model = rig.model();
+      model.root.traverse((o) => { seeThrough(o); });
+      // (a plug that goes in runs the path of the cable seated, a loose one the path it lies in: the run ends as the built cable stands)
+      let path: V3[][], end: Pose;
+      if (mode === 'in') { path = rig.seated(model.strands); end = { at: [...rig.seat.at], q: new Quaternion() }; }
+      else { const l = looseState(rig, model.strands, m.rest.get(kind)); path = l.strands; end = { at: [...l.rest.pose.at], q: l.rest.pose.q.clone() }; }
+      const len = path.reduce((s, p) => s + lengthOf(p), 0) / Math.max(1, path.length);
+      const sleeve = new Sleeve(path.length, rig.look.r, samplesFor(rig.n), rig.look.accent ? 14 : 10);
+      const mesh = seeThrough(place(new Mesh(sleeve.geometry, sleeveMat(rig.look.base, rig.look.accent))));
+      mesh.userData.live = true;
+      const pivot = pivotOf(rig.seat, model.root, end);
+      this.root.add(pivot, mesh);
+      this.reel = { rig, exits: model.strands, pivot, sleeve, mesh, mode, path, end, t: 0, run: reelTime(len), push: mode === 'in' ? insertTime(rig.engage) : 0, pre: mode === 'in' ? Math.max(0, 1 - rig.engage / Math.max(1, len)) : 1, speed, waited: 0, pushed: false, done: resolve };
+      this.hide(true);
+      this.drawReel(this.reel, mode === 'out' ? 1 : 0);
+    });
+  }
+
   /** Stop a scripted step at once (the stage closed): the cable goes back to the built one. */
   cancel(): void {
     const a = this.auto;
     this.auto = null;
     this.finish();
+    this.endReel(false);
     a?.done(false);
   }
 
-  /** The cable held now (also while it slides in, falls or hands back), or null. */
-  get kind(): string | null { return this.live?.rig.id ?? null; }
+  /** The cable held now (also while it slides in, falls or hands back, or is run out or taken back), or null. */
+  get kind(): string | null { return this.live?.rig.id ?? this.reel?.rig.id ?? null; }
 
   /** Take hold of a cable's plug (false: it has no rig, as the LAN lead). A seated plug is pulled; a loose one is held at once. */
   grab(kind: string, cx: number, cy: number): boolean {
     this.finish();
+    this.endReel(false);
     const m = this.host.machine(), rig = m?.rig(kind), s = this.host.snapshot();
     if (!m || !rig || !s) return false;
     const seated = rig.canSeat && !!s.cables.find((c) => c.id === kind)?.connected, model = rig.model();
@@ -285,6 +367,7 @@ export class PlugHand {
   }
 
   frame(dt: number, cam: PerspectiveCamera): void {
+    if (this.reel) { this.reelFrame(this.reel, dt); return; }
     const l = this.live;
     if (!l) return;
     this.hide(true);
@@ -356,6 +439,57 @@ export class PlugHand {
     setPose(l.pivot, l.pose);
     l.ropes.forEach((r, i) => { r.setEnds(rig.fixed[i]!, exitAt(l.exits[i]!, rig.seat, l.pose)); r.step(STEPS); });
     l.sleeve.update(l.ropes.map((r) => r.points()));
+  }
+
+  /** One frame of a cable run out or taken back: how far along it is, then the plug (at its size) and the strands drawn there. */
+  private reelFrame(r: Reel, dt: number): void {
+    this.hide(true);
+    r.t += dt * r.speed;
+    const total = r.run + r.push;
+    // (a cable taken back goes the way it was run, so with the same ease)
+    const k = r.mode === 'out' ? 1 - reelShare(r.t, r.run, 0, 1) : reelShare(r.t, r.run, r.push, r.pre);
+    this.drawReel(r, k);
+    if (r.mode === 'out') { if (r.t >= total) this.endReel(true); return; }
+    if (r.t < total) return;
+    if (r.mode === 'loose') { this.endReel(true); return; }
+    // home: the sim takes the plug (it answers at once in Build my PC's own game; the main game's takes a moment)
+    if (!r.pushed) { r.pushed = true; this.plugIn_(r.rig.id, r.rig.port); }
+    r.waited += dt;
+    if (this.host.snapshot()?.cables.find((c) => c.id === r.rig.id)?.connected) this.endReel(true);
+    else if (r.waited > CONFIRM_S) this.endReel(false);
+  }
+
+  /** The cable `k` of the way along its run: the plug and the strands. */
+  private drawReel(r: Reel, k: number): void {
+    const z = reelAt(r.rig, r.exits, r.path, r.end, k);
+    setPose(r.pivot, z.pose);
+    r.pivot.scale.setScalar(Math.max(1e-3, z.size));
+    r.pivot.visible = z.size > 0.02;
+    // (a strand with no length shows no tube: a ring of vertices on one point has no way to face)
+    r.mesh.visible = k > 0.004;
+    if (r.mesh.visible) r.sleeve.update(z.strands);
+  }
+
+  /** The run is over: the built cable shows as it stands (a cable taken back stays hidden: its part is leaving and the machine is built again without it). `ok`: it did what it was asked. */
+  private endReel(ok: boolean): void {
+    const r = this.reel;
+    if (!r) return;
+    this.reel = null;
+    const m = this.host.machine(), id = r.rig.id;
+    if (m) {
+      if (r.mode === 'out') { m.rest.delete(id); m.holdBack([id]); }
+      else {
+        m.letRun([id]);
+        // (a plug the sim took: the built cable stands seated, not as it lay loose before)
+        if (r.mode === 'in' && ok) { m.rest.delete(id); m.setCable(id, true); }
+      }
+    }
+    this.hideCable(id, r.mode === 'out' && ok);
+    this.hidden = null;
+    this.root.remove(r.pivot, r.mesh);
+    disposeTree(r.pivot);
+    disposeTree(r.mesh);
+    r.done(ok);
   }
 
   /** The point in front of the socket where a plug lines up before it slides in. */
@@ -499,11 +633,17 @@ export class PlugHand {
 
   /** Hide the built cable while the hand holds it (it may be built again meanwhile: a plug in or out), or show it again. */
   private hide(hide: boolean) {
-    const m = this.host.machine(), l = this.live;
-    if (!m || !l) return;
+    const id = this.live?.rig.id ?? this.reel?.rig.id;
+    if (id) this.hideCable(id, hide);
+  }
+
+  /** `hide` for the built cable `id`. A cable the stage holds back (`Machine3D.holdBack`) stays hidden. */
+  private hideCable(id: string, hide: boolean) {
+    const m = this.host.machine();
+    if (!m) return;
     let under = false;
     for (let p: Object3D | null = this.hidden; p; p = p.parent) if (p === m.root) { under = true; break; }
-    if (!under) this.hidden = findById(m.root, 'cable.' + l.rig.id);
-    for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide;
+    if (!under) this.hidden = findById(m.root, 'cable.' + id);
+    for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide && !m.isHeldBack(id);
   }
 }

@@ -24,7 +24,7 @@ import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, hasLoop, HOSES, isCableNode, isDevNode, isPump, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
 import { boardSlots, caseHolds, deviceSpec, fanHost, fittedRadiator, freeSlots, mountFan, slotAccepts, slotFits, upgradeBoard, upgradeCase, type Board, type InstalledDevice, type SlotInfo } from '@/features/board/sim/board';
-import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
+import { WALL_CABLES, cableBlocked, cableNeeded, cablesLost, cablesOf, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
@@ -431,6 +431,7 @@ export class BuildStage {
       this.cost.skipped++;
       // (a cable plugged in or out by the game's answer, not by the hand: it hangs as the game says)
       this._machine.syncCables(this.snapshot, roomGeo());
+      this.holdReeled();
       const st = this.status.peek();
       this.status.value = { ...st, rev: st.rev + 1 };
       this.demand.ask();
@@ -441,6 +442,7 @@ export class BuildStage {
     // (a case that gains or loses its board, or a stage that gains or loses its case, is built again: a patch keeps the board it has)
     if (this._machine && this._machine.shown === shown && this._machine.patch(this.snapshot, roomGeo())) {
       this.builtKey = key; this.held.clear(); this.warm = true;
+      this.holdReeled();
       this.cost.patches++; this.cost.patchMs += performance.now() - t0;
       this.bump(); this.demand.ask();
       return;
@@ -482,6 +484,7 @@ export class BuildStage {
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
+    this.holdReeled();
     this.warm = true;
     this.stage(caseTier);
     this.syncWall();
@@ -1240,6 +1243,8 @@ export class BuildStage {
     // a part of a removal (`remove`) stays built: it is hidden where it ended, and a part that goes back is shown again (no build for each step)
     const obj = this.deferring && kind !== 'display' && kind !== 'psu' ? this.objectOf(node) : null;
     const home = obj ? { p: obj.position.clone(), z: obj.rotation.z, y: obj.rotation.y } : null;
+    // the cables that go with the part (a supply's leads and cord, a monitor's cables) are taken back into their hole first
+    for (const id of cablesLost(this.board, d.id)) await this.reelIn(id);
     await this.unseat(node, motionOf(kind, d.slot, this.board));
     const r = this.edit((g) => g.uninstall(d.id));
     if (!r.ok) { this.refuse(`Cannot take it out: ${r.reason}`); this.rebuild(); return null; }
@@ -1336,6 +1341,8 @@ export class BuildStage {
       // (the PC's cord goes into the supply's inlet: with the supply out it stays unplugged)
       if (u.id === 'pcmains' && !this.board.devices.some((d) => deviceSpec(d).kind === 'psu')) return;
       this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === u.id)?.name ?? u.id}`);
+      // a cable that came with its part runs out of its hole to its socket and is pushed in; the plug of one that lies loose is carried
+      if (this.reeled.has(u.id)) { this.setStep('Run the cable to its socket'); if (await this.runOut(u.id, true)) { this.bump(); return; } if (this.dead) return; }
       // the loose plug is carried to its socket and pushed in; a cable with no rig (or one the game refuses) is connected at once
       this.setStep('Push the plug home');
       if (await this.hand.plugIn(u.id, this.pace > 1 ? CABLE_QUICK : 1)) { this.bump(); return; }
@@ -1364,11 +1371,51 @@ export class BuildStage {
     await this.seat(node, motionOf(deviceSpec(this.board.devices.find((x) => x.id === r.deviceId)!).kind, u.slot, this.board));
   }
 
-  /** Plug in the cables a part just fitted needs. */
+  /**
+   * Plug in the cables a part just fitted needs. The cords from the wall go in too (the game counted them plugged before the stage showed it; the video
+   * cable and the LAN lead stay out: they are the player's).
+   */
   private async plugNeeded(): Promise<void> {
     for (const c of cablesOf(this.board)) {
-      if (OUTSIDE.has(c.id) || this.cables[c.id] || !cableNeeded(this.board, c.id) || cableBlocked(this.board, c.id)) continue;
+      if ((OUTSIDE.has(c.id) && !WALL_CABLES.includes(c.id as never)) || this.cables[c.id] || !cableNeeded(this.board, c.id) || cableBlocked(this.board, c.id)) continue;
       await this.putBack({ t: 'cable', id: c.id });
+    }
+  }
+
+  /** Cables the job keeps out of sight until it runs them out of their hole (a part just fitted brings its cables) and after it took them back into it. */
+  private readonly reeled = new Set<string>();
+
+  /** The machine just built (or patched) hides the cables the job holds back. */
+  private holdReeled(): void { if (this.reeled.size) this._machine?.holdBack(this.reeled); }
+
+  /** The job is over (or a new one begins): every cable shows as it stands. */
+  private releaseReeled(): void { if (this.reeled.size) this._machine?.letRun(this.reeled); this.reeled.clear(); }
+
+  /** The cable runs out of its hole: pushed home at its socket (`plug`), or to where it lies. False when there is nothing to run (the built cable shows as it stands). */
+  private async runOut(id: string, plug: boolean): Promise<boolean> {
+    if (!this.reeled.delete(id)) return false;
+    const ok = await this.hand.feed(id, plug, this.pace > 1 ? CABLE_QUICK : 1);
+    if (!ok && !this.dead) this._machine?.letRun([id]);
+    return ok;
+  }
+
+  /** A cable that goes with the part that is leaving is taken back into its hole along the way it lies (one still plugged is pulled out first), and stays out of sight. */
+  private async reelIn(id: string): Promise<void> {
+    const speed = this.pace > 1 ? CABLE_QUICK : 1;
+    if (!this.machine.rig(id)) return;
+    if (this.cables[id] && !(await this.hand.pullOut(id, speed))) return;
+    if (this.dead) return;
+    this.setStep('Take the cable back into its hole');
+    if (await this.hand.stow(id, speed)) this.reeled.add(id);
+  }
+
+  /** The cables a part brought that nobody plugs (the video cable) run out and lie where they fall. */
+  private async runLoose(): Promise<void> {
+    const left = new Set<string>(this.snapshot.cables.filter((c) => c.connected || !c.blocked).map((c) => c.id));
+    for (const id of [...this.reeled]) {
+      if (!left.has(id)) { this.reeled.delete(id); continue; }
+      this.setStep('Lay the cable out');
+      await this.runOut(id, false);
     }
   }
 
@@ -1379,12 +1426,16 @@ export class BuildStage {
     const sel = this.selected.peek(), was = sel ? this.board.devices.find((d) => d.id === sel) : undefined;
     const had = standing(this.alerts, this.board);
     this.stayed = [];
+    this.reeled.clear();
     this.hover.value = null;
     this.status.value = { ...this.status.peek(), busy: true, step: '' };
     this.pace = 1; this.skipping = false;
     try { await work(); } catch (e) { if (!this.dead) throw e; } finally {
       // (a close in the middle of a job: the stage is gone, nothing to put back)
       if (!this.dead) {
+        // (a cable still held back shows as it stands)
+        this.hand.cancel();
+        this.releaseReeled();
         // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off.
         // A steel panel shows nothing shut, so what the job did stays in view: the panel stays open until the player shuts it)
         this.jobOpen = false;
@@ -1454,7 +1505,7 @@ export class BuildStage {
       const steps = this.assemble(occupant ? removalPlan(graph, devNode(occupant.id)) : removalPlanAll(graph, accessBlockers(this.board, slot, spec.kind, itemId).filter((n) => graph.has(n))));
       if (!steps.length) steps.push(SIDE);
       if (steps[0] !== SIDE) steps.unshift(SIDE);
-      const undo: Undo[] = [], looped = hasLoop(this.board);
+      const undo: Undo[] = [], looped = hasLoop(this.board), had = new Set<string>(this.snapshot.cables.filter((c) => c.connected || !c.blocked).map((c) => c.id));
       // (the parts in the way are hidden, not built again: the one build below has them all back)
       this.deferring = true;
       try {
@@ -1499,6 +1550,9 @@ export class BuildStage {
       if (!looped && hasLoop(this.board)) this.hosesOff = true;
       // (one patch or one build: the part that came is built, the others stand as they are, hidden until they go back in)
       this.rebuild();
+      // what the new part brought (a supply's leads and cord, a monitor's cables) stays out of sight until the part is in: then it runs out of its hole
+      for (const c of this.snapshot.cables) if ((c.connected || !c.blocked) && !had.has(c.id)) this.reeled.add(c.id);
+      this.holdReeled();
       const shown = [...(fresh ? [fresh] : []), ...back].map((x) => ({ ...x, obj: this.objectOf(devNode(x.id)) }));
       for (const x of shown) if (x.obj) x.obj.visible = false;
       const asm = shown.filter((x) => x.asm && x.obj);
@@ -1518,6 +1572,7 @@ export class BuildStage {
       await this.connectHoses();
       for (const u of cables) await this.putBack(u);
       await this.plugNeeded();
+      await this.runLoose();
     });
   }
 

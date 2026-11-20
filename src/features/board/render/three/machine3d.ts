@@ -171,6 +171,11 @@ export const untag = (root: Object3D): void => root.traverse((o) => { if (typeof
 const netVisible = (s: Snapshot) => netPropsVisible({
   level: s.level.level, hasRouter: !!s.net?.router, hasIsp: !!s.net?.isp, routerInInventory: s.inventory.some((i) => i.kind === 'router'), lanConnected: !!s.cables.find((c) => c.id === 'lan')?.connected,
 });
+/**
+ * The cables that stand: the sim lists a cable with the part it runs from fitted (or while it is plugged); `blocked` says that part is missing. A
+ * cable never stands without its part: no PSU, no leads and no PC cord; no monitor, no video cable and no monitor cord.
+ */
+export const standing = (s: Snapshot): Snapshot['cables'] => s.cables.filter((c) => c.connected || !c.blocked);
 const videoKey = (s: Snapshot, wall: StageWall | null = null) => `${netVisible(s)}|${wall ? routerTier(s.net?.router?.id) : ''}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
 
 export class Machine3D {
@@ -247,6 +252,8 @@ export class Machine3D {
   private runs = new Map<string, CableRun>();
   private runsRev = 0;
   readonly rest = new Map<string, Rest>();
+  /** Cables the stage keeps out of sight until it runs them out of their hole (Build my PC: a part's cables come out as it goes in): built hidden. */
+  private readonly unrun = new Set<string>();
   /** The case's own pieces (the shell, the side panel, the fans on its mounts, the light strips): what a case swap lifts away (`buildmode3d.ts`). */
   readonly caseRoots: Object3D[] = [];
   /** The parts fitted: a heatsink and a radiator show the fans on their spots (`fansOf`). */
@@ -907,7 +914,7 @@ export class Machine3D {
    * video cable drapes over the desk to the monitor, the mains cords drop through the desk's grommet to the wall socket.
    */
   private *buildCables(s: Snapshot, geo: RoomGeo): Generator<void> {
-    const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
+    const alive = standing(s), has = (id: string) => alive.some((c) => c.id === id), on = (id: string) => alive.some((c) => c.id === id && c.connected);
     const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T), deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     // (a lead's run from the power supply is behind the tray: the power lens draws a stub of it going on into the grommet)
@@ -942,7 +949,7 @@ export class Machine3D {
     // ---- the PCIe leads: each from its own grommet in the gutter up into a card's top edge, or loose
     const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
     const deals = assignLeads(cards);
-    for (const [k, c] of s.cables.filter((x) => isPcieKind(x.id)).entries()) {
+    for (const [k, c] of alive.filter((x) => isPcieKind(x.id)).entries()) {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
       // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
@@ -970,6 +977,8 @@ export class Machine3D {
       if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, data, env, { natural: true, slack: 1.05, stiff: 0.7, n: 18 })); }
       const drive = this.driveSockets.get(d.slot), slot = cageGrommet(this.cages.find((c) => c.trays.some((t) => t.slot === i)) ?? this.cage);
       if (drive) for (const [sock, look, power] of [[drive.data, data, false], [drive.power, black, true]] as const) {
+        // (the power cable is the supply's: with none fitted there is no such cable)
+        if (power && !s.devices.some((x) => x.kind === 'psu')) continue;
         // its plug pushed into the receptacle, the cable back into the slot in the tray sheet behind its cage (`cageGrommet`)
         const p = drivePlug(power, sock, power ? 0x16171b : 0xb3262f);
         const back: RopeEnd = { at: [slot.x + slot.w * (power ? 0.62 : 0.38), Math.min(-(slot.y + 80), Math.max(-(slot.y + slot.h - 80), sock[1] - 260)), TRAY_Z - 30], dir: [0, 0, 1] };
@@ -1042,7 +1051,7 @@ export class Machine3D {
    * socket. A cord that is out lies loose from its device.
    */
   private *buildRoomCords(s: Snapshot, geo: RoomGeo): Generator<void> {
-    const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
+    const alive = standing(s), has = (id: string) => alive.some((c) => c.id === id), on = (id: string) => alive.some((c) => c.id === id && c.connected);
     const deskTop = -geo.ys, under = -(geo.ys + DESK_TOP), m = MONITOR, mz = MONITOR_Z;
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
     const caseBox = box({ x: CASE.x, y: CASE.y, w: CASE.w, h: CASE.h + FOOT }, CASE_Z, FRONT);
@@ -1192,6 +1201,20 @@ export class Machine3D {
   /** A draggable cable's rig (plughand3d.ts holds it live), or null. */
   rig(kind: string): CableRig | null { return this.rigs.get(kind) ?? null; }
 
+  /** Keep these cables out of sight (they are built hidden too) until `letRun`: the stage runs them out of their hole once their part is in (`PlugHand.feed`). */
+  holdBack(ids: Iterable<string>): void { for (const id of ids) { this.unrun.add(id); this.showRig(id); } }
+
+  /** Show these cables again (as they stand). */
+  letRun(ids: Iterable<string>): void { for (const id of ids) { this.unrun.delete(id); this.showRig(id); } }
+
+  /** Is this cable kept out of sight (`holdBack`)? */
+  isHeldBack(id: string): boolean { return this.unrun.has(id); }
+
+  private showRig(id: string): void {
+    const b = this.built.get(id);
+    if (b) for (const c of b.g.children) if (c.userData.rig) c.visible = !this.unrun.has(id);
+  }
+
   /** Build one draggable cable again as it stands (`seated`, default as it was; a dropped plug at its rest pose): the others stay as they are. */
   setCable(kind: string, seated?: boolean): void {
     // (the rig draws in the cables' stand-ins: they are made again with the new rig)
@@ -1205,6 +1228,7 @@ export class Machine3D {
     if (seated !== undefined) b.seated = seated;
     for (const c of [...b.g.children]) if (c.userData.rig) { b.g.remove(c); disposeTree(c); }
     const built = rigBuild(rig, b.seated, this.rest.get(kind));
+    built.group.visible = !this.unrun.has(kind);
     b.g.add(built.group);
     this.runs.set(kind, { id: kind, strands: inFlowOrder(built.strands, rig.power), r: rig.look.r, seated: built.seated, seat: rig.seat, held: false, fed: !!rig.power?.fed });
     this.runsRev++;
@@ -1232,7 +1256,7 @@ export class Machine3D {
     disposeTree(this.wires);
     this.wires.clear();
     this.key = null;
-    this.cableIds = s.cables.map((c) => c.id).join(',');
+    this.cableIds = standing(s).map((c) => c.id).join(',');
     this.videoKey = videoKey(s, this.wall);
     yield* this.buildCables(s, geo);
     // the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
@@ -1244,8 +1268,8 @@ export class Machine3D {
   /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
   syncCables(s: Snapshot, geo: RoomGeo): void {
     if (this.noBoard) return; // (no board, no cable: the case's leads lie coiled on its tray)
-    if (s.cables.map((c) => c.id).join(',') !== this.cableIds || videoKey(s, this.wall) !== this.videoKey) { this.setCables(s, geo); return; }
-    for (const c of s.cables) {
+    if (standing(s).map((c) => c.id).join(',') !== this.cableIds || videoKey(s, this.wall) !== this.videoKey) { this.setCables(s, geo); return; }
+    for (const c of standing(s)) {
       const b = this.built.get(c.id);
       if (b && b.seated !== c.connected) this.setCable(c.id, c.connected);
     }

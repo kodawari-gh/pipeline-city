@@ -393,6 +393,11 @@ export function flagInstalled(this: Game, kind: DeviceKind): void {
   const flag: Partial<Record<DeviceKind, keyof Progress>> = { cpu: "cpuInstalled", psu: "psuInstalled", ram: "ramInstalled", display: "monitorInstalled", storage: "storageInstalled", cooler: "coolerInstalled" };
   const f = flag[kind];
   if (f) this.progress[f] = true;
+  // a sandbox machine is plugged into the wall as its parts go in (Build my PC plugs each cord by hand: the player watches it go in)
+  if (this.sandbox && !this.looseFit) {
+    if (kind === "psu") this.cables.pcmains = true;
+    if (kind === "display") this.cables.monmains = true;
+  }
 }
 
 /** Send every fan whose spot is gone or takes another size (a heatsink, case or board swapped) back to the inventory. */

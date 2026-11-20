@@ -220,7 +220,6 @@ export class Game {
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.sandbox = !!opts.sandbox;
     this.looseFit = this.sandbox && !!opts.looseFit;
-    if (this.sandbox) { this.cables.pcmains = true; this.cables.monmains = true; } // a sandbox machine is plugged into the wall from the start
     const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
     this.lvl = this.sandbox ? 1 : start;
     this.clientBase = this.sandbox ? 0 : LEVELS[start - 1]!.threshold;

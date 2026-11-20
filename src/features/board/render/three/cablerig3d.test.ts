@@ -1,7 +1,7 @@
 import { Group, Quaternion } from 'three';
 import { describe, expect, it } from 'vitest';
 import { dist, lengthOf, type RopeEnd, type V3 } from '@/core/render/three/rope';
-import { lengthsOf, looseState, withinCable, withinReach, type CableRig } from './cablerig3d';
+import { along, exitAt, lengthsOf, looseState, prefixOf, reelAt, withinCable, withinReach, type CableRig } from './cablerig3d';
 
 /** A two-strand lead out of a grommet at the origin (facing +z) into a socket 600 up and 300 out, which it pulls out of along +z. */
 function rig(): CableRig {
@@ -58,5 +58,70 @@ describe('a cable rig', () => {
     // a plug that came to rest keeps its strands as they lay
     const kept = looseState(r, ex, { pose: rest.pose, strands });
     expect(kept.strands).toBe(strands);
+  });
+});
+
+describe('a cable run out of its hole', () => {
+  const home = (r: CableRig) => r.seated(r.model().strands), end = (r: CableRig) => ({ at: [...r.seat.at] as V3, q: new Quaternion() });
+
+  it('takes the first part of a polyline by length, spread evenly, and the point and the way at a length along it', () => {
+    const p: V3[] = [[0, 0, 0], [100, 0, 0], [100, 300, 0]];
+    expect(along(p, 50)).toEqual({ at: [50, 0, 0], dir: [1, 0, 0] });
+    expect(along(p, 250).at).toEqual([100, 150, 0]);
+    expect(along(p, 250).dir).toEqual([0, 1, 0]);
+    // held to its ends
+    expect(along(p, -5).at).toEqual([0, 0, 0]);
+    expect(along(p, 9999).at).toEqual([100, 300, 0]);
+    const half = prefixOf(p, 0.5, 5);
+    expect(half).toHaveLength(5);
+    expect(half[0]).toEqual([0, 0, 0]);
+    expect(lengthOf(half)).toBeCloseTo(200);
+    expect(prefixOf(p, 0, 4).every((q) => q[0] === 0 && q[1] === 0)).toBe(true);
+    expect(lengthOf(prefixOf(p, 1, 9))).toBeCloseTo(lengthOf(p));
+  });
+
+  it('starts with the plug small in its hole, every strand on its fixed end', () => {
+    const r = rig(), ex = r.model().strands, a = reelAt(r, ex, home(r), end(r), 0);
+    expect(a.size).toBe(0);
+    a.strands.forEach((s, i) => expect(s[0], `strand ${i}`).toEqual(r.fixed[i]!.at));
+    expect(lengthOf(a.strands[0]!)).toBeLessThan(150);
+  });
+
+  it('ends as the built cable stands: the plug seated, full size, the strands along their paths', () => {
+    const r = rig(), ex = r.model().strands, path = home(r), z = reelAt(r, ex, path, end(r), 1);
+    expect(z.size).toBe(1);
+    expect(dist(z.pose.at, r.seat.at)).toBeLessThan(1e-6);
+    expect(z.pose.q.angleTo(new Quaternion())).toBeLessThan(1e-6);
+    z.strands.forEach((s, i) => {
+      expect(dist(s[0]!, path[i]![0]!)).toBeLessThan(1e-6);
+      expect(dist(s[s.length - 1]!, path[i]![path[i]!.length - 1]!)).toBeLessThan(1e-6);
+      // (evenly respaced points cut the sharp corners of this crude path a little)
+      expect(Math.abs(lengthOf(s) / lengthOf(path[i]!) - 1)).toBeLessThan(0.05);
+    });
+  });
+
+  it('keeps the cable whole on the way: each strand ends on its exit of the plug, and the cable grows with the run', () => {
+    const r = rig(), ex = r.model().strands, path = home(r);
+    let last = 0;
+    for (const f of [0.35, 0.5, 0.7, 0.9]) {
+      const a = reelAt(r, ex, path, end(r), f);
+      expect(a.size).toBe(1);
+      a.strands.forEach((s, i) => expect(dist(s[s.length - 1]!, exitAt(ex[i]!, r.seat, a.pose).at), `strand ${i} at ${f}`).toBeLessThan(1e-6));
+      expect(lengthOf(a.strands[0]!)).toBeGreaterThan(last);
+      last = lengthOf(a.strands[0]!);
+    }
+  });
+
+  it('reels back along the way it was run: the same cable at the same place of the run', () => {
+    const r = rig(), ex = r.model().strands, path = home(r), a = reelAt(r, ex, path, end(r), 0.6), b = reelAt(r, ex, path, end(r), 0.6);
+    expect(a.pose.at).toEqual(b.pose.at);
+    expect(a.strands).toEqual(b.strands);
+  });
+
+  it('brings a loose plug to rest as it lies: its place and its turn at the end of the run', () => {
+    const r = rig(), ex = r.model().strands, { rest, strands } = looseState(r, ex, undefined), z = reelAt(r, ex, strands, rest.pose, 1);
+    expect(dist(z.pose.at, rest.pose.at)).toBeLessThan(1e-3);
+    expect(z.pose.q.angleTo(rest.pose.q)).toBeLessThan(1e-6);
+    expect(z.size).toBe(1);
   });
 });
