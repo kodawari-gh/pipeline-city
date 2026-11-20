@@ -80,6 +80,8 @@ export interface PowerShape {
   monitor: V3 | null;
   hub: V3 | null;
   psu: PsuBay | null;
+  /** Where the wall's words start, when they are not over the plug (the studio's tall plate: beside it). */
+  wallWords?: V3;
 }
 
 export interface ShapeIn {
@@ -91,6 +93,8 @@ export interface ShapeIn {
   /** The z of the board's face, and of the fan hub's face on the tray. */
   boardZ: number;
   hubZ: number;
+  /** The wall socket's plate: its half-extents beyond the outermost plugs' middles, across and up, and how far over the plugs' seat its plate lies (the studio's real plate; the default is the room's loose socket). */
+  outlet?: { padX: number; padY: number; lift: number };
 }
 
 /** The cables that carry no power. */
@@ -180,13 +184,16 @@ export function powerShape(i: ShapeIn): PowerShape {
   lines.push(...traces(i));
   const run = (id: string): CableRun | undefined => runs.find((r) => r.id === id);
   const first = (id: string): V3 | null => run(id)?.strands[0]?.[0] ?? null, last = (id: string): V3 | null => { const p = run(id)?.strands.at(-1); return p?.[p.length - 1] ?? null; };
-  return { lines, rings, nodes: nodes(i, runs), seats, wall: first('pcmains'), monitor: last('monmains'), hub: first('sysfan'), psu: i.psu };
+  const ns = nodes(i, runs), plate = i.outlet ? ns.find((n) => n.id === 'node.wall') : undefined;
+  // (the studio's plate is a real one, with a plug in each half: its words start beside it, not over the plugs)
+  const words: V3 | undefined = plate ? [plate.at[0] + plate.ex[0] + 260, plate.at[1] + 260, plate.at[2] + 120] : undefined;
+  return { lines, rings, nodes: ns, seats, wall: first('pcmains'), monitor: last('monmains'), hub: first('sysfan'), psu: i.psu, ...(words ? { wallWords: words } : {}) };
 }
 
 /** How far over the board's face the plates lie (units): above the solder mask's drawing, under the parts that stand on the board. */
 const NODE_LIFT = 24;
-/** The half-extents of the wall socket's plate round its plugs (units). */
-const OUTLET_PAD = 760, OUTLET_HALF_H = 470;
+/** The half-extents of the wall socket's plate round its plugs (units), and how far it lies over their seat (behind it, in the room: the plugs' plate is the wall's). */
+const OUTLET: NonNullable<ShapeIn['outlet']> = { padX: 760, padY: 470, lift: -10 };
 
 /** A flat plate over a rect of the board (layout units, y down). */
 function plate(id: string, role: Role, r: Rect, z: number, watts: (l: Ledger) => number, state: (l: Ledger) => FlowState): PowerNode {
@@ -201,9 +208,9 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
   const out: PowerNode[] = [], kinds = new Set(i.s.devices.map((d) => d.kind)), live = (w: number): FlowState => (w > 0.05 ? 'on' : 'idle');
   const outlets = runs.filter((r) => MAINS.has(r.id));
   if (outlets.length) {
-    const xs = outlets.map((r) => r.seat.at[0]), ys = outlets.map((r) => r.seat.at[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const xs = outlets.map((r) => r.seat.at[0]), ys = outlets.map((r) => r.seat.at[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), o = i.outlet ?? OUTLET;
     out.push({
-      id: 'node.wall', role: 'source', at: [(x0 + x1) / 2, (y0 + y1) / 2, outlets[0]!.seat.at[2] - 10], ex: [(x1 - x0) / 2 + OUTLET_PAD, 0, 0], ey: [0, (y1 - y0) / 2 + OUTLET_HALF_H, 0], round: 240,
+      id: 'node.wall', role: 'source', at: [(x0 + x1) / 2, (y0 + y1) / 2, outlets[0]!.seat.at[2] + o.lift], ex: [(x1 - x0) / 2 + o.padX, 0, 0], ey: [0, (y1 - y0) / 2 + o.padY, 0], round: 240,
       watts: (l) => l.pcW + l.monW, state: (l) => (outlets.some((r) => l.missing(r.id)) ? 'missing' : live(l.pcW + l.monW)),
     });
   }
@@ -268,7 +275,7 @@ export function powerDraw(shape: PowerShape, s: Snapshot, l: Ledger, box: BoxOf)
   const tags: AirTag[] = [];
   const over = (p: V3, dx = 0, dy = 0, dz = 0): V3 => [p[0] + dx, p[1] + dy, p[2] + dz];
   // the source: the wall's words over the socket the PC's cord comes out of (the cord's own end)
-  if (shape.wall) tags.push({ id: 'p.wall', at: over(shape.wall, 0, 260, 120), text: `WALL ${wattsText(l.wallW)}`, tone: 'watts', role: 'source', anchor: 'l' });
+  if (shape.wall) tags.push({ id: 'p.wall', at: shape.wallWords ?? over(shape.wall, 0, 260, 120), text: `WALL ${wattsText(l.wallW)}`, tone: 'watts', role: 'source', anchor: 'l' });
   // the hubs: the supply takes the mains in and hands the power on, the regulators and the fan hub hand it on again
   const psu = shape.psu;
   if (psu) tags.push({ id: 'p.psu', at: [(psu.min[0] + psu.max[0]) / 2, psu.max[1] + 80, psu.max[2]], text: `SUPPLY ${wattsText(l.loadW)} / ${Math.round(l.budgetW)} W`, tone: l.tripped ? 'warn' : 'watts', role: 'hub', anchor: 'c' });

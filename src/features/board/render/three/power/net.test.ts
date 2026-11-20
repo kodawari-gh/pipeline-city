@@ -114,6 +114,25 @@ describe('the power shape', () => {
     expect(hub.at[2]).toBe(2490);
   });
 
+  it('lets the studio\'s wall set the source plate: its real outline, lying over the plugs\' seat, with the words beside it; the room\'s socket stays as it was', () => {
+    const outlet = { padX: 860, padY: 920, lift: 14 };
+    const draw = (over: Partial<ShapeIn> = {}) => { const s = running(), sh = powerShape(input(s, over)); return { sh, d: powerDraw(sh, s, powerLedger(s), box) }; };
+    const room = draw(), studio = draw({ outlet });
+    const a = room.sh.nodes[0]!, b = studio.sh.nodes[0]!;
+    expect(b.id).toBe('node.wall');
+    // (the plugs stand 1000 apart up the wall, both at x 9000: the plate is that and the pad each way, in front of the seat, not behind it)
+    expect(b.at).toEqual([9000, -4500, 2014]);
+    expect(b.ex[0]).toBe(860);
+    expect(b.ey[1]).toBe(500 + 920);
+    expect(a.at[2]).toBe(1990);
+    expect(a.ex[0]).toBe(760);
+    // (the room's words stand over the plug; the studio's start east of the plate, level with its middle)
+    expect(room.sh.wallWords).toBeUndefined();
+    expect(studio.sh.wallWords).toEqual([9000 + 860 + 260, -4500 + 260, 2014 + 120]);
+    expect(room.d.tags.find((t) => t.id === 'p.wall')!.at).toEqual([9000, -5000 + 260, 2000 + 120]);
+    expect(studio.d.tags.find((t) => t.id === 'p.wall')!.at).toEqual(studio.sh.wallWords);
+  });
+
   it('has no plate for a regulator whose part is not there, none on a board with no supply, and none for a wall with no cord', () => {
     const base = running();
     const noCpu = { ...base, devices: base.devices.filter((d) => d.kind !== 'cpu') };

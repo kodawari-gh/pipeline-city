@@ -75,7 +75,8 @@ import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
 import { rigBuild, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { inFlowOrder, reversed, type CableRun, type RigPower } from './power/runs';
-import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Plug, rj45Real } from './plugs3d';
+import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, schukoPlug, schukoReal } from './plugs3d';
+import { JACK_SINK, MM as WALL_MM, routerSolid, routerTier, type StageWall } from './studiowall3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
@@ -169,7 +170,7 @@ export const untag = (root: Object3D): void => root.traverse((o) => { if (typeof
 const netVisible = (s: Snapshot) => netPropsVisible({
   level: s.level.level, hasRouter: !!s.net?.router, hasIsp: !!s.net?.isp, routerInInventory: s.inventory.some((i) => i.kind === 'router'), lanConnected: !!s.cables.find((c) => c.id === 'lan')?.connected,
 });
-const videoKey = (s: Snapshot) => `${netVisible(s)}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
+const videoKey = (s: Snapshot, wall: StageWall | null = null) => `${netVisible(s)}|${wall ? routerTier(s.net?.router?.id) : ''}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
 
 export class Machine3D {
   readonly root = new Group();
@@ -324,8 +325,9 @@ export class Machine3D {
    * no router. `merge`: false builds it as it was before PERF22's merge and share (the tests compare the two). `lod`: false builds it
    * without the distance stand-ins (the tests compare the two). `defer`: leave the build to `make`, which runs it a slice at a time.
    * `shown` (Build my PC's empty start): `case` is the case alone, with no board in it, no part and no cable (`buildEmpty`); `nothing` is no case either, an empty root.
+   * `wall` (Build my PC): the studio's wall, which the mains cords and the LAN lead go to, in place of the room's hidden socket and router (`buildWallCords`).
    */
-  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, readonly shown: Shown = 'machine') {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true, merge = true, lod = merge, defer = false, readonly shown: Shown = 'machine', readonly wall: StageWall | null = null) {
     this.art = new ArtSet(q);
     this.merged = merge;
     this.tiers = s ? `${s.boardTier}|${s.caseTier}` : '';
@@ -343,10 +345,10 @@ export class Machine3D {
    */
   static async make(
     s: Snapshot | null, geo: RoomGeo, q: BakeQueue, chips: Chips3D | null, inRoom: boolean,
-    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean; shown?: Shown } = {},
+    o: { merge?: boolean; lod?: boolean; slice?: () => Promise<void>; budget?: number; stop?: () => boolean; shown?: Shown; wall?: StageWall | null } = {},
   ): Promise<Machine3D | null> {
     const merge = o.merge ?? true, lod = o.lod ?? merge, slice = o.slice ?? (() => new Promise<void>((done) => setTimeout(done, 0))), budget = o.budget ?? SLICE_MS;
-    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true, o.shown ?? 'machine'), run = m.assemble(s, geo, merge, lod);
+    const m = new Machine3D(s, geo, q, chips, inRoom, merge, lod, true, o.shown ?? 'machine', o.wall ?? null), run = m.assemble(s, geo, merge, lod);
     let from = performance.now();
     for (let step = run.next(); !step.done; step = run.next()) {
       if (performance.now() - from < budget) continue;
@@ -1017,8 +1019,10 @@ export class Machine3D {
     // (a mains cord is a real IEC lead's, 6 mm thick)
     const cord: Look = { r: 70, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
     // the desk's grommet the mains cords drop through, behind the case's west side
-    const dg = { x: CASE.x - 900, z: 1300 };
+    const dg = { x: CASE.x - 900, z: 1300 }, w = this.wall;
     this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x2a2d32, { roughness: 0.6, metalness: 0.3 }), SEG.bigDisc), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050608, { roughness: 0.9 }), SEG.bigDisc));
+    // (the studio's wall: its floor and its face are the cords' planes, the router and the case their solids)
+    const stage: Env | null = w ? { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: w.plan.face.z + 60 }], solids: [caseBox, routerSolid(w.plan, routerTier(s.net?.router?.id))] } : null;
     if (has('video')) {
       // combed out of sight: from the monitor's back (its plug is built in), behind the stand, down through the keyboard's grommet by the wall
       // (room3d.ts: the keyboard sits at MONITOR_Z + 3600), along under the top (over the tray) and up through the desk's grommet behind the
@@ -1076,11 +1080,26 @@ export class Machine3D {
       }, on(id));
       this.wires.add(g);
     };
-    if (has('lan') && netVisible(s) && this.inRoom) {
+    // (on the studio's wall the cord is one piece from its device to its plug in the outlet, a real earthed plug in a real recess: the power runs out of the plug)
+    const wallMains = (id: string, from: RopeEnd) => {
+      if (!has(id) || !w || !stage) return;
+      const g = tag(new Group(), 'cable.' + id), at = w.plan.mains.outlet[id as 'pcmains' | 'monmains'];
+      if (!at) return;
+      const seat: Seat = { at, axis: [0, 0, 1] }, o = { slack: 1.4, extra: 600, stiff: 0.4, n: 40 }, ground = stage.planes[0]!;
+      this.addRig(g, {
+        id, name: 'the wall socket', target: 'socket', look: cord, env: stage, fixed: [from], model: () => seatPlug(seat, schukoPlug(schukoReal(cord.r, hexNum(cord.base)))), seat, canSeat: true,
+        engage: 320, seated: (ex) => [hangPts(from, ex[0]!, cord, stage, o)], deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5, power: { out: true },
+      }, on(id));
+      this.wires.add(g);
+    };
+    if (has('lan') && (w || (netVisible(s) && this.inRoom))) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: LAN_LEAD, accent: null };
-      // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot)
-      const lan = routerLan(), fixed = seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD))));
+      // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot. On the studio's wall: the router's first LAN jack, in its front, a real plug in a real jack)
+      const lan = routerLan();
+      const fixed = w
+        ? seatPlug({ at: [w.plan.router.lan[0], w.plan.router.lan[1], w.plan.router.lan[2] - JACK_SINK], axis: [0, 0, 1] }, rj45Plug(rj45Jack(WALL_MM, look.r, hexNum(LAN_LEAD))))
+        : seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD))));
       g.add(fixed.root);
       const from: RopeEnd = fixed.strands[0]!;
       // (a card's jack is on its bracket, in the slot's opening: the plug goes into its mouth, nic3d's `mouthAt`)
@@ -1092,7 +1111,7 @@ export class Machine3D {
       const jacks = [...((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0 && !s.board.burnt ? [{ port: 'board', at: [CASE.x, -ly, lz] as V3 }] : []), ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, at: nicAt(d) }))];
       // (no jack at all, a board without one and no card: the plug waits at the board's place, and nothing takes it)
       const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', at: [CASE.x, -ly, lz] as V3 };
-      const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
+      const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = stage ?? { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
       // (a card's jack is real, its latch slot up; the board's is cut to its rear I/O's smaller mouth, its latch notch down)
       const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD)))) : seatPlug(seat, rj45Plug(rj45Real(look.r, hexNum(LAN_LEAD))), Math.PI));
       this.addRig(g, {
@@ -1109,10 +1128,12 @@ export class Machine3D {
       // (the C13 plug sits in the supply's C14 inlet, `psu3d.ts`; the cord leaves its strain relief)
       const visual = (getSpec(psu.spec) as { visual?: string } | undefined)?.visual ?? 'psu-basic', inlet = mainsInlet(this.plan, visual);
       if (has('pcmains')) this.wires.add(mainsPlug(this.plan, visual));
-      mains('pcmains', { at: [CASE.x - PLUG_TAIL, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+      const from: RopeEnd = { at: [CASE.x - PLUG_TAIL, inlet[1], inlet[2]], dir: [-1, 0, 0] };
+      if (w) wallMains('pcmains', from); else mains('pcmains', from, geo.socket.pc, 60);
       yield;
     }
-    mains('monmains', { at: seats.power.at, dir: seats.power.axis }, geo.socket.mon, -60);
+    if (!w) mains('monmains', { at: seats.power.at, dir: seats.power.axis }, geo.socket.mon, -60);
+    else if (w.monitor) wallMains('monmains', { at: w.monitor.at, dir: w.monitor.axis });
   }
 
   /** The key in the USB port (`id`), or none: only the key is built again. */
@@ -1178,7 +1199,7 @@ export class Machine3D {
     this.wires.clear();
     this.key = null;
     this.cableIds = s.cables.map((c) => c.id).join(',');
-    this.videoKey = videoKey(s);
+    this.videoKey = videoKey(s, this.wall);
     yield* this.buildCables(s, geo);
     // the still parts of each cable group (the lead's plugs, the cords' ends, the grommets) in a few draws; a draggable end is merged in `rigStatic`
     mergeSiblings(this.wires);
@@ -1189,7 +1210,7 @@ export class Machine3D {
   /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
   syncCables(s: Snapshot, geo: RoomGeo): void {
     if (this.noBoard) return; // (no board, no cable: the case's leads lie coiled on its tray)
-    if (s.cables.map((c) => c.id).join(',') !== this.cableIds || videoKey(s) !== this.videoKey) { this.setCables(s, geo); return; }
+    if (s.cables.map((c) => c.id).join(',') !== this.cableIds || videoKey(s, this.wall) !== this.videoKey) { this.setCables(s, geo); return; }
     for (const c of s.cables) {
       const b = this.built.get(c.id);
       if (b && b.seated !== c.connected) this.setCable(c.id, c.connected);

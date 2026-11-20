@@ -34,6 +34,8 @@ import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpi
 import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
 import { sweepLabels } from '@/core/render/camera';
 import { Monitor } from '@/features/room/render/three/props3d';
+import { monitorSeats } from '@/features/room/render/three/monitor3d';
+import type { V3 } from '@/core/render/three/rope';
 import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
 import { LEVER_OPEN } from './boardhw3d';
 import { DOOR_SECONDS, DOOR_SEES, doorWait } from './casedoor';
@@ -43,6 +45,7 @@ import { PartFade } from './partfade';
 import { ProgramGate, startPrograms } from '@/core/render/three/compile';
 import { warmLateModels } from '@/core/render/three/gltf';
 import { Machine3D, machineKey } from './machine3d';
+import { StudioWall, ispTier, routerTier, wallPlan, type StageWall, type WallNet, type WallPlan } from './studiowall3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
@@ -91,6 +94,19 @@ type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: G
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
+/** How far west (units) the start view moves the picture of the case and the wall, to centre it in the space between the two side panels. */
+const WALL_SHIFT = 1400;
+/** The z the Wall preset aims at: between the plates' faces and the router's front. */
+const WALL_FOCUS_Z = 1800;
+/** Where the stage's monitor stands (`syncMonitor`): its foot's middle this far west of the case's west face and in front of the board, turned this far to the camera. */
+const MONITOR_AT = { dx: -5200, dz: 1800, yaw: 0.5, rootZ: 400 } as const;
+/** Where the stage's monitor lets its power cord out, in the world, and the way the cord leaves it (`monitorSeats`, turned and moved as `syncMonitor` places the monitor). */
+export function monitorPower(): { at: V3; axis: V3 } {
+  const p = monitorSeats(MONITOR, 0).power, c = Math.cos(MONITOR_AT.yaw), s = Math.sin(MONITOR_AT.yaw);
+  const turn = (v: V3): V3 => [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c];
+  const [x, y, z] = turn([p.at[0] - (MONITOR.x + MONITOR.w / 2), p.at[1] + DESK_Y, p.at[2] + MONITOR_AT.rootZ]);
+  return { at: [x + CASE_RECT.x + MONITOR_AT.dx, y - (CASE_RECT.y + CASE_RECT.h), z + BOARD_Z + MONITOR_AT.dz], axis: turn(p.axis) };
+}
 /**
  * The distance stand-ins (`partlod.ts`) draw only from this part of the stage's own zoom out: at its own view and closer, every part is itself.
  * Low has no such floor (PHONE-01): the small parts draw merged at any zoom, as the size rule says, and the whole machine is held while a
@@ -386,8 +402,18 @@ export class BuildStage {
   }
 
   // ------------------------------------------------------------------ drawing
+  /** The case and the wall's plates and router (the wall stands west of the case, the plates over where the case hides it from the start view). */
   private frameView(): OrbitView {
-    return fitRect({ x: CASE_RECT.x, y: CASE_RECT.y, w: CASE_RECT.w, h: CASE_RECT.h }, BOARD_Z, this.W / this.H, START, 0.55);
+    const c = CASE_RECT, f = (this.wall?.plan ?? this.wallPlanNow()).frame;
+    const x0 = Math.min(c.x, f.x0), x1 = Math.max(c.x + c.w, f.x1), y0 = Math.min(c.y, -f.y1), y1 = Math.max(c.y + c.h, -f.y0);
+    // (the left shelf is wider than the right panel: the middle of the free window is a little east of the screen's: the picture goes that much to the east, the target to the west)
+    return fitRect({ x: x0 - WALL_SHIFT, y: y0, w: x1 - x0, h: y1 - y0 }, BOARD_Z, this.W / this.H, START, 0.55);
+  }
+
+  /** The wall's plates, the router and the cords between (the Wall preset): seen nearly head on, a little from the east, the target a little west for the free window. */
+  private wallView(): OrbitView {
+    const f = (this.wall?.plan ?? this.wallPlanNow()).frame, h = f.y1 - f.y0, w = f.x1 - f.x0;
+    return fitRect({ x: f.x0 - WALL_SHIFT / 3, y: -f.y1, w, h }, WALL_FOCUS_Z, this.W / this.H, { yaw: 0.2, pitch: 0.1, fov: 30 }, 0.54);
   }
 
   /** What the machine builds cost since the stage opened (a swap's cost, read by the bench through `window.__build` in dev; `docs/render/load.md`). */
@@ -399,6 +425,7 @@ export class BuildStage {
     if (this.dead) return;
     this.snaps.drop();
     const shown = this.shown.peek(), key = machineKey(this.snapshot, shown);
+    this.syncWall(); // (the router and the plan are the game's: a change of either leaves the machine as it was)
     if (this._machine && key === this.builtKey) {
       // the same tiers, parts and sockets: the machine stands as it is (the end of a job after a step that built it already, a cable the hand moved)
       this.cost.skipped++;
@@ -434,7 +461,7 @@ export class BuildStage {
     this.snaps.drop();
     const s = this.snapshot, shown = this.shown.peek(), key = machineKey(s, shown), tier = s.boardTier;
     setLayoutTier(tier, Math.max(tier, s.caseTier));
-    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, { stop: () => this.dead, shown });
+    const made = await Machine3D.make(s, roomGeo(), this.bakes, null, false, { stop: () => this.dead, shown, wall: this.stageWall(s) });
     if (this.dead) { made?.dispose(); return; }
     try { this.rebuildNow(made ?? undefined); this.builtKey = key; } finally { this.cost.builds++; this.cost.buildMs += performance.now() - t0; }
   }
@@ -451,12 +478,13 @@ export class BuildStage {
     const { scene } = this.ctx;
     const old = this._machine;
     if (old) { scene.remove(old.root); old.dispose(); }
-    this._machine = made ?? new Machine3D(s, roomGeo(), this.bakes, null, false, true, true, false, this.shown.peek());
+    this._machine = made ?? new Machine3D(s, roomGeo(), this.bakes, null, false, true, true, false, this.shown.peek(), this.stageWall(s));
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
     this.warm = true;
     this.stage(caseTier);
+    this.syncWall();
     this.syncMonitor(s.devices.some((d) => d.kind === 'display'));
     if (refit) this.view = this.goal = this.frameView();
     const st = this.status.peek();
@@ -490,12 +518,34 @@ export class BuildStage {
     // (built where the room puts it, then moved so its foot's middle stands on the stage's origin, beside the case and turned to the camera)
     const g = tag(new Group(), 'monitor'), m = new Monitor(MONITOR, SCREEN, DESK_Y, 0);
     m.set({ installed: true, powered: true, live: false, text: '' }, 12);
-    m.root.position.set(-(MONITOR.x + MONITOR.w / 2), DESK_Y, 400);
+    m.root.position.set(-(MONITOR.x + MONITOR.w / 2), DESK_Y, MONITOR_AT.rootZ);
     g.add(m.root);
-    g.position.set(CASE_RECT.x - 5200, -(CASE_RECT.y + CASE_RECT.h), BOARD_Z + 1800);
-    g.rotation.y = 0.5;
+    g.position.set(CASE_RECT.x + MONITOR_AT.dx, -(CASE_RECT.y + CASE_RECT.h), BOARD_Z + MONITOR_AT.dz);
+    g.rotation.y = MONITOR_AT.yaw;
     scene.add(g);
     this.monitor = g;
+  }
+
+  private wall: StudioWall | null = null;
+  /** The wall's plan for the case as the layout has it now: placed by the case's west face and top, over the floor under it. */
+  private wallPlanNow(): WallPlan {
+    return wallPlan({ caseX: CASE_RECT.x, caseTop: -CASE_RECT.y, caseW: CASE_RECT.w, floorY: -(CASE_RECT.y + CASE_RECT.h) - 140 });
+  }
+  /** What the machine's cords need of the wall (the machine is built with it: `Machine3D`'s `wall`). */
+  private stageWall(s: Snapshot): StageWall { return { plan: this.wallPlanNow(), monitor: s.devices.some((d) => d.kind === 'display') ? monitorPower() : null }; }
+  /** What the wall shows of the game's network. */
+  private wallNet(s: Snapshot): WallNet {
+    const n = s.net;
+    const link = !n || n.state === 'no-device' || n.state === 'no-cable' ? 'off' : n.state === 'saturated' ? 'busy' : n.state === 'link-up' ? 'up' : 'idle';
+    return { router: routerTier(n?.router?.id), isp: ispTier(n?.isp?.id), link };
+  }
+  /** The studio's wall as the case and the game's network have it: built, moved when the case's size moves it, its router, lights and lead set. */
+  private syncWall(): void {
+    const { scene } = this.ctx, plan = this.wallPlanNow(), net = this.wallNet(this.snapshot);
+    if (this.wall && this.wall.plan.key !== plan.key) { scene.remove(this.wall.root); this.wall.dispose(); this.wall = null; }
+    if (this.wall) this.wall.set(net);
+    else { this.wall = new StudioWall(plan, net); scene.add(this.wall.root); }
+    this.demand.ask();
   }
 
   private floor: Mesh | null = null;
@@ -713,8 +763,9 @@ export class BuildStage {
 
   resetView(): void { this.goal = this.frameView(); }
 
-  /** A camera preset: the whole machine seen from the front, three-quarter (the start), the side, or from above. */
-  preset(name: 'front' | 'angle' | 'side' | 'top'): void {
+  /** A camera preset: the whole machine seen from the front, three-quarter (the start), the side, or from above; or the wall with its power plate and network jack. */
+  preset(name: 'front' | 'angle' | 'side' | 'top' | 'wall'): void {
+    if (name === 'wall') { this.goal = this.wallView(); return; }
     const at = { front: { yaw: 0, pitch: 0.08 }, angle: { yaw: START.yaw, pitch: START.pitch }, side: { yaw: 1.05, pitch: 0.12 }, top: { yaw: 0.2, pitch: 0.75 } }[name];
     this.goal = { ...this.frameView(), ...at };
   }
@@ -747,8 +798,9 @@ export class BuildStage {
     }
     applyView(camera, view, cw / ch);
     const crop = centred(project(), win, cw, ch), density = renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1);
-    const monitor = this.monitor, monitorWas = monitor?.visible ?? false;
+    const monitor = this.monitor, monitorWas = monitor?.visible ?? false, wall = this.wall, wallWas = wall?.root.visible ?? false;
     if (monitor) monitor.visible = false;
+    if (wall) wall.root.visible = false; // (the picture is of the machine: no wall behind it)
     try {
       return m.withoutDoor(() => {
         m.holdDetail([m.root]);
@@ -766,6 +818,7 @@ export class BuildStage {
       });
     } finally {
       if (monitor) monitor.visible = monitorWas;
+      if (wall) wall.root.visible = wallWas;
       applyView(camera, this.view, this.W / this.H);
       this.demand.ask();
     }
@@ -1677,6 +1730,7 @@ export class BuildStage {
     const { scene } = this.ctx;
     if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
     if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; }
+    if (this.wall) { scene.remove(this.wall.root); this.wall.dispose(); this.wall = null; }
     // the art is gone: what Pixi pooled for it, and its labels in the size rule
     freeBakePools();
     sweepLabels();

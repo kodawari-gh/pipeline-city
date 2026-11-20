@@ -94,7 +94,9 @@ export class PowerView3D {
   /** Make the lines of a new machine. */
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
-    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290 });
+    // (on the studio's wall the source is its real plate: the lens's plate takes its outline, lying just over its face)
+    const pad = machine.wall?.plan.pad;
+    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290, ...(pad ? { outlet: { padX: pad.x, padY: pad.y, lift: 14 } } : {}) });
     this.shape = shape;
     this.flows = new PowerFlows(shape);
     this.group.add(this.flows.mesh);
@@ -103,19 +105,23 @@ export class PowerView3D {
     this.corners = caseCorners(machine);
   }
 
-  /** The share (0 to 1) of the view's height the case takes: its box's corners, projected. 1 when the eye is in or behind it. */
+  /** The share (0 to 1) of the view's height the case takes: its box's corners, projected, as much of it as is across the view. 1 when the eye is in or behind it. */
   private share(cam: PerspectiveCamera): number {
     cam.updateMatrixWorld();
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
-    let lo = Infinity, hi = -Infinity;
+    let lo = Infinity, hi = -Infinity, left = Infinity, right = -Infinity;
     for (const c of this.corners) {
       this.p.copy(c).applyMatrix4(cam.matrixWorldInverse);
       if (this.p.z > -cam.near) return 1;
-      const y = this.p.applyMatrix4(cam.projectionMatrix).y;
-      lo = Math.min(lo, y);
-      hi = Math.max(hi, y);
+      const p = this.p.applyMatrix4(cam.projectionMatrix);
+      lo = Math.min(lo, p.y);
+      hi = Math.max(hi, p.y);
+      left = Math.min(left, p.x);
+      right = Math.max(right, p.x);
     }
-    return Math.max(0, (hi - lo) / 2);
+    // (a case mostly out of the view, as in the wall's close view, takes what is in it: its words would pile up over the panels)
+    const seen = right > left ? Math.max(0, Math.min(right, 1) - Math.max(left, -1)) / (right - left) : 1;
+    return Math.max(0, ((hi - lo) / 2) * seen);
   }
 
   /** The words now: all of them while the machine is big on the screen, the main ones while it is small. */

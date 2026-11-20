@@ -1,5 +1,5 @@
-// The plugs of the cables the player moves at the PC's end (and the video cable's at the monitor), as real ones: an HDMI plug and an RJ45 (8P8C)
-// plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
+// The plugs of the cables the player moves at the PC's end (and the video cable's at the monitor), as real ones: an HDMI plug, an RJ45 (8P8C)
+// plug and a mains (CEE 7/7 "Schuko") plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
 // cablerig3d.ts, stands one in its seat), the part that goes into the socket ahead of the mouth (hidden when it is seated, seen when it lies
 // loose); its long side along x, its keyed side (HDMI's cut corners, the RJ45's latch) at -y. A real socket (a card's, the monitor's) takes a
 // real plug. The board's rear I/O is drawn at about a third of real size: its plug's tip is cut to its mouth, and its boot keeps a real plug's
@@ -34,6 +34,9 @@ export const hdmiReal = (cable: number): HdmiFit => ({ k: MM, tip: { w: HDMI.tip
 export const rj45Real = (cable: number, tone: number): Rj45Fit => ({
   k: MM, body: { w: RJ45.body.w * MM, h: RJ45.body.h * MM }, latch: { w: RJ45.latch.w * MM, rise: RJ45.latch.rise * MM }, cable, tone,
 });
+
+/** A plug for a compact jack (rj45jack3d.ts `jackFace`) built `k` units a mm: its mouth is 11.68 wide and 8.2 high, its latch slot 4.2 across and 0.7 past the latch side. */
+export const rj45Jack = (k: number, cable: number, tone: number): Rj45Fit => ({ k, body: { w: RJ45.body.w * k, h: RJ45.body.h * k }, latch: { w: 3.8 * k, rise: 0.55 * k }, cable, tone });
 
 /**
  * The board's rear I/O sockets (`ioShield`, casedetail3d.ts: the HDMI mouth 8 in from its shell, its corners cut 16; the RJ45 mouth 16 and 12 in
@@ -190,5 +193,53 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ridges)));
   const r1 = cable + 0.3 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(3.9 * b, cable + 1.2 * b));
   g.add(relief(z2 - 0.5 * b, 0, r0, r1, 1.5 * b, 0.22 * b, boot));
+  return { body: g, l };
+}
+
+/**
+ * A mains plug's real size (mm), CEE 7/7 ("Schuko", the earthed plug of most of Europe): two round pins 4.8 across, 19 apart and 19 long, the root 10 mm
+ * of each in an insulating sleeve; the round boss behind them (40 across, 14 deep: it goes into the socket's recess) with the earth contact flats on its
+ * top and bottom; the moulded body 50 x 42, 20 out of the socket; the boot down to the cord; 52 out of the socket to the cord's end.
+ */
+export const SCHUKO = { pin: { d: 4.8, l: 19, pitch: 19, sleeve: 10 }, boss: { d: 40, l: 14 }, body: { w: 50, h: 42, l: 20 }, boot: { w: 36, h: 30, w1: 16, h1: 16 }, l: 52 } as const;
+
+/** A mains plug for one socket: `k` units a mm, the cord's radius and the plug's colour. */
+export interface SchukoFit { k: number; cable: number; tone: number }
+export const schukoReal = (cable: number, tone: number): SchukoFit => ({ k: MM, cable, tone });
+export const schukoLength = (f: SchukoFit): number => SCHUKO.l * bootScale(f.k, f.cable, SCHUKO.boot.h1, 0.55);
+
+/**
+ * A Schuko plug: the two pins (sleeved at their roots), the round boss with its earth flats, the moulded body with a grip rib across each broad
+ * face, the boot tapering to the cord, the ribbed strain relief. Its pins go in along -z, its pair of pins across x (the earth flats top and bottom).
+ */
+export function schukoPlug(f: SchukoFit): { body: Group; l: number } {
+  const { k, cable } = f, b = bootScale(k, cable, SCHUKO.boot.h1, 0.55), l = SCHUKO.l * b, g = new Group();
+  const shell = mat(f.tone, { roughness: 0.55 }), pin = mat(0xc9ccd2, { metalness: 0.9, roughness: 0.25 }), sleeve = mat(0x0b0c0e, { roughness: 0.6 });
+  const P = SCHUKO.pin, B = SCHUKO.boss, Y = SCHUKO.body, zs = -l, zb = zs - B.l * k, rp = (P.d / 2) * k;
+  // the pins, from the boss's front face; the sleeve over the root half of each
+  const rod = (x: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.part) => {
+    const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides).rotateX(Math.PI / 2), m);
+    o.position.set(x, 0, (z0 + z1) / 2);
+    return place(o);
+  };
+  for (const s of [-1, 1]) {
+    const x = (s * P.pitch * k) / 2, tip = zb - P.l * k;
+    g.add(rod(x, tip, zb + 0.5 * k, rp, pin), rod(x, zb - P.sleeve * k, zb + 0.5 * k, rp * 1.18, sleeve));
+  }
+  // the boss, and the earth flats along its top and bottom
+  g.add(rod(0, zb, zs + 0.5 * k, (B.d / 2) * k, shell, SEG.disc));
+  const flat = (y: number) => g.add(box(-5 * k, 5 * k, y - 0.4 * k, y + 0.4 * k, zb + 1 * k, zs, pin));
+  flat((B.d / 2) * k + 0.1 * k); flat(-(B.d / 2) * k - 0.1 * k);
+  // the body: the moulded block against the socket's face, its edges rolled
+  const bz1 = zs + Y.l * b;
+  g.add(softBox({ x: -(Y.w * k) / 2, y: -(Y.h * k) / 2, w: Y.w * k, h: Y.h * k }, zs, bz1, shell, 9 * k));
+  const ribs = [];
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) ribs.push({ x: 0, y: s * ((Y.h * k) / 2 + 0.05 * k), z: zs + (4 + i * 3.4) * k, sx: Y.w * k * 0.6, sy: 0.7 * k, sz: 1.2 * k });
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), shell, ribs)));
+  // the boot, then the ribbed strain relief down to the cord
+  const R = SCHUKO.boot, z2 = zs + (SCHUKO.l - 11) * b;
+  g.add(taper(R.w * b, R.h * b, R.w1 * b, R.h1 * b, bz1 - 0.5 * k, z2, 7 * b, 2.5 * b, shell));
+  const r1 = cable + 0.35 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(4.6 * b, cable + 1.6 * b));
+  g.add(relief(z2 - 0.6 * b, 0, r0, r1, 2 * b, 0.28 * b, shell));
   return { body: g, l };
 }

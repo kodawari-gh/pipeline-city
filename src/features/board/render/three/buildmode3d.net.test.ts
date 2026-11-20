@@ -153,3 +153,25 @@ describe('the stage fits the network', () => {
     expect(net(s).os).toBeNull();
   });
 });
+
+describe('the Wall camera preset', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+  });
+
+  it('frames the wall\'s plates and router, not the whole machine: nearer, higher, to the west, nearly head on', () => {
+    const s = stage() as unknown as { preset(name: string): void; resetView(): void; goal: { x: number; y: number; height: number; yaw: number } };
+    s.resetView();
+    const whole = { ...s.goal };
+    s.preset('wall');
+    expect(s.goal.height).toBeLessThan(whole.height);
+    expect(s.goal.y).toBeGreaterThan(whole.y);
+    expect(s.goal.x).toBeLessThan(whole.x);
+    expect(Math.abs(s.goal.yaw)).toBeLessThan(0.3);
+    // (the other presets take the whole machine in as they did)
+    s.preset('side');
+    expect(s.goal.height).toBeCloseTo(whole.height, 3);
+  });
+});

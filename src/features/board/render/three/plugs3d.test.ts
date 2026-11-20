@@ -4,7 +4,7 @@ import { MONITOR_PLUG } from '@/features/room/render/three/monitor3d';
 import { IO_HALF, IO_Z } from './boardhw3d';
 import { OUTPUTS } from './gpu3d';
 import { MOUTH } from './nic3d';
-import { boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, RJ45, rj45Length, rj45Plug, rj45Real } from './plugs3d';
+import { boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, RJ45, rj45Length, rj45Plug, rj45Real, SCHUKO, schukoLength, schukoPlug, schukoReal } from './plugs3d';
 
 const MM = 23, VIDEO_R = 34, LAN_R = 40;
 
@@ -48,5 +48,17 @@ describe('the cables plugs', () => {
       expect(scale).toBeGreaterThanOrEqual(f.k);
       expect((2 * f.cable) / (h * scale)).toBeLessThanOrEqual(share + 1e-9);
     }
+  });
+
+  it('builds a mains plug at real size: pins 19 apart go in ahead of the mouth, the body stands out of it, the cord leaves at 0', () => {
+    const f = schukoReal(70, 0x18181b), plug = schukoPlug(f), b = new Box3().setFromObject(plug.body);
+    expect(plug.l).toBeCloseTo(SCHUKO.l * MM);
+    expect(schukoLength(f)).toBeCloseTo(plug.l);
+    // the pins and the boss go in (the boss 14, the pins 19 more), the body is 50 wide
+    expect(b.min.z).toBeCloseTo(-plug.l - (SCHUKO.boss.l + SCHUKO.pin.l) * MM, 0);
+    expect((b.max.x - b.min.x) / MM).toBeCloseTo(SCHUKO.body.w, 0);
+    expect(b.max.z).toBeLessThanOrEqual(1);
+    // the boss goes into a recess a little wider (the wall's socket, studiowall3d.ts)
+    expect(SCHUKO.boss.d).toBeLessThan(44);
   });
 });
