@@ -42,9 +42,9 @@ export function MoreButton({ specId, more }: { specId: string; more: MoreOffer |
   const cost = more.free ? 'free' : fmtMoney(more.price);
   if (more.state === 'poor') return <span class="need warn more" title={`Buy another: ${more.reason}`}>+ {cost}</span>;
   return (
-    <button class="primary buy more" aria-label={`Buy another for ${cost}`} title={`Buy another for ${cost}. It goes into your inventory.`}
+    <button class="primary buy more" aria-label={more.free ? 'Take another' : `Buy another for ${cost}`} title={more.free ? 'Take another. It goes into your inventory.' : `Buy another for ${cost}. It goes into your inventory.`}
       onClick={(e) => { e.stopPropagation(); purchase(specId); }}>
-      + {cost}
+      {more.free ? '+ 1' : `+ ${cost}`}
     </button>
   );
 }
@@ -58,8 +58,8 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
       case 'crate': return <><span class="need ok"><Icon name="box" size={11} /> Spare{(step.spares ?? 1) > 1 ? ` x${step.spares}` : ''}</span><MoreButton specId={step.specId} more={step.more} /></>;
       case 'ready': return (
         <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(step.specId); }}
-          title={`Buy for ${cost}. It goes into your inventory.`}>
-          Buy {cost}
+          title={step.free ? 'Take one. It goes into your inventory.' : `Buy for ${cost}. It goes into your inventory.`}>
+          {step.free ? 'Take' : `Buy ${cost}`}
         </button>
       );
       case 'poor': return <span class="need warn" title={step.reason}><Icon name="dollar" size={11} /> {cost}</span>;

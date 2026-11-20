@@ -69,7 +69,7 @@ function Leans({ e, p }: { e: DexEntry; p: CodeProfile }) {
   return (
     <div class="dx-leans">
       <div class="dx-metrics">
-        <span class="dx-nums" title="Instructions run, 256-byte pages touched, bytes moved per instruction"><Icon name="clock" size={11} /> {p.steps.toLocaleString('en-US')} <Icon name="box" size={11} /> {p.pages} <Icon name="memory" size={11} /> {rel.bytesPerInstr.toFixed(1)}B</span>
+        <span class="dx-nums" title="Instructions run, 256-byte pages touched, bytes moved per instruction">{p.steps.toLocaleString('en-US')} instructions · {p.pages} {p.pages === 1 ? 'page' : 'pages'} · {rel.bytesPerInstr.toFixed(1)} B each</span>
         {scales.length > 1 && (
           <span class="dx-scale" title="The same job, bigger: the numbers and the program below change with it">
             Scale <span class="seg" role="group" aria-label="Scale">{scales.map((x) => <button key={x} class={x === scale ? 'on' : ''} onClick={() => { scaleOf.value = { ...scaleOf.value, [e.id]: x }; }}>x{x}</button>)}</span>
@@ -310,32 +310,34 @@ function Page({ e, state, d, level, sandbox }: { e: DexEntry; state: State; d: D
   );
 }
 
-/** What a kind of job is locked behind, small: the hardware it needs (an icon each) and the level clients start sending it. */
+/** What a kind of job is locked behind, small: the hardware it needs (an icon each) and, while clients do not send it yet, the level they start. */
 function Locks({ e, level }: { e: DexEntry; level: number }) {
   const lv = taskLevel(e), chips = needChips(e);
+  if (!chips.length && level >= lv) return null;
   return (
     <span class="lk">
       {chips.map((n) => <span key={n.kind + n.short} class="nd" title={`Needs ${n.long}`}><Icon name={needIcon(n.kind)} size={10} /></span>)}
-      <span class={`lv${level < lv ? ' hi' : ''}`} title={level < lv ? `Locked until level ${lv}` : `Clients send this from level ${lv}`}>L{lv}</span>
+      {level < lv && <span class="lv hi" title={`Locked until level ${lv}`}>L{lv}</span>}
     </span>
   );
 }
 
-function Tile({ e, state, on, no, level }: { e: DexEntry; state: State; on: boolean; no: number; level: number }) {
+/** `sandbox`: everything is open, so a badge on each row would say nothing. */
+function Tile({ e, state, on, no, level, sandbox }: { e: DexEntry; state: State; on: boolean; no: number; level: number; sandbox: boolean }) {
   const hidden = state === 'unseen' || state === 'planned';
   return (
     <button role="option" aria-selected={on} class={`dx-tile st-${state}${on ? ' on' : ''}`} title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name} onClick={() => { picked.value = e.id; if (tab.value === 'gpu' || tabFor(e.id) === 'gpu') tab.value = tabFor(e.id); tipOpen.value = null; }}>
       <span class="no">{String(no).padStart(2, '0')}</span>
       <span class="nm">{state === 'unseen' ? '? ? ?' : e.name}</span>
       {!e.planned && <Locks e={e} level={level} />}
-      {state === 'done' && <span class="bdg gold" aria-label="Finished"><Icon name="star" size={10} /></span>}
-      {state === 'seen' && <span class="bdg" aria-label="Met"><Icon name="check" size={10} /></span>}
+      {!sandbox && state === 'done' && <span class="bdg gold" aria-label="Finished"><Icon name="star" size={10} /></span>}
+      {!sandbox && state === 'seen' && <span class="bdg" aria-label="Met"><Icon name="check" size={10} /></span>}
       {(state === 'unseen' || state === 'planned') && <span class="bdg" aria-label="Locked"><Icon name="lock" size={10} /></span>}
     </button>
   );
 }
 
-function Group({ g, stateOf, sel, level }: { g: DexGroup; stateOf: (id: string) => State; sel: string; level: number }) {
+function Group({ g, stateOf, sel, level, sandbox }: { g: DexGroup; stateOf: (id: string) => State; sel: string; level: number; sandbox: boolean }) {
   const closed = !!shut.value[g.id];
   const items = g.ids.map((id) => dexEntry(id)!).filter(Boolean);
   const got = items.filter((x) => { const s = stateOf(x.id); return s === 'seen' || s === 'done'; }).length;
@@ -347,7 +349,7 @@ function Group({ g, stateOf, sel, level }: { g: DexGroup; stateOf: (id: string) 
         <span class="pips" aria-label={`${got} of ${items.length} met`}>{items.map((x) => { const s = stateOf(x.id); return <i key={x.id} class={s === 'done' ? 'full' : s === 'seen' ? 'half' : ''} />; })}</span>
         <span class="cnt">{got}/{items.length}</span>
       </button>
-      {!closed && <div class="dx-grid">{items.map((x) => <Tile key={x.id} e={x} state={stateOf(x.id)} on={sel === x.id} no={dexNumber(x.id)} level={level} />)}</div>}
+      {!closed && <div class="dx-grid">{items.map((x) => <Tile key={x.id} e={x} state={stateOf(x.id)} on={sel === x.id} no={dexNumber(x.id)} level={level} sandbox={sandbox} />)}</div>}
     </section>
   );
 }
@@ -374,15 +376,18 @@ export function AlmanacPanel() {
       <div class="card almanac" role="dialog" aria-modal="true" aria-label="Almanac">
         <header class="alm-head">
           <span class="alm-title"><Icon name="layers" size={16} /> Almanac</span>
-          <span class="dx-prog" title={`${met} of ${playable.length} kinds of job met`}>
-            <span class="bar"><i style={{ width: pct(met / Math.max(1, playable.length)) }} /></span> {met}/{playable.length}
-          </span>
-          {sandbox && <span class="chip">sandbox: all open</span>}
+          {sandbox
+            ? <span class="alm-sub">Sandbox: every page is open</span>
+            : (
+              <span class="dx-prog" title={`${met} of ${playable.length} kinds of job met`}>
+                <span class="bar"><i style={{ width: pct(met / Math.max(1, playable.length)) }} /></span> {met}/{playable.length}
+              </span>
+            )}
           <button class="close" aria-label="Close almanac" title="Close (Esc)" onClick={closeAlmanac}><Icon name="close" size={12} /></button>
         </header>
         <div class="alm-body">
           <div class="alm-list" role="listbox" aria-label="Jobs">
-            {DEX_GROUPS.map((g) => <Group key={g.id} g={g} stateOf={stateOf} sel={sel} level={s?.level.level ?? 1} />)}
+            {DEX_GROUPS.map((g) => <Group key={g.id} g={g} stateOf={stateOf} sel={sel} level={s?.level.level ?? 1} sandbox={sandbox} />)}
           </div>
           <div class="alm-main"><Page e={e} state={stateOf(sel)} d={d} level={s?.level.level ?? 1} sandbox={sandbox} /></div>
         </div>

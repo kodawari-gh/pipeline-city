@@ -116,13 +116,12 @@ function Monitor({ s, history }: { s: Snapshot; history: OsHistory }) {
         {rows.map((r) => <Tile key={r.id} r={r} h={of(r)} on={r === cur} onPick={() => setPick(r.id)} />)}
       </div>
       <div class="os-main">
-        <div class={`os-banner ${s.powered && b ? b.level : 'ok'}`}>
+        <div class={`os-banner ${!s.powered ? 'off' : b ? b.level : 'ok'}`}>
           <span class="os-pulse" />
-          <b>{!s.powered ? 'The machine is off: switch it on to see live numbers' : b ? `Bottleneck: ${b.label}` : 'Nothing holds the machine back'}</b>
-          {s.powered && b && <span>{b.text}</span>}
+          <b>{!s.powered ? 'The machine is off' : b ? `Bottleneck: ${b.label}` : 'Nothing holds the machine back'}</b>
+          {s.powered && b ? <span>{b.text}</span> : !s.powered && <span>Switch it on to see live numbers. The graphs fill in as it works.</span>}
         </div>
         {cur && <Detail r={cur} h={of(cur)} s={s} />}
-        {!s.powered && <p class="mute os-offhint">Press Power at the bottom to switch the machine on. The graphs fill in as it works: the processor first, then memory, drives and the network. The bar above names what holds it back.</p>}
       </div>
     </div>
   );
@@ -134,19 +133,27 @@ const STATE_LABEL = { running: 'Running', queued: 'Waiting', result: 'Done' } as
 function Procs({ s }: { s: Snapshot }) {
   const os = s.os;
   if (!os) return null;
+  const { used, slots } = os.spool;
   return (
-    <div class="os-table">
-      <div class="os-tr os-th"><span>Job</span><span>State</span><span>Slot</span><span>Ahead</span></div>
-      {os.queue.length === 0 && <div class="os-empty">No jobs. The queue is empty.</div>}
-      {os.queue.map((q) => (
-        <div key={`${q.slot}:${q.keyId}`} class={`os-tr ${q.state}`}>
-          <span class="os-job">{q.label}</span>
-          <span><i class={`os-dot ${q.state}`} /> {STATE_LABEL[q.state]}</span>
-          <span class="mono">{q.slot}</span>
-          <span class="mono">{q.ahead >= 0 ? q.ahead : '-'}</span>
+    <div class="os-procs">
+      <CoreStrip s={s} />
+      <div class="os-table">
+        <div class="os-slots" title={`${used} of ${slots} queue slots hold a job. ${os.programSlots} program slots run them.`}>
+          <span>Queue slots</span>
+          <span class="os-slotbar" role="img" aria-label={`${used} of ${slots} queue slots in use`}><i style={{ width: `${slots > 0 ? (used / slots) * 100 : 0}%` }} /></span>
+          <b>{used}/{slots}</b>
         </div>
-      ))}
-      <div class="os-foot">{os.spool.used}/{os.spool.slots} queue slots | {os.programSlots} program slots</div>
+        <div class="os-tr os-th"><span>Job</span><span>State</span><span>Slot</span><span>Ahead</span></div>
+        {os.queue.length === 0 && <div class="os-empty"><Icon name="slot" size={16} /> Nothing queued. A job waits here until a program slot is free.</div>}
+        {os.queue.map((q) => (
+          <div key={`${q.slot}:${q.keyId}`} class={`os-tr ${q.state}`}>
+            <span class="os-job">{q.label}</span>
+            <span><i class={`os-dot ${q.state}`} /> {STATE_LABEL[q.state]}</span>
+            <span class="mono">{q.slot}</span>
+            <span class="mono">{q.ahead >= 0 ? q.ahead : '-'}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -222,8 +229,8 @@ function Disks({ s, act }: { s: Snapshot; act: OsActions }) {
   return (
     <>
       <section class="os-wide">
-        <div class="kv"><span>spool slots in use</span><b>{m.total}/{m.cap}</b></div>
-        <div class="mute sub">Each slot holds one job waiting on a drive and takes {fmtBytes(m.slotBytes)} of disk and 64 B of RAM for the OS job table. The job table of this OS holds {m.cap} slots at most. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
+        <div class="kv"><span>Spool slots in use</span><b>{m.total}/{m.cap}</b></div>
+        <div class="mute sub">A slot keeps one waiting job: {fmtBytes(m.slotBytes)} of disk and 64 B of RAM. This OS holds {m.cap} at most. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
       </section>
       {m.drives.map((d) => <DriveCard key={d.deviceId} d={d} slotBytes={m.slotBytes} room={room} act={act} />)}
     </>

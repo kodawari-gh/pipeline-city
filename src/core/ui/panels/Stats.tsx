@@ -1,7 +1,9 @@
+import type { ComponentChildren } from 'preact';
 import { snapshot } from '@/app/store';
 import { getSpec } from '@/features/board/sim/specs';
 import { cacheHitRate, cpiIpc, describeId, fmtNum, powerLevel, stallsByCause, tempLevel, totalStalls } from '../logic';
 import { postBreakdown } from '@/features/economy/ui/progress/levelui';
+import { splitName } from '@/features/economy/ui/shop/shopdata';
 import { history } from '../state';
 import { Meter } from '../kit/Meter';
 import { VRM_ZONE_HELP, vrmReadout, vrmZone } from '@/features/board/ui/vrm';
@@ -19,6 +21,16 @@ function Sparkline() {
       <polyline class="s-ok" points={pts('retired')} fill="none" />
       <polyline class="s-warn" points={pts('stalls')} fill="none" stroke-dasharray="3 2" />
     </svg>
+  );
+}
+
+/** A section of the drawer. The main ones stay open; the others fold behind a one-line summary, so the drawer is short at first sight. */
+function Fold({ title, hint, note, open, children }: { title: string; hint?: string; note?: string; open?: boolean; children: ComponentChildren }) {
+  return (
+    <details class="stat-fold" open={open}>
+      <summary title={hint}><h3>{title}</h3>{note && <span class="mute">{note}</span>}</summary>
+      {children}
+    </details>
   );
 }
 
@@ -53,12 +65,11 @@ export function Stats() {
           </div>
         ))}
       </section>
-      <section>
-        <h3>Cache</h3>
+      <Fold title="Cache" note={hit === null ? undefined : `${(hit * 100).toFixed(0)}% hit`}>
         <div class="kv"><span>hits</span><b>{c.cacheHits ?? 0}</b></div>
         <div class="kv"><span>misses</span><b>{c.cacheMisses ?? 0}</b></div>
         <div class="kv"><span>hit rate</span><b>{hit === null ? '-' : `${(hit * 100).toFixed(0)}%`}</b></div>
-      </section>
+      </Fold>
       <section>
         <h3>Power</h3>
         <div class="bar-row" title="Total draw against what the power supply can deliver.">
@@ -69,8 +80,7 @@ export function Stats() {
         </div>
       </section>
       {vrm && (
-        <section>
-          <h3 title={VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}>VRM {vrm.sink ? <span class="mute">(heatsink)</span> : null}</h3>
+        <Fold title={vrm.sink ? 'VRM (heatsink)' : 'VRM'} hint={VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]} note={vrm.burnt ? 'burnt out' : `${Math.round(vrm.loadRatio * 100)}% load`} open={vrm.zone !== 'safe' || vrm.burnt}>
           <div class="bar-row" title={`Demand ${vrm.demandA.toFixed(1)} A of ${vrm.capacityA} A. ${VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}`}>
             <span>load</span>
             <Meter value={vrm.loadRatio} max={vrm.barMax} mark={1} level={vrm.zone === 'overload' ? 'bad' : vrm.zone === 'busy' ? 'warn' : 'ok'}
@@ -88,26 +98,25 @@ export function Stats() {
           <div class="kv" title={describeId('vrm.heat', s)?.plain}><span>heat</span><b>{vrm.lossW.toFixed(1)} W</b></div>
           <div class="kv" title={describeId('vrm.ripple', s)?.plain}><span>ripple</span><b>{vrm.ripple.toFixed(2)}</b></div>
           {vrm.burnt && <div class="kv bad"><span>state</span><b>burnt out</b></div>}
-        </section>
+        </Fold>
       )}
-      <section>
-        <h3 title="POST: what the machine does at every cold boot before it looks for a program. A no-OS machine pays it for every job.">Boot (POST) <span class="mute">{post.total} s</span></h3>
+      <Fold title="Boot (POST)" hint="POST: what the machine does at every cold boot before it looks for a program. A no-OS machine pays it for every job." note={`${post.total} s`}>
         {post.parts.map((p) => <div class="kv" key={p.label} title={p.hint}><span>{p.label}</span><b>{p.ticks} s</b></div>)}
-      </section>
-      <section>
-        <h3>Clients</h3>
+      </Fold>
+      <Fold title="Clients" note={`${s.completed} served`} open={s.expired > 0}>
         <div class="kv" title="Jobs finished and paid"><span>served</span><b>{s.completed}</b></div>
         <div class="kv" title="Jobs the machine could not run, taken back by the client at their deadline. Each one costs reputation."><span>expired</span><b class={s.expired > 0 ? 'warn' : ''}>{s.expired}</b></div>
         <div class="kv" title="Jobs you sent away yourself. Each costs a little reputation (free in the sandbox)."><span>declined</span><b>{s.declined}</b></div>
-      </section>
+      </Fold>
       <section>
         <h3>Devices</h3>
         {s.devices.filter((d) => d.kind !== 'cooler' && d.kind !== 'psu').map((d) => {
           const spec = getSpec(d.spec);
           const max = spec ? spec.thermal.damageC : 100;
+          const name = splitName(d.name);
           return (
             <div class="dev" key={d.id}>
-              <div class="kv"><span>{d.name}</span><b>{d.burnt ? 'burnt' : `${d.effectiveClock.toFixed(2)}x`}</b></div>
+              <div class="kv"><span title={name.detail || undefined}>{name.title}</span><b>{d.burnt ? 'burnt' : `${d.effectiveClock.toFixed(2)}x`}</b></div>
               <div class="bar-row" title={spec ? `Throttles at ${spec.thermal.throttleC} C, unstable at ${spec.thermal.unstableC} C, burns at ${spec.thermal.damageC} C` : ''}>
                 <span>temp</span>
                 <Meter value={d.tempC} max={max} mark={spec?.thermal.throttleC} level={d.burnt ? 'bad' : tempLevel(d.tempC, spec)} label={`${d.name} temperature`} text={`${d.tempC.toFixed(0)} °C`} />

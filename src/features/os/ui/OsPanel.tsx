@@ -31,9 +31,9 @@ export function OsModal() {
       <div class="card almanac ospanel" role="dialog" aria-modal="true" aria-label="Operating system">
         <header class="alm-head">
           <span class="alm-title"><Icon name="cpu" size={16} /> {s.os ? s.os.name : 'Operating system'}</span>
-          <div class="os-tabs" role="tablist">
+          <div class="os-tabs seg" role="tablist">
             {OS_TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} class={`chip ${tab === t.id ? 'ok' : 'idle'}`} onClick={() => setTab(t.id)}>{t.label}</button>
+              <button key={t.id} role="tab" aria-selected={tab === t.id} class={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}</button>
             ))}
           </div>
           <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>

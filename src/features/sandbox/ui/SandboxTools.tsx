@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { clearQueue, repairAll, setJobClasses, setLevel, setReputation, setSpeed, spawnKey, speed } from '@/app/store';
+import { clearQueue, repairAll, setJobClasses, setReputation, setSpeed, spawnKey, speed } from '@/app/store';
 import type { Snapshot } from '@/worker/game/game';
-import { JOB_CLASSES, levelDef, LEVELS } from '../../economy/sim/levels';
+import { JOB_CLASSES, levelDef } from '../../economy/sim/levels';
 import { TEMPLATE_NAMES } from '../../jobs/sim/gen';
 import { taskOfTemplate } from '../../jobs/sim/jobdex';
 
@@ -13,9 +13,11 @@ const TEMPLATE_LABEL: Record<string, string> = {
 };
 
 const CLASS_LABEL: Record<string, string> = {
-  cli: 'Command line', scan: 'Memory scan', db: 'Database', web: 'Web page (needs an ISP plan)', secure: 'Secure signing (needs TPM + ECC)',
-  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC (OS 4, 2+ cores)',
+  cli: 'Command line', scan: 'Memory scan', db: 'Database', web: 'Web page', secure: 'Secure signing',
+  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC',
 };
+/** What a class needs of the machine, for its tooltip. */
+const CLASS_NEEDS: Record<string, string> = { web: 'Needs an ISP plan', secure: 'Needs a TPM and ECC memory', hpc: 'Needs OS 4 and 2 or more cores' };
 
 export function SandboxTools({ s }: { s: Snapshot }) {
   const [open, setOpen] = useState(false);
@@ -75,22 +77,16 @@ export function SandboxTools({ s }: { s: Snapshot }) {
             />
             <span class="sbx-val" aria-hidden="true">{shownRep.toFixed(2)}</span>
           </div>
-          <h4>Rules level</h4>
-          <div class="sbx-row">
-            <select aria-label="Rules level" value={s.level.level} title="Patience, payouts, demand and the job mix follow this level. Nothing is locked in the sandbox."
-              onChange={(e) => setLevel(Number(e.currentTarget.value))}>
-              {LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}: {l.name}</option>)}
-            </select>
-          </div>
           <h4>Arriving on their own</h4>
-          <div class="sbx-classes" role="group" aria-label="Job classes that arrive on their own">
+          <div class="sbj-kinds sbx-classes" role="group" aria-label="Job classes that arrive on their own">
             {JOB_CLASSES.map((c) => {
               const atLevel = !!levelDef(s.level.level).mix[c.id], off = s.level.classesOff.includes(c.id);
               return (
-                <label key={c.id} class={atLevel ? '' : 'dim'} title={atLevel ? undefined : `Not part of the arrival mix at level ${s.level.level}. Spawn one by hand, or raise the rules level.`}>
-                  <input type="checkbox" checked={!off} onChange={(e) => setJobClasses(JOB_CLASSES.map((x) => x.id).filter((id) => (id === c.id ? !e.currentTarget.checked : s.level.classesOff.includes(id))))} />
+                <button key={c.id} class={`sbj-kind${off ? '' : ' on'}${atLevel ? '' : ' dim'}`} aria-pressed={!off}
+                  title={`${CLASS_NEEDS[c.id] ? `${CLASS_NEEDS[c.id]}. ` : ''}${atLevel ? '' : `Not part of the arrival mix at level ${s.level.level}: spawn one by hand, or raise the rules level (the LEVEL button).`}`.trim() || undefined}
+                  onClick={() => setJobClasses(JOB_CLASSES.map((x) => x.id).filter((id) => (id === c.id ? !off : s.level.classesOff.includes(id))))}>
                   {CLASS_LABEL[c.id] ?? c.id}
-                </label>
+                </button>
               );
             })}
           </div>
