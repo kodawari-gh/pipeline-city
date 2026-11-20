@@ -20,30 +20,56 @@ describe('wallPlan', () => {
       expect(b.y1).toBeLessThanOrEqual(p.face.y1);
     }
     expect(p.isp.y0).toBeGreaterThan(p.mains.y1);
-    expect(p.isp.x0).toBe(p.mains.x0);
+    // (one column: the plates' middles are on the same line)
+    expect((p.isp.x0 + p.isp.x1) / 2).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
   });
 
-  it('makes the plates the size of real ones: a double socket 150 x 80 mm, the ISP\'s plate 80 x 80', () => {
-    expect((p.mains.x1 - p.mains.x0) / MM).toBeCloseTo(150, 5);
-    expect((p.mains.y1 - p.mains.y0) / MM).toBeCloseTo(80, 5);
+  it('makes the plates the size of real ones: a Swiss triple socket 91 x 91 mm, the ISP\'s plate 80 x 80', () => {
+    expect((p.mains.x1 - p.mains.x0) / MM).toBeCloseTo(91, 5);
+    expect((p.mains.y1 - p.mains.y0) / MM).toBeCloseTo(91, 5);
+    expect(MAINS.w / MM).toBeCloseTo(91, 5);
     expect((p.isp.x1 - p.isp.x0) / MM).toBeCloseTo(ISP.w / MM, 5);
     expect((p.isp.y1 - p.isp.y0) / MM).toBeCloseTo(ISP.h / MM, 5);
   });
 
-  it('seats the two outlets 75 mm apart on the middle line of the plate, on its face', () => {
-    const a = p.mains.outlet.pcmains, b = p.mains.outlet.monmains;
-    expect((a[0] - b[0]) / MM).toBeCloseTo(75, 5);
-    expect(a[1]).toBe(b[1]);
-    expect(a[1]).toBeCloseTo((p.mains.y0 + p.mains.y1) / 2, 5);
-    expect(a[2]).toBe(p.mains.z);
-    expect(b[2]).toBe(p.mains.z);
-    // (the PC's plug is the one on the side of the case, the monitor's the farther one)
-    expect(a[0]).toBeGreaterThan(b[0]);
+  it('lays the plate\'s three sockets in a pinwheel round its screw, on its face, 120 degrees apart', () => {
+    const [x, y, z] = p.mains.screw, s = p.mains.sockets;
+    expect(x).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
+    expect(y).toBeCloseTo((p.mains.y0 + p.mains.y1) / 2, 5);
+    expect(z).toBe(p.mains.z);
+    const turns = s.map((k) => Math.atan2(k.at[1] - y, k.at[0] - x));
+    for (const k of s) {
+      expect(k.at[2]).toBe(p.mains.z);
+      expect(Math.hypot(k.at[0] - x, k.at[1] - y) / MM).toBeCloseTo(17.35, 2);
+    }
+    // (the top one, the lower left one, the lower right one: a plug's roll is the angle of its socket's outer side from straight up)
+    expect(turns[0]).toBeCloseTo(Math.PI / 2, 5);
+    expect(turns[1]).toBeCloseTo((210 * Math.PI) / 180 - 2 * Math.PI, 5);
+    expect(turns[2]).toBeCloseTo((330 * Math.PI) / 180 - 2 * Math.PI, 5);
+    const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+    s.forEach((k, i) => expect(wrap(k.roll - (turns[i]! - Math.PI / 2))).toBeCloseTo(0, 5));
   });
 
-  it('gives the lens the plate\'s own outline: the pad round the plugs\' middles is what is left of the plate', () => {
-    expect(MAINS.pitch / 2 + p.pad.x).toBeCloseTo((p.mains.x1 - p.mains.x0) / 2, 5);
-    expect(p.pad.y).toBeCloseTo((p.mains.y1 - p.mains.y0) / 2, 5);
+  it('seats the monitor\'s plug in the lower left socket and the PC\'s in the lower right one, the top one free, each turned as its socket', () => {
+    const a = p.mains.outlet.pcmains, b = p.mains.outlet.monmains, s = p.mains.sockets;
+    expect(a).toEqual(s[2].at);
+    expect(b).toEqual(s[1].at);
+    expect(p.mains.turn.pcmains).toBe(s[2].roll);
+    expect(p.mains.turn.monmains).toBe(s[1].roll);
+    // (the PC's plug is the one on the side of the case, the monitor's the farther one; they are level, below the screw, the free socket above it)
+    expect(a[0]).toBeGreaterThan(b[0]);
+    expect(a[1]).toBeCloseTo(b[1], 5);
+    expect(a[1]).toBeLessThan(p.mains.screw[1]);
+    expect(s[0].at[1]).toBeGreaterThan(p.mains.screw[1]);
+    expect(a[2]).toBe(p.mains.z);
+    expect(b[2]).toBe(p.mains.z);
+  });
+
+  it('gives the lens the plate\'s own outline: its middle and its half-extents are the plate\'s', () => {
+    expect(p.plate.x).toBeCloseTo((p.mains.x0 + p.mains.x1) / 2, 5);
+    expect(p.plate.y).toBeCloseTo((p.mains.y0 + p.mains.y1) / 2, 5);
+    expect(p.plate.hx).toBeCloseTo((p.mains.x1 - p.mains.x0) / 2, 5);
+    expect(p.plate.hy).toBeCloseTo((p.mains.y1 - p.mains.y0) / 2, 5);
   });
 
   it('puts the jack in the ISP\'s plate, inside it, and the face of the jack in front of the plate\'s', () => {
@@ -136,6 +162,21 @@ describe('StudioWall', () => {
       }
       w.dispose();
     }
+  });
+
+  it('builds the mains plate as a Swiss triple socket: a 91 mm frame standing off the wall to the plan\'s face', () => {
+    const w = new StudioWall(p, NET), g = w.root.getObjectByName('wall.mains')!;
+    expect(g).toBeDefined();
+    const b = new Box3().setFromObject(g);
+    expect((b.max.x - b.min.x) / MM).toBeCloseTo(91, 0);
+    expect((b.max.y - b.min.y) / MM).toBeCloseTo(91, 0);
+    expect(b.min.z).toBeGreaterThanOrEqual(p.face.z - 2);
+    expect(b.max.z).toBeLessThanOrEqual(p.mains.z + 1);
+    expect(b.max.z).toBeGreaterThan(p.mains.z - 2);
+    // (its middle is the plan's screw)
+    expect((b.min.x + b.max.x) / 2).toBeCloseTo(p.mains.screw[0], 0);
+    expect((b.min.y + b.max.y) / 2).toBeCloseTo(p.mains.screw[1], 0);
+    w.dispose();
   });
 
   it('builds the router that is set: another tier is another router, none takes it away', () => {

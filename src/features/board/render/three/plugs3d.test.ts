@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Box3 } from 'three';
+import { Box3, Mesh, type MeshStandardMaterial } from 'three';
 import { MONITOR_PLUG } from '@/features/room/render/three/monitor3d';
 import { IO_HALF, IO_Z } from './boardhw3d';
 import { OUTPUTS } from './gpu3d';
 import { MOUTH } from './nic3d';
-import { boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, RJ45, rj45Length, rj45Plug, rj45Real, SCHUKO, schukoLength, schukoPlug, schukoReal } from './plugs3d';
+import {
+  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissLength, swissPlug, swissReal, T13,
+} from './plugs3d';
 
 const MM = 23, VIDEO_R = 34, LAN_R = 40;
 
@@ -50,15 +52,56 @@ describe('the cables plugs', () => {
     }
   });
 
-  it('builds a mains plug at real size: pins 19 apart go in ahead of the mouth, the body stands out of it, the cord leaves at 0', () => {
-    const f = schukoReal(70, 0x18181b), plug = schukoPlug(f), b = new Box3().setFromObject(plug.body);
-    expect(plug.l).toBeCloseTo(SCHUKO.l * MM);
-    expect(schukoLength(f)).toBeCloseTo(plug.l);
-    // the pins and the boss go in (the boss 14, the pins 19 more), the body is 50 wide
-    expect(b.min.z).toBeCloseTo(-plug.l - (SCHUKO.boss.l + SCHUKO.pin.l) * MM, 0);
-    expect((b.max.x - b.min.x) / MM).toBeCloseTo(SCHUKO.body.w, 0);
+  it('builds a Swiss plug at real size: the head and the pins go in ahead of the mouth, the plug stands out of it, the cord leaves at 0', () => {
+    const f = swissReal(60, 0x18181b), plug = swissPlug(f), b = new Box3().setFromObject(plug.body);
+    expect(plug.l).toBeCloseTo(SWISS.l * MM);
+    expect(swissLength(f)).toBeCloseTo(plug.l);
+    // the head goes 12.5 into the recess and the pins 19 more
+    expect(b.min.z).toBeCloseTo(-plug.l - (SWISS.head.l + SWISS.pin.l) * MM, 0);
     expect(b.max.z).toBeLessThanOrEqual(1);
-    // the boss goes into a recess a little wider (the wall's socket, studiowall3d.ts)
-    expect(SCHUKO.boss.d).toBeLessThan(44);
+    // (its widest part is the shoulder, a hair over the recess's 39 x 22.1: no more than the 3 mm the pinwheel leaves between two recesses, ribs and all)
+    expect((b.max.x - b.min.x) / MM).toBeGreaterThan(39);
+    expect((b.max.x - b.min.x) / MM).toBeLessThan(41);
+    expect((b.max.y - b.min.y) / MM).toBeGreaterThan(22);
+    expect((b.max.y - b.min.y) / MM).toBeLessThan(23.6);
+  });
+
+  it('puts the three pins over the three holes of a socket: live and neutral 19 apart, the earth pin 5 under them, all 4 across', () => {
+    const plug = swissPlug(swissReal(70, 0x18181b)), pins: Box3[] = [];
+    plug.body.traverse((o) => {
+      const m = (o as Mesh).material as MeshStandardMaterial | undefined;
+      if ((o as Mesh).isMesh && m && m.metalness > 0.5) pins.push(new Box3().setFromObject(o));
+    });
+    expect(pins).toHaveLength(3);
+    const at = pins.map((p) => [(p.min.x + p.max.x) / 2 / MM, (p.min.y + p.max.y) / 2 / MM]).sort((a, b) => a[0]! - b[0]! || a[1]! - b[1]!);
+    // (west live or neutral pin, the earth pin in the middle, the east one)
+    expect(at[0]![0]).toBeCloseTo(-T13.pitch / 2, 1);
+    expect(at[2]![0]).toBeCloseTo(T13.pitch / 2, 1);
+    expect(at[1]![0]).toBeCloseTo(0, 1);
+    expect(at[0]![1]).toBeCloseTo(T13.ln, 1);
+    expect(at[2]![1]).toBeCloseTo(T13.ln, 1);
+    expect(at[1]![1]).toBeCloseTo(T13.ln - T13.earth, 1);
+    for (const p of pins) {
+      expect((p.max.x - p.min.x) / MM).toBeCloseTo(4, 1);
+      expect(p.min.z).toBeCloseTo(-plug.l - (SWISS.head.l + SWISS.pin.l) * MM, 0);
+    }
+    // each pin goes into a hole 4.6 across: a hair of play
+    expect(T13.hole).toBeGreaterThan(SWISS.pin.d);
+  });
+
+  it('draws the socket\'s recess as the traced hexagon, 39 x 22.1, and the plug\'s head a hair inside it', () => {
+    const w = (p: [number, number][]): number => Math.max(...p.map((q) => q[0])) - Math.min(...p.map((q) => q[0]));
+    const h = (p: [number, number][]): number => Math.max(...p.map((q) => q[1])) - Math.min(...p.map((q) => q[1]));
+    const r = lozenge(0), hd = lozenge(SWISS.head.fit);
+    expect(w(r)).toBeGreaterThan(38.5);
+    expect(w(r)).toBeLessThan(39.5);
+    expect(h(r)).toBeCloseTo(22.1, 1);
+    expect(w(hd)).toBeCloseTo(w(r) - 2 * SWISS.head.fit, 0);
+    expect(h(hd)).toBeCloseTo(h(r) - 2 * SWISS.head.fit, 0);
+    // (the three holes of the socket lie inside its recess, clear of its edge)
+    for (const [x, y] of [[-T13.pitch / 2, T13.ln], [T13.pitch / 2, T13.ln], [0, T13.ln - T13.earth]] as const) {
+      expect(Math.abs(x) + T13.hole / 2).toBeLessThan(w(r) / 2 - 4);
+      expect(Math.abs(y) + T13.hole / 2).toBeLessThan(h(r) / 2 - 3);
+    }
   });
 });

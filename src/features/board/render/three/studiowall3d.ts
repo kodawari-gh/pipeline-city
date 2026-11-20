@@ -1,9 +1,10 @@
 // The studio's wall on the Build my PC stage (docs/PC_PARTS.md "Build my PC"): a back wall behind the machine with what the stage's power and network
-// plug into, so a build is tried against a real supply and a real link. The mains plate (two earthed outlets: the PC's and the monitor's), the ISP's wall
+// plug into, so a build is tried against a real supply and a real link. The mains plate (a Swiss triple socket, `swisssocket3d.ts`: the monitor's plug in
+// one, the PC's in another, the third free), the ISP's wall
 // jack with five lights for the plan's tier, a shelf with the router of the game's tier on it, and the patch lead from the jack to the router's WAN port.
 // The machine's own cords (`Machine3D`, `wall` option) go to the outlets and from the router's first LAN port to the case's network jack.
 // World frame: x east, y up, z toward the viewer; `MM` = 23 units a mm. The plan is pure (the cords and the camera read it); the wall is built from it.
-import { Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector2 } from 'three';
+import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { disposeTree, drum, place, rectBox, rod, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
@@ -11,14 +12,15 @@ import { seatPlug } from './cablerig3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { rj45Jack, rj45Plug } from './plugs3d';
 import { jackFace, jackLook, type JackLook } from './rj45jack3d';
+import { pinwheel, tripleSocket, TRIPLE } from './swisssocket3d';
 import { cableMesh, hangPts, type Env, type Look } from './wires3d';
 
 /** Units a mm. */
 export const MM = 23;
 /** The wall's face: its z (the case's back is at 2200, so a plug on the wall reaches out toward it). */
 export const WALL_Z = 700;
-/** The mains plate (a double earthed socket, 150 x 80 mm) and its outlets: a recess 44 across and 14 deep (the plug's boss goes into it), 75 apart. */
-export const MAINS = { w: 150 * MM, h: 80 * MM, d: 20 * MM, recess: { r: 22 * MM, deep: 14 * MM }, pitch: 75 * MM } as const;
+/** The mains plate (a Swiss triple socket, a 91 mm square frame) and how far it stands off the wall: 18 mm, a recess in it 13 deep. */
+export const MAINS = { w: TRIPLE.frame * MM, h: TRIPLE.frame * MM, d: 18 * MM } as const;
 /** The ISP's plate (80 x 80 mm) and its jack, a compact RJ45 jack at real size. */
 export const ISP = { w: 80 * MM, h: 80 * MM, d: 13 * MM } as const;
 /** An RJ45 jack's face, real size (`jackFace`: 13.75 mm over its span's depth), how deep its insert goes, how far a plug sits behind its face. */
@@ -38,19 +40,28 @@ export interface Box { x0: number; x1: number; y0: number; y1: number }
 /** What the wall is placed by: the case's west face (the rear I/O's), its top and width, and the floor under it. */
 export interface WallIn { caseX: number; caseTop: number; caseW: number; floorY: number }
 
+/** One socket of the mains plate: its recess's middle on the plate's face (a plug goes in along -z), and the turn of a plug in it (radians round z). */
+export interface WallSocket { at: V3; roll: number }
+
 export interface WallPlan {
   /** The wall's face: its z and its extent. */
   face: Box & { z: number };
-  /** The mains plate, and each outlet's mouth (on the plate's face; the plug goes in along -z), by cable id. */
-  mains: Box & { z: number; outlet: { pcmains: V3; monmains: V3 } };
+  /**
+   * The mains plate: its box and face's z, its screw's point, its three sockets (the monitor's cord goes to the lower left one, the PC's to the lower right one, the
+   * top one is free), and each cord's outlet (the socket's mouth) and plug turn, by cable id.
+   */
+  mains: Box & {
+    z: number; screw: V3; sockets: [WallSocket, WallSocket, WallSocket];
+    outlet: { pcmains: V3; monmains: V3 }; turn: { pcmains: number; monmains: number };
+  };
   /** The ISP's plate and its jack's face. */
   isp: Box & { z: number; jack: V3 };
   /** The router: its east end, the shelf's top, the front's z (its jacks' faces are 3 in) and the first LAN jack's and the WAN jack's faces. */
   router: { east: number; base: number; front: number; lan: V3; wan: V3; jacks: V3[] };
   /** What the default view takes in besides the case (a box of the world). */
   frame: Box;
-  /** The lens's half-extents of the mains plate beyond its outlets' middle, across and up. */
-  pad: { x: number; y: number };
+  /** The power lens's plate for the mains: the plate's middle and half-extents (the world). */
+  plate: { x: number; y: number; hx: number; hy: number };
   /** Moves with the plan: the stage builds the wall again. */
   key: string;
 }
@@ -59,15 +70,20 @@ export interface WallPlan {
 export function wallPlan(i: WallIn): WallPlan {
   const z = WALL_Z, x0 = i.caseX - PLATE_OFF, row = i.caseTop - 1550, jy = (b: number) => b + 320;
   const isp: WallPlan['isp'] = { x0, x1: x0 + ISP.w, y0: row, y1: row + ISP.h, z: z + ISP.d, jack: [x0 + ISP.w / 2, row + ISP.h * 0.6, z + ISP.d - 3] };
-  const my0 = row - 160 - MAINS.h, fz = z + MAINS.d, mx = x0 + MAINS.w / 2, my = my0 + MAINS.h / 2;
-  const mains: WallPlan['mains'] = { x0, x1: x0 + MAINS.w, y0: my0, y1: my0 + MAINS.h, z: fz, outlet: { pcmains: [mx + MAINS.pitch / 2, my, fz], monmains: [mx - MAINS.pitch / 2, my, fz] } };
+  // (the mains plate under the ISP's, on the same column: the screw of its pinwheel at the plate's middle)
+  const my0 = row - 160 - MAINS.h, fz = z + MAINS.d, mx = x0 + ISP.w / 2, my = my0 + MAINS.h / 2;
+  const sockets = pinwheel().map((s): WallSocket => ({ at: [mx + s.x * MM, my + s.y * MM, fz], roll: s.roll })) as WallPlan['mains']['sockets'];
+  const mains: WallPlan['mains'] = {
+    x0: mx - MAINS.w / 2, x1: mx + MAINS.w / 2, y0: my0, y1: my0 + MAINS.h, z: fz, screw: [mx, my, fz], sockets,
+    outlet: { pcmains: sockets[2].at, monmains: sockets[1].at }, turn: { pcmains: sockets[2].roll, monmains: sockets[1].roll },
+  };
   const east = i.caseX - 300, base = row + 200, front = z + ROUTER_DEPTH;
   const jacks = [0, 1, 2, 3, 4].map((k): V3 => [east - 520 - k * PITCH, jy(base), front - 3]);
   const router: WallPlan['router'] = { east, base, front, lan: jacks[0]!, wan: jacks[4]!, jacks };
   const face = { x0: i.caseX - 14000, x1: i.caseX + i.caseW + 9000, y0: i.floorY, y1: i.floorY + 24000, z };
   const frame = { x0: x0 - 200, x1: east + 200, y0: mains.y0, y1: isp.y1 };
   const r = (v: number) => Math.round(v);
-  return { face, mains, isp, router, frame, pad: { x: MAINS.w / 2 - MAINS.pitch / 2, y: MAINS.h / 2 }, key: [i.caseX, i.caseTop, i.caseW, i.floorY].map(r).join('|') };
+  return { face, mains, isp, router, frame, plate: { x: mx, y: my, hx: MAINS.w / 2, hy: MAINS.h / 2 }, key: [i.caseX, i.caseTop, i.caseW, i.floorY].map(r).join('|') };
 }
 
 /** What a machine on the stage needs of the wall: its plan, and where the stage's monitor lets its power cord out (the world), or null with no monitor. */
@@ -93,8 +109,6 @@ export interface WallNet {
 
 /** A layout rect (y down) over a box of the world (y up). */
 const lay = (x0: number, x1: number, y0: number, y1: number): RectLike => ({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 });
-/** A circle of the world as an outline for a hole. */
-const circle = (cx: number, cy: number, r: number, n: number = SEG.bigDisc): Vector2[] => Array.from({ length: n }, (_, k) => new Vector2(cx + Math.cos((k / n) * Math.PI * 2) * r, cy + Math.sin((k / n) * Math.PI * 2) * r));
 const glow = (c: number): MeshStandardMaterial => new MeshStandardMaterial({ color: 0x131518, emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 const WALL = 0x262b38, PLATE = 0xcfd2d8, STEEL = 0x1c1d20, NEON = 0x3be3ff;
@@ -148,19 +162,9 @@ export class StudioWall {
     const wall = mat(WALL, { roughness: 0.92 }), skirt = mat(0x1d1e22, { roughness: 0.7 }), plate = mat(PLATE, { roughness: 0.42 });
     // the wall, a slab behind its face, and its skirting along the floor
     R.add(rectBox(lay(f.x0, f.x1, f.y0, f.y1), z - 600, z, wall), softBox(lay(f.x0, f.x1, f.y0, f.y0 + 1800), z, z + 180, skirt, 40));
-    // the mains plate: the slab, a recess in it for each outlet with its floor, the two pin holes and the earth clips on the recess's top and bottom
-    const m = p.mains, steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }), dark = mat(0x131518, { roughness: 0.9 }), black = mat(0x050608, { roughness: 0.9 });
-    const spots = [p.mains.outlet.monmains, p.mains.outlet.pcmains];
-    R.add(slab(shapeOf(outlinePts(lay(m.x0, m.x1, m.y0, m.y1), 280, undefined, SEG.cornerCoarse), spots.map((o) => circle(o[0], o[1], MAINS.recess.r))), z, m.z, plate, 90));
-    const floor = m.z - MAINS.recess.deep;
-    for (const [x, y] of spots) {
-      R.add(drum(x, -y, floor - 4, floor + 2, MAINS.recess.r + 4, dark, SEG.bigDisc));
-      for (const s of [-1, 1]) R.add(drum(x + (s * 19 * MM) / 2, -y, floor, floor + 8, 2.6 * MM, black, SEG.part));
-      for (const s of [-1, 1]) {
-        const a = y + s * (MAINS.recess.r - 5 * MM), b = y + s * MAINS.recess.r;
-        R.add(rectBox(lay(x - 5 * MM, x + 5 * MM, Math.min(a, b), Math.max(a, b)), floor, floor + 11 * MM, steel));
-      }
-    }
+    // the mains plate: a Swiss triple socket round its screw (three recesses, each with its three contact holes)
+    const m = p.mains, steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }), black = mat(0x050608, { roughness: 0.9 });
+    tripleSocket(R, { x: m.screw[0], y: m.screw[1], z, face: m.z, look: { plate, black, steel } });
     // the ISP's plate: a slab with its jack's opening, the jack in it, a lit lamp for each tier of the plan along its foot
     const t = p.isp, [jx, jy] = t.jack, steelShell = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), look = jackLook(steelShell);
     const jackHole = outlinePts(lay(jx - JACK.w / 2, jx + JACK.w / 2, jy - JACK.h / 2, jy + JACK.h / 2), 0);

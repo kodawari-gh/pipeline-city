@@ -93,8 +93,11 @@ export interface ShapeIn {
   /** The z of the board's face, and of the fan hub's face on the tray. */
   boardZ: number;
   hubZ: number;
-  /** The wall socket's plate: its half-extents beyond the outermost plugs' middles, across and up, and how far over the plugs' seat its plate lies (the studio's real plate; the default is the room's loose socket). */
-  outlet?: { padX: number; padY: number; lift: number };
+  /**
+   * The wall socket's plate, and how far over the plugs' seat it lies: its half-extents beyond the outermost plugs' middles, across and up (the default is the room's
+   * loose socket), or the whole plate (`box`: its middle and half-extents, the world's: the studio's real plate, a Swiss triple socket).
+   */
+  outlet?: { lift: number } & ({ padX: number; padY: number } | { box: { x: number; y: number; hx: number; hy: number } });
 }
 
 /** The cables that carry no power. */
@@ -209,8 +212,10 @@ function nodes(i: ShapeIn, runs: readonly CableRun[]): PowerNode[] {
   const outlets = runs.filter((r) => MAINS.has(r.id));
   if (outlets.length) {
     const xs = outlets.map((r) => r.seat.at[0]), ys = outlets.map((r) => r.seat.at[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), o = i.outlet ?? OUTLET;
+    // (the plate: the real one's own outline, or round the plugs' middles by a pad)
+    const [cx, cy, hx, hy] = 'box' in o ? [o.box.x, o.box.y, o.box.hx, o.box.hy] : [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 + o.padX, (y1 - y0) / 2 + o.padY];
     out.push({
-      id: 'node.wall', role: 'source', at: [(x0 + x1) / 2, (y0 + y1) / 2, outlets[0]!.seat.at[2] + o.lift], ex: [(x1 - x0) / 2 + o.padX, 0, 0], ey: [0, (y1 - y0) / 2 + o.padY, 0], round: 240,
+      id: 'node.wall', role: 'source', at: [cx, cy, outlets[0]!.seat.at[2] + o.lift], ex: [hx, 0, 0], ey: [0, hy, 0], round: 'box' in o ? 130 : 240,
       watts: (l) => l.pcW + l.monW, state: (l) => (outlets.some((r) => l.missing(r.id)) ? 'missing' : live(l.pcW + l.monW)),
     });
   }

@@ -75,7 +75,7 @@ import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
 import { rigBuild, seatPlug, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { inFlowOrder, reversed, type CableRun, type RigPower } from './power/runs';
-import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, schukoPlug, schukoReal } from './plugs3d';
+import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, swissPlug, swissReal } from './plugs3d';
 import { JACK_SINK, MM as WALL_MM, routerSolid, routerTier, type StageWall } from './studiowall3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -1107,14 +1107,15 @@ export class Machine3D {
       }, on(id));
       this.wires.add(g);
     };
-    // (on the studio's wall the cord is one piece from its device to its plug in the outlet, a real earthed plug in a real recess: the power runs out of the plug)
+    // (on the studio's wall the cord is one piece from its device to its plug in the outlet, a real Swiss type 12 plug in a real type 13 recess, turned as the
+    // socket of the pinwheel it goes into: the power runs out of the plug)
     const wallMains = (id: string, from: RopeEnd) => {
       if (!has(id) || !w || !stage) return;
-      const g = tag(new Group(), 'cable.' + id), at = w.plan.mains.outlet[id as 'pcmains' | 'monmains'];
+      const g = tag(new Group(), 'cable.' + id), at = w.plan.mains.outlet[id as 'pcmains' | 'monmains'], roll = w.plan.mains.turn[id as 'pcmains' | 'monmains'];
       if (!at) return;
       const seat: Seat = { at, axis: [0, 0, 1] }, o = { slack: 1.4, extra: 600, stiff: 0.4, n: 40 }, ground = stage.planes[0]!;
       this.addRig(g, {
-        id, name: 'the wall socket', target: 'socket', look: cord, env: stage, fixed: [from], model: () => seatPlug(seat, schukoPlug(schukoReal(cord.r, hexNum(cord.base)))), seat, canSeat: true,
+        id, name: 'the wall socket', target: 'socket', look: cord, env: stage, fixed: [from], model: () => seatPlug(seat, swissPlug(swissReal(cord.r, hexNum(cord.base))), roll), seat, canSeat: true,
         engage: 320, seated: (ex) => [hangPts(from, ex[0]!, cord, stage, o)], deck: ground, n: o.n, stiff: o.stiff, lead: cord.r * 2.5, power: { out: true },
       }, on(id));
       this.wires.add(g);

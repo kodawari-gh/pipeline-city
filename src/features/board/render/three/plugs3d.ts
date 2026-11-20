@@ -1,5 +1,5 @@
 // The plugs of the cables the player moves at the PC's end (and the video cable's at the monitor), as real ones: an HDMI plug, an RJ45 (8P8C)
-// plug and a mains (CEE 7/7 "Schuko") plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
+// plug and a Swiss mains (type 12) plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
 // cablerig3d.ts, stands one in its seat), the part that goes into the socket ahead of the mouth (hidden when it is seated, seen when it lies
 // loose); its long side along x, its keyed side (HDMI's cut corners, the RJ45's latch) at -y. A real socket (a card's, the monitor's) takes a
 // real plug. The board's rear I/O is drawn at about a third of real size: its plug's tip is cut to its mouth, and its boot keeps a real plug's
@@ -72,16 +72,25 @@ function roundRect(p: Path, x0: number, y0: number, x1: number, y1: number, k: n
   p.lineTo(x0 + k, y1); p.quadraticCurveTo(x0, y1, x0, y1 - k); p.lineTo(x0, y0 + k); p.quadraticCurveTo(x0, y0, x0 + k, y0);
 }
 
-/** A moulded sleeve: a `w0` x `h0` rounded rectangle at `z0` drawn in to `w1` x `h1` at `z1`, its corners `r`, its edges rolled `bev`. */
-function taper(w0: number, h0: number, w1: number, h1: number, z0: number, z1: number, r: number, bev: number, m: Material): Mesh {
-  const sh = new Shape(), d = Math.max(1, z1 - z0 - 2 * bev);
-  roundRect(sh, -w0 / 2 + bev, -h0 / 2 + bev, w0 / 2 - bev, h0 / 2 - bev, r - bev);
+/**
+ * A moulded sleeve of any outline `sh` (drawn in by `bev`, the roll puts it back), `z0` to `z1` along z, its edges rolled `bev`, the whole of it drawn
+ * in round its middle to `sx` x `sy` times its size at `z1`.
+ */
+function loft(sh: Shape, sx: number, sy: number, z0: number, z1: number, bev: number, m: Material): Mesh {
+  const d = Math.max(1, z1 - z0 - 2 * bev);
   const g = extrude(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: SEG.plug, curveSegments: SEG.caseCurve }), p = g.attributes.position!;
   for (let i = 0; i < p.count; i++) {
     const t = (p.getZ(i) + bev) / (d + 2 * bev);
-    p.setXYZ(i, p.getX(i) * (1 + (w1 / w0 - 1) * t), p.getY(i) * (1 + (h1 / h0 - 1) * t), z0 + bev + p.getZ(i));
+    p.setXYZ(i, p.getX(i) * (1 + (sx - 1) * t), p.getY(i) * (1 + (sy - 1) * t), z0 + bev + p.getZ(i));
   }
   return place(new Mesh(toCreasedNormals(g, 0.7), m));
+}
+
+/** A moulded sleeve: a `w0` x `h0` rounded rectangle at `z0` drawn in to `w1` x `h1` at `z1`, its corners `r`, its edges rolled `bev`. */
+function taper(w0: number, h0: number, w1: number, h1: number, z0: number, z1: number, r: number, bev: number, m: Material): Mesh {
+  const sh = new Shape();
+  roundRect(sh, -w0 / 2 + bev, -h0 / 2 + bev, w0 / 2 - bev, h0 / 2 - bev, r - bev);
+  return loft(sh, w1 / w0, h1 / h0, z0, z1, bev, m);
 }
 
 /** A ribbed strain relief round the cable, along +z from `z0` (radius `r0`) to `z1` (radius `r1`), a rib every `pitch`. */
@@ -197,48 +206,97 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
 }
 
 /**
- * A mains plug's real size (mm), CEE 7/7 ("Schuko", the earthed plug of most of Europe): two round pins 4.8 across, 19 apart and 19 long, the root 10 mm
- * of each in an insulating sleeve; the round boss behind them (40 across, 14 deep: it goes into the socket's recess) with the earth contact flats on its
- * top and bottom; the moulded body 50 x 42, 20 out of the socket; the boot down to the cord; 52 out of the socket to the cord's end.
+ * The Swiss socket (SN 441011 type 13, for the earthed plug of type 12, "type J") as a flush one shows it, in mm round the middle of its recess (x across,
+ * y toward the live and neutral holes): a rounded hexagon pointing sideways, 39 x 22.1 and 13 deep (traced from a photo of a real one: its corners are cut
+ * by `round` mm along each edge, the tips 1.4, the others 3.6). The holes are 4.6 across (the pins 4): the live and the neutral one 19 apart on the line
+ * `ln`, a hair under the middle, the earth one 5 mm under that line.
  */
-export const SCHUKO = { pin: { d: 4.8, l: 19, pitch: 19, sleeve: 10 }, boss: { d: 40, l: 14 }, body: { w: 50, h: 42, l: 20 }, boot: { w: 36, h: 30, w1: 16, h1: 16 }, l: 52 } as const;
+export const T13 = {
+  hex: [[-9, 11.05], [9, 11.05], [20, 0], [9, -11.05], [-9, -11.05], [-20, 0]], round: [3.6, 3.6, 1.4, 3.6, 3.6, 1.4],
+  hole: 4.6, pitch: 19, earth: 5, ln: -0.55, deep: 13,
+} as const;
 
-/** A mains plug for one socket: `k` units a mm, the cord's radius and the plug's colour. */
-export interface SchukoFit { k: number; cable: number; tone: number }
-export const schukoReal = (cable: number, tone: number): SchukoFit => ({ k: MM, cable, tone });
-export const schukoLength = (f: SchukoFit): number => SCHUKO.l * bootScale(f.k, f.cable, SCHUKO.boot.h1, 0.55);
+/** A closed outline through the corners `pts`, each corner cut by a curve that starts `radius` along its two edges (at most 45 percent of one). */
+function roundedPoly(pts: readonly (readonly [number, number])[], radius: readonly number[], seg: number): [number, number][] {
+  const n = pts.length, out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const p = pts[i]!, a = pts[(i + n - 1) % n]!, c = pts[(i + 1) % n]!, la = Math.hypot(a[0] - p[0], a[1] - p[1]), lc = Math.hypot(c[0] - p[0], c[1] - p[1]);
+    const da = Math.min(radius[i]!, la * 0.45), dc = Math.min(radius[i]!, lc * 0.45);
+    const A = [p[0] + ((a[0] - p[0]) / la) * da, p[1] + ((a[1] - p[1]) / la) * da], C = [p[0] + ((c[0] - p[0]) / lc) * dc, p[1] + ((c[1] - p[1]) / lc) * dc];
+    for (let s = 0; s <= seg; s++) {
+      const t = s / seg, u = 1 - t;
+      out.push([u * u * A[0]! + 2 * u * t * p[0] + t * t * C[0]!, u * u * A[1]! + 2 * u * t * p[1] + t * t * C[1]!]);
+    }
+  }
+  return out;
+}
+
+/** The recess's outline (`T13.hex`) drawn in by `inset` mm all round, as mm points round the middle: the socket's own, and a plug's head that goes into it. */
+export function lozenge(inset = 0, seg = 4): [number, number][] {
+  const sx = 1 - inset / 20, sy = 1 - inset / 11.05;
+  return roundedPoly(T13.hex.map(([x, y]) => [x * sx, y * sy] as const), T13.round.map((r) => Math.max(0.5, r - inset)), seg);
+}
 
 /**
- * A Schuko plug: the two pins (sleeved at their roots), the round boss with its earth flats, the moulded body with a grip rib across each broad
- * face, the boot tapering to the cord, the ribbed strain relief. Its pins go in along -z, its pair of pins across x (the earth flats top and bottom).
+ * A Swiss mains plug's real size (mm), type 12: three round pins 4 across and 19 long on the head's front, the live and the neutral one 19 apart with the root
+ * 8.5 mm of each in an insulating sleeve, the earth pin 5 mm under their line with a short collar (a plain nickel pin). The head is the rounded hexagon of the
+ * recess (`lozenge`, 0.6 under it) and goes 12.5 into it; the shoulder behind (3 long, 0.6 over the recess: the pinwheel's recesses stand 3 apart, so a
+ * plug is no wider than its own); then the grip, drawn in to half its size over 29 with eight ribs across both broad faces, and the ribbed strain relief
+ * down to the cord (the last 20); 52 out of the socket to the cord's end. The plug's origin is the middle of its head, at the socket's mouth.
  */
-export function schukoPlug(f: SchukoFit): { body: Group; l: number } {
-  const { k, cable } = f, b = bootScale(k, cable, SCHUKO.boot.h1, 0.55), l = SCHUKO.l * b, g = new Group();
+export const SWISS = {
+  pin: { d: 4, l: 19, sleeve: 8.5, collar: 6.2, collarL: 2.4 }, head: { l: 12.5, fit: 0.6, roll: 0.8 }, shoulder: { out: 0.6, l: 3 }, grip: { scale: 0.5, ribs: 8 }, relief: 20, l: 52,
+} as const;
+/** The grip's height where it ends (the hexagon's 22 drawn in), for the share of it the cord takes. */
+const SWISS_GRIP_H = 22 * SWISS.grip.scale;
+
+/** A mains plug for one socket: `k` units a mm, the cord's radius and the plug's colour. */
+export interface SwissFit { k: number; cable: number; tone: number }
+export const swissReal = (cable: number, tone: number): SwissFit => ({ k: MM, cable, tone });
+export const swissLength = (f: SwissFit): number => SWISS.l * bootScale(f.k, f.cable, SWISS_GRIP_H, 0.55);
+
+/** The recess's outline `inset` mm in, as a shape of `k` units a mm (a plug's head, a socket's mouth). */
+export function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
+  const s = new Shape(), p = lozenge(inset, seg);
+  s.moveTo(p[0]![0] * k, p[0]![1] * k);
+  for (let i = 1; i < p.length; i++) s.lineTo(p[i]![0] * k, p[i]![1] * k);
+  s.closePath();
+  return s;
+}
+
+/**
+ * A Swiss plug (type 12): the three pins (sleeved at their roots, the earth one with a collar), the head with its edge rolled, the shoulder, the grip
+ * with a rib across each broad face, the ribbed strain relief. Its pins go in along -z; the earth pin and the keyed side are at -y, the live and the
+ * neutral pin across x (`T13`: they stand over the head's middle, the earth pin under it).
+ */
+export function swissPlug(f: SwissFit): { body: Group; l: number } {
+  const { k, cable } = f, b = bootScale(k, cable, SWISS_GRIP_H, 0.55), l = SWISS.l * b, g = new Group();
   const shell = mat(f.tone, { roughness: 0.55 }), pin = mat(0xb9babf, { metalness: 0.9, roughness: 0.25 }), sleeve = mat(0x050608, { roughness: 0.6 });
-  const P = SCHUKO.pin, B = SCHUKO.boss, Y = SCHUKO.body, zs = -l, zb = zs - B.l * k, rp = (P.d / 2) * k;
-  // the pins, from the boss's front face; the sleeve over the root half of each
-  const rod = (x: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.part) => {
+  const P = SWISS.pin, H = SWISS.head, S = SWISS.shoulder, G = SWISS.grip, zs = -l, zb = zs - H.l * k, rp = (P.d / 2) * k;
+  // (a rod along z at (x, y) from z0 to z1)
+  const rod = (x: number, y: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.part) => {
     const o = new Mesh(new CylinderGeometry(r, r, z1 - z0, sides).rotateX(Math.PI / 2), m);
-    o.position.set(x, 0, (z0 + z1) / 2);
+    o.position.set(x * k, y * k, (z0 + z1) / 2);
     return place(o);
   };
-  for (const s of [-1, 1]) {
-    const x = (s * P.pitch * k) / 2, tip = zb - P.l * k;
-    g.add(rod(x, tip, zb + 0.5 * k, rp, pin), rod(x, zb - P.sleeve * k, zb + 0.5 * k, rp * 1.18, sleeve));
+  // the pins from the head's front face: live and neutral over the middle with a sleeve on the root of each, the earth pin under it with its collar
+  const yl = T13.ln, ye = T13.ln - T13.earth, tip = zb - P.l * k;
+  for (const s of [-1, 1]) g.add(rod((s * T13.pitch) / 2, yl, tip, zb + 0.5 * k, rp, pin), rod((s * T13.pitch) / 2, yl, zb - P.sleeve * k, zb + 0.5 * k, rp * 1.2, sleeve));
+  g.add(rod(0, ye, tip, zb + 0.5 * k, rp, pin), rod(0, ye, zb - P.collarL * k, zb + 0.5 * k, (P.collar / 2) * k, sleeve));
+  // the head: the recess's outline, a hair in, its front edge rolled, to the mouth (its end under the shoulder)
+  g.add(loft(lozengeShape(k, H.fit + H.roll), 1, 1, zb, zs + S.l * k * 0.5, H.roll * k, shell));
+  // the shoulder, a hair over the recess's outline; then the grip, its outline a little in, drawn in further over its length (more when the cord is thick:
+  // the boot grows to it); the ribs across both broad faces, along the flat of each (the corners are rounded)
+  const z2 = zs + (SWISS.l - SWISS.relief) * b, zg = zs + S.l * k, end = Math.min(0.95, (G.scale * b) / k), roll1 = 0.9, roll2 = 1.4;
+  g.add(loft(lozengeShape(k, roll1 - S.out), 1, 1, zs, zg + 0.5 * k, roll1 * k, shell));
+  g.add(loft(lozengeShape(k, roll2 + 0.2), end, end, zg, z2, roll2 * k, shell));
+  const hh = T13.hex[0]![1], half = (z: number) => (hh - 0.2) * (1 - (1 - end) * ((z - zg) / (z2 - zg))) * k, ribs = [];
+  for (let i = 0; i < G.ribs; i++) {
+    const z = zg + ((i + 0.8) / (G.ribs + 0.3)) * (z2 - zg), s = half(z) / (hh * k);
+    for (const side of [-1, 1]) ribs.push({ x: 0, y: side * (half(z) + 0.05 * k), z, sx: 9 * k * s, sy: 0.7 * k, sz: 1.1 * k });
   }
-  // the boss, and the earth flats along its top and bottom
-  g.add(rod(0, zb, zs + 0.5 * k, (B.d / 2) * k, shell, SEG.disc));
-  const flat = (y: number) => g.add(box(-5 * k, 5 * k, y - 0.4 * k, y + 0.4 * k, zb + 1 * k, zs, pin));
-  flat((B.d / 2) * k + 0.1 * k); flat(-(B.d / 2) * k - 0.1 * k);
-  // the body: the moulded block against the socket's face, its edges rolled
-  const bz1 = zs + Y.l * b;
-  g.add(softBox({ x: -(Y.w * k) / 2, y: -(Y.h * k) / 2, w: Y.w * k, h: Y.h * k }, zs, bz1, shell, 9 * k));
-  const ribs = [];
-  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) ribs.push({ x: 0, y: s * ((Y.h * k) / 2 + 0.05 * k), z: zs + (4 + i * 3.4) * k, sx: Y.w * k * 0.6, sy: 0.7 * k, sz: 1.2 * k });
   g.add(place(instanced(new BoxGeometry(1, 1, 1), shell, ribs)));
-  // the boot, then the ribbed strain relief down to the cord
-  const R = SCHUKO.boot, z2 = zs + (SCHUKO.l - 11) * b;
-  g.add(taper(R.w * b, R.h * b, R.w1 * b, R.h1 * b, bz1 - 0.5 * k, z2, 7 * b, 2.5 * b, shell));
+  // the ribbed strain relief down to the cord
   const r1 = cable + 0.35 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(4.6 * b, cable + 1.6 * b));
   g.add(relief(z2 - 0.6 * b, 0, r0, r1, 2 * b, 0.28 * b, shell));
   return { body: g, l };

@@ -133,6 +133,16 @@ describe('the power shape', () => {
     expect(studio.d.tags.find((t) => t.id === 'p.wall')!.at).toEqual(studio.sh.wallWords);
   });
 
+  it('takes the studio\'s plate whole when it is given as a box: its own middle and half-extents, not the plugs\' (a plug in each of two of three sockets)', () => {
+    const s = running(), sh = powerShape(input(s, { outlet: { lift: 14, box: { x: 8000, y: -4000, hx: 1046, hy: 1046 } } }));
+    const n = sh.nodes[0]!;
+    expect(n.id).toBe('node.wall');
+    expect(n.at).toEqual([8000, -4000, 2014]);
+    expect(n.ex[0]).toBe(1046);
+    expect(n.ey[1]).toBe(1046);
+    expect(sh.wallWords).toEqual([8000 + 1046 + 260, -4000 + 260, 2014 + 120]);
+  });
+
   it('has no plate for a regulator whose part is not there, none on a board with no supply, and none for a wall with no cord', () => {
     const base = running();
     const noCpu = { ...base, devices: base.devices.filter((d) => d.kind !== 'cpu') };

@@ -1,4 +1,4 @@
-// A machine on the studio's wall (Machine3D's `wall` option, studiowall3d.ts): its two mains cords go from its devices into the wall's outlets in real earthed plugs (the power
+// A machine on the studio's wall (Machine3D's `wall` option, studiowall3d.ts): its two mains cords go from its devices into the wall's outlets in real Swiss type 12 plugs, one in each of two sockets of its triple plate (the power
 // runs out of the plug), its LAN lead from the router's first jack to the case's network port, and a router of another tier builds the cords again.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BakeQueue } from '@/core/render/three/artlod';
