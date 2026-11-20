@@ -9,7 +9,7 @@ import { skinOf } from './skins';
 
 // Drawers for the static components of a motherboard. Everything draws in world coordinates onto one Graphics (`Ctx.g`), the text goes
 // to `Ctx.labels` (hidden when zoomed out). Passive parts use the palette (mixed toward the board colour), nothing here glows: the live
-// layer lights the buses and the VRM from the same rects.
+// layer lights the buses from the same rects.
 
 export interface Ctx {
   g: Graphics; labels: Container; T: Theme; P: Palette; tier: number;

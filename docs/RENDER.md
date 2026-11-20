@@ -88,7 +88,7 @@ New in `Snapshot` (`src/worker/game/types.ts`, additive, existing consumers unto
 - Bus lanes are 9-11 world units wide, about a pixel at overview zoom; the pulses carry the activity there.
 - Two drives: the SATA data cables cross the drives' short power leads in the lane between the PSU and the bay, and all three PSU cables in the gutter (drawn beneath them).
 - The OS-flow cue (`REMOVE` on an OS-flashed key) is **not verified end to end**. An OS is reachable now (the sandbox buys it and installs it on a drive), but the browser run with real clicks did not reach the state: the power button did not leave `OFF` and a click on a tray key opens the client card rather than plugging it (the card's "Plug into USB" button is the plug). It uses the same `stage` `done` path as the no-OS cue.
-- The VRM crash flash and the error blink were not provoked in the browser (no fault was run); their wall-time fade is by code.
+- The error blink was not provoked in the browser (no fault was run); its wall-time fade is by code.
 - Overview on a wide canvas: the scene is about 1.7:1 and the free height is the limit, so the sides stay empty. Tightening the bounds gained about 5%.
 - The die view shows no cache lines, register writes or interrupt-controller activity yet (the snapshot does not carry them): the D-cache flashes on a miss, the register file on a retire.
 
@@ -100,5 +100,5 @@ Headless Chrome (software GL), 1360x800 and 1920x1080, through `window.__board`:
 
 **Drop targets and picks (historical, not re-run; real mouse events, headless Chrome, software GL, 1360x800; 1920x1080 for `m20`).** Each run starts from a sandbox save written by the sim: Enthusiast board with the crate parts and RAM, the drives and the OS on the shelf. Results: an NVMe drive dragged onto `m20` installs (Mainstream and Enthusiast, at both sizes); an HDD onto `sata0` and a SATA SSD onto `sata1` install (Enthusiast); the Resident OS dropped on an installed HDD (`sata0`), SATA SSD (`sata1`) and NVMe (`m20`) sets the OS badge each time. The NVMe drive cannot be bought on the Starter board ("needs an M.2 slot (bigger board)"), so the drop there never starts: the earlier report that `m20` refuses the drive is the purchase gate, not the renderer. Picks: an empty board area opens the board picker (`board`); the cooler body opens the cooler (`dev` of the cooler); the exposed CPU ring opens the CPU; hover shows the id each click picks. The inset refit: with the Enthusiast machine and the shelf open the chassis ends above the shelf (no overlap at 1360x800); with a campaign game after Start, the chassis ends above the bottom-centre `.tut` card (the reserve is 314 px there).
 
-Not verified in this pass: the OS remove cue end to end (see Known gaps), the VRM crash flash (no fault was provoked), and the two-drive power-lead crossing (seen, not fixed).
+Not verified in this pass: the OS remove cue end to end (see Known gaps), and the two-drive power-lead crossing (seen, not fixed).
 

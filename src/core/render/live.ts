@@ -7,7 +7,7 @@ import { blades } from '../../features/board/render/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
 import { brandSprite } from './brands/pixi';
 import { drawDriveLive, type DriveKind } from '../../features/storage/render/drives';
-import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout/layout';
+import { BD, BR, GEO, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout/layout';
 import { monitorView, screenMode, standbyLook, type MonitorInput } from '../../features/room/render/desk/monitor';
 import { EdgeFan } from '../../features/room/render/desk/props/case';
 import { FanMotor, fanBank, loopBank, machineLive } from './fanmotor';
@@ -110,18 +110,14 @@ export class Live {
   private quiet = true;
   private interior = true;
   private pchDrawn = false;
-  /** The VRM: per-phase glow, power-good light, crash flash (vrmG); the dead-board dimming and scorch (deadG). */
+  /** The VRM's power-good light, steady (vrmG: the phases do not glow and a crash does not flash); the dead-board dimming and scorch (deadG). */
   private vrmG = new Graphics();
   private deadG = new Graphics();
   private vrm: Snapshot['board']['vrm'] | null = null;
-  /** The memory VRM, and whether the last fault flash was its crash. */
-  private ramVrm: Snapshot['board']['ramVrm'] | null = null;
-  private flashRam = false;
   private dead = false;
   private deadDrawn = false;
-  /** Wall time (ms) the crash flash started. Flashes fade by wall time so a paused frame never shows one stuck on screen. */
-  private vrmFlashAt = -1e9;
-  private lastFault: string | null = null;
+  /** The colour the power-good light was drawn in ('' for dark; null: draw it again). A steady light is redrawn only when this changes. */
+  private pgoodDrawn: string | null = null;
   private glows = new Map<string, Glow>();
   private fans: { c: Container; kind: string; speed: number; target: number; motor: FanMotor }[] = [];
   private dots: Sprite[] = [];
@@ -268,6 +264,7 @@ export class Live {
     this.videoLane = null;
     this.root.addChild(this.deadG);
     this.deadDrawn = false;
+    this.pgoodDrawn = null;
     this.glows.clear(); this.lit.clear(); this.memLit.clear(); this.cables = [];
     this.dots = [];
     this.hasPsu = flags.psu;
@@ -656,14 +653,9 @@ export class Live {
     this.keyActivity = s.keyActivity ?? 'none';
     this.updateGpuFrame(s);
     this.updateOsScreen(s, now);
-    // the board: VRM state for the glow, a dead board for the dimming; a new 'fault' in the log flashes the VRM once
+    // the board: the regulator's state for its power-good light, a dead board for the dimming
     this.vrm = s.board?.vrm ?? null;
-    this.ramVrm = s.board?.ramVrm ?? null;
     this.dead = !!s.board?.burnt;
-    const fault = [...(s.log ?? [])].reverse().find((e) => e.kind === 'fault');
-    const fkey = fault ? `${fault.tick}|${fault.text}` : '';
-    if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
-    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); this.flashRam = !!fault?.text.includes('memory VRM'); }
     if (this.quiet) {
       for (const l of this.memLit.values()) l.stream = false;
       for (const [k, c] of this.streams) if (!this.liveOn || !c.force) this.streams.delete(k); // (only the BIOS reads while the screen is black)
@@ -791,54 +783,18 @@ export class Live {
     g.stroke({ width: 2.5, color: T.bad, alpha: 0.5, cap: 'round', join: 'round' });
   }
 
-  /** The VRM glow (phases light in turn, calm when cool, amber when hot, red when unstable), the power-good light and the crash flash. */
-  private drawVrm(now: number) {
-    const g = this.vrmG, T = this.T, v = this.vrm;
-    // the crash flash runs on wall time (it is an alarm, not machine state): a pause cannot hold it on screen
-    const flashWall = clamp(1 - (performance.now() - this.vrmFlashAt) / 900);
+  /** The power-good light of the VRM, steady: green when healthy, amber when unstable, red when the board is dead, dark with no power. (The phases do not glow and a crash does not flash: the power lens shows the regulators.) */
+  private drawPowerGood() {
+    const v = this.vrm, T = this.T;
+    const col = !v ? null : this.dead ? T.bad : this.liveOn ? (v.unstable ? T.ld : T.st) : null;
+    const key = col ?? '';
+    if (key === this.pgoodDrawn) return;
+    this.pgoodDrawn = key;
+    const g = this.vrmG;
     g.clear();
-    if (!v) return;
-    // power-good light: green when healthy, amber blink when unstable, red blink when the board is dead, dark with no power
-    let col: string | null = null, on = true;
-    if (this.dead) { col = T.bad; on = Math.floor(now / 450) % 2 === 0; }
-    else if (this.liveOn) { col = v.unstable ? T.ld : T.st; on = v.unstable ? Math.floor(now / 220) % 2 === 0 : true; }
-    if (col) {
-      if (on) g.circle(VRM_LED.x, VRM_LED.y, 38).fill({ color: col, alpha: 0.28 });
-      g.circle(VRM_LED.x, VRM_LED.y, 14).fill({ color: on ? col : '#2a3150', alpha: on ? 1 : 0.7 });
-    }
-    if (this.liveOn && !this.dead) {
-      const load = clamp(v.loadRatio), heat = clamp((v.tempC - 45) / Math.max(10, v.throttleC - 45));
-      const color = v.unstable ? T.bad : heat < 0.5 ? mix(T.alu, T.ld, heat * 2) : mix(T.ld, T.bad, (heat - 0.5) * 2);
-      const level = clamp(0.1 + 0.5 * load + 0.45 * heat);
-      const flick = v.unstable ? 0.65 + 0.35 * (Math.floor(now / 90) % 2) : 1;
-      for (let i = 0; i < v.phases; i++) {
-        // the phases fire one after another (interleaved), faster the harder the CPU pulls
-        const a = level * flick * (0.78 + 0.22 * Math.sin(now * (0.004 + 0.012 * load) - (i * Math.PI * 2) / v.phases));
-        const r = vrmPhase(i);
-        for (let k = 0; k < 3; k++) { const e = 6 + k * 14; box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 24 + e, { stroke: color, lw: 12, sa: a * 0.55 * (1 - k / 3) }); }
-        box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
-      }
-    }
-    // the memory regulator: its phases glow the same way, driven by RAM current
-    const rv = this.ramVrm;
-    if (rv && this.liveOn && !this.dead) {
-      const load = clamp(rv.loadRatio), heat = clamp((rv.tempC - 45) / Math.max(10, rv.throttleC - 45));
-      const color = rv.unstable ? T.bad : heat < 0.5 ? mix(T.alu, T.ld, heat * 2) : mix(T.ld, T.bad, (heat - 0.5) * 2);
-      const level = clamp(0.1 + 0.5 * load + 0.45 * heat);
-      const flick = rv.unstable ? 0.65 + 0.35 * (Math.floor(now / 90) % 2) : 1;
-      for (let i = 0; i < rv.phases; i++) {
-        const a = level * flick * (0.78 + 0.22 * Math.sin(now * (0.004 + 0.012 * load) - (i * Math.PI * 2) / rv.phases));
-        const r = dramPhase(i);
-        for (let k = 0; k < 3; k++) { const e = 6 + k * 14; box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 24 + e, { stroke: color, lw: 12, sa: a * 0.55 * (1 - k / 3) }); }
-        box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
-      }
-    }
-    const fl = flashWall;
-    if (fl > 0) {
-      const b = this.flashRam ? BR.dvrm : BR.vrm, e = 30 * (1 - fl);
-      box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { fill: T.bad, fa: 0.55 * fl });
-      box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { stroke: '#ffffff', lw: 14, sa: 0.8 * fl });
-    }
+    if (!col) return;
+    g.circle(VRM_LED.x, VRM_LED.y, 38).fill({ color: col, alpha: 0.28 });
+    g.circle(VRM_LED.x, VRM_LED.y, 14).fill({ color: col });
   }
 
   /** PSU readout: draw versus budget gauge, temperature, fan. */
@@ -1175,7 +1131,7 @@ export class Live {
     this.busFlow.frame(now, this.zoom, inner);
     this.extFlow.frame(now, this.zoom, true);
     this.drawOsBar(now);
-    if (inner) { this.drawBadge(now); this.drawVrm(now); }
+    if (inner) { this.drawBadge(now); this.drawPowerGood(); }
 
     this.drawBoot(now, dt);
 

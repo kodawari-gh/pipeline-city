@@ -17,7 +17,7 @@ export const REGIONS: Record<string, Description> = {
   vrm2: {
     title: 'Voltage regulators (memory)',
     plain: 'The same job for the memory sticks: a gentle, steady supply for the RAM.',
-    nerd: 'DRAM VRM: phases of buck converters feeding the DIMMs at 1.2 V. Lit by RAM current; overclocking memory loads it, a RAM VRM heatsink cools it.',
+    nerd: 'DRAM VRM: phases of buck converters feeding the DIMMs at 1.2 V. RAM current loads it; overclocking memory loads it more, a RAM VRM heatsink cools it.',
   },
   pcie: {
     title: 'Expansion slots (PCIe)',

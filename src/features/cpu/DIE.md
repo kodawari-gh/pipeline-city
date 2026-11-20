@@ -135,7 +135,7 @@ The blocks around the cores are alive on every CPU (single and multicore). `boar
 | PCIe / NVMe / DMI | 12 + 3 + 6 lanes: an access lights two or three lanes of its group with a head running along them |
 | System bus | a glow with marching ticks while any unit is busy |
 | USB, Display | the lane the key takes blinks; the video pairs light in turn and a scan line sweeps while the screen is written |
-| Power | the six VRM phases light with the load and take turns, flash red when the breaker trips, dark when off |
+| Power | the six VRM phases are lit by the load, all alike and steady (no animation), red over the budget or when the breaker trips, dark when off |
 | Thermal | a bar from cool to hot with the CPU temperature, a red pulse on the frame while it throttles |
 | Clock / PLL | a ring and a dot whose pace follows the CPU clock |
 | Timer | a sweep bar for the counter running |

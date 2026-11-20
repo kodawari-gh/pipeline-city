@@ -32,4 +32,30 @@ describe('uncore state', () => {
     fx.set({ loadW: 80, budgetW: 100, off: false, tripped: true, tempC: 80, throttle: true, clock: 3, clockMax: 4, coherence: 1, l2Wait: 2 }, 250);
     expect(() => fx.draw(g, blocks, T, 300)).not.toThrow();
   });
+  it('lights the VRM phases by the load, all alike and steady: the picture does not change with the time (no shimmer, no blink)', () => {
+    const fx = new UncoreFx();
+    const power = [block('power', { cols: 6, rows: 1, count: 6 })];
+    // (what was painted: every fill with its colour, its alpha and its shapes)
+    const draw = (now: number): string => {
+      const g = new Graphics();
+      fx.draw(g, power, T, now);
+      return JSON.stringify(g.context.instructions.map((i) => {
+        const d = i.data as unknown as { style: { color: number; alpha: number }; path: { instructions: unknown[] } };
+        return [i.action, d.style.color, d.style.alpha, d.path.instructions];
+      }));
+    };
+    const on = { loadW: 60, budgetW: 100, off: false, tripped: false, tempC: 50, throttle: false, clock: 3, clockMax: 4, coherence: 0, l2Wait: 0 };
+    fx.set(on, 0);
+    const load = draw(0);
+    expect(load.length).toBeGreaterThan(20);
+    for (const t of [90, 250, 777, 4000]) expect(draw(t), `load at ${t} ms`).toBe(load);
+    fx.set({ ...on, tripped: true }, 0);
+    const trip = draw(0);
+    expect(trip).not.toBe(load);
+    for (const t of [125, 250, 375, 3000]) expect(draw(t), `trip at ${t} ms`).toBe(trip);
+    fx.set({ ...on, loadW: 120 }, 0);
+    expect(draw(0)).not.toBe(load);
+    fx.set({ ...on, off: true }, 0);
+    expect(draw(500)).toBe('[]');
+  });
 });

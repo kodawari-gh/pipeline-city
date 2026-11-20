@@ -88,7 +88,7 @@ export class UncoreFx {
     const inp = this.input, off = inp?.off ?? false;
     for (const b of blocks) {
       switch (b.kind) {
-        case 'power': this.power(g, b, T, now, inp); break;
+        case 'power': this.power(g, b, T, inp); break;
         case 'thermal': this.thermal(g, b, T, now, inp); break;
         case 'clock': this.clock(g, b, T, now, inp); break;
         case 'mc': this.mc(g, b, T, now); break;
@@ -103,15 +103,14 @@ export class UncoreFx {
     }
   }
 
-  /** The VRM phases: each stub lights with the load, the phases taking turns (a rotating shimmer), red on a trip, dark when the machine is off. */
-  private power(g: Graphics, b: PlanBlock, T: Theme, now: number, inp: UncoreInput | null): void {
+  /** The VRM phases: each stub is lit by the load, all alike and steady (no shimmer, no blink), red over the budget or on a trip, dark when the machine is off. */
+  private power(g: Graphics, b: PlanBlock, T: Theme, inp: UncoreInput | null): void {
     if (!inp || inp.off) return;
-    const cells = cellRects(b), n = cells.length, load = Math.min(1.2, inp.loadW / inp.budgetW);
-    cells.forEach((c, i) => {
-      const turn = 0.5 + 0.5 * Math.sin(now * 0.006 - (i * Math.PI * 2) / Math.max(1, n));
-      if (inp.tripped) { box(g, c.x, c.y, c.w, c.h, 2, { fill: T.bad, fa: 0.35 + 0.35 * (Math.floor(now / 250) % 2) }); return; }
-      box(g, c.x, c.y, c.w, c.h, 2, { fill: load > 1 ? T.bad : T.ld, fa: Math.min(0.85, load * (0.25 + 0.6 * turn)) });
-    });
+    const load = Math.min(1.2, inp.loadW / inp.budgetW);
+    for (const c of cellRects(b)) {
+      if (inp.tripped) box(g, c.x, c.y, c.w, c.h, 2, { fill: T.bad, fa: 0.55 });
+      else box(g, c.x, c.y, c.w, c.h, 2, { fill: load > 1 ? T.bad : T.ld, fa: Math.min(0.85, load * 0.55) });
+    }
   }
 
   /** The thermal sensor: a bar that fills and shifts from cool to hot with the CPU's temperature, a red pulse on the frame while it throttles. */
