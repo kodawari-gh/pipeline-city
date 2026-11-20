@@ -6,18 +6,39 @@
 export const EYE_DEAD = 0.03;
 /** The eye is at its goal within this (in log): the view draws no more frames for it. */
 export const EYE_DONE = 1e-3;
+/**
+ * The readings that come after a hold ends and are dropped: the meter answers a frame or more after its draw, so the first ones are of the picture the hold was
+ * for (a lens that darkened it on purpose), not of the one now on the screen.
+ */
+export const EYE_SKIP = 2;
 
 export class Eye {
   /** The exposure's factor the meter asks for, and where the eye stands on its way to it. */
   goal = 1;
   seen = 1;
+  private held = false;
+  private skip = 0;
 
   /** `key`: the luminance times exposure to hold (the key over the base exposure); `range`: the factor's limits. */
   constructor(private readonly key: number, private readonly range: readonly [number, number]) {}
 
-  /** A reading of the meter (null: none came). */
+  /**
+   * Hold the eye where it stands (`on`) or let it read again. A lens that darkens the picture on purpose (the power lens) holds it: the eye would take the dark for a
+   * dim room and lift the exposure back up, and the lens would show nothing.
+   */
+  hold(on: boolean): void {
+    if (this.held && !on) this.skip = EYE_SKIP;
+    this.held = on;
+  }
+
+  /** Is the eye held? */
+  get holding(): boolean { return this.held; }
+
+  /** A reading of the meter (null: none came). A held eye drops it, and so do the first ones after the hold. */
   read(lum: number | null): void {
     if (lum === null) return;
+    if (this.held) return;
+    if (this.skip > 0) { this.skip--; return; }
     const g = Math.min(this.range[1], Math.max(this.range[0], this.key / lum));
     if (Math.abs(Math.log(g / this.goal)) > EYE_DEAD) this.goal = g;
   }

@@ -19,7 +19,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
   };
 });
 vi.mock('@/core/render/three/post', () => ({
-  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {} dispose() {} startPrograms = () => []; },
+  Post: class { render() {} meter = () => null; metered = () => null; setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {} dispose() {} startPrograms = () => []; },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} dispose() {} } }));
 vi.mock('./bake', async (orig) => ({ ...(await orig<typeof import('./bake')>()), startBaker: () => {} })); // (no Pixi renderer in a test)

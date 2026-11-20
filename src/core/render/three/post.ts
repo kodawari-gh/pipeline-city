@@ -322,7 +322,7 @@ export class Post {
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
     this.look.uniforms.k!.value = k;
-    this.local.strength = BOARD_EYE + (1 - BOARD_EYE) * k;
+    this.local.strength = this.dark ? 0 : BOARD_EYE + (1 - BOARD_EYE) * k;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
@@ -333,6 +333,15 @@ export class Post {
     this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
     this.ao.updatePdMaterial({ radius: (4 + k * 16) * AO_SCALE });
   }
+
+  /** A lens darkens the picture on purpose (the power lens: everything that is no power part goes near black). */
+  private dark = false;
+
+  /**
+   * Put the local eye out while a lens darkens the picture on purpose (`on`): it lifts the dark by most of its distance from middle grey (`SHADOW_C`), which would give the
+   * veil back. The host holds the metered eye too (`Eye.hold`). Takes effect from the next `setReach`, which the host calls each frame.
+   */
+  setDark(on: boolean): void { this.dark = on; }
 
   /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
   setEye(k: number, key = MID, high = HIGH_C): void {

@@ -21,7 +21,7 @@ vi.mock('@/core/render/three/init', async (orig) => {
 vi.mock('@/core/render/three/post', () => ({
   Post: class {
     render() {} refine = () => false; meter = () => null; metered = () => null;
-    setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {}
+    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
     startPrograms = () => [];
   },
 }));

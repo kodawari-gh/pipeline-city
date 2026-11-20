@@ -53,6 +53,23 @@ describe('the post chain', () => {
     expect(post.steps()).toEqual(['scene', 'ao', 'bloom', 'eye', 'finish']);
   });
 
+  it('puts the local eye out while a lens darkens the picture on purpose, and back when it ends', () => {
+    const r = stubRenderer();
+    const post = new Post(r, new Scene(), new PerspectiveCamera(), 400, 300);
+    post.apply(LOW, r, 400, 300);
+    post.setReach(0);
+    expect(post.steps()).toContain('eye');
+    // (the host sets it before the frame's `setReach`, which holds it at 0)
+    post.setDark(true);
+    post.setReach(0);
+    expect(post.steps()).not.toContain('eye');
+    post.setReach(40000);
+    expect(post.steps()).not.toContain('eye');
+    post.setDark(false);
+    post.setReach(0);
+    expect(post.steps()).toContain('eye');
+  });
+
   it('frees every target, texture and material of its own at a close (PERF12), not the scene', () => {
     const r = stubRenderer(), scene = new Scene(), box = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
     scene.add(box);

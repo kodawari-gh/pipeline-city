@@ -5,7 +5,8 @@
 // What is built once (the shape) changes only when a cable, a part or the board does; a snapshot only rewrites a few numbers.
 import { Box3, Group, Vector3, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
-import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { POWER_VEIL } from '@/core/render/three/powerscale';
+import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
 import { LAYOUT_CASE, LAYOUT_TIER } from '../../layout/layout';
 import { buildBuses, type Bus } from '../../wiring/routes';
 import { AirTags3D } from '../air/airtags';
@@ -17,8 +18,11 @@ import { PowerFlows } from './flows';
 import { powerLedger } from './ledger';
 import { powerDraw, powerShape, type PowerDraw, type PowerShape } from './net';
 
-/** What the room multiplies by under the lens: a dark with a little blue, so the amber of the power stands out of it. */
-const VEIL: readonly [number, number, number] = [0.15, 0.16, 0.22];
+/**
+ * What everything multiplies by under the lens: a near black with a little blue, so that only the power parts (their glow is lifted by the same veil,
+ * `POWER_LIFT`) and the lines of the net stand out of it.
+ */
+const VEIL = POWER_VEIL;
 
 /**
  * The words of detail (each part's draw) show while the case takes more than `BIG` of the view's height, and go while it takes less than `SMALL`: in the room's view the
@@ -90,7 +94,7 @@ export class PowerView3D {
   /** Make the lines of a new machine. */
   private rebuild(s: Snapshot, machine: Machine3D): void {
     this.flows?.dispose();
-    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z });
+    const shape = powerShape({ s, runs: machine.cableRuns(), buses: this.busesFor(), slots: slotRects(s), psu: psuBay(s), boardZ: BOARD_Z, hubZ: CASE_Z + 290 });
     this.shape = shape;
     this.flows = new PowerFlows(shape);
     this.group.add(this.flows.mesh);
@@ -139,7 +143,7 @@ export class PowerView3D {
         const draw = powerDraw(shape, snap, powerLedger(snap), (id) => machine.partBox(id));
         this.drawn = draw;
         this.tags.set(this.words(), this.clock);
-        machine.powerGlow(draw.parts, draw.warn);
+        machine.powerGlow(draw.parts, draw.warn, draw.roles);
         this.glowing = true;
       }
       this.held = heldKey;

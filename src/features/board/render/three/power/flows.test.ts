@@ -1,11 +1,11 @@
 // The power lens's lines as meshes (docs/render/power.md "The lines"): the strips the shader draws, and what a snapshot writes into them.
 import { describe, expect, it } from 'vitest';
-import type { InstancedBufferAttribute, Mesh } from 'three';
+import { PerspectiveCamera, type InstancedBufferAttribute, type Mesh } from 'three';
 import { PowerFlows, seedOf, strips } from './flows';
 import type { PowerDraw, PowerLine, PowerShape } from './net';
 
 const line = (id: string, pts: [number, number, number][], o: Partial<PowerLine> = {}): PowerLine => ({
-  id, cable: id.split('#')[0]!, kind: 'cable', fade: 0, pts, width: 17, lift: 30, branch: false, watts: () => 0, state: () => 'on', ...o,
+  id, cable: id.split('#')[0]!, kind: 'cable', fade: 0, pts, width: 17, lift: 30, branch: false, tone: 'use', watts: () => 0, state: () => 'on', ...o,
 });
 
 describe('seedOf', () => {
@@ -64,44 +64,84 @@ const shape = (): PowerShape => ({
     line('atx~0', [[0, -30, 0], [0, 0, 0]], { cable: 'atx', kind: 'ghost', fade: 30 }),
   ],
   rings: [{ id: 'atx.ring', cable: 'atx', at: [0, 100, 0], r: 400 }],
+  nodes: [
+    { id: 'node.vrm', role: 'hub', at: [20, 30, 5], ex: [10, 0, 0], ey: [0, 6, 0], round: 2, watts: () => 0, state: () => 'on' },
+    { id: 'node.wall', role: 'source', at: [0, 0, 0], ex: [4, 0, 0], ey: [0, 4, 0], round: 1, watts: () => 0, state: () => 'on' },
+  ],
   seats: new Map(), wall: null, monitor: null, hub: null, psu: null,
 });
 
-const draw = (state: number[], level: number[], open = [0]): PowerDraw => ({
-  level: Float32Array.from(level), state: Uint8Array.from(state), open: Uint8Array.from(open), tags: [], parts: new Map(), warn: new Set(), refW: 60,
+const draw = (state: number[], level: number[], open = [0], node: { level: number[]; state: number[] } = { level: [0, 0], state: [0, 0] }): PowerDraw => ({
+  level: Float32Array.from(level), state: Uint8Array.from(state), open: Uint8Array.from(open), nodeLevel: Float32Array.from(node.level), nodeState: Uint8Array.from(node.state),
+  tags: [], parts: new Map(), roles: new Map(), warn: new Set(), refW: 60,
 });
 
-/** The per-strip state buffer of a layer (`[level, state]` a strip). */
+/** The per-strip state buffer of a layer (`[level, state, tone]` a strip). */
 const stateOf = (m: Mesh): number[] => [...((m.geometry as unknown as { getAttribute(n: string): InstancedBufferAttribute }).getAttribute('iState').array as Float32Array)];
+/** An instanced attribute of a mesh. */
+const attrOf = (m: Mesh, name: string): number[] => [...((m.geometry as unknown as { getAttribute(n: string): InstancedBufferAttribute }).getAttribute(name).array as Float32Array)];
 
 describe('PowerFlows', () => {
-  it('draws the lines with the depth test and the hidden runs through everything, in two meshes, with a mesh of rings', () => {
+  it('draws the lines with the depth test and the hidden runs through everything, in two meshes, with a mesh of rings and one of plates', () => {
     const f = new PowerFlows(shape());
-    expect(f.mesh.children.length).toBe(3);
+    expect(f.mesh.children.length).toBe(4);
     expect(f.strips).toBe(1 + 2 + 1 + 1);
-    const [solid, ghost, rings] = f.mesh.children as Mesh[];
+    expect(f.plates).toBe(2);
+    const [plates, solid, ghost, rings] = f.mesh.children as Mesh[];
     expect((solid!.material as { depthTest: boolean }).depthTest).toBe(true);
     expect((ghost!.material as { depthTest: boolean }).depthTest).toBe(false);
+    // (a plate lies where its thing is: a part in front of it hides it, and a dim copy of it shows through the part)
+    expect((plates!.material as { depthTest: boolean }).depthTest).toBe(true);
+    expect(plates!.visible).toBe(true);
     expect(rings!.visible).toBe(true);
+    const [hidden] = plates!.children as Mesh[];
+    expect((hidden!.material as { depthTest: boolean }).depthTest).toBe(false);
+    expect(hidden!.geometry).toBe(plates!.geometry);
+    expect(hidden!.renderOrder).toBeLessThan(plates!.renderOrder);
+    const strength = (m: Mesh): number => (m.material as unknown as { uniforms: { uStrength: { value: number } } }).uniforms.uStrength.value;
+    expect(strength(hidden!)).toBeGreaterThan(0);
+    expect(strength(hidden!)).toBeLessThan(strength(plates!) * 0.4);
+    f.dispose();
+  });
+
+  it('moves both clocks of the plates, the dim copy too', () => {
+    const f = new PowerFlows(shape());
+    f.frame(new PerspectiveCamera(50, 1, 1, 1000), 400, 0, 3.5);
+    const plates = f.mesh.children[0] as Mesh, [hidden] = plates.children as Mesh[];
+    const clock = (m: Mesh): number => (m.material as unknown as { uniforms: { uClock: { value: number } } }).uniforms.uClock.value;
+    expect(clock(plates)).toBe(3.5);
+    expect(clock(hidden!)).toBe(3.5);
     f.dispose();
   });
 
   it('writes the level and the state of each line into its strips', () => {
     const f = new PowerFlows(shape());
     f.set(draw([1, 2, 0, 1], [0.5, 0, 0, 0.25]), new Set());
-    const [solid, ghost] = f.mesh.children as Mesh[];
+    const [, solid, ghost] = f.mesh.children as Mesh[];
     // (the solid mesh holds atx#0 (1 strip), atx#1 (2) and the trace (1); the hidden run is the other mesh)
-    expect(stateOf(solid!).slice(0, 8)).toEqual([0.5, 1, 0, 2, 0, 2, 0, 0]);
-    expect(stateOf(ghost!).slice(0, 2)).toEqual([0.25, 1]);
+    expect(stateOf(solid!).slice(0, 12)).toEqual([0.5, 1, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0]);
+    expect(stateOf(ghost!).slice(0, 3)).toEqual([0.25, 1, 0]);
+    f.dispose();
+  });
+
+  it('writes the tone of each line into its strips: a use amber, a hub cyan, the mains from the wall white', () => {
+    const s = shape();
+    s.lines[0]!.tone = 'source';
+    s.lines[2]!.tone = 'hub';
+    const f = new PowerFlows(s);
+    f.set(draw([1, 1, 1, 1], [0.5, 0.5, 0.5, 0.5]), new Set());
+    const [, solid] = f.mesh.children as Mesh[];
+    // (atx#0 one strip: source 2; atx#1 two strips: use 0; the trace: hub 1)
+    expect(stateOf(solid!).filter((_, i) => i % 3 === 2)).toEqual([2, 0, 0, 1]);
     f.dispose();
   });
 
   it('marks the strips of a cable a hand holds, so the shader hides them', () => {
     const f = new PowerFlows(shape());
     f.set(draw([1, 1, 1, 1], [0.5, 0.5, 0.5, 0.5]), new Set(['atx']));
-    const [solid, ghost] = f.mesh.children as Mesh[];
+    const [, solid, ghost] = f.mesh.children as Mesh[];
     // (atx's three strips and its hidden stub: 3; the copper is nobody's cable)
-    expect(stateOf(solid!).filter((_, i) => i % 2 === 1)).toEqual([3, 3, 3, 1]);
+    expect(stateOf(solid!).filter((_, i) => i % 3 === 1)).toEqual([3, 3, 3, 1]);
     expect(stateOf(ghost!)[1]).toBe(3);
     f.dispose();
   });
@@ -109,14 +149,25 @@ describe('PowerFlows', () => {
   it('shows a ring only while its cable is out', () => {
     const f = new PowerFlows(shape());
     f.set(draw([1, 1, 1, 1], [0, 0, 0, 0], [1]), new Set());
-    const rings = f.mesh.children[2] as Mesh;
-    expect([...((rings.geometry as unknown as { getAttribute(n: string): InstancedBufferAttribute }).getAttribute('iOpen').array as Float32Array)].slice(0, 1)).toEqual([1]);
+    const rings = f.mesh.children[3] as Mesh;
+    expect(attrOf(rings, 'iOpen').slice(0, 1)).toEqual([1]);
+    f.dispose();
+  });
+
+  it('writes the level and the state of each plate, with its role and its corner', () => {
+    const f = new PowerFlows(shape());
+    f.set(draw([1, 1, 1, 1], [0, 0, 0, 0], [0], { level: [0.6, 0.2], state: [1, 2] }), new Set());
+    const plates = f.mesh.children[0] as Mesh;
+    // (role 1 a hub, 2 a source; then the level, the state, the corner)
+    expect(attrOf(plates, 'iLook').map((x) => Math.round(x * 10) / 10)).toEqual([1, 0.6, 1, 2, 2, 0.2, 2, 1]);
+    expect(attrOf(plates, 'iAt').slice(0, 3)).toEqual([20, 30, 5]);
     f.dispose();
   });
 
   it('is empty without lines, and leaves the lens nothing to draw', () => {
-    const f = new PowerFlows({ lines: [], rings: [], seats: new Map(), wall: null, monitor: null, hub: null, psu: null });
+    const f = new PowerFlows({ lines: [], rings: [], nodes: [], seats: new Map(), wall: null, monitor: null, hub: null, psu: null });
     expect(f.strips).toBe(0);
+    expect(f.plates).toBe(0);
     expect((f.mesh.children as Mesh[]).every((m) => !m.visible)).toBe(true);
     f.dispose();
   });

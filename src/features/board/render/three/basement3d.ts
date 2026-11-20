@@ -26,6 +26,8 @@ export interface BasementPlan {
 const PSU_ROOM = 360;
 /** The shroud's panel over the power supply comes off to reach it: its object's name (a click on it still answers as the PSU). */
 export const PSU_COVER = 'psu-cover';
+/** The whole shroud's object's name: the power lens takes it off (the supply and the fan hub stand under it, and its top sheet hides them from above). */
+export const SHROUD = 'shroud';
 /** The power supply unit's object's name, in the device's group. */
 export const PSU_BODY = 'psu-body';
 /** The supply's fan on its underside, over the floor's opening: in the middle of the bay, a 120 mm fan in an ATX bay, a 92 mm one in an SFX bay. */
@@ -52,6 +54,7 @@ export function basementPlan(): BasementPlan {
  */
 export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }, rivet: Material = mat(0x2a2d32, { metalness: 0.45, roughness: 0.42 }), screw: Material = mat(0x2a2d32, { metalness: 0.65, roughness: 0.38 })): Group {
   const g = new Group(), m = mat(look.body, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
+  g.name = SHROUD;
   const bg = `#${look.body.toString(16).padStart(6, '0')}`;
   // one hole method: the plate stays whole; its cable and vent openings are perforated sheets on a dark backing (casekit3d `perforatedFlat`)
   g.add(plateY(CASE_IN.x, p.east, zb, zf, p.top, 30, [], m, 4));

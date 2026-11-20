@@ -53,7 +53,7 @@ describe('PowerView3D', () => {
     const v = new PowerView3D(new Scene());
     v.frame(cameraAt(0.8), 900, snap, machine, 0.016);
     const t = texts(v);
-    for (const w of ['WALL', 'LOAD', 'CPU', 'RAM']) expect(t.some((x) => x.startsWith(w)), w).toBe(true);
+    for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM']) expect(t.some((x) => x.startsWith(w)), w).toBe(true);
     v.dispose();
   });
 
@@ -62,9 +62,9 @@ describe('PowerView3D', () => {
     v.frame(cameraAt(0.2), 900, snap, machine, 0.016);
     const t = texts(v);
     expect(t.some((x) => x.startsWith('WALL'))).toBe(true);
-    expect(t.some((x) => x.startsWith('LOAD'))).toBe(true);
+    expect(t.some((x) => x.startsWith('SUPPLY'))).toBe(true);
     expect(t.includes('')).toBe(true);
-    for (const w of ['CPU', 'RAM', 'DRIVE', 'FANS']) expect(t.some((x) => x.startsWith(w)), w).toBe(false);
+    for (const w of ['CPU', 'RAM', 'DRIVE', 'FAN HUB']) expect(t.some((x) => x.startsWith(w)), w).toBe(false);
     v.dispose();
   });
 

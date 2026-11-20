@@ -54,4 +54,38 @@ describe('Eye', () => {
     expect(e.goal).toBe(1);
     expect(e.moving).toBe(false);
   });
+
+  it('a held eye stays where it stands: a lens that darkens the picture on purpose must not be lifted back', () => {
+    const e = new Eye(KEY, RANGE);
+    run(e, 0.05, 300);
+    const goal = e.goal, seen = e.seen;
+    e.hold(true);
+    expect(e.holding).toBe(true);
+    // (a picture 25 times darker would lift the exposure to its limit)
+    run(e, 0.002, 300);
+    expect(e.goal).toBe(goal);
+    expect(e.seen).toBeCloseTo(seen, 6);
+    expect(e.moving).toBe(false);
+  });
+
+  it('drops the first readings after the hold, which are of the darkened picture, then reads again', () => {
+    const e = new Eye(KEY, RANGE);
+    e.read(0.05);
+    const goal = e.goal;
+    e.hold(true);
+    e.hold(false);
+    // (the readings in flight when the lens went off: the dark picture's)
+    e.read(0.002);
+    e.read(0.002);
+    expect(e.goal).toBe(goal);
+    // the next one is the picture now on the screen
+    e.read(0.2);
+    expect(e.goal).not.toBe(goal);
+    expect(e.goal).toBeLessThan(goal);
+    // (a hold that was never on drops nothing)
+    const f = new Eye(KEY, RANGE);
+    f.hold(false);
+    f.read(0.05);
+    expect(f.goal).toBeCloseTo(Math.min(14, KEY / 0.05), 6);
+  });
 });

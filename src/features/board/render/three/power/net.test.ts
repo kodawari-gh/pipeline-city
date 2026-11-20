@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/protocol';
-import { dev, snap } from '@/core/ui/testdata';
+import { boardSnap, dev, snap } from '@/core/ui/testdata';
 import type { Rect } from '@/core/render/camera';
 import type { V3 } from '@/core/render/three/rope';
 import { setLayoutTier } from '../../layout/layout';
@@ -39,7 +39,7 @@ function input(s: Snapshot, over: Partial<ShapeIn> = {}): ShapeIn {
     run('monmains', [strand([9000, -4000, 2000], [-9000, -1000, 4000])], { seat: { at: [9000, -4000, 2000], axis: [1, 0, 0] } }),
     run('hdd:power', [strand([6000, -2000, 2500], [6000, -2500, 2700])], { fed: true }),
   ];
-  return { s, runs, buses: buildBuses(), slots, psu: BAY, boardZ: 2460, ...over };
+  return { s, runs, buses: buildBuses(), slots, psu: BAY, boardZ: 2460, hubZ: 2490, ...over };
 }
 
 const box = (id: string): { min: V3; max: V3 } | null => (id === 'cpu' ? { min: [0, -500, 2460], max: [500, 0, 2800] } : id === 'ram' ? { min: [800, -600, 2460], max: [900, 0, 2800] } : id === 'hdd' ? { min: [6000, -2000, 2500], max: [6800, -1700, 2900] } : null);
@@ -85,6 +85,43 @@ describe('the power shape', () => {
     expect(t.pts[0]![1]).toBe(-b.pts[0]![1]);
   });
 
+  it('the mains from the wall are a source\'s lines; every other line takes its power from the supply or the board, and is a use', () => {
+    const sh = powerShape(input(running()));
+    const tone = (id: string): string => sh.lines[lineOf(sh, id)]!.tone;
+    expect(tone('pcmains#0')).toBe('source');
+    expect(tone('monmains#0')).toBe('source');
+    expect(tone('atx~0')).toBe('use');
+    for (const id of ['atx#0', 'cpu#0', 'hdd:power#0', 'trace.pwrcpu.0', 'trace.vdimm.0']) expect(tone(id), id).toBe('use');
+  });
+
+  it('puts a plate round the plugs of the wall (a source) and one on each regulator (a hub); the fan hub has one when its cord is there', () => {
+    const sh = powerShape(input(running()));
+    expect(sh.nodes.map((n) => n.id)).toEqual(['node.wall', 'node.vrm', 'node.dvrm']);
+    const [wall, ...regs] = sh.nodes;
+    expect(wall!.role).toBe('source');
+    // (it centres on the two plugs, at x 9000, y -5000 and -4000, just in front of them, and is bigger than they are apart)
+    expect(wall!.at).toEqual([9000, -4500, 1990]);
+    expect(wall!.ex[0]).toBeGreaterThan(0);
+    expect(wall!.ey[1]).toBeGreaterThan(500);
+    expect(regs.every((n) => n.role === 'hub')).toBe(true);
+    // (the regulators lie on the board's own, over its face)
+    expect(regs.every((n) => n.at[2] > 2460 && n.at[2] < 2520)).toBe(true);
+    expect(regs.every((n) => Number.isFinite(n.at[0]) && n.ex[0] > 0 && n.ey[1] > 0)).toBe(true);
+    const i = input(running());
+    const fan = powerShape({ ...i, runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])] });
+    const hub = fan.nodes.find((n) => n.id === 'node.hub')!;
+    expect(hub.role).toBe('hub');
+    expect(hub.at[2]).toBe(2490);
+  });
+
+  it('has no plate for a regulator whose part is not there, none on a board with no supply, and none for a wall with no cord', () => {
+    const base = running();
+    const noCpu = { ...base, devices: base.devices.filter((d) => d.kind !== 'cpu') };
+    expect(powerShape(input(noCpu)).nodes.map((n) => n.id)).toEqual(['node.wall', 'node.dvrm']);
+    expect(powerShape(input({ ...base, devices: base.devices.filter((d) => d.kind !== 'psu') })).nodes.map((n) => n.id)).toEqual(['node.wall']);
+    expect(powerShape(input(base, { runs: input(base).runs.filter((r) => !r.id.endsWith('mains')) })).nodes.some((n) => n.id === 'node.wall')).toBe(false);
+  });
+
   it('a card is fed along its slot rail, a drive on its M.2 socket; with no supply there are no traces', () => {
     const base = running();
     const s = { ...base, devices: [...base.devices, dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 })] };
@@ -119,7 +156,55 @@ describe('a snapshot on the shape', () => {
     const { d } = draw({ ...base, powered: false, power: { ...base.power, off: true } });
     expect(d.state.every((x) => x === 0)).toBe(true);
     expect(d.level.every((x) => x === 0)).toBe(true);
+    expect(d.nodeState.every((x) => x === 0)).toBe(true);
+    expect(d.nodeLevel.every((x) => x === 0)).toBe(true);
     expect([...d.parts.values()].every((x) => x === 0)).toBe(true);
+  });
+
+  it('the plates glow by what passes through them: the wall by the whole draw, a regulator by what it hands on', () => {
+    const { sh, d } = draw(running());
+    const at = (id: string): number => sh.nodes.findIndex((n) => n.id === id);
+    expect([...d.nodeState]).toEqual([1, 1, 1]);
+    expect(d.nodeLevel[at('node.wall')]!).toBeGreaterThan(d.nodeLevel[at('node.vrm')]!);
+    expect(d.nodeLevel[at('node.vrm')]!).toBeGreaterThan(d.nodeLevel[at('node.dvrm')]!);
+    expect(d.nodeLevel[at('node.dvrm')]!).toBeGreaterThan(0);
+    expect([...d.nodeLevel].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
+  });
+
+  it('a plate is out with the cable that feeds it: the wall with a cord, the CPU regulator with the 8-pin, the memory regulator with the 24-pin', () => {
+    const base = running();
+    const out = (id: string) => draw({ ...base, cables: base.cables.map((c) => (c.id === id ? { ...c, connected: false } : c)) as Snapshot['cables'] });
+    const stateOfNode = (r: ReturnType<typeof out>, id: string): number | undefined => r.d.nodeState[r.sh.nodes.findIndex((n) => n.id === id)];
+    expect(stateOfNode(out('pcmains'), 'node.wall')).toBe(2);
+    expect(stateOfNode(out('monmains'), 'node.wall')).toBe(2);
+    expect(stateOfNode(out('cpu'), 'node.vrm')).toBe(2);
+    expect(stateOfNode(out('cpu'), 'node.dvrm')).toBe(1);
+    expect(stateOfNode(out('atx'), 'node.dvrm')).toBe(2);
+    expect(stateOfNode(out('atx'), 'node.vrm')).toBe(1);
+  });
+
+  it('says what a regulator hands on and what it wastes on the way, and keeps these among the words of detail', () => {
+    const { d } = draw(running({ board: boardSnap({ vrm: { heatW: 2.5 } }) }));
+    const word = d.tags.find((t) => t.id === 'p.node.vrm')!;
+    expect(word).toMatchObject({ text: 'CPU VRM 13 W (2.5 W lost)', role: 'hub', minor: true });
+    // (the memory's regulator wastes nothing here: it says so with no second number)
+    expect(d.tags.find((t) => t.id === 'p.node.dvrm')!.text).toBe('RAM VRM 4.0 W');
+    // (a machine that is off has none)
+    const base = running();
+    expect(draw({ ...base, powered: false, power: { ...base.power, off: true } }).d.tags.some((t) => t.id.startsWith('p.node'))).toBe(false);
+  });
+
+  it('says what the fan hub carries, and gives each power part its role: the supply hands on, the parts use, a part with no rating is none', () => {
+    const base = running();
+    const s = { ...base, devices: [...base.devices, dev({ id: 'fan0', kind: 'fan', spec: 'fan92', slot: 'front0', powerW: 2 })] };
+    const i = input(s);
+    const sh = powerShape({ ...i, runs: [...i.runs, run('sysfan', [strand([1000, -1000, 2500], [1200, -900, 2500])])] });
+    const d = powerDraw(sh, s, powerLedger(s), box);
+    expect(d.tags.find((t) => t.id === 'p.fans')).toMatchObject({ text: 'FAN HUB 2.0 W', role: 'hub', minor: true });
+    expect(d.roles.get('psu')).toBe('hub');
+    expect(d.roles.get('cpu')).toBe('use');
+    expect(d.roles.get('hdd')).toBe('use');
+    expect(d.roles.get('fan0')).toBe('use');
   });
 
   it('a cable that is out is missing, with a ring and its words at the socket; the rest run on', () => {
@@ -142,19 +227,32 @@ describe('a snapshot on the shape', () => {
     expect(d.tags.find((t) => t.id === 'p.monmains.warn')!.text).toBe('PLUG THE MONITOR IN');
   });
 
-  it('says the wall, the supply\'s load, the monitor and each part kind once, with the scale under the first', () => {
+  it('says the wall, the supply\'s load, the monitor and each part kind once, with the scale and the legend under the first', () => {
     const { d } = draw(running());
     const text = Object.fromEntries(d.tags.map((t) => [t.id, t.text]));
     expect(text['p.wall']).toBe('WALL 60 W');
-    expect(text['p.psu']).toBe('LOAD 54 W / 250 W');
+    expect(text['p.psu']).toBe('SUPPLY 54 W / 250 W');
     expect(text['p.monitor']).toBe('MONITOR 1.2 W');
     expect(text['p.cpu']).toBe('CPU 13 W');
     expect(text['p.ram']).toBe('RAM 4.0 W');
     expect(text['p.hdd']).toBe('DRIVE 5.0 W');
     const scale = d.tags.find((t) => t.id === 'p.scale')!;
     expect(scale).toMatchObject({ unit: 'W', under: 'p.wall', scale: [0, 60] });
+    expect(d.tags.find((t) => t.id === 'p.legend')).toMatchObject({ legend: true, under: 'p.scale' });
     expect(d.tags.every((t) => t.at.every(Number.isFinite))).toBe(true);
     expect(new Set(d.tags.map((t) => t.id)).size).toBe(d.tags.length);
+  });
+
+  it('gives every word the role of the thing it names: the wall a source, the supply a hub, the parts users', () => {
+    const { d } = draw(running());
+    const role = Object.fromEntries(d.tags.map((t) => [t.id, t.role]));
+    expect(role['p.wall']).toBe('source');
+    expect(role['p.psu']).toBe('hub');
+    expect(role['p.monitor']).toBe('use');
+    expect(role['p.cpu']).toBe('use');
+    expect(role['p.hdd']).toBe('use');
+    // (the warnings, the scale and the legend are no node)
+    expect(d.tags.filter((t) => t.tone === 'warn' || t.id === 'p.scale' || t.id === 'p.legend').every((t) => !t.role)).toBe(true);
   });
 
   it('parts glow by what they draw; a supply over its budget glows red', () => {

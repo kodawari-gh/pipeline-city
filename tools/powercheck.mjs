@@ -2,7 +2,7 @@
 // The power lens (docs/render/power.md) on each case:board pair of Build my PC, in a headless Chrome on the real GPU, with the dev server (`window.__build`, `window.__power`).
 // Each machine is a basic one with a fan on every mount, a graphics card, a SATA drive and an M.2 drive, switched on (`B.game.powerButton()`: the stage never steps its game),
 // the lens on. After a few seconds it checks that the shape is built, that every point of every line is a number, that every cable that carries power (and every drive's lead) has
-// a line and a ring on its socket, that nothing is drawn as missing or open while every cable is in, that the words are there (WALL, LOAD, the parts' draws, the scale), that
+// a line and a ring on its socket, that nothing is drawn as missing or open while every cable is in, that the words are there (WALL, SUPPLY, the parts' draws, the scale), that the three roles show (the plates, the parts), that
 // the parts glow (the lens reached the skins), and that a frame of the lens costs under 1 ms. Then it switches the machine off, pulls the 24-pin, the 8-pin and the card's lead
 // out, and checks that each has its ring open, its lines drawn as missing and its warning words. Last, it checks that the page logged no error.
 // Prints one line per pair, then `N machines, M with problems` (exit code 1 when there are problems). Takes about 1 minute for ten pairs.
@@ -88,6 +88,9 @@ try {
         missing: Array.from(draw.state).filter((v) => v === 2).length, open: Array.from(draw.open).filter((v) => v === 1).length,
         on: Array.from(draw.state).filter((v) => v === 1).length, tags: draw.tags.map((t) => t.text), tones: draw.tags.map((t) => t.tone),
         glow, parts: draw.parts.size, strips: w.flowsNow?.strips ?? 0, cost: w.cost, refW: draw.refW, states: Object.fromEntries(wanted.map((id) => [id, states(id)])),
+        // (the plates of the hubs and the source, and the role of each part: source white, hub cyan, use amber)
+        plates: w.flowsNow?.plates ?? 0, nodeRoles: (shape.nodes ?? []).map((n) => n.role), nodeMissing: Array.from(draw.nodeState ?? []).filter((v) => v === 2).length,
+        roles: [...(draw.roles?.values() ?? [])],
         ringsOf: Object.fromEntries(wanted.map((id) => [id, draw.open[ringOf(id)] ?? null])),
       };
     });
@@ -104,8 +107,13 @@ try {
       // (a cable that is out in the sim, such as a card's lead before it is plugged, shows as missing: that is the lens being right)
       if (a.connected.length === 0 && (a.missing > 0 || a.open > 0)) bad.push(`every cable is in, but ${a.missing} strips are missing and ${a.open} rings open`);
       if (!(a.on > 0)) bad.push('no line carries power');
-      for (const w of ['WALL', 'LOAD', 'CPU', 'RAM']) if (!a.tags.some((t) => t.startsWith(w))) bad.push(`no ${w} words`);
+      for (const w of ['WALL', 'SUPPLY', 'CPU', 'RAM']) if (!a.tags.some((t) => t.startsWith(w))) bad.push(`no ${w} words`);
       if (!a.tags.some((t) => t === '')) bad.push('no scale pill');
+      // (three roles: the wall is a source, the supply and the regulators hand on, the parts use; a plate lies under each hub and the wall)
+      if (!a.nodeRoles.includes('source')) bad.push('no plate for the wall (the source)');
+      if (!a.nodeRoles.includes('hub')) bad.push('no plate for a hub (the regulators, the fan hub)');
+      if (a.plates !== a.nodeRoles.length) bad.push(`${a.nodeRoles.length} plates in the shape, ${a.plates} drawn`);
+      for (const r of ['hub', 'use']) if (!a.roles.includes(r)) bad.push(`no part has the role ${r}`);
       if (!(a.glow > 0)) bad.push('no part glows');
       if (a.cost > MAX_MS) bad.push(`a frame of the lens takes ${a.cost.toFixed(2)} ms (at most ${MAX_MS})`);
     }
@@ -132,6 +140,8 @@ try {
         if (!out.tags.some((t) => t === 'NO MAIN POWER')) bad.push('the 24-pin is out, but there are no NO MAIN POWER words');
         if (!out.tags.some((t) => t === 'NO CPU POWER')) bad.push('the 8-pin is out, but there are no NO CPU POWER words');
         if (!out.tones.includes('warn')) bad.push('a cable is out, but no words are in the warning tone');
+        // (the 24-pin and the 8-pin feed the regulators: their plates show as missing)
+        if (!(out.nodeMissing > 0)) bad.push('the 24-pin and the 8-pin are out, but no plate shows as missing');
         if (!out.finite) bad.push('a line has a point or a level that is not a number once the cables are out');
       }
     }

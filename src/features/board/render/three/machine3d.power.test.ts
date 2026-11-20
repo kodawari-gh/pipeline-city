@@ -1,0 +1,136 @@
+// The power lens's view of the parts (Machine3D.powerGlow, docs/render/power.md): a part glows by what it draws in the colour of its role, a fan or the module glows alone
+// (it has no skin in the other views), and the part's own look comes back.
+import { beforeAll, describe, expect, it } from 'vitest';
+import { Mesh, MeshStandardMaterial } from 'three';
+import { BakeQueue } from '@/core/render/three/artlod';
+import { findById, idOf } from '@/core/render/three/pick';
+import { roomGeo } from '@/features/room/render/shell/room';
+import { Game } from '@/worker/game/game';
+import type { Snapshot } from '@/worker/protocol';
+import { Machine3D } from './machine3d';
+import { quietCanvas } from './testutil';
+
+quietCanvas();
+
+describe('Machine3D.powerGlow', () => {
+  let snap: Snapshot, m: Machine3D;
+  beforeAll(() => {
+    const g = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true }), bought = g.purchase('tpm1');
+    if (bought.ok) g.install(bought.invId, 'tpm0');
+    // (a machine that is off: no fan turns and no ring of light shines, so a glow is the lens's)
+    snap = { ...g.snapshot(), powered: false };
+    m = new Machine3D(snap, roomGeo(), new BakeQueue(), null, false);
+  });
+
+  const ids = (kind: string): string[] => snap.devices.filter((d) => d.kind === kind).map((d) => d.id);
+  /** The glow of the materials of one part: the strongest of its meshes' (intensity), and the colour of that one. (The supply answers to its kind, not its id.) */
+  const glow = (id: string): { k: number; rgb: [number, number, number] } => {
+    const tag = findById(m.root, id) ? id : (snap.devices.find((d) => d.id === id)?.kind ?? id);
+    let best = { k: 0, rgb: [0, 0, 0] as [number, number, number] };
+    m.root.traverse((o) => {
+      const mat = (o as Mesh).material as MeshStandardMaterial | undefined;
+      if (!(o as Mesh).isMesh || !mat || Array.isArray(mat) || !mat.emissive || idOf(o) !== tag) return;
+      const k = mat.emissiveIntensity * Math.max(mat.emissive.r, mat.emissive.g, mat.emissive.b);
+      if (k > best.k) best = { k, rgb: [mat.emissive.r, mat.emissive.g, mat.emissive.b] };
+    });
+    return best;
+  };
+  /** Ease the parts all the way to the look they were given. */
+  const settle = (): void => m.frame(snap, 5);
+  const lens = (levels: [string, number][], roles: [string, 'source' | 'hub' | 'use'][] = levels.map(([id]) => [id, 'use'] as [string, 'use']), warn: string[] = []): void => {
+    m.powerGlow(new Map(levels), new Set(warn), new Map(roles));
+    settle();
+  };
+
+  it('lights a fan by what it draws, and one fan alone: the fans share no material in the lens', () => {
+    const fans = ids('fan');
+    expect(fans.length).toBeGreaterThanOrEqual(2);
+    const [a, b] = fans as [string, string];
+    lens([[a, 1], [b, 0.1]]);
+    expect(glow(a).k).toBeGreaterThan(glow(b).k);
+    expect(glow(b).k).toBeGreaterThan(0);
+    // (the other fans are not in the lens: they have no role and stay dark)
+    const rest = fans.filter((f) => f !== a && f !== b);
+    for (const f of rest) expect(glow(f).k, f).toBe(0);
+    m.powerGlow(null);
+    settle();
+  });
+
+  it('lights the module (the TPM) too, and gives the lens\'s glow back to nothing when it is off', () => {
+    const tpm = ids('tpm')[0];
+    expect(tpm).toBeDefined();
+    expect(glow(tpm!).k).toBe(0);
+    lens([[tpm!, 0.6]]);
+    expect(glow(tpm!).k).toBeGreaterThan(0.1);
+    m.powerGlow(null);
+    settle();
+    expect(glow(tpm!).k).toBeLessThan(1e-3);
+  });
+
+  it('shows a use in amber, a hub in cyan and a source in white', () => {
+    const cpu = ids('cpu')[0]!, psu = ids('psu')[0]!;
+    lens([[cpu, 0.7], [psu, 0.7]], [[cpu, 'use'], [psu, 'hub']]);
+    const use = glow(cpu).rgb, hub = glow(psu).rgb;
+    expect(use[0]).toBeGreaterThan(use[2]);
+    expect(hub[2]).toBeGreaterThan(hub[0]);
+    lens([[psu, 0.7]], [[psu, 'source']]);
+    const src = glow(psu).rgb;
+    expect(Math.min(...src) / Math.max(...src)).toBeGreaterThan(0.6);
+    m.powerGlow(null);
+    settle();
+  });
+
+  it('shows a part that is over its budget in red', () => {
+    const psu = ids('psu')[0]!;
+    lens([[psu, 1]], [[psu, 'hub']], [psu]);
+    const [r, g, b] = glow(psu).rgb;
+    expect(r).toBeGreaterThan(g * 2);
+    expect(r).toBeGreaterThan(b * 2);
+    m.powerGlow(null);
+    settle();
+  });
+
+  it('takes the basement\'s shroud off while the lens shows (the supply and the fan hub stand under it), and puts it back', () => {
+    const shroud = m.root.getObjectByName('shroud');
+    expect(shroud).toBeDefined();
+    expect(shroud!.visible).toBe(true);
+    lens([[ids('cpu')[0]!, 0.5]]);
+    expect(shroud!.visible).toBe(false);
+    m.powerGlow(null);
+    expect(shroud!.visible).toBe(true);
+  });
+
+  it('puts the fans\' rings of light low while the lens shows: a decoration is no power', () => {
+    const on = { ...snap, powered: true, power: { ...snap.power, off: false, tripped: false }, cables: snap.cables.map((c) => ({ ...c, connected: true })) };
+    const fans = (m as unknown as { fans: { ring: MeshStandardMaterial | null }[] }).fans.filter((f) => f.ring);
+    expect(fans.length).toBeGreaterThan(0);
+    const ring = (): number => Math.max(...fans.map((f) => f.ring!.emissiveIntensity));
+    m.powerGlow(null);
+    // (the fans spin up: their rings shine)
+    for (let i = 0; i < 80; i++) m.frame(on, 0.1);
+    const own = ring();
+    expect(own).toBeGreaterThan(0.5);
+    m.powerGlow(new Map([[ids('fan')[0]!, 1]]), new Set(), new Map([[ids('fan')[0]!, 'use']]));
+    m.frame(on, 0.1);
+    expect(ring()).toBeLessThan(own * 0.25);
+    m.powerGlow(null);
+    m.frame(on, 0.1);
+    expect(ring()).toBeGreaterThan(own * 0.9);
+    // (the machine off again: the next tests see the rings dark)
+    for (let i = 0; i < 80; i++) m.frame(snap, 0.1);
+  });
+
+  it('keeps the own look of a part that has no role (a heatsink, a radiator), and brings every look back when the lens ends', () => {
+    const cpu = ids('cpu')[0]!;
+    const before = glow(cpu).k;
+    // (roles say none for the cpu: it is not in the map)
+    m.powerGlow(new Map([[cpu, 0.9]]), new Set(), new Map());
+    settle();
+    expect(glow(cpu).k).toBeCloseTo(before, 5);
+    lens([[cpu, 0.9]]);
+    expect(glow(cpu).k).toBeGreaterThan(before + 0.1);
+    m.powerGlow(null);
+    settle();
+    expect(glow(cpu).k).toBeCloseTo(before, 3);
+  });
+});

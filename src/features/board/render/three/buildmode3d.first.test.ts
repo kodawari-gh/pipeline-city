@@ -25,7 +25,7 @@ vi.mock('@/core/render/three/post', () => ({
     refine = () => false;
     meter = () => null;
     metered = () => null;
-    setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {}
+    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
     /** One program that links when the test says so, and counts its first use. */
     startPrograms = () => { rig.started(); return [{ isReady: () => rig.ready, getUniforms: rig.used }]; };
   },

@@ -5,11 +5,13 @@
 // the depth test, lifted a little toward the eye (a cable is seen where it runs, and goes behind the parts that stand in front of it); the runs the machine does not
 // show (behind the tray) are drawn through everything, thin and dim. Rings on the open sockets are drawn through everything too.
 import { AdditiveBlending, DoubleSide, Float32BufferAttribute, Group, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, type PerspectiveCamera } from 'three';
-import { powerGlsl } from '@/core/render/three/powerscale';
+import { powerGlsl, type Role } from '@/core/render/three/powerscale';
 import type { PowerDraw, PowerLine, PowerShape } from './net';
 
 /** The brightness of the lines over the picture. */
 const STRENGTH = 1.25;
+/** How much of a plate's brightness shows through what stands in front of it. */
+const HIDDEN_PLATE = 0.22;
 /** Speed (units a second) and gap between pulses (units) at the foot and the top of the scale. */
 const SPEED_LO = 1500, SPEED_HI = 5200, GAP_LO = 1500, GAP_HI = 800;
 /** A held cable's lines (the hand draws its own). */
@@ -47,12 +49,15 @@ export function strips(lines: readonly PowerLine[]): Strips {
   return { a, b, look, n: k, first, count };
 }
 
+/** A line's tone in its strips' state: a use's amber, a hub's cyan, a source's white. */
+const TONE: Record<Role, number> = { use: 0, hub: 1, source: 2 };
+
 const VERT = /* glsl */`
 attribute vec2 corner;
 attribute vec4 iA, iB, iLook;
-attribute vec2 iState;
+attribute vec3 iState;
 uniform float uPixel;
-varying float vS, vAcross, vLevel, vState, vSeed, vFade;
+varying float vS, vAcross, vLevel, vState, vSeed, vFade, vTone;
 void main() {
   vec3 pa = (modelViewMatrix * vec4(iA.xyz, 1.0)).xyz, pb = (modelViewMatrix * vec4(iB.xyz, 1.0)).xyz;
   vec3 way = pb - pa;
@@ -76,14 +81,20 @@ void main() {
   vAcross = corner.y;
   vLevel = iState.x;
   vState = iState.y;
+  vTone = iState.z;
   vSeed = iLook.y;
   vFade = iLook.w;
 }`;
 
+/** The colour of a role at a place on its scale (GLSL): `tone` 0 a use, 1 a hub, 2 a source. */
+const ROLE_GLSL = /* glsl */`
+vec3 role(float tone, float h) { return tone > 1.5 ? source(h) : (tone > 0.5 ? hub(h) : power(h)); }`;
+
 const FRAG = /* glsl */`
 uniform float uT, uClock, uStrength, uDim;
-varying float vS, vAcross, vLevel, vState, vSeed, vFade;
+varying float vS, vAcross, vLevel, vState, vSeed, vFade, vTone;
 ${powerGlsl()}
+${ROLE_GLSL}
 void main() {
   // a round line: a hot core, a soft edge
   float prof = pow(1.0 - min(abs(vAcross), 1.0), 1.7);
@@ -96,7 +107,7 @@ void main() {
     a = prof * (0.4 + 0.45 * p);
   } else if (vState < 0.5) {
     // nothing runs: a dim thread
-    col = power(0.0) * 0.9;
+    col = role(vTone, 0.0) * 0.9;
     a = prof * 0.3;
   } else {
     // a pulse is a comet: a bright head, a tail behind it, going along the line toward the part
@@ -106,7 +117,7 @@ void main() {
     float head = pow(f, 9.0) * (1.0 - smoothstep(0.94, 1.0, f));
     float body = 0.14 + 0.2 * lv;
     // (the head is hotter than the line: paler, toward white at the top of the scale)
-    col = power(lv) * body + power(min(1.0, lv + 0.35)) * (1.9 * head);
+    col = role(vTone, lv) * body + role(vTone, min(1.0, lv + 0.35)) * (1.9 * head);
     a = prof * (0.5 + 0.5 * head);
   }
   // a stub of a hidden run fades in toward the cable it ends in
@@ -165,8 +176,8 @@ class Layer {
     this.geo.setAttribute('iA', new InstancedBufferAttribute(s.a, 4));
     this.geo.setAttribute('iB', new InstancedBufferAttribute(s.b, 4));
     this.geo.setAttribute('iLook', new InstancedBufferAttribute(s.look, 4));
-    this.state = new Float32Array(2 * Math.max(1, s.n));
-    this.attr = new InstancedBufferAttribute(this.state, 2);
+    this.state = new Float32Array(3 * Math.max(1, s.n));
+    this.attr = new InstancedBufferAttribute(this.state, 3);
     this.geo.setAttribute('iState', this.attr);
     this.geo.instanceCount = s.n;
     this.mat = new ShaderMaterial({
@@ -185,8 +196,8 @@ class Layer {
   set(draw: PowerDraw, held: ReadonlySet<string>, dim: number): void {
     const st = this.state, s = this.s;
     this.lines.forEach((l, i) => {
-      const ix = this.index[i]!, lv = draw.level[ix]!, state = held.has(l.cable) ? HELD : draw.state[ix]!;
-      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) { st[2 * k] = lv; st[2 * k + 1] = state; }
+      const ix = this.index[i]!, lv = draw.level[ix]!, state = held.has(l.cable) ? HELD : draw.state[ix]!, tone = TONE[l.tone];
+      for (let k = s.first[i]!, e = k + s.count[i]!; k < e; k++) { st[3 * k] = lv; st[3 * k + 1] = state; st[3 * k + 2] = tone; }
     });
     this.attr.needsUpdate = true;
     this.mat.uniforms.uDim!.value = dim;
@@ -255,12 +266,136 @@ class Rings {
   }
 }
 
-/** The lines and rings of one shape. */
+const NODE_VERT = /* glsl */`
+attribute vec2 corner;
+attribute vec3 iAt, iEx, iEy;
+attribute vec4 iLook;
+varying vec2 vLocal, vHalf;
+varying float vRole, vLevel, vState, vRound, vSeed;
+void main() {
+  // the plate and a margin round it, for the glow of its edge
+  vHalf = vec2(length(iEx), length(iEy));
+  vLocal = corner * vHalf * 1.14;
+  vec4 mv = modelViewMatrix * vec4(iAt + iEx * corner.x * 1.14 + iEy * corner.y * 1.14, 1.0);
+  // toward the eye a little: the plate lies just over what it marks
+  mv.xyz -= normalize(mv.xyz) * 16.0;
+  gl_Position = projectionMatrix * mv;
+  vRole = iLook.x; vLevel = iLook.y; vState = iLook.z; vRound = iLook.w;
+  vSeed = fract(dot(iAt, vec3(0.011, 0.007, 0.013)));
+}`;
+
+const NODE_FRAG = /* glsl */`
+uniform float uClock, uStrength;
+varying vec2 vLocal, vHalf;
+varying float vRole, vLevel, vState, vRound, vSeed;
+${powerGlsl()}
+${ROLE_GLSL}
+// the signed distance to a rounded box: negative inside
+float sdBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main() {
+  float d = sdBox(vLocal, vHalf, vRound), w = max(26.0, 0.1 * min(vHalf.x, vHalf.y));
+  // a bright edge and a soft fill: the node's outline, so it reads as a thing and not a smear
+  float edge = 1.0 - smoothstep(0.0, w, abs(d));
+  float fill = 1.0 - smoothstep(-w, w * 0.4, d);
+  vec3 col;
+  float a;
+  if (vState > 1.5) {
+    // fed by a cable that is out: red, pulsing
+    float p = 0.5 + 0.5 * sin(uClock * 6.0 + vSeed * 6.2831853);
+    col = warn() * (0.8 + 0.6 * p);
+    a = edge * (0.5 + 0.4 * p) + fill * 0.2 * p;
+  } else if (vState < 0.5) {
+    // nothing passes: a dim outline
+    col = role(vRole, 0.0);
+    a = edge * 0.45 + fill * 0.06;
+  } else {
+    float lv = max(vLevel, 0.2), breathe = 0.86 + 0.14 * sin(uClock * 2.4 + vSeed * 6.2831853);
+    col = role(vRole, lv) * (0.9 + 0.5 * lv);
+    a = (edge * 0.95 + fill * (0.2 + 0.2 * lv)) * breathe;
+  }
+  if (d > w * 1.2) discard;
+  gl_FragColor = vec4(col * uStrength, a);
+}`;
+
+/**
+ * The plates of the nodes that are places (`PowerNode`): one quad each, lying where the thing is, drawn with the depth test so a part in front of it hides it. The colour is
+ * the role (a hub cyan, a source white), the brightness what passes through; a hub whose feeding cable is out pulses red.
+ */
+class Nodes {
+  readonly mesh: Mesh;
+  private readonly geo = new InstancedBufferGeometry();
+  private readonly mat: ShaderMaterial;
+  /** The same plates through everything, dim: a hub that stands behind a drive cage or a card is still where it is (as the runs behind the tray are drawn dim). */
+  private readonly hiddenMat: ShaderMaterial;
+  private readonly look: Float32Array;
+  private readonly attr: InstancedBufferAttribute;
+  private readonly n: number;
+
+  constructor(shape: PowerShape) {
+    const n = (this.n = shape.nodes.length), at = new Float32Array(3 * n), ex = new Float32Array(3 * n), ey = new Float32Array(3 * n);
+    this.look = new Float32Array(4 * Math.max(1, n));
+    shape.nodes.forEach((nd, k) => {
+      at.set(nd.at, 3 * k); ex.set(nd.ex, 3 * k); ey.set(nd.ey, 3 * k);
+      this.look[4 * k] = TONE[nd.role];
+      this.look[4 * k + 3] = nd.round;
+    });
+    this.geo.setAttribute('corner', new Float32BufferAttribute([-1, -1, 1, -1, -1, 1, 1, 1], 2));
+    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(12), 3));
+    this.geo.setIndex([0, 1, 2, 1, 3, 2]);
+    this.geo.setAttribute('iAt', new InstancedBufferAttribute(at, 3));
+    this.geo.setAttribute('iEx', new InstancedBufferAttribute(ex, 3));
+    this.geo.setAttribute('iEy', new InstancedBufferAttribute(ey, 3));
+    this.attr = new InstancedBufferAttribute(this.look, 4);
+    this.geo.setAttribute('iLook', this.attr);
+    this.geo.instanceCount = n;
+    this.mat = new ShaderMaterial({
+      vertexShader: NODE_VERT, fragmentShader: NODE_FRAG, transparent: true, depthWrite: false, depthTest: true, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH } },
+    });
+    this.mesh = new Mesh(this.geo, this.mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 1001;
+    this.mesh.raycast = () => {};
+    this.mesh.visible = n > 0;
+    this.hiddenMat = new ShaderMaterial({
+      vertexShader: NODE_VERT, fragmentShader: NODE_FRAG, transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending, toneMapped: false, side: DoubleSide,
+      uniforms: { uClock: { value: 0 }, uStrength: { value: STRENGTH * HIDDEN_PLATE } },
+    });
+    const hidden = new Mesh(this.geo, this.hiddenMat);
+    hidden.frustumCulled = false;
+    hidden.renderOrder = 1000;
+    hidden.raycast = () => {};
+    hidden.visible = n > 0;
+    this.mesh.add(hidden);
+  }
+
+  set(draw: PowerDraw): void {
+    for (let k = 0; k < this.n; k++) { this.look[4 * k + 1] = draw.nodeLevel[k]!; this.look[4 * k + 2] = draw.nodeState[k]!; }
+    this.attr.needsUpdate = true;
+  }
+
+  frame(clock: number): void {
+    this.mat.uniforms.uClock!.value = clock;
+    this.hiddenMat.uniforms.uClock!.value = clock;
+  }
+
+  get count(): number { return this.n; }
+
+  dispose(): void {
+    this.mesh.removeFromParent();
+    this.geo.dispose();
+    this.mat.dispose();
+    this.hiddenMat.dispose();
+  }
+}
+
+/** The lines, rings and plates of one shape. */
 export class PowerFlows {
   readonly mesh = new Group();
   private readonly solid: Layer;
   private readonly ghost: Layer;
   private readonly rings: Rings;
+  private readonly nodes: Nodes;
   private t = 0;
 
   constructor(shape: PowerShape) {
@@ -269,7 +404,8 @@ export class PowerFlows {
     this.solid = new Layer(a.map((i) => shape.lines[i]!), a, true, 1002);
     this.ghost = new Layer(b.map((i) => shape.lines[i]!), b, false, 1003);
     this.rings = new Rings(shape);
-    this.mesh.add(this.solid.mesh, this.ghost.mesh, this.rings.mesh);
+    this.nodes = new Nodes(shape);
+    this.mesh.add(this.nodes.mesh, this.solid.mesh, this.ghost.mesh, this.rings.mesh);
   }
 
   /** A new snapshot on the shape (`held`: the cables a hand holds). */
@@ -278,6 +414,7 @@ export class PowerFlows {
     // (the runs behind the tray are a hint: dimmer than the rest)
     this.ghost.set(draw, held, 0.55);
     this.rings.set(draw.open);
+    this.nodes.set(draw);
   }
 
   /** Per frame: `dt` game seconds (0 holds the pulses), `clock` real seconds (the red pulse of what is wrong goes on while the game is paused). */
@@ -287,15 +424,19 @@ export class PowerFlows {
     this.solid.frame(pixel, this.t, clock);
     this.ghost.frame(pixel, this.t, clock);
     this.rings.frame(pixel, clock % 1000);
+    this.nodes.frame(clock % 1000);
   }
 
   /** How many strips are drawn, for the check tool. */
   get strips(): number { return this.solid.strips + this.ghost.strips; }
+  /** How many plates are drawn. */
+  get plates(): number { return this.nodes.count; }
 
   dispose(): void {
     this.mesh.removeFromParent();
     this.solid.dispose();
     this.ghost.dispose();
     this.rings.dispose();
+    this.nodes.dispose();
   }
 }

@@ -4,7 +4,7 @@ import {
   Color, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   type Mesh, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters, type Object3D,
 } from 'three';
-import { powerHex, WARN } from './powerscale';
+import { hubHex, POWER_LIFT, powerHex, sourceHex, WARN, type Role } from './powerscale';
 import { thermalHex } from './thermal';
 
 export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
@@ -116,10 +116,11 @@ export class PartSkin {
   thermal(heat: number | null): void { this.goalHeat = heat; this.lens = THERMAL_VIEW; }
 
   /**
-   * The power view: the part shows what it draws at place `level` (0 to 1) on the power scale (`powerscale.ts`): a part that draws nothing stays dark, one that draws
-   * glows amber, brighter with its draw. `warn`: the glow is the warning's red (a supply over its budget). Null brings its own look back.
+   * The power view: the part shows what it draws at place `level` (0 to 1) on the power scale (`powerscale.ts`): a part that draws nothing keeps a dim glow (it is a
+   * power part), one that draws glows brighter with its draw, in its role's colour (`role`: a use is amber, a hub, a supply that hands the power on, cyan, a source
+   * white). `warn`: the glow is the warning's red (a supply over its budget). Null brings its own look back.
    */
-  electric(level: number | null, warn = false): void { this.goalHeat = level; this.lens = warn ? WARN_VIEW : POWER_VIEW; }
+  electric(level: number | null, warn = false, role: Role = 'use'): void { this.goalHeat = level; this.lens = warn ? WARN_VIEW : ROLE_VIEW[role]; }
 
   /** Still on its way to the state's look (a frame drawn on demand, docs/render/load.md, keeps drawing meanwhile). */
   get easing(): boolean {
@@ -161,10 +162,16 @@ const THERMAL_BODY = 0.35, THERMAL_GLOW_MIN = 0.1, THERMAL_GLOW = 1.5;
  */
 interface LensView { hex: (h: number) => number; body: number; floor: number; gain: number; bend: number; soft: number }
 const THERMAL_VIEW: LensView = { hex: thermalHex, body: THERMAL_BODY, floor: THERMAL_GLOW_MIN, gain: THERMAL_GLOW, bend: 1.2, soft: 0 };
-/** The power view: a part that draws nothing has no glow at all; the veil does the dimming, so the body goes less dark than in the thermal view. The glow is strong: the veil is over it too. */
-const POWER_GLOW = 2.5;
-const POWER_VIEW: LensView = { hex: powerHex, body: 0.6, floor: 0, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
-const WARN_VIEW: LensView = { hex: () => WARN, body: 0.6, floor: 0, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
+/**
+ * The power view. The veil does the dimming (it is very dark, `POWER_VEIL`), so the body goes less dark than in the thermal view and the glow is strong: both are lifted
+ * by what the veil takes (`POWER_LIFT`), so a power part reads as it would under a plain veil while everything else goes nearly black. A part that draws nothing keeps a
+ * dim glow (`floor`): it is a power part, and it is off.
+ */
+const POWER_GLOW = 2.5 * POWER_LIFT, POWER_BODY = 0.6 * POWER_LIFT, POWER_FLOOR = 0.45 * POWER_LIFT;
+const POWER_VIEW: LensView = { hex: powerHex, body: POWER_BODY, floor: POWER_FLOOR, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
+const WARN_VIEW: LensView = { hex: () => WARN, body: POWER_BODY, floor: POWER_FLOOR, gain: POWER_GLOW, bend: 0.9, soft: 0.6 };
+/** A hub shows what flows through it in cyan, a source in white: the same glow as a use. */
+const ROLE_VIEW: Readonly<Record<Role, LensView>> = { use: POWER_VIEW, hub: { ...POWER_VIEW, hex: hubHex }, source: { ...POWER_VIEW, hex: sourceHex } };
 
 // ---- shared materials (docs/render/three.md "Merges") ----
 

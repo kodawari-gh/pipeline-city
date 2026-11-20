@@ -19,6 +19,12 @@ export class Lens3D {
   }
 
   /**
+   * Does the lens that is drawing darken the picture on purpose (the power lens: all that is no power part goes near black)? The host then holds the eye
+   * (`Eye.hold`, `Post.setDark`), or the exposure and the local eye would lift the dark back up.
+   */
+  get dark(): boolean { return this.power.shown; }
+
+  /**
    * Per frame (after the camera): draw the lens that is on, or hide both. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel.
    * `machine`: the machine the lens runs in (no machine, no lens).
    */

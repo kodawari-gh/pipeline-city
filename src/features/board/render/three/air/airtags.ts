@@ -3,8 +3,11 @@
 import { Vector3 } from 'three';
 import type { PerspectiveCamera } from 'three';
 import { MONO } from '@/core/render/ink';
-import { powerGradient } from '@/core/render/three/powerscale';
+import { powerGradient, ROLE_HEX, ROLE_WORD, type Role } from '@/core/render/three/powerscale';
 import { thermalGradient } from '@/core/render/three/thermal';
+
+const ROLES: readonly Role[] = ['source', 'hub', 'use'];
+const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 /** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint. */
 export type TagTone = 'heat' | 'warn' | 'dim' | 'watts';
@@ -27,6 +30,10 @@ export interface AirTag {
   under?: string;
   /** A detail: the power lens leaves it out while the machine is small on the screen (the room's view), so the overview keeps only the main words. */
   minor?: boolean;
+  /** The power lens: what the node does with power (a chip of its colour starts the pill): it brings it in (source), hands it on (hub) or uses it. */
+  role?: Role;
+  /** The legend of the three roles in place of words (the chips and their names). */
+  legend?: boolean;
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
@@ -55,6 +62,16 @@ const CSS = `
 .airtag-scale { display: flex; align-items: center; gap: 0.4rem; color: #cfd6ee; }
 .airtag-bar { width: 5.5rem; height: 0.45rem; border-radius: 0.25rem; background: ${thermalGradient('to right')}; }
 .airtag-bar-w { background: ${powerGradient('to right')}; }
+.airtag-r-source:not(.airtag-warn) { color: ${css(ROLE_HEX.source)}; }
+.airtag-r-hub:not(.airtag-warn) { color: #8fe3fb; }
+.airtag-r-use:not(.airtag-warn) { color: #ffd37a; }
+.airtag-chip { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.35rem; vertical-align: -0.02rem; }
+.airtag-chip-source { border-radius: 50%; background: ${css(ROLE_HEX.source)}; box-shadow: 0 0 0.3rem ${css(ROLE_HEX.source)}; }
+.airtag-chip-hub { background: ${css(ROLE_HEX.hub)}; transform: rotate(45deg) scale(0.8); box-shadow: 0 0 0.3rem ${css(ROLE_HEX.hub)}; }
+.airtag-chip-use { background: ${css(ROLE_HEX.use)}; clip-path: polygon(0 8%, 100% 8%, 50% 100%); }
+.airtag-legend { display: flex; align-items: center; gap: 0.8rem; color: #cfd6ee; font-weight: 600; }
+.airtag-legend span { display: inline-flex; align-items: center; }
+.airtag-legend .airtag-chip { margin-right: 0.3rem; }
 `;
 
 interface Trend { temp: number; t: number; slope: number }
@@ -223,9 +240,25 @@ export class AirTags3D {
   }
 
   private writeText(node: PillNode, item: Item): void {
-    const sc = item.tag.scale, watts = item.tag.unit === 'W', key = sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${item.arrow}|${item.tag.text}`;
+    const sc = item.tag.scale, watts = item.tag.unit === 'W', role = item.tag.role;
+    const key = item.tag.legend ? 'legend' : sc ? `scale|${watts ? 'W' : 'C'}|${Math.round(sc[0])}|${Math.round(sc[1])}` : `${item.tag.tone}|${role ?? ''}|${item.arrow}|${item.tag.text}`;
     if (key === node.key) return;
     node.key = key;
+    if (item.tag.legend) {
+      // the legend: a chip of each role's colour and its word
+      node.el.className = 'airtag airtag-legend';
+      node.el.textContent = '';
+      for (const r of ROLES) {
+        const span = document.createElement('span'), chip = document.createElement('i'), word = document.createElement('span');
+        chip.className = `airtag-chip airtag-chip-${r}`;
+        word.textContent = ROLE_WORD[r];
+        span.appendChild(chip);
+        span.appendChild(word);
+        node.el.appendChild(span);
+      }
+      node.label = 30;
+      return;
+    }
     if (sc) {
       // the scale: the values at the two ends of a bar of the palette
       node.el.className = 'airtag airtag-scale';
@@ -238,9 +271,17 @@ export class AirTags3D {
       node.label = 18;
       return;
     }
-    node.el.className = `airtag airtag-${item.tag.tone}`;
-    node.el.textContent = item.tag.text;
-    node.label = item.tag.text.length;
+    node.el.className = `airtag airtag-${item.tag.tone}${role ? ` airtag-r-${role}` : ''}`;
+    node.el.textContent = '';
+    if (role) {
+      // (the chip of its role starts the pill)
+      const chip = document.createElement('i'), text = document.createElement('span');
+      chip.className = `airtag-chip airtag-chip-${role}`;
+      text.textContent = item.tag.text;
+      node.el.appendChild(chip);
+      node.el.appendChild(text);
+    } else node.el.textContent = item.tag.text;
+    node.label = item.tag.text.length + (role ? 2 : 0);
     if (item.arrow) {
       const s = document.createElement('span');
       s.className = `airtag-arrow airtag-${item.arrow}`;

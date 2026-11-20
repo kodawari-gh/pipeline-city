@@ -25,7 +25,7 @@ vi.mock('@/core/render/three/post', () => ({
     refine = rig.refine;
     meter = () => null;
     metered = () => rig.lum;
-    setEye() {} setReach() {} setOutlined() {} apply() {} setSize() {}
+    setEye() {} setReach() {} setDark() {} setOutlined() {} apply() {} setSize() {}
     startPrograms = () => [];
   },
 }));

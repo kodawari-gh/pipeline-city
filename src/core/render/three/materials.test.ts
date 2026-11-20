@@ -67,18 +67,19 @@ describe('part looks', () => {
     expect(skin.easing).toBe(false);
   });
 
-  it('the power view leaves a part that draws nothing dark and makes one that draws glow amber, more with its draw; a warning glows red; null gives the own look back', () => {
+  it('the power view keeps a dim glow on a part that draws nothing and makes one that draws glow amber, more with its draw; a warning glows red; null gives the own look back', () => {
     const m = mat(0x808080), skin = new PartSkin([m]), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
     skin.set(ON);
     skin.electric(0);
     settle();
-    // (nothing drawn: no glow at all, the body a little darker)
-    expect(m.emissiveIntensity).toBeCloseTo(0, 5);
-    expect(m.color.r).toBeLessThan(base);
+    // (nothing drawn: a dim glow, so a power part that is off still stands out of the dark veil; its body lifted against that veil)
+    const off = m.emissiveIntensity;
+    expect(off).toBeGreaterThan(0.2);
+    expect(m.color.r).toBeGreaterThan(base);
     skin.electric(0.3);
     settle();
     const low = m.emissiveIntensity;
-    expect(low).toBeGreaterThan(0.5);
+    expect(low).toBeGreaterThan(off * 1.3);
     // (amber: red leads, blue is least)
     expect(m.emissive.r).toBeGreaterThan(m.emissive.g);
     expect(m.emissive.g).toBeGreaterThan(m.emissive.b);
@@ -98,6 +99,22 @@ describe('part looks', () => {
     skin.thermal(0);
     settle();
     expect(m.emissive.b).toBeGreaterThan(m.emissive.r);
+  });
+
+  it('a hub glows cyan and a source white in the power view, a use amber: the colour is the role, the brightness the draw', () => {
+    const settle = (s: PartSkin): void => { for (let i = 0; i < 400; i++) s.frame(1 / 60); };
+    const [use, hub, src] = [0, 1, 2].map(() => { const m = mat(0x808080); return { m, skin: new PartSkin([m]) }; });
+    for (const [x, role] of [[use!, 'use'], [hub!, 'hub'], [src!, 'source']] as const) { x.skin.set(ON); x.skin.electric(0.8, false, role); settle(x.skin); }
+    expect(use!.m.emissive.r).toBeGreaterThan(use!.m.emissive.b * 2);
+    expect(hub!.m.emissive.b).toBeGreaterThan(hub!.m.emissive.r * 1.5);
+    // (white: the three channels are close)
+    expect(Math.max(src!.m.emissive.r, src!.m.emissive.g, src!.m.emissive.b) - Math.min(src!.m.emissive.r, src!.m.emissive.g, src!.m.emissive.b)).toBeLessThan(0.15);
+    // (the glow is as strong in each: one brightness for every role)
+    expect(hub!.m.emissiveIntensity).toBeCloseTo(use!.m.emissiveIntensity, 5);
+    // (a warning is red whatever the role)
+    hub!.skin.electric(0.8, true, 'hub');
+    settle(hub!.skin);
+    expect(hub!.m.emissive.r).toBeGreaterThan(hub!.m.emissive.b);
   });
 
   it('a part with wide faces glows softer in the power view, and as any part in the thermal view', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { levelOf, POWER, powerGlsl, powerGradient, powerHex, WARN, wattsAt } from './powerscale';
+import { HUB, hubHex, levelOf, POWER, POWER_LIFT, POWER_VEIL, powerGlsl, powerGradient, powerHex, ROLE_HEX, roleScaleHex, SOURCE, sourceHex, WARN, wattsAt } from './powerscale';
 
 describe('the power scale', () => {
   it('runs from a dark amber to a pale hot yellow, and each stop is its own colour', () => {
@@ -32,7 +32,32 @@ describe('the power scale', () => {
     const g = powerGlsl();
     expect(g).toContain('vec3 power(float h)');
     expect(g).toContain('vec3 warn()');
-    expect(g.match(/return/g)!.length).toBe(POWER.length + 1);
+    // (a use, a hub and a source are a function each, and the warning)
+    expect(g.match(/return/g)!.length).toBe(POWER.length + HUB.length + SOURCE.length + 1);
     expect(powerGradient()).toMatch(/^linear-gradient\(to right, #7a4a10 0%.*#ffe58a 100%\)$/);
+  });
+
+  it('gives each role its own colour family: a source white, a hub cyan, a use amber', () => {
+    const r = (c: number) => c >> 16, g = (c: number) => (c >> 8) & 255, b = (c: number) => c & 255;
+    for (const h of [0.3, 0.62, 1]) {
+      // (a hub is blue over red, a use is red over blue, a source is near white: its channels stay close)
+      expect(b(hubHex(h))).toBeGreaterThan(r(hubHex(h)));
+      expect(r(powerHex(h))).toBeGreaterThan(b(powerHex(h)));
+    }
+    expect(r(sourceHex(1)) - b(sourceHex(1))).toBeLessThan(24);
+    expect(hubHex(0)).toBe(HUB[0]![1]);
+    expect(hubHex(1)).toBe(HUB[HUB.length - 1]![1]);
+    expect(sourceHex(1)).toBe(SOURCE[SOURCE.length - 1]![1]);
+    for (const role of ['source', 'hub', 'use'] as const) expect(roleScaleHex(role, 0.5)).toBe({ source: sourceHex, hub: hubHex, use: powerHex }[role](0.5));
+    // (the chips of the legend are each role's colour, all different)
+    expect(new Set(Object.values(ROLE_HEX)).size).toBe(3);
+  });
+
+  it('lifts a power part by what the veil takes: the part reads under it as it did under the first veil', () => {
+    const mean = (POWER_VEIL[0] + POWER_VEIL[1] + POWER_VEIL[2]) / 3;
+    expect(POWER_LIFT * mean).toBeCloseTo(0.155, 6);
+    // (a lens for the power parts alone: everything else goes about half as dark as the first veil's 0.155, and darker than 0.1)
+    expect(mean).toBeLessThan(0.1);
+    for (const c of POWER_VEIL) expect(c).toBeGreaterThan(0);
   });
 });

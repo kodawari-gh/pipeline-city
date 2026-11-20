@@ -21,6 +21,7 @@ import { lowDetail } from '@/core/render/three/detail';
 import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PartSkin, mat, own, shareMaterials, type PartState } from '@/core/render/three/materials';
+import type { Role } from '@/core/render/three/powerscale';
 import { heatOf } from '@/core/render/three/thermal';
 import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
@@ -60,7 +61,7 @@ import { SINK_FAN_MID, sinkBody } from './sink3d';
 import { DOOR_SECONDS, doorPose, stepDoor } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf, type StripMode } from '@/features/room/render/shell/exterior';
-import { basementPlan, shroud } from './basement3d';
+import { SHROUD, basementPlan, shroud } from './basement3d';
 import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot, type CagePlan } from './drivecage3d';
 import { footShade } from './footshade3d';
 import { drivePlug, sataDriveModel } from './drive3d';
@@ -97,6 +98,8 @@ const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_F
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
+/** What a fan's ring of light is multiplied by while the power lens shows: it is a decoration, so it goes low (it would read as the fan's power). */
+const RING_IN_LENS = 0.1;
 /** How long `Machine3D.make` builds before the page has its turn (ms): a task is this long plus the longest step (the board's model, 0.1 s). */
 const SLICE_MS = 30;
 const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
@@ -647,11 +650,45 @@ export class Machine3D {
   }
 
   /**
-   * The power lens's view of the parts (docs/render/power.md): each part with a skin glows by what it draws (`levels`, by device id, 0 to 1 on the power scale; a
-   * part that is not in it draws nothing and stays dark), red for the ids in `warn`. Null puts every part's own look back.
+   * The power lens's view of the parts (docs/render/power.md): each power part (`roles`, by device id: a use, a hub or a source) glows by what it draws (`levels`, by
+   * device id, 0 to 1 on the power scale) in its role's colour, red for the ids in `warn`. A part with no role (a heatsink, a radiator, a hose) keeps its own look, under
+   * the veil. With no `roles` every part in `levels` is a use. Null puts every part's own look back. The basement's shroud is taken off while the lens shows: the
+   * supply and the fan hub, two of its hubs, stand under it, and its top sheet hides them from above.
    */
-  powerGlow(levels: ReadonlyMap<string, number> | null, warn: ReadonlySet<string> = new Set()): void {
-    for (const [id, sk] of this.skins) sk.electric(levels ? (levels.get(id) ?? 0) : null, warn.has(id));
+  powerGlow(levels: ReadonlyMap<string, number> | null, warn: ReadonlySet<string> = new Set(), roles: ReadonlyMap<string, Role> | null = null): void {
+    const each = (id: string, sk: PartSkin): void => {
+      const role = roles ? roles.get(id) : levels?.has(id) ? 'use' : undefined;
+      sk.electric(levels && role ? (levels.get(id) ?? 0) : null, warn.has(id), role);
+    };
+    for (const [id, sk] of this.skins) each(id, sk);
+    for (const [id, sk] of this.powerSkins) each(id, sk);
+    const cover = this.root.getObjectByName(SHROUD);
+    if (cover) cover.visible = !levels;
+    // (the fans' rings of light are a decoration: they go low, or they read as the power of the fan)
+    this.ringK = levels ? RING_IN_LENS : 1;
+  }
+
+  /** What the fans' rings of light are multiplied by (1: their own, `RING_IN_LENS`: while the power lens shows). */
+  private ringK = 1;
+
+  /** The skins of the power lens alone: a part with no look of its own to follow in the other views (a fan, the module) that glows by its draw there and nowhere else. */
+  private powerSkins = new Map<string, PartSkin>();
+  /**
+   * The power lens's skin of the part tagged `id` inside `root`: each of its meshes gets a copy of its material that no other part shares (a fan's frame is one material
+   * for every fan), so the lens can light one fan alone. A glow of the part's own (a fan's ring of light) is left as it is.
+   */
+  private powerSkin(id: string, root: Object3D): void {
+    const part = findById(root, id);
+    if (!part) return;
+    const copies = new Map<MeshStandardMaterial, MeshStandardMaterial>();
+    part.traverse((o) => {
+      const m = o as Mesh, src = m.material;
+      if (!m.isMesh || Array.isArray(src) || !(src instanceof MeshStandardMaterial) || src.emissive.getHex() !== 0) return;
+      let c = copies.get(src);
+      if (!c) copies.set(src, (c = src.clone()));
+      m.material = c;
+    });
+    if (copies.size) this.powerSkins.set(id, new PartSkin([...copies.values()]));
   }
 
   // ------------------------------------------------------------------ parts
@@ -686,7 +723,8 @@ export class Machine3D {
         // (the zoom fades a group inside the part: `fadeTree` sets `visible` each frame, and Build my PC hides the part itself while it is off)
         const fade = new Group();
         g.add(fade);
-        const m = this.model(fade, coolerModel(visual, this.fanFits((slot) => fanHost(slot) === d.slot)));
+        const hosted = this.fanFits((slot) => fanHost(slot) === d.slot), m = this.model(fade, coolerModel(visual, hosted));
+        for (const f of hosted) this.powerSkin(f.id, fade);
         if (lowDetail()) { const f = coolerFoot(visual); fade.add(onBoard(footShade(f.r, COOLER_SHADE.reach, COOLER_SHADE.peak, f.round))); }
         this.fades.push(fade);
         this.pump = !!(spec as { loop?: unknown }).loop;
@@ -736,6 +774,7 @@ export class Machine3D {
       case 'tpm': {
         // the module on its header (tpm3d.ts); its die runs over its chip, its LED shows protected mode (chips3d.ts)
         if (tpmModel(g, visual, (top, r, z) => this.chips?.face(top, 'tpm', r, z + 2, d.slot))) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
+        this.powerSkin(d.id, g);
         break;
       }
       case 'psu': {
@@ -775,6 +814,7 @@ export class Machine3D {
           const depth = fanDepth(fit.spec.size), fan = fanPart(fit.spec, spot.w, depth);
           fan.root.position.set(spot.x + spot.w / 2, -(spot.y + spot.h / 2), foot + depth / 2);
           g.add(tag(fan.root, fit.id));
+          this.powerSkin(fit.id, g);
           this.spin({ ...fan.spin, needs: spec.kind === 'vrm-sink' ? 'vrmfan' : 'ramfan' });
         }
         break;
@@ -797,6 +837,7 @@ export class Machine3D {
         g.add(f.root);
         if (m.side === 'rear') g.add(rearFanScrews());
         this.spin(this.caseRgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
+        this.powerSkin(d.id, g);
         this.caseRoots.push(g);
         break;
       }
@@ -1190,6 +1231,7 @@ export class Machine3D {
       drop(this.keep, o.keep); drop(this.caseRoots, o.caseRoots); drop(this.rails, o.rails);
       for (const ob of o.obstacles) this.solids.delete(ob);
       this.skins.delete(o.id);
+      this.powerSkins.delete(o.id);
       if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
       this.cards.delete(d.slot);
       if (d.kind === 'cooler') { this.cooler = null; this.pump = false; }
@@ -1201,6 +1243,8 @@ export class Machine3D {
       if (!o || o.id === d.id) continue;
       const sk = this.skins.get(o.id);
       if (sk) { this.skins.delete(o.id); this.skins.set(d.id, sk); }
+      const ps = this.powerSkins.get(o.id);
+      if (ps) { this.powerSkins.delete(o.id); this.powerSkins.set(d.id, ps); }
       o.id = d.id;
     }
     this.ram = null;
@@ -1280,6 +1324,7 @@ export class Machine3D {
     this.ramMap?.update(s?.ram ?? null, performance.now());
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);
+    for (const sk of this.powerSkins.values()) sk.frame(dt);
     const rgb = this.accent;
     const turning = new Map<string, number>();
     for (const f of this.fans) {
@@ -1287,7 +1332,7 @@ export class Machine3D {
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
-      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed; }
+      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed * this.ringK; }
       const bank = f.needs ? this.bankOf(f.needs) : null;
       if (bank) turning.set(bank, Math.max(turning.get(bank) ?? 0, f.speed));
     }
@@ -1331,6 +1376,7 @@ export class Machine3D {
     if (this.strip && (this.stripMode === 'work' || this.stripMode === 'error')) return true;
     if (this.blink && this.leds) return true;
     for (const sk of this.skins.values()) if (sk.easing) return true;
+    for (const sk of this.powerSkins.values()) if (sk.easing) return true;
     return false;
   }
 

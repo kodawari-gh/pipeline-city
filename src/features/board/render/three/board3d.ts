@@ -26,6 +26,7 @@ import { anisotropy, disposeTree, refilter, shareTex } from '@/core/render/three
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
 import { HIGH_C, MID } from '@/core/render/three/localeye';
+import { EYE_SKIP } from '@/core/render/three/eye';
 import { Post, roomness } from '@/core/render/three/post';
 import { PROBE_CALM, Probe } from '@/core/render/three/probe';
 import { caseShaded } from '@/core/render/three/caseshade';
@@ -129,6 +130,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
   // the metered eye: the meter's last reading, the exposure's factor it asks for, and where the eye stands on its way to it
   let reading = 0, metered = 1, seen = 1;
+  // (the power lens darkens the picture on purpose: the metered eye holds where it stood, and drops the readings of the darkened frames that come after the lens ends)
+  let heldReads = 0;
 
   // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
   const chips = new Chips3D();
@@ -719,7 +722,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const ok = [...ids].join('|');
     if (ok !== outlineKey) { outlineKey = ok; demand.ask(); }
     // (how near the eye is, by the height shown at `LOOK_Z`: the same picture reads the same whatever its target)
-    const seenH = heightAt(view, LOOK_Z);
+    const seenH = heightAt(view, LOOK_Z), dark = lens.dark;
+    // (the local eye is out while the power lens darkens the picture, or it would lift the dark back up)
+    post.setDark(dark);
     post.setReach(seenH);
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
     const near = 1 - roomness(seenH);
@@ -740,7 +745,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     }
     // a still of the room for the next boot screen: always from the overview's fixed angle, whatever the player looks at. A draw of its own, before
     // the frame's (which paints over it), in the same task: the buffer is not kept, so it is copied right after the draw.
-    if (revealed && s && now - stillAt > STILL_MS) {
+    // (not while the power lens darkens the picture: the title would show the dark)
+    if (revealed && s && !dark && now - stillAt > STILL_MS) {
       stillAt = now;
       const ov = overview(), h = heightAt(ov, LOOK_Z), nr = 1 - roomness(h);
       applyView(camera, ov, aspect());
@@ -772,7 +778,11 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       shift.mark(camera, canvas.width, canvas.height);
     }
     const lum = draw && near > 0 ? post.meter() : null;
-    if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
+    if (lum !== null) {
+      if (dark) heldReads = EYE_SKIP;
+      else if (heldReads > 0) heldReads--;
+      else { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
+    }
     seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room && draw) {

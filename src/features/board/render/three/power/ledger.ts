@@ -34,6 +34,8 @@ export interface Ledger {
   board: ReadonlyMap<string, number>;
   /** The draw of each kind of part (`cpu`, `ram`, `storage`, `gpu`, `fan`...), the supply and the monitor left out. */
   kinds: ReadonlyMap<string, KindDraw>;
+  /** What each regulator hands on (`out`, W: the processor's, the memory's) and what it wastes as heat (`loss`, W): it takes in the two. */
+  vrm: { cpu: { out: number; loss: number }; ram: { out: number; loss: number } };
   /** Is this cable out of its socket? Only a cable the sim lists (it needs it, or it is plugged) can be. */
   missing(id: string): boolean;
   /** The state of a cable's run. */
@@ -107,9 +109,11 @@ export function powerLedger(s: Snapshot): Ledger {
     kinds.set(d.kind, k);
   }
   const loadW = on ? s.power.totalW : 0;
+  // the regulators: the processor's hands on the processor's draw, the memory's the sticks' (what each wastes is the heat it makes: `VrmSnap.heatW`)
+  const vrm = { cpu: { out: cpuW, loss: on ? Math.max(0, s.board?.vrm?.heatW ?? 0) : 0 }, ram: { out: kinds.get('ram')?.w ?? 0, loss: on ? Math.max(0, s.board?.ramVrm?.heatW ?? 0) : 0 } };
   return {
     on, hasPsu, hasMonitor, monW, pcW, wallW: s.energy.wallW, loadW, budgetW: s.power.budgetW, tripped: s.power.tripped, refW: Math.max(60, loadW),
-    part, cable, board, kinds, missing,
+    part, cable, board, kinds, vrm, missing,
     state: (id) => (missing(id) ? 'missing' : (cable.get(id) ?? 0) > 0.05 ? 'on' : 'idle'),
   };
 }
