@@ -33,7 +33,7 @@ import { Game } from '@/worker/game/game';
 /** A stage with the full rig and no 3D (the best OS, router and plan are in): the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
   const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({ clientWidth: 400, clientHeight: 800 });
-  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [], rig: () => null, holdBack() {}, letRun() {}, isHeldBack: () => false };
+  s._machine = { moving: false, doorOpen: false, frame() {}, setOpen() {}, closeDoor() {}, holdDetail() {}, lod() {}, root: new Group(), boardRoots: () => [], caseRoots: [], rig: () => null, holdBack() {}, letRun() {}, isHeldBack: () => false, panelIds: () => [], syncPanel() {} };
   s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
     this.snaps.drop();

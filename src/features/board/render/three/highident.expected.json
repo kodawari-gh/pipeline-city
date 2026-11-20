@@ -14,11 +14,11 @@
     "sum": "f5d56be3"
   },
   "machine/Group#47": {
-    "meshes": 24,
-    "draws": 19,
-    "verts": 52992,
+    "meshes": 20,
+    "draws": 15,
+    "verts": 33624,
     "instances": 186,
-    "sum": "4cb7a6a5"
+    "sum": "8661bf11"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -145,6 +145,27 @@
     "verts": 16276,
     "instances": 16,
     "sum": "fef53daf"
+  },
+  "machine/cable.panel:F_PANEL": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 11976,
+    "instances": 0,
+    "sum": "850a3b93"
+  },
+  "machine/cable.panel:USB_2": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 3696,
+    "instances": 0,
+    "sum": "e3a9c865"
+  },
+  "machine/cable.panel:USB_3": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 3696,
+    "instances": 0,
+    "sum": "d70b93cc"
   },
   "machine/cable.pcmains": {
     "meshes": 5,

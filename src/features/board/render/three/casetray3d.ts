@@ -16,7 +16,8 @@ import { CASE, CASE_BD, FAN_SLOT, GEO, LAYOUT_CASE, PSU, WALL_T } from '../layou
 import { GROMMETS, kindTone, type Frame } from './casedetail3d';
 import { baseCagePlan, cageGrommet, cagePlan } from './drivecage3d';
 import { FRONT, NONE, outlinePts, pads, perforated, rivets, ring, screws, shapeOf, SIDE_T, slab, tex, type Spot } from './casekit3d';
-import { cableMesh, fanPlug, fromSlot, grommet, hung, TRAY_Z, type Env, type Look } from './wires3d';
+import type { CableRig } from './cablerig3d';
+import { cableMesh, fanPlug, fromSlot, grommet, hangPts, TRAY_Z, type Env, type Look } from './wires3d';
 
 /** A strap's pull tab: the case's accent, muted 70 % toward black, so the band reads as a strap and not a colour. */
 export const strapTone = (acc: number): number => new Color(acc).lerp(new Color(0x101114), 0.7).getHex();
@@ -199,22 +200,41 @@ const LEADS: Readonly<Record<string, { looks: readonly Look[]; plug: string }>> 
   USB_3: { plug: '#1f4fa8', looks: [{ r: 22, base: '#1f4fa8', accent: null }] },
   ARGB: { plug: '#d9d9d9', looks: [{ r: 9, base: '#d8dade', accent: null }] },
 };
+/** The rig ids of every lead the case has (a board has the ones its headers take: `panelRigs`). */
+export const PANEL_IDS: readonly string[] = Object.keys(LEADS).map((h) => `panel:${h}`);
 
-/** The leads from their hole to the headers of the fitted board (static: `buildCables` hangs them as the system fan's cord). */
-export function frontPanelLeads(env: Env): Group {
-  const g = new Group(), hole = leadHole(), hdrs = GEO.hdrs.filter((h) => LEADS[h.name]).sort((a, b) => a.x - b.x);
+/** The id of a front-panel lead's rig, by the header it plugs into (`panelRigs`). */
+export const panelId = (header: string): string => `panel:${header}`;
+/** Is this rig id one of the case's front-panel leads? They are the case's, not the game's: the sim has no such cable. */
+export const isPanelId = (id: string): boolean => id.startsWith('panel:');
+
+/** What a lead's hand-run sleeve wears where its wires differ (the switch and LED wires: a mid grey between their colours). */
+const BUNDLE: Look = { r: 6, base: '#6b6f78', accent: null };
+
+/**
+ * The case's front-panel leads, one rig each (`panel:F_PANEL`, `panel:USB_2`, `panel:USB_3`, `panel:ARGB`, west to east as they hang), each from its share of
+ * the hole under the board's south edge to its header on the fitted board. Rigs, so that Build my PC's hand runs them out and plugs them when the board goes
+ * in, and pulls them and takes them back when it comes out (`BuildStage.plugPanel`); the sim has no such cables, the stage keeps which are plugged.
+ * A board has the headers its tier has: a lead with no header has no rig.
+ */
+export function panelRigs(env: Env): CableRig[] {
+  const hole = leadHole(), hdrs = GEO.hdrs.filter((h) => LEADS[h.name]).sort((a, b) => a.x - b.x), deck = { n: [0, 0, 1] as V3, d: BOARD_Z };
   const from = fromSlot(hole, hdrs.reduce((n, h) => n + LEADS[h.name]!.looks.length, 0));
   let i = 0;
-  for (const h of hdrs) {
-    const { looks, plug } = LEADS[h.name]!, p = fanPlug({ x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 }, plug);
-    g.add(p.root);
-    looks.forEach((look, k) => {
-      const dx = (k - (looks.length - 1) / 2) * 26, end: RopeEnd = { at: [p.end.at[0] + dx, p.end.at[1], p.end.at[2]], dir: p.end.dir };
-      g.add(hung(from[i++]!, end, look, env, { slack: 1.25, extra: 120, n: 16 }));
-    });
-  }
-  g.traverse(seeThrough);
-  return g;
+  return hdrs.map((h): CableRig => {
+    const { looks, plug } = LEADS[h.name]!, fixed = from.slice(i, (i += looks.length)), rect = { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 };
+    const look = looks.length > 1 ? BUNDLE : looks[0]!, o = { slack: 1.25, extra: 120, n: 16 };
+    return {
+      id: panelId(h.name), name: `the ${h.name.replace('_', ' ')} header`, target: null, look, looks, env, fixed, canSeat: true, deck, n: o.n, stiff: 0.5, lead: look.r * 2.5, engage: 70, inert: true,
+      // (the plug on its header, pushed in from the glass side, its wires spread across its top: where the build always had them)
+      model: () => {
+        const p = fanPlug(rect, plug);
+        return { root: p.root, strands: looks.map((_, k): RopeEnd => ({ at: [p.end.at[0] + (k - (looks.length - 1) / 2) * 26, p.end.at[1], p.end.at[2]], dir: p.end.dir })) };
+      },
+      seat: { at: [rect.x + rect.w / 2, -(rect.y + rect.h / 2), BOARD_Z + 150], axis: [0, 0, 1] },
+      seated: (ex) => ex.map((e, k) => hangPts(fixed[k]!, e, looks[k]!, env, o)),
+    };
+  });
 }
 
 /** The leads as a new case ships them, with no board to plug into: two turns on the tray over their hole, tied, their plugs hanging at the ends. */

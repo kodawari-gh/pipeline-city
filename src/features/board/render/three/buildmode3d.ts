@@ -28,7 +28,7 @@ import { WALL_CABLES, cableBlocked, cableNeeded, cablesLost, cablesOf, type Cabl
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
-import type { Result } from '@/worker/game/types';
+import type { CableSnap, Result } from '@/worker/game/types';
 import { freeBakePools, startBaker } from './bake';
 import { deviceFor, fitSlots, screenRect, socketFor, type Rect } from './buildpick';
 import { centred, fitFactor, pictureWindow, type Pt } from './buildshot';
@@ -45,6 +45,7 @@ import { PartFade } from './partfade';
 import { ProgramGate, startPrograms } from '@/core/render/three/compile';
 import { warmLateModels } from '@/core/render/three/gltf';
 import { Machine3D, machineKey } from './machine3d';
+import { PANEL_IDS, isPanelId } from './casetray3d';
 import { StudioWall, ispTier, routerTier, wallPlan, type StageWall, type WallNet, type WallPlan } from './studiowall3d';
 import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
@@ -322,10 +323,11 @@ export class BuildStage {
     warmLateModels(scene, (model) => (this.programs.started ? startPrograms(renderer, model, camera, { scene, fades: [model] }) : null));
     this.lens = new Lens3D(scene, renderer.domElement);
     // the hand that pulls a cable's plug out and pushes it in by itself (plughand3d.ts `pullOut`, `plugIn`), on this stage's own game
+    // (the case's front-panel leads are not the game's cables: the stage keeps which are plugged, `panelOut`, and shows them to the hand as cables)
     this.hand = new PlugHand({
-      machine: () => this._machine, snapshot: () => this.snapshot, toast: (t) => this.note(t),
-      connect: (id, port) => { this.edit((g) => g.connectCable(id, port)); },
-      disconnect: (id) => { this.edit((g) => g.disconnectCable(id)); },
+      machine: () => this._machine, snapshot: () => this.handSnapshot(), toast: (t) => this.note(t),
+      connect: (id, port) => { if (isPanelId(id)) this.plugPanelLead(id, true); else this.edit((g) => g.connectCable(id, port)); },
+      disconnect: (id) => { if (isPanelId(id)) this.plugPanelLead(id, false); else this.edit((g) => g.disconnectCable(id)); },
     }, renderer.domElement);
     scene.add(this.hand.root);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
@@ -431,6 +433,7 @@ export class BuildStage {
       this.cost.skipped++;
       // (a cable plugged in or out by the game's answer, not by the hand: it hangs as the game says)
       this._machine.syncCables(this.snapshot, roomGeo());
+      this._machine.syncPanel(this.panelOut);
       this.holdReeled();
       const st = this.status.peek();
       this.status.value = { ...st, rev: st.rev + 1 };
@@ -442,6 +445,7 @@ export class BuildStage {
     // (a case that gains or loses its board, or a stage that gains or loses its case, is built again: a patch keeps the board it has)
     if (this._machine && this._machine.shown === shown && this._machine.patch(this.snapshot, roomGeo())) {
       this.builtKey = key; this.held.clear(); this.warm = true;
+      this._machine.syncPanel(this.panelOut);
       this.holdReeled();
       this.cost.patches++; this.cost.patchMs += performance.now() - t0;
       this.bump(); this.demand.ask();
@@ -484,6 +488,7 @@ export class BuildStage {
     if (old) this._machine.takeDoor(old);
     if (this._machine.hoses) this._machine.hoses.root.visible = !this.hosesOff;
     scene.add(this._machine.root);
+    this._machine.syncPanel(this.panelOut);
     this.holdReeled();
     this.warm = true;
     this.stage(caseTier);
@@ -918,6 +923,8 @@ export class BuildStage {
     this.swapCount++;
     this.shown.value = shown; // (before the build: it draws the machine as it is now)
     this.game = g; // (the scores of the old machine become the ones to compare with: `benchChanged`, in the setter)
+    this.panelOut.clear(); // (the machine that comes has its leads in their headers)
+    this.panelRev++;
     this.select(null);
     this.glow(null);
     this.status.value = { busy: false, step: '', log: [line], rev: this.status.peek().rev };
@@ -1403,10 +1410,73 @@ export class BuildStage {
   private async reelIn(id: string): Promise<void> {
     const speed = this.pace > 1 ? CABLE_QUICK : 1;
     if (!this.machine.rig(id)) return;
-    if (this.cables[id] && !(await this.hand.pullOut(id, speed))) return;
+    if ((isPanelId(id) ? !this.panelOut.has(id) : !!this.cables[id]) && !(await this.hand.pullOut(id, speed))) return;
     if (this.dead) return;
     this.setStep('Take the cable back into its hole');
     if (await this.hand.stow(id, speed)) this.reeled.add(id);
+  }
+
+  /**
+   * The case's front-panel leads that are out of their headers (the board is out, or going in: `fitShell`). The machine shares the set (`syncPanel`).
+   * They are the case's, not the game's cables: the sim has no such cable and a machine the game builds has every lead in.
+   */
+  private readonly panelOut = new Set<string>();
+  private panelRev = 0;
+  private panelSnap: { src: Snapshot; m: Machine3D; rev: number; out: Snapshot } | null = null;
+
+  /** The snapshot as the hand reads it: the game's, and each front-panel lead of the machine as a cable (plugged unless it is out). */
+  private handSnapshot(): Snapshot {
+    const s = this.snapshot, m = this._machine, c = this.panelSnap;
+    if (!m) return s;
+    if (c && c.src === s && c.m === m && c.rev === this.panelRev) return c.out;
+    // (an id the sim has no word for: the hand only reads it back)
+    const leads = m.panelIds().map((id): CableSnap => ({ id: id as CableSnap['id'], name: m.rig(id)!.name, connected: !this.panelOut.has(id) }));
+    const out: Snapshot = { ...s, cables: [...s.cables, ...leads] };
+    this.panelSnap = { src: s, m, rev: this.panelRev, out };
+    return out;
+  }
+
+  /** The hand pushed a front-panel lead into its header or pulled it out: the stage says so (the machine's built lead follows the hand: `PlugHand`). */
+  private plugPanelLead(id: string, plugged: boolean): void {
+    if (plugged) this.panelOut.delete(id); else this.panelOut.add(id);
+    this.panelRev++;
+  }
+
+  /** Every front-panel lead is in its header (a job is over; a machine the game built): the leads as the machine builds them. */
+  private panelHome(): void {
+    if (!this.panelOut.size) return;
+    this.panelOut.clear();
+    this.panelRev++;
+    this._machine?.syncPanel(this.panelOut);
+  }
+
+  /** The board that goes in brings its leads along: they wait out of their headers, out of sight in their hole (`plugPanel` runs them out once the board is in). */
+  private holdPanel(): void {
+    for (const id of PANEL_IDS) { this.panelOut.add(id); this.reeled.add(id); }
+    this.panelRev++;
+  }
+
+  /** The board is in: the hand runs each lead out of its hole to its header and pushes the plug home. */
+  private async plugPanel(): Promise<void> {
+    const ids = this.machine.panelIds().filter((id) => this.reeled.has(id));
+    if (!ids.length) return;
+    this.note('Plug in the front-panel leads');
+    for (const id of ids) {
+      this.setStep('Run the lead to its header');
+      await this.runOut(id, true);
+      if (this.dead) return;
+    }
+  }
+
+  /** The board is to come out: the hand pulls each front-panel lead off its header and takes it back into its hole (the case keeps them: they come out again with the next board). */
+  private async unplugPanel(): Promise<void> {
+    const ids = this.machine.panelIds().filter((id) => !this.reeled.has(id));
+    if (!ids.length) return;
+    this.note('Unplug the front-panel leads');
+    for (const id of ids) {
+      await this.reelIn(id);
+      if (this.dead) return;
+    }
   }
 
   /** The cables a part brought that nobody plugs (the video cable) run out and lie where they fall. */
@@ -1436,6 +1506,7 @@ export class BuildStage {
         // (a cable still held back shows as it stands)
         this.hand.cancel();
         this.releaseReeled();
+        this.panelHome();
         // (the side panel is the zoom's again: it stays while the view is on the board; a loop's hoses are never left off.
         // A steel panel shows nothing shut, so what the job did stays in view: the panel stays open until the player shuts it)
         this.jobOpen = false;
@@ -1638,6 +1709,8 @@ export class BuildStage {
       if (n === BOARD || n === CASE) break;
       await this.takeOut(n, undo);
     }
+    // the case's front-panel leads come off the board's headers and go back into their hole: the board lifts out bare
+    if (!bare) await this.unplugPanel();
     // a glass panel shuts now: the board lifts out behind it. A steel one shows nothing shut, so it stands open for the board and shuts for the case
     if (!none) await this.door(!glass);
     // the board first (on a case swap too: the case cannot lift off with it inside), then the case
@@ -1656,6 +1729,8 @@ export class BuildStage {
     if (!fitted.ok) this.refuse(`Cannot fit it: ${fitted.reason}`);
     // (a case on an empty stage is a bare case now; a board in the case makes it a machine that stands as any other)
     else if (isCase) { if (none) this.shown.value = 'case'; } else this.shown.value = 'machine';
+    // (a board that goes in brings the case's leads: they wait out of sight in their hole until it is down)
+    if (fitted.ok && this.shown.peek() === 'machine') this.holdPanel();
     this.rebuildAll();
     if (fitted.ok) {
       const board = this.machine.boardRoots(), far = poseAt(motionFor('board'), 0, 'in').offset, seen = board.map((o) => o.visible);
@@ -1672,6 +1747,8 @@ export class BuildStage {
       if (!this.bare.peek()) {
         this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
         await this.playAll(board, 'board', 'in');
+        // the case's front-panel leads run out of their hole to the board's headers and go in
+        await this.plugPanel();
       }
     }
     for (const u of undo.reverse()) await this.putBack(u);

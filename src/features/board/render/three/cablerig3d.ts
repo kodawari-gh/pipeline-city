@@ -25,6 +25,10 @@ export interface CableRig {
   /** The scene id of what takes it (outlined while it is held), or null. */
   target: string | null;
   look: Look;
+  /** A look for each strand where they differ (the case's switch and LED wires): the built cable wears them, the hand's live sleeve has only `look`. */
+  looks?: readonly Look[];
+  /** The case's own lead (`panelRigs`), not the game's: no cable of the sim, no run of the power lens, nothing to pick. The stage plugs and pulls it for the show. */
+  inert?: boolean;
   env: Env;
   /** Where each strand leaves its grommet or its device (into the cable). */
   fixed: RopeEnd[];
@@ -211,15 +215,20 @@ export function rigBuild(rig: CableRig, seated: boolean, rest: Rest | undefined)
   if (seated && rig.canSeat) {
     m.root.userData.plug = true;
     const strands = rig.seated(m.strands);
-    g.add(m.root, cableMesh(strands, rig.look));
+    g.add(m.root, ...skins(rig, strands));
     if (rig.extra) g.add(rig.extra());
     return { group: merged(g), strands, seated: true };
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
   pivot.userData.plug = true;
-  g.add(pivot, cableMesh(l.strands, rig.look));
+  g.add(pivot, ...skins(rig, l.strands));
   return { group: merged(g), strands: l.strands, seated: false };
+}
+
+/** The meshes of a rig's strands: one for all of them, or one for each where the strands have looks of their own (`CableRig.looks`). */
+function skins(rig: CableRig, strands: readonly V3[][]): Object3D[] {
+  return rig.looks ? strands.map((s, i) => cableMesh(s, rig.looks![i] ?? rig.look)) : [cableMesh(strands, rig.look)];
 }
 
 /** `pts` resampled to `n` points evenly along its length. */

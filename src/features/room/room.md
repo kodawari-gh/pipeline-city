@@ -35,6 +35,8 @@ Three steps cut the meshes and the material changes a frame draws. None changes 
 ## The wall cords
 
 
+**The cords belong to their part.** The PC's cord exists only while a power supply is in the case (`pcmains` is the supply's), the monitor's only while there is a monitor (`monmains`). Take the part out and its cord goes with it; put it in and the cord is there again, unplugged. Build my PC shows both: the hand pulls the cord off the wall and takes it into the machine before the part leaves, and runs it out to the wall and plugs it when the part is in.
+
 **Dragging**: grab a plug (`cable.pcmains` / `cable.monmains`, external ids: hit at any zoom, never reveal the interior), keep it where it is relative to the pointer, drop it within `SEAT_R` (300) of **its own** outlet to seat it (`connectCable`), anywhere else leaves it loose (a plug pulled out of the wall is `disconnectCable` at the grab, which works while the machine runs and cuts its power if it is the PC's). A drop on the other cord's hole gets a short toast. The socket is the id `socket` (highlight rect for the tutorial's `wall` step; `rectsFor('cable.pcmains')` gives the plug and its outlet). A monitor without its cord is **dark** (`monitorPowered` in the snapshot: no text, no NO SIGNAL, no standby card, the LED nearly out, no screen light in the room).
 
 ## The power lens

@@ -643,7 +643,7 @@ export class PlugHand {
     if (!m) return;
     let under = false;
     for (let p: Object3D | null = this.hidden; p; p = p.parent) if (p === m.root) { under = true; break; }
-    if (!under) this.hidden = findById(m.root, 'cable.' + id);
+    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, 'cable.' + id);
     for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide && !m.isHeldBack(id);
   }
 }

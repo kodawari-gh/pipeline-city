@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { V3 } from '@/core/render/three/rope';
-import { FAR_PX, POP_PX, SNAP_PX, hover, insertOffset, insertTime, keepClear, pullOffset, snapWeight, springStep } from './plughand3d';
+import { FAR_PX, POP_PX, SNAP_PX, hover, insertOffset, insertTime, keepClear, pullOffset, reelShare, reelTime, snapWeight, springStep } from './plughand3d';
 
 describe('the hand that holds a plug', () => {
   it('carries the plug to its goal on a spring that does not overshoot, at any frame rate', () => {
@@ -75,5 +75,35 @@ describe('the hand that holds a plug', () => {
     expect(keepClear([0, -1100, 300], env, 80)).toEqual([0, -920, 300]);
     // clear of everything: kept off the tray only
     expect(keepClear([2000, 2000, 20], env, 80)).toEqual([2000, 2000, 80]);
+  });
+});
+
+describe('a cable run out of its hole', () => {
+  it('takes longer over a longer run, and never more than a couple of seconds', () => {
+    expect(reelTime(0)).toBeCloseTo(0.5);
+    expect(reelTime(2600)).toBeGreaterThan(reelTime(600));
+    expect(reelTime(1e9)).toBeLessThanOrEqual(1.8);
+  });
+
+  it('goes from nothing to all of its way, eased at both ends and never back', () => {
+    const run = 1, at = (t: number): number => reelShare(t, run, 0, 1);
+    expect(at(0)).toBe(0);
+    expect(at(run)).toBeCloseTo(1);
+    expect(at(5)).toBeCloseTo(1);
+    let last = -1;
+    for (let t = 0; t <= run; t += 0.02) { const k = at(t); expect(k).toBeGreaterThanOrEqual(last); last = k; }
+    // (eased: slow at the start and the end)
+    expect(at(0.05)).toBeLessThan(0.05);
+    expect(at(run - 0.05)).toBeGreaterThan(0.95);
+  });
+
+  it('runs to the share where the push-in starts, then pushes the plug home and no further', () => {
+    const run = 1, push = 0.3, pre = 0.9;
+    expect(reelShare(run, run, push, pre)).toBeCloseTo(pre);
+    expect(reelShare(run + push, run, push, pre)).toBeCloseTo(1);
+    expect(reelShare(run + push + 3, run, push, pre)).toBeCloseTo(1);
+    // (it speeds into the latch: the last half of the push covers more than the first)
+    const half = reelShare(run + push / 2, run, push, pre);
+    expect(1 - half).toBeGreaterThan(half - pre);
   });
 });

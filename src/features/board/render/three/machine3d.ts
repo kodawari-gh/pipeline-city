@@ -26,7 +26,7 @@ import { heatOf } from '@/core/render/three/thermal';
 import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
-import { findById, tag, unseen } from '@/core/render/three/pick';
+import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -67,7 +67,7 @@ import { footShade } from './footshade3d';
 import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
-import { frontPanelLeads, leadCoil } from './casetray3d';
+import { isPanelId, leadCoil, panelRigs } from './casetray3d';
 import {
   TRAY_Z, at, atxPlug, cableMesh, epsPlug, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, type Env, type GrommetStyle, type Look,
 } from './wires3d';
@@ -300,7 +300,11 @@ export class Machine3D {
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
   /** The case's front-panel leads, in `wires`: their plugs sit on the board's headers, so a board swap lifts them with it. */
-  private panelLeads: Group | null = null;
+  /**
+   * The case's front-panel leads that are out of their headers (`panelRigs`): the stage's set, shared (`syncPanel`), so that a build of the cables again builds
+   * them as they stand. Empty, as the game's machine has it: every lead is in its header.
+   */
+  panelOut: ReadonlySet<string> = new Set();
   /**
    * The case's side panel: how far open (`t`, 0 to 1 along `doorPose`), the zoom seen at the side and the board view's zoom on this screen, whether
    * the zoom has opened it (with a dead band), the player's last say (null: the zoom decides), a drag or target inside, any drag at all.
@@ -509,7 +513,7 @@ export class Machine3D {
   /** The board's pieces: everything on the root that is not the case, the cables or a light (a board swap lifts these). */
   boardRoots(): Object3D[] {
     const skip = new Set<Object3D>([...this.caseRoots, this.wires, this.rgb, this.spill]);
-    return [...this.root.children.filter((o) => !skip.has(o)), ...(this.panelLeads ? [this.panelLeads] : [])];
+    return this.root.children.filter((o) => !skip.has(o));
   }
 
   /** Let the live frame drive a fan or a light. */
@@ -1037,9 +1041,12 @@ export class Machine3D {
       this.wires.add(g);
       yield;
     }
-    // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers
-    this.panelLeads = frontPanelLeads(this.caseEnv());
-    this.wires.add(this.panelLeads);
+    // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers: rigs the stage's hand can run (not the game's cables)
+    for (const rig of panelRigs(env)) {
+      const g = tag(new Group(), 'cable.' + rig.id);
+      this.addRig(g, rig, !this.panelOut.has(rig.id));
+      this.wires.add(g);
+    }
     yield;
     yield* this.buildRoomCords(s, geo);
   }
@@ -1201,6 +1208,9 @@ export class Machine3D {
   /** A draggable cable's rig (plughand3d.ts holds it live), or null. */
   rig(kind: string): CableRig | null { return this.rigs.get(kind) ?? null; }
 
+  /** The group a cable's rig is built into (the hand hides its built cable while it holds it), or null. */
+  cableGroup(kind: string): Object3D | null { return this.built.get(kind)?.g ?? null; }
+
   /** Keep these cables out of sight (they are built hidden too) until `letRun`: the stage runs them out of their hole once their part is in (`PlugHand.feed`). */
   holdBack(ids: Iterable<string>): void { for (const id of ids) { this.unrun.add(id); this.showRig(id); } }
 
@@ -1209,6 +1219,20 @@ export class Machine3D {
 
   /** Is this cable kept out of sight (`holdBack`)? */
   isHeldBack(id: string): boolean { return this.unrun.has(id); }
+
+  /** The case's front-panel leads this board has (`panelRigs`), west to east. */
+  panelIds(): string[] { return [...this.rigs.keys()].filter(isPanelId); }
+
+  /**
+   * Bring the front-panel leads in line with the stage's say of which are out of their headers (`panelOut`, kept by reference): each stands as that says.
+   * A lead built so already stays as it is (one the hand moved keeps its rest pose).
+   */
+  syncPanel(out: ReadonlySet<string>): void {
+    this.panelOut = out;
+    let changed = false;
+    for (const [id, b] of this.built) if (isPanelId(id) && b.seated === out.has(id)) changed = this.placeRig(id, !out.has(id)) || changed;
+    if (changed) this.partLod?.build(this.wires);
+  }
 
   private showRig(id: string): void {
     const b = this.built.get(id);
@@ -1230,8 +1254,12 @@ export class Machine3D {
     const built = rigBuild(rig, b.seated, this.rest.get(kind));
     built.group.visible = !this.unrun.has(kind);
     b.g.add(built.group);
-    this.runs.set(kind, { id: kind, strands: inFlowOrder(built.strands, rig.power), r: rig.look.r, seated: built.seated, seat: rig.seat, held: false, fed: !!rig.power?.fed });
-    this.runsRev++;
+    // (the case's own lead is nothing to pick, and no run of the power lens: it carries no power)
+    if (rig.inert) built.group.traverse(seeThrough);
+    else {
+      this.runs.set(kind, { id: kind, strands: inFlowOrder(built.strands, rig.power), r: rig.look.r, seated: built.seated, seat: rig.seat, held: false, fed: !!rig.power?.fed });
+      this.runsRev++;
+    }
     this.unfade.get(kind)?.();
     this.unfade.delete(kind);
     if (b.seated && b.fade) this.unfade.set(kind, b.fade());
