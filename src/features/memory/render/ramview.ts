@@ -18,6 +18,8 @@ import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, seenZoom, type LodRect
 const TOUCH_MS = 700, MAX_TOUCHES = 8, MAX_CORE_TOUCHES = 48, MAX_BUBBLES = 6;
 // the zoom levels are in lod.ts (`DEVICE_LOD.ram`): below `show` the traces are the picture, the view fades in over it
 const SHOW_Z = DEVICE_LOD.ram.show, OUTLINE_Z = DEVICE_LOD.ram.outline, BAND_Z = DEVICE_LOD.ram.band, LENS_Z = DEVICE_LOD.ram.lens;
+/** A chip with no place on the board: the 3D board gives none, and the sticks keep only their windows of the address space. */
+const NO_RECT: Rect = { x: 0, y: 0, w: 0, h: 0 };
 const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
@@ -110,12 +112,18 @@ export class RamView {
     this.chips = [];
   }
 
+  /**
+   * With no chip rects (the 3D board: its sticks show their own map, `rammap3d.ts`) nothing is drawn, but each stick still holds its window of the
+   * address space, so `stickOf` can tell which one answers a reach.
+   */
   private layout(): void {
     this.destroyChips();
     const bytes = this.map?.bytes ?? 0;
-    if (!this.map || this.rects.length === 0) return;
-    const slots = chipLayout(this.rects, this.sticks, bytes);
+    const drawn = this.rects.length > 0;
+    if (!this.map || (!drawn && this.sticks.length === 0)) return;
+    const slots = chipLayout(drawn ? this.rects : this.sticks.flatMap(() => Array.from({ length: CHIPS_PER_STICK }, () => NO_RECT)), this.sticks, bytes);
     this.chips = slots.map((slot) => ({ slot }));
+    if (!drawn) return;
     const T = this.T!;
     for (const c of this.chips) {
       const r = chipContent(c.slot.rect);
@@ -181,7 +189,7 @@ export class RamView {
   frame(inner: boolean, wall = performance.now(), view?: LodRect): void {
     this.seen = this.seenIn(view);
     const fade = bandAlpha(this.seen, onBand(SHOW_Z));
-    const show = inner && !!this.map && this.chips.length > 0 && fade > SHOWN && this.inView(view);
+    const show = inner && !!this.map && this.rects.length > 0 && this.chips.length > 0 && fade > SHOWN && this.inView(view);
     this.root.visible = show;
     this.root.alpha = fade;
     if (!show) return;

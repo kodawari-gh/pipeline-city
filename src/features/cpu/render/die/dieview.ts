@@ -8,6 +8,7 @@ import type { Block, CpuPlan } from '../core/cpuplan';
 import { cellRects, dieNear, type DieArt } from './dieart';
 import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
+import { accessTouch, fetchTouch, type MemoryTouch } from './dietraffic';
 import { box, MONO, mix } from '@/core/render/ink';
 import { UncoreFx, type UncoreInput, type UncoreUnit } from './uncore';
 import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
@@ -30,9 +31,7 @@ const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 /** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
 const WIPE_MS = 320;
 
-/** What the memory sticks should show: the CPU asked RAM for an address (a fetch, a load, a store), `at` is game time in ms. */
-/** A reach for RAM. `core` is the logical core that made it, on a multicore die (diemulti.ts adds it). */
-export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number; core?: number }
+export type { MemoryTouch } from './dietraffic';
 
 
 const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
@@ -93,7 +92,7 @@ export class PlanView {
   /** The zoom the die is seen at (lod.ts `seenZoom`): the layers fade on it, the line widths on `z`. */
   private zSeen = 1;
   private cellSig = '';
-  /** Told every time the CPU reaches out to RAM, for the memory sticks (set by board.ts). */
+  /** Told every time the CPU reaches out to RAM or a device's window (a fetch, a load, a store), for the sticks and the cards (set by chips3d.ts). */
   onMemory: ((e: MemoryTouch) => void) | null = null;
   /** Told when the replay takes an interrupt, with its line (`IRQ`): the board lights the path the device's signal came along. */
   onInterrupt: ((line: number) => void) | null = null;
@@ -282,6 +281,7 @@ export class PlanView {
       }
       else if (e.kind === Ev.Iret) this.sysAt.set('iret', now);
       else if (e.kind === Ev.Space) this.sysAt.set('space', now);
+      else if (e.kind === Ev.Mem) this.onMemory?.(accessTouch(e, now)); // (a load or a store, when the engine logs it)
     }
     for (const ev of fr.beats) {
       const events = byCycle.get(ev.cycle) ?? [];
@@ -293,7 +293,7 @@ export class PlanView {
       if (ev.to === 'R') this.flash.result = now;
       if (ev.to === 'x') this.flash.flush = now;
       if (cls === 'ld' || cls === 'st') { const m = events.find((e) => e.kind === Ev.Mem); if (m && (plan.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M')) { this.addrs.set(ev.id, m.b >>> 0); if (this.addrs.size > 400) this.addrs.delete(this.addrs.keys().next().value!); } }
-      this.touchMemory(ev, events, now, cls);
+      if (ev.to === 'F') this.onMemory?.(fetchTouch(ev.pc, cls, now));
     }
     if (fr.tick) {
       this.flash.clock = now;
@@ -349,17 +349,6 @@ export class PlanView {
     this.storage(fr.store, now);
     drawTrails(this.trailG, this.trails, now, this.z);
     this.packets = drawPackets(this.packetG, this.packets, now, this.z, this.T.ink);
-  }
-
-  /** Tell the memory sticks which address the CPU is reaching for (the instruction fetch, the load and the store each have one). */
-  private touchMemory(ev: { to: string; op: string; pc: number; cycle: number; dwell: number }, events: StoreEvent[], now: number, cls: OpClass) {
-    const cb = this.onMemory;
-    if (!cb) return;
-    if (ev.to === 'F') cb({ kind: 'fetch', addr: ev.pc, cls, at: now + CYCLE_MS * 0.6 });
-    const mem = events.find((e) => e.kind === Ev.Mem);
-    if (mem && ((this.plan!.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M') && (cls === 'ld' || cls === 'st'))) {
-      cb({ kind: mem.a === 1 ? 'store' : 'load', addr: mem.b >>> 0, cls, at: now + CYCLE_MS * (mem.a === 1 ? 0.5 : 0.8) });
-    }
   }
 
   private texts_(id: string, used: Set<string>): CellTexts {

@@ -226,12 +226,11 @@ export class BuildStage {
   readonly ticks = signal(0);
   /** How fast the machine runs while it is on, in base ticks a second (`RUN_SPEEDS`; the game's 1x is one a second). */
   readonly simSpeed = signal<RunSpeed>(DEFAULT_RUN_SPEED);
-  /** Ticks owed (time that passed at the machine's speed and has not been run yet), and the live layer's clock (ms; it runs at the machine's speed). */
+  /** Ticks owed: time that passed at the machine's speed and has not been run yet. */
   private owed = 0;
   /** The base ticks the machine has run on the stage (a second each at 1x): the OS sheet's graphs take a sample for each. */
   private ran = 0;
   get simulated(): number { return this.ran; }
-  private clock = 0;
   /** The Ethernet jacks' lights: they follow the frames the port carries, on the game's clock (`network/render/jackleds.ts`). */
   private readonly leds = new LinkLeds();
   /** Counts up with every change to the game: what memoizes on the machine as it stands (`alerts`) keys on it, as a running game gives a new snapshot every tick. */
@@ -625,13 +624,12 @@ export class BuildStage {
   }
 
   /**
-   * One frame of the screen, as the game's does (`board3d.ts`): the board's live layer runs on the game's clock (the machine's speed while it is on) and draws the
-   * monitor's picture; the monitor shows it when the cord is in and the PC drives it, and its standby card otherwise.
+   * One frame of the screen, as the game's does (`board3d.ts`): the board's live layer runs at the world's pace for the machine's speed while it is on (its packets,
+   * lights and replay: `BoardLive3D`) and draws the monitor's picture; the monitor shows it when the cord is in and the PC drives it, and its standby card otherwise.
    */
   private screen(s: Snapshot, dt: number): void {
     const on = s.powered, pace = on ? this.simSpeed.peek() : 1;
-    this.clock += dt * 1000 * pace;
-    this.live.frame(this.ctx.camera, this.H, s, this.clock, dt * worldPace(pace), !on, this.ctx.renderer.getPixelRatio(), on);
+    this.live.frame(this.ctx.camera, this.H, s, dt * worldPace(pace), !on, this.ctx.renderer.getPixelRatio(), on);
     const m = this.mon;
     if (!m) return;
     m.set({ installed: true, powered: !!s.monitorPowered, live: !!s.monitorLive && !!s.monitorPowered && on && !!s.display, text: s.display ?? '' }, 12);

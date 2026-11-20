@@ -732,7 +732,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     chips.frame(camera, H, dt * pace, speed.peek() <= 0, ratio);
     fx.frame(s, dt * worldPace(speed.peek()));
     lens.frame(camera, H, s, dt * worldPace(speed.peek()), ratio, machine);
-    boardLive.frame(camera, H, s, gt, dt * pace, speed.peek() <= 0, ratio, !!machine);
+    boardLive.frame(camera, H, s, dt * pace, speed.peek() <= 0, ratio, !!machine);
     room?.setScreenImage(boardLive.screen);
     cues.frame(menu ? null : s);
     bakes.run(6);

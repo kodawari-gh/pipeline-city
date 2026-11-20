@@ -389,7 +389,8 @@ export class Player {
   /** The windows already seen, oldest first (the Trace panel's scrubber moves through them while the game is paused). */
   private history: { seg: TraceSnap; stored?: StoredSnap }[] = [];
 
-  constructor(readonly plan: CpuPlan, private readonly cyclesPerSec = CYCLES_PER_SEC) {
+  /** `lean`: only the beats and the writes are wanted, not where each instruction is drawn (`dietraffic.ts`): `chips` and `fading` stay empty. */
+  constructor(readonly plan: CpuPlan, private readonly cyclesPerSec = CYCLES_PER_SEC, private readonly lean = false) {
     this.hosts = new Hosts(plan);
   }
 
@@ -459,7 +460,7 @@ export class Player {
       const last = this.cur.n - 1;
       if (this.tau > last + HOLD && this.pending && this.pending.end !== this.cur.end) {
         // the next window: the old one fades while the new one starts
-        this.fadeChips = this.chipsAt(this.cur, last);
+        this.fadeChips = this.lean ? [] : this.chipsAt(this.cur, last);
         this.fadeFrom = now;
         this.cur = this.pending; this.pending = null; this.tau = 0; this.lastShown = -1;
       } else if (this.tau > last + HOLD) this.tau = last + HOLD;
@@ -477,7 +478,7 @@ export class Player {
     const fadeT = clamp01((now - this.fadeFrom) / (FADE_S * 1000));
     const fading = fadeT < 1 ? this.fadeChips.map((c) => ({ ...c, alpha: c.alpha * (1 - fadeT) })) : [];
     const w = this.cur;
-    return { store: w?.store ?? null, applied, tau: this.tau, chips: w ? this.chipsAt(w, Math.min(this.tau, w.n - 1)) : [], fading, beats, tick, window: w?.seq ?? 0, cycle: w ? w.end - w.n + 1 + Math.floor(Math.min(this.tau, w.n - 1)) : 0 };
+    return { store: w?.store ?? null, applied, tau: this.tau, chips: w && !this.lean ? this.chipsAt(w, Math.min(this.tau, w.n - 1)) : [], fading, beats, tick, window: w?.seq ?? 0, cycle: w ? w.end - w.n + 1 + Math.floor(Math.min(this.tau, w.n - 1)) : 0 };
   }
 
   /** What every instruction is doing at the cycle being shown: its stage code. Oldest first. */

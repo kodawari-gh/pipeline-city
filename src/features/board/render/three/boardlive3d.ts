@@ -3,6 +3,9 @@
 // onto a plane that lies on the board (just over its face, under every raised part), cropped to what the camera sees, so seen from an angle it
 // is the board's own glow, not a sheet over the view. What 3D shows another way is left out: the dies (`Chips3D`), the parts' glows (their
 // `PartSkin`), the RAM map, the cards and the wall cords.
+// Two things the 2D board did for `Live` are done here (docs/render/live.md "Activity"): it runs on the world's clock, the one the dies replay on (a
+// pause stops it, the fast speeds do not blur it, a close zoom slows it), and the CPU's replay (`DieTraffic`) tells it what the core reaches for and
+// which interrupts it takes, so the sticks, the drives and the cards answer on their own lanes while the machine runs, not only while it boots.
 import { Mesh, MeshBasicMaterial, AdditiveBlending, PlaneGeometry, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { builtinTheme } from '@/core/render/theme';
@@ -10,7 +13,10 @@ import { Live } from '@/core/render/live';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { getSpec } from '@/features/board/sim/specs';
+import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
+import { planOf } from '@/features/cpu/render/die/dieart';
+import { DieTraffic } from '@/features/cpu/render/die/dietraffic';
+import { driveKindOf } from '@/features/storage/render/drives';
 import { BD, LAYOUT_CASE, LAYOUT_TIER, SCREEN } from '../layout/layout';
 import { buildBuses } from '../wiring/routes';
 import { bakeRenderer, drawLive } from './bake';
@@ -19,10 +25,17 @@ import { liveCrop, livePx, viewOn } from './chips3d';
 /** The plane's depth: over the board's face, under the raised parts. */
 const Z = BOARD_Z + 3;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
+/** A drive that `Live` draws no art for (the 3D drives have their own look): it still lights its lanes. */
+const NO_BODY = { x: 0, y: 0, w: 0, h: 0 };
 
 export class BoardLive3D {
   private readonly T = builtinTheme();
   private live: Live | null = null;
+  /** The board's clock (ms): the world's pace summed up (`frame`'s `gdt`), the clock the dies replay on, not the room's day. */
+  private t = 0;
+  /** What the CPU reaches for, replayed with nothing drawn: each reach lights the lanes of the stick or the device that answers (`Live.touchRam`). */
+  private readonly traffic = new DieTraffic();
+  private cpuKey = '';
   private readonly mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   private readonly mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), this.mat));
   private canvas: HTMLCanvasElement | null = null;
@@ -36,6 +49,9 @@ export class BoardLive3D {
     this.mesh.visible = false;
     this.mesh.renderOrder = 5;
     scene.add(this.mesh);
+    // (the 2D board's `die.onMemory` and `die.onInterrupt`)
+    this.traffic.onMemory = (e) => this.live?.touchRam(e.kind, e.addr, '', e.core);
+    this.traffic.onInterrupt = (line) => this.live?.touchIrq(line);
   }
 
   /** The scene Live draws for: rebuilt when the tier, the case or the installed parts change. */
@@ -45,26 +61,39 @@ export class BoardLive3D {
     this.live ??= new Live(r);
     const dimms = s.devices.filter((d) => d.kind === 'ram').map((d) => idx(d.slot));
     const disp = s.devices.find((d) => d.kind === 'display');
-    this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: !!disp, gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics });
+    // (a drive with no art: `Live` reads its busy flag and its byte counters from every snapshot, and lights its lanes while it moves data)
+    const drives = (s.storage ?? []).map((d) => ({ slot: d.slot, deviceId: d.deviceId, kind: driveKindOf((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? ''), body: NO_BODY, g: null, lane: null }));
+    this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: !!disp, gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics }, drives);
     this.live.setConnected(new Set(s.cables.filter((c) => c.connected).map((c) => c.id)) as never);
     this.sceneKey = this.keyOf(s);
+    // the CPU's replay follows the CPU: a new one, a new plan (the cycles it was playing are the old one's)
+    const cpu = s.devices.find((d) => d.kind === 'cpu'), spec = cpu ? getSpec(cpu.spec) : undefined, key = spec?.kind === 'cpu' ? cpu!.spec : '';
+    if (key !== this.cpuKey) { this.cpuKey = key; this.traffic.setPlan(key ? planOf(spec as CpuSpec) : null); }
+    // (a new scene and a new replay start from the snapshot as it stands: a paused game sends no other)
+    this.lastSnap = null;
   }
 
   private keyOf(s: Snapshot): string { return `${LAYOUT_TIER}|${LAYOUT_CASE}|${s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')}|${s.cables.map((c) => +c.connected).join('')}`; }
 
-  /** Per frame (after the camera): advance the board's animation and draw it over the part of the board in view. `gt` the game clock (ms), `gdt` its step (s). */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, gt: number, gdt: number, paused: boolean, dpr: number, on: boolean): void {
+  /**
+   * Per frame (after the camera): advance the board's animation and draw it over the part of the board in view. `gdt` is the world's step (s: the
+   * game's pace as the dies replay it, 0 while paused), which the board's clock sums up.
+   */
+  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, gdt: number, paused: boolean, dpr: number, on: boolean): void {
     if (!s || !on) { this.mesh.visible = false; this.screen = null; return; }
     if (!this.live || this.sceneKey !== this.keyOf(s)) this.build(s);
     const live = this.live;
     if (!live) { this.mesh.visible = false; return; }
+    this.t += gdt * 1000;
     cam.updateMatrixWorld();
-    const v = viewOn(cam, H, Z), crop = v.zoom > 0 && v.rect ? liveCrop(BD, v.rect, 0.05) : null;
+    // (a view corner that looks past the board's plane, a steep side view on a wide screen, has no rect: the plane is still in view at the centre, so all of the face is drawn)
+    const v = viewOn(cam, H, Z), view = v.zoom > 0 ? v.rect ?? BD : null, crop = view ? liveCrop(BD, view, 0.05) : null;
     live.setZoom(v.zoom);
-    if (v.rect) live.setView(v.rect);
+    if (view) live.setView(view);
     live.setInterior(!!crop);
-    if (this.lastSnap !== s) { live.update(s, gt); live.setPlugged(!!s.plugged); this.lastSnap = s; }
-    live.frame(gdt, gt, paused);
+    if (this.lastSnap !== s) { live.update(s, this.t); live.setPlugged(!!s.plugged); this.traffic.update(s); this.lastSnap = s; }
+    this.traffic.frame(this.t, paused);
+    live.frame(gdt, this.t, paused);
     this.drawScreen(live, s);
     if (!crop) { this.mesh.visible = false; return; }
     const now = performance.now();

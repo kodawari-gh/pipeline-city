@@ -41,8 +41,11 @@ interface Lit { bus: Bus; /** The lanes that light (the main run plus the branch
  * drive's cable lane before (a read) or after (a write) them, or the video cable after them. `force`: it also runs while the screen is black.
  */
 interface Chain { hops: Hop[]; force?: boolean; drive?: { lane: Lane; before: boolean; dir: 1 | -1 }; cable?: boolean; /** One stick's bundle after the hops (CPU to stick). */ mem?: number; /** The reply: the same legs again, back to front and the other way (a ping). */ pong?: boolean }
-/** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
-export interface DriveHook { slot: string; deviceId: string; kind: DriveKind; body: { x: number; y: number; w: number; h: number }; g: Graphics; lane: Lane | null }
+/**
+ * An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. `g` null: no art is drawn for it
+ * (the 3D board's drives have their own look), but its reads and writes still light its lanes.
+ */
+export interface DriveHook { slot: string; deviceId: string; kind: DriveKind; body: { x: number; y: number; w: number; h: number }; g: Graphics | null; lane: Lane | null }
 interface DriveLive extends DriveHook {
   busyUntil: number; speed: number; spin: number; head: number; led: number; sig: string; burnt: boolean;
   /** Byte counters of the last snapshot, and the held direction of the last data moved (true: a write). */
@@ -272,7 +275,7 @@ export class Live {
     this.dimmIdx = dimms;
     this.ram.setScene(T, dramChips);
     this.gpu.setScene(T, gpuCards);
-    this.disk.setScene(T, drives.map((d) => ({ slot: d.slot, deviceId: d.deviceId, kind: d.kind, body: d.body })));
+    this.disk.setScene(T, drives.filter((d) => d.g).map((d) => ({ slot: d.slot, deviceId: d.deviceId, kind: d.kind, body: d.body })));
     this.tpm.setScene(T, tpmModules);
     this.npu.setScene(T, npuCards);
     for (const t of targets) {
@@ -1124,7 +1127,7 @@ export class Live {
       dr.led += (lt - dr.led) * Math.min(1, dt * 14);
       if (!lit && dr.led < 0.03) dr.led = 0;
       const sig = `${Math.round(dr.spin * 20)}|${Math.round(dr.head * 40)}|${Math.round(dr.led * 10)}|${dr.burnt}`;
-      if (inner && sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
+      if (inner && dr.g && sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
       this.diskLevel = Math.max(this.diskLevel, dr.led);
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
