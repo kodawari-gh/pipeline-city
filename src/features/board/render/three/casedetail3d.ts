@@ -5,7 +5,7 @@
 // from outside: in at the front and under the PSU, out at the rear fan and the top.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry, TorusGeometry, type Vector2, type Material, type MeshStandardMaterial } from 'three';
 import { FAN_SCREW, SEG, fanFlange, fanSides, place, post, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
-import { NYLON, mat } from '@/core/render/three/materials';
+import { NYLON, mat, own } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
 import type { BoardFeatures } from '@/features/board/sim/specs';
 import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC, REAR_ZC } from '@/features/room/render/three/roomplan';
@@ -19,7 +19,7 @@ import { BRACKET_TOP, slotBlank } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
-import { jackFace, jackLook } from './rj45jack3d';
+import { jackFace, jackLook, type JackLamps } from './rj45jack3d';
 
 /** What the details need of the case: its kind, its body's material, its accent, and the cavity's height (layout y) and depth. */
 export interface Frame { kind: CaseKind; body: Material; acc: number; yTop: number; yBot: number; z0: number; z1: number }
@@ -248,8 +248,10 @@ function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
  * the RJ45 with its latch notch, contacts and two lights, HDMI and DP in their keyed shells, USB-A with the tongue's colour by generation. The
  * Mainstream adds a BIOS flashback button; the Enthusiast a clear-CMOS button, a USB-C, an optical out and two Wi-Fi antenna jacks (look only).
  */
-export function ioShield(feat: BoardFeatures, tier: number): Group {
+export function ioShield(feat: BoardFeatures, tier: number): { root: Group; lan: JackLamps | null } {
   const g = tag(new Group(), 'io'), x = CASE.x, Z = BOARD_Z, s = plateSpan(), stamped = tier <= 1;
+  /** The RJ45 jack's two lights (out: the network lights them, `network/render/jackleds.ts`); null where the board has no jack. */
+  let lan: JackLamps | null = null;
   // (stamped sheet is smooth satin steel, not brushed)
   const plateM = stamped ? mat(0xb9babf, { metalness: 0.65, roughness: 0.46 }) : mat(0x131518, { metalness: 0.35, roughness: 0.5 });
   // (the plate is open behind the RJ45's mouth, which runs on through the wall into the jack)
@@ -280,7 +282,9 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
       rim(cy - h, cy + h, z0, z1, true);
       // the jack's face (rj45jack3d's `jackFace`, as the router's ports): the mouth keyed by the latch notch on its south side, sunk through the
       // shell into the insert behind the wall (boardhw3d's shell is a hollow sleeve round it), the lights in their windows on the north corners
-      jackFace(g, x - 20, { y0: ly - h, y1: ly + h, z0, z1 }, 170, jackLook(shell));
+      const look = jackLook(shell);
+      lan = { link: own(look.link), act: own(look.act) };
+      jackFace(g, x - 20, { y0: ly - h, y1: ly + h, z0, z1 }, 170, look);
       fingers(cy - h, cy + h, z0, z1);
     } else if (p.kind === 'hdmi' || p.kind === 'dp') {
       // the shell and its keyed mouth (HDMI's two corners cut on its inner side, DP's one), the dark inside and the tongue
@@ -329,7 +333,7 @@ export function ioShield(feat: BoardFeatures, tier: number): Group {
     g.add(wallX(x - 16, x - 8, { y0: ul - 20, y1: ul + 20, z0: Z + u0, z1: Z + u1, r: 20 }, [{ y0: ul - 13, y1: ul + 13, z0: Z + u0 + 8, z1: Z + u1 - 8, r: 13 }], shell));
     g.add(boxW(x - 10, x - 8, uy - 16, uy + 16, Z + u0 + 4, Z + u1 - 4, hole), boxW(x - 14, x - 10, uy - 3.5, uy + 3.5, Z + u0 + 26, Z + u1 - 26, mat(0x131518, { roughness: 0.5 })));
   }
-  return g;
+  return { root: g, lan };
 }
 
 /** The legacy ports' colours (PC 99): the PS/2 keyboard and mouse, serial, parallel, VGA, DVI. */

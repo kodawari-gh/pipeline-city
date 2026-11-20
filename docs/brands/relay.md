@@ -2,7 +2,7 @@
 
 ![relay design sheet](relay.png)
 
-Makes network cards (`MAKER.nic`). Module: `src/core/render/brands/relay.ts`.
+Makes network cards and routers (`MAKER.nic`, `MAKER.router`). Module: `src/core/render/brands/relay.ts`.
 
 ## Idea
 
@@ -40,4 +40,5 @@ The word's x-height sets the size. The cap height is 0.6 of the mark's height. T
 ## Use
 
 - The card's label: the lockup in one dark ink, over a barcode (`nic3d.ts`).
+- The router's top: the lockup debossed in the shell, one tone (`router3d.ts`).
 - Do not point the chevrons left. Do not add a third chevron.

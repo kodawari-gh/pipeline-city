@@ -5,7 +5,7 @@
 // lidded BGA under a finned sink with its push pins on the faster cards (the fins run along the card, in the case's front-to-back air). Its 25 MHz
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen.
-import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material } from 'three';
+import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { drawLockup } from '@/core/render/brands';
 import { drum, instanced, rectBox, SEG, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -14,7 +14,7 @@ import { prismX, type CardFrame } from './gpu3d';
 import { CU, JACK, JACK_X, jacksOf, type Face, type NicCopper } from './niccopper';
 import { crystal, decalMat, inductor, maskTop, MM, passives, pkg, type MaskCopper, type Passive } from './pcbkit3d';
 import { KEY, TAB } from './pcie';
-import { springGold, unshadowed } from './rj45jack3d';
+import { jackLamp, springGold, unshadowed, type JackLamps } from './rj45jack3d';
 
 export { JACK, JACK_X, jacksOf };
 /** The mouth (mm): 11.68 across, its opening 6.6 tall from 2.3 in from the jack's outer side, then the latch slot, 6.2 wide, 1.9 on toward the PCB. */
@@ -52,7 +52,7 @@ function mouthPts(yc: number, zt: number, e: number): Vector2[] {
   return [wallPt(yc - w / 2 - e, zt - e), wallPt(yc + w / 2 + e, zt - e), wallPt(yc + w / 2 + e, zm + e), wallPt(yc + slotW / 2 + e, zm + e), wallPt(yc + slotW / 2 + e, zs + e), wallPt(yc - slotW / 2 - e, zs + e), wallPt(yc - slotW / 2 - e, zm + e), wallPt(yc - w / 2 - e, zm + e)];
 }
 
-interface JackMats { steel: Material; plastic: Material; back: Material; gold: Material; green: Material; amber: Material }
+interface JackMats { steel: Material; plastic: Material; back: Material; gold: Material; green: MeshStandardMaterial; amber: MeshStandardMaterial }
 
 /**
  * One RJ45 jack under the PCB (its edge at lying `y`, its top against the underside `Zp`), its front at `JACK_X`: the shield (its front plate with
@@ -166,14 +166,15 @@ export function pinCoil(px: number, py: number, b1: number, m: Material): Mesh {
  * Every part on the NIC's component side, under the PCB (`Zp` its underside): the jacks, the controller (with its sink), the crystal, the flash,
  * the regulator and its inductors and capacitors, the passives, the MAC label and the mask. `inX`: the bracket's inner face.
  */
-export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number, cu: NicCopper): void {
+export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number, cu: NicCopper): JackLamps {
   const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 });
   const M: JackMats = {
     steel, plastic: mat(0x131518, { roughness: 0.62 }), back: mat(0x2a2d32, { roughness: 0.6 }), gold: springGold(),
-    green: mat(0x131518, { emissive: 0x5cff9a, emissiveIntensity: 0.55, roughness: 0.3 }), amber: mat(0x131518, { emissive: 0xffc247, emissiveIntensity: 0.4, roughness: 0.3 }),
+    green: jackLamp(0x5cff9a), amber: jackLamp(0xffc247),
   };
-  const ys = jacksOf(visual, f.y0);
-  for (const y of ys) jack(g, y, Zp, M, inX);
+  // (the lights are the network's: out until it lights them. The cable goes into the first jack, so a second one (the 40G card's) has dark lenses and no lamp)
+  const dark = mat(0x131518, { roughness: 0.3 }), ys = jacksOf(visual, f.y0), spare: JackMats = { ...M, green: dark, amber: dark };
+  ys.forEach((y, k) => jack(g, y, Zp, k ? spare : M, inX));
   // the rest stands on the underside: a group turned over (layout y as its y, depth off the PCB as its z)
   const u = new Group(), zu = -Zp, U = (r: RectLike): RectLike => ({ x: r.x, y: -(r.y + r.h), w: r.w, h: r.h });
   u.rotation.x = Math.PI;
@@ -231,6 +232,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
   const board = { x: f.x0, y: f.y0, w: f.x1 - f.x0, h: f.end - f.y0 };
   g.add(maskTop(`nic-under:${cu.key}`, board, Zp, { ...MASK, parts, text, seed: 0, copper: { ...copperOf(cu, 'top'), dots }, pads: cu.pads.filter((p) => p.face === 'top' && !p.edge).map((p) => p.r) }, { under: true, px: 24 }));
   g.add(tabMask(cu, f, 'top', Zp));
+  return { link: M.green, act: M.amber };
 }
 
 /** Each card's speed, on its silkscreen. */

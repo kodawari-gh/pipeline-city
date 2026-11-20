@@ -8,6 +8,7 @@ import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdo
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 import { airflowLens, hover, networkLens, powerLens, selected, viewInset, INERT_REGIONS } from '@/app/hover';
+import { LinkLeds } from '@/features/network/render/jackleds';
 import { netLensReady } from '@/features/network/render/netvis';
 import { cameraRev, highlight } from '@/app/interaction';
 import type { FlyOpts } from '@/core/render/camera';
@@ -139,6 +140,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const lens = new Lens3D(scene, renderer.domElement);
   const boardLive = new BoardLive3D(scene);
   const fx = new Particles3D(scene);
+  // the Ethernet jacks' lights (the board's and the cards', the router's in the room): they follow the frames the port carries (`network/render/jackleds.ts`)
+  const leds = new LinkLeds();
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
   /** A new machine whose programs still link (`compile.ts`): the old one shows meanwhile, and the frame swaps them once they have linked. */
@@ -734,12 +737,14 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     cues.frame(menu ? null : s);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
-    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, isp: Number(/\d+$/.exec(s?.net?.isp?.id ?? '')?.[0] ?? 0), ispName: s?.net?.isp?.name ?? '', mail: !!s?.net && (s.net.uploadsWaiting > 0 || s.net.transfers.some((t) => t.dir === 'up')), t: gt / 1000 }, dt);
+    // (on the game's clock: it holds while paused)
+    const net = leds.step(s, dt * worldPace(speed.peek()));
+    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, isp: Number(/\d+$/.exec(s?.net?.isp?.id ?? '')?.[0] ?? 0), ispName: s?.net?.isp?.name ?? '', mail: !!s?.net && (s.net.uploadsWaiting > 0 || s.net.transfers.some((t) => t.dir === 'up')), t: gt / 1000, net }, dt);
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
     // (a plug the hand still slides in or lets fall keeps it open too)
     const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
     if (machine) { const m = machine; m.setOpen(lift.intoCase || handIn || highlight.peek().some((id) => !OUTSIDE.has(id) && !id.startsWith('key:') && !!findById(m.root, id)), lift.busy || handIn); }
-    machine?.frame(s, dt);
+    machine?.frame(s, dt, dt, net);
     hand.frame(dt, camera);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ladderFor } from './picker';
-import { currentSpecFor, galleryGroups, KIND_ICON, kindIcon, kindLabel, priceOf, railLabel, SHOP_ORDER, shopFor, splitName, STUDIO_KINDS } from './shopdata';
+import { artStillIds, currentSpecFor, galleryGroups, hasModel, KIND_ICON, kindIcon, kindLabel, priceOf, railLabel, SHOP_ORDER, shopFor, splitName, stillIds, STUDIO_KINDS } from './shopdata';
 import { snap } from '@/core/ui/testdata';
 
 describe('the shop', () => {
@@ -58,5 +58,23 @@ describe('the gallery', () => {
         expect(priceOf(i.id), `${i.id} price`).not.toBeNull();
       }
     }
+  });
+
+  it('ends with the four routers, which have a 3D model of their own (an OS and an internet plan have none)', () => {
+    const groups = galleryGroups(), last = groups[groups.length - 1]!;
+    expect(last.kind).toBe('router');
+    expect(last.items.map((i) => i.id)).toEqual(['router1', 'router2', 'router3', 'router4']);
+    expect(STUDIO_KINDS[STUDIO_KINDS.length - 1]).toBe('router');
+    expect(hasModel('router')).toBe(true);
+    for (const k of ['os', 'isp', null]) expect(hasModel(k), String(k)).toBe(false);
+  });
+
+  it('bakes a still for each router, with its model, and for each internet plan, with its drawn picture', () => {
+    expect(artStillIds()).toEqual(['isp1', 'isp2', 'isp3', 'isp4', 'isp5']);
+    const all = stillIds();
+    for (const id of ['router1', 'router2', 'router3', 'router4', ...artStillIds()]) expect(all, id).toContain(id);
+    expect(new Set(all).size).toBe(all.length);
+    // (a router's picture is the model's, so it is not one of the drawn ones)
+    expect(artStillIds().some((id) => id.startsWith('router'))).toBe(false);
   });
 });

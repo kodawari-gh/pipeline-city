@@ -670,6 +670,11 @@ export interface NetSnap {
    */
   portBusyKey: number | null;
   counters: { delivered: number; downloaded: number; uploaded: number; lost: number };
+  /**
+   * What the uplink port has carried since the game started, in Ethernet frames, like a NIC's statistics: `rx` received (the data of downloads, the acknowledgements
+   * of uploads), `tx` sent. They only grow; the jacks' activity lights follow how fast (`network/render/jackleds.ts`). Not saved: a loaded game counts from 0.
+   */
+  frames: { rx: number; tx: number };
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };

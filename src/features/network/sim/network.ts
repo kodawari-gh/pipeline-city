@@ -128,6 +128,20 @@ export function activeTransfers(this: Game): number {
   return this.downloads.length + this.activeUploads().length;
 }
 
+/** The megabytes a transfer really moves this tick: its share, but no more than is left (the last tick of a transfer is a part of one). */
+const moved = (t: Transfer, share: number): number => Math.max(0, Math.min(share, t.totalMB - t.doneMB));
+
+/**
+ * Count the frames of `mb` megabytes of payload that cross the uplink port the way `dir` says (`rx`: into the machine, `tx`: out of it): the data frames
+ * on the way they flow, and the acknowledgements the receiver sends back on the other way, one for `NET.ackEvery` data frames. The port's statistics are
+ * these, and the jacks' activity lights follow them (`network/render/jackleds.ts`). Fractions stay in the totals, so a whole transfer counts exactly.
+ */
+function countFrames(f: { rx: number; tx: number }, mb: number, dir: "rx" | "tx"): void {
+  const data = (mb * 1e6) / NET.frameBytes;
+  f[dir] += data;
+  f[dir === "rx" ? "tx" : "rx"] += data / NET.ackEvery;
+}
+
 /** Start downloads for waiting offers and move the bytes of every transfer. */
 export function runTransfers(this: Game): void {
   const bw = this.link.bw;
@@ -151,7 +165,7 @@ export function runTransfers(this: Game): void {
   }
   if (this.downloads.length > 0) {
     const each = bw.downMbps / 8 / this.downloads.length;
-    for (const t of this.downloads) t.doneMB += each;
+    for (const t of this.downloads) { countFrames(this.netFrames, moved(t, each), "rx"); t.doneMB += each; }
     for (const t of this.downloads.filter((x) => x.doneMB >= x.totalMB)) {
       this.downloads = this.downloads.filter((x) => x !== t);
       this.rx.push(t.key);
@@ -161,7 +175,7 @@ export function runTransfers(this: Game): void {
   const sending = this.activeUploads();
   if (sending.length > 0) {
     const each = bw.upMbps / 8 / sending.length;
-    for (const t of sending) t.doneMB += each;
+    for (const t of sending) { countFrames(this.netFrames, moved(t, each), "tx"); t.doneMB += each; }
     for (const t of sending.filter((x) => x.doneMB >= x.totalMB)) {
       this.uploads = this.uploads.filter((x) => x !== t);
       this.spool = this.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
@@ -309,5 +323,6 @@ export function netSnap(this: Game, jobs: KernelJob[]): NetSnap {
     retiredKeys: this.tray.waiting().filter((k) => k.retired).length,
     portBusyKey: this.portBusy(),
     counters: { ...this.netCount },
+    frames: { rx: Math.round(this.netFrames.rx), tx: Math.round(this.netFrames.tx) },
   };
 }

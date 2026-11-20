@@ -32,8 +32,8 @@ export const railLabel = (k: string): string => RAIL_LABEL[k as ShopKind] ?? kin
 /** The icon of a category, with a plain box for anything unknown. */
 export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'box';
 
-/** Has this kind a 3D model in the showcase? (Boards, software, routers and plans are not parts you can turn in your hand.) */
-export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'router', 'isp'].includes(k);
+/** Has this kind a 3D model in the showcase? (Boards, software and plans are not parts you can turn in your hand; a router is.) */
+export const hasModel = (k: string | null): boolean => !!k && !['board', 'os', 'isp'].includes(k);
 
 /** The list price of a catalogue item (a part, a board tier or a case tier, an OS, a router or an internet plan), or null for an id it does not know. */
 export function priceOf(item: string): number | null {
@@ -58,21 +58,22 @@ export interface GalleryItem { id: string; name: string; note: string; tier: num
 export interface GalleryGroup { key: string; kind: string; items: GalleryItem[] }
 
 /** The device kinds the studio screens list, in the shop's order (so the Gallery, Build my PC and the shop agree on where a category sits). */
-const GALLERY_KINDS = SHOP_ORDER.filter((k): k is DeviceKind => hasModel(k) && k !== 'case');
+const GALLERY_KINDS = SHOP_ORDER.filter((k): k is DeviceKind => hasModel(k) && k !== 'case' && k !== 'router');
 
-/** Every category of the studio screens, cases and boards first: the Gallery's rail and Build my PC's shelf (which has no monitor) take their order from it. */
-export const STUDIO_KINDS: readonly string[] = ['case', 'board', ...GALLERY_KINDS];
+/** Every category of the studio screens, cases and boards first, the router last (the one network prop with a model): the Gallery's rail and Build my PC's shelf (which has no monitor) take their order from it. */
+export const STUDIO_KINDS: readonly string[] = ['case', 'board', ...GALLERY_KINDS, 'router'];
 
 /** Every part the showcase can build, by category (cases first, as the shop lists them): the gallery's list, and the shop's stills (`tools/stills.mjs`). */
 export function galleryGroups(): GalleryGroup[] {
   const out: GalleryGroup[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case`, tier: c.tier })) }];
   out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard', tier: b.tier })) });
   for (const k of GALLERY_KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}`, tier: s.tier })) });
+  out.push({ key: 'router', kind: 'router', items: ROUTER_SPECS.map((r) => ({ id: r.id, name: r.name, note: `tier ${r.tier}`, tier: r.tier })) });
   return out.filter((g) => g.items.length > 0);
 }
 
-/** Ids that get a baked still but no 3D model: their picture is the board's own art (routers, internet plans), drawn by `tools/stills.mjs`. (An OS is software: it keeps its drawn disc.) */
-export const artStillIds = (): string[] => [...ROUTER_SPECS.map((r) => r.id), ...ISP_SPECS.map((p) => p.id)];
+/** Ids that get a baked still but no 3D model: their picture is the board's own art (the internet plans), drawn by `tools/stills.mjs`. (An OS is software: it keeps its drawn disc.) */
+export const artStillIds = (): string[] => ISP_SPECS.map((p) => p.id);
 
 /** Every id that must have a baked still: all the gallery's parts, the routers and the plans. */
 export const stillIds = (): string[] => [...galleryGroups().flatMap((g) => g.items.map((i) => i.id)), ...artStillIds()];

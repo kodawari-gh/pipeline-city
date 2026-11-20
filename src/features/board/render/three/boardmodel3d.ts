@@ -23,6 +23,7 @@ import { ioCover, slotHardware, type IoFeatures } from './boardhw3d';
 import { ioShield } from './casedetail3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { light, type Spin } from './fans3d';
+import type { JackLamps } from './rj45jack3d';
 import { chipset, coinCell, m2Standoff } from './parts3d';
 import { dimmSlot } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
@@ -98,6 +99,8 @@ export interface Board3D {
   small: Group;
   /** The lights that follow the board's power: the chipset's and the I/O's glow (the case's accent), the lamps (their own colour). */
   lights: Spin[];
+  /** The two lights of the rear RJ45 jack, out: the network's (`network/render/jackleds.ts`). Null on a board with no jack. */
+  lan: JackLamps | null;
   /** The CPU socket's gold contacts alone (they show only with no CPU on them): a patch that takes the CPU out adds this, one that fits it removes it. */
   contacts: () => Group;
 }
@@ -119,8 +122,8 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   g.add(slab(shapeOf(outline), BOARD_Z - 64, BOARD_Z - 58, mat(0x131518, { roughness: 0.7 })));
   tag(art.surface(g, (f, px) => (px < LV_BOARD[1]! ? far : draw).bake(f, px), BD, BOARD_Z, LV_BOARD).root, 'board');
   // the rear I/O: the connectors and their cover, and the shield fitted over their mouths (the case's rear wall between)
-  const feat = o.feat ?? BOARD_TIERS[tier]?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }, io = ioCover(feat);
-  g.add(io.root, ioShield(feat, tier));
+  const feat = o.feat ?? BOARD_TIERS[tier]?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }, io = ioCover(feat), shield = ioShield(feat, tier);
+  g.add(io.root, shield.root);
   if (io.glow) lights.push(light(io.glow));
   // the CPU socket (its pins are solids), the memory sockets, the slots, the M.2 connectors with their standoffs
   sockets.set('cpu0', up(g, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket));
@@ -158,5 +161,5 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
   if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
   if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
-  return { root: g, sockets, small, lights, contacts: () => buildSolids(solids.filter((x) => x.kind === 'lga'), true, sk.capSleeve) };
+  return { root: g, sockets, small, lights, lan: shield.lan, contacts: () => buildSolids(solids.filter((x) => x.kind === 'lga'), true, sk.capSleeve) };
 }

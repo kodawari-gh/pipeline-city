@@ -24,6 +24,33 @@ describe('the showcase models', () => {
     for (const id of ['case0', 'case1', 'case2', 'case3']) expect(buildShowcaseModel(id, T), id).not.toBeNull();
   });
 
+  it('builds the four routers (the shared model of router3d.ts): solid, resting on the floor, centred, each of its own size', () => {
+    const widths = ['router1', 'router2', 'router3', 'router4'].map((id) => {
+      const m = buildShowcaseModel(id, T);
+      expect(m, id).not.toBeNull();
+      const b = new Box3().setFromObject(m!), s = b.getSize(b.max.clone()), c = b.getCenter(b.max.clone());
+      expect(s.x * s.y * s.z, id).toBeGreaterThan(0);
+      expect(b.min.y, id).toBeCloseTo(0, 3);
+      expect(Math.abs(c.x) + Math.abs(c.z), id).toBeLessThan(1);
+      return s.x;
+    });
+    expect(new Set(widths.map((w) => Math.round(w))).size).toBe(4);
+    // (no such router: nothing to show)
+    for (const id of ['router0', 'router5']) expect(buildShowcaseModel(id, T), id).toBeNull();
+  });
+
+  it('shows a router with every jack light out: a still has no link to light them', () => {
+    for (const id of ['router1', 'router4']) {
+      let lit = 0;
+      buildShowcaseModel(id, T)!.traverse((o) => {
+        const m = (o as { material?: { emissive?: { getHex(): number }; emissiveIntensity?: number } }).material;
+        // (a jack's lights are green and amber; the status row is cyan or azure)
+        if (m?.emissive && [0x58e08a, 0xffb547].includes(m.emissive.getHex()) && (m.emissiveIntensity ?? 0) > 0) lit++;
+      });
+      expect(lit, id).toBe(0);
+    }
+  });
+
   it('stands a RAM stick with its long side along x', () => {
     const b = new Box3().setFromObject(buildShowcaseModel('ram0', T)!), s = b.getSize(b.max.clone());
     expect(s.x).toBeGreaterThan(s.y);

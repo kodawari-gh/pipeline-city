@@ -4,16 +4,20 @@
 // jack with five lights for the plan's tier, a shelf with the router of the game's tier on it, and the patch lead from the jack to the router's WAN port.
 // The machine's own cords (`Machine3D`, `wall` option) go to the outlets and from the router's first LAN port to the case's network jack.
 // World frame: x east, y up, z toward the viewer; `MM` = 23 units a mm. The plan is pure (the cords and the camera read it); the wall is built from it.
-import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
-import { disposeTree, drum, place, rectBox, rod, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
+import { Group, MeshStandardMaterial } from 'three';
+import { disposeTree, drum, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
+import { lightJack, type LinkLevels } from '@/features/network/render/jackleds';
 import { seatPlug } from './cablerig3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { rj45Jack, rj45Plug } from './plugs3d';
-import { jackFace, jackLook, type JackLook } from './rj45jack3d';
+import { jackAt, LED_ON, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel } from './router3d';
+import { jackLook, type JackLamps } from './rj45jack3d';
 import { pinwheel, tripleSocket, TRIPLE } from './swisssocket3d';
 import { cableMesh, hangPts, type Env, type Look } from './wires3d';
+
+export { ROUTER_SIZE, routerTier } from './router3d';
 
 /** Units a mm. */
 export const MM = 23;
@@ -23,15 +27,12 @@ export const WALL_Z = 700;
 export const MAINS = { w: TRIPLE.frame * MM, h: TRIPLE.frame * MM, d: 18 * MM } as const;
 /** The ISP's plate (80 x 80 mm) and its jack, a compact RJ45 jack at real size. */
 export const ISP = { w: 80 * MM, h: 80 * MM, d: 13 * MM } as const;
-/** An RJ45 jack's face, real size (`jackFace`: 13.75 mm over its span's depth), how deep its insert goes, how far a plug sits behind its face. */
-const JACK = { w: 13.75 * MM, h: 10.7 * MM, deep: 15.5 * MM };
+/** An RJ45 jack's face, real size (`router3d.ts`): its size, how deep its insert goes. */
+const JACK = RJ;
 /** How far west of the case's west face the plates start (the case, seen from the start view, hides the wall's points less than this far out when they are under the case's top). */
 const PLATE_OFF = 7000;
-/** The router's depth (every tier: its jacks stand in the same place) and the pitch of its jacks. */
-export const ROUTER_DEPTH = 2400;
-const PITCH = 440;
-/** The router's size by tier (1 to 4): width and height. The home router has two aerials, the gigabit one stouter ones, the 10G one a lit strip, the core router rack ears. */
-export const ROUTER_SIZE: Readonly<Record<number, { w: number; h: number }>> = { 1: { w: 2700, h: 620 }, 2: { w: 3000, h: 700 }, 3: { w: 3300, h: 760 }, 4: { w: 3800, h: 1000 } };
+/** The router's depth from the wall (every tier: its jacks stand in the same place): its body (`router3d.ts`) stands 160 off the wall. The size of each tier is `ROUTER_SIZE`, the model's. */
+export const ROUTER_DEPTH = ROUTER_BODY + 160;
 const TIERS = [1, 2, 3, 4] as const;
 
 /** A box of the world: x and y, y up. */
@@ -68,7 +69,7 @@ export interface WallPlan {
 
 /** The plan: the ISP's plate over the mains plate on the case's west side, above where the case hides the wall from the stage's camera, the router on its shelf by the plates. */
 export function wallPlan(i: WallIn): WallPlan {
-  const z = WALL_Z, x0 = i.caseX - PLATE_OFF, row = i.caseTop - 1550, jy = (b: number) => b + 320;
+  const z = WALL_Z, x0 = i.caseX - PLATE_OFF, row = i.caseTop - 1550;
   const isp: WallPlan['isp'] = { x0, x1: x0 + ISP.w, y0: row, y1: row + ISP.h, z: z + ISP.d, jack: [x0 + ISP.w / 2, row + ISP.h * 0.6, z + ISP.d - 3] };
   // (the mains plate under the ISP's, on the same column: the screw of its pinwheel at the plate's middle)
   const my0 = row - 160 - MAINS.h, fz = z + MAINS.d, mx = x0 + ISP.w / 2, my = my0 + MAINS.h / 2;
@@ -78,7 +79,7 @@ export function wallPlan(i: WallIn): WallPlan {
     outlet: { pcmains: sockets[2].at, monmains: sockets[1].at }, turn: { pcmains: sockets[2].roll, monmains: sockets[1].roll },
   };
   const east = i.caseX - 300, base = row + 200, front = z + ROUTER_DEPTH;
-  const jacks = [0, 1, 2, 3, 4].map((k): V3 => [east - 520 - k * PITCH, jy(base), front - 3]);
+  const jacks = [0, 1, 2, 3, 4].map((k): V3 => { const j = routerJack(k); return [east + j[0], base + j[1], front + j[2]]; });
   const router: WallPlan['router'] = { east, base, front, lan: jacks[0]!, wan: jacks[4]!, jacks };
   const face = { x0: i.caseX - 14000, x1: i.caseX + i.caseW + 9000, y0: i.floorY, y1: i.floorY + 24000, z };
   const frame = { x0: x0 - 200, x1: east + 200, y0: mains.y0, y1: isp.y1 };
@@ -98,13 +99,11 @@ export function routerSolid(p: WallPlan, tier: number | null): { min: V3; max: V
   return { min: [p.router.east - s.w - 200, p.router.base - 160, p.face.z], max: [p.router.east + 200, p.router.base + s.h, p.router.front - 6] };
 }
 
-/** What the wall shows of the game's network. */
+/** What the wall shows of the game's network: the tiers fitted. The jacks' lights are not here: the link's frames drive them (`lights`). */
 export interface WallNet {
   /** The router's and the plan's tiers; null: none fitted. */
   router: number | null;
   isp: number | null;
-  /** The link the PC has: off (no cable, no card), idle (plugged in, nothing flows: no OS, the link down), up (it carries traffic), busy (saturated). */
-  link: 'off' | 'idle' | 'up' | 'busy';
 }
 
 /** A layout rect (y down) over a box of the world (y up). */
@@ -112,14 +111,6 @@ const lay = (x0: number, x1: number, y0: number, y1: number): RectLike => ({ x: 
 const glow = (c: number): MeshStandardMaterial => new MeshStandardMaterial({ color: 0x131518, emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 const WALL = 0x262b38, PLATE = 0xcfd2d8, STEEL = 0x1c1d20, NEON = 0x3be3ff;
-
-/** A jack in a front facing the viewer: built as a wall across x, turned so its mouth opens toward +z, its latch slot down. */
-function jackAt(into: Group, x: number, y: number, face: number, look: JackLook): void {
-  const row = new Group();
-  row.rotation.y = Math.PI / 2;
-  jackFace(row, -face, { y0: -(y + JACK.h / 2), y1: -(y - JACK.h / 2), z0: x - JACK.w / 2, z1: x + JACK.w / 2 }, JACK.deep, look);
-  into.add(row);
-}
 
 export class StudioWall {
   readonly root = new Group();
@@ -131,27 +122,32 @@ export class StudioWall {
   /** The five lights of the plan's tier on the ISP's plate, and the router's own lights and its jacks' (the link and activity lights of each jack). */
   private dots: MeshStandardMaterial[] = [];
   private status: MeshStandardMaterial[] = [];
-  private jacks: { link: MeshStandardMaterial; act: MeshStandardMaterial }[] = [];
-  private net: WallNet = { router: null, isp: null, link: 'off' };
+  private jacks: (JackLamps | null)[] = [];
+  private net: WallNet = { router: null, isp: null };
 
   constructor(readonly plan: WallPlan, net: WallNet) {
     this.buildStatic();
     this.set(net);
   }
 
-  /** What the wall shows now: the router of this tier (a new one is built), the plan's lights, the patch lead, the jacks' lights. */
+  /** What the wall shows now: the router of this tier (a new one is built), the plan's lights, the patch lead. A new router has every jack light out until `lights` sets them. */
   set(net: WallNet): void {
     this.net = { ...net };
     if (net.router !== this.built) this.buildRouter(net.router);
     const key = `${net.router}|${net.isp}`;
     if (key !== this.shown) { this.shown = key; this.buildLead(net.router !== null && net.isp !== null); }
     this.dots.forEach((m, k) => { m.emissiveIntensity = net.isp !== null && k < net.isp ? 2.2 : 0; });
-    for (const m of this.status) m.emissiveIntensity = net.router !== null && net.isp !== null ? 2.2 : net.router !== null ? 0.9 : 0;
-    const wan = this.jacks[4], lan = this.jacks[0];
-    // (a jack's link light shows a plugged cable, its activity light the traffic: the WAN's follows the PC's, as the plan's traffic is the PC's)
-    const act = net.link === 'busy' ? 1.8 : net.link === 'up' ? 0.9 : 0;
-    if (wan) { wan.link.emissiveIntensity = net.router !== null && net.isp !== null ? 1.6 : 0; wan.act.emissiveIntensity = act; }
-    if (lan) { lan.link.emissiveIntensity = net.link === 'off' ? 0 : 1.6; lan.act.emissiveIntensity = act; }
+    // (the front row is the router's power: lit with a plan on its line, dim without)
+    for (const m of this.status) m.emissiveIntensity = net.router !== null && net.isp !== null ? LED_ON : net.router !== null ? LED_ON * 0.4 : 0;
+  }
+
+  /**
+   * The lights of the router's jacks, from the link's frames (`network/render/jackleds.ts`): the first LAN jack, where the PC's cord plugs in, and the WAN jack, where the
+   * patch lead from the wall goes. The other three jacks have no cable and stay dark. Nothing here sets a level by itself.
+   */
+  lights(v: LinkLevels): void {
+    lightJack(this.jacks[0], v.lan);
+    lightJack(this.jacks[4], v.wan);
   }
 
   dispose(): void { disposeTree(this.root); this.root.clear(); }
@@ -189,47 +185,13 @@ export class StudioWall {
     if (this.router) { this.root.remove(this.router); disposeTree(this.router); this.router = null; }
     this.status = []; this.jacks = [];
     if (tier === null) return;
-    const { plan: p } = this, r = p.router, s = ROUTER_SIZE[tier] ?? ROUTER_SIZE[1]!, g = new Group(), z0 = p.face.z + 160;
-    const x1 = r.east, x0 = x1 - s.w, top = r.base + s.h, bodyM = mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), slate = mat(0x2a2d32, { roughness: 0.4 });
-    const led = glow(tier >= 3 ? 0x4aa8ff : NEON);
-    this.status.push(led);
-    // the body, stopping behind the jacks' inserts, and the front slab (their depth) open at each jack
-    const frontZ = r.front, behind = frontZ - JACK.deep - 80;
-    g.add(softBox(lay(x0, x1, r.base, top), z0, behind, bodyM, 100));
-    g.add(softBox(lay(x0, x1, r.base, r.base + 130), z0, frontZ - 20, slate, 40));
-    const holes = r.jacks.map((j) => outlinePts(lay(j[0] - JACK.w / 2, j[0] + JACK.w / 2, j[1] - JACK.h / 2, j[1] + JACK.h / 2), 0));
-    g.add(slab(shapeOf(outlinePts(lay(x0, x1, r.base, top), 100, undefined, SEG.cornerCoarse), holes), behind, frontZ, bodyM));
-    r.jacks.forEach((j, k) => {
-      // (each jack has its own lights: the WAN's and the first LAN's show the link)
-      const look = jackLook(mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }));
-      this.jacks[k] = { link: look.link as MeshStandardMaterial, act: look.act as MeshStandardMaterial };
-      jackAt(g, j[0], j[1], j[2], look);
-    });
-    // the front's strip with the status lights, vents on top
-    const lampY = top - 130;
-    g.add(rectBox(lay(x0 + 220, x1 - 220, lampY - 60, lampY + 60), frontZ - 5, frontZ + 8, mat(0x131518, { roughness: 0.5 })));
-    const dots = tier >= 4 ? 8 : 4;
-    for (let k = 0; k < dots; k++) g.add(drum(x0 + 420 + k * (tier >= 4 ? 190 : 330), -lampY, frontZ + 4, frontZ + 22, 34, led, SEG.smallDisc));
-    for (let k = 0; k < 6; k++) g.add(rectBox(lay(x0 + 500 + k * 240, x0 + 590 + k * 240, top - 4, top + 4), z0 + 400, z0 + 1100, mat(0x050608, { roughness: 0.8 })));
-    if (tier >= 3) g.add(rectBox(lay(x0 + 140, x1 - 140, top - 22, top + 6), frontZ - 700, frontZ - 60, led));
-    if (tier >= 4) {
-      // a rack unit: its ears, bolted at the sides
-      const ear = mat(0x2a2d32, { roughness: 0.4 }), steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 });
-      for (const [a, b] of [[x0 - 190, x0], [x1, x1 + 190]] as const) {
-        g.add(softBox(lay(a, b, r.base, top), frontZ - 120, frontZ, ear, 20));
-        g.add(drum((a + b) / 2, -(r.base + s.h * 0.3), frontZ - 2, frontZ + 14, 36, steel, SEG.smallDisc), drum((a + b) / 2, -(r.base + s.h * 0.72), frontZ - 2, frontZ + 14, 36, steel, SEG.smallDisc));
-      }
-    }
-    if (tier <= 2) {
-      // two aerials on hinge knuckles at the back corners, leaning out
-      const aerial = mat(0x2a2d32, { roughness: 0.45 }), rad = tier >= 2 ? 105 : 85, len = tier >= 2 ? 2800 : 2400;
-      for (const [ax, lean] of [[x0 + 260, -0.14], [x1 - 260, 0.14]] as const) {
-        const base: [number, number, number] = [ax, top + 40, z0 + 240], tip: [number, number, number] = [ax + Math.sin(lean) * len, top + 40 + Math.cos(lean) * len, z0 + 90];
-        const knuckle = new Mesh(new SphereGeometry(rad * 1.5, SEG.part, SEG.part / 2), aerial);
-        knuckle.position.set(...base);
-        g.add(place(knuckle), rod(base, tip, rad, aerial, SEG.rod));
-      }
-    }
+    // (the shared model, router3d.ts: its east end, feet and front on the shelf's plan; the wall hides its back, so it has none; the first LAN jack and the WAN jack
+    // have lights of their own, all out until `lights` sets them: the PC's cord and the patch lead go there, the other three jacks have no cable)
+    const r = this.plan.router, m = routerModel(tier, { depth: ROUTER_BODY, rear: false, drive: [0, 4] }), g = new Group();
+    m.root.position.set(r.east, r.base, r.front);
+    g.add(m.root);
+    this.status = m.status;
+    this.jacks = m.jacks;
     g.name = 'wall.router';
     this.router = g;
     this.root.add(g);
@@ -251,8 +213,6 @@ export class StudioWall {
   }
 }
 
-/** The router's tier of a game's router id (`router2` is 2), or null. */
-export const routerTier = (id: string | null | undefined): number | null => { const k = /^router(\d+)$/.exec(id ?? ''); return k ? Number(k[1]) : null; };
 /** The plan's tier of a game's plan id (`isp3` is 3), or null. */
 export const ispTier = (id: string | null | undefined): number | null => { const k = /^isp(\d+)$/.exec(id ?? ''); return k ? Number(k[1]) : null; };
 /** Which tiers the router can be. */

@@ -11,6 +11,8 @@ import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import type { Shown } from '@/features/board/sim/buildspecs';
 import { netPropsVisible } from '@/features/network/render/netvis';
+import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
+import type { JackLamps } from './rj45jack3d';
 import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { fanBank } from '@/core/render/fanmotor';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
@@ -197,6 +199,8 @@ export class Machine3D {
     this.spill.visible = live.has('spill');
   }
   private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial } | null = null;
+  /** The two lights of each Ethernet jack the machine has, by port (`board`, or a network card's device id): the network's, set every frame (`frame`'s `net`). */
+  private lan = new Map<string, JackLamps>();
   /** The RGB's one colour: the case's accent (`caseModel`), so the fans, the strips and the light out through the glass match its trim. */
   private accent = new Color(0x8b5cff);
   /** The art is always the dark theme's: the reference's black board under neon. */
@@ -590,6 +594,7 @@ export class Machine3D {
     const b = boardModel(this.art, this.T, GEO.tier, { filled, ...(s ? { feat: s.board.features } : {}) });
     this.sockets = b.sockets;
     this.contacts = b.contacts;
+    if (b.lan) this.lan.set('board', b.lan); else this.lan.delete('board');
     for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
     for (const l of b.lights) this.spin(l);
     this.root.add(b.root);
@@ -815,6 +820,7 @@ export class Machine3D {
         // (flat, the card's face lies on the hinge's plane)
         if (kind !== 'nic') this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
+        if (c.lan) this.lan.set(d.id, c.lan);
         this.apart.push(c.fades);
         this.softSkin(d.id, ...c.skin);
         break;
@@ -1345,6 +1351,7 @@ export class Machine3D {
       this.powerRoots.delete(o.id);
       if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
       this.cards.delete(d.slot);
+      this.lan.delete(o.id);
       if (d.kind === 'cooler') { this.cooler = null; this.pump = false; }
       this.owned.delete(keyOf(d));
     }
@@ -1358,6 +1365,8 @@ export class Machine3D {
       if (ps) { this.powerSkins.delete(o.id); this.powerSkins.set(d.id, ps); }
       const pr = this.powerRoots.get(o.id);
       if (pr) { this.powerRoots.delete(o.id); this.powerRoots.set(d.id, pr); }
+      const lan = this.lan.get(o.id);
+      if (lan) { this.lan.delete(o.id); this.lan.set(d.id, lan); }
       o.id = d.id;
     }
     this.ram = null;
@@ -1431,9 +1440,14 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ live
-  /** `doorDt`: the side panel's own time, when it runs at another pace than the rest (Build my PC's steps at 2x: the panel keeps up with them). */
-  frame(s: Snapshot | null, dt: number, doorDt = dt): void {
+  /**
+   * `doorDt`: the side panel's own time, when it runs at another pace than the rest (Build my PC's steps at 2x: the panel keeps up with them). `net`: what the network gives
+   * the jacks' lights this frame (`LinkLeds.step`): the PC end's go to the jack the cable is in, every other jack stays dark.
+   */
+  frame(s: Snapshot | null, dt: number, doorDt = dt, net: LinkLevels = DARK): void {
     const live = !!s && s.powered && !s.power.tripped && !s.board.burnt;
+    const port = s?.net?.port, plugged = port?.kind === 'board' ? 'board' : port?.kind === 'nic' ? port.deviceId : null;
+    for (const [id, j] of this.lan) lightJack(j, id === plugged ? net.pc : DARK.pc);
     this.ramMap?.update(s?.ram ?? null, performance.now());
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);

@@ -3,6 +3,7 @@ import { BoxGeometry, Matrix4, Mesh, MeshStandardMaterial, Scene, type Light, ty
 import { framed, meshHash, type Bake } from '@/core/render/three/lightmapmix';
 import { partsOf } from '@/core/render/three/merge';
 import { ShadowCache } from '@/core/render/three/shadows';
+import { DARK, JACK_GLOW, type LinkLevels } from '@/features/network/render/jackleds';
 import { BEDSIDE_FAR, BEDSIDE_LAYER, Room3D } from './room3d';
 import { FLOOR_Y, NIGHTSTAND } from './roomplan';
 
@@ -178,4 +179,46 @@ it('the palette merge leaves every mesh the game shows and hides alone (checked 
   // and nothing the merge made stands drawn once the game hides them
   frame(false, 0);
   expect(flips.filter((o) => drawn().has(o))).toEqual([]);
+});
+
+// The router's jack lights on the shelf (docs/render/net.md "LED meanings"): the side jack the lead's cord goes into and the WAN jack carry a light each way; the frames
+// of the link, as `LinkLeds` turns them into levels, are all that lights them, and the merges leave their lamps alone.
+it('lights the router\'s side jack and its WAN jack from the levels of the link, and no other', async () => {
+  const room = new Room3D();
+  const out = { installed: false, powered: false, live: false, text: '' };
+  const lv = (lan: [number, number], wan: [number, number]): LinkLevels => ({ pc: { link: lan[0], act: lan[1] }, lan: { link: lan[0], act: lan[1] }, wan: { link: wan[0], act: wan[1] }, moving: false });
+  const frame = (router: number, net?: LinkLevels) => room.frame({ hour: 12, lamp: false, blind: false, screen: out, router, isp: 3, ispName: '', mail: false, t: 1, net }, 0.016);
+  /** The glow of every light of one colour, by material, dimmest first (a router has two jacks with lights: the side one and the WAN one). */
+  const glows = (hex: number): number[] => {
+    const seen = new Set<MeshStandardMaterial>();
+    room.root.traverse((o) => { const m = (o as Mesh).material as MeshStandardMaterial | undefined; if ((o as Mesh).isMesh && m && !Array.isArray(m) && m.emissive?.getHex() === hex) seen.add(m); });
+    return [...seen].map((m) => m.emissiveIntensity).sort((a, b) => a - b);
+  };
+  const LINK = 0x58e08a, ACT = 0xffb547;
+  for (const tier of [1, 2, 3, 4]) {
+    frame(tier);
+    await room.ready;
+    // (built dark, and dark with no levels)
+    expect(glows(LINK), `tier ${tier}`).toEqual([0, 0]);
+    expect(glows(ACT), `tier ${tier}`).toEqual([0, 0]);
+    frame(tier, lv([0, 0], [0, 0]));
+    expect(glows(LINK), `tier ${tier}`).toEqual([0, 0]);
+    // (the cord's side and the line's side each by themselves, link and activity each by itself)
+    frame(tier, lv([1, 0], [0, 0]));
+    expect(glows(LINK), `tier ${tier}`).toEqual([0, JACK_GLOW.link]);
+    expect(glows(ACT), `tier ${tier}`).toEqual([0, 0]);
+    frame(tier, lv([0, 0], [1, 1]));
+    expect(glows(LINK), `tier ${tier}`).toEqual([0, JACK_GLOW.link]);
+    expect(glows(ACT), `tier ${tier}`).toEqual([0, JACK_GLOW.act]);
+    frame(tier, lv([1, 1], [1, 1]));
+    expect(glows(LINK), `tier ${tier}`).toEqual([JACK_GLOW.link, JACK_GLOW.link]);
+    expect(glows(ACT), `tier ${tier}`).toEqual([JACK_GLOW.act, JACK_GLOW.act]);
+    // (the frames stop: they go out)
+    frame(tier, DARK);
+    expect(glows(LINK), `tier ${tier}`).toEqual([0, 0]);
+    expect(glows(ACT), `tier ${tier}`).toEqual([0, 0]);
+  }
+  // (no router stands: nothing is lit, whatever the levels)
+  frame(0, lv([1, 1], [1, 1]));
+  expect(glows(LINK)).toEqual([0, 0]);
 });

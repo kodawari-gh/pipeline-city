@@ -1,7 +1,8 @@
 // The studio's wall on the Build my PC stage (studiowall3d.ts): the plan (where the plates, the router and its jacks stand), and the wall built from it (the router of a tier,
-// the plan's lights, the patch lead, the link lights).
+// the plan's lights, the patch lead, the router's jack lights that the link's frames drive).
 import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, MeshStandardMaterial, type Object3D } from 'three';
+import { DARK, JACK_GLOW, LinkLeds, type LinkLevels, type LinkSource } from '@/features/network/render/jackleds';
 import { quietCanvas } from './testutil';
 import { ISP, MAINS, MM, ROUTER_SIZE, ROUTER_TIERS, StudioWall, ispTier, routerSolid, routerTier, wallPlan, type WallIn, type WallNet } from './studiowall3d';
 
@@ -9,7 +10,7 @@ quietCanvas();
 
 const IN: WallIn = { caseX: -2810, caseTop: 5350, caseW: 12690, floorY: -6890 };
 const p = wallPlan(IN);
-const NET: WallNet = { router: 3, isp: 3, link: 'up' };
+const NET: WallNet = { router: 3, isp: 3 };
 
 describe('wallPlan', () => {
   it('puts both plates on the wall, west of the case, one above the other', () => {
@@ -143,13 +144,25 @@ const materials = (root: Object3D): MeshStandardMaterial[] => {
 };
 /** How much light the wall gives: the emissive intensities, summed. */
 const light = (root: Object3D): number => materials(root).reduce((t, m) => t + (m.emissive.getHex() ? m.emissiveIntensity : 0), 0);
+/** The levels the PC's lights have: the router's LAN jack takes its PC's, `[link, activity]`. */
+const levels = (lan: [number, number], wan: [number, number]): LinkLevels => ({ pc: { link: lan[0], act: lan[1] }, lan: { link: lan[0], act: lan[1] }, wan: { link: wan[0], act: wan[1] }, moving: false });
+/** A snapshot's share: the cord in the board's jack, a router and a plan, the frames the port has carried, the PC on or off. */
+const linkSource = (baseTick: number, rx: number, o: { on?: boolean } = {}): LinkSource => ({
+  baseTick, powered: o.on ?? true, power: { tripped: false },
+  net: {
+    port: { kind: 'board', deviceId: null, mbps: 1000 },
+    router: { id: 'router3', name: '10G router', mbps: 10000, clients: 4, visual: 'router-10g' },
+    isp: { id: 'isp3', name: 'Fibre', downMbps: 1000, upMbps: 500, clients: 4 },
+    frames: { rx, tx: 0 },
+  },
+});
 /** The plan's lamps: the glowing materials in the ISP's colour (a router of tier 3 or 4 has its own blue). */
 const lamps = (root: Object3D): number => materials(root).filter((m) => m.emissive.getHex() === 0x3be3ff && m.emissiveIntensity > 0).length;
 
 describe('StudioWall', () => {
   it('builds with a router of every tier, and with none, all of it west of the case', () => {
     for (const router of [null, ...ROUTER_TIERS]) {
-      const w = new StudioWall(p, { router, isp: 2, link: 'idle' });
+      const w = new StudioWall(p, { router, isp: 2 });
       expect(w.root.children.length, `router ${router}`).toBeGreaterThan(3);
       const r = w.root.getObjectByName('wall.router');
       expect(!!r, `router ${router}`).toBe(router !== null);
@@ -180,29 +193,29 @@ describe('StudioWall', () => {
   });
 
   it('builds the router that is set: another tier is another router, none takes it away', () => {
-    const w = new StudioWall(p, { router: 1, isp: 1, link: 'idle' });
+    const w = new StudioWall(p, { router: 1, isp: 1 });
     const size = (): number[] | null => { const r = w.root.getObjectByName('wall.router'); if (!r) return null; const b = new Box3().setFromObject(r); return [b.min.x, b.max.x, b.min.y, b.max.y]; };
     const t1 = size()!;
-    w.set({ router: 4, isp: 1, link: 'idle' });
+    w.set({ router: 4, isp: 1 });
     expect(size()).not.toEqual(t1);
-    w.set({ router: null, isp: 1, link: 'idle' });
+    w.set({ router: null, isp: 1 });
     expect(size()).toBeNull();
-    w.set({ router: 1, isp: 1, link: 'idle' });
+    w.set({ router: 1, isp: 1 });
     expect(size()).toEqual(t1);
     w.dispose();
   });
 
   it('lays the patch lead from the jack to the router only when both are there', () => {
-    const w = new StudioWall(p, { router: null, isp: null, link: 'off' });
+    const w = new StudioWall(p, { router: null, isp: null });
     const lead = (): boolean => !!w.root.getObjectByName('wall.lead');
     expect(lead()).toBe(false);
-    w.set({ router: 2, isp: null, link: 'off' });
+    w.set({ router: 2, isp: null });
     expect(lead()).toBe(false);
-    w.set({ router: 2, isp: 2, link: 'off' });
+    w.set({ router: 2, isp: 2 });
     expect(lead()).toBe(true);
-    w.set({ router: null, isp: 2, link: 'off' });
+    w.set({ router: null, isp: 2 });
     expect(lead()).toBe(false);
-    w.set({ router: 3, isp: 2, link: 'off' });
+    w.set({ router: 3, isp: 2 });
     expect(lead()).toBe(true);
     // (the lead runs from the jack's plate across to the router's WAN jack: it is as wide as the two)
     const b = new Box3().setFromObject(w.root.getObjectByName('wall.lead')!);
@@ -212,23 +225,69 @@ describe('StudioWall', () => {
   });
 
   it('lights as many lamps on the ISP\'s plate as the plan\'s tier', () => {
-    const w = new StudioWall(p, { router: 3, isp: 1, link: 'idle' });
-    for (const t of [1, 3, 5]) { w.set({ router: 3, isp: t, link: 'idle' }); expect(lamps(w.root), `plan ${t}`).toBe(t); }
-    w.set({ router: 3, isp: null, link: 'idle' });
+    const w = new StudioWall(p, { router: 3, isp: 1 });
+    for (const t of [1, 3, 5]) { w.set({ router: 3, isp: t }); expect(lamps(w.root), `plan ${t}`).toBe(t); }
+    w.set({ router: 3, isp: null });
     expect(lamps(w.root)).toBe(0);
     w.dispose();
   });
 
-  it('shows the link: dark with no cable, lit with a link, brighter with traffic, brightest saturated', () => {
-    const w = new StudioWall(p, NET);
-    const at = (link: WallNet['link']): number => { w.set({ ...NET, link }); return light(w.root); };
-    const off = at('off'), idle = at('idle'), up = at('up'), busy = at('busy');
-    expect(idle).toBeGreaterThan(off);
-    expect(up).toBeGreaterThan(idle);
-    expect(busy).toBeGreaterThan(up);
-    // (no router: its lights are out whatever the PC does)
-    w.set({ router: null, isp: 3, link: 'busy' });
-    expect(light(w.root)).toBeLessThan(busy);
+  it('builds the router with every jack light out: nothing but the levels it is given lights one', () => {
+    for (const router of ROUTER_TIERS) {
+      const a = new StudioWall(p, { router, isp: 3 }), b = new StudioWall(p, { router, isp: 3 });
+      b.lights(DARK);
+      expect(light(a.root), `router ${router}`).toBeCloseTo(light(b.root), 9);
+      a.dispose(); b.dispose();
+    }
+  });
+
+  it('lights the first LAN jack and the WAN jack from the levels it is given, each light by itself, and no other jack', () => {
+    const w = new StudioWall(p, NET), base = light(w.root), at = (lan: [number, number], wan: [number, number]): number => { w.lights(levels(lan, wan)); return light(w.root) - base; };
+    expect(at([0, 0], [0, 0])).toBeCloseTo(0, 9);
+    expect(at([1, 0], [0, 0])).toBeCloseTo(JACK_GLOW.link, 9);
+    expect(at([0, 1], [0, 0])).toBeCloseTo(JACK_GLOW.act, 9);
+    expect(at([0, 0], [1, 0])).toBeCloseTo(JACK_GLOW.link, 9);
+    expect(at([0, 0], [0, 1])).toBeCloseTo(JACK_GLOW.act, 9);
+    expect(at([1, 1], [1, 1])).toBeCloseTo(2 * (JACK_GLOW.link + JACK_GLOW.act), 9);
+    // (the levels set the lamps: they go out again as they fall)
+    expect(at([1, 0], [1, 0])).toBeCloseTo(2 * JACK_GLOW.link, 9);
+    w.lights(DARK);
+    expect(light(w.root)).toBeCloseTo(base, 9);
+    w.dispose();
+  });
+
+  it('takes a new router dark: it holds no light of the old one, and none is lit until the next levels come', () => {
+    const w = new StudioWall(p, { router: 1, isp: 3 });
+    w.lights(levels([1, 1], [1, 1]));
+    w.set({ router: 4, isp: 3 });
+    const fresh = new StudioWall(p, { router: 4, isp: 3 });
+    expect(light(w.root)).toBeCloseTo(light(fresh.root), 9);
+    w.lights(levels([1, 0], [1, 0]));
+    expect(light(w.root) - light(fresh.root)).toBeCloseTo(2 * JACK_GLOW.link, 9);
+    w.dispose(); fresh.dispose();
+  });
+
+  it('has no jack to light with no router, and does not fail when it is asked to', () => {
+    const w = new StudioWall(p, { router: null, isp: 3 }), base = light(w.root);
+    expect(() => w.lights(levels([1, 1], [1, 1]))).not.toThrow();
+    expect(light(w.root)).toBeCloseTo(base, 9);
+    w.dispose();
+  });
+
+  it('follows the frames the link carries: green with a cable and a plan, amber only while the counter grows', () => {
+    const w = new StudioWall(p, NET), leds = new LinkLeds(), base = light(w.root);
+    const at = (tick: number, rx: number, dt = 0.05): number => { w.lights(leds.step(linkSource(tick, rx), dt)); return light(w.root) - base; };
+    // (the PC's cord and the line are in, and nothing moves: the two green lights, no amber)
+    expect(at(0, 0)).toBeCloseTo(2 * JACK_GLOW.link, 9);
+    expect(at(1, 0)).toBeCloseTo(2 * JACK_GLOW.link, 9);
+    // (50 000 frames in a tick: the frames follow each other closer than a pulse, both ambers stay lit)
+    expect(at(2, 50_000)).toBeCloseTo(2 * (JACK_GLOW.link + JACK_GLOW.act), 9);
+    expect(at(2, 50_000)).toBeCloseTo(2 * (JACK_GLOW.link + JACK_GLOW.act), 9);
+    // (the counter stops: the next tick's rate is 0, and the ambers go out with it)
+    expect(at(3, 50_000)).toBeCloseTo(2 * JACK_GLOW.link, 9);
+    // (a PC that is off has no link on its side: the router's LAN light goes out, the WAN light stays with the plan)
+    w.lights(leds.step(linkSource(4, 50_000, { on: false }), 0.05));
+    expect(light(w.root) - base).toBeCloseTo(JACK_GLOW.link, 9);
     w.dispose();
   });
 

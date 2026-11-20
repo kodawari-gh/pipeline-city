@@ -14,17 +14,18 @@
 // `key` stands in for it on what moves. The room's probe is the bounce on all that moves. No light fills from nowhere; the eye adapts to the
 // dark (`localeye.ts`). The sim knows nothing of it.
 import {
-  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, RepeatWrapping,Shape, ShapeGeometry, SphereGeometry,
+  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, PlaneGeometry, PointLight, RepeatWrapping,Shape, ShapeGeometry,
   RectAreaLight, SpotLight, Vector2, type CanvasTexture, type Light, type LightShadow, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
 import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
-import { outlinePts, shapeOf, slab } from '@/features/board/render/three/casekit3d';
-import { jackFace, jackLook } from '@/features/board/render/three/rj45jack3d';
+import { jackFace, jackLook, type JackLamps } from '@/features/board/render/three/rj45jack3d';
+import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
+import { ROUTER_SIZE, routerModel } from '@/features/board/render/three/router3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
-import { SEG, disposeTree, drum, paint, place, post, rectBox, rod, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { SEG, disposeTree, drum, paint, place, post, rectBox, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { glows, mergePalette, mergeStatic, mergeWithin } from '@/core/render/three/merge';
 import { catchUp } from '@/core/render/three/shadows';
 import type { Program } from '@/core/render/three/compile';
@@ -407,7 +408,15 @@ let areaLights = false;
 /** A step of `Room3D.make`: what comes next, and how far along the build is (0 to 1). */
 interface RoomStep { label: string; share: number }
 
-export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; /** The tier of the router on its spot (1 to 4), or 0 for none. */ router: number; /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */ isp: number; ispName: string; mail: boolean; t: number }
+export interface RoomFrame {
+  hour: number; lamp: boolean; blind: boolean; screen: Screen;
+  /** The tier of the router on its spot (1 to 4), or 0 for none. */
+  router: number;
+  /** The ISP plan's tier (0 to 5), and whether an upload waits or goes out (the letterbox's light). */
+  isp: number; ispName: string; mail: boolean; t: number;
+  /** The lights of the router's jacks, from the link's frames (`network/render/jackleds.ts`): the side jack the lead's cord goes into, and the WAN jack. All out when missing. */
+  net?: LinkLevels;
+}
 
 export class Room3D {
   readonly root = new Group();
@@ -445,6 +454,8 @@ export class Room3D {
   private monitorSpot!: Mesh;
   private routerBody!: Group;
   private routerTier = 0;
+  /** The lights of the router's two jacks that carry a cable: the side jack (the lead's cord) and the WAN jack (the line). Built with the router, lit by `frame`. */
+  private routerLamps: { lan: JackLamps; wan: JackLamps | null } | null = null;
   private readonly ispDots: MeshStandardMaterial[] = [];
   private mailLed!: MeshStandardMaterial;
   private ispText: { cv: HTMLCanvasElement; tex: CanvasTexture; shown: string } | null = null;
@@ -727,54 +738,30 @@ export class Room3D {
     const router = tag(new Group(), 'router');
     // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
     router.userData.ao = 560;
-    // its tier's look (`net.router.visual`, as the 2D drawings): the home router with its two aerials and four lights; the gigabit one, broader,
-    // with a row of ports and a bright status; the 10G switch-router: no aerials, a port row and a lit strip; the core router: a deep rack unit
-    // with two rows of lights and a blue strip
-    const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6, aerial = mat(0x2a2d32, { roughness: 0.45 }), jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
-    // (its jacks are the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, their mouths 180 deep)
+    // its tier's look is the shared model's (`router3d.ts`, as the gallery and the studio's wall show it): the home router with its two aerials and four lights; the gigabit
+    // one, with stouter aerials and a row of lights; the 10G switch-router: no aerials, fins and a lit bar; the core router: a rack unit with its ears, a row of cages
+    // and two rows of lights. It stands in the router's spot at one scale (the tier's box fits it), its east end and feet on the shelf, its front 1400 out
+    const rs = ROUTER_SPOT, jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
+    // (its LAN jack on the east side is the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, its mouth 180 deep)
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
-      parts(tier);
-      mergeWithin(router, { twin: this.envTwin }); // (the router's plates, vents and jacks in a few draws, every tier)
-      // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06)
-      if (lowDetail()) mergeStatic(router, { own: true, ok: glows });
-    };
-    const parts = (tier: number) => {
-      for (const c of [...router.children]) { router.remove(c); disposeTree(c, true); }
-      const strip = tier >= 3 ? 0x4aa8ff : NEON, led = mat(0x131518, { emissive: new Color(strip), emissiveIntensity: tier >= 2 ? 2.4 : 1.8 });
-      const top = tier >= 4 ? 1500 : 1400, body = mat(tier >= 3 ? 0x1b1d21 : STEEL, { roughness: 0.4 }), look = jackLook(jackSteel);
-      // its port row (the gigabit one and up): jacks sunk into the front. The body stops behind them, and a front slab open at each jack closes
-      // it (a solid box would fill the mouths)
-      const ports = tier >= 2 ? [0, 1, 2, 3].map((k) => rs.x + 1600 + k * 180) : [], front = ports.length ? top - DEEP : top;
-      router.add(softBox(ROUTER_SPOT, 300, front, body, 80));
-      router.add(softBox({ x: rs.x, y: rs.y, w: rs.w, h: 120 }, 300, Math.min(1400, front), mat(0x2a2d32, { roughness: 0.4 }), 40));
-      if (ports.length) {
-        const span = (px: number) => ({ y0: ledY - PORT.h / 2, y1: ledY + PORT.h / 2, z0: px - PORT.w / 2, z1: px + PORT.w / 2 });
-        const holes = ports.map((px) => outlinePts({ x: px - PORT.w / 2, y: ledY - PORT.h / 2, w: PORT.w, h: PORT.h }, 0));
-        router.add(slab(shapeOf(outlinePts(ROUTER_SPOT, 80, undefined, SEG.cornerCoarse), holes), front - 80, top, body));
-        // (the jacks are built as a wall across x: turned, their mouths face the room, across x, the latch slots down; the faces 3 in)
-        const row = new Group();
-        row.rotation.y = Math.PI / 2;
-        for (const px of ports) jackFace(row, -(top - 3), span(px), DEEP, look, !lowDetail());
-        router.add(row);
-      }
+      for (const c of [...router.children]) { router.remove(c); disposeTree(c); }
+      const size = ROUTER_SIZE[tier] ?? ROUTER_SIZE[1]!, k = Math.min(rs.w / size.w, rs.h / size.h), front = tier >= 4 ? 1500 : 1400;
+      // (the wall hides its back, so it has none. The lead's cord goes into the side jack, the patch lead into the WAN jack: those two have lights, the other four jacks have no cable)
+      const m = routerModel(tier, { depth: (front - 300) / k, fine: !lowDetail(), rear: false, drive: [4] });
+      m.root.position.set(rs.x + rs.w, -(rs.y + rs.h), front);
+      m.root.scale.setScalar(k);
+      router.add(m.root);
       // the LAN jack on its east side, where the lead's plug stays (turned to face east)
-      const side = new Group();
+      const side = new Group(), look = jackLook(jackSteel);
       side.rotation.y = Math.PI;
       jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look, !lowDetail());
       router.add(side);
-      // its front: a darker strip with the status lights, vents over its top
-      router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, top - 5, top + 10, mat(0x131518, { roughness: 0.5 }), 30));
-      for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, top + 5, top + 25, 36, led, SEG.smallDisc));
-      for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x050608, { roughness: 0.8 })));
-      if (tier >= 4) for (let k = 0; k < 8; k++) router.add(drum(rs.x + 420 + k * 140, ledY + 210, top + 5, top + 25, 24, led, SEG.smallDisc));
-      if (tier >= 3) return; // a switch-router has no aerials
-      for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
-        const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
-        const knuckle = new Mesh(new SphereGeometry(tier >= 2 ? 160 : 130, SEG.part, SEG.rings), aerial);
-        knuckle.position.set(...base);
-        router.add(place(knuckle), rod(base, tip, tier >= 2 ? 120 : 95, aerial, SEG.rod));
-      }
+      // (the frames light them: `frame`)
+      this.routerLamps = { lan: look, wan: m.jacks[4] ?? null };
+      mergeWithin(router, { twin: this.envTwin }); // (the router's plates, vents and jacks in a few draws, every tier)
+      // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06)
+      if (lowDetail()) mergeStatic(router, { own: true, ok: glows });
     };
     this.routerBuild = (tier) => { if (tier !== this.routerTier) { this.routerTier = tier; build(tier); } };
     this.routerBuild(1);
@@ -1262,6 +1249,10 @@ export class Room3D {
     this.routerBody.visible = f.router > 0;
     this.routerSpot.visible = f.router === 0;
     if (f.router > 0) this.routerBuild(f.router);
+    // (the jacks' lights follow the frames the link carries; no router stands, or no game: they are out)
+    const net = f.router > 0 ? f.net ?? DARK : DARK;
+    lightJack(this.routerLamps?.lan, net.lan);
+    lightJack(this.routerLamps?.wan, net.wan);
     this.ispDots.forEach((m, k) => { m.emissiveIntensity = k < f.isp ? 2 : 0; });
     this.mailLed.emissiveIntensity = f.mail ? 1.2 + 1.2 * Math.sin(f.t * 6) : 0;
     const it = this.ispText;

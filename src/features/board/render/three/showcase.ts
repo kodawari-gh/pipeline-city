@@ -27,6 +27,7 @@ import { nvmeLook, nvmeStick } from './nvme3d';
 import { tpmModel } from './tpm3d';
 import { sinkBody } from './sink3d';
 import { ramStick } from './ram3d';
+import { routerModel, routerTier } from './router3d';
 
 /** Build with the layout of this board tier (the builders read the layout's module state), then put the live board's layout back. */
 function withLayout<T>(build: () => T, tier = 3, cas = tier): T {
@@ -83,6 +84,10 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     const tier = Number(b[1]);
     return tier < BOARD_TIERS.length ? upright(withLayout(() => withArt((art) => boardModel(art, T, tier).root), tier)) : null;
   }
+  // (the router of a tier: the model the studio's wall and the room's shelf show, its first LAN and its WAN lit)
+  const rt = routerTier(specId);
+  // (a still has no link: its jacks' lights stay out, and no lamp is built for them)
+  if (rt !== null) return rt >= 1 && rt <= 4 ? centred(routerModel(rt, { drive: [] }).root) : null;
   const spec = getSpec(specId);
   if (!spec) return null;
   switch (spec.kind) {

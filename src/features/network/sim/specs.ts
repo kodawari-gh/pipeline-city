@@ -79,4 +79,8 @@ export const NET = {
   usbFallbackMul: 1 / 3,
   /** Offers whose age falls in the same band of this many ticks are admitted web first, then oldest first; an older band always goes before a younger one. */
   ageBandTicks: 60,
+  /** What a frame on the wire carries (an Ethernet frame's payload, the MTU), in bytes: the frames the port sends and receives are counted from the bytes the transfers move. */
+  frameBytes: 1500,
+  /** The receiver acknowledges every second data frame (a delayed ACK): the frames the other way for the data that flows. */
+  ackEvery: 2,
 } as const;

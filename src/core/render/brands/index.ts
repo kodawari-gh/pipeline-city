@@ -30,7 +30,7 @@ export const BRAND_IDS = Object.keys(BRANDS) as BrandId[];
 /** The maker of each kind of part, by the part's kind (`DeviceSpec.kind` and the case). */
 export const MAKER = {
   cpu: 'axiom', chipset: 'axiom', gpu: 'ocula', npu: 'synapta', tpm: 'sigil', ram: 'kaiju', storage: 'kura', psu: 'raiden',
-  cooler: 'fujin', fan: 'fujin', board: 'kitsune', nic: 'relay', case: 'hako', display: 'hikari',
+  cooler: 'fujin', fan: 'fujin', board: 'kitsune', nic: 'relay', router: 'relay', case: 'hako', display: 'hikari',
 } as const satisfies Record<string, BrandId>;
 
 /** The font for small print next to a brand (specs, model numbers) and for a text the brand type has no glyph for. */

@@ -56,6 +56,7 @@ import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/build
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
 import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';
+import { LinkLeds } from '@/features/network/render/jackleds';
 import { OS_SPECS } from '@/features/os/sim';
 import { buildAlerts, newAlerts, standing, type Alert } from '@/features/board/sim/buildalerts';
 import type { Stop } from '@/features/sandbox/sim/pcbench';
@@ -231,6 +232,8 @@ export class BuildStage {
   private ran = 0;
   get simulated(): number { return this.ran; }
   private clock = 0;
+  /** The Ethernet jacks' lights: they follow the frames the port carries, on the game's clock (`network/render/jackleds.ts`). */
+  private readonly leds = new LinkLeds();
   /** Counts up with every change to the game: what memoizes on the machine as it stands (`alerts`) keys on it, as a running game gives a new snapshot every tick. */
   private editRev = 0;
 
@@ -642,12 +645,8 @@ export class BuildStage {
   }
   /** What the machine's cords need of the wall (the machine is built with it: `Machine3D`'s `wall`). */
   private stageWall(s: Snapshot): StageWall { return { plan: this.wallPlanNow(), monitor: s.devices.some((d) => d.kind === 'display') ? monitorPower() : null }; }
-  /** What the wall shows of the game's network. */
-  private wallNet(s: Snapshot): WallNet {
-    const n = s.net;
-    const link = !n || n.state === 'no-device' || n.state === 'no-cable' ? 'off' : n.state === 'saturated' ? 'busy' : n.state === 'link-up' ? 'up' : 'idle';
-    return { router: routerTier(n?.router?.id), isp: ispTier(n?.isp?.id), link };
-  }
+  /** What the wall shows of the game's network (its jacks' lights come from the frames: `frame`). */
+  private wallNet(s: Snapshot): WallNet { return { router: routerTier(s.net?.router?.id), isp: ispTier(s.net?.isp?.id) }; }
   /** The studio's wall as the case and the game's network have it: built, moved when the case's size moves it, its router, lights and lead set. */
   private syncWall(): void {
     const { scene } = this.ctx, plan = this.wallPlanNow(), net = this.wallNet(this.snapshot);
@@ -690,8 +689,11 @@ export class BuildStage {
     const inside = this.insideOpen;
     if (inside !== this.open.peek()) this.open.value = inside;
     const snap = this.snapshot;
+    // the Ethernet jacks' lights follow the frames the port carries, on the game's clock (still while paused or off); the wall's router and the machine's jacks take the same levels
+    const net = this.leds.step(snap, snap.powered ? dt * worldPace(this.simSpeed.peek()) : 0);
+    this.wall?.lights(net);
     // (the panel keeps the pace of the steps: at 2x it opens in half the time, as the wait for it (`door`) is half)
-    this.machine.frame(snap, dt, this.status.peek().busy ? dt * this.rate() : dt);
+    this.machine.frame(snap, dt, this.status.peek().busy ? dt * this.rate() : dt, net);
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
     this.screen(snap, dt);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
@@ -718,7 +720,7 @@ export class BuildStage {
     // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
     const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
     const busy = !!this.anim || !!this.hand.kind || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible || !!this._game?.powered
-      || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
+      || net.moving || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
     // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
     this.drew = this.demand.want(now, busy, this.bakes.size > 0);
     // (a still view adds jittered frames to its picture until its edges are smooth: `Post.refine`)

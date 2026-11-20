@@ -1,7 +1,7 @@
 // An RJ45 jack's mouth as the eye meets it (docs/render/case.md "Rear I/O"): the board's rear I/O and the router's ports share it (a network card's
 // real-size jack is nic3d's own). Laid out as a wall across x (casekit3d's `wallX`): the mouth opens at x toward -x and runs on into +x, its long
 // side across depth z, its latch slot toward +y or -y (layout y). A caller that faces it another way turns the group it builds in.
-import { BoxGeometry, Group, type Material, type Mesh, type Vector2 } from 'three';
+import { BoxGeometry, Group, type Material, type Mesh, type MeshStandardMaterial, type Vector2 } from 'three';
 import { instanced, rectBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { wallPt, wallX, type Span } from './casekit3d';
@@ -28,14 +28,17 @@ export const springGold = () => mat(0xd4af5f, { metalness: 0.85, roughness: 0.4 
  */
 export const unshadowed = <T extends Mesh>(o: T): T => { o.castShadow = false; o.receiveShadow = true; return o; };
 
-/** A jack's face: its shell, the insert and the springs in the mouth, the link and activity lights. */
-export interface JackLook { shell: Material; insert: Material; contact: Material; link: Material; act: Material }
+/** A jack's two lights: the link light (green) and the activity light (amber). A writer sets their emissive intensity (`network/render/jackleds.ts` `lightJack`). */
+export interface JackLamps { link: MeshStandardMaterial; act: MeshStandardMaterial }
 
-/** The look of a jack in this shell: the black insert, satin gold springs, a green link light and an amber activity light. */
-export const jackLook = (shell: Material): JackLook => {
-  const light = (c: number) => mat(0x131518, { emissive: c, emissiveIntensity: 0.8, roughness: 0.3 });
-  return { shell, insert: mat(0x131518, { roughness: 0.9 }), contact: springGold(), link: light(0x58e08a), act: light(0xffb547) };
-};
+/** A jack's face: its shell, the insert and the springs in the mouth, the link and activity lights. */
+export interface JackLook extends JackLamps { shell: Material; insert: Material; contact: Material }
+
+/** A lamp of a jack: a dark lens that glows in `color` once something sets its intensity (it starts out: a jack's lights are the network's to give). */
+export const jackLamp = (color: number): MeshStandardMaterial => mat(0x131518, { emissive: color, emissiveIntensity: 0, roughness: 0.3 });
+
+/** The look of a jack in this shell: the black insert, satin gold springs, a green link light and an amber activity light, both out. */
+export const jackLook = (shell: Material): JackLook => ({ shell, insert: mat(0x131518, { roughness: 0.9 }), contact: springGold(), link: jackLamp(0x58e08a), act: jackLamp(0xffb547) });
 
 /**
  * A compact jack's face (the board's rear I/O's, a router's ports), `k` units a mm from its width (13.75 mm over the span's depth z): the steel

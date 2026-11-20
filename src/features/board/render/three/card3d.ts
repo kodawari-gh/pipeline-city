@@ -22,6 +22,7 @@ import type { Spin } from './fans3d';
 import { wallX, type Span } from './casekit3d';
 import { gpuBackplate, gpuCooler, gpuOutputs, gpuSockets, OUT_IN, OUT_TOP, outDepth, OUTPUTS, outputHoles } from './gpu3d';
 import { JACK, JACK_X, jacksOf, mouthAt, nicBack, nicBracket, nicParts } from './nic3d';
+import type { JackLamps } from './rj45jack3d';
 import { NIC_LANES, nicCopper } from './niccopper';
 import { npuBackplate, npuBracket, npuCooler } from './npu3d';
 import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
@@ -68,6 +69,8 @@ export const nicJackAt = (visual: string, slot: number) => {
 export interface Card3D {
   root: Group;
   spins: Spin[];
+  /** A network card's jack lights (the jack the cable goes into), out: the network's (`network/render/jackleds.ts`). Null on any other card. */
+  lan: JackLamps | null;
   /** The materials that follow the part's state (`PartSkin`). */
   skin: MeshStandardMaterial[];
   /** The 2D rect the zoom is read over (its point nearest the view's centre), and what the zoom seen there does (fade, then swing). */
@@ -135,6 +138,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   fades.add(kind === 'gpu' ? gpuBracket(y0, ly0, ly1, zLo, zHi, Zp, steel) : kind === 'npu' ? npuBracket(f, Zp, ct, bx0, bx1, plate, steel) : nicBracket(visual, y0, Zp, bx0, bx1, plate, steel));
   fades.add(rectBox(rect(NIC_BRACKET_X - 90, ly1, 90 + BRACKET_T, 20), zLo, zHi, steel));
   const skin: MeshStandardMaterial[] = [], flow = kind === 'gpu' && xe - x1 > 600;
+  let lan: JackLamps | null = null;
   // a GPU's cooler, its display outputs and its backplate, with a window past the PCB's end where the end fan blows through the fins (gpu3d.ts);
   // an AI card's blower shroud and backplate (npu3d.ts); a NIC's jacks, controller and the rest of its parts (nic3d.ts)
   if (kind === 'gpu') {
@@ -146,7 +150,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     npuBackplate(fades, visual, f, Z, BACK_T);
   } else {
     const cu = nicCopper(visual, f, tab);
-    nicParts(fades, visual, f, Zp, bx1, cu);
+    lan = nicParts(fades, visual, f, Zp, bx1, cu);
     nicBack(fades, visual, f, Z, cu);
     skin.push(pcbM);
   }
@@ -155,7 +159,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   const extra: Object3D[] = [];
   const band = DEVICE_LOD[kind === 'gpu' ? 'gpu' : 'npu'].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
   return {
-    root, spins, skin, sockets, fades,
+    root, spins, skin, sockets, fades, lan,
     at: f.r,
     alsoFade: (o) => { extra.push(o); return () => { const i = extra.indexOf(o); if (i >= 0) extra.splice(i, 1); }; },
     pose: (zoom) => {

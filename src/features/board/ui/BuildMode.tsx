@@ -33,7 +33,7 @@ type Part = import('../render/three/buildmode3d').BinPart;
 // plug is pulled and plugged by hand (the stage's hand, as the game's), and the OS sheet (`BuildOs.tsx`: the game's OS window, and the OS to install) is a sheet like the benchmark's.
 
 /** The shelf's categories, in the order the Gallery and the shop list them (the monitor stands on the desk, not in the case), then the network: the OS, the router and the internet plan. */
-const KINDS = [...STUDIO_KINDS.filter((k) => k !== 'display'), ...NET_KINDS];
+const KINDS = [...STUDIO_KINDS.filter((k) => k !== 'display' && !(NET_KINDS as readonly string[]).includes(k)), ...NET_KINDS];
 
 /** The hover line of what a click or a drag does: for a part, a socket, the case's side panel, its power button, a cable's plug. */
 const doesOf = (id: string, stage: Stage): string => {

@@ -211,6 +211,8 @@ export class Game {
   netCooldown = 0;
   link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
   netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
+  /** The frames the uplink port has received and sent since the game started (fractions kept; counted from the bytes the transfers move, `network.ts` `countFrames`). Not saved. */
+  netFrames = { rx: 0, tx: 0 };
 
   readonly seed: number;
 

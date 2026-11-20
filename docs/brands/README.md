@@ -19,7 +19,7 @@ The code is the source of truth. Each brand is one module in `src/core/render/br
 | RAIDEN | power supplies | a lit bolt through a drum ring | amber `#ffc247` | [raiden](raiden.md) |
 | FUJIN | coolers, fans, radiators | three tomoe round a lit hub | frost `#8fd9e6` | [fujin](fujin.md) |
 | KITSUNE | motherboards | a fox mask with lit eyes | magenta `#ff55dc` | [kitsune](kitsune.md) |
-| relay | network cards | two chevrons, the second lit | warm `#ffc27d` | [relay](relay.md) |
+| relay | network cards and routers | two chevrons, the second lit | warm `#ffc27d` | [relay](relay.md) |
 | HAKO | cases | a box from its corner, its top lit | white `#e2eaff` | [hako](hako.md) |
 | hikari | monitors | a sun in scan lines, its rim lit | cyan `#3be3ff` | [hikari](hikari.md) |
 | PIPELINE CITY | the game itself | a P routed as a trace, a lit via | violet `#a68bff` | [pipeline](pipeline.md) |

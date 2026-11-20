@@ -1,10 +1,10 @@
-// relay, network cards (docs/brands/relay.md).
+// relay, network cards and routers (docs/brands/relay.md).
 import { fill, knock, poly, type Brand, type Ctx } from './kit';
 
 const chev = (c: Ctx, x: number) => poly(c, [x, 0.0, x + 0.3, 0.0, x + 0.64, 0.5, x + 0.3, 1.0, x, 1.0, x + 0.34, 0.5]);
 
 export const relay: Brand = {
-  id: 'relay', word: 'relay', makes: 'network cards',
+  id: 'relay', word: 'relay', makes: 'network cards and routers',
   idea: 'the hand-off: one chevron passes the signal to the next, lit one',
   colors: { accent: '#ffc27d', light: '#e2eaff', dark: '#0a0e22', plate: '#16294d', body: '#16294d', trim: '#959aa3' },
   type: { s: 0.17, round: 0.5, wide: 1.0, slant: 0.12, track: 0.02, xh: 0.72 },

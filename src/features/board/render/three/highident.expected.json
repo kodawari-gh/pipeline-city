@@ -399,11 +399,11 @@
     "sum": "461db966"
   },
   "machine/dev34": {
-    "meshes": 34,
-    "draws": 28,
-    "verts": 47872,
+    "meshes": 30,
+    "draws": 26,
+    "verts": 47752,
     "instances": 383,
-    "sum": "2b0288cc"
+    "sum": "c4a799bb"
   },
   "machine/io": {
     "meshes": 8,
@@ -805,11 +805,11 @@
     "sum": "29c6ff94"
   },
   "room/router": {
-    "meshes": 12,
-    "draws": 11,
-    "verts": 5416,
-    "instances": 17,
-    "sum": "e9b91a7b"
+    "meshes": 27,
+    "draws": 26,
+    "verts": 14560,
+    "instances": 102,
+    "sum": "8ee49e58"
   },
   "room/socket": {
     "meshes": 1,

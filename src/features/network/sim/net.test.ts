@@ -289,6 +289,79 @@ describe("transfers and the flow of a job", () => {
   });
 });
 
+describe("the uplink port's frames (the jacks' activity lights follow them)", () => {
+  const frames = (g: Game) => net(g).frames;
+  /** The frames `mb` megabytes make: the data one way, the acknowledgements the other. */
+  const data = (mb: number): number => (mb * 1e6) / NET.frameBytes;
+
+  it("are counted from 0, and stay there while nothing moves", () => {
+    const g = netRig("ssd1");
+    tick(g, 5);
+    expect(frames(g)).toEqual({ rx: 0, tx: 0 });
+  });
+
+  it("follow a download as it moves: the data frames in, an acknowledgement out for every second one", () => {
+    const g = netRig("ssd1");
+    offer(g, "cli.log");
+    tick(g, 1); // 6.25 MB moved
+    expect(frames(g)).toEqual({ rx: Math.round(data(6.25)), tx: Math.round(data(6.25) / NET.ackEvery) });
+    tick(g, 1);
+    expect(frames(g)).toEqual({ rx: Math.round(data(12.5)), tx: Math.round(data(12.5) / NET.ackEvery) });
+  });
+
+  it("count a whole download exactly, not a tick more: the last tick moves only what is left", () => {
+    const g = netRig("ssd1");
+    offer(g, "cli.log");
+    until(g, () => net(g).counters.downloaded === 1, 50);
+    // (24 MB at 6.25 MB a tick: three whole ticks and 5.25 MB of the fourth)
+    expect(frames(g)).toEqual({ rx: data(24), tx: data(24) / NET.ackEvery });
+  });
+
+  it("count the result going out the other way: its data frames out, the acknowledgements in", () => {
+    const g = netRig("ssd1");
+    offer(g, "cli.log");
+    until(g, () => g.snapshot().progress.firstNetJob, 3000);
+    // (24 MB down, then the 2 MB result up)
+    expect(frames(g)).toEqual({ rx: Math.round(data(24) + data(2) / NET.ackEvery), tx: Math.round(data(24) / NET.ackEvery + data(2)) });
+  });
+
+  it("add up when two downloads share the link: the same frames as one, as the link is the same", () => {
+    const one = netRig("ssd1"), two = netRig("ssd1");
+    offer(one);
+    offer(two); offer(two);
+    tick(one, 1); tick(two, 1);
+    expect(frames(two)).toEqual(frames(one));
+  });
+
+  it("follow the bandwidth: a faster plan carries more frames in the same time", () => {
+    const slow = netRig("ssd1"), fast = netRig("nvme2", { isp: "isp2", router: "router2", port: "nic1" });
+    offer(slow); offer(fast);
+    tick(slow, 1); tick(fast, 1);
+    expect(frames(fast).rx).toBeGreaterThan(frames(slow).rx * 3);
+  });
+
+  it("stop when the link is gone: a pulled cable carries nothing", () => {
+    const g = netRig("ssd1");
+    offer(g);
+    tick(g, 1);
+    const before = frames(g);
+    expect(before.rx).toBeGreaterThan(0);
+    expect(g.disconnectCable("lan").ok).toBe(true);
+    tick(g, 5);
+    expect(frames(g)).toEqual(before);
+  });
+
+  it("only grow, and are not saved: a loaded game counts from 0", () => {
+    const g = netRig("ssd1");
+    offer(g);
+    let last = 0;
+    for (let i = 0; i < 10; i++) { tick(g, 1); expect(frames(g).rx).toBeGreaterThanOrEqual(last); last = frames(g).rx; }
+    expect(last).toBeGreaterThan(0);
+    const h = Game.fromSave(JSON.parse(JSON.stringify(g.toSave())), { ...econ([]) });
+    expect(h.snapshot().net.frames).toEqual({ rx: 0, tx: 0 });
+  });
+});
+
 describe("USB keys stop and come back", () => {
   it("after the first link no key arrives; leftover keys are still served", () => {
     const g = netRig("ssd1");

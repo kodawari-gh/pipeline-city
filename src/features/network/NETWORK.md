@@ -266,6 +266,7 @@ net: null | {
   isp: { id: string; name: string; downMbps: number; upMbps: number; clients: number } | null;
   bandwidth: { downMbps: number; upMbps: number; clients: number; binding: "port" | "router" | "isp" | "disk" | null };
   transfers: { jobId: number; label: string; dir: "down" | "up"; totalMB: number; doneMB: number; etaTicks: number }[];
+  frames: { rx: number; tx: number };          // Ethernet frames the uplink port has carried, cumulative, not saved: the jacks' activity lights follow their growth
   offers: OfferSnap[];                        // KeySnap-like: id, label, type, arrivalTick, deadlineTick, age, late, payoutEstimate, needs, runnable, missing
   usbRetired: boolean;                        // progress.networkLinked
   usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };  // see "USB fallback"
@@ -273,8 +274,10 @@ net: null | {
 cables: [... , { id: "lan", name: "Ethernet", connected: boolean, blocked?: string }]
 // purchases[] / inventory[] kinds: "nic" | "router" | "isp" are added; PurchaseSnap.locked (PROGRESSION.md)
 // progress: ispBought, routerPlaced, lanConnected, linkUp, firstNetJob (see tutorial)
-// devices[]: the NIC card as a normal DeviceSnap (temp, power, burnt) plus `linkUtil` 0..1
+// devices[]: the NIC card as a normal DeviceSnap (temp, power, burnt); the card's jack lights read `net.frames` (see "Frames")
 ```
+
+**Frames.** The sim counts the Ethernet frames of the bytes that move on the uplink port, as the transfers move them (`runTransfers`): a data frame carries `NET.frameBytes` (1500) bytes, and the receiver sends an acknowledgement frame for every `NET.ackEvery` (2nd) data frame the other way. A download adds its data frames to `rx` and its acknowledgements to `tx`; an upload the other way round; two downloads that share the link move what one does. The last tick of a transfer counts only the bytes that are left. The counters are cumulative, rounded in the snapshot, and not saved (a load starts them at 0). The renderer turns their growth into the jacks' activity lights (`src/features/network/render/jackleds.ts`, docs/render/net.md "LED meanings"): no traffic, no light; nothing is random or fixed.
 
 `ToSim` additions: `connectCable { cable: "lan", port?: string }` (the `port` field is new; absent for the other cables) and `disconnectCable { cable: "lan" }`. **Buying the plan or the router is `purchase`** with `isp1` / `router1` ids (kinds `isp` / `router`, applied immediately, not to the inventory). The `install` of a NIC card is the normal `install` into a `pcie` slot. No new message type is needed for the network itself; the decline action for a waiting key or network job is `declineKey` / `declineJob` (`PROGRESSION.md` "Declining"). Sandbox: `sandboxOffers` also lists all `nic`, `router`, `isp` items; a tool `spawnOffer(template, scale)` is the sandbox's `spawnKey` for the network.
 
@@ -301,9 +304,9 @@ Hints (first occurrence): link `down` after a power-off (and that the spooled jo
 - **Router prop** by the monitor: a box with antenna stubs, ports and 4 to 5 status LEDs (power, WAN, LAN, activity). Four looks, one per tier (bigger, more ports, a rack look at `router4`). Wall-powered: no cable to the PSU.
 - **The cable**: a draggable lead from the board jack (or the NIC jack) to the router, with a slack curve; a drop target highlight on valid jacks (`cables[].connected`, `Snapshot.slots`), the plug click animation, and a taut or removed state when unplugged.
 - **Wall jack and ISP**: a wall plate with a jack and a lit dot once a plan exists, a thin line to the router, and a small plan label on hover.
-- **Link lights**: the board jack LED (off, amber, green, blinking when saturated) and the router LEDs, read from `net.state`.
+- **Link lights**: each jack (the board's, a card's, the router's LAN and WAN) has a green link light (the cable, a router, the PC on; for the WAN a plan on the line) and an amber activity light that follows `net.frames` (docs/render/net.md "LED meanings"). The router's front row is its power.
 - **Traffic pulses**: dots travelling along the cable towards the machine for downloads and away for uploads, density by utilisation, colour by direction; a job packet (the key icon but "blue") appears at the board jack when a download completes and enters the drive during ingest.
-- **NIC card art** in the PCIe slots for `visual` keys `nic-gbe`, `nic-10g`, `nic-40g` (a bigger heatsink and fan from 10G); activity LED from `devices[].linkUtil`; heat glow as other parts.
+- **NIC card art** in the PCIe slots for `visual` keys `nic-gbe`, `nic-10g`, `nic-40g` (a bigger heatsink and fan from 10G); jack lights from `net.frames` when the cable is in that card; heat glow as other parts.
 - **Board jack art** on every board tier with a port (and a blank cover on Starter); **no USB tray activity** once `usbRetired`: the tray area shows a "retired" dim state with any leftover keys. The fallback states from `net.usbFallback` are drawn on the tray: the `waiting` countdown and the amber `fallback` banner (see "USB fallback").
 - Monitor lines: `NET: LINK UP 1000 MBIT` at OS idle (real display text from the kernel), `NET: DOWN` on loss.
 
