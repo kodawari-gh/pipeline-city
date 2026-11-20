@@ -67,6 +67,33 @@ describe('Machine3D.powerGlow', () => {
     expect(glow(tpm!).k).toBeLessThan(1e-3);
   });
 
+  it('gives a fan materials of its own only while the lens shows (a material that no other part shares costs a draw each: the other views keep the build\'s), and puts the build\'s back', () => {
+    const fan = ids('fan')[0]!;
+    const mats = (): unknown[] => {
+      const out: unknown[] = [];
+      findById(m.root, fan)?.traverse((o) => { if ((o as Mesh).isMesh) out.push((o as Mesh).material); });
+      return out;
+    };
+    m.powerGlow(null);
+    const before = mats();
+    expect(before.length).toBeGreaterThan(0);
+    lens([[fan, 1]]);
+    // (the ring of light is the fan's own glow and stays as it was: every other material is a copy)
+    const during = mats();
+    expect(during.length).toBe(before.length);
+    expect(during.filter((x, i) => x !== before[i]).length).toBeGreaterThan(0);
+    m.powerGlow(null);
+    settle();
+    const after = mats();
+    expect(after.every((x, i) => x === before[i])).toBe(true);
+    // (and again: the lens can be turned on and off any number of times)
+    lens([[fan, 0.5]]);
+    expect(glow(fan).k).toBeGreaterThan(0);
+    m.powerGlow(null);
+    settle();
+    expect(mats().every((x, i) => x === before[i])).toBe(true);
+  });
+
   it('shows a use in amber, a hub in cyan and a source in white', () => {
     const cpu = ids('cpu')[0]!, psu = ids('psu')[0]!;
     lens([[cpu, 0.7], [psu, 0.7]], [[cpu, 'use'], [psu, 'hub']]);

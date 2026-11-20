@@ -214,7 +214,7 @@ export const schukoLength = (f: SchukoFit): number => SCHUKO.l * bootScale(f.k, 
  */
 export function schukoPlug(f: SchukoFit): { body: Group; l: number } {
   const { k, cable } = f, b = bootScale(k, cable, SCHUKO.boot.h1, 0.55), l = SCHUKO.l * b, g = new Group();
-  const shell = mat(f.tone, { roughness: 0.55 }), pin = mat(0xc9ccd2, { metalness: 0.9, roughness: 0.25 }), sleeve = mat(0x0b0c0e, { roughness: 0.6 });
+  const shell = mat(f.tone, { roughness: 0.55 }), pin = mat(0xb9babf, { metalness: 0.9, roughness: 0.25 }), sleeve = mat(0x050608, { roughness: 0.6 });
   const P = SCHUKO.pin, B = SCHUKO.boss, Y = SCHUKO.body, zs = -l, zb = zs - B.l * k, rp = (P.d / 2) * k;
   // the pins, from the boss's front face; the sleeve over the root half of each
   const rod = (x: number, z0: number, z1: number, r: number, m: Material, sides: number = SEG.part) => {

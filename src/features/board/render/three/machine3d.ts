@@ -662,6 +662,7 @@ export class Machine3D {
       const role = roles ? roles.get(id) : levels?.has(id) ? 'use' : undefined;
       sk.electric(levels && role ? (levels.get(id) ?? 0) : null, warn.has(id), role);
     };
+    this.splitParts(!!levels);
     for (const [id, sk] of this.skins) each(id, sk);
     for (const [id, sk] of this.powerSkins) each(id, sk);
     const cover = this.root.getObjectByName(SHROUD);
@@ -675,11 +676,24 @@ export class Machine3D {
 
   /** The skins of the power lens alone: a part with no look of its own to follow in the other views (a fan, the module) that glows by its draw there and nowhere else. */
   private powerSkins = new Map<string, PartSkin>();
+  /** The parts that have a power skin to make (a fan, the module), by id: the group each one stands in. */
+  private powerRoots = new Map<string, Object3D>();
+  /** Each mesh the lens gave a material of its own, and the shared one it had (the lens puts it back). */
+  private powerWas = new Map<Mesh, MeshStandardMaterial>();
+  /** Does the lens show (are the parts split)? */
+  private powerOn = false;
+
   /**
-   * The power lens's skin of the part tagged `id` inside `root`: each of its meshes gets a copy of its material that no other part shares (a fan's frame is one material
-   * for every fan), so the lens can light one fan alone. A glow of the part's own (a fan's ring of light) is left as it is.
+   * Note a part that the power lens lights alone (`id`, standing in `root`). Its skin is made only while the lens shows: a material no other part shares costs a draw
+   * for each part (a fan's frame is one material for every fan, and the build draws them together), so the other views keep the shared ones.
    */
   private powerSkin(id: string, root: Object3D): void {
+    this.powerRoots.set(id, root);
+    if (this.powerOn) this.splitPart(id, root);
+  }
+
+  /** The part tagged `id` inside `root` gets a copy of each of its materials that no other part shares, so the lens can light one fan alone. A glow of the part's own (a fan's ring of light) is left as it is. */
+  private splitPart(id: string, root: Object3D): void {
     const part = findById(root, id);
     if (!part) return;
     const copies = new Map<MeshStandardMaterial, MeshStandardMaterial>();
@@ -688,9 +702,22 @@ export class Machine3D {
       if (!m.isMesh || Array.isArray(src) || !(src instanceof MeshStandardMaterial) || src.emissive.getHex() !== 0) return;
       let c = copies.get(src);
       if (!c) copies.set(src, (c = src.clone()));
+      this.powerWas.set(m, src);
       m.material = c;
     });
     if (copies.size) this.powerSkins.set(id, new PartSkin([...copies.values()]));
+  }
+
+  /** Give the lit parts their own materials while the lens shows (`on`), and the shared ones back when it goes. */
+  private splitParts(on: boolean): void {
+    if (on === this.powerOn) return;
+    this.powerOn = on;
+    if (on) { for (const [id, root] of this.powerRoots) this.splitPart(id, root); return; }
+    const copies = new Set<MeshStandardMaterial>();
+    for (const [m, was] of this.powerWas) { copies.add(m.material as MeshStandardMaterial); m.material = was; }
+    for (const c of copies) c.dispose();
+    this.powerWas.clear();
+    this.powerSkins.clear();
   }
 
   // ------------------------------------------------------------------ parts
@@ -1253,6 +1280,7 @@ export class Machine3D {
       for (const ob of o.obstacles) this.solids.delete(ob);
       this.skins.delete(o.id);
       this.powerSkins.delete(o.id);
+      this.powerRoots.delete(o.id);
       if (d.kind === 'ram') this.ramSticks = this.ramSticks.filter((x) => x.idx !== idx(d.slot));
       this.cards.delete(d.slot);
       if (d.kind === 'cooler') { this.cooler = null; this.pump = false; }
@@ -1266,6 +1294,8 @@ export class Machine3D {
       if (sk) { this.skins.delete(o.id); this.skins.set(d.id, sk); }
       const ps = this.powerSkins.get(o.id);
       if (ps) { this.powerSkins.delete(o.id); this.powerSkins.set(d.id, ps); }
+      const pr = this.powerRoots.get(o.id);
+      if (pr) { this.powerRoots.delete(o.id); this.powerRoots.set(d.id, pr); }
       o.id = d.id;
     }
     this.ram = null;

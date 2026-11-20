@@ -145,11 +145,11 @@ export class StudioWall {
   // ------------------------------------------------------------------ the still parts
   private buildStatic(): void {
     const { plan: p, root: R } = this, z = p.face.z, f = p.face;
-    const wall = mat(WALL, { roughness: 0.92 }), skirt = mat(0x1b1e29, { roughness: 0.7 }), plate = mat(PLATE, { roughness: 0.42 });
+    const wall = mat(WALL, { roughness: 0.92 }), skirt = mat(0x1d1e22, { roughness: 0.7 }), plate = mat(PLATE, { roughness: 0.42 });
     // the wall, a slab behind its face, and its skirting along the floor
     R.add(rectBox(lay(f.x0, f.x1, f.y0, f.y1), z - 600, z, wall), softBox(lay(f.x0, f.x1, f.y0, f.y0 + 1800), z, z + 180, skirt, 40));
     // the mains plate: the slab, a recess in it for each outlet with its floor, the two pin holes and the earth clips on the recess's top and bottom
-    const m = p.mains, steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }), dark = mat(0x16171a, { roughness: 0.9 }), black = mat(0x050608, { roughness: 0.9 });
+    const m = p.mains, steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }), dark = mat(0x131518, { roughness: 0.9 }), black = mat(0x050608, { roughness: 0.9 });
     const spots = [p.mains.outlet.monmains, p.mains.outlet.pcmains];
     R.add(slab(shapeOf(outlinePts(lay(m.x0, m.x1, m.y0, m.y1), 280, undefined, SEG.cornerCoarse), spots.map((o) => circle(o[0], o[1], MAINS.recess.r))), z, m.z, plate, 90));
     const floor = m.z - MAINS.recess.deep;
