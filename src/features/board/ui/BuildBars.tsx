@@ -3,6 +3,7 @@ import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { fullDrawW } from '@/features/board/sim/compat';
+import { OFF, RUN_SPEEDS } from '@/features/board/sim/buildrun';
 import { specSheet } from '@/features/board/sim/buildspecs';
 import { overallOfRuns } from './benchhud';
 import { pillOf, powerMeter } from './buildhud';
@@ -62,17 +63,56 @@ export function ViewOptions({ ready }: { ready: boolean }) {
   );
 }
 
+/** "Resident OS 1.0" as the button says it: "Resident 1.0". */
+const shortOs = (name: string): string => name.replace(' OS ', ' ');
+
 /**
- * The bottom: the one line that says what to do now (or the step that plays, with its Skip), then two bars: the machine (the side panel, undo and
- * redo, the speed of the steps) and the camera (the views, and the picked part).
+ * The machine's life: the power button, what it is doing (the chip), how fast it runs (the game's own speed, a tick a second at 1x) and the OS sheet. The
+ * button works as the game's does: a hard switch, off to on needs a supply with its main cable. `bare`: there is no board to switch on.
  */
-export function Foot({ stage, hint, undo, warn }: {
+export function RunControls({ stage, busy, bare }: { stage: Stage | null; busy: boolean; bare: boolean }) {
+  const run = stage?.state.value ?? OFF, speed = stage?.simSpeed.value;
+  return (
+    <>
+      <button class={`bld-pow ${run.on ? 'on' : ''}`} aria-pressed={run.on} disabled={!stage || busy || bare}
+        title={bare ? 'There is no machine to switch on: fit a case, a board and its parts' : run.on ? 'Switch the machine off. A job that runs is lost, as in the game.' : 'Switch the machine on (it needs a power supply with its main cable). It boots, then runs at the speed beside it.'}
+        onClick={() => stage?.power()}>
+        <Icon name="power" size={13} />{run.on ? 'Power off' : 'Power on'}
+      </button>
+      <span class={`bld-chip ${run.tone}`} role="status" aria-live="polite" title={run.why ?? run.text}><i aria-hidden="true" />{run.text}</span>
+      <div class="seg" role="group" aria-label="Speed of the machine" title="How fast the machine runs: 1x is the game's own speed, a tick a second">
+        {RUN_SPEEDS.map((x) => <button key={x} class={speed === x ? 'on' : ''} aria-pressed={speed === x} disabled={!run.on} onClick={() => { if (stage) stage.simSpeed.value = x; }}>{x}x</button>)}
+      </div>
+    </>
+  );
+}
+
+function RunBar({ stage, busy, bare, onOs }: { stage: Stage | null; busy: boolean; bare: boolean; onOs: () => void }) {
+  const os = stage && !bare ? stage.snapshot.os?.name ?? null : null;
+  return (
+    <div class="mode-bar bld-run" role="toolbar" aria-label="Run the machine">
+      <RunControls stage={stage} busy={busy} bare={bare} />
+      <i class="mode-sep" aria-hidden="true" />
+      <button class="bld-os" aria-haspopup="dialog" disabled={!stage || bare} title="The operating system: install another one, watch what it does with the cores" onClick={onOs}>
+        <Icon name="cpu" size={13} />OS<em>{os ? shortOs(os) : 'none'}</em>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The bottom: the one line that says what to do now (or the step that plays, with its Skip), then three bars: the machine's life (power, speed, the OS), the
+ * machine (the side panel, undo and redo, the speed of the steps) and the camera (the views, and the picked part).
+ */
+export function Foot({ stage, hint, undo, warn, onOs }: {
   stage: Stage | null;
   hint: string;
   /** Set while the hint says what a start just did: puts the old machine back. */
   undo?: () => void;
   /** Set while the hint is a refusal (it shows amber): lets it go. */
   warn?: () => void;
+  /** Opens the OS sheet. */
+  onOs: () => void;
 }) {
   const st = stage?.status.value;
   const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value, noCase = stage?.shown.value === 'nothing';
@@ -85,6 +125,7 @@ export function Foot({ stage, hint, undo, warn }: {
         {warn && <button class="bld-x" aria-label="Dismiss" title="Dismiss" onClick={warn}><Icon name="close" size={10} /></button>}
       </div>
       <div class="bld-dock">
+        <RunBar stage={stage} busy={busy} bare={!stage || stage.shown.value !== 'machine'} onOs={onOs} />
         <div class="mode-bar bld-tools" role="toolbar" aria-label="Machine">
           <button class={`bld-door ${open ? 'on' : ''}`} aria-pressed={open} disabled={busy || !stage || noCase} title={noCase ? 'There is no case yet: pick one from the shelf' : 'Open or shut the side panel (O): the parts inside are only in reach with it open'} onClick={() => stage?.openInside(!open)}>
             <Icon name="panel" size={13} />Side panel<em>{open ? 'open' : 'shut'}</em>

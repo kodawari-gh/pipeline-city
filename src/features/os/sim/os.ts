@@ -4,7 +4,7 @@
 import { deviceSpec, type InstalledDevice, type StorageSpec } from "../../board/sim";
 import { BLOCK_BYTES, JobState, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "@/core/sim/memmap";
 import { canHold, mountCost, type FileKind, type MountState } from "../../storage/sim/fs";
-import { bootImage, jobTableFor, queueSlotsFor, tableSlots, SPOOL_BLOCKS_PER_JOB, type OsSpec } from ".";
+import { bootImage, jobTableFor, programSlotsOn, queueSlotsFor, smpOn, tableSlots, SPOOL_BLOCKS_PER_JOB, type OsSpec } from ".";
 import type { Game } from "@/worker/game/game";
 import type { DriveMount, InvItem, KernelJob } from "@/worker/game/internal";
 import type { KeyActivity, OsJobSnap, OsSnap, Result, StorageSnap } from "@/worker/game/types";
@@ -226,13 +226,12 @@ export function formatDrive(this: Game, deviceId: string, confirm = false): Resu
 
 /** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one, the preemptive OS up to two programs per logical core (docs/MULTICORE.md), every other tier its own number. */
 export function osProgramSlots(this: Game, os: OsSpec): number {
-  if (os.tier >= 3) return Math.max(os.programSlots, Math.min(8, 2 * this.cpuLogicalCores()));
-  return os.tier === 2 ? Math.min(2, this.cpuCores()) : os.programSlots;
+  return programSlotsOn(os, this.cpuCores(), this.cpuLogicalCores());
 }
 
 /** The OS tier boots its multicore kernel on this machine: the paged OS with a second core, the preemptive OS with several logical cores. */
 export function osSmp(this: Game, tier: number): boolean {
-  return tier === 2 ? this.cpuCores() > 1 : tier >= 3 && this.cpuLogicalCores() > 1;
+  return smpOn(tier, this.cpuCores(), this.cpuLogicalCores());
 }
 
 /** The boot area of `os` as this machine needs it (the paged OS has a multicore kernel for a CPU with two cores or more). */

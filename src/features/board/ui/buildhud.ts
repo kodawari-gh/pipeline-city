@@ -130,11 +130,16 @@ export interface HintState {
   shown?: Shown;
   /** For a part dragged off the shelf: it is a case or a board (the things a bare case or an empty stage takes), or `net`: an OS, a router or an internet plan (they fit the room, whatever stands on the stage). */
   shell?: 'case' | 'board' | 'net';
+  /** The machine is on (it runs on the stage). */
+  on?: boolean;
+  /** A cable's plug is in the player's hand. */
+  holding?: boolean;
 }
 
 /** The one line under the stage: what the player can do now. */
 export function hintLine(h: HintState): string {
   if (h.busy) return h.step || 'Working…';
+  if (h.holding) return 'Carry the plug to its socket and let go · Esc drops it';
   if (h.dragging === 'shelf' && h.shell === 'net') return h.over === 'stage' ? 'Let go to fit it' : 'Drag it onto the stage';
   if (h.dragging === 'shelf' && h.shown === 'nothing') return h.shell === 'case' ? (h.over === 'stage' ? 'Let go to bring the case in' : 'Drag it onto the stage') : 'Fit a case first: every part goes in it';
   if (h.dragging === 'shelf' && h.shown === 'case') return h.shell ? (h.over === 'stage' ? 'Let go on the case to fit it' : 'Drag it onto the case') : 'Fit a motherboard first: every other part plugs into it';
@@ -144,6 +149,7 @@ export function hintLine(h: HintState): string {
   if (h.shown === 'case') return 'The case is empty. Drag a motherboard from the shelf onto it.';
   if (h.fitted === 0) return 'The case is empty. Drag a part from the shelf onto the PC.';
   if (h.picked) return 'Drag it onto the shelf to take it out, or press Delete';
+  if (h.on) return 'The machine is on: fitting or taking out a part switches it off first';
   if (!h.open) return 'Click the side panel to reach the parts inside';
   return 'Drag a part onto the PC, or off it onto the shelf';
 }

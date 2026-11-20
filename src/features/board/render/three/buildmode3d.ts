@@ -24,7 +24,7 @@ import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, hasLoop, HOSES, isCableNode, isDevNode, isPump, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
 import { boardSlots, caseHolds, deviceSpec, fanHost, fittedRadiator, freeSlots, mountFan, slotAccepts, slotFits, upgradeBoard, upgradeCase, type Board, type InstalledDevice, type SlotInfo } from '@/features/board/sim/board';
-import { WALL_CABLES, cableBlocked, cableNeeded, cablesLost, cablesOf, type Cables } from '@/features/board/sim/cables';
+import { WALL_CABLES, cableBlocked, cableNeeded, cablesLost, cablesOf, hotPluggable, type Cables } from '@/features/board/sim/cables';
 import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
@@ -48,7 +48,10 @@ import { Machine3D, machineKey } from './machine3d';
 import { PANEL_IDS, isPanelId } from './casetray3d';
 import { StudioWall, ispTier, routerTier, wallPlan, type StageWall, type WallNet, type WallPlan } from './studiowall3d';
 import { PlugHand } from './plughand3d';
+import { BoardLive3D } from './boardlive3d';
 import { Lens3D } from './lens3d';
+import { worldPace } from '@/core/render/lod/lod';
+import { DEFAULT_RUN_SPEED, MAX_TICKS_PER_FRAME, OFF, runState, sameRun, type RunSpeed, type RunState } from '@/features/board/sim/buildrun';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
 import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
@@ -119,6 +122,13 @@ export const LOD_CEIL = 0.8;
 const QUICK = 2.5, SKIP = 6;
 /** Pixels a press may move and still be a click (not a turn of the view). */
 const CLICK_SLOP = 5;
+/** Pixels a press on a cable's plug moves before the hand lifts it (the game's own, `board3d.ts`). */
+const CABLE_SLOP = 6;
+/**
+ * How near (px) the pointer must be to a plug to mean it: a loose plug is small and lies among parts, a seated one is a few pixels (the game's `looseNear`).
+ * A ray that meets the cable itself needs none of this.
+ */
+const GRAB_PX = 22, SEATED_PX = 12;
 /** A cable in a chain (a fan's lead) is pulled this much faster again: it is the same small motion each time. */
 const CABLE_QUICK = 1.8;
 const SETTLE_SECONDS = 0.2, SETTLE_DEPTH = 40;
@@ -208,9 +218,25 @@ export class BuildStage {
   private rate(): number { return this.speed.peek() * this.pace * (this.skipping ? SKIP : 1); }
   /** Fast-forward the job that runs now (its steps all play, quicker). */
   skip(): void { if (this.status.peek().busy) this.skipping = true; }
+  // ------------------------------------------------------------------ the running machine
+  /** What the machine is doing (`runState`): off, or on in this phase. It changes with the phase, not with every tick. */
+  readonly state = signal<RunState>(OFF);
+  /** Counts up with each batch of ticks the game ran: what shows live numbers (the OS sheet) draws again on it. */
+  readonly ticks = signal(0);
+  /** How fast the machine runs while it is on, in base ticks a second (`RUN_SPEEDS`; the game's 1x is one a second). */
+  readonly simSpeed = signal<RunSpeed>(DEFAULT_RUN_SPEED);
+  /** Ticks owed (time that passed at the machine's speed and has not been run yet), and the live layer's clock (ms; it runs at the machine's speed). */
+  private owed = 0;
+  /** The base ticks the machine has run on the stage (a second each at 1x): the OS sheet's graphs take a sample for each. */
+  private ran = 0;
+  get simulated(): number { return this.ran; }
+  private clock = 0;
+  /** Counts up with every change to the game: what memoizes on the machine as it stands (`alerts`) keys on it, as a running game gives a new snapshot every tick. */
+  private editRev = 0;
+
   /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
   get game(): Game { return this.alive(this._game); }
-  set game(g: Game) { this._game = g; this.benchChanged(); }
+  set game(g: Game) { this._game = g; this.owed = 0; this.editRev++; this.snaps.drop(); this.syncRun(); this.benchChanged(); }
   private _game: Game | null = null;
   private readonly snaps = new SnapCache();
   private _machine: Machine3D | null = null;
@@ -232,6 +258,8 @@ export class BuildStage {
   private readonly moved = new ViewWatch();
   /** The power and airflow lenses (the `powerLens` / `airflowLens` signals), over the machine as in the game. */
   private readonly lens: Lens3D;
+  /** The board's live layer and the monitor's screen, drawn by the game's own `Live` while the machine is on (`screen`). */
+  private readonly live: BoardLive3D;
   private readonly hand: PlugHand;
   private readonly host: HTMLElement;
   private view: OrbitView;
@@ -322,12 +350,14 @@ export class BuildStage {
     // (a model that joins after the first picture's programs have started, a slow network, links its own while it is hidden: `joinModel`; its parts fade)
     warmLateModels(scene, (model) => (this.programs.started ? startPrograms(renderer, model, camera, { scene, fades: [model] }) : null));
     this.lens = new Lens3D(scene, renderer.domElement);
-    // the hand that pulls a cable's plug out and pushes it in by itself (plughand3d.ts `pullOut`, `plugIn`), on this stage's own game
-    // (the case's front-panel leads are not the game's cables: the stage keeps which are plugged, `panelOut`, and shows them to the hand as cables)
+    this.live = new BoardLive3D(scene);
+    // the hand that pulls a cable's plug out and pushes it in: by itself in a job (plughand3d.ts `pullOut`, `plugIn`), under the player's pointer otherwise
+    // (`beginCable`), on this stage's own game (the case's front-panel leads are not the game's cables: the stage keeps which are plugged, `panelOut`, and shows
+    // them to the hand as cables)
     this.hand = new PlugHand({
-      machine: () => this._machine, snapshot: () => this.handSnapshot(), toast: (t) => this.note(t),
-      connect: (id, port) => { if (isPanelId(id)) this.plugPanelLead(id, true); else this.edit((g) => g.connectCable(id, port)); },
-      disconnect: (id) => { if (isPanelId(id)) this.plugPanelLead(id, false); else this.edit((g) => g.disconnectCable(id)); },
+      machine: () => this._machine, snapshot: () => this.handSnapshot(), toast: (t) => this.refuse(t),
+      connect: (id, port) => { if (isPanelId(id)) this.plugPanelLead(id, true); else this.cableChanged(this.edit((g) => g.connectCable(id, port)), 'plug it in'); },
+      disconnect: (id) => { if (isPanelId(id)) this.plugPanelLead(id, false); else this.cableChanged(this.edit((g) => g.disconnectCable(id)), 'pull it out'); },
     }, renderer.domElement);
     scene.add(this.hand.root);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
@@ -386,14 +416,65 @@ export class BuildStage {
   get cables(): Cables { return this.game.cables; }
   /** Every change to the stage's game goes through here (install, uninstall, purchase, a cable): it drops the kept snapshot. */
   private edit<T>(change: (g: Game) => T): T {
-    try { return change(this.game); } finally { this.snaps.drop(); this.benchChanged(); this.demand.ask(); }
+    try { return change(this.game); } finally {
+      this.snaps.drop(); this.editRev++; this.benchChanged(); this.demand.ask();
+      // (a cord pulled from a running machine, or a change that stops it: the chip follows at once, not at the next tick)
+      if (this._game && this._game.powered !== this.state.peek().on) this.syncRun();
+    }
   }
 
   /** The OS follows its drive (`Game.keepOs`): when a job ends, the OS that left with a drive that came out is put on the drive that went back in, or the first one that holds it. */
   private keepOs(): void {
     const was = this.game.os;
     this.game.keepOs();
-    if (this.game.os !== was) { this.snaps.drop(); this.benchChanged(); }
+    if (this.game.os !== was) { this.snaps.drop(); this.editRev++; this.benchChanged(); }
+  }
+
+  /** What the chip says: the game's power and phase, set when they change (a tick, a power button, a cord pulled). */
+  private syncRun(): void {
+    if (!this._game) return;
+    const s = this.snapshot, next = runState(s.powered, s.phase, s.phaseReason);
+    if (!sameRun(this.state.peek(), next)) this.state.value = next;
+  }
+
+  /**
+   * The power button (the toolbar's, or a click on the case's own). Off to on starts the machine, which then runs at `simSpeed`; on to off is a hard power-off, as
+   * in the game (a job in flight is lost). A machine that cannot start says why on the hint line.
+   */
+  power(): void {
+    if (this.dead || !this._machine || this.status.peek().busy || this.shown.peek() !== 'machine') return;
+    const r = this.game.powerButton();
+    this.snaps.drop(); this.editRev++; this.owed = 0; this.demand.ask();
+    this.syncRun();
+    if (!r.ok) { this.refuse(r.reason.startsWith('no power: ') ? `Cannot power on: ${r.reason.slice(10)}` : r.reason); return; }
+    this.clearRefusal();
+    this.note(r.powered ? 'Powered on' : 'Powered off');
+    this.bump();
+  }
+
+  /**
+   * The machine runs: while the game is powered it ticks at the chosen speed (as the worker's host does: whole ticks, a cap on a frame, the backlog beyond it dropped),
+   * the snapshot is made again after the ticks, and the chip follows. A job that moves parts powers the machine off first (`job`), so nothing runs under a step.
+   */
+  private simulate(dt: number): void {
+    const g = this._game;
+    // (a benchmark run takes the page's time for its own copy of the machine: this one waits, as it does under a step)
+    if (!g || !g.powered || this.status.peek().busy || this.benching.peek()) { this.owed = 0; return; }
+    this.owed += Math.min(dt, 0.1) * this.simSpeed.peek();
+    const n = Math.min(Math.floor(this.owed), MAX_TICKS_PER_FRAME);
+    this.owed -= Math.floor(this.owed);
+    if (n <= 0) return;
+    this.ran += n;
+    try { for (let i = 0; i < n; i++) g.advanceBaseTick(); } catch (e) {
+      // (a fault in the sim: the machine is switched off and the stage goes on; the page keeps the error for a report)
+      console.error(e);
+      try { g.powerButton(); } catch { /* already down */ }
+      this.refuse('The machine stopped: the simulation hit an error (see the console).');
+    }
+    this.snaps.drop();
+    this.ticks.value++;
+    this.syncRun();
+    this.demand.ask();
   }
 
   /** The machine changed: the scores no longer describe it (they stay as the ones to compare with), and a run on its old copy ends. */
@@ -518,20 +599,40 @@ export class BuildStage {
   }
 
   private monitor: Group | null = null;
-  /** The room's own monitor (`Monitor`, props3d.ts) on the stage when the machine has one, its screen on standby, tagged for the animation. */
+  /** The room's monitor as the stage drives it (`screen`). */
+  private mon: Monitor | null = null;
+  /**
+   * The room's own monitor (`Monitor`, props3d.ts) on the stage when the machine has one, tagged for the animation. It works as the room's does (`screen`): on
+   * standby while the PC is off, the game's own screen (boot text, the OS) while it runs, dark with its cord out.
+   */
   private syncMonitor(on: boolean): void {
     const { scene } = this.ctx;
-    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; }
+    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; this.mon = null; }
     if (!on) return;
     // (built where the room puts it, then moved so its foot's middle stands on the stage's origin, beside the case and turned to the camera)
     const g = tag(new Group(), 'monitor'), m = new Monitor(MONITOR, SCREEN, DESK_Y, 0);
-    m.set({ installed: true, powered: true, live: false, text: '' }, 12);
+    m.set({ installed: true, powered: !!this.snapshot.monitorPowered, live: false, text: '' }, 12);
     m.root.position.set(-(MONITOR.x + MONITOR.w / 2), DESK_Y, MONITOR_AT.rootZ);
     g.add(m.root);
     g.position.set(CASE_RECT.x + MONITOR_AT.dx, -(CASE_RECT.y + CASE_RECT.h), BOARD_Z + MONITOR_AT.dz);
     g.rotation.y = MONITOR_AT.yaw;
     scene.add(g);
     this.monitor = g;
+    this.mon = m;
+  }
+
+  /**
+   * One frame of the screen, as the game's does (`board3d.ts`): the board's live layer runs on the game's clock (the machine's speed while it is on) and draws the
+   * monitor's picture; the monitor shows it when the cord is in and the PC drives it, and its standby card otherwise.
+   */
+  private screen(s: Snapshot, dt: number): void {
+    const on = s.powered, pace = on ? this.simSpeed.peek() : 1;
+    this.clock += dt * 1000 * pace;
+    this.live.frame(this.ctx.camera, this.H, s, this.clock, dt * worldPace(pace), !on, this.ctx.renderer.getPixelRatio(), on);
+    const m = this.mon;
+    if (!m) return;
+    m.set({ installed: true, powered: !!s.monitorPowered, live: !!s.monitorLive && !!s.monitorPowered && on && !!s.display, text: s.display ?? '' }, 12);
+    m.useLive(this.live.screen);
   }
 
   private wall: StudioWall | null = null;
@@ -580,14 +681,19 @@ export class BuildStage {
     applyView(camera, this.view, this.W / this.H);
     const vk = `${this.view.x}|${this.view.y}|${this.view.z}|${this.view.yaw}|${this.view.pitch}|${this.view.height}|${this.W}|${this.H}`;
     if (vk !== this.viewKey) { this.viewKey = vk; this.viewRev.value++; }
+    // the machine runs while it is on (the game ticks at `simSpeed`); the snapshot below is the one after those ticks
+    this.simulate(dt);
+    // (a plug the player holds that goes into the case opens the side panel, as a drag does in the game; a cord outside it does not)
+    const handIn = !!this.hand.kind && !OUTSIDE.has(this.hand.kind) && !this.status.peek().busy;
     // (busy: the shut side panel's plate takes a ray only while no step plays, so a click on it opens it: `idAt`)
-    this.machine.setOpen(this.wantOpen || this.jobOpen, this.status.peek().busy || !!this.anim);
+    this.machine.setOpen(this.wantOpen || this.jobOpen || handIn, this.status.peek().busy || !!this.anim || handIn);
     const inside = this.insideOpen;
     if (inside !== this.open.peek()) this.open.value = inside;
     const snap = this.snapshot;
     // (the panel keeps the pace of the steps: at 2x it opens in half the time, as the wait for it (`door`) is half)
     this.machine.frame(snap, dt, this.status.peek().busy ? dt * this.rate() : dt);
     this.hand.frame(Math.min(dt, 0.05) * this.rate(), camera);
+    this.screen(snap, dt);
     // no stand-in (partlod.ts) from this stage's own zoom in; the wheel limit stays inside it at every aspect (machine3d.test.ts), so nothing else is held.
     // Low: the stand-ins draw by the size rule at every zoom (the Low phone's own view: 585 draws to 223), and the whole machine is held while a step runs
     if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
@@ -611,7 +717,7 @@ export class BuildStage {
     this.post.setEye(this.eye.step(dt));
     // drawn on demand: a part's motion, a fan or a panel, a lens, the snap preview's pulse, the eye on its way, or a camera move
     const D = distanceOf(this.view), w = renderer.domElement.width, h = renderer.domElement.height;
-    const busy = !!this.anim || !!this.hand.kind || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible
+    const busy = !!this.anim || !!this.hand.kind || this.status.peek().busy || this.machine.moving || powerLens.peek() || airflowLens.peek() || !!this.marker?.visible || !!this._game?.powered
       || this.eye.moving || this.moved.shift(camera, w, h, D / 4, D * 4) >= STILL_PX;
     // (tiles still in the queue: their frames come in batches, docs/render/case.md "Build my PC's frame")
     this.drew = this.demand.want(now, busy, this.bakes.size > 0);
@@ -705,11 +811,12 @@ export class BuildStage {
    */
   get alerts(): readonly Alert[] {
     if (this.alertMemo && this.status.peek().busy) return this.alertMemo.list;
-    const snap = this.snapshot, shown = this.shown.peek();
-    if (!this.alertMemo || this.alertMemo.snap !== snap || this.alertMemo.shown !== shown) this.alertMemo = { snap, shown, list: buildAlerts(this.board, this.cables, shown, this.game.fanPower()) };
+    // (keyed on the game's changes and on what has burnt, not on its snapshot: a machine that runs gives a new snapshot every tick, and its parts and cables have not changed)
+    const rev = `${this.editRev}|${this.board.burnt ? 'b' : ''}${this.board.devices.filter((d) => d.burnt).map((d) => d.id).join(',')}`, shown = this.shown.peek();
+    if (!this.alertMemo || this.alertMemo.rev !== rev || this.alertMemo.shown !== shown) this.alertMemo = { rev, shown, list: buildAlerts(this.board, this.cables, shown, this.game.fanPower()) };
     return this.alertMemo.list;
   }
-  private alertMemo: { snap: Snapshot; shown: Shown; list: readonly Alert[] } | null = null;
+  private alertMemo: { rev: string; shown: Shown; list: readonly Alert[] } | null = null;
 
   /**
    * The machine takes any part that fits its socket and answers as it would in real life, so a change that leaves it with a problem it did not have, or a worse
@@ -725,17 +832,32 @@ export class BuildStage {
 
   // ------------------------------------------------------------------ the camera
   private listen(el: HTMLCanvasElement): void {
-    let drag: { x: number; y: number; pan: boolean; moved: number } | null = null;
+    let drag: { x: number; y: number; pan: boolean; moved: number; cable?: string } | null = null;
     const down = (e: PointerEvent) => {
-      if (e.button === 0 && !e.shiftKey && this.onGrab && !this.status.peek().busy) {
-        const id = this.partAt(e.clientX, e.clientY);
-        if (id) { this.onGrab(id, e); return; }
+      if (e.button === 0 && !e.shiftKey && !this.status.peek().busy && !this.hand.kind) {
+        // a cable's plug lifts once the pointer has moved a little, as in the game (a press that does not move is a click); a part lifts at once (the UI's drag)
+        const cable = this.cableAt(e.clientX, e.clientY, true);
+        if (cable) { el.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, pan: false, moved: 0, cable }; return; }
+        if (this.onGrab) {
+          const id = this.partAt(e.clientX, e.clientY);
+          if (id) { this.onGrab(id, e); return; }
+        }
       }
       el.setPointerCapture(e.pointerId);
       drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
     };
     const move = (e: PointerEvent) => {
       if (!drag) { this.pointerOver(e.clientX, e.clientY, el); return; }
+      if (drag.cable) {
+        // (the plug is lifted once the pointer has gone a few pixels: from here the hand has it, and the pointer's events come to the window, `trackCable`)
+        if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > CABLE_SLOP) {
+          const kind = drag.cable;
+          drag = null;
+          try { el.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+          this.beginCable(kind, e);
+        }
+        return;
+      }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
       if (drag.moved > CLICK_SLOP && this.hover.peek()) { this.hover.value = null; el.style.cursor = ''; }
@@ -967,35 +1089,168 @@ export class BuildStage {
   }
 
   // ------------------------------------------------------------------ the pointer, as in the game (board3d.ts): outline, name, pick, open
-  /** What the pointer means at a client point: a fitted device (its id), an empty socket (its id), or the shut case's side panel (`case.side`); null for the rest. */
+  /** The nearest surface's id under a client point among what the pointer can mean: with the side panel open the board's pieces and the cables; shut, the case and the cords outside it. */
+  private topId(x: number, y: number): string | null {
+    const m = this.machine, r = this.ctx.renderer.domElement.getBoundingClientRect();
+    return idOf(pick(m.doorOpen ? [...m.boardRoots(), ...m.cableRoots()] : [...m.caseRoots, ...m.cableRoots()], this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1)));
+  }
+
+  /**
+   * The cable a client point means (its kind), or null: the one the ray meets, or (`reach`) the plug nearest the pointer within a thumb's reach (`plugNear`). Inside the
+   * case only with the side panel open; a cord outside it (the PC's and the monitor's mains, the video cable, the LAN lead) at any time. The case's own leads are
+   * inert (nothing to pick).
+   */
+  private cableAt(x: number, y: number, reach = false, top: string | null = this.topId(x, y)): string | null {
+    if (this.dead || !this._machine || this.shown.peek() !== 'machine') return null;
+    const open = this.machine.doorOpen, ray = top?.startsWith('cable.') ? top.slice(6) : null;
+    const kind = (reach ? this.plugNear(x, y, ray ? SEATED_PX : GRAB_PX, open) : null) ?? ray;
+    return kind && (open || OUTSIDE.has(kind)) && !isPanelId(kind) ? kind : null;
+  }
+
+  /** Each cable's plug as the screen has it (a loose plug's middle; the seat of a seated one, which has a smaller reach), measured again after a moment (they fall and the camera moves). */
+  private plugs: { at: number; key: string; list: { id: string; x: number; y: number; reach: number }[] } = { at: -Infinity, key: '', list: [] };
+
+  /** The cable whose plug is nearest a client point and within `maxPx` of it, or null (`board3d.ts` `looseNear`). With the side panel shut only the cords outside the case count. */
+  private plugNear(x: number, y: number, maxPx: number, open: boolean): string | null {
+    const m = this._machine;
+    if (!m) return null;
+    const now = performance.now(), key = `${this.viewKey}|${this.status.peek().rev}|${open}|${this.hand.kind ?? ''}`;
+    if (now - this.plugs.at > 120 || this.plugs.key !== key) {
+      const r = this.ctx.renderer.domElement.getBoundingClientRect(), cam = this.ctx.camera, list: { id: string; x: number; y: number; reach: number }[] = [];
+      cam.updateMatrixWorld();
+      for (const c of this.snapshot.cables) {
+        const rig = m.rig(c.id);
+        if (!rig || m.isHeldBack(c.id) || (!open && !OUTSIDE.has(c.id))) continue;
+        let p: Vector3 | null = null, reach = GRAB_PX;
+        if (c.connected) { p = new Vector3(...rig.seat.at); reach = SEATED_PX; }
+        else {
+          const g = m.cableGroup(c.id);
+          let plug: Object3D | null = null;
+          g?.traverse((o) => { if (!plug && o.userData.plug) plug = o; });
+          const o: Object3D | null = plug ?? g;
+          if (o) { o.updateWorldMatrix(true, true); p = new Box3().setFromObject(o).getCenter(new Vector3()); }
+        }
+        if (!p) continue;
+        p.project(cam);
+        if (p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1) list.push({ id: c.id, x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height, reach });
+      }
+      this.plugs = { at: now, key, list };
+    }
+    let best: string | null = null, d = maxPx;
+    for (const p of this.plugs.list) { const k = Math.hypot(p.x - x, p.y - y); if (k <= Math.min(d, p.reach)) { d = k; best = p.id; } }
+    return best;
+  }
+
+  /** Is the case's own power button under a client point? (A ray at the case's pieces: the side panel's and the shell's, with the button on the front.) */
+  private powerAt(x: number, y: number): boolean {
+    const r = this.ctx.renderer.domElement.getBoundingClientRect();
+    return idOf(pick(this.machine.caseRoots, this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1))) === 'power';
+  }
+
+  /**
+   * What the pointer means at a client point: a fitted device (its id), an empty socket (its id), a cable (`cable.` and its kind), the case's power button
+   * (`power`), or the shut case's side panel (`case.side`); null for the rest.
+   */
   idAt(x: number, y: number): string | null {
     if (this.dead || !this._machine) return null;
+    const top = this.topId(x, y);
     if (!this.machine.doorOpen) {
-      // (the case hides what is inside it: its side panel answers, and a click on it opens it)
-      const r = this.ctx.renderer.domElement.getBoundingClientRect();
-      return idOf(pick(this.machine.caseRoots, this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1))) === 'case.side' ? 'case.side' : null;
+      // (the case hides what is inside it: its side panel answers, and a click on it opens it; so does its power button)
+      if (top === 'case.side' || top === 'power') return top;
+      const c = this.cableAt(x, y, true, top);
+      return c ? `cable.${c}` : null;
     }
+    const c = this.cableAt(x, y, true, top);
+    if (c) return `cable.${c}`;
     const id = this.hitId(x, y);
-    return deviceFor(id, this.board)?.id ?? socketFor(id, this.board);
+    return deviceFor(id, this.board)?.id ?? socketFor(id, this.board) ?? (this.powerAt(x, y) ? 'power' : null);
   }
 
   /** The pointer moved over the canvas with no button down: name what it is over (the ray at most every 30 ms: the pointer outruns the draws). */
   private pointerOver(x: number, y: number, el: HTMLElement): void {
     if (this.dead || !this._machine) return;
-    if (this.carried || this.status.peek().busy) { if (this.hover.peek()) this.hover.value = null; return; }
+    if (this.carried || this.hand.kind || this.status.peek().busy) { if (this.hover.peek()) this.hover.value = null; return; }
     const now = performance.now(), was = this.hover.peek();
     if (now - this.hoverTime < 30) { if (was) this.hover.value = { ...was, x, y }; return; }
     this.hoverTime = now;
     const id = this.idAt(x, y);
     this.hover.value = id ? { id, x, y } : null;
-    el.style.cursor = id ? 'pointer' : '';
+    el.style.cursor = id ? (id.startsWith('cable.') ? 'grab' : 'pointer') : '';
   }
 
-  /** A click on the canvas that picked no part: the side panel opens or shuts; anywhere else lets go of the picked part. */
+  /** A click on the canvas that picked no part: the power button powers the machine on or off, the side panel opens or shuts; anywhere else lets go of the picked part. */
   private click(x: number, y: number): void {
     if (this.status.peek().busy) return;
-    if (this.idAt(x, y) === 'case.side') { this.openInside(!this.insideOpen); this.hover.value = null; return; }
+    const id = this.idAt(x, y);
+    if (id === 'power') { this.power(); this.hover.value = null; return; }
+    if (id === 'case.side') { this.openInside(!this.insideOpen); this.hover.value = null; return; }
     this.select(null);
+  }
+
+  // ------------------------------------------------------------------ the player's hand on a cable
+  /** Ends the cable the player holds (the pointer's events on the window come off); null when none is held. */
+  private cableDrop: ((cancelled: boolean) => void) | null = null;
+  /** What the held plug would do at the pointer ("Plug into the CPU power socket", "Let go to plug into …") and where the pointer is: the toolbar draws it by the pointer. */
+  readonly cableTip = signal<{ text: string; ok: boolean; x: number; y: number } | null>(null);
+
+  /**
+   * The player takes hold of a cable's plug (`down` found it, and the pointer moved): a seated plug is pulled out against its latch, a loose one lifted. The hand
+   * holds it until the pointer is let go: over its socket it slides in and clicks (the game's rule: a cable other than the hot-pluggable ones needs the machine
+   * off), anywhere else it falls on its cable and stays where it lands. Escape lets go and drops it.
+   */
+  private beginCable(kind: string, e: PointerEvent): void {
+    if (this.dead || this.status.peek().busy || this.hand.kind) return;
+    if (this.snapshot.powered && !hotPluggable(kind)) { this.refuse('Power the machine off first: the PSU cables carry live power.'); return; }
+    this.clearRefusal();
+    if (!this.hand.grab(kind, e.clientX, e.clientY)) { this.refuse('This lead cannot be moved.'); return; }
+    this.hover.value = null;
+    this.trackCable(e.pointerId, e.clientX, e.clientY);
+  }
+
+  /** Follow the pointer for the hand until it lets go (a release, a cancel, Escape, the window losing focus). */
+  private trackCable(id: number, cx: number, cy: number): void {
+    const el = this.ctx.renderer.domElement;
+    let last: [number, number] = [cx, cy];
+    const tip = (x: number, y: number): void => { const l = this.hand.label(); this.cableTip.value = l ? { ...l, x, y } : null; };
+    const onMove = (m: PointerEvent): void => {
+      if (m.pointerId !== id) return;
+      last = [m.clientX, m.clientY];
+      this.hand.move(m.clientX, m.clientY, this.rawIdAt(m.clientX, m.clientY));
+      tip(m.clientX, m.clientY);
+      this.demand.ask();
+    };
+    const onUp = (m: PointerEvent): void => { if (m.pointerId === id) end(false, m.clientX, m.clientY); };
+    const onCancel = (m: PointerEvent): void => { if (m.pointerId === id) end(true, m.clientX, m.clientY); };
+    const onKey = (k: KeyboardEvent): void => { if (k.key === 'Escape') { k.stopPropagation(); end(true, ...last); } };
+    const onBlur = (): void => end(true, ...last);
+    const end = (cancelled: boolean, x: number, y: number): void => {
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', onBlur);
+      this.cableDrop = null;
+      this.cableTip.value = null;
+      el.style.cursor = '';
+      if (!this.dead) this.hand.release(x, y, cancelled);
+      this.demand.ask();
+    };
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onCancel, true);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', onBlur);
+    this.cableDrop = (cancelled) => end(cancelled, ...last);
+    el.style.cursor = 'grabbing';
+    this.hand.move(cx, cy, this.rawIdAt(cx, cy));
+    tip(cx, cy);
+  }
+
+  /** The id of whatever stands under a client point, the backdrops too (the case, the wall's sockets): a held plug that is over its socket's id snaps to it. */
+  private rawIdAt(x: number, y: number): string | null {
+    if (this.dead || !this._machine) return null;
+    const r = this.ctx.renderer.domElement.getBoundingClientRect();
+    return idOf(pick([this.machine.root, ...(this.wall ? [this.wall.root] : [])], this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1)));
   }
 
   /** Pick a fitted device by its id (null lets go): it is outlined, and the UI's card is about it. */
@@ -1024,17 +1279,18 @@ export class BuildStage {
   /** The scene object to outline for an id: a device's own, or an empty socket's (or the side panel's) box. */
   private outlineOf(id: string): Object3D | null {
     if (this.board.devices.some((d) => d.id === id)) return this.objectOf(devNode(id));
-    const o = findById(this.machine.root, id);
+    // (the wall's sockets take a held cord: they are the stage's, not the machine's)
+    const o = findById(this.machine.root, id) ?? (this.wall ? findById(this.wall.root, id) : null);
     return o ? ownerOf(o) : null;
   }
 
-  /** The ids to outline now, as the game draws them (board3d.ts): the hovered part, the picked one, and while a shelf part is held every socket that takes it. */
+  /** The ids to outline now, as the game draws them (board3d.ts): the hovered part, the picked one, the socket a held plug fits, and while a shelf part is held every socket that takes it. */
   private outlineIds(): string[] {
     if (this.status.peek().busy || this.anim) return [];
     const c = this.carried;
     if (c && 'item' in c) { const f = fitSlots(this.board, c.item); return [...f.free, ...f.swap].map((s) => this.board.devices.find((d) => d.slot === s)?.id ?? s); }
     if (c) return [c.device];
-    return [...new Set([this.hover.peek()?.id, this.selected.peek(), this.glowing].filter((x): x is string => !!x))];
+    return [...new Set([this.hover.peek()?.id, this.selected.peek(), this.glowing, ...this.hand.targets()].filter((x): x is string => !!x))];
   }
 
   /** Hand the pass the outlined objects, when the ids or the machine changed. */
@@ -1442,6 +1698,15 @@ export class BuildStage {
     this.panelRev++;
   }
 
+  /**
+   * The game's answer to a plug in or out. A refusal is said on the hint line. A cable moved by the player (no job runs) brings the machine in line with the game:
+   * the wall's lights (the LAN lead), the chip, the alerts. A job does that at its end.
+   */
+  private cableChanged(r: Result, what: string): void {
+    if (!r.ok) { this.refuse(`Cannot ${what}: ${r.reason}`); return; }
+    if (!this.status.peek().busy) this.rebuild();
+  }
+
   /** Every front-panel lead is in its header (a job is over; a machine the game built): the leads as the machine builds them. */
   private panelHome(): void {
     if (!this.panelOut.size) return;
@@ -1492,6 +1757,13 @@ export class BuildStage {
   private async job(work: () => Promise<void>): Promise<void> {
     if (this.status.peek().busy || this.dead) return;
     this.clearRefusal(); // (what was refused before is stale once the player tries again)
+    // (parts and the supply's cables only move while the machine is off: a job switches it off first, as a player would)
+    if (this._game?.powered) {
+      this.game.powerButton();
+      this.snaps.drop(); this.editRev++; this.owed = 0;
+      this.syncRun();
+      this.note('Powered off: parts only move while the machine is off');
+    }
     // (the picked part is the one in its socket after the job: a part that came out and went back in has a new id)
     const sel = this.selected.peek(), was = sel ? this.board.devices.find((d) => d.id === sel) : undefined;
     const had = standing(this.alerts, this.board);
@@ -1667,6 +1939,20 @@ export class BuildStage {
     this.record({ t: 'net', kind, from: was, to: itemId });
     this.note(`Fit ${name}`);
   }
+
+  /**
+   * One change from the OS sheet's disk page (a drive formatted, a drive's spool slots, the dataset reserve): the game's own method on the stage's machine. A refusal
+   * says why on the hint line. The scores no longer describe the machine, as after any change to it.
+   */
+  osDo(what: string, change: (g: Game) => { ok: boolean; reason?: string }): void {
+    if (this.dead || !this._game || this.status.peek().busy) return;
+    const r = this.edit(change);
+    this.bump();
+    if (!r.ok) this.refuse(`${what}: ${r.reason}`);
+  }
+
+  /** The processor's cores as the OS sees them (`hardware` cores, `logical` ones), for the OS sheet: what each OS would do with them. */
+  get cpuCores(): { hardware: number; logical: number } { return { hardware: this.game.cpuCores(), logical: this.game.cpuLogicalCores() }; }
 
   /** Take the OS, the router or the internet plan out (what the right panel's row does). Undo puts it back. */
   removeNet(kind: NetKind): Promise<void> {
@@ -1844,6 +2130,7 @@ export class BuildStage {
     for (const f of this.cleanup) f();
     this.cleanup.length = 0;
     this.anim = null;
+    this.cableDrop?.(true); // (a plug the player holds: the window's pointer events come off)
     this.hand.cancel();
     this.onGrab = null;
     setLayoutTier(...this.was);
@@ -1859,9 +2146,10 @@ export class BuildStage {
   /** The second half of `dispose`: the meshes and materials (cheap with the context lost), and what Pixi kept for their art. */
   private freeScene(): void {
     this.lens.dispose();
+    this.live.dispose();
     const { scene } = this.ctx;
     if (this._machine) { scene.remove(this._machine.root); this._machine.dispose(); }
-    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; }
+    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; this.mon = null; }
     if (this.wall) { scene.remove(this.wall.root); this.wall.dispose(); this.wall = null; }
     // the art is gone: what Pixi pooled for it, and its labels in the size rule
     freeBakePools();

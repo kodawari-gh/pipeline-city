@@ -2,7 +2,7 @@ import type { IconName } from '@/features/economy/ui/shop/picker';
 import { rem } from './units';
 
 /** The icons of the studio screens' controls, beside the part and category ones (`IconName`). */
-type HudIcon = 'undo' | 'redo' | 'panel' | 'focus' | 'wind' | 'sliders' | 'eject' | 'skip' | 'save' | 'stop' | 'spin' | 'reset' | 'prev' | 'next' | 'eye';
+type HudIcon = 'undo' | 'redo' | 'panel' | 'focus' | 'wind' | 'sliders' | 'eject' | 'skip' | 'save' | 'stop' | 'spin' | 'reset' | 'prev' | 'next' | 'eye' | 'power';
 
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
@@ -67,6 +67,8 @@ const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'ex
   next: ['M6 3l5 5-5 5'],
   // (the graphics modal's Peek)
   eye: ['M1.4 8S3.8 3.4 8 3.4 14.6 8 14.6 8 12.2 12.6 8 12.6 1.4 8 1.4 8z', 'M8 5.9a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2z'],
+  // (Build my PC's power button)
+  power: ['M8 1.8v5.4', 'M4.53 4.46A5.4 5.4 0 1 0 11.47 4.46'],
 };
 
 export function Icon({ name, size = 14, class: cls }: { name: keyof typeof PATHS; size?: number; class?: string }) {

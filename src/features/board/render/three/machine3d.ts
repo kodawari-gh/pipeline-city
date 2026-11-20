@@ -516,6 +516,9 @@ export class Machine3D {
     return this.root.children.filter((o) => !skip.has(o));
   }
 
+  /** The cables (the leads, the cords out of the case): what Build my PC picks a plug in, with `boardRoots` for what stands in front of them. */
+  cableRoots(): Object3D[] { return [this.wires]; }
+
   /** Let the live frame drive a fan or a light. */
   private spin(s: Spin) { s.rotor.userData.spin = true; if (s.ring) own(s.ring); this.fans.push({ ...s, speed: 0 }); }
 

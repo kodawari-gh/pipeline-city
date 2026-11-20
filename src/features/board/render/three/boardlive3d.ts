@@ -116,5 +116,10 @@ export class BoardLive3D {
     this.mesh.geometry.dispose();
     this.tex?.dispose();
     this.mat.dispose();
+    // (Build my PC makes one per open: what Pixi kept for the layer goes with it)
+    try { this.live?.root.destroy({ children: true }); this.live?.ext.destroy({ children: true }); } catch { /* already freed */ }
+    this.live = null;
+    this.screen = null;
+    this.canvas = this.screenCanvas = null;
   }
 }

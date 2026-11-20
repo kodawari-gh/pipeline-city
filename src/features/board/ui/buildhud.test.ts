@@ -153,6 +153,15 @@ describe('hintLine', () => {
     expect(hintLine(base)).toMatch(/Drag a part/);
   });
 
+  it('says what a machine that is on, and a plug in the hand, mean', () => {
+    expect(hintLine({ ...base, on: true })).toMatch(/switches it off first/);
+    expect(hintLine({ ...base, on: true, open: false })).toMatch(/switches it off first/);
+    expect(hintLine({ ...base, on: true, picked: true })).toMatch(/Delete/);
+    expect(hintLine({ ...base, on: true, holding: true })).toMatch(/plug to its socket/);
+    // (a step that plays still comes first)
+    expect(hintLine({ ...base, on: true, holding: true, busy: true, step: 'Unscrew the cooler' })).toBe('Unscrew the cooler');
+  });
+
   it('takes an OS, a router or a plan whatever stands on the stage: it fits the room, not a socket', () => {
     for (const shown of ['machine', 'case', 'nothing'] as const) {
       const h: HintState = { ...base, shown, shell: 'net', dragging: 'shelf' };

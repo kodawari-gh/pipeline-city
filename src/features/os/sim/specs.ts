@@ -35,10 +35,10 @@ export const OS_SPECS: readonly OsSpec[] = [
     description: "Single-task resident: boots once and stays running. Ingests client keys into a job queue and runs one program at a time." },
   { id: "os2", tier: 2, name: "Paged OS 2.0", price: 600, minRamBytes: 64 * 1024, diskBytes: 24 * 1024,
     programSlots: 1, queueSlots: 8, fsTier: 2, needsMmu: true, visual: "os-coop",
-    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Programs run one at a time." },
+    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Runs one program on each core, two at most: a second core runs a second program." },
   { id: "os3", tier: 3, name: "Preemptive OS 3.0", price: 2000, minRamBytes: 256 * 1024, diskBytes: 48 * 1024,
     programSlots: 4, queueSlots: 12, fsTier: 3, needsMmu: true, visual: "os-preempt",
-    description: "Preemptive scheduling: a timer interrupt shares the CPU between up to four programs, each in its own address space. Needs a CPU with an MMU and 256K of RAM." },
+    description: "Preemptive scheduling: a timer interrupt shares each core between programs, up to four on one core and up to eight on a multicore CPU, each in its own address space. Needs a CPU with an MMU and 256K of RAM." },
   { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 256 * 1024, diskBytes: 96 * 1024,
     programSlots: 8, queueSlots: 16, fsTier: 4, needsMmu: true, visual: "os-smp",
     description: "Preemptive scheduling on every logical core, and threaded programs: one program on several cores at once, with the threads kept on the cores they ran on. Needs a CPU with an MMU and 256K of RAM." },
@@ -47,6 +47,21 @@ export const OS_SPECS: readonly OsSpec[] = [
 export function getOsSpec(id: string): OsSpec | undefined {
   return OS_SPECS.find((o) => o.id === id);
 }
+
+/**
+ * How many programs `os` runs at once on a CPU with `cores` hardware cores and `logical` logical ones (docs/MULTICORE.md section 6): the resident OS one (core 0 only),
+ * the paged OS one per hardware core up to two, the preemptive and the multicore OS up to two per logical core (at most 8, and never fewer than their own slots).
+ */
+export function programSlotsOn(os: OsSpec, cores: number, logical: number): number {
+  if (os.tier >= 3) return Math.max(os.programSlots, Math.min(8, 2 * logical));
+  return os.tier === 2 ? Math.min(2, cores) : os.programSlots;
+}
+
+/** The OS tier boots its multicore kernel on this CPU: the paged OS with a second core, the preemptive and the multicore OS with several logical cores. */
+export const smpOn = (tier: number, cores: number, logical: number): boolean => (tier === 2 ? cores > 1 : tier >= 3 && logical > 1);
+
+/** One job spread over several cores needs the multicore OS (its threaded programs) and a CPU with at least two logical cores. */
+export const threadsOn = (os: OsSpec, logical: number): boolean => os.tier >= 4 && logical > 1;
 
 /** Blocks reserved for each queued job's program on disk (4 KiB; generated programs are far smaller). */
 export const SPOOL_BLOCKS_PER_JOB = 16;

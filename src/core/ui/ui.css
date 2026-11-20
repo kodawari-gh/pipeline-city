@@ -1532,6 +1532,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-door em { font: normal var(--m-xs) var(--mono); padding: 0.05rem 0.45rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.08); color: var(--mute); }
 .bld-door.on em { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
 .mode .mode-bar .bld-ico { width: 2.1rem; height: 2.1rem; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+/* The machine's life (`RunBar`): the power button (lit green while the machine is on), the chip that says what it does (off, busy, settled, stopped), its speed, the OS sheet's button. */
+.mode .mode-bar .bld-pow, .mode .mode-bar .bld-os { display: inline-flex; align-items: center; gap: 0.4rem; }
+.mode .mode-bar .bld-pow.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.bld-os em { font: normal var(--m-xs) var(--mono); padding: 0.05rem 0.45rem; border-radius: var(--m-r-pill); background: rgba(255, 255, 255, 0.08); color: var(--mute); }
+.bld-chip { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 8.6rem; padding: 0.3rem 0.7rem; border-radius: var(--m-r-pill); font: 600 var(--m-sm) var(--ui); white-space: nowrap; color: var(--mute); background: var(--glass-hi); }
+.bld-chip > i { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+.bld-chip.busy { color: var(--warn); }
+.bld-chip.busy > i { animation: bld-pulse 1s ease-in-out infinite; }
+.bld-chip.ok { color: var(--ok); }
+.bld-chip.bad { color: var(--bad); }
 .bld-foot .mode-keys { justify-content: center; text-shadow: 0 0.1rem 0.5rem #000; }
 
 /* Over the stage: the picked part's card (the game's picker, with its tail), the tooltip's last line, the part on the pointer, the note of a drop that did nothing. */
@@ -1620,6 +1630,48 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bench-foot .bench-go { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
 .mode .bench-foot .bench-go:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
 .mode .bench-foot .bench-stop { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+
+/* The OS sheet (BuildOs.tsx): the benchmark's sheet, with the game's OS pages inside it (`.os-*` above) and the page that chooses the OS. The power controls sit in its head: the sheet covers the foot's. */
+.bld-os-sheet { width: 58rem; }
+.bld-os-sheet .bench-head { align-items: center; }
+.mode-bar.bld-run-sheet { position: static; flex: none; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+.os-sheet-tabs { --g: var(--accent); }
+.os-sheet-body { padding: 0 0.1rem 0.2rem; scrollbar-width: thin; }
+.os-sheet-body .os-tile { font-size: inherit; }
+.os-refused { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--warn); }
+.os-choose { display: flex; flex-direction: column; gap: 0.8rem; }
+.os-lede { margin: 0; font-size: var(--m-md); line-height: 1.45; color: var(--mute); }
+.os-lede b { color: var(--ink); }
+.os-ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.6rem; }
+.os-card { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem 0.8rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: var(--glass-hi); }
+.os-card.on { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.os-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.os-card-head b { font: 700 var(--m-md) var(--ui); }
+.os-card-head em { font: normal 650 var(--m-xs) var(--mono); padding: 0.05rem 0.45rem; border-radius: var(--m-r-pill); background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+.os-card .sub { flex: 1; margin: 0; line-height: 1.35; }
+.os-facts { margin: 0; display: grid; gap: 0.25rem; }
+.os-facts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.os-facts dt { font: 650 var(--m-xs) var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
+.os-facts dd { margin: 0; font: 600 var(--m-sm) var(--mono); text-align: right; }
+.os-facts dd.yes { color: var(--ok); }
+.os-facts dd.no { color: var(--mute); }
+.os-needs { margin: 0; font-size: var(--m-xs); color: var(--mute); }
+.mode .os-act { padding: 0.35rem 0.8rem; font-size: var(--m-sm); border-radius: var(--m-r-pill); }
+.mode .os-act.primary { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.mode .os-act.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
+/* the logical cores of the processor: those that share a hardware core side by side, lit while a job runs on one */
+.os-cores { display: flex; flex-direction: column; gap: 0.35rem; }
+.os-cores-head { font-size: var(--fs-label, 0.7rem); color: var(--mute); }
+.os-cores-head b { color: var(--accent); font-family: var(--mono); }
+.os-cores-row { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.os-core { display: inline-flex; gap: 0.12rem; padding: 0.15rem; border: 1px solid var(--glass-line); border-radius: 0.3rem; background: var(--glass-hi); }
+.os-core i { width: 0.9rem; height: 0.9rem; border-radius: 0.15rem; border: 1px solid var(--glass-line); background: transparent; }
+.os-core i.busy { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0.5rem color-mix(in srgb, var(--accent) 60%, transparent); }
+.os-core i.parked { background: rgba(255, 255, 255, 0.06); border-style: dashed; opacity: 0.6; }
+
+/* The plug in the player's hand (a cable pulled from a socket), by the pointer: what a let-go would do (green: it seats). */
+.bld-cabletip { position: fixed; z-index: 92; transform: translate(-50%, calc(-100% - 1.4rem)); pointer-events: none; padding: 0.4rem 0.8rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); color: var(--ink); font: 600 var(--m-sm) var(--ui); white-space: nowrap; box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); transition: border-color .12s, color .12s; }
+.bld-cabletip.ok { color: var(--ok); border-color: var(--ok); box-shadow: 0 0 1.2rem color-mix(in srgb, var(--ok) 35%, transparent), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); }
 
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
