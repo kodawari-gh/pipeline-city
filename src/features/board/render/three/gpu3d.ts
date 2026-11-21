@@ -15,6 +15,7 @@ import { gpuFanCount } from '@/features/gpu/render/gpulayout';
 import { NIC_BRACKET_X } from '../layout/layout';
 import { badgeTex, brushed, decal, outlinePts, screws, shapeOf, slab, tex, wallPt, type Span, type Spot } from './casekit3d';
 import { glowMat, labelDisc, motor, type Spin } from './fans3d';
+import { COOLER_FROM } from './niccopper';
 import { decalMat, maskTop, MM, passives, type Passive } from './pcbkit3d';
 
 /** The card's frame in the lying pose (card3d's `frame`): the PCB's west end and east end, the cooler's east end, the slot's line, the top edge. */
@@ -125,7 +126,8 @@ function gpuFan(r: number, depth: number, blades: number, rim: boolean): { root:
  * shroud's material and the light bar's (`PartSkin`).
  */
 export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame, Zp: number, Z: number, backT: number, ct: number, flow: boolean): MeshStandardMaterial[] {
-  const { x0, x1, xe, y0, end } = f, L = lookOf(visual), zB = Zp - ct + 1.6 * MM, xa = x0 + 60, xb = xe, ya = y0 + 110, yb = end - 8, cy = (ya + yb) / 2;
+  // (the shroud starts east of the jacks of a NIC in the slot south of it, which stand toward it: `COOLER_FROM`)
+  const { x0, x1, xe, y0, end } = f, L = lookOf(visual), zB = Zp - ct + 1.6 * MM, xa = x0 + COOLER_FROM, xb = xe, ya = y0 + 110, yb = end - 8, cy = (ya + yb) / 2;
   const frameM = mat(L.shroud, { metalness: 0.35, roughness: 0.5 });
   const bezelM = L.bezelMetal ? mat(L.bezel, { metalness: 0.85, roughness: 0.3, map: brushed() }) : mat(L.bezel, { roughness: 0.48 });
   const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 });
@@ -176,7 +178,7 @@ export function gpuCooler(g: Group, spins: Spin[], visual: string, f: CardFrame,
   const nickel = mat(0xb9babf, { metalness: 0.9, roughness: 0.24 });
   g.add(rectBox({ x: die.x - BASE, y: die.y - BASE, w: 2 * BASE, h: 2 * BASE }, Zp - 3 * MM, Zp - 0.2 * MM, nickel));
   const pipeM = mat(L.pipe, { metalness: 0.9, roughness: 0.26 }), np = 2 + n, pitch = 7.5 * MM;
-  const finX0 = x0 + 15 * MM, finX1 = xb - 3 * MM;
+  const finX0 = xa + 12.4 * MM, finX1 = xb - 3 * MM;
   const trench = { x0: die.x - ((np - 1) / 2) * pitch - 6 * MM, x1: die.x + ((np - 1) / 2) * pitch + 6 * MM };
   const rows = { west: 0, east: 0 };
   const order = Array.from({ length: np }, (_, k) => k).sort((a, b) => Math.abs(a - (np - 1) / 2) - Math.abs(b - (np - 1) / 2));

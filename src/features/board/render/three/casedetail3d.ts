@@ -15,7 +15,7 @@ import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_IN, LAYOUT_CASE, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { basementPlan, psuFan, psuOpening } from './basement3d';
 import { fitted, IO_EXTRA, IO_HALF, IO_Z, legacyIo } from './boardhw3d';
-import { BRACKET_TOP, slotBlank } from './card3d';
+import { BRACKET_TOP, bracketSpan, slotBlank } from './card3d';
 import { brushed, decalX, flatSlot, FRONT, outlinePts, perfMat, plateY, screws, shapeOf, slab, tex, thumbscrews, tiled, wallCircle, wallPt, wallX, type Span } from './casekit3d';
 import type { GrommetStyle } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
@@ -41,6 +41,8 @@ function boxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: nu
 
 /** The y of the case's slot `i` (the biggest board it holds sets the row; every tier's rails sit at the same heights). */
 const slotY = (i: number) => geoOf(LAYOUT_CASE).pcie[i]!.y + 30;
+/** The bay of the case's slot `i` (`bracketSpan`: the bracket plate's, which the wall's opening is inside of). */
+const bay = (i: number) => bracketSpan(slotY(i));
 const SLOT_Z = [BOARD_Z + 130, BRACKET_TOP - 40] as const;
 
 /** The rear exhaust's round opening in the rear wall, on every case (layout y and depth). */
@@ -55,7 +57,8 @@ function rearFanHole(): { d: number; cy: number } {
  */
 export function rearWall(f: Frame, boardSlots: number): Group {
   const g = new Group(), x0 = CASE.x, x1 = CASE.x + WALL_T, slots = geoOf(LAYOUT_CASE).pcie.length, p = plateSpan(), u = basementPlan().psu;
-  const holes: (Span | Vector2[])[] = Array.from({ length: slots }, (_, i) => ({ y0: slotY(i) - 30, y1: slotY(i) + 520, z0: SLOT_Z[0], z1: SLOT_Z[1], r: 10 }));
+  // (each opening is its bay (`bracketSpan`) less a 20 rim: from over a NIC's jacks north of the slot's line to under a GPU's outputs south of it)
+  const holes: (Span | Vector2[])[] = Array.from({ length: slots }, (_, i) => ({ y0: bay(i).y0 + 20, y1: bay(i).y1 - 20, z0: SLOT_Z[0], z1: SLOT_Z[1], r: 10 }));
   holes.push({ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20 }, psuOpening(u));
   const fan = rearFanHole();
   holes.push(wallCircle(fan.cy, REAR_ZC, fan.d / 2));
@@ -66,18 +69,18 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   }
   // a vented column beside the slot row, past the retention bar
   const vz0 = SLOT_Z[1] + 260, vz1 = Math.min(vz0 + 900, f.z1 - 220);
-  if (slots && vz1 - vz0 > 300) for (let i = 0; i < slots; i++) for (let z = vz0; z + 50 <= vz1; z += 110) holes.push({ y0: slotY(i) + 40, y1: slotY(i) + 430, z0: z, z1: z + 50, r: 25 });
+  if (slots && vz1 - vz0 > 300) for (let i = 0; i < slots; i++) for (let z = vz0; z + 50 <= vz1; z += 110) holes.push({ y0: bay(i).y0 + 100, y1: bay(i).y1 - 100, z0: z, z1: z + 50, r: 25 });
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
   // the I/O opening's lip, folded in off the wall's inner face
   g.add(wallX(x1, x1 + 60, { y0: p.y0 + 10, y1: p.y1 - 10, z0: p.z0 + 10, z1: p.z1 - 10, r: 8 }, [{ y0: p.y0 + 20, y1: p.y1 - 20, z0: p.z0 + 20, z1: p.z1 - 20, r: 4 }], f.body, 2));
   // the slots the board lacks: blank covers behind their openings (the board's own empty slots get theirs in machine3d.ts)
   for (let i = boardSlots; i < slots; i++) g.add(slotBlank(slotY(i), SLOT_BLANK[f.kind]));
   // the retention bar over the far ends of the openings, where the brackets' folds are (away from the board, as a card's top edge is), a
-  // thumbscrew per slot through it
+  // thumbscrew per slot through it, in the middle of the slot's bay
   if (slots) {
-    const ya = slotY(0) - 90, yb = slotY(slots - 1) + 560, za = SLOT_Z[1] - 24, zb = SLOT_Z[1] + 110;
+    const ya = bay(0).y0 - 30, yb = bay(slots - 1).y1 + 20, za = SLOT_Z[1] - 24, zb = SLOT_Z[1] + 110;
     g.add(boxW(x0 - 14, x0, -yb, -ya, za, zb, f.body));
-    g.add(thumbscrews(Array.from({ length: slots }, (_, i) => ({ x: x0 - 14, y: -(slotY(i) + 30), z: (za + zb) / 2 })), 'x-', 56, 64, steel()));
+    g.add(thumbscrews(Array.from({ length: slots }, (_, i) => ({ x: x0 - 14, y: -(bay(i).y0 + bay(i).y1) / 2, z: (za + zb) / 2 })), 'x-', 56, 64, steel()));
   }
   // over the round opening: a honeycomb grille where the case has a mount (its four screw holes go with it), the Mini's punched grille where it has none
   const grille = new Mesh(new CircleGeometry(fan.d / 2 + 6, fanSides(fan.d / 23)), REAR_FAN_FITTED ? perfMat('hex', fan.d, fan.d, 64, kindTone(f.kind), { metal: 0.5, rough: 0.45 }) : perfMat('round', fan.d, fan.d, 50, kindTone(f.kind), { metal: 0.05, rough: 0.6 }));

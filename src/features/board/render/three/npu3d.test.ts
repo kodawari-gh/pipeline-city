@@ -3,6 +3,7 @@ import { Box3, Group } from 'three';
 import { BD, nicY, setLayoutTier } from '../layout/layout';
 import { cardReach, HINGE_Z, STAND } from './card3d';
 import type { CardFrame } from './gpu3d';
+import { COOLER_FROM } from './niccopper';
 import { npuBackplate, npuCooler, npuPlan } from './npu3d';
 import type { Spin } from './fans3d';
 
@@ -46,6 +47,8 @@ describe("the AI card's blower cooler", () => {
       expect(b.max.z, visual).toBeLessThanOrEqual(Z - PCB_T);
       expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
       expect(b.max.x, visual).toBeLessThanOrEqual(f.xe + 1);
+      // it starts east of the jacks of a NIC in the slot south of it, which stand toward it
+      expect(b.min.x - f.x0, visual).toBeGreaterThanOrEqual(COOLER_FROM - 1);
       const back = new Group();
       npuBackplate(back, visual, f, Z, 18);
       const bb = new Box3().setFromObject(back);

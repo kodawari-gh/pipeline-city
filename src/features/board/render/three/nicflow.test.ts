@@ -27,13 +27,13 @@ describe("the network card's lit lanes", () => {
     }
   });
 
-  it('runs each wire on its own copper, from its source to the controller, in the turned-over drawing (y mirrored, in the card\'s band)', () => {
+  it('runs each wire on its own copper, from its source to the controller, in the card\'s own drawing (its layout, in the card\'s band)', () => {
     setLayoutTier(3, 3);
     for (const visual of VISUALS) {
       const cu = copper(visual), slot = 2, l = nicLanes(cu, slot), west = Math.min(...cu.outline.map((p) => p[0]));
       expect(l.off, visual).toBe(slot * TRACE_BAND - west);
-      // (a lane is its net's trace as the drawing has it: shifted into the band, y turned)
-      const back = (lane: (typeof l.media)[number]) => lane.pts.map(([x, y]) => [x - l.off, -y] as const);
+      // (a lane is its net's trace as the drawing has it: shifted into the band)
+      const back = (lane: (typeof l.media)[number]) => lane.pts.map(([x, y]) => [x - l.off, y] as const);
       const jack = back(l.media[0]!), t = run(cu, 'J1MDI0+');
       expect(jack, visual).toHaveLength(t.pts.length);
       jack.forEach(([x, y], i) => { expect(x, visual).toBeCloseTo(t.pts[i]![0], 6); expect(y, visual).toBeCloseTo(t.pts[i]![1], 6); });
@@ -59,10 +59,10 @@ describe("the network card's lit lanes", () => {
     expect(nets).toHaveLength(2);
     for (const net of nets) {
       const finger = cu.pads.find((p) => p.edge && p.face === 'top' && p.net === net)!, t = run(cu, net);
-      const lane = l.host.find((x) => Math.abs(x.pts[0]![0] - l.off - finger.c[0]) < 1e-6 && Math.abs(-x.pts[0]![1] - finger.c[1]) < 1e-6);
+      const lane = l.host.find((x) => Math.abs(x.pts[0]![0] - l.off - finger.c[0]) < 1e-6 && Math.abs(x.pts[0]![1] - finger.c[1]) < 1e-6);
       expect(lane, net).toBeDefined();
       // (the finger's middle, then the run's own start on the same line)
-      expect(-lane!.pts[1]![1]).toBeCloseTo(t.pts[0]![1], 6);
+      expect(lane!.pts[1]![1]).toBeCloseTo(t.pts[0]![1], 6);
       expect(lane!.pts[1]![0] - l.off).toBeCloseTo(t.pts[0]![0], 6);
     }
   });

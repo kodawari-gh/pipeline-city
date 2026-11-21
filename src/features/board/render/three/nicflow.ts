@@ -3,8 +3,8 @@
 // Two stretches are on the component side: the cable's four pairs from the first jack's contacts east to the controller (the way a frame comes in from the cable, and goes out to it), and the slot's
 // receive pairs (side B's PET) from the gold fingers to the controller (the way the host's frames come in). The way back to the host (side A's PER, through its AC-coupling capacitors) runs on the
 // solder side and dives to the controller by vias: it is not on this face, so no light shows there. Only the first jack has a cable (the 40G card's second one is left dark, as its lamps are).
-// The lanes are in the drawing's own coordinates: the card's layout, turned over (y mirrored: the card is seen from its component side, so layout south is up the screen, as `nic3d.ts`'s group is
-// turned), in the card's band of the shared drawing (`TRACE_BAND`).
+// The lanes are in the drawing's own coordinates: the card's layout (y down, as the card is seen from its component side, which faces up when it lies flat), in the card's band of the shared
+// drawing (`TRACE_BAND`).
 import type { Rect } from '../layout/layout';
 import { mkLane, type Lane, type Pt } from '../wiring/routes';
 import type { NicCopper } from './niccopper';
@@ -34,7 +34,7 @@ export interface NicLanes {
  */
 export function nicLanes(cu: NicCopper, slot: number): NicLanes {
   const west = Math.min(...cu.outline.map((p) => p[0])), off = slot * TRACE_BAND - west;
-  const to = (p: readonly [number, number]): Pt => [p[0] + off, -p[1]];
+  const to = (p: readonly [number, number]): Pt => [p[0] + off, p[1]];
   const lane = (pts: readonly (readonly [number, number])[]): Lane => mkLane(pts.map(to));
   // (a run is drawn from where it starts to where it ends: the jack's contact is west of the controller, a finger north of it)
   const media = cu.traces.filter((t) => t.layer === 'top' && MEDIA.test(t.net)).map((t) => (t.pts[0]![0] <= t.pts[t.pts.length - 1]![0] ? t.pts : [...t.pts].reverse()));

@@ -1,13 +1,13 @@
 // The Ethernet chip soldered on the motherboard (`GEO.phy`) as a real chip with its die (docs/render/net.md "Inside the NIC and the router"). Like the board's other small chips it is a
 // quad flat package: a body of black mould with its laser marking, and the gull-wing legs the board drawing reports (`solids3d.ts`) round it. Under the mould the die stands on its leadframe
 // pad, as the NIC's QFN does (nicchip3d.ts): a block of silicon whose top wears the floorplan (nicplan.ts, the look by the board's port speed) in a frame of its own, live (`Chips3D`).
-// The mould fades as the camera comes in and the die shows. The card's builder works in a group turned over, so this gives it the chip's rectangle mirrored in y, which is the same thing
-// in the board's own frame (layout y as the negative of its y, depth up off the board).
+// The mould fades as the camera comes in and the die shows. The chip's builder works in a frame with layout y as the negative of its y and depth up off the PCB (as the card's component
+// side does, nic3d.ts), so this gives it the chip's rectangle mirrored in y.
 import { Group } from 'three';
 import type { RectLike } from '@/core/render/three/geometry';
 import { tag } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { nicChip, type DieFloor, type NicChip } from './nicchip3d';
+import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
 import { MM } from './pcbkit3d';
 import { CHIP_H } from './solids3d';
 
@@ -23,9 +23,6 @@ export interface PhyChip extends NicChip {
   /** The rectangle the die's plan covers in the die's frame (`NicGeo.die`): what the live layer covers (`Chips3D.face`). */
   plan: RectLike;
 }
-
-/** A rectangle mirrored in y about layout's origin: in the card's frame and out of it (the mirror is its own inverse). */
-const mirror = (r: RectLike): RectLike => ({ x: r.x, y: -(r.y + r.h), w: r.w, h: r.h });
 
 /**
  * The chip over its 2D rectangle `r` (layout), of look `look` (`boardLook`), its id `id`. `plan`: the rectangle the die's plan covers in its frame (`NicGeo.die`). `floor`: how to put the

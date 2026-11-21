@@ -2,7 +2,7 @@
 // both faces' masks by nic3d.ts and checked by niccopper.test.ts as the TPM's is (every run ends on its own net's copper, runs at 0, 45 or 90
 // degrees and bends by 45, every net keeps its clearance off the others, the netlist is realised).
 //
-// The layers: the component side ('top', the face the parts stand on, toward the floor standing), the solder side ('bottom', the back), one
+// The layers: the component side ('top', the face the parts stand on, north standing, toward the glass), the solder side ('bottom', the back), one
 // inner signal layer ('in1': the presence loop) and the inner planes (ground, +3V3, the core rail and the 1.8 V rail), which every via of their
 // net reaches. Ground is poured on both faces too.
 //
@@ -13,6 +13,7 @@
 // taps, each tap to ground through a capacitor on the back), the lights' four pins at the front, the shield's legs and two plastic pegs. Their
 // pairs and the lights' lines run east as one bus to the controller's west edge, closing to its pitch by 45-degree jogs; the crystal's two lines
 // join it. The SPI flash east of the controller, the regulator with its two inductors and polymer capacitors past it.
+import { BD_X } from '../layout/boardlayout';
 import { NIC_BRACKET_X, type Rect } from '../layout/layout';
 import { edgeNet, edgePins, FINGER, KEY, pinAt, TAB, tabLen } from './pcie';
 
@@ -21,10 +22,15 @@ export type Pt = readonly [number, number];
 export type Face = 'top' | 'bottom';
 export type Layer = Face | 'in1';
 
-/** An RJ45 jack with its magnetics (mm, as layout units): across the bracket, off the PCB, and deep; the tallest part on the card. */
+/** An RJ45 jack with its magnetics (mm, as layout units): across the bracket, off the PCB's top face, and deep; the tallest part on the card. */
 export const JACK = { w: 16 * MM, h: 13.5 * MM, d: 22 * MM };
 /** The jacks' front: past the bracket's face, through the case's rear wall, the mouths just in from its outer face (where the LAN plug goes in). */
 export const JACK_X = NIC_BRACKET_X - 150;
+/**
+ * Where a cooler may start along a card (layout x from the PCB's west end, 14 units past the jacks' backs). A NIC's jacks stand 13.5 mm on its top face, which looks north, toward the cooler of
+ * the card in the slot north of it (a GPU's shroud, an AI card's blower), so no cooler stands over them (`fit.test.ts`).
+ */
+export const COOLER_FROM = JACK_X + JACK.d + 14 - BD_X;
 /** A card's jacks (two on the 40G card), as their slot-side edges, lying. */
 export const jacksOf = (visual: string, y0: number): number[] => (visual === 'nic-40g' ? [0, 1] : [0]).map((k) => y0 + 120 + k * (JACK.w + 30));
 /** A NIC's link width: x1, x4 or x8 (a GPU's and an AI card's are x16). */

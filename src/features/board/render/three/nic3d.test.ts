@@ -7,7 +7,7 @@ import { cardReach, HINGE_Z, nicJackAt, STAND } from './card3d';
 import type { CardFrame } from './gpu3d';
 import { JACK, JACK_X, jacksOf, MOUTH, mouthAt, nicBack, nicParts, type NicBuild } from './nic3d';
 import { DIE_MM } from './nicchip3d';
-import { NIC_LANES, nicCopper } from './niccopper';
+import { COOLER_FROM, NIC_LANES, nicCopper } from './niccopper';
 import { TAB, tabOf } from './pcie';
 
 const MM = 23, Z = HINGE_Z, PCB_T = 24, Zp = Z - PCB_T;
@@ -30,36 +30,45 @@ describe("the network card's real parts", () => {
       // the jacks stand inside the card's height, apart
       expect(ys[ys.length - 1]! + JACK.w, visual).toBeLessThan(y0 + STAND.nic);
       if (n > 1) expect(ys[1]! - ys[0]!).toBeGreaterThan(JACK.w);
-      // the plug's seat, standing: the first mouth's middle, out past the bracket's face
-      const p = nicJackAt(visual, 0), m = mouthAt(ys[0]!, Zp);
+      // the plug's seat, standing: the first mouth's middle, out past the bracket's face, north of the slot's line (the jack stands on the PCB's top face: the PCB is below the ports)
+      const p = nicJackAt(visual, 0), m = mouthAt(ys[0]!, Z);
       expect(p.x).toBe(JACK_X);
       expect(p.x).toBeLessThan(NIC_BRACKET_X);
-      expect(p.y - y0).toBeGreaterThan(PCB_T);
-      expect(p.y - y0).toBeLessThan(PCB_T + JACK.h);
+      expect(y0 - p.y).toBeGreaterThan(0);
+      expect(y0 - p.y).toBeLessThan(JACK.h);
+      expect(y0 - p.y).toBeCloseTo(MOUTH.base + MOUTH.main / 2, 3);
       expect(p.z - HINGE_Z).toBeCloseTo(m.y - y0, 3);
       expect(p.z - HINGE_Z).toBeCloseTo(ys[0]! - y0 + JACK.w / 2, 3);
     }
   });
 
-  it('keeps every part on the component side, inside the card\'s reach and its outline (the finger tab\'s face down in the slot)', () => {
+  it('stands every part on the PCB\'s top face, the jacks 13.5 mm up at the bracket (the PCB is below the ports) and the rest low (a GPU or an NPU may stand just south of it), all inside the card\'s outline', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
-      const f = frame(visual), g = new Group();
-      nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24, copper(visual, f), build(visual));
-      const b = new Box3().setFromObject(g);
-      expect(Z - b.min.z, visual).toBeLessThanOrEqual(cardReach('nic', visual).south + 1);
-      expect(b.max.z, visual).toBeLessThanOrEqual(Zp + 1);
+      const f = frame(visual), g = new Group(), out = nicParts(g, visual, f, Z, NIC_BRACKET_X + 24, copper(visual, f), build(visual));
+      const b = new Box3().setFromObject(g), up = new Box3().setFromObject(out.top);
+      // (nothing is under the top face; the part east of the jacks rises off it no higher than the card's north reach)
+      expect(b.min.z, visual).toBeGreaterThanOrEqual(Z - 1);
+      expect(up.min.z, visual).toBeGreaterThanOrEqual(Z - 1);
+      expect(up.max.z - Z, visual).toBeLessThanOrEqual(cardReach('nic', visual).north);
       expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
       expect(-b.max.y, visual).toBeGreaterThanOrEqual(f.y0 - TAB - 1);
       expect(b.min.x, visual).toBeGreaterThanOrEqual(JACK_X - 1);
       expect(b.max.x, visual).toBeLessThanOrEqual(f.x1 + 1);
+      // the jacks are the tallest thing (their ground springs and ribs a hair over their shield's face), in front of the controller, and clear of the cooler of a card north of it (`COOLER_FROM`)
+      const jacks = findById(g, 'pcie0.nic-jack')!, ju = new Box3().setFromObject(jacks);
+      expect(ju.min.z, visual).toBeGreaterThanOrEqual(Z - 1);
+      expect(ju.max.z - Z, visual).toBeGreaterThanOrEqual(JACK.h);
+      expect(ju.max.z - Z, visual).toBeLessThanOrEqual(JACK.h + 0.5 * MM + 1);
+      expect(b.max.z, visual).toBeCloseTo(ju.max.z, 6);
+      expect(ju.max.x - BD.x, visual).toBeLessThanOrEqual(COOLER_FROM);
     }
   });
 
   it('tags each body a pick can meet with its id (the slot and the part), and reports where each stands and how tall', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
-      const f = frame(visual), g = new Group(), out = nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24, copper(visual, f), build(visual));
+      const f = frame(visual), g = new Group(), out = nicParts(g, visual, f, Z, NIC_BRACKET_X + 24, copper(visual, f), build(visual));
       const ids = ['jack', 'ctl', 'xtal', 'nvm', 'vreg', 'label'].map((p) => `pcie0.nic-${p}`);
       expect(out.bodies.map((b) => b.id), visual).toEqual(ids);
       for (const id of ids) expect(findById(g, id), `${visual} ${id}`).not.toBeNull();
@@ -71,8 +80,11 @@ describe("the network card's real parts", () => {
         expect(b.rect.y + b.rect.h, `${visual} ${b.id}`).toBeLessThanOrEqual(f.end + 1);
         expect(b.h, `${visual} ${b.id}`).toBeGreaterThanOrEqual(0);
       }
-      // the jack is the tallest body, the label a sticker with no height
-      expect(Math.max(...out.bodies.map((b) => b.h)), visual).toBe(out.bodies.find((b) => b.id === 'pcie0.nic-jack')!.h);
+      // the jack is the tallest, its height the real 13.5 mm; the others stand no higher than the card's north reach; the label is a sticker with no height
+      const jack = out.bodies.find((b) => b.id === 'pcie0.nic-jack')!;
+      expect(jack.h, visual).toBe(JACK.h);
+      expect(Math.max(...out.bodies.map((b) => b.h)), visual).toBe(jack.h);
+      for (const b of out.bodies.filter((o) => o !== jack)) expect(b.h, `${visual} ${b.id}`).toBeLessThanOrEqual(cardReach('nic', visual).north);
       expect(out.bodies.find((b) => b.id === 'pcie0.nic-label')!.h, visual).toBe(0);
       // the two lights follow the network: out until it lights them
       expect(out.lamps.link, visual).toBeDefined();
@@ -84,7 +96,7 @@ describe("the network card's real parts", () => {
     setLayoutTier(3, 3);
     for (const [visual, side] of [['nic-gbe', DIE_MM.qfn], ['nic-10g', DIE_MM.bga], ['nic-40g', DIE_MM.bga]] as const) {
       const f = frame(visual), g = new Group(), seen: { frame: Group; scale: number }[] = [], root = new Group();
-      const out = nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24, copper(visual, f), build(visual, (fr, scale) => { seen.push({ frame: fr, scale }); return { root, z: 3 / scale }; }));
+      const out = nicParts(g, visual, f, Z, NIC_BRACKET_X + 24, copper(visual, f), build(visual, (fr, scale) => { seen.push({ frame: fr, scale }); return { root, z: 3 / scale }; }));
       const chip = out.chip;
       expect(chip.rect.w / MM, visual).toBeCloseTo(side, 3);
       expect(chip.rect.h / MM, visual).toBeCloseTo(side, 3);
@@ -110,21 +122,21 @@ describe("the network card's real parts", () => {
 
   it('has no die at all when it is given no floorplan (the plain chip of the gallery)', () => {
     setLayoutTier(3, 3);
-    const f = frame('nic-gbe'), out = nicParts(new Group(), 'nic-gbe', f, Zp, NIC_BRACKET_X + 24, copper('nic-gbe', f), build('nic-gbe'));
+    const f = frame('nic-gbe'), out = nicParts(new Group(), 'nic-gbe', f, Z, NIC_BRACKET_X + 24, copper('nic-gbe', f), build('nic-gbe'));
     expect(out.chip.die).toBeNull();
     out.chip.lod(30);
     expect(out.chip.lid.visible).toBe(false);
   });
 
-  it('dresses the back (the solder side): its parts, joints and pin tips stand low over it, inside the card\'s outline', () => {
+  it('dresses the back (the solder side, under the PCB): its parts and pin tips hang low under it, inside the card\'s outline', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const f = frame(visual), g = new Group(), cu = copper(visual, f);
-      nicBack(g, visual, f, Z, cu);
+      nicBack(g, visual, f, Zp, cu);
       const b = new Box3().setFromObject(g);
-      // above the tab's face (a unit under the PCB's), under the card's reach north of the slot's line
-      expect(b.min.z, visual).toBeGreaterThanOrEqual(Z - 1.5);
-      expect(b.max.z - Z, visual).toBeLessThanOrEqual(cardReach('nic', visual).north);
+      // under the PCB's underside (a unit over it at most: the mask's face), no deeper than the card's reach south of the slot's line
+      expect(b.max.z, visual).toBeLessThanOrEqual(Zp + 1.5);
+      expect(Z - b.min.z, visual).toBeLessThanOrEqual(cardReach('nic', visual).south);
       expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
       expect(-b.max.y, visual).toBeGreaterThanOrEqual(f.y0 - TAB - 1);
       expect(b.min.x, visual).toBeGreaterThanOrEqual(f.x0 - 1);

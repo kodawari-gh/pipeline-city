@@ -11,6 +11,7 @@ import { BRANDS } from '@/core/render/brands';
 import { badgeTex, brushed, decal, outlinePts, screws, shapeOf, slab, wallPt, wallX, type Span, type Spot } from './casekit3d';
 import type { Spin } from './fans3d';
 import { circle, dieBack, hubSticker, uvSpan, V, type CardFrame } from './gpu3d';
+import { COOLER_FROM } from './niccopper';
 import { decalMat, MM } from './pcbkit3d';
 
 /** Each AI card's finish: the shroud, its raised plateau (brushed), the intake's bezel, the backplate. */
@@ -29,7 +30,8 @@ const RISE = 1.2 * MM, PLATE = 2 * MM, WALL = 1.6 * MM, SCROLL = 1.2 * MM;
  * block's span, and the die under the block's middle.
  */
 export function npuPlan(f: CardFrame) {
-  const xa = f.x0 + 1 * MM, xb = f.xe, ya = f.y0 + 110, yb = f.end - 8, cy = (ya + yb) / 2, half = (yb - ya) / 2 - WALL;
+  // (the shroud starts east of the jacks of a NIC in the slot south of it, which stand toward it: `COOLER_FROM`)
+  const xa = f.x0 + COOLER_FROM, xb = f.xe, ya = f.y0 + 110, yb = f.end - 8, cy = (ya + yb) / 2, half = (yb - ya) / 2 - WALL;
   // a 65 mm impeller, or as large as the card's height leaves room for its scroll
   const r = Math.min(32.5 * MM, half / 1.34), R0 = r * 1.06, R1 = Math.min(r * 1.34, half - 0.6 * MM), a0 = Math.PI + 0.35, a1 = Math.PI * 2.5 + 0.25;
   const Rs = (a: number) => R0 + (R1 - R0) * Math.min(1, Math.max(0, (a - a0) / (a1 - a0)));
@@ -155,11 +157,11 @@ const hexAt = (y: number, z: number, R: number): Vector2[] => Array.from({ lengt
 
 /**
  * The AI card's bracket, lying (`s` its plate: its depth along the lying y, its height along the lying z): the plate with a honeycomb cut through
- * it over the shroud's mouth, where the blower's air leaves the case.
+ * it over the shroud's mouth, where the blower's air leaves the case (as far as the slot's bay reaches under the PCB: `SLOT_BAY`).
  */
 export function npuBracket(f: CardFrame, Zp: number, ct: number, x0: number, x1: number, s: Span, m: Material): Mesh {
   const P = npuPlan(f), R = 1.75 * MM, pitch = 4 * MM, dz = pitch * 0.866, holes: Vector2[][] = [];
-  const z0 = Zp - ct + RISE + PLATE + 0.6 * MM + R, z1 = Zp - 0.8 * MM - R, y0 = P.ya + 2 * MM + R, y1 = P.yb - 3 * MM - R;
+  const z0 = Math.max(Zp - ct + RISE + PLATE + 0.6 * MM + R, s.z0 + 20 + R), z1 = Zp - 0.8 * MM - R, y0 = P.ya + 2 * MM + R, y1 = P.yb - 3 * MM - R;
   for (let j = 0, z = z0; z <= z1; j++, z += dz) for (let y = y0 + (j % 2 ? pitch / 2 : 0); y <= y1; y += pitch) holes.push(hexAt(y, z, R));
   return wallX(x0, x1, s, holes, m);
 }

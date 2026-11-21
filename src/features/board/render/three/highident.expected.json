@@ -18,21 +18,21 @@
     "draws": 15,
     "verts": 33624,
     "instances": 186,
-    "sum": "8661bf11"
+    "sum": "994c76ce"
   },
   "machine/Group#7": {
     "meshes": 1,
     "draws": 1,
     "verts": 9372,
     "instances": 0,
-    "sum": "a2c347ee"
+    "sum": "952e8462"
   },
   "machine/Group#8": {
     "meshes": 1,
     "draws": 1,
     "verts": 9372,
     "instances": 0,
-    "sum": "816f63e5"
+    "sum": "f24a0159"
   },
   "machine/Mesh#0": {
     "meshes": 1,
@@ -144,7 +144,7 @@
     "draws": 15,
     "verts": 14736,
     "instances": 32,
-    "sum": "58e3d48b"
+    "sum": "6075dafa"
   },
   "machine/cable.monmains": {
     "meshes": 5,
@@ -158,21 +158,21 @@
     "draws": 2,
     "verts": 11976,
     "instances": 0,
-    "sum": "850a3b93"
+    "sum": "5cad6355"
   },
   "machine/cable.panel:USB_2": {
     "meshes": 2,
     "draws": 2,
     "verts": 3696,
     "instances": 0,
-    "sum": "e3a9c865"
+    "sum": "a0b020f9"
   },
   "machine/cable.panel:USB_3": {
     "meshes": 2,
     "draws": 2,
     "verts": 3696,
     "instances": 0,
-    "sum": "d70b93cc"
+    "sum": "8edfb455"
   },
   "machine/cable.pcmains": {
     "meshes": 5,
@@ -193,7 +193,7 @@
     "draws": 2,
     "verts": 8160,
     "instances": 0,
-    "sum": "2fa0527d"
+    "sum": "e6e2e727"
   },
   "machine/cable.video": {
     "meshes": 8,
@@ -212,9 +212,9 @@
   "machine/case": {
     "meshes": 140,
     "draws": 140,
-    "verts": 157378,
+    "verts": 157366,
     "instances": 1230,
-    "sum": "770b7f06"
+    "sum": "758024de"
   },
   "machine/case.side": {
     "meshes": 1,
@@ -406,11 +406,11 @@
     "sum": "461db966"
   },
   "machine/dev34": {
-    "meshes": 19,
-    "draws": 14,
-    "verts": 18508,
+    "meshes": 20,
+    "draws": 15,
+    "verts": 24208,
     "instances": 318,
-    "sum": "495ac2e6"
+    "sum": "b422190b"
   },
   "machine/io": {
     "meshes": 8,
@@ -438,35 +438,35 @@
     "draws": 4,
     "verts": 19492,
     "instances": 17,
-    "sum": "08db2cd9"
+    "sum": "c4567dbc"
   },
   "machine/pcie2.nic-jack": {
     "meshes": 6,
     "draws": 6,
     "verts": 4032,
     "instances": 16,
-    "sum": "a2cf255f"
+    "sum": "dbdb5f06"
   },
   "machine/pcie2.nic-nvm": {
     "meshes": 3,
     "draws": 3,
     "verts": 928,
     "instances": 24,
-    "sum": "76f4c225"
+    "sum": "18baed9d"
   },
   "machine/pcie2.nic-vreg": {
     "meshes": 6,
     "draws": 6,
     "verts": 5646,
     "instances": 8,
-    "sum": "029c42ea"
+    "sum": "51c913e4"
   },
   "machine/pcie2.nic-xtal": {
     "meshes": 2,
     "draws": 2,
     "verts": 76,
     "instances": 0,
-    "sum": "a100a10a"
+    "sum": "462c4923"
   },
   "machine/power": {
     "meshes": 2,
@@ -529,7 +529,7 @@
     "draws": 0,
     "verts": 234534,
     "instances": 0,
-    "sum": "4a294868"
+    "sum": "ac8f8b25"
   },
   "machine/tpm0": {
     "meshes": 1,

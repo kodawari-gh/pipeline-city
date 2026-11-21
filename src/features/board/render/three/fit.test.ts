@@ -11,6 +11,7 @@ import { BOARD_Z, CASE_D, CASE_Z, FAN_MAX, FAN_ZC } from '@/features/room/render
 import { HINGE_Z, STAND, cardReach, type CardKind } from './card3d';
 import { cagePlan, onTray } from './drivecage3d';
 import { HDD_MM, SSD_MM } from './drive3d';
+import { COOLER_FROM, JACK, JACK_X } from './niccopper';
 
 // The fit checks: the removal graph's cover rules (sim/removal.ts) and the 3D models must agree, and every part must sit inside its board and case.
 const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -29,6 +30,19 @@ describe('fit: the cover rules match the models', () => {
         expect(COVERS[kind] ?? 0, `${kind} on tier ${t}: reaches ${reach}, pitch ${pitch}`).toBe(pitch - reach < FINGER ? 1 : 0);
       }
     }
+  });
+
+  it('a NIC\'s jacks stand 13.5 mm up its top face, toward the slot north of it: they would foul the cooler of a card there, so a cooler starts east of them', () => {
+    for (let t = 1; t < BOARD_TIERS.length; t++) {
+      const { pcie } = geoOf(t), pitch = pcie[1]!.y - pcie[0]!.y;
+      for (const kind of ['gpu', 'npu'] as const) {
+        const reach = Math.max(...[...specsOfKind(kind)].map((s) => cardReach(kind, s.visual!).south));
+        expect(reach + JACK.h, `${kind} on tier ${t}: a cooler of ${reach} over a jack of ${JACK.h} in a ${pitch} pitch`).toBeGreaterThan(pitch - 20);
+      }
+    }
+    // (the jacks end west of where a cooler starts, and the cooler's start is no more than a finger from the bracket)
+    expect(JACK_X + JACK.d - BD.x).toBeLessThan(COOLER_FROM);
+    expect(COOLER_FROM).toBeLessThan(16 * 23);
   });
 
   it('the cards whose coolers stand over an M.2 stick are exactly the ones in OVER_M2', () => {

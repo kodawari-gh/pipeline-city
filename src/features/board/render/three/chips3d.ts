@@ -191,8 +191,8 @@ export class Chips3D {
   }
 
   /**
-   * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's parts stand in; the lanes' drawing is that frame's, y
-   * mirrored) at depth `z`. The frames the card's die view launches (`NicView.onLaunch`) run on them, in the colour of the way they go.
+   * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's parts stand in; the lanes' drawing is layout's, y down)
+   * at depth `z`. The frames the card's die view launches (`NicView.onLaunch`) run on them, in the colour of the way they go.
    */
   traces(parent: Object3D, slot: string, lanes: NicLanes, z: number): void {
     if (!lanes.media.length && !lanes.host.length) return;

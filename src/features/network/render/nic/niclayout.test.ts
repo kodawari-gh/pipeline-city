@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier, type Rect } from '../../../board/render/layout/layout';
-import { BOARD_BAND, NIC_BAND, NIC_BODIES, NIC_FACE, boardNicIds, folded, moveBy, nicBuildRect, nicFaceRect, nicGeo, nicIds, nicParts } from './niclayout';
+import { BOARD_BAND, NIC_BAND, NIC_BODIES, NIC_FACE, boardNicIds, moveBy, nicFaceRect, nicGeo, nicIds, nicParts } from './niclayout';
 import { NIC_DIE, nicInput } from './nicplan';
 
 const VISUALS = ['nic-gbe', 'nic-10g', 'nic-40g'];
@@ -10,16 +10,17 @@ const apart = (a: Rect, b: Rect): boolean => a.x >= b.x + b.w - 0.01 || b.x >= a
 describe('the card\'s flat strip on the board', () => {
   setLayoutTier(3, 3);
 
-  it('reaches north of the slot\'s line over the card\'s body and south of it over the finger tab: the card lies at its own slot', () => {
+  it('reaches south of the slot\'s line over the card\'s body and north of it over the finger tab: the card lies at its own slot, as a GPU does', () => {
     for (const v of VISUALS) for (const slot of [0, 1, 2]) {
       const f = nicFaceRect(slot, v);
       expect(f.y, `${v} ${slot}`).toBe(nicY(slot) - NIC_FACE.north);
-      expect(f.h, `${v} ${slot}`).toBe(NIC_FACE.north + NIC_FACE.south);
+      expect(f.y + f.h, `${v} ${slot}`).toBe(nicY(slot) + NIC_FACE.south);
       // a card of the PCIe slot's pitch above and below does not touch it
       expect(f.h, `${v} ${slot}`).toBeLessThanOrEqual(640);
     }
-    // (the 3D card's finger tab is 140 high)
-    expect(NIC_FACE.south).toBeGreaterThanOrEqual(140);
+    // (the 3D card's finger tab is 140 high; the body is the longer side)
+    expect(NIC_FACE.north).toBeGreaterThanOrEqual(140);
+    expect(NIC_FACE.south).toBeGreaterThan(NIC_FACE.north);
   });
 
   it('reaches from the jack at the bracket to the far end of the board, and keeps the strips of the slots apart', () => {
@@ -33,28 +34,6 @@ describe('the card\'s flat strip on the board', () => {
     }
   });
 
-  it('folds a rectangle over about the slot\'s line: its x stays, its distance from the line stays, the sides swap', () => {
-    for (const v of VISUALS) for (const slot of [0, 2]) {
-      const y0 = nicY(slot), r = { x: 300, y: y0 + 40, w: 120, h: 90 }, t = folded(r, slot);
-      expect(t.x, v).toBe(r.x);
-      expect(t.w, v).toBe(r.w);
-      expect(t.h, v).toBe(r.h);
-      expect(t.y + t.h / 2 - y0, v).toBeCloseTo(-(r.y + r.h / 2 - y0), 6);
-      // (folding twice is the card as it was)
-      expect(folded(t, slot).y, v).toBeCloseTo(r.y, 6);
-    }
-  });
-
-  it('builds the card with its body south of the line and its finger tab north of it: the flat strip folded over', () => {
-    for (const v of VISUALS) for (const slot of [0, 2]) {
-      const b = nicBuildRect(slot, v), f = nicFaceRect(slot, v);
-      expect(b.y, v).toBe(nicY(slot) - NIC_FACE.south);
-      expect(b.y + b.h, v).toBe(nicY(slot) + NIC_FACE.north);
-      expect(b.x, v).toBe(f.x);
-      expect(b.w, v).toBe(f.w);
-      expect(folded(b, slot), v).toEqual(f);
-    }
-  });
 });
 
 describe('the die\'s frame', () => {

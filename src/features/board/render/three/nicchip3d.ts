@@ -1,8 +1,8 @@
 // The NIC's controller as a real chip with its die (docs/render/net.md "Inside the NIC and the router"). A QFN on the gigabit card: a leadframe pad with the die on it, under a cap of
 // black mould; a lidded BGA on the faster cards: a substrate with the die on it, under a nickel lid and the finned sink. Like the CPU's (cpu3d.ts), the die is a block of silicon whose
 // top wears the floorplan (nicplan.ts) in a frame of its own, drawn at the die's scale; the cap or the lid, with the sink on it, fades away as the camera comes in and the die shows.
-// Built in the card's component-side frame (nic3d.ts: a group turned over, layout y as its y, depth off the PCB as its z). The Ethernet chip on the motherboard (phychip3d.ts) builds a QFN too, in the
-// board's own frame (not turned over): it gives this the rectangles mirrored in y, which is the same thing.
+// Built in a frame whose y is the negative of layout's and whose depth runs up off the PCB (the card's component side, nic3d.ts, and the board's own frame, phychip3d.ts): it takes the
+// rectangles mirrored in y (`mirror`) and the same function to turn them back (`U`).
 import { Group, type Object3D } from 'three';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
@@ -10,6 +10,9 @@ import { rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { NIC_DIE } from '@/features/network/render/nic/nicplan';
 import { MM, lidBase, pkg } from './pcbkit3d';
+
+/** A rectangle mirrored in y about layout's origin: in the chip's frame and out of it (the mirror is its own inverse). */
+export const mirror = (r: RectLike): RectLike => ({ x: r.x, y: -(r.y + r.h), w: r.w, h: r.h });
 
 /** The die's side in mm: a QFN's (a 9 mm package, its pad 8 mm: the die fills the pad) and a lidded BGA's (a 25 mm package: the die fills the substrate to a 2 mm border). The floorplan covers the whole chip. */
 export const DIE_MM = { qfn: 7.6, bga: 21 } as const;
@@ -24,7 +27,7 @@ export interface NicChip {
   die: { root: Object3D; z: number } | null;
   /** Layout units a plan unit: the die's size over the plan's. */
   scale: number;
-  /** The die's own rectangle (layout, seen through the PCB as the card is built), the package's height off the PCB, and the height of the die's top (where its floorplan lies). */
+  /** The die's own rectangle (in the frame the chip was built in: mirrored in y, `mirror`), the package's height off the PCB, and the height of the die's top (where its floorplan lies). */
   rect: RectLike;
   top: number;
   dieTop: number;
@@ -33,8 +36,8 @@ export interface NicChip {
 }
 
 /**
- * The controller on its pads: `chip` is the package's rectangle (layout, the underside as the card is built: `U` turns it for the group), `qfn` its kind, `zu` the depth of the PCB's
- * underside in the group, `mark` the laser marking. The terminals of a QFN and the sink of a BGA are the caller's: it adds them to `u` and to the returned `lid`. `plan`: the
+ * The controller on its pads: `chip` is the package's rectangle in the group's frame (layout mirrored in y: `U` turns it back), `qfn` its kind, `zu` the depth of the PCB's
+ * face in the group, `mark` the laser marking. The terminals of a QFN and the sink of a BGA are the caller's: it adds them to `u` and to the returned `lid`. `plan`: the
  * rectangle the die's plan covers in its frame (the card's band, `NicGeo.die`): the frame is placed so the plan's middle lies on the die's. `o.height`: the QFN's height off the PCB when it is
  * not the card's 0.9 mm; `o.die`: the die's side (layout units) when it is not the card's (the motherboard's Ethernet chip is a taller package with a bigger pad, phychip3d.ts).
  */

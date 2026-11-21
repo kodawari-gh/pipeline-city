@@ -48,16 +48,16 @@ describe('the 3D expansion cards', () => {
     expect(box(c.root).max.z).toBeGreaterThan(HINGE_Z + STAND.gpu - 40);
   });
 
-  it('folds a NIC flat to the north once it swings down: its parts come up on the PCB, its fingers stay at its own slot, the controller\'s die faces the glass with its floorplan upright, and the bodies stand where the card says', () => {
+  it('folds a NIC flat to the south once it swings down, as a GPU does: its parts, its jacks too, stay on the PCB\'s top face, its fingers stay at its own slot, the controller\'s die faces the glass with its floorplan upright, and the bodies stand where the card says', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const floor = new Group(), c = card3d('nic', visual, 1, () => { throw new Error('no 2D face'); }, { id: 'pcie1', floor: (frame) => { frame.add(floor); return { root: floor, z: 3 }; } });
       const [swing0, swing1] = [DEVICE_LOD.nic.fade[0] + 0.04, DEVICE_LOD.nic.fade[1]], dir = (v: Vector3) => v.transformDirection(floor.matrixWorld);
-      // standing: nothing has folded, the parts hang under the PCB, the die faces down (south, as every card's parts do in a tower)
+      // standing: nothing has folded, the parts are on the PCB's top face and the die faces north (up in the tower, toward the camera: a mirror of the tower's card, whose parts face down)
       c.pose(0);
       expect(c.flat(), visual).toBe(0);
       c.root.updateMatrixWorld(true);
-      expect(dir(new Vector3(0, 0, 1)).y, `${visual} standing`).toBeCloseTo(-1, 6);
+      expect(dir(new Vector3(0, 0, 1)).y, `${visual} standing`).toBeCloseTo(1, 6);
       // half way the card is up in the air, and clear of the board all the way down
       c.pose((swing0 + swing1) / 2);
       expect(c.flat(), visual).toBeGreaterThan(0.2);
@@ -73,11 +73,12 @@ describe('the 3D expansion cards', () => {
       expect(dir(new Vector3(1, 0, 0)).x, `${visual} x`).toBeCloseTo(1, 6);
       expect(dir(new Vector3(0, 1, 0)).y, `${visual} y`).toBeCloseTo(1, 6);
       expect(dir(new Vector3(0, 0, 1)).z, `${visual} z`).toBeCloseTo(1, 6);
-      // the card lies north of its slot's line, over its body, and only its finger tab reaches south of the line: its fingers are at its own slot, not at the next one's
+      // the card lies south of its slot's line, over its body (its mask and its parts run on to its far edge), and only its finger tab reaches north of the line: its fingers are at its own slot, not at the previous one's
       const flat = box(c.root), y0 = nicY(1);
-      expect(-flat.min.y, `${visual} fingers`).toBeLessThanOrEqual(y0 + NIC_FACE.south + 1);
-      expect(-flat.min.y, `${visual} fingers`).toBeGreaterThanOrEqual(y0 + 100);
-      expect(-flat.max.y, `${visual} body`).toBeLessThan(y0 - NIC_FACE.north + 1);
+      expect(-flat.max.y, `${visual} fingers`).toBeGreaterThanOrEqual(y0 - NIC_FACE.north - 1);
+      expect(-flat.max.y, `${visual} fingers`).toBeLessThanOrEqual(y0 - 100);
+      expect(-flat.min.y, `${visual} body`).toBeGreaterThan(y0 + NIC_FACE.south);
+      expect(-flat.min.y, `${visual} body`).toBeLessThanOrEqual(y0 + STAND.nic + 1);
       expect(flat.min.z, `${visual} down`).toBeGreaterThan(HINGE_Z - 60);
       // the die lies where the card says (its footprint, the depth of its top): the plan's middle is on the die's middle
       const d = c.die!, w = floor.localToWorld(new Vector3(d.rect.x + d.rect.w / 2, -(d.rect.y + d.rect.h / 2), 0));

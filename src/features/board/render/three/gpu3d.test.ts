@@ -3,6 +3,7 @@ import { Box3, Group } from 'three';
 import { NIC_BRACKET_X, nicY, setLayoutTier } from '../layout/layout';
 import { cardReach, gpuVideoAt, HINGE_Z, STAND } from './card3d';
 import { gpuCooler, gpuOutputs, gpuSockets, OUTPUTS, outputHoles, type CardFrame } from './gpu3d';
+import { COOLER_FROM } from './niccopper';
 
 const MM = 23, Z = HINGE_Z, PCB_T = 24;
 const frame = (len: number): CardFrame => ({ x0: 0, x1: len, xe: len, y0: nicY(0), end: nicY(0) + STAND.gpu });
@@ -36,6 +37,8 @@ describe("the GPU's real parts", () => {
       const b = new Box3().setFromObject(g);
       expect(Z - b.min.z, visual).toBeLessThanOrEqual(cardReach('gpu', visual).south + 1);
       expect(-b.min.y, visual).toBeLessThanOrEqual(f.end + 1);
+      // it starts east of the jacks of a NIC in the slot south of it, which stand toward it
+      expect(b.min.x - f.x0, visual).toBeGreaterThanOrEqual(COOLER_FROM - 1);
       const s = gpuSockets(new Group(), visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T);
       expect(s.length, visual).toBe(plugs);
       for (const p of s) expect(p.x + 10.6 * MM, visual).toBeLessThan(f.x1);
