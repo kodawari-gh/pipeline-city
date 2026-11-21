@@ -4,14 +4,17 @@
 // at their 1.02 mm pitch, the link and activity lights either side of the latch slot. The controller east of them: a QFN on the gigabit card, a
 // lidded BGA under a finned sink with its push pins on the faster cards (the fins run along the card, in the case's front-to-back air). Its 25 MHz
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
-// label, and the solder mask with its traces and silkscreen.
+// label, and the solder mask with its traces and silkscreen. Close up the card turns over (card3d's `roll`) and shows these parts up; the ones a pointer can
+// meet are groups tagged `<slot>.nic-<part>` (`jack ctl xtal nvm vreg label`, with their footprints in `NicOut.bodies`); the controller's die wears the floorplan (nicchip3d.ts).
 import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { drawLockup } from '@/core/render/brands';
 import { macOf } from '@/features/network/render/nic/nicmac';
 import { drum, instanced, rectBox, SEG, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
+import { tag } from '@/core/render/three/pick';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
+import { nicChip, type DieFloor, type NicChip } from './nicchip3d';
 import { CU, JACK, JACK_X, jacksOf, type Face, type NicCopper } from './niccopper';
 import { crystal, decalMat, inductor, maskTop, MM, passives, pkg, type MaskCopper, type Passive } from './pcbkit3d';
 import { KEY, TAB } from './pcie';
@@ -163,41 +166,66 @@ export function pinCoil(px: number, py: number, b1: number, m: Material): Mesh {
   return o;
 }
 
+/** A body of the card the player can point at (`NicOut.bodies`): its id (`pcie2.nic-xtal`), its footprint (layout, the component side as the card is built) and how tall it stands off the PCB. */
+export interface NicBody { id: string; rect: RectLike; h: number }
+
+export interface NicOut {
+  /** The first jack's two lights (the network's: `network/render/jackleds.ts`). */
+  lamps: JackLamps;
+  /** The controller's chip: its lid's fade, its die's face. */
+  chip: NicChip;
+  bodies: NicBody[];
+}
+
+/** What a card's parts need to be told: its slot (the ids of its parts), the rectangle its die's plan covers in the die's frame, and how to put the floorplan on the die (none: a plain chip). */
+export interface NicBuild { slot: string; plan: RectLike; floor?: DieFloor }
+
+/** The rectangle round some rectangles. */
+const hull = (rs: readonly RectLike[]): RectLike => {
+  const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y)), x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+};
+
 /**
  * Every part on the NIC's component side, under the PCB (`Zp` its underside): the jacks, the controller (with its sink), the crystal, the flash,
- * the regulator and its inductors and capacitors, the passives, the MAC label and the mask. `inX`: the bracket's inner face.
+ * the regulator and its inductors and capacitors, the passives, the MAC label and the mask. `inX`: the bracket's inner face. The jacks, the controller, the crystal, the flash,
+ * the regulator and the label are each a group tagged with its part's id (`<slot>.nic-<part>`), so a pick finds it; the controller's cap or lid, and the sink on it, fade away
+ * (`NicOut.chip.lod`) as the die under them shows its floorplan.
  */
-export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number, cu: NicCopper): JackLamps {
+export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX: number, cu: NicCopper, b: NicBuild): NicOut {
   const steel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), tin = mat(0xb9babf, { metalness: 0.9, roughness: 0.32 });
   const M: JackMats = {
     steel, plastic: mat(0x131518, { roughness: 0.62 }), back: mat(0x2a2d32, { roughness: 0.6 }), gold: springGold(),
     green: jackLamp(0x5cff9a), amber: jackLamp(0xffc247),
   };
+  const id = (part: string) => `${b.slot}.nic-${part}`;
   // (the lights are the network's: out until it lights them. The cable goes into the first jack, so a second one (the 40G card's) has dark lenses and no lamp)
   const dark = mat(0x131518, { roughness: 0.3 }), ys = jacksOf(visual, f.y0), spare: JackMats = { ...M, green: dark, amber: dark };
-  ys.forEach((y, k) => jack(g, y, Zp, k ? spare : M, inX));
+  const jacks = tag(new Group(), id('jack'));
+  ys.forEach((y, k) => jack(jacks, y, Zp, k ? spare : M, inX));
+  g.add(jacks);
   // the rest stands on the underside: a group turned over (layout y as its y, depth off the PCB as its z)
   const u = new Group(), zu = -Zp, U = (r: RectLike): RectLike => ({ x: r.x, y: -(r.y + r.h), w: r.w, h: r.h });
   u.rotation.x = Math.PI;
   g.add(u);
   const C = CTRL[visual] ?? CTRL['nic-gbe']!, a = cu.at, chip = a.chip, cs = chip.w, jx1 = JACK_X + JACK.d;
   const parts: { r: RectLike; ref?: string }[] = [{ r: chip, ref: 'U1' }];
+  // the controller: its die and its lid (nicchip3d.ts); a QFN's terminals along its four edges at a 0.5 mm pitch, each over its pad, or a BGA's sink with its fins and push pins
+  const ctl = tag(new Group(), id('ctl')), core = nicChip(ctl, chip, a.qfn, zu, C.mark, U, b.plan, b.floor);
+  u.add(ctl);
   if (a.qfn) {
-    // a QFN: its body and its terminals along its four edges at a 0.5 mm pitch, each over its pad
-    pkg(u, U(chip), zu, 0.9 * MM, C.mark);
     const pads = [];
     for (let k = 0; k < 16; k++) {
       const o = (k - 7.5) * 0.5 * MM;
       pads.push({ x: chip.x + cs / 2 + o, y: chip.y - 0.12 * MM, z: zu + 0.1 * MM, sx: 0.25 * MM, sy: 0.3 * MM, sz: 0.2 * MM }, { x: chip.x + cs / 2 + o, y: chip.y + cs + 0.12 * MM, z: zu + 0.1 * MM, sx: 0.25 * MM, sy: 0.3 * MM, sz: 0.2 * MM });
       pads.push({ x: chip.x - 0.12 * MM, y: chip.y + cs / 2 + o, z: zu + 0.1 * MM, sx: 0.3 * MM, sy: 0.25 * MM, sz: 0.2 * MM }, { x: chip.x + cs + 0.12 * MM, y: chip.y + cs / 2 + o, z: zu + 0.1 * MM, sx: 0.3 * MM, sy: 0.25 * MM, sz: 0.2 * MM });
     }
-    u.add(instanced(new BoxGeometry(1, 1, 1), tin, pads));
+    ctl.add(instanced(new BoxGeometry(1, 1, 1), tin, pads));
   } else {
-    // a lidded BGA under the sink: its base on a thermal pad, fins along the card, the push pins through two opposite corners
-    const { x: sx, y: sy, w: ss } = a.sink!;
-    pkg(u, U(chip), zu, 2.4 * MM, C.mark, { lid: true });
+    // (the sink on a thermal pad, fins along the card, the push pins through two opposite corners: all of it goes with the lid)
+    const { x: sx, y: sy, w: ss } = a.sink!, lid = core.lid;
     const sinkM = mat(C.sinkHex, { metalness: C.sinkHex > 0x808080 ? 0.75 : 0.45, roughness: 0.4 }), b0 = zu + 2.7 * MM, b1 = b0 + 2.5 * MM;
-    u.add(rectBox(U({ x: sx, y: sy, w: ss, h: ss }), b0, b1, sinkM));
+    lid.add(rectBox(U({ x: sx, y: sy, w: ss, h: ss }), b0, b1, sinkM));
     const pins = [[sx + 3 * MM, sy + 3 * MM], [sx + ss - 3 * MM, sy + ss - 3 * MM]] as const, fins = [];
     for (let y = sy + 1.2 * MM; y < sy + ss - 0.8 * MM; y += 2.6 * MM) {
       let a = sx, b = sx + ss;
@@ -205,35 +233,45 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
       if (Math.abs(y - pins[1][1]) < 3 * MM) b = sx + ss - 6.2 * MM;
       fins.push({ x: (a + b) / 2, y, z: (b1 + zu + SINK_H) / 2, sx: b - a, sy: 0.9 * MM, sz: zu + SINK_H - b1 });
     }
-    u.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
+    lid.add(instanced(new BoxGeometry(1, 1, 1), sinkM, fins));
     const pinM = mat(C.pinHex, { roughness: 0.55 }), spring = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
     for (const [px, py] of pins) {
-      u.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
-      u.add(pinCoil(px, py, b1, spring));
+      lid.add(drum(px, -py, b1, b1 + 3.6 * MM, 1.1 * MM, pinM, SEG.post), drum(px, -py, b1 + 3.6 * MM, b1 + 4.6 * MM, 2.3 * MM, pinM, SEG.drum));
+      lid.add(pinCoil(px, py, b1, spring));
     }
   }
   // the crystal between the jacks and the controller, the flash east of it, the regulator (a dual buck) with its two inductors and the polymer
   // capacitors past them, each on its lands (`nicCopper`)
-  crystal(u, U(a.crystal), zu, 0.8 * MM, '25.000');
-  soic8(u, a.flash, zu, ['25Q32JV', 'SIQ 2240'], tin);
-  pkg(u, U(a.reg), zu, 0.85 * MM, ['PL3A']);
-  a.inductors.forEach((r, k) => inductor(u, U(r), zu, 2 * MM, k ? '1R0' : 'R47'));
+  const xtal = tag(new Group(), id('xtal')), nvm = tag(new Group(), id('nvm')), vreg = tag(new Group(), id('vreg'));
+  crystal(xtal, U(a.crystal), zu, 0.8 * MM, '25.000');
+  soic8(nvm, a.flash, zu, ['25Q32JV', 'SIQ 2240'], tin);
+  pkg(vreg, U(a.reg), zu, 0.85 * MM, ['PL3A']);
+  a.inductors.forEach((r, k) => inductor(vreg, U(r), zu, 2 * MM, k ? '1R0' : 'R47'));
   const capMs = { seat: mat(0x131518, { roughness: 0.6 }), sleeve: mat(0x16294d, { roughness: 0.45, metalness: 0.2 }), can: mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }), vent: mat(0x4e5360, { metalness: 0.6, roughness: 0.5 }) };
-  for (const c of a.cans) polyCap(u, c.x, c.y, zu, c.r, 5.8 * MM, capMs);
+  for (const c of a.cans) polyCap(vreg, c.x, c.y, zu, c.r, 5.8 * MM, capMs);
+  u.add(xtal, nvm, vreg);
   parts.push({ r: a.crystal, ref: 'Y1' }, { r: a.flash, ref: 'U2' }, { r: a.reg, ref: 'U3' }, ...a.inductors.map((r, k) => ({ r, ref: `L${k + 1}` })), ...a.cans.map((c) => ({ r: { x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }, ref: c.ref })));
   // the passives on this face: the crystal's load capacitors, the lights' resistors, the flash's and the regulator's capacitors, a BGA's row by
   // its sink
   passives(u, cu.parts.filter((p) => p.face === 'top').map((p): Passive => ({ x: p.x, y: -p.y, pkg: p.pkg, kind: p.kind, turn: p.turn })), zu);
   // the MAC label, and the mask over the copper with its silkscreen
-  const lt = macLabel(visual);
-  if (lt) u.add(decal(U(a.label), zu + 0.15 * MM, decalMat(lt, { rough: 0.7 })));
+  const lt = macLabel(visual), label = tag(new Group(), id('label'));
+  if (lt) label.add(decal(U(a.label), zu + 0.15 * MM, decalMat(lt, { rough: 0.7 })));
+  u.add(label);
   const text = [{ x: f.x1 - 26 * MM, y: f.y0 + 6 * MM, s: `RELAY NIC ${SPEED[visual] ?? '1G'} REV A2`, mm: 1.6 }, ...ys.map((y, k) => ({ x: jx1 + 1 * MM, y: y + JACK.w / 2, s: `LAN${k + 1}  LNK ACT`, mm: 1.1 }))];
   const f1 = cu.pads.find((p) => p.id === 'U2.1')!, dots = [{ x: f1.r.x - 0.5 * MM, y: f1.r.y - 0.4 * MM, r: 0.25 * MM }];
   if (a.qfn) dots.push({ x: chip.x - 0.9 * MM, y: chip.y - 0.9 * MM, r: 0.25 * MM });
   const board = { x: f.x0, y: f.y0, w: f.x1 - f.x0, h: f.end - f.y0 };
   g.add(maskTop(`nic-under:${cu.key}`, board, Zp, { ...MASK, parts, text, seed: 0, copper: { ...copperOf(cu, 'top'), dots }, pads: cu.pads.filter((p) => p.face === 'top' && !p.edge).map((p) => p.r) }, { under: true, px: 24 }));
   g.add(tabMask(cu, f, 'top', Zp));
-  return { link: M.green, act: M.amber };
+  const bodies: NicBody[] = [
+    { id: id('jack'), rect: { x: JACK_X, y: ys[0]!, w: JACK.d, h: ys[ys.length - 1]! + JACK.w - ys[0]! }, h: JACK.h },
+    { id: id('ctl'), rect: a.sink ?? chip, h: a.sink ? SINK_H : core.top },
+    { id: id('xtal'), rect: a.crystal, h: 0.8 * MM }, { id: id('nvm'), rect: a.flash, h: 1.4 * MM },
+    { id: id('vreg'), rect: hull([a.reg, ...a.inductors, ...a.cans.map((c) => ({ x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }))]), h: 5.8 * MM },
+    { id: id('label'), rect: a.label, h: 0 },
+  ];
+  return { lamps: { link: M.green, act: M.amber }, chip: core, bodies };
 }
 
 /** Each card's speed, on its silkscreen. */

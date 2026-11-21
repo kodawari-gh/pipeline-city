@@ -152,7 +152,7 @@ type Fan = Spin & { speed: number };
 type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike };
 
 /** What one built part added to the machine's shared lists: a patch (`Machine3D.patch`) takes exactly this away, or adds it for a new part. */
-interface Owned { id: string; kind: string; slot: string; roots: Object3D[]; reveals: Reveal[]; fades: Object3D[]; apart: Object3D[]; fans: Fan[]; obstacles: Object3D[]; keep: Object3D[]; caseRoots: Object3D[]; rails: Rail[] }
+interface Owned { id: string; kind: string; slot: string; roots: Object3D[]; reveals: Reveal[]; fades: Object3D[]; apart: Object3D[]; still: Object3D[]; fans: Fan[]; obstacles: Object3D[]; keep: Object3D[]; caseRoots: Object3D[]; rails: Rail[] }
 
 const keyOf = (d: { spec: string; slot: string }): string => `${d.spec}@${d.slot}`;
 /**
@@ -336,6 +336,8 @@ export class Machine3D {
   private keep: Object3D[] = [];
   /** What fades alone besides `fades` (a card's cooler and backplate): its materials stay its own (`share`). */
   readonly apart: Object3D[] = [];
+  /** What does not fade but has stand-ins of its own for a distance (`lodScope`): a NIC's parts, inside a card whose tree the level of detail leaves out. */
+  readonly still: Object3D[] = [];
   /** The board's small parts (`boardModel`): shown by the zoom, so their stand-ins are theirs (`lodScope`). */
   private small: Object3D | null = null;
   /** The small parts' stand-ins for a distance (PERF6, `partlod.ts`), or null: built without them. */
@@ -441,7 +443,7 @@ export class Machine3D {
   private lodScope(): LodScope {
     const cards = new Set<Object3D>([...this.cards.values()].map((c) => c.root));
     // (the loop's hoses fade but have no stand-ins: they are in `keep`, posed live)
-    const anchors: Object3D[] = [this.wires, ...this.apart, ...this.fades.filter((o) => !cards.has(o) && o !== this.hoses?.body)];
+    const anchors: Object3D[] = [this.wires, ...this.apart, ...this.still, ...this.fades.filter((o) => !cards.has(o) && o !== this.hoses?.body)];
     const skip: Object3D[] = [...this.keep, ...cards];
     if (this.small) anchors.push(this.small);
     if (this.door) skip.push(this.door.cm.door);
@@ -564,10 +566,10 @@ export class Machine3D {
 
   /** `buildDevice`, noting what it added to the shared lists (`owned`). */
   private build(d: DeviceSnap): Owned | null {
-    const n = { roots: this.root.children.length, reveals: this.reveals.length, fades: this.fades.length, apart: this.apart.length, fans: this.fans.length, obstacles: this.obstacles.length, keep: this.keep.length, caseRoots: this.caseRoots.length, rails: this.rails.length };
+    const n = { roots: this.root.children.length, reveals: this.reveals.length, fades: this.fades.length, apart: this.apart.length, still: this.still.length, fans: this.fans.length, obstacles: this.obstacles.length, keep: this.keep.length, caseRoots: this.caseRoots.length, rails: this.rails.length };
     this.buildDevice(d);
     const o: Owned = {
-      id: d.id, kind: d.kind, slot: d.slot, roots: this.root.children.slice(n.roots), reveals: this.reveals.slice(n.reveals), fades: this.fades.slice(n.fades), apart: this.apart.slice(n.apart),
+      id: d.id, kind: d.kind, slot: d.slot, roots: this.root.children.slice(n.roots), reveals: this.reveals.slice(n.reveals), fades: this.fades.slice(n.fades), apart: this.apart.slice(n.apart), still: this.still.slice(n.still),
       fans: this.fans.slice(n.fans), obstacles: this.obstacles.slice(n.obstacles), keep: this.keep.slice(n.keep), caseRoots: this.caseRoots.slice(n.caseRoots), rails: this.rails.slice(n.rails),
     };
     this.owned.set(keyOf(d), o);
@@ -614,6 +616,33 @@ export class Machine3D {
     this.chips.face(this.root, 'router', geo.face, z + 2);
     const reveal = this.reveal(geo.face, z, (zoom) => surface.setOpacity(smooth(band[0], band[1], zoom)), false, true);
     this.routerBits = { tier, art, surface, reveal, rails: routerRails(geo).map((r) => this.rail(r.id, r.rect, z, r.id === 'router' ? band[1] : DEVICE_LOD.router.detail)) };
+  }
+
+  /**
+   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): once the card has turned over, the card and each of its parts is a flight (a double click) and can be pointed at; the
+   * controller's die wears the floorplan, which its lid hides until the zoom takes the lid away (the live layer runs on the die's face, `Chips3D`). The lid fades alone, so its materials are its own.
+   */
+  private nicBits(d: DeviceSnap, c: Card3D, i: number, visual: string): void {
+    const turn = DEVICE_LOD.nic.roll[1];
+    this.rail(d.id, nicFaceRect(i, visual), HINGE_Z, turn);
+    for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.rail(b.id, b.rect, b.z, turn);
+    // (the parts are a stand-in anchor of their own: the card's tree is left out of the distance level of detail, and three cards' parts would draw one by one at the overview)
+    if (c.parts) this.still.push(c.parts);
+    this.apart.push(...c.lids);
+    if (!c.die) return;
+    this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
+    this.reveal(c.die.at, c.die.zTop, c.lod);
+    this.rail(`${d.slot}.nic-ctl`, c.die.at, c.die.zTop, DEVICE_LOD.die.fade[1] / c.die.scale);
+  }
+
+  /**
+   * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until the card has turned over and shows its parts (a standing or a swinging card is hit on whatever
+   * side it shows). The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
+   */
+  pickId(id: string | null): string | null {
+    const m = id ? /^(pcie\d+)\.nic-(?:jack|edge|ctl|xtal|nvm|vreg|label)$/.exec(id) : null;
+    const card = m && this.cards.get(m[1]!);
+    return card && card.turned() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
   }
 
   /** The same for a built object: its box as seen from the glass, its face the box's front. */
@@ -852,10 +881,10 @@ export class Machine3D {
         return;
       }
       case 'gpu': case 'npu': case 'nic': {
-        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's the shop
-        // picture's art (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its plan (`nicFace`: the jack to the PCIe edge); the dies and the plan run on it
+        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat: a GPU shows the shop picture's art (the die with its
+        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC then turns over and shows its parts in 3D (`nicBits`)
         const i = idx(d.slot), kind = spec.kind;
-        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { this.chips?.face(face, kind, kind === 'nic' ? nicFaceRect(i, visual) : chipRect(kind, visual, i), z + 2, d.slot); });
+        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); }, d.slot);
         this.model(g, c);
         // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
@@ -863,7 +892,8 @@ export class Machine3D {
         this.fades.push(c.root);
         this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
         // (flat, the card's face lies on the hinge's plane)
-        this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
+        if (kind === 'nic') this.nicBits(d, c, i, visual);
+        else this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
         if (c.lan) this.lan.set(d.id, c.lan);
         this.apart.push(c.fades);
@@ -1389,7 +1419,7 @@ export class Machine3D {
       const o = this.owned.get(keyOf(d))!;
       // (a hidden part answers to no id: a host built again keeps its id, and a lookup must find the new one, never the copy left here)
       for (const r of o.roots) { r.visible = false; untag(r); this.graveyard.push(r); }
-      drop(this.reveals, o.reveals); drop(this.fades, o.fades); drop(this.apart, o.apart); drop(this.fans, o.fans); drop(this.obstacles, o.obstacles);
+      drop(this.reveals, o.reveals); drop(this.fades, o.fades); drop(this.apart, o.apart); drop(this.still, o.still); drop(this.fans, o.fans); drop(this.obstacles, o.obstacles);
       drop(this.keep, o.keep); drop(this.caseRoots, o.caseRoots); drop(this.rails, o.rails);
       for (const ob of o.obstacles) this.solids.delete(ob);
       this.skins.delete(o.id);
@@ -1640,9 +1670,8 @@ export class Machine3D {
   }
 }
 
-/** What a card's detailed view flies to (`Chips3D` runs it): the GPU's body, the AI card's die, the NIC's plan, a little grown (the GPU's memory magnifier stands by its cell). */
-function chipRect(kind: 'gpu' | 'npu' | 'nic', visual: string, i: number): RectLike {
-  if (kind === 'nic') return grow(nicGeo(visual, i).chip, 30);
+/** What a card's detailed view flies to (`Chips3D` runs it): the GPU's body, the AI card's die, a little grown (the GPU's memory magnifier stands by its cell). */
+function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
   const o = cardOrigin(i, visual);
   return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
 }

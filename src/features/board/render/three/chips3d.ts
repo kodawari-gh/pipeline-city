@@ -104,6 +104,8 @@ export class Chips3D {
   private readonly router = new RouterView();
   private routerGeo: RouterGeo | null = null;
   private routerAlpha = 0;
+  /** How much of each network card's die shows (its slot): the lid's fade, as the CPU's (`dieAlpha`). */
+  private readonly nicAlpha = new Map<string, number>();
   private nics = new Map<string, { visual: string; index: number }>();
   private tpms = new Map<string, { visual: string; hdr: Rect }>();
   private faces: Face[] = [];
@@ -218,9 +220,18 @@ export class Chips3D {
     this.gpu.setZoom(v.zoom);
     this.npu.setZoom(v.zoom);
     this.tpm.setZoom(v.zoom);
-    this.nic.setZoom(v.zoom);
+    // a network card's die: read in its own frame as the CPU's is (it turns over with its card, and its lid, which hides it, fades over the die view's band)
+    this.nicAlpha.clear();
+    for (const f of this.faces) {
+      if (f.kind !== 'nic' || !f.slot) continue;
+      f.parent.updateWorldMatrix(true, false);
+      const nv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), nview = nv.rect ?? EVERYWHERE, p = deviceLod(f.rect, nview);
+      const alpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seenZoom(nv.zoom, p.focus)) : 0;
+      this.nicAlpha.set(f.slot, alpha);
+      this.nic.setSight(f.slot, { zoom: nv.zoom, view: nview, shown: alpha > 0.01 && shown(f.parent) });
+    }
     this.tpm.frame(dt, true, paused, lod);
-    this.nic.frame(dt, true, paused, lod);
+    this.nic.frame(dt, true, paused);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
     // the router: its panel lies over its front in the room, read in its own frame as the die is; it comes in over the band `DEVICE_LOD.router.fade`
@@ -259,6 +270,7 @@ export class Chips3D {
     return null;
   }
 
+  /** The parts a face's hits can find: the die's blocks (a network card's: the blocks of its controller's plan, in the die's frame), a card's cells, the router's blocks. */
   private partsOf(f: Face): { id: string; rect: Rect; min: number }[] {
     if (f.kind === 'die') {
       if (!this.cpuSpec) return [];
@@ -285,7 +297,7 @@ export class Chips3D {
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
-    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : 1;
+    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : f.kind === 'nic' ? this.nicAlpha.get(f.slot ?? '') ?? 0 : 1;
     if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
     if (now - f.at < this.live.ms) return;
     f.parent.updateWorldMatrix(true, false);

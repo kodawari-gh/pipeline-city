@@ -1,8 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import type { Theme } from '@/core/render/theme';
 import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
-import { actLevel, magGeom, nicGlyph, nvmGeom, vregGeom, PHY_STAGES, type LiveKey, type NicLive } from '../nic/nicglyph';
-import { NIC_LINK, type NicBlock } from '../nic/nicplan';
+import { actLevel, PAIRS, PHY_STAGES, type LiveKey, type NicLive } from '../nic/nicglyph';
 import { fmtFrames, fmtPct, fmtSpeed } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
 import type { RouterBlock, RouterPlanInput } from './routerplan';
@@ -111,18 +110,73 @@ export function statGeom(a: Rect) {
   };
 }
 
+// (until the router's board is built in 3D, where the magnetics, the flash and the regulator are bodies of it: the three symbols the card's die no longer draws)
+
+/** The magnetics: a transformer for each of the four pairs, the line side on the left, the chip side on the right. */
+function magGeom(a: Rect) {
+  const pitch = a.h / 4, lw = 22;
+  return PAIRS.map((name, k) => {
+    const y = a.y + k * pitch, row = R(a.x + lw, y + 3, a.w - lw, pitch - 8), cw = (row.w - 22) / 2;
+    return { name, y, row, left: R(row.x, row.y, cw, row.h), right: R(row.x + cw + 22, row.y, cw, row.h), cy: row.y + row.h / 2 };
+  });
+}
+
+/** The flash: its SOIC-8 on the left, the line about it on the right. */
+function nvmGeom(a: Rect) {
+  const w = Math.min(70, a.w * 0.3), h = Math.min(a.h, 38), body = R(a.x + 8, a.y + (a.h - h) / 2, w, h);
+  return { body, mac: R(body.x + w + 14, a.y, a.x + a.w - (body.x + w + 14), a.h / 2), note: R(body.x + w + 14, a.y + a.h / 2, a.x + a.w - (body.x + w + 14), a.h / 2) };
+}
+
+/** The regulator: the inductor, the two capacitors and the bar of the power it passes. */
+function vregGeom(a: Rect) {
+  const bx = a.x + 128;
+  return { coil: R(a.x + 4, a.y, 60, a.h), caps: [R(a.x + 76, a.y + a.h * 0.15, 12, a.h * 0.7), R(a.x + 96, a.y + a.h * 0.15, 12, a.h * 0.7)], bar: R(bx, a.y + a.h * 0.3, a.x + a.w - bx, a.h * 0.4) };
+}
+
+/** A coil of `n` half turns along a line from (x, y) for `w`, drawn into `g` as a path (the caller strokes it). */
+function coil(g: Graphics, x: number, y: number, w: number, n: number): void {
+  const bw = w / n;
+  g.moveTo(x, y);
+  for (let k = 0; k < n; k++) g.arc(x + (k + 0.5) * bw, y, bw / 2, Math.PI, 0);
+}
+
 // ---------------------------------------------------------------- the static symbols
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `input` is the plan's. */
 export function routerGlyph(g: Graphics, T: Theme, b: RouterBlock, c: string, put: Put, input: RouterPlanInput): void {
   const a = routerGlyphArea(b);
   if (!a) return;
-  // the card's symbols, as they are: the transformers of the four pairs, the SPI flash, the regulator
-  const as = (kind: NicBlock['kind']) => nicGlyph(g, T, { ...b, kind } as NicBlock, c, put, NIC_LINK['nic-gbe']!);
-  if (b.kind === 'wanmag' || b.kind === 'lanmag') return as('mag');
-  if (b.kind === 'flash') return as('nvm');
-  if (b.kind === 'power') return as('vreg');
   const kit = glyphKit(g, T, c, put), { solid, soft, line, rect, stub } = kit;
+  // the transformers of the four pairs, the SPI flash, the regulator
+  if (b.kind === 'wanmag' || b.kind === 'lanmag') {
+    for (const t of magGeom(a)) {
+      put(t.name, a.x + (t.name.length * LAB * 0.6) / 2, t.cy, LAB);
+      coil(g, t.left.x + 2, t.cy, t.left.w - 4, 4);
+      coil(g, t.right.x + 2, t.cy, t.right.w - 4, 4);
+      g.stroke({ width: 1.4, color: line });
+      for (const dx of [-3, 3]) stub(t.left.x + t.left.w + 11 + dx, t.cy - t.left.h * 0.36, t.left.x + t.left.w + 11 + dx, t.cy + t.left.h * 0.36);
+      stub(t.row.x - 6, t.cy, t.left.x + 2, t.cy);
+    }
+    return;
+  }
+  if (b.kind === 'flash') {
+    const q = nvmGeom(a);
+    rect(q.body.x, q.body.y, q.body.w, q.body.h, solid);
+    g.roundRect(q.body.x, q.body.y, q.body.w, q.body.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 });
+    for (let k = 0; k < 4; k++) for (const e of [-1, 1]) { const px = e < 0 ? q.body.x - 5 : q.body.x + q.body.w; rect(px, q.body.y + 4 + k * ((q.body.h - 8) / 4), 5, 3, soft); }
+    g.circle(q.body.x + 6, q.body.y + 6, 1.6).fill({ color: line });
+    put('SPI', q.body.x + q.body.w / 2, q.body.y + q.body.h / 2, LAB);
+    return;
+  }
+  if (b.kind === 'power') {
+    const q = vregGeom(a), cy = q.coil.y + q.coil.h / 2;
+    coil(g, q.coil.x, cy, q.coil.w, 4);
+    g.stroke({ width: 1.4, color: line });
+    for (const r of q.caps) { rect(r.x, r.y, r.w, r.h, soft); g.roundRect(r.x, r.y, r.w, r.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 }); }
+    rect(q.bar.x, q.bar.y, q.bar.w, q.bar.h, soft);
+    g.roundRect(q.bar.x, q.bar.y, q.bar.w, q.bar.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 });
+    return;
+  }
   const outline = (r: Rect) => { g.roundRect(r.x, r.y, r.w, r.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 }); };
   const arrow = (x0: number, y: number, x1: number) => { stub(x0, y, x1, y); g.poly([x1, y, x1 - 4, y - 2.5, x1 - 4, y + 2.5]).fill({ color: line }); };
   switch (b.kind) {

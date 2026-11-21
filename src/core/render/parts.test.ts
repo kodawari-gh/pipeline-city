@@ -23,6 +23,13 @@ describe('a click on a part of an AI card', () => {
   });
 });
 
+describe('a click on a part of a network card', () => {
+  it('is a click on the card in its slot, whether a body of the card or a block of its controller\'s die', () => {
+    for (const id of ['pcie0.nic-jack', 'pcie0.nic-xtal', 'pcie0.nic-ctl', 'pcie0.nic-mac', 'pcie0.nic-rxq']) expect(deviceOfPart(id, devices), id).toBe('dev-nic');
+    expect(deviceOfPart('pcie3.nic-mac', devices)).toBe('pcie3.nic-mac');
+  });
+});
+
 describe('a click on a part of the secure module', () => {
   it('is a click on the module in its header slot', () => {
     const devs = [{ id: 'dev-tpm', slot: 'tpm0' }, ...devices];

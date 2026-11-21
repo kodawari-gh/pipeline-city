@@ -1,5 +1,6 @@
-// Words for the parts of the NIC card the board draws when the camera is close (docs/render/net.md "Inside the NIC and the router", render/nic/niclayout.ts): the controller
-// and the blocks of its plan. An id is the PCIe slot and the part: `pcie2.nic-mac`. Pure. It imports nothing from logic.ts (logic.ts imports netdesc.ts, which calls this).
+// Words for the parts of the NIC card the board draws when the camera is close (docs/render/net.md "Inside the NIC and the router", render/nic/niclayout.ts): the bodies of the card
+// (the jack, the gold fingers, the controller, the crystal, the flash, the regulator, the sticker) and the blocks of the controller's die. An id is the PCIe slot and the part:
+// `pcie2.nic-mac`. Pure. It imports nothing from logic.ts (logic.ts imports netdesc.ts, which calls this).
 
 import { getSpec, type NicSpec } from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
@@ -11,7 +12,7 @@ import { fmtFrames } from '../render/plan/netmeter';
 import { fmtMbit } from './fmt';
 
 const ID = /^(pcie\d+)\.nic-([a-z]+)$/;
-const KINDS = new Set(['ctl', 'jack', 'mag', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'nvm', 'xtal', 'vreg', 'temp']);
+const KINDS = new Set(['ctl', 'jack', 'edge', 'label', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'nvm', 'xtal', 'vreg', 'temp']);
 
 /** Is this one of the NIC card's part ids? */
 export const isNicId = (id: string): boolean => { const m = ID.exec(id); return !!m && KINDS.has(m[2]!); };
@@ -36,18 +37,23 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
   switch (kind) {
     case 'ctl': return {
       title: 'Network controller',
-      plain: 'The chip that does the work of the card. On one side it speaks to the cable (the jack, the magnetics and the PHY). On the other side it speaks to your computer (the queues, the DMA engine and the PCIe link). Zoom in to see each part.',
+      plain: 'The chip that does the work of the card. On one side it speaks to the cable (through the jack). On the other side it speaks to your computer (the queues, the DMA engine and the PCIe link). Zoom in until the lid fades: the die under it shows each part.',
       nerd: `${name} | ${chip}${dev ? ` | ${dev.tempC.toFixed(0)} C, ${dev.powerW.toFixed(1)} W` : ''}`,
     };
     case 'jack': return {
       title: 'RJ45 jack',
-      plain: 'The socket for the ethernet cable. The green light is on while the link is up. The amber light flashes with the frames that pass: one frame lights it for a moment, so a busy link keeps it on. Both lights follow the real link.',
-      nerd: `${linkWords(s, dev?.id)}${plan && plan.ports > 1 ? ' | two jacks on the bracket, the game has one cable' : ''} | amber follows the frame counter`,
+      plain: 'The socket for the ethernet cable. Inside it, small transformers (the magnetics) keep the card electrically apart from the cable, so a surge on the line does not reach the chip: there is one for each of the four wire pairs. The green light is on while the link is up. The amber light flashes with the frames that pass. Both lights follow the real link.',
+      nerd: `${linkWords(s, dev?.id)}${plan && plan.ports > 1 ? ' | two jacks on the bracket, the game has one cable' : ''} | 4 transformers, 1.5 kV isolation | amber follows the frame counter`,
     };
-    case 'mag': return {
-      title: 'Magnetics',
-      plain: 'Small transformers between the jack and the chip. They keep the card electrically apart from the cable, so a surge on the line does not reach the chip. There is one for each of the four wire pairs.',
-      nerd: '4 transformers, pairs A to D | 1.5 kV isolation, as the Ethernet standard asks | no data of their own: the lines light with the frames',
+    case 'edge': return {
+      title: 'PCIe edge',
+      plain: 'The gold fingers that go into the slot of the motherboard. Each pair of fingers is one lane to the chip. A faster card has more lanes. The notch keeps the card from going into a wrong slot.',
+      nerd: `${plan ? `x${plan.lanes}, ${plan.lanes * 2} pairs of wires` : 'lanes by tier'} | the slot gives power and the clock`,
+    };
+    case 'label': return {
+      title: 'MAC label',
+      plain: 'The sticker with the card\'s MAC address, the address that names this card on the local network. No other card has the same one. The router uses it to know which machine a frame is for.',
+      nerd: `MAC ${macOf(spec?.visual ?? 'nic-gbe')} | 6 bytes: 3 for the maker, 3 for the card | the same address is in the flash`,
     };
     case 'phy': return {
       title: 'PHY',
@@ -96,7 +102,7 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'vreg': return {
       title: 'Regulator',
-      plain: 'Turns the power of the slot into the low voltage the chip needs. The bar shows how much power the card draws now: more frames cost more power.',
+      plain: 'Turns the power of the slot into the low voltage the chip needs, with a coil and a row of capacitors that smooth it. More frames cost more power: the line below shows what the card draws now.',
       nerd: spec && dev ? `${dev.powerW.toFixed(1)} W now | ${spec.idleW} W idle, ${spec.loadW} W at full load` : 'idle and load watts by tier',
     };
     case 'temp': return {

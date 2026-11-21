@@ -9,9 +9,10 @@ quietCanvas();
 /**
  * The ceiling of the machine's draws at the overview. It may only fall. (136: the case maker's debossed lockup is one clear decal. 143: the airflow lens's
  * skins. A material that carries a part's temperature joins no palette stand-in, so its meshes draw as one: the radiator's four materials, one for each
- * sink, and the two hoses (one more than the single draw they were in).)
+ * sink, and the two hoses (one more than the single draw they were in). 151: the NIC's insides are real parts now: its jack's two lamps and its three
+ * chip markings keep a material of their own, and its PCB and its parts' odd shadow flags leave a few meshes alone in their sets.)
  */
-const CEILING = 143;
+const CEILING = 151;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {

@@ -399,11 +399,11 @@
     "sum": "461db966"
   },
   "machine/dev34": {
-    "meshes": 30,
-    "draws": 26,
-    "verts": 47752,
-    "instances": 383,
-    "sum": "c9e7ed60"
+    "meshes": 19,
+    "draws": 14,
+    "verts": 18508,
+    "instances": 318,
+    "sum": "495ac2e6"
   },
   "machine/io": {
     "meshes": 8,
@@ -425,6 +425,41 @@
     "verts": 2664,
     "instances": 152,
     "sum": "246fae07"
+  },
+  "machine/pcie2.nic-ctl": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 19492,
+    "instances": 17,
+    "sum": "e92ef9f0"
+  },
+  "machine/pcie2.nic-jack": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 4032,
+    "instances": 16,
+    "sum": "a2cf255f"
+  },
+  "machine/pcie2.nic-nvm": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 928,
+    "instances": 24,
+    "sum": "76f4c225"
+  },
+  "machine/pcie2.nic-vreg": {
+    "meshes": 6,
+    "draws": 6,
+    "verts": 5646,
+    "instances": 8,
+    "sum": "029c42ea"
+  },
+  "machine/pcie2.nic-xtal": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 76,
+    "instances": 0,
+    "sum": "a100a10a"
   },
   "machine/power": {
     "meshes": 2,

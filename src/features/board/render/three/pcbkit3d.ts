@@ -77,17 +77,20 @@ function markTex(lines: readonly string[], wMm: number, hMm: number, mould: stri
 }
 
 /** A package's look: its mould (black epoxy) or a nickel lid, its pin-1 dimple and the corner it is in, turned half round (`markTex`). */
-export interface PkgLook { mould?: number; lid?: boolean; dot?: boolean; bevel?: number; pin1?: Corner; flip?: boolean }
+export interface PkgLook { mould?: number; lid?: boolean; dot?: boolean; bevel?: number; pin1?: Corner; flip?: boolean; lidOnly?: boolean }
+/** The height of a lidded package's substrate (`pkg` with `lid`): a controller's die stands on it, under the lid. */
+export const lidBase = (h: number): number => Math.min(h * 0.35, 18);
 
 /**
  * A moulded package (a BGA's or a QFN's body) on a PCB top at depth z, `h` tall, its marking on top. With `lid`, a nickel-plated lid over a
- * substrate (a controller's flip-chip package): the green-brown substrate's edge shows under it.
+ * substrate (a controller's flip-chip package): the green-brown substrate's edge shows under it. With `lidOnly` too, the lid alone: the
+ * caller builds the substrate (and the die on it), so the lid can fade away over them (`lidBase` is the substrate's height).
  */
 export function pkg(g: Group, r: RectLike, z: number, h: number, lines: readonly string[], o: PkgLook = {}): MeshStandardMaterial {
   const wMm = r.w / MM, hMm = r.h / MM;
   if (o.lid) {
-    const sub = mat(0x173d29, { roughness: 0.55 }), t = Math.min(h * 0.35, 18);
-    g.add(body(r, z, z + t, sub, 2));
+    const t = lidBase(h);
+    if (!o.lidOnly) g.add(body(r, z, z + t, mat(0x173d29, { roughness: 0.55 }), 2));
     const lid = { x: r.x + r.w * 0.06, y: r.y + r.h * 0.06, w: r.w * 0.88, h: r.h * 0.88 }, m = mat(0x959aa3, { metalness: 0.8, roughness: 0.4 });
     g.add(body(lid, z + t, z + h, m, 6));
     if (lines.length) g.add(decal(lid, z + h + 0.4, decalMat(markTex(lines, wMm * 0.88, hMm * 0.88, '#9ca2aa', '#5a5f68', false), { metal: 0.75, rough: 0.42 })));

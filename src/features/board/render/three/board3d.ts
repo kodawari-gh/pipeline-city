@@ -361,7 +361,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   };
   /** The id under a client point; `raw`: the backdrops too (the board, the case), which hover nothing but take a dropped plug. */
   const idAt = (e: { clientX: number; clientY: number }, raw = false, grab = false): string | null => {
-    const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
+    const { nx, ny } = ndc(e), hit = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny)), id = machine ? machine.pickId(hit) : hit;
     // a loose plug is small and lies among parts: one within a thumb's reach of the pointer is the one meant (not for a drop's raw id)
     // on a cable hit the nearest seat still wins: fan headers lie 11 px apart, the ray may hit the neighbour
     if (grab && !raw) { const p = looseNear(e.clientX, e.clientY, id?.startsWith('cable.') ? SEATED_PX : GRAB_PX); if (p) return p; }
@@ -475,9 +475,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     focus(_at, e) {
       // a double click on a part brings it up, aligned; on the board it fits the board, anywhere else it frames the room again (as in Build my PC and the Gallery)
       const id = idAt(e), dev = deviceOf(id, snapshot.peek());
+      // a part with a detailed view of its own has a flight of its own: a NIC's parts and its controller's die (`Machine3D.nicBits`), the router's blocks (`Machine3D.buildRouter`)
+      if (id && machine?.rails.some((r) => r.id === id) && focusPart(id)) return;
       if (dev && focusPart(dev.id)) return;
-      // the router's panel and each of its blocks have a flight of their own (`Machine3D.buildRouter`); a router with no panel is the room's
-      if (id && /^router(\.|$)/.test(id) && machine?.rails.some((r) => r.id === id) && focusPart(id)) return;
       if (id === 'board') flyToBoard(); else flyToRoom();
     },
   };

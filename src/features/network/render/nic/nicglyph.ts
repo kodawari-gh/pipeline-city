@@ -4,18 +4,16 @@ import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
 import { STRETCH } from '../jackleds';
 import { fmtFrames, fmtPct, fmtSpeed } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
-import { macOf } from './nicmac';
 import type { NicBlock, NicPlanInput } from './nicplan';
 import type { NicShow } from './nicshow';
 
-// What is inside a block of the NIC card (docs/render/net.md "Inside the NIC and the router"): the schematic an engineer would draw for the part, drawn with the CPU
-// die's own tools (`glyphKit`) so the card and the dies read as one family. The jack is its face with the mouth, the eight contacts and the two lights; the magnetics
-// are the four transformers of the four pairs; the PHY a chain of front end, DSP and coding on each pair; the MAC an Ethernet frame as its fields; the statistics the
-// port's counters; each queue a ring of slots and the transfers in flight; the DMA engine the two ways a frame goes to and from RAM; the PCIe core its lanes; the
-// flash a SOIC-8 with the card's address; the crystal and the regulator and the heat sensor each their own part. Pure drawing into a Graphics (and a callback for the
-// few labels); the rectangles the live layer lights are the `*Geom` functions below, shared by the drawing and by `nicLive`.
+// What is inside a block of the NIC controller's die (docs/render/net.md "Inside the NIC and the router"): the schematic an engineer would draw for the block, drawn with the CPU
+// die's own tools (`glyphKit`) so the die and the CPU's read as one family. The PHY is a chain of front end, DSP and coding on each pair; the MAC an Ethernet frame as its
+// fields; the statistics the port's counters; each queue a ring of slots and the transfers in flight; the DMA engine the two ways a frame goes to and from RAM; the PCIe core
+// its lanes; the heat sensor the scale to the damage point. (The jack, the magnetics, the flash, the crystal and the regulator are 3D bodies on the card: nic3d.ts.) Pure
+// drawing into a Graphics (and a callback for the few labels); the rectangles the live layer lights are the `*Geom` functions below, shared by the drawing and by `nicLive`.
 
-export const NIC_GLYPH_KINDS = new Set<NicBlock['kind']>(['jack', 'mag', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'nvm', 'xtal', 'vreg', 'temp']);
+export const NIC_GLYPH_KINDS = new Set<NicBlock['kind']>(['phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'temp']);
 
 /** The area a symbol may use: the block under its name, or null when the block is too small. */
 export function nicGlyphArea(b: Pick<NicBlock, 'kind' | 'rect'>): Rect | null {
@@ -37,30 +35,6 @@ export const FRAME_FIELDS = [['PRE', 10], ['DST', 14], ['SRC', 14], ['TYPE', 9],
 export const PHY_STAGES = ['AFE', 'DSP', 'PCS'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing and the live layer share
-
-/** The jacks: each a face (the shield, the mouth, the eight contacts, the two lights), the status lines under them. */
-export function jackGeom(a: Rect, ports: number) {
-  const textH = 50, gap = 10, area = R(a.x, a.y, a.w, a.h - textH), ph = (area.h - (ports - 1) * gap) / ports, pw = Math.min(area.w * 0.86, ph * 1.2), h = Math.min(ph, pw / 1.05);
-  return {
-    text: R(a.x, a.y + a.h - textH, a.w, textH),
-    ports: Array.from({ length: ports }, (_, k) => {
-      const y = area.y + k * (ph + gap) + (ph - h) / 2, x = a.x + (a.w - pw) / 2, shell = R(x, y, pw, h), mouth = R(x + pw * 0.12, y + h * 0.3, pw * 0.76, h * 0.6);
-      return {
-        shell, mouth, link: R(x + pw * 0.1, y + h * 0.07, pw * 0.18, h * 0.12), act: R(x + pw * 0.72, y + h * 0.07, pw * 0.18, h * 0.12),
-        contacts: Array.from({ length: 8 }, (_, j) => R(mouth.x + mouth.w * 0.08 + (j * mouth.w * 0.84) / 8 + 1, mouth.y + mouth.h * 0.5, Math.max(1.5, (mouth.w * 0.84) / 8 - 2), mouth.h * 0.46)),
-      };
-    }),
-  };
-}
-
-/** The magnetics: a transformer for each of the four pairs, the line side on the left, the chip side on the right. */
-export function magGeom(a: Rect) {
-  const pitch = a.h / 4, lw = 22;
-  return PAIRS.map((name, k) => {
-    const y = a.y + k * pitch, row = R(a.x + lw, y + 3, a.w - lw, pitch - 8), cw = (row.w - 22) / 2;
-    return { name, y, row, left: R(row.x, row.y, cw, row.h), right: R(row.x + cw + 22, row.y, cw, row.h), cy: row.y + row.h / 2 };
-  });
-}
 
 /** The PHY: a row for each pair with its three stages, the speed gauge and the line under it. */
 export function phyGeom(a: Rect) {
@@ -120,24 +94,6 @@ export function pcieGeom(a: Rect, lanes: number) {
   };
 }
 
-/** The flash: its SOIC-8 on the left, the card's address and the line about it on the right. */
-export function nvmGeom(a: Rect) {
-  const w = Math.min(70, a.w * 0.3), h = Math.min(a.h, 38), body = R(a.x + 8, a.y + (a.h - h) / 2, w, h);
-  return { body, mac: R(body.x + w + 14, a.y, a.x + a.w - (body.x + w + 14), a.h / 2), note: R(body.x + w + 14, a.y + a.h / 2, a.x + a.w - (body.x + w + 14), a.h / 2) };
-}
-
-/** The crystal: its can and the wave it makes. */
-export function xtalGeom(a: Rect) {
-  const w = Math.min(56, a.w * 0.2), h = Math.min(a.h, 22), can = R(a.x + 8, a.y + (a.h - h) / 2, w, h);
-  return { can, wave: R(can.x + w + 14, a.y, a.x + a.w - (can.x + w + 14), a.h) };
-}
-
-/** The regulator: the inductor, the two capacitors and the bar of the power it passes. */
-export function vregGeom(a: Rect) {
-  const bx = a.x + 128;
-  return { coil: R(a.x + 4, a.y, 60, a.h), caps: [R(a.x + 76, a.y + a.h * 0.15, 12, a.h * 0.7), R(a.x + 96, a.y + a.h * 0.15, 12, a.h * 0.7)], bar: R(bx, a.y + a.h * 0.3, a.x + a.w - bx, a.h * 0.4) };
-}
-
 /** The heat sensor: the scale from room temperature to the damage point, with the throttle and unstable marks on it. */
 export function tempGeom(a: Rect) {
   const sx = a.x + 40, bar = R(sx, a.y + a.h * 0.3, a.w - 40 - 8, a.h * 0.4);
@@ -149,13 +105,6 @@ export const tempAt = (c: number, damage: number): number => Math.min(1, Math.ma
 
 // ---------------------------------------------------------------- the static symbols
 
-/** A coil of `n` half turns along a line from (x, y) for `w`, drawn into `g` as a path (the caller strokes it). */
-function coil(g: Graphics, x: number, y: number, w: number, n: number): void {
-  const bw = w / n;
-  g.moveTo(x, y);
-  for (let k = 0; k < n; k++) g.arc(x + (k + 0.5) * bw, y, bw / 2, Math.PI, 0);
-}
-
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `input` is the plan's. */
 export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put, input: NicPlanInput): void {
   const a = nicGlyphArea(b);
@@ -165,31 +114,6 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
   const outline = (r: Rect) => { g.roundRect(r.x, r.y, r.w, r.h, 1.5).stroke({ width: 1, color: line, alpha: 0.85 }); };
   const arrow = (x0: number, y: number, x1: number) => { stub(x0, y, x1, y); g.poly([x1, y, x1 - 4, y - 2.5, x1 - 4, y + 2.5]).fill({ color: line }); };
   switch (b.kind) {
-    case 'jack': {
-      const q = jackGeom(a, input.ports);
-      q.ports.forEach((p) => {
-        g.roundRect(p.shell.x, p.shell.y, p.shell.w, p.shell.h, 5).fill({ color: soft }).stroke({ width: 1.4, color: line });
-        rect(p.mouth.x, p.mouth.y, p.mouth.w, p.mouth.h, T.die);
-        outline(p.mouth);
-        // the latch's notch in the mouth's top edge
-        rect(p.mouth.x + p.mouth.w * 0.36, p.mouth.y - p.shell.h * 0.08, p.mouth.w * 0.28, p.shell.h * 0.1, T.die);
-        for (const r of p.contacts) rect(r.x, r.y, r.w, r.h, solid);
-        outline(p.link); outline(p.act);
-      });
-      break;
-    }
-    case 'mag': {
-      for (const t of magGeom(a)) {
-        lab(t.name, a.x, t.cy);
-        coil(g, t.left.x + 2, t.cy, t.left.w - 4, 4);
-        coil(g, t.right.x + 2, t.cy, t.right.w - 4, 4);
-        g.stroke({ width: 1.4, color: line });
-        // the core between the coils, two bars
-        for (const dx of [-3, 3]) stub(t.left.x + t.left.w + 11 + dx, t.cy - t.left.h * 0.36, t.left.x + t.left.w + 11 + dx, t.cy + t.left.h * 0.36);
-        stub(t.row.x - 6, t.cy, t.left.x + 2, t.cy);
-      }
-      break;
-    }
     case 'phy': {
       const q = phyGeom(a);
       for (const p of q.pairs) {
@@ -246,29 +170,6 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
       }
       break;
     }
-    case 'nvm': {
-      const q = nvmGeom(a);
-      rect(q.body.x, q.body.y, q.body.w, q.body.h, solid); outline(q.body);
-      for (let k = 0; k < 4; k++) for (const e of [-1, 1]) { const px = e < 0 ? q.body.x - 5 : q.body.x + q.body.w; rect(px, q.body.y + 4 + k * ((q.body.h - 8) / 4), 5, 3, soft); }
-      g.circle(q.body.x + 6, q.body.y + 6, 1.6).fill({ color: line });
-      put('SPI', q.body.x + q.body.w / 2, q.body.y + q.body.h / 2, LAB);
-      break;
-    }
-    case 'xtal': {
-      const q = xtalGeom(a);
-      g.roundRect(q.can.x, q.can.y, q.can.w, q.can.h, 3).fill({ color: soft }).stroke({ width: 1.3, color: line });
-      for (const x of [q.can.x + q.can.w * 0.3, q.can.x + q.can.w * 0.7]) stub(x, q.can.y + 3, x, q.can.y + q.can.h - 3);
-      stub(q.can.x - 6, q.can.y + q.can.h / 2, q.can.x, q.can.y + q.can.h / 2); stub(q.can.x + q.can.w, q.can.y + q.can.h / 2, q.can.x + q.can.w + 6, q.can.y + q.can.h / 2);
-      break;
-    }
-    case 'vreg': {
-      const q = vregGeom(a), cy = q.coil.y + q.coil.h / 2;
-      coil(g, q.coil.x, cy, q.coil.w, 4);
-      g.stroke({ width: 1.4, color: line });
-      for (const r of q.caps) { rect(r.x, r.y, r.w, r.h, soft); outline(r); }
-      rect(q.bar.x, q.bar.y, q.bar.w, q.bar.h, soft); outline(q.bar);
-      break;
-    }
     case 'temp': {
       const q = tempGeom(a);
       g.roundRect(q.icon.cx - 3, a.y + 2, 6, q.icon.h - 10, 3).fill({ color: soft }).stroke({ width: 1.2, color: line });
@@ -303,25 +204,6 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
   const rx = s.rxAct, tx = s.txAct, any = Math.max(rx, tx), on = s.link, ms = s.ms;
   const txt = (r: Rect, t: string, fit?: number) => out.texts.push({ rect: r, top: t, ink: true, ...(fit !== undefined ? { fit } : {}) });
   switch (b.kind) {
-    case 'jack': {
-      const q = jackGeom(a, input.ports), p = q.ports[0]!;
-      if (on) out.lit.push({ rect: p.link, color: 'st', a: 0.95 });
-      if (on && actLevel(s.rx + s.tx, ms) > 0) out.lit.push({ rect: p.act, color: 'ld', a: 0.95 });
-      if (on && any > 0) out.lit.push({ rect: p.mouth, color: 'alu', a: 0.04 + 0.08 * any });
-      const t1 = s.burnt ? 'BURNT OUT' : on ? `${fmtSpeed(s.mbps)} link` : s.plugged ? 'cable in, no link' : 'no cable here';
-      txt(R(q.text.x, q.text.y + 2, q.text.w, 24), t1, 20);
-      if (!on && s.plugged && s.reason) txt(R(q.text.x, q.text.y + 27, q.text.w, 20), s.reason, 40);
-      else if (on) txt(R(q.text.x, q.text.y + 27, q.text.w, 20), `to the router`, 20);
-      break;
-    }
-    case 'mag': {
-      if (!on) break;
-      magGeom(a).forEach((t, k) => {
-        if (rx > 0) out.lit.push({ rect: t.left, color: 'alu', a: 0.12 * rx * wave(ms, k) });
-        if (tx > 0) out.lit.push({ rect: t.right, color: 'mul', a: 0.12 * tx * wave(ms, k + 2) });
-      });
-      break;
-    }
     case 'phy': {
       const q = phyGeom(a);
       if (on && any > 0) q.pairs.forEach((p, k) => p.stages.forEach((r, j) => out.lit.push({ rect: r, color: j === 1 ? 'mul' : 'alu', a: 0.12 * any * wave(ms, k + j * 1.5, 1.4) })));
@@ -373,22 +255,6 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
         if (on && tx > 0) out.lit.push({ rect: l.tx, color: 'mul', a: 0.1 + 0.35 * tx * wave(ms, l.idx + 3, 1.3) });
       });
       txt(q.note, `x${input.lanes} · ${input.lanes * 2} pairs`, 24);
-      break;
-    }
-    case 'nvm': {
-      const q = nvmGeom(a);
-      txt(q.mac, macOf(input.visual), 24); txt(q.note, 'read at power-on', 24);
-      break;
-    }
-    case 'xtal': {
-      const q = xtalGeom(a), n = 12, dw = q.wave.w / n;
-      if (s.powered) for (let k = 0; k < n; k++) { const h = q.wave.h * (0.2 + 0.7 * wave(ms, k, 0.7)); out.lit.push({ rect: R(q.wave.x + k * dw + 1, q.wave.y + (q.wave.h - h) / 2, dw - 2, h), color: 'br', a: 0.4 }); }
-      break;
-    }
-    case 'vreg': {
-      const q = vregGeom(a), span = Math.max(0.01, s.loadW - s.idleW), f = Math.min(1, Math.max(0, (s.powerW - s.idleW) / span));
-      if (s.powered) out.lit.push({ rect: { ...q.bar, w: q.bar.w * Math.max(0.04, f) }, color: 'br', a: 0.5 });
-      txt(head(b.rect, 0.42), s.powered ? `${s.powerW.toFixed(1)} W of ${s.loadW} W` : 'no power', 16);
       break;
     }
     case 'temp': {

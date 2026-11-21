@@ -158,6 +158,12 @@ function opacityOf(g: Object3D): number {
   return a;
 }
 
+/** Where the camera looks to see a faded part: the middle of its box. A NIC's lid lies where the card turns over to, not where its box is built (the card stands): its die's rail says where. */
+function aim(m: Machine3D, f: Object3D): Vector3 {
+  const r = m.rails.find((x) => x.id === idOf(f) && x.id.endsWith('.nic-ctl'));
+  return r ? new Vector3(r.rect.x + r.rect.w / 2, -(r.rect.y + r.rect.h / 2), r.z) : new Box3().setFromObject(f).getCenter(new Vector3());
+}
+
 /** The first shown thing each ray of a grid over the view meets: its id and how far. */
 function picks(root: Object3D, cam: PerspectiveCamera): string[] {
   const ray = new Raycaster(), at = new Vector2(), out: string[] = [];
@@ -286,7 +292,7 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
     const wf = roots(was), nf = roots(now), mids = new Set<number>();
     expect(nf.length).toBe(wf.length);
     for (const f of wf) {
-      const c = new Box3().setFromObject(f).getCenter(new Vector3());
+      const c = aim(now, f);
       let compared = 0; // (the look at the first two half-faded steps of each part's approach)
       for (let d = 30000; d > 300; d *= 0.95) {
         const cam = at(c.x, c.y, c.z, d);

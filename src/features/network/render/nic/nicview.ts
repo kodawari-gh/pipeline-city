@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { DEVICE_LOD, seenZoom, type CardLod } from '@/core/render/lod/lod';
+import { DEVICE_LOD, seenZoom, type LodRect } from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardText } from '@/core/render/lod/lodcard';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../../cpu/render/die/diepulse';
@@ -15,22 +15,25 @@ import { BLOCKS, nicRoute, type NicDir } from './nicroute';
 import { NIC_KIND_COLOR } from './nicart';
 import { nicShow } from './nicshow';
 
-// The NIC card, alive (docs/render/net.md "Inside the NIC and the router"). Like the other cards' views (gpu/gpuview.ts, npu/npuview.ts) it runs only what moves; the still card is the
-// face's baked art (nicart.ts). Over the plan it lights the blocks the frames go through, runs a packet along the card's own wires for the frames the port carries (nicroute.ts: in
-// from the jack to the host, and out the other way), puts the numbers in the blocks (the counters, the rates, the transfers in flight, the heat), and lights the rows the symbols
-// give (nicglyph.ts). Everything comes from the snapshot (nicshow.ts): a card with no cable in its jack shows a dark line and no packet; nothing runs by itself.
+// The NIC controller's die, alive (docs/render/net.md "Inside the NIC and the router"). Like the other cards' views (gpu/gpuview.ts, npu/npuview.ts) it runs only what moves; the still die is
+// the baked floorplan on the chip's top (nicart.ts). Over the plan it lights the blocks the frames go through, runs a packet along the die's own wires for the frames the port carries
+// (nicroute.ts: in from the PHY to the host link, and out the other way), puts the numbers in the blocks (the counters, the rates, the transfers in flight, the heat), and lights the rows
+// the symbols give (nicglyph.ts). Everything comes from the snapshot (nicshow.ts): a card with no cable in its jack shows a dark line and no packet; nothing runs by itself.
 
 const TEXT_Z = DEVICE_LOD.nic.text;
-/** The largest live text (plan units): the card's plan is drawn wide, so its numbers are larger than a die's 15. */
+/** The largest live text (plan units): the die's numbers are larger than the CPU die's 15, which is drawn bigger. */
 const TEXT_CAP = 22;
 
 /** A new card in the scene: its header slot id (`pcie2`), its look and its PCIe slot's number. */
 export interface NicScene { slot: string; visual: string; index: number }
 
+/** Where the camera is over a die: the zoom (screen pixels per plan unit), the part of the die's frame in view (null: all of it), and whether the die is seen at all (its lid is gone, its card faces the camera). */
+export interface NicSight { zoom: number; view: LodRect | null; shown: boolean }
+
 interface CardView {
   slot: string;
   geo: NicGeo;
-  /** The card's plan, at its place in board space. */
+  /** The die's plan, at its band of the die frame. */
   root: Container;
   glowG: Graphics;
   litG: Graphics;
@@ -50,7 +53,8 @@ export class NicView {
   readonly root = new Container();
   private T: Theme | null = null;
   private cards: CardView[] = [];
-  private zoom = 1;
+  /** What the camera sees of each die (`Chips3D.frame` reads it from each die's own frame: a die turns with its card). */
+  private readonly sights = new Map<string, NicSight>();
   private readonly rects = new RectCache();
   private readonly meter = new FrameMeter();
   private snap: Snapshot | null | undefined = undefined;
@@ -82,8 +86,9 @@ export class NicView {
     return { slot: s.slot, geo, root, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), glow: new Map(), next: { rx: 0, tx: 0 }, areas };
   }
 
-  setZoom(z: number): void {
-    this.zoom = z;
+  /** The camera's zoom and view over the die of the card in `slot`. */
+  setSight(slot: string, sight: NicSight): void {
+    this.sights.set(slot, sight);
   }
 
   /** The newest snapshot: the frame meter reads its counters. */
@@ -93,17 +98,17 @@ export class NicView {
     this.meter.feed(s);
   }
 
-  /** Per frame. `dt`: game seconds since the last frame (0 while paused: nothing moves). `lod`: the view, so a card out of view is not drawn. */
-  frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
+  /** Per frame. `dt`: game seconds since the last frame (0 while paused: nothing moves). A die the camera does not see (`setSight`) is not drawn. */
+  frame(dt: number, inner: boolean, paused = false): void {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
     this.now += (paused ? 0 : dt) * 1000;
     const T = this.T;
     for (const c of this.cards) {
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen;
+      const sight = this.sights.get(c.slot), pl = this.rects.place(c, c.root, sight?.view ?? undefined), on = pl.onScreen && !!sight?.shown;
       c.root.visible = on;
       if (!on) continue;
-      const z = seenZoom(this.zoom, pl.focus), { showText, ta } = cardText(z, lod, `nic:${c.slot}`, TEXT_Z, DEVICE_LOD.nic.detail);
+      const z = seenZoom(sight?.zoom ?? 1, pl.focus), { showText, ta } = cardText(z, undefined, `nic:${c.slot}`, TEXT_Z, DEVICE_LOD.nic.detail);
       c.texts.visible = showText;
       c.texts.alpha = ta;
       const show = nicShow(this.snap, c.slot, this.meter, this.now);
