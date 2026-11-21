@@ -1,8 +1,9 @@
 // The router model (router3d.ts), built in Node (no canvas: no printed legend, no debossed lockup): the four tiers, their size, the five jacks, the lights.
 import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, MeshStandardMaterial, type Object3D } from 'three';
+import { ROUTER_SPOT, setLayoutTier } from '../layout/layout';
 import { MM } from './pcbkit3d';
-import { LED_ON, PITCH, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel, routerTier } from './router3d';
+import { LED_ON, PITCH, RJ, ROUTER_BODY, ROUTER_SIZE, ROUTER_UNDER, routerFit, routerJack, routerModel, routerTier } from './router3d';
 
 const TIERS = [1, 2, 3, 4];
 const meshes = (o: Object3D): Mesh[] => { const out: Mesh[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(c as Mesh); }); return out; };
@@ -164,5 +165,31 @@ describe('the options', () => {
     const a = routerModel(4), b = routerModel(4);
     expect(meshes(a.root).length).toBe(meshes(b.root).length);
     expect(boxOf(a.root).equals(boxOf(b.root))).toBe(true);
+  });
+});
+
+describe('where the room stands the router', () => {
+  it('fits the box of each tier in the spot at one scale, its east end and its shelf on the spot\'s, and gives the front bezel from the shell\'s underside to the top', () => {
+    const spot = { x: -8000, y: -4000, w: 2320, h: 609 };
+    for (const t of TIERS) {
+      const { k, front, face } = routerFit(t, spot), { w, h } = ROUTER_SIZE[t]!;
+      expect(k, `tier ${t}`).toBeCloseTo(Math.min(spot.w / w, spot.h / h), 9);
+      expect(k * w, `tier ${t} across`).toBeLessThanOrEqual(spot.w + 1e-6);
+      expect(k * h, `tier ${t} up`).toBeLessThanOrEqual(spot.h + 1e-6);
+      expect(front, `tier ${t}`).toBe(t >= 4 ? 1500 : 1400);
+      expect(face.x + face.w, `tier ${t} east end`).toBeCloseTo(spot.x + spot.w, 6);
+      expect(face.w, `tier ${t}`).toBeCloseTo(k * w, 6);
+      expect(face.y + face.h + k * ROUTER_UNDER, `tier ${t} underside`).toBeCloseTo(spot.y + spot.h, 6);
+      expect(face.h, `tier ${t}`).toBeCloseTo(k * (h - ROUTER_UNDER), 6);
+      // the front is wide and short: the plan's shape (routerlayout.ts)
+      expect(face.w / face.h, `tier ${t}`).toBeGreaterThan(4);
+    }
+  });
+
+  it('reads the room\'s router spot when none is given, and has a tier it does not know as the home router', () => {
+    setLayoutTier(3, 3);
+    const a = routerFit(2), b = routerFit(2, ROUTER_SPOT);
+    expect(a).toEqual(b);
+    expect(routerFit(99)).toEqual(routerFit(1));
   });
 });

@@ -42,6 +42,16 @@ export class ArtSet {
     return s;
   }
 
+  /** Take a face and its art away (a part built again alone): its tiles and its textures go. */
+  drop(s: ArtSurface, b?: ArtBaker): void {
+    const i = this.surfaces.indexOf(s);
+    if (i >= 0) this.surfaces.splice(i, 1);
+    s.root.removeFromParent();
+    s.dispose();
+    const j = b ? this.bakers.indexOf(b) : -1;
+    if (b && j >= 0) { this.bakers.splice(j, 1); b.dispose(); }
+  }
+
   /** A box whose top wears the art of its own rect: the flat drawing stood up into a part; `bevel` rounds its edges. */
   raised(parent: Object3D, b: ArtBaker, r: RectLike, z0: number, z1: number, side: Material, levels: readonly number[] = LV_RAISED, bevel = 0): Group {
     const g = new Group();

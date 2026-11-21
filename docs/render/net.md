@@ -11,7 +11,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/fe
 | `lens/shape.ts` | the network lens, pure: the anchors (plate, router, LAN lead, OS drive), the lines (`netShape`), the numbers and tags of one snapshot (`netDraw`), `speedLevel` (see The network lens) |
 | `lens/flows.ts` | the network lens: the lines as one instanced mesh of strips that face the camera, and the comet shader |
 | `lens/view.ts` | the network lens: `NetView3D` (veil, lines, tags), hosted by `Lens3D` in the board feature |
-| `plan/`, `nic/` | the detailed view of the network card: its plan, symbols, live layer and hover words (see Inside the NIC and the router) |
+| `plan/`, `nic/`, `router/` | the detailed views of the network card and of the router: their plans, symbols, live layers and hover words (see Inside the NIC and the router) |
 
 ## Network (router, wall plate, ethernet cable, NIC cards)
 
@@ -58,7 +58,7 @@ The frames come from the sim: `NetSnap.frames` (`rx`, `tx`: cumulative, not save
 
 ## Inside the NIC and the router
 
-Code: `src/features/network/render/plan/` (shared), `src/features/network/render/nic/`, the words in `src/features/network/ui/nicdesc.ts`. Zoom in on a network card and its parts fade. The card lies down and shows what is inside its controller, as a floorplan drawn in the CPU die's style (`docs/DIE.md`). Double-click the card to fly to its controller. The other detailed views (CPU die, GPU, NPU, TPM) work the same way.
+Code: `src/features/network/render/plan/` (shared), `src/features/network/render/nic/` (the card), `src/features/network/render/router/` (the router), the words in `src/features/network/ui/nicdesc.ts` and `routerdesc.ts`. Zoom in on a network card and its parts fade. The card lies down and shows what is inside its controller, as a floorplan drawn in the CPU die's style (`docs/DIE.md`). Double-click the card to fly to its controller. The other detailed views (CPU die, GPU, NPU, TPM) work the same way. The router has its own view: see **The router** below the card's.
 
 | File | Role |
 |---|---|
@@ -82,6 +82,32 @@ Code: `src/features/network/render/plan/` (shared), `src/features/network/render
 **Ids.** `pcieN.nic-<block>`: `ctl jack mag phy mac stats rxq txq dma pcie nvm xtal vreg temp`. The prefix `nic-` keeps them apart from the GPU's, the NPU's and the TPM's ids in the same slot. `describeNet` asks `describeNicId` first, so `describeId` finds them; each part has a title, a plain line and a nerd line, and the nerd line carries the card's live numbers while the game has the card. The tests list the ids from `nicIds` (`nicdesc.test.ts`), so a part cannot be drawn without words.
 
 **Verified** (headless Chrome, the real GPU, sandbox game): the three cards flat at card width and at the flight zoom; link down and up; a burst of frames lighting the route; a real download as a row of the receive queue; the hover on a block; the standing pose. The compiled game (`--prod`) flies to the card and shows the same plan and names as the dev server (the live layer was seen on the dev server only: the compiled game has no hook to power the machine on). Tests: `plan/netmeter.test.ts`, `nic/{nicplan,niclayout,nicglyph,nicshow}.test.ts`, `ui/nicdesc.test.ts`; the High golden (`highident.expected.json`) has the card's new face.
+
+### The router
+
+The router is one machine in four sizes (Home 100 Mbit, Gigabit, 10G switch-router, Core 40G). Zoom in on it and its front bezel fades into the same kind of floorplan as the card's, on its own shelf above the monitor. Double-click the router to fly to the whole panel; double-click a block to fly to the block. There is no twin that opens: the panel lies over the bezel, a world-space overlay under `Machine3D.root`, in the room's coordinates.
+
+| File | Role |
+|---|---|
+| `router/routerplan.ts` | the plan: `ROUTER_PARTS` (SoC, cores, clock, engine, standard, DRAM, flash, radio, inlet of each tier), `routerPlan(tier, size)` over `layPlan`, `ROUTER_PLAN_W` (2400 plan units wide) |
+| `router/routerlayout.ts` | the panel in the world: `routerGeo(tier, front)` (plan scale = front width / `ROUTER_PLAN_W`), `routerParts` (hover rectangles), `routerRails` (flights), `routerIds` |
+| `router/routerglyph.ts` | the symbol of each block, what lights now (`routerLive`), the geometry both share |
+| `router/routerroute.ts` | the way a frame goes: `routerRoute(plan, "rx" or "tx")`, the blocks of each way (`BLOCKS`) |
+| `router/routerart.ts` | the still art: `routerFar`, `routerNear` (text), `routerFace(T, geo)`; `routerStyle` writes the names 1.4 times larger (`PlanStyle.text`) because the panel is seen from far |
+| `router/routershow.ts` | `RouterShow`: what the view shows each frame, read off the snapshot; `limitWords` |
+| `router/routerview.ts` | `RouterView`: the live Pixi layer (lit blocks, numbers, packets along the wires) |
+| `../ui/routerdesc.ts` | `describeRouterId`: the hover words, asked by `describeNet` after `describeNicId` |
+| `board/render/three/router3d.ts` | `routerFit(tier, spot)`: the model's scale, its front bezel (`face`) and the front's depth (`ROUTER_UNDER` = 110 is where the bezel starts); the room uses it too |
+
+**The plan.** The line comes in at the WAN jack and goes west to east through the magnetics and the PHY on the bottom row, into the SoC: the forwarding engine (a NAT engine on the home routers, an ASIC on the fast ones) finds the client the frame is for and hands it to the LAN switch, which hands it to the LAN PHY, the magnetics and the LAN jacks. The SoC's frame (`soc`) holds the CPU, which runs the firmware, the engine and the switch. Round it stand the DRAM, the flash (the firmware), the power input and, on tiers 1 and 2, the Wi-Fi radio (2.4 or 2.4 + 5 GHz). The middle of the bottom row is the traffic block (`stat`: what the router carries now). The wires are routed through the gutters, the line wires four lanes wide, the frame path three, the control wires fewer: `wan-mag wan-phy wan-pkt pkt-sw sw-lan lan-mag lan-jack`, then `cpu-pkt dram-soc flash-soc radio-soc power-soc stat-pkt`. Tier 1 has 15 blocks, tier 2 has 15, tiers 3 and 4 have 14 (no radio). The parts differ by tier as `ROUTER_PARTS` says (`RL-R110` to `RL-R740`, 1 to 8 cores, DDR2 to DDR4 ECC, 8 MB SPI NOR to 512 MB NAND, 100BASE-TX to 40GBASE-T).
+
+**What is real.** The router has no heat, power or CPU-load number in the game (the wall powers it, and it keeps no state but its place in the chain), so the panel shows only what passes through it and says so where a number would be. The LAN jack has a partner and the WAN jack has a partner by `linkOf` (the jacks' law, `jackleds.ts`). The frames a tick come from `NetSnap.frames` (the PC's uplink port is the router's whole traffic) through a `FrameMeter`; the lanes light with `busy` (a log scale) and the load bars show the share of the router's own rate (`lineFrames(r.mbps)`). The clients in service are `net.transfers` against the slots the router and the plan give (`min(router.clients, isp.clients)`): the engine's table lights a cell for each one, and the engine and the traffic block show a row for each (the job and how far it is). The traffic block also shows the frame counts and rates, the plan's speeds, the speed of the LAN jack (the slower of the PC's port and the router) and which limit binds (`NetSnap.bandwidth.binding`: `limitWords`). No frames, or no link on both sides, means no light and no packets. The radio says `idle` and `no wireless clients`: the game has none. The power block says `wall power · on` and its bar is always lit: the router stands on the wall's power and the game has no power state for it. The spec text (SoC marking, DRAM and flash size, standard) comes from `ROUTER_PARTS`: it describes the part, the game has no such numbers.
+
+**Pose and zoom.** The panel is made by `Machine3D.buildRouter`, over the bezel at `fit.front + ROUTER_PANEL_Z` (30). Its still art (`routerFace`, baked in levels `LV_PART`) fades in over `DEVICE_LOD.router.fade` (0.25 to 0.4); the names show from `text` (0.45); the blocks take hover hits from `hover` (0.3) and their flights end at `detail` (0.7). The live layer (`RouterView` in `Chips3D`, kind `router`) runs over the art at 30 draws a second at most, and only while the panel's alpha is above 0.01. A router of another tier makes a new panel (`syncCables` goes through `buildRouter`; the machine itself is rebuilt only by its own key). The Build my PC stage has no router panel (`inRoom` false), and a machine without live chips has none either.
+
+**Ids.** `router` is the whole panel; `router.<block>` is a block: `soc cpu pkt sw dram flash radio power wanjack wanmag wanphy lanphy lanmag lanjack stat` (`radio` on tiers 1 and 2 only). `Board3D` maps a click on any of them to `router` for the popup, and a double click on a block flies to it. `describeNet` asks `describeRouterId`, so `describeId` finds them; each part has a title, a plain line and a nerd line (`routerdesc.test.ts` lists the ids from `routerIds`, so a block cannot be drawn without words).
+
+**Verified** (headless Chrome, the real GPU, sandbox game): all four tiers flat at the flight zoom with names, packets along the wires on tier 1 with a real download, link down and up, DHCP and port texts, the hover words of the blocks, the double click on the router and on a block, the fade at three distances. The compiled game (`--prod`) flies to the router and shows the same panel and names; the live layer was seen on the dev server only (the compiled game has no hook to power the machine on). At a middle distance the 3D model's fan squares show faintly through the panel while it is not yet opaque: that is the cross-fade, and it is gone at the flight zoom. Tests: `router/{routerplan,routerlayout,routerglyph,routerroute,routershow}.test.ts`, `ui/routerdesc.test.ts`, `board/render/three/machine3d.router.test.ts` and the `routerFit` cases in `router3d.test.ts`.
 
 ## The network lens
 

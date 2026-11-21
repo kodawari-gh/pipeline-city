@@ -476,6 +476,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       // a double click on a part brings it up, aligned; on the board it fits the board, anywhere else it frames the room again (as in Build my PC and the Gallery)
       const id = idAt(e), dev = deviceOf(id, snapshot.peek());
       if (dev && focusPart(dev.id)) return;
+      // the router's panel and each of its blocks have a flight of their own (`Machine3D.buildRouter`); a router with no panel is the room's
+      if (id && /^router(\.|$)/.test(id) && machine?.rails.some((r) => r.id === id) && focusPart(id)) return;
       if (id === 'board') flyToBoard(); else flyToRoom();
     },
   };
@@ -535,6 +537,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const s = snapshot.peek();
     // a part of a graphics card (`pcie1.lane3`) hovers on its own, a click opens the card
     if (s) id = deviceOfPart(id, s.devices);
+    // a block of the router's detailed view (`router.soc`) is a click on the router
+    if (/^router\.[a-z]+$/.test(id)) id = 'router';
     // an empty drive bay opens the drive shop, as the 2D bay's region does; any other empty socket is only a place to drop on
     if (/^sata\d+$/.test(id) && s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = 'bay'; return; }
     if (s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = null; return; }

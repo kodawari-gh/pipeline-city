@@ -17,7 +17,7 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { fanBank } from '@/core/render/fanmotor';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
-import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
+import { fadeTree, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
 import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
 import { lowDetail } from '@/core/render/three/detail';
 import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
@@ -32,6 +32,8 @@ import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
+import { routerFace } from '@/features/network/render/router/routerart';
+import { routerGeo, routerRails } from '@/features/network/render/router/routerlayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
@@ -47,7 +49,9 @@ import { radiatorFit, radiatorGrade } from '../cooler';
 import { ACCENT } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
-import { ArtSet } from './artset3d';
+import { ArtSet, LV_PART } from './artset3d';
+import type { ArtBaker } from './bake';
+import { routerFit } from './router3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
@@ -167,6 +171,8 @@ const patchable = (d: DeviceSnap): boolean => {
 };
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
+/** How far the router's detailed-view panel stands off its front bezel (clear of the jacks' lights and the bezel's relief). */
+const ROUTER_PANEL_Z = 30;
 /** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
 export const untag = (root: Object3D): void => root.traverse((o) => { if (typeof o.userData.id === 'string') delete o.userData.id; });
 
@@ -226,6 +232,8 @@ export class Machine3D {
   private blankTone = 0;
   /** The memory map's reveal and rail, made again when the bank changes. */
   private ramBits: { reveal: Reveal; rail: Rail } | null = null;
+  /** The router's detailed view in the room (`buildRouter`): its art and face, its reveal and its rails, made again when a router of another tier stands. */
+  private routerBits: { tier: number; art: ArtBaker; surface: ArtSurface; reveal: Reveal; rails: Rail[] } | null = null;
   /** `tier|caseTier`: a patch keeps the board and the case, so these must be the same. */
   private tiers = '';
   private merged = true;
@@ -416,6 +424,7 @@ export class Machine3D {
       this.root.add(this.wires);
       yield* this.cablesSteps(s, geo);
     }
+    this.buildRouter(s);
     this.rgb.position.set(BD.x + BD.w / 2, -(BD.y + BD.h / 2), FRONT - 900);
     this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
     this.root.add(this.rgb, this.spill);
@@ -580,6 +589,31 @@ export class Machine3D {
     if (!this.ram || !this.ramSticks.length) return;
     const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
     this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]) };
+  }
+
+  /**
+   * The router's detailed view (docs/render/net.md "Inside the NIC and the router"): its plan on a panel over its front bezel in the room, which the zoom fades in over the router as a
+   * card's floorplan comes in over its cover. The panel and each of its blocks are a rail (a double click flies to them), and its live layer is a face (`Chips3D`). Made again when
+   * the router of another tier stands (the room builds that router again, `Room3D.routerBuild`); none on the Build my PC stage, whose wall has a router of its own.
+   */
+  private buildRouter(s: Snapshot | null): void {
+    const tier = this.inRoom && this.chips && this.shown === 'machine' ? routerTier(s?.net?.router?.id) : null;
+    if (tier === (this.routerBits?.tier ?? null)) return;
+    const old = this.routerBits;
+    if (old) {
+      this.reveals.splice(this.reveals.indexOf(old.reveal), 1);
+      for (const r of old.rails) this.rails.splice(this.rails.indexOf(r), 1);
+      this.art.drop(old.surface, old.art);
+      this.routerBits = null;
+    }
+    if (tier === null || !this.chips) { this.chips?.setRouter(null); return; }
+    const fit = routerFit(tier), geo = routerGeo(tier, fit.face), z = fit.front + ROUTER_PANEL_Z, band = DEVICE_LOD.router.fade;
+    const art = this.art.baker(() => routerFace(this.T, geo)), surface = this.art.surface(this.root, art.bake, geo.face, z, LV_PART);
+    surface.setOpacity(0);
+    this.chips.setRouter(geo);
+    this.chips.face(this.root, 'router', geo.face, z + 2);
+    const reveal = this.reveal(geo.face, z, (zoom) => surface.setOpacity(smooth(band[0], band[1], zoom)), false, true);
+    this.routerBits = { tier, art, surface, reveal, rails: routerRails(geo).map((r) => this.rail(r.id, r.rect, z, r.id === 'router' ? band[1] : DEVICE_LOD.router.detail)) };
   }
 
   /** The same for a built object: its box as seen from the glass, its face the box's front. */
@@ -1315,6 +1349,7 @@ export class Machine3D {
 
   /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
   syncCables(s: Snapshot, geo: RoomGeo): void {
+    this.buildRouter(s); // (the router bought or replaced: its detailed view stands over it)
     if (this.noBoard) return; // (no board, no cable: the case's leads lie coiled on its tray)
     if (standing(s).map((c) => c.id).join(',') !== this.cableIds || videoKey(s, this.wall) !== this.videoKey) { this.setCables(s, geo); return; }
     for (const c of standing(s)) {

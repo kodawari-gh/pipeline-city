@@ -7,6 +7,7 @@ import { getIspSpec, getRouterSpec } from '../sim/specs';
 import type { Description } from '@/core/ui/regions';
 import { fmtMbit } from './fmt';
 import { describeNicId } from './nicdesc';
+import { describeRouterId } from './routerdesc';
 
 export { fmtMbit };
 
@@ -46,7 +47,7 @@ const PLAN_NOTE = 'You buy a plan once, there is no bill. A better plan replaces
 
 /** Description of a network id, or null when the id is not one of ours. */
 export function describeNet(id: string, s?: Snapshot | null): Description | null {
-  const part = describeNicId(id, s);
+  const part = describeNicId(id, s) ?? describeRouterId(id, s);
   if (part) return part;
   const net = s?.net;
   switch (id) {

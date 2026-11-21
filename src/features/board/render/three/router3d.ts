@@ -9,6 +9,7 @@ import { BRAND_FONT, MAKER } from '@/core/render/brands';
 import { drum, place, post, rectBox, rod, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
+import { ROUTER_SPOT } from '../layout/layout';
 import { debossMat, decal, decalTop, outlinePts, shapeOf, slab, tex } from './casekit3d';
 import { MM } from './pcbkit3d';
 import { jackFace, jackLamp, springGold, type JackLamps, type JackLook } from './rj45jack3d';
@@ -30,8 +31,19 @@ export const routerJack = (k: number): V3 => [-(520 + k * PITCH), 320, -3];
 const NEON = 0x3be3ff, AZURE = 0x4aa8ff, LINK = 0x58e08a, ACT = 0xffb547;
 /** How bright a lit status light is: above this a cyan light blooms to white. */
 export const LED_ON = 1.4;
+/** The shell's underside: the front bezel stands from here up (the foot and the plinth are under it). */
+export const ROUTER_UNDER = 110;
 /** The foot's height, the shell's underside, and how deep the front bezel is (the jacks' inserts end inside it). */
-const FOOT = 40, UNDER = 110, SEAM = RJ.deep + 80;
+const FOOT = 40, UNDER = ROUTER_UNDER, SEAM = RJ.deep + 80;
+
+/**
+ * Where the room stands the router of `tier` in its spot (`room3d.ts`; the detailed view's panel lies over its front, `machine3d.ts`): the one scale that fits its box in the spot,
+ * how far its front stands out of the wall, and its front bezel in the room's layout units (x east, y down).
+ */
+export function routerFit(tier: number, spot: RectLike = ROUTER_SPOT): { k: number; front: number; face: RectLike } {
+  const t = ROUTER_SIZE[tier] ? tier : 1, size = ROUTER_SIZE[t]!, k = Math.min(spot.w / size.w, spot.h / size.h);
+  return { k, front: t >= 4 ? 1500 : 1400, face: { x: spot.x + spot.w - k * size.w, y: spot.y + spot.h - k * size.h, w: k * size.w, h: k * (size.h - UNDER) } };
+}
 
 /** A box of the router's frame (y up) as a layout rect (y down), for the builders of `geometry.ts`. */
 const lay = (x0: number, x1: number, y0: number, y1: number): RectLike => ({ x: x0, y: -y1, w: x1 - x0, h: y1 - y0 });

@@ -23,6 +23,8 @@ import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
 import { TpmView, type TpmScene } from '@/features/tpm/render/tpmview';
 import { NicView, type NicScene } from '@/features/network/render/nic/nicview';
 import { nicGeo, nicParts } from '@/features/network/render/nic/niclayout';
+import { RouterView } from '@/features/network/render/router/routerview';
+import { routerParts, type RouterGeo } from '@/features/network/render/router/routerlayout';
 import { tpmGeo, tpmParts } from '@/features/tpm/render/tpmlayout';
 import { headerRect, tpmHeader } from '@/core/render/accelart';
 import { DIE_PLAN, LAYOUT_TIER } from '../layout/layout';
@@ -30,7 +32,7 @@ import { npuAccess, routeOnDie } from '../wiring/busmap';
 import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
 
-export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic';
+export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic' | 'router';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
 const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
@@ -98,6 +100,10 @@ export class Chips3D {
   private readonly npu = new NpuCardView(true);
   private readonly tpm = new TpmView(true);
   private readonly nic = new NicView();
+  /** The router's plan over its front in the room (`setRouter`), and how much of it shows: the zoom's fade, as the die's. */
+  private readonly router = new RouterView();
+  private routerGeo: RouterGeo | null = null;
+  private routerAlpha = 0;
   private nics = new Map<string, { visual: string; index: number }>();
   private tpms = new Map<string, { visual: string; hdr: Rect }>();
   private faces: Face[] = [];
@@ -148,8 +154,23 @@ export class Chips3D {
     for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) }); }
     this.nics = new Map(nics.map((n) => [n.slot, { visual: n.visual, index: n.index }]));
     this.nic.setScene(this.T, nics);
+    // (the router is the room's, not the machine's: the machine brings it back with `setRouter`)
+    this.routerGeo = null;
+    this.router.setScene(this.T, null);
     this.snap = undefined;
     this.update(s);
+  }
+
+  /** The router's detailed view (machine3d.ts): its plan over its front, or none (no router stands). The old router's face goes; the new one brings its own (`face`). */
+  setRouter(geo: RouterGeo | null): void {
+    this.faces = this.faces.filter((f) => {
+      if (f.kind !== 'router') return true;
+      this.free(f);
+      return false;
+    });
+    this.routerGeo = geo;
+    this.routerAlpha = 0;
+    this.router.setScene(this.T, geo ? { geo } : null);
   }
 
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
@@ -170,6 +191,7 @@ export class Chips3D {
     this.npu.update(s?.npus);
     this.tpm.update(s?.tpm);
     this.nic.update(s);
+    this.router.update(s);
   }
 
   /**
@@ -201,6 +223,15 @@ export class Chips3D {
     this.nic.frame(dt, true, paused, lod);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
+    // the router: its panel lies over its front in the room, read in its own frame as the die is; it comes in over the band `DEVICE_LOD.router.fade`
+    const rf = this.routerGeo ? this.faces.find((f) => f.kind === 'router') : undefined;
+    if (this.routerGeo && rf) {
+      rf.parent.updateWorldMatrix(true, false);
+      const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()), rview = rv.rect ?? EVERYWHERE, p = deviceLod(this.routerGeo.face, rview, undefined, true);
+      this.routerAlpha = p.onScreen ? smooth(DEVICE_LOD.router.fade[0], DEVICE_LOD.router.fade[1], seenZoom(rv.zoom, p.focus)) : 0;
+      this.router.setZoom(rv.zoom);
+      this.router.frame(dt, this.routerAlpha > 0.01 && shown(rf.parent), paused, { view: rview });
+    } else this.router.frame(dt, false, paused);
     for (const f of this.faces) this.draw(f, cam, H, dpr, now);
   }
 
@@ -241,6 +272,7 @@ export class Chips3D {
       const n = f.slot ? this.nics.get(f.slot) : undefined;
       return n ? nicParts(nicGeo(n.visual, n.index)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: DEVICE_LOD.nic.hover })) : [];
     }
+    if (f.kind === 'router') return this.routerGeo ? routerParts(this.routerGeo).map((p) => ({ id: p.id, rect: p.rect, min: DEVICE_LOD.router.hover })) : [];
     const c = f.slot ? this.cards.get(f.slot) : undefined;
     if (!c) return [];
     if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
@@ -248,12 +280,12 @@ export class Chips3D {
   }
 
   private viewOf(kind: ChipKind): Container {
-    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : this.npu.root;
+    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : kind === 'router' ? this.router.root : this.npu.root;
   }
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
-    const a = f.kind === 'die' ? this.dieAlpha : 1;
+    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : 1;
     if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
     if (now - f.at < this.live.ms) return;
     f.parent.updateWorldMatrix(true, false);
@@ -281,18 +313,21 @@ export class Chips3D {
     f.mesh.visible = true;
   }
 
+  private free(f: Face): void {
+    f.mesh.removeFromParent();
+    f.mesh.geometry.dispose();
+    f.tex?.dispose();
+    f.mat.dispose();
+  }
+
   private drop(): void {
-    for (const f of this.faces) {
-      f.mesh.removeFromParent();
-      f.mesh.geometry.dispose();
-      f.tex?.dispose();
-      f.mat.dispose();
-    }
+    for (const f of this.faces) this.free(f);
     this.faces = [];
   }
 
   dispose(): void {
     this.drop();
     this.die.clear();
+    this.router.setScene(this.T, null);
   }
 }

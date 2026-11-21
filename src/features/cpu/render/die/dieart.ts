@@ -93,6 +93,8 @@ export interface PlanStyle<B extends PlanBlock, L extends PlanLink> {
   symbol(b: B): Rect | null;
   draw(g: Graphics, T: Theme, b: B, a: Rect, c: string, put: Put): void;
   cells(b: B): Rect[];
+  /** The scale of the names and the second lines (1: the die's sizes). A plan read from further off, as the router's over its front, has larger names. */
+  text?: number;
 }
 
 /** The frames, then the blocks over them, each tinted in its colour with a rim line: the part of the far view the CPU die and the GPU card share. */
@@ -123,7 +125,7 @@ export interface DieArt {
 
 /** Traces, cell arrays, symbols and names of a plan, drawn by `style`. */
 export function planNear<B extends PlanBlock, L extends PlanLink>(T: Theme, plan: { blocks: readonly B[]; links: readonly L[] }, style: PlanStyle<B, L>): DieArt {
-  const root = new Container(), wires = new Container(), cells = new Container(), names = new Container(), subs = new Container();
+  const root = new Container(), wires = new Container(), cells = new Container(), names = new Container(), subs = new Container(), k = style.text ?? 1;
   root.addChild(wires, cells, names, subs);
   const wg = new Graphics();
   wires.addChild(wg);
@@ -149,20 +151,21 @@ export function planNear<B extends PlanBlock, L extends PlanLink>(T: Theme, plan
       if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
     }
     if (style.frame(b)) {
-      names.addChild(label(b.label, b.rect.x + 8, b.rect.y + 12, 11, T.mute, { weight: '600', a: 0.9 }));
-      if (b.sub) names.addChild(label(b.sub, b.rect.x + 8 + b.label.length * 8 + 10, b.rect.y + 12, 9, T.mute, { a: 0.8 }));
+      names.addChild(label(b.label, b.rect.x + 8, b.rect.y + 12 * k, 11 * k, T.mute, { weight: '600', a: 0.9 }));
+      if (b.sub) names.addChild(label(b.sub, b.rect.x + 8 + b.label.length * 8 * k + 10, b.rect.y + 12 * k, 9 * k, T.mute, { a: 0.8 }));
       continue;
     }
     const r = b.rect;
     if (isTall(b)) {
-      const t = label(b.label, b.grid ? r.x + 11 : b.kind === 'latch' ? r.x + r.w - 7 : r.x + r.w / 2 + 4, r.y + r.h / 2, Math.min(13, Math.max(8, r.w * 0.45)), T.ink, { weight: '700', anchor: [0.5, 0.5] });
+      const t = label(b.label, b.grid ? r.x + 11 : b.kind === 'latch' ? r.x + r.w - 7 : r.x + r.w / 2 + 4, r.y + r.h / 2, Math.min(13 * k, Math.max(8 * k, r.w * 0.45)), T.ink, { weight: '700', anchor: [0.5, 0.5] });
       t.rotation = -Math.PI / 2;
       names.addChild(t);
       continue;
     }
-    const fs = Math.max(8, Math.min(14, (r.w - 14) / (b.label.length * 0.66), r.h * 0.45));
+    const fs = Math.max(8 * k, Math.min(14 * k, (r.w - 14) / (b.label.length * 0.66), r.h * 0.45));
     if (r.h >= 20 && r.w >= 40) names.addChild(label(b.label, r.x + 7, r.y + 6 + fs / 2, fs, T.ink, { weight: '700' }));
-    if (b.sub && r.h >= 44 && r.w >= 100) subs.addChild(label(b.sub, r.x + 7, r.y + 9 + fs + 6, 9, T.mute, { a: 0.95 }));
+    // (a larger second line is fitted to the block: the die's own 9 is not)
+    if (b.sub && r.h >= 44 && r.w >= 100) subs.addChild(label(b.sub, r.x + 7, r.y + 9 + fs + 6, k === 1 ? 9 : Math.min(9 * k, (r.w - 14) / (b.sub.length * 0.56)), T.mute, { a: 0.95 }));
   }
   return { root, wires, cells, names, subs };
 }

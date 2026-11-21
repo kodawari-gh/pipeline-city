@@ -22,7 +22,7 @@ import type { KeySnap } from '@/worker/game/types';
 import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { jackFace, jackLook, type JackLamps } from '@/features/board/render/three/rj45jack3d';
 import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
-import { ROUTER_SIZE, routerModel } from '@/features/board/render/three/router3d';
+import { routerFit, routerModel } from '@/features/board/render/three/router3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
@@ -746,7 +746,7 @@ export class Room3D {
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c); }
-      const size = ROUTER_SIZE[tier] ?? ROUTER_SIZE[1]!, k = Math.min(rs.w / size.w, rs.h / size.h), front = tier >= 4 ? 1500 : 1400;
+      const { k, front } = routerFit(tier, rs);
       // (the wall hides its back, so it has none. The lead's cord goes into the side jack, the patch lead into the WAN jack: those two have lights, the other four jacks have no cable)
       const m = routerModel(tier, { depth: (front - 300) / k, fine: !lowDetail(), rear: false, drive: [4] });
       m.root.position.set(rs.x + rs.w, -(rs.y + rs.h), front);
