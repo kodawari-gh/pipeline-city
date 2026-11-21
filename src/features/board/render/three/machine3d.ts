@@ -668,6 +668,8 @@ export class Machine3D {
     // (the parts are a stand-in anchor of their own: the card's tree is left out of the distance level of detail, and three cards' parts would draw one by one at the overview)
     if (c.parts) this.still.push(c.parts);
     this.apart.push(...c.lids);
+    // (the card's copper lights with the frames the die's view launches, over the mask of its component side)
+    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z);
     if (!c.die) return;
     this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
     this.reveal(c.die.at, c.die.zTop, c.lod);

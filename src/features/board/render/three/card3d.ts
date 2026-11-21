@@ -28,6 +28,7 @@ import { JACK, JACK_X, jacksOf, mouthAt, nicBack, nicBracket, nicParts } from '.
 import type { DieFloor, NicChip } from './nicchip3d';
 import type { JackLamps } from './rj45jack3d';
 import { NIC_LANES, nicCopper } from './niccopper';
+import { nicLanes, type NicLanes } from './nicflow';
 import { npuBackplate, npuBracket, npuCooler } from './npu3d';
 import { gold, passives, pcbSlab, type Passive } from './pcbkit3d';
 import { FINGER, KEY, pinAt, TAB, tabOf, txPin } from './pcie';
@@ -39,6 +40,8 @@ export const HINGE_Z = BOARD_Z + 250;
 const PCB_T = 24, BACK_T = 18, BRACKET_T = 24;
 /** How high a NIC lifts, at the middle of its turn, so its edges clear the board (its strip is 600 across: a half is 300, the board is 250 under it). */
 const LIFT = 500;
+/** How far over the mask's face a NIC's lit copper stands (layout units: under 0.1 mm, below every part's body). */
+const TRACE_LIFT = 2;
 /** Real millimetres in layout units (the case's scale, docs/PC_PARTS.md). */
 const MM = 23;
 /**
@@ -89,6 +92,9 @@ export interface Card3D {
    * (the lid, a sink on it). Empty and null on the other cards. */
   bodies: { id: string; rect: RectLike; z: number }[];
   die: { root: Object3D; z: number; rect: RectLike; at: RectLike; zTop: number; scale: number } | null;
+  /** A NIC's lit copper (`Chips3D.traces`): the frame the lanes' drawing is in (the card's turned-over side, a band of the drawing for its slot), the depth just over the mask's face in it, and the lanes
+   * (`nicflow.ts`). Null on the other cards. */
+  copper: { root: Object3D; z: number; lanes: NicLanes } | null;
   lids: Object3D[];
   /** A NIC's parts as one group: far away they draw as stand-ins (an anchor of the machine's level of detail), so three cards cost a few draws, not each part. Null on the other cards. */
   parts: Object3D | null;
@@ -160,7 +166,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   fades.add(kind === 'gpu' ? gpuBracket(y0, ly0, ly1, zLo, zHi, Zp, steel) : kind === 'npu' ? npuBracket(f, Zp, ct, bx0, bx1, plate, steel) : nicBracket(visual, y0, Zp, bx0, bx1, plate, steel));
   fades.add(rectBox(rect(NIC_BRACKET_X - 90, ly1, 90 + BRACKET_T, 20), zLo, zHi, steel));
   const skin: MeshStandardMaterial[] = [], flow = kind === 'gpu' && xe - x1 > 600;
-  let lan: JackLamps | null = null, chip: NicChip | null = null;
+  let lan: JackLamps | null = null, chip: NicChip | null = null, copper: Card3D['copper'] = null;
   const bodies: Card3D['bodies'] = [];
   lying.add(parts);
   // a GPU's cooler, its display outputs and its backplate, with a window past the PCB's end where the end fan blows through the fins (gpu3d.ts);
@@ -181,6 +187,11 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     for (const b of built.bodies) bodies.push({ id: b.id, rect: turned(b.rect, slot, visual), z: Z + b.h });
     nicBack(fades, visual, f, Z, cu);
     skin.push(pcbM);
+    // the lit copper's frame: in the turned-over side's group, shifted so the lanes' drawing (the card's band of the shared one) lands on the card; its plane stands just over the mask's face
+    const lit = nicLanes(cu, slot), tr = new Group();
+    tr.position.x = -lit.off;
+    built.under.add(tr);
+    copper = { root: tr, z: -Zp + TRACE_LIFT, lanes: lit };
   }
   // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)
   const sockets = kind === 'gpu' ? gpuSockets(fades, visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T) : [];
@@ -192,7 +203,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     ? { root: chip.die.root, z: chip.die.z, rect: nicGeo(visual, slot).die, at: turned(chip.rect, slot, visual), zTop: Z + chip.dieTop, scale: chip.scale }
     : null;
   return {
-    root, spins, skin, sockets, fades, lan, bodies, die, lids: chip ? [chip.lid] : [], parts: kind === 'nic' ? parts : null,
+    root, spins, skin, sockets, fades, lan, bodies, die, copper, lids: chip ? [chip.lid] : [], parts: kind === 'nic' ? parts : null,
     at: f.r,
     turned: () => rolled,
     alsoFade: (o) => { extra.push(o); return () => { const i = extra.indexOf(o); if (i >= 0) extra.splice(i, 1); }; },

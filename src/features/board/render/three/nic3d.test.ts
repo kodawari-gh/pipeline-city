@@ -6,6 +6,7 @@ import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier } from '../layout/layou
 import { cardReach, HINGE_Z, nicJackAt, STAND } from './card3d';
 import type { CardFrame } from './gpu3d';
 import { JACK, JACK_X, jacksOf, MOUTH, mouthAt, nicBack, nicParts, type NicBuild } from './nic3d';
+import { DIE_MM } from './nicchip3d';
 import { NIC_LANES, nicCopper } from './niccopper';
 import { TAB, tabOf } from './pcie';
 
@@ -81,7 +82,7 @@ describe("the network card's real parts", () => {
 
   it('puts a die of the real size under each controller\'s lid, which the zoom takes away to show the floorplan on the die', () => {
     setLayoutTier(3, 3);
-    for (const [visual, side] of [['nic-gbe', 6.2], ['nic-10g', 15], ['nic-40g', 15]] as const) {
+    for (const [visual, side] of [['nic-gbe', DIE_MM.qfn], ['nic-10g', DIE_MM.bga], ['nic-40g', DIE_MM.bga]] as const) {
       const f = frame(visual), g = new Group(), seen: { frame: Group; scale: number }[] = [], root = new Group();
       const out = nicParts(g, visual, f, Zp, NIC_BRACKET_X + 24, copper(visual, f), build(visual, (fr, scale) => { seen.push({ frame: fr, scale }); return { root, z: 3 / scale }; }));
       const chip = out.chip;

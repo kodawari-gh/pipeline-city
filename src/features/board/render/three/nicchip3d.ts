@@ -10,8 +10,8 @@ import { mat } from '@/core/render/three/materials';
 import { NIC_DIE } from '@/features/network/render/nic/nicplan';
 import { MM, lidBase, pkg } from './pcbkit3d';
 
-/** The die's side in mm: a QFN's (a 9 mm package) and a lidded BGA's (a 25 mm package). */
-const DIE_MM = { qfn: 6.2, bga: 15 } as const;
+/** The die's side in mm: a QFN's (a 9 mm package, its pad 8 mm: the die fills the pad) and a lidded BGA's (a 25 mm package: the die fills the substrate to a 2 mm border). The floorplan covers the whole chip. */
+export const DIE_MM = { qfn: 7.6, bga: 21 } as const;
 
 /** Puts the floorplan on a frame: the die's baked art in `frame` (which is scaled by `scale`, a layout unit to a plan unit), and where its live face goes. Null: no art (the gallery's plain card). */
 export type DieFloor = (frame: Group, scale: number) => { root: Object3D; z: number };

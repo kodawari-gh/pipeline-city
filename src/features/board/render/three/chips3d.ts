@@ -3,7 +3,7 @@
 // art), fed the same snapshots, the same eased clock, and the zoom and view of the camera. Each face shows them on a plane just over its baked art:
 // the part of the face in view, drawn at the screen's density by the offscreen Pixi renderer (`drawLive`) at most 30 times a second, and only
 // while the face shows (the lid has faded, the card has swung down).
-import { Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type Object3D, type PerspectiveCamera } from 'three';
+import { AdditiveBlending, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type Object3D, type PerspectiveCamera } from 'three';
 import type { Container } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
@@ -31,8 +31,11 @@ import { DIE_PLAN, LAYOUT_TIER } from '../layout/layout';
 import { npuAccess, routeOnDie } from '../wiring/busmap';
 import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
+import type { NicLanes } from './nicflow';
+import { NicTraceView } from './nictrace';
 
-export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic' | 'router';
+/** `nictrace`: a network card's copper, lit (nictrace.ts), on the card's component side; the others are dies. */
+export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic' | 'router' | 'nictrace';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
 const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
@@ -100,6 +103,10 @@ export class Chips3D {
   private readonly npu = new NpuCardView(true);
   private readonly tpm = new TpmView(true);
   private readonly nic = new NicView();
+  /** The network cards' copper, lit: each frame the die's view launches runs the card's traces first (`traces`). */
+  private readonly nicTrace = new NicTraceView();
+  /** How much of each card's copper shows (its slot): it comes in as the card turns over, component side up. */
+  private readonly traceAlpha = new Map<string, number>();
   /** The router's plan over its front in the room (`setRouter`), and how much of it shows: the zoom's fade, as the die's. */
   private readonly router = new RouterView();
   private routerGeo: RouterGeo | null = null;
@@ -127,6 +134,8 @@ export class Chips3D {
       const write = e.kind === 'store', hit = routeOnDie(this.die, e.addr, write, this.t), npu = hit?.kind === 'card' ? npuAccess(e.addr) : null;
       if (npu) this.npu.touch(npu.slot, write, npu.off);
     };
+    // a frame leaves a card's way: its copper lights first, and the die's packets wait for it (nictrace.ts)
+    this.nic.onLaunch = (slot, dir, at, total) => this.nicTrace.launch(slot, dir, at, total);
   }
 
   /** A new machine (machine3d.ts): the CPU's floorplan and the cards from its parts; the old faces go, the parts bring their new ones (`face`). */
@@ -156,6 +165,8 @@ export class Chips3D {
     for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) }); }
     this.nics = new Map(nics.map((n) => [n.slot, { visual: n.visual, index: n.index }]));
     this.nic.setScene(this.T, nics);
+    this.nicTrace.setScene(this.T);
+    this.traceAlpha.clear();
     // (the router is the room's, not the machine's: the machine brings it back with `setRouter`)
     this.routerGeo = null;
     this.router.setScene(this.T, null);
@@ -175,9 +186,21 @@ export class Chips3D {
     this.router.setScene(this.T, geo ? { tier: geo.tier } : null);
   }
 
+  /**
+   * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's turned-over parts stand in; the lanes' drawing is that frame's, y
+   * mirrored) at depth `z`. The frames the card's die view launches (`NicView.onLaunch`) run on them, in the colour of the way they go.
+   */
+  traces(parent: Object3D, slot: string, lanes: NicLanes, z: number): void {
+    if (!lanes.media.length && !lanes.host.length) return;
+    this.nicTrace.add(slot, lanes);
+    this.face(parent, 'nictrace', lanes.rect, z, slot);
+  }
+
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
   face(parent: Object3D, kind: ChipKind, rect: Rect, z: number, slot?: string): void {
-    const mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0 });
+    // (the copper's light is added to the mask under it, as the board's traces are: `BoardLive3D`)
+    const light = kind === 'nictrace' ? { blending: AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {};
+    const mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0, ...light });
     const mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), mat));
     mesh.visible = false;
     parent.add(mesh);
@@ -230,8 +253,18 @@ export class Chips3D {
       this.nicAlpha.set(f.slot, alpha);
       this.nic.setSight(f.slot, { zoom: nv.zoom, view: nview, shown: alpha > 0.01 && shown(f.parent) });
     }
+    // a network card's copper: it shows as the card turns over, component side up (the card's roll band), read in the frame of its turned-over side
+    this.traceAlpha.clear();
+    for (const f of this.faces) {
+      if (f.kind !== 'nictrace' || !f.slot) continue;
+      f.parent.updateWorldMatrix(true, false);
+      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth(DEVICE_LOD.nic.roll[0], DEVICE_LOD.nic.roll[1], tv.zoom) : 0;
+      this.traceAlpha.set(f.slot, alpha);
+      this.nicTrace.setSight(f.slot, { zoom: tv.zoom, shown: alpha > 0.01 });
+    }
     this.tpm.frame(dt, true, paused, lod);
     this.nic.frame(dt, true, paused);
+    this.nicTrace.frame(this.nic.clock);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
     // the router SoC's die: read in its own frame as the NIC's is (it stands up with its board, and its lid, which hides it, fades over the die view's band)
@@ -285,6 +318,8 @@ export class Chips3D {
       return n ? nicParts(nicGeo(n.visual, n.index)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: DEVICE_LOD.nic.hover })) : [];
     }
     if (f.kind === 'router') return this.routerGeo ? routerParts(this.routerGeo).map((p) => ({ id: p.id, rect: p.rect, min: DEVICE_LOD.router.hover })) : [];
+    // (a card's lit copper has no parts to point at: it only lights)
+    if (f.kind === 'nictrace') return [];
     const c = f.slot ? this.cards.get(f.slot) : undefined;
     if (!c) return [];
     if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
@@ -292,12 +327,13 @@ export class Chips3D {
   }
 
   private viewOf(kind: ChipKind): Container {
-    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : kind === 'router' ? this.router.root : this.npu.root;
+    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : kind === 'router' ? this.router.root : kind === 'nictrace' ? this.nicTrace.root : this.npu.root;
   }
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
-    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : f.kind === 'nic' ? this.nicAlpha.get(f.slot ?? '') ?? 0 : 1;
+    // (a card's copper is drawn only while a packet is on it: a quiet card has nothing lit to show)
+    const a = f.kind === 'die' ? this.dieAlpha : f.kind === 'router' ? this.routerAlpha : f.kind === 'nic' ? this.nicAlpha.get(f.slot ?? '') ?? 0 : f.kind === 'nictrace' ? (this.nicTrace.busy(f.slot ?? '') ? this.traceAlpha.get(f.slot ?? '') ?? 0 : 0) : 1;
     if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
     if (now - f.at < this.live.ms) return;
     f.parent.updateWorldMatrix(true, false);
@@ -340,6 +376,7 @@ export class Chips3D {
   dispose(): void {
     this.drop();
     this.die.clear();
+    this.nicTrace.clear();
     this.router.setScene(this.T, null);
   }
 }

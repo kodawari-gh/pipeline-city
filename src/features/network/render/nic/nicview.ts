@@ -60,6 +60,11 @@ export class NicView {
   private snap: Snapshot | null | undefined = undefined;
   /** The view's own clock (ms of game time): packets and lights run on it, and it holds while the game is paused. */
   private now = 0;
+  /**
+   * A frame leaves a way of a card (its slot, the way, the time on the clock, the ms it takes through the die): the card's copper lights its own runs from the same launch, and answers with the
+   * ms its frame takes before it reaches the die, which the die's packets wait (the board's `NicTraceView`). Called whether the die is seen or not: the frames go on at the card's own pace.
+   */
+  onLaunch?: (slot: string, dir: NicDir, at: number, total: number) => number;
 
   constructor() {
     this.root.visible = false;
@@ -91,6 +96,9 @@ export class NicView {
     this.sights.set(slot, sight);
   }
 
+  /** The view's clock (ms of game time): the clock the launches (`onLaunch`) and the packets run on. */
+  get clock(): number { return this.now; }
+
   /** The newest snapshot: the frame meter reads its counters. */
   update(s: Snapshot | null | undefined): void {
     if (s === this.snap) return;
@@ -107,13 +115,14 @@ export class NicView {
     for (const c of this.cards) {
       const sight = this.sights.get(c.slot), pl = this.rects.place(c, c.root, sight?.view ?? undefined), on = pl.onScreen && !!sight?.shown;
       c.root.visible = on;
+      const show = nicShow(this.snap, c.slot, this.meter, this.now);
+      // (the frames leave at the card's own pace whether the die is seen or not: its copper lights from the same launches)
+      if (show) this.fly(T, c, show.link ? { rx: show.rxAct, tx: show.txAct } : { rx: 0, tx: 0 }, on);
       if (!on) continue;
       const z = seenZoom(sight?.zoom ?? 1, pl.focus), { showText, ta } = cardText(z, undefined, `nic:${c.slot}`, TEXT_Z, DEVICE_LOD.nic.detail);
       c.texts.visible = showText;
       c.texts.alpha = ta;
-      const show = nicShow(this.snap, c.slot, this.meter, this.now);
       if (!show) { c.packets = []; c.trails.clear(); c.litG.clear(); c.glowG.clear(); c.trailG.clear(); c.packetG.clear(); for (const ct of c.cellTexts.values()) ct.hideFrom(0); continue; }
-      this.fly(T, c, show.link ? { rx: show.rxAct, tx: show.txAct } : { rx: 0, tx: 0 });
       // the blocks the frames go through glow while they do
       const want = new Map<string, number>();
       if (show.link) for (const dir of ['rx', 'tx'] as NicDir[]) { const act = dir === 'rx' ? show.rxAct : show.txAct; if (act > 0) for (const id of BLOCKS[dir]) want.set(id, Math.max(want.get(id) ?? 0, act)); }
@@ -145,17 +154,20 @@ export class NicView {
 
   /**
    * Send a packet along each way that carries frames: the busier the lane (`busy` of the frames a tick, a log scale), the closer the packets follow each other. A way with no frames
-   * sends none, so a quiet link shows no motion; the ones sent keep a trail that fades.
+   * sends none, so a quiet link shows no motion; the ones sent keep a trail that fades. The card's copper is lit first (`onLaunch`): the packets in the die wait for the frame to reach it.
+   * A die that is not seen (`on` false) gets no packets, only the launch.
    */
-  private fly(T: Theme, c: CardView, act: Record<NicDir, number>): void {
+  private fly(T: Theme, c: CardView, act: Record<NicDir, number>, on: boolean): void {
     for (const dir of ['rx', 'tx'] as NicDir[]) {
       const a = act[dir];
       if (a <= 0) { c.next[dir] = this.now; continue; }
-      if (this.now < c.next[dir] || c.packets.length > 28) continue;
+      if (this.now < c.next[dir] || (on && c.packets.length > 28)) continue;
       c.next[dir] = this.now + 1800 - 1500 * a;
-      const route = nicRoute(c.geo.plan, dir), total = 1500 - 700 * a, sp = (total * 0.9) / route.length, dur = Math.max(sp * 1.1, 220);
+      const total = 1500 - 700 * a, lead = this.onLaunch?.(c.slot, dir, this.now, total) ?? 0;
+      if (!on) continue;
+      const route = nicRoute(c.geo.plan, dir), sp = (total * 0.9) / route.length, dur = Math.max(sp * 1.1, 220);
       route.forEach((h, i) => {
-        const { packet, trail } = packetOn({ id: h.link.id, lanes: h.link.lanes, pts: h.link.pts }, h.reverse, this.now + i * sp, dur, dir === 'rx' ? T.alu : T.mul);
+        const { packet, trail } = packetOn({ id: h.link.id, lanes: h.link.lanes, pts: h.link.pts }, h.reverse, this.now + lead + i * sp, dur, dir === 'rx' ? T.alu : T.mul);
         c.packets.push(packet);
         c.trails.set(`${h.link.id}:${dir}`, trail);
       });

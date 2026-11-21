@@ -175,6 +175,8 @@ export interface NicOut {
   /** The controller's chip: its lid's fade, its die's face. */
   chip: NicChip;
   bodies: NicBody[];
+  /** The component side's group (turned over: layout y as its y, depth off the PCB as its z, the mask's face at `-Zp`): the card's lit copper goes in a frame in it (card3d.ts). */
+  under: Group;
 }
 
 /** What a card's parts need to be told: its slot (the ids of its parts), the rectangle its die's plan covers in the die's frame, and how to put the floorplan on the die (none: a plain chip). */
@@ -271,7 +273,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Zp: number, inX
     { id: id('vreg'), rect: hull([a.reg, ...a.inductors, ...a.cans.map((c) => ({ x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }))]), h: 5.8 * MM },
     { id: id('label'), rect: a.label, h: 0 },
   ];
-  return { lamps: { link: M.green, act: M.amber }, chip: core, bodies };
+  return { lamps: { link: M.green, act: M.amber }, chip: core, bodies, under: u };
 }
 
 /** Each card's speed, on its silkscreen. */
