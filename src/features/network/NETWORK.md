@@ -82,7 +82,7 @@ A separate external box placed beside the monitor, powered from the wall (no PSU
 | `router1` | Home router | 100 | 2 | $60 | level 4 |
 | `router2` | Gigabit router | 1000 | 4 | $200 | level 7 |
 | `router3` | 10G switch-router | 10000 | 8 | $700 | level 11 |
-| `router4` | Core router | 40000 | 16 | $2500 | level 17 |
+| `router4` | Edge router | 40000 | 16 | $2500 | level 17 |
 
 ### The ISP plan (a one-off purchase; the wall jack)
 

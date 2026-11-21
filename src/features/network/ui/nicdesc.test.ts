@@ -8,7 +8,7 @@ import { macOf } from '../render/nic/nicmac';
 import { isNicId } from './nicdesc';
 
 const CARDS = [['nic1', 'nic-gbe', 1000], ['nic2', 'nic-10g', 10000], ['nic3', 'nic-40g', 40000]] as const;
-const ROUTER = { id: 'router4', name: 'Core router', mbps: 40000, clients: 16, visual: 'router-core' };
+const ROUTER = { id: 'router4', name: 'Edge router', mbps: 40000, clients: 16, visual: 'router-core' };
 
 /** A running machine with the card `spec` in slot pcie1, the cable in it (or in no card), over a router. */
 function game(spec: string, mbps: number, plugged = true): Snapshot {
@@ -68,7 +68,7 @@ describe('the words for the network card\'s parts', () => {
     expect(describeId('pcie1.nic-jack', game('nic2', 10000, false))!.nerd).toMatch(/no cable in this card/);
     expect(describeId('pcie1.nic-stats', game('nic2', 10000, false))!.nerd).toMatch(/counters/);
     expect(describeId('pcie1.nic-jack')!.nerd).toMatch(/no game/);
-    expect(describeId('pcie1.nic-nvm')!.nerd).toMatch(/MAC 00:1B:21:/);
+    expect(describeId('pcie1.nic-nvm')!.nerd).toMatch(/MAC 02:52:4C:/);
     expect(describeId('pcie1.nic-pcie')!.nerd).toMatch(/lanes by tier/);
   });
 

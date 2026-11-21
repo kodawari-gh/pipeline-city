@@ -19,7 +19,7 @@ const ROUTERS = [
   { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' },
   { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gigabit' },
   { id: 'router3', name: '10G switch-router', mbps: 10000, clients: 8, visual: 'router-10g' },
-  { id: 'router4', name: 'Core router', mbps: 40000, clients: 16, visual: 'router-core' },
+  { id: 'router4', name: 'Edge router', mbps: 40000, clients: 16, visual: 'router-core' },
 ] as const;
 const flow = (jobId: number, dir: 'down' | 'up', label: string, percent: number): TransferSnap => ({ jobId, label, dir, totalMB: 100, doneMB: percent, percent, etaTicks: 4, persisted: false });
 
@@ -166,8 +166,9 @@ describe('what the symbols show now: the addresses', () => {
     expect(c.lan.ip).toBe('10.0.0.100');
     expect(c.wan.ip).toBe(s.addr!.wan!.ip);
     expect(c.lan.port).toBeGreaterThanOrEqual(49152);
-    // (a DNS job is UDP on port 53)
-    expect(natLine(show(game(4, { flows: [flow(7, 'down', '#7 dns', 5)] })).addr!.conns[0]!)).toMatch(/^UDP .* > .*:53$/);
+    // (a DNS job is UDP on port 53, asked of the router, which asks the plan's name server)
+    const dns = show(game(4, { flows: [flow(7, 'down', '#7 dns', 5)] })).addr!;
+    expect(natLine(dns.conns[0]!)).toBe(`UDP 10.0.0.100:${dns.conns[0]!.lan.port} > 10.0.0.1:53 | ${dns.wan!.ip}:${dns.conns[0]!.wan.port} > ${dns.wan!.dns[0]}:53`);
     // the same game gives the same rows
     expect(texts(4, 'pkt', show(game(4, { flows: JOBS })))).toEqual(texts(4, 'pkt', s));
   });

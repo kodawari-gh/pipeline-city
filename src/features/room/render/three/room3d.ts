@@ -745,7 +745,7 @@ export class Room3D {
     // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
     router.userData.ao = 560;
     // its tier's look is the shared model's (`router3d.ts`, as the gallery and the studio's wall show it): the home router with its two aerials and four lights; the gigabit
-    // one, with stouter aerials and a row of lights; the 10G switch-router: no aerials, fins and a lit bar; the core router: a rack unit with its ears, a row of cages
+    // one, with stouter aerials and a row of lights; the 10G switch-router: no aerials, fins and a lit bar; the edge router: a rack unit with its ears, a row of cages
     // and two rows of lights. It stands in the router's spot at one scale (the tier's box fits it), its east end and feet on the shelf, its front 1400 out
     const rs = ROUTER_SPOT, jackSteel = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
     // (its LAN jack on the east side is the board's rear I/O's, rj45jack3d's `jackFace`: 160 across, 124 tall, its mouth 180 deep)

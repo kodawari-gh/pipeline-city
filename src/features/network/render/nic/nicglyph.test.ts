@@ -189,6 +189,6 @@ describe('what a block shows now', () => {
 
   it('names each card by an address of its own: three bytes of the maker and three that follow the card', () => {
     expect(new Set(['nic-gbe', 'nic-10g', 'nic-40g'].map(macOf)).size).toBe(3);
-    expect(macOf('nic-gbe')).toMatch(/^00:1B:21:[0-9A-F]{2}:7C:4F$/);
+    expect(macOf('nic-gbe')).toMatch(/^02:52:4C:[0-9A-F]{2}:7C:4F$/);
   });
 });

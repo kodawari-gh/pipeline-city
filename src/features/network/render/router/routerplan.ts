@@ -38,7 +38,7 @@ export type RouterPlan = NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInpu
 /**
  * The four routers' parts, by tier (`ROUTER_SPECS` in network/sim/specs.ts: Home 100 Mbit, Gigabit, 10G switch-router, Core 40G). The names and sizes are what the parts are made of, in
  * words; the game's numbers for a router are its speed and its clients (`NetSnap.router`), which the live view shows as they are. The 3D router has the aerials the radio feeds
- * (tiers 1 and 2) and the rack ears of the core router (`router3d.ts`); its board carries the rest (`routerboard3d.ts`).
+ * (tiers 1 and 2) and the rack ears of the edge router (`router3d.ts`); its board carries the rest (`routerboard3d.ts`).
  */
 export const ROUTER_PARTS: Record<number, RouterPlanInput> = {
   1: { tier: 1, soc: 'RL-R110', cores: 1, mhz: 400, engine: 'NAT ENGINE', std: '100BASE-TX', lan: 4, dram: { mb: 64, kind: 'DDR2', chips: 1 }, flash: { mb: 8, kind: 'SPI NOR' }, radio: { bands: '2.4 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },

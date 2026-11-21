@@ -1,7 +1,7 @@
 // The addresses of the network, for the views and the words (docs/render/net.md "Addresses"). The game's sim moves bytes between the machine and the job servers; it does not name
 // anyone. So the names are made here, and they are made, never rolled: each is a function of the parts that stand (the board or the card whose jack has the cable, the router, the
 // plan) and of the jobs in flight, so the same game shows the same addresses in every view, every frame and after a load. Each MAC is in the locally administered range (the second
-// hex digit 2: no maker owns it) apart from the card's, which is burnt in (`macOf`). The IP addresses are private (RFC 1918) on the LAN and in the documentation blocks
+// hex digit 2: no real maker owns it); the card's is burnt in (`macOf`), the initials of its invented maker (RL) after the 02. The IP addresses are private (RFC 1918) on the LAN and in the documentation blocks
 // (RFC 5737) beyond it, so no address in the game belongs to a real host. What the PC has, the router's DHCP gave it: it has an address while its link is up (`linkOf`, the jacks' law),
 // and the router's ARP table and the PC's hold one another's. Pure (no Pixi, no DOM): `netAddrs(snapshot)` is the one reading; the NIC's and the router's views, the hover words, the
 // network panel and the lens take it.
@@ -39,8 +39,11 @@ export interface Lan { ip: string; prefix: number; mask: string; net: string; br
 /** The router's WAN side: the public address the plan gives, the ISP's gateway beyond it, and the ISP's name servers. */
 export interface Wan { ip: string; prefix: number; mask: string; mac: string; gateway: Neighbour; dns: string[] }
 
-/** One connection of a job in flight, at its three places: the PC's end on the LAN, the router's end on the WAN (what NAT made of it), and the server's. */
-export interface Conn { jobId: number; dir: 'down' | 'up'; label: string; service: Service; lan: Endpoint; wan: Endpoint; server: Endpoint }
+/**
+ * One connection of a job in flight, at its places: the PC's end on the LAN, the router's end on the WAN (what NAT made of it), and the server's. `peer` is whom the PC addresses on the
+ * LAN wire. It is the server itself, except for DNS: the PC asks its resolver, the router (the name server DHCP gave it), and the router asks the ISP's name server from its own address.
+ */
+export interface Conn { jobId: number; dir: 'down' | 'up'; label: string; service: Service; lan: Endpoint; wan: Endpoint; peer: Endpoint; server: Endpoint }
 
 export interface NetAddrs {
   /** The PC's jacks, the board's first, then the cards in slot order. */
@@ -87,7 +90,7 @@ export const isIp = (s: string): boolean => { const p = s.split('.'); return p.l
 // ---------------------------------------------------------------- what the game's parts are called
 
 /**
- * The LAN each router makes, by tier: a home router a /24, the faster ones larger (the 10G switch-router a /22, the core router a /16). The router takes the first address, the
+ * The LAN each router makes, by tier: a home router a /24, the faster ones larger (the 10G switch-router a /22, the edge router a /16). The router takes the first address, the
  * DHCP pool starts at 100.
  */
 const LAN: Record<number, { base: number; prefix: number }> = {
@@ -155,10 +158,12 @@ export function netAddrs(s: Snapshot | null | undefined): NetAddrs | null {
   const host: Host | null = lan && pc && hostIp ? { iface: pc.id, mac: pc.mac, ip: hostIp, prefix: lan.prefix, mask: lan.mask, gateway: lan.ip, dns: lan.ip, lease: LEASE } : null;
   const conns: Conn[] = host && wan ? n.transfers.map((t) => {
     const service = serviceOf(t.label), key = `${t.jobId}|${t.dir}`;
+    // (a DNS job asks the PC's name server, the router; the router asks the first name server of the plan. Any other job speaks to its own server.)
+    const server: Endpoint = service.name === 'DNS' ? { ip: wan.dns[0]!, port: service.port } : { ip: ipStr(SERVER_NET + 2 + (hash32(`srv|${t.jobId}`) % 250)), port: service.port };
     return {
       jobId: t.jobId, dir: t.dir, label: t.label, service,
       lan: { ip: host.ip, port: 49152 + (hash32(`${key}|lan`) % 16384) }, wan: { ip: wan.ip, port: 1024 + (hash32(`${key}|wan`) % 48000) },
-      server: { ip: ipStr(SERVER_NET + 2 + (hash32(`srv|${t.jobId}`) % 250)), port: service.port },
+      peer: service.name === 'DNS' ? { ip: host.dns, port: service.port } : server, server,
     };
   }) : [];
   const out: NetAddrs = {
@@ -184,12 +189,20 @@ export const ifaceOf = (a: NetAddrs | null, port: string): Iface | undefined => 
 export interface Frame { srcMac: string; dstMac: string; src: Endpoint; dst: Endpoint }
 export function frameOn(a: NetAddrs, c: Conn, wire: 'lan' | 'wan', toward: boolean): Frame | null {
   if (!a.host || !a.lan || !a.wan) return null;
-  const mine = wire === 'lan' ? c.lan : c.wan, near = wire === 'lan' ? { mac: a.host.mac, peer: a.lan.mac } : { mac: a.wan.mac, peer: a.wan.gateway.mac };
+  const mine = wire === 'lan' ? c.lan : c.wan, far = wire === 'lan' ? c.peer : c.server, near = wire === 'lan' ? { mac: a.host.mac, peer: a.lan.mac } : { mac: a.wan.mac, peer: a.wan.gateway.mac };
   // (the near end is the PC on the LAN wire and the router's WAN jack on the other; the far end is the router's LAN jack, and the ISP's gateway)
   return toward
-    ? { srcMac: near.peer, dstMac: near.mac, src: c.server, dst: mine }
-    : { srcMac: near.mac, dstMac: near.peer, src: mine, dst: c.server };
+    ? { srcMac: near.peer, dstMac: near.mac, src: far, dst: mine }
+    : { srcMac: near.mac, dstMac: near.peer, src: mine, dst: far };
 }
 
-/** A connection of the NAT table as one line: the protocol, the PC's address and port, the public address and port the router made of it, and the server's. */
-export const natLine = (c: Conn): string => `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`;
+/** Is the connection answered by the router (the PC's resolver), which asks its own question beyond? DNS is. */
+export const isProxied = (c: Conn): boolean => c.peer.ip !== c.server.ip;
+
+/**
+ * A connection of the NAT table as one line: the protocol, the PC's address and port, the public address and port the router made of it, and the server's. A proxied one (DNS) names the
+ * router's resolver the PC asked before the router's own question: the PC's end, then the router, then the router's WAN end and the name server.
+ */
+export const natLine = (c: Conn): string => isProxied(c)
+  ? `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.peer.ip}:${c.peer.port} | ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`
+  : `${c.service.proto} ${c.lan.ip}:${c.lan.port} > ${c.wan.ip}:${c.wan.port} > ${c.server.ip}:${c.server.port}`;

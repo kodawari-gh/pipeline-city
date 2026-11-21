@@ -216,7 +216,8 @@ export function routerLive(b: Pick<RouterBlock, 'kind' | 'rect'>, a: Rect, s: Ro
         if (!t) return;
         const conn = ad?.conns.find((c) => c.jobId === t.jobId && c.dir === t.dir);
         lit({ ...f.bar, w: f.bar.w * Math.min(1, t.percent / 100) }, t.dir === 'down' ? 'alu' : 'mul', 0.5);
-        txt(f.label, conn ? natLine(conn) : `${t.dir === 'down' ? 'v' : '^'} ${t.label}`, 70); txt(f.pct, `${Math.round(t.percent)}%`, 5);
+        const line = conn ? natLine(conn) : `${t.dir === 'down' ? 'v' : '^'} ${t.label}`;
+        txt(f.label, line, Math.max(70, line.length)); txt(f.pct, `${Math.round(t.percent)}%`, 5);
       });
       if (flows.length > q.flows.length) txt(q.more, `+ ${flows.length - q.flows.length} more`, 20);
       else if (flows.length === 0) txt(q.flows[0]?.label ?? q.more, 'no connection: the table is empty', 36);

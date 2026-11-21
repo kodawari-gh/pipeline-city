@@ -276,7 +276,7 @@ export function advanceBaseTick(this: Game): void {
   const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
   const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
   const boardWasOk = !this.board.burnt;
-  const netLoad = this.activeTransfers() > 0 ? 1 : this.cfg.idleLoad;
+  const netLoad = Math.max(this.cfg.idleLoad, this.netUtilisation());
   this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad, npu: npuLoad }, this.powered, this.fanPower());
   this.meterWall();
   this.syncStorage(); // a drive that burnt out drops off the bus

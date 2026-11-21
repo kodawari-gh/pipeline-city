@@ -33,7 +33,7 @@ describe('what the router shows', () => {
   it('is the router the snapshot has: its tier, its speed and its clients', () => {
     const s = routerShow(game(), new FrameMeter(), 5)!;
     expect([s.tier, s.name, s.ratedMbps, s.clientsMax, s.ms]).toEqual([2, 'Gigabit router', 1000, 4, 5]);
-    expect(routerShow({ ...game(), net: { ...game().net!, router: { ...ROUTER, id: 'router4', name: 'Core router', mbps: 40000, clients: 16 } } }, new FrameMeter(), 0)!.tier).toBe(4);
+    expect(routerShow({ ...game(), net: { ...game().net!, router: { ...ROUTER, id: 'router4', name: 'Edge router', mbps: 40000, clients: 16 } } }, new FrameMeter(), 0)!.tier).toBe(4);
   });
 
   it('links the PC when it is on and plugged, and the line when a plan is on it; the speed on the LAN is the slower of the PC\'s port and the router', () => {

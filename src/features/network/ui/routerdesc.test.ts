@@ -10,7 +10,7 @@ const ROUTERS = [
   { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' },
   { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gigabit' },
   { id: 'router3', name: '10G switch-router', mbps: 10000, clients: 8, visual: 'router-10g' },
-  { id: 'router4', name: 'Core router', mbps: 40000, clients: 16, visual: 'router-core' },
+  { id: 'router4', name: 'Edge router', mbps: 40000, clients: 16, visual: 'router-core' },
 ] as const;
 
 /** A running machine over the router of `tier`, with the cable in the PC's port (or in none) and a plan on the line (or none). */
@@ -47,7 +47,7 @@ describe('the words for the router\'s parts', () => {
 
   it('says what the router is doing now, from the snapshot', () => {
     const s = game(4);
-    expect(describeId('router.soc', s)!.nerd).toMatch(/RL-R740.*8 cores, 2000 MHz.*Core router.*16 clients/);
+    expect(describeId('router.soc', s)!.nerd).toMatch(/RL-R740.*8 cores, 2000 MHz.*Edge router.*16 clients/);
     expect(describeId('router.cpu', s)!.nerd).toMatch(/8 cores, 2000 MHz.*DHCP: 1 lease/);
     expect(describeId('router.pkt', s)!.nerd).toMatch(/1 of 16 clients in service/);
     expect(describeId('router.sw', s)!.nerd).toMatch(/port 1 up at 1 Gbit/);

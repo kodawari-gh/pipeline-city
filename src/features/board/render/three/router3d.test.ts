@@ -27,7 +27,7 @@ describe('the four routers', () => {
       expect(m.size, `tier ${t}`).toEqual({ w, h, depth: ROUTER_BODY });
       expect(b.min.y, `tier ${t} feet on the shelf`).toBeCloseTo(0, 3);
       expect(b.max.y, `tier ${t} top`).toBeGreaterThanOrEqual(h);
-      // (the 10G router is the body alone; the core router has rack ears 200 out at each end; the two aerials of the others lean out, 250 at most)
+      // (the 10G router is the body alone; the edge router has rack ears 200 out at each end; the two aerials of the others lean out, 250 at most)
       const out = t === 3 ? 0 : t === 4 ? 200 : 250;
       expect(b.max.x, `tier ${t} east end`).toBeGreaterThanOrEqual(-1e-6);
       expect(b.max.x, `tier ${t} east end`).toBeLessThanOrEqual(out + 1e-6);
@@ -89,7 +89,7 @@ describe('the front jacks', () => {
         expect(x - RJ.w / 2, `tier ${t} jack ${k} west`).toBeGreaterThan(-w);
         expect(x + RJ.w / 2, `tier ${t} jack ${k} east`).toBeLessThan(0);
         expect(y - RJ.h / 2, `tier ${t} jack ${k} low`).toBeGreaterThan(UNDER);
-        // (the lights: the lowest row sits 100 under the top, 210 on the core router, its strip 46 either side of the middle)
+        // (the lights: the lowest row sits 100 under the top, 210 on the edge router, its strip 46 either side of the middle)
         expect(y + RJ.h / 2, `tier ${t} jack ${k} high`).toBeLessThan(h - (t === 4 ? 210 : 100) - 46);
       }
     }
@@ -132,7 +132,7 @@ describe('the status lights', () => {
     expect(LED_ON).toBeLessThan(2);
   });
 
-  it('are a row of dots (4, 6, 8 and two rows of 8), and a lit bar on the 10G and the core router', () => {
+  it('are a row of dots (4, 6, 8 and two rows of 8), and a lit bar on the 10G and the edge router', () => {
     const want: Record<number, number> = { 1: 4, 2: 6, 3: 8 + 1, 4: 16 + 1 };
     for (const t of TIERS) {
       const m = routerModel(t);

@@ -1,6 +1,6 @@
 // The router as a 3D model (docs/render/net.md "The router"): one builder for the gallery's showcase and its stills, the Build my PC studio's wall
 // (`studiowall3d.ts`) and the room's shelf (`room3d.ts`), so a router reads the same in all three. Four tiers: the home router (two aerials, four lights),
-// the gigabit one (stouter aerials, a satin front, vents), the 10G switch-router (no aerials, a lit bar, fins) and the core router (a rack unit: ears, a
+// the gigabit one (stouter aerials, a satin front, vents), the 10G switch-router (no aerials, a lit bar, fins) and the edge router (a rack unit: ears, a
 // row of SFP cages, two rows of lights). Every tier has the same five front jacks, a real RJ45 each at real size (`rj45jack3d.ts`): the first LAN east,
 // the WAN west, so a cord's plug seats in the same place on every tier. relay makes it (docs/brands/relay.md): its lockup is debossed in the top.
 // The frame: x east, y up (0 is the shelf), z toward the viewer (0 is the front); the east end of the body at x = 0. 23 units a mm (`MM`).
@@ -160,7 +160,7 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   const lg = legend();
   if (lg) sh.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
 
-  // the front's status lights, in a smoked strip: a row (two on the core router) of `dots`
+  // the front's status lights, in a smoked strip: a row (two on the edge router) of `dots`
   const rows = t === 4 ? [h - 210, h - 140] : [h - 100], xs = Array.from({ length: L.dots }, (_, k) => -w + 420 + k * L.step);
   const ly0 = rows[rows.length - 1]! - 46, ly1 = rows[0]! + 46;
   sh.add(softBox(lay(xs[0]! - 150, xs[xs.length - 1]! + 150, ly0, ly1), -10, 8, lens, 28));
@@ -170,7 +170,7 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
     const x1 = routerJack(4)[0] - RJ.w / 2 - 120, top = t === 2 ? 430 : t === 3 ? 520 : 640;
     for (let x = -w + 140; x + 44 <= x1; x += 90) sh.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
   }
-  // (the core router: a row of SFP cages over its jacks, each a steel frame round a dark mouth: a steel of their own, the jacks' is not the shell's)
+  // (the edge router: a row of SFP cages over its jacks, each a steel frame round a dark mouth: a steel of their own, the jacks' is not the shell's)
   if (t === 4) {
     const cage = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
     for (let k = 1; k <= 4; k++) {
@@ -204,7 +204,7 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
       sh.add(softBox(lay(ax - 150, ax + 150, h - 30, h + 70), -D + 110, -D + 380, boot, 24), knuckle, rod(b, tip, rad, aerial, SEG.rod), rod(b, along(b, tip, 340), rad * 1.45, aerial, SEG.rod), cap);
     }
   }
-  // (the core router: a rack unit, ears bolted at the sides, each with its slot)
+  // (the edge router: a rack unit, ears bolted at the sides, each with its slot)
   if (t === 4) {
     for (const [a, b] of [[-w - 200, -w], [0, 200]] as const) {
       const c = (a + b) / 2, slot = outlinePts(lay(c - 55, c + 55, h / 2 - 150, h / 2 + 150), 55);
@@ -222,7 +222,7 @@ interface RearMats { dark: MeshStandardMaterial; steel: MeshStandardMaterial; pl
 
 /**
  * The back panel (seen from the gallery's turntable), the ports along y = 320 from the east: the power input, the console jack and two cages (10G and
- * core), then the reset pinhole and the power button west; the core router adds a mains inlet and a grille over them.
+ * core), then the reset pinhole and the power button west; the edge router adds a mains inlet and a grille over them.
  */
 function rearPanel(g: Group, t: number, w: number, D: number, m: RearMats): void {
   const z = -D, y = 320;

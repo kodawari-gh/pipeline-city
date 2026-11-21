@@ -52,6 +52,18 @@ export function computeLink(this: Game): Link {
   return up;
 }
 
+/**
+ * How much of the uplink port's speed the transfers use now (0..1), the busier way of the two (a port is full duplex). A moving transfer fills the limit that binds, so a
+ * 40G card behind a 50 Mbit plan is at a tiny share of its speed, not at full load: its watts and its heat follow this (`thermal.step`, kind `nic`).
+ */
+export function netUtilisation(this: Game): number {
+  const port = this.link.port.mbps;
+  if (port <= 0) return 0;
+  const down = this.downloads.length > 0 ? this.link.bw.downMbps : 0;
+  const up = this.activeUploads().length > 0 ? this.link.bw.upMbps : 0;
+  return Math.min(1, Math.max(down, up) / port);
+}
+
 /** Spool slots in use: spooled jobs, the key in the port if ingested, and downloads (reserved at start). */
 export function reserved(this: Game): number {
   return this.spool.length + this.rx.length + this.downloads.length + (this.pluggedIngested() ? 1 : 0);

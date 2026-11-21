@@ -5,7 +5,7 @@
 import { getSpec, type NicSpec } from '../../board/sim/specs';
 import type { KeySnap, LinkState, Snapshot, TransferSnap } from '@/worker/game/game';
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec, NET, type Binding } from '../sim/specs';
-import { natLine, netAddrs } from '../render/plan/netaddr';
+import { isProxied, natLine, netAddrs } from '../render/plan/netaddr';
 import { fmtMbit, jackPort, nicsInOrder } from './netdesc';
 import { fmtMoney, fmtTicks, type ChipLevel } from '@/core/ui/logic';
 import type { IconName, PickerLine, Stat } from '../../economy/ui/shop/picker';
@@ -434,11 +434,12 @@ export function addressModel(s: Snapshot): AddrModel {
   }
   if (a.wan) {
     rows.push({ id: 'wan', label: 'Router · WAN', ip: `${a.wan.ip}/${a.wan.prefix}`, mac: a.wan.mac, note: 'The public address the plan gave. NAT swaps the PC\'s address and port for this one on the way out.' });
-    rows.push({ id: 'gateway', label: 'ISP gateway', ip: a.wan.gateway.ip, mac: a.wan.gateway.mac, note: `The first hop on the plan's line. Name servers ${a.wan.dns.join(' and ')}.` });
+    rows.push({ id: 'gateway', label: 'ISP gateway', ip: a.wan.gateway.ip, mac: a.wan.gateway.mac, note: `The first hop on the plan's line. Name servers ${a.wan.dns.join(' and ')}: the router asks them for the PC.` });
   }
   const nat: NatRow[] = a.conns.map((c) => ({
     key: `${c.jobId}${c.dir}`, label: `${c.dir === 'down' ? 'down' : 'up'} ${c.label}`, proto: c.service.proto, server: `${c.server.ip}:${c.server.port}`,
-    ports: `PC :${c.lan.port} > router :${c.wan.port}`, line: natLine(c),
+    // (a DNS query stops at the router's resolver: the router asks the name server itself, from its own port)
+    ports: isProxied(c) ? `PC :${c.lan.port} > router :${c.peer.port} | router :${c.wan.port} > name server` : `PC :${c.lan.port} > router :${c.wan.port}`, line: natLine(c),
   }));
   return { rows, nat };
 }

@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/game/game';
 import type { TransferSnap } from '@/worker/game/types';
 import { dev, snap } from '@/core/ui/testdata';
-import { frameOn, hash32, ifaceOf, ipStr, ipv4, isIp, isMac, maskOf, netAddrs, serviceOf } from './netaddr';
+import { frameOn, hash32, ifaceOf, ipStr, ipv4, isIp, isMac, isProxied, maskOf, netAddrs, serviceOf } from './netaddr';
 
 const ROUTERS = [
   { id: 'router1', name: 'Home router', mbps: 100, clients: 2, visual: 'router-home' },
   { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gigabit' },
   { id: 'router3', name: '10G switch-router', mbps: 10000, clients: 8, visual: 'router-10g' },
-  { id: 'router4', name: 'Core router', mbps: 40000, clients: 16, visual: 'router-core' },
+  { id: 'router4', name: 'Edge router', mbps: 40000, clients: 16, visual: 'router-core' },
 ] as const;
 const flow = (jobId: number, dir: 'down' | 'up', label: string): TransferSnap => ({ jobId, label, dir, totalMB: 100, doneMB: 10, percent: 10, etaTicks: 4, persisted: false });
 
@@ -132,8 +132,8 @@ describe('the addresses of the game', () => {
     expect(nic.ifaces.map((i) => i.plugged)).toEqual([false, true]);
     expect(nic.pc!.id).toBe('eth1');
     // (a card's MAC is the one burnt in its flash)
-    expect(nic.pc!.mac).toBe('00:1B:21:3A:7C:4F');
-    expect(nic.host!.mac).toBe('00:1B:21:3A:7C:4F');
+    expect(nic.pc!.mac).toBe('02:52:4C:3A:7C:4F');
+    expect(nic.host!.mac).toBe('02:52:4C:3A:7C:4F');
     expect(ifaceOf(nic, 'nic9')!.id).toBe('eth1');
     expect(ifaceOf(nic, 'board')!.id).toBe('eth0');
     expect(ifaceOf(nic, 'nope')).toBeUndefined();
@@ -154,10 +154,27 @@ describe('the connections in flight', () => {
       expect(c.lan.port).toBeLessThan(65536);
       expect(c.wan.port).toBeGreaterThanOrEqual(1024);
       expect(c.wan.port).toBeLessThan(49152);
-      expect(c.server.ip).toMatch(/^198\.51\.100\.\d+$/);
+      if (c.service.name !== 'DNS') expect(c.server.ip).toMatch(/^198\.51\.100\.\d+$/);
       expect(c.server.port).toBe(c.service.port);
     }
     expect(a.conns.map((c) => `${c.service.proto}/${c.service.port}`)).toEqual(['TCP/443', 'UDP/53', 'TCP/443']);
+  });
+
+  it('sends a DNS query to the PC\'s name server, the router, which asks the plan\'s name server from its own address', () => {
+    const a = netAddrs(game(2, { flows }))!, dns = a.conns.find((c) => c.service.name === 'DNS')!, web = a.conns.find((c) => c.service.name === 'HTTPS')!;
+    expect(dns.peer).toEqual({ ip: a.host!.dns, port: 53 });
+    expect(a.host!.dns).toBe(a.lan!.ip);
+    expect(dns.server).toEqual({ ip: a.wan!.dns[0], port: 53 });
+    expect(isProxied(dns)).toBe(true);
+    // (any other job speaks to its own server, with nobody between)
+    expect(web.peer).toEqual(web.server);
+    expect(isProxied(web)).toBe(false);
+    // the LAN wire carries the question to the router, the WAN wire the router's own question to the name server
+    const lanOut = frameOn(a, dns, 'lan', false)!, wanOut = frameOn(a, dns, 'wan', false)!, lanIn = frameOn(a, dns, 'lan', true)!, wanIn = frameOn(a, dns, 'wan', true)!;
+    expect([lanOut.src, lanOut.dst]).toEqual([dns.lan, dns.peer]);
+    expect([wanOut.src, wanOut.dst]).toEqual([dns.wan, dns.server]);
+    expect([lanIn.src, lanIn.dst]).toEqual([dns.peer, dns.lan]);
+    expect([wanIn.src, wanIn.dst]).toEqual([dns.server, dns.wan]);
   });
 
   it('keeps each connection the same in every snapshot and apart from the others', () => {

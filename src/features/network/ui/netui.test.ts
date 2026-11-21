@@ -230,7 +230,10 @@ describe('network panel: addresses', () => {
     expect(m.nat.map((r) => r.label)).toEqual(['down #4 db', 'down #7 dns', 'up #4 db']);
     expect(m.nat.map((r) => r.proto)).toEqual(['TCP', 'UDP', 'TCP']);
     expect(m.nat[0]!.server).toMatch(/^198\.51\.100\.\d+:443$/);
-    expect(m.nat[1]!.server).toMatch(/^198\.51\.100\.\d+:53$/);
+    // (a DNS job asks the router's resolver, which asks the plan's first name server itself)
+    expect(m.nat[1]!.server).toBe('203.0.113.53:53');
+    expect(m.nat[1]!.ports).toMatch(/^PC :\d+ > router :53 \| router :\d+ > name server$/);
+    expect(m.nat[1]!.line).toMatch(/^UDP 192\.168\.1\.100:\d+ > 192\.168\.1\.1:53 \| 203\.0\.113\.\d+:\d+ > 203\.0\.113\.53:53$/);
     expect(m.nat[0]!.ports).toMatch(/^PC :\d+ > router :\d+$/);
     expect(m.nat[0]!.line).toMatch(/^TCP 192\.168\.1\.100:\d+ > 203\.0\.113\.\d+:\d+ > 198\.51\.100\.\d+:443$/);
     expect(new Set(m.nat.map((r) => r.key)).size).toBe(3);

@@ -447,7 +447,7 @@ describe("PCIe slot widths", () => {
   it("a card is refused a slot narrower than it needs, and a wider one is fine", () => {
     const b = createBoard(2);
     expect(install(b, "gpu2", "pcie2").ok).toBe(false); // x4
-    expect(install(b, "nic1", "pcie0").ok).toBe(true); // x4 card in the x16 slot
+    expect(install(b, "nic1", "pcie0").ok).toBe(true); // x1 card in the x16 slot
   });
 
   it("upgradeBoard moves the wide card first and refuses a board without a wide enough slot", () => {

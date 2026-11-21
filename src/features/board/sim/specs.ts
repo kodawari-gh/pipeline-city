@@ -376,7 +376,7 @@ export const specList: DeviceSpec[] = [
     clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
     capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14, enduranceBlocks: 20000, queueDepth: 16, mirror: true },
 
-  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", pcieWidth: 4, price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
+  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", pcieWidth: 1, price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "nic-gbe", mbps: 1000 },
   { id: "nic2", kind: "nic", tier: 2, name: "10GbE card", slot: "pcie", pcieWidth: 4, price: 500, idleW: 5, loadW: 11, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 }, visual: "nic-10g", mbps: 10000 },

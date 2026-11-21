@@ -14,7 +14,7 @@ export const ROUTER_SPECS: readonly RouterSpec[] = [
   { id: "router1", tier: 1, name: "Home router", mbps: 100, clients: 2, price: 60, visual: "router-home" },
   { id: "router2", tier: 2, name: "Gigabit router", mbps: 1000, clients: 4, price: 200, visual: "router-gbe" },
   { id: "router3", tier: 3, name: "10G switch-router", mbps: 10000, clients: 8, price: 700, visual: "router-10g" },
-  { id: "router4", tier: 4, name: "Core router", mbps: 40000, clients: 16, price: 2500, visual: "router-core" },
+  { id: "router4", tier: 4, name: "Edge router", mbps: 40000, clients: 16, price: 2500, visual: "router-core" },
 ];
 
 export const ISP_SPECS: readonly IspSpec[] = [

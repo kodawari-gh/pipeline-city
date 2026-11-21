@@ -145,7 +145,7 @@ function dcJack(g: Group, r: RectLike, h: number): void {
   g.add(drum(c.x, c.y, h, h + mm(0.25), ring, dark, SEG.disc), drum(c.x, c.y, h, h + mm(1.4), ring * 0.28, steel, SEG.post));
 }
 
-/** The core router's mains: an inlet (a black shroud with its three pins) over a supply module in a steel can. */
+/** The edge router's mains: an inlet (a black shroud with its three pins) over a supply module in a steel can. */
 function mains(g: Group, inlet: RectLike, psu: RectLike): void {
   const body = mat(0x131518, { roughness: 0.6 }), dark = mat(0x050608, { roughness: 0.8 }), pin = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 });
   g.add(softBox(inlet, 0, mm(17), body, 12), rectBox({ x: inlet.x + inlet.w * 0.12, y: inlet.y + inlet.h * 0.12, w: inlet.w * 0.76, h: inlet.h * 0.76 }, mm(17), mm(17.4), dark));
@@ -223,7 +223,7 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     own('router.radio', hull([fit.radio, ...fit.ufl]), mm(2));
   }
 
-  // the power: the barrel jack (the home, gigabit and 10G routers) or the core router's mains inlet over its supply, the regulator, its inductors and the crystal beside the SoC
+  // the power: the barrel jack (the home, gigabit and 10G routers) or the edge router's mains inlet over its supply, the regulator, its inductors and the crystal beside the SoC
   const power = part('router.power');
   if (fit.psu) mains(power, fit.power, fit.psu); else dcJack(power, fit.power, mm(11));
   pkg(power, fit.reg, 0, mm(0.85), ['PL3A'], { pin1: 'nw' });
