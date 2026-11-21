@@ -1,7 +1,8 @@
 // The NIC's controller as a real chip with its die (docs/render/net.md "Inside the NIC and the router"). A QFN on the gigabit card: a leadframe pad with the die on it, under a cap of
 // black mould; a lidded BGA on the faster cards: a substrate with the die on it, under a nickel lid and the finned sink. Like the CPU's (cpu3d.ts), the die is a block of silicon whose
 // top wears the floorplan (nicplan.ts) in a frame of its own, drawn at the die's scale; the cap or the lid, with the sink on it, fades away as the camera comes in and the die shows.
-// Built in the card's component-side frame (nic3d.ts: a group turned over, layout y as its y, depth off the PCB as its z).
+// Built in the card's component-side frame (nic3d.ts: a group turned over, layout y as its y, depth off the PCB as its z). The Ethernet chip on the motherboard (phychip3d.ts) builds a QFN too, in the
+// board's own frame (not turned over): it gives this the rectangles mirrored in y, which is the same thing.
 import { Group, type Object3D } from 'three';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
@@ -34,10 +35,11 @@ export interface NicChip {
 /**
  * The controller on its pads: `chip` is the package's rectangle (layout, the underside as the card is built: `U` turns it for the group), `qfn` its kind, `zu` the depth of the PCB's
  * underside in the group, `mark` the laser marking. The terminals of a QFN and the sink of a BGA are the caller's: it adds them to `u` and to the returned `lid`. `plan`: the
- * rectangle the die's plan covers in its frame (the card's band, `NicGeo.die`): the frame is placed so the plan's middle lies on the die's.
+ * rectangle the die's plan covers in its frame (the card's band, `NicGeo.die`): the frame is placed so the plan's middle lies on the die's. `o.height`: the QFN's height off the PCB when it is
+ * not the card's 0.9 mm; `o.die`: the die's side (layout units) when it is not the card's (the motherboard's Ethernet chip is a taller package with a bigger pad, phychip3d.ts).
  */
-export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark: readonly string[], U: (r: RectLike) => RectLike, plan: RectLike, floor?: DieFloor): NicChip {
-  const lid = new Group(), side = (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM, scale = side / NIC_DIE.w;
+export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark: readonly string[], U: (r: RectLike) => RectLike, plan: RectLike, floor?: DieFloor, o: { height?: number; die?: number } = {}): NicChip {
+  const lid = new Group(), side = o.die ?? (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM, scale = side / NIC_DIE.w;
   const cx = chip.x + chip.w / 2, cy = chip.y + chip.h / 2, rect = { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
   const silicon = mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 });
   let zTop: number, top: number, dieTop: number;
@@ -48,7 +50,7 @@ export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark
     u.add(softBox(U(rect), zu + 0.12 * MM, zu + 0.4 * MM, silicon, 1));
     dieTop = 0.4 * MM;
     zTop = zu + dieTop;
-    top = 0.9 * MM;
+    top = o.height ?? 0.9 * MM;
     pkg(lid, U(chip), zu, top, mark);
   } else {
     // the substrate, the die on it (flip-chip), the lid over them

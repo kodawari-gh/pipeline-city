@@ -52,9 +52,10 @@ export function nicNear(T: Theme, plan: NicPlan): DieArt {
   names.addChild(label(nicTitle(plan), D.x + 14, sy, 15, T.mute, { weight: '700', a: 0.9 }));
   const legend = new Graphics();
   names.addChild(legend);
-  const widths = NIC_LEGEND.map((e) => 14 + e.text.length * 7.4 + 14);
+  // (a chip with no heat sensor has no heat colour to name)
+  const items = NIC_LEGEND.filter((e) => e.key !== 'bad' || plan.input.heat), widths = items.map((e) => 14 + e.text.length * 7.4 + 14);
   let lx = D.x + D.w - 14 - widths.reduce((n, w) => n + w, 0) + 8;
-  NIC_LEGEND.forEach((e, k) => {
+  items.forEach((e, k) => {
     legend.roundRect(lx, sy - 4, 9, 9, 2).fill({ color: T[e.key] });
     names.addChild(label(e.text, lx + 14, sy, 11, T.mute, { a: 0.9 }));
     lx += widths[k]!;

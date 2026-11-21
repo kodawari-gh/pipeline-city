@@ -1,4 +1,5 @@
-// Words for the parts of the NIC card the board draws when the camera is close (docs/render/net.md "Inside the NIC and the router", render/nic/niclayout.ts): the bodies of the card
+// Words for the parts of the NIC card the board draws when the camera is close (docs/render/net.md "Inside the NIC and the router", render/nic/niclayout.ts; the Ethernet chip on the motherboard is
+// the same die, `board.nic-<part>`: its controller and its blocks only): the bodies of the card
 // (the jack, the gold fingers, the controller, the crystal, the flash, the regulator, the sticker) and the blocks of the controller's die. An id is the PCIe slot and the part:
 // `pcie2.nic-mac`. Pure. It imports nothing from logic.ts (logic.ts imports netdesc.ts, which calls this).
 
@@ -7,21 +8,23 @@ import type { Snapshot } from '@/worker/game/game';
 import type { Description } from '@/core/ui/regions';
 import { NET } from '../sim/specs';
 import { macOf } from '../render/nic/nicmac';
-import { NIC_LINK } from '../render/nic/nicplan';
+import { BOARD_LINK, BOARD_NIC, NIC_LINK, boardLook } from '../render/nic/nicplan';
 import { fmtFrames } from '../render/plan/netmeter';
 import { fmtMbit } from './fmt';
 
-const ID = /^(pcie\d+)\.nic-([a-z]+)$/;
+const ID = /^(pcie\d+|board)\.nic-([a-z]+)$/;
 const KINDS = new Set(['ctl', 'jack', 'edge', 'label', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'nvm', 'xtal', 'vreg', 'temp']);
+/** The parts of the Ethernet chip on the motherboard (`board.nic-mac`): its package and the blocks of its die. It has no jack, flash, crystal or regulator of its own here, and no heat sensor. */
+const BOARD_KINDS = new Set(['ctl', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie']);
 
-/** Is this one of the NIC card's part ids? */
-export const isNicId = (id: string): boolean => { const m = ID.exec(id); return !!m && KINDS.has(m[2]!); };
+/** Is this one of the NIC card's part ids (or one of the motherboard's Ethernet chip)? */
+export const isNicId = (id: string): boolean => { const m = ID.exec(id); return !!m && (m[1] === BOARD_NIC ? BOARD_KINDS : KINDS).has(m[2]!); };
 
-/** The link in words: what the jack's lights say. */
-function linkWords(s: Snapshot | null | undefined, deviceId: string | undefined): string {
+/** The link in words: what the jack's lights say. `onboard`: the jack on the motherboard, not a card's. */
+function linkWords(s: Snapshot | null | undefined, deviceId: string | undefined, onboard = false): string {
   const n = s?.net;
-  if (!n || !deviceId) return 'no game';
-  if (n.port.kind !== 'nic' || n.port.deviceId !== deviceId) return 'no cable in this card';
+  if (!n || (!deviceId && !onboard)) return 'no game';
+  if (onboard ? n.port.kind !== 'board' : n.port.kind !== 'nic' || n.port.deviceId !== deviceId) return onboard ? 'no cable in the board jack' : 'no cable in this card';
   return n.state === 'link-up' || n.state === 'saturated' ? `link up, ${fmtMbit(n.port.mbps)}` : `no link${n.reason ? `: ${n.reason}` : ''}`;
 }
 
@@ -29,13 +32,19 @@ function linkWords(s: Snapshot | null | undefined, deviceId: string | undefined)
 export function describeNicId(id: string, s?: Snapshot | null): Description | null {
   const m = ID.exec(id);
   if (!m || !KINDS.has(m[2]!)) return null;
-  const slot = m[1]!, kind = m[2]!;
-  const dev = s?.devices.find((d) => d.slot === slot && d.kind === 'nic');
-  const spec = dev ? (getSpec(dev.spec) as NicSpec | undefined) : undefined;
-  const plan = spec ? NIC_LINK[spec.visual] : undefined, n = s?.net, here = !!dev && n?.port.kind === 'nic' && n.port.deviceId === dev.id;
-  const name = spec ? spec.name : 'network card', chip = plan ? `${plan.chip}, ${plan.std}` : 'network chip';
+  const slot = m[1]!, kind = m[2]!, onboard = slot === BOARD_NIC;
+  if (onboard && !BOARD_KINDS.has(kind)) return null;
+  const dev = onboard ? undefined : s?.devices.find((d) => d.slot === slot && d.kind === 'nic');
+  const spec = dev ? (getSpec(dev.spec) as NicSpec | undefined) : undefined, mbps = onboard ? s?.board.features.ethernetMbps ?? 0 : 0;
+  const plan = onboard ? BOARD_LINK[boardLook(mbps)] : spec ? NIC_LINK[spec.visual] : undefined, n = s?.net;
+  const here = onboard ? n?.port.kind === 'board' : !!dev && n?.port.kind === 'nic' && n.port.deviceId === dev.id;
+  const name = onboard ? 'onboard Ethernet' : spec ? spec.name : 'network card', chip = plan ? `${plan.chip}, ${plan.std}` : 'network chip';
   switch (kind) {
-    case 'ctl': return {
+    case 'ctl': return onboard ? {
+      title: 'Ethernet controller',
+      plain: 'The chip on the motherboard that does the work of the network port. On one side it speaks to the cable (through the jack on the rear panel). On the other side it speaks to the rest of the board (the queues, the DMA engine and the link to the I/O hub). Zoom in until the mould fades: the die under it shows each part.',
+      nerd: `${name} | ${chip} | soldered to the board`,
+    } : {
       title: 'Network controller',
       plain: 'The chip that does the work of the card. On one side it speaks to the cable (through the jack). On the other side it speaks to your computer (the queues, the DMA engine and the PCIe link). Zoom in until the lid fades: the die under it shows each part.',
       nerd: `${name} | ${chip}${dev ? ` | ${dev.tempC.toFixed(0)} C, ${dev.powerW.toFixed(1)} W` : ''}`,
@@ -57,8 +66,8 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'phy': return {
       title: 'PHY',
-      plain: 'Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage. A card that is too hot falls back to half speed.',
-      nerd: `${plan ? plan.std : 'line standard'} | ${linkWords(s, dev?.id)}${spec ? ` | the card is rated ${fmtMbit(spec.mbps)}` : ''}`,
+      plain: `Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage.${onboard ? (plan?.pairs === 2 ? ' This port is Fast Ethernet: it uses two of the four pairs, one to send and one to receive.' : '') : ' A card that is too hot falls back to half speed.'}`,
+      nerd: `${plan ? plan.std : 'line standard'} | ${linkWords(s, dev?.id, onboard)}${spec ? ` | the card is rated ${fmtMbit(spec.mbps)}` : onboard && mbps > 0 ? ` | the port is rated ${fmtMbit(mbps)}` : ''}`,
     };
     case 'mac': return {
       title: 'MAC',
@@ -67,7 +76,7 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'stats': return {
       title: 'Statistics',
-      plain: 'The counters of the port: how many frames came in and went out since the game started, and how fast they come now. The bars show how much of the line speed the frames use. A card on a slow plan uses a small part of its speed.',
+      plain: `The counters of the port: how many frames came in and went out since the game started, and how fast they come now. The bars show how much of the line speed the frames use. A ${onboard ? 'port' : 'card'} on a slow plan uses a small part of its speed.`,
       nerd: here && n ? `rx ${fmtFrames(n.frames.rx)} frames | tx ${fmtFrames(n.frames.tx)} frames | counted from the bytes the transfers move | the limit now: ${n.bandwidth.binding ?? 'none'}` : 'rx and tx frame counters | counted from the bytes the transfers move | not saved: a loaded game counts from zero',
     };
     case 'rxq': return {
@@ -82,10 +91,14 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'dma': return {
       title: 'DMA engine',
-      plain: 'Moves frames between the card and RAM by itself, so the CPU does not copy each byte. A ring of descriptors says where each frame goes. The left arrow lights while frames come in, the right arrow while frames go out.',
+      plain: `Moves frames between the ${onboard ? 'chip' : 'card'} and RAM by itself, so the CPU does not copy each byte. A ring of descriptors says where each frame goes. The left arrow lights while frames come in, the right arrow while frames go out.`,
       nerd: `descriptor ring | scatter and gather | ${here && n ? `${fmtFrames(n.frames.rx + n.frames.tx)} frames moved since the game started` : 'the OS fetches packets when it wants'}`,
     };
-    case 'pcie': return {
+    case 'pcie': return onboard ? {
+      title: 'Hub link',
+      plain: 'The link from this chip to the I/O hub next to it, and through the hub to the rest of the board. A lane is one pair of wires in each direction. The lanes light with the frames.',
+      nerd: `${plan ? `x${plan.lanes}, ${plan.lanes * 2} pairs` : 'one lane'} | the same frames the jack's lights count`,
+    } : {
       title: 'PCIe interface',
       plain: 'The link to the motherboard through the gold fingers. A lane is one pair of wires in each direction. A faster card needs more lanes. The lanes light with the frames.',
       nerd: `${plan ? `x${plan.lanes}, ${plan.lanes * 2} pairs` : 'lanes by tier'} | the card sits in a PCIe slot`,

@@ -7,10 +7,14 @@
 import { BoxGeometry, DataTexture, Group, Mesh, NearestFilter, SRGBColorSpace, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { headerRect } from '@/core/render/accelart';
+import { FINISH } from '@/core/render/three/artlod';
 import { SEG, drum, instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { lerpHex, mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
+import { nicDie } from '@/features/network/render/nic/nicart';
+import { BOARD_BAND, nicGeo } from '@/features/network/render/nic/niclayout';
+import { BOARD_NIC, boardLook } from '@/features/network/render/nic/nicplan';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BOARD_TIERS } from '../../sim/specs';
 import { buildBoard } from '../boardArt';
@@ -18,13 +22,14 @@ import type { Solid } from '../boardParts';
 import { BD, GEO, M2_SLOTS, PCIE_RAILS, PKG, SOCKET_E } from '../layout/layout';
 import { m2Socket } from '../layout/pins';
 import { hexNum, skinOf } from '../skins';
-import { LV_BOARD, type ArtSet } from './artset3d';
+import { LV_BOARD, LV_DIE, type ArtSet } from './artset3d';
 import { ioCover, slotHardware, type IoFeatures } from './boardhw3d';
 import { ioShield } from './casedetail3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
 import { light, type Spin } from './fans3d';
 import type { JackLamps } from './rj45jack3d';
 import { chipset, coinCell, m2Standoff } from './parts3d';
+import { phyChip, type PhyChip } from './phychip3d';
 import { dimmSlot } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 import { atxSocket, epsSocket, sataPort } from './wires3d';
@@ -103,6 +108,8 @@ export interface Board3D {
   lan: JackLamps | null;
   /** The CPU socket's gold contacts alone (they show only with no CPU on them): a patch that takes the CPU out adds this, one that fits it removes it. */
   contacts: () => Group;
+  /** The Ethernet chip (`GEO.phy`; null on a board with none): its package in `small`, its die's face for the live layer and its mould's fade (phychip3d.ts). */
+  phy: PhyChip | null;
 }
 
 /**
@@ -152,7 +159,14 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   g.add(vrm, vrm2, slotHardware(filled.has('cpu0')));
   // the small parts: the controllers, the crystals (metal cans), the header bodies and the solids
   const can = mat(0xb9babf, { metalness: 0.8, roughness: 0.3 });
-  for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy]) if (r) up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);
+  for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub]) if (r) up(small, r, BOARD_Z, BOARD_Z + CHIP_H, chip, 8);
+  // the Ethernet chip: the package, and under its mould the die with the floorplan (the live layer runs on it: `Chips3D`)
+  let phy: PhyChip | null = null;
+  if (GEO.phy) {
+    const look = boardLook(feat.ethernetMbps), geo = nicGeo(look, BOARD_BAND), baked = art.baker(() => nicDie(T, look, BOARD_BAND));
+    phy = phyChip(GEO.phy, look, `${BOARD_NIC}.nic-ctl`, geo.die, (frame, S) => ({ root: art.surface(frame, baked.bake, geo.die, 1 / S, LV_DIE, FINISH.die).root, z: 3 / S }));
+    small.add(phy.root);
+  }
   for (const r of [GEO.xtalCpu, GEO.xtalPch]) up(small, r, BOARD_Z, BOARD_Z + 60, can, 12);
   for (const h of GEO.hdrs) up(small, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
   small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
@@ -161,5 +175,5 @@ export function boardModel(art: ArtSet, T: Theme, tier = GEO.tier, o: { filled?:
   g.add(drum(GEO.vrmLed.x, GEO.vrmLed.y, BOARD_Z, BOARD_Z + 22, 14, lamp(lights, hexNum(T.st)), SEG.part));
   if (GEO.dbg) g.add(debugDisplay(GEO.dbg, T, lights));
   if (GEO.rgb) g.add(rgbStrip(GEO.rgb, T, lights));
-  return { root: g, sockets, small, lights, lan: shield.lan, contacts: () => buildSolids(solids.filter((x) => x.kind === 'lga'), true, sk.capSleeve) };
+  return { root: g, sockets, small, lights, lan: shield.lan, contacts: () => buildSolids(solids.filter((x) => x.kind === 'lga'), true, sk.capSleeve), phy };
 }

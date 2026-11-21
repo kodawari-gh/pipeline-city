@@ -7,11 +7,11 @@
     "sum": "3e81169c"
   },
   "machine/Group#4": {
-    "meshes": 64,
-    "draws": 60,
-    "verts": 75354,
+    "meshes": 63,
+    "draws": 59,
+    "verts": 74490,
     "instances": 734,
-    "sum": "f5d56be3"
+    "sum": "211cc5e7"
   },
   "machine/Group#47": {
     "meshes": 20,
@@ -68,6 +68,13 @@
     "verts": 1284,
     "instances": 0,
     "sum": "5b6eebb1"
+  },
+  "machine/board.nic-ctl": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1840,
+    "instances": 0,
+    "sum": "b4ef0b1f"
   },
   "machine/cable.atx": {
     "meshes": 2,

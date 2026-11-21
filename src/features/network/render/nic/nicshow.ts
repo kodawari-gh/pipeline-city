@@ -7,6 +7,7 @@ import { getSpec, type NicSpec } from '../../../board/sim/specs';
 import type { Binding } from '../../sim/specs';
 import { linkOf } from '../jackleds';
 import { busy, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
+import { BOARD_NIC } from './nicplan';
 
 /** A transfer in flight on the card: its job's name and how far it is. */
 export interface NicFlow { label: string; percent: number }
@@ -58,18 +59,37 @@ export interface NicShow {
   ms: number;
 }
 
-/** The card in header slot `slot` of the snapshot as the view shows it, or null when the snapshot has no such card. */
+/** What differs from one port to the next: whether the cable is in it, its own speed and state, its heat. */
+interface Port { plugged: boolean; rated: number; burnt: boolean; hot: boolean; tempC: number; throttleC: number; unstableC: number; damageC: number; powerW: number; idleW: number; loadW: number }
+
+/** The port of the card in header slot `slot` (`BOARD_NIC`: the chip on the motherboard, which has no heat of its own in the sim) or null when the snapshot has none. */
+function portOf(s: Snapshot, slot: string): Port | null {
+  const net = s.net;
+  if (slot === BOARD_NIC) {
+    const rated = s.board.features.ethernetMbps;
+    return rated > 0 ? { plugged: net?.port.kind === 'board', rated, burnt: s.board.burnt, hot: false, tempC: 0, throttleC: 0, unstableC: 0, damageC: 0, powerW: 0, idleW: 0, loadW: 0 } : null;
+  }
+  const dev = s.devices.find((d) => d.slot === slot && d.kind === 'nic');
+  if (!dev) return null;
+  const spec = getSpec(dev.spec) as NicSpec | undefined;
+  return {
+    plugged: net?.port.kind === 'nic' && net.port.deviceId === dev.id, rated: spec?.mbps ?? 0, burnt: dev.burnt, hot: dev.throttle < 1,
+    tempC: dev.tempC, throttleC: spec?.thermal.throttleC ?? 0, unstableC: spec?.thermal.unstableC ?? 0, damageC: spec?.thermal.damageC ?? 0,
+    powerW: dev.powerW, idleW: spec?.idleW ?? 0, loadW: spec?.loadW ?? 0,
+  };
+}
+
+/** The card in header slot `slot` of the snapshot as the view shows it (or the chip on the motherboard, `BOARD_NIC`), or null when the snapshot has no such card. */
 export function nicShow(s: Snapshot | null | undefined, slot: string, meter: Pick<FrameMeter, 'rx' | 'tx'>, ms: number): NicShow | null {
-  const dev = s?.devices.find((d) => d.slot === slot && d.kind === 'nic');
-  if (!s || !dev) return null;
-  const spec = getSpec(dev.spec) as NicSpec | undefined, net = s.net, rated = spec?.mbps ?? 0;
-  const plugged = net?.port.kind === 'nic' && net.port.deviceId === dev.id, link = plugged && linkOf(s).pc;
+  const p = s ? portOf(s, slot) : null;
+  if (!s || !p) return null;
+  const net = s.net, { plugged, rated } = p, link = plugged && linkOf(s).pc;
   const mbps = link ? net!.port.mbps : 0, line = lineFrames(mbps), rx = link ? meter.rx : 0, tx = link ? meter.tx : 0;
   const flows = (dir: 'down' | 'up'): NicFlow[] => (plugged ? (net?.transfers ?? []).filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent })) : []);
   return {
-    powered: s.powered && !s.power.tripped, plugged, link, state: net?.state ?? 'no-device', reason: net?.reason ?? null, mbps, rated, burnt: dev.burnt, hot: dev.throttle < 1,
-    tempC: dev.tempC, throttleC: spec?.thermal.throttleC ?? 0, unstableC: spec?.thermal.unstableC ?? 0, damageC: spec?.thermal.damageC ?? 0,
-    powerW: dev.powerW, idleW: spec?.idleW ?? 0, loadW: spec?.loadW ?? 0,
+    powered: s.powered && !s.power.tripped, plugged, link, state: net?.state ?? 'no-device', reason: net?.reason ?? null, mbps, rated, burnt: p.burnt, hot: p.hot,
+    tempC: p.tempC, throttleC: p.throttleC, unstableC: p.unstableC, damageC: p.damageC,
+    powerW: p.powerW, idleW: p.idleW, loadW: p.loadW,
     rx, tx, rxTotal: plugged ? net?.frames.rx ?? 0 : 0, txTotal: plugged ? net?.frames.tx ?? 0 : 0, rxLoad: loadOf(rx, line), txLoad: loadOf(tx, line), rxAct: busy(rx, line), txAct: busy(tx, line),
     downs: flows('down'), ups: flows('up'), waiting: plugged ? net?.uploadsWaiting ?? 0 : 0, offers: plugged ? net?.offers.length ?? 0 : 0,
     binding: plugged ? net?.bandwidth.binding ?? null : null, limitMbps: plugged ? net?.bandwidth.downMbps ?? 0 : 0,

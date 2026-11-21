@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/game/game';
 import { describeId } from '@/core/ui/logic';
-import { dev, snap } from '@/core/ui/testdata';
+import { boardSnap, dev, snap } from '@/core/ui/testdata';
 import { setLayoutTier } from '../../board/render/layout/layout';
-import { nicIds } from '../render/nic/niclayout';
+import { boardNicIds, nicIds } from '../render/nic/niclayout';
 import { isNicId } from './nicdesc';
 
 const CARDS = [['nic1', 'nic-gbe', 1000], ['nic2', 'nic-10g', 10000], ['nic3', 'nic-40g', 40000]] as const;
@@ -78,5 +78,89 @@ describe('the words for the network card\'s parts', () => {
     for (const id of ['pcie1.mac', 'pcie1.regs', 'pcie1.pcie']) expect(isNicId(id), id).toBe(false);
     expect(isNicId('pcie0.nic-mac')).toBe(true);
     expect(isNicId('pcie12.nic-dma')).toBe(true);
+  });
+});
+
+/** A running machine on a board of tier `tier` (100 Mbit below the Enthusiast board's 1000), the cable in the board's jack (or in none), over a router. */
+function boardGame(tier: number, plugged = true): Snapshot {
+  const base = snap(), b = boardSnap({ tier }), mbps = b.features.ethernetMbps;
+  return snap({
+    powered: true, power: { ...base.power, tripped: false }, board: b,
+    net: {
+      ...base.net!, state: plugged ? 'link-up' : 'no-cable', reason: plugged ? null : 'no cable', port: plugged ? { kind: 'board', deviceId: null, mbps } : { kind: null, deviceId: null, mbps: 0 }, router: ROUTER,
+      isp: { id: 'isp5', name: 'Backbone', downMbps: 20000, upMbps: 10000, clients: 32 }, bandwidth: { downMbps: 100, upMbps: 100, clients: 16, binding: 'port' },
+      transfers: [{ jobId: 4, label: '#4 db', dir: 'down', totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false }], uploadsWaiting: 2, frames: { rx: 123456, tx: 61728 }, counters: { delivered: 9, downloaded: 11, uploaded: 7, lost: 0 },
+    },
+  });
+}
+
+describe('the words for the Ethernet chip on the motherboard', () => {
+  setLayoutTier(3, 3);
+
+  it('describes every part its die has, on both looks, with the board in the game and without a game', () => {
+    for (const [tier, look] of [[1, 'board-fe'], [3, 'board-ge']] as const) {
+      const ids = boardNicIds(look);
+      expect(ids.length, look).toBe(8);
+      for (const id of ids) {
+        expect(isNicId(id), id).toBe(true);
+        for (const d of [describeId(id, boardGame(tier)), describeId(id, boardGame(tier, false)), describeId(id, snap()), describeId(id)]) {
+          expect(d, `${look} ${id}`).not.toBeNull();
+          expect(d!.title.length, `${id} title`).toBeGreaterThan(2);
+          expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
+          expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+        }
+      }
+    }
+  });
+
+  it('says what the port is doing now, from the snapshot', () => {
+    const s = boardGame(3);
+    expect(describeId('board.nic-ctl', s)!.title).toBe('Ethernet controller');
+    expect(describeId('board.nic-ctl', s)!.nerd).toMatch(/onboard Ethernet \| RL-E111, 1000BASE-T \| soldered to the board/);
+    expect(describeId('board.nic-phy', s)!.nerd).toMatch(/1000BASE-T.*link up, 1 Gbit.*the port is rated 1 Gbit/);
+    expect(describeId('board.nic-stats', s)!.nerd).toMatch(/rx 123 k frames.*tx 62 k frames/);
+    expect(describeId('board.nic-rxq', s)!.nerd).toMatch(/1 downloads in flight.*11 downloaded/);
+    expect(describeId('board.nic-txq', s)!.nerd).toMatch(/0 uploads in flight.*2 results wait.*7 uploaded/);
+    expect(describeId('board.nic-dma', s)!.nerd).toMatch(/185 k frames moved/);
+    // the host link goes to the hub, one lane: not the card's PCIe edge
+    expect(describeId('board.nic-pcie', s)!.title).toBe('Hub link');
+    expect(describeId('board.nic-pcie', s)!.nerd).toMatch(/^x1, 2 pairs/);
+  });
+
+  it('names the speed of the board it is on, and the pairs a Fast Ethernet port uses', () => {
+    const fast = boardGame(1), gig = boardGame(3);
+    expect(describeId('board.nic-ctl', fast)!.nerd).toMatch(/RL-E100, 100BASE-TX/);
+    expect(describeId('board.nic-phy', fast)!.nerd).toMatch(/100BASE-TX.*link up, 100 Mbit.*the port is rated 100 Mbit/);
+    expect(describeId('board.nic-phy', fast)!.plain).toMatch(/two of the four pairs/);
+    expect(describeId('board.nic-phy', gig)!.plain).not.toMatch(/two of the four pairs/);
+    // (the card's PHY warns of heat; the board's has no sensor to say it by)
+    expect(describeId('board.nic-phy', gig)!.plain).not.toMatch(/too hot/);
+  });
+
+  it('says so when the cable is not in the board\'s jack, and gives the plan\'s own words with no game', () => {
+    expect(describeId('board.nic-phy', boardGame(3, false))!.nerd).toMatch(/no cable in the board jack/);
+    expect(describeId('board.nic-stats', boardGame(3, false))!.nerd).toMatch(/counters/);
+    // (a cable in a card is no cable in the board's jack)
+    const card = game('nic2', 10000);
+    card.board = boardSnap({ tier: 3 });
+    expect(describeId('board.nic-phy', card)!.nerd).toMatch(/no cable in the board jack/);
+    expect(describeId('board.nic-stats', card)!.nerd).toMatch(/counters/);
+    expect(describeId('board.nic-phy')!.nerd).toMatch(/no game/);
+    expect(describeId('board.nic-pcie')!.nerd).toMatch(/^x1, 2 pairs/);
+  });
+
+  it('has none of the card\'s bodies, and keeps the card\'s words when the card is in the game too', () => {
+    for (const k of ['jack', 'edge', 'label', 'nvm', 'xtal', 'vreg', 'temp', 'nonsense', '']) {
+      const id = `board.nic-${k}`;
+      expect(isNicId(id), id).toBe(false);
+      expect(describeId(id, boardGame(3)), id).toBeNull();
+    }
+    expect(isNicId('board.nic-mac')).toBe(true);
+    expect(isNicId('boardx.nic-mac')).toBe(false);
+    const s = game('nic2', 10000);
+    s.board = boardSnap({ tier: 3 });
+    expect(describeId('pcie1.nic-pcie', s)!.title).toBe('PCIe interface');
+    expect(describeId('board.nic-pcie', s)!.title).toBe('Hub link');
+    expect(describeId('pcie1.nic-temp', s)).not.toBeNull();
   });
 });

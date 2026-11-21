@@ -55,6 +55,20 @@ describe('the parts of the symbols', () => {
     expect(inside(q.note, a)).toBe(true);
   });
 
+  it('draws only the pairs a standard uses: a Fast Ethernet chip has two, each row as tall as a four-pair chip\'s and more apart', () => {
+    const a = area('phy'), four = phyGeom(a), two = phyGeom(a, 2);
+    expect(two.pairs.map((p) => p.name)).toEqual(['A', 'B']);
+    for (const p of two.pairs) { expect(p.stages.length).toBe(PHY_STAGES.length); for (const s of p.stages) expect(inside(s, a)).toBe(true); expect(apart(p.stages[0]!, two.gauge)).toBe(true); }
+    expect(two.pairs[1]!.cy - two.pairs[0]!.cy).toBeGreaterThan(four.pairs[1]!.cy - four.pairs[0]!.cy);
+    expect(two.pairs[0]!.stages[0]!.h).toBe(four.pairs[0]!.stages[0]!.h);
+  });
+
+  it('lights a Fast Ethernet chip\'s PHY on its two pairs only, with its own standard', () => {
+    const fe = nicPlan('board-fe'), blk = fe.blocks.find((b) => b.id === 'phy')!, a = nicGlyphArea(blk)!, q = phyGeom(a, 2), l = nicLive(blk, a, show({ ...BUSY, mbps: 100, rated: 100 }), fe.input);
+    expect(l.lit.filter((x) => x.rect.h <= q.pairs[0]!.stages[0]!.h + 0.01 && x.rect.y < q.gauge.y).length).toBe(6);
+    expect(l.texts[0]!.top).toMatch(/LINK 100 Mb/);
+  });
+
   it('draws the frame as its six fields, side by side, and the two lanes under it', () => {
     const a = area('mac'), q = macGeom(a);
     expect(q.fields.length).toBe(FRAME_FIELDS.length);

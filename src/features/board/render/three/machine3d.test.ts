@@ -6,9 +6,10 @@ import { findById, idOf, ownerOf, pick, shown } from '@/core/render/three/pick';
 import { LIMITS, applyView, fitRect } from '@/core/render/three/camera';
 import { drawnMeshes } from '@/core/render/three/partlod';
 import { BOARD_Z, CASE_FRONT } from '@/features/room/render/three/roomplan';
-import { BD, CASE as CASE_RECT, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y } from '../layout/layout';
+import { BD, CASE as CASE_RECT, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, GEO, setLayoutTier } from '../layout/layout';
 import type { Machine3D } from './machine3d';
 import { LOD_CEIL } from './buildmode3d';
+import { CHIP_H } from './solids3d';
 import { buildMachine, quietCanvas } from './testutil';
 
 quietCanvas();
@@ -376,5 +377,55 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       now.holdDetail([], ceil);
       expect(drawnMeshes(now.root)).toBe(far);
     });
+  });
+});
+
+describe('Machine3D Ethernet chip on the motherboard', () => {
+  const lids = (m: Machine3D) => m.apart.filter((g) => idOf(g) === 'board.nic-ctl');
+  const cam = (c: Vector3, d: number) => { const k = new PerspectiveCamera(40, 16 / 9, 10, 200000); k.position.set(c.x, c.y, c.z + d); k.lookAt(c); k.updateMatrixWorld(); return k; };
+
+  it('stands as a chip with a die on a board with a jack: its mould fades alone, and a flight rail leads to its die', { timeout: 60_000 }, () => {
+    for (const merge of [false, true]) {
+      const s = game().snapshot(), m = build(s, merge), g = GEO.phy!;
+      expect(s.board.features.ethernetMbps, 'the maxed board has a jack').toBeGreaterThan(0);
+      expect(lids(m), `merge ${merge}`).toHaveLength(1);
+      const rails = m.rails.filter((r) => r.id === 'board.nic-ctl');
+      expect(rails, `merge ${merge}`).toHaveLength(1);
+      const r = rails[0]!;
+      // over the chip, as wide as its pad, at the die's face between the board and the mould's top
+      expect(r.rect.x + r.rect.w / 2).toBeCloseTo(g.x + g.w / 2, 3);
+      expect(r.rect.y + r.rect.h / 2).toBeCloseTo(g.y + g.h / 2, 3);
+      expect(r.rect.w).toBeCloseTo(Math.min(g.w, g.h) - 23, 3);
+      expect(r.z).toBeGreaterThan(BOARD_Z);
+      expect(r.z).toBeLessThan(BOARD_Z + CHIP_H);
+      expect(r.zoom).toBeGreaterThan(0);
+      // a hover on its parts is the part, whatever the card state
+      for (const id of ['board.nic-ctl', 'board.nic-mac', 'board.nic-dma']) expect(m.pickId(id), id).toBe(id);
+      expect(findById(m.root, 'board.nic-ctl')).not.toBeNull();
+    }
+  });
+
+  it('shows the mould from the board view and the floorplan from the die\'s: the lid fades with the camera', { timeout: 60_000 }, () => {
+    const s = game().snapshot(), m = build(s, true), lid = lids(m)[0]!, at = aim(m, lid), r = m.rails.find((x) => x.id === 'board.nic-ctl')!;
+    m.lod(cam(at, 30000), 1080, 1);
+    expect(lid.visible).toBe(true);
+    expect(opacityOf(lid)).toBeCloseTo(1, 6);
+    // (twice the zoom the rail flies to: a flight ends with the mould gone)
+    m.lod(cam(at, 1080 / (2 * Math.tan((20 * Math.PI) / 180) * r.zoom * 2)), 1080, 1);
+    expect(lid.visible).toBe(false);
+  });
+
+  it('has no chip on a board with no jack: no mould, no rail, no part', { timeout: 60_000 }, () => {
+    // (the layout follows the board: the game's start has the first tier's board, which has no chip. The default layout of these tests is the second tier's)
+    const s = new Game({ seed: 1, sandbox: true, preassembled: true }).snapshot();
+    setLayoutTier(s.boardTier, s.caseTier);
+    try {
+      const m = build(s, true);
+      expect(s.board.features.ethernetMbps).toBe(0);
+      expect(GEO.phy).toBeNull();
+      expect(lids(m)).toHaveLength(0);
+      expect(m.rails.some((r) => r.id.startsWith('board.'))).toBe(false);
+      expect(findById(m.root, 'board.nic-ctl')).toBeNull();
+    } finally { setLayoutTier(2, 2); }
   });
 });

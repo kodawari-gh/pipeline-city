@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/game/game';
 import type { TransferSnap } from '@/worker/game/types';
-import { dev, snap } from '@/core/ui/testdata';
+import { boardSnap, dev, snap } from '@/core/ui/testdata';
 import { FrameMeter, lineFrames } from '../plan/netmeter';
+import { BOARD_NIC } from './nicplan';
 import { nicShow } from './nicshow';
 
 const ROUTER = { id: 'router2', name: 'Gigabit router', mbps: 1000, clients: 4, visual: 'router-gbe' };
@@ -92,5 +93,61 @@ describe('what the card shows', () => {
     expect(s.damageC).toBeGreaterThan(s.unstableC);
     expect(s.unstableC).toBeGreaterThan(s.throttleC);
     expect(nicShow(game({ burnt: true }), 'pcie1', new FrameMeter(), 0)!.burnt).toBe(true);
+  });
+});
+
+/** A running machine on a board of tier `tier` (100 Mbit ports below the Enthusiast board's 1000), the cable in the board jack (or not), over a router and a plan. */
+function boardGame(o: { tier?: number; plugged?: boolean; on?: boolean; burnt?: boolean; card?: boolean } = {}): Snapshot {
+  const { tier = 3, plugged = true, on = true, burnt = false, card = false } = o, base = snap(), b = boardSnap({ tier, burnt });
+  const mbps = b.features.ethernetMbps;
+  return snap({
+    powered: on, power: { ...base.power, tripped: false }, board: b,
+    devices: card ? [dev({ id: 'n1', spec: 'nic2', kind: 'nic', slot: 'pcie1', tempC: 41, powerW: 6.5 })] : [],
+    net: {
+      ...base.net!, state: 'link-up', reason: null, port: plugged ? { kind: 'board', deviceId: null, mbps: burnt ? 0 : mbps } : { kind: null, deviceId: null, mbps: 0 },
+      router: ROUTER, isp: ISP, bandwidth: { downMbps: 100, upMbps: 50, clients: 4, binding: 'port' },
+      transfers: [flow('down', '#5 hash', 30)], frames: { rx: 7000, tx: 3500 }, counters: { delivered: 3, downloaded: 7, uploaded: 5, lost: 0 },
+    },
+  });
+}
+
+describe('what the chip on the motherboard shows', () => {
+  it('is the board\'s port: its own speed is the rating, and the cable is in it when the net says so', () => {
+    const m = Object.assign(new FrameMeter(), { rx: 500, tx: 100 });
+    for (const tier of [1, 2, 3]) {
+      const s = nicShow(boardGame({ tier }), BOARD_NIC, m, 9)!, mbps = tier === 3 ? 1000 : 100;
+      expect([s.plugged, s.link, s.rated, s.mbps, s.burnt, s.ms], `tier ${tier}`).toEqual([true, true, mbps, mbps, false, 9]);
+      expect([s.rxTotal, s.txTotal, s.rx, s.tx], `tier ${tier}`).toEqual([7000, 3500, 500, 100]);
+      expect(s.downs.map((f) => f.label), `tier ${tier}`).toEqual(['#5 hash']);
+      expect(s.binding, `tier ${tier}`).toBe('port');
+    }
+  });
+
+  it('has nothing on a board with no jack, in no game, or with the cable in no port; and no counters with the cable in a card', () => {
+    const m = new FrameMeter();
+    expect(nicShow(boardGame({ tier: 0 }), BOARD_NIC, m, 0)).toBeNull();
+    expect(nicShow(null, BOARD_NIC, m, 0)).toBeNull();
+    const out = nicShow(boardGame({ plugged: false }), BOARD_NIC, Object.assign(new FrameMeter(), { rx: 500, tx: 100 }), 0)!;
+    expect([out.plugged, out.link, out.mbps, out.rx, out.rxTotal, out.downs.length]).toEqual([false, false, 0, 0, 0, 0]);
+    // the cable in a card: this is the card's port, not the board's
+    const card = game();
+    card.board = boardSnap({ tier: 3 });
+    expect(nicShow(card, BOARD_NIC, m, 0)!.plugged).toBe(false);
+    expect(nicShow(card, 'pcie1', m, 0)!.plugged).toBe(true);
+  });
+
+  it('loses the link with the machine off, and shows a dead board as burnt out', () => {
+    expect(nicShow(boardGame({ on: false }), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({ plugged: true, link: false, mbps: 0 });
+    expect(nicShow(boardGame({ burnt: true }), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({ burnt: true, link: false, mbps: 0 });
+  });
+
+  it('has no heat of its own: the sim keeps no temperature for it, so it is never hot and draws nothing the card way', () => {
+    const s = nicShow(boardGame(), BOARD_NIC, new FrameMeter(), 0)!;
+    expect([s.hot, s.tempC, s.throttleC, s.unstableC, s.damageC, s.powerW, s.idleW, s.loadW]).toEqual([false, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('leaves the card\'s port as it was when a board has a jack too', () => {
+    const s = nicShow(boardGame({ card: true, plugged: false }), 'pcie1', new FrameMeter(), 0)!;
+    expect([s.plugged, s.rated, s.tempC]).toEqual([false, 10000, 41]);
   });
 });

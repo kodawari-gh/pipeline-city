@@ -1,5 +1,5 @@
 import { BD, NIC_LEN, nicJack, nicY, type Rect } from '../../../board/render/layout/layout';
-import { NIC_DIE, nicPlan, type NicPlan } from './nicplan';
+import { BOARD_LINK, BOARD_NIC, NIC_DIE, nicPlan, type NicPlan } from './nicplan';
 
 // The NIC card in board space (docs/render/net.md "Inside the NIC and the router"). The card is built in 3D, part by part (board/render/three/nic3d.ts). It stands in its slot with its
 // parts down, as every card does in a tower. Up close it folds down flat to the north, over its slot's line, its component side up: its fingers stay at its slot, its bracket west. Only
@@ -28,10 +28,13 @@ export const nicBuildRect = (slot: number, visual: string): Rect => folded(nicFa
 /** The distance between two cards' bands in the die's frame (plan units): wider than a plan. */
 export const NIC_BAND = 1000;
 
+/** The band of the Ethernet chip on the motherboard (`BOARD_LINK`): past the four slots' cards, so it never shares a drawing with one. */
+export const BOARD_BAND = 8;
+
 export interface NicGeo {
   visual: string;
-  /** The card's flat strip (`nicFaceRect`). */
-  face: Rect;
+  /** The card's flat strip (`nicFaceRect`); null for the chip on the motherboard, which has no card. */
+  face: Rect | null;
   /** Where the die's plan (0, 0) lies in its frame: the card's band. Plan units are the frame's units. */
   origin: { x: number; y: number };
   /** The die's rectangle in its frame: what the live layer and the baked floorplan cover. */
@@ -41,11 +44,11 @@ export interface NicGeo {
 
 const cache = new Map<string, NicGeo>();
 
-/** The geometry of the controller of the card of look `visual` in PCIe slot `slot`. */
+/** The geometry of the controller of the card of look `visual` in PCIe slot `slot` (the chip on the motherboard: its look, `BOARD_BAND`). */
 export function nicGeo(visual: string, slot: number): NicGeo {
   const key = `${visual}|${slot}`, hit = cache.get(key);
   if (hit) return hit;
-  const origin = { x: slot * NIC_BAND, y: 0 }, geo: NicGeo = { visual, face: nicFaceRect(slot, visual), origin, die: { x: origin.x, y: origin.y, w: NIC_DIE.w, h: NIC_DIE.h }, plan: nicPlan(visual) };
+  const origin = { x: slot * NIC_BAND, y: 0 }, geo: NicGeo = { visual, face: visual in BOARD_LINK ? null : nicFaceRect(slot, visual), origin, die: { x: origin.x, y: origin.y, w: NIC_DIE.w, h: NIC_DIE.h }, plan: nicPlan(visual) };
   cache.set(key, geo);
   return geo;
 }
@@ -64,3 +67,6 @@ export const NIC_BODIES = ['nic-jack', 'nic-edge', 'nic-xtal', 'nic-nvm', 'nic-v
 
 /** The ids of every part of a card in PCIe slot `slot` (its id, e.g. `pcie2`), for the hover table and its test: the 3D bodies and the die's blocks. */
 export const nicIds = (visual: string, slotId: string, slot: number): string[] => [...NIC_BODIES, ...nicParts(nicGeo(visual, slot)).map((p) => p.id)].map((id) => `${slotId}.${id}`);
+
+/** The ids of every part of the Ethernet chip on the motherboard of look `visual` (`board.nic-ctl` and the blocks of its die): the same, for the hover table and its test. */
+export const boardNicIds = (visual: string): string[] => nicParts(nicGeo(visual, BOARD_BAND)).map((p) => `${BOARD_NIC}.${p.id}`);

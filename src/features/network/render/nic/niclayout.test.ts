@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier, type Rect } from '../../../board/render/layout/layout';
-import { NIC_BAND, NIC_BODIES, NIC_FACE, folded, moveBy, nicBuildRect, nicFaceRect, nicGeo, nicIds, nicParts } from './niclayout';
+import { BOARD_BAND, NIC_BAND, NIC_BODIES, NIC_FACE, boardNicIds, folded, moveBy, nicBuildRect, nicFaceRect, nicGeo, nicIds, nicParts } from './niclayout';
 import { NIC_DIE, nicInput } from './nicplan';
 
 const VISUALS = ['nic-gbe', 'nic-10g', 'nic-40g'];
@@ -112,5 +112,47 @@ describe('the parts of the card that a pointer can meet', () => {
 
   it('moves a rectangle by the band\'s origin', () => {
     expect(moveBy({ x: 10, y: 20, w: 30, h: 40 }, { x: 2000, y: 0 })).toEqual({ x: 2010, y: 20, w: 30, h: 40 });
+  });
+});
+
+describe('the Ethernet chip on the motherboard', () => {
+  setLayoutTier(3, 3);
+  const LOOKS = ['board-fe', 'board-ge'];
+
+  it('has a band of its own in the die frame, past the cards\' slots, and no flat strip', () => {
+    expect(BOARD_BAND).toBeGreaterThan(3);
+    for (const v of LOOKS) {
+      const g = nicGeo(v, BOARD_BAND);
+      expect(g.face, v).toBeNull();
+      expect(g.origin, v).toEqual({ x: BOARD_BAND * NIC_BAND, y: 0 });
+      expect(g.die, v).toEqual({ x: BOARD_BAND * NIC_BAND, y: 0, w: NIC_DIE.w, h: NIC_DIE.h });
+      expect(g.plan.input, v).toBe(nicInput(v));
+      for (const slot of [0, 1, 2, 3]) expect(apart(g.die, nicGeo('nic-gbe', slot).die), `${v} ${slot}`).toBe(true);
+    }
+    // the cards keep their strip, the two looks are two plans
+    for (const v of VISUALS) expect(nicGeo(v, 1).face, v).not.toBeNull();
+    expect(nicGeo('board-fe', BOARD_BAND).plan).not.toBe(nicGeo('board-ge', BOARD_BAND).plan);
+    expect(nicGeo('board-ge', BOARD_BAND)).toBe(nicGeo('board-ge', BOARD_BAND));
+  });
+
+  it('has an id for every block of its die with the board in front, none twice, and none of a card\'s bodies or heat sensor', () => {
+    for (const v of LOOKS) {
+      const ids = boardNicIds(v);
+      expect(new Set(ids).size, v).toBe(ids.length);
+      expect(ids.every((i) => i.startsWith('board.nic-')), v).toBe(true);
+      expect(ids, v).toEqual(expect.arrayContaining(['board.nic-ctl', 'board.nic-phy', 'board.nic-mac', 'board.nic-stats', 'board.nic-rxq', 'board.nic-txq', 'board.nic-dma', 'board.nic-pcie']));
+      expect(ids, v).not.toContain('board.nic-temp');
+      for (const b of NIC_BODIES) expect(ids, `${v} ${b}`).not.toContain(`board.${b}`);
+      expect(ids.length, v).toBe(8);
+    }
+  });
+
+  it('keeps the blocks inside its die, apart, with the frame larger than any block it holds', () => {
+    for (const v of LOOKS) {
+      const g = nicGeo(v, BOARD_BAND), parts = nicParts(g), leaves = parts.filter((p) => p.id !== 'nic-ctl'), ctl = parts.find((p) => p.id === 'nic-ctl')!.rect;
+      for (const p of parts) expect(inside(p.rect, g.die), `${v} ${p.id}`).toBe(true);
+      for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) expect(apart(leaves[i]!.rect, leaves[j]!.rect), `${v} ${leaves[i]!.id} / ${leaves[j]!.id}`).toBe(true);
+      for (const p of leaves) expect(p.rect.w * p.rect.h, `${v} ${p.id}`).toBeLessThan(ctl.w * ctl.h);
+    }
   });
 });

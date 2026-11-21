@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NIC_LANES } from '../../../board/render/three/niccopper';
-import { NIC_DIE, NIC_LINK, nicInput, nicPlan, type NicBlockKind } from './nicplan';
+import { BOARD_LINK, NIC_DIE, NIC_LINK, boardLook, nicInput, nicPlan, type NicBlockKind } from './nicplan';
 import { nicRoute, BLOCKS } from './nicroute';
 import type { Rect } from '../plan/netplan';
 
@@ -78,6 +78,51 @@ describe('the controller\'s die as a floorplan', () => {
     expect(NIC_LINK['nic-gbe']!.ring).toBeLessThan(NIC_LINK['nic-40g']!.ring);
     expect(nicPlan('nic-gbe').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x1');
     expect(nicPlan('nic-40g').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x8');
+  });
+});
+
+describe('the Ethernet chip on the motherboard', () => {
+  const BOARD = Object.keys(BOARD_LINK);
+
+  it('has two looks, by the port speed, apart from the cards\' three', () => {
+    expect(BOARD).toEqual(['board-fe', 'board-ge']);
+    expect(boardLook(100)).toBe('board-fe');
+    expect(boardLook(1000)).toBe('board-ge');
+    for (const v of BOARD) { expect(NIC_LINK[v], v).toBeUndefined(); expect(nicInput(v), v).toBe(BOARD_LINK[v]); }
+    // a Fast Ethernet port uses two of the four pairs: one to send, one to receive
+    expect(BOARD_LINK['board-fe']!.pairs).toBe(2);
+    expect(BOARD_LINK['board-ge']!.pairs).toBe(4);
+    expect(new Set(BOARD.map((v) => BOARD_LINK[v]!.chip)).size).toBe(2);
+    expect(BOARD_LINK['board-fe']!.std).toBe('100BASE-TX');
+    expect(BOARD_LINK['board-ge']!.std).toBe('1000BASE-T');
+  });
+
+  it('is the cards\' die without the heat sensor, its host link going to the I/O hub, square and in order', () => {
+    for (const v of BOARD) {
+      const p = nicPlan(v), ids = p.blocks.map((b) => b.id), leaves = p.blocks.filter((b) => b.kind !== 'ctl');
+      expect(p.die, v).toEqual({ x: 0, y: 0, w: NIC_DIE.w, h: NIC_DIE.h });
+      expect(ids, v).toEqual(expect.arrayContaining(['ctl', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie']));
+      expect(ids, v).not.toContain('temp');
+      expect(p.links.map((l) => l.id), v).not.toContain('temp-dma');
+      expect(p.links.length, v).toBe(7);
+      expect(p.blocks.find((b) => b.id === 'pcie')!.sub, v).toBe('to the I/O hub');
+      expect(p.blocks.find((b) => b.id === 'pcie')!.label, v).toBe('PCIe x1');
+      for (const b of p.blocks) expect(inside(b.rect, p.die), `${v} ${b.id}`).toBe(true);
+      for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) expect(apart(leaves[i]!.rect, leaves[j]!.rect), `${v} ${leaves[i]!.id} / ${leaves[j]!.id}`).toBe(true);
+      // the two blocks of the bottom row share it: the host link takes the room the heat sensor leaves
+      const r = (k: string) => p.blocks.find((b) => b.id === k)!.rect;
+      expect(r('dma').x, v).toBeLessThan(r('pcie').x);
+      expect(r('pcie').x + r('pcie').w, v).toBeGreaterThan(r('rxq').x + r('rxq').w - 1);
+    }
+    // the cards keep theirs
+    for (const v of VISUALS) { expect(NIC_LINK[v]!.heat, v).toBe(true); expect(nicPlan(v).blocks.map((b) => b.id), v).toContain('temp'); }
+  });
+
+  it('takes a frame the cards\' way through the die', () => {
+    for (const v of BOARD) {
+      expect(nicRoute(nicPlan(v), 'rx').map((h) => h.link.id), v).toEqual(['phy-mac', 'mac-rxq', 'rxq-dma', 'dma-pcie']);
+      expect(nicRoute(nicPlan(v), 'tx').map((h) => `${h.reverse ? '<' : ''}${h.link.id}`), v).toEqual(['<dma-pcie', '<txq-dma', '<mac-txq', '<phy-mac']);
+    }
   });
 });
 

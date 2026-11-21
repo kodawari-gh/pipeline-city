@@ -22,7 +22,8 @@ import { GpuView, type GpuCardScene } from '@/features/gpu/render/gpuview';
 import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
 import { TpmView, type TpmScene } from '@/features/tpm/render/tpmview';
 import { NicView, type NicScene } from '@/features/network/render/nic/nicview';
-import { nicGeo, nicParts } from '@/features/network/render/nic/niclayout';
+import { BOARD_BAND, nicGeo, nicParts } from '@/features/network/render/nic/niclayout';
+import { BOARD_NIC, boardLook } from '@/features/network/render/nic/nicplan';
 import { RouterView } from '@/features/network/render/router/routerview';
 import { routerParts, type RouterGeo } from '@/features/network/render/router/routerlayout';
 import { tpmGeo, tpmParts } from '@/features/tpm/render/tpmlayout';
@@ -163,6 +164,9 @@ export class Chips3D {
     this.tpm.setScene(this.T, mods);
     const nics: NicScene[] = [];
     for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) }); }
+    // (the Ethernet chip on the motherboard is one more die, in a band of its own past the slots': its parts' ids start with `board`)
+    const mbps = s?.board.features.ethernetMbps ?? 0;
+    if (mbps > 0) nics.push({ slot: BOARD_NIC, visual: boardLook(mbps), index: BOARD_BAND });
     this.nics = new Map(nics.map((n) => [n.slot, { visual: n.visual, index: n.index }]));
     this.nic.setScene(this.T, nics);
     this.nicTrace.setScene(this.T);
@@ -303,7 +307,7 @@ export class Chips3D {
     return null;
   }
 
-  /** The parts a face's hits can find: the die's blocks (a network card's: the blocks of its controller's plan, in the die's frame), a card's cells, the router's blocks. */
+  /** The parts a face's hits can find: the die's blocks (a network card's, or the motherboard's Ethernet chip's: the blocks of its controller's plan, in the die's frame), a card's cells, the router's blocks. */
   private partsOf(f: Face): { id: string; rect: Rect; min: number }[] {
     if (f.kind === 'die') {
       if (!this.cpuSpec) return [];

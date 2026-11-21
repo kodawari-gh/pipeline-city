@@ -547,6 +547,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (s) id = deviceOfPart(id, s.devices);
     // a block of the router's detailed view (`router.soc`) is a click on the router
     if (/^router\.[a-z]+$/.test(id)) id = 'router';
+    // a part of the Ethernet chip on the motherboard (`board.nic-mac`) is a click on the board
+    if (/^board\.nic-[a-z]+$/.test(id)) id = 'board';
     // an empty drive bay opens the drive shop, as the 2D bay's region does; any other empty socket is only a place to drop on
     if (/^sata\d+$/.test(id) && s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = 'bay'; return; }
     if (s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = null; return; }

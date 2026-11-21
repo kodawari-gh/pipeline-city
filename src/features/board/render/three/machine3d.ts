@@ -32,6 +32,7 @@ import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
+import { BOARD_NIC } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -55,6 +56,7 @@ import { routerStand } from './router3d';
 import { routerBoard, type Lying, type RouterBoard } from './routerboard3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
+import type { PhyChip } from './phychip3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { HOSE_COLD, HOSE_HOT, LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorFlow, radiatorModel, type Model, type RadiatorAt, type RadiatorFlow } from './cooler3d';
 import type { AirBody } from './air/plan';
@@ -677,6 +679,18 @@ export class Machine3D {
   }
 
   /**
+   * The Ethernet chip on the board (docs/render/net.md "Inside the NIC and the router"): as a NIC's controller (`nicBits`), its mould fades over the die's own band and the floorplan on the
+   * die shows, live (`Chips3D`); a double click flies to the die. The mould fades alone, so its materials are its own.
+   */
+  private phyBits(p: PhyChip): void {
+    this.apart.push(p.lid);
+    if (!p.die) return;
+    this.chips?.face(p.die.root, 'nic', p.plan, p.die.z, BOARD_NIC);
+    this.reveal(p.rect, BOARD_Z + p.dieTop, p.lod);
+    this.rail(`${BOARD_NIC}.nic-ctl`, p.rect, BOARD_Z + p.dieTop, DEVICE_LOD.die.fade[1] / p.scale);
+  }
+
+  /**
    * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until the card lies flat and shows its parts (a standing or a swinging card is hit on whatever
    * side it shows). The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
    */
@@ -708,6 +722,7 @@ export class Machine3D {
     // far out the flat drawing is enough: the small parts stand up only up close
     this.small = b.small;
     this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
+    if (b.phy) this.phyBits(b.phy);
     // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const clear = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = this.pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const b = unseen(tag(rectBox(r, z0, z1, clear), id)); this.picks.set(id, b); this.root.add(b); };

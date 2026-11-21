@@ -36,11 +36,11 @@ export const PHY_STAGES = ['AFE', 'DSP', 'PCS'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing and the live layer share
 
-/** The PHY: a row for each pair with its three stages, the speed gauge and the line under it. */
-export function phyGeom(a: Rect) {
-  const lw = 20, foot = 50, pitch = (a.h - foot) / 4, gap = 12, sw = (a.w - lw - 2 * gap) / 3;
+/** The PHY: a row for each pair the standard uses (`pairs`: four, or two for 100BASE-TX) with its three stages, the speed gauge and the line under it. */
+export function phyGeom(a: Rect, pairs: number = PAIRS.length) {
+  const lw = 20, foot = 50, pitch = (a.h - foot) / pairs, gap = 12, sw = (a.w - lw - 2 * gap) / 3;
   return {
-    pairs: PAIRS.map((name, k) => {
+    pairs: PAIRS.slice(0, pairs).map((name, k) => {
       const y = a.y + k * pitch, h = Math.min(30, pitch - 8), cy = y + pitch / 2;
       return { name, cy, stages: PHY_STAGES.map((_, j) => R(a.x + lw + j * (sw + gap), cy - h / 2, sw, h)) };
     }),
@@ -115,7 +115,7 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
   const arrow = (x0: number, y: number, x1: number) => { stub(x0, y, x1, y); g.poly([x1, y, x1 - 4, y - 2.5, x1 - 4, y + 2.5]).fill({ color: line }); };
   switch (b.kind) {
     case 'phy': {
-      const q = phyGeom(a);
+      const q = phyGeom(a, input.pairs);
       for (const p of q.pairs) {
         lab(p.name, a.x, p.cy);
         p.stages.forEach((r, j) => {
@@ -205,7 +205,7 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
   const txt = (r: Rect, t: string, fit?: number) => out.texts.push({ rect: r, top: t, ink: true, ...(fit !== undefined ? { fit } : {}) });
   switch (b.kind) {
     case 'phy': {
-      const q = phyGeom(a);
+      const q = phyGeom(a, input.pairs);
       if (on && any > 0) q.pairs.forEach((p, k) => p.stages.forEach((r, j) => out.lit.push({ rect: r, color: j === 1 ? 'mul' : 'alu', a: 0.12 * any * wave(ms, k + j * 1.5, 1.4) })));
       const full = s.rated > 0 ? Math.min(1, s.mbps / s.rated) : 0;
       if (on) out.lit.push({ rect: { ...q.gauge, w: q.gauge.w * full }, color: s.hot ? 'ld' : 'alu', a: 0.45 });
