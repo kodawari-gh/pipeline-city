@@ -13,6 +13,20 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - `sim/` code is pure TS, no DOM/Pixi/Preact (`src/architecture.test.ts` checks it).
 - A test sits next to the file it covers (`x.ts` -> `x.test.ts`).
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues in `kodawari-gh/pipeline-city`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 ## Docs: read one, by topic, only when needed
 - Cross-layer work only: `docs/ARCHITECTURE.md`.
 - Feature docs sit in the feature folder: `src/features/<f>/*.md` (`ls` it). Cross-cutting: `docs/RENDER.md` (hub with a topic table to `docs/render/{interact,live,board,case,net}.md` and `src/features/room/{room,shell,light}.md`), `docs/UI.md`. Saves: `src/worker/SAVE.md`.
