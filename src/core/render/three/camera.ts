@@ -126,6 +126,48 @@ export function keepInside(v: OrbitView, r: Room, o: { targetZ0?: number; fovBas
   return out;
 }
 
+/** Does the segment a to b pass through the box `r`, grown by `gap` on every side? */
+function crosses(a: readonly number[], b: readonly number[], r: Room, gap: number): boolean {
+  const lo = [r.x0 - gap, r.y0 - gap, r.z0 - gap], hi = [r.x1 + gap, r.y1 + gap, r.z1 + gap];
+  let t0 = 0, t1 = 1;
+  for (let i = 0; i < 3; i++) {
+    const d = b[i]! - a[i]!;
+    if (Math.abs(d) < 1e-12) { if (a[i]! < lo[i]! || a[i]! > hi[i]!) return false; continue; }
+    const s = (lo[i]! - a[i]!) / d, e = (hi[i]! - a[i]!) / d;
+    t0 = Math.max(t0, Math.min(s, e));
+    t1 = Math.min(t1, Math.max(s, e));
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+/** The middle share of the picture (of its half width and half height at the target) that a lean keeps clear of the blocks, and the gap it keeps from them. */
+const LEAN_SEEN = 0.6, LEAN_GAP = 60;
+
+/**
+ * The lean toward `want` (a yaw added about the target; `at(a)` is the view as the camera has it after a lean of `a`) that leaves the picture clear of the
+ * `blocks`. A lean that swung the eye round a solid part of the case (the drive cage) would show its wall, not what was leaned over. Rays from the eye to the middle,
+ * the corners and the edge middles of the middle of the picture, as it stands at the target, must meet none of them. `want` itself if they meet none, else the most of
+ * it that they meet none (found by halving), 0 at worst.
+ */
+export function leanClear(at: (a: number) => OrbitView, want: number, blocks: readonly Room[], aspect: number): number {
+  if (!blocks.length || want === 0) return want;
+  const clear = (a: number): boolean => {
+    const v = at(a), e = eyeOf(v), c = Math.cos(v.pitch), sy = Math.sin(v.yaw), cy = Math.cos(v.yaw), sp = Math.sin(v.pitch);
+    const right = [cy, 0, -sy], up = [-sy * sp, c, -cy * sp], from = [e.x, e.y, e.z], hh = (v.height / 2) * LEAN_SEEN, hw = hh * aspect;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const to = [v.x + right[0]! * i * hw + up[0]! * j * hh, v.y + right[1]! * i * hw + up[1]! * j * hh, v.z + right[2]! * i * hw + up[2]! * j * hh];
+      if (blocks.some((b) => crosses(from, to, b, LEAN_GAP))) return false;
+    }
+    return true;
+  };
+  if (clear(want)) return want;
+  if (!clear(0)) return 0;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 10; i++) { const m = (lo + hi) / 2; if (clear(want * m)) lo = m; else hi = m; }
+  return want * lo;
+}
+
 /** The view height that fits a `w` by `h` box on a screen of this aspect, with the margin (1 fills the screen). */
 export const fitHeight = (w: number, h: number, aspect: number, margin = 0.92): number => Math.max(h, w / aspect) / margin;
 
@@ -168,30 +210,29 @@ export function retarget(v: OrbitView, z: number): OrbitView {
  * stop the zoom short of it, and slow it down on the way.
  */
 export function zoomOn(v: OrbitView, p: { x: number; y: number; z: number }, k: number): OrbitView {
-  const r = retarget(v, p.z), height = clamp(r.height * k, LIMITS.heightMin, LIMITS.heightMax), s = height / r.height;
+  const r = retarget(v, p.z), height = zoomed(r.height, k, LIMITS.heightMin, LIMITS.heightMax), s = height / r.height;
   return { ...r, x: p.x + (r.x - p.x) * s, y: p.y + (r.y - p.y) * s, height };
 }
 
-/** How far a view in the case may turn from head on (rad, each way) while the player turns it; let go, it eases back (`tiltRange`). */
-export const TILT = 0.17;
-
-export interface TiltRange { yaw: number; pitchMin: number; pitchMax: number }
+/**
+ * The height after a zoom by `k` from `h`, held in [min, max] and never against the way asked: a surface that already lies past a limit (a part
+ * that stands out in front of the target's plane) stays where it is, and a zoom back toward the range goes on. A plain clamp backed off from it.
+ */
+const zoomed = (h: number, k: number, min: number, max: number): number => (k < 1 ? Math.min(h, Math.max(min, h * k)) : Math.max(h, Math.min(max, h * k)));
 
 /**
- * The angles a view may take at `near` (0 out in the room, 1 in the case: `nearness`). In the room `LIMITS`; toward the case they close in on
- * head on: at rest to none at all, while the player holds the turn (`held`) to `TILT` each way.
+ * `zoomOn` for a view that turns all the way round (the shop's viewer): a plane of constant depth z runs along the line of sight from the side. Here the
+ * plane that holds still is the one through p that faces the eye. The eye moves straight toward p, p stays where it is on the screen, and the
+ * target comes onto that plane. `lim`: the height limits, at that plane.
  */
-export function tiltRange(near: number, held: boolean): TiltRange {
-  const t = clamp(near, 0, 1), k = 1 - t, e = held ? TILT * t : 0;
-  return { yaw: LIMITS.yaw * k + e, pitchMin: LIMITS.pitchMin * k - e, pitchMax: LIMITS.pitchMax * k + e };
-}
-
-export const clampTilt = (v: OrbitView, r: TiltRange): OrbitView => ({ ...v, yaw: clamp(v.yaw, -r.yaw, r.yaw), pitch: clamp(v.pitch, r.pitchMin, r.pitchMax) });
-
-/** How near a view is by the height it shows: 0 at `far` or more, 1 at `near` or less, smooth over the ratio between. */
-export function nearness(height: number, near: number, far: number): number {
-  const u = clamp(Math.log(height / near) / Math.log(far / near), 0, 1);
-  return 1 - u * u * (3 - 2 * u);
+export function zoomAbout(v: OrbitView, p: { x: number; y: number; z: number }, k: number, lim: { min: number; max: number }): OrbitView {
+  const e = eyeOf(v), c = Math.cos(v.pitch), tan = 2 * Math.tan((v.fov * Math.PI) / 360);
+  // (the line of sight, a unit vector from the eye to the target)
+  const fx = -Math.sin(v.yaw) * c, fy = -Math.sin(v.pitch), fz = -Math.cos(v.yaw) * c;
+  const depth = Math.max(1e-6, (p.x - e.x) * fx + (p.y - e.y) * fy + (p.z - e.z) * fz);
+  const height = zoomed(depth * tan, k, lim.min, lim.max), s = height / (depth * tan);
+  // (the target on the line of sight at p's depth, drawn toward p by the same share as the eye)
+  return { ...v, x: p.x + (e.x + fx * depth - p.x) * s, y: p.y + (e.y + fy * depth - p.y) * s, z: p.z + (e.z + fz * depth - p.z) * s, height };
 }
 
 /** One frame of easing toward `goal`. Height eases by ratio, so a long zoom feels even. Independent of the frame rate. */

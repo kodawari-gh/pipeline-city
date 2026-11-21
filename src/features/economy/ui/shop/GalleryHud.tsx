@@ -8,7 +8,7 @@ import { kindIcon, kindLabel, pips, priceOf, splitName, type GalleryGroup, type 
 // The Gallery's HUD, the pieces beside the shelf (`PartShelf`): in the words and the shapes of Build my PC's (ui.css: `.bld-read`, `.bld-foot`, the glass panels).
 // The summary over the stage says which part this is, the card on the right gives its numbers, the foot says what to do and steps through the category.
 
-const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'reset'], [['←', '→'], 'part'], [['↑', '↓'], 'category'], ['Esc', 'leave']];
+const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'reset', 'Double-tap'], [['←', '→'], 'part', null], [['↑', '↓'], 'category', null], ['Esc', 'leave', null]];
 
 const money = (n: number): string => (n <= 0 ? 'free' : `$${n.toLocaleString('en-US')}`);
 const fmt = (v: number, unit: string): string => `${Number.isInteger(v) ? v : Math.round(v * 100) / 100}${unit ? ` ${unit}` : ''}`;
@@ -69,7 +69,7 @@ export function GalleryPart({ side, group, item }: { side: RefObject<HTMLDivElem
 export function GalleryFoot({ foot, at, n, step }: { foot: RefObject<HTMLDivElement | null>; at: number; n: number; step: (d: number) => void }) {
   return (
     <div class="bld-foot gal-foot" ref={foot}>
-      <div class="bld-hint"><i aria-hidden="true" /><span>Pick a part on the shelf. Drag the part to turn it.</span></div>
+      <div class="bld-hint"><i aria-hidden="true" /><span>Pick a part on the shelf. Turn it and zoom in to look it over.</span></div>
       <div class="bld-dock">
         <div class="mode-bar gal-step" role="toolbar" aria-label="Parts of this kind">
           <button class="bld-ico" aria-label="Previous part" title="Previous part (←)" disabled={n < 2} onClick={() => step(-1)}><Icon name="prev" size={14} /></button>

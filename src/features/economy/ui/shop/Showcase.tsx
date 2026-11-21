@@ -7,7 +7,8 @@ type Viewer = import('@/core/render/three/viewer').Viewer;
 type Build = (specId: string) => import('three').Object3D | null;
 
 /**
- * The showcase: the part you picked as a 3D model on a turntable. Drag to turn it, scroll or pinch to zoom, double-click to reset. The viewer
+ * The showcase: the part you picked as a 3D model on a turntable. Its pointers read as the game's (`core/render/three/pad.ts`): drag to pan, right-drag or
+ * two fingers swiped together to turn it, scroll or pinch to zoom toward a point, double-click or double-tap to reset. The viewer
  * and the part builders load on the first look, so the shop opens as fast as before; one WebGL context lives while this is open.
  * `studio`: the Gallery's look (the stage fills the screen, its bar is the studio's pill bar with Graphics, and the part sits clear of the panels
  * `avoid` names, which float over the stage).
@@ -69,7 +70,7 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
         </div>
       ) : (
         <div class="showcase-bar">
-          <span class="mute showcase-hint">Drag · scroll</span>
+          <span class="mute showcase-hint" title="Drag: pan. Right-drag, or two fingers swiped together: turn. Scroll or pinch: zoom. Double-click or double-tap: reset.">Pan · turn · zoom</span>
           {spin}
           {reset}
           <button title="Back to the picture" aria-label="Close 3D view" onClick={onClose}><Icon name="close" size={12} /></button>

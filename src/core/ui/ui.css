@@ -20,7 +20,8 @@
    15 px (small laptops and phones) and never above 64 px, times the player's UI size (--ui-scale, 0.8 to 1.5, set by
    the menu). These px bounds are the only pixel lengths allowed in the UI besides 1px hairlines. */
 html { font-size: calc(var(--ui-scale, 1) * clamp(15px, min(0.85vw, 1.5vmin), 64px)); }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+/* Touch: no double-tap zoom anywhere and no pull to refresh or bounce at the edges; a pinch is the camera's (`src/app/touchguard.ts`, the viewport meta). */
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; overscroll-behavior: none; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 body { font: 0.8rem/1.35 var(--ui); }
 #board { position: fixed; inset: 0; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
@@ -1343,6 +1344,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode-top { top: 1rem; right: 4.3rem; }
 /* the hint line: keys in caps, then what they do */
 .mode-keys { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: var(--m-xs); color: var(--mute); }
+/* a screen with no mouse (`pointer: coarse`) reads the fingers' words in place of the keys, and no hint for a key that has no finger (`kit/ModeKit.tsx`) */
+.mk-mouse { display: contents; }
+.mk-touch { display: none; }
+@media (pointer: coarse) {
+  .mk-mouse { display: none; }
+  .mk-touch { display: contents; }
+  .mode-keys .mk-no-touch { display: none; }
+}
 /* Gallery: the stage fills the screen like Build my PC's; the part sits in what the shelf, the summary, the right column and the foot leave free (`kit/clearance.ts`).
    The HUD is Build my PC's (`PartShelf`, `.bld-read`, `.bld-foot`, the glass panels); the Gallery's own are the part's card and the stepper. */
 .gal-main { position: absolute; inset: 0; display: flex; }

@@ -52,6 +52,7 @@ import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { HOSE_COLD, HOSE_HOT, LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorFlow, radiatorModel, type Model, type RadiatorAt, type RadiatorFlow } from './cooler3d';
 import type { AirBody } from './air/plan';
+import type { Room } from '@/core/render/three/camera';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
 import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
@@ -320,7 +321,7 @@ export class Machine3D {
   private caseRgb = true;
   /** What fades as the camera comes in (`fadeTree`): the lids, the coolers, the spreaders, the cards (`startPrograms`). */
   readonly fades: Object3D[] = [];
-  /** The parts with a detailed view, which hold the camera on rails up close (`rails.ts`). A new part with a detailed view adds its own (`rail`). */
+  /** The parts with a detailed view: where a double click flies the camera to them, head on (`rails.ts`, `focusPart`). A new part with a detailed view adds its own (`rail`). */
   readonly rails: Rail[] = [];
   /** What the merge and the share leave as it is (`share`): the side panel's screws (they turn out one by one), a part a glTF model replaces. */
   private keep: Object3D[] = [];
@@ -544,7 +545,7 @@ export class Machine3D {
   }
 
   /** A part's detailed view: its face `r` at depth `z`, its detail all in from `zoom` (screen pixels per world unit: the end of its fade, so no lid
-   * half covers it); the camera's rails hold the view on it. */
+   * half covers it); a double click flies the view to it. */
   private rail(id: string, r: RectLike, z: number, zoom: number): Rail {
     const v: Rail = { id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom };
     this.rails.push(v);
@@ -564,7 +565,7 @@ export class Machine3D {
   }
 
   /**
-   * The live memory map over the bank of sticks: it comes in as the spreaders go, and the bank is one rail the camera leans along (`lean`).
+   * The live memory map over the bank of sticks: it comes in as the spreaders go, and the bank is one detailed view a double click flies to.
    * Made again when a stick comes or goes (the old map's reveal and rail go).
    */
   private buildRamMap(): void {
@@ -646,17 +647,27 @@ export class Machine3D {
    */
   airBodies(): AirBody[] {
     const box = (r: RectLike, z0: number, z1: number) => ({ min: [r.x, -(r.y + r.h), z0] as V3, max: [r.x + r.w, -r.y, z1] as V3 });
-    const out: AirBody[] = [
-      { id: 'board', kind: 'board', ...box(BD, CASE_Z, BOARD_Z) },
-      { id: 'basement', kind: 'basement', ...box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT) },
-      { id: 'cage', kind: 'cage', ...cageBox(this.cage) },
-    ];
+    const out: AirBody[] = [{ id: 'board', kind: 'board', ...box(BD, CASE_Z, BOARD_Z) }, ...this.solidBodies()];
     if (this.ram) out.push({ id: 'ram', kind: 'ram', ...box(this.ram, BOARD_Z, BOARD_Z + 380) });
     for (const o of this.owned.values()) for (const ob of o.obstacles) {
       const b = this.solids.get(ob);
       if (b) out.push({ id: o.id, kind: o.kind, slot: o.slot, min: [...b.min] as V3, max: [...b.max] as V3 });
     }
     return out;
+  }
+
+  /** The case's solid bodies that no part and no zoom takes away: the basement (the shroud) and the drive cage. */
+  private solidBodies(): AirBody[] {
+    const box = (r: RectLike, z0: number, z1: number) => ({ min: [r.x, -(r.y + r.h), z0] as V3, max: [r.x + r.w, -r.y, z1] as V3 });
+    return [
+      { id: 'basement', kind: 'basement', ...box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT) },
+      { id: 'cage', kind: 'cage', ...cageBox(this.cage) },
+    ];
+  }
+
+  /** The boxes a camera leaning over a part inside the case must not look through (`leanClear` in camera.ts): the case's solid bodies. */
+  sightBlocks(): Room[] {
+    return this.solidBodies().map((b) => ({ x0: b.min[0], x1: b.max[0], y0: b.min[1], y1: b.max[1], z0: b.min[2], z1: b.max[2] }));
   }
 
   /** Run `draw` with the side panel taken off: the picture of an open machine, whatever the panel's kind (a steel one hides the inside, a glass one tints it). */

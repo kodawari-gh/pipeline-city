@@ -1,8 +1,9 @@
 import { useEffect } from 'preact/hooks';
 import { controlsOpen } from '../state';
 
-// The controls reference: the game's mouse moves and keys in one place (the menu's Help, and the ? key). The studio screens print a key bar under their stage; the
-// game view has none, so a player finds the keys here. Keep it in step with `board3d.ts` (the pointer and `onKey`) and `Hud.tsx` (Space, Esc, ?). Styles: ui.css (`.ctl`).
+// The controls reference: the game's mouse moves, finger moves and keys in one place (the menu's Help, and the ? key). The studio screens print a key bar under their
+// stage; the game view has none, so a player finds the keys here. Keep it in step with `core/render/three/pad.ts` (the pointers of every stage), `board3d.ts` (`onKey`) and
+// `Hud.tsx` (Space, Esc, ?). Styles: ui.css (`.ctl`).
 
 type Row = readonly [keys: readonly string[], does: string];
 
@@ -10,8 +11,19 @@ const MOUSE: readonly Row[] = [
   [['Drag'], 'Pan the view'],
   [['Right-drag', 'Shift-drag'], 'Turn the view'],
   [['Scroll'], 'Zoom in or out at the pointer'],
+  [['Double-click'], 'Fly to a part, or back to the room'],
   [['Click'], 'Pick a part and open its card'],
   [['Drag a part'], 'From the shelf onto the board to fit it'],
+];
+
+// The fingers do the same on every stage (the game, Build my PC, the Gallery): the page itself never zooms or scrolls.
+const TOUCH: readonly Row[] = [
+  [['1 finger'], 'Pan the view'],
+  [['Pinch'], 'Zoom in or out between the fingers'],
+  [['2 fingers'], 'Swipe together or twist to turn the view'],
+  [['Double-tap'], 'Fly to a part, or back to the room'],
+  [['Tap'], 'Pick a part and open its card'],
+  [['Hold, drag'], 'Lift a part, from the shelf or the board'],
 ];
 
 const KEYS: readonly Row[] = [
@@ -60,6 +72,7 @@ export function Controls() {
         <div class="big">Controls</div>
         <div class="ctl-cols">
           <section aria-label="Mouse"><h3>Mouse</h3><Rows rows={MOUSE} /></section>
+          <section aria-label="Touch"><h3>Touch</h3><Rows rows={TOUCH} /></section>
           <section aria-label="Keys"><h3>Keys</h3><Rows rows={KEYS} /></section>
         </div>
         <div class="pactions"><button class="primary" autofocus onClick={() => { controlsOpen.value = false; }}>Done</button></div>

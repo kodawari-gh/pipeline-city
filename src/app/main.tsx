@@ -1,7 +1,11 @@
 import { render } from 'preact';
 import { loadAutosaveOffer } from './store';
 import { bootFail, bootMenu, bootStage } from './boot';
+import { guardPage } from './touchguard';
 import { Hud } from '../core/ui/Hud';
+
+// A pinch is the camera's zoom, never the page's (`touchguard.ts`).
+guardPage();
 
 // The main menu (Continue when an autosave exists, New game, Load game, Settings) shows once the boot screen has gone. The sim only starts once the player chooses.
 loadAutosaveOffer();

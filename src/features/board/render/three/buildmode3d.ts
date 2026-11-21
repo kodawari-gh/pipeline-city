@@ -9,7 +9,9 @@ import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
-import { applyView, distanceOf, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
+import { applyView, distanceOf, fitRect, heightAt, LIMITS, panBy, retarget, settled, stepView, zoomAt, zoomOn, type OrbitView } from '@/core/render/three/camera';
+import { turnOf } from '@/core/render/three/gesture';
+import { attachPad, type PadHost } from '@/core/render/three/pad';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/ondemand';
 import { byProgram, rankMaterials } from '@/core/render/three/drawsort';
 import { syncWorld } from '@/core/render/three/stillworld';
@@ -17,7 +19,7 @@ import { SEG, anisotropy, disposeTree, refilter } from '@/core/render/three/geom
 import { lowDetail } from '@/core/render/three/detail';
 import { BASE_EXPOSURE, createRenderContext, disposeRenderContext, restoreStudioEnv } from '@/core/render/three/init';
 import { Eye } from '@/core/render/three/eye';
-import { findById, idOf, ownerOf, pick, seeThrough, tag } from '@/core/render/three/pick';
+import { findById, idOf, ownerOf, pick, pickPoint, seeThrough, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
@@ -122,10 +124,12 @@ export const LOD_CEIL = 0.8;
 /** The settle after a part goes in: how long it lasts and how far (world units) the part dips past its seat. */
 /** The speed of the parts in the way in a chain of more than two steps, and of a skip. */
 const QUICK = 2.5, SKIP = 6;
-/** Pixels a press may move and still be a click (not a turn of the view). */
-const CLICK_SLOP = 5;
-/** Pixels a press on a cable's plug moves before the hand lifts it (the game's own, `board3d.ts`). */
-const CABLE_SLOP = 6;
+/** A part this big on the screen (its larger side, or its share of the screen) is looked at, not carried: a mouse drag on it pans (a hold lifts it), as in the game. */
+const BIG_SIDE = 0.7, BIG_AREA = 0.3;
+/** The view's target stays this far (in heights of the start view) from the start view's, and the view shows at most this many times its height. */
+const STAY = 0.6, FAR = 2.5;
+/** A focused part fills this share of the stage's height (or of its width, for a wide one). */
+const FOCUS_FILL = 0.5;
 /**
  * How near (px) the pointer must be to a plug to mean it: a loose plug is small and lies among parts, a seated one is a few pixels (the game's `looseNear`).
  * A ray that meets the cable itself needs none of this.
@@ -267,6 +271,8 @@ export class BuildStage {
   private readonly host: HTMLElement;
   private view: OrbitView;
   private goal: OrbitView;
+  /** A flight runs (`fly`: a preset, a focus, the start view): the first touch of the view catches it where it is. */
+  private flying = false;
   private W: number;
   private H: number;
   private raf = 0;
@@ -676,7 +682,9 @@ export class BuildStage {
     const dt = frameDt(now, this.last);
     this.last = now;
     const { scene, camera, renderer } = this.ctx;
-    this.view = settled(this.view, this.goal) ? this.goal : stepView(this.view, this.goal, dt);
+    const arrived = settled(this.view, this.goal);
+    if (arrived) this.flying = false;
+    this.view = arrived ? this.goal : stepView(this.view, this.goal, dt);
     applyView(camera, this.view, this.W / this.H);
     const vk = `${this.view.x}|${this.view.y}|${this.view.z}|${this.view.yaw}|${this.view.pitch}|${this.view.height}|${this.W}|${this.H}`;
     if (vk !== this.viewKey) { this.viewKey = vk; this.viewRev.value++; }
@@ -833,73 +841,108 @@ export class BuildStage {
   }
 
   // ------------------------------------------------------------------ the camera
-  private listen(el: HTMLCanvasElement): void {
-    let drag: { x: number; y: number; pan: boolean; moved: number; cable?: string } | null = null;
-    const down = (e: PointerEvent) => {
-      if (e.button === 0 && !e.shiftKey && !this.status.peek().busy && !this.hand.kind) {
-        // a cable's plug lifts once the pointer has moved a little, as in the game (a press that does not move is a click); a part lifts at once (the UI's drag)
-        const cable = this.cableAt(e.clientX, e.clientY, true);
-        if (cable) { el.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, pan: false, moved: 0, cable }; return; }
-        if (this.onGrab) {
-          const id = this.partAt(e.clientX, e.clientY);
-          if (id) { this.onGrab(id, e); return; }
-        }
-      }
-      el.setPointerCapture(e.pointerId);
-      drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
-    };
-    const move = (e: PointerEvent) => {
-      if (!drag) { this.pointerOver(e.clientX, e.clientY, el); return; }
-      if (drag.cable) {
-        // (the plug is lifted once the pointer has gone a few pixels: from here the hand has it, and the pointer's events come to the window, `trackCable`)
-        if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > CABLE_SLOP) {
-          const kind = drag.cable;
-          drag = null;
-          try { el.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-          this.beginCable(kind, e);
-        }
-        return;
-      }
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-      if (drag.moved > CLICK_SLOP && this.hover.peek()) { this.hover.value = null; el.style.cursor = ''; }
-      if (drag.pan) { const k = this.goal.height / this.H; this.goal = panBy(this.goal, -dx * k, dy * k); }
-      else this.goal = orbitBy(this.goal, -dx * 0.006, dy * 0.006);
-    };
-    // (a press that hardly moved is a click: the side panel opens, empty space lets go of the picked part)
-    const up = (e: PointerEvent) => {
-      const d = drag;
-      drag = null;
-      if (d && !d.pan && e.button === 0 && d.moved <= CLICK_SLOP) this.click(e.clientX, e.clientY);
-    };
-    const cancel = () => { drag = null; };
-    const leave = () => { if (!drag) { this.hover.value = null; el.style.cursor = ''; } };
-    const wheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const r = el.getBoundingClientRect();
-      this.goal = zoomAt(this.goal, Math.exp(e.deltaY * 0.0012), ((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1), this.W / this.H);
-    };
-    const menu = (e: Event) => e.preventDefault();
-    // (a double click on a part flies to it; on anything else it frames the machine again)
-    const reset = (e: MouseEvent) => { const id = this.idAt(e.clientX, e.clientY), d = deviceFor(id, this.board); if (d) this.focusDevice(d.id); else this.goal = this.frameView(); };
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', cancel);
-    el.addEventListener('pointerleave', leave);
-    el.addEventListener('wheel', wheel, { passive: false });
-    el.addEventListener('contextmenu', menu);
-    el.addEventListener('dblclick', reset);
-    this.cleanup.push(() => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', cancel); el.removeEventListener('pointerleave', leave); el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', menu); el.removeEventListener('dblclick', reset); });
+  /** Fly to `v`: it is the goal, and the flight is marked (the first touch of the view catches it). */
+  private fly(v: OrbitView): void { this.goal = v; this.flying = true; }
+
+  /** The nearest surface under a client point (world) among the machine, the wall and the monitor, or null: a zoom and a pan go at its depth. */
+  private surfaceAt(x: number, y: number): Vector3 | null {
+    if (this.dead || !this._machine) return null;
+    const r = this.ctx.renderer.domElement.getBoundingClientRect();
+    return pickPoint([this.machine.root, ...(this.wall ? [this.wall.root] : []), ...(this.monitor ? [this.monitor] : [])], this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
   }
 
-  resetView(): void { this.goal = this.frameView(); }
+  /** A part this big on the screen is looked at, not carried (`BIG_SIDE`, `BIG_AREA`). */
+  private big(device: string): boolean {
+    const a = this.anchorOf(device);
+    return !!a && (Math.max(a.w, a.h) > BIG_SIDE * Math.min(this.W, this.H) || a.w * a.h > BIG_AREA * this.W * this.H);
+  }
+
+  /** `v` kept on the stage: its target within reach of the start view's (the machine and the wall cannot be lost), and not out past `FAR` times its height. */
+  private onStage(v: OrbitView): OrbitView {
+    const h = this.frameView(), gx = h.height * (this.W / this.H) * STAY, gy = h.height * STAY, c = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+    return { ...v, x: c(v.x, h.x - gx, h.x + gx), y: c(v.y, h.y - gy, h.y + gy), z: c(v.z, h.z - h.height, h.z + h.height), height: Math.min(v.height, h.height * FAR) };
+  }
+
+  /**
+   * The pointers, as in the game (`board3d.ts`) and the Gallery's viewer (`core/render/three/pad.ts`): drag pans, right drag or shift turns, the wheel zooms
+   * toward the surface under the pointer; on touch one finger pans, two fingers pinch and turn. A press on a part or a plug lifts it (the UI's drag, the hand).
+   */
+  private listen(el: HTMLCanvasElement): void {
+    // what a pan or a pinch took hold of (the depth of the surface under it; the point a pinch zooms about, null: none), and a turn's start
+    let grabZ: number | undefined, pinchAt: Vector3 | null | undefined, turning: { base: OrbitView; yaw: number; pitch: number } | null = null;
+    /** The pointer is the hand's or the UI's now (their listeners are on the window): the canvas lets it go. */
+    const give = (e: PointerEvent) => { try { el.releasePointerCapture(e.pointerId); } catch { /* already released */ } };
+    const clampTo = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+    const gestures: PadHost = {
+      press: (at, e) => {
+        if (this.status.peek().busy || this.hand.kind) return null;
+        // a cable's plug lifts as the pointer moves (a press that does not move is a click); a refused lift (a lead that carries power) goes on as a pan
+        const cable = this.cableAt(at.x, at.y, true);
+        if (cable) return { eager: true, lift: (ev) => { this.beginCable(cable, ev); const held = !!this.hand.kind; if (held) give(ev); return held; } };
+        // a part (the UI's drag takes it): a mouse drag on a small one lifts it. On a finger, and on a part that fills the screen, a drag pans over it and a hold lifts it
+        const id = this.onGrab ? this.partAt(at.x, at.y) : null;
+        if (id) return { eager: e.pointerType === 'mouse' && !this.big(id), lift: () => { give(e); this.onGrab?.(id, e); return true; } };
+        return null;
+      },
+      begin: (kind, at) => {
+        // (a drag clears the hover; a flight in the air is caught where it is)
+        if (this.hover.peek()) { this.hover.value = null; el.style.cursor = ''; }
+        if (this.flying) { this.flying = false; this.goal = this.view; }
+        if (kind === 'turn') {
+          // the view turns about the surface under the middle of the stage
+          const r = el.getBoundingClientRect(), m = this.surfaceAt(r.left + r.width / 2, r.top + r.height / 2);
+          if (m) { this.goal = retarget(this.goal, m.z); this.view = retarget(this.view, m.z); }
+          turning = { base: this.goal, yaw: this.goal.yaw, pitch: this.goal.pitch };
+          return;
+        }
+        const p = this.surfaceAt(at.x, at.y);
+        grabZ = p?.z;
+        pinchAt = kind === 'pinch' ? p : undefined;
+      },
+      pan: (dx, dy) => {
+        // the grabbed surface follows the pointer: the pan goes at its depth, and the view goes with it at once
+        const k = (grabZ === undefined ? this.view.height : heightAt(this.view, grabZ)) / this.H, was = this.goal;
+        this.goal = this.onStage(panBy(this.goal, -dx * k, dy * k));
+        this.view = { ...this.view, x: this.view.x + this.goal.x - was.x, y: this.view.y + this.goal.y - was.y, z: this.view.z + this.goal.z - was.z };
+      },
+      turn: (dx, dy) => {
+        const t = turnOf(dx, dy, this.H);
+        turning ??= { base: this.goal, yaw: this.goal.yaw, pitch: this.goal.pitch };
+        turning.yaw = clampTo(turning.yaw + t.yaw, -LIMITS.yaw, LIMITS.yaw);
+        turning.pitch = clampTo(turning.pitch + t.pitch, LIMITS.pitchMin, LIMITS.pitchMax);
+        this.goal = { ...turning.base, yaw: turning.yaw, pitch: turning.pitch };
+      },
+      zoom: (k, at) => {
+        if (this.flying) { this.flying = false; this.goal = this.view; }
+        const r = el.getBoundingClientRect(), p = pinchAt === undefined ? this.surfaceAt(at.x, at.y) : pinchAt;
+        const nx = ((at.x - r.left) / r.width) * 2 - 1, ny = -(((at.y - r.top) / r.height) * 2 - 1);
+        this.goal = this.onStage(p ? zoomOn(this.goal, p, k) : zoomAt(this.goal, k, nx, ny, this.W / this.H));
+      },
+      twist: (rad) => { this.goal = { ...this.goal, yaw: clampTo(this.goal.yaw + rad, -LIMITS.yaw, LIMITS.yaw) }; },
+      end: () => { grabZ = pinchAt = undefined; turning = null; },
+      // (a press that did not move: a click on a part picks it, as the UI's drag does when it does not move; the side panel opens, empty space lets go of the picked part)
+      tap: (at) => {
+        const id = this.status.peek().busy || this.hand.kind || !this.onGrab ? null : this.partAt(at.x, at.y);
+        if (id) this.select(id); else this.click(at.x, at.y);
+      },
+      // (a double click on a part flies to it; on anything else it frames the machine again)
+      focus: (at) => { const d = deviceFor(this.idAt(at.x, at.y), this.board); if (d) this.focusDevice(d.id); else this.resetView(); },
+    };
+    const pad = attachPad(el, gestures);
+    const move = (e: PointerEvent) => { if (!pad.core.busy) this.pointerOver(e.clientX, e.clientY, el); };
+    const leave = () => { if (!pad.core.busy) { this.hover.value = null; el.style.cursor = ''; } };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerleave', leave);
+    this.cleanup.push(() => { pad.dispose(); el.removeEventListener('pointermove', move); el.removeEventListener('pointerleave', leave); });
+  }
+
+  resetView(): void { this.fly(this.frameView()); }
 
   /** A camera preset: the whole machine seen from the front, three-quarter (the start), the side, or from above; or the wall with its power plate and network jack. */
   preset(name: 'front' | 'angle' | 'side' | 'top' | 'wall'): void {
-    if (name === 'wall') { this.goal = this.wallView(); return; }
+    if (name === 'wall') { this.fly(this.wallView()); return; }
     const at = { front: { yaw: 0, pitch: 0.08 }, angle: { yaw: START.yaw, pitch: START.pitch }, side: { yaw: 1.05, pitch: 0.12 }, top: { yaw: 0.2, pitch: 0.75 } }[name];
-    this.goal = { ...this.frameView(), ...at };
+    this.fly({ ...this.frameView(), ...at });
   }
 
   /**
@@ -956,13 +999,19 @@ export class BuildStage {
     }
   }
 
-  /** Fly the camera to a fitted part (its device id); false when it has no model. */
+  /**
+   * Fly the camera to a fitted part (its device id): head on, in the middle of the window the panels leave free, the part filling `FOCUS_FILL` of its
+   * larger side (a tall stick by its height, a wide card by its width). False when it has no model.
+   */
   focusDevice(id: string): boolean {
     const o = this.objectOf(devNode(id));
     if (!o) return false;
     o.updateWorldMatrix(true, true);
     const box = new Box3().setFromObject(o), c = box.getCenter(new Vector3()), s = box.getSize(new Vector3());
-    this.goal = { ...this.goal, x: c.x, y: c.y, z: c.z, height: Math.max(s.x, s.y, s.z) * 2.4 };
+    const height = Math.max(s.y, s.x / (this.W / this.H), 150) / FOCUS_FILL;
+    // (the free window's middle is a little east of the screen's: the start view's shift, the same share of the view's width)
+    const shift = WALL_SHIFT * (height / this.frameView().height);
+    this.fly({ ...this.goal, x: c.x - shift, y: c.y, z: c.z, yaw: 0, pitch: 0, height });
     return true;
   }
 

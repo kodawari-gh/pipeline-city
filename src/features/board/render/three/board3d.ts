@@ -20,10 +20,11 @@ import { whenDebug } from '@/app/debugflag';
 import { loadBaked } from '@/core/render/three/baked';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
-  applyView, clampTilt, clampView, distanceOf, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+  applyView, clampView, distanceOf, fitRect, heightAt, keepInside, leanClear, LIMITS, orbitBy, panBy, retarget, settled, stepView, zoomAt, zoomOn, type Box, type OrbitView, type Room,
 } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
-import { NO_PULL, holdOn, keeps, over, pullOn, railUnder, type Pull, type Rail } from '@/core/render/three/rails';
+import { turnOf } from '@/core/render/three/gesture';
+import { attachPad, type PadHost } from '@/core/render/three/pad';
 import { anisotropy, disposeTree, refilter, shareTex } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
@@ -58,7 +59,6 @@ import { Cues3D } from './cues3d';
 import { Particles3D } from './particles3d';
 import { setPartDragHandler } from '@/core/ui/worldDrag';
 import { buildOpen, galleryOpen } from '@/core/ui/state';
-import type { DeviceSnap } from '@/worker/game/types';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
@@ -157,8 +157,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let blocks: Room[] = [];
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
-  /** The rail that holds the view (`rails.ts`) and how far a pan pulls past its part's edge; the rail the player last pulled off (it does not take the view again until the view leaves its part). */
-  let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
   /** Low's cheaper materials (`cheapMaterials`), by the root they were applied to: undone when the root goes or the tier leaves Low. */
   const cheaps = new Map<Object3D, Cheap>();
   // (a machine keeps High's materials: its metal reads by reflection and the GPU time is the same, 5.2 ms a board frame at 2560 x 1355.
@@ -175,9 +173,6 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     scene.add(m.root);
     cheap(m.root);
     demand.ask();
-    // the rail that holds the view stays if its part is still there
-    const held = rail && m.rails.find((x) => x.id === rail!.r.id);
-    rail = held ? { r: held, pull: NO_PULL } : null;
   };
   /** What the board shows: the game's snapshot, or the dev preview's board and case in its place. */
   const current = () => {
@@ -296,39 +291,22 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let menu = !snapshot.peek();
   canvas.style.pointerEvents = menu ? 'none' : ''; // (the main menu's room is a picture: no hover, no click, no zoom)
   let view = menu ? menuView(performance.now() / 1000) : overview(), goal = view;
-  /** How far into the case a view is (`nearness`), by the height it shows on the board's plane: 0 from twice the board view's out, 1 from the board view in. */
-  const inCase = (v: OrbitView): number => { const b = boardView().height; return nearness(heightAt(v, BOARD_Z), b, 2 * b); };
-  /** The angles the goal may take now: none past head on on a rail, else by `inCase`; `held`: while the player turns it. */
-  const tilt = (v: OrbitView, held: boolean) => clampTilt(v, tiltRange(rail ? 1 : inCase(v), held));
   /**
-   * After the player moves the goal (a zoom, the end of a pan or a turn, a key): a rail lets go as the zoom falls past it, a part with a detailed
-   * view under the centre takes the goal onto its rail (`rails.ts`), and in the case the goal turns back toward head on.
+   * After the player moves the goal (a zoom, the end of a pan or a turn): the eye stays in the room. Nothing else holds the view: it stays at any angle
+   * and any depth the player leaves it (a part's aligned view is a flight, `focusPart`, not a rail).
    */
-  const settle = () => {
-    const rails = machine?.rails ?? [], a = aspect();
-    if (rail && !keeps(goal, rail.r, H, a)) rail = null;
-    const was = skip && rails.find((x) => x.id === skip);
-    if (!was || !over(goal, was) || !keeps(goal, was, H, a)) skip = null;
-    const r = rail?.r ?? railUnder(goal, rails, H, a, skip);
-    // (a pull past the edge springs back)
-    rail = r ? { r, pull: NO_PULL } : null;
-    goal = tilt(goal, false);
-    if (r) {
-      goal = holdOn(goal, r, a);
-      // (the same picture with its target on the part: the view eases onto the goal without a wobble)
-      view = retarget(view, r.z);
-    }
-    goal = inRoom(goal);
-  };
+  const settle = () => { goal = inRoom(goal); };
+  /** A flight runs (`flyTo`): the first touch of the view catches it where it is. */
+  let flying = false;
   /** The flight the tutorial asked for (`flyToId`): told whether the view arrived, or was cut short by the player or another flight. */
   let pending: ((arrived: boolean) => void) | null = null;
   /** Any flight, cut or input ends the dev-only unclamped view. */
   const cancelFlight = () => { unclamped = false; const p = pending; pending = null; p?.(false); };
   /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
   let atOverview = false;
-  const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); settle(); };
-  /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
-  const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); rail = null; };
+  const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); flying = true; };
+  /** Dev only (the shot tool): show this view at once, as it is (its angles stay until the player moves it). */
+  const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); };
   const flyToRoom = () => { flyTo(overview()); atOverview = true; };
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -365,7 +343,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     flyTo(fitRect({ x: b.x - 80, y: b.y - 80, w, h }, BOARD_Z + 300, aspect(), FLAT, 0.95));
   };
 
-  // ---- pointer: drag pans, right drag (or shift) orbits, the wheel zooms at the pointer, a click picks ----
+  // ---- pointer: drag pans, right drag (or shift) turns, the wheel zooms at the pointer, a click picks (the touch's: see the pad below) ----
   const ndc = (e: { clientX: number; clientY: number }) => {
     const r = canvas.getBoundingClientRect();
     return { nx: ((e.clientX - r.left) / r.width) * 2 - 1, ny: -(((e.clientY - r.top) / r.height) * 2 - 1) };
@@ -415,114 +393,138 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   scene.add(hand.root);
   const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand, (cx, cy) => { const a = anchorsOf('usb')[0]; return !!a && Math.hypot(cx - (a.x + a.w / 2), cy - (a.y + a.h / 2)) <= Math.max(36, Math.max(a.w, a.h) / 2 + 16); }, (id) => anchorsOf(id)[0] ?? null); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
-  /** A press: where, how far it has moved, whether it turns; the part, cable or key it lifts; for a pan, the depth of the surface it grabbed. */
-  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string; depth?: number } | null = null;
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  // touch: the browser leaves the canvas its fingers (no scroll, no page zoom); two fingers pinch (a zoom toward their middle, below)
-  canvas.style.touchAction = 'none';
-  const fingers = new Map<number, { x: number; y: number }>();
-  let pinch: { d: number } | null = null;
-  const span = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1; };
-  const mid = () => { const [a, b] = [...fingers.values()]; return { clientX: (a!.x + b!.x) / 2, clientY: (a!.y + b!.y) / 2 }; };
-  canvas.addEventListener('pointerdown', (e) => {
-    try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer that is already gone (a synthetic one in a test) */ }
-    cancelFlight();
-    atOverview = false;
-    if (e.pointerType === 'touch') {
-      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (fingers.size === 2) { drag = null; pinch = { d: span() }; return; }
+  // ---- the pad (`core/render/three/pad.ts`): the same pointers on every stage; this says what they do to the game's view ----
+  /** A part this big on the screen (its larger side, or its share of the screen) is looked at, not carried: a mouse drag on it pans (a hold lifts it). */
+  const BIG_SIDE = 0.7, BIG_AREA = 0.3;
+  const bigOnScreen = (id: string): boolean => {
+    const a = anchorsOf(id)[0];
+    return !!a && (Math.max(a.w, a.h) > BIG_SIDE * Math.min(W, H) || a.w * a.h > BIG_AREA * W * H);
+  };
+  /**
+   * The depth of the surface a pan or a pinch took hold of (the pan goes at it, so it stays under the fingers), the point a pinch zooms about (null:
+   * no surface under it), and a turn's start: the view it turns from, and the angles it has reached (a turn that runs into a wall or a piece of
+   * furniture comes back to the player's own height when it turns away again).
+   */
+  let grabZ: number | undefined, pinchAt: { x: number; y: number; z: number } | null | undefined, turning: { base: OrbitView; yaw: number; pitch: number } | null = null;
+  /** `Drag3D` took the pointer (it listens on the window): the canvas lets it go. False: refused (it said why), the press goes on as a pan. */
+  const taken = (ok: boolean, e: PointerEvent): boolean => { if (ok) { try { canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ } } return ok; };
+  /** A part's aligned view: head on, centred in the free window, the part filling most of it (a die by its rail's face, any other part by its box). */
+  const focusPart = (id: string): boolean => {
+    const r = machine?.rails.find((x) => x.id === id);
+    if (r) {
+      // (close enough that its detail is all in, `Rail.zoom`)
+      const v = inFree(r.rect, r.z, FLAT, 0.8);
+      flyTo({ ...v, height: Math.min(v.height, H / r.zoom) });
+      return true;
     }
-    const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e, false, true) : null;
-    // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
-    // a plug seated in its socket is the socket to the ray: pulling on the socket pulls its cable
-    const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null, plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
-    // (on a rail the view reads a part up close: a press on a part pans over it, and the parts lift from further out)
-    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : plugged ? 'cable.' + seated : undefined, dev = id && !grab && !rail ? deviceOf(id, snapshot.peek()) : null;
-    const at = !orbit && !dev && !grab ? anchor(e) : null;
-    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}), ...(grab ? { grab } : {}), ...(at ? { depth: at.z } : {}) };
-  });
+    const o = objOf(real(id)), b = o && new Box3().setFromObject(o);
+    if (!b || b.isEmpty()) return false;
+    flyTo(inFree({ x: b.min.x, y: -b.max.y, w: b.max.x - b.min.x, h: b.max.y - b.min.y }, b.max.z, FLAT, 0.7));
+    return true;
+  };
+  const gestures: PadHost = {
+    press(at, e) {
+      cancelFlight();
+      atOverview = false;
+      const id = idAt({ clientX: at.x, clientY: at.y }, false, true);
+      if (!id) return null;
+      // a plug or a key lifts as the pointer moves, a finger's too (it is small, and a press on it means to take it); a plug seated in its
+      // socket is the socket to the ray: pulling on the socket pulls its cable
+      const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null, plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
+      const grab = id.startsWith('cable.') || id.startsWith('key:') ? id : plugged ? 'cable.' + seated : undefined;
+      if (grab) return { eager: true, lift: (ev) => taken(grab.startsWith('key:') ? lift.beginKey(Number(grab.slice(4)), ev) : lift.beginCable(grab.slice(6), ev), ev) };
+      // an installed part: a mouse drag on a small one lifts it. On a finger, on a part that fills the screen and on a machine that runs, a drag
+      // pans over it (as over the empty board), and holding on it lifts it (or says why it cannot be: the machine must be off)
+      const dev = deviceOf(id, snapshot.peek());
+      if (!dev) return null;
+      return { eager: e.pointerType === 'mouse' && !snapshot.peek()?.powered && !bigOnScreen(dev.id), lift: (ev) => taken(lift.beginDevice(dev, ev), ev) };
+    },
+    begin(kind, at) {
+      cancelFlight();
+      atOverview = false;
+      // (a flight in the air is caught where it is)
+      if (flying) { flying = false; goal = inRoom(view); }
+      if (kind === 'turn') {
+        // the view turns about what the player looks at: the surface under the middle of the free window
+        const f = freeRect(), m = anchor({ clientX: f.x + f.w / 2, clientY: f.y + f.h / 2 });
+        if (m) { goal = retarget(goal, m.z); view = retarget(view, m.z); }
+        turning = { base: goal, yaw: goal.yaw, pitch: goal.pitch };
+        return;
+      }
+      const p = anchor({ clientX: at.x, clientY: at.y });
+      grabZ = p?.z;
+      pinchAt = kind === 'pinch' ? p : undefined;
+    },
+    pan(dx, dy) {
+      // the grabbed surface follows the pointer: the pan goes at its depth
+      const k = (grabZ === undefined ? view.height : heightAt(view, grabZ)) / H, was = goal;
+      goal = panIn(goal, -dx * k, dy * k);
+      view = { ...view, x: view.x + goal.x - was.x, y: view.y + goal.y - was.y, z: view.z + goal.z - was.z };
+    },
+    turn(dx, dy) {
+      const t = turnOf(dx, dy, H);
+      turning ??= { base: goal, yaw: goal.yaw, pitch: goal.pitch };
+      turning.yaw = Math.max(-LIMITS.yaw, Math.min(LIMITS.yaw, turning.yaw + t.yaw));
+      turning.pitch = Math.max(LIMITS.pitchMin, Math.min(LIMITS.pitchMax, turning.pitch + t.pitch));
+      goal = inRoom({ ...turning.base, yaw: turning.yaw, pitch: turning.pitch });
+    },
+    zoom: (k, at) => zoomToward({ clientX: at.x, clientY: at.y }, k, pinchAt),
+    twist(rad) { goal = inRoom({ ...goal, yaw: Math.max(-LIMITS.yaw, Math.min(LIMITS.yaw, goal.yaw + rad)) }); },
+    end() { grabZ = pinchAt = undefined; turning = null; settle(); },
+    tap: (_at, e) => click(idAt(e)),
+    focus(_at, e) {
+      // a double click on a part brings it up, aligned; on the board it fits the board, anywhere else it frames the room again (as in Build my PC and the Gallery)
+      const id = idAt(e), dev = deviceOf(id, snapshot.peek());
+      if (dev && focusPart(dev.id)) return;
+      if (id === 'board') flyToBoard(); else flyToRoom();
+    },
+  };
+  const pointers = attachPad(canvas, gestures);
+  // the hover: the name and the outline of what the mouse is over (nothing while a press runs or a part is carried)
   canvas.addEventListener('pointermove', (e) => {
-    if (lift.busy) return;
-    if (fingers.has(e.pointerId)) {
-      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pinch && fingers.size === 2) {
-        const d = span();
-        zoomToward(mid(), pinch.d / d);
-        pinch.d = d;
-        return;
-      }
-    }
-    if (drag) {
-      // a press on an installed part that moves lifts the part instead of panning
-      if (drag.dev || drag.grab) {
-        const far = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6;
-        if (far) {
-          const { dev, grab } = drag;
-          drag = null;
-          canvas.releasePointerCapture(e.pointerId);
-          if (dev) lift.beginDevice(dev, e);
-          else if (grab!.startsWith('key:')) lift.beginKey(Number(grab!.slice(4)), e);
-          else lift.beginCable(grab!.slice(6), e);
-        }
-        return;
-      }
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-      // in the case a turn goes only a little way from head on (`tilt`; let go, it eases back)
-      if (drag.orbit) goal = inRoom(tilt({ ...goal, yaw: goal.yaw - dx * 0.004, pitch: goal.pitch + dy * 0.004 }, true));
-      else {
-        // the grabbed surface follows the pointer: the pan goes at its depth
-        const k = (drag.depth === undefined ? view.height : heightAt(view, drag.depth)) / H, was = goal;
-        if (rail) {
-          // on a rail the view keeps to the part; a pull past its edge gives, then lets go
-          const p = pullOn(goal, rail.r, aspect(), rail.pull, -dx * k, dy * k);
-          if (p.free) { skip = rail.r.id; rail = null; } else rail.pull = p.pull;
-          goal = inRoom(p.view);
-        } else goal = panIn(goal, -dx * k, dy * k);
-        view = { ...view, x: view.x + goal.x - was.x, y: view.y + goal.y - was.y, z: view.z + goal.z - was.z };
-        // a part with a detailed view that comes under the centre takes the view onto its rail
-        if (!rail) settle();
-      }
-      return;
-    }
+    if (pointers.core.busy || lift.busy) return;
     const id = idAt(e, false, true);
     hover.value = id ? { id, x: e.clientX, y: e.clientY } : null;
     canvas.style.cursor = id ? (id.startsWith('cable.') || id.startsWith('key:') ? 'grab' : 'pointer') : '';
   });
-  const lift_ = (e: PointerEvent) => { fingers.delete(e.pointerId); if (fingers.size < 2) pinch = null; };
-  canvas.addEventListener('pointercancel', lift_);
-  canvas.addEventListener('pointerup', (e) => {
-    const wasPinch = pinch !== null;
-    lift_(e);
-    const d = drag;
-    drag = null;
-    // (a finger lifted off a pinch ends it: the other finger does not click or pan on)
-    if (!d || wasPinch) { if (wasPinch) settle(); return; }
-    // the end of a pan or a turn: a pull past a part's edge springs back, a turn in the case eases back toward head on
-    if (d.moved > 5) { settle(); return; }
-    click(idAt(e));
-  });
-  canvas.addEventListener('pointerleave', () => { if (!drag) hover.value = null; });
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    // (a line or a page of a wheel that counts them is about 40 or 800 pixels)
-    const dy = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1)));
-    zoomToward(e, Math.exp(dy * 0.0012));
-  }, { passive: false });
-  /** Zoom by the factor `k` (above 1 out) toward the point `e` (a wheel notch, or the middle of a pinch). */
-  function zoomToward(e: { clientX: number; clientY: number }, k: number): void {
+  canvas.addEventListener('pointerleave', () => { if (!pointers.core.busy) hover.value = null; });
+  /**
+   * Zoom by the factor `k` (above 1 out) toward the point `e` (a wheel notch, or the middle of a pinch). `at`: the surface it goes toward when the
+   * gesture has fixed it (a pinch: the one under its first fingers; null: none); else the one under the pointer now.
+   */
+  function zoomToward(e: { clientX: number; clientY: number }, k: number, at?: { x: number; y: number; z: number } | null): void {
     cancelFlight();
     atOverview = false;
     const { nx, ny } = ndc(e), a = aspect();
     // the zoom goes toward the surface under the pointer, which stays under it (`zoomOn`): each notch takes the same share of the way to it
-    const p = anchor(e), base = p ? retarget(goal, p.z) : goal, by = (f: number) => (p ? zoomOn(base, p, f) : zoomAt(base, f, nx, ny, a));
-    // out against the walls the zoom stops, and in against the furniture: then the point under the pointer moves only as far as the zoom that
-    // was allowed (not at all if no closer look was)
-    const z = by(k), c = inRoom(z);
-    const cut = Math.abs(c.height - z.height) >= 1 && (c.height < z.height || z.height < base.height);
-    goal = !cut ? c : c.height < z.height || c.height < base.height ? inRoom(by(c.height / base.height)) : goal;
+    const p = at === undefined ? anchor(e) : at, base = p ? retarget(goal, p.z) : goal;
+    const toward = (f: number) => (p ? zoomOn(base, p, f) : zoomAt(base, f, nx, ny, a));
+    // out against a wall the zoom stops, and in against a piece of furniture it goes as far as the room lets the eye. Where it can go no further toward the
+    // pointer (a piece stands between), it goes on about the middle of the view, so the view is never held where it is, and never thrown back out
+    goal = zoomHeld(toward, k) ?? zoomHeld((f) => zoomAt(goal, f, 0, 0, a), k) ?? goal;
     settle();
   }
+
+  /**
+   * The goal after a zoom by `k` that the room leaves as it is: `by(f)` is the view after a zoom by `f`. The whole zoom if the walls and the furniture
+   * change neither the height nor the target of it (`inRoom`; a target that went into a piece makes the eye back out to the far wall), else the most of it
+   * that they leave (found by halving), else null.
+   */
+  const zoomHeld = (by: (f: number) => OrbitView, k: number): OrbitView | null => {
+    const stands = (f: number): OrbitView | null => {
+      const z = by(f), c = inRoom(z), tol = z.height * 0.004 + 1;
+      return Math.abs(c.height - z.height) <= tol && Math.hypot(c.x - z.x, c.y - z.y, c.z - z.z) <= tol ? c : null;
+    };
+    const whole = stands(k);
+    if (whole) return whole;
+    // (the share of the zoom, in the log of its factor)
+    let lo = 0, hi = 1, best: OrbitView | null = null;
+    for (let i = 0; i < 8; i++) {
+      const t = (lo + hi) / 2, c = stands(Math.pow(k, t));
+      if (c) { best = c; lo = t; } else hi = t;
+    }
+    return lo > 0.03 ? best : null;
+  };
 
   /** The same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power button, a key; anything else opens its card. */
   const click = (id: string | null) => {
@@ -664,6 +666,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
+  /** The view as the camera has it after a lean of `a` (`Machine3D.lean`): turned about the target, which is lifted to the middle of the sticks. */
+  const leaned = (v: OrbitView, a: number): OrbitView => (Math.abs(a) < 1e-4 ? v : { ...v, yaw: v.yaw + a, z: v.z + 170 * (a / RAM_LEAN) });
+  /** The lean over the RAM bank at this view, as far as the case lets the eye go round (the drive cage stands to the east of the bank, and is solid). */
+  const leanFor = (v: OrbitView): number => {
+    const want = machine?.lean(v.x, -v.y, H / v.height) ?? 0;
+    return want && machine ? leanClear((a) => leaned(v, a), want, machine.sightBlocks(), aspect()) : 0;
+  };
   /** The boot screen has gone (`onShown` ends the mount's wait); when the last programs linked. */
   let revealed = false, linkedAt = 0, stillAt = 0, onShown = () => {};
   const STILL_MS = 30000;
@@ -716,10 +725,11 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (menu !== !s) { menu = !s; canvas.style.pointerEvents = menu ? 'none' : ''; }
     if (menu && hover.peek()) hover.value = null;
     view = inRoom(stepView(view, goal, dt), false);
+    if (flying && settled(view, goal)) flying = false;
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
-    lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
-    applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
+    lean += (leanFor(view) - lean) * (1 - Math.pow(0.02, dt));
+    applyView(camera, leaned(view, lean), aspect());
     // the HUD's inset changed while the overview shows: fit it again to what is left free
     const ins = viewInset.peek(), insKey = `${ins.left}|${ins.right}|${ins.top}|${ins.bottom}`;
     const rk = `${view.x.toFixed(1)}|${view.y.toFixed(1)}|${view.z.toFixed(1)}|${view.height.toFixed(1)}|${view.yaw.toFixed(3)}|${view.pitch.toFixed(3)}|${lean.toFixed(3)}|${W}|${H}|${insKey}|${machKey}|${snapshot.peek()?.cables.map((c) => +c.connected).join('') ?? ''}`;
@@ -787,7 +797,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
-      applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
+      applyView(camera, leaned(view, lean), aspect());
       post.setReach(seenH);
       eyeAt(near);
     }
@@ -859,7 +869,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
 
   if (import.meta.env.DEV) {
   /** Dev only (`tools/shot-case.mjs`): show this view at once with no room clamp, held until a flight or an input (`unclamped`). */
-  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); rail = null; };
+  const jumpRaw = (v: OrbitView) => { unclamped = true; atOverview = false; view = goal = clampView(v); };
   /** Dev only (`tools/shot-case.mjs`): the view that frames the object with this hover id from its own box (its largest side fills `fill` of the view's height). Null: no such object. */
   const frameOf = (id: string, yaw: number, pitch: number, fill: number): OrbitView | null => {
     const o = roots().map((r) => findById(r, id)).find(Boolean) ?? null;
@@ -898,12 +908,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       }
       return Math.abs(mid.x) < 1 && Math.abs(mid.y) < 1 ? at(mid.x, mid.y) : null;
     }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, goal: () => goal, bakes: () => bakes.size,
-    // the rail that holds the view (its part's id), and the parts' rails
-    rail: () => rail?.r.id ?? null, rails: () => machine?.rails ?? [],
+    // the parts' detailed views (`focusPart` frames them), and what a double click on a part does
+    rails: () => machine?.rails ?? [], focusPart,
     orbit: (yaw: number, pitch: number) => { goal = inRoom(orbitBy(goal, yaw, pitch)); },
     // the case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's
     previewCase: (c: number | null, b = c ?? 0) => { preview = c === null ? null : { board: b, case: c }; rebuild(); wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`; },
-    // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above (no rail holds it)
+    // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above
     lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => jump(clampView({ x, y: -y, z, yaw, pitch, fov: 26, height })),
     toggleDoor: () => machine?.toggleDoor(),
     // the whole case from the side, turned by `yaw` and seen from `pitch` above

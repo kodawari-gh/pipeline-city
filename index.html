@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- No page zoom: the game fills the screen and a pinch is the camera's zoom (src/app/touchguard.ts). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Pipeline City</title>
     <meta name="description" content="Pipeline City is an incremental game about building computing hardware. Assemble a PC, run client jobs, earn money and upgrade every part." />
     <meta name="theme-color" content="#0b0f14" />
@@ -10,7 +11,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b5cff'/%3E%3Cstop offset='1' stop-color='%233be3ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Crect x='6' y='6' width='9' height='9' rx='2' fill='url(%23g)'/%3E%3Crect x='17' y='6' width='9' height='9' rx='2' fill='url(%23g)' opacity='.5'/%3E%3Crect x='6' y='17' width='9' height='9' rx='2' fill='url(%23g)' opacity='.3'/%3E%3Crect x='17' y='17' width='9' height='9' rx='2' fill='url(%23g)' opacity='.18'/%3E%3C/svg%3E" />
     <!-- Theme tokens and UI styles live in src/core/ui/ui.css. -->
     <style>
-      html, body { margin: 0; height: 100%; background: #0b0f14; }
+      html, body { margin: 0; height: 100%; background: #0b0f14; overscroll-behavior: none; }
       /* The boot screen (src/app/boot.ts, docs/render/load.md): up from the first paint, before any script; it fades out over the live
          picture once the board can be seen. Its title stands where the menu's does (.title in ui.css). Sizes in vmin: ui.css sets the rem later. */
       #boot {

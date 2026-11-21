@@ -3,12 +3,15 @@
 import { ACESFilmicToneMapping, AmbientLight, Box3, CanvasTexture, CircleGeometry, Color, DirectionalLight, Mesh, MeshStandardMaterial, NoColorSpace, type Object3D, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
 import { effect } from '@preact/signals';
 import { effective, FrameGate, pixelRatio } from '@/app/graphics';
-import { applyView, stepView, type OrbitView } from './camera';
+import { applyView, stepView, zoomAbout, type OrbitView } from './camera';
 import { ProgramGate, startPrograms, startShadowPrograms } from './compile';
 import { SEG, anisotropy, refilter } from './geometry';
 import { warmLateModels } from './gltf';
+import { turnOf, type Pt } from './gesture';
 import { disposeRenderContext, restoreStudioEnv, studioEnv, trackRender } from './init';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from './ondemand';
+import { attachPad, type PadHost } from './pad';
+import { pickPoint } from './pick';
 
 /** The strips of the stage that panels float over (CSS pixels): the part is framed and centred in what is left. */
 export interface StageInsets { left: number; right: number; top: number; bottom: number }
@@ -200,17 +203,17 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
 export function mountViewer(host: HTMLElement): Viewer {
   const { renderer, scene, pmrem, key, floor, place: light } = studio(effective.peek().msaa > 0), camera = new PerspectiveCamera(FOV, 1, 1, 100000);
   renderer.setPixelRatio(pixelRatio(effective.peek().scale));
-  renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none';
+  renderer.domElement.style.cssText = 'width:100%;height:100%;display:block'; // (the pad takes the fingers: `attachPad`)
   host.appendChild(renderer.domElement);
 
   // a part that wears baked art (`ArtSet`) carries its per-frame work and its disposal in a node's userData
   let obj: Object3D | null = null, hooks: PartHooks[] = [], size = new Vector3(1, 1, 1), centre = new Vector3();
   let yaw = START.yaw, pitch = START.pitch, zoom = 1, view = frameView(size, centre, zoom, yaw, pitch), auto = true, last = performance.now(), raf = 0, dead = false, idle = 0;
-  // the view's target moved off the part's centre (a right drag), kept inside the part's box
-  const pan = new Vector3(), at = new Vector3(), RIGHT = new Vector3(), UP = new Vector3();
+  // the view's target moved off the part's centre (a drag, a zoom toward a point), kept inside the part's box
+  const pan = new Vector3(), at = new Vector3(), RIGHT = new Vector3(), UP = new Vector3(), AHEAD = new Vector3(), FROM = new Vector3();
 
-  // what the panels leave free of the stage, and the stage's size (both in CSS pixels): the part is framed in it
-  let ins: StageInsets = { left: 0, right: 0, top: 0, bottom: 0 }, stageW = 1, stageH = 1, freeW = 1, freeH = 1, base = 1;
+  // what the panels leave free of the stage, and the stage's size (both in CSS pixels): the part is framed in it; (midX, midY): where the target shows
+  let ins: StageInsets = { left: 0, right: 0, top: 0, bottom: 0 }, stageW = 1, stageH = 1, freeW = 1, freeH = 1, midX = 0.5, midY = 0.5, base = 1;
   /** The height the view shows at zoom 1: the part fits the free stage at every turn of the table (set again with a new part or a new layout). */
   const refit = () => { base = holdHeight(size, centre, stageW, stageH, freeW, freeH); };
   const goal = (): OrbitView => frameView(size, at.copy(centre).add(pan), zoom, yaw, pitch, base);
@@ -246,6 +249,8 @@ export function mountViewer(host: HTMLElement): Viewer {
     const l = clamp(ins.left, 0, stageW * 0.6), r = clamp(ins.right, 0, stageW * 0.6), t = clamp(ins.top, 0, stageH * 0.6), b = clamp(ins.bottom, 0, stageH * 0.6);
     freeW = stageW - l - r;
     freeH = stageH - t - b;
+    midX = l + freeW / 2;
+    midY = t + freeH / 2;
     if (l || r || t || b) camera.setViewOffset(stageW, stageH, (r - l) / 2, (b - t) / 2, stageW, stageH);
     else camera.clearViewOffset();
     refit();
@@ -287,43 +292,57 @@ export function mountViewer(host: HTMLElement): Viewer {
     moved.mark(camera, W, H);
   };
 
-  // the pointer: one finger or the left button turns, two fingers pinch, the wheel zooms
-  const down = new Map<number, { x: number; y: number }>();
-  let pinch = 0;
-  const el = renderer.domElement;
-  const onDown = (e: PointerEvent) => { el.setPointerCapture(e.pointerId); down.set(e.pointerId, { x: e.clientX, y: e.clientY }); idle = 0; pinch = 0; };
-  const onMove = (e: PointerEvent) => {
-    const p = down.get(e.pointerId);
-    if (!p) return;
-    idle = 0;
-    if (down.size === 1 && (e.buttons & 2 || e.shiftKey)) {
-      // pan: the target follows the pointer across the view's plane
-      const k = view.height / Math.max(1, el.clientHeight);
+  // the pointers (`pad.ts`), read as on the board and in Build my PC (docs/render/interact.md "Camera"): a drag pans, a right or shift drag and two fingers'
+  // swipe turn, the wheel and a pinch zoom toward the surface under them, a double click or tap starts over. The part's box holds the pan; the turn has no end.
+  const el = renderer.domElement, TAN = 2 * Math.tan((FOV * Math.PI) / 360);
+  // the surface a drag or a pinch holds (found as it starts: the part follows the pointers there, and a pinch zooms about it)
+  let grip: Vector3 | null = null;
+  const holdPan = () => pan.clamp(at.copy(size).multiplyScalar(-0.5), FROM.copy(size).multiplyScalar(0.5));
+  /** The part's surface under a client point; on the empty stage, the point of the target's plane there. */
+  const surfaceAt = (q: Pt): Vector3 => {
+    const r = el.getBoundingClientRect(), x = q.x - r.left, y = q.y - r.top;
+    camera.updateMatrixWorld();
+    const hit = obj ? pickPoint([obj], camera, (x / Math.max(1, r.width)) * 2 - 1, 1 - (y / Math.max(1, r.height)) * 2) : null;
+    if (hit) return hit.clone();
+    const k = view.height / Math.max(1, stageH);
+    RIGHT.setFromMatrixColumn(camera.matrixWorld, 0);
+    UP.setFromMatrixColumn(camera.matrixWorld, 1);
+    return new Vector3(view.x, view.y, view.z).addScaledVector(RIGHT, (x - midX) * k).addScaledVector(UP, (midY - y) * k);
+  };
+  const gestures: PadHost = {
+    // (any press holds the turntable still for a moment: `idle`)
+    press: () => { idle = 0; return null; },
+    begin: (kind, q) => { idle = 0; grip = kind === 'turn' ? null : surfaceAt(q); },
+    pan: (dx, dy) => {
+      idle = 0;
+      // the content follows the pointer at the depth of the surface the drag holds
+      camera.getWorldDirection(AHEAD);
+      const k = (grip ? Math.max(1e-6, FROM.copy(grip).sub(camera.position).dot(AHEAD)) : view.height / TAN) * TAN / Math.max(1, stageH);
       RIGHT.setFromMatrixColumn(camera.matrixWorld, 0);
       UP.setFromMatrixColumn(camera.matrixWorld, 1);
-      pan.addScaledVector(RIGHT, -(e.clientX - p.x) * k).addScaledVector(UP, (e.clientY - p.y) * k);
-      pan.clamp(at.copy(size).multiplyScalar(-0.5), UP.copy(size).multiplyScalar(0.5));
-    } else if (down.size === 1) {
-      yaw -= (e.clientX - p.x) * 0.008;
-      pitch = clamp(pitch + (e.clientY - p.y) * 0.008, VIEW_LIMITS.pitchMin, VIEW_LIMITS.pitchMax);
-    }
-    p.x = e.clientX; p.y = e.clientY;
-    if (down.size === 2) {
-      const [a, b] = [...down.values()] as [{ x: number; y: number }, { x: number; y: number }], d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch) zoom = clamp(zoom * (pinch / d), VIEW_LIMITS.zoomMin, VIEW_LIMITS.zoomMax);
-      pinch = d;
-    }
+      pan.addScaledVector(RIGHT, -dx * k).addScaledVector(UP, dy * k);
+      holdPan();
+    },
+    turn: (dx, dy) => {
+      idle = 0;
+      const t = turnOf(dx, dy, stageH);
+      yaw += t.yaw;
+      pitch = clamp(pitch + t.pitch, VIEW_LIMITS.pitchMin, VIEW_LIMITS.pitchMax);
+    },
+    zoom: (k, q) => {
+      idle = 0;
+      const z = zoomAbout(goal(), grip ?? surfaceAt(q), k, { min: base * VIEW_LIMITS.zoomMin, max: base * VIEW_LIMITS.zoomMax });
+      pan.set(z.x - centre.x, z.y - centre.y, z.z - centre.z);
+      holdPan();
+      zoom = z.height / base;
+    },
+    twist: (rad) => { idle = 0; yaw += rad; },
+    end: () => { grip = null; },
+    focus: () => reset(),
   };
-  const onUp = (e: PointerEvent) => { down.delete(e.pointerId); pinch = 0; };
-  const onWheel = (e: WheelEvent) => { e.preventDefault(); idle = 0; zoom = clamp(zoom * Math.exp(e.deltaY * 0.0012), VIEW_LIMITS.zoomMin, VIEW_LIMITS.zoomMax); };
+  const pad = attachPad(el, gestures);
   const reset = () => { yaw = START.yaw; pitch = START.pitch; zoom = 1; idle = 0; pan.set(0, 0, 0); };
-  el.addEventListener('pointerdown', onDown);
-  el.addEventListener('pointermove', onMove);
-  el.addEventListener('pointerup', onUp);
-  el.addEventListener('pointercancel', onUp);
-  el.addEventListener('wheel', onWheel, { passive: false });
-  el.addEventListener('dblclick', reset);
-  el.addEventListener('contextmenu', (e) => e.preventDefault()); // the browser's image menu has no place on a 3D view
+  if (import.meta.env.DEV) (window as unknown as { __viewer?: unknown }).__viewer = { goal, view: () => view, camera, size: () => size, centre: () => centre };
   // a restored context lost the studio's environment map: made again, then a frame
   el.addEventListener('webglcontextrestored', () => { restoreStudioEnv(scene, pmrem); programs.reset(); demand.ask(); });
   resize();
@@ -336,6 +355,7 @@ export function mountViewer(host: HTMLElement): Viewer {
     dispose: () => {
       dead = true;
       stopSettings();
+      pad.dispose();
       cancelAnimationFrame(raf);
       for (const h of hooks) h.dispose?.();
       if (obj) disposeTree(obj);

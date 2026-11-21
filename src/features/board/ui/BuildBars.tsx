@@ -13,7 +13,7 @@ type Stage = import('../render/three/buildmode3d').BuildStage;
 const SPEEDS = [0.5, 1, 2, 4];
 const VIEWS = ['front', 'angle', 'side', 'top', 'wall'] as const;
 /** The hints under the dock: the camera in the Gallery's words, then what is Build's own. */
-const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'focus or reset'], ['O', 'side panel'], ['Esc', 'leave']];
+const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'focus or reset', 'Double-tap'], ['O', 'side panel', null], ['Esc', 'leave', null]];
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 /**

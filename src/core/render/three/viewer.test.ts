@@ -9,8 +9,9 @@ vi.mock('three', async (orig) => {
   const actual = await orig<typeof import('three')>();
   class WebGLRenderer {
     domElement = {
-      style: {}, width: 400, height: 300,
+      style: { setProperty() {} }, width: 400, height: 300,
       addEventListener: (k: string, f: () => void) => { if (k === 'webglcontextrestored') rig.restored = f; },
+      removeEventListener() {},
     };
     shadowMap = { enabled: false, type: 0 };
     outputColorSpace = ''; toneMapping = 0; toneMappingExposure = 1;
