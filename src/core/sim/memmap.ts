@@ -185,11 +185,15 @@ export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48, T
  */
 export const MAX_THREADS_PER_JOB = 8;
 export const threadStackTop = (k: number): number => (k === 0 ? 0x10000 : 0x80000 + k * 0x1000);
-/** Job slot states. */
 /** What each extra live thread of a core adds to the load the chip draws (the first thread counts 1): two threads on a core draw 1.15x. `Machine.busyCores` and the compatibility checks use it. */
 export const SMT_LOAD_SHARE = 0.15;
 
-export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
+/**
+ * Job slot states. `Receiving`: the NIC has delivered some of the job's segments and the kernel has written them to the spool (the job is not whole yet). `Sending`: the kernel put the result
+ * in the NIC's transmit ring and the NIC has not taken it yet. A job that came over the network has the top bit of its `KSLOT.KEY` set (`NET_KEY`): its result goes out by the NIC, not onto a USB key.
+ */
+export const JobState = { Free: 0, Receiving: 1, Queued: 2, Running: 3, Result: 4, Sending: 5 } as const;
+export const NET_KEY = 0x8000_0000;
 
 // ---- Memory protection unit (docs/OS.md "Memory protection"). Word registers, offsets from MPU_BASE.
 
@@ -361,3 +365,63 @@ export const NpuOp = { Load: 1, Matmul: 2, Macc: 3, Bias: 4, Relu: 5, Store: 6, 
 export const NPU_LAYER_WORDS = 6;
 /** `Layer`'s "no bias" address. */
 export const NPU_NO_BIAS = 0xffff_ffff;
+
+// ---- The network interface (docs/NETSTACK.md section 3.1). Word registers, offsets from NIC_BASE. One device, bound to the uplink port the cable is in.
+//
+// The NIC moves data by DMA, in its own clock domain. The kernel gives it two rings in RAM (the area at `NICA`): the receive ring the NIC writes a segment into and the transmit ring the kernel
+// drops a result into. Indexes are free-running counters (a ring slot is `index % slots`; the ring is full when `head - tail` is the slot count). The NIC raises line `IRQ.NIC`.
+
+export const NIC_BASE = 0x4017_0000;
+export const NIC_SIZE = 0x100;
+export const NIC_REG = {
+  /** ro: NicStatus bits. */
+  STATUS: 0x00,
+  /** rw: NicCtrl bits. Reset: 0 (the NIC is off until the kernel enables it, so nothing reaches RAM before the kernel is ready). */
+  CTRL: 0x04,
+  /** rw: the receive ring's address in RAM, and its slot count. */
+  RX_BASE: 0x08, RX_SLOTS: 0x0c,
+  /** ro: the NIC's write index. rw: the kernel's read index (`RX_TAIL`): the slots from tail up to head wait for the kernel. */
+  RX_HEAD: 0x10, RX_TAIL: 0x14,
+  /** rw: the transmit ring's address and slot count. */
+  TX_BASE: 0x18, TX_SLOTS: 0x1c,
+  /** ro: the NIC's read index. rw: the kernel's write index (`TX_TAIL`): writing it rings the doorbell, the slots from head up to tail are ready to send. */
+  TX_HEAD: 0x20, TX_TAIL: 0x24,
+  /** ro, since power-on: segments written to the ring, segments dropped (the ring was full), packets sent, interrupts raised. */
+  STAT_RX: 0x28, STAT_DROP: 0x2c, STAT_TX: 0x30, STAT_IRQ: 0x34,
+} as const;
+/** `STATUS` bits: the link is up (cable, router, power), a segment waits in the ring, a packet waits to be sent, a segment was dropped since the last reset, the NIC is enabled. */
+export const NicStatus = { Link: 1, RxPending: 2, TxBusy: 4, Dropped: 8, Enabled: 16 } as const;
+/** `CTRL` bits: the NIC runs, it raises the line for a received segment, it raises it for a sent packet. */
+export const NicCtrl = { Enable: 1, RxIrq: 2, TxIrq: 4 } as const;
+/** A received segment carries up to one spool block of the job's program: 64 words. */
+export const NIC_SEG_WORDS = 64;
+/** A receive slot: the header (the job's key, the segment number, the segments in the job, the words this segment holds, the words in the program, flags) then the payload, zero padded. */
+export const NIC_RX_HEAD_WORDS = 6;
+export const NicRx = { KEY: 0, SEQ: 1, COUNT: 2, NWORDS: 3, TOTAL: 4, FLAGS: 5 } as const;
+export const NIC_RX_SLOT_BYTES = 4 * (NIC_RX_HEAD_WORDS + NIC_SEG_WORDS);
+export const NIC_RX_SLOTS = 4;
+/**
+ * A transmit slot: status (`NicTx`), the job's key, the words that follow (0: an acknowledgement, no result), the argument (a result: the job table slot it came from; an acknowledgement: the
+ * next segment the kernel wants), then the result words.
+ */
+export const NIC_TX_HEAD_WORDS = 4;
+export const NicTxSlot = { STATUS: 0, KEY: 1, NWORDS: 2, ARG: 3 } as const;
+export const NIC_TX_SLOT_BYTES = 4 * (NIC_TX_HEAD_WORDS + PCH_RESULT_WORDS);
+export const NIC_TX_SLOTS = 4;
+/** A transmit slot's status: free, ready for the NIC (the kernel wrote it), done (the NIC sent it and wrote this back by DMA). */
+export const NicTx = { Free: 0, Ready: 1, Done: 2 } as const;
+/** The header flag of a segment the host replays from the spool after a boot (nothing came over the wire). */
+export const NIC_FLAG_REPLAY = 1;
+/**
+ * The RAM the kernel keeps for the NIC, above the kernel image of every tier and below the job table: its own words, the receive ring and the transmit ring. It lies inside the range
+ * the OS protects from the jobs (the OS header to the end of its data), so a job cannot touch it.
+ */
+export const NICA = 0xda00;
+export const NIC_RX_AT = NICA + 0x40;
+export const NIC_TX_AT = NIC_RX_AT + NIC_RX_SLOTS * NIC_RX_SLOT_BYTES;
+export const NIC_AREA_END = NIC_TX_AT + NIC_TX_SLOTS * NIC_TX_SLOT_BYTES;
+/**
+ * The kernel's words in the NIC area (byte offsets from `NICA`): the next transmit slot to reclaim, the link as the last pass saw it, the network jobs in the table (a counter: the kernel scans for
+ * finished ones only while it is above zero), the segments written to the spool, the segments thrown away, the results posted.
+ */
+export const NICK = { TXC: 0x00, LINK: 0x04, JOBS: 0x08, GOT: 0x0c, DROPS: 0x10, SENT: 0x14 } as const;

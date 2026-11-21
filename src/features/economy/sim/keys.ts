@@ -23,7 +23,6 @@ export function plugAndBoot(this: Game, keyId: number): Result<{ key: number }> 
 /** Plug a key from the tray into the USB port. One program at a time: a key already in the port must come out first. */
 export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
   if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
-  if (this.netKey) return { ok: false, reason: "the port is busy with a network job for a moment" };
   const peek = this.tray.waiting().find((k) => k.id === keyId);
   if (peek) {
     // A job the machine cannot run is refused at the port (with an OS, at ingest): it waits in the tray until it expires or is declined.
@@ -143,7 +142,7 @@ export function declineKey(this: Game, keyId: number): Result<{ keyId: number }>
     if (this.uploads.some((t) => t.key.id === keyId)) return { ok: false, reason: "uploading: the result is being sent" };
     const job = this.kernelJobs().find((j) => j.key === keyId);
     if (job?.state === JobState.Running) return { ok: false, reason: "running: the job is being run" };
-    if (job?.state === JobState.Result) return { ok: false, reason: "result ready: it is being delivered" };
+    if (job?.state === JobState.Result || job?.state === JobState.Sending) return { ok: false, reason: "result ready: it is being delivered" };
     if (job) this.freeKernelSlot(keyId);
     this.spool = this.spool.filter((k) => k.id !== keyId);
   } else if (!inTray) {

@@ -203,7 +203,7 @@ export function boardSnap(this: Game): BoardSnap {
 export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
   if (k.done) return "done";
   const j = jobs.find((x) => x.key === k.id);
-  const byState = (s: number): KeyStage => (s === JobState.Result ? "result" : s === JobState.Running ? "running" : "queued");
+  const byState = (s: number): KeyStage => (s === JobState.Result || s === JobState.Sending ? "result" : s === JobState.Running ? "running" : s === JobState.Receiving ? "ingesting" : "queued");
   if (this.offersQ.waiting().includes(k)) return "offer";
   if (this.downloads.some((t) => t.key === k)) return "downloading";
   if (this.rx.includes(k)) return "ingesting";

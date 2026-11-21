@@ -614,7 +614,7 @@ export class Live {
         const bootSlot = s.os?.slot ?? s.storage.find((d) => d.hasOs)?.slot ?? null;
         if (bootSlot) this.armDrive(bootSlot, s.phase === 'ingesting');
         if (s.phase === 'booting-os') this.flowMem(1);
-        // the phase is the same for a stick in the port and for a job from the network (the kernel takes it from a virtual key): only a real key uses the USB lanes
+        // the phase is the same for a stick in the port and for a job from the network (the kernel's NIC driver takes it from the receive ring): only a real key uses the USB lanes
         else if (s.plugged) this.arm('key', { hops: keyChain(s.phase === 'flashing') });
         else this.arm('net:' + (s.phase === 'flashing' ? 'up' : 'down'), { hops: this.netHops(s, s.phase === 'flashing' ? 'up' : 'down') });
       }

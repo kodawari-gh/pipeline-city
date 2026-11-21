@@ -1,13 +1,13 @@
 # Network stack v2: interrupts, DMA and a simplified TCP
 
-Status: **designed, stage 1 built.** Stage 1 is the CPU taking interrupts ([`CPU.md`](CPU.md) section 4). Stages 2 to 5 are not built. This document is the design for replacing the timing-only network of [`NETWORK.md`](NETWORK.md) ("Built") with one the machine takes part in. Everything not marked built is a proposal; all numbers are placeholders for the balance pass.
+Status: **designed, stages 1 and 2 built.** Stage 1 is the CPU taking interrupts ([`CPU.md`](CPU.md) section 4). Stage 2 is the NIC with its rings in RAM and the kernel's driver, still without loss (section 3.6). Stages 3 to 5 are not built. This document is the design for replacing the timing-only network of [`NETWORK.md`](NETWORK.md) ("Built") with one the machine takes part in. Everything not marked built is a proposal; all numbers are placeholders for the balance pass.
 
 ## 1. Why change it
 
 What exists (see `NETWORK.md` "Built", `Game.runTransfers` and `Game.feedKernel`):
 
 - A download is a counter: `doneMB += downMbps / 8 / downloads` per base tick. When it reaches the job's size the job is "downloaded".
-- The game then plugs a **virtual USB key** into the PCH with zero enumerate and flash waits, and the real kernel ingests it exactly as it would a key. The result is read out of the kernel's job table and uploaded the same way.
+- The game then plugged a **virtual USB key** into the PCH with zero enumerate and flash waits, and the real kernel ingested it exactly as it would a key. The result was read out of the kernel's job table and uploaded the same way. (Stage 2 replaced this: section 3.6.)
 - So the line, the router and the ISP decide *when* a job arrives, and the machine decides nothing about *how*. A slow CPU, a busy job or a small RAM do not touch the network, and the network cannot fail: no loss, no retry.
 
 What the owner wants to work towards: a stack where the packet path through the machine is visible and costs something. A NIC receives, the CPU is interrupted and loads the payload, packets can be lost and are resent. This is the design for that, built in steps that each keep the game playable.
@@ -39,7 +39,7 @@ A game MB is a **time unit**, not data the CPU touches. The real bytes are the j
 
 ### 3.1 The NIC device
 
-A memory-mapped device in its own clock domain (so it raises interrupts at CPU-cycle granularity: `CPU.md` "Using it from a device"), one per network port: the board's jack, and each NIC card in a PCIe slot. Proposed registers (offsets from a `NIC_BASE`, one block per port like the storage ports):
+A memory-mapped device in its own clock domain (so it raises interrupts at CPU-cycle granularity: `CPU.md` "Using it from a device"). **As built, section 3.6 replaces this table**: one device bound to the uplink port, a different register set, and the ring slots are fixed-size. The proposal, for the record (offsets from a `NIC_BASE`):
 
 | Reg | Meaning |
 |---|---|
@@ -93,7 +93,22 @@ A segment's loss probability is the combination `1 - (1 - a)(1 - b)(1 - c)...` o
 
 The ring-overflow case is the point of the exercise: the line can be 1000 Mbit and the machine a starter box, and the transfer still limps because the CPU cannot empty the ring. A faster CPU (or DMA, or coalescing) is then the fix, not more bandwidth.
 
+### 3.6 As built (stage 2)
+
+Code: `src/features/network/sim/nic.ts` (the device), `src/features/os/sim/nicdriver.ts` (the kernel's driver, toy-ISA asm inside every kernel image), the wire's side in `network.ts` (`wirePull`, `wireSend`, `adoptReceived`, `feedKernel`), constants in `src/core/sim/memmap.ts`, tests in `nic.test.ts` and `nicdriver.test.ts`.
+
+- **Device.** One `Nic` at `NIC_BASE` (0x4017_0000), clocked like the other devices. Registers: `STATUS` (link, rx pending, tx busy, dropped, enabled), `CTRL` (enable, rx irq, tx irq; reset 0, so nothing reaches RAM before the kernel is ready), `RX_BASE` / `RX_SLOTS`, `RX_HEAD` (ro) / `RX_TAIL`, `TX_BASE` / `TX_SLOTS`, `TX_HEAD` (ro) / `TX_TAIL` (the doorbell) and four counters (segments in, drops, packets out, interrupts). The indexes run free; a slot is `index & (slots - 1)`. Word registers are written a byte at a time (the bus composes a word store from four, low byte first) and take effect when the top byte lands.
+- **Segment.** One spool block of the program, 64 words (`NIC_SEG_WORDS`): a job of 24 to 641 words is 1 to 11 segments. This replaces the `segMB` idea of section 3.3 for the data the machine touches; the megabytes of a job still only set the time on the wire, and a segment is released to the NIC as the downloaded bytes cover it.
+- **Receive.** `wirePull` offers the next due segment to the NIC (one per NIC step, into a 2-segment input FIFO, `NIC_FIFO_SEGS`). The NIC DMAs it into the next free slot of the RX ring (4 slots of 280 bytes: a header of key, segment number, segment count, words, total and flags, then the payload) and moves `RX_HEAD`. A full ring keeps the segment in the FIFO and a full FIFO makes the wire wait. The NIC writes `ram` itself, with no CPU and no protection.
+- **Driver.** The kernel polls (`knic`, once a pass of its loop); the NIC can raise `IRQ.NIC` but the kernel leaves the enables off. It takes a segment off the ring, finds or opens the job's slot in its table (state receiving, key with `NET_KEY`), writes the payload to the job's spool block with `blk_write` and, after the last, queues the job. In-order only. With no free slot the segment stays in the ring (head-of-line blocking; stage 3 turns this into a drop and a retransmit). It reads the link bit before every segment: a dead link frees the receiving slots and empties the ring.
+- **Transmit.** A finished network job is posted by the kernel's own stores into the TX ring (4 slots of 48 bytes: status, key, words, argument, then the 8 result words), then `TX_TAIL`. The NIC DMAs it out, hands it to the wire (`wireSend`: an upload that waits for a client slot) and writes `Done` back; the kernel reclaims the slot and frees the job's table slot. A slot with no result words is an acknowledgement (used by stage 3).
+- **RAM.** The area (`NICA`, 0xDA00, just under the job table) holds the kernel's words (`NICK`: reclaim index, last link, network jobs in the table, segments taken, drops, results sent) and both rings, inside the range the OS protects from the jobs. Every kernel image grew by about 255 words; a test keeps each image under `NICA`.
+- **Host.** A download is whole when every byte has crossed the wire and the NIC has taken every segment; it waits in the receive window until the kernel has the job queued whole (`adoptReceived` moves it to the spool, before any cut of the link is handled). A cut link, a power loss or a reboot returns the unfinished downloads to the offers, flushes the FIFO and, after the next boot, `feedKernel` replays the spooled jobs the kernel does not know through the NIC (flag `NIC_FLAG_REPLAY`, nothing crosses the wire). The virtual USB key and, with it, `NetSnap.portBusyKey` are gone: a real key in the port no longer holds up the network.
+- **Not built in stage 2.** The onboard jack is not PIO (every port is a DMA NIC, section 9 point 2), the NIC tiers do not differ yet (3.2), there is no interrupt handler in the kernel, no loss and no retransmission (stage 3), no UI for rings and counters (stage 5).
+
 ## 4. The CPU side (what stage 2 adds)
+
+*Built differently: the driver polls and the interrupt line is unused (section 3.6). The text below is the original proposal.*
 
 - **A handler in the kernel** (`src/features/os/sim/kernel.ts`, assembly). Boot sets `VECTOR`, `MASK` (NIC line) and `CTRL`. The handler follows the convention of `CPU.md`: save, read `RX_HEAD`, acknowledge, set a "work waiting" flag in the kernel's data, restore, `iret`. For PIO it also copies the window.
 - **The bottom half** is the kernel's existing idle/loop code: it already polls the PCH for a key between programs; it also checks the flag, drains the ring and ingests a complete job (`kingest`'s copy, sourced from a RAM staging buffer instead of the key window).
@@ -113,7 +128,7 @@ Counters on the `net` snapshot: segments sent, retransmitted, dropped (wire / ri
 Each stage is committed on its own, with its tests, and keeps the game playable. The tutorial bot (`tutorial.bot.test.ts`) and the pacing numbers in `NETWORK.md` ("Pacing") must not regress at the end of stages 2 and 3.
 
 1. **CPU interrupts. Built.** `iret`, the controller at `INTC_BASE`, drain-then-vector entry in all engines, tests on every engine. ([`CPU.md`](CPU.md))
-2. **The NIC device and the kernel handler, still without loss.** Device and registers, ring, DMA and PIO paths, interrupt, kernel handler and bottom half, the virtual USB key removed. The transfers keep the bandwidth counters. Done when jobs arrive over the network through the interrupt path at the same speed as before (tolerance below).
+2. **The NIC device and the kernel driver, still without loss. Built** (section 3.6). Device and registers, rings, DMA, a polling driver in the kernel, the virtual USB key removed. The transfers keep the bandwidth counters. Not in it: the PIO path, the interrupt handler and bottom half (the driver polls; the line is there for a later tier).
 3. **The transport.** `transport.ts` with segments, ACKs, the window, the timeout, retries and the stateless loss roll, unit-tested alone; wired between the line and the NIC; the ring-overflow drop. Zero loss reproduces stage 2.
 4. **Loss sources and the NIC tiers.** The loss table, coalescing and checksum offload, the onboard-jack decision, RAM cost of the ring; retune with the bots (`NETWORK.md` "Pacing" rig) and update the numbers in `PROGRESSION.md` if the price ladder moves.
 5. **UI and render.** Network panel numbers, interrupt chip and handler visible in the CPU view, tutorial lines about "packets" if the lesson text needs them.

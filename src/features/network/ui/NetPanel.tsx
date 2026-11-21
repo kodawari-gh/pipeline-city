@@ -102,12 +102,11 @@ export function NetPanel() {
           {m.spooled.map((k) => <div class="kv" key={k.key.id}><span>{k.label}</span><b class={k.level === 'ok' ? '' : 'mute'}>{k.state}</b></div>)}
         </section>
       )}
-      {(m.usb || m.portBusy) && (
+      {m.usb && (
         <section>
           <h3>USB</h3>
-          {m.usb && <div class="kv" title={m.usb.detail ?? ''}><span class={`chip ${m.usb.level}`}>{m.usb.text}</span></div>}
-          {m.usb?.detail && <div class="mute sub">{m.usb.detail}</div>}
-          {m.portBusy && <div class="kv warn"><span>A key is parked in the USB port</span><b>{m.portBusy.label}</b></div>}
+          <div class="kv" title={m.usb.detail ?? ''}><span class={`chip ${m.usb.level}`}>{m.usb.text}</span></div>
+          {m.usb.detail && <div class="mute sub">{m.usb.detail}</div>}
         </section>
       )}
       {m.retiredKeys > 0 && <div class="kv"><span>Retired keys</span><b>{m.retiredKeys}</b></div>}

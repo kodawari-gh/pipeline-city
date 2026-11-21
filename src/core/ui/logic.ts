@@ -111,7 +111,6 @@ export const HINTS: Record<string, Hint> = {
   keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot: power off and on to load this key.' },
   osFull: { id: 'osFull', text: 'The OS queue is full. A plugged key waits until a job finishes.' },
   retiredKeys: { id: 'retiredKeys', text: 'The link is up: jobs come over the network now. Keys left in the tray expire without penalty.' },
-  portBusyKey: { id: 'portBusyKey', text: 'A key in the USB port holds up network jobs until it pops out.' },
   spoolFull: { id: 'spoolFull', text: 'The spool is full: new jobs wait and may expire. A bigger drive or OS holds more.' },
   linkDown: { id: 'linkDown', text: 'The link is down. Jobs on the drive are safe. After five minutes, keys come back at a third of the rate.' },
   saturated: { id: 'saturated', text: 'The link is saturated. More bandwidth will not help: a faster CPU, bigger OS or bigger router will.' },
@@ -135,7 +134,6 @@ export function triggeredHints(s: Snapshot): string[] {
   // The network (docs/NETWORK.md): what the link does to the keys, the port, the spool and the line itself.
   const n = s.net;
   if (n.usbRetired && n.retiredKeys > 0) out.push('retiredKeys');
-  if (n.portBusyKey != null) out.push('portBusyKey');
   if (s.os && (s.os.spoolFull ?? s.os.spool?.full) && (n.state === 'link-up' || n.state === 'saturated')) out.push('spoolFull');
   // The link was up once and is down now (not just the boot that every power-on goes through).
   if (n.state === 'down' && n.usbFallback.state !== 'off' && n.reason !== 'the OS is starting') out.push('linkDown');

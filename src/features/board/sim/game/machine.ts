@@ -1,7 +1,7 @@
 // Game feature: the running machine. The power button, cold boot, the phase it is in, the clock rates and the base tick
 // that steps it all. Every export is a `Game` method (see game.ts).
 
-import { applyEngine, applyRates, basicFan, bootCheck, CASE_TIERS, caseMounts, deviceSpec, fanAir, findDevices, fittedRadiator, mountFan, UNFANNED_SHARE, type FanPower, type RadiatorSpec, type RamSpec } from "..";
+import { applyEngine, applyRates, basicFan, bootCheck, CASE_TIERS, caseMounts, clockToRate, deviceSpec, fanAir, findDevices, fittedRadiator, mountFan, UNFANNED_SHARE, type FanPower, type RadiatorSpec, type RamSpec } from "..";
 import { BLOCK_BYTES, PchPhase } from "@/core/sim/memmap";
 import { bootBlocksFor } from "@/features/os/sim";
 import { ROM_IMAGE } from "../pch";
@@ -78,6 +78,7 @@ export function coldBoot(this: Game): void {
   for (const p of this.gpus) p.reset();
   for (const p of this.npus) p.reset();
   this.tpm.reset();
+  this.nic.reset();
   this.refreshBootImage();
   const boot = this.osPort();
   this.pch.bootDev = boot ? boot.base : 0;
@@ -200,6 +201,8 @@ export function meterWall(this: Game): void {
 /** Set the CPU and display domain rates from the board, then scale by cpuCyclesPerClock and the firmware boost. */
 export function syncRates(this: Game, useThermal: boolean): void {
   applyRates(this.board, this.machine, useThermal ? this.thermal : undefined);
+  // The NIC steps on its own fixed clock while the uplink port works (a dead card or no cable: it stands still).
+  if (this.machine.clock.hasDomain("nic")) this.machine.clock.setRate("nic", clockToRate(this.portInfo().mbps > 0 ? 1 : 0));
   for (const name of this.rateDomains) {
     const r = this.machine.clock.getRate(name);
     this.baseRates.set(name, r);

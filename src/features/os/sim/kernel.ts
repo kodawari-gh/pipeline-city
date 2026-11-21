@@ -19,6 +19,7 @@ import {
 } from "@/core/sim/memmap";
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
+import { nicInit, nicPoll } from "./nicdriver";
 
 /** Where the job table is and where it ends for the kernel being built: the tiers with a frame map (OS 3 and up) keep it above the frame map (`JT_BASE`), the others at `KDATA_BASE`. `kernelSource` sets them. */
 let KD = KDATA_BASE;
@@ -1483,10 +1484,12 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
     `  li t0, ${KDATA_END}`,
     `  sw t0, ${MPU_REG.R1_HI}(t2)`,
   ]),
+  ...nicInit(), // the NIC gets its rings and is switched on
   "kloop:",
   `  li s0, ${PCH_BASE}`,
   `  li s3, ${OS_HEADER_BASE}`,
   `  lw s1, ${PCH_REG.BOOT_DEV}(s0)`,
+  "  call knic", // the network driver: segments that came in, results that go out
   `  lw t0, ${PCH_REG.PHASE}(s0)`,
   `  li t1, ${PchPhase.OsIdle}`,
   "  beq t0, t1, kpoll",
@@ -1778,6 +1781,8 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   "fshit:",
   "  mv a0, t0",
   "  ret",
+  "",
+  ...nicPoll({ kd: KD, jtEnd, spoolPort: paged || pre, seqAt: SEQ }),
   "",
   ...(pre ? preemptive(KEND_PAGE, smp, thr) : paged ? [
     // ---- kmap: the address space of the job just loaded, and translation on ----

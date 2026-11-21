@@ -372,7 +372,6 @@ export interface NetPanelModel {
   spool: { used: number; slots: number; full: boolean } | null;
   usb: UsbModel | null;
   retiredKeys: number;
-  portBusy: { keyId: number; label: string } | null;
   delivered: number;
   addrs: AddrModel;
 }
@@ -453,7 +452,6 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
   const downs = n.transfers.filter((t) => t.dir === 'down');
   const ups = n.transfers.filter((t) => t.dir === 'up');
   const spooled = n.spooled.filter((k) => k.stage !== 'uploading');
-  const portKey = n.portBusyKey !== null && s.plugged?.id === n.portBusyKey ? s.plugged : null;
   const busyJobs = new Set(n.transfers.map((t) => t.jobId));
   const row = (t: TransferSnap): TransferRow => ({
     jobId: t.jobId, label: t.label, dir: t.dir, pct: Math.min(100, Math.max(0, t.percent)),
@@ -484,7 +482,6 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
     spool: s.os?.spool ? { used: s.os.spool.used, slots: s.os.spool.slots, full: !!(s.os.spoolFull ?? s.os.spool.full) } : null,
     usb: usbModel(s),
     retiredKeys: n.retiredKeys,
-    portBusy: n.portBusyKey != null ?{ keyId: n.portBusyKey, label: portKey?.label ?? `key ${n.portBusyKey}` } : null,
     delivered: n.counters.delivered,
     addrs: addressModel(s),
   };

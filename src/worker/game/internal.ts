@@ -2,7 +2,6 @@
 
 import type { Binding, IspSpec, RouterSpec } from "../../features/network/sim";
 import type { OsSpec } from "../../features/os/sim";
-import type { PchKey } from "../../features/board/sim/pch";
 import { levelRows, type LevelRowSnap, type Need } from "../../features/economy/sim/levels";
 import type { JobWindow } from "../../features/jobs/sim/joblog";
 import type { LinkState, MountPhase } from "./types";
@@ -61,6 +60,14 @@ export interface Transfer {
   doneMB: number;
   /** An upload whose result is read out but has no client slot yet (docs/NETWORK.md "Web jobs"): it moves no bytes. */
   waiting?: boolean;
+  /**
+   * A download carries the job's program to the NIC in segments (docs/NETSTACK.md): the program, how many segments it makes, and the next one the NIC has not pulled yet.
+   * A segment is due when the bytes that have crossed the wire cover it. `replay`: the kernel lost the job at a boot and takes it again from the spool, nothing crosses the wire.
+   */
+  words?: Uint32Array;
+  segs?: number;
+  next?: number;
+  replay?: boolean;
 }
 
 /** The link as evaluated each tick. */
@@ -72,9 +79,6 @@ export interface Link {
   isp: IspSpec | null;
   bw: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
 }
-
-/** The job the virtual USB key (the NIC feed) currently carries into or out of the kernel. */
-export interface NetKey { key: Key; kind: "ingest" | "flash"; pch: PchKey; since: number; fromRx: boolean }
 
 export interface InvItem {
   id: string;
@@ -93,8 +97,8 @@ export interface InstalledOs {
 /** The OS's boot probe of one drive: the scan, then (for a `dirty` drive) the repair, in base ticks. `left` counts down to 0. */
 export interface DriveMount { phase: MountPhase; scanTicks: number; repairTicks: number; left: number }
 
-/** A row of the kernel's job table (read from RAM). */
-export interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }
+/** A row of the kernel's job table (read from RAM). `key` is the key's id; `net`: the job came over the network (the table holds the id with the top bit set). */
+export interface KernelJob { slot: number; state: number; key: number; len: number; seq: number; net: boolean }
 
 export const lockText = (l: { level: number; name: string }): string => `needs Level ${l.level} (${l.name})`;
 export const LOG_CAP = 16;

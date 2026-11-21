@@ -172,10 +172,6 @@ describe('hints', () => {
       expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 0 }))).not.toContain('retiredKeys');
       expect(triggeredHints(withNet({ usbRetired: false, retiredKeys: 2 }))).not.toContain('retiredKeys');
     });
-    it('portBusyKey: a key is parked in the port', () => {
-      expect(triggeredHints(withNet({ portBusyKey: 7 }))).toContain('portBusyKey');
-      expect(triggeredHints(withNet({ portBusyKey: null }))).not.toContain('portBusyKey');
-    });
     it('spoolFull: only while the link is up or saturated', () => {
       expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'link-up' } }))).toContain('spoolFull');
       expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'saturated' } }))).toContain('spoolFull');
@@ -193,7 +189,7 @@ describe('hints', () => {
       expect(triggeredHints(withNet({ state: 'link-up' }))).not.toContain('saturated');
     });
     it('every network hint has a definition', () => {
-      for (const id of ['retiredKeys', 'portBusyKey', 'spoolFull', 'linkDown', 'saturated']) expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
+      for (const id of ['retiredKeys', 'spoolFull', 'linkDown', 'saturated']) expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
     });
   });
   it('shows each only once', () => {

@@ -35,6 +35,7 @@ import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../../cor
 import { Prng } from "../../core/sim/prng";
 import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from "../../core/sim/memmap";
 import { NetworkSource } from "../../features/network/sim";
+import { Nic } from "../../features/network/sim/nic";
 import { Pch, type PchKey } from "../../features/board/sim/pch";
 import * as bill from "../../features/economy/sim/bill";
 import * as clients from "../../features/economy/sim/clients";
@@ -42,7 +43,7 @@ import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "../../features/econo
 import * as hardware from "../../features/board/sim/game/hardware";
 import {
   MACHINE_RAM_BYTES, SANDBOX_LEVEL, LOG_CAP,
-  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type NetKey, type Transfer,
+  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type Transfer,
 } from "./internal";
 import type { DexRecord } from "../../features/jobs/sim/jobdex";
 import type { JobLogEntry } from "../../features/jobs/sim/joblog";
@@ -121,6 +122,8 @@ export class Game {
   plugged: Key | null = null;
   readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
   tpm!: TpmPort;
+  /** The network interface (docs/NETSTACK.md): the kernel's driver talks to it; the wire (`network.ts`) feeds it and takes what it sends. */
+  nic!: Nic;
   readonly npus: NpuPort[] = NPU_PORTS.map((slot, i) => new NpuPort(slot, i));
   readonly gpus: GpuPort[] = GPU_PORTS.map((slot, i) => new GpuPort(slot, i));
   readonly disks = new Map<string, Disk>();
@@ -143,7 +146,7 @@ export class Game {
   /** The OS's boot probe of each drive on the bus (not saved): base ticks of scan and repair left, `os.ts` `startMountScan`. */
   readonly mounts = new Map<string, DriveMount>();
   /** Each clock domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
-  readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", ...STORAGE_PORTS, ...GPU_PORTS, ...NPU_PORTS];
+  readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", "nic", ...STORAGE_PORTS, ...GPU_PORTS, ...NPU_PORTS];
   readonly baseRates = new Map<string, { mul: number; div: number }>();
   /** Cycles of history the next snapshot's trace carries: a step of the paused machine asks for more so none of it is lost. */
   traceCycles = TRACE_CYCLES;
@@ -207,8 +210,8 @@ export class Game {
   /** Where the queue slots are now: per drive, how many (set by `layoutSpool` at power-on). Not saved. */
   spoolPlan: { deviceId: string; slots: number }[] = [];
   uploads: Transfer[] = [];
-  netKey: NetKey | null = null;
-  netCooldown = 0;
+  /** Spooled jobs the kernel does not know (a boot wiped its table): the NIC replays their program from the spool, nothing crosses the wire. RAM: lost on power loss. */
+  restores: Transfer[] = [];
   link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
   netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
   /** The frames the uplink port has received and sent since the game started (fractions kept; counted from the bytes the transfers move, `network.ts` `countFrames`). Not saved. */
@@ -243,6 +246,10 @@ export class Game {
     for (const p of this.npus) this.machine.addDevice(p);
     this.tpm = new TpmPort(this.machine.bus, this.machine.ram, this.machine.prng);
     this.machine.addDevice(this.tpm);
+    this.nic = new Nic(this.machine.ram, (line) => this.machine.raise(line));
+    this.nic.pull = () => this.wirePull();
+    this.nic.onTransmit = (p) => this.wireSend(p);
+    this.machine.addDevice(this.nic);
     this.thermal = new ThermalModel(this.machine.prng);
     // The case comes with two basic fans on its front mounts (their cables still out).
     for (const m of ["front0", "front1"]) this.mustInstall("fan92", undefined, m);

@@ -3,9 +3,9 @@
 
 import { BOARD_TIERS, deviceSpec, type NicSpec } from "../../board/sim";
 import { generate } from "../../jobs/sim/gen";
-import { JOB_ROW, JobState } from "@/core/sim/memmap";
+import { JOB_ROW, JobState, NIC_FLAG_REPLAY, NIC_SEG_WORDS } from "@/core/sim/memmap";
 import { bandwidth, DISK_NET_MBPS, ispByTier, jobSizes, NET, pickOffer, routerByTier } from ".";
-import type { PchKey } from "../../board/sim/pch";
+import type { NicPacket, NicSegment } from "./nic";
 import type { Game } from "@/worker/game/game";
 import type { Key, KernelJob, Link, Transfer } from "@/worker/game/internal";
 import { needsMet } from "../../economy/sim/levels";
@@ -73,9 +73,9 @@ export function usbFallback(this: Game): boolean {
   return this.networkLinked && this.deadTicks >= this.cfg.usbFallbackTicks;
 }
 
-/** A job whose result is ready (the key holds it, or the kernel has it in its result state). */
+/** A job whose result is ready (the key holds it, or the kernel has it in its result state or in the NIC's transmit ring). */
 export function resultWaiting(this: Game, k: Key): boolean {
-  return k.done || this.kernelJobs().some((j) => j.key === k.id && j.state === JobState.Result);
+  return k.done || this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Result || j.state === JobState.Sending));
 }
 
 /**
@@ -97,19 +97,6 @@ export function kernelUp(this: Game): boolean {
   return phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
 }
 
-/** Whether the feed has work for the port: a finished download or a spooled job the kernel does not know yet. */
-export function feedWaiting(this: Game): boolean {
-  const jobs = this.kernelJobs();
-  const unknown = (k: Key): boolean => !jobs.some((j) => j.key === k.id);
-  const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
-  return this.rx.some(unknown) || this.spool.some((k) => unknown(k) && !uploading(k));
-}
-
-/** The USB key that blocks the virtual NIC key, or null (docs/NETWORK.md "Snapshot": `portBusyKey`). */
-export function portBusy(this: Game): number | null {
-  return this.plugged && this.kernelUp() && this.feedWaiting() ? this.plugged.id : null;
-}
-
 /** One base tick of the network after the machine ran: link state, retirement, transfers, and the feed into the kernel. */
 export function netTick(this: Game): void {
   this.link = this.computeLink();
@@ -125,6 +112,8 @@ export function netTick(this: Game): void {
   } else if (this.networkLinked) {
     this.deadTicks++;
   }
+  this.nic.linkUp = usable;
+  this.adoptReceived(); // what the kernel has whole is kept, whatever the link does next
   if (!usable) this.loseTransfers();
   else this.runTransfers();
   this.feedKernel();
@@ -173,16 +162,19 @@ export function runTransfers(this: Game): void {
     delete next.ranAt;
     delete next.reloaded; // a returned offer starts over: it runs when the kernel begins it
     const z = jobSizes(next.cls, next.type, next.scale);
-    this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0 });
+    this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0, ...programSegments(this.jobWords(next)) });
   }
-  if (this.downloads.length > 0) {
-    const each = bw.downMbps / 8 / this.downloads.length;
-    for (const t of this.downloads) { countFrames(this.netFrames, moved(t, each), "rx"); t.doneMB += each; }
-    for (const t of this.downloads.filter((x) => x.doneMB >= x.totalMB)) {
-      this.downloads = this.downloads.filter((x) => x !== t);
-      this.rx.push(t.key);
-      this.netCount.downloaded++;
-    }
+  // The bytes cross the wire, shared among the downloads still moving. The program's segments reach the NIC as the bytes cover them (`wirePull`).
+  const moving = this.downloads.filter((t) => t.doneMB < t.totalMB);
+  if (moving.length > 0) {
+    const each = bw.downMbps / 8 / moving.length;
+    for (const t of moving) { countFrames(this.netFrames, moved(t, each), "rx"); t.doneMB += each; }
+  }
+  // A download is whole when every byte has crossed the wire and the NIC has taken every segment: the rest is the kernel's work (the receive window, until it has queued the job).
+  for (const t of this.downloads.filter((x) => x.doneMB >= x.totalMB && (x.next ?? 0) >= (x.segs ?? 0))) {
+    this.downloads = this.downloads.filter((x) => x !== t);
+    this.rx.push(t.key);
+    this.netCount.downloaded++;
   }
   const sending = this.activeUploads();
   if (sending.length > 0) {
@@ -201,96 +193,100 @@ export function runTransfers(this: Game): void {
   }
 }
 
-export function dropNetKey(this: Game): void {
-  if (!this.netKey) return;
-  this.netKey = null;
-  this.pch.unplug();
-  this.restoreUsbTimings();
+/** A program cut into the segments the NIC takes: one spool block (`NIC_SEG_WORDS` words) each. */
+const programSegments = (words: Uint32Array): Pick<Transfer, "words" | "segs" | "next"> => ({ words, segs: Math.max(1, Math.ceil(words.length / NIC_SEG_WORDS)), next: 0 });
+
+/** The program of a job as a client sends it: generated from the job's template and seed (a USB key carries the same one). */
+export function jobWords(this: Game, key: Key): Uint32Array {
+  return generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
 }
 
-export function restoreUsbTimings(this: Game): void {
-  const boot = this.osPort();
-  this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
-  this.pch.flashTicks = boot ? this.cfg.usbFlashTicks : 0;
-}
-
-/** Put a job on the virtual USB key (the NIC feed): the kernel ingests it, or flashes its result, with no waits. */
-export function netPlug(this: Game, key: Key, kind: "ingest" | "flash", fromRx: boolean): void {
-  const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
-  const pk: PchKey = { id: key.id, program, done: false, result: "" };
-  this.pch.enumTicks = 0;
-  this.pch.flashTicks = 0;
-  this.pch.plug(pk);
-  this.netKey = { key, kind, pch: pk, since: this.baseTick, fromRx };
+/** The text the result words of a job make: the bytes up to the first NUL, trailing blanks cut (what `kernelResult` reads out of the job table). */
+function resultText(words: Uint32Array): string {
+  let s = "";
+  for (const w of words) {
+    for (let i = 0; i < 4; i++) {
+      const b = (w >>> (8 * i)) & 0xff;
+      if (b === 0) return s.trimEnd();
+      s += String.fromCharCode(b);
+    }
+  }
+  return s.trimEnd();
 }
 
 /**
- * The OS side of the NIC (needs the kernel up): finished downloads are written to the spool (the kernel ingests them from
- * the virtual key), spooled jobs that the kernel does not know (after a boot) are re-ingested in order,
- * and a finished result is read out and uploaded. Everything is real kernel work (CPU and drive), no USB waits.
+ * The wire's side of the NIC's receive path (`Nic.pull`, called from the NIC's own clock): the next segment of a program that is due. Spooled jobs the kernel has to take again come first
+ * (nothing crosses the wire for them), then the downloads in the order they started. A segment is due when the bytes that have crossed the wire cover it.
+ */
+export function wirePull(this: Game): NicSegment | null {
+  for (const list of [this.restores, this.downloads]) {
+    for (const t of list) {
+      const { words, segs } = t;
+      if (!words || segs === undefined || t.next === undefined) continue;
+      const due = t.replay || t.doneMB >= t.totalMB ? segs : Math.floor((segs * t.doneMB) / t.totalMB);
+      if (t.next >= due) continue;
+      const seq = t.next++;
+      return { key: t.key.id, seq, count: segs, total: words.length, words: words.subarray(seq * NIC_SEG_WORDS, (seq + 1) * NIC_SEG_WORDS), flags: t.replay ? NIC_FLAG_REPLAY : 0 };
+    }
+  }
+  return null;
+}
+
+/**
+ * The wire's side of the NIC's transmit path (`Nic.onTransmit`, from the NIC's clock): a packet the kernel wrote into the transmit ring and the NIC read by DMA. A result packet of a network job
+ * goes out as an upload that waits for a client slot (`runTransfers`). An acknowledgement carries no words: there is no sender to tell yet.
+ */
+export function wireSend(this: Game, p: NicPacket): void {
+  if (p.words.length === 0) return;
+  const k = this.rx.find((x) => x.id === p.key) ?? this.spool.find((x) => x.id === p.key);
+  if (!k || this.uploads.some((t) => t.key.id === k.id)) return; // a result nobody waits for
+  if (this.rx.includes(k)) {
+    this.rx = this.rx.filter((x) => x !== k);
+    this.spool.push(k);
+  }
+  this.restores = this.restores.filter((t) => t.key.id !== k.id);
+  k.result = resultText(p.words);
+  k.doneAt = this.baseTick;
+  this.closeWindow(k);
+  this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0, waiting: true });
+}
+
+/** A download whose job the kernel has queued whole leaves the receive window for the spool: the program is on the drive. */
+export function adoptReceived(this: Game): void {
+  if (this.rx.length === 0) return;
+  const jobs = this.kernelJobs();
+  for (const k of [...this.rx]) {
+    const j = jobs.find((x) => x.net && x.key === k.id);
+    if (j && j.state >= JobState.Queued) {
+      this.rx = this.rx.filter((x) => x !== k);
+      this.spool.push(k);
+    }
+  }
+}
+
+/**
+ * The host's side of the NIC feed, after the machine ran this tick: a spooled job the kernel does not know (a boot wiped its table, docs/NETWORK.md "Power loss") is replayed through the NIC
+ * from the spool. The kernel's driver does the work: the segments go to the ring, it writes them to the spool blocks again and queues the job.
  */
 export function feedKernel(this: Game): void {
-  if (!this.kernelUp()) {
-    this.dropNetKey();
-    return;
-  }
+  if (!this.kernelUp() || !this.linkUsable) return;
   const jobs = this.kernelJobs();
-  const known = (id: number): KernelJob | undefined => jobs.find((j) => j.key === id);
-  // A finished result is read straight out of the kernel's table into the NIC tx window (the card does the DMA: no USB
-  // port, no kernel loop pass), then the slot is free and the upload starts.
-  if (this.linkUsable) {
-    for (const k of this.spool) {
-      const j = known(k.id);
-      if (!j || j.state !== JobState.Result || this.uploads.some((t) => t.key.id === k.id)) continue;
-      k.result = this.kernelResult(j.slot);
-      k.doneAt = this.baseTick;
-      this.closeWindow(k);
-      this.freeKernelSlot(k.id);
-      this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0, waiting: true });
-    }
+  this.restores = this.restores.filter((t) => !jobs.some((j) => j.net && j.key === t.key.id && j.state >= JobState.Queued)); // the kernel has it: the replay is over
+  for (const k of this.spool) {
+    if (jobs.some((j) => j.key === k.id) || this.uploads.some((t) => t.key.id === k.id) || this.restores.some((t) => t.key.id === k.id)) continue;
+    this.restores.push({ key: k, totalMB: 0, doneMB: 0, replay: true, ...programSegments(this.jobWords(k)) });
   }
-  const nk = this.netKey;
-  if (nk) {
-    if (nk.kind === "ingest" && known(nk.key.id)) {
-      if (nk.fromRx) {
-        this.rx = this.rx.filter((k) => k.id !== nk.key.id);
-        this.spool.push(nk.key);
-      }
-      this.dropNetKey();
-    } else if (nk.kind === "flash" && nk.pch.done) {
-      const key = nk.key;
-      key.result = nk.pch.result;
-      key.doneAt = this.baseTick;
-      this.closeWindow(key);
-      this.dropNetKey();
-      this.freeKernelSlot(key.id);
-      this.uploads.push({ key, totalMB: jobSizes(key.cls, key.type, key.scale).upMB, doneMB: 0, waiting: true });
-    } else if (this.baseTick - nk.since > 300) {
-      this.dropNetKey(); // the kernel did not take it (no slot): try again later
-      this.netCooldown = 30;
-    }
-    return;
-  }
-  if (this.plugged || this.netCooldown-- > 0) return;
-  const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
-  const rx = this.rx[0];
-  if (rx && !known(rx.id)) return this.netPlug(rx, "ingest", true);
-  const again = this.spool.find((k) => !uploading(k) && !known(k.id));
-  if (again) this.netPlug(again, "ingest", false);
 }
 
 /**
- * Power loss or reboot (docs/NETWORK.md "Power loss"): everything in RAM is gone, the spool on the drive survives.
- * Downloads in progress and finished downloads still in the rx window go back to the offers (attempts + 1), uploads
- * are lost (the spooled job runs again), the virtual USB key of the NIC feed is dropped. Spooled
- * jobs stay: the kernel re-ingests them after the next boot.
+ * Power loss or reboot (docs/NETWORK.md "Power loss"): everything in RAM is gone, the spool on the drive survives. Downloads in progress and finished downloads still in the receive window go back
+ * to the offers (attempts + 1), uploads are lost (the spooled job runs again), the NIC's FIFO is empty. Spooled jobs stay: the kernel takes them again after the next boot (`feedKernel`).
  */
 export function loseRam(this: Game): void {
-  this.dropNetKey();
   this.loseTransfers();
 }
 
-/** Downloads, finished downloads in the rx window and uploads are RAM: lost when the link or the machine goes. */
+/** Downloads, finished downloads in the receive window and uploads are RAM: lost when the link or the machine goes. */
 export function loseTransfers(this: Game): void {
   const lost = [...this.downloads.map((t) => t.key), ...this.rx];
   for (const k of lost) {
@@ -301,6 +297,8 @@ export function loseTransfers(this: Game): void {
   this.downloads = [];
   this.rx = [];
   this.uploads = [];
+  this.restores = [];
+  this.nic.flush();
 }
 
 export function transferSnaps(this: Game): TransferSnap[] {
@@ -333,7 +331,6 @@ export function netSnap(this: Game, jobs: KernelJob[]): NetSnap {
       keyRateMul: fb === "fallback" ? this.cfg.usbFallbackMul : fb === "waiting" ? 0 : 1,
     },
     retiredKeys: this.tray.waiting().filter((k) => k.retired).length,
-    portBusyKey: this.portBusy(),
     counters: { ...this.netCount },
     frames: { rx: Math.round(this.netFrames.rx), tx: Math.round(this.netFrames.tx) },
   };

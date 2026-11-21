@@ -664,11 +664,6 @@ export interface NetSnap {
   usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };
   /** Retired keys lying in the USB tray (docs/NETWORK.md "Retired keys"). */
   retiredKeys: number;
-  /**
-   * The key id of the USB key parked in the port while the kernel has feed work (finished downloads or spooled jobs to
-   * ingest) that the virtual NIC key cannot use. Null when nothing blocks the feed. The UI shows a hint.
-   */
-  portBusyKey: number | null;
   counters: { delivered: number; downloaded: number; uploaded: number; lost: number };
   /**
    * What the uplink port has carried since the game started, in Ethernet frames, like a NIC's statistics: `rx` received (the data of downloads, the acknowledgements

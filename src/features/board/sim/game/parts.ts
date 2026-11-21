@@ -149,7 +149,6 @@ export function cancelSwap(this: Game, invId?: string): Result<{ cancelled: numb
 
 /** A job the machine would lose (or hold up) if it powered off now. */
 export function jobInFlight(this: Game): boolean {
-  if (this.netKey) return true;
   if (this.os && this.kernelJobs().length > 0) return true;
   return !!this.plugged && !this.plugged.done;
 }

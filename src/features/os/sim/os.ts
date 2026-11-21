@@ -2,7 +2,7 @@
 // storage snapshots. Every export is a `Game` method (see game.ts).
 
 import { deviceSpec, type InstalledDevice, type StorageSpec } from "../../board/sim";
-import { BLOCK_BYTES, JobState, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "@/core/sim/memmap";
+import { BLOCK_BYTES, JobState, KSLOT, KSLOT_BYTES, NET_KEY, NICA, NICK, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "@/core/sim/memmap";
 import { canHold, mountCost, type FileKind, type MountState } from "../../storage/sim/fs";
 import { bootImage, jobTableFor, programSlotsOn, queueSlotsFor, smpOn, tableSlots, SPOOL_BLOCKS_PER_JOB, type OsSpec } from ".";
 import type { Game } from "@/worker/game/game";
@@ -277,7 +277,8 @@ export function kernelJobs(this: Game): KernelJob[] {
     const at = tab.base + i * KSLOT_BYTES;
     const state = bus.load32(at + KSLOT.STATE);
     if (state === JobState.Free) continue;
-    out.push({ slot: i, state, key: bus.load32(at + KSLOT.KEY), len: bus.load32(at + KSLOT.LEN), seq: bus.load32(at + KSLOT.SEQ) });
+    const key = bus.load32(at + KSLOT.KEY) >>> 0; // a job that came over the network has the top bit set (the NIC driver): `key` is the id without it
+    out.push({ slot: i, state, key: (key & ~NET_KEY) >>> 0, net: (key & NET_KEY) !== 0, len: bus.load32(at + KSLOT.LEN), seq: bus.load32(at + KSLOT.SEQ) });
   }
   return out;
 }
@@ -295,7 +296,12 @@ export function kernelResult(this: Game, slot: number): string {
 }
 
 export function freeKernelSlot(this: Game, keyId: number): void {
-  for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(jobTableFor(this.os!.spec.tier).base + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
+  const bus = this.machine.bus;
+  for (const j of this.kernelJobs()) {
+    if (j.key !== keyId) continue;
+    bus.store32(jobTableFor(this.os!.spec.tier).base + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
+    if (j.net) bus.store32(NICA + NICK.JOBS, Math.max(0, bus.load32(NICA + NICK.JOBS) - 1)); // the NIC driver counts the network jobs in the table
+  }
 }
 
 /** The OS is gone: its spooled jobs go back to the offers unserved. */
@@ -456,7 +462,7 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
   const dev = this.board.devices.find((d) => d.id === os.deviceId)!;
   const running = jobs.find((j) => j.state === JobState.Running);
   const queued = jobs.filter((j) => j.state === JobState.Queued).sort((a, b) => a.seq - b.seq);
-  const results = jobs.filter((j) => j.state === JobState.Result).sort((a, b) => a.seq - b.seq);
+  const results = jobs.filter((j) => j.state === JobState.Result || j.state === JobState.Sending).sort((a, b) => a.seq - b.seq);
   const label = (id: number): string => {
     const k = this.plugged?.id === id ? this.plugged : this.spool.find((x) => x.id === id);
     return k ? this.keySnap(k, jobs).label : `key ${id}`;

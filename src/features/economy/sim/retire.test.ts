@@ -181,16 +181,15 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     expect(series()).toEqual(series());
   });
 
-  it("the port hint: portBusyKey names the key parked in the port while the feed has work it cannot use", () => {
+  it("a key in the USB port does not hold up the network: the NIC has its own way into the kernel", () => {
     const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const id = g.snapshot().tray[0]!.id;
-    expect(net(g).portBusyKey).toBeNull();
     until(g, () => g.plugKey(id).ok, 600);
-    for (let i = 0; i < 8; i++) offer(g);
-    until(g, () => net(g).portBusyKey === id, 1500);
-    // the OS finishes the key (it pops out by itself), and the port is free for the network again
+    offer(g);
+    // the offer is downloaded, queued by the NIC driver and delivered while the USB key is still in the port or has just popped out
+    const before = net(g).counters.delivered;
+    until(g, () => net(g).counters.delivered === before + 1, 4000);
     until(g, () => g.pluggedKey() === null, 3000);
-    expect(net(g).portBusyKey).toBeNull();
   });
 
   it("os.spoolFull follows the spool and the chip field matches spool.full", () => {
