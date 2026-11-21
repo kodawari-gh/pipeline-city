@@ -12,12 +12,13 @@ import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
-import { nicArt } from '@/features/network/render/net';
+import { nicFace } from '@/features/network/render/nic/nicart';
+import { nicFaceRect } from '@/features/network/render/nic/niclayout';
 import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicRect, nicY } from '../layout/layout';
-import { LV_PART, LV_RAISED, type ArtSet } from './artset3d';
+import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicY } from '../layout/layout';
+import { LV_PART, type ArtSet } from './artset3d';
 import type { Spin } from './fans3d';
 import { wallX, type Span } from './casekit3d';
 import { gpuBackplate, gpuCooler, gpuOutputs, gpuSockets, OUT_IN, OUT_TOP, outDepth, OUTPUTS, outputHoles } from './gpu3d';
@@ -86,7 +87,7 @@ export interface Card3D {
 
 /** The card's 2D geometry: its PCB's west end and length (the 2D card's), its cooler's east end, the slot line, its 2D rect's north and south edges. */
 function frame(kind: CardKind, visual: string, slot: number) {
-  const y0 = nicY(slot), r = kind === 'nic' ? nicRect(slot, visual) : cardRect(slot, visual);
+  const y0 = nicY(slot), r = kind === 'nic' ? nicFaceRect(slot, visual) : cardRect(slot, visual);
   const L = kind === 'nic' ? NIC_LEN[visual] ?? 1500 : CARD_LEN[visual] ?? 1500;
   return { x0: BD.x, x1: BD.x + L, xe: BD.x + lenOf(kind, visual), y0, top: r.y, south: r.y + r.h, end: y0 + STAND[kind], r };
 }
@@ -157,7 +158,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)
   const sockets = kind === 'gpu' ? gpuSockets(fades, visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T) : [];
   const extra: Object3D[] = [];
-  const band = DEVICE_LOD[kind === 'gpu' ? 'gpu' : 'npu'].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
+  const band = DEVICE_LOD[kind].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
   return {
     root, spins, skin, sockets, fades, lan,
     at: f.r,
@@ -188,13 +189,13 @@ function npuFace(T: Theme, visual: string, i: number): Container {
 
 /**
  * The card in its slot with its 2D face (`card3d`), one model for the case, Build my PC and the gallery: the GPU's face is the shop picture's art
- * (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its board art. `onFace`: the face, at depth `z` (the
- * machine runs the dies on it).
+ * (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its plan: the jack, the magnetics, the controller and the small parts
+ * (`nicFace`). `onFace`: the face, at depth `z` (the machine runs the dies and the NIC's plan on it).
  */
 export function cardModel(art: ArtSet, T: Theme, kind: CardKind, visual: string, slot: number, onFace?: (face: Object3D, z: number) => void): Card3D {
-  const b = art.baker(() => (kind === 'nic' ? nicArt(T, visual, slot) : kind === 'npu' ? npuFace(T, visual, slot) : cardArt(T, visual, slot, false)));
+  const b = art.baker(() => (kind === 'nic' ? nicFace(T, visual, slot) : kind === 'npu' ? npuFace(T, visual, slot) : cardArt(T, visual, slot, false)));
   return card3d(kind, visual, slot, (parent, r, z) => {
-    const face = art.surface(parent, b.bake, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
+    const face = art.surface(parent, b.bake, r, z, LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
     onFace?.(face, z);
     return face;
   });

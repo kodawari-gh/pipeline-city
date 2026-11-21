@@ -7,6 +7,7 @@
 // label, and the solder mask with its traces and silkscreen.
 import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { drawLockup } from '@/core/render/brands';
+import { macOf } from '@/features/network/render/nic/nicmac';
 import { drum, instanced, rectBox, SEG, tube, withLow, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
@@ -97,7 +98,7 @@ function macLabel(visual: string): ReturnType<typeof tex> {
     c.fillStyle = '#16181c';
     for (let x = 24; x < w - 24;) { const bw = 2 + Math.floor(rnd() * 3) * 2; if (rnd() > 0.45) c.fillRect(x, 16, bw, h * 0.5); x += bw + 2 + Math.floor(rnd() * 3) * 2; }
     c.font = '600 34px "Consolas", "DejaVu Sans Mono", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(`MAC 00:1B:21:${(0x3a + visual.length).toString(16).toUpperCase()}:7C:${visual === 'nic-40g' ? 'E0' : '4F'}`, w / 2, h * 0.8);
+    c.fillText(`MAC ${macOf(visual)}`, w / 2, h * 0.8);
   });
 }
 

@@ -43,6 +43,8 @@ export const DEVICE_LOD = {
   gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
   npu: { ...BASE_LOD, fine: 0.75, lid: 0.15 },
   tpm: { ...BASE_LOD, lid: 0.1 },
+  /** The network card: its parts fade and it swings flat over the base band, and its plan's blocks take hits from the hover zoom on. Its plan is wide (the card is long), so the counters come as soon as it lies flat. */
+  nic: { ...BASE_LOD, text: 0.6 },
   /** The casing fades to the cutaway over `fade` (the capacity map); the architecture (controller, dies, head arm) fades in over the band from `arch`; the extent list, legend, wear and queue are the counter tier (`detail`, under the `TierBudget`). A drive is the size of a card, so the bands are the base ladder's. */
   disk: { fade: [0.25, 0.4], text: 0.4, detail: 0.9, hover: 0.25, arch: 0.5 },
   ram: { show: BASE_LOD.fade[0], outline: BASE_LOD.text, band: BASE_LOD.text, lens: BASE_LOD.detail },

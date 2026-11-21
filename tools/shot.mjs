@@ -3,6 +3,8 @@
 // It prints the WebGL renderer it got; if that says SwiftShader/llvmpipe it stops (SOFTWARE=1 allows it). Look at the picture after every render or UI change.
 //   --view cpu            fly to the CPU die (the camera `flyToCpu`); `board` the whole board; `x,y,z` an exact camera view (board units, zoom)
 //   --clip hud            only the top bar (the pause / speed / slow-motion controls)
+//   --tap x,y             click this screen point ("x,y|x,y": one after the other), before --click, e.g. the power supply, then --click "Power on"
+//   --dblclick x,y        double-click this screen point after the view is set (a part flies into view), then wait `--flight ms` (4500); "x,y|x,y" clicks one after the other
 //   --preset name         a graphics preset, picked in the real panel with auto-adjust off (as tools/bench3d.mjs does); it stops if the preset did not take
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
@@ -69,7 +71,8 @@ try {
       await p.waitForFunction(() => window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
     }
   }
-  await p.waitForTimeout(2500);
+  // (the optimized build has no `window.__board` to wait for: its first frame frames the room again, so give it time before a flight is asked)
+  await p.waitForTimeout(PROD ? 9000 : 2500);
   if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
   if (flag('preset', '')) {
     const name = flag('preset', '');
@@ -92,6 +95,10 @@ try {
   else if (view === 'room') await p.evaluate(() => window.__board.flyToRoom?.());
   else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
   if (flag('look', '')) await p.evaluate((v) => window.__board.lookAt(...v), flag('look', '').split(',').map(Number));
+  // a click on the picture must wait for the --view flight to land: during it, it hits the room, not the board
+  if (view && (flag('tap', '') || flag('dblclick', ''))) await p.waitForTimeout(4000);
+  // --tap "x,y" (repeatable by "x,y|x,y"): click these screen points in order, e.g. the power supply, whose popup has the power button (then --click "Power on")
+  for (const at of flag('tap', '').split('|').filter(Boolean)) { await p.mouse.click(...at.split(',').map(Number)); await p.waitForTimeout(600); }
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
   for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
   // --eval "js": run this in the page (dev server only: `await import('/src/app/store.ts')` is the live store, e.g. `.powerButton()` to switch the machine on);
@@ -102,8 +109,11 @@ try {
   }
   // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
   for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
+  if (flag('keys', '') && flag('dblclick', '')) await p.waitForTimeout(4000); // (a key may start a flight, e.g. `b`: the board)
   // --hover "x,y": rest the pointer here (screen pixels), e.g. to see a part's outline
   if (flag('hover', '')) await p.mouse.move(...flag('hover', '').split(',').map(Number));
+  // --dblclick "x,y": double-click here (screen pixels) and wait `--flight` ms (4500) for the camera: a part flies into view (the prod build has no `window.__board.focusPart`)
+  for (const at of flag('dblclick', '').split('|').filter(Boolean)) { await p.mouse.dblclick(...at.split(',').map(Number)); await p.waitForTimeout(Number(flag('flight', 4500))); }
   await p.waitForTimeout(Number(flag('wait', 2500)));
   // --fps: count animation frames for 3 s and print the mean frame rate and the slowest frame (the 3D target is 60 FPS)
   if (args.includes('--fps')) {

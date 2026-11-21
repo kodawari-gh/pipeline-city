@@ -1,0 +1,109 @@
+// Words for the parts of the NIC card the board draws when the camera is close (docs/render/net.md "Inside the NIC and the router", render/nic/niclayout.ts): the controller
+// and the blocks of its plan. An id is the PCIe slot and the part: `pcie2.nic-mac`. Pure. It imports nothing from logic.ts (logic.ts imports netdesc.ts, which calls this).
+
+import { getSpec, type NicSpec } from '../../board/sim/specs';
+import type { Snapshot } from '@/worker/game/game';
+import type { Description } from '@/core/ui/regions';
+import { NET } from '../sim/specs';
+import { macOf } from '../render/nic/nicmac';
+import { NIC_LINK } from '../render/nic/nicplan';
+import { fmtFrames } from '../render/plan/netmeter';
+import { fmtMbit } from './fmt';
+
+const ID = /^(pcie\d+)\.nic-([a-z]+)$/;
+const KINDS = new Set(['ctl', 'jack', 'mag', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie', 'nvm', 'xtal', 'vreg', 'temp']);
+
+/** Is this one of the NIC card's part ids? */
+export const isNicId = (id: string): boolean => { const m = ID.exec(id); return !!m && KINDS.has(m[2]!); };
+
+/** The link in words: what the jack's lights say. */
+function linkWords(s: Snapshot | null | undefined, deviceId: string | undefined): string {
+  const n = s?.net;
+  if (!n || !deviceId) return 'no game';
+  if (n.port.kind !== 'nic' || n.port.deviceId !== deviceId) return 'no cable in this card';
+  return n.state === 'link-up' || n.state === 'saturated' ? `link up, ${fmtMbit(n.port.mbps)}` : `no link${n.reason ? `: ${n.reason}` : ''}`;
+}
+
+/** Describe a NIC part by its id; null when the id is not one. `s` adds what the card is doing right now. */
+export function describeNicId(id: string, s?: Snapshot | null): Description | null {
+  const m = ID.exec(id);
+  if (!m || !KINDS.has(m[2]!)) return null;
+  const slot = m[1]!, kind = m[2]!;
+  const dev = s?.devices.find((d) => d.slot === slot && d.kind === 'nic');
+  const spec = dev ? (getSpec(dev.spec) as NicSpec | undefined) : undefined;
+  const plan = spec ? NIC_LINK[spec.visual] : undefined, n = s?.net, here = !!dev && n?.port.kind === 'nic' && n.port.deviceId === dev.id;
+  const name = spec ? spec.name : 'network card', chip = plan ? `${plan.chip}, ${plan.std}` : 'network chip';
+  switch (kind) {
+    case 'ctl': return {
+      title: 'Network controller',
+      plain: 'The chip that does the work of the card. On one side it speaks to the cable (the jack, the magnetics and the PHY). On the other side it speaks to your computer (the queues, the DMA engine and the PCIe link). Zoom in to see each part.',
+      nerd: `${name} | ${chip}${dev ? ` | ${dev.tempC.toFixed(0)} C, ${dev.powerW.toFixed(1)} W` : ''}`,
+    };
+    case 'jack': return {
+      title: 'RJ45 jack',
+      plain: 'The socket for the ethernet cable. The green light is on while the link is up. The amber light flashes with the frames that pass: one frame lights it for a moment, so a busy link keeps it on. Both lights follow the real link.',
+      nerd: `${linkWords(s, dev?.id)}${plan && plan.ports > 1 ? ' | two jacks on the bracket, the game has one cable' : ''} | amber follows the frame counter`,
+    };
+    case 'mag': return {
+      title: 'Magnetics',
+      plain: 'Small transformers between the jack and the chip. They keep the card electrically apart from the cable, so a surge on the line does not reach the chip. There is one for each of the four wire pairs.',
+      nerd: '4 transformers, pairs A to D | 1.5 kV isolation, as the Ethernet standard asks | no data of their own: the lines light with the frames',
+    };
+    case 'phy': return {
+      title: 'PHY',
+      plain: 'Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage. A card that is too hot falls back to half speed.',
+      nerd: `${plan ? plan.std : 'line standard'} | ${linkWords(s, dev?.id)}${spec ? ` | the card is rated ${fmtMbit(spec.mbps)}` : ''}`,
+    };
+    case 'mac': return {
+      title: 'MAC',
+      plain: 'Builds and checks Ethernet frames. A frame has the two addresses, the type, up to 1500 bytes of data and a check value (CRC) at the end. The MAC drops a frame whose check value is wrong. The moving bar shows a frame passing.',
+      nerd: `frame up to ${NET.frameBytes} bytes | one acknowledgement for every ${NET.ackEvery} data frames, as the port counts them | CRC32 on every frame`,
+    };
+    case 'stats': return {
+      title: 'Statistics',
+      plain: 'The counters of the port: how many frames came in and went out since the game started, and how fast they come now. The bars show how much of the line speed the frames use. A card on a slow plan uses a small part of its speed.',
+      nerd: here && n ? `rx ${fmtFrames(n.frames.rx)} frames | tx ${fmtFrames(n.frames.tx)} frames | counted from the bytes the transfers move | the limit now: ${n.bandwidth.binding ?? 'none'}` : 'rx and tx frame counters | counted from the bytes the transfers move | not saved: a loaded game counts from zero',
+    };
+    case 'rxq': return {
+      title: 'Receive queue',
+      plain: 'Frames that came in wait here until the DMA engine moves them to RAM. Each row is a download that is moving now: the job and how far it has got.',
+      nerd: here && n ? `${n.transfers.filter((t) => t.dir === 'down').length} downloads in flight | ${n.offers.length} jobs wait at the ISP side | ${n.counters.downloaded} downloaded so far` : 'downloads in flight, one row each | the speed is split between them',
+    };
+    case 'txq': return {
+      title: 'Transmit queue',
+      plain: 'Frames to send wait here. Each row is an upload that is moving now. Finished results that wait for a free client slot are counted next to the title.',
+      nerd: here && n ? `${n.transfers.filter((t) => t.dir === 'up').length} uploads in flight | ${n.uploadsWaiting} results wait for a client slot | ${n.counters.uploaded} uploaded so far` : 'uploads in flight, one row each | a client slot serves one transfer',
+    };
+    case 'dma': return {
+      title: 'DMA engine',
+      plain: 'Moves frames between the card and RAM by itself, so the CPU does not copy each byte. A ring of descriptors says where each frame goes. The left arrow lights while frames come in, the right arrow while frames go out.',
+      nerd: `descriptor ring | scatter and gather | ${here && n ? `${fmtFrames(n.frames.rx + n.frames.tx)} frames moved since the game started` : 'the OS fetches packets when it wants'}`,
+    };
+    case 'pcie': return {
+      title: 'PCIe interface',
+      plain: 'The link to the motherboard through the gold fingers. A lane is one pair of wires in each direction. A faster card needs more lanes. The lanes light with the frames.',
+      nerd: `${plan ? `x${plan.lanes}, ${plan.lanes * 2} pairs` : 'lanes by tier'} | the card sits in a PCIe slot`,
+    };
+    case 'nvm': return {
+      title: 'Flash',
+      plain: 'A small memory chip. It holds the card\'s firmware and its MAC address, the address that names this card on the network. The card reads it when the machine starts.',
+      nerd: `SPI flash, 8 pins | MAC ${macOf(spec?.visual ?? 'nic-gbe')}`,
+    };
+    case 'xtal': return {
+      title: 'Crystal',
+      plain: 'A quartz crystal that rings at 25 MHz while the card has power. Every clock on the card comes from it.',
+      nerd: `25 MHz | ${dev ? (s?.powered ? 'running' : 'stopped: the machine is off') : 'runs while the card has power'}`,
+    };
+    case 'vreg': return {
+      title: 'Regulator',
+      plain: 'Turns the power of the slot into the low voltage the chip needs. The bar shows how much power the card draws now: more frames cost more power.',
+      nerd: spec && dev ? `${dev.powerW.toFixed(1)} W now | ${spec.idleW} W idle, ${spec.loadW} W at full load` : 'idle and load watts by tier',
+    };
+    case 'temp': return {
+      title: 'Heat sensor',
+      plain: 'Measures the temperature of the chip. Above the first mark the card runs at half speed. Above the second mark it becomes unstable. At the last mark it burns out. Better air flow keeps it cool.',
+      nerd: spec && dev ? `${dev.tempC.toFixed(0)} C | half speed from ${spec.thermal.throttleC} C | unstable from ${spec.thermal.unstableC} C | burns at ${spec.thermal.damageC} C${dev.throttle < 1 ? ' | HALF SPEED NOW' : ''}` : 'half speed, unstable and damage marks by tier',
+    };
+    default: return null;
+  }
+}

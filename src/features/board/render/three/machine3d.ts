@@ -31,6 +31,7 @@ import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
+import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
@@ -818,9 +819,9 @@ export class Machine3D {
       }
       case 'gpu': case 'npu': case 'nic': {
         // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's the shop
-        // picture's art (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its board art; the dies run on it
+        // picture's art (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its plan (`nicFace`: the jack to the PCIe edge); the dies and the plan run on it
         const i = idx(d.slot), kind = spec.kind;
-        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); });
+        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { this.chips?.face(face, kind, kind === 'nic' ? nicFaceRect(i, visual) : chipRect(kind, visual, i), z + 2, d.slot); });
         this.model(g, c);
         // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
@@ -828,7 +829,7 @@ export class Machine3D {
         this.fades.push(c.root);
         this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
         // (flat, the card's face lies on the hinge's plane)
-        if (kind !== 'nic') this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
+        this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
         if (c.lan) this.lan.set(d.id, c.lan);
         this.apart.push(c.fades);
@@ -1604,8 +1605,9 @@ export class Machine3D {
   }
 }
 
-/** Where a card's die runs (`Chips3D`): the GPU's body, the AI card's die, a little grown (the GPU's memory magnifier stands by its cell). */
-function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
+/** What a card's detailed view flies to (`Chips3D` runs it): the GPU's body, the AI card's die, the NIC's plan, a little grown (the GPU's memory magnifier stands by its cell). */
+function chipRect(kind: 'gpu' | 'npu' | 'nic', visual: string, i: number): RectLike {
+  if (kind === 'nic') return grow(nicGeo(visual, i).chip, 30);
   const o = cardOrigin(i, visual);
   return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
 }

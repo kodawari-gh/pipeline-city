@@ -11,6 +11,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/fe
 | `lens/shape.ts` | the network lens, pure: the anchors (plate, router, LAN lead, OS drive), the lines (`netShape`), the numbers and tags of one snapshot (`netDraw`), `speedLevel` (see The network lens) |
 | `lens/flows.ts` | the network lens: the lines as one instanced mesh of strips that face the camera, and the comet shader |
 | `lens/view.ts` | the network lens: `NetView3D` (veil, lines, tags), hosted by `Lens3D` in the board feature |
+| `plan/`, `nic/` | the detailed view of the network card: its plan, symbols, live layer and hover words (see Inside the NIC and the router) |
 
 ## Network (router, wall plate, ethernet cable, NIC cards)
 
@@ -54,6 +55,33 @@ The frames come from the sim: `NetSnap.frames` (`rx`, `tx`: cumulative, not save
 **LOD.** The router, wall plate, cable and jack LEDs are external: the far-zoom view keeps them. The 2D layer that held them (`NetView.root`) and its far-zoom hit rule were removed with the 2D board.
 
 **Verified before the 2D board was removed** (headless Chrome, software GL, sandbox saves, real mouse events through `beginPartDrag` and the canvas; 1360x800 dark and light, 1920x1080 light): a router dragged from the inventory onto its spot installs (and is refused on a PCIe slot, a NIC on the router spot); all four router looks, the wall plate with plans 1 to 4; NIC cards `nic1`, `nic2`, `nic3` dropped on PCIe slots; the plug dragged onto `eth0` and onto a NIC jack, pulled out again (disconnects, plug back at rest) and re-plugged, all while the PC was on or off; power on, OS up, link up, downloads with pulses, the retired tray look; power off (router power and WAN lights stay, jack LEDs go dark, the tray says `NET DOWN`); two screenshots of a paused frame are byte-identical and differ again after the resume; far zoom with the router, cable and the NIC jack on the rear plate, and hover ids `router`, `wall`, `cable.lan`, `eth0` at far zoom; `anchorOf`, `hasTarget`, `flyTo` and a highlight for the new ids. Upload pulses and a `link-down` amber LED were checked with a spoofed snapshot (both directions drawn), not from a real upload; `saturated` came from a real run (spool full). Not verified: touch, the burnt-card dimming, the plugged-key-over-cable overlap. Not re-checked on the 3D board.
+
+## Inside the NIC and the router
+
+Code: `src/features/network/render/plan/` (shared), `src/features/network/render/nic/`, the words in `src/features/network/ui/nicdesc.ts`. Zoom in on a network card and its parts fade. The card lies down and shows what is inside its controller, as a floorplan drawn in the CPU die's style (`docs/DIE.md`). Double-click the card to fly to its controller. The other detailed views (CPU die, GPU, NPU, TPM) work the same way.
+
+| File | Role |
+|---|---|
+| `plan/netplan.ts` | `layPlan`: a tree of blocks placed edge to edge and wires routed through the gutters (`cpufloor`), cached by key. The card's plan uses it |
+| `plan/netmeter.ts` | `FrameMeter` (frames a tick, from the sim's counters), `lineFrames`, `busy`, `loadOf` and the number formatters |
+| `nic/nicplan.ts` | the card's plan: `NIC_LINK` (chip, standard, lanes, jacks, queue ring) and `nicPlan(visual, edge)` |
+| `nic/niclayout.ts` | the card's face on the board (`NIC_FACE`, `nicFaceRect`), `nicGeo`, the hover parts (`nicParts`, `nicIds`) |
+| `nic/nicglyph.ts` | the symbol of each block (`nicGlyph`), what lights now (`nicLive`), the geometry both share |
+| `nic/nicroute.ts` | the way a frame goes: `nicRoute(plan, "rx" or "tx")` |
+| `nic/nicart.ts` | the still art: PCB, gold fingers, bracket, the jack's profile, the plan |
+| `nic/nicshow.ts` | `NicShow`: what the view shows each frame, read off the snapshot |
+| `nic/nicview.ts` | `NicView`: the live Pixi layer (glow, lit parts, numbers, packets) |
+| `nic/nicmac.ts` | the card's MAC address (the 3D sticker prints the same) |
+
+**The plan.** West to east, the way a frame comes in: the RJ45 jack (two on the 40G card), the magnetics (a transformer for each of the four pairs), then the controller's frame: the PHY (a front end, a signal processor and a coding stage on each pair, and a speed gauge), the MAC (the Ethernet frame as its fields, a lane for the frame received and one for the frame sent) over the statistics (the port's counters), the receive queue over the transmit queue (a ring of slots and a row for each transfer in flight), the DMA engine (the descriptor ring and the two ways to RAM) and the PCIe core (a lane is two pairs). The host bus runs from the PCIe core along the card's north margin to the gold fingers. A column on the east holds the flash (with the MAC address), the crystal, the regulator and the heat sensor, each wired to the controller. The three cards differ in what they carry: chip, standard (`1000BASE-T`, `10GBASE-T`, `40GBASE-T`), lanes (x1, x4, x8), jacks and ring size (`NIC_LINK`; the 3D card is built from the same numbers: `NIC_LANES`, `jacksOf`).
+
+**What is real.** Nothing is random, fixed or set by hand. The link lamp is lit while the cable is in this card and `linkOf` says the PHY has a partner (the jacks' law, `jackleds.ts`); the activity lamp follows the frames (`actLevel`, the same `STRETCH`). The frames a tick come from `NetSnap.frames` through a `FrameMeter` (the view owns one; the jacks have their own). The lanes light with how busy the port is (`busy`, a log scale: a faint light for a few frames, full at line rate) and no frames means no light and no packets; the load bars show the real share of the line rate (`lineFrames(mbps)`). The queues show `net.transfers` (the job and how far it is, up to three rows, `uploadsWaiting` next to the transmit queue); the PHY shows the speed the port has (a hot card runs at half: `DeviceSnap.throttle`) and the gauge shows it against the card's rating; the regulator shows `DeviceSnap.powerW` between the spec's idle and load watts; the heat sensor shows `tempC` on a scale to the damage point with the throttle and unstable marks. A card without the cable shows a dark line and its counters at 0 (the card's own port counters are `net.frames`, which count the one uplink port). The second jack of the 40G card is drawn but never lit (the game has one cable).
+
+**Pose and zoom.** The card is built lying (`card3d.ts`): its cooler, bracket and parts fade over `DEVICE_LOD.nic.fade` (0.4 to 0.6) and it swings flat from zoom 0.6. Its face (`NIC_FACE`: 150 above the slot's line, which hides the finger tab (140 high), and 450 below it) carries the still art (`nicFace`, baked in levels `LV_PART`); the live layer (`NicView` in `Chips3D`, kind `nic`) runs over it at 30 draws a second at most and shows its numbers from zoom 0.6 (`DEVICE_LOD.nic.text`: the plan is wide, so they come early). The plan's blocks take hover hits from zoom 0.45. A double click flies to the controller's frame (`Machine3D.rail`, `focusPart`).
+
+**Ids.** `pcieN.nic-<block>`: `ctl jack mag phy mac stats rxq txq dma pcie nvm xtal vreg temp`. The prefix `nic-` keeps them apart from the GPU's, the NPU's and the TPM's ids in the same slot. `describeNet` asks `describeNicId` first, so `describeId` finds them; each part has a title, a plain line and a nerd line, and the nerd line carries the card's live numbers while the game has the card. The tests list the ids from `nicIds` (`nicdesc.test.ts`), so a part cannot be drawn without words.
+
+**Verified** (headless Chrome, the real GPU, sandbox game): the three cards flat at card width and at the flight zoom; link down and up; a burst of frames lighting the route; a real download as a row of the receive queue; the hover on a block; the standing pose. The compiled game (`--prod`) flies to the card and shows the same plan and names as the dev server (the live layer was seen on the dev server only: the compiled game has no hook to power the machine on). Tests: `plan/netmeter.test.ts`, `nic/{nicplan,niclayout,nicglyph,nicshow}.test.ts`, `ui/nicdesc.test.ts`; the High golden (`highident.expected.json`) has the card's new face.
 
 ## The network lens
 

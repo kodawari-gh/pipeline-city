@@ -21,6 +21,8 @@ import { DieView } from '@/features/cpu/render/die/diemulti';
 import { GpuView, type GpuCardScene } from '@/features/gpu/render/gpuview';
 import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
 import { TpmView, type TpmScene } from '@/features/tpm/render/tpmview';
+import { NicView, type NicScene } from '@/features/network/render/nic/nicview';
+import { nicGeo, nicParts } from '@/features/network/render/nic/niclayout';
 import { tpmGeo, tpmParts } from '@/features/tpm/render/tpmlayout';
 import { headerRect, tpmHeader } from '@/core/render/accelart';
 import { DIE_PLAN, LAYOUT_TIER } from '../layout/layout';
@@ -28,7 +30,7 @@ import { npuAccess, routeOnDie } from '../wiring/busmap';
 import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
 
-export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm';
+export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
 const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
@@ -95,6 +97,8 @@ export class Chips3D {
   private readonly gpu = new GpuView(true);
   private readonly npu = new NpuCardView(true);
   private readonly tpm = new TpmView(true);
+  private readonly nic = new NicView();
+  private nics = new Map<string, { visual: string; index: number }>();
   private tpms = new Map<string, { visual: string; hdr: Rect }>();
   private faces: Face[] = [];
   private cpu = false;
@@ -140,6 +144,10 @@ export class Chips3D {
     for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'tpm' && hdr) mods.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) }); }
     this.tpms = new Map(mods.map((m) => [m.slot, { visual: m.visual, hdr: m.hdr }]));
     this.tpm.setScene(this.T, mods);
+    const nics: NicScene[] = [];
+    for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'nic') nics.push({ slot: d.slot, visual: spec.visual, index: idx(d.slot) }); }
+    this.nics = new Map(nics.map((n) => [n.slot, { visual: n.visual, index: n.index }]));
+    this.nic.setScene(this.T, nics);
     this.snap = undefined;
     this.update(s);
   }
@@ -161,6 +169,7 @@ export class Chips3D {
     this.gpu.update(s?.gpus, s?.devices, machineLive(s));
     this.npu.update(s?.npus);
     this.tpm.update(s?.tpm);
+    this.nic.update(s);
   }
 
   /**
@@ -187,7 +196,9 @@ export class Chips3D {
     this.gpu.setZoom(v.zoom);
     this.npu.setZoom(v.zoom);
     this.tpm.setZoom(v.zoom);
+    this.nic.setZoom(v.zoom);
     this.tpm.frame(dt, true, paused, lod);
+    this.nic.frame(dt, true, paused, lod);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
     for (const f of this.faces) this.draw(f, cam, H, dpr, now);
@@ -226,6 +237,10 @@ export class Chips3D {
       const m = f.slot ? this.tpms.get(f.slot) : undefined;
       return m ? tpmParts(tpmGeo(m.visual, m.hdr)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: p.inner ? DEVICE_LOD.tpm.hover : DEVICE_LOD.tpm.lid })) : [];
     }
+    if (f.kind === 'nic') {
+      const n = f.slot ? this.nics.get(f.slot) : undefined;
+      return n ? nicParts(nicGeo(n.visual, n.index)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: DEVICE_LOD.nic.hover })) : [];
+    }
     const c = f.slot ? this.cards.get(f.slot) : undefined;
     if (!c) return [];
     if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
@@ -233,7 +248,7 @@ export class Chips3D {
   }
 
   private viewOf(kind: ChipKind): Container {
-    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : this.npu.root;
+    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : kind === 'nic' ? this.nic.root : this.npu.root;
   }
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */

@@ -5,16 +5,10 @@ import { getSpec, type NicSpec } from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { getIspSpec, getRouterSpec } from '../sim/specs';
 import type { Description } from '@/core/ui/regions';
+import { fmtMbit } from './fmt';
+import { describeNicId } from './nicdesc';
 
-/** Speed in words: 100 Mbit, 1 Gbit, 1.5 Gbit, 40 Gbit. (Per second is implied; tooltips say Mbit/s.) */
-export function fmtMbit(n: number): string {
-  if (!Number.isFinite(n)) return '-';
-  if (n >= 1000) {
-    const g = n / 1000;
-    return `${Number.isInteger(g) ? g : g.toFixed(1)} Gbit`;
-  }
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} Mbit`;
-}
+export { fmtMbit };
 
 /** The nerd line every network description ends with: what bandwidth is and how the effective speed is found. */
 export const BANDWIDTH_NERD = 'Bandwidth is how many megabits move per second (Mbit/s; a game MB is 8 Mbit). Effective speed is the slowest link of port, router, plan and the drive. Clients at once is the smaller of router and plan.';
@@ -52,6 +46,8 @@ const PLAN_NOTE = 'You buy a plan once, there is no bill. A better plan replaces
 
 /** Description of a network id, or null when the id is not one of ours. */
 export function describeNet(id: string, s?: Snapshot | null): Description | null {
+  const part = describeNicId(id, s);
+  if (part) return part;
   const net = s?.net;
   switch (id) {
     case 'router': {
