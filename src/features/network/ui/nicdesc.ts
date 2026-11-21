@@ -9,6 +9,7 @@ import type { Description } from '@/core/ui/regions';
 import { NET } from '../sim/specs';
 import { macOf } from '../render/nic/nicmac';
 import { BOARD_LINK, BOARD_NIC, NIC_LINK, boardLook } from '../render/nic/nicplan';
+import { ifaceOf, netAddrs } from '../render/plan/netaddr';
 import { fmtFrames } from '../render/plan/netmeter';
 import { fmtMbit } from './fmt';
 
@@ -69,11 +70,15 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
       plain: `Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage.${onboard ? (plan?.pairs === 2 ? ' This port is Fast Ethernet: it uses two of the four pairs, one to send and one to receive.' : '') : ' A card that is too hot falls back to half speed.'}`,
       nerd: `${plan ? plan.std : 'line standard'} | ${linkWords(s, dev?.id, onboard)}${spec ? ` | the card is rated ${fmtMbit(spec.mbps)}` : onboard && mbps > 0 ? ` | the port is rated ${fmtMbit(mbps)}` : ''}`,
     };
-    case 'mac': return {
-      title: 'MAC',
-      plain: 'Builds and checks Ethernet frames. A frame has the two addresses, the type, up to 1500 bytes of data and a check value (CRC) at the end. The MAC drops a frame whose check value is wrong. The moving bar shows a frame passing.',
-      nerd: `frame up to ${NET.frameBytes} bytes | one acknowledgement for every ${NET.ackEvery} data frames, as the port counts them | CRC32 on every frame`,
-    };
+    case 'mac': {
+      // (the port's own address: the board's jack is `board` in the address model, a card's is its device id)
+      const mac = ifaceOf(netAddrs(s), onboard ? 'board' : dev?.id ?? '')?.mac;
+      return {
+        title: 'MAC',
+        plain: 'Builds and checks Ethernet frames. A frame has the two addresses, the type, up to 1500 bytes of data and a check value (CRC) at the end. The MAC drops a frame whose check value is wrong. The moving bar shows a frame passing.',
+        nerd: `frame up to ${NET.frameBytes} bytes | one acknowledgement for every ${NET.ackEvery} data frames, as the port counts them | CRC32 on every frame${mac ? ` | this port's address ${mac}` : ''}`,
+      };
+    }
     case 'stats': return {
       title: 'Statistics',
       plain: `The counters of the port: how many frames came in and went out since the game started, and how fast they come now. The bars show how much of the line speed the frames use. A ${onboard ? 'port' : 'card'} on a slow plan uses a small part of its speed.`,

@@ -154,6 +154,8 @@ The sim moves bytes. It does not name anyone. So the views and the words make th
 
 The router uses it now: the hover words of every router part (`routerdesc.ts`) and the router's die (`routershow.ts`, `routerglyph.ts`) show the WAN address, the lease, the MAC table and the NAT table. With no router, no plan or no link, a part says what is missing and shows no address.
 
+The words of the network ids carry them too (`ui/netdesc.ts`, `ui/nicdesc.ts`): `router` (LAN and WAN address with MAC, DHCP and NAT in the plain words), `wall` (the gateway, the name servers, the public address), `cable.lan` (the PC's end: jack, MAC, IP), `eth0` and `ethN` (MAC always, IP only while the cable is in the jack and the link is up) and the MAC block of the NIC die (`pcieN.nic-mac`, `board.nic-mac`: the port's own address). Test: `ui/netdesc.test.ts`.
+
 ## The network lens
 
 The lens shows the path data takes, in the room's own space: plan, router, LAN lead, port, OS drive. It opens with the `N` key or the dock's **Network** button (`NetLensButton` in `economy/ui/shop/Inventory.tsx`; the key is in the Controls list). It shares the screen with the power and airflow lenses: `networkLens` in `src/app/hover.ts` is a signal, and turning one lens on turns the other two off (`hover.test.ts`). It is ready when `netLensReady(s)` is true: unlock level 4, a router or plan, a router in the inventory, or the LAN lead plugged in. It is in the room game only (not in Build my PC).

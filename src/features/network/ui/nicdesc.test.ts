@@ -4,6 +4,7 @@ import { describeId } from '@/core/ui/logic';
 import { boardSnap, dev, snap } from '@/core/ui/testdata';
 import { setLayoutTier } from '../../board/render/layout/layout';
 import { boardNicIds, nicIds } from '../render/nic/niclayout';
+import { macOf } from '../render/nic/nicmac';
 import { isNicId } from './nicdesc';
 
 const CARDS = [['nic1', 'nic-gbe', 1000], ['nic2', 'nic-10g', 10000], ['nic3', 'nic-40g', 40000]] as const;
@@ -53,6 +54,14 @@ describe('the words for the network card\'s parts', () => {
     expect(describeId('pcie1.nic-vreg', s)!.nerd).toMatch(/7\.5 W now \| 5 W idle, 11 W at full load/);
     expect(describeId('pcie1.nic-pcie', s)!.nerd).toMatch(/x4, 8 pairs/);
     expect(describeId('pcie1.nic-ctl', s)!.nerd).toMatch(/10GbE card \| RL-N510, 10GBASE-T/);
+  });
+
+  it('names the port\'s own address on the MAC block, the card\'s burnt-in one, and none with no game', () => {
+    expect(describeId('pcie1.nic-mac', game('nic2', 10000))!.nerd).toContain(`this port's address ${macOf('nic-10g')}`);
+    // (the same card with the cable in no card: its address is still its own)
+    expect(describeId('pcie1.nic-mac', game('nic2', 10000, false))!.nerd).toContain(`this port's address ${macOf('nic-10g')}`);
+    expect(describeId('pcie1.nic-mac', snap())!.nerd).not.toMatch(/address/);
+    expect(describeId('pcie1.nic-mac')!.nerd).not.toMatch(/address/);
   });
 
   it('says so when the cable is not in this card, and gives the plan\'s own words with no game', () => {
@@ -122,6 +131,9 @@ describe('the words for the Ethernet chip on the motherboard', () => {
     expect(describeId('board.nic-rxq', s)!.nerd).toMatch(/1 downloads in flight.*11 downloaded/);
     expect(describeId('board.nic-txq', s)!.nerd).toMatch(/0 uploads in flight.*2 results wait.*7 uploaded/);
     expect(describeId('board.nic-dma', s)!.nerd).toMatch(/185 k frames moved/);
+    // the board's jack has its own address in the address model (board tier 3)
+    expect(describeId('board.nic-mac', s)!.nerd).toMatch(/this port's address 02:48:41:4B:03:01/);
+    expect(describeId('board.nic-mac')!.nerd).not.toMatch(/address/);
     // the host link goes to the hub, one lane: not the card's PCIe edge
     expect(describeId('board.nic-pcie', s)!.title).toBe('Hub link');
     expect(describeId('board.nic-pcie', s)!.nerd).toMatch(/^x1, 2 pairs/);

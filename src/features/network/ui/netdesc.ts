@@ -4,6 +4,7 @@
 import { getSpec, type NicSpec } from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { getIspSpec, getRouterSpec } from '../sim/specs';
+import { ifaceOf, netAddrs, type Iface, type NetAddrs } from '../render/plan/netaddr';
 import type { Description } from '@/core/ui/regions';
 import { fmtMbit } from './fmt';
 import { describeNicId } from './nicdesc';
@@ -45,11 +46,24 @@ export function jackPort(s: Snapshot, id: string): { port: string; mbps: number;
 
 const PLAN_NOTE = 'You buy a plan once, there is no bill. A better plan replaces it (no refund).';
 
+/** The router's two sides as words: the LAN address and the MAC of each side (the WAN only with a plan on the line). Empty with no router. */
+function routerAddrs(a: NetAddrs | null): string {
+  if (!a?.lan) return '';
+  const wan = a.wan ? `, WAN ${a.wan.ip}/${a.wan.prefix} (MAC ${a.wan.mac})` : '';
+  return ` Addresses: LAN ${a.lan.ip}/${a.lan.prefix} (MAC ${a.lan.mac})${wan}.`;
+}
+
+/** What a jack of the PC has as words: its MAC address, and its IP address while the cable is in it and the link is up. */
+function jackAddrs(i: Iface | undefined): string {
+  if (!i) return '';
+  return ` | MAC ${i.mac} | ${i.plugged ? (i.ip ? `IP ${i.ip} (the router's DHCP gave it)` : 'no IP address until the link is up') : 'the cable is not in it: no IP address'}`;
+}
+
 /** Description of a network id, or null when the id is not one of ours. */
 export function describeNet(id: string, s?: Snapshot | null): Description | null {
   const part = describeNicId(id, s) ?? describeRouterId(id, s);
   if (part) return part;
-  const net = s?.net;
+  const net = s?.net, a = netAddrs(s);
   switch (id) {
     case 'router': {
       const r = net?.router;
@@ -62,8 +76,8 @@ export function describeNet(id: string, s?: Snapshot | null): Description | null
       }
       return {
         title: r.name,
-        plain: 'Your router. It stands next to the monitor with its own power, so it stays on when the computer is off. It caps how fast the network port can run and how many clients can send you work at once.',
-        nerd: `${r.mbps} Mbit/s port speed, ${r.clients} clients at once, wall powered. ${BANDWIDTH_NERD}`,
+        plain: 'Your router. It stands next to the monitor with its own power, so it stays on when the computer is off. It caps how fast the network port can run and how many clients can send you work at once. It gives your machine its address (DHCP) and swaps your private address for its public one on the way out (NAT).',
+        nerd: `${r.mbps} Mbit/s port speed, ${r.clients} clients at once, wall powered.${routerAddrs(a)} ${BANDWIDTH_NERD}`,
       };
     }
     case 'wall': {
@@ -75,19 +89,21 @@ export function describeNet(id: string, s?: Snapshot | null): Description | null
           nerd: `Plans: 50 / 10 Mbit/s and 2 clients (DSL) up to 20 / 10 Gbit/s and 32 clients. ${BANDWIDTH_NERD}`,
         };
       }
+      const line = a?.wan ? ` The line: the ISP's gateway ${a.wan.gateway.ip} (MAC ${a.wan.gateway.mac}), name servers ${a.wan.dns.join(' and ')}, your router's public address ${a.wan.ip}.` : '';
       return {
         title: p.name,
         plain: `Your internet plan, wired to the router. It sets how fast jobs arrive and results leave, and how many clients can reach you at once. ${PLAN_NOTE}`,
-        nerd: `${p.downMbps} Mbit/s down, ${p.upMbps} Mbit/s up, ${p.clients} clients at once. ${BANDWIDTH_NERD}`,
+        nerd: `${p.downMbps} Mbit/s down, ${p.upMbps} Mbit/s up, ${p.clients} clients at once.${line} ${BANDWIDTH_NERD}`,
       };
     }
     case 'cable.lan': {
       const port = net?.port;
       const where = port?.kind === 'board' ? 'the board jack' : port?.kind === 'nic' ? 'a network card' : null;
+      const end = a?.pc ? ` The PC's end: ${a.pc.id}, MAC ${a.pc.mac}${a.pc.ip ? `, IP ${a.pc.ip}` : ', no IP address until the link is up'}.` : '';
       return {
         title: 'Ethernet cable',
         plain: `The cable between the router and a network jack on your machine.${where ? ` It is plugged into ${where}.` : ' Drag its plug onto a jack.'} Unlike the other cables you can plug and unplug it while the computer is on.`,
-        nerd: `Uplink ${port && port.mbps > 0 ? `${port.mbps} Mbit/s` : 'none'}. The speed of the jack it is in counts as the port speed. ${BANDWIDTH_NERD}`,
+        nerd: `Uplink ${port && port.mbps > 0 ? `${port.mbps} Mbit/s` : 'none'}. The speed of the jack it is in counts as the port speed.${end} ${BANDWIDTH_NERD}`,
       };
     }
     default:
@@ -98,16 +114,16 @@ export function describeNet(id: string, s?: Snapshot | null): Description | null
       return {
         title: 'Board network jack',
         plain: mbps > 0
-          ? 'The motherboard\'s own network jack. Plug the ethernet cable into it to reach the router; no extra card is needed.'
+          ? 'The motherboard\'s own network jack. Plug the ethernet cable into it to reach the router; no extra card is needed. Every jack has its own MAC address, the name the router knows it by.'
           : 'This board has no network jack. Buy a bigger board, or a network card for an expansion slot.',
-        nerd: `${mbps > 0 ? `${mbps} Mbit/s` : 'no jack on this tier'}; the Basic and Mainstream boards have 100, the Enthusiast board 1000. ${BANDWIDTH_NERD}`,
+        nerd: `${mbps > 0 ? `${mbps} Mbit/s` : 'no jack on this tier'}${mbps > 0 ? jackAddrs(ifaceOf(a, 'board')) : ''}; the Basic and Mainstream boards have 100, the Enthusiast board 1000. ${BANDWIDTH_NERD}`,
       };
     }
     const j = s ? jackPort(s, id) : null;
     return {
       title: j ? j.label : 'Network card jack',
-      plain: 'The jack on a network card. Plug the ethernet cable into it: the card\'s speed then replaces the board jack\'s speed.',
-      nerd: `${j ? `${j.mbps} Mbit/s` : 'card speed'}; a card above its throttle temperature runs at half speed. ${BANDWIDTH_NERD}`,
+      plain: 'The jack on a network card. Plug the ethernet cable into it: the card\'s speed then replaces the board jack\'s speed. The card\'s MAC address is burnt into its flash.',
+      nerd: `${j ? `${j.mbps} Mbit/s${jackAddrs(ifaceOf(a, j.port))}` : 'card speed'}; a card above its throttle temperature runs at half speed. ${BANDWIDTH_NERD}`,
     };
   }
   const router = getRouterSpec(id);
