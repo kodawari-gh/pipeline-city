@@ -4,13 +4,15 @@
 import type { Snapshot } from '@/worker/game/game';
 import type { Description } from '@/core/ui/regions';
 import { NET, getRouterSpec } from '../sim/specs';
+import { natLine, netAddrs } from '../render/plan/netaddr';
 import { fmtFrames } from '../render/plan/netmeter';
 import { fmtSize, routerInput } from '../render/router/routerplan';
 import { limitWords } from '../render/router/routershow';
 import { fmtMbit } from './fmt';
 
 const ID = /^router\.([a-z]+)$/;
-const KINDS = new Set(['soc', 'cpu', 'pkt', 'sw', 'dram', 'flash', 'radio', 'power', 'wanjack', 'wanmag', 'wanphy', 'lanphy', 'lanmag', 'lanjack', 'stat']);
+/** The parts of the router's board (routerboard3d.ts: its bodies and the SoC's lid) and the blocks of the SoC's die (routerplan.ts). */
+const KINDS = new Set(['soc', 'cpu', 'mem', 'wanmac', 'pkt', 'sw', 'stat', 'dram', 'flash', 'wanphy', 'lanphy', 'radio', 'power', 'label']);
 
 /** Is this one of the router's part ids? */
 export const isRouterId = (id: string): boolean => { const m = ID.exec(id); return !!m && KINDS.has(m[1]!); };
@@ -23,26 +25,42 @@ export function describeRouterId(id: string, s?: Snapshot | null): Description |
   const name = r ? r.name : 'router', pc = !!r && !!n && n.port.kind !== null && n.port.mbps > 0 && !!s && s.powered && !s.power.tripped, wan = !!r && !!n?.isp;
   const lan = pc && n && r ? Math.min(n.port.mbps, r.mbps) : 0, used = n?.transfers.length ?? 0, slots = r ? Math.min(r.clients, n?.isp?.clients ?? r.clients) : 0;
   const tier = spec ? `tier ${spec.tier}` : 'by tier';
+  const a = netAddrs(s);
   switch (kind) {
     case 'soc': return {
       title: 'Router SoC',
-      plain: 'The chip that is the router. The CPU, the forwarding engine and the LAN switch sit in one package. The memory, the flash, the radio and the power input stand round it and reach it by their own wires. Zoom in to see each part.',
+      plain: 'The chip that is the router. The CPU, the forwarding engine and the LAN switch sit in one package under a metal lid. The memory, the flash, the radio and the power input stand round it on the board and reach it by their own wires. Zoom in: the lid goes and the die shows its parts.',
       nerd: r ? `${i.soc} | ${i.cores} core${i.cores === 1 ? '' : 's'}, ${i.mhz} MHz | ${name}, ${fmtMbit(r.mbps)}, ${r.clients} clients at once` : 'RL-R110 to RL-R740 by tier | CPU, forwarding engine and LAN switch in one chip',
     };
     case 'cpu': return {
       title: 'CPU',
       plain: 'The processor cores of the SoC. They run the firmware: they give the PC its address (DHCP), keep the firewall rules and set up each new connection in the forwarding engine. They do not touch each frame. The engine does that.',
-      nerd: `${r ? `${i.cores} core${i.cores === 1 ? '' : 's'}, ${i.mhz} MHz` : 'cores and clock by tier'} | DHCP: ${pc ? '1 lease, the PC' : 'no clients'}`,
+      nerd: `${r ? `${i.cores} core${i.cores === 1 ? '' : 's'}, ${i.mhz} MHz` : 'cores and clock by tier'} | DHCP: ${pc ? `1 lease, the PC${a?.host ? ` (${a.host.ip} for ${a.host.mac}, ${a.host.lease})` : ''}` : 'no clients'}${a?.lan ? ` | gateway ${a.lan.ip}, pool ${a.lan.pool.first} to ${a.lan.pool.last}` : ''}`,
+    };
+    case 'wanmac': return {
+      title: 'WAN MAC',
+      plain: 'The line side of the router. It owns two addresses on the line: the MAC address of the WAN jack, which is fixed in the hardware, and the IP address the provider gave it. The provider sees the router by these, never your PC. The gateway of the provider is the next hop.',
+      nerd: a?.wan ? `WAN ${a.wan.ip}/${a.wan.prefix} | MAC ${a.wan.mac} | gateway ${a.wan.gateway.ip} (${a.wan.gateway.mac}) | DNS ${a.wan.dns.join(', ')}` : 'the WAN IP and MAC show with a plan on the line | the MAC is fixed in the hardware, the IP comes from the provider',
+    };
+    case 'mem': return {
+      title: 'Memory controller',
+      plain: 'Moves frames between the forwarding engine and the DRAM, and keeps the buffers where frames wait. The controller is part of the SoC. The DRAM chips stand beside it on the board.',
+      nerd: `${fmtSize(i.dram.mb)} ${i.dram.kind} | ${r && n ? `${fmtFrames(n.frames.rx + n.frames.tx)} frames passed` : 'size by tier'}`,
+    };
+    case 'label': return {
+      title: 'Label',
+      plain: 'The sticker on the board. It names the model and prints the two MAC addresses of the router: one for the WAN jack and one for the LAN jacks. A MAC address is made in the factory and does not change. It names one network jack on one wire.',
+      nerd: a?.router ? `LAN MAC ${a.router.lan} | WAN MAC ${a.router.wan} | ${i.soc}` : `${i.soc} | a MAC for the LAN jacks and one for the WAN jack`,
     };
     case 'pkt': return {
       title: i.engine === 'NAT ENGINE' ? 'NAT engine' : 'Forwarding ASIC',
       plain: 'Looks at each frame, finds the client it is for in its table (NAT) and sends it on. A cell of the table is lit for each client in service now: that is each transfer in flight. The table has as many cells as the router and the plan allow clients at once.',
-      nerd: r ? `${used} of ${slots} clients in service | ${used ? 'the rows show the transfers' : 'no transfer in flight'} | ${i.engine === 'NAT ENGINE' ? 'NAT in hardware, routes in the CPU' : 'routes and NAT in hardware'}` : 'one table cell for each client the router and the plan allow',
+      nerd: r ? `${used} of ${slots} clients in service | ${used ? 'the rows show the transfers' : 'no transfer in flight'} | ${i.engine === 'NAT ENGINE' ? 'NAT in hardware, routes in the CPU' : 'routes and NAT in hardware'}${a?.conns[0] ? ` | NAT: ${natLine(a.conns[0])}` : ''}` : 'one table cell for each client the router and the plan allow',
     };
     case 'sw': return {
       title: 'LAN switch',
-      plain: 'Joins the LAN ports to the uplink of the forwarding engine. The game has one cable, so port 1 is the only one in use. The other ports are drawn dark.',
-      nerd: `${i.lan} ports, ${i.std} | ${pc ? `port 1 up at ${fmtMbit(lan)}` : 'no port up'}`,
+      plain: 'Joins the LAN ports to the uplink of the forwarding engine. It learns which MAC address sits behind which port, in a table, and sends each frame out of the one port that holds its target. The game has one cable, so port 1 is the only one in use. The other ports are drawn dark.',
+      nerd: `${i.lan} ports, ${i.std} | ${pc ? `port 1 up at ${fmtMbit(lan)}` : 'no port up'}${pc && a?.host ? ` | MAC table: ${a.host.mac} on port 1` : ''}${a?.router ? ` | switch MAC ${a.router.lan}` : ''}`,
     };
     case 'dram': return {
       title: 'DRAM',
@@ -64,30 +82,15 @@ export function describeRouterId(id: string, s?: Snapshot | null): Description |
       plain: 'Takes power from the wall and makes the low voltages that the SoC, the memory and the PHYs need. The router has its own supply, so it stays on when your PC is off. It does not use the supply of your PC.',
       nerd: `${i.inlet} | wall powered, on whenever the router stands | no heat in the game`,
     };
-    case 'wanjack': return {
-      title: 'WAN jack',
-      plain: 'The socket for the line from the wall plate: your internet plan. The green light is on while a plan is on the line. The amber light flashes with the frames that pass.',
-      nerd: r ? (n?.isp ? `${n.isp.name} plan | ${fmtMbit(n.isp.downMbps)} down, ${fmtMbit(n.isp.upMbps)} up, ${n.isp.clients} clients | amber follows the frame counter` : 'no plan on the line | buy a plan at the wall plate') : 'the plan on the line sets the speeds',
-    };
-    case 'wanmag': case 'lanmag': return {
-      title: 'Magnetics',
-      plain: 'Small transformers between the jack and the chip. They keep the router electrically apart from the cable, so a surge on the line does not reach the chip. There is one for each of the four wire pairs.',
-      nerd: '4 transformers, pairs A to D | 1.5 kV isolation, as the Ethernet standard asks | no data of their own: the lines light with the frames',
-    };
     case 'wanphy': return {
       title: 'WAN PHY',
-      plain: 'Turns the signal on the line into bits, and bits into signal. The gauge shows the speed of your plan against the speed of the router. The slower one sets the speed.',
+      plain: 'Turns the signal on the line into bits, and bits into signal. It stands over the WAN jack, which is the west jack of the row. The slower of your plan and the router sets the speed of the line.',
       nerd: `${i.std} | ${wan && n?.isp ? `plan ${fmtMbit(n.isp.downMbps)} down` : 'no plan'}${r ? ` | the router is rated ${fmtMbit(r.mbps)}` : ''}`,
     };
     case 'lanphy': return {
       title: 'LAN PHY',
-      plain: 'Turns the signal on the cable to your PC into bits, and bits into signal. When the cable goes in, it agrees a speed with the network jack of the PC: the slower of the two. The gauge shows that speed against the speed of the router.',
+      plain: 'Turns the signal on the cables of the LAN into bits, and bits into signal. It stands over the four LAN jacks. When the cable goes in, it agrees a speed with the network jack of the PC: the slower of the two.',
       nerd: `${i.std} | ${pc ? `link up, ${fmtMbit(lan)}` : n && r ? `no link${n.reason ? `: ${n.reason}` : ''}` : 'no game'}${r && n ? ` | the PC port ${fmtMbit(n.port.mbps)}, the router ${fmtMbit(r.mbps)}` : ''}`,
-    };
-    case 'lanjack': return {
-      title: 'LAN jacks',
-      plain: 'Four sockets for the PCs of the network. The game uses one cable: the lead of your PC. The green light is on while the link is up. The amber light flashes with the frames that pass. The other jacks stay dark.',
-      nerd: `${i.lan} ports | ${!n || !r ? 'no game' : pc ? `jack 1 link up, ${fmtMbit(lan)}` : n.port.kind === null ? 'no cable in the PC' : `no link${n.reason ? `: ${n.reason}` : ''}`}`,
     };
     case 'stat': return {
       title: 'Traffic',

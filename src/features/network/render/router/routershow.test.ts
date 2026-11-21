@@ -92,3 +92,24 @@ describe('what the router shows', () => {
     expect(limitWords({ binding: null, limitMbps: 0 })).toBe('none');
   });
 });
+
+describe('the addresses the router shows', () => {
+  it('reads them from the snapshot: the LAN and WAN sides, the PC\'s lease and a connection for each transfer', () => {
+    const s = routerShow(game({ flows: [flow('down', '#5 hash', 30), { ...flow('up', '#4 log', 10), jobId: 2 }] }), new FrameMeter(), 0)!;
+    expect(s.addr!.lan!.ip).toBe('192.168.1.1');
+    expect(s.addr!.host!.ip).toBe('192.168.1.100');
+    expect(s.addr!.router).toEqual({ wan: '02:52:4C:02:00:01', lan: '02:52:4C:02:00:02' });
+    expect(s.addr!.conns.map((c) => [c.jobId, c.dir])).toEqual([[1, 'down'], [2, 'up']]);
+    // each flow names its job and its way, so a row of the NAT table finds its connection
+    expect(s.downs.map((f) => [f.jobId, f.dir])).toEqual([[1, 'down']]);
+    expect(s.ups.map((f) => [f.jobId, f.dir])).toEqual([[2, 'up']]);
+  });
+
+  it('has no lease with no cable and no public address with no plan', () => {
+    expect(routerShow(game({ plugged: false }), new FrameMeter(), 0)!.addr!.host).toBeNull();
+    const d = routerShow(game({ plan: false }), new FrameMeter(), 0)!;
+    expect(d.addr!.wan).toBeNull();
+    expect(d.addr!.router!.wan).toBe('02:52:4C:02:00:01');
+    expect(d.addr!.conns).toEqual([]);
+  });
+});

@@ -22,7 +22,7 @@ import type { KeySnap } from '@/worker/game/types';
 import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
 import { jackFace, jackLook, type JackLamps } from '@/features/board/render/three/rj45jack3d';
 import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
-import { routerFit, routerModel } from '@/features/board/render/three/router3d';
+import { routerModel, routerStand } from '@/features/board/render/three/router3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
@@ -36,7 +36,7 @@ import { vertexAoPooled, vertexAoSteps } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { NYLON, cloth, mat, shareMaterials } from '@/core/render/three/materials';
 import { seeThrough, tag, unseen } from '@/core/render/three/pick';
-import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
+import { DECODE_SRGB, fadeTree, rawSrgb } from '@/core/render/three/artlod';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
@@ -454,6 +454,12 @@ export class Room3D {
   private monitorSpot!: Mesh;
   private routerBody!: Group;
   private routerTier = 0;
+  /** The router's shell, which the zoom fades away to show the board inside it (`setRouterShell`), how much of it is left, and the shell's meshes that cast a shadow while it is whole. */
+  private routerShell: Group | null = null;
+  private routerAlpha = 1;
+  private shellCasters: Mesh[] = [];
+  /** The shell's lit materials and how bright each is whole: a light dims with its shell (an emissive light does not follow the opacity far: it would float, bright, over a clear shell). */
+  private shellGlows: { m: MeshStandardMaterial; i: number }[] = [];
   /** The lights of the router's two jacks that carry a cable: the side jack (the lead's cord) and the WAN jack (the line). Built with the router, lit by `frame`. */
   private routerLamps: { lan: JackLamps; wan: JackLamps | null } | null = null;
   private readonly ispDots: MeshStandardMaterial[] = [];
@@ -746,12 +752,16 @@ export class Room3D {
     const PORT = { w: 160, h: 124 }, DEEP = 180, lan = routerLan();
     const build = (tier: number) => {
       for (const c of [...router.children]) { router.remove(c); disposeTree(c); }
-      const { k, front } = routerFit(tier, rs);
+      const { k, front, depth, ox, oy } = routerStand(tier, rs);
       // (the wall hides its back, so it has none. The lead's cord goes into the side jack, the patch lead into the WAN jack: those two have lights, the other four jacks have no cable)
-      const m = routerModel(tier, { depth: (front - 300) / k, fine: !lowDetail(), rear: false, drive: [4] });
-      m.root.position.set(rs.x + rs.w, -(rs.y + rs.h), front);
+      const m = routerModel(tier, { depth, fine: !lowDetail(), rear: false, drive: [4] });
+      m.root.position.set(ox, -oy, front);
       m.root.scale.setScalar(k);
       router.add(m.root);
+      // (the shell fades away to show the board: its own materials, its own palette merges, no shadow once it is thin)
+      this.routerShell = m.shell;
+      this.routerAlpha = 1;
+      this.shellCasters = [];
       // the LAN jack on its east side, where the lead's plug stays (turned to face east)
       const side = new Group(), look = jackLook(jackSteel);
       side.rotation.y = Math.PI;
@@ -759,9 +769,23 @@ export class Room3D {
       router.add(side);
       // (the frames light them: `frame`)
       this.routerLamps = { lan: look, wan: m.jacks[4] ?? null };
-      mergeWithin(router, { twin: this.envTwin }); // (the router's plates, vents and jacks in a few draws, every tier)
-      // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06)
-      if (lowDetail()) mergeStatic(router, { own: true, ok: glows });
+      mergeWithin(router, { twin: this.envTwin, apart: [m.shell] }); // (the router's plates, vents and jacks in a few draws, every tier; the shell keeps palette materials of its own, for its fade)
+      // (Low: its status lights and its jacks' lenses in one draw a colour, where each light was a draw; CITY-06. The shell's lights merge within the shell: they fade with it)
+      if (lowDetail()) {
+        const inShell = (o: Object3D): boolean => { for (let p: Object3D | null = o; p; p = p.parent) if (p === m.shell) return true; return false; };
+        mergeStatic(m.shell, { ok: glows });
+        mergeStatic(router, { own: true, ok: (x) => glows(x) && !inShell(x) });
+      }
+      // (the lights of the shell, after the merges: the materials the shell draws with)
+      this.shellGlows = [];
+      const seen = new Set<Material>();
+      m.shell.traverse((o) => {
+        const ms = (o as Mesh).material as Material | Material[] | undefined;
+        for (const x of Array.isArray(ms) ? ms : ms ? [ms] : []) {
+          const s = x as MeshStandardMaterial;
+          if (!seen.has(x) && s.isMeshStandardMaterial && s.emissiveIntensity > 0 && (s.emissive.r > 0 || s.emissive.g > 0 || s.emissive.b > 0)) { seen.add(x); this.shellGlows.push({ m: s, i: s.emissiveIntensity }); }
+        }
+      });
     };
     this.routerBuild = (tier) => { if (tier !== this.routerTier) { this.routerTier = tier; build(tier); } };
     this.routerBuild(1);
@@ -1155,6 +1179,26 @@ export class Room3D {
 
   /** The monitor's screen as the 2D game's `Live` draws it, or null for the plain picture (props3d.ts `Monitor.useLive`). */
   setScreenImage(img: { canvas: HTMLCanvasElement; w: number; h: number; rev?: number } | null): void { this.monitor.useLive(img); }
+
+  /**
+   * The zoom takes the router's shell away to show the board inside it (`Machine3D.onRouterShell`): `a` is how much of the shell is left, 1 whole to 0 gone. Its jacks, its plinth and its feet stay.
+   * A shell that is mostly gone casts no shadow on the board (a shadow map ignores opacity).
+   */
+  setRouterShell(a: number): void {
+    const sh = this.routerShell;
+    if (!sh || a === this.routerAlpha) return;
+    const was = this.routerAlpha;
+    this.routerAlpha = a;
+    fadeTree(sh, a);
+    for (const g of this.shellGlows) g.m.emissiveIntensity = g.i * a;
+    if (was > 0.5 && a <= 0.5) {
+      this.shellCasters = [];
+      sh.traverse((o) => { const m = o as Mesh; if (m.isMesh && m.castShadow) { this.shellCasters.push(m); m.castShadow = false; } });
+    } else if (was <= 0.5 && a > 0.5) {
+      for (const m of this.shellCasters) m.castShadow = true;
+      this.shellCasters = [];
+    }
+  }
 
   frame(f: RoomFrame, dt: number): void {
     // the mail, on the game's clock (it stops with the pause)

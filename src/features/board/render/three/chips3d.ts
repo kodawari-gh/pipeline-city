@@ -163,7 +163,7 @@ export class Chips3D {
     this.update(s);
   }
 
-  /** The router's detailed view (machine3d.ts): its plan over its front, or none (no router stands). The old router's face goes; the new one brings its own (`face`). */
+  /** The router SoC's die (machine3d.ts): its floorplan's live layer, or none (no router stands). The old router's face goes; the new one brings its own (`face`). */
   setRouter(geo: RouterGeo | null): void {
     this.faces = this.faces.filter((f) => {
       if (f.kind !== 'router') return true;
@@ -172,7 +172,7 @@ export class Chips3D {
     });
     this.routerGeo = geo;
     this.routerAlpha = 0;
-    this.router.setScene(this.T, geo ? { geo } : null);
+    this.router.setScene(this.T, geo ? { tier: geo.tier } : null);
   }
 
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
@@ -234,15 +234,15 @@ export class Chips3D {
     this.nic.frame(dt, true, paused);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
-    // the router: its panel lies over its front in the room, read in its own frame as the die is; it comes in over the band `DEVICE_LOD.router.fade`
+    // the router SoC's die: read in its own frame as the NIC's is (it stands up with its board, and its lid, which hides it, fades over the die view's band)
     const rf = this.routerGeo ? this.faces.find((f) => f.kind === 'router') : undefined;
     if (this.routerGeo && rf) {
       rf.parent.updateWorldMatrix(true, false);
-      const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()), rview = rv.rect ?? EVERYWHERE, p = deviceLod(this.routerGeo.face, rview, undefined, true);
-      this.routerAlpha = p.onScreen ? smooth(DEVICE_LOD.router.fade[0], DEVICE_LOD.router.fade[1], seenZoom(rv.zoom, p.focus)) : 0;
-      this.router.setZoom(rv.zoom);
-      this.router.frame(dt, this.routerAlpha > 0.01 && shown(rf.parent), paused, { view: rview });
-    } else this.router.frame(dt, false, paused);
+      const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()), rview = rv.rect ?? EVERYWHERE, p = deviceLod(rf.rect, rview);
+      this.routerAlpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seenZoom(rv.zoom, p.focus)) : 0;
+      this.router.setSight({ zoom: rv.zoom, view: rview, shown: this.routerAlpha > 0.01 && shown(rf.parent) });
+    }
+    this.router.frame(dt, true, paused);
     for (const f of this.faces) this.draw(f, cam, H, dpr, now);
   }
 

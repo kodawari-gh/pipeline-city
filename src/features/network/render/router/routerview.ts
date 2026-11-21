@@ -2,36 +2,37 @@ import { Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { DEVICE_LOD, deviceLod, seenZoom, type CardLod } from '@/core/render/lod/lod';
+import { DEVICE_LOD, seenZoom } from '@/core/render/lod/lod';
+import { RectCache } from '@/core/render/lod/lodrect';
 import { cardText } from '@/core/render/lod/lodcard';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../../cpu/render/die/diepulse';
+import type { NicSight } from '../nic/nicview';
 import { FrameMeter } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
 import { ROUTER_KIND_COLOR } from './routerart';
 import { routerGlyphArea, routerLive } from './routerglyph';
-import type { RouterGeo } from './routerlayout';
+import { routerGeo, type RouterGeo } from './routerlayout';
 import type { RouterBlock } from './routerplan';
 import { BLOCKS, routerRoute, type RouterDir } from './routerroute';
 import { routerShow } from './routershow';
 
-// The router, alive (docs/render/net.md "Inside the NIC and the router"). Like the card's view (nic/nicview.ts) it runs only what moves; the still router is the panel's baked art
-// (routerart.ts). Over the plan it lights the blocks the frames go through, runs a packet along the router's own wires for the frames the link carries (routerroute.ts: in from the WAN
-// jack to the LAN jack, and out the other way), puts the numbers in the blocks (the rates, the clients in service, the transfers in flight, the speeds), and lights the rows the
-// symbols give (routerglyph.ts). Everything comes from the snapshot (routershow.ts): a router with no link on one side shows a dark line and no packet; nothing runs by itself.
+// The router SoC's die, alive (docs/render/net.md "Inside the NIC and the router"). Like the card's view (nic/nicview.ts) it runs only what moves; the still die is the baked floorplan on the
+// chip's top (routerart.ts). Over the plan it lights the blocks the frames go through, runs a packet along the die's own wires for the frames the link carries (routerroute.ts: in from the
+// WAN MAC to the LAN switch, and out the other way), puts the numbers and the addresses in the blocks (the rates, the NAT table, the MAC addresses learned, the speeds), and lights the rows
+// the symbols give (routerglyph.ts). Everything comes from the snapshot (routershow.ts): a router with no link on one side shows a dark line and no packet; nothing runs by itself.
 
 const TEXT_Z = DEVICE_LOD.router.text;
-/** The largest live text (plan units): the plan is drawn at the card's density, so its numbers are the card's. */
+/** The largest live text (plan units): the die's numbers are larger than the CPU die's 15, which is drawn bigger. */
 const TEXT_CAP = 22;
 
-/** The router has no rival for the counters' budget: it always holds its slot. */
-const TOP: ReadonlySet<string> = new Set(['router']);
+/** The router of a new scene: its tier. */
+export interface RouterScene { tier: number }
 
-/** The router of a new scene. */
-export interface RouterScene { geo: RouterGeo }
+/** Where the camera is over the die (`Chips3D.frame` reads it in the die's own frame): the zoom (screen pixels per plan unit), the part of the frame in view (null: all of it), and whether the die is seen at all (its lid is gone). */
+export type RouterSight = NicSight;
 
-interface RouterLayer {
+interface DieLayer {
   geo: RouterGeo;
-  /** The plan, at its place in the world and at the plan scale. */
   root: Container;
   glowG: Graphics;
   litG: Graphics;
@@ -50,8 +51,9 @@ interface RouterLayer {
 export class RouterView {
   readonly root = new Container();
   private T: Theme | null = null;
-  private layer: RouterLayer | null = null;
-  private zoom = 1;
+  private layer: DieLayer | null = null;
+  private sight: RouterSight | undefined;
+  private readonly rects = new RectCache();
   private readonly meter = new FrameMeter();
   private snap: Snapshot | null | undefined = undefined;
   /** The view's own clock (ms of game time): packets and lights run on it, and it holds while the game is paused. */
@@ -67,13 +69,12 @@ export class RouterView {
     if (this.layer) for (const ct of this.layer.cellTexts.values()) ct.clear();
     for (const ch of this.root.removeChildren()) ch.destroy({ children: true });
     this.layer = scene ? this.build(scene) : null;
+    this.sight = undefined;
     this.root.visible = !!this.layer;
   }
 
-  private build(s: RouterScene): RouterLayer {
-    const geo = s.geo, root = new Container(), bounds = new Graphics();
-    root.position.set(geo.origin.x, geo.origin.y);
-    root.scale.set(geo.scale);
+  private build(s: RouterScene): DieLayer {
+    const geo = routerGeo(s.tier), root = new Container(), bounds = new Graphics();
     // (the view's place is read from its bounds: an invisible rectangle over the plan gives them before anything is lit)
     bounds.rect(0, 0, geo.plan.die.w, geo.plan.die.h).fill({ color: 0x000000, alpha: 0 });
     const glowG = new Graphics(), litG = new Graphics(), texts = new Container(), trailG = new Graphics(), packetG = new Graphics();
@@ -83,9 +84,9 @@ export class RouterView {
     return { geo, root, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), glow: new Map(), next: { rx: 0, tx: 0 }, areas };
   }
 
-  /** The zoom the panel is seen at (screen pixels per world unit). */
-  setZoom(z: number): void {
-    this.zoom = z;
+  /** The camera's zoom and view over the die. */
+  setSight(sight: RouterSight): void {
+    this.sight = sight;
   }
 
   /** The newest snapshot: the frame meter reads its counters. */
@@ -95,16 +96,16 @@ export class RouterView {
     this.meter.feed(s);
   }
 
-  /** Per frame. `dt`: game seconds since the last frame (0 while paused: nothing moves). `lod`: the view (world), so a router out of view is not drawn. */
-  frame(dt: number, inner: boolean, paused = false, lod?: Pick<CardLod, 'view'>): void {
+  /** Per frame. `dt`: game seconds since the last frame (0 while paused: nothing moves). A die the camera does not see (`setSight`) is not drawn. */
+  frame(dt: number, inner: boolean, paused = false): void {
     const c = this.layer;
     this.root.visible = inner && !!c;
     if (!c || !this.root.visible || !this.T) return;
     this.now += (paused ? 0 : dt) * 1000;
-    const T = this.T, pl = lod?.view ? deviceLod(c.geo.face, lod.view, undefined, true) : { onScreen: true, focus: 1 };
-    c.root.visible = pl.onScreen;
-    if (!pl.onScreen) return;
-    const z = seenZoom(this.zoom, pl.focus), { showText, ta } = cardText(z, lod ? { view: lod.view, top: TOP } : undefined, 'router', TEXT_Z, DEVICE_LOD.router.detail);
+    const T = this.T, sight = this.sight, pl = this.rects.place(c, c.root, sight?.view ?? undefined), on = pl.onScreen && !!sight?.shown;
+    c.root.visible = on;
+    if (!on) return;
+    const z = seenZoom(sight?.zoom ?? 1, pl.focus), { showText, ta } = cardText(z, undefined, 'router', TEXT_Z, DEVICE_LOD.router.detail);
     c.texts.visible = showText;
     c.texts.alpha = ta;
     const show = routerShow(this.snap, this.meter, this.now);
@@ -143,7 +144,7 @@ export class RouterView {
    * Send a packet along each way that carries frames: the busier the lane (`busy` of the frames a tick, a log scale), the closer the packets follow each other. A way with no frames
    * sends none, so a quiet link shows no motion; the ones sent keep a trail that fades.
    */
-  private fly(T: Theme, c: RouterLayer, act: Record<RouterDir, number>): void {
+  private fly(T: Theme, c: DieLayer, act: Record<RouterDir, number>): void {
     for (const dir of ['rx', 'tx'] as RouterDir[]) {
       const a = act[dir];
       if (a <= 0) { c.next[dir] = this.now; continue; }

@@ -17,7 +17,7 @@ import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { fanBank } from '@/core/render/fanmotor';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
-import { fadeTree, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
+import { FINISH, fadeTree, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
 import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
 import { lowDetail } from '@/core/render/three/detail';
 import { SEG, disposeTree, post, rectBox, rounded, tornDown, type RectLike } from '@/core/render/three/geometry';
@@ -32,8 +32,8 @@ import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
-import { routerFace } from '@/features/network/render/router/routerart';
-import { routerGeo, routerRails } from '@/features/network/render/router/routerlayout';
+import { routerDie } from '@/features/network/render/router/routerart';
+import { routerGeo } from '@/features/network/render/router/routerlayout';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
@@ -49,9 +49,10 @@ import { radiatorFit, radiatorGrade } from '../cooler';
 import { ACCENT } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
-import { ArtSet, LV_PART } from './artset3d';
+import { ArtSet, LV_DIE } from './artset3d';
 import type { ArtBaker } from './bake';
-import { routerFit } from './router3d';
+import { routerStand } from './router3d';
+import { routerBoard, type Lying, type RouterBoard } from './routerboard3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
 import { CPU_Z, cpuModel } from './cpu3d';
@@ -171,8 +172,6 @@ const patchable = (d: DeviceSnap): boolean => {
 };
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
-/** How far the router's detailed-view panel stands off its front bezel (clear of the jacks' lights and the bezel's relief). */
-const ROUTER_PANEL_Z = 30;
 /** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
 export const untag = (root: Object3D): void => root.traverse((o) => { if (typeof o.userData.id === 'string') delete o.userData.id; });
 
@@ -232,8 +231,12 @@ export class Machine3D {
   private blankTone = 0;
   /** The memory map's reveal and rail, made again when the bank changes. */
   private ramBits: { reveal: Reveal; rail: Rail } | null = null;
-  /** The router's detailed view in the room (`buildRouter`): its art and face, its reveal and its rails, made again when a router of another tier stands. */
-  private routerBits: { tier: number; art: ArtBaker; surface: ArtSurface; reveal: Reveal; rails: Rail[] } | null = null;
+  /** The router's detailed view in the room (`buildRouter`): its board, the die's art, its reveals and its rails, made again when a router of another tier stands. */
+  private routerBits: { tier: number; board: RouterBoard; art: ArtBaker; surface: ArtSurface | null; reveals: Reveal[]; rails: Rail[] } | null = null;
+  /** Hears how much of the router's shell is left (1 whole, 0 gone) as the zoom takes it away to show the board (`Room3D.setRouterShell`). */
+  onRouterShell: ((alpha: number) => void) | null = null;
+  /** Has the build's merge run (`share`)? A router's board made after it merges itself. */
+  private shared = false;
   /** `tier|caseTier`: a patch keeps the board and the case, so these must be the same. */
   private tiers = '';
   private merged = true;
@@ -431,6 +434,7 @@ export class Machine3D {
     this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
     this.root.add(this.rgb, this.spill);
     if (merge) yield* this.share();
+    this.shared = true;
     yield;
     if (lod) this.partLod = new PartLod(this.root, () => this.lodScope());
   }
@@ -564,6 +568,13 @@ export class Machine3D {
     return v;
   }
 
+  /** The same for a part that lies on a shelf (the router's board and its parts): the flight looks down on its top (`Rail.lie`). */
+  private lie(id: string, b: Lying, zoom: number): Rail {
+    const v: Rail = { id, rect: { x: b.x, y: -b.y, w: b.w, h: 0 }, z: b.z, zoom, lie: { y: b.y, d: b.d } };
+    this.rails.push(v);
+    return v;
+  }
+
   /** `buildDevice`, noting what it added to the shared lists (`owned`). */
   private build(d: DeviceSnap): Owned | null {
     const n = { roots: this.root.children.length, reveals: this.reveals.length, fades: this.fades.length, apart: this.apart.length, still: this.still.length, fans: this.fans.length, obstacles: this.obstacles.length, keep: this.keep.length, caseRoots: this.caseRoots.length, rails: this.rails.length };
@@ -594,28 +605,56 @@ export class Machine3D {
   }
 
   /**
-   * The router's detailed view (docs/render/net.md "Inside the NIC and the router"): its plan on a panel over its front bezel in the room, which the zoom fades in over the router as a
-   * card's floorplan comes in over its cover. The panel and each of its blocks are a rail (a double click flies to them), and its live layer is a face (`Chips3D`). Made again when
-   * the router of another tier stands (the room builds that router again, `Room3D.routerBuild`); none on the Build my PC stage, whose wall has a router of its own.
+   * The router's detailed view (docs/render/net.md "Inside the NIC and the router"): its board, built in 3D part by part, lies in the shell on the room's shelf (`routerboard3d.ts`). As the zoom
+   * comes in the room fades the shell away (`onRouterShell`) and the board shows through, where it lies; the SoC's lid fades over the die's own band and the die's floorplan shows, live
+   * (`Chips3D`). The board and each of its parts is a rail (a double click flies to it, looking down on it: `Rail.lie`). Made again when the router of another tier stands (the room builds that
+   * router again, `Room3D.routerBuild`); none on the Build my PC stage, whose wall has a router of its own.
    */
   private buildRouter(s: Snapshot | null): void {
     const tier = this.inRoom && this.chips && this.shown === 'machine' ? routerTier(s?.net?.router?.id) : null;
     if (tier === (this.routerBits?.tier ?? null)) return;
     const old = this.routerBits;
     if (old) {
-      this.reveals.splice(this.reveals.indexOf(old.reveal), 1);
-      for (const r of old.rails) this.rails.splice(this.rails.indexOf(r), 1);
-      this.art.drop(old.surface, old.art);
+      for (const r of old.reveals) { const k = this.reveals.indexOf(r); if (k >= 0) this.reveals.splice(k, 1); }
+      for (const r of old.rails) { const k = this.rails.indexOf(r); if (k >= 0) this.rails.splice(k, 1); }
+      for (const o of [old.board.root, old.board.lid]) { const k = this.apart.indexOf(o); if (k >= 0) this.apart.splice(k, 1); }
+      old.board.root.removeFromParent();
+      disposeTree(old.board.root);
+      if (old.surface) this.art.drop(old.surface, old.art);
+      this.onRouterShell?.(1);
       this.routerBits = null;
     }
     if (tier === null || !this.chips) { this.chips?.setRouter(null); return; }
-    const fit = routerFit(tier), geo = routerGeo(tier, fit.face), z = fit.front + ROUTER_PANEL_Z, band = DEVICE_LOD.router.fade;
-    const art = this.art.baker(() => routerFace(this.T, geo)), surface = this.art.surface(this.root, art.bake, geo.face, z, LV_PART);
-    surface.setOpacity(0);
+    const stand = routerStand(tier), geo = routerGeo(tier), art = this.art.baker(() => routerDie(this.T, tier)), held: { surface: ArtSurface | null } = { surface: null };
+    const board = routerBoard(tier, stand, (frame, S) => { held.surface = this.art.surface(frame, art.bake, geo.die, 1 / S, LV_DIE, FINISH.die); return { root: held.surface.root, z: 3 / S }; });
+    board.root.position.set(stand.ox, -stand.oy, stand.front);
+    board.root.scale.setScalar(stand.k);
+    // (hidden until the shell is going: no stand-in is made for it, and it draws nothing from afar)
+    board.root.visible = false;
+    this.root.add(board.root);
+    this.apart.push(board.root, board.lid);
+    if (this.merged && this.shared) {
+      const skip = [...this.keep], apart = [...this.fades, ...this.apart];
+      mergeSiblings(board.root, { skip, apart, pbr: true });
+      shareMaterials(board.root, { skip, apart, across: lowDetail() });
+    }
     this.chips.setRouter(geo);
-    this.chips.face(this.root, 'router', geo.face, z + 2);
-    const reveal = this.reveal(geo.face, z, (zoom) => surface.setOpacity(smooth(band[0], band[1], zoom)), false, true);
-    this.routerBits = { tier, art, surface, reveal, rails: routerRails(geo).map((r) => this.rail(r.id, r.rect, z, r.id === 'router' ? band[1] : DEVICE_LOD.router.detail)) };
+    if (board.die) this.chips.face(board.die.root, 'router', board.die.rect, board.die.z);
+    const fade = DEVICE_LOD.router.fade;
+    const reveals = [this.reveal(stand.face, stand.front, (zoom) => {
+      const f = smooth(fade[0], fade[1], zoom);
+      board.root.visible = f > 0.01;
+      board.show(f);
+      this.onRouterShell?.(1 - f);
+    }, false, true)];
+    const rails = [this.lie('router', board.face, fade[1])];
+    for (const b of board.bodies) if (!(board.die && b.id === 'router.soc')) rails.push(this.lie(b.id, b, DEVICE_LOD.router.detail));
+    if (board.die) {
+      const at = board.die.at;
+      reveals.push(this.reveal({ x: at.x, y: -at.y, w: at.w, h: 0 }, at.z, board.lod));
+      rails.push(this.lie('router.soc', at, DEVICE_LOD.die.fade[1] / board.die.scale));
+    }
+    this.routerBits = { tier, board, art, surface: held.surface, reveals, rails };
   }
 
   /**
@@ -640,6 +679,8 @@ export class Machine3D {
    * side it shows). The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
    */
   pickId(id: string | null): string | null {
+    // (a part of the router's board is the router until the shell is gone and shows its parts)
+    if (id && /^router\.[a-z]+$/.test(id)) return this.routerBits?.board.shown() ? id : 'router';
     const m = id ? /^(pcie\d+)\.nic-(?:jack|edge|ctl|xtal|nvm|vreg|label)$/.exec(id) : null;
     const card = m && this.cards.get(m[1]!);
     return card && card.turned() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
@@ -1598,6 +1639,8 @@ export class Machine3D {
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
+    // (no router board: the room's router, if one stands, keeps its shell)
+    if (!this.routerBits) this.onRouterShell?.(1);
     // the small parts as stand-ins from afar (after the reveals: a stand-in follows what they show and hide), by the zoom at the case's nearest point
     // Low: the case's shadow on the spot lights (`caseshade.ts`); the glass side lets the light in, the top filter a part of it
     if (lowDetail()) setCaseShade(this.shadeBox, this.root.matrixWorld, CASE_PASS);

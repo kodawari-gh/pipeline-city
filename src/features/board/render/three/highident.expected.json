@@ -840,11 +840,11 @@
     "sum": "29c6ff94"
   },
   "room/router": {
-    "meshes": 27,
-    "draws": 26,
+    "meshes": 28,
+    "draws": 27,
     "verts": 14560,
     "instances": 102,
-    "sum": "8ee49e58"
+    "sum": "6f53a099"
   },
   "room/socket": {
     "meshes": 1,

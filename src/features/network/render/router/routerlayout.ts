@@ -1,44 +1,39 @@
 import type { Rect } from '../plan/netplan';
-import { ROUTER_PLAN_W, routerPlan, type RouterPlan } from './routerplan';
+import { ROUTER_DIE, routerPlan, type RouterPlan } from './routerplan';
 
-// The router in world space (docs/render/net.md "Inside the NIC and the router"). The router stands on its shelf in the room, its front toward the viewer; its detailed view lies over
-// that front: the router's plan (routerplan.ts) drawn on a panel the size of the front bezel, `ROUTER_PLAN_W` plan units across (a plan unit is about one world unit). The front's rectangle comes from the
-// 3D model's own placement (`routerFit` in board/render/three/router3d.ts, the one `room3d.ts` uses), so this file knows no 3D: the tests build the geometry from any rectangle. Like
-// `nicGeo`, the hover and flight ids are enumerated from here, so a part cannot be drawn without a description.
+// The router's die in its frame (docs/render/net.md "Inside the NIC and the router"). The router is built in 3D, part by part (board/render/three/routerboard3d.ts); only the SoC wears a
+// floorplan (routerplan.ts), on its die under the lid that fades as the camera comes in, like the CPU's and the NIC's. The plan lives in a frame of its own, apart from the board's, so
+// no two drawings share one. Like `nicGeo`, the hover ids are enumerated from here, so a part cannot be drawn without a description.
+
+/** The die's rectangle in its frame: what the live layer and the baked floorplan cover (the frame's origin is the plan's). */
+export const ROUTER_DIE_RECT: Rect = { x: 0, y: 0, w: ROUTER_DIE.w, h: ROUTER_DIE.h };
 
 export interface RouterGeo {
   tier: number;
-  /** The panel, the area the art and the live layer cover (world, layout units: x east, y down): the front bezel. */
-  face: Rect;
-  /** Where the plan's (0, 0) lies in the world, and how many world units a plan unit is (about 1). */
-  origin: { x: number; y: number };
-  scale: number;
+  /** The die's rectangle in its frame. Plan units are the frame's units. */
+  die: Rect;
   plan: RouterPlan;
 }
 
-const cache = new Map<string, RouterGeo>();
+const cache = new Map<number, RouterGeo>();
 
-/** The geometry of the router of `tier` whose front bezel is `front` (world). */
-export function routerGeo(tier: number, front: Rect): RouterGeo {
-  const key = `${tier}|${front.x}|${front.y}|${front.w}|${front.h}`, hit = cache.get(key);
+/** The geometry of the SoC of the router of `tier`. */
+export function routerGeo(tier: number): RouterGeo {
+  const hit = cache.get(tier);
   if (hit) return hit;
-  const S = front.w / ROUTER_PLAN_W, size = { w: ROUTER_PLAN_W, h: Math.round(front.h / S) };
-  const geo: RouterGeo = { tier, face: { x: front.x, y: front.y, w: front.w, h: size.h * S }, origin: { x: front.x, y: front.y }, scale: S, plan: routerPlan(tier, size) };
-  cache.set(key, geo);
+  const geo: RouterGeo = { tier, die: ROUTER_DIE_RECT, plan: routerPlan(tier) };
+  cache.set(tier, geo);
   return geo;
 }
 
-/** A plan rectangle in the world. */
-export const worldRect = (g: Pick<RouterGeo, 'origin' | 'scale'>, r: Rect): Rect => ({ x: g.origin.x + r.x * g.scale, y: g.origin.y + r.y * g.scale, w: r.w * g.scale, h: r.h * g.scale });
-
-/** A hoverable part: its id (`router.soc`) and its world rectangle. */
+/** A hoverable part of the die: the id (`router.pkt`) and its rectangle in the die's frame. */
 export interface RouterPart { id: string; rect: Rect }
 
-/** Every part with an id: the blocks and the SoC's frame (the smallest rectangle under the pointer wins). */
-export const routerParts = (g: RouterGeo): RouterPart[] => g.plan.blocks.map((b) => ({ id: `router.${b.id}`, rect: worldRect(g, b.rect) }));
+/** Every block of the die with an id: the blocks and the SoC's frame (the smallest rectangle under the pointer wins). */
+export const routerParts = (g: RouterGeo): RouterPart[] => g.plan.blocks.map((b) => ({ id: `router.${b.id}`, rect: b.rect }));
 
-/** What a double click flies to: the whole panel (`router`) and each part. */
-export const routerRails = (g: RouterGeo): RouterPart[] => [{ id: 'router', rect: g.face }, ...routerParts(g)];
+/** The parts of the router that are 3D bodies on its board, not blocks of the die (routerboard3d.ts): the ids their picks and flights carry. The radio is the home routers' only. */
+export const ROUTER_BODIES = ['router.dram', 'router.flash', 'router.wanphy', 'router.lanphy', 'router.radio', 'router.power', 'router.label'] as const;
 
-/** The ids of every part of the router of `tier`, for the hover table and its test. */
-export const routerIds = (tier: number): string[] => routerPlan(tier, { w: ROUTER_PLAN_W, h: 460 }).blocks.map((b) => `router.${b.id}`);
+/** The ids of every part of the router of `tier`, for the hover table and its test: the 3D bodies on its board (the radio on the tiers that have one) and the die's blocks. */
+export const routerIds = (tier: number): string[] => [...ROUTER_BODIES.filter((id) => id !== 'router.radio' || routerPlan(tier).input.radio !== null), ...routerPlan(tier).blocks.map((b) => `router.${b.id}`)];

@@ -62,6 +62,8 @@ import { buildOpen, galleryOpen } from '@/core/ui/state';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
+/** The view onto a part that lies on a shelf (`Rail.lie`): from the front, tilted down as far as the camera goes. */
+const LIE = { yaw: 0, pitch: LIMITS.pitchMax, fov: 20 };
 /**
  * The overview's target depth (in the case, in front of the board). The room's look reads how near the eye is by the height a view shows there
  * (`roomness`), whatever its target: the target follows the surface the player zooms to, and the look must not change with it.
@@ -168,8 +170,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const uncheap = (root: Object3D) => { cheaps.get(root)?.undo(); cheaps.delete(root); };
   /** Puts `m` in the scene in the machine's place. */
   const install = (m: Machine3D) => {
-    if (machine) { uncheap(machine.root); scene.remove(machine.root); machine.dispose(); }
+    if (machine) { machine.onRouterShell = null; uncheap(machine.root); scene.remove(machine.root); machine.dispose(); }
     machine = m;
+    // (the zoom takes the router's shell away to show its board: the room owns the shell)
+    m.onRouterShell = (a) => room?.setRouterShell(a);
     scene.add(m.root);
     cheap(m.root);
     demand.ask();
@@ -408,12 +412,16 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   let grabZ: number | undefined, pinchAt: { x: number; y: number; z: number } | null | undefined, turning: { base: OrbitView; yaw: number; pitch: number } | null = null;
   /** `Drag3D` took the pointer (it listens on the window): the canvas lets it go. False: refused (it said why), the press goes on as a pan. */
   const taken = (ok: boolean, e: PointerEvent): boolean => { if (ok) { try { canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ } } return ok; };
-  /** A part's aligned view: head on, centred in the free window, the part filling most of it (a die by its rail's face, any other part by its box). */
+  /**
+   * A part's aligned view: head on, centred in the free window, the part filling most of it (a die by its rail's face, any other part by its box). A part that lies (`Rail.lie`: the router's
+   * board in its shell) is looked down on from the front, as far down as the camera tilts: its top fills the window as that tilt shows it (its depth, short by the sine of the tilt).
+   */
   const focusPart = (id: string): boolean => {
     const r = machine?.rails.find((x) => x.id === id);
     if (r) {
       // (close enough that its detail is all in, `Rail.zoom`)
-      const v = inFree(r.rect, r.z, FLAT, 0.8);
+      const eff = r.lie ? r.lie.d * Math.sin(LIE.pitch) : 0;
+      const v = r.lie ? inFree({ x: r.rect.x, y: -r.lie.y - eff / 2, w: r.rect.w, h: eff }, r.z, LIE, 0.8) : inFree(r.rect, r.z, FLAT, 0.8);
       flyTo({ ...v, height: Math.min(v.height, H / r.zoom) });
       return true;
     }

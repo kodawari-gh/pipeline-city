@@ -1,4 +1,4 @@
-// What the router's detailed view shows each frame (`RouterShow`): the snapshot as it is, nothing invented (docs/render/net.md "Inside the NIC and the router"). The router has no heat
+// What the router SoC's die view shows each frame (`RouterShow`): the snapshot as it is, nothing invented (docs/render/net.md "Inside the NIC and the router"). The router has no heat
 // and no power meter in the game: it stands on the wall's power and keeps no state but its place in the chain, so what it can show is what passes through it. The two links are
 // `linkOf`'s (the jacks' law, jackleds.ts): the LAN jack has a partner when the PC is on and the cable is in; the WAN jack when a plan is on the line. The frames are the sim's
 // counters (`NetSnap.frames`: the PC's uplink port, which is the router's whole traffic: every frame the router forwards goes to or from it) as a rate (`FrameMeter`); the clients it
@@ -7,10 +7,11 @@
 import type { Snapshot } from '@/worker/protocol';
 import { getRouterSpec, type Binding } from '../../sim/specs';
 import { linkOf } from '../jackleds';
+import { netAddrs, type NetAddrs } from '../plan/netaddr';
 import { busy, fmtSpeed, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
 
 /** A transfer in flight through the router: its job's name and how far it is. */
-export interface RouterFlow { label: string; percent: number }
+export interface RouterFlow { label: string; percent: number; jobId: number; dir: 'down' | 'up' }
 
 export interface RouterShow {
   tier: number;
@@ -48,6 +49,8 @@ export interface RouterShow {
   /** Which limit sets the speed (`NetSnap.bandwidth.binding`) and the speed that gives. */
   binding: Binding | null;
   limitMbps: number;
+  /** The addresses the game gives (`netaddr.ts`): the LAN and WAN sides, what the PC was given, the connections in flight; null with no network. */
+  addr: NetAddrs | null;
   /** The visual clock (ms): the motion runs on it. */
   ms: number;
 }
@@ -70,12 +73,12 @@ export function routerShow(s: Snapshot | null | undefined, meter: Pick<FrameMete
   if (!s || !net || !r) return null;
   const spec = getRouterSpec(r.id), tier = spec?.tier ?? (Number(/\d+$/.exec(r.id)?.[0]) || 1), link = linkOf(s), flow = link.pc && link.wan, line = lineFrames(r.mbps);
   const rx = flow ? meter.rx : 0, tx = flow ? meter.tx : 0, isp = net.isp;
-  const flows = (dir: 'down' | 'up'): RouterFlow[] => net.transfers.filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent }));
+  const flows = (dir: 'down' | 'up'): RouterFlow[] => net.transfers.filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent, jobId: t.jobId, dir: t.dir }));
   return {
     tier, name: r.name, ratedMbps: r.mbps, clientsMax: r.clients, pc: link.pc, wan: link.wan, plugged: net.port.kind !== null, state: net.state, reason: net.reason,
     ispName: isp?.name ?? null, downMbps: isp?.downMbps ?? 0, upMbps: isp?.upMbps ?? 0, lanMbps: link.pc ? Math.min(net.port.mbps, r.mbps) : 0,
     rx, tx, rxTotal: net.frames.rx, txTotal: net.frames.tx, rxLoad: loadOf(rx, line), txLoad: loadOf(tx, line), rxAct: busy(rx, line), txAct: busy(tx, line),
     downs: flows('down'), ups: flows('up'),
-    used: net.transfers.length, slots: Math.min(r.clients, isp?.clients ?? r.clients), binding: net.bandwidth.binding, limitMbps: net.bandwidth.downMbps, ms,
+    used: net.transfers.length, slots: Math.min(r.clients, isp?.clients ?? r.clients), binding: net.bandwidth.binding, limitMbps: net.bandwidth.downMbps, addr: netAddrs(s), ms,
   };
 }

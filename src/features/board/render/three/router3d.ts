@@ -35,6 +35,8 @@ export const LED_ON = 1.4;
 export const ROUTER_UNDER = 110;
 /** The foot's height, the shell's underside, and how deep the front bezel is (the jacks' inserts end inside it). */
 const FOOT = 40, UNDER = ROUTER_UNDER, SEAM = RJ.deep + 80;
+/** The plinth's top: what the board's standoffs stand on (`routerboard3d.ts`). */
+export const ROUTER_FLOOR = UNDER + 30;
 
 /**
  * Where the room stands the router of `tier` in its spot (`room3d.ts`; the detailed view's panel lies over its front, `machine3d.ts`): the one scale that fits its box in the spot,
@@ -43,6 +45,13 @@ const FOOT = 40, UNDER = ROUTER_UNDER, SEAM = RJ.deep + 80;
 export function routerFit(tier: number, spot: RectLike = ROUTER_SPOT): { k: number; front: number; face: RectLike } {
   const t = ROUTER_SIZE[tier] ? tier : 1, size = ROUTER_SIZE[t]!, k = Math.min(spot.w / size.w, spot.h / size.h);
   return { k, front: t >= 4 ? 1500 : 1400, face: { x: spot.x + spot.w - k * size.w, y: spot.y + spot.h - k * size.h, w: k * size.w, h: k * (size.h - UNDER) } };
+}
+
+/** Where the room stands the router of `tier`: `routerFit`'s scale and front, the depth its model is built to (the wall's 300 behind it), and where its east end meets the shelf (the room's layout units, y down). */
+export interface RouterStand { k: number; front: number; face: RectLike; depth: number; ox: number; oy: number }
+export function routerStand(tier: number, spot: RectLike = ROUTER_SPOT): RouterStand {
+  const fit = routerFit(tier, spot);
+  return { ...fit, depth: (fit.front - 300) / fit.k, ox: spot.x + spot.w, oy: spot.y + spot.h };
 }
 
 /** A box of the router's frame (y up) as a layout rect (y down), for the builders of `geometry.ts`. */
@@ -89,6 +98,8 @@ export interface RouterOpts {
 
 export interface RouterModel {
   root: Group;
+  /** What the room fades to show the board inside (`setRouterShell`): the shell, the front bezel with its lights and legend, the aerials, the ears. Its materials are its own. The jacks, the plinth and the feet stay. */
+  shell: Group;
   /** The body's size as built: width, height (from the shelf) and depth. */
   size: { w: number; h: number; depth: number };
   /** The status lights: one material for the lights of the front and the lit bar. */
@@ -121,9 +132,10 @@ const along = (a: V3, b: V3, d: number): V3 => {
 export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   const t = LOOK[tier] ? tier : 1, L = LOOK[t]!, { w, h } = ROUTER_SIZE[t]!;
   const D = Math.max(o.depth ?? ROUTER_BODY, SEAM + 500), fine = o.fine ?? true, rear = o.rear ?? true;
-  const g = new Group();
+  const g = new Group(), sh = new Group();
+  g.add(sh);
 
-  // the materials: the shell and the front (one where they are one paint), the feet and the plinth, the dark of a slot or a lens, the steel of a jack
+  // the materials: the shell and the front (one where they are one paint), the feet and the plinth, the dark of a slot or a lens, the steel of a jack. The shell group fades alone (`RouterModel.shell`): none of its materials is a jack's
   const shell = mat(L.tone, { metalness: L.metal, roughness: L.rough });
   const front = L.plate === L.tone && L.pMetal === L.metal && L.pRough === L.rough ? shell : mat(L.plate, { metalness: L.pMetal, roughness: L.pRough });
   const plinth = mat(0x131518, { roughness: 0.8 }), rubber = mat(0x050608, { roughness: 0.95 }), dark = mat(0x050608, { roughness: 0.8 });
@@ -132,10 +144,10 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   const led = lamp(L.led, LED_ON);
 
   // the body: the shell behind, the front bezel (open at each jack) in front of it, the plinth and the four feet under it
-  g.add(softBox(lay(-w, 0, UNDER, h), -D, -SEAM, shell, L.r));
+  sh.add(softBox(lay(-w, 0, UNDER, h), -D, -SEAM, shell, L.r));
   const holes = [0, 1, 2, 3, 4].map((k) => { const [x, y] = routerJack(k); return outlinePts(lay(x - RJ.w / 2, x + RJ.w / 2, y - RJ.h / 2, y + RJ.h / 2), 0); });
-  g.add(slab(shapeOf(outlinePts(lay(-w, 0, UNDER, h), L.r, undefined, SEG.cornerCoarse), holes), -SEAM, 0, front));
-  g.add(softBox(lay(-w + 70, -70, FOOT, UNDER + 30), -D + 90, -70, plinth, 30));
+  sh.add(slab(shapeOf(outlinePts(lay(-w, 0, UNDER, h), L.r, undefined, SEG.cornerCoarse), holes), -SEAM, 0, front));
+  g.add(softBox(lay(-w + 70, -70, FOOT, ROUTER_FLOOR), -D + 90, -70, plinth, 30));
   for (const x of [-170, -w + 170]) for (const z of [-200, -D + 200]) g.add(post(x, 0, z, 70, FOOT, rubber, SEG.smallDisc));
 
   // the five jacks. One the scene lights has two lamps of its own, all out as built: the link's state and its frames light them (`jackleds.ts`), never this builder.
@@ -146,61 +158,63 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   jacks.forEach((j, k) => { const [x, y, z] = routerJack(k); jackIn(row, x, y, z, { shell: steel, insert, contact, link: j?.link ?? off, act: j?.act ?? off }, fine); });
   g.add(row);
   const lg = legend();
-  if (lg) g.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
+  if (lg) sh.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
 
   // the front's status lights, in a smoked strip: a row (two on the core router) of `dots`
   const rows = t === 4 ? [h - 210, h - 140] : [h - 100], xs = Array.from({ length: L.dots }, (_, k) => -w + 420 + k * L.step);
   const ly0 = rows[rows.length - 1]! - 46, ly1 = rows[0]! + 46;
-  g.add(softBox(lay(xs[0]! - 150, xs[xs.length - 1]! + 150, ly0, ly1), -10, 8, lens, 28));
-  for (const y of rows) for (const x of xs) g.add(drum(x, -y, 2, 12, t === 4 ? 22 : 26, led, SEG.part));
+  sh.add(softBox(lay(xs[0]! - 150, xs[xs.length - 1]! + 150, ly0, ly1), -10, 8, lens, 28));
+  for (const y of rows) for (const x of xs) sh.add(drum(x, -y, 2, 12, t === 4 ? 22 : 26, led, SEG.part));
   // (the wider tiers have room west of the WAN jack: slots that breathe)
   if (t >= 2) {
     const x1 = routerJack(4)[0] - RJ.w / 2 - 120, top = t === 2 ? 430 : t === 3 ? 520 : 640;
-    for (let x = -w + 140; x + 44 <= x1; x += 90) g.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
+    for (let x = -w + 140; x + 44 <= x1; x += 90) sh.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
   }
-  // (the core router: a row of SFP cages over its jacks, each a steel frame round a dark mouth)
+  // (the core router: a row of SFP cages over its jacks, each a steel frame round a dark mouth: a steel of their own, the jacks' is not the shell's)
   if (t === 4) {
+    const cage = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
     for (let k = 1; k <= 4; k++) {
       const x = routerJack(k)[0];
-      g.add(slab(shapeOf(outlinePts(lay(x - 165, x + 165, 500, 696), 14, undefined, SEG.cornerCoarse), [outlinePts(lay(x - 135, x + 135, 530, 666), 8, undefined, SEG.cornerCoarse)]), -4, 7, steel));
-      g.add(rectBox(lay(x - 135, x + 135, 530, 666), 0, 3, dark));
+      sh.add(slab(shapeOf(outlinePts(lay(x - 165, x + 165, 500, 696), 14, undefined, SEG.cornerCoarse), [outlinePts(lay(x - 135, x + 135, 530, 666), 8, undefined, SEG.cornerCoarse)]), -4, 7, cage));
+      sh.add(rectBox(lay(x - 135, x + 135, 530, 666), 0, 3, dark));
     }
   }
 
   // the top: the lit bar (10G and core), the fins (10G), the vents, and the maker's lockup debossed in it
-  if (t >= 3) g.add(rectBox(lay(-w + 420, -420, h - 5, h + 3), -240, -170, led));
+  if (t >= 3) sh.add(rectBox(lay(-w + 420, -420, h - 5, h + 3), -240, -170, led));
   const vz0 = -D + 300, vz1 = Math.min(-D + 1000, -SEAM - 100);
   if (t === 3) {
     const fz0 = -D + 220, fz1 = -0.45 * D, fin = mat(0x1d1e22, { metalness: 0.5, roughness: 0.5 });
-    if (fz1 - fz0 > 300) for (let x = -w + 500; x <= -500; x += 200) g.add(softBox(lay(x, x + 60, h - 10, h + 50), fz0, fz1, fin, 12));
+    if (fz1 - fz0 > 300) for (let x = -w + 500; x <= -500; x += 200) sh.add(softBox(lay(x, x + 60, h - 10, h + 50), fz0, fz1, fin, 12));
   } else if (vz1 - vz0 > 250) {
-    for (let x = -w + 500; x + 90 <= -500; x += 240) g.add(rectBox(lay(x, x + 90, h - 3, h + 3), vz0, vz1, dark));
+    for (let x = -w + 500; x + 90 <= -500; x += 240) sh.add(rectBox(lay(x, x + 90, h - 3, h + 3), vz0, vz1, dark));
   }
   const mark = debossMat('router-top', MAKER.router, 1024, 256), zc = t >= 3 ? -520 : -250;
-  if ((mark as MeshStandardMaterial).map) g.add(decalTop(-(h + 0.8), -w / 2 - 480, -w / 2 + 480, zc - 120, zc + 120, mark));
+  if ((mark as MeshStandardMaterial).map) sh.add(decalTop(-(h + 0.8), -w / 2 - 480, -w / 2 + 480, zc - 120, zc + 120, mark));
   else mark.dispose();
 
   // the aerials (home and gigabit): a hinge on the back corner, a boot, the rod and its round tip, leaning out
   if (t <= 2) {
-    const aerial = mat(0x2a2d32, { roughness: 0.45 }), rad = t === 2 ? 105 : 85, len = t === 2 ? 2800 : 2400;
+    const aerial = mat(0x2a2d32, { roughness: 0.45 }), boot = mat(0x131518, { roughness: 0.8 }), rad = t === 2 ? 105 : 85, len = t === 2 ? 2800 : 2400;
     for (const [ax, lean] of [[-w + 260, -0.14], [-260, 0.14]] as const) {
       const b: V3 = [ax, h + 40, -D + 240], tip: V3 = [ax + Math.sin(lean) * len, h + 40 + Math.cos(lean) * len, -D + 90];
       const knuckle = place(new Mesh(new SphereGeometry(rad * 1.5, SEG.part, SEG.rings), aerial)), cap = place(new Mesh(new SphereGeometry(rad, SEG.part, SEG.rings), aerial));
       knuckle.position.set(...b);
       cap.position.set(...tip);
-      g.add(softBox(lay(ax - 150, ax + 150, h - 30, h + 70), -D + 110, -D + 380, plinth, 24), knuckle, rod(b, tip, rad, aerial, SEG.rod), rod(b, along(b, tip, 340), rad * 1.45, aerial, SEG.rod), cap);
+      sh.add(softBox(lay(ax - 150, ax + 150, h - 30, h + 70), -D + 110, -D + 380, boot, 24), knuckle, rod(b, tip, rad, aerial, SEG.rod), rod(b, along(b, tip, 340), rad * 1.45, aerial, SEG.rod), cap);
     }
   }
   // (the core router: a rack unit, ears bolted at the sides, each with its slot)
   if (t === 4) {
     for (const [a, b] of [[-w - 200, -w], [0, 200]] as const) {
       const c = (a + b) / 2, slot = outlinePts(lay(c - 55, c + 55, h / 2 - 150, h / 2 + 150), 55);
-      g.add(slab(shapeOf(outlinePts(lay(a, b, UNDER, h), 30, undefined, SEG.cornerCoarse), [slot]), -110, 0, front));
+      sh.add(slab(shapeOf(outlinePts(lay(a, b, UNDER, h), 30, undefined, SEG.cornerCoarse), [slot]), -110, 0, front));
     }
   }
 
-  if (rear) rearPanel(g, t, w, D, { dark, steel, plinth });
-  return { root: g, size: { w, h, depth: D }, status: [led], jacks };
+  // (the back panel's materials are its own too: the room fades the shell, never the back)
+  if (rear) rearPanel(g, t, w, D, { dark: mat(0x050608, { roughness: 0.8 }), steel: mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), plinth });
+  return { root: g, shell: sh, size: { w, h, depth: D }, status: [led], jacks };
 }
 
 /** The materials the back panel is made of. */

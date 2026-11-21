@@ -1,15 +1,15 @@
-// The router's insides as a floorplan (docs/render/net.md "Inside the NIC and the router"). Pure geometry, no Pixi: `routerPlan(tier, size)` returns the blocks and the routed
-// wires of one router in plan units (0, 0 the north-west corner), the way `nicPlan` does for a card. The renderer draws it (routerart.ts), the hover and flight ids come
-// from it (`router.<block>`) and the tests check it. The router is the same machine in four sizes: a line comes in at the WAN jack (the magnetics, the PHY) to the SoC, whose
-// forwarding engine finds the client it is for (the NAT table) and passes it to the LAN switch, which hands it to the LAN PHY, the magnetics and the LAN jack; the SoC's CPU
-// runs the firmware, and the DRAM, the flash, the radio and the power input stand round the SoC and reach it by their own wires. The two rows follow the router's front: the
-// jacks along the bottom, as the shared model has them (`router3d.ts`).
+// The router SoC's die as a floorplan (docs/render/net.md "Inside the NIC and the router"). Pure geometry, no Pixi: `routerPlan(tier)` returns the blocks and the routed wires of one
+// router's SoC in plan units, (0, 0) the plan's north-west corner, the way `nicPlan` does for a card. The router itself is built in 3D, part by part (board/render/three/routerboard3d.ts):
+// the board, the DRAM, the flash, the PHYs, the radio and the power input are bodies on it. Only the SoC shows a floorplan, on its die under the lid, as the CPU's does. The renderer draws it
+// (routerart.ts), the hover ids come from it (`router.<block>`) and the tests check it. A frame comes in from the WAN jack through the PHY to the WAN MAC of the SoC, into the forwarding
+// engine, which finds the client it is for (the NAT table), and on through the LAN switch, whose ports leave the chip for the LAN PHY; a frame to send goes the other way. The CPU runs the
+// firmware (DHCP, the firewall, a new connection's entry in the engine) and the memory controller feeds the DRAM chips beside the SoC.
 
 import { col, leaf, row, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
 import { layPlan, type Margins, type NetBlock, type NetLink, type NetPlan } from '../plan/netplan';
 
-export type RouterBlockKind = 'soc' | 'cpu' | 'pkt' | 'sw' | 'dram' | 'flash' | 'radio' | 'power' | 'wanjack' | 'wanmag' | 'wanphy' | 'lanphy' | 'lanmag' | 'lanjack' | 'stat';
-export type RouterLinkKind = 'line' | 'data' | 'control' | 'memory' | 'power';
+export type RouterBlockKind = 'soc' | 'cpu' | 'mem' | 'wanmac' | 'pkt' | 'sw' | 'stat';
+export type RouterLinkKind = 'data' | 'control' | 'memory';
 export type RouterBlock = NetBlock<RouterBlockKind>;
 export type RouterLink = NetLink<RouterLinkKind>;
 
@@ -38,7 +38,7 @@ export type RouterPlan = NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInpu
 /**
  * The four routers' parts, by tier (`ROUTER_SPECS` in network/sim/specs.ts: Home 100 Mbit, Gigabit, 10G switch-router, Core 40G). The names and sizes are what the parts are made of, in
  * words; the game's numbers for a router are its speed and its clients (`NetSnap.router`), which the live view shows as they are. The 3D router has the aerials the radio feeds
- * (tiers 1 and 2) and the rack ears of the core router (`router3d.ts`).
+ * (tiers 1 and 2) and the rack ears of the core router (`router3d.ts`); its board carries the rest (`routerboard3d.ts`).
  */
 export const ROUTER_PARTS: Record<number, RouterPlanInput> = {
   1: { tier: 1, soc: 'RL-R110', cores: 1, mhz: 400, engine: 'NAT ENGINE', std: '100BASE-TX', lan: 4, dram: { mb: 64, kind: 'DDR2', chips: 1 }, flash: { mb: 8, kind: 'SPI NOR' }, radio: { bands: '2.4 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },
@@ -48,9 +48,9 @@ export const ROUTER_PARTS: Record<number, RouterPlanInput> = {
 };
 export const routerInput = (tier: number): RouterPlanInput => ROUTER_PARTS[tier] ?? ROUTER_PARTS[1]!;
 
-/** The plan is always this wide (plan units) and as tall as the router's front is in proportion: its fixed-width blocks (the jacks, the PHYs) are sized for it, and the front is drawn over it at whatever scale fills it. */
-export const ROUTER_PLAN_W = 2400;
-const M: Margins = { x: 16, top: 16, bottom: 38 };
+/** The die's plan is this big (plan units): square, as a die is. The blocks are sized for it: a symbol fits a block of about 200 by 150. */
+export const ROUTER_DIE = { w: 680, h: 680 };
+const M: Margins = { x: 10, top: 10, bottom: 30 };
 
 type K = RouterBlockKind;
 type N = Node<K>;
@@ -65,49 +65,33 @@ export const fmtSize = (mb: number): string => (mb >= 1024 ? `${+(mb / 1024).toF
 
 function build(i: RouterPlanInput): { tree: N; specs: WireSpec<RouterLinkKind>[] } {
   const soc: Spec<K> = { id: 'soc', kind: 'soc', label: `${i.soc} SoC`, sub: `${i.cores} core${i.cores === 1 ? '' : 's'} · ${i.mhz} MHz` };
-  const radio = i.radio !== null, wide = radio ? 1 : 1.4;
-  const top: N[] = [
-    ...(i.radio ? [L('radio', 'WI-FI RADIO', { sub: i.radio.bands, f: 1 })] : []),
-    L('dram', 'DRAM', { sub: `${fmtSize(i.dram.mb)} ${i.dram.kind}`, f: 1.1 * wide }),
+  const tree = col<K>([
     row<K>([
-      L('cpu', 'CPU', { sub: 'runs the firmware', f: 1 }),
-      L('pkt', i.engine, { sub: 'routes frames and keeps the NAT table', f: 1.15 }),
-      L('sw', 'LAN SWITCH', { sub: `${i.lan} ports, ${i.std}`, f: 1 }),
-    ], { f: radio ? 3.6 : 4.1, frame: soc, pad: 8, title: 22 }),
-    L('flash', 'FLASH', { sub: `${fmtSize(i.flash.mb)} ${i.flash.kind}`, f: 0.9 * wide }),
-    L('power', 'POWER', { sub: i.inlet, f: 1 * wide }),
-  ];
-  const bottom: N[] = [
-    L('wanjack', 'WAN JACK', { sub: 'to the ISP', px: 210 }),
-    L('wanmag', 'MAGNETICS', { sub: 'isolate the line', px: 140 }),
-    L('wanphy', 'WAN PHY', { sub: i.std, px: 170 }),
-    L('stat', 'TRAFFIC', { sub: 'what the router carries now', f: 1 }),
-    L('lanphy', 'LAN PHY', { sub: i.std, px: 170 }),
-    L('lanmag', 'MAGNETICS', { sub: 'isolate the line', px: 140 }),
-    L('lanjack', 'LAN JACKS', { sub: `${i.lan} ports, one cable`, px: 210 }),
-  ];
-  // the channel between the rows is wide: five wires cross it
-  const tree = col<K>([row<K>(top, { f: 57 }), row<K>(bottom, { f: 43 })], { f: 1, gap: 36 });
+      L('wanmac', 'WAN MAC', { sub: 'the line side: the plan\'s address', f: 1 }),
+      L('cpu', 'CPU', { sub: 'runs the firmware', f: 1.15 }),
+      L('mem', 'MEMORY CTRL', { sub: `${fmtSize(i.dram.mb)} ${i.dram.kind}`, f: 0.95 }),
+    ], { f: 1 }),
+    row<K>([
+      L('pkt', i.engine, { sub: 'finds the client of each frame: the NAT table', f: 1 }),
+    ], { f: 1.5 }),
+    row<K>([
+      L('sw', 'LAN SWITCH', { sub: `${i.lan} ports, ${i.std}`, f: 1.25 }),
+      L('stat', 'TRAFFIC', { sub: 'what the router carries now', f: 1 }),
+    ], { f: 1 }),
+  ], { f: 1, frame: soc, pad: 8, title: 22 });
   const specs: W[] = [
-    ['wan-mag', 'line', 'wanjack', 'wanmag', 4],
-    ['wan-phy', 'line', 'wanmag', 'wanphy', 4],
-    ['wan-pkt', 'data', 'wanphy', 'pkt', 3],
-    ['pkt-sw', 'data', 'pkt', 'sw', 3],
-    ['sw-lan', 'data', 'sw', 'lanphy', 3],
-    ['lan-mag', 'line', 'lanphy', 'lanmag', 4],
-    ['lan-jack', 'line', 'lanmag', 'lanjack', 4],
+    ['wanmac-pkt', 'data', 'wanmac', 'pkt', 3],
     ['cpu-pkt', 'control', 'cpu', 'pkt', 2],
-    ['dram-soc', 'memory', 'dram', 'soc', 3],
-    ['flash-soc', 'control', 'flash', 'soc', 2],
-    ...(radio ? ([['radio-soc', 'data', 'radio', 'soc', 2]] as W[]) : []),
-    ['power-soc', 'power', 'power', 'soc', 2],
-    ['stat-pkt', 'control', 'stat', 'pkt', 1],
+    ['mem-pkt', 'memory', 'mem', 'pkt', 3],
+    ['cpu-mem', 'memory', 'cpu', 'mem', 2],
+    ['pkt-sw', 'data', 'pkt', 'sw', 3],
+    ['pkt-stat', 'control', 'pkt', 'stat', 1],
   ];
   return { tree, specs: wires(specs) };
 }
 
-/** The floorplan of the router of `tier` in an area of `size` plan units (`ROUTER_PLAN_W` wide: the router's front over its scale). */
-export function routerPlan(tier: number, size: { w: number; h: number }): RouterPlan {
+/** The floorplan of the SoC of the router of `tier`. */
+export function routerPlan(tier: number): RouterPlan {
   const i = routerInput(tier), { tree, specs } = build(i);
-  return layPlan<K, RouterLinkKind, RouterPlanInput>(`router|${i.tier}|${size.w}|${size.h}`, i, size, M, tree, specs, 'routerplan');
+  return layPlan<K, RouterLinkKind, RouterPlanInput>(`routerdie|${i.tier}`, i, ROUTER_DIE, M, tree, specs, 'routerplan');
 }

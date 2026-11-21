@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '@/worker/game/game';
 import { describeId } from '@/core/ui/logic';
 import { snap } from '@/core/ui/testdata';
+import { natLine, netAddrs } from '../render/plan/netaddr';
 import { routerIds } from '../render/router/routerlayout';
 import { isRouterId } from './routerdesc';
 
@@ -51,11 +52,29 @@ describe('the words for the router\'s parts', () => {
     expect(describeId('router.pkt', s)!.nerd).toMatch(/1 of 16 clients in service/);
     expect(describeId('router.sw', s)!.nerd).toMatch(/port 1 up at 1 Gbit/);
     expect(describeId('router.dram', s)!.nerd).toMatch(/DDR4 ECC.*4 chips.*185 k frames/);
-    expect(describeId('router.wanjack', s)!.nerd).toMatch(/Backbone plan.*20 Gbit down.*10 Gbit up/);
     expect(describeId('router.wanphy', s)!.nerd).toMatch(/plan 20 Gbit down.*rated 40 Gbit/);
     expect(describeId('router.lanphy', s)!.nerd).toMatch(/link up, 1 Gbit.*the PC port 1 Gbit, the router 40 Gbit/);
-    expect(describeId('router.lanjack', s)!.nerd).toMatch(/jack 1 link up, 1 Gbit/);
     expect(describeId('router.stat', s)!.nerd).toMatch(/rx 123 k frames.*tx 62 k frames.*limit: the PC's port/);
+    expect(describeId('router.mem', s)!.nerd).toMatch(/8 GB DDR4 ECC.*185 k frames/);
+  });
+
+  it('gives the addresses where the network layer has them: the IPs, the MACs, the lease, the table of the NAT and of the switch', () => {
+    const s = game(2), a = netAddrs(s)!;
+    expect(describeId('router.wanmac', s)!.nerd).toContain(`WAN ${a.wan!.ip}/${a.wan!.prefix}`);
+    expect(describeId('router.wanmac', s)!.nerd).toContain(`MAC ${a.wan!.mac}`);
+    expect(describeId('router.wanmac', s)!.nerd).toContain(`gateway ${a.wan!.gateway.ip}`);
+    expect(describeId('router.cpu', s)!.nerd).toContain(`${a.host!.ip} for ${a.host!.mac}, ${a.host!.lease}`);
+    expect(describeId('router.cpu', s)!.nerd).toContain(`gateway ${a.lan!.ip}`);
+    expect(describeId('router.sw', s)!.nerd).toContain(`MAC table: ${a.host!.mac} on port 1`);
+    expect(describeId('router.sw', s)!.nerd).toContain(`switch MAC ${a.router!.lan}`);
+    expect(describeId('router.label', s)!.nerd).toContain(`LAN MAC ${a.router!.lan}`);
+    expect(describeId('router.label', s)!.nerd).toContain(`WAN MAC ${a.router!.wan}`);
+    expect(a.conns.length).toBeGreaterThan(0);
+    expect(describeId('router.pkt', s)!.nerd).toContain(`NAT: ${natLine(a.conns[0]!)}`);
+    // (no plan, no cable, no game: no address is made up)
+    expect(describeId('router.wanmac', game(2, true, false))!.nerd).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+    expect(describeId('router.wanmac')!.nerd).toMatch(/with a plan on the line/);
+    expect(describeId('router.sw', game(2, false))!.nerd).not.toContain('MAC table');
   });
 
   it('names the engine and the parts by tier, and says the radio is only on the small routers', () => {
@@ -68,14 +87,11 @@ describe('the words for the router\'s parts', () => {
   });
 
   it('says so with no cable or no plan, and gives the plan\'s own words with no game', () => {
-    expect(describeId('router.lanjack', game(2, false))!.nerd).toMatch(/no cable in the PC/);
     expect(describeId('router.lanphy', game(2, false))!.nerd).toMatch(/no link: no cable/);
     expect(describeId('router.sw', game(2, false))!.nerd).toMatch(/no port up/);
     expect(describeId('router.pkt', game(2, false))!.nerd).toMatch(/of 4 clients in service/);
-    expect(describeId('router.wanjack', game(2, true, false))!.nerd).toMatch(/no plan on the line/);
     expect(describeId('router.wanphy', game(2, true, false))!.nerd).toMatch(/no plan/);
     expect(describeId('router.stat', game(2, true, false))!.nerd).toMatch(/limit: no plan/);
-    expect(describeId('router.lanjack')!.nerd).toMatch(/no game/);
     expect(describeId('router.stat')!.nerd).toMatch(/frame counters/);
     expect(describeId('router.soc')!.nerd).toMatch(/RL-R110 to RL-R740/);
   });
