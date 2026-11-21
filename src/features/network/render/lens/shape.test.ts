@@ -117,9 +117,12 @@ describe('the network lens draw', () => {
     const d = netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2', { transfers: [transfer('down', 1), transfer('up', 2), transfer('up', 1)] }), A);
     expect(d.tags.find((t) => t.id === 'router')!.text).toContain('2/');
   });
-  it('puts the legend under the link\'s word when the link needs care, and under the router\'s otherwise', () => {
-    expect(netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2'), A).tags.find((t) => t.id === 'legend')).toMatchObject({ legend: 'net', under: 'router' });
+  it('puts the legend under the link\'s word when the link needs care, and under the router\'s last pill otherwise', () => {
+    expect(netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2'), A).tags.find((t) => t.id === 'legend')).toMatchObject({ legend: 'net', under: 'router-wan' });
     expect(netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2', { state: 'down' }), A).tags.find((t) => t.id === 'legend')).toMatchObject({ under: 'link' });
+    // (with no plan the router has no WAN side: the legend goes under its LAN pill; with no router, under the router's own word)
+    expect(netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2', { isp: null }), A).tags.find((t) => t.id === 'legend')).toMatchObject({ under: 'router-lan' });
+    expect(netDraw(shape, rig(1000, 'router3', 'isp4', 'nvme2', { router: null }), A).tags.find((t) => t.id === 'legend')).toMatchObject({ under: 'router' });
   });
   it('leaves the drive\'s word out with no OS drive and the port\'s with no lead', () => {
     const noDrive = netDraw(shape, { ...rig(1000, 'router3', 'isp4', 'nvme2'), storage: [] }, A);
@@ -136,5 +139,43 @@ describe('netLensReady', () => {
     expect(ready(snap({ level: { ...snap().level, level: 4 } }))).toBe(true);
     expect(ready(rig(1000, 'router1', 'isp1', 'nvme2'))).toBe(true);
     expect(ready(snap({ cables: [{ id: 'lan', connected: true } as Snapshot['cables'][number]] }))).toBe(true);
+  });
+});
+
+describe('the addresses in the lens words', () => {
+  const shape = netShape(A);
+  /** The rig with the machine on, so the link is up and the PC has the IP address the router gave it. */
+  const lit = (net: Partial<Snapshot['net']> = {}): Snapshot => { const s = rig(1000, 'router2', 'isp2', 'nvme2', net); return { ...s, powered: true, power: { ...s.power, tripped: false } }; };
+  const tag = (d: ReturnType<typeof netDraw>, id: string) => d.tags.find((t) => t.id === id);
+
+  it('pins the gateway under the plan, the router\'s two sides under the router and the PC\'s jack under the port, each in dim words', () => {
+    const d = netDraw(shape, lit(), A);
+    expect(tag(d, 'plan-addr')).toMatchObject({ tone: 'dim', under: 'plan', text: expect.stringMatching(/^gateway 203\.0\.113\.1 · 02(:[0-9A-F]{2}){5}$/) });
+    expect(tag(d, 'router-lan')).toMatchObject({ tone: 'dim', under: 'router', text: 'LAN 192.168.1.1 · 02:52:4C:02:00:02' });
+    expect(tag(d, 'router-wan')).toMatchObject({ tone: 'dim', under: 'router-lan', text: expect.stringMatching(/^WAN 203\.0\.113\.\d+ · 02:52:4C:02:00:01$/) });
+    expect(tag(d, 'port-addr')).toMatchObject({ tone: 'dim', under: 'port', text: expect.stringMatching(/^eth0 · 192\.168\.1\.100 · 02:48:41:4B(:[0-9A-F]{2}){2}$/) });
+  });
+  it('lists a pill after the pill it hangs under, as the pills are placed in the list\'s order', () => {
+    for (const net of [{}, { state: 'down' as const }, { isp: null }, { router: null }]) {
+      const d = netDraw(shape, lit(net), A), at = (id: string) => d.tags.findIndex((t) => t.id === id);
+      for (const t of d.tags) if (t.under) { expect(at(t.under), `${t.id} under ${t.under}`).toBeGreaterThanOrEqual(0); expect(at(t.under), `${t.id} under ${t.under}`).toBeLessThan(at(t.id)); }
+    }
+  });
+  it('says no IP address on the PC\'s pill while its link is down, and keeps its MAC', () => {
+    const off = { ...lit(), powered: false };
+    expect(tag(netDraw(shape, off, A), 'port-addr')!.text).toMatch(/^eth0 · no IP address · 02:48:41:4B/);
+  });
+  it('leaves out the pill of a place that does not stand: no plan, no router, no cable', () => {
+    const noPlan = netDraw(shape, lit({ isp: null }), A);
+    expect(noPlan.tags.some((t) => t.id === 'plan-addr' || t.id === 'router-wan')).toBe(false);
+    expect(tag(noPlan, 'router-lan')).toBeDefined();
+    const noRouter = netDraw(shape, lit({ router: null }), A);
+    expect(noRouter.tags.some((t) => t.id === 'router-lan' || t.id === 'router-wan')).toBe(false);
+    const noCable = netDraw(shape, lit({ state: 'no-cable', port: { kind: null, deviceId: null, mbps: 0 } }), A);
+    expect(noCable.tags.some((t) => t.id === 'port-addr')).toBe(false);
+    expect(netDraw(shape, snap(), A).tags.some((t) => /-addr$|^router-/.test(t.id))).toBe(false);
+  });
+  it('hangs the link\'s word under the router\'s last pill', () => {
+    expect(tag(netDraw(shape, lit({ state: 'down' }), A), 'link')).toMatchObject({ under: 'router-wan' });
   });
 });

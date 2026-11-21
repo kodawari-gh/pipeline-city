@@ -6,6 +6,7 @@ import type { Snapshot } from '@/worker/protocol';
 import type { V3 } from '@/core/render/three/rope';
 import type { AirTag } from '@/features/board/render/three/air/airtags';
 import { hasNetwork, limiterLadder, netStateChip, type LimiterId } from '../../ui/netui';
+import { netAddrs } from '../plan/netaddr';
 
 /** The places the path runs through, in the machine's space (x east, y up, z toward the viewer). */
 export interface NetAnchors {
@@ -119,20 +120,31 @@ export function netDraw(shape: NetShape, s: Snapshot, a: NetAnchors): NetDraw {
     const hit = ladder.binding === id && ladder.downMbps > 0;
     return { text: `${LABEL[id]} · ${g.text}${extra}${hit ? ' · limit' : ''}`, tone: hit ? 'limit' : 'net' };
   };
-  const plan = a.plate;
-  if (n.isp) tags.push({ id: 'plan', at: above(plan.at, plan.hh + 150), ...word('isp') });
-  else tags.push({ id: 'plan', at: above(plan.at, plan.hh + 150), text: 'No plan · click the plate', tone: 'warn' });
-  const router = a.router, busy = new Set(n.transfers.map((t) => t.jobId)).size;
-  if (n.router) tags.push({ id: 'router', at: above(router.at, router.hh + 120), ...word('router', ` · ${busy}/${n.bandwidth.clients || n.router.clients} clients`) });
-  else tags.push({ id: 'router', at: above(router.at, router.hh + 120), text: 'No router · drop one here', tone: 'warn' });
+  // the addresses (docs/render/net.md "Addresses"): a dim pill under the pill of each place that has them, the MAC after the IP address
+  const addr = netAddrs(s), dim = (id: string, under: string, at: V3, text: string): AirTag => ({ id, at, text, tone: 'dim', under });
+  const plan = a.plate, planAt = above(plan.at, plan.hh + 150);
+  if (n.isp) {
+    tags.push({ id: 'plan', at: planAt, ...word('isp') });
+    if (addr?.wan) tags.push(dim('plan-addr', 'plan', planAt, `gateway ${addr.wan.gateway.ip} · ${addr.wan.gateway.mac}`));
+  } else tags.push({ id: 'plan', at: planAt, text: 'No plan · click the plate', tone: 'warn' });
+  const router = a.router, busy = new Set(n.transfers.map((t) => t.jobId)).size, routerAt = above(router.at, router.hh + 120);
+  /** The last pill of the router's stack: what goes under the router goes under it. */
+  let routerLast = 'router';
+  if (n.router) {
+    tags.push({ id: 'router', at: routerAt, ...word('router', ` · ${busy}/${n.bandwidth.clients || n.router.clients} clients`) });
+    if (addr?.lan) { tags.push(dim('router-lan', routerLast, routerAt, `LAN ${addr.lan.ip} · ${addr.lan.mac}`)); routerLast = 'router-lan'; }
+    if (addr?.wan) { tags.push(dim('router-wan', routerLast, routerAt, `WAN ${addr.wan.ip} · ${addr.wan.mac}`)); routerLast = 'router-wan'; }
+  } else tags.push({ id: 'router', at: routerAt, text: 'No router · drop one here', tone: 'warn' });
   if (a.lan) {
-    const port = seg('port');
-    if (n.port.kind && port) tags.push({ id: 'port', at: above(a.lan.jack, 330), ...word('port') });
-    else if (chip) tags.push({ id: 'port', at: above(a.lan.jack, 330), text: 'Port · plug the cable in', tone: 'warn' });
+    const port = seg('port'), portAt = above(a.lan.jack, 330);
+    if (n.port.kind && port) {
+      tags.push({ id: 'port', at: portAt, ...word('port') });
+      if (addr?.pc) tags.push(dim('port-addr', 'port', portAt, `${addr.pc.id} · ${addr.pc.ip ?? 'no IP address'} · ${addr.pc.mac}`));
+    } else if (chip) tags.push({ id: 'port', at: portAt, text: 'Port · plug the cable in', tone: 'warn' });
   }
   if (a.drive && seg('disk')?.mbps) tags.push({ id: 'drive', at: above(a.drive, 160), ...word('disk') });
   // the link, when it is not up: what is wrong in the chip's words, under the router's
-  if (chip && (chip.level === 'warn' || chip.level === 'bad')) tags.push({ id: 'link', at: above(router.at, router.hh + 120), text: chip.text, tone: chip.level === 'bad' ? 'warn' : 'limit', under: 'router' });
-  tags.push({ id: 'legend', at: above(router.at, router.hh + 120), text: '', tone: 'dim', legend: 'net', under: chip && (chip.level === 'warn' || chip.level === 'bad') ? 'link' : 'router' });
+  if (chip && (chip.level === 'warn' || chip.level === 'bad')) tags.push({ id: 'link', at: routerAt, text: chip.text, tone: chip.level === 'bad' ? 'warn' : 'limit', under: routerLast });
+  tags.push({ id: 'legend', at: routerAt, text: '', tone: 'dim', legend: 'net', under: chip && (chip.level === 'warn' || chip.level === 'bad') ? 'link' : routerLast });
   return { down, up, state, tags, limit: hasNetwork(s) ? ladder.binding : null };
 }
