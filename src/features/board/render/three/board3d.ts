@@ -651,7 +651,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // (a shadow map more or less makes every lit program again: the frame links them before it draws)
     warmed = false;
     shadows.reset();
-    chips.live = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
+    chips.live = boardLive.level = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
     fx.density = PARTICLE_LEVELS[g.particles] ?? 1;
     if (g.filtering !== anisotropy) refilter(scene, g.filtering);
     demand.ask();

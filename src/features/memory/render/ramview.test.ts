@@ -80,6 +80,17 @@ describe('the RAM map without chips', () => {
     }
   });
 
+  it('does not compare the whole image on every snapshot (nothing shows it): it keeps no copy to compare with', () => {
+    const own = (v: RamView) => (v as unknown as { prev: Uint8Array | null }).prev;
+    const none = view([{ idx: 0, bytes: MB }], []);
+    none.setMap(map(MB));
+    expect(own(none)).toBeNull();
+    // (with chips to draw, it does: a change of a byte redraws them)
+    const drawn = view([{ idx: 0, bytes: MB }], chips(CHIPS_PER_STICK));
+    drawn.setMap(map(MB));
+    expect(own(drawn)).not.toBeNull();
+  });
+
   it('a reach it is told of is kept without growing for ever', () => {
     const v = view([{ idx: 0, bytes: MB }], []);
     for (let i = 0; i < 10000; i++) v.touch('fetch', i * 4, '#fff');

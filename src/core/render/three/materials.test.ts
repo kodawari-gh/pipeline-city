@@ -1,38 +1,24 @@
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture, type Material } from 'three';
 import { describe, expect, it } from 'vitest';
 import { boxEnv, boxProjected } from './boxenv';
-import { GLOW, HOT_FROM_C, HOT_FULL_C, PartSkin, cloth, heatColor, mat, materialKey, own, partLook, shareMaterials, type PartState } from './materials';
+import { GLOW, PartSkin, cloth, mat, materialKey, own, partLook, shareMaterials, type PartState } from './materials';
 
-const ON: PartState = { powered: true, active: false, burnt: false, throttled: false, tempC: 30 };
+const ON: PartState = { powered: true, burnt: false };
 
 describe('part looks', () => {
-  it('leaves a powered idle part as it is', () => {
+  it('leaves a powered part as it is: one that runs, runs hot or throttles does not glow (the lenses show that)', () => {
     expect(partLook(ON)).toEqual({ tint: 1, glow: 0, glowIntensity: 0 });
+    // (the state carries no activity, no heat and no throttle for a look to follow)
+    expect(Object.keys(ON).sort()).toEqual(['burnt', 'powered']);
   });
 
   it('darkens a part with no power', () => {
     expect(partLook({ ...ON, powered: false })).toEqual({ tint: 0.5, glow: 0, glowIntensity: 0 });
   });
 
-  it('lights an active part', () => {
-    expect(partLook({ ...ON, active: true })).toEqual({ tint: 1, glow: GLOW.active, glowIntensity: 0.4 });
-  });
-
-  it('tints a throttled part amber', () => {
-    expect(partLook({ ...ON, throttled: true })).toEqual({ tint: 0.8, glow: GLOW.throttled, glowIntensity: 0.2 });
-  });
-
-  it('brightens with the temperature, cyan to red', () => {
-    const warm = partLook({ ...ON, tempC: HOT_FROM_C + 1 }), hot = partLook({ ...ON, tempC: HOT_FULL_C + 50 });
-    expect(warm.glowIntensity).toBeLessThan(hot.glowIntensity);
-    expect(hot.glowIntensity).toBeCloseTo(0.6);
-    expect(heatColor(0)).toBe(GLOW.active);
-    expect(heatColor(0.5)).toBe(GLOW.throttled);
-    expect(heatColor(1)).toBe(GLOW.burnt);
-  });
-
-  it('a burnt part wins over everything', () => {
-    expect(partLook({ ...ON, burnt: true, tempC: 200, active: true, powered: false })).toEqual({ tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 });
+  it('a burnt part is charred and glows red, whatever its power', () => {
+    expect(partLook({ ...ON, burnt: true })).toEqual({ tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 });
+    expect(partLook({ powered: false, burnt: true })).toEqual({ tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 });
   });
 
   it('a skin eases its material to the look, from the base colour every time', () => {
@@ -132,8 +118,8 @@ describe('part looks', () => {
 
   it('a skin of the thermal view alone ignores the state, and glows in the view all the same', () => {
     const m = mat(0x808080), skin = new PartSkin([m], 1, false), base = m.color.r, settle = (): void => { for (let i = 0; i < 400; i++) skin.frame(1 / 60); };
-    // (a machine that is off, then burnt, then running hot: the part keeps its own look through all of them)
-    for (const st of [{ ...ON, powered: false }, { ...ON, burnt: true }, { ...ON, active: true, tempC: 90 }]) {
+    // (a machine that is off, then burnt: the part keeps its own look through both)
+    for (const st of [{ ...ON, powered: false }, { ...ON, burnt: true }]) {
       skin.set(st);
       settle();
       expect(m.color.r).toBeCloseTo(base, 5);
@@ -153,7 +139,7 @@ describe('part looks', () => {
   it('a skin says it eases until it has reached the look', () => {
     const skin = new PartSkin([mat(0x808080)]);
     expect(skin.easing).toBe(false);
-    skin.set({ ...ON, active: true });
+    skin.set({ ...ON, powered: false });
     expect(skin.easing).toBe(true);
     for (let i = 0; i < 600; i++) skin.frame(1 / 60);
     expect(skin.easing).toBe(false);

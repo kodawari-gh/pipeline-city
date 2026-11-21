@@ -67,8 +67,8 @@ export function liveCrop(r: Rect, view: LodRect | null, margin = 0.1): Rect | nu
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 
-/** The density to draw a crop at: the screen's (`need`, pixels per unit), no finer than `MAX_PX`, no side over `MAX_SIDE` pixels. */
-export const livePx = (crop: Rect, need: number, max = MAX_PX): number => Math.min(need, max, MAX_SIDE / crop.w, MAX_SIDE / crop.h);
+/** The density to draw a crop at: the screen's (`need`, pixels per unit), no finer than `max` (`MAX_PX`), no side over `side` pixels (`MAX_SIDE`). */
+export const livePx = (crop: Rect, need: number, max = MAX_PX, side = MAX_SIDE): number => Math.min(need, max, side / crop.w, side / crop.h);
 
 interface Face {
   kind: ChipKind;

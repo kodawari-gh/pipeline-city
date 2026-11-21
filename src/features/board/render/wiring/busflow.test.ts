@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BusFlow, FADE_MS, MAX_MS, MIN_MS, slice } from './busflow';
+import { BusFlow, FADE_MS, MAX_LIT, MAX_MS, MIN_MS, slice } from './busflow';
 import { mkLane } from './routes';
 
 const lane = mkLane([[0, 0], [100, 0], [100, 100]]);
@@ -40,5 +40,37 @@ describe('BusFlow', () => {
     f.send([lane], 1, '#fff', 0, 9);
     f.clear();
     expect(f.busy).toBe(false);
+  });
+});
+
+describe('BusFlow drawing', () => {
+  const strokes = (f: BusFlow) => (f.g.context.instructions as { action: string; data: { style: { width: number; alpha: number; cap: string; join: string } } }[]).filter((i) => i.action === 'stroke').map((i) => i.data.style);
+  const far = mkLane([[0, 0], [1000, 0], [1000, 600]]);
+
+  it('strokes each lit lane twice, a trail and a head, plain: square ends and mitred corners', () => {
+    const f = new BusFlow();
+    f.send([far, far], 1, '#3be3ff', 0, 9);
+    f.frame(150, 1, true);
+    const s = strokes(f);
+    expect(s).toHaveLength(4);
+    expect(s.every((x) => x.cap === 'butt' && x.join === 'miter')).toBe(true);
+    // (the head is brighter than the trail behind it)
+    expect(s[1]!.alpha).toBeGreaterThan(s[0]!.alpha);
+  });
+
+  it('lights no more than MAX_LIT lanes of a wide link, spread over it', () => {
+    const f = new BusFlow();
+    f.send(Array.from({ length: 32 }, () => far), 1, '#3be3ff', 0, 9);
+    f.frame(150, 1, true);
+    expect(strokes(f)).toHaveLength(2 * MAX_LIT);
+  });
+
+  it('draws nothing before the packet starts, and keeps no stroke once the interior is hidden', () => {
+    const f = new BusFlow();
+    f.send([far], 1, '#3be3ff', 1000, 9);
+    f.frame(900, 1, true);
+    expect(strokes(f)).toHaveLength(0);
+    f.frame(1100, 1, false);
+    expect(strokes(f)).toHaveLength(0);
   });
 });

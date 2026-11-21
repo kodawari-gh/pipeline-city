@@ -26,8 +26,8 @@ const DETAIL: Row[] = [
   { key: 'msaa', label: 'Anti-aliasing', help: 'Smooths the edges of every part.' },
   { key: 'textures', label: 'Textures', help: 'How sharp the board, the dies and their names are up close.' },
   { key: 'filtering', label: 'Filtering', help: 'Keeps textures sharp at a slant.' },
-  { key: 'live', label: 'Live chips', help: 'How often and how sharply the running dies draw.' },
-  { key: 'particles', label: 'Particles', help: 'Haze off hot parts, smoke and sparks.' },
+  { key: 'live', label: 'Live chips', help: 'How often and how sharply the running dies and the lit traces draw.' },
+  { key: 'particles', label: 'Particles', help: 'Smoke off a burnt part, and the airflow lens.' },
 ];
 
 const TABS = [

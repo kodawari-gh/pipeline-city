@@ -49,6 +49,7 @@ import { PANEL_IDS, isPanelId } from './casetray3d';
 import { StudioWall, ispTier, routerTier, wallPlan, type StageWall, type WallNet, type WallPlan } from './studiowall3d';
 import { PlugHand } from './plughand3d';
 import { BoardLive3D } from './boardlive3d';
+import { LIVE_LEVELS } from './chips3d';
 import { Lens3D } from './lens3d';
 import { worldPace } from '@/core/render/lod/lod';
 import { DEFAULT_RUN_SPEED, MAX_TICKS_PER_FRAME, OFF, runState, sameRun, type RunSpeed, type RunState } from '@/features/board/sim/buildrun';
@@ -366,6 +367,7 @@ export class BuildStage {
     this.cleanup.push(effect(() => {
       const g = effective.value;
       this.post.apply(g, renderer, this.W, this.H);
+      this.live.level = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
       if (g.filtering !== anisotropy) refilter(scene, g.filtering);
       this.demand.ask();
     }));

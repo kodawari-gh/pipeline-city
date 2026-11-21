@@ -148,15 +148,11 @@ From `src/core/render/three/materials.ts` (`GLOW`, `partLook`):
 
 **Powered Off:** emissive 0; base colour × 0.5 (darken, not desaturate).
 
-**Active (running job, bus lit):** emissive 0.4, cyan `#3be3ff` (`GLOW.active`, `materials.ts:15`).
+**Running, running hot, throttled:** no glow, colour unchanged (decided 2026-11-21, at Khalil's request: the state glow was never asked for). A part's look follows only its power and a burn: `PartState` is `{ powered, burnt }`. What a part does shows elsewhere: the board's lit traces for traffic (`BoardLive3D`), the airflow lens for heat (`air/`, the `thermal()` view), the power lens for draw (`electric()`).
 
-**Throttled:** emissive 0.2, amber `#ffc247`; base × 0.8.
+**Burnt / Failed:** emissive 0.8, red `#ff5a78` (`GLOW.burnt`); base × 0.3. (No overlay texture in code.)
 
-**Overheating (temp > 42 °C, full at 82 °C):** emissive 0.2–0.6 (scales with temp); colour cyan → amber → red (`heatColor`).
-
-**Burnt / Failed:** emissive 0.8, red `#ff5a78`; base × 0.3. (No overlay texture in code.)
-
-A part's glow scales by its `gain` (wide faces glow softer). `GLOW.hot` `#ff5a30` is defined but not used by `partLook`.
+A part's glow in a lens scales by its `gain` (wide faces glow softer).
 
 **RGB and accents (in-game; stills are currently unpowered — see Animation):**
 - GPU fan ring: `glowMat(0x3be3ff, 0x1d6f80)`, `fixed: 0x3be3ff` (`gpu3d.ts:212-214`).
@@ -249,18 +245,18 @@ There is no separate sandbox camera. `board3d.ts:811` `caseView(yaw=0, pitch=0.0
 
 - **Fans**: constant spin (RPM → rotation speed, scaled by load/temp)
 - **Cables**: static
-- **Glow (in-game, powered idle):** no state glow (`partLook` returns emissive 0 when powered and not active / throttled / hot, `materials.ts:31`). Built-in RGB, strips and rings still emit.
+- **Glow (in-game, powered):** no state glow (`partLook` returns emissive 0 for every powered part that has not burnt, `materials.ts`), idle or running. Built-in RGB, strips and rings still emit.
 - **Stills:** Current: `renderStill` does not power the part (`viewer.ts:110-137`); stills are unpowered and show no state glow. Target (art-style.md §4, rework item 6, on hold): stills show powered-on idle emissives (LEDs, strips, rings at their idle level), with no active or heat glow.
 
 ### Active/Computation
 
-- **Bus glow**: brief bright flash when transferring data
-- **Heat glow**: eased (see below) as temp rises
+- **Bus traces**: a short bright packet runs the lanes between two parts that talk, the trace lit behind it for a moment (`BoardLive3D`, docs/render/live.md "Activity"; kept cheap, see "Performance" there)
+- **Heat**: no glow and no haze on the part; the airflow lens shows it
 - **Fan speed**: ramp up/down (not instant)
 
 ### State Transitions
 
-- **All state looks** (power, thermal, active): eased over about 0.5 s (`PartSkin.frame`, `1 - 0.002^dt`).
+- **All state looks** (power, burnt, and the lenses' views): eased over about 0.5 s (`PartSkin.frame`, `1 - 0.002^dt`).
 - **Selection**: outline fade not set in code (rule to set or drop).
 
 ## Dark Mode & Light Mode
@@ -412,11 +408,12 @@ Budgets for this build are in [§ Asset standard, 5](#5-budgets-per-view). This 
 ## Future Enhancements
 
 - Subsurface scattering for plastic parts (cooling shrouds)
-- Particle effects (thermal haze, dust)
+- Particle effects (dust). Heat haze and CPU sparks were removed on 2026-11-21 (not asked for); only a burnt part still smokes (`particles3d.ts`)
 - Animated cables (sway, drape)
 
 ## Changelog
 
+- 2026-11-21: removed the state glow (running, hot, throttled) and the heat haze and sparks, at Khalil's request; a burn keeps its charred look, red glow and smoke. The board's lit traces were made cheaper (docs/render/live.md "Performance").
 - 2026-11-14: coherence pass with `art-style.md` v3 (lead doc): gold wording (no "brass"), fan pads mapped to the brand violet target, the lead doc's link fixed to this file.
 - 2026-11-12: aligned the owner calls of 2026-10-26 to 2026-11-06 with `art-style.md` v3 (see "Look decision"). The room's light and surfaces are still the code of today; the targets are on hold.
 - 2026-11-12: renamed from `LOWPOLY_STYLE.md` to `3D_STYLE.md`. Removed the low-poly framing (the game has been smooth, soft-edged hardware since 31 Oct). Replaced the unmeasured triangle-budget table with measured counts at `bfe11c6`. Wrote modelling rules that match the code (soft edges, sides vs on-screen size, baked 2D detail, smooth normals, where detail should go). Documented the real cameras (room 26–29°, board 14°, stills 28°) in place of the unused `init.ts` FOV 30°. Left a placeholder for per-tier geometry LoD. Performance targets deferred to Dev Lead. Current vs target on the look, the room, lighting, themes, class hues, light parts, brand violet, and stills is unchanged; the rework is still on hold.

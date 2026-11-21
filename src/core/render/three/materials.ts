@@ -7,11 +7,10 @@ import {
 import { hubHex, POWER_LIFT, powerHex, sourceHex, WARN, type Role } from './powerscale';
 import { thermalHex } from './thermal';
 
-export const GLOW = { active: 0x3be3ff, throttled: 0xffc247, burnt: 0xff5a78, hot: 0xff5a30 } as const;
-/** Above this temperature a part starts to glow (3D_STYLE.md "Overheating"). */
-export const HOT_FROM_C = 42, HOT_FULL_C = 82;
+export const GLOW = { burnt: 0xff5a78 } as const;
 
-export interface PartState { powered: boolean; active: boolean; burnt: boolean; throttled: boolean; tempC: number }
+/** What a part's own look follows: whether it has power, and whether it burnt. A part that runs, runs hot or throttles looks as it always does (the lenses show those). */
+export interface PartState { powered: boolean; burnt: boolean }
 export interface PartLook { /** Multiplies the base colour. */ tint: number; glow: number; glowIntensity: number }
 
 /** Mix two `0xrrggbb` colours, `t` of the way from `a` to `b`. */
@@ -20,18 +19,9 @@ export const lerpHex = (a: number, b: number, t: number): number => {
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 };
 
-/** Cyan, then amber, then red as `t` goes 0 to 1. */
-export const heatColor = (t: number): number => (t < 0.5 ? lerpHex(GLOW.active, GLOW.throttled, t * 2) : lerpHex(GLOW.throttled, GLOW.burnt, (t - 0.5) * 2));
-
 export function partLook(s: PartState): PartLook {
   if (s.burnt) return { tint: 0.3, glow: GLOW.burnt, glowIntensity: 0.8 };
   if (!s.powered) return { tint: 0.5, glow: 0, glowIntensity: 0 };
-  if (s.tempC > HOT_FROM_C) {
-    const t = Math.min(1, (s.tempC - HOT_FROM_C) / (HOT_FULL_C - HOT_FROM_C));
-    return { tint: s.throttled ? 0.8 : 1, glow: heatColor(t), glowIntensity: 0.2 + t * 0.4 };
-  }
-  if (s.throttled) return { tint: 0.8, glow: GLOW.throttled, glowIntensity: 0.2 };
-  if (s.active) return { tint: 1, glow: GLOW.active, glowIntensity: 0.4 };
   return { tint: 1, glow: 0, glowIntensity: 0 };
 }
 
@@ -84,7 +74,7 @@ export const varnish = (color: number, o: MeshPhysicalMaterialParameters = {}): 
 /**
  * The materials of one part that follow its state, each eased toward the current look. `gain` scales the glow: a part with wide faces (a card's
  * shroud, a stick's spreader) glows softer, or the state's colour would cover its own. `follows` false: a skin of the thermal view alone (a radiator, a
- * heatsink, a hose); power, heat and a burn do not touch it, so out of the airflow lens the part looks as it always did.
+ * heatsink, a hose); power and a burn do not touch it, so out of the airflow lens the part looks as it always did.
  */
 export class PartSkin {
   private base: Color[];

@@ -164,6 +164,8 @@ export class RamView {
     if (sizeChanged || this.chips.length === 0) { this.prev = null; this.layout(); }
     const sig = m.regions.map((r) => `${r.id}:${r.lo}:${r.hi}:${r.codeEnd ?? 0}:${r.type ?? ''}`).join('|');
     if (sig !== this.regionSig) { this.regionSig = sig; this.recolor(m.regions); }
+    // no chips, nothing drawn (the 3D board): the whole image is not compared byte by byte on every snapshot
+    if (this.rects.length === 0) { this.prev = null; return; }
     const prev = this.prev;
     let changed = !prev;
     if (prev) for (let a = 0; a < m.image.length; a++) if (prev[a] !== m.image[a]) { changed = true; break; }

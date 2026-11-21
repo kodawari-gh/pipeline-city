@@ -1,6 +1,8 @@
 // Signals on the board's traces: when two parts talk, a short bright packet runs along the lanes between them, the trace it has gone
-// along glows behind it, and the glow dies away a moment after it arrives. Nothing is lit between messages. Pixi drawing only; which
+// along stays lit behind it, and the light dies away a moment after it arrives. Nothing is lit between messages. Pixi drawing only; which
 // bus talks, when and in which direction is the caller's (live.ts).
+// Kept cheap on purpose (the strokes are rebuilt for every drawing, and Pixi cuts each into triangles): two plain strokes a lane, a trail and a
+// head, with square ends and mitred corners, no halo and no white core. Round caps and joins were the largest part of that cutting (docs/render/live.md "Performance").
 
 import { Graphics } from 'pixi.js';
 import { mix } from '@/core/render/ink';
@@ -11,15 +13,15 @@ export const SIGNAL_SPEED = 9;
 export const MIN_MS = 170;
 export const MAX_MS = 340;
 /** How long a trace stays lit after the packet has arrived (ms). */
-export const FADE_MS = 320;
+export const FADE_MS = 220;
 /** Length of the packet's bright head along the trace (world units). */
 const HEAD = 150;
-const MAX_RUNS = 80;
-/** A message lights at most this many lanes of a wide link (a x16 slot has 32): every frame strokes each lit lane four times. */
-const MAX_LIT = 16;
+const MAX_RUNS = 64;
+/** A message lights at most this many lanes of a wide link (a x16 slot has 32): every drawing strokes each lit lane twice. */
+export const MAX_LIT = 8;
 
 /** One message on a set of parallel lanes. `dir` 1 runs from each lane's first point to its last, -1 the other way. */
-interface Run { lanes: Lane[]; dir: 1 | -1; color: string; w: number; t0: number; dur: number }
+interface Run { lanes: Lane[]; dir: 1 | -1; color: string; bright: string; w: number; t0: number; dur: number }
 
 /** The part of a lane between arc lengths `a` and `b` (clamped to the lane). */
 export function slice(lane: Lane, a: number, b: number): Pt[] {
@@ -64,7 +66,7 @@ export class BusFlow {
   send(lanes: Lane[], dir: number, color: string, now: number, w: number, delay = 0): number {
     const longest = lanes.reduce((m, l) => Math.max(m, l.len), 0);
     const dur = Math.max(MIN_MS, Math.min(MAX_MS, longest / SIGNAL_SPEED)), every = Math.ceil(lanes.length / MAX_LIT);
-    this.runs.push({ lanes: every > 1 ? lanes.filter((_, i) => (i + 1) % every === 0) : lanes, dir: dir < 0 ? -1 : 1, color, w, t0: now + delay, dur });
+    this.runs.push({ lanes: every > 1 ? lanes.filter((_, i) => (i + 1) % every === 0) : lanes, dir: dir < 0 ? -1 : 1, color, bright: mix(color, '#ffffff', 0.35), w, t0: now + delay, dur });
     if (this.runs.length > MAX_RUNS) this.runs.shift();
     return dur;
   }
@@ -84,23 +86,21 @@ export class BusFlow {
       const age = now - r.t0;
       if (age < 0) continue;
       const u = Math.min(1, age / r.dur), fade = age > r.dur ? 1 - (age - r.dur) / FADE_MS : 1;
-      const w = Math.max(r.w * 1.3, minW), core = mix(r.color, '#ffffff', 0.55);
+      const w = Math.max(r.w, minW);
       for (const lane of r.lanes) {
         const d = u * lane.len, head = Math.min(HEAD, lane.len * 0.3);
-        const paint = (from: number, to: number, width: number, color: string, alpha: number) => {
+        const paint = (from: number, to: number, color: string, alpha: number) => {
           // travelled distance `from..to` counts from the lane's start when dir is 1, from its end when dir is -1
           for (const [a, b] of r.dir > 0 ? surfaced(lane, from, to) : surfaced(lane, lane.len - to, lane.len - from)) {
             const pts = slice(lane, a, b);
             if (pts.length < 2) continue;
             g.moveTo(pts[0]![0], pts[0]![1]);
             for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
-            g.stroke({ width, color, alpha: alpha * fade, cap: 'round', join: 'round' });
+            g.stroke({ width: w, color, alpha: alpha * fade });
           }
         };
-        paint(0, d - 2 * head, w, r.color, 0.22);
-        paint(d - 2 * head, d - head, w, r.color, 0.45);
-        paint(d - head, d, w * 1.2, r.color, 0.95);
-        paint(d - head, d, w * 0.5, core, 0.95);
+        paint(0, d - head, r.color, 0.3);
+        paint(d - head, d, r.bright, 0.9);
       }
     }
   }

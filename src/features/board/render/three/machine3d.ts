@@ -91,8 +91,7 @@ import { RamMap3D } from './rammap3d';
 
 /** The network lead's light blue (a common patch-cable colour). */
 export const LAN_LEAD = '#8cc3e0';
-const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
+const grow =(r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const union = (a: RectLike, b: RectLike): RectLike => {
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
@@ -138,9 +137,9 @@ export function machineKey(s: Snapshot | null, shown: Shown = 'machine'): string
   return lowDetail() ? `${key}|low` : key; // (High's key is what it was)
 }
 
-/** A device's state for its look. */
+/** A device's state for its look: its power and a burn (a part that runs, runs hot or throttles looks as ever; the lenses show those). */
 export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
-  return { powered: s.powered && !s.power.tripped, active: s.powered && RUNNING.has(s.phase), burnt: d.burnt, throttled: d.throttle < 0.999, tempC: d.tempC };
+  return { powered: s.powered && !s.power.tripped, burnt: d.burnt };
 }
 
 type Fan = Spin & { speed: number };

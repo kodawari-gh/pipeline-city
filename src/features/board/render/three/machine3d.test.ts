@@ -263,9 +263,10 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
   });
 
   it("keeps each state look on the stand-in: it draws with the part's own material", { timeout: 60_000 }, () => {
-    const s = game().snapshot(), m = build(s, true, true), hot = states(s).find(([n]) => n === 'hot')![1];
+    // (a burn is the one state that glows: a part that runs hot has no glow of its own, the lenses show that)
+    const s = game().snapshot(), m = build(s, true, true), burnt = states(s).find(([n]) => n === 'burnt')![1];
     m.lod(farCam(), H, 1);
-    for (let i = 0; i < 4; i++) m.frame(hot, 5);
+    for (let i = 0; i < 4; i++) m.frame(burnt, 5);
     let glowing = 0;
     for (const si of lodOf(m).standIns) {
       const src = lodOf(m).sourcesOf(si);
