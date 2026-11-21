@@ -105,7 +105,7 @@ export class Chips3D {
   private readonly nic = new NicView();
   /** The network cards' copper, lit: each frame the die's view launches runs the card's traces first (`traces`). */
   private readonly nicTrace = new NicTraceView();
-  /** How much of each card's copper shows (its slot): it comes in as the card turns over, component side up. */
+  /** How much of each card's copper shows (its slot): it comes in once the card lies flat, component side up. */
   private readonly traceAlpha = new Map<string, number>();
   /** The router's plan over its front in the room (`setRouter`), and how much of it shows: the zoom's fade, as the die's. */
   private readonly router = new RouterView();
@@ -187,7 +187,7 @@ export class Chips3D {
   }
 
   /**
-   * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's turned-over parts stand in; the lanes' drawing is that frame's, y
+   * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's parts stand in; the lanes' drawing is that frame's, y
    * mirrored) at depth `z`. The frames the card's die view launches (`NicView.onLaunch`) run on them, in the colour of the way they go.
    */
   traces(parent: Object3D, slot: string, lanes: NicLanes, z: number): void {
@@ -243,7 +243,7 @@ export class Chips3D {
     this.gpu.setZoom(v.zoom);
     this.npu.setZoom(v.zoom);
     this.tpm.setZoom(v.zoom);
-    // a network card's die: read in its own frame as the CPU's is (it turns over with its card, and its lid, which hides it, fades over the die view's band)
+    // a network card's die: read in its own frame as the CPU's is (it folds down with its card, and its lid, which hides it, fades over the die view's band)
     this.nicAlpha.clear();
     for (const f of this.faces) {
       if (f.kind !== 'nic' || !f.slot) continue;
@@ -253,12 +253,12 @@ export class Chips3D {
       this.nicAlpha.set(f.slot, alpha);
       this.nic.setSight(f.slot, { zoom: nv.zoom, view: nview, shown: alpha > 0.01 && shown(f.parent) });
     }
-    // a network card's copper: it shows as the card turns over, component side up (the card's roll band), read in the frame of its turned-over side
+    // a network card's copper: it shows once the card lies flat, component side up (the card's parts band), read in the frame of its component side
     this.traceAlpha.clear();
     for (const f of this.faces) {
       if (f.kind !== 'nictrace' || !f.slot) continue;
       f.parent.updateWorldMatrix(true, false);
-      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth(DEVICE_LOD.nic.roll[0], DEVICE_LOD.nic.roll[1], tv.zoom) : 0;
+      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth(DEVICE_LOD.nic.parts[0], DEVICE_LOD.nic.parts[1], tv.zoom) : 0;
       this.traceAlpha.set(f.slot, alpha);
       this.nicTrace.setSight(f.slot, { zoom: tv.zoom, shown: alpha > 0.01 });
     }

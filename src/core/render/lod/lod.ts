@@ -43,9 +43,9 @@ export const DEVICE_LOD = {
   gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
   npu: { ...BASE_LOD, fine: 0.75, lid: 0.15 },
   tpm: { ...BASE_LOD, lid: 0.1 },
-  /** The network card: its cooler side fades and it swings flat over the base band, then it turns over (`roll`) and shows its parts, component side up; its controller's lid fades over the die's own band
-   * (`die`), and the die's floorplan takes hits from the hover zoom on. The parts can be pointed at once it has turned. */
-  nic: { ...BASE_LOD, text: 0.6, roll: [0.6, 0.78] },
+  /** The network card: its solder side fades and it folds flat over the base band, component side up, its parts showing; once it lies flat its parts' live layers (the lit copper) fade in over `parts`, and
+   * a flight to a part ends at its far end. Its controller's lid fades over the die's own band (`die`), and the die's floorplan takes hits from the hover zoom on. The parts can be pointed at once it lies flat. */
+  nic: { ...BASE_LOD, text: 0.6, parts: [0.6, 0.78] },
   /** The router in the room (a body 2300 wide: it fills a screen at about 0.5): its shell fades to nothing over `fade` and the board lies in sight where it is, its parts up; the SoC's lid fades over the die's own
    * band (`die`), and the die's floorplan takes hits from the hover zoom on. The parts can be pointed at once the shell is mostly gone. */
   router: { ...BASE_LOD, fade: [0.3, 0.42], text: 0.6 },

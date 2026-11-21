@@ -4,8 +4,9 @@
 // The 2D draws the card lying flat over the board, face up. So the card is built in that pose (the 2D rect and its art, the cooler under the
 // PCB, the backplate over it) and stood up by a hinge along the slot. Up close (`pose`, the card's 2D band) the cooler, the backplate and the
 // bracket fade, then the card swings down flat and shows its exact 2D face; it stands up again on the way out. A NIC has no 2D face: its parts
-// are on the side that faces down when it lies, so after the swing it rises, turns over about its middle line and settles component side up, its
-// controller's lid fading as the die under it shows its floorplan (`nicchip3d.ts`).
+// are under its PCB, on the side that faces down when a card stands in a tower (a card's parts can face no other way with its bracket at the case's back).
+// So it is built like the others, then turned over once, about its slot's line, and swings down to the north: it lies flat, component side up,
+// its fingers at its own slot and its bracket west, and its controller's lid fades as the die under it shows its floorplan (`nicchip3d.ts`).
 import { BoxGeometry, Group, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import { CARD_LEN, cardArt, cardOrigin, cardRect } from '@/core/render/accelart';
@@ -15,7 +16,7 @@ import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry'
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { nicDie } from '@/features/network/render/nic/nicart';
-import { nicFaceRect, nicGeo, turned } from '@/features/network/render/nic/niclayout';
+import { folded, nicBuildRect, nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
 import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
@@ -38,8 +39,6 @@ export type CardKind = 'gpu' | 'npu' | 'nic';
 /** The hinge: along the slot's centre line, over the slot and its latch (lying flat, the card clears them). The PCB's face (the 2D art) is on this plane, the PCB under it. */
 export const HINGE_Z = BOARD_Z + 250;
 const PCB_T = 24, BACK_T = 18, BRACKET_T = 24;
-/** How high a NIC lifts, at the middle of its turn, so its edges clear the board (its strip is 600 across: a half is 300, the board is 250 under it). */
-const LIFT = 500;
 /** How far over the mask's face a NIC's lit copper stands (layout units: under 0.1 mm, below every part's body). */
 const TRACE_LIFT = 2;
 /** Real millimetres in layout units (the case's scale, docs/PC_PARTS.md). */
@@ -82,24 +81,24 @@ export interface Card3D {
   lan: JackLamps | null;
   /** The materials that follow the part's state (`PartSkin`). */
   skin: MeshStandardMaterial[];
-  /** The 2D rect the zoom is read over (its point nearest the view's centre), and what the zoom seen there does (fade, then swing). */
+  /** The 2D rect the zoom is read over (its point nearest the view's centre; a NIC's: its flat strip), and what the zoom seen there does (fade, then swing). */
   at: RectLike;
   pose: (zoom: number) => void;
   /** What `pose` fades: the cooler and the backplate (`fadeTree`). */
   fades: Group;
-  /** A NIC's insides, once it has turned over: the parts the player can point at (their ids, their footprints on the board in the turned pose, the depth of their tops), its controller's die (the
-   * live layer's frame and depth, its plan's rectangle in that frame, its footprint and the depth of its top in the turned pose, the layout units to a plan unit) and what fades off the die
+  /** A NIC's insides, once it lies flat: the parts the player can point at (their ids, their footprints on the board in the flat pose, the depth of their tops), its controller's die (the
+   * live layer's frame and depth, its plan's rectangle in that frame, its footprint and the depth of its top in the flat pose, the layout units to a plan unit) and what fades off the die
    * (the lid, a sink on it). Empty and null on the other cards. */
   bodies: { id: string; rect: RectLike; z: number }[];
   die: { root: Object3D; z: number; rect: RectLike; at: RectLike; zTop: number; scale: number } | null;
-  /** A NIC's lit copper (`Chips3D.traces`): the frame the lanes' drawing is in (the card's turned-over side, a band of the drawing for its slot), the depth just over the mask's face in it, and the lanes
+  /** A NIC's lit copper (`Chips3D.traces`): the frame the lanes' drawing is in (the card's component side, a band of the drawing for its slot), the depth just over the mask's face in it, and the lanes
    * (`nicflow.ts`). Null on the other cards. */
   copper: { root: Object3D; z: number; lanes: NicLanes } | null;
   lids: Object3D[];
   /** A NIC's parts as one group: far away they draw as stand-ins (an anchor of the machine's level of detail), so three cards cost a few draws, not each part. Null on the other cards. */
   parts: Object3D | null;
-  /** How far the card has turned over (0 standing, lying or turning; 1 component side up): a part is pointed at only then. */
-  turned: () => number;
+  /** How far a NIC has folded down flat (0 standing, 1 lying with its component side up): a part is pointed at only then. Always 0 on the other cards, which show no parts. */
+  flat: () => number;
   /** The controller's lid fades for the zoom seen over its die (screen pixels per layout unit): the machine reads that zoom at `die.at`. */
   lod: (zoom: number) => void;
   /** Fade this with the cooler too (a power lead plugged into the top edge). It returns what stops that (the lead is pulled or rebuilt). */
@@ -108,9 +107,9 @@ export interface Card3D {
   sockets: { x: number; y: number; z: number }[];
 }
 
-/** The card's 2D geometry: its PCB's west end and length (the 2D card's), its cooler's east end, the slot line, its 2D rect's north and south edges. */
+/** The card's 2D geometry as it is built: its PCB's west end and length (the 2D card's), its cooler's east end, the slot line, its 2D rect's north and south edges (a NIC's: its strip turned over about the line). */
 function frame(kind: CardKind, visual: string, slot: number) {
-  const y0 = nicY(slot), r = kind === 'nic' ? nicFaceRect(slot, visual) : cardRect(slot, visual);
+  const y0 = nicY(slot), r = kind === 'nic' ? nicBuildRect(slot, visual) : cardRect(slot, visual);
   const L = kind === 'nic' ? NIC_LEN[visual] ?? 1500 : CARD_LEN[visual] ?? 1500;
   return { x0: BD.x, x1: BD.x + L, xe: BD.x + lenOf(kind, visual), y0, top: r.y, south: r.y + r.h, end: y0 + STAND[kind], r };
 }
@@ -122,12 +121,14 @@ function frame(kind: CardKind, visual: string, slot: number) {
 export function card3d(kind: CardKind, visual: string, slot: number, face: (parent: Group, r: RectLike, z: number) => Object3D, nic: { id?: string; floor?: DieFloor } = {}): Card3D {
   const root = new Group(), hinge = new Group(), roll = new Group(), lying = new Group(), fades = new Group(), flatOnly = new Group(), parts = new Group(), spins: Spin[] = [];
   const f = frame(kind, visual, slot), { x0, x1, xe, y0, top, south, end } = f, ct = coolerT(kind, visual), Z = HINGE_Z;
-  // the hinge turns round the slot's line: the parts are placed in the 2D pose, relative to it. A NIC then turns over about its strip's middle line, half the PCB's thickness under
-  // the hinge's plane (`roll`, whose pivot is there: the card is placed back under it, so a turn of 0 leaves it where it was)
-  const mid = kind === 'nic' ? f.r.y + f.r.h / 2 - y0 : 0, half = kind === 'nic' ? PCB_T / 2 : 0;
-  hinge.position.set(0, -y0, Z);
-  roll.position.set(0, -mid, -half);
-  lying.position.set(0, y0 + mid, -Z + half);
+  // the hinge turns round the slot's line: the parts are placed in the 2D pose, relative to it. A NIC is turned over once (`roll`: half a turn about the line, at the PCB's middle plane), so it
+  // lies north of the line, component side up, its fingers at the slot, and the hinge swings it up the other way. The hinge's pivot is half the PCB's thickness lower and further south, so that
+  // the standing card is exactly the card as built: its body south of the line, its parts under it.
+  const nicCard = kind === 'nic', half = nicCard ? PCB_T / 2 : 0;
+  hinge.position.set(0, -y0 - half, Z - half);
+  roll.position.set(0, half, 0);
+  roll.rotation.x = nicCard ? Math.PI : 0;
+  lying.position.set(0, y0, -Z + half);
   roll.add(lying);
   hinge.add(roll);
   root.add(hinge);
@@ -179,15 +180,15 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     skin.push(npuCooler(fades, spins, visual, f, Zp, ct));
     npuBackplate(fades, visual, f, Z, BACK_T);
   } else {
-    // (the parts do not fade: they are the card's insides, which the turn shows. The solder side's copper and the serial label go with the cooler)
+    // (the parts do not fade: they are the card's insides, which the fold shows. The solder side's copper and the serial label go with the cooler)
     const cu = nicCopper(visual, f, tab), geo = nicGeo(visual, slot), built = nicParts(parts, visual, f, Zp, bx1, cu, { slot: nic.id ?? `pcie${slot}`, plan: geo.die, ...(nic.floor ? { floor: nic.floor } : {}) });
     lan = built.lamps;
     chip = built.chip;
-    // where each part lies once the card has turned over (the strip's middle line, `turned`), and how high its top stands off the PCB's component face, now the top
-    for (const b of built.bodies) bodies.push({ id: b.id, rect: turned(b.rect, slot, visual), z: Z + b.h });
+    // where each part lies once the card has folded flat (the slot's line, `folded`), and how high its top stands off the PCB's component face, now the top
+    for (const b of built.bodies) bodies.push({ id: b.id, rect: folded(b.rect, slot), z: Z + b.h });
     nicBack(fades, visual, f, Z, cu);
     skin.push(pcbM);
-    // the lit copper's frame: in the turned-over side's group, shifted so the lanes' drawing (the card's band of the shared one) lands on the card; its plane stands just over the mask's face
+    // the lit copper's frame: in the component side's group, shifted so the lanes' drawing (the card's band of the shared one) lands on the card; its plane stands just over the mask's face
     const lit = nicLanes(cu, slot), tr = new Group();
     tr.position.x = -lit.off;
     built.under.add(tr);
@@ -196,30 +197,26 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
   // a GPU's 8-pin power sockets on the top edge, on the cooler's side, the mouths toward the glass (standing)
   const sockets = kind === 'gpu' ? gpuSockets(fades, visual, f, Z - PCB_T, HINGE_Z, STAND.gpu, PCB_T) : [];
   const extra: Object3D[] = [];
-  const band = DEVICE_LOD[kind].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const, over = DEVICE_LOD.nic.roll;
-  // how far a NIC has turned over (0 to 1): its parts can be pointed at only when it has
-  let rolled = 0;
+  const band = DEVICE_LOD[kind].fade, fade = [band[0] - 0.06, band[0] + 0.06] as const, swing = [band[0] + 0.04, band[1]] as const;
+  // how far a NIC has folded down flat (0 to 1): its parts can be pointed at only when it lies flat
+  let lay = 0;
   const die: Card3D['die'] = chip?.die
-    ? { root: chip.die.root, z: chip.die.z, rect: nicGeo(visual, slot).die, at: turned(chip.rect, slot, visual), zTop: Z + chip.dieTop, scale: chip.scale }
+    ? { root: chip.die.root, z: chip.die.z, rect: nicGeo(visual, slot).die, at: folded(chip.rect, slot), zTop: Z + chip.dieTop, scale: chip.scale }
     : null;
   return {
-    root, spins, skin, sockets, fades, lan, bodies, die, copper, lids: chip ? [chip.lid] : [], parts: kind === 'nic' ? parts : null,
-    at: f.r,
-    turned: () => rolled,
+    root, spins, skin, sockets, fades, lan, bodies, die, copper, lids: chip ? [chip.lid] : [], parts: nicCard ? parts : null,
+    at: nicCard ? nicFaceRect(slot, visual) : f.r,
+    flat: () => lay,
     alsoFade: (o) => { extra.push(o); return () => { const i = extra.indexOf(o); if (i >= 0) extra.splice(i, 1); }; },
     pose: (zoom) => {
       const a = 1 - smooth(fade[0], fade[1], zoom), s = smooth(swing[0], swing[1], zoom);
       fadeTree(fades, a);
       for (const o of extra) fadeTree(o, a);
-      hinge.rotation.x = -(Math.PI / 2) * (1 - s);
+      // (a GPU or an AI card swings down to the south, face up; a NIC, turned over in `roll`, swings the other way, to the north)
+      hinge.rotation.x = (nicCard ? 1 : -1) * (Math.PI / 2) * (1 - s);
       flatOnly.visible = s > 0.35;
       if (art) art.visible = s > 0.02;
-      if (kind !== 'nic') return;
-      // the NIC, flat, rises as it turns over about its middle line (the turn's lift keeps its edges clear of the board) and settles component side up
-      rolled = smooth(over[0], over[1], zoom);
-      const phi = Math.PI * rolled;
-      roll.rotation.x = phi;
-      roll.position.z = -half + LIFT * Math.sin(phi);
+      if (nicCard) lay = s;
     },
     lod: (zoom) => chip?.lod(zoom),
   };

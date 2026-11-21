@@ -158,7 +158,7 @@ function opacityOf(g: Object3D): number {
   return a;
 }
 
-/** Where the camera looks to see a faded part: the middle of its box. A NIC's lid lies where the card turns over to, not where its box is built (the card stands): its die's rail says where. */
+/** Where the camera looks to see a faded part: the middle of its box. A NIC's lid lies where the card folds down to, not where its box is built (the card stands): its die's rail says where. */
 function aim(m: Machine3D, f: Object3D): Vector3 {
   const r = m.rails.find((x) => x.id === idOf(f) && x.id.endsWith('.nic-ctl'));
   return r ? new Vector3(r.rect.x + r.rect.w / 2, -(r.rect.y + r.rect.h / 2), r.z) : new Box3().setFromObject(f).getCenter(new Vector3());

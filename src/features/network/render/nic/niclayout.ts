@@ -1,35 +1,36 @@
 import { BD, NIC_LEN, nicJack, nicY, type Rect } from '../../../board/render/layout/layout';
 import { NIC_DIE, nicPlan, type NicPlan } from './nicplan';
 
-// The NIC card in board space (docs/render/net.md "Inside the NIC and the router"). The card is built in 3D, part by part (board/render/three/nic3d.ts). Up close it lies flat, then
-// turns over to show its component side; only the controller's die wears a floorplan (nicplan.ts), under the lid that fades as the camera comes in, like the CPU's. The die's
+// The NIC card in board space (docs/render/net.md "Inside the NIC and the router"). The card is built in 3D, part by part (board/render/three/nic3d.ts). It stands in its slot with its
+// parts down, as every card does in a tower. Up close it folds down flat to the north, over its slot's line, its component side up: its fingers stay at its slot, its bracket west. Only
+// the controller's die wears a floorplan (nicplan.ts), under the lid that fades as the camera comes in, like the CPU's. The die's
 // plan lives in a frame of its own, apart from the board's: each card has its band (`NIC_BAND` along x), so two cards in one machine never share a drawing. Like `gpulayout`,
 // the tooltip test enumerates the hover ids from here, so a part cannot be drawn without a description.
 
-/** How far the card's lying strip reaches above the slot's line (the 3D card's finger tab is 140 high) and below it (the card's body: a GPU's reaches 450 too, the next slot's card starts 250 beyond). */
-export const NIC_FACE = { north: 150, south: 450 } as const;
+/** How far the card's flat strip reaches above the slot's line (over the card's body: the strip's width is a GPU's; the next slot's card starts 100 beyond) and below it (the 3D card's finger tab is 140 high). */
+export const NIC_FACE = { north: 450, south: 150 } as const;
 
-/** The card's lying strip, the area its flat pose covers (board space): from the jack's west end to the PCB's far end, from the tab's strip to the body's south edge. */
+/** The card's flat strip, the area its flat pose covers (board space): from the jack's west end to the PCB's far end, from the body's north edge to the finger tab's south edge. */
 export const nicFaceRect = (slot: number, visual: string): Rect => {
   const j = nicJack(slot);
   return { x: j.x, y: nicY(slot) - NIC_FACE.north, w: BD.x - j.x + (NIC_LEN[visual] ?? 1500), h: NIC_FACE.north + NIC_FACE.south };
 };
 
 /**
- * Where a part of the card lies once the card has turned over (it turns about the strip's middle line, the bracket staying west): its rectangle mirrored in y about that line.
- * `r` is the part's rectangle as the 3D card builds it, on the component side seen through the PCB (the lying pose before the turn).
+ * Where a part of the card lies once the card has folded flat (it turns over about its slot's line, the bracket staying west): its rectangle mirrored in y about that line.
+ * `r` is the part's rectangle as the 3D card builds it, on the component side seen through the PCB (the card as it stands: its body south of the line, its parts under it).
  */
-export const turned = (r: Rect, slot: number, visual: string): Rect => {
-  const f = nicFaceRect(slot, visual), mid = f.y + f.h / 2;
-  return { x: r.x, y: 2 * mid - (r.y + r.h), w: r.w, h: r.h };
-};
+export const folded = (r: Rect, slot: number): Rect => ({ x: r.x, y: 2 * nicY(slot) - (r.y + r.h), w: r.w, h: r.h });
+
+/** The flat strip as the 3D card builds it: the same strip turned over about the slot's line (its body south of the line, its finger tab north of it). */
+export const nicBuildRect = (slot: number, visual: string): Rect => folded(nicFaceRect(slot, visual), slot);
 
 /** The distance between two cards' bands in the die's frame (plan units): wider than a plan. */
 export const NIC_BAND = 1000;
 
 export interface NicGeo {
   visual: string;
-  /** The card's lying strip (`nicFaceRect`). */
+  /** The card's flat strip (`nicFaceRect`). */
   face: Rect;
   /** Where the die's plan (0, 0) lies in its frame: the card's band. Plan units are the frame's units. */
   origin: { x: number; y: number };

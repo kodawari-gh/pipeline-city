@@ -61,7 +61,7 @@ export class NicTraceView {
     return lead;
   }
 
-  /** The camera's zoom and view over the card's copper (`Chips3D.frame` reads it from the card's own frame: the card turns over). */
+  /** The camera's zoom and view over the card's copper (`Chips3D.frame` reads it from the card's own frame: the card folds down). */
   setSight(slot: string, sight: TraceSight): void {
     const c = this.cards.get(slot);
     if (c) c.sight = sight;

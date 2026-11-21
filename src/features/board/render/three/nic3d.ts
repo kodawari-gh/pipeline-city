@@ -4,7 +4,7 @@
 // at their 1.02 mm pitch, the link and activity lights either side of the latch slot. The controller east of them: a QFN on the gigabit card, a
 // lidded BGA under a finned sink with its push pins on the faster cards (the fins run along the card, in the case's front-to-back air). Its 25 MHz
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
-// label, and the solder mask with its traces and silkscreen. Close up the card turns over (card3d's `roll`) and shows these parts up; the ones a pointer can
+// label, and the solder mask with its traces and silkscreen. Close up the card folds down flat (card3d.ts) and shows these parts up; the ones a pointer can
 // meet are groups tagged `<slot>.nic-<part>` (`jack ctl xtal nvm vreg label`, with their footprints in `NicOut.bodies`); the controller's die wears the floorplan (nicchip3d.ts).
 import { BoxGeometry, CatmullRomCurve3, Group, LatheGeometry, Mesh, TubeGeometry, Vector2, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { drawLockup } from '@/core/render/brands';
@@ -175,7 +175,7 @@ export interface NicOut {
   /** The controller's chip: its lid's fade, its die's face. */
   chip: NicChip;
   bodies: NicBody[];
-  /** The component side's group (turned over: layout y as its y, depth off the PCB as its z, the mask's face at `-Zp`): the card's lit copper goes in a frame in it (card3d.ts). */
+  /** The component side's group (turned over to the card as built: layout y as its y, depth off the PCB as its z, the mask's face at `-Zp`): the card's lit copper goes in a frame in it (card3d.ts). */
   under: Group;
 }
 

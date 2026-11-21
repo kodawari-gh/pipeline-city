@@ -658,11 +658,11 @@ export class Machine3D {
   }
 
   /**
-   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): once the card has turned over, the card and each of its parts is a flight (a double click) and can be pointed at; the
+   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): once the card lies flat, the card and each of its parts is a flight (a double click) and can be pointed at; the
    * controller's die wears the floorplan, which its lid hides until the zoom takes the lid away (the live layer runs on the die's face, `Chips3D`). The lid fades alone, so its materials are its own.
    */
   private nicBits(d: DeviceSnap, c: Card3D, i: number, visual: string): void {
-    const turn = DEVICE_LOD.nic.roll[1];
+    const turn = DEVICE_LOD.nic.parts[1];
     this.rail(d.id, nicFaceRect(i, visual), HINGE_Z, turn);
     for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.rail(b.id, b.rect, b.z, turn);
     // (the parts are a stand-in anchor of their own: the card's tree is left out of the distance level of detail, and three cards' parts would draw one by one at the overview)
@@ -677,7 +677,7 @@ export class Machine3D {
   }
 
   /**
-   * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until the card has turned over and shows its parts (a standing or a swinging card is hit on whatever
+   * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until the card lies flat and shows its parts (a standing or a swinging card is hit on whatever
    * side it shows). The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
    */
   pickId(id: string | null): string | null {
@@ -685,7 +685,7 @@ export class Machine3D {
     if (id && /^router\.[a-z]+$/.test(id)) return this.routerBits?.board.shown() ? id : 'router';
     const m = id ? /^(pcie\d+)\.nic-(?:jack|edge|ctl|xtal|nvm|vreg|label)$/.exec(id) : null;
     const card = m && this.cards.get(m[1]!);
-    return card && card.turned() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
+    return card && card.flat() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
   }
 
   /** The same for a built object: its box as seen from the glass, its face the box's front. */
@@ -925,7 +925,7 @@ export class Machine3D {
       }
       case 'gpu': case 'npu': case 'nic': {
         // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat: a GPU shows the shop picture's art (the die with its
-        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC then turns over and shows its parts in 3D (`nicBits`)
+        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC folds down flat the other way, parts up, and shows them in 3D (`nicBits`)
         const i = idx(d.slot), kind = spec.kind;
         const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); }, d.slot);
         this.model(g, c);
