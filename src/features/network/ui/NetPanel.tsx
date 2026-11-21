@@ -2,7 +2,7 @@ import { snapshot } from '@/app/store';
 import { fmtTicks } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
-import { fmtMbit, netPanel, netPanelShown, offerPay, type OfferRow } from './netui';
+import { fmtMbit, netPanel, netPanelShown, offerPay, type AddrRow, type NatRow, type OfferRow } from './netui';
 import { netOpen, toggleNet } from '@/core/ui/state';
 
 /** The network panel body: link state, bandwidth ladder, flow stages, offers, transfers, spool, USB fallback. */
@@ -49,6 +49,28 @@ export function NetPanel() {
           </div>
         )}
       </section>
+      {m.addrs.rows.length > 0 && (
+        <details class="stat-fold" open>
+          <summary title="The names the network uses. An IP address says where a machine is. A MAC address says which network jack it is. The router's DHCP gives the PC its IP address while the link is up.">
+            <h3>Addresses</h3><span class="mute">{m.addrs.rows[0]!.id === 'pc' ? m.addrs.rows[0]!.ip ?? 'no IP address' : ''}</span>
+          </summary>
+          {m.addrs.rows.map((r) => <AddrLine key={r.id} r={r} />)}
+        </details>
+      )}
+      {m.addrs.nat.length > 0 && (
+        <details class="stat-fold" open>
+          <summary title="The router's NAT table: one line for each job in flight. The router swaps the PC's private address and port for its own public ones, so the server sees only the router.">
+            <h3>NAT table</h3><span class="mute">{m.addrs.nat.length}</span>
+          </summary>
+          {m.addrs.nat.slice(0, NAT_ROWS).map((c) => <NatLine key={c.key} c={c} />)}
+          {m.addrs.nat.length > NAT_ROWS && (
+            <details class="net-more">
+              <summary>{m.addrs.nat.length - NAT_ROWS} more</summary>
+              {m.addrs.nat.slice(NAT_ROWS).map((c) => <NatLine key={c.key} c={c} />)}
+            </details>
+          )}
+        </details>
+      )}
       {m.transfers.length > 0 && (
         <section>
           <h3>Transfers</h3>
@@ -95,6 +117,29 @@ export function NetPanel() {
 
 /** The offers a client holds out first; the rest sit behind a fold. */
 const OFFER_ROWS = 4;
+/** The NAT lines shown at once; the rest sit behind a fold. */
+const NAT_ROWS = 3;
+
+/** A place on the path: its name and IP address, its MAC under them, and (with no IP address) the reason. */
+function AddrLine({ r }: { r: AddrRow }) {
+  return (
+    <div class="net-addr" title={r.note}>
+      <div class="kv"><span>{r.label}</span><b class={r.ip ? '' : 'mute'}>{r.ip ?? 'no IP address'}</b></div>
+      <div class="kv sub"><span>MAC</span><span class="mono">{r.mac}</span></div>
+      {!r.ip && <div class="mute sub">{r.note}</div>}
+    </div>
+  );
+}
+
+/** A job's line of the NAT table: the job and the server it speaks to, then the two ports the router swaps. */
+function NatLine({ c }: { c: NatRow }) {
+  return (
+    <div class="net-addr" title={c.line}>
+      <div class="kv"><span>{c.label}</span><b>{c.proto} {c.server}</b></div>
+      <div class="kv sub"><span class="mono">{c.ports}</span></div>
+    </div>
+  );
+}
 
 function OfferLine({ o }: { o: OfferRow }) {
   return (

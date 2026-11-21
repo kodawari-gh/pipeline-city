@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec } from '../sim/specs';
 import type { Snapshot, StorageSnap } from '@/worker/game/game';
-import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netPanelShown, netStateChip, slaModel, uploadLimiter, usbModel } from './netui';
+import { addressModel, hudNetChip, limiterAdvice, limiterLadder, netPanel, netPanelShown, netStateChip, slaModel, uploadLimiter, usbModel } from './netui';
 import { key, snap } from '@/core/ui/testdata';
 
 /** A linked rig: board jack `portMbps`, router and plan by id, OS drive by spec id. The bandwidth comes from the sim's own rule. */
@@ -180,5 +180,70 @@ describe('network panel: web jobs (SLA, upload limiter, waiting results)', () =>
   it('carries the results waiting for a client slot', () => {
     expect(netPanel(withNet({ uploadsWaiting: 3 }))!.uploadsWaiting).toBe(3);
     expect(netPanel(withNet({ uploadsWaiting: 0 }))!.uploadsWaiting).toBe(0);
+  });
+});
+
+describe('network panel: addresses', () => {
+  /** The rig with the machine on: the cable is in the board's jack, a router and a plan stand, so the link is up. */
+  const lit = (o: { router?: boolean; isp?: boolean; on?: boolean; cable?: boolean } = {}): Snapshot => {
+    const { router = true, isp = true, on = true, cable = true } = o, s = rig(1000, 'router2', 'isp2', 'nvme2');
+    return {
+      ...s, powered: on, power: { ...s.power, tripped: false },
+      net: { ...s.net, router: router ? s.net.router : null, isp: isp ? s.net.isp : null, port: cable ? s.net.port : { kind: null, deviceId: null, mbps: 0 } },
+    };
+  };
+  const xfer = (jobId: number, label: string, dir: 'down' | 'up') => ({ jobId, label, dir, totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false as const });
+  const busy = (...t: ReturnType<typeof xfer>[]): Snapshot => { const s = lit(); return { ...s, net: { ...s.net, transfers: t } }; };
+
+  it('names the path from the PC to the ISP, each place with its MAC, and the PC with the IP address the router gave it', () => {
+    const m = addressModel(lit());
+    expect(m.rows.map((r) => r.id)).toEqual(['pc', 'lan', 'wan', 'gateway']);
+    expect(m.rows.map((r) => r.label)).toEqual(['PC · eth0', 'Router · LAN', 'Router · WAN', 'ISP gateway']);
+    expect(m.rows.map((r) => r.ip)).toEqual(['192.168.1.100/24', '192.168.1.1/24', expect.stringMatching(/^203\.0\.113\.\d+\/24$/), '203.0.113.1']);
+    for (const r of m.rows) expect(r.mac, r.id).toMatch(/^02(:[0-9A-F]{2}){5}$/);
+    expect(m.rows[1]!.mac).toBe('02:52:4C:02:00:02');
+    expect(new Set(m.rows.map((r) => r.mac)).size).toBe(4);
+    expect(m.rows[0]!.note).toMatch(/DHCP gave it this address for 24 h/);
+    expect(m.rows[3]!.note).toMatch(/Name servers 203\.0\.113\.53 and 203\.0\.113\.54/);
+  });
+
+  it('gives the PC its MAC and no IP address while the link is down, and says what is missing', () => {
+    const off = addressModel(lit({ on: false })).rows[0]!;
+    expect(off).toMatchObject({ id: 'pc', ip: null });
+    expect(off.mac).toMatch(/^02:48:41:4B/);
+    expect(off.note).toMatch(/machine is off/);
+    // (a cable and no router: nobody gives out addresses)
+    const lone = addressModel(lit({ router: false })).rows;
+    expect(lone.map((r) => r.id)).toEqual(['pc']);
+    expect(lone[0]!.ip).toBeNull();
+    expect(lone[0]!.note).toMatch(/no router/);
+  });
+
+  it('leaves out a place that does not stand: no plan, no cable, no network', () => {
+    expect(addressModel(lit({ isp: false })).rows.map((r) => r.id)).toEqual(['pc', 'lan']);
+    expect(addressModel(lit({ cable: false })).rows.map((r) => r.id)).toEqual(['lan', 'wan', 'gateway']);
+    expect(addressModel(snap())).toEqual({ rows: [], nat: [] });
+  });
+
+  it('lists a line of the NAT table for each job in flight: its server and the two ports the router swaps', () => {
+    const m = addressModel(busy(xfer(4, '#4 db', 'down'), xfer(7, '#7 dns', 'down'), xfer(4, '#4 db', 'up')));
+    expect(m.nat.map((r) => r.label)).toEqual(['down #4 db', 'down #7 dns', 'up #4 db']);
+    expect(m.nat.map((r) => r.proto)).toEqual(['TCP', 'UDP', 'TCP']);
+    expect(m.nat[0]!.server).toMatch(/^198\.51\.100\.\d+:443$/);
+    expect(m.nat[1]!.server).toMatch(/^198\.51\.100\.\d+:53$/);
+    expect(m.nat[0]!.ports).toMatch(/^PC :\d+ > router :\d+$/);
+    expect(m.nat[0]!.line).toMatch(/^TCP 192\.168\.1\.100:\d+ > 203\.0\.113\.\d+:\d+ > 198\.51\.100\.\d+:443$/);
+    expect(new Set(m.nat.map((r) => r.key)).size).toBe(3);
+    // (the same game shows the same table in the next frame)
+    expect(addressModel(busy(xfer(4, '#4 db', 'down'))).nat[0]!.line).toBe(addressModel(busy(xfer(4, '#4 db', 'down'))).nat[0]!.line);
+  });
+
+  it('has no NAT table with the link down or no plan, and the panel carries the model', () => {
+    const t = [xfer(4, '#4 db', 'down')];
+    const down = { ...lit({ on: false }), net: { ...lit().net, transfers: t } }, noPlan = { ...lit({ isp: false }), net: { ...lit({ isp: false }).net, transfers: t } };
+    expect(addressModel(down).nat).toEqual([]);
+    expect(addressModel(noPlan).nat).toEqual([]);
+    const s = busy(xfer(4, '#4 db', 'down'));
+    expect(netPanel(s)!.addrs).toEqual(addressModel(s));
   });
 });

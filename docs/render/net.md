@@ -156,6 +156,8 @@ The router uses it now: the hover words of every router part (`routerdesc.ts`) a
 
 The words of the network ids carry them too (`ui/netdesc.ts`, `ui/nicdesc.ts`): `router` (LAN and WAN address with MAC, DHCP and NAT in the plain words), `wall` (the gateway, the name servers, the public address), `cable.lan` (the PC's end: jack, MAC, IP), `eth0` and `ethN` (MAC always, IP only while the cable is in the jack and the link is up) and the MAC block of the NIC die (`pcieN.nic-mac`, `board.nic-mac`: the port's own address). Test: `ui/netdesc.test.ts`.
 
+The network panel (`NetPanel.tsx`) has two folds from the same model, `addressModel` in `ui/netui.ts`: **Addresses** (the PC's jack, the router's LAN and WAN side and the ISP's gateway, each with its IP address and its MAC; the PC's IP address says why it is missing while the link is down) and **NAT table** (one line for each job in flight: the server, the PC's port and the router's port; the whole `natLine` is the tooltip). Test: `ui/netui.test.ts` "addresses".
+
 ## The network lens
 
 The lens shows the path data takes, in the room's own space: plan, router, LAN lead, port, OS drive. It opens with the `N` key or the dock's **Network** button (`NetLensButton` in `economy/ui/shop/Inventory.tsx`; the key is in the Controls list). It shares the screen with the power and airflow lenses: `networkLens` in `src/app/hover.ts` is a signal, and turning one lens on turns the other two off (`hover.test.ts`). It is ready when `netLensReady(s)` is true: unlock level 4, a router or plan, a router in the inventory, or the LAN lead plugged in. It is in the room game only (not in Build my PC).

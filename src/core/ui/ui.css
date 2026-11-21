@@ -750,6 +750,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .netpanel .chip b { font-family: var(--mono); }
 .netpanel .kv.warn, .netpanel b.warn { color: var(--warn); }
 .netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }
+/* the addresses and the NAT table: a name and its address, the MAC or the ports under them */
+.net-addr { padding: 0.2rem 0; }
+.net-addr + .net-addr { border-top: 1px solid var(--hair); }
+.net-addr .mono { font-family: var(--mono); }
+.net-addr .kv.sub { margin: 0.067rem 0 0; }
 /* OS window: a task manager. Sidebar of sections, then graph tiles and a detail pane. */
 .almanac.ospanel { width: min(100%, 64rem); height: min(100%, 40rem); }
 .ospanel .alm-head { flex-wrap: wrap; }
