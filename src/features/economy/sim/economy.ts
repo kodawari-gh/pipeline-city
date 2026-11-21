@@ -138,6 +138,11 @@ export interface EconomyConfig {
    */
   retireUsbKeys: boolean;
   /**
+   * The chance that the wire loses a segment of a download (docs/NETSTACK.md "The transport"). 0 (the default) loses none: the NIC's ring overflowing and the kernel having no free slot
+   * still lose segments, whatever this says. Tests set it to watch the transport send again.
+   */
+  wireLoss: number;
+  /**
    * The power bill (docs/GAME.md "The power bill"): dollars per Wh the wall gives the machine (a flat rate; game scale, not the real tariff).
    * 0 (the default) switches the bill off, as the tests and bots need; a new campaign is given `CAMPAIGN_POWER_RATE`. The sandbox has no bill.
    */
@@ -180,6 +185,7 @@ export const ECONOMY: EconomyConfig = {
   usbFallbackTicks: NET.usbFallbackTicks,
   usbFallbackMul: NET.usbFallbackMul,
   retireUsbKeys: true,
+  wireLoss: 0,
   powerRatePerWh: 0,
   billPeriodTicks: 600,
   billGraceTicks: 120,

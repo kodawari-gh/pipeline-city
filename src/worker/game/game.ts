@@ -43,7 +43,7 @@ import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "../../features/econo
 import * as hardware from "../../features/board/sim/game/hardware";
 import {
   MACHINE_RAM_BYTES, SANDBOX_LEVEL, LOG_CAP,
-  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type Transfer,
+  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type Transfer, type WireAck, type WireSegment,
 } from "./internal";
 import type { DexRecord } from "../../features/jobs/sim/jobdex";
 import type { JobLogEntry } from "../../features/jobs/sim/joblog";
@@ -212,6 +212,11 @@ export class Game {
   uploads: Transfer[] = [];
   /** Spooled jobs the kernel does not know (a boot wiped its table): the NIC replays their program from the spool, nothing crosses the wire. RAM: lost on power loss. */
   restores: Transfer[] = [];
+  /** The wire between the senders and the NIC (RAM-like: lost with the link): segments on their way to the NIC's input, acknowledgements on their way back. */
+  wireQ: WireSegment[] = [];
+  wireAcks: WireAck[] = [];
+  /** What the senders have done since the game started (the transport's counters, not saved): segments put on the wire, the resends among them, segments the wire lost, timeouts. */
+  netWire = { sent: 0, resent: 0, lost: 0, timeouts: 0 };
   link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
   netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
   /** The frames the uplink port has received and sent since the game started (fractions kept; counted from the bytes the transfers move, `network.ts` `countFrames`). Not saved. */

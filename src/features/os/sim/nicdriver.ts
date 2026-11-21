@@ -3,7 +3,9 @@
 //
 //   receive   the NIC has DMA'd a segment of a job's program into the next slot of the receive ring. The driver finds the job's slot in the table (or opens one, state Receiving), writes the
 //             segment's payload to the job's spool block with `blk_write`, and when the last one is in the job is queued like one that came in on a USB key. A segment that is not the next one the
-//             job wants is not taken (the sender sends it again); a segment that finds no free slot stays in the ring, so the ring fills and the wire waits.
+//             job wants, a copy of one already taken, and a segment that finds no free slot are thrown away (counted): the sender goes back to the segment the acknowledgement names.
+//   ack       for each segment of a known job the driver drops a packet with no result words into the transmit ring: the key and the next segment the job wants (a cumulative acknowledgement).
+//             With the transmit ring full it sends none: the next one says the same and more. A segment with the abort flag (the sender gave up) frees the job's slot if it is still receiving.
 //   transmit  a network job that has finished (state Result, the top bit of its key set) is put into the next transmit slot by the kernel's own stores: the key, the result words, status Ready.
 //             Then the doorbell (`TX_TAIL`). The NIC reads the slot by DMA, sends it, and writes status Done back. The next pass reclaims the slot and frees the job's table slot.
 //   link      a dead link ends every receive in progress (their slots are freed) and empties the ring: what the NIC had is stale.
@@ -12,7 +14,7 @@
 // Calling convention: `knic` (call it with `ra`) keeps s0 (PCH base), s1 (the boot drive's port) and s3 (the OS header) and clobbers a0-a3, t0-t4, s2 and ra.
 
 import {
-  JobState, KSLOT, KSLOT_BYTES, NET_KEY, NIC_AREA_END, NIC_BASE, NIC_REG, NIC_RX_AT, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_RX_SLOTS, NIC_TX_AT, NIC_TX_HEAD_WORDS, NIC_TX_SLOT_BYTES, NIC_TX_SLOTS,
+  JobState, KSLOT, KSLOT_BYTES, NET_KEY, NIC_AREA_END, NIC_BASE, NIC_FLAG_ABORT, NIC_REG, NIC_RX_AT, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_RX_SLOTS, NIC_TX_AT, NIC_TX_HEAD_WORDS, NIC_TX_SLOT_BYTES, NIC_TX_SLOTS,
   NICA, NICK, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot, OS_HEADER, OS_SPOOL_MAP, PCH_REG, PCH_RESULT_WORDS, PchPhase,
 } from "@/core/sim/memmap";
 
@@ -76,6 +78,13 @@ export function nicPoll(env: NicDriverEnv): string[] {
     `  li t3, ${NIC_RX_AT}`,
     `  add ${out}, ${out}, t3`,
   ];
+  const txSlot = (out: string, idx: string): string[] => [
+    `  andi ${out}, ${idx}, ${NIC_TX_SLOTS - 1}`,
+    `  li t3, ${NIC_TX_SLOT_BYTES}`,
+    `  mul ${out}, ${out}, t3`,
+    `  li t3, ${NIC_TX_AT}`,
+    `  add ${out}, ${out}, t3`,
+  ];
   return [
     "knic:",
     "  mv s2, ra",
@@ -107,16 +116,44 @@ export function nicPoll(env: NicDriverEnv): string[] {
 
     // ---- receive: the next segment of the ring
     "nc_up:",
+    // ---- give back the transmit slots the NIC has sent (every turn: the acknowledgements below need free slots)
+    `  lw t0, ${nk("TXC")}(zero)`,
+    `  lw t1, ${NIC_REG.TX_HEAD}(t4)`,
+    "nc_rc:",
+    "  beq t0, t1, nc_rd",
+    ...txSlot("t2", "t0"), // t2 = the slot
+    `  lw t3, ${word(NicTxSlot.NWORDS)}(t2)`,
+    "  beq t3, zero, nc_rf", // an acknowledgement carries no job
+    `  lw a0, ${word(NicTxSlot.ARG)}(t2)`, // the job table slot the result came from
+    `  lw t3, ${KSLOT.STATE}(a0)`,
+    `  addi t3, t3, ${-JobState.Sending}`,
+    "  bne t3, zero, nc_rf",
+    `  sw zero, ${KSLOT.STATE}(a0)`, // the NIC has the result: the job's slot is free
+    `  lw t3, ${nk("JOBS")}(zero)`,
+    "  addi t3, t3, -1",
+    `  sw t3, ${nk("JOBS")}(zero)`,
+    "nc_rf:",
+    `  sw zero, ${word(NicTxSlot.STATUS)}(t2)`,
+    "  addi t0, t0, 1",
+    "  j nc_rc",
+    "nc_rd:",
+    `  sw t0, ${nk("TXC")}(zero)`,
+    // ---- receive: the next segment of the ring
     `  lw t0, ${NIC_REG.RX_HEAD}(t4)`,
     `  lw t1, ${NIC_REG.RX_TAIL}(t4)`,
-    "  beq t0, t1, nc_tx",
+    "  beq t0, t1, nc_sp0",
     ...rxSlot("a2", "t1"), // a2 = the slot (header, then the payload)
+    `  lw t0, ${word(NicRx.FLAGS)}(a2)`,
+    `  andi t0, t0, ${NIC_FLAG_ABORT}`,
+    "  bne t0, zero, nc_rst",
     `  lw a0, ${word(NicRx.KEY)}(a2)`,
     `  li t0, ${NET_KEY}`,
     "  or a0, a0, t0",
     "  call find_slot", // a0 = the job's slot, or 0
     "  bne a0, zero, nc_have",
     // the first segment of a job: it needs a free slot, room in the queue and in its spool area
+    `  lw t0, ${word(NicRx.SEQ)}(a2)`,
+    "  bne t0, zero, nc_drop", // the first segments were lost: the later ones cannot be taken, the sender goes back to the first
     `  li t0, ${kd}`,
     ...jtEnd("t1", "t0"),
     "  li a1, 0", // slots in use
@@ -132,9 +169,9 @@ export function nicPoll(env: NicDriverEnv): string[] {
     "nc_an:",
     `  addi t0, t0, ${KSLOT_BYTES}`,
     "  bne t0, t1, nc_as",
-    "  beq a0, zero, nc_tx", // no free slot: the segment waits in the ring
+    "  beq a0, zero, nc_drop", // no free slot: the segment is lost, the sender sends it again after its timeout
     `  lw t2, ${hdr("QUEUE_SLOTS")}(s3)`,
-    "  bge a1, t2, nc_tx", // the queue is at its bound
+    "  bge a1, t2, nc_drop", // the queue is at its bound
     `  lw t0, ${word(NicRx.COUNT)}(a2)`,
     `  lw t2, ${hdr("SPOOL_BLOCKS")}(s3)`,
     "  blt t2, t0, nc_drop", // the program is longer than a spool area: this job can never be taken
@@ -163,14 +200,14 @@ export function nicPoll(env: NicDriverEnv): string[] {
     "  mv a3, a0",
     `  lw t0, ${KSLOT.STATE}(a3)`,
     `  li t1, ${JobState.Receiving}`,
-    "  bne t0, t1, nc_skip", // the job is whole already: a late copy of one of its segments
+    "  bne t0, t1, nc_late", // the job is whole already: a late copy of one of its segments
     "nc_seg:",
     `  li t0, ${PchPhase.OsIngest}`,
     `  sw t0, ${PCH_REG.PHASE}(s0)`,
     `  lw t0, ${word(NicRx.SEQ)}(a2)`,
     `  lw t1, ${KSLOT.RESULT}(a3)`,
     "  beq t0, t1, nc_write",
-    "  bne t0, zero, nc_skip", // not the segment the job wants: not taken (the sender sends it again)
+    "  bne t0, zero, nc_ooo", // not the segment the job wants: not taken, and the acknowledgement says which one is
     `  sw zero, ${KSLOT.RESULT}(a3)`, // segment 0 again: the transfer began over
     "nc_write:",
     `  lw a1, ${KSLOT.LBA}(a3)`,
@@ -186,8 +223,9 @@ export function nicPoll(env: NicDriverEnv): string[] {
     `  lw t1, ${nk("GOT")}(zero)`,
     "  addi t1, t1, 1",
     `  sw t1, ${nk("GOT")}(zero)`,
+    "  mv a1, t0", // the acknowledgement says which segment the job wants next
     `  lw t1, ${word(NicRx.COUNT)}(a2)`,
-    "  bne t0, t1, nc_skip", // more to come: the slot stays Receiving
+    "  bne t0, t1, nc_ack", // more to come: the slot stays Receiving
     // the last segment is in: the job joins the queue
     `  sw zero, ${KSLOT.RESULT}(a3)`,
     `  li t1, ${seqAt}`,
@@ -197,8 +235,35 @@ export function nicPoll(env: NicDriverEnv): string[] {
     `  sw t2, ${KSLOT.SEQ}(a3)`,
     `  li t2, ${JobState.Queued}`,
     `  sw t2, ${KSLOT.STATE}(a3)`,
+    "  j nc_ack",
+    "nc_late:", // a copy of a segment of a job the kernel has whole: thrown away, and the acknowledgement says it has all
+    `  lw a1, ${word(NicRx.COUNT)}(a2)`,
+    "  j nc_dup",
+    "nc_ooo:", // a segment the job does not want yet: thrown away, and the acknowledgement says which one it does
+    `  lw a1, ${KSLOT.RESULT}(a3)`,
+    "nc_dup:",
+    `  lw t0, ${nk("DROPS")}(zero)`,
+    "  addi t0, t0, 1",
+    `  sw t0, ${nk("DROPS")}(zero)`,
+    // The acknowledgement (a1 = the next segment wanted, a2 = the slot with the key): a packet with no result words in the next transmit slot, then the doorbell. With the ring full it is not sent:
+    // the next one says the same and more.
+    "nc_ack:",
+    `  lw t0, ${NIC_REG.TX_TAIL}(t4)`,
+    `  lw t1, ${nk("TXC")}(zero)`,
+    "  sub t2, t0, t1",
+    `  li t3, ${NIC_TX_SLOTS}`,
+    "  bge t2, t3, nc_skip",
+    ...txSlot("t1", "t0"), // t1 = the slot
+    `  lw t3, ${word(NicRx.KEY)}(a2)`,
+    `  sw t3, ${word(NicTxSlot.KEY)}(t1)`,
+    `  sw zero, ${word(NicTxSlot.NWORDS)}(t1)`,
+    `  sw a1, ${word(NicTxSlot.ARG)}(t1)`,
+    `  li t3, ${NicTx.Ready}`,
+    `  sw t3, ${word(NicTxSlot.STATUS)}(t1)`,
+    "  addi t0, t0, 1",
+    `  sw t0, ${NIC_REG.TX_TAIL}(t4)`,
     "  j nc_skip",
-    "nc_drop:",
+    "nc_drop:", // a segment the kernel cannot take (no slot, no room, not the start of a job): lost
     `  lw t0, ${nk("DROPS")}(zero)`,
     "  addi t0, t0, 1",
     `  sw t0, ${nk("DROPS")}(zero)`,
@@ -207,35 +272,23 @@ export function nicPoll(env: NicDriverEnv): string[] {
     "  addi t0, t0, 1",
     `  sw t0, ${NIC_REG.RX_TAIL}(t4)`,
     "  j nc_rx",
+    "nc_rst:", // the sender gave the transfer up: the job it was sending is not coming, so its slot is free
+    `  lw a0, ${word(NicRx.KEY)}(a2)`,
+    `  li t0, ${NET_KEY}`,
+    "  or a0, a0, t0",
+    "  call find_slot",
+    "  beq a0, zero, nc_skip",
+    `  lw t0, ${KSLOT.STATE}(a0)`,
+    `  li t1, ${JobState.Receiving}`,
+    "  bne t0, t1, nc_skip",
+    `  sw zero, ${KSLOT.STATE}(a0)`,
+    `  lw t0, ${nk("JOBS")}(zero)`,
+    "  addi t0, t0, -1",
+    `  sw t0, ${nk("JOBS")}(zero)`,
+    "  j nc_skip",
 
-    // ---- transmit: give back the slots the NIC has sent
-    "nc_tx:",
-    `  lw t0, ${nk("TXC")}(zero)`,
-    `  lw t2, ${NIC_REG.TX_HEAD}(t4)`,
-    "nc_rc:",
-    "  beq t0, t2, nc_rd",
-    `  andi t3, t0, ${NIC_TX_SLOTS - 1}`,
-    `  li a1, ${NIC_TX_SLOT_BYTES}`,
-    "  mul t3, t3, a1",
-    `  li a1, ${NIC_TX_AT}`,
-    "  add t3, t3, a1", // t3 = the slot
-    `  lw a1, ${word(NicTxSlot.NWORDS)}(t3)`,
-    "  beq a1, zero, nc_rf", // an acknowledgement carries no job
-    `  lw a0, ${word(NicTxSlot.ARG)}(t3)`, // the job table slot the result came from
-    `  lw a1, ${KSLOT.STATE}(a0)`,
-    `  li a2, ${JobState.Sending}`,
-    "  bne a1, a2, nc_rf",
-    `  sw zero, ${KSLOT.STATE}(a0)`, // the NIC has the result: the job's slot is free
-    `  lw a1, ${nk("JOBS")}(zero)`,
-    "  addi a1, a1, -1",
-    `  sw a1, ${nk("JOBS")}(zero)`,
-    "nc_rf:",
-    `  sw zero, ${word(NicTxSlot.STATUS)}(t3)`,
-    "  addi t0, t0, 1",
-    "  j nc_rc",
-    "nc_rd:",
-    `  sw t0, ${nk("TXC")}(zero)`,
     // ---- transmit: write the packets of the network jobs that have finished (only while the table holds a network job)
+    "nc_sp0:",
     `  lw t1, ${nk("JOBS")}(zero)`,
     "  beq t1, zero, nc_out",
     "nc_sp:",

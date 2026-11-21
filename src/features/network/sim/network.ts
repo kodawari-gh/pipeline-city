@@ -3,9 +3,10 @@
 
 import { BOARD_TIERS, deviceSpec, type NicSpec } from "../../board/sim";
 import { generate } from "../../jobs/sim/gen";
-import { JOB_ROW, JobState, NIC_FLAG_REPLAY, NIC_SEG_WORDS } from "@/core/sim/memmap";
+import { JOB_ROW, JobState, NIC_FLAG_ABORT, NIC_FLAG_REPLAY, NIC_SEG_WORDS } from "@/core/sim/memmap";
 import { bandwidth, DISK_NET_MBPS, ispByTier, jobSizes, NET, pickOffer, routerByTier } from ".";
 import type { NicPacket, NicSegment } from "./nic";
+import { Flow } from "./transport";
 import type { Game } from "@/worker/game/game";
 import type { Key, KernelJob, Link, Transfer } from "@/worker/game/internal";
 import { needsMet } from "../../economy/sim/levels";
@@ -124,9 +125,12 @@ export function activeUploads(this: Game): Transfer[] {
   return this.uploads.filter((t) => !t.waiting);
 }
 
-/** Transfers holding a client slot, of both directions (the router's and the plan's `clients` cap this). */
+/**
+ * Transfers holding a client slot, of both directions (the router's and the plan's `clients` cap this). A download holds its slot while it has segments to put on the wire (a flow that has
+ * sent them all and waits for the last acknowledgements holds none, as before there was a transport).
+ */
 export function activeTransfers(this: Game): number {
-  return this.downloads.length + this.activeUploads().length;
+  return this.downloads.filter((t) => t.flow?.sending ?? true).length + this.activeUploads().length;
 }
 
 /** The megabytes a transfer really moves this tick: its share, but no more than is left (the last tick of a transfer is a part of one). */
@@ -143,11 +147,15 @@ function countFrames(f: { rx: number; tx: number }, mb: number, dir: "rx" | "tx"
   f[dir === "rx" ? "tx" : "rx"] += data / NET.ackEvery;
 }
 
-/** Start downloads for waiting offers and move the bytes of every transfer. */
+/**
+ * Start downloads for waiting offers, run every flow a tick (the segments it puts on the wire, `network/sim/transport.ts`) and move the bytes of the uploads. The acknowledgements the kernel
+ * sent come back first (`wireSend` queued them).
+ */
 export function runTransfers(this: Game): void {
   const bw = this.link.bw;
   const slots = this.os?.queueSlots ?? 0;
   const caps = this.capsWith(true);
+  deliverAcks(this);
   // A client slot serves one transfer of either direction. Results waiting to go out take the free slots first (they are paid work), in the order they were read out.
   for (const t of this.uploads) {
     if (this.activeTransfers() >= bw.clients) break;
@@ -161,21 +169,22 @@ export function runTransfers(this: Game): void {
     next.c0 = this.countersNow();
     delete next.ranAt;
     delete next.reloaded; // a returned offer starts over: it runs when the kernel begins it
-    const z = jobSizes(next.cls, next.type, next.scale);
-    this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0, ...programSegments(this.jobWords(next)) });
+    this.downloads.push(newDownload(this, next, false));
   }
-  // The bytes cross the wire, shared among the downloads still moving. The program's segments reach the NIC as the bytes cover them (`wirePull`).
-  const moving = this.downloads.filter((t) => t.doneMB < t.totalMB);
-  if (moving.length > 0) {
-    const each = bw.downMbps / 8 / moving.length;
-    for (const t of moving) { countFrames(this.netFrames, moved(t, each), "rx"); t.doneMB += each; }
+  // The line's bytes are shared among the downloads that have segments to send and room in their window. Each flow puts on the wire what its share and its window allow.
+  const moving = this.downloads.filter((t) => t.flow!.moving).length;
+  const each = moving > 0 ? bw.downMbps / 8 / moving : 0;
+  for (const t of [...this.downloads, ...this.restores]) runFlow(this, t, each);
+  // A download is whole when the kernel has acknowledged every segment (it has queued the job: the receive window holds it until the host sees that); one the sender gave up goes back to the offers.
+  for (const t of [...this.downloads]) {
+    if (t.flow!.failed) giveUp(this, t);
+    else if (t.flow!.done) {
+      this.downloads = this.downloads.filter((x) => x !== t);
+      this.rx.push(t.key);
+      this.netCount.downloaded++;
+    }
   }
-  // A download is whole when every byte has crossed the wire and the NIC has taken every segment: the rest is the kernel's work (the receive window, until it has queued the job).
-  for (const t of this.downloads.filter((x) => x.doneMB >= x.totalMB && (x.next ?? 0) >= (x.segs ?? 0))) {
-    this.downloads = this.downloads.filter((x) => x !== t);
-    this.rx.push(t.key);
-    this.netCount.downloaded++;
-  }
+  this.restores = this.restores.filter((t) => !t.flow!.done && !t.flow!.failed);
   const sending = this.activeUploads();
   if (sending.length > 0) {
     const each = bw.upMbps / 8 / sending.length;
@@ -193,8 +202,56 @@ export function runTransfers(this: Game): void {
   }
 }
 
-/** A program cut into the segments the NIC takes: one spool block (`NIC_SEG_WORDS` words) each. */
-const programSegments = (words: Uint32Array): Pick<Transfer, "words" | "segs" | "next"> => ({ words, segs: Math.max(1, Math.ceil(words.length / NIC_SEG_WORDS)), next: 0 });
+/**
+ * A download of a job's program: cut into the segments the NIC takes (one spool block, `NIC_SEG_WORDS` words, each) and given a flow to carry them. The segments share the job's megabytes of
+ * line time; the first window is what the line moves in a round trip. A replay (the kernel lost the job at a boot) costs no line time and loses nothing.
+ */
+function newDownload(g: Game, key: Key, replay: boolean): Transfer {
+  const words = g.jobWords(key);
+  const segs = Math.max(1, Math.ceil(words.length / NIC_SEG_WORDS));
+  const segMB = replay ? 0 : jobSizes(key.cls, key.type, key.scale).downMB / segs;
+  const share = g.link.bw.downMbps / 8 / (g.downloads.length + 1);
+  const cwnd = segMB > 0 ? Math.ceil((share * NET.rttTicks) / segMB) : 2;
+  const flow = new Flow({ id: key.id, seed: g.seed, segs, segMB, rtt: NET.rttTicks, cwnd, loss: replay ? 0 : g.cfg.wireLoss });
+  return { key, totalMB: flow.workMB, doneMB: 0, words, segs, flow, ...(replay ? { replay: true } : {}) };
+}
+
+/** One tick of a download's flow: its share of the line, the segments it puts on the wire (the wire may lose them) and what the jack's counters and the progress bar follow. */
+function runFlow(g: Game, t: Transfer, share: number): void {
+  const f = t.flow!;
+  const was = { ...f.stats };
+  const sends = f.step(g.baseTick, f.moving ? share : 0);
+  for (const k of ["sent", "resent", "lost", "timeouts"] as const) g.netWire[k] += f.stats[k] - was[k];
+  if (!t.replay) {
+    countFrames(g.netFrames, f.earned, "rx");
+    t.doneMB = f.carriedMB;
+    t.totalMB = f.workMB;
+  }
+  const words = t.words!;
+  for (const s of sends) {
+    if (s.lost) continue;
+    const seg: NicSegment = { key: t.key.id, seq: s.seq, count: t.segs!, total: words.length, words: words.subarray(s.seq * NIC_SEG_WORDS, (s.seq + 1) * NIC_SEG_WORDS), flags: t.replay ? NIC_FLAG_REPLAY : 0 };
+    g.wireQ.push({ at: g.baseTick + 1, seg }); // the NIC's step in the next tick takes it
+  }
+}
+
+/** The acknowledgements that have reached their senders: each tells a flow which segment the kernel wants next. */
+function deliverAcks(g: Game): void {
+  const due = g.wireAcks.filter((a) => a.at <= g.baseTick);
+  if (due.length === 0) return;
+  g.wireAcks = g.wireAcks.filter((a) => a.at > g.baseTick);
+  for (const a of due) (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(g.baseTick, a.next);
+}
+
+/** A segment sent more times than the transport allows without an answer: the download fails. The offer goes back (attempts + 1) and a reset tells the kernel to free what it holds of the job. */
+function giveUp(g: Game, t: Transfer): void {
+  g.downloads = g.downloads.filter((x) => x !== t);
+  t.key.attempts++;
+  g.offersQ.giveBack(t.key);
+  g.netCount.lost++;
+  g.wireQ.push({ at: g.baseTick + 1, seg: { key: t.key.id, seq: 0, count: 0, total: 0, words: new Uint32Array(0), flags: NIC_FLAG_ABORT } });
+  g.note("net", `download #${String(t.key.jobNo).padStart(2, "0")} failed: the machine did not answer, it goes back to the offers`);
+}
 
 /** The program of a job as a client sends it: generated from the job's template and seed (a USB key carries the same one). */
 export function jobWords(this: Game, key: Key): Uint32Array {
@@ -215,29 +272,33 @@ function resultText(words: Uint32Array): string {
 }
 
 /**
- * The wire's side of the NIC's receive path (`Nic.pull`, called from the NIC's own clock): the next segment of a program that is due. Spooled jobs the kernel has to take again come first
- * (nothing crosses the wire for them), then the downloads in the order they started. A segment is due when the bytes that have crossed the wire cover it.
+ * The wire's side of the NIC's receive path (`Nic.pull`, called from the NIC's own clock): the next segment that has reached the end of the wire. The senders put segments on it (`runFlow`),
+ * the ones the wire loses never get here, and the NIC drops the ones that find its input full.
  */
 export function wirePull(this: Game): NicSegment | null {
-  for (const list of [this.restores, this.downloads]) {
-    for (const t of list) {
-      const { words, segs } = t;
-      if (!words || segs === undefined || t.next === undefined) continue;
-      const due = t.replay || t.doneMB >= t.totalMB ? segs : Math.floor((segs * t.doneMB) / t.totalMB);
-      if (t.next >= due) continue;
-      const seq = t.next++;
-      return { key: t.key.id, seq, count: segs, total: words.length, words: words.subarray(seq * NIC_SEG_WORDS, (seq + 1) * NIC_SEG_WORDS), flags: t.replay ? NIC_FLAG_REPLAY : 0 };
-    }
-  }
-  return null;
+  const head = this.wireQ[0];
+  if (!head || head.at > this.baseTick) return null;
+  this.wireQ.shift();
+  return head.seg;
 }
 
 /**
  * The wire's side of the NIC's transmit path (`Nic.onTransmit`, from the NIC's clock): a packet the kernel wrote into the transmit ring and the NIC read by DMA. A result packet of a network job
- * goes out as an upload that waits for a client slot (`runTransfers`). An acknowledgement carries no words: there is no sender to tell yet.
+ * goes out as an upload that waits for a client slot (`runTransfers`). An acknowledgement carries no words: it goes back to the sender of that download (`deliverAcks` hands it over the next time
+ * the transfers run), and says which segment the kernel wants next.
  */
 export function wireSend(this: Game, p: NicPacket): void {
-  if (p.words.length === 0) return;
+  if (p.words.length === 0) {
+    this.wireAcks.push({ at: this.baseTick, key: p.key, next: p.arg });
+    return;
+  }
+  // a result means the kernel had the whole job, even if the last acknowledgement has not reached the sender (it was lost, or is late): the download is over
+  const d = this.downloads.find((x) => x.key.id === p.key);
+  if (d) {
+    this.downloads = this.downloads.filter((x) => x !== d);
+    this.rx.push(d.key);
+    this.netCount.downloaded++;
+  }
   const k = this.rx.find((x) => x.id === p.key) ?? this.spool.find((x) => x.id === p.key);
   if (!k || this.uploads.some((t) => t.key.id === k.id)) return; // a result nobody waits for
   if (this.rx.includes(k)) {
@@ -251,16 +312,24 @@ export function wireSend(this: Game, p: NicPacket): void {
   this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0, waiting: true });
 }
 
-/** A download whose job the kernel has queued whole leaves the receive window for the spool: the program is on the drive. */
+/**
+ * A download whose job the kernel has queued whole is on the drive (the driver wrote every segment to the spool before it queued the job): it joins the spool, whatever the last acknowledgements
+ * are doing and whatever the link does next. That ends the transfer, with its flow, even if an acknowledgement is still on its way.
+ */
 export function adoptReceived(this: Game): void {
-  if (this.rx.length === 0) return;
+  if (this.rx.length === 0 && this.downloads.length === 0) return;
   const jobs = this.kernelJobs();
+  const whole = (k: Key): boolean => jobs.some((x) => x.net && x.key === k.id && x.state >= JobState.Queued);
+  for (const t of [...this.downloads]) {
+    if (!whole(t.key)) continue;
+    this.downloads = this.downloads.filter((x) => x !== t);
+    this.spool.push(t.key);
+    this.netCount.downloaded++;
+  }
   for (const k of [...this.rx]) {
-    const j = jobs.find((x) => x.net && x.key === k.id);
-    if (j && j.state >= JobState.Queued) {
-      this.rx = this.rx.filter((x) => x !== k);
-      this.spool.push(k);
-    }
+    if (!whole(k)) continue;
+    this.rx = this.rx.filter((x) => x !== k);
+    this.spool.push(k);
   }
 }
 
@@ -274,7 +343,7 @@ export function feedKernel(this: Game): void {
   this.restores = this.restores.filter((t) => !jobs.some((j) => j.net && j.key === t.key.id && j.state >= JobState.Queued)); // the kernel has it: the replay is over
   for (const k of this.spool) {
     if (jobs.some((j) => j.key === k.id) || this.uploads.some((t) => t.key.id === k.id) || this.restores.some((t) => t.key.id === k.id)) continue;
-    this.restores.push({ key: k, totalMB: 0, doneMB: 0, replay: true, ...programSegments(this.jobWords(k)) });
+    this.restores.push(newDownload(this, k, true));
   }
 }
 
@@ -298,19 +367,21 @@ export function loseTransfers(this: Game): void {
   this.rx = [];
   this.uploads = [];
   this.restores = [];
+  this.wireQ = []; // what was on the wire is gone with the link
+  this.wireAcks = [];
   this.nic.flush();
 }
 
 export function transferSnaps(this: Game): TransferSnap[] {
   const out: TransferSnap[] = [];
   const add = (t: Transfer, dir: "down" | "up"): void => {
-    const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.length) : this.link.bw.upMbps / Math.max(1, this.activeUploads().length)) / 8;
+    const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.filter((x) => x.flow?.sending ?? true).length) : this.link.bw.upMbps / Math.max(1, this.activeUploads().length)) / 8;
     out.push({
       jobId: t.key.id, label: `#${String(t.key.jobNo).padStart(2, "0")} ${t.key.type}`, dir, totalMB: t.totalMB, doneMB: t.doneMB,
       percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)), etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1, persisted: false,
     });
   };
-  for (const t of this.downloads) add(t, "down");
+  for (const t of this.downloads) if (t.flow?.sending ?? true) add(t, "down"); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
   for (const t of this.activeUploads()) add(t, "up");
   return out;
 }

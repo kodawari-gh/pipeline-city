@@ -1,6 +1,8 @@
 // What the feature files of the game share but the outside world never sees: the internal records and a few constants.
 
 import type { Binding, IspSpec, RouterSpec } from "../../features/network/sim";
+import type { NicSegment } from "../../features/network/sim/nic";
+import type { Flow } from "../../features/network/sim/transport";
 import type { OsSpec } from "../../features/os/sim";
 import { levelRows, type LevelRowSnap, type Need } from "../../features/economy/sim/levels";
 import type { JobWindow } from "../../features/jobs/sim/joblog";
@@ -61,14 +63,20 @@ export interface Transfer {
   /** An upload whose result is read out but has no client slot yet (docs/NETWORK.md "Web jobs"): it moves no bytes. */
   waiting?: boolean;
   /**
-   * A download carries the job's program to the NIC in segments (docs/NETSTACK.md): the program, how many segments it makes, and the next one the NIC has not pulled yet.
-   * A segment is due when the bytes that have crossed the wire cover it. `replay`: the kernel lost the job at a boot and takes it again from the spool, nothing crosses the wire.
+   * A download carries the job's program to the NIC in segments (docs/NETSTACK.md): the program, how many segments it makes, and the sender's side of the transport (`flow`: the
+   * window, the timeout, the retries). `replay`: the kernel lost the job at a boot and takes it again from the spool, nothing crosses the wire and nothing is lost on it.
    */
   words?: Uint32Array;
   segs?: number;
-  next?: number;
+  flow?: Flow;
   replay?: boolean;
 }
+
+/** A segment on its way to the NIC: it reaches the NIC's input at the tick `at`. */
+export interface WireSegment { at: number; seg: NicSegment }
+
+/** An acknowledgement the kernel sent, on its way back to the sender: it reaches it at the tick `at`. */
+export interface WireAck { at: number; key: number; next: number }
 
 /** The link as evaluated each tick. */
 export interface Link {

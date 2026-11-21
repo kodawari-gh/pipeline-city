@@ -412,6 +412,8 @@ export const NIC_TX_SLOTS = 4;
 export const NicTx = { Free: 0, Ready: 1, Done: 2 } as const;
 /** The header flag of a segment the host replays from the spool after a boot (nothing came over the wire). */
 export const NIC_FLAG_REPLAY = 1;
+/** The header flag of a reset: the sender gave the transfer up, and the kernel may free the job's slot if it is still receiving it. It carries no payload and is not acknowledged. */
+export const NIC_FLAG_ABORT = 2;
 /**
  * The RAM the kernel keeps for the NIC, above the kernel image of every tier and below the job table: its own words, the receive ring and the transmit ring. It lies inside the range
  * the OS protects from the jobs (the OS header to the end of its data), so a job cannot touch it.

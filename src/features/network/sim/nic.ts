@@ -3,11 +3,12 @@
 // CPU instruction and no memory protection (`Bus.guardOn` is off outside a CPU step).
 //
 //   receive   wire -> input FIFO (a few segments, as a chip has) -> DMA into the next free slot of the RX ring -> head + 1 -> line IRQ.NIC (when `RxIrq` is set)
+//             The wire cannot wait: a segment that arrives with the FIFO full (the ring is full and the kernel is slow to empty it) is lost, counted in `STAT_DROP`, and the sender finds out by its timeout.
 //   transmit  the kernel fills a TX slot (status Ready) and writes TX_TAIL (the doorbell) -> the NIC reads the slot by DMA, hands the packet to the wire (`onTransmit`), writes status Done back
 //             by DMA -> head + 1 -> line IRQ.NIC (when `TxIrq` is set)
 //
 // The kernel's driver polls (`os/sim/nicdriver.ts`) and leaves both interrupt enables off; the line is there for a driver that wants it.
-// A segment that finds the ring full stays in the FIFO; the FIFO full, the wire waits (`accept` says no). There is no loss yet (stage 3 of the design adds it: the segment is dropped, counted).
+// A segment that finds the ring full waits in the FIFO until the kernel frees a slot; the FIFO full, the next one is dropped. (`accept`, the push entry the unit tests use, says no instead.)
 
 import {
   IRQ, NIC_BASE, NIC_REG, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_SEG_WORDS, NIC_SIZE, NIC_TX_HEAD_WORDS, NIC_TX_SLOT_BYTES, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot, PCH_RESULT_WORDS,
@@ -116,12 +117,22 @@ export class Nic implements Device {
 
   tick(): void {
     if (!this.enabled) return;
-    if (this.linkUp && this.pull && this.fifo.length < NIC_FIFO_SEGS) {
+    // a segment arrives from the wire; the FIFO full, it is lost (the wire cannot wait: nothing tells it to)
+    if (this.linkUp && this.pull) {
       const seg = this.pull();
-      if (seg) this.fifo.push(seg);
+      if (seg) {
+        if (this.fifo.length < NIC_FIFO_SEGS) this.fifo.push(seg);
+        else this.drop();
+      }
     }
     if (this.fifo.length > 0 && this.rxPending < this.rxSlots) this.receive(this.fifo.shift()!);
     if (this.linkUp && this.txSlots > 0 && this.txPending > 0) this.transmit();
+  }
+
+  /** A segment found no room: counted, and the sticky `Dropped` bit set. */
+  private drop(): void {
+    this.statDrop++;
+    this.dropped = true;
   }
 
   /** DMA a segment into the next slot of the receive ring and tell the kernel. */

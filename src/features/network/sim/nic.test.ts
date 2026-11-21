@@ -79,7 +79,7 @@ describe("the NIC device", () => {
     for (let i = 0; i < 4; i++) { r.nic.accept(seg(i, 9)); r.nic.tick(); }
     expect(r.nic.rxPending).toBe(4); // the kernel has read nothing
     for (let i = 4; i < 4 + NIC_FIFO_SEGS; i++) expect(r.nic.accept(seg(i, 9))).toBe(true);
-    expect(r.nic.accept(seg(9, 9))).toBe(false); // the FIFO is full: the wire waits
+    expect(r.nic.accept(seg(9, 9))).toBe(false); // the FIFO is full: the wire is turned away (`tick` counts that as a drop)
     r.nic.tick();
     expect(r.rd(NIC_REG.RX_HEAD)).toBe(4); // the ring is full: nothing moved
     expect(r.nic.view().fifo).toBe(NIC_FIFO_SEGS);
@@ -89,13 +89,35 @@ describe("the NIC device", () => {
     expect(r.nic.view().fifo).toBe(NIC_FIFO_SEGS - 1);
   });
 
-  it("pulls its segments from the wire by itself while the FIFO has room", () => {
+  it("pulls the segments that have reached the end of the wire, one a step", () => {
     const r = ready();
     let n = 0;
     r.nic.pull = () => (n < 3 ? seg(n++, 3) : null);
     for (let i = 0; i < 6; i++) { r.nic.tick(); r.wr(NIC_REG.RX_TAIL, r.rd(NIC_REG.RX_HEAD)); }
     expect(n).toBe(3);
     expect(r.rd(NIC_REG.STAT_RX)).toBe(3);
+    expect(r.rd(NIC_REG.STAT_DROP)).toBe(0);
+  });
+
+  it("the wire cannot wait: with the ring full and the FIFO full, the next segment is lost, counted, and the sticky bit is set", () => {
+    const r = ready();
+    let n = 0;
+    r.nic.pull = () => seg(n++, 20);
+    // the kernel reads nothing: four segments fill the ring, two wait in the FIFO, the rest are lost
+    for (let i = 0; i < 4 + NIC_FIFO_SEGS + 3; i++) r.nic.tick();
+    expect(r.rd(NIC_REG.RX_HEAD)).toBe(4);
+    expect(r.nic.view().fifo).toBe(NIC_FIFO_SEGS);
+    expect(r.rd(NIC_REG.STAT_DROP)).toBe(3);
+    expect(r.rd(NIC_REG.STATUS) & NicStatus.Dropped).toBeTruthy();
+    r.wr(NIC_REG.STATUS, NicStatus.Dropped); // write 1 to clear it
+    expect(r.rd(NIC_REG.STATUS) & NicStatus.Dropped).toBe(0);
+    // the kernel frees the ring: what the FIFO held goes in, in order, and the lost ones stay lost
+    r.wr(NIC_REG.RX_TAIL, 4);
+    r.nic.pull = () => null;
+    r.nic.tick(); r.nic.tick();
+    expect(r.rd(NIC_REG.RX_HEAD)).toBe(6);
+    expect(r.dv.getUint32(RING_RX + (4 % 4) * NIC_RX_SLOT_BYTES + 4 * NicRx.SEQ, true)).toBe(4);
+    expect(r.dv.getUint32(RING_RX + (5 % 4) * NIC_RX_SLOT_BYTES + 4 * NicRx.SEQ, true)).toBe(5);
   });
 
   it("a packet the kernel put in the transmit ring is read by DMA, sent, and the slot is marked done by DMA", () => {
@@ -196,14 +218,15 @@ describe("the NIC with the kernel", { timeout: 60000 }, () => {
     expect(g.snapshot().net.counters.delivered).toBe(before + 1);
     const v = g.nic.view();
     expect(v.rx).toBe(3); // 152 words: three segments of up to 64
-    expect(v.tx).toBe(1); // one result packet
+    expect(v.tx).toBe(1 + 3); // the result packet, and the kernel's acknowledgement of each of the three segments
     expect(v.dmaWords).toBeGreaterThan(v.rx * NIC_RX_HEAD_WORDS);
     // the kernel's own counters agree with the NIC's
     expect(kword(g, "GOT")).toBe(v.rx);
     expect(kword(g, "SENT")).toBe(1);
     expect(kword(g, "DROPS")).toBe(0);
     // the job went through every state of a network job; its slot is free again and the driver counts none left
-    for (const s of [JobState.Receiving, JobState.Queued, JobState.Running, JobState.Result, JobState.Sending]) expect(states.has(s), `state ${s}`).toBe(true);
+    // (Queued is left out: the kernel takes a queued job within a few hundred cycles, which can fall between two ticks)
+    for (const s of [JobState.Receiving, JobState.Running, JobState.Result, JobState.Sending]) expect(states.has(s), `state ${s}`).toBe(true);
     for (let i = 0; i < 30 && g.kernelJobs().some((j) => j.net); i++) g.advanceBaseTick(); // the next pass of the kernel reclaims the transmit slot and frees the job slot
     expect(g.kernelJobs().filter((j) => j.net)).toHaveLength(0);
     expect(kword(g, "JOBS")).toBe(0);
@@ -288,7 +311,7 @@ describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
       const before = g.snapshot().net.counters.delivered;
       for (let i = 0; i < 6000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
       expect(g.snapshot().net.counters.delivered).toBe(before + 1);
-      expect(g.nic.view()).toMatchObject({ rx: 3, tx: 1 });
+      expect(g.nic.view()).toMatchObject({ rx: 3, tx: 4 });
       expect(kword(g, "GOT")).toBe(3);
       expect(kword(g, "SENT")).toBe(1);
     });
@@ -298,27 +321,79 @@ describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
 // ---- what goes wrong: a full table, a cut cable, a power loss
 
 describe("the NIC and the kernel when things go wrong", { timeout: 120000 }, () => {
-  it("a kernel with no free slot leaves the segment in the ring: nothing is lost, the wire waits, and the job comes in when a slot frees", () => {
-    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
-    const bus = g.machine.bus;
+  /** Every slot of the queue holds somebody else's finished job (a USB key's result that waits to be flashed). */
+  const fillTable = (g: Game, state: number): void => {
     const slots = g.snapshot().os!.queueSlots;
-    // every slot of the queue holds somebody else's finished job (a USB key's result that waits to be flashed)
     for (let k = 0; k < slots; k++) {
-      bus.store32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.KEY, 900 + k);
-      bus.store32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, JobState.Result);
+      if (state !== JobState.Free) g.machine.bus.store32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.KEY, 900 + k);
+      g.machine.bus.store32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, state);
     }
+  };
+
+  it("a kernel with no free slot throws the segments away: the sender times out and sends them again, and the job comes in when a slot frees", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    fillTable(g, JobState.Result);
     offer(g, "web.dns", 4);
     for (let i = 0; i < 40; i++) g.advanceBaseTick();
-    expect(g.nic.rxPending).toBeGreaterThanOrEqual(1); // the first segment waits at the head of the ring
     expect(kword(g, "GOT")).toBe(0);
-    expect(kword(g, "DROPS")).toBe(0);
+    expect(kword(g, "DROPS")).toBeGreaterThanOrEqual(2); // the first send and a resend, thrown away by the driver
     expect(g.kernelJobs().some((j) => j.net)).toBe(false);
     expect(g.snapshot().net.counters.delivered).toBe(0);
-    for (let k = 0; k < slots; k++) bus.store32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, JobState.Free); // the slots free up
+    expect(g.netWire.timeouts).toBeGreaterThanOrEqual(1);
+    expect(g.netWire.resent).toBeGreaterThanOrEqual(1);
+    expect(g.downloads).toHaveLength(1); // still trying
+    fillTable(g, JobState.Free); // the slots free up
     const before = g.snapshot().net.counters.delivered;
     for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
     expect(g.snapshot().net.counters.delivered).toBe(before + 1);
     expect(kword(g, "GOT")).toBe(3);
+  });
+
+  it("a sender that is never answered gives up after its retries: the offer goes back with one more attempt, and the job comes in when the kernel can take it", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    fillTable(g, JobState.Result);
+    offer(g, "web.dns", 4);
+    for (let i = 0; i < 1500 && g.netCount.lost === 0; i++) g.advanceBaseTick();
+    expect(g.netCount.lost).toBe(1);
+    expect(g.downloads.length + g.rx.length).toBe(0);
+    expect(g.offersQ.waiting()[0]?.attempts).toBe(2); // a key starts at attempt 1
+    expect(g.netWire.resent).toBeGreaterThanOrEqual(8); // the first segment was sent again eight times before the transport gave up
+    fillTable(g, JobState.Free);
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+    expect(g.snapshot().net.counters.delivered).toBe(before + 1); // the offer was taken again and came in whole
+  });
+
+  it("a lossy wire loses segments, the transport sends them again, and the job still comes in whole", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0, wireLoss: 0.4 } });
+    offer(g, "web.dns", 4);
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+    expect(g.snapshot().net.counters.delivered).toBe(before + 1);
+    expect(g.netWire.lost).toBeGreaterThan(0);
+    expect(g.netWire.resent).toBeGreaterThan(0);
+    expect(kword(g, "GOT")).toBe(3); // the kernel took each segment once, in order
+  });
+
+  it("the same game with the same loss runs the same: the same sends, the same resends, the same tick", () => {
+    const run = (): { tick: number; wire: Game["netWire"]; nic: ReturnType<Game["nic"]["view"]> } => {
+      const g = netRig("ssd1", { economy: { baseDemandPerTick: 0, wireLoss: 0.4 } });
+      offer(g, "web.dns", 4);
+      const before = g.snapshot().net.counters.delivered;
+      for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+      return { tick: g.baseTick, wire: { ...g.netWire }, nic: g.nic.view() };
+    };
+    expect(run()).toEqual(run());
+  });
+
+  it("with no loss and a roomy ring nothing is resent and nothing is dropped, anywhere", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    offer(g, "web.dns", 4);
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+    expect(g.netWire).toEqual({ sent: 3, resent: 0, lost: 0, timeouts: 0 });
+    expect(g.nic.view().drops).toBe(0);
+    expect(kword(g, "DROPS")).toBe(0);
   });
 
   it("a cut cable ends a receive in progress: the driver frees the slot, the job goes back to the offers and comes in whole on the next link", () => {

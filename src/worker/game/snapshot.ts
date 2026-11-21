@@ -205,7 +205,8 @@ export function stageOf(this: Game, k: Key, jobs: KernelJob[]): KeyStage {
   const j = jobs.find((x) => x.key === k.id);
   const byState = (s: number): KeyStage => (s === JobState.Result || s === JobState.Sending ? "result" : s === JobState.Running ? "running" : s === JobState.Receiving ? "ingesting" : "queued");
   if (this.offersQ.waiting().includes(k)) return "offer";
-  if (this.downloads.some((t) => t.key === k)) return "downloading";
+  const down = this.downloads.find((t) => t.key === k);
+  if (down) return down.flow?.sending === false ? "ingesting" : "downloading"; // every segment is on the wire: the rest is the kernel's work
   if (this.rx.includes(k)) return "ingesting";
   if (this.spool.includes(k)) return this.uploads.some((t) => t.key === k) ? "uploading" : j ? byState(j.state) : "spooled";
   if (k === this.plugged) {

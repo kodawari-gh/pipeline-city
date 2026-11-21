@@ -83,4 +83,6 @@ export const NET = {
   frameBytes: 1500,
   /** The receiver acknowledges every second data frame (a delayed ACK): the frames the other way for the data that flows. */
   ackEvery: 2,
+  /** The round trip of the wire alone, in ticks: the first estimate of a download's transport. The machine adds its own time to answer (the kernel's driver sends the acknowledgements). */
+  rttTicks: 1,
 } as const;
