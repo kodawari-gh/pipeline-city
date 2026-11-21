@@ -1,0 +1,1213 @@
+{
+ "version": "1.0 (2026-11-21)",
+ "direction": "B, Afterglow",
+ "format": {
+  "container": "ogg",
+  "codec": "vorbis",
+  "quality": 6,
+  "sample_rate": 48000,
+  "channels": 2,
+  "note": "Matches the docs lane decision (handoff SPEC.md \u00a71.1: Ogg Vorbis q6, 48 kHz, stereo). Masters are 24-bit WAV in sources/masters/.",
+  "loop_padding": {
+   "samples_each_side": 4800,
+   "loopStart_samples": 4800,
+   "loopEnd_samples": "LOOP_PAD + loop_samples",
+   "why": "the Ogg stems carry 100 ms of wrap-around audio before and after the loop so the seam is mid-stream; set loopStart/loopEnd, and run stitchLoop() once after decode (music-spec.md \u00a76)"
+  }
+ },
+ "clock": {
+  "bpm_nominal": 66,
+  "beats_per_bar": 4,
+  "subdivisions_per_beat": 12,
+  "loop_bars": 4,
+  "loop_samples": 698182,
+  "loop_seconds": 14.545458333333332,
+  "bar_seconds": 3.636364583333333,
+  "beat_seconds": 0.9090911458333333,
+  "rule": "Derive beat/bar from the stem length (loop_seconds/16), not from 60/66: the stems are exactly 698182 samples (65.99997 bpm), so the grid never drifts from the audio.",
+  "tempo_follows_game_speed": false,
+  "tempo_changes_with_stress": false
+ },
+ "transposition": {
+  "approach": "rendered_12_keys",
+  "why": "playbackRate transposition also changes loop length (up to +/-6 semitones = -29%/+41% duration), which breaks bar sync between layers and the beat grid; time-stretch in the browser is not available. Rendering all 12 keys keeps every stem exactly 4 bars at 66 bpm with no pitch-shift artefacts. Cost is ~1.0 MB per key for the 6 keyed layers; only the current and next key are ever decoded.",
+  "keys_in_level_order": [
+   "F",
+   "C",
+   "G",
+   "D",
+   "A",
+   "E",
+   "B",
+   "Fs",
+   "Cs",
+   "Gs",
+   "Ds",
+   "As"
+  ],
+  "file_key_tokens": {
+   "F": "F",
+   "C": "C",
+   "G": "G",
+   "D": "D",
+   "A": "A",
+   "E": "E",
+   "B": "B",
+   "Fs": "F#",
+   "Cs": "C#",
+   "Gs": "G#",
+   "Ds": "D#",
+   "As": "A#"
+  },
+  "key_for_level": "KEYS[(level - 1) % 12]  // root pc = (5 + 7*(level-1)) mod 12; level 13 = F again",
+  "bed_root_midi": {
+   "F": 41,
+   "C": 48,
+   "G": 43,
+   "D": 50,
+   "A": 45,
+   "E": 40,
+   "B": 47,
+   "Fs": 42,
+   "Cs": 49,
+   "Gs": 44,
+   "Ds": 51,
+   "As": 46
+  }
+ },
+ "layers": {
+  "bed": {
+   "file": "stems/music_bed_{KEY}.ogg",
+   "role": "pad bed: root+5th+9th held, upper voices I (bars 1-2) -> II/I (bars 3-4)",
+   "keyed": true
+  },
+  "pluck": {
+   "file": "stems/music_pluck_{KEY}.ogg",
+   "role": "soft echoing pluck pattern D4-A5, dotted-eighth echoes",
+   "keyed": true
+  },
+  "bass": {
+   "file": "stems/music_bass_{KEY}.ogg",
+   "role": "soft pulse/bass on beats 1, 2.5, 3, 4.5 (E1-D#2 + harmonics)",
+   "keyed": true
+  },
+  "shimmer": {
+   "file": "stems/music_shimmer_{KEY}.ogg",
+   "role": "data-flow shimmer: triplet-8th blips C6-C7 + soft 16th ticks",
+   "keyed": true
+  },
+  "stress": {
+   "file": "stems/music_stress_{KEY}.ogg",
+   "role": "overload: upper voices +28 cents with 16th tremolo + sharp off-beat plucks",
+   "keyed": true
+  },
+  "pausebed": {
+   "file": "stems/music_pausebed_{KEY}.ogg",
+   "role": "pause/hold bed: same chords, darker (2.5 kHz), slower crossfades",
+   "keyed": true
+  },
+  "menu": {
+   "file": "stems/music_menu_F.ogg",
+   "role": "title/menu loop, F Lydian only, 8 bars (1396364 samples), no bass/shimmer",
+   "keyed": false,
+   "loop_bars": 8
+  }
+ },
+ "notes": {
+  "pluck": {
+   "file": "notes/music_note_pluck_{NOTE}.ogg",
+   "range": "C3..C6 chromatic (37)",
+   "use": "build + flow event notes; quiet step note in pause"
+  },
+  "glint": {
+   "file": "notes/music_note_glint_{NOTE}.ogg",
+   "range": "C5..C7 chromatic (25)",
+   "use": "payout fans, ecc, net, bill paid"
+  },
+  "low": {
+   "file": "notes/music_note_low_{NOTE}.ogg",
+   "range": "C2..C3 chromatic (13)",
+   "use": "drop, expire, cable unplugged (with pluck)"
+  },
+  "note_token": "C, Cs, D ... B + octave (MIDI 60 = C4); dry samples, runtime adds the cue echo + reverb send",
+  "levelup": {
+   "file": "notes/music_levelup_{KEY}.ogg",
+   "use": "musical transition chord for the key change, in the NEW key, on the bar line. SFX lane's level-up UI sound must be unpitched or play its pitched part from this chord's notes; this file is the musical part."
+  },
+  "fault": {
+   "file": "notes/music_fault_{KEY}.ogg",
+   "use": "crash: low falling 5th -> root + dark swell, current key"
+  }
+ },
+ "registers": {
+  "build": [
+   60,
+   72
+  ],
+  "flow": [
+   72,
+   84
+  ],
+  "glint": [
+   76,
+   96
+  ],
+  "milestone": [
+   48,
+   84
+  ],
+  "failure": [
+   36,
+   48
+  ],
+  "rule": "event note = nearest current-scale tone inside its family register; degrees per event below"
+ },
+ "mix": {
+  "music_trim_db": 0.3,
+  "layer_gain_db": {
+   "bed": 0.0,
+   "pluck": -2.0,
+   "bass": -5.0,
+   "shimmer": -7.0,
+   "stress": -6.0,
+   "pausebed": 1.0,
+   "menu": 2.5
+  },
+  "cue_gain_db": {
+   "pluck": 2.0,
+   "glint": 0.0,
+   "low": 1.0,
+   "levelup": 0.0,
+   "fault": 0.0
+  },
+  "levelup_with_sfx_db": -6.0,
+  "cue_echo": {
+   "delay_beats": 0.75,
+   "level_db": -12,
+   "feedback": 0.3,
+   "first_hit_dry": true
+  },
+  "cue_reverb_send": 0.18,
+  "stem_file_lufs": -20.0,
+  "note_file_lufs": -20.0,
+  "stinger_file_lufs": -18.0,
+  "measured": {
+   "all_layers_on_lufs_range": [
+    -16.1,
+    -15.9
+   ],
+   "all_layers_on_max_true_peak_dbtp": -1.0,
+   "running_no_stress_lufs_mean": -16.5,
+   "pause_lufs_mean": -18.3,
+   "menu_lufs": -17.2
+  }
+ },
+ "ducking": {
+  "trigger": "any cue (music notes, stingers, SFX accents): uses the docs lane's mix-tokens ducking on the whole music bus; the music-note sub-bus itself is not ducked",
+  "standard_db": -2,
+  "key_db": -3,
+  "bed_db": -3,
+  "milestone_db": -4,
+  "failure_db": -4,
+  "attack_s": 0.01,
+  "hold_s": 0.15,
+  "release_s": 0.4,
+  "music_events_as": {
+   "install": "standard",
+   "cable": "standard",
+   "power": "standard",
+   "key": "key",
+   "job": "key",
+   "payout": "key",
+   "ecc": "standard",
+   "net": "standard",
+   "contract": "standard",
+   "bill": "standard",
+   "drop": "failure",
+   "expire": "failure",
+   "fault": "failure",
+   "level": "milestone"
+  }
+ },
+ "voices": {
+  "cue_max": 8,
+  "cue_steal": "oldest",
+  "per_kind_min_interval_s": {
+   "install": 0.08,
+   "cable": 0.08,
+   "power": 0.25,
+   "key": 0.15,
+   "job": 0.15,
+   "payout": "merge all payouts inside 1 beat into one fan",
+   "ecc": 0.909,
+   "net": 3.636,
+   "drop": 0.45,
+   "expire": 0.45,
+   "contract": 0.909,
+   "bill": 0.909
+  },
+  "stems_playing": "<= 7 BufferSources steady state; <= 14 during a 1.4 s key crossfade"
+ },
+ "quantize": {
+  "player_input": "none (play now): install, uninstall, cable connect/disconnect, power, key plug",
+  "sim_events": "1/12 beat",
+  "loop_layer_entry": "bar",
+  "layer_exit": "beat",
+  "key_change": "bar",
+  "stingers": "bar (levelup) / beat (fault)",
+  "note": "The game reports install/cable/power/key as log notes from the sim; if the UI can tell the action came from the player this frame, play now, else snap to 1/12."
+ },
+ "states": {
+  "menu": {
+   "when": "main menu screens 01/02, new game 04, load confirm 05, settings 06, controls from menu 09",
+   "play": {
+    "menu": 1
+   },
+   "fade_s": 2.0
+  },
+  "loading": {
+   "when": "loading 03",
+   "play": {
+    "menu": 1
+   },
+   "note": "menu keeps going; crossfade to game on first frame 11, on the next menu bar, 2 s"
+  },
+  "off": {
+   "when": "Phase 'off' (in game, machine off)",
+   "play": {
+    "bed": 0.5
+   },
+   "fade_s": 2.0
+  },
+  "boot": {
+   "when": "Phase posting|mounting|loading|booting-os",
+   "play": {
+    "bed": 1,
+    "pluck": 0.5
+   },
+   "events": "rising pluck per 1/6 of bootProgress (degrees 0,2,4,6,7,9)"
+  },
+  "idle": {
+   "when": "Phase idle-os|halted|waiting-for-key|done-remove-key",
+   "play": {
+    "bed": 1,
+    "pluck": 0.6
+   }
+  },
+  "running": {
+   "when": "Phase running|running-os|ingesting|flashing|writing",
+   "play": {
+    "bed": 1,
+    "pluck": 1,
+    "bass": 1
+   }
+  },
+  "data": {
+   "when": "any LinkState link-up or saturated, or a TransferSnap / KeyStage ingesting|downloading|uploading",
+   "play": {
+    "shimmer": 1
+   },
+   "saturated": {
+    "shimmer_db": 2,
+    "shimmer_lowpass_hz": 4000
+   },
+   "exit": "LinkState down|no-cable|no-os|no-device: shimmer fades out over 1 bar"
+  },
+  "stress": {
+   "amount": "max(1-throttle, (tempC-tWarn)/(tMax-tWarn), vrm.loadRatio-1, power.totalW/budgetW-0.9)/scale, clamp 0..1",
+   "gain": "stress^1.5 (linear)",
+   "fade": "1 bar in, 1 bar out",
+   "cap": "never more than +2 LU on the music bus"
+  },
+  "error": {
+   "when": "Phase 'error' / note fault 'POST failed'",
+   "play": {
+    "pausebed": 0.7
+   },
+   "note": "no loops until fixed"
+  },
+  "hard_failure": {
+   "when": "note fault 'VRM burnt out', DeviceSnap.burnt, power.tripped, bill.cut",
+   "play": {
+    "pausebed": 0.7
+   },
+   "events": "music_fault_{KEY} once; everything else stops (fade 0.3 s)"
+  },
+  "debt": {
+   "when": "bill.unpaid > 0",
+   "effect": "bed + pausebed low-pass 3000 Hz until paid"
+  }
+ },
+ "pause": {
+  "when": "speed === 0 (togglePause, HUD button, popupPause, crash). Pause menu screen 10 uses this state too.",
+  "fade_s": 1.0,
+  "bed_to_pausebed": "equal-power crossfade",
+  "pluck_db": -5.0,
+  "pluck_lowpass_hz": 850,
+  "bass": 0,
+  "shimmer": 0,
+  "stress": 0,
+  "tempo": "unchanged (66); the thinning, darker bed and filter carry the pause",
+  "events": "only UI (SFX lane). A step/stepTick plays one pluck at -8 dB through 1500 Hz on the next beat",
+  "never": [
+   "cut to silence",
+   "AudioContext.suspend()",
+   "stop the stems"
+  ]
+ },
+ "resume": {
+  "when": "speed goes 0 -> >0",
+  "quantize": "next beat",
+  "fade_s": 1.0,
+  "restore": "the target state for the current Phase/links/stress"
+ },
+ "speed": {
+  "tempo_follows": false,
+  "why": "Stems are fixed 66 bpm audio; a tempo change would need playbackRate (detunes) or a re-render. Speed changes density and brightness instead (Mini Motorways: density, not tempo).",
+  "map": {
+   "1": {
+    "bass": 0,
+    "shimmer_db": -6
+   },
+   "2": {
+    "bass_db": -3,
+    "shimmer_db": -3
+   },
+   "4": {},
+   "8": {
+    "shimmer_db": 2,
+    "event_density": 2
+   },
+   "12": {
+    "shimmer_db": 3,
+    "bass_db": 1,
+    "event_density": 3
+   },
+   "16": "as 12",
+   "64": "as 12"
+  },
+  "event_density": "max event notes per beat before merging (payout fans merge, install/cable notes collapse to one per 1/12)",
+  "fade_s": 0.5
+ },
+ "key_change": {
+  "trigger": "new snapshot.log entry kind === 'level' (and levelUp signal)",
+  "quantize": "next bar line",
+  "crossfade_s": 1.4,
+  "crossfade": "equal-power, all keyed layers at once",
+  "stinger": "music_levelup_{NEW_KEY} on the same bar line, ducks bed -4 dB",
+  "multi_level": "one fifth per bar until target; stinger only on the first step",
+  "no_transition": "load save, new game, sandbox setLevel: key set from the level on the next bar, 1.4 s crossfade, no stinger (immediate if music not started)",
+  "inside_pause": "allowed (popupPause usually starts first): pausebed of old key crossfades to pausebed of new key",
+  "preload": "always keep current key and next key (+7 semitones) decoded; if the target is not decoded yet, hold the old key and change on the first bar after decode",
+  "register": "bed root E2..D#3 (bed_root_midi); notes take the nearest tone of the new scale in their register"
+ },
+ "events": {
+  "install": {
+   "note": "pluck",
+   "register": "build",
+   "degrees": [
+    0
+   ],
+   "extra": "pluck layer enters on next bar if it was off"
+  },
+  "uninstall": {
+   "note": "pluck",
+   "register": "build",
+   "degrees": [
+    4,
+    0
+   ],
+   "spacing_beats": 0.5,
+   "pitch_cents": -20
+  },
+  "power": {
+   "on": "pluck degrees [0,4,7] 1/3 beat apart (build)",
+   "off": "bed to 0.5 over 2 s"
+  },
+  "cable": {
+   "connected": "pluck degrees [0, 4] rising, 1/2 beat apart (build)",
+   "disconnected": "pluck [4, 0] falling, -25 cents + low root"
+  },
+  "key": {
+   "note": "pluck",
+   "register": "flow",
+   "degrees": [
+    2
+   ]
+  },
+  "job": {
+   "note": "pluck",
+   "register": "flow",
+   "degrees": [
+    0
+   ]
+  },
+  "payout": {
+   "note": "glint",
+   "register": "glint",
+   "fan_degrees": [
+    0,
+    2,
+    4,
+    6,
+    7,
+    9
+   ],
+   "count": "3 + min(3, floor(log10(amount)))",
+   "late": "2 notes",
+   "spacing_beats": 0.3333
+  },
+  "drop": {
+   "note": "low",
+   "register": "failure",
+   "degrees": [
+    4
+   ],
+   "pitch_cents": -50,
+   "with": "glint degree 3 falling, -50 cents"
+  },
+  "expire": {
+   "note": "low",
+   "register": "failure",
+   "degrees": [
+    2,
+    0
+   ],
+   "spacing_beats": 0.5
+  },
+  "level": {
+   "see": "key_change"
+  },
+  "fault": {
+   "crash": "music_fault_{KEY} on next beat; pluck/bass/shimmer/stress out over 0.15 s; music-bus low-pass to 250 Hz over 0.5 s, back over 2 s when Phase leaves 'error'/'off'; layers re-enter one per beat as their states return",
+   "post_failed": "state error",
+   "burnt": "state hard_failure"
+  },
+  "ecc": {
+   "note": "glint",
+   "register": "glint",
+   "degrees": [
+    3
+   ],
+   "gain_db": -4,
+   "duck_db": -1
+  },
+  "net": {
+   "link_up": "glint degrees [4, 7] (flow) + data state",
+   "link_down": "shimmer fades 1 bar"
+  },
+  "bill": {
+   "paid": "glint degrees [4, 0]",
+   "unpaid": "debt state"
+  },
+  "contract": {
+   "accepted": "pluck degrees [4, 8] (flow)",
+   "ended": "pluck [8, 4]"
+  },
+  "purchase": {
+   "music": "none; SFX lane owns the purchase sound"
+  }
+ },
+ "hidden_tab": {
+  "owner": "docs lane owns the master fade + suspend (IMPLEMENTATION.md)",
+  "music_part": [
+   "While hidden, ignore state changes and drop queued notes/stingers.",
+   "On visible: read the current snapshot, set layer gains straight to their targets (no per-layer fades; the master fade-in covers it), set the key directly if the level changed (no stinger).",
+   "The stems keep their phase because the AudioContext is suspended, not stopped; the scheduler recomputes the next bar from ctx.currentTime."
+  ]
+ },
+ "manifest": [
+  {
+   "path": "stems/music_bass_A.ogg",
+   "bytes": 54487
+  },
+  {
+   "path": "stems/music_bass_As.ogg",
+   "bytes": 53145
+  },
+  {
+   "path": "stems/music_bass_B.ogg",
+   "bytes": 54705
+  },
+  {
+   "path": "stems/music_bass_C.ogg",
+   "bytes": 55731
+  },
+  {
+   "path": "stems/music_bass_Cs.ogg",
+   "bytes": 56236
+  },
+  {
+   "path": "stems/music_bass_D.ogg",
+   "bytes": 56203
+  },
+  {
+   "path": "stems/music_bass_Ds.ogg",
+   "bytes": 57423
+  },
+  {
+   "path": "stems/music_bass_E.ogg",
+   "bytes": 53063
+  },
+  {
+   "path": "stems/music_bass_F.ogg",
+   "bytes": 55548
+  },
+  {
+   "path": "stems/music_bass_Fs.ogg",
+   "bytes": 59505
+  },
+  {
+   "path": "stems/music_bass_G.ogg",
+   "bytes": 54618
+  },
+  {
+   "path": "stems/music_bass_Gs.ogg",
+   "bytes": 56529
+  },
+  {
+   "path": "stems/music_bed_A.ogg",
+   "bytes": 136056
+  },
+  {
+   "path": "stems/music_bed_As.ogg",
+   "bytes": 142055
+  },
+  {
+   "path": "stems/music_bed_B.ogg",
+   "bytes": 145437
+  },
+  {
+   "path": "stems/music_bed_C.ogg",
+   "bytes": 155090
+  },
+  {
+   "path": "stems/music_bed_Cs.ogg",
+   "bytes": 155032
+  },
+  {
+   "path": "stems/music_bed_D.ogg",
+   "bytes": 156849
+  },
+  {
+   "path": "stems/music_bed_Ds.ogg",
+   "bytes": 169658
+  },
+  {
+   "path": "stems/music_bed_E.ogg",
+   "bytes": 118489
+  },
+  {
+   "path": "stems/music_bed_F.ogg",
+   "bytes": 122625
+  },
+  {
+   "path": "stems/music_bed_Fs.ogg",
+   "bytes": 124380
+  },
+  {
+   "path": "stems/music_bed_G.ogg",
+   "bytes": 129917
+  },
+  {
+   "path": "stems/music_bed_Gs.ogg",
+   "bytes": 133780
+  },
+  {
+   "path": "stems/music_menu_F.ogg",
+   "bytes": 433343
+  },
+  {
+   "path": "stems/music_pausebed_A.ogg",
+   "bytes": 131939
+  },
+  {
+   "path": "stems/music_pausebed_As.ogg",
+   "bytes": 137058
+  },
+  {
+   "path": "stems/music_pausebed_B.ogg",
+   "bytes": 139054
+  },
+  {
+   "path": "stems/music_pausebed_C.ogg",
+   "bytes": 147347
+  },
+  {
+   "path": "stems/music_pausebed_Cs.ogg",
+   "bytes": 147285
+  },
+  {
+   "path": "stems/music_pausebed_D.ogg",
+   "bytes": 148549
+  },
+  {
+   "path": "stems/music_pausebed_Ds.ogg",
+   "bytes": 161275
+  },
+  {
+   "path": "stems/music_pausebed_E.ogg",
+   "bytes": 111959
+  },
+  {
+   "path": "stems/music_pausebed_F.ogg",
+   "bytes": 120533
+  },
+  {
+   "path": "stems/music_pausebed_Fs.ogg",
+   "bytes": 122851
+  },
+  {
+   "path": "stems/music_pausebed_G.ogg",
+   "bytes": 122973
+  },
+  {
+   "path": "stems/music_pausebed_Gs.ogg",
+   "bytes": 129935
+  },
+  {
+   "path": "stems/music_pluck_A.ogg",
+   "bytes": 296536
+  },
+  {
+   "path": "stems/music_pluck_As.ogg",
+   "bytes": 302521
+  },
+  {
+   "path": "stems/music_pluck_B.ogg",
+   "bytes": 270070
+  },
+  {
+   "path": "stems/music_pluck_C.ogg",
+   "bytes": 273576
+  },
+  {
+   "path": "stems/music_pluck_Cs.ogg",
+   "bytes": 281657
+  },
+  {
+   "path": "stems/music_pluck_D.ogg",
+   "bytes": 286664
+  },
+  {
+   "path": "stems/music_pluck_Ds.ogg",
+   "bytes": 285586
+  },
+  {
+   "path": "stems/music_pluck_E.ogg",
+   "bytes": 279649
+  },
+  {
+   "path": "stems/music_pluck_F.ogg",
+   "bytes": 287984
+  },
+  {
+   "path": "stems/music_pluck_Fs.ogg",
+   "bytes": 282118
+  },
+  {
+   "path": "stems/music_pluck_G.ogg",
+   "bytes": 289564
+  },
+  {
+   "path": "stems/music_pluck_Gs.ogg",
+   "bytes": 292748
+  },
+  {
+   "path": "stems/music_shimmer_A.ogg",
+   "bytes": 342742
+  },
+  {
+   "path": "stems/music_shimmer_As.ogg",
+   "bytes": 340832
+  },
+  {
+   "path": "stems/music_shimmer_B.ogg",
+   "bytes": 341669
+  },
+  {
+   "path": "stems/music_shimmer_C.ogg",
+   "bytes": 341092
+  },
+  {
+   "path": "stems/music_shimmer_Cs.ogg",
+   "bytes": 344015
+  },
+  {
+   "path": "stems/music_shimmer_D.ogg",
+   "bytes": 342676
+  },
+  {
+   "path": "stems/music_shimmer_Ds.ogg",
+   "bytes": 343385
+  },
+  {
+   "path": "stems/music_shimmer_E.ogg",
+   "bytes": 341681
+  },
+  {
+   "path": "stems/music_shimmer_F.ogg",
+   "bytes": 341100
+  },
+  {
+   "path": "stems/music_shimmer_Fs.ogg",
+   "bytes": 342040
+  },
+  {
+   "path": "stems/music_shimmer_G.ogg",
+   "bytes": 343093
+  },
+  {
+   "path": "stems/music_shimmer_Gs.ogg",
+   "bytes": 343785
+  },
+  {
+   "path": "stems/music_stress_A.ogg",
+   "bytes": 270923
+  },
+  {
+   "path": "stems/music_stress_As.ogg",
+   "bytes": 276398
+  },
+  {
+   "path": "stems/music_stress_B.ogg",
+   "bytes": 229584
+  },
+  {
+   "path": "stems/music_stress_C.ogg",
+   "bytes": 235061
+  },
+  {
+   "path": "stems/music_stress_Cs.ogg",
+   "bytes": 239307
+  },
+  {
+   "path": "stems/music_stress_D.ogg",
+   "bytes": 231522
+  },
+  {
+   "path": "stems/music_stress_Ds.ogg",
+   "bytes": 233944
+  },
+  {
+   "path": "stems/music_stress_E.ogg",
+   "bytes": 239562
+  },
+  {
+   "path": "stems/music_stress_F.ogg",
+   "bytes": 245817
+  },
+  {
+   "path": "stems/music_stress_Fs.ogg",
+   "bytes": 249653
+  },
+  {
+   "path": "stems/music_stress_G.ogg",
+   "bytes": 261434
+  },
+  {
+   "path": "stems/music_stress_Gs.ogg",
+   "bytes": 262787
+  },
+  {
+   "path": "notes/music_fault_A.ogg",
+   "bytes": 30976
+  },
+  {
+   "path": "notes/music_fault_As.ogg",
+   "bytes": 32472
+  },
+  {
+   "path": "notes/music_fault_B.ogg",
+   "bytes": 33070
+  },
+  {
+   "path": "notes/music_fault_C.ogg",
+   "bytes": 26953
+  },
+  {
+   "path": "notes/music_fault_Cs.ogg",
+   "bytes": 27452
+  },
+  {
+   "path": "notes/music_fault_D.ogg",
+   "bytes": 27190
+  },
+  {
+   "path": "notes/music_fault_Ds.ogg",
+   "bytes": 28612
+  },
+  {
+   "path": "notes/music_fault_E.ogg",
+   "bytes": 28042
+  },
+  {
+   "path": "notes/music_fault_F.ogg",
+   "bytes": 28322
+  },
+  {
+   "path": "notes/music_fault_Fs.ogg",
+   "bytes": 30162
+  },
+  {
+   "path": "notes/music_fault_G.ogg",
+   "bytes": 29921
+  },
+  {
+   "path": "notes/music_fault_Gs.ogg",
+   "bytes": 30324
+  },
+  {
+   "path": "notes/music_levelup_A.ogg",
+   "bytes": 70723
+  },
+  {
+   "path": "notes/music_levelup_As.ogg",
+   "bytes": 73943
+  },
+  {
+   "path": "notes/music_levelup_B.ogg",
+   "bytes": 75894
+  },
+  {
+   "path": "notes/music_levelup_C.ogg",
+   "bytes": 57557
+  },
+  {
+   "path": "notes/music_levelup_Cs.ogg",
+   "bytes": 59094
+  },
+  {
+   "path": "notes/music_levelup_D.ogg",
+   "bytes": 59093
+  },
+  {
+   "path": "notes/music_levelup_Ds.ogg",
+   "bytes": 59980
+  },
+  {
+   "path": "notes/music_levelup_E.ogg",
+   "bytes": 62222
+  },
+  {
+   "path": "notes/music_levelup_F.ogg",
+   "bytes": 63993
+  },
+  {
+   "path": "notes/music_levelup_Fs.ogg",
+   "bytes": 65816
+  },
+  {
+   "path": "notes/music_levelup_G.ogg",
+   "bytes": 67182
+  },
+  {
+   "path": "notes/music_levelup_Gs.ogg",
+   "bytes": 68833
+  },
+  {
+   "path": "notes/music_note_glint_A5.ogg",
+   "bytes": 6254
+  },
+  {
+   "path": "notes/music_note_glint_A6.ogg",
+   "bytes": 6222
+  },
+  {
+   "path": "notes/music_note_glint_As5.ogg",
+   "bytes": 6361
+  },
+  {
+   "path": "notes/music_note_glint_As6.ogg",
+   "bytes": 6218
+  },
+  {
+   "path": "notes/music_note_glint_B5.ogg",
+   "bytes": 6297
+  },
+  {
+   "path": "notes/music_note_glint_B6.ogg",
+   "bytes": 6151
+  },
+  {
+   "path": "notes/music_note_glint_C5.ogg",
+   "bytes": 6269
+  },
+  {
+   "path": "notes/music_note_glint_C6.ogg",
+   "bytes": 6233
+  },
+  {
+   "path": "notes/music_note_glint_C7.ogg",
+   "bytes": 6294
+  },
+  {
+   "path": "notes/music_note_glint_Cs5.ogg",
+   "bytes": 6272
+  },
+  {
+   "path": "notes/music_note_glint_Cs6.ogg",
+   "bytes": 6427
+  },
+  {
+   "path": "notes/music_note_glint_D5.ogg",
+   "bytes": 6261
+  },
+  {
+   "path": "notes/music_note_glint_D6.ogg",
+   "bytes": 6473
+  },
+  {
+   "path": "notes/music_note_glint_Ds5.ogg",
+   "bytes": 6170
+  },
+  {
+   "path": "notes/music_note_glint_Ds6.ogg",
+   "bytes": 6408
+  },
+  {
+   "path": "notes/music_note_glint_E5.ogg",
+   "bytes": 6290
+  },
+  {
+   "path": "notes/music_note_glint_E6.ogg",
+   "bytes": 6272
+  },
+  {
+   "path": "notes/music_note_glint_F5.ogg",
+   "bytes": 6450
+  },
+  {
+   "path": "notes/music_note_glint_F6.ogg",
+   "bytes": 6178
+  },
+  {
+   "path": "notes/music_note_glint_Fs5.ogg",
+   "bytes": 6547
+  },
+  {
+   "path": "notes/music_note_glint_Fs6.ogg",
+   "bytes": 6505
+  },
+  {
+   "path": "notes/music_note_glint_G5.ogg",
+   "bytes": 6392
+  },
+  {
+   "path": "notes/music_note_glint_G6.ogg",
+   "bytes": 6292
+  },
+  {
+   "path": "notes/music_note_glint_Gs5.ogg",
+   "bytes": 6253
+  },
+  {
+   "path": "notes/music_note_glint_Gs6.ogg",
+   "bytes": 6274
+  },
+  {
+   "path": "notes/music_note_low_A2.ogg",
+   "bytes": 9201
+  },
+  {
+   "path": "notes/music_note_low_As2.ogg",
+   "bytes": 9187
+  },
+  {
+   "path": "notes/music_note_low_B2.ogg",
+   "bytes": 9285
+  },
+  {
+   "path": "notes/music_note_low_C2.ogg",
+   "bytes": 9629
+  },
+  {
+   "path": "notes/music_note_low_C3.ogg",
+   "bytes": 9414
+  },
+  {
+   "path": "notes/music_note_low_Cs2.ogg",
+   "bytes": 9705
+  },
+  {
+   "path": "notes/music_note_low_D2.ogg",
+   "bytes": 9539
+  },
+  {
+   "path": "notes/music_note_low_Ds2.ogg",
+   "bytes": 9175
+  },
+  {
+   "path": "notes/music_note_low_E2.ogg",
+   "bytes": 9023
+  },
+  {
+   "path": "notes/music_note_low_F2.ogg",
+   "bytes": 9034
+  },
+  {
+   "path": "notes/music_note_low_Fs2.ogg",
+   "bytes": 9129
+  },
+  {
+   "path": "notes/music_note_low_G2.ogg",
+   "bytes": 8996
+  },
+  {
+   "path": "notes/music_note_low_Gs2.ogg",
+   "bytes": 9107
+  },
+  {
+   "path": "notes/music_note_pluck_A3.ogg",
+   "bytes": 9056
+  },
+  {
+   "path": "notes/music_note_pluck_A4.ogg",
+   "bytes": 10586
+  },
+  {
+   "path": "notes/music_note_pluck_A5.ogg",
+   "bytes": 11019
+  },
+  {
+   "path": "notes/music_note_pluck_As3.ogg",
+   "bytes": 9382
+  },
+  {
+   "path": "notes/music_note_pluck_As4.ogg",
+   "bytes": 10709
+  },
+  {
+   "path": "notes/music_note_pluck_As5.ogg",
+   "bytes": 11343
+  },
+  {
+   "path": "notes/music_note_pluck_B3.ogg",
+   "bytes": 9838
+  },
+  {
+   "path": "notes/music_note_pluck_B4.ogg",
+   "bytes": 10804
+  },
+  {
+   "path": "notes/music_note_pluck_B5.ogg",
+   "bytes": 11160
+  },
+  {
+   "path": "notes/music_note_pluck_C3.ogg",
+   "bytes": 8111
+  },
+  {
+   "path": "notes/music_note_pluck_C4.ogg",
+   "bytes": 9612
+  },
+  {
+   "path": "notes/music_note_pluck_C5.ogg",
+   "bytes": 10754
+  },
+  {
+   "path": "notes/music_note_pluck_C6.ogg",
+   "bytes": 11021
+  },
+  {
+   "path": "notes/music_note_pluck_Cs3.ogg",
+   "bytes": 8122
+  },
+  {
+   "path": "notes/music_note_pluck_Cs4.ogg",
+   "bytes": 9674
+  },
+  {
+   "path": "notes/music_note_pluck_Cs5.ogg",
+   "bytes": 10898
+  },
+  {
+   "path": "notes/music_note_pluck_D3.ogg",
+   "bytes": 8357
+  },
+  {
+   "path": "notes/music_note_pluck_D4.ogg",
+   "bytes": 9678
+  },
+  {
+   "path": "notes/music_note_pluck_D5.ogg",
+   "bytes": 10902
+  },
+  {
+   "path": "notes/music_note_pluck_Ds3.ogg",
+   "bytes": 8404
+  },
+  {
+   "path": "notes/music_note_pluck_Ds4.ogg",
+   "bytes": 9948
+  },
+  {
+   "path": "notes/music_note_pluck_Ds5.ogg",
+   "bytes": 10818
+  },
+  {
+   "path": "notes/music_note_pluck_E3.ogg",
+   "bytes": 8561
+  },
+  {
+   "path": "notes/music_note_pluck_E4.ogg",
+   "bytes": 10107
+  },
+  {
+   "path": "notes/music_note_pluck_E5.ogg",
+   "bytes": 11101
+  },
+  {
+   "path": "notes/music_note_pluck_F3.ogg",
+   "bytes": 8402
+  },
+  {
+   "path": "notes/music_note_pluck_F4.ogg",
+   "bytes": 10029
+  },
+  {
+   "path": "notes/music_note_pluck_F5.ogg",
+   "bytes": 11411
+  },
+  {
+   "path": "notes/music_note_pluck_Fs3.ogg",
+   "bytes": 9284
+  },
+  {
+   "path": "notes/music_note_pluck_Fs4.ogg",
+   "bytes": 10311
+  },
+  {
+   "path": "notes/music_note_pluck_Fs5.ogg",
+   "bytes": 11622
+  },
+  {
+   "path": "notes/music_note_pluck_G3.ogg",
+   "bytes": 9343
+  },
+  {
+   "path": "notes/music_note_pluck_G4.ogg",
+   "bytes": 10667
+  },
+  {
+   "path": "notes/music_note_pluck_G5.ogg",
+   "bytes": 11245
+  },
+  {
+   "path": "notes/music_note_pluck_Gs3.ogg",
+   "bytes": 9333
+  },
+  {
+   "path": "notes/music_note_pluck_Gs4.ogg",
+   "bytes": 10727
+  },
+  {
+   "path": "notes/music_note_pluck_Gs5.ogg",
+   "bytes": 11039
+  },
+  {
+   "path": "previews/music_reactive_preview.ogg",
+   "bytes": 746154
+  }
+ ]
+}

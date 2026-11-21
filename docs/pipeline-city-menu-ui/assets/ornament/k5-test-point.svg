@@ -1,0 +1,5 @@
+<!-- K5 test point: 20 px graphite stub (2 px, the spine's trace) ending in a ring r 4, 1 px. Label "TP1" (K2 silk, Mono 500 11 px, #a6b4da) 8 px right of the ring. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="30" viewBox="0 0 48 30" fill="none" stroke="#4e5360">
+<path d="M5 0V20" stroke-width="2"/><circle cx="5" cy="24.5" r="4" stroke-width="1"/>
+<text x="17" y="28.5" fill="#a6b4da" stroke="none" font-family="IBM Plex Mono" font-weight="500" font-size="11" letter-spacing="0.44">TP1</text>
+</svg>

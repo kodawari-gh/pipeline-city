@@ -1,0 +1,194 @@
+[
+ {
+  "t": 0,
+  "file": "assets/ambience/amb_room_city_loop.ogg (loop until 30.0 s)",
+  "event": "ambience",
+  "bus": "ambience"
+ },
+ {
+  "t": 0,
+  "file": "(preview-only pad, F Lydian, level 1)",
+  "event": "music stand-in",
+  "bus": "music"
+ },
+ {
+  "t": 0.3,
+  "file": "assets/ui/ui_click_1.ogg",
+  "event": "click dock 'Inventory 1'",
+  "bus": "ui"
+ },
+ {
+  "t": 0.55,
+  "file": "assets/ui/ui_panel_open.ogg",
+  "event": "inventory panel opens",
+  "bus": "ui"
+ },
+ {
+  "t": 1.4,
+  "file": "assets/ui/ui_pickup.ogg",
+  "event": "drag a CPU from the shelf",
+  "bus": "ui"
+ },
+ {
+  "t": 2.0,
+  "file": "assets/sfx/install__F.ogg",
+  "event": "note 'install': CPU installed in cpu0",
+  "bus": "sfx"
+ },
+ {
+  "t": 3.0,
+  "file": "assets/sfx/install__F.ogg",
+  "event": "note 'install': RAM installed in dimm1",
+  "bus": "sfx"
+ },
+ {
+  "t": 3.9,
+  "file": "assets/sfx/cable_connect__F.ogg",
+  "event": "note 'cable': 24-pin cable connected",
+  "bus": "sfx"
+ },
+ {
+  "t": 4.9,
+  "file": "assets/sfx/cable_connect__F.ogg",
+  "event": "note 'cable': Ethernet cable connected to the board jack",
+  "bus": "sfx"
+ },
+ {
+  "t": 5.8,
+  "file": "assets/sfx/power_on__F.ogg",
+  "event": "note 'power': powered on",
+  "bus": "sfx"
+ },
+ {
+  "t": 5.9,
+  "file": "assets/ambience/amb_machine_hum_loop.ogg (loop until 30.0 s)",
+  "event": "ambience",
+  "bus": "ambience"
+ },
+ {
+  "t": 7.0,
+  "file": "assets/sfx/post_boot__F.ogg",
+  "event": "Phase 'posting'",
+  "bus": "sfx"
+ },
+ {
+  "t": 8.3,
+  "file": "assets/sfx/boot_ready__F.ogg",
+  "event": "Phase 'idle-os'",
+  "bus": "sfx"
+ },
+ {
+  "t": 9.2,
+  "file": "assets/sfx/key_plug__F.ogg",
+  "event": "note 'key': key 3 plugged in",
+  "bus": "sfx"
+ },
+ {
+  "t": 10.0,
+  "file": "assets/sfx/net_link_up__F.ogg",
+  "event": "net.state -> 'link-up'",
+  "bus": "sfx"
+ },
+ {
+  "t": 11.3,
+  "file": "assets/sfx/job_fulfilled__F.ogg",
+  "event": "note 'job': key 3 holds its result",
+  "bus": "sfx"
+ },
+ {
+  "t": 12.2,
+  "file": "assets/sfx/payout__F.ogg",
+  "event": "note 'payout': key 3 returned: $40",
+  "bus": "sfx"
+ },
+ {
+  "t": 13.6,
+  "file": "assets/sfx/purchase__F.ogg",
+  "event": "note 'purchase': bought fan",
+  "bus": "sfx"
+ },
+ {
+  "t": 14.4,
+  "file": "assets/sfx/swap_queued__F.ogg",
+  "event": "note 'install': ... will be swapped in as soon as the job is done",
+  "bus": "sfx"
+ },
+ {
+  "t": 15.6,
+  "file": "assets/sfx/swap_done__F.ogg",
+  "event": "swapMany: queued part fitted",
+  "bus": "sfx"
+ },
+ {
+  "t": 16.6,
+  "file": "assets/sfx/ecc__F.ogg",
+  "event": "note 'ecc'",
+  "bus": "sfx"
+ },
+ {
+  "t": 17.3,
+  "file": "assets/sfx/net_saturated__F.ogg",
+  "event": "net.state -> 'saturated'",
+  "bus": "sfx"
+ },
+ {
+  "t": 18.3,
+  "file": "assets/sfx/client_drop__F.ogg",
+  "event": "note 'drop': tray full: a client gave up",
+  "bus": "sfx"
+ },
+ {
+  "t": 19.2,
+  "file": "assets/sfx/fault_crash__F.ogg",
+  "event": "note 'fault': thermal error: the machine crashed and rebooted",
+  "bus": "sfx"
+ },
+ {
+  "t": 20.6,
+  "file": "assets/sfx/post_boot__F.ogg",
+  "event": "Phase 'posting' (reboot)",
+  "bus": "sfx"
+ },
+ {
+  "t": 22.0,
+  "file": "(preview-only pad, C Lydian, level 2)",
+  "event": "music stand-in",
+  "bus": "music"
+ },
+ {
+  "t": 22.0,
+  "file": "assets/sfx/level_up__C.ogg",
+  "event": "note 'level': Level 2 (key F -> C Lydian on the bar)",
+  "bus": "sfx"
+ },
+ {
+  "t": 24.2,
+  "file": "assets/sfx/payout__B.ogg @ playbackRate 1.0595 (+1 st)",
+  "event": "note 'payout' in the new key",
+  "bus": "sfx"
+ },
+ {
+  "t": 25.4,
+  "file": "assets/sfx/pause.ogg",
+  "event": "speed -> 0 (Space)",
+  "bus": "sfx"
+ },
+ {
+  "t": 27.0,
+  "file": "assets/sfx/resume.ogg",
+  "event": "speed 0 -> 4 (resume 1x)",
+  "bus": "sfx"
+ },
+ {
+  "t": 27.8,
+  "file": "assets/sfx/speed_up.ogg",
+  "event": "speed 4 -> 8 (2x)",
+  "bus": "sfx"
+ },
+ {
+  "t": 28.5,
+  "file": "assets/sfx/cable_connect__B.ogg @ playbackRate 1.0595 (+1 st)",
+  "event": "note 'cable': video cable connected (new key)",
+  "bus": "sfx"
+ }
+]

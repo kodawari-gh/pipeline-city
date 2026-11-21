@@ -1,0 +1,34 @@
+[
+ {
+  "file": "assets/ambience/amb_room_city_loop.ogg",
+  "master": "sources/masters/ambience/amb_room_city_loop.wav",
+  "repo_path": "public/audio/ambience/amb_room_city_loop.ogg",
+  "seconds": 24.0,
+  "id": "amb_room_city_loop",
+  "family": "ambience",
+  "level": "ambience",
+  "pitched": false,
+  "root": null,
+  "loop": true,
+  "integrated_target": -40.0,
+  "integrated": -40.0,
+  "tp": -21.9,
+  "trigger": "always in the room scene (main menu, game); not in Build/Gallery studio"
+ },
+ {
+  "file": "assets/ambience/amb_machine_hum_loop.ogg",
+  "master": "sources/masters/ambience/amb_machine_hum_loop.wav",
+  "repo_path": "public/audio/ambience/amb_machine_hum_loop.ogg",
+  "seconds": 12.0,
+  "id": "amb_machine_hum_loop",
+  "family": "ambience",
+  "level": "ambience",
+  "pitched": false,
+  "root": null,
+  "loop": true,
+  "integrated_target": -38.0,
+  "integrated": -38.0,
+  "tp": -26.44,
+  "trigger": "while snapshot.powered; gain and playbackRate follow mean DeviceSnap.fan / cooling load"
+ }
+]

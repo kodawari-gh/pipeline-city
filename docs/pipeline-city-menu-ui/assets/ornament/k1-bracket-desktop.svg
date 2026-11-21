@@ -1,0 +1,5 @@
+<!-- K1 component outline: four L corners, 1 px, arms 24 px (desktop), pin-1 square 4x4 inset 4 px top-left. Example frame 1120x760 (Gallery desktop). Stroke #4e5360. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="760" viewBox="0 0 1120 760" fill="none" stroke="#4e5360" stroke-width="1" shape-rendering="crispEdges">
+<path d="M0.5 24.5V0.5H24.5M1095.5 0.5H1119.5V24.5M1119.5 735.5V759.5H1095.5M24.5 759.5H0.5V735.5"/>
+<rect x="4" y="4" width="4" height="4" fill="#4e5360" stroke="none"/>
+</svg>

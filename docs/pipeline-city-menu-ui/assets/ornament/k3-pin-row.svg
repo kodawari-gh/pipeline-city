@@ -1,0 +1,4 @@
+<!-- K3 pin row: 4x4 squares on an 8 px pitch, one missing as a key (here the 3rd). Fill #4e5360. Width = n*8-4. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="4" viewBox="0 0 60 4" fill="#4e5360" shape-rendering="crispEdges">
+<rect x="0" width="4" height="4"/><rect x="8" width="4" height="4"/><rect x="24" width="4" height="4"/><rect x="32" width="4" height="4"/><rect x="40" width="4" height="4"/><rect x="48" width="4" height="4"/><rect x="56" width="4" height="4"/>
+</svg>

@@ -1,0 +1,4 @@
+<!-- Trace: 2 px, square ends, 45-degree chamfer, standard leg 24 px (a 24 px run on the diagonal axis = 24 px x and 24 px y offset). Unlit #4e5360, lit #3be3ff. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" fill="none" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter">
+<path d="M10 0V28L34 52H120" stroke="#3be3ff"/>
+</svg>

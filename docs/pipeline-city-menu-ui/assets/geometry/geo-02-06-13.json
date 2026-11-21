@@ -1,0 +1,4642 @@
+{
+ "02-main-menu-nosave-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       446,
+       281
+      ],
+      [
+       446,
+       324
+      ],
+      [
+       422,
+       348
+      ],
+      [
+       141,
+       348
+      ],
+      [
+       117,
+       372
+      ],
+      [
+       117,
+       692
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       734
+      ],
+      [
+       117,
+       782
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       824
+      ],
+      [
+       117,
+       843
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       885
+      ],
+      [
+       117,
+       903
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       945
+      ],
+      [
+       117,
+       965
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "wordmark|PIPELINE CITY",
+     "x": 96,
+     "y": 112,
+     "w": 448.421875,
+     "h": 220.234375
+    },
+    {
+     "ab": "stage strip|(none)",
+     "x": 438.65625,
+     "y": 265.875,
+     "w": 101,
+     "h": 15
+    },
+    {
+     "ab": "build/status line|build 7f56e17",
+     "x": 96,
+     "y": 314.75,
+     "w": 448.421875,
+     "h": 17.484375
+    },
+    {
+     "ab": "vertical rail|IF New game Campaign or sandbox ID Build my PC 3 saved builds EX Galle",
+     "x": 96,
+     "y": 682,
+     "w": 504,
+     "h": 268
+    },
+    {
+     "ab": "row (selected)|IF New game Campaign or sandbox",
+     "x": 96,
+     "y": 682,
+     "w": 504,
+     "h": 86
+    },
+    {
+     "ab": "row|ID Build my PC 3 saved builds",
+     "x": 96,
+     "y": 777,
+     "w": 504,
+     "h": 52
+    },
+    {
+     "ab": "row|EX Gallery 64 parts",
+     "x": 96,
+     "y": 838,
+     "w": 504,
+     "h": 52
+    },
+    {
+     "ab": "row|MEM Load file Settings",
+     "x": 96,
+     "y": 898,
+     "w": 504,
+     "h": 52
+    }
+   ],
+   "okc": [
+    [
+     96,
+     699.5,
+     43,
+     26
+    ]
+   ],
+   "okv": [
+    [
+     438.65625,
+     265.875,
+     15,
+     15
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "wordmark PIPELINE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "PIPELINE",
+     "x0": 96,
+     "y0": 87,
+     "x1": 544.421875,
+     "y1": 228
+    },
+    {
+     "n": "wordmark CITY",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "CITY",
+     "x0": 96,
+     "y0": 179.875,
+     "x1": 319.140625,
+     "y1": 320.875
+    },
+    {
+     "n": "build line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "build 7f56e17",
+     "x0": 96,
+     "y0": 314.75,
+     "x1": 197.046875,
+     "y1": 331.75
+    },
+    {
+     "n": "New game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "New game",
+     "x0": 165,
+     "y0": 684.5,
+     "x1": 355.375,
+     "y1": 740.5
+    },
+    {
+     "n": "New game meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Campaign or sandbox",
+     "x0": 165,
+     "y0": 747,
+     "x1": 312.671875,
+     "y1": 764
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 109.71875,
+     "y0": 703.75,
+     "x1": 125.265625,
+     "y1": 720.75
+    },
+    {
+     "n": "Build my PC",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 165,
+     "y0": 785.796875,
+     "x1": 296.140625,
+     "y1": 819.796875
+    },
+    {
+     "n": "Build my PC meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "3 saved builds",
+     "x0": 309.140625,
+     "y0": 799.796875,
+     "x1": 417.953125,
+     "y1": 816.796875
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 109.71875,
+     "y0": 794.234375,
+     "x1": 125.265625,
+     "y1": 811.234375
+    },
+    {
+     "n": "Gallery",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 165,
+     "y0": 846.796875,
+     "x1": 243.5625,
+     "y1": 880.796875
+    },
+    {
+     "n": "Gallery meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "64 parts",
+     "x0": 256.5625,
+     "y0": 860.796875,
+     "x1": 318.75,
+     "y1": 877.796875
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 109.71875,
+     "y0": 855.234375,
+     "x1": 125.265625,
+     "y1": 872.234375
+    },
+    {
+     "n": "Load file",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Load file",
+     "x0": 165,
+     "y0": 913.546875,
+     "x1": 223,
+     "y1": 932.546875
+    },
+    {
+     "n": "Settings",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Settings",
+     "x0": 257.546875,
+     "y0": 913.546875,
+     "x1": 313.5625,
+     "y1": 932.546875
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 105.828125,
+     "y0": 915.25,
+     "x1": 129.15625,
+     "y1": 932.25
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 127,
+     "y0": 961.5,
+     "x1": 148.125,
+     "y1": 975.5
+    },
+    {
+     "n": "key hints",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2191 \u2193 move   Enter open   Esc back",
+     "x0": 165,
+     "y0": 968,
+     "x1": 413.703125,
+     "y1": 985
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "02-main-menu-nosave-v2-phone": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       265,
+       654
+      ],
+      [
+       265,
+       693
+      ],
+      [
+       241,
+       717
+      ],
+      [
+       68,
+       717
+      ],
+      [
+       44,
+       741
+      ],
+      [
+       44,
+       816
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       856
+      ],
+      [
+       44,
+       900
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       940
+      ],
+      [
+       44,
+       956
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       996
+      ],
+      [
+       44,
+       1012
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "wordmark|PIPELINE CITY",
+     "x": 24,
+     "y": 531,
+     "w": 332.171875,
+     "h": 170.1875
+    },
+    {
+     "ab": "stage strip|(none)",
+     "x": 258.625,
+     "y": 639.796875,
+     "w": 94,
+     "h": 14
+    },
+    {
+     "ab": "build/status line|build 7f56e17",
+     "x": 24,
+     "y": 685,
+     "w": 332.171875,
+     "h": 16.1875
+    },
+    {
+     "ab": "vertical rail|IF New game Campaign or sandbox ID Build my PC 3 saved builds EX Galle",
+     "x": 24,
+     "y": 808,
+     "w": 482,
+     "h": 248
+    },
+    {
+     "ab": "row (selected)|IF New game Campaign or sandbox",
+     "x": 24,
+     "y": 808,
+     "w": 482,
+     "h": 80
+    },
+    {
+     "ab": "row|ID Build my PC 3 saved builds",
+     "x": 24,
+     "y": 896,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row|EX Gallery 64 parts",
+     "x": 24,
+     "y": 952,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row|MEM Load file Settings",
+     "x": 24,
+     "y": 1008,
+     "w": 482,
+     "h": 48
+    }
+   ],
+   "okc": [
+    [
+     24,
+     824,
+     40,
+     24
+    ]
+   ],
+   "okv": [
+    [
+     258.625,
+     639.796875,
+     14,
+     14
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "wordmark PIPELINE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "PIPELINE",
+     "x0": 24,
+     "y0": 513,
+     "x1": 356.171875,
+     "y1": 617
+    },
+    {
+     "n": "wordmark CITY",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "CITY",
+     "x0": 24,
+     "y0": 581.796875,
+     "x1": 189.28125,
+     "y1": 685.796875
+    },
+    {
+     "n": "build line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "build 7f56e17",
+     "x0": 24,
+     "y0": 685,
+     "x1": 117.609375,
+     "y1": 700
+    },
+    {
+     "n": "New game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "New game",
+     "x0": 88,
+     "y0": 810,
+     "x1": 264.328125,
+     "y1": 862
+    },
+    {
+     "n": "New game meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Campaign or sandbox",
+     "x0": 88,
+     "y0": 868,
+     "x1": 224.8125,
+     "y1": 883
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 36.796875,
+     "y0": 827.90625,
+     "x1": 51.203125,
+     "y1": 842.90625
+    },
+    {
+     "n": "Build my PC",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 88,
+     "y0": 904,
+     "x1": 209.5,
+     "y1": 936
+    },
+    {
+     "n": "Build my PC meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "3 saved builds",
+     "x0": 221.5,
+     "y0": 917,
+     "x1": 322.3125,
+     "y1": 932
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 36.796875,
+     "y0": 911.90625,
+     "x1": 51.203125,
+     "y1": 926.90625
+    },
+    {
+     "n": "Gallery",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 88,
+     "y0": 960,
+     "x1": 160.78125,
+     "y1": 992
+    },
+    {
+     "n": "Gallery meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "64 parts",
+     "x0": 172.78125,
+     "y0": 973,
+     "x1": 230.390625,
+     "y1": 988
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 36.796875,
+     "y0": 967.90625,
+     "x1": 51.203125,
+     "y1": 982.90625
+    },
+    {
+     "n": "Load file",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Load file",
+     "x0": 88,
+     "y0": 1022.203125,
+     "x1": 142.40625,
+     "y1": 1040.203125
+    },
+    {
+     "n": "Settings",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Settings",
+     "x0": 174.40625,
+     "y0": 1022.203125,
+     "x1": 226.953125,
+     "y1": 1040.203125
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 33.1875,
+     "y0": 1023.90625,
+     "x1": 54.796875,
+     "y1": 1038.90625
+    }
+   ],
+   "silk": [],
+   "orn": 0
+  }
+ },
+ "03-loading-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       446,
+       281
+      ],
+      [
+       446,
+       324
+      ],
+      [
+       422,
+       348
+      ],
+      [
+       141,
+       348
+      ],
+      [
+       117,
+       372
+      ],
+      [
+       117,
+       632
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       674
+      ],
+      [
+       117,
+       722
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       764
+      ],
+      [
+       117,
+       782
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       824
+      ],
+      [
+       117,
+       843
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       885
+      ],
+      [
+       117,
+       903
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       945
+      ],
+      [
+       117,
+       965
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "wordmark|PIPELINE CITY",
+     "x": 96,
+     "y": 112,
+     "w": 448.421875,
+     "h": 220.234375
+    },
+    {
+     "ab": "stage strip|(none)",
+     "x": 438.65625,
+     "y": 265.875,
+     "w": 101,
+     "h": 15
+    },
+    {
+     "ab": "build/status line|Lighting the room \u00b7 62 %",
+     "x": 96,
+     "y": 314.75,
+     "w": 448.421875,
+     "h": 17.484375
+    },
+    {
+     "ab": "vertical rail|IF Continue Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago ID New game campaign \u00b7 s",
+     "x": 96,
+     "y": 622,
+     "w": 504,
+     "h": 328
+    },
+    {
+     "ab": "row (selected)|IF Continue Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x": 96,
+     "y": 622,
+     "w": 504,
+     "h": 86
+    },
+    {
+     "ab": "row|ID New game campaign \u00b7 sandbox",
+     "x": 96,
+     "y": 717,
+     "w": 504,
+     "h": 52
+    },
+    {
+     "ab": "row (disabled)|EX Build my PC after loading",
+     "x": 96,
+     "y": 777,
+     "w": 504,
+     "h": 52
+    },
+    {
+     "ab": "row (disabled)|MEM Gallery after loading",
+     "x": 96,
+     "y": 838,
+     "w": 504,
+     "h": 52
+    },
+    {
+     "ab": "row|WB Load file Settings",
+     "x": 96,
+     "y": 898,
+     "w": 504,
+     "h": 52
+    }
+   ],
+   "okc": [
+    [
+     96,
+     639.5,
+     43,
+     26
+    ]
+   ],
+   "okv": [
+    [
+     438.65625,
+     265.875,
+     15,
+     15
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "wordmark PIPELINE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "PIPELINE",
+     "x0": 96,
+     "y0": 87,
+     "x1": 544.421875,
+     "y1": 228
+    },
+    {
+     "n": "wordmark CITY",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "CITY",
+     "x0": 96,
+     "y0": 179.875,
+     "x1": 319.140625,
+     "y1": 320.875
+    },
+    {
+     "n": "build line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Lighting the room \u00b7 62 %",
+     "x0": 96,
+     "y0": 314.75,
+     "x1": 282.53125,
+     "y1": 331.75
+    },
+    {
+     "n": "Continue",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Continue",
+     "x0": 165,
+     "y0": 624.5,
+     "x1": 328.046875,
+     "y1": 680.5
+    },
+    {
+     "n": "Continue meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x0": 165,
+     "y0": 687,
+     "x1": 421.484375,
+     "y1": 704
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 109.71875,
+     "y0": 643.75,
+     "x1": 125.265625,
+     "y1": 660.75
+    },
+    {
+     "n": "New game",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "New game",
+     "x0": 165,
+     "y0": 725.796875,
+     "x1": 279.203125,
+     "y1": 759.796875
+    },
+    {
+     "n": "New game meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "campaign \u00b7 sandbox",
+     "x0": 292.203125,
+     "y0": 739.796875,
+     "x1": 432.109375,
+     "y1": 756.796875
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 109.71875,
+     "y0": 734.234375,
+     "x1": 125.265625,
+     "y1": 751.234375
+    },
+    {
+     "n": "Build my PC",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 165,
+     "y0": 785.796875,
+     "x1": 296.140625,
+     "y1": 819.796875
+    },
+    {
+     "n": "Build my PC meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "after loading",
+     "x0": 309.140625,
+     "y0": 799.796875,
+     "x1": 410.1875,
+     "y1": 816.796875
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 109.71875,
+     "y0": 794.234375,
+     "x1": 125.265625,
+     "y1": 811.234375
+    },
+    {
+     "n": "Gallery",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 165,
+     "y0": 846.796875,
+     "x1": 243.5625,
+     "y1": 880.796875
+    },
+    {
+     "n": "Gallery meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "after loading",
+     "x0": 256.5625,
+     "y0": 860.796875,
+     "x1": 357.609375,
+     "y1": 877.796875
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 105.828125,
+     "y0": 855.234375,
+     "x1": 129.15625,
+     "y1": 872.234375
+    },
+    {
+     "n": "Load file",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Load file",
+     "x0": 165,
+     "y0": 913.546875,
+     "x1": 223,
+     "y1": 932.546875
+    },
+    {
+     "n": "Settings",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Settings",
+     "x0": 257.546875,
+     "y0": 913.546875,
+     "x1": 313.5625,
+     "y1": 932.546875
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 109.71875,
+     "y0": 915.25,
+     "x1": 125.265625,
+     "y1": 932.25
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 127,
+     "y0": 961.5,
+     "x1": 148.125,
+     "y1": 975.5
+    },
+    {
+     "n": "key hints",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2191 \u2193 move   Enter open   Esc back",
+     "x0": 165,
+     "y0": 968,
+     "x1": 413.703125,
+     "y1": 985
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "03-loading-v2-phone": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       265,
+       654
+      ],
+      [
+       265,
+       693
+      ],
+      [
+       241,
+       717
+      ],
+      [
+       68,
+       717
+      ],
+      [
+       44,
+       741
+      ],
+      [
+       44,
+       760
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       800
+      ],
+      [
+       44,
+       844
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       884
+      ],
+      [
+       44,
+       900
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       940
+      ],
+      [
+       44,
+       956
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       996
+      ],
+      [
+       44,
+       1012
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "wordmark|PIPELINE CITY",
+     "x": 24,
+     "y": 531,
+     "w": 332.171875,
+     "h": 170.1875
+    },
+    {
+     "ab": "stage strip|(none)",
+     "x": 258.625,
+     "y": 639.796875,
+     "w": 94,
+     "h": 14
+    },
+    {
+     "ab": "build/status line|Lighting the room \u00b7 62 %",
+     "x": 24,
+     "y": 685,
+     "w": 332.171875,
+     "h": 16.1875
+    },
+    {
+     "ab": "vertical rail|IF Continue Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago ID New game campaign \u00b7 s",
+     "x": 24,
+     "y": 752,
+     "w": 482,
+     "h": 304
+    },
+    {
+     "ab": "row (selected)|IF Continue Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x": 24,
+     "y": 752,
+     "w": 482,
+     "h": 80
+    },
+    {
+     "ab": "row|ID New game campaign \u00b7 sandbox",
+     "x": 24,
+     "y": 840,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row (disabled)|EX Build my PC after loading",
+     "x": 24,
+     "y": 896,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row (disabled)|MEM Gallery after loading",
+     "x": 24,
+     "y": 952,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row|WB Load file Settings",
+     "x": 24,
+     "y": 1008,
+     "w": 482,
+     "h": 48
+    }
+   ],
+   "okc": [
+    [
+     24,
+     768,
+     40,
+     24
+    ]
+   ],
+   "okv": [
+    [
+     258.625,
+     639.796875,
+     14,
+     14
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "wordmark PIPELINE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "PIPELINE",
+     "x0": 24,
+     "y0": 513,
+     "x1": 356.171875,
+     "y1": 617
+    },
+    {
+     "n": "wordmark CITY",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "CITY",
+     "x0": 24,
+     "y0": 581.796875,
+     "x1": 189.28125,
+     "y1": 685.796875
+    },
+    {
+     "n": "build line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Lighting the room \u00b7 62 %",
+     "x0": 24,
+     "y0": 685,
+     "x1": 196.8125,
+     "y1": 700
+    },
+    {
+     "n": "Continue",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Continue",
+     "x0": 88,
+     "y0": 754,
+     "x1": 239,
+     "y1": 806
+    },
+    {
+     "n": "Continue meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x0": 88,
+     "y0": 812,
+     "x1": 325.609375,
+     "y1": 827
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 36.796875,
+     "y0": 771.90625,
+     "x1": 51.203125,
+     "y1": 786.90625
+    },
+    {
+     "n": "New game",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "New game",
+     "x0": 88,
+     "y0": 848,
+     "x1": 193.796875,
+     "y1": 880
+    },
+    {
+     "n": "New game meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "campaign \u00b7 sandbox",
+     "x0": 205.796875,
+     "y0": 861,
+     "x1": 335.40625,
+     "y1": 876
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 36.796875,
+     "y0": 855.90625,
+     "x1": 51.203125,
+     "y1": 870.90625
+    },
+    {
+     "n": "Build my PC",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 88,
+     "y0": 904,
+     "x1": 209.5,
+     "y1": 936
+    },
+    {
+     "n": "Build my PC meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "after loading",
+     "x0": 221.5,
+     "y0": 917,
+     "x1": 315.109375,
+     "y1": 932
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 36.796875,
+     "y0": 911.90625,
+     "x1": 51.203125,
+     "y1": 926.90625
+    },
+    {
+     "n": "Gallery",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 88,
+     "y0": 960,
+     "x1": 160.78125,
+     "y1": 992
+    },
+    {
+     "n": "Gallery meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "after loading",
+     "x0": 172.78125,
+     "y0": 973,
+     "x1": 266.390625,
+     "y1": 988
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 33.1875,
+     "y0": 967.90625,
+     "x1": 54.796875,
+     "y1": 982.90625
+    },
+    {
+     "n": "Load file",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Load file",
+     "x0": 88,
+     "y0": 1022.203125,
+     "x1": 142.40625,
+     "y1": 1040.203125
+    },
+    {
+     "n": "Settings",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Settings",
+     "x0": 174.40625,
+     "y0": 1022.203125,
+     "x1": 226.953125,
+     "y1": 1040.203125
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 36.796875,
+     "y0": 1023.90625,
+     "x1": 51.203125,
+     "y1": 1038.90625
+    }
+   ],
+   "silk": [],
+   "orn": 0
+  }
+ },
+ "04-new-game-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Cond SmBld",
+   "IBM Plex Sans Medm"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       336,
+       735
+      ],
+      [
+       353,
+       735
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       147,
+       735
+      ],
+      [
+       174,
+       735
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       330,
+       809
+      ],
+      [
+       348,
+       809
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       257,
+       809
+      ],
+      [
+       284,
+       809
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       660,
+       188
+      ],
+      [
+       660,
+       230
+      ],
+      [
+       636,
+       254
+      ],
+      [
+       141,
+       254
+      ],
+      [
+       117,
+       278
+      ],
+      [
+       117,
+       714
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       756
+      ],
+      [
+       117,
+       788
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       830
+      ],
+      [
+       117,
+       865
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       907
+      ],
+      [
+       117,
+       927
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|NEW GAME ID \u00b7 new game \u00b7 last played: campaign",
+     "x": 96,
+     "y": 112,
+     "w": 636.234375,
+     "h": 126.359375
+    },
+    {
+     "ab": "vertical rail|IF Campaign Sandbox Bare board \u00b7 starter crate \u00b7 $600 \u00b7 earn every par",
+     "x": 96,
+     "y": 709,
+     "w": 760,
+     "h": 240.79625
+    },
+    {
+     "ab": "back|\u2190 Back Esc",
+     "x": 96,
+     "y": 40,
+     "w": 86.359375,
+     "h": 52
+    },
+    {
+     "ab": "row (selected)|IF Campaign Sandbox",
+     "x": 96,
+     "y": 709,
+     "w": 760,
+     "h": 52
+    },
+    {
+     "ab": "horizontal rail|Campaign Sandbox",
+     "x": 182,
+     "y": 709,
+     "w": 305.125,
+     "h": 52
+    },
+    {
+     "ab": "row|ID Tutorial On Off",
+     "x": 96,
+     "y": 783,
+     "w": 760,
+     "h": 52
+    },
+    {
+     "ab": "horizontal rail|On Off",
+     "x": 292,
+     "y": 783,
+     "w": 97.34375,
+     "h": 52
+    },
+    {
+     "ab": "row|WB Replace save and start",
+     "x": 96,
+     "y": 843,
+     "w": 760,
+     "h": 86
+    }
+   ],
+   "okc": [
+    [
+     652.734375,
+     173,
+     15,
+     15
+    ],
+    [
+     96,
+     722,
+     43,
+     26
+    ]
+   ],
+   "okv": [
+    [
+     631.234375,
+     173,
+     15,
+     15
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "back",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2190 Back",
+     "x0": 96,
+     "y0": 55.546875,
+     "x1": 146.078125,
+     "y1": 74.546875
+    },
+    {
+     "n": "back esc",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Esc",
+     "x0": 159.03125,
+     "y0": 57.75,
+     "x1": 182.359375,
+     "y1": 74.75
+    },
+    {
+     "n": "title New game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "New game",
+     "x0": 96,
+     "y0": 87,
+     "x1": 613.96875,
+     "y1": 228
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID \u00b7 new game \u00b7 last played: campaign",
+     "x0": 96,
+     "y0": 220.875,
+     "x1": 383.5625,
+     "y1": 237.875
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 109.71875,
+     "y0": 726.25,
+     "x1": 125.265625,
+     "y1": 743.25
+    },
+    {
+     "n": "value Campaign",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Campaign",
+     "x0": 182,
+     "y0": 711.71875,
+     "x1": 327.6875,
+     "y1": 756.71875
+    },
+    {
+     "n": "value Sandbox",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Sandbox",
+     "x0": 360.953125,
+     "y0": 711.71875,
+     "x1": 487.125,
+     "y1": 756.71875
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Bare board \u00b7 starter crate \u00b7 $600 \u00b7 earn every part",
+     "x0": 165,
+     "y0": 758,
+     "x1": 561.375,
+     "y1": 775
+    },
+    {
+     "n": "Tutorial",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Tutorial",
+     "x0": 165,
+     "y0": 791.796875,
+     "x1": 248.734375,
+     "y1": 825.796875
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 109.71875,
+     "y0": 800.234375,
+     "x1": 125.265625,
+     "y1": 817.234375
+    },
+    {
+     "n": "value On",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "On",
+     "x0": 292,
+     "y0": 791.03125,
+     "x1": 322.421875,
+     "y1": 825.03125
+    },
+    {
+     "n": "value Off",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Off",
+     "x0": 355.6875,
+     "y0": 791.03125,
+     "x1": 389.34375,
+     "y1": 825.03125
+    },
+    {
+     "n": "Replace save and start",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Replace save and start",
+     "x0": 165,
+     "y0": 858,
+     "x1": 575.640625,
+     "y1": 914
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 109.71875,
+     "y0": 877.25,
+     "x1": 125.265625,
+     "y1": 894.25
+    },
+    {
+     "n": "Replace save and start meta",
+     "col": "#ffc247",
+     "on": null,
+     "txt": "Overwrites your autosave: Level 4 \u00b7 $12,480",
+     "x0": 165,
+     "y0": 925.671875,
+     "x1": 499.203125,
+     "y1": 942.671875
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 127,
+     "y0": 923.5,
+     "x1": 148.125,
+     "y1": 937.5
+    },
+    {
+     "n": "key hints",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2191 \u2193 stage   \u2190 \u2192 value   Enter start   Esc back",
+     "x0": 165,
+     "y0": 968,
+     "x1": 522.515625,
+     "y1": 985
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "04-new-game-v2-phone": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Cond SmBld",
+   "IBM Plex Sans Medm"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       213,
+       858
+      ],
+      [
+       229,
+       858
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       72,
+       858
+      ],
+      [
+       96,
+       858
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       242,
+       926
+      ],
+      [
+       258,
+       926
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       174,
+       926
+      ],
+      [
+       198,
+       926
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       450,
+       524
+      ],
+      [
+       450,
+       563
+      ],
+      [
+       426,
+       587
+      ],
+      [
+       68,
+       587
+      ],
+      [
+       44,
+       611
+      ],
+      [
+       44,
+       838
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       878
+      ],
+      [
+       44,
+       906
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       946
+      ],
+      [
+       44,
+       978
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       1018
+      ],
+      [
+       44,
+       1038
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|NEW GAME ID \u00b7 new game \u00b7 last played: campaign",
+     "x": 24,
+     "y": 470,
+     "w": 493.6875,
+     "h": 100.984375
+    },
+    {
+     "ab": "vertical rail|IF Campaign Sandbox Bare board \u00b7 starter crate \u00b7 $600 \u00b7 earn every par",
+     "x": 24,
+     "y": 834,
+     "w": 482,
+     "h": 222.4
+    },
+    {
+     "ab": "back|\u2190 Back",
+     "x": 24,
+     "y": 410,
+     "w": 46.984375,
+     "h": 48
+    },
+    {
+     "ab": "row (selected)|IF Campaign Sandbox",
+     "x": 24,
+     "y": 834,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "horizontal rail|Campaign Sandbox",
+     "x": 104,
+     "y": 834,
+     "w": 220.875,
+     "h": 48
+    },
+    {
+     "ab": "row|ID Tutorial On Off",
+     "x": 24,
+     "y": 902,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "horizontal rail|On Off",
+     "x": 206,
+     "y": 902,
+     "w": 91.375,
+     "h": 48
+    },
+    {
+     "ab": "row|WB Replace save and start",
+     "x": 24,
+     "y": 958,
+     "w": 482,
+     "h": 80
+    }
+   ],
+   "okc": [
+    [
+     443.6875,
+     510,
+     14,
+     14
+    ],
+    [
+     24,
+     846,
+     40,
+     24
+    ]
+   ],
+   "okv": [
+    [
+     423.6875,
+     510,
+     14,
+     14
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "back",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2190 Back",
+     "x0": 24,
+     "y0": 424.203125,
+     "x1": 70.984375,
+     "y1": 442.203125
+    },
+    {
+     "n": "title New game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "New game",
+     "x0": 24,
+     "y0": 452,
+     "x1": 407.6875,
+     "y1": 556
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID \u00b7 new game \u00b7 last played: campaign",
+     "x0": 24,
+     "y0": 554.796875,
+     "x1": 290.40625,
+     "y1": 569.796875
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 36.796875,
+     "y0": 849.90625,
+     "x1": 51.203125,
+     "y1": 864.90625
+    },
+    {
+     "n": "value Campaign",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Campaign",
+     "x0": 104,
+     "y0": 842,
+     "x1": 205.21875,
+     "y1": 874
+    },
+    {
+     "n": "value Sandbox",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Sandbox",
+     "x0": 237.21875,
+     "y0": 842,
+     "x1": 324.875,
+     "y1": 874
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Bare board \u00b7 starter crate \u00b7 $600 \u00b7 earn every part",
+     "x0": 88,
+     "y0": 879,
+     "x1": 455.203125,
+     "y1": 894
+    },
+    {
+     "n": "Tutorial",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Tutorial",
+     "x0": 88,
+     "y0": 910,
+     "x1": 165.578125,
+     "y1": 942
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 36.796875,
+     "y0": 917.90625,
+     "x1": 51.203125,
+     "y1": 932.90625
+    },
+    {
+     "n": "value On",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "On",
+     "x0": 206,
+     "y0": 910,
+     "x1": 234.1875,
+     "y1": 942
+    },
+    {
+     "n": "value Off",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Off",
+     "x0": 266.1875,
+     "y0": 910,
+     "x1": 297.375,
+     "y1": 942
+    },
+    {
+     "n": "Replace save and start",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Replace save and start",
+     "x0": 88,
+     "y0": 972,
+     "x1": 468.328125,
+     "y1": 1024
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 36.796875,
+     "y0": 989.90625,
+     "x1": 51.203125,
+     "y1": 1004.90625
+    },
+    {
+     "n": "Replace save and start meta",
+     "col": "#ffc247",
+     "on": null,
+     "txt": "Overwrites your autosave: Level 4 \u00b7 $12,480",
+     "x0": 88,
+     "y0": 1035,
+     "x1": 397.609375,
+     "y1": 1050
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 54,
+     "y0": 1034.5,
+     "x1": 75.125,
+     "y1": 1048.5
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "05-load-confirm-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       528,
+       281
+      ],
+      [
+       528,
+       323
+      ],
+      [
+       504,
+       347
+      ],
+      [
+       141,
+       347
+      ],
+      [
+       117,
+       371
+      ],
+      [
+       117,
+       808
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       850
+      ],
+      [
+       117,
+       886
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       117,
+       928
+      ],
+      [
+       117,
+       948
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|LOAD THIS GAME? WB \u00b7 load file \u00b7 replaces your autosave",
+     "x": 96,
+     "y": 112,
+     "w": 497.78125,
+     "h": 219.234375
+    },
+    {
+     "ab": "vertical rail|NOP Cancel keep your save WB Replace save and load",
+     "x": 96,
+     "y": 803,
+     "w": 760,
+     "h": 147
+    },
+    {
+     "ab": "row (selected)|NOP Cancel keep your save",
+     "x": 96,
+     "y": 803,
+     "w": 760,
+     "h": 52
+    },
+    {
+     "ab": "row|WB Replace save and load",
+     "x": 96,
+     "y": 864,
+     "w": 760,
+     "h": 86
+    }
+   ],
+   "okc": [
+    [
+     520.578125,
+     265.875,
+     15,
+     15
+    ],
+    [
+     96,
+     815.984375,
+     43,
+     26
+    ]
+   ],
+   "okv": [
+    [
+     434.578125,
+     265.875,
+     15,
+     15
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "title Load this",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Load this",
+     "x0": 96,
+     "y0": 87,
+     "x1": 593.78125,
+     "y1": 228
+    },
+    {
+     "n": "title game?",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "game?",
+     "x0": 96,
+     "y0": 179.875,
+     "x1": 417.3125,
+     "y1": 320.875
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB \u00b7 load file \u00b7 replaces your autosave",
+     "x0": 96,
+     "y0": 313.75,
+     "x1": 399.109375,
+     "y1": 330.75
+    },
+    {
+     "n": "fact SAVE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "SAVE",
+     "x0": 165,
+     "y0": 566,
+     "x1": 196.09375,
+     "y1": 583
+    },
+    {
+     "n": "fact SAVE value",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "  Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x0": 196.09375,
+     "y0": 566,
+     "x1": 468.109375,
+     "y1": 583
+    },
+    {
+     "n": "fact FILE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "FILE",
+     "x0": 165,
+     "y0": 594.796875,
+     "x1": 196.09375,
+     "y1": 611.796875
+    },
+    {
+     "n": "fact FILE value",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "  Level 7 \u00b7 $88,200",
+     "x0": 196.09375,
+     "y0": 594.796875,
+     "x1": 343.765625,
+     "y1": 611.796875
+    },
+    {
+     "n": "Cancel",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Cancel",
+     "x0": 165,
+     "y0": 811.796875,
+     "x1": 238.921875,
+     "y1": 845.796875
+    },
+    {
+     "n": "Cancel meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "keep your save",
+     "x0": 251.921875,
+     "y0": 825.796875,
+     "x1": 360.734375,
+     "y1": 842.796875
+    },
+    {
+     "n": "tag NOP",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "NOP",
+     "x0": 105.828125,
+     "y0": 820.234375,
+     "x1": 129.15625,
+     "y1": 837.234375
+    },
+    {
+     "n": "Replace save and load",
+     "col": "#ff5a78",
+     "on": null,
+     "txt": "Replace save and load",
+     "x0": 165,
+     "y0": 879,
+     "x1": 568.640625,
+     "y1": 935
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 109.71875,
+     "y0": 898.25,
+     "x1": 125.265625,
+     "y1": 915.25
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 127,
+     "y0": 944.5,
+     "x1": 148.125,
+     "y1": 958.5
+    },
+    {
+     "n": "key hints",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2191 \u2193 choose   Enter confirm   Esc cancel",
+     "x0": 165,
+     "y0": 968,
+     "x1": 468.109375,
+     "y1": 985
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "05-load-confirm-v2-phone": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       365,
+       543
+      ],
+      [
+       365,
+       582
+      ],
+      [
+       341,
+       606
+      ],
+      [
+       68,
+       606
+      ],
+      [
+       44,
+       630
+      ],
+      [
+       44,
+       924
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       964
+      ],
+      [
+       44,
+       996
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       44,
+       1036
+      ],
+      [
+       44,
+       1056
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|LOAD THIS GAME? WB \u00b7 load file \u00b7 replaces your autosave",
+     "x": 24,
+     "y": 420,
+     "w": 368.734375,
+     "h": 169.78125
+    },
+    {
+     "ab": "vertical rail|NOP Cancel keep your save WB Replace save and load",
+     "x": 24,
+     "y": 920,
+     "w": 482,
+     "h": 136
+    },
+    {
+     "ab": "row (selected)|NOP Cancel keep your save",
+     "x": 24,
+     "y": 920,
+     "w": 482,
+     "h": 48
+    },
+    {
+     "ab": "row|WB Replace save and load",
+     "x": 24,
+     "y": 976,
+     "w": 482,
+     "h": 80
+    }
+   ],
+   "okc": [
+    [
+     358,
+     528.796875,
+     14,
+     14
+    ],
+    [
+     24,
+     932,
+     40,
+     24
+    ]
+   ],
+   "okv": [
+    [
+     278,
+     528.796875,
+     14,
+     14
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "title Load this",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Load this",
+     "x0": 24,
+     "y0": 402,
+     "x1": 392.734375,
+     "y1": 506
+    },
+    {
+     "n": "title game?",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "game?",
+     "x0": 24,
+     "y0": 470.796875,
+     "x1": 262,
+     "y1": 574.796875
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB \u00b7 load file \u00b7 replaces your autosave",
+     "x0": 24,
+     "y0": 573.59375,
+     "x1": 304.8125,
+     "y1": 588.59375
+    },
+    {
+     "n": "fact SAVE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "SAVE",
+     "x0": 88,
+     "y0": 646,
+     "x1": 116.8125,
+     "y1": 661
+    },
+    {
+     "n": "fact SAVE value",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "  Level 4 \u00b7 $12,480 \u00b7 saved 2 h ago",
+     "x0": 116.8125,
+     "y0": 646,
+     "x1": 368.828125,
+     "y1": 661
+    },
+    {
+     "n": "fact FILE",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "FILE",
+     "x0": 88,
+     "y0": 674.796875,
+     "x1": 116.8125,
+     "y1": 689.796875
+    },
+    {
+     "n": "fact FILE value",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "  Level 7 \u00b7 $88,200",
+     "x0": 116.8125,
+     "y0": 674.796875,
+     "x1": 253.625,
+     "y1": 689.796875
+    },
+    {
+     "n": "Cancel",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Cancel",
+     "x0": 88,
+     "y0": 928,
+     "x1": 156.484375,
+     "y1": 960
+    },
+    {
+     "n": "Cancel meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "keep your save",
+     "x0": 168.484375,
+     "y0": 941,
+     "x1": 269.296875,
+     "y1": 956
+    },
+    {
+     "n": "tag NOP",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "NOP",
+     "x0": 33.1875,
+     "y0": 935.90625,
+     "x1": 54.796875,
+     "y1": 950.90625
+    },
+    {
+     "n": "Replace save and load",
+     "col": "#ff5a78",
+     "on": null,
+     "txt": "Replace save and load",
+     "x0": 88,
+     "y0": 990,
+     "x1": 461.84375,
+     "y1": 1042
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 36.796875,
+     "y0": 1007.90625,
+     "x1": 51.203125,
+     "y1": 1022.90625
+    },
+    {
+     "n": "silk TP1",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP1",
+     "x0": 54,
+     "y0": 1052.5,
+     "x1": 75.125,
+     "y1": 1066.5
+    }
+   ],
+   "silk": [
+    "TP1"
+   ],
+   "orn": 1
+  }
+ },
+ "06-settings-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       195,
+       533
+      ],
+      [
+       270,
+       533
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       329,
+       533
+      ],
+      [
+       404,
+       533
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       463,
+       533
+      ],
+      [
+       537,
+       533
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       596,
+       533
+      ],
+      [
+       671,
+       533
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       679,
+       188
+      ],
+      [
+       679,
+       230
+      ],
+      [
+       655,
+       254
+      ],
+      [
+       189,
+       254
+      ],
+      [
+       165,
+       278
+      ],
+      [
+       165,
+       512
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       380,
+       646
+      ],
+      [
+       397,
+       646
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       501,
+       646
+      ],
+      [
+       518,
+       646
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       584,
+       646
+      ],
+      [
+       601,
+       646
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       280,
+       646
+      ],
+      [
+       320,
+       646
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       387,
+       720
+      ],
+      [
+       404,
+       720
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       465,
+       720
+      ],
+      [
+       482,
+       720
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       585,
+       720
+      ],
+      [
+       602,
+       720
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       283,
+       720
+      ],
+      [
+       320,
+       720
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       165,
+       595
+      ],
+      [
+       165,
+       634
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       165,
+       658
+      ],
+      [
+       165,
+       708
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       165,
+       732
+      ],
+      [
+       165,
+       782
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       165,
+       806
+      ],
+      [
+       165,
+       826
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|SETTINGS WB \u00b7 settings \u00b7 kept on this device, not in the save",
+     "x": 96,
+     "y": 112,
+     "w": 590.984375,
+     "h": 126.359375
+    },
+    {
+     "ab": "horizontal rail|IF Quality ID Display EX Light MEM Detail WB Interface",
+     "x": 144,
+     "y": 520,
+     "w": 578,
+     "h": 26
+    },
+    {
+     "ab": "vertical rail|Preset Low Medium High Ultra Fastest. No shadows or glow. Device Auto ",
+     "x": 146,
+     "y": 620,
+     "w": 700,
+     "h": 200
+    },
+    {
+     "ab": "back|\u2190 Back Esc",
+     "x": 96,
+     "y": 40,
+     "w": 86.359375,
+     "h": 52
+    },
+    {
+     "ab": "row|Preset Low Medium High Ultra",
+     "x": 146,
+     "y": 620,
+     "w": 700,
+     "h": 52
+    },
+    {
+     "ab": "horizontal rail|Low Medium High Ultra",
+     "x": 328,
+     "y": 620,
+     "w": 334.953125,
+     "h": 52
+    },
+    {
+     "ab": "row|Device Auto Low Medium High",
+     "x": 146,
+     "y": 694,
+     "w": 700,
+     "h": 52
+    },
+    {
+     "ab": "horizontal rail|Auto Low Medium High",
+     "x": 328,
+     "y": 694,
+     "w": 332.359375,
+     "h": 52
+    },
+    {
+     "ab": "row|NOW 1 fps \u00b7 1016.6 ms \u00b7 1440 \u00d7 810",
+     "x": 146,
+     "y": 768,
+     "w": 700,
+     "h": 52
+    }
+   ],
+   "okc": [
+    [
+     671.984375,
+     173,
+     15,
+     15
+    ],
+    [
+     144,
+     520,
+     43,
+     26
+    ]
+   ],
+   "okv": [
+    [
+     585.984375,
+     173,
+     15,
+     15
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "back",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2190 Back",
+     "x0": 96,
+     "y0": 55.546875,
+     "x1": 146.078125,
+     "y1": 74.546875
+    },
+    {
+     "n": "back esc",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Esc",
+     "x0": 159.03125,
+     "y0": 57.75,
+     "x1": 182.359375,
+     "y1": 74.75
+    },
+    {
+     "n": "title Settings",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Settings",
+     "x0": 96,
+     "y0": 87,
+     "x1": 568.71875,
+     "y1": 228
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB \u00b7 settings \u00b7 kept on this device, not in the save",
+     "x0": 96,
+     "y0": 220.875,
+     "x1": 500.140625,
+     "y1": 237.875
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 157.71875,
+     "y0": 524.25,
+     "x1": 173.265625,
+     "y1": 541.25
+    },
+    {
+     "n": "tab Quality",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Quality",
+     "x0": 126.375,
+     "y0": 553,
+     "x1": 204.625,
+     "y1": 587
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 291.46875,
+     "y0": 524.25,
+     "x1": 307.015625,
+     "y1": 541.25
+    },
+    {
+     "n": "tab Display",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Display",
+     "x0": 258.8203125,
+     "y0": 553,
+     "x1": 339.6796875,
+     "y1": 587
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 425.21875,
+     "y0": 524.25,
+     "x1": 440.765625,
+     "y1": 541.25
+    },
+    {
+     "n": "tab Light",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Light",
+     "x0": 406.015625,
+     "y0": 553,
+     "x1": 459.984375,
+     "y1": 587
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 555.078125,
+     "y0": 524.25,
+     "x1": 578.40625,
+     "y1": 541.25
+    },
+    {
+     "n": "tab Detail",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Detail",
+     "x0": 534.4765625,
+     "y0": 553,
+     "x1": 599.0234375,
+     "y1": 587
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 692.71875,
+     "y0": 524.25,
+     "x1": 708.265625,
+     "y1": 541.25
+    },
+    {
+     "n": "tab Interface",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Interface",
+     "x0": 649.6953125,
+     "y0": 553,
+     "x1": 751.3046875,
+     "y1": 587
+    },
+    {
+     "n": "Preset",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Preset",
+     "x0": 202,
+     "y0": 628.796875,
+     "x1": 272.453125,
+     "y1": 662.796875
+    },
+    {
+     "n": "value Low",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Low",
+     "x0": 328,
+     "y0": 628.03125,
+     "x1": 372.046875,
+     "y1": 662.03125
+    },
+    {
+     "n": "value Medium",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Medium",
+     "x0": 405.3125,
+     "y0": 628.03125,
+     "x1": 492.703125,
+     "y1": 662.03125
+    },
+    {
+     "n": "value High",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "High",
+     "x0": 525.96875,
+     "y0": 628.03125,
+     "x1": 575.890625,
+     "y1": 662.03125
+    },
+    {
+     "n": "value Ultra",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Ultra",
+     "x0": 609.15625,
+     "y0": 628.03125,
+     "x1": 662.953125,
+     "y1": 662.03125
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Fastest. No shadows or glow.",
+     "x0": 202,
+     "y0": 669,
+     "x1": 419.625,
+     "y1": 686
+    },
+    {
+     "n": "Device",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Device",
+     "x0": 202,
+     "y0": 702.796875,
+     "x1": 275.140625,
+     "y1": 736.796875
+    },
+    {
+     "n": "value Auto",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Auto",
+     "x0": 328,
+     "y0": 702.03125,
+     "x1": 379.203125,
+     "y1": 736.03125
+    },
+    {
+     "n": "value Low",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Low",
+     "x0": 412.46875,
+     "y0": 702.03125,
+     "x1": 456.515625,
+     "y1": 736.03125
+    },
+    {
+     "n": "value Medium",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Medium",
+     "x0": 489.78125,
+     "y0": 702.03125,
+     "x1": 577.171875,
+     "y1": 736.03125
+    },
+    {
+     "n": "value High",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "High",
+     "x0": 610.4375,
+     "y0": 702.03125,
+     "x1": 660.359375,
+     "y1": 736.03125
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Auto picked Low: software rendering.",
+     "x0": 202,
+     "y0": 743,
+     "x1": 481.796875,
+     "y1": 760
+    },
+    {
+     "n": "NOW line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "NOW  1 fps \u00b7 1016.6 ms \u00b7 1440 \u00d7 810",
+     "x0": 202,
+     "y0": 785.75,
+     "x1": 474.015625,
+     "y1": 802.75
+    },
+    {
+     "n": "silk TP2",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP2",
+     "x0": 175,
+     "y0": 822.5,
+     "x1": 196.125,
+     "y1": 836.5
+    },
+    {
+     "n": "Hold to peek",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Hold to peek",
+     "x0": 96,
+     "y0": 913.546875,
+     "x1": 182.59375,
+     "y1": 932.546875
+    },
+    {
+     "n": "Reset to defaults",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Reset to defaults",
+     "x0": 217.140625,
+     "y0": 913.546875,
+     "x1": 333,
+     "y1": 932.546875
+    },
+    {
+     "n": "key hints",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2190 \u2192 category   \u2191 \u2193 option   Space peek   Esc back",
+     "x0": 165,
+     "y0": 968,
+     "x1": 545.828125,
+     "y1": 985
+    }
+   ],
+   "silk": [
+    "TP2"
+   ],
+   "orn": 1
+  }
+ },
+ "06-settings-v2-phone": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans Medm",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       112,
+       512
+      ],
+      [
+       147,
+       512
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       203,
+       512
+      ],
+      [
+       238,
+       512
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       294,
+       512
+      ],
+      [
+       329,
+       512
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       385,
+       512
+      ],
+      [
+       420,
+       512
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       477,
+       354
+      ],
+      [
+       477,
+       393
+      ],
+      [
+       453,
+       417
+      ],
+      [
+       108,
+       417
+      ],
+      [
+       84,
+       441
+      ],
+      [
+       84,
+       492
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       167,
+       644
+      ],
+      [
+       183,
+       644
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       280,
+       644
+      ],
+      [
+       296,
+       644
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       358,
+       644
+      ],
+      [
+       374,
+       644
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       173,
+       748
+      ],
+      [
+       189,
+       748
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       246,
+       748
+      ],
+      [
+       262,
+       748
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       359,
+       748
+      ],
+      [
+       375,
+       748
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       84,
+       562
+      ],
+      [
+       84,
+       590
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       84,
+       614
+      ],
+      [
+       84,
+       694
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       84,
+       718
+      ],
+      [
+       84,
+       804
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       84,
+       828
+      ],
+      [
+       84,
+       848
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [
+    {
+     "ab": "display title|SETTINGS WB \u00b7 settings \u00b7 kept on this device, not in the save",
+     "x": 24,
+     "y": 300,
+     "w": 460.171875,
+     "h": 100.984375
+    },
+    {
+     "ab": "horizontal rail|IF Quality ID Display EX Light MEM Detail WB Interface",
+     "x": 64,
+     "y": 500,
+     "w": 404,
+     "h": 24
+    },
+    {
+     "ab": "vertical rail|Preset Low Medium High Ultra Fastest. No shadows or glow. Device Auto ",
+     "x": 66,
+     "y": 584,
+     "w": 482,
+     "h": 256
+    },
+    {
+     "ab": "back|\u2190 Back",
+     "x": 24,
+     "y": 240,
+     "w": 46.984375,
+     "h": 48
+    },
+    {
+     "ab": "row|Preset",
+     "x": 66,
+     "y": 584,
+     "w": 482,
+     "h": 36
+    },
+    {
+     "ab": "horizontal rail|Low Medium High Ultra",
+     "x": 118,
+     "y": 620,
+     "w": 430,
+     "h": 48
+    },
+    {
+     "ab": "row|Device",
+     "x": 66,
+     "y": 688,
+     "w": 482,
+     "h": 36
+    },
+    {
+     "ab": "horizontal rail|Auto Low Medium High",
+     "x": 118,
+     "y": 724,
+     "w": 430,
+     "h": 48
+    },
+    {
+     "ab": "row|NOW 1 fps \u00b7 1016.6 ms \u00b7 1440 \u00d7 810",
+     "x": 66,
+     "y": 792,
+     "w": 482,
+     "h": 48
+    }
+   ],
+   "okc": [
+    [
+     470.171875,
+     340,
+     14,
+     14
+    ],
+    [
+     64,
+     500,
+     40,
+     24
+    ]
+   ],
+   "okv": [
+    [
+     390.171875,
+     340,
+     14,
+     14
+    ]
+   ],
+   "imgs": [],
+   "txt": [
+    {
+     "n": "back",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "\u2190 Back",
+     "x0": 24,
+     "y0": 254.203125,
+     "x1": 70.984375,
+     "y1": 272.203125
+    },
+    {
+     "n": "title Settings",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Settings",
+     "x0": 24,
+     "y0": 282,
+     "x1": 374.171875,
+     "y1": 386
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB \u00b7 settings \u00b7 kept on this device, not in the save",
+     "x0": 24,
+     "y0": 384.796875,
+     "x1": 398.40625,
+     "y1": 399.796875
+    },
+    {
+     "n": "tag IF",
+     "col": "#04060f",
+     "on": "chip",
+     "txt": "IF",
+     "x0": 76.796875,
+     "y0": 503.90625,
+     "x1": 91.203125,
+     "y1": 518.90625
+    },
+    {
+     "n": "tab Quality",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Quality",
+     "x0": 56.8125,
+     "y0": 531,
+     "x1": 111.1875,
+     "y1": 554
+    },
+    {
+     "n": "tag ID",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "ID",
+     "x0": 167.796875,
+     "y0": 503.90625,
+     "x1": 182.203125,
+     "y1": 518.90625
+    },
+    {
+     "n": "tab Display",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Display",
+     "x0": 146.90625,
+     "y0": 531,
+     "x1": 203.09375,
+     "y1": 554
+    },
+    {
+     "n": "tag EX",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "EX",
+     "x0": 258.796875,
+     "y0": 503.90625,
+     "x1": 273.203125,
+     "y1": 518.90625
+    },
+    {
+     "n": "tab Light",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Light",
+     "x0": 247.25,
+     "y0": 531,
+     "x1": 284.75,
+     "y1": 554
+    },
+    {
+     "n": "tag MEM",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "MEM",
+     "x0": 346.1875,
+     "y0": 503.90625,
+     "x1": 367.796875,
+     "y1": 518.90625
+    },
+    {
+     "n": "tab Detail",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Detail",
+     "x0": 334.578125,
+     "y0": 531,
+     "x1": 379.421875,
+     "y1": 554
+    },
+    {
+     "n": "tag WB",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "WB",
+     "x0": 440.796875,
+     "y0": 503.90625,
+     "x1": 455.203125,
+     "y1": 518.90625
+    },
+    {
+     "n": "tab Interface",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Interface",
+     "x0": 412.6953125,
+     "y0": 531,
+     "x1": 483.3046875,
+     "y1": 554
+    },
+    {
+     "n": "Preset",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Preset",
+     "x0": 118,
+     "y0": 586,
+     "x1": 183.265625,
+     "y1": 618
+    },
+    {
+     "n": "value Low",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Low",
+     "x0": 118,
+     "y0": 628,
+     "x1": 158.8125,
+     "y1": 660
+    },
+    {
+     "n": "value Medium",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Medium",
+     "x0": 190.8125,
+     "y0": 628,
+     "x1": 271.765625,
+     "y1": 660
+    },
+    {
+     "n": "value High",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "High",
+     "x0": 303.765625,
+     "y0": 628,
+     "x1": 350.015625,
+     "y1": 660
+    },
+    {
+     "n": "value Ultra",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Ultra",
+     "x0": 382.015625,
+     "y0": 628,
+     "x1": 431.84375,
+     "y1": 660
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Fastest. No shadows or glow.",
+     "x0": 118,
+     "y0": 665,
+     "x1": 319.609375,
+     "y1": 680
+    },
+    {
+     "n": "Device",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Device",
+     "x0": 118,
+     "y0": 690,
+     "x1": 185.765625,
+     "y1": 722
+    },
+    {
+     "n": "value Auto",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Auto",
+     "x0": 118,
+     "y0": 732,
+     "x1": 165.4375,
+     "y1": 764
+    },
+    {
+     "n": "value Low",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Low",
+     "x0": 197.4375,
+     "y0": 732,
+     "x1": 238.25,
+     "y1": 764
+    },
+    {
+     "n": "value Medium",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Medium",
+     "x0": 270.25,
+     "y0": 732,
+     "x1": 351.203125,
+     "y1": 764
+    },
+    {
+     "n": "value High",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "High",
+     "x0": 383.203125,
+     "y0": 732,
+     "x1": 429.453125,
+     "y1": 764
+    },
+    {
+     "n": "branch meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Auto picked Low: software rendering.",
+     "x0": 118,
+     "y0": 769,
+     "x1": 377.203125,
+     "y1": 784
+    },
+    {
+     "n": "NOW line",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "NOW  1 fps \u00b7 1016.6 ms \u00b7 1440 \u00d7 810",
+     "x0": 118,
+     "y0": 808,
+     "x1": 370.015625,
+     "y1": 823
+    },
+    {
+     "n": "silk TP2",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "TP2",
+     "x0": 94,
+     "y0": 844.5,
+     "x1": 115.125,
+     "y1": 858.5
+    },
+    {
+     "n": "Hold to peek",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Hold to peek",
+     "x0": 24,
+     "y0": 1022.203125,
+     "x1": 105.25,
+     "y1": 1040.203125
+    },
+    {
+     "n": "Reset to defaults",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Reset to defaults",
+     "x0": 137.25,
+     "y0": 1022.203125,
+     "x1": 245.953125,
+     "y1": 1040.203125
+    }
+   ],
+   "silk": [
+    "TP2"
+   ],
+   "orn": 1
+  }
+ },
+ "13-flow-diagram-v2-desktop": {
+  "fonts": [
+   "IBM Plex Mono Medm",
+   "IBM Plex Sans",
+   "IBM Plex Sans Cond SmBld"
+  ],
+  "geo": {
+   "segs": [
+    {
+     "pts": [
+      [
+       440,
+       254
+      ],
+      [
+       552,
+       254
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       904,
+       254
+      ],
+      [
+       1016,
+       254
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       1368,
+       254
+      ],
+      [
+       1480,
+       254
+      ]
+     ],
+     "col": "#3be3ff",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       264,
+       357
+      ],
+      [
+       264,
+       532
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       264,
+       420
+      ],
+      [
+       288,
+       444
+      ],
+      [
+       1168,
+       444
+      ],
+      [
+       1192,
+       468
+      ],
+      [
+       1192,
+       532
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       704,
+       444
+      ],
+      [
+       728,
+       468
+      ],
+      [
+       728,
+       532
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    },
+    {
+     "pts": [
+      [
+       1656,
+       357
+      ],
+      [
+       1656,
+       532
+      ]
+     ],
+     "col": "#4e5360",
+     "kind": "trace"
+    }
+   ],
+   "skip": [],
+   "boxes": [],
+   "okc": [],
+   "okv": [
+    [
+     383.296875,
+     56,
+     15,
+     15
+    ]
+   ],
+   "imgs": [
+    [
+     96,
+     160,
+     336,
+     189
+    ],
+    [
+     560,
+     160,
+     336,
+     189
+    ],
+    [
+     1024,
+     160,
+     336,
+     189
+    ],
+    [
+     1488,
+     160,
+     336,
+     189
+    ],
+    [
+     96,
+     540,
+     336,
+     189
+    ],
+    [
+     560,
+     540,
+     336,
+     189
+    ],
+    [
+     1024,
+     540,
+     336,
+     189
+    ],
+    [
+     1488,
+     540,
+     336,
+     189
+    ]
+   ],
+   "txt": [
+    {
+     "n": "title Menu flow",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Menu flow",
+     "x0": 96,
+     "y0": 28,
+     "x1": 366.03125,
+     "y1": 95
+    },
+    {
+     "n": "title meta",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "13 \u00b7 flow \u00b7 start path lit",
+     "x0": 96,
+     "y0": 100.578125,
+     "x1": 298.078125,
+     "y1": 117.578125
+    },
+    {
+     "n": "node Main menu",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Main menu",
+     "x0": 96,
+     "y0": 362,
+     "x1": 185.65625,
+     "y1": 387
+    },
+    {
+     "n": "node New game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "New game",
+     "x0": 560,
+     "y0": 362,
+     "x1": 645.6875,
+     "y1": 387
+    },
+    {
+     "n": "node Loading",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Loading",
+     "x0": 1024,
+     "y0": 362,
+     "x1": 1088.09375,
+     "y1": 387
+    },
+    {
+     "n": "node First frame",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "First frame",
+     "x0": 1488,
+     "y0": 362,
+     "x1": 1577.6875,
+     "y1": 387
+    },
+    {
+     "n": "node Settings",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Settings",
+     "x0": 96,
+     "y0": 742,
+     "x1": 162.828125,
+     "y1": 767
+    },
+    {
+     "n": "node Gallery",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 560,
+     "y0": 742,
+     "x1": 618.9375,
+     "y1": 767
+    },
+    {
+     "n": "node Build my PC",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 1024,
+     "y0": 742,
+     "x1": 1122.40625,
+     "y1": 767
+    },
+    {
+     "n": "node Paused",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Paused",
+     "x0": 1488,
+     "y0": 742,
+     "x1": 1548.421875,
+     "y1": 767
+    },
+    {
+     "n": "edge New game",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "New game",
+     "x0": 464.90625,
+     "y0": 227.515625,
+     "x1": 527.09375,
+     "y1": 244.515625
+    },
+    {
+     "n": "edge Replace save and start",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Replace save and start",
+     "x0": 913.359375,
+     "y0": 210.03125,
+     "x1": 1006.625,
+     "y1": 227.03125
+    },
+    {
+     "n": "edge Replace save and start",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Replace save and start",
+     "x0": 925.015625,
+     "y0": 227.515625,
+     "x1": 994.96875,
+     "y1": 244.515625
+    },
+    {
+     "n": "edge room ready",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "room ready",
+     "x0": 1385.140625,
+     "y0": 227.515625,
+     "x1": 1462.859375,
+     "y1": 244.515625
+    },
+    {
+     "n": "edge Settings",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Settings",
+     "x0": 274,
+     "y0": 481,
+     "x1": 336.1875,
+     "y1": 498
+    },
+    {
+     "n": "edge Gallery",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Gallery",
+     "x0": 738,
+     "y0": 481,
+     "x1": 792.40625,
+     "y1": 498
+    },
+    {
+     "n": "edge Build my PC",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Build my PC",
+     "x0": 1202,
+     "y0": 481,
+     "x1": 1287.5,
+     "y1": 498
+    },
+    {
+     "n": "edge Esc or Menu",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Esc or Menu",
+     "x0": 1666,
+     "y0": 481,
+     "x1": 1751.5,
+     "y1": 498
+    },
+    {
+     "n": "th Task",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Task",
+     "x0": 96,
+     "y0": 830.75,
+     "x1": 127.09375,
+     "y1": 847.75
+    },
+    {
+     "n": "th Now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "Now",
+     "x0": 400,
+     "y0": 830.75,
+     "x1": 423.328125,
+     "y1": 847.75
+    },
+    {
+     "n": "th v2",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "v2",
+     "x0": 480,
+     "y0": 830.75,
+     "x1": 495.546875,
+     "y1": 847.75
+    },
+    {
+     "n": "Start a campaign, no save",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Start a campaign, no save",
+     "x0": 96,
+     "y0": 852.046875,
+     "x1": 267.34375,
+     "y1": 871.046875
+    },
+    {
+     "n": "Start a campaign, no save now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "2",
+     "x0": 400,
+     "y0": 852.046875,
+     "x1": 408.96875,
+     "y1": 871.046875
+    },
+    {
+     "n": "Start a campaign, no save v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "2",
+     "x0": 480,
+     "y0": 852.046875,
+     "x1": 488.96875,
+     "y1": 871.046875
+    },
+    {
+     "n": "Start when a save exists",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Start when a save exists",
+     "x0": 96,
+     "y0": 877.046875,
+     "x1": 256.828125,
+     "y1": 896.046875
+    },
+    {
+     "n": "Start when a save exists now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "3",
+     "x0": 400,
+     "y0": 877.046875,
+     "x1": 408.96875,
+     "y1": 896.046875
+    },
+    {
+     "n": "Start when a save exists v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "2",
+     "x0": 480,
+     "y0": 877.046875,
+     "x1": 488.96875,
+     "y1": 896.046875
+    },
+    {
+     "n": "Start a sandbox",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Start a sandbox",
+     "x0": 96,
+     "y0": 902.046875,
+     "x1": 200.4375,
+     "y1": 921.046875
+    },
+    {
+     "n": "Start a sandbox now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "2",
+     "x0": 400,
+     "y0": 902.046875,
+     "x1": 408.96875,
+     "y1": 921.046875
+    },
+    {
+     "n": "Start a sandbox v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "2 (3 if the last mode was campaign)",
+     "x0": 480,
+     "y0": 902.046875,
+     "x1": 793.375,
+     "y1": 921.046875
+    },
+    {
+     "n": "Continue",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Continue",
+     "x0": 96,
+     "y0": 927.046875,
+     "x1": 156.21875,
+     "y1": 946.046875
+    },
+    {
+     "n": "Continue now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "1",
+     "x0": 400,
+     "y0": 927.046875,
+     "x1": 408.96875,
+     "y1": 946.046875
+    },
+    {
+     "n": "Continue v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "1",
+     "x0": 480,
+     "y0": 927.046875,
+     "x1": 488.96875,
+     "y1": 946.046875
+    },
+    {
+     "n": "Open Gallery",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Open Gallery",
+     "x0": 96,
+     "y0": 952.046875,
+     "x1": 183.0625,
+     "y1": 971.046875
+    },
+    {
+     "n": "Open Gallery now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "1",
+     "x0": 400,
+     "y0": 952.046875,
+     "x1": 408.96875,
+     "y1": 971.046875
+    },
+    {
+     "n": "Open Gallery v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "1",
+     "x0": 480,
+     "y0": 952.046875,
+     "x1": 488.96875,
+     "y1": 971.046875
+    },
+    {
+     "n": "Change quality and return",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Change quality and return",
+     "x0": 96,
+     "y0": 977.046875,
+     "x1": 268.671875,
+     "y1": 996.046875
+    },
+    {
+     "n": "Change quality and return now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "5",
+     "x0": 400,
+     "y0": 977.046875,
+     "x1": 408.96875,
+     "y1": 996.046875
+    },
+    {
+     "n": "Change quality and return v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "2 + Esc",
+     "x0": 480,
+     "y0": 977.046875,
+     "x1": 542.6875,
+     "y1": 996.046875
+    },
+    {
+     "n": "Change quality in game",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "Change quality in game",
+     "x0": 96,
+     "y0": 1002.046875,
+     "x1": 251.53125,
+     "y1": 1021.046875
+    },
+    {
+     "n": "Change quality in game now",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "3",
+     "x0": 400,
+     "y0": 1002.046875,
+     "x1": 408.96875,
+     "y1": 1021.046875
+    },
+    {
+     "n": "Change quality in game v2",
+     "col": "#e2eaff",
+     "on": null,
+     "txt": "3 + Esc",
+     "x0": 480,
+     "y0": 1002.046875,
+     "x1": 542.6875,
+     "y1": 1021.046875
+    },
+    {
+     "n": "silk REV 7F56E17",
+     "col": "#a6b4da",
+     "on": null,
+     "txt": "REV 7F56E17",
+     "x0": 1794.546875,
+     "y0": 1042,
+     "x1": 1872,
+     "y1": 1056
+    }
+   ],
+   "silk": [
+    "REV 7F56E17"
+   ],
+   "orn": 47
+  }
+ }
+}

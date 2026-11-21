@@ -1,0 +1,290 @@
+[
+ {
+  "t": 0,
+  "file": "assets/ambience/amb_room_city_loop.ogg (loop until 21.0 s)",
+  "event": "ambience",
+  "bus": "ambience"
+ },
+ {
+  "t": 0,
+  "file": "(preview-only pad, F Lydian, menu)",
+  "event": "music stand-in",
+  "bus": "music"
+ },
+ {
+  "t": 0.3,
+  "file": "assets/ui/ui_hover_1.ogg",
+  "event": "01 Main menu: pointer over 'New game'",
+  "bus": "ui"
+ },
+ {
+  "t": 0.75,
+  "file": "assets/ui/ui_hover_2.ogg",
+  "event": "pointer over 'Build my PC'",
+  "bus": "ui"
+ },
+ {
+  "t": 1.2,
+  "file": "assets/ui/ui_focus_move_1.ogg",
+  "event": "\u2193 focus to 'Gallery' (chip slides)",
+  "bus": "ui"
+ },
+ {
+  "t": 1.6,
+  "file": "assets/ui/ui_focus_move_2.ogg",
+  "event": "\u2193 focus to 'Settings'",
+  "bus": "ui"
+ },
+ {
+  "t": 2.1,
+  "file": "assets/ui/ui_click_1.ogg",
+  "event": "Enter on 'Settings'",
+  "bus": "ui"
+ },
+ {
+  "t": 2.18,
+  "file": "assets/ui/ui_transition_in.ogg",
+  "event": "Main menu -> 06 Settings (trace extends)",
+  "bus": "ui"
+ },
+ {
+  "t": 3.0,
+  "file": "assets/ui/ui_tab_switch.ogg",
+  "event": "\u2192 tab 'Display'",
+  "bus": "ui"
+ },
+ {
+  "t": 3.6,
+  "file": "assets/ui/ui_tab_switch.ogg",
+  "event": "\u2192 tab 'Light'",
+  "bus": "ui"
+ },
+ {
+  "t": 4.2,
+  "file": "assets/ui/ui_value_change.ogg",
+  "event": "\u2192 value 'High'",
+  "bus": "ui"
+ },
+ {
+  "t": 4.7,
+  "file": "assets/ui/ui_value_change.ogg",
+  "event": "\u2192 value 'Ultra'",
+  "bus": "ui"
+ },
+ {
+  "t": 5.3,
+  "file": "assets/ui/ui_slider_tick_1.ogg",
+  "event": "slider 'UI size' +5 % step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.37,
+  "file": "assets/ui/ui_slider_tick_2.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.44,
+  "file": "assets/ui/ui_slider_tick_1.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.51,
+  "file": "assets/ui/ui_slider_tick_2.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.58,
+  "file": "assets/ui/ui_slider_tick_1.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.65,
+  "file": "assets/ui/ui_slider_tick_2.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.72,
+  "file": "assets/ui/ui_slider_tick_1.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 5.79,
+  "file": "assets/ui/ui_slider_tick_2.ogg",
+  "event": "slider step",
+  "bus": "ui"
+ },
+ {
+  "t": 6.4,
+  "file": "assets/ui/ui_toggle_on.ogg",
+  "event": "'Auto-adjust' Off -> On",
+  "bus": "ui"
+ },
+ {
+  "t": 7.0,
+  "file": "assets/ui/ui_toggle_off.ogg",
+  "event": "'Auto-adjust' On -> Off",
+  "bus": "ui"
+ },
+ {
+  "t": 7.8,
+  "file": "assets/ui/ui_panel_close.ogg",
+  "event": "'Hold to peek' pressed (layer fades)",
+  "bus": "ui"
+ },
+ {
+  "t": 8.4,
+  "file": "assets/ui/ui_panel_open.ogg",
+  "event": "'Hold to peek' released",
+  "bus": "ui"
+ },
+ {
+  "t": 9.2,
+  "file": "assets/ui/ui_back.ogg",
+  "event": "Esc: back",
+  "bus": "ui"
+ },
+ {
+  "t": 9.25,
+  "file": "assets/ui/ui_transition_out.ogg",
+  "event": "06 Settings -> Main menu (trace retracts)",
+  "bus": "ui"
+ },
+ {
+  "t": 10.2,
+  "file": "assets/ui/ui_hover_3.ogg",
+  "event": "pointer over 'New game'",
+  "bus": "ui"
+ },
+ {
+  "t": 10.6,
+  "file": "assets/ui/ui_click_2.ogg",
+  "event": "click 'New game'",
+  "bus": "ui"
+ },
+ {
+  "t": 10.68,
+  "file": "assets/ui/ui_transition_in.ogg",
+  "event": "-> 04 New game",
+  "bus": "ui"
+ },
+ {
+  "t": 11.6,
+  "file": "assets/ui/ui_value_change.ogg",
+  "event": "\u2192 'Sandbox'",
+  "bus": "ui"
+ },
+ {
+  "t": 12.3,
+  "file": "assets/ui/ui_confirm.ogg",
+  "event": "WB 'Replace save and start'",
+  "bus": "ui"
+ },
+ {
+  "t": 13.2,
+  "file": "assets/ui/ui_type_tick_1.ogg",
+  "event": "11 First frame: meta types in",
+  "bus": "ui"
+ },
+ {
+  "t": 13.26,
+  "file": "assets/ui/ui_type_tick_2.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.32,
+  "file": "assets/ui/ui_type_tick_3.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.38,
+  "file": "assets/ui/ui_type_tick_1.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.44,
+  "file": "assets/ui/ui_type_tick_2.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.5,
+  "file": "assets/ui/ui_type_tick_3.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.56,
+  "file": "assets/ui/ui_type_tick_1.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 13.62,
+  "file": "assets/ui/ui_type_tick_2.ogg",
+  "event": "typing",
+  "bus": "ui"
+ },
+ {
+  "t": 14.2,
+  "file": "assets/ui/ui_click_1.ogg",
+  "event": "'Next' (tutorial)",
+  "bus": "ui"
+ },
+ {
+  "t": 15.0,
+  "file": "assets/ui/ui_notify.ogg",
+  "event": "toast '[ ok ] Saved.'",
+  "bus": "ui"
+ },
+ {
+  "t": 15.8,
+  "file": "assets/ui/ui_error.ogg",
+  "event": "toast '[ no ]' unreadable file",
+  "bus": "ui"
+ },
+ {
+  "t": 16.6,
+  "file": "assets/ui/ui_warn.ogg",
+  "event": "toast '[ !! ]'",
+  "bus": "ui"
+ },
+ {
+  "t": 17.4,
+  "file": "assets/sfx/pause.ogg",
+  "event": "Esc in game -> 10 Paused (clock stops)",
+  "bus": "sfx"
+ },
+ {
+  "t": 18.4,
+  "file": "assets/ui/ui_focus_move_1.ogg",
+  "event": "\u2193 in Paused",
+  "bus": "ui"
+ },
+ {
+  "t": 18.9,
+  "file": "assets/ui/ui_focus_move_2.ogg",
+  "event": "\u2191 back to 'Resume'",
+  "bus": "ui"
+ },
+ {
+  "t": 19.4,
+  "file": "assets/ui/ui_click_2.ogg",
+  "event": "Enter 'Resume'",
+  "bus": "ui"
+ },
+ {
+  "t": 19.45,
+  "file": "assets/sfx/resume.ogg",
+  "event": "clock restarts at 1x",
+  "bus": "sfx"
+ }
+]

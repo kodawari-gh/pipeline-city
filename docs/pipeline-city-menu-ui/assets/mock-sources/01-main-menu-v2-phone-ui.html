@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset='utf-8'><style>@font-face{font-family:PX-Cond;src:url(../fonts/IBMPlexSansCondensed-SemiBold.woff2);font-weight:600}
+@font-face{font-family:PX-Sans;src:url(../fonts/IBMPlexSans-Medium.woff2);font-weight:500}
+@font-face{font-family:PX-Mono;src:url(../fonts/IBMPlexMono-Medium.woff2);font-weight:500}
+*{margin:0;padding:0;box-sizing:border-box;font-synthesis:none}
+html,body{background:transparent}
+body{width:530px;height:1080px;position:relative;overflow:hidden;font-family:PX-Cond;font-weight:600;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;color:#e2eaff}
+.a{position:absolute}
+.mono{font-family:PX-Mono;font-weight:500;font-size:12px;line-height:1.4;color:#a6b4da;white-space:pre}
+.cond{font-family:PX-Cond;font-weight:600}
+.sans{font-family:PX-Sans;font-weight:500}
+.wm{font-size:80px;line-height:.86;letter-spacing:0;text-transform:uppercase;white-space:nowrap}
+.row{position:absolute;left:24px;width:504px;display:flex;align-items:center}
+.tag{position:absolute;left:24px;width:40px;text-align:center}
+</style></head><body><div id=wm class='a wm' style='left:24px;top:531px'><div id=wm1>PIPELINE</div><div id=wm2>CITY<span id=bl style='display:inline-block;width:0;height:0'></span></div></div><div id=build class='a mono'>build 7f56e17</div><div id=strip></div><svg id=tr class=a style='left:0;top:0' width=530 height=1080></svg><div class=row style='top:752px;height:80px'><div style='margin-left:64px'><div id=lab0 class=cond style='font-size:40px;line-height:1.25;color:#e2eaff'>Continue</div><div id=meta0 class=mono style='margin-top:6px'>Level 4 · $12,480 · saved 2 h ago</div></div></div><div id=chip class=a style='left:24px;width:40px;height:24px;background:#3be3ff;border-radius:4px;display:flex;align-items:center;justify-content:center'><span id=tag0 class=mono style='color:#04060f'>IF</span></div><div class=row style='top:840px;height:48px'><div style='margin-left:64px;display:flex;align-items:baseline;gap:12px'><span id=lab1 class=cond style='font-size:24px;line-height:1.25;color:#a6b4da'>New game</span><span id=meta1 class=mono>campaign · sandbox</span></div></div><div id=tag1 class='tag mono'>ID</div><div class=row style='top:896px;height:48px'><div style='margin-left:64px;display:flex;align-items:baseline;gap:12px'><span id=lab2 class=cond style='font-size:24px;line-height:1.25;color:#a6b4da'>Build my PC</span><span id=meta2 class=mono>3 saved builds</span></div></div><div id=tag2 class='tag mono'>EX</div><div class=row style='top:952px;height:48px'><div style='margin-left:64px;display:flex;align-items:baseline;gap:12px'><span id=lab3 class=cond style='font-size:24px;line-height:1.25;color:#a6b4da'>Gallery</span><span id=meta3 class=mono>64 parts</span></div></div><div id=tag3 class='tag mono'>MEM</div><div class=row style='top:1008px;height:48px'><div style='margin-left:64px;display:flex;align-items:center;gap:32px'><span id=u1 class=sans style='font-size:14px;line-height:1.4;color:#a6b4da'>Load file</span><span id=u2 class=sans style='font-size:14px;line-height:1.4;color:#a6b4da'>Settings</span></div></div><div id=tag4 class='tag mono'>WB</div><script>
+const T={"W": 530, "H": 1080, "x0": 24, "top": 531, "wm": 80, "cell": 14, "cgap": 6, "xs": 12, "sm": 14, "lab2": 40, "lab": 24, "col": 40, "chipH": 24, "colC": 44, "labX": 88, "build_top": 685, "rows": [[752, 80], [840, 48], [896, 48], [952, 48], [1008, 48]], "ugap": 32, "meta2gap": 6, "mgap": 12, "hints": null};
+document.fonts.ready.then(()=>{
+ const R=id=>document.getElementById(id).getBoundingClientRect();
+ // ink right edge of PIPELINE
+ const cv=document.createElement('canvas').getContext('2d'); cv.font='600 '+T.wm+'px PX-Cond';
+ const m=cv.measureText('PIPELINE'); const right=T.x0+m.actualBoundingBoxRight;
+ const base=R('bl').top; const wmB=R('wm').bottom;
+ // stage strip
+ const s=document.getElementById('strip'); const cb=base-10; const x1=right-5*T.cell-4*T.cgap;
+ for(let i=0;i<5;i++){const c=document.createElement('div');c.className='a';c.style.cssText=`left:${x1+i*(T.cell+T.cgap)}px;top:${cb-T.cell}px;width:${T.cell}px;height:${T.cell}px;background:${i?'#4e5360':'#a68bff'}`;s.appendChild(c);}
+ // build line
+ const bd=document.getElementById('build'); bd.style.left=T.x0+'px'; bd.style.top=(T.build_top!=null?T.build_top:wmB+17)+'px';
+ // tags centred on their label line
+ const ctr=r=>(r.top+r.bottom)/2;
+ const chip=document.getElementById('chip'); const l0=R('lab0'); chip.style.top=(ctr(l0)-T.chipH/2)+'px';
+ for(const [t,l] of [['tag1','lab1'],['tag2','lab2'],['tag3','lab3'],['tag4','u1']]){const e=document.getElementById(t);const h=e.getBoundingClientRect().height;e.style.top=(ctr(R(l))-h/2)+'px';}
+ // trace
+ const cx1=Math.round(x1+T.cell/2), yh=Math.round(R('build').bottom+16), C=T.colC, ch=R('chip');
+ const lit=[[cx1,Math.round(cb)],[cx1,yh-24],[cx1-24,yh],[C+24,yh],[C,yh+24],[C,Math.round(ch.top-8)]];
+ const segs=[]; const tg=['chip','tag1','tag2','tag3','tag4'].map(R);
+ for(let i=0;i<4;i++) segs.push([[C,Math.round(tg[i].bottom+8)],[C,Math.round(tg[i+1].top-8)]]);
+ const sv=document.getElementById('tr'); const P=(pts,col)=>{const p=document.createElementNS('http://www.w3.org/2000/svg','polyline');p.setAttribute('points',pts.map(q=>q.join(',')).join(' '));p.setAttribute('fill','none');p.setAttribute('stroke',col);p.setAttribute('stroke-width','2');p.setAttribute('stroke-linejoin','miter');p.setAttribute('stroke-linecap','butt');sv.appendChild(p);};
+ P(lit,'#3be3ff'); segs.forEach(q=>P(q,'#4e5360'));
+ // geometry dump: text boxes (glyph content areas) for contrast
+ const txt=[];
+ const add=(id,col,name)=>{const e=document.getElementById(id);const rg=document.createRange();rg.selectNodeContents(e);for(const r of rg.getClientRects())txt.push({name:name||id,col,x0:r.left,y0:r.top,x1:r.right,y1:r.bottom});};
+ add('wm1','#e2eaff','wordmark PIPELINE'); add('wm2','#e2eaff','wordmark CITY'); add('build','#a6b4da','build line');
+ add('lab0','#e2eaff','Continue'); add('meta0','#a6b4da','Continue meta'); add('tag0','#04060f','IF (on chip)');
+ for(const i of [1,2,3]){add('lab'+i,'#a6b4da');add('meta'+i,'#a6b4da');add('tag'+i,'#a6b4da');}
+ add('tag4','#a6b4da','WB'); add('u1','#a6b4da','Load file'); add('u2','#a6b4da','Settings'); if(T.hints) add('hints','#a6b4da','key hints');
+ const rows=[...document.querySelectorAll('.row')].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height];});
+ window.__geo={right,base,stripCell1:[x1,cb-T.cell],build:[R('build').left,R('build').top,R('build').bottom],yh,lit,segs,chip:[ch.left,ch.top,ch.width,ch.height],tags:tg.map(r=>[r.left,r.top,r.right,r.bottom]),rows,txt};
+});</script></body></html>
