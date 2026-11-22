@@ -9,6 +9,7 @@ import { slotRects } from './slots3d';
 import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
+import { ArtSet } from './artset3d';
 import { applyView, distanceOf, fitRect, heightAt, LIMITS, panBy, retarget, settled, stepView, zoomAt, zoomOn, type OrbitView } from '@/core/render/three/camera';
 import { turnOf } from '@/core/render/three/gesture';
 import { attachPad, type PadHost } from '@/core/render/three/pad';
@@ -658,7 +659,7 @@ export class BuildStage {
     const { scene } = this.ctx, plan = this.wallPlanNow(), net = this.wallNet(this.snapshot);
     if (this.wall && this.wall.plan.key !== plan.key) { scene.remove(this.wall.root); this.wall.dispose(); this.wall = null; }
     if (this.wall) this.wall.set(net);
-    else { this.wall = new StudioWall(plan, net); scene.add(this.wall.root); }
+    else { this.wall = new StudioWall(plan, net, new ArtSet(this.bakes)); scene.add(this.wall.root); }
     this.demand.ask();
   }
 
@@ -709,7 +710,10 @@ export class BuildStage {
     if (lowDetail()) this.machine.holdDetail(this.anim || this.status.peek().busy ? [this.machine.root] : []);
     else this.machine.holdDetail([], (LOD_CEIL * this.H) / this.frameView().height);
     // (the art's density follows the `textures` setting as the board's view does: Low draws it at half what the screen needs)
-    this.machine.lod(camera, this.H, renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1));
+    const dpr = renderer.getPixelRatio() * (TEXTURE_LEVELS[effective.peek().textures] ?? 1);
+    this.machine.lod(camera, this.H, dpr);
+    // (the wall's router: its shell fades for the zoom and its board shows, as the room's does)
+    this.wall?.lod(camera, this.H, dpr);
     this.step(dt * this.rate());
     this.syncOutline();
     // (a tick that drew no frame has the time for more tiles: the tiles' frames come in batches, `DrawGate.want`)

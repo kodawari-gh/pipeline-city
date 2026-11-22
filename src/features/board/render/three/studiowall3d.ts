@@ -5,7 +5,7 @@
 // port to the router's WAN port (a patch lead, a direct attach lead, or a patch lead with an adapter where the two ports are unlike: `cagePlug`).
 // The machine's own cords (`Machine3D`, `wall` option) go to the outlets and from the router's first LAN port to the case's network jack.
 // World frame: x east, y up, z toward the viewer; `MM` = 23 units a mm. The plan is pure (the cords and the camera read it); the wall is built from it.
-import { Group, MeshStandardMaterial } from 'three';
+import { Group, MeshStandardMaterial, type PerspectiveCamera } from 'three';
 import { disposeTree, drum, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
@@ -16,6 +16,9 @@ import { outlinePts, shapeOf, slab } from './casekit3d';
 import { cagePlug, qsfpAt, rj45Jack, rj45Plug, type PortKind } from './plugs3d';
 import { qsfpLook } from './qsfp3d';
 import { cageAt, CAGE, jackAt, LED_ON, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel, routerPort } from './router3d';
+import { builtinTheme } from '@/core/render/theme';
+import type { ArtSet } from './artset3d';
+import { routerInsides } from './routerinside3d';
 import { jackLook, type JackLamps } from './rj45jack3d';
 import { pinwheel, tripleSocket, TRIPLE } from './swisssocket3d';
 import { cableMesh, hangPts, type Env, type Look } from './wires3d';
@@ -134,8 +137,11 @@ export class StudioWall {
   private status: MeshStandardMaterial[] = [];
   private jacks: (JackLamps | null)[] = [];
   private net: WallNet = { router: null, isp: null };
+  /** What takes the router's board away again (its art, its reveals), once it has one. */
+  private insides: (() => void) | null = null;
 
-  constructor(readonly plan: WallPlan, net: WallNet) {
+  /** `art`: the set that bakes the router's die and runs its reveals (the stage's queue, run by `lod`); none: the router is its shell alone (the tests). */
+  constructor(readonly plan: WallPlan, net: WallNet, private readonly art?: ArtSet) {
     this.buildStatic();
     this.set(net);
   }
@@ -161,7 +167,10 @@ export class StudioWall {
     lightJack(this.jacks[4], v.wan);
   }
 
-  dispose(): void { disposeTree(this.root); this.root.clear(); }
+  /** Per frame: the router's shell fades for the camera's zoom and its board shows through (`routerInsides`), the die's tiles ask for what the camera needs. */
+  lod(cam: PerspectiveCamera, H: number, dpr: number): void { this.art?.look(cam, H, dpr); }
+
+  dispose(): void { this.insides?.(); this.insides = null; this.art?.dispose(); disposeTree(this.root); this.root.clear(); }
 
   // ------------------------------------------------------------------ the still parts
   private buildStatic(): void {
@@ -208,14 +217,20 @@ export class StudioWall {
   // ------------------------------------------------------------------ the router of a tier
   private buildRouter(tier: number | null): void {
     this.built = tier;
+    this.insides?.();
+    this.insides = null;
     if (this.router) { this.root.remove(this.router); disposeTree(this.router); this.router = null; }
     this.status = []; this.jacks = [];
     if (tier === null) return;
     // (the shared model, router3d.ts: its east end, feet and front on the shelf's plan; the wall hides its back, so it has none; the first LAN jack and the WAN jack
     // have lights of their own, all out until `lights` sets them: the PC's cord and the patch lead go there, the other three jacks have no cable)
     const r = this.plan.router, m = routerModel(tier, { depth: ROUTER_BODY, rear: false, drive: [0, 4] }), g = new Group();
-    m.root.position.set(r.east, r.base, r.front);
-    g.add(m.root);
+    // (the board lies in the shell, in the router's frame: one group places both)
+    const rig = new Group();
+    rig.position.set(r.east, r.base, r.front);
+    rig.add(m.root);
+    g.add(rig);
+    if (this.art) this.insides = routerInsides(this.art, builtinTheme(), tier, rig, m);
     this.status = m.status;
     this.jacks = m.jacks;
     g.name = 'wall.router';

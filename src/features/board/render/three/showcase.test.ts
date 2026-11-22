@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Vector3, type Object3D } from 'three';
+import { Box3, PerspectiveCamera, Vector3, type Object3D } from 'three';
 import { builtinTheme } from '@/core/render/theme';
 import { idOf } from '@/core/render/three/pick';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
@@ -49,6 +49,26 @@ describe('the showcase models', () => {
         if (m?.emissive && [0x58e08a, 0xffb547].includes(m.emissive.getHex()) && (m.emissiveIntensity ?? 0) > 0) lit++;
       });
       expect(lit, id).toBe(0);
+    }
+  });
+
+  // (a part that wears 2D art runs its reveals from the viewer's frame hook, as the case's reveals run)
+  const runFrame = (o: Object3D, z: number): void => {
+    const cam = new PerspectiveCamera(30, 1, 1, 1e6);
+    cam.position.set(0, 0, z);
+    cam.updateMatrixWorld(true);
+    o.updateMatrixWorld(true);
+    o.traverse((n) => { const f = n.userData.frame as ((c: PerspectiveCamera, h: number) => void) | undefined; if (f) f(cam, 900); });
+  };
+
+  it('fades the shell of a router as the camera comes in and shows its board, as the room does', () => {
+    for (const id of ['router1', 'router4']) {
+      const m = buildShowcaseModel(id, T)!;
+      const board = (): boolean => { let v = false; m.traverse((o) => { if (o.userData.id === 'router') v = o.visible; }); return v; };
+      runFrame(m, 60000);
+      expect(board(), id + ' far').toBe(false);
+      runFrame(m, 1500);
+      expect(board(), id + ' near').toBe(true);
     }
   });
 

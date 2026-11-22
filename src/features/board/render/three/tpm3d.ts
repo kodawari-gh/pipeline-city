@@ -6,15 +6,21 @@
 // faces). Both modules talk LPC, as the board's TPM header does. The TPM 1.2 is a green board with tinned (HASL) pads; the TPM 2.0 a black one
 // with gold (ENIG) pads and a newer chip. Up close the die fades in over the chip's top, as the case's view draws it (chips3d.ts: `TpmView`
 // bare); the LED is lit red there while protected mode is on.
-import { BoxGeometry, Group, LatheGeometry, Matrix4, Shape, Vector2, type MeshStandardMaterial } from 'three';
+import { BoxGeometry, Group, LatheGeometry, Matrix4, Object3D, Shape, Vector2, type MeshStandardMaterial } from 'three';
+import { Container, Graphics } from 'pixi.js';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { NYLON, mat } from '@/core/render/three/materials';
+import type { Theme } from '@/core/render/theme';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { tpmFar, tpmNear } from '@/features/tpm/render/tpmart';
 import { CU, tpmCopper, type Layer } from '@/features/tpm/render/tpmcopper';
 import { tpmGeo } from '@/features/tpm/render/tpmlayout';
 import { GEO } from '../layout/layout';
 import { grow } from './casekit3d';
+import { ArtSet, LV_DIE } from './artset3d';
 import { arc, maskTop, MM, passives, pcbSlab, pkg, type MaskArt, type MaskCopper, type Passive } from './pcbkit3d';
 
 /** The module's depths: the connector's mating face (down on the header's base), the board's underside and top. */
@@ -64,10 +70,38 @@ function led(g: Group, x: number, y: number, z: number) {
 }
 
 /**
- * The module on this tier's header (`GEO`) into `g`. `onFace`: each face the case's view draws on, under its parent, by its rect (layout) and
- * depth: the die over the chip's top, the LED's light over its lens. Returns the board's material, or null: the board has no header.
+ * The die of the module as the 2D view draws it at rest (`TpmView`): the plate, the blocks' wires and cells, the labels, in board units over the
+ * die's rect (`tpmGeo`). Null: the board has no header.
  */
-export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: RectLike, z: number) => void): MeshStandardMaterial | null {
+export function tpmDieArt(T: Theme, visual: string): Container | null {
+  const h = tpmHeader(GEO.tier);
+  if (!h) return null;
+  const geo = tpmGeo(visual, headerRect(h)), die = new Container(), plate = new Graphics();
+  die.position.set(geo.die.x, geo.die.y);
+  die.scale.set(geo.scale);
+  tpmFar(plate, T, geo.plan);
+  const near = tpmNear(T, geo.plan);
+  die.addChild(plate, near.wires, near.cells, near.names, near.subs);
+  return die;
+}
+
+/** The die's still baked over `r` at depth `z` on `top` (`tpmDieArt`): the gallery's and Build my PC's die, where no live view runs. Its root fades with `tpmDieFade`. */
+export function tpmDieFace(art: ArtSet, T: Theme, visual: string, top: Object3D, r: RectLike, z: number): Object3D {
+  const b = art.baker(() => tpmDieArt(T, visual) ?? new Container());
+  return art.surface(top, b.bake, r, z, LV_DIE, FINISH.die).root;
+}
+
+/** The die fades in as the camera comes in, over the band the live die uses (`DEVICE_LOD.tpm.fade`); `zoom`: screen pixels per unit. */
+export function tpmDieFade(face: Object3D, zoom: number): void {
+  const [a, b] = DEVICE_LOD.tpm.fade;
+  fadeTree(face, smooth(a, b, zoom));
+}
+
+/**
+ * The module on this tier's header (`GEO`) into `g`. `onFace`: each face the case's view draws on, under its parent, by its rect (layout) and
+ * depth: the die (`part` 'die') over the chip's top, the LED's light (`part` 'lens') over its lens. Returns the board's material, or null: the board has no header.
+ */
+export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: RectLike, z: number, part: 'die' | 'lens') => void): MeshStandardMaterial | null {
   const p = tpmRect(GEO.tier), h = tpmHeader(GEO.tier);
   if (!p || !h) return null;
   const hr = headerRect(h), geo = tpmGeo(visual, hr), look = LOOK[visual as keyof typeof LOOK] ?? LOOK['tpm-1'];
@@ -137,8 +171,8 @@ export function tpmModel(g: Group, visual: string, onFace?: (top: Group, r: Rect
   g.add(maskTop(`tpm-under:${visual}`, p, z0, { ...look.art, seed: 0, copper: copper('bottom'), text: [{ x: X0 + 22, y: Y0 + 24, s: `REV ${look.rev}  2645`, mm: 0.7 }] }, { under: true, px: 48 }));
 
   // the faces the case's view draws on: the die over the chip, the LED's light over its lens
-  onFace?.(g, grow(d, 2), chipTop);
-  onFace?.(g, { x: L.x - 24, y: L.y - 32, w: 48, h: 64 }, z1 + 14);
+  onFace?.(g, grow(d, 2), chipTop, 'die');
+  onFace?.(g, { x: L.x - 24, y: L.y - 32, w: 48, h: 64 }, z1 + 14, 'lens');
   return (pcb.material as MeshStandardMaterial[])[0]!;
 }
 

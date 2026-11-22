@@ -67,7 +67,11 @@ export class ArtSet {
   }
 
   /** On its own (`frame`): run `apply` every frame with the zoom seen at `at` (screen pixels per unit), as the machine's reveals do (a lid fades). */
-  reveal(at: Object3D, apply: (zoom: number) => void): void { this.reveals.push({ at, apply }); }
+  reveal(at: Object3D, apply: (zoom: number) => void): () => void {
+    const r = { at, apply };
+    this.reveals.push(r);
+    return () => { const i = this.reveals.indexOf(r); if (i >= 0) this.reveals.splice(i, 1); };
+  }
 
   /** Show the part as from up close from now on, whatever the zoom: its reveals done (a CPU's lid gone, its die's floorplan showing). */
   private opened = false;
@@ -81,12 +85,17 @@ export class ArtSet {
   /** Hand the set to the viewer on the part's root. */
   attach(o: Object3D): void { o.userData.frame = this.frame; o.userData.dispose = this.dispose; o.userData.open = this.open; }
 
-  /** Per frame, on its own: the reveals, then the faces' tiles; the queue bakes a few. */
-  readonly frame = (cam: PerspectiveCamera, H: number): void => {
+  /** Per frame under a host that runs the queue (the Build stage's wall, with the stage's own queue): the reveals, then the faces' tiles. */
+  readonly look = (cam: PerspectiveCamera, H: number, dpr: number): void => {
     const now = performance.now();
     for (const r of this.reveals) r.apply(this.opened ? Infinity : screenPx(cam.position.distanceTo(r.at.getWorldPosition(AT)), cam.fov, H));
     frustumOf(cam, this.frustum);
-    this.update(cam, this.frustum, H, 1, now);
+    this.update(cam, this.frustum, H, dpr, now);
+  };
+
+  /** Per frame, on its own: the reveals, then the faces' tiles; the queue bakes a few. */
+  readonly frame = (cam: PerspectiveCamera, H: number): void => {
+    this.look(cam, H, 1);
     this.q.run(8);
   };
 

@@ -94,7 +94,7 @@ import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
-import { tpmModel, TPM_Z } from './tpm3d';
+import { tpmDieFace, tpmDieFade, tpmModel, TPM_Z } from './tpm3d';
 import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
@@ -960,8 +960,13 @@ export class Machine3D {
         break;
       }
       case 'tpm': {
-        // the module on its header (tpm3d.ts); its die runs over its chip, its LED shows protected mode (chips3d.ts)
-        if (tpmModel(g, visual, (top, r, z) => this.chips?.face(top, 'tpm', r, z + 2, d.slot))) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
+        // the module on its header (tpm3d.ts); its die runs over its chip, its LED shows protected mode (chips3d.ts). Where no live view runs (Build my
+        // PC) the die's still is baked there and fades in as the camera comes in, as the live die does
+        const face = (top: Group, r: RectLike, z: number, part: 'die' | 'lens') => {
+          if (this.chips) this.chips.face(top, 'tpm', r, z + 2, d.slot);
+          else if (part === 'die') { const root = tpmDieFace(this.art, this.T, visual, top, r, z + 2); this.reveal(r, z + 2, (zoom) => tpmDieFade(root, zoom), false, true); }
+        };
+        if (tpmModel(g, visual, face)) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
         this.powerSkin(d.id, g);
         break;
       }
