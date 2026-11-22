@@ -1,5 +1,6 @@
 // The plugs of the cables the player moves at the PC's end (and the video cable's at the monitor), as real ones: an HDMI plug, an RJ45 (8P8C)
-// plug, a QSFP+ plug (the end of a 40GBASE-CR4 lead) and a Swiss mains (type 12) plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
+// plug, a QSFP+ plug (the end of a 40GBASE-CR4 lead), an adapter (a QSFP+ cage's end of an RJ45 lead: the lead between unlike ports, the RJ45 plug in the adapter's mouth)
+// and a Swiss mains (type 12) plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
 // cablerig3d.ts, stands one in its seat), the part that goes into the socket ahead of the mouth (hidden when it is seated, seen when it lies
 // loose); its long side along x, its keyed side (HDMI's cut corners, the RJ45's latch) at -y. A real socket (a card's, the monitor's) takes a
 // real plug. The board's rear I/O is drawn at about a third of real size: its plug's tip is cut to its mouth, and its boot keeps a real plug's
@@ -31,12 +32,21 @@ export const RJ45 = { body: { w: 11.6, h: 6.5 }, in: 14, out: 6, latch: { w: 6, 
  */
 export const QSFPM = { body: { w: 18.35, h: 8.5 }, in: 16, out: 13, boot: { w: 18.9, h: 10, w1: 12, h1: 9.4, l: 24 }, tab: { w: 9, l: 30, t: 0.9, ring: 2.2, root: 1.6 }, l: 44 } as const;
 
+/**
+ * The adapter that puts an RJ45 patch lead into a QSFP+ cage (mm): a QSFP+ to SFP+ adapter with a 10GBASE-T SFP+ module in it (a copper module is the one that fits an RJ45 lead, and it carries 10 Gbit/s at most). Its housing is
+ * a QSFP+ module's (18.35 x 8.5, the nose 16 ahead of the cage's mouth) and stands 20 out of the cage; the SFP+ module in its end is 13.4 x 8.5, finned on top, and ends 52 out of the cage in the RJ45 mouth (the
+ * compact jack's, 11.68 across and 7.6 high), the lead's plug sunk 0.85 into it. The pull tab is the QSFP+ plug's.
+ */
+export const ADAPTER = { qsa: 20, out: 52, sfp: { w: 13.4, h: 8.5 }, mouth: { w: 11.68, h: 7.6 }, sink: 0.85 } as const;
+
 /** An HDMI plug for one socket: `k` units a mm, its tip's cross-section (the socket's mouth), the cable's radius. */
 export interface HdmiFit { k: number; tip: { w: number; h: number; cut: number }; cable: number }
 /** A QSFP+ plug for one cage: `k` units a mm, its module's cross-section (the cage's mouth), the cable's radius and the boot's colour. */
 export interface QsfpFit { k: number; body: { w: number; h: number }; cable: number; tone: number }
 /** An RJ45 plug for one jack: `k` units a mm, its body's cross-section and its latch (the jack's mouth and latch slot), the cable's radius and colour. */
 export interface Rj45Fit { k: number; body: { w: number; h: number }; latch: { w: number; rise: number }; cable: number; tone: number }
+/** What a network port is: an RJ45 jack, or a QSFP+ cage. A lead between two ports of one kind is plain (an RJ45 patch lead, a QSFP+ direct attach lead); between unlike ports the cage's end is an adapter (`cagePlug`). */
+export type PortKind = 'rj45' | 'qsfp';
 
 /** A real socket's plug (a card's output, the monitor's input). */
 export const hdmiReal = (cable: number): HdmiFit => ({ k: MM, tip: { w: HDMI.tip.w * MM, h: HDMI.tip.h * MM, cut: HDMI.tip.cut * MM }, cable });
@@ -77,6 +87,8 @@ const bootScale = (k: number, cable: number, h: number, share: number): number =
 export const hdmiLength = (f: HdmiFit): number => HDMI.l * bootScale(f.k, f.cable, HDMI.boot.h, 0.68);
 export const rj45Length = (f: Rj45Fit): number => RJ45.l * bootScale(f.k, f.cable, RJ45.boot.h, 0.62);
 export const qsfpLength = (f: QsfpFit): number => QSFPM.l * bootScale(f.k, f.cable, QSFPM.boot.h, 0.6);
+/** The adapter's: out of the cage to its RJ45 mouth, less the plug's tip sunk in it, and the RJ45 plug's own (a plug for a compact jack at the cage's scale) from there. */
+export const adapterLength = (f: QsfpFit): number => rj45Length(rj45Jack(f.k, f.cable, f.tone)) + (ADAPTER.out - ADAPTER.sink) * f.k;
 
 /** A box in the plug's own frame. */
 function box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
@@ -222,6 +234,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ridges)));
   const r1 = cable + 0.3 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(3.9 * b, cable + 1.2 * b));
   g.add(relief(z2 - 0.5 * b, 0, r0, r1, 1.5 * b, 0.22 * b, boot));
+  g.userData.plug = 'rj45';
   return { body: g, l };
 }
 
@@ -236,21 +249,26 @@ function pullTab(w: number, z0: number, z1: number, ring: number, t: number, y: 
   return place(new Mesh(g, m));
 }
 
+/** A QSFP+ module's nose, ahead of the cage's mouth (at z = `zf`): the dark recess in its face with the two rows of gold fingers of its card edge in it. */
+function qsfpNose(g: Group, B: { w: number; h: number }, k: number, zf: number): void {
+  const dark = mat(0x050608, { roughness: 0.7 }), goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
+  const iw = B.w - 2.4 * k, ih = 3.4 * k, pitch = 0.8 * k, fingers = [];
+  g.add(box(-iw / 2, iw / 2, -ih / 2, ih / 2, zf - 0.08 * k, zf + 0.3 * k, dark));
+  for (const s of [-1, 1]) for (let i = 0; i < 19; i++) fingers.push({ x: (i - 9) * pitch, y: s * 0.95 * k, z: zf - 0.1 * k, sx: 0.42 * k, sy: 1.1 * k, sz: 0.1 * k });
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, fingers)));
+}
+
 /**
  * A QSFP+ plug: the module's satin housing (its nose with the dark recess and the two rows of gold fingers of its card edge, the grip ribs across both broad faces out of the cage), the collar, the
  * moulded boot in the cable's colour with its ribs, the strain relief down to the cable, and the blue pull tab on the keyed side (-y) with its ring.
  */
 export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
   const { k, body: B, cable } = f, Q = QSFPM, b = bootScale(k, cable, Q.boot.h, 0.6), l = Q.l * b, g = new Group();
-  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }), dark = mat(0x050608, { roughness: 0.7 }), goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
-  const boot = mat(f.tone, { roughness: 0.55 }), tabM = mat(0x16294d, { roughness: 0.5 });
+  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }), boot = mat(f.tone, { roughness: 0.55 }), tabM = mat(0x16294d, { roughness: 0.5 });
   const hx = B.w / 2, hy = B.h / 2, zf = -l - Q.in * k, zo = -l + Q.out * b;
   // the housing, from its nose to the collar, and the nose's recess with the card edge's fingers in it
   g.add(softBox({ x: -hx, y: -hy, w: B.w, h: B.h }, zf, zo, zinc, 0.5 * k));
-  const iw = B.w - 2.4 * k, ih = 3.4 * k, pitch = 0.8 * k, fingers = [];
-  g.add(box(-iw / 2, iw / 2, -ih / 2, ih / 2, zf - 0.08 * k, zf + 0.3 * k, dark));
-  for (const s of [-1, 1]) for (let i = 0; i < 19; i++) fingers.push({ x: (i - 9) * pitch, y: s * 0.95 * k, z: zf - 0.1 * k, sx: 0.42 * k, sy: 1.1 * k, sz: 0.1 * k });
-  g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, fingers)));
+  qsfpNose(g, B, k, zf);
   // the grip: four ribs across each broad face, on the part that stands out of the cage
   const grip = [];
   for (let i = 0; i < 4; i++) for (const s of [-1, 1]) grip.push({ x: 0, y: s * (hy + 0.12 * k), z: -l + (2.6 + i * 2.5) * b, sx: B.w * 0.72, sy: 0.4 * k, sz: 0.7 * k });
@@ -270,8 +288,44 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
   const A = Q.tab, tw = A.w * k, top = -(bh / 2 + 0.25 * k), zr = -l + A.root * k;
   g.add(pullTab(tw, zr, zr + A.l * k, A.ring * k, A.t * k, top, tabM));
   g.add(box(-tw / 2, tw / 2, top - A.t * k, -hy + 0.3 * k, zr, zr + 2.2 * k, tabM));
+  g.userData.plug = 'qsfp';
   return { body: g, l };
 }
+
+/**
+ * A QSFP+ to RJ45 adapter with the lead's RJ45 plug in it (`ADAPTER`): the QSFP+ housing with its nose and grip ribs, the SFP+ module in its end with its fins and the RJ45 mouth in its face, the pull tab on the
+ * keyed side under it, and the RJ45 plug (a plug for a compact jack at the cage's scale, its own boot) seated in the mouth. One part to the hand and the seat: its socket's mouth (the cage's) is at z = -l, the cable
+ * leaves at 0.
+ */
+export function adapterPlug(f: QsfpFit): { body: Group; l: number } {
+  const { k, body: B, cable } = f, A = ADAPTER, rj = rj45Plug(rj45Jack(k, cable, f.tone)), l = adapterLength(f), g = new Group();
+  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }), dark = mat(0x050608, { roughness: 0.7 }), tabM = mat(0x16294d, { roughness: 0.5 });
+  const hx = B.w / 2, hy = B.h / 2, sw = A.sfp.w * k, sh = A.sfp.h * k, z0 = -l, zf = z0 - QSFPM.in * k, zq = z0 + A.qsa * k, zo = z0 + A.out * k;
+  // the QSFP+ housing, from its nose to its face, where the SFP+ module comes out of it
+  g.add(softBox({ x: -hx, y: -hy, w: B.w, h: B.h }, zf, zq, zinc, 0.5 * k));
+  qsfpNose(g, B, k, zf);
+  const ribs = [];
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) ribs.push({ x: 0, y: s * (hy + 0.12 * k), z: z0 + (2.6 + i * 2.5) * k, sx: B.w * 0.72, sy: 0.4 * k, sz: 0.7 * k });
+  // the SFP+ module: a narrower body, five fins across its top, and the dark RJ45 mouth a hair proud of its face
+  g.add(softBox({ x: -sw / 2, y: -sh / 2, w: sw, h: sh }, zq - 0.6 * k, zo, zinc, 0.4 * k));
+  for (let i = 0; i < 5; i++) ribs.push({ x: 0, y: sh / 2 + 0.12 * k, z: zq + (5 + i * 5.5) * k, sx: sw * 0.78, sy: 0.4 * k, sz: 1.6 * k });
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), zinc, ribs)));
+  g.add(box((-A.mouth.w * k) / 2, (A.mouth.w * k) / 2, (-A.mouth.h * k) / 2, (A.mouth.h * k) / 2, zo - 0.05 * k, zo + 0.08 * k, dark));
+  // the pull tab, as the QSFP+ plug's: its root on the housing's keyed side, the strip under the module
+  const T = QSFPM.tab, tw = T.w * k, top = -(hy + 0.35 * k), zr = z0 + T.root * k;
+  g.add(pullTab(tw, zr, zr + T.l * k, T.ring * k, T.t * k, top, tabM));
+  g.add(box(-tw / 2, tw / 2, top - T.t * k, -hy + 0.3 * k, zr, zr + 2.2 * k, tabM));
+  // (the lead's own plug stands where its socket's mouth is the module's, 0.85 behind the face: its frame is the adapter's)
+  g.add(rj.body);
+  g.userData.plug = 'adapter';
+  return { body: g, l };
+}
+
+/**
+ * The plug a QSFP+ cage takes at one end of a lead whose other end is in a port of kind `far`: the QSFP+ plug of a direct attach lead for another cage (40GBASE-CR4), the adapter an RJ45 patch lead plugs into for an RJ45
+ * jack. (An RJ45 jack takes an RJ45 plug whatever the far end is: the adapter is the cage's.)
+ */
+export const cagePlug = (f: QsfpFit, far: PortKind): { body: Group; l: number } => (far === 'qsfp' ? qsfpPlug(f) : adapterPlug(f));
 
 /**
  * The Swiss socket (SN 441011 type 13, for the earthed plug of type 12, "type J") as a flush one shows it, in mm round the middle of its recess (x across,

@@ -13,6 +13,7 @@ import type { V3 } from '@/core/render/three/rope';
 import { ROUTER_SPOT } from '../layout/layout';
 import { debossMat, decal, decalTop, outlinePts, shapeOf, slab, tex } from './casekit3d';
 import { MM } from './pcbkit3d';
+import type { PortKind } from './plugs3d';
 import { QSFP, qsfpFace, qsfpLamps, qsfpLook, type QsfpLook } from './qsfp3d';
 import { jackFace, jackLamp, springGold, type JackLamps, type JackLook } from './rj45jack3d';
 
@@ -22,6 +23,8 @@ export const RJ = { w: 13.75 * MM, h: 10.7 * MM, deep: 15.5 * MM } as const;
 export const CAGE = { w: QSFP.cage.w * MM, h: QSFP.cage.h * MM, deep: RJ.deep } as const;
 /** How many of the front's five ports (from the first LAN) are QSFP+ cages on a tier: all five of the edge router's, its WAN port too; the other tiers have RJ45 jacks. */
 export const qsfpPorts = (tier: number): number => (tier === 4 ? 5 : 0);
+/** The kind of a router's ports (every port of a tier is of one kind, the WAN too): the edge router's are QSFP+ cages, the other tiers' RJ45 jacks. No router: an RJ45 one. */
+export const routerPort = (tier: number | null): PortKind => (qsfpPorts(tier ?? 0) > 0 ? 'qsfp' : 'rj45');
 /** The body's depth in the studio and the gallery (every tier: its jacks stand in the same place), and the pitch of its jacks. */
 export const ROUTER_BODY = 2240;
 export const PITCH = 440;
@@ -76,15 +79,24 @@ const jackIn = (row: Group, x: number, y: number, face: number, look: JackLook, 
  * face's z.
  */
 const cageIn = (row: Group, x: number, y: number, face: number, look: QsfpLook, lamps: JackLamps, fine: boolean): void => {
-  const s = { y0: -(y + CAGE.h / 2), y1: -(y - CAGE.h / 2), z0: x - CAGE.w / 2, z1: x + CAGE.w / 2 };
+  const s = cageSpan(x, y);
   qsfpFace(row, -face, s, CAGE.deep, look, fine);
   qsfpLamps(row, 0, s, '-y', lamps, look, false);
 };
+/** The span a cage's face takes on a front, its middle at (`x`, `y`). */
+const cageSpan = (x: number, y: number) => ({ y0: -(y + CAGE.h / 2), y1: -(y - CAGE.h / 2), z0: x - CAGE.w / 2, z1: x + CAGE.w / 2 });
 
 /** A jack in a front facing the viewer, in a row of its own. `face` is its face's z. */
 export function jackAt(into: Group, x: number, y: number, face: number, look: JackLook, fine = true): void {
   const row = jackRow();
   jackIn(row, x, y, face, look, fine);
+  into.add(row);
+}
+
+/** A QSFP+ cage in a front facing the viewer, in a row of its own (a wall plate's: no lights). `face` is its face's z. */
+export function cageAt(into: Group, x: number, y: number, face: number, look: QsfpLook, fine = true): void {
+  const row = jackRow();
+  qsfpFace(row, -face, cageSpan(x, y), CAGE.deep, look, fine);
   into.add(row);
 }
 

@@ -1,6 +1,7 @@
 // A machine on the studio's wall (Machine3D's `wall` option, studiowall3d.ts): its two mains cords go from its devices into the wall's outlets in real Swiss type 12 plugs, one in each of two sockets of its triple plate (the power
 // runs out of the plug), its LAN lead from the router's first jack to the case's network port, and a router of another tier builds the cords again.
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { Object3D } from 'three';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { setNet } from '@/features/board/sim/buildnet';
@@ -100,5 +101,63 @@ describe('Machine3D on the studio\'s wall', () => {
     m3.syncCables(s4, roomGeo());
     expect(m3.rig('lan')).not.toBe(before);
     expect(m3.rig('pcmains')).not.toBe(pc);
+  });
+
+  /** The plugs of the LAN lead's two ends, the plug itself first: the router's end (fixed) and the PC's (the one the hand holds). */
+  const ends = (mc: Machine3D): { router: string[]; pc: string[] } => {
+    const kinds = (o: Object3D): string[] => {
+      const t: string[] = [];
+      o.traverse((x) => { if (typeof x.userData.plug === 'string') t.push(x.userData.plug); });
+      return t;
+    };
+    return { router: kinds(mc.cableGroup('lan')!.children[0]!), pc: kinds(mc.rig('lan')!.model().root) };
+  };
+  /** The plugs the held end takes on when it comes to another port (`alts`): what the hand swaps to. */
+  const heldAt = (mc: Machine3D, port: string): string[] => {
+    const t: string[] = [];
+    mc.rig('lan')!.alts!.find((a) => a.port === port)!.model!().root.traverse((x) => { if (typeof x.userData.plug === 'string') t.push(x.userData.plug); });
+    return t;
+  };
+
+  it('ends the LAN lead as its two ports do: an RJ45 plug in a jack, an adapter in the QSFP+ cage that faces a jack, a direct attach lead between two cages', () => {
+    // (the PC has the 40G card, its two cages; the board has its RJ45 jack; the router of a tier has RJ45 jacks, the edge router QSFP+ cages)
+    const g = game(), mc = machine(g.snapshot(), wall(true));
+    const sync = (): void => mc.syncCables(g.snapshot(), roomGeo());
+    const card = g.snapshot().devices.find((d) => d.kind === 'nic')!.id;
+    expect(g.snapshot().net.port).toMatchObject({ kind: 'nic', deviceId: card });
+    // a copper router and the card's cage: the adapter is the card's
+    expect(ends(mc)).toEqual({ router: ['rj45'], pc: ['adapter', 'rj45'] });
+    // the board's jack: a patch lead, plain
+    expect(g.disconnectCable('lan').ok).toBe(true);
+    expect(g.connectLan('board').ok).toBe(true);
+    sync();
+    expect(ends(mc)).toEqual({ router: ['rj45'], pc: ['rj45'] });
+    // (the held end, brought to the card's cage, takes the adapter: the router's end stays as it was until the plug is in)
+    expect(heldAt(mc, card)).toEqual(['adapter', 'rj45']);
+    // the edge router (a new router: its cages) and the board's jack: the adapter is the router's
+    expect(setNet(g, 'router', 'router4').ok).toBe(true);
+    sync();
+    expect(ends(mc)).toEqual({ router: ['adapter', 'rj45'], pc: ['rj45'] });
+    // and the card's cage: a direct attach lead, a QSFP+ plug at each end
+    expect(g.disconnectCable('lan').ok).toBe(true);
+    expect(g.connectLan(card).ok).toBe(true);
+    sync();
+    expect(ends(mc)).toEqual({ router: ['qsfp'], pc: ['qsfp'] });
+    // (the held end swaps to the plug of the port it comes to: from the card's cage to the board's jack, an RJ45 plug)
+    expect(heldAt(mc, 'board')).toEqual(['rj45']);
+  });
+
+  it('builds the LAN lead again in the room when the router is another tier: the end at its port is another plug', () => {
+    // (the machine in the room, no wall: the room's router has a side port, a QSFP+ cage on the edge router)
+    const g = game(), mc = new Machine3D(g.snapshot(), roomGeo(), new BakeQueue(), null, true, true, true, false, 'machine', null);
+    expect(g.disconnectCable('lan').ok).toBe(true);
+    expect(g.connectLan('board').ok).toBe(true);
+    mc.syncCables(g.snapshot(), roomGeo());
+    expect(ends(mc)).toEqual({ router: ['rj45'], pc: ['rj45'] });
+    const before = mc.rig('lan')!;
+    expect(setNet(g, 'router', 'router4').ok).toBe(true);
+    mc.syncCables(g.snapshot(), roomGeo());
+    expect(mc.rig('lan')).not.toBe(before);
+    expect(ends(mc)).toEqual({ router: ['adapter', 'rj45'], pc: ['rj45'] });
   });
 });

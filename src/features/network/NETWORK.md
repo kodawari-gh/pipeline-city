@@ -88,7 +88,7 @@ Each router loses a share of the segments that cross it (`RouterSpec.loss`, plac
 
 ### The ISP plan (a one-off purchase; the wall jack)
 
-Bought once, not an installed part and not a bill (owner): `purchase("isp1")` sets the plan; a higher plan replaces it (no refund, no downgrade offer). The router is pre-wired to the wall jack, so there is no second cable. The plan caps the download and upload bandwidth and how many clients can be served at once.
+Bought once, not an installed part and not a bill (owner): `purchase("isp1")` sets the plan; a higher plan replaces it (no refund, no downgrade offer). The router is pre-wired to the wall jack, so there is no second cable. (The 3D studio draws the wall's port as an RJ45 jack, or as a QSFP+ cage for `isp5`, which copper cannot carry; a lead between unlike ports gets an adapter: `docs/render/net.md` "QSFP+ ports".) The plan caps the download and upload bandwidth and how many clients can be served at once.
 
 | Id | Name | Download / upload (Mbit/s) | Clients at once | Price | Unlock |
 |---|---|---|---|---|---|

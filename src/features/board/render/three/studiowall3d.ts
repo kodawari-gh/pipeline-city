@@ -1,7 +1,8 @@
 // The studio's wall on the Build my PC stage (docs/PC_PARTS.md "Build my PC"): a back wall behind the machine with what the stage's power and network
 // plug into, so a build is tried against a real supply and a real link. The mains plate (a Swiss triple socket, `swisssocket3d.ts`: the monitor's plug in
 // one, the PC's in another, the third free), the ISP's wall
-// jack with five lights for the plan's tier, a shelf with the router of the game's tier on it, and the patch lead from the jack to the router's WAN port.
+// port (an RJ45 jack, or a QSFP+ cage for the plan copper cannot carry: `ispPort`) with five lights for the plan's tier, a shelf with the router of the game's tier on it, and the lead from the
+// port to the router's WAN port (a patch lead, a direct attach lead, or a patch lead with an adapter where the two ports are unlike: `cagePlug`).
 // The machine's own cords (`Machine3D`, `wall` option) go to the outlets and from the router's first LAN port to the case's network jack.
 // World frame: x east, y up, z toward the viewer; `MM` = 23 units a mm. The plan is pure (the cords and the camera read it); the wall is built from it.
 import { Group, MeshStandardMaterial } from 'three';
@@ -9,10 +10,12 @@ import { disposeTree, drum, rectBox, SEG, softBox, type RectLike } from '@/core/
 import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { lightJack, type LinkLevels } from '@/features/network/render/jackleds';
+import { ispByTier } from '@/features/network/sim/specs';
 import { seatPlug } from './cablerig3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
-import { qsfpAt, qsfpPlug, rj45Jack, rj45Plug } from './plugs3d';
-import { jackAt, LED_ON, qsfpPorts, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel } from './router3d';
+import { cagePlug, qsfpAt, rj45Jack, rj45Plug, type PortKind } from './plugs3d';
+import { qsfpLook } from './qsfp3d';
+import { cageAt, CAGE, jackAt, LED_ON, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel, routerPort } from './router3d';
 import { jackLook, type JackLamps } from './rj45jack3d';
 import { pinwheel, tripleSocket, TRIPLE } from './swisssocket3d';
 import { cableMesh, hangPts, type Env, type Look } from './wires3d';
@@ -25,8 +28,12 @@ export const MM = 23;
 export const WALL_Z = 700;
 /** The mains plate (a Swiss triple socket, a 91 mm square frame) and how far it stands off the wall: 18 mm, a recess in it 13 deep. */
 export const MAINS = { w: TRIPLE.frame * MM, h: TRIPLE.frame * MM, d: 18 * MM } as const;
-/** The ISP's plate (80 x 80 mm) and its jack, a compact RJ45 jack at real size. */
+/** The ISP's plate (80 x 80 mm) and its jack, a compact RJ45 jack at real size (or a QSFP+ cage, for the plan that copper cannot carry: `ispPort`). */
 export const ISP = { w: 80 * MM, h: 80 * MM, d: 13 * MM } as const;
+/** What copper carries (10GBASE-T), Mbit/s: a plan above it arrives on a QSFP+ cage, one at or under it on an RJ45 jack. */
+const COPPER_MBPS = 10000;
+/** The kind of the ISP's plate port a plan arrives on, by its tier (`isp5`, the 20 Gbit/s backbone plan, is a QSFP+ cage); no plan: the plate's RJ45 jack. */
+export const ispPort = (tier: number | null): PortKind => ((ispByTier(tier ?? 0)?.downMbps ?? 0) > COPPER_MBPS ? 'qsfp' : 'rj45');
 /** An RJ45 jack's face, real size (`router3d.ts`): its size, how deep its insert goes. */
 const JACK = RJ;
 /** How far west of the case's west face the plates start (the case, seen from the start view, hides the wall's points less than this far out when they are under the case's top). */
@@ -116,6 +123,9 @@ export class StudioWall {
   readonly root = new Group();
   private router: Group | null = null;
   private lead: Group | null = null;
+  /** The ISP's plate with the jack of the plan's port, and that port's kind as built (null: not yet). */
+  private plate: Group | null = null;
+  private plateKind: PortKind | null = null;
   /** The router's tier as built (`undefined`: not yet), and the router and plan the lead is built for. */
   private built: number | null | undefined = undefined;
   private shown = '';
@@ -130,9 +140,10 @@ export class StudioWall {
     this.set(net);
   }
 
-  /** What the wall shows now: the router of this tier (a new one is built), the plan's lights, the patch lead. A new router has every jack light out until `lights` sets them. */
+  /** What the wall shows now: the plate's port for the plan, the router of this tier (a new one is built), the plan's lights, the patch lead. A new router has every jack light out until `lights` sets them. */
   set(net: WallNet): void {
     this.net = { ...net };
+    if (ispPort(net.isp) !== this.plateKind) this.buildPlate(ispPort(net.isp));
     if (net.router !== this.built) this.buildRouter(net.router);
     const key = `${net.router}|${net.isp}`;
     if (key !== this.shown) { this.shown = key; this.buildLead(net.router !== null && net.isp !== null); }
@@ -161,13 +172,8 @@ export class StudioWall {
     // the mains plate: a Swiss triple socket round its screw (three recesses, each with its three contact holes)
     const m = p.mains, steel = mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }), black = mat(0x050608, { roughness: 0.9 });
     tripleSocket(R, { x: m.screw[0], y: m.screw[1], z, face: m.z, look: { plate, black, steel } });
-    // the ISP's plate: a slab with its jack's opening, the jack in it, a lit lamp for each tier of the plan along its foot
-    const t = p.isp, [jx, jy] = t.jack, steelShell = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 }), look = jackLook(steelShell);
-    const jackHole = outlinePts(lay(jx - JACK.w / 2, jx + JACK.w / 2, jy - JACK.h / 2, jy + JACK.h / 2), 0);
-    R.add(slab(shapeOf(outlinePts(lay(t.x0, t.x1, t.y0, t.y1), 240, undefined, SEG.cornerCoarse), [jackHole]), z, t.z, plate, 70));
-    // (a wall jack has no lights of its own)
-    for (const l of [look.link, look.act] as MeshStandardMaterial[]) l.emissiveIntensity = 0;
-    jackAt(R, jx, jy, t.jack[2], look);
+    // the ISP's plate (`buildPlate`: a slab with its port's opening, the port in it, as the plan's) and a lit lamp for each tier of the plan along its foot
+    const t = p.isp;
     for (let k = 0; k < 5; k++) {
       const lamp = glow(NEON);
       this.dots.push(lamp);
@@ -177,6 +183,26 @@ export class StudioWall {
     const r = p.router, shelf = mat(0x2a2d32, { roughness: 0.5 }), w = ROUTER_SIZE[4]!.w + 400;
     R.add(softBox(lay(r.east - w + 200, r.east + 200, r.base - 160, r.base), z, r.front + 200, shelf, 30));
     for (const bx of [r.east - w + 520, r.east - 320]) R.add(rectBox(lay(bx - 80, bx + 80, r.base - 1100, r.base - 160), z, z + ROUTER_DEPTH * 0.7, mat(STEEL, { roughness: 0.5 })));
+  }
+
+  // ------------------------------------------------------------------ the ISP's plate
+  /** The ISP's plate with the port the plan arrives on (`ispPort`): an RJ45 jack, or a QSFP+ cage for the plan copper cannot carry. The lamps along its foot are the wall's (`buildStatic`). */
+  private buildPlate(kind: PortKind): void {
+    this.plateKind = kind;
+    if (this.plate) { this.root.remove(this.plate); disposeTree(this.plate); this.plate = null; }
+    const { plan: p } = this, t = p.isp, [jx, jy] = t.jack, g = new Group(), steelShell = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
+    const w = kind === 'qsfp' ? CAGE.w : JACK.w, h = kind === 'qsfp' ? CAGE.h : JACK.h, hole = outlinePts(lay(jx - w / 2, jx + w / 2, jy - h / 2, jy + h / 2), 0);
+    g.add(slab(shapeOf(outlinePts(lay(t.x0, t.x1, t.y0, t.y1), 240, undefined, SEG.cornerCoarse), [hole]), p.face.z, t.z, mat(PLATE, { roughness: 0.42 }), 70));
+    if (kind === 'qsfp') cageAt(g, jx, jy, t.jack[2], qsfpLook(steelShell));
+    else {
+      // (a wall jack has no lights of its own)
+      const look = jackLook(steelShell);
+      for (const l of [look.link, look.act] as MeshStandardMaterial[]) l.emissiveIntensity = 0;
+      jackAt(g, jx, jy, t.jack[2], look);
+    }
+    g.name = 'wall.isp';
+    this.plate = g;
+    this.root.add(g);
   }
 
   // ------------------------------------------------------------------ the router of a tier
@@ -203,8 +229,9 @@ export class StudioWall {
     if (!on) return;
     const { plan: p } = this, g = new Group(), look: Look = { r: 40, base: '#caa24a', accent: null }, tone = 0xcaa24a;
     const end = (at: V3, plug: { body: Group; l: number }) => seatPlug({ at: [at[0], at[1], at[2] - JACK_SINK], axis: [0, 0, 1] }, plug);
-    // (each end follows its port: the plate's jack is an RJ45, the edge router's WAN port a QSFP+ cage, so a lead between those two is an adapter lead)
-    const a = end(p.isp.jack, rj45Plug(rj45Jack(MM, look.r, tone))), b = end(p.router.wan, qsfpPorts(this.net.router ?? 0) > 0 ? qsfpPlug(qsfpAt(MM, look.r, tone)) : rj45Plug(rj45Jack(MM, look.r, tone)));
+    // (each end follows its port, and the port at the other end: two RJ45 jacks take a patch lead, two QSFP+ cages a direct attach lead, and a lead between unlike ports is a patch lead with an adapter in the cage)
+    const jack = rj45Jack(MM, look.r, tone), cage = qsfpAt(MM, look.r, tone), plate = ispPort(this.net.isp), wan = routerPort(this.net.router);
+    const a = end(p.isp.jack, plate === 'qsfp' ? cagePlug(cage, wan) : rj45Plug(jack)), b = end(p.router.wan, wan === 'qsfp' ? cagePlug(cage, plate) : rj45Plug(jack));
     g.add(a.root, b.root);
     const env: Env = { planes: [{ n: [0, 0, 1], d: p.face.z + 80 }], solids: [routerSolid(p, this.net.router)] };
     g.add(cableMesh(hangPts(a.strands[0]!, b.strands[0]!, look, env, { slack: 1.12, extra: 500, stiff: 0.35, n: 30 }), look));

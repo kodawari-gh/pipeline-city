@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, MeshStandardMaterial, type Object3D } from 'three';
 import { DARK, JACK_GLOW, LinkLeds, type LinkLevels, type LinkSource } from '@/features/network/render/jackleds';
 import { quietCanvas } from './testutil';
-import { ISP, MAINS, MM, ROUTER_SIZE, ROUTER_TIERS, StudioWall, ispTier, routerSolid, routerTier, wallPlan, type WallIn, type WallNet } from './studiowall3d';
+import { ISP, MAINS, MM, ROUTER_SIZE, ROUTER_TIERS, StudioWall, ispPort, ispTier, routerSolid, routerTier, wallPlan, type WallIn, type WallNet } from './studiowall3d';
 
 quietCanvas();
 
@@ -221,6 +221,50 @@ describe('StudioWall', () => {
     const b = new Box3().setFromObject(w.root.getObjectByName('wall.lead')!);
     expect(b.min.x).toBeLessThan(p.isp.jack[0] + 200);
     expect(b.max.x).toBeGreaterThan(p.router.wan[0] - 200);
+    w.dispose();
+  });
+
+  it('ends the patch lead as its ports do: an RJ45 plug at each of two jacks, an adapter in a QSFP+ cage that faces a jack, a direct attach lead between two cages', () => {
+    const w = new StudioWall(p, { router: 2, isp: 2 });
+    // (the plugs of an end, the plug itself first: the lead's first end is at the ISP's plate, its second at the router's WAN port)
+    const kinds = (o: Object3D): string[] => {
+      const t: string[] = [];
+      o.traverse((x) => { if (typeof x.userData.plug === 'string') t.push(x.userData.plug); });
+      return t;
+    };
+    const ends = (): string[][] => { const lead = w.root.getObjectByName('wall.lead')!; return [kinds(lead.children[0]!), kinds(lead.children[1]!)]; };
+    expect(ends()).toEqual([['rj45'], ['rj45']]);
+    // the edge router's WAN port is a QSFP+ cage: a plan on the plate's RJ45 jack reaches it through an adapter
+    w.set({ router: 4, isp: 2 });
+    expect(ends()).toEqual([['rj45'], ['adapter', 'rj45']]);
+    // the backbone plan arrives on a QSFP+ cage of the plate: a direct attach lead to the edge router, and an adapter at the plate for another tier's RJ45 jack
+    w.set({ router: 4, isp: 5 });
+    expect(ends()).toEqual([['qsfp'], ['qsfp']]);
+    w.set({ router: 3, isp: 5 });
+    expect(ends()).toEqual([['adapter', 'rj45'], ['rj45']]);
+    w.dispose();
+  });
+
+  it('gives the ISP\'s plate the port its plan arrives on: an RJ45 jack, a QSFP+ cage for the plan copper cannot carry', () => {
+    expect([null, 0, 1, 2, 3, 4].map(ispPort)).toEqual(['rj45', 'rj45', 'rj45', 'rj45', 'rj45', 'rj45']);
+    expect(ispPort(5)).toBe('qsfp');
+    const w = new StudioWall(p, { router: 3, isp: 2 });
+    const plate = (): Object3D => w.root.getObjectByName('wall.isp')!;
+    // (the port is the plate's one part that is a group of its own: the slab, then the port in a row)
+    const port = (): number => { const b = new Box3().setFromObject(plate().children[1]!); return (b.max.x - b.min.x) / MM; };
+    const jack = plate();
+    expect(port()).toBeCloseTo(13.75, 0);
+    // (a plan of the same kind leaves the plate as it is)
+    w.set({ router: 3, isp: 3 });
+    expect(plate()).toBe(jack);
+    w.set({ router: 3, isp: 5 });
+    expect(plate()).not.toBe(jack);
+    expect(port()).toBeCloseTo(18.95, 0);
+    w.set({ router: 3, isp: null });
+    expect(port()).toBeCloseTo(13.75, 0);
+    // (and the plate's lamps stay the wall's: five of them, lit as the plan's tier)
+    w.set({ router: 3, isp: 5 });
+    expect(lamps(w.root)).toBe(5);
     w.dispose();
   });
 

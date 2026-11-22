@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Mesh, type MeshStandardMaterial } from 'three';
+import { Box3, Mesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { MONITOR_PLUG } from '@/features/room/render/three/monitor3d';
 import { IO_HALF, IO_Z } from './boardhw3d';
 import { OUTPUTS } from './gpu3d';
 import { MOUTH } from './nic3d';
 import {
-  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, QSFP_SIDE_K, qsfpAt, qsfpLength, qsfpPlug, QSFPM, qsfpReal, qsfpSide, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissEngage, swissLength,
-  swissPlug, swissReal, T13,
+  ADAPTER, adapterLength, adapterPlug, boardHdmi, boardRj45, cagePlug, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, QSFP_SIDE_K, qsfpAt, qsfpLength, qsfpPlug, QSFPM, qsfpReal, qsfpSide, RJ45, rj45Jack, rj45Length,
+  rj45Plug, rj45Real, SWISS, swissEngage, swissLength, swissPlug, swissReal, T13,
 } from './plugs3d';
 import { QSFP } from './qsfp3d';
 
@@ -75,6 +75,58 @@ describe('the cables plugs', () => {
     const small = qsfpAt(11, LAN_R, 0), scale = qsfpLength(small) / QSFPM.l;
     expect(scale).toBeGreaterThanOrEqual(small.k);
     expect((2 * small.cable) / (QSFPM.boot.h * scale)).toBeLessThanOrEqual(0.6 + 1e-9);
+  });
+
+  /** The kinds of plug a built plug is made of, the plug itself first (each plug builder tags its own group). */
+  const kinds = (p: { body: Object3D }): string[] => {
+    const t: string[] = [];
+    p.body.traverse((o) => { if (typeof o.userData.plug === 'string') t.push(o.userData.plug); });
+    return t;
+  };
+
+  it('builds the adapter for an RJ45 lead at a QSFP+ cage: its nose goes into the cage as a QSFP+ plug\'s does, the RJ45 plug sits in its mouth, the cable leaves at 0', () => {
+    const f = qsfpReal(LAN_R, 0x8cc3e0), ad = adapterPlug(f), b = new Box3().setFromObject(ad.body), rj = rj45Plug(rj45Jack(MM, LAN_R, 0x8cc3e0));
+    expect(ad.l).toBe(adapterLength(f));
+    // (out of the cage to the RJ45 mouth is 52 mm, the plug's tip sunk 0.85 in it: the RJ45 plug's own length from there)
+    expect(ad.l).toBeCloseTo(rj.l + (ADAPTER.out - ADAPTER.sink) * MM);
+    expect(ad.l).toBeGreaterThan(qsfpLength(f));
+    // the nose 16 ahead of the cage's mouth (z = -l), as the QSFP+ plug's; nothing goes past the cable's exit
+    expect(b.min.z).toBeLessThan(-ad.l - QSFPM.in * MM);
+    expect(b.min.z).toBeGreaterThan(-ad.l - (QSFPM.in + 0.2) * MM);
+    expect(b.max.z).toBeLessThanOrEqual(1);
+    // the housing is the module's, the widest part (the RJ45 boot is narrower), and the pull tab hangs under it on the keyed side
+    expect((b.max.x - b.min.x) / MM).toBeCloseTo(QSFPM.body.w, 1);
+    expect(b.min.y).toBeLessThan(-(QSFPM.body.h / 2) * MM);
+    // the lead's plug is in the module's mouth: its body fits it, its tip is behind the module's face (52 out), and the plug's own boot stays out
+    const mouth = { w: ADAPTER.mouth.w * MM, h: ADAPTER.mouth.h * MM };
+    const plug = rj45Jack(MM, LAN_R, 0);
+    expect(plug.body.w).toBeLessThanOrEqual(mouth.w);
+    expect(plug.body.h).toBeLessThan(mouth.h);
+    expect(-rj.l - RJ45.in * MM).toBeLessThan(-ad.l + ADAPTER.out * MM);
+    expect(-rj.l).toBeCloseTo(-ad.l + (ADAPTER.out - ADAPTER.sink) * MM);
+    // the module is narrower than the housing and as high; the cage's mouth takes the housing
+    expect(ADAPTER.sfp.w).toBeLessThan(QSFPM.body.w);
+    expect(ADAPTER.sfp.h).toBeLessThanOrEqual(QSFPM.body.h);
+    expect(f.body.w).toBeLessThan(QSFP.mouth.w * MM);
+  });
+
+  it('keeps the adapter\'s RJ45 plug a real plug\'s size to the cable at a smaller cage, and the adapter that much longer', () => {
+    const small = qsfpSide(LAN_R, 0), ad = adapterPlug(small);
+    expect(ad.l).toBeCloseTo(rj45Length(rj45Jack(small.k, LAN_R, 0)) + (ADAPTER.out - ADAPTER.sink) * small.k);
+    // (the RJ45 boot at that scale: never thinner than the cable over a real share, as in the other plugs)
+    const scale = rj45Length(rj45Jack(small.k, LAN_R, 0)) / RJ45.l;
+    expect(scale).toBeGreaterThanOrEqual(small.k);
+    expect((2 * LAN_R) / (RJ45.boot.h * scale)).toBeLessThanOrEqual(0.62 + 1e-9);
+  });
+
+  it('puts a QSFP+ plug in a cage whose lead ends in another cage, and an adapter where it ends in an RJ45 jack', () => {
+    const f = qsfpReal(LAN_R, 0);
+    expect(kinds(cagePlug(f, 'qsfp'))).toEqual(['qsfp']);
+    expect(kinds(cagePlug(f, 'rj45'))).toEqual(['adapter', 'rj45']);
+    // (an RJ45 jack takes an RJ45 plug)
+    expect(kinds(rj45Plug(rj45Real(LAN_R, 0)))).toEqual(['rj45']);
+    expect(cagePlug(f, 'qsfp').l).toBe(qsfpLength(f));
+    expect(cagePlug(f, 'rj45').l).toBe(adapterLength(f));
   });
 
   it('draws the room router\'s QSFP+ side cage at the scale of the board\'s rear RJ45, with a plug that fits its mouth', () => {
