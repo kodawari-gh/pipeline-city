@@ -107,6 +107,8 @@ def main():
     ms = json.load(open(os.path.join(REPO, "public", "audio", "music", "music-spec.json")))
     mc = {c["file"]: c for c in json.load(open(os.path.join(HERE, "music", "checks.json")))["files"]}
     TOKENS["music"].update(layerGainDb=ms["mix"]["layer_gain_db"], cueGainDb=ms["mix"]["cue_gain_db"], trimDb=ms["mix"]["music_trim_db"])
+    # ambience loop ends: the decoded sample count of each loop (the app ends each loop there, AUDIO.md)
+    for a in ("amb_room_city_loop", "amb_machine_hum_loop"): TOKENS["ambience"][a]["samples"] = checks[f"assets/ambience/{a}.ogg"]["decoded_samples"]
     assert ms["mix"]["levelup_with_sfx_db"] == TOKENS["music"]["levelupWithSfxDb"]
     for m in ms["manifest"]:
         if m["path"].startswith("previews/"): continue          # the music preview lives in previews/, not in assets

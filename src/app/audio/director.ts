@@ -1,15 +1,20 @@
 // The director: each new snapshot becomes cues. It sets the key from the level and plays one cue per new log note that has one.
 // It also plays the state rules (a change between two snapshots, SPEC §3.2) and, through `onUi`, the clock and holds.
-// It talks to the sound only through `CueSink`, so a test drives it with a fake (engine.ts is the real sink).
+// It also drives the ambience (ambience.ts): the room loop (`onScene`, `onUnlock`), the hum (each snapshot) and the pause dip (`onUi`).
+// It talks to the sound only through `CueSink` and the ambience calls, so a test drives it with a fake (engine.ts is the real sink).
 import { MIX, type CueId } from './mixTokens';
 import { keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
+import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
   playCue(id: CueId, opts?: { delayS?: number; quantise?: 'beat' }): void;
   setKeyPc(pc: number): void;
 }
+
+/** The screens the room loop cares about: the room scene is the main menu and the game (not the studios). `boot`: the boot screen covers the page (no room loop). */
+export type Scene = 'boot' | 'menu' | 'game' | 'build' | 'gallery';
 
 /** What holds the clock while it is stopped by a popup or the menu. A Hold plays no pause or resume cue. */
 export type Hold = 'levelUp' | 'tutorial' | 'menu';
@@ -37,6 +42,9 @@ export interface DirectorSnap {
   power?: { tripped: boolean };
   plugged?: unknown | null;
   keyActivity?: KeyActivity;
+  /** The machine's power and devices: the hum (a fixture may omit them: then no hum plays). */
+  powered?: boolean;
+  devices?: readonly FanDevice[];
 }
 
 export interface Director {
@@ -45,6 +53,12 @@ export interface Director {
   onUi(u: UiInput): void;
   /** No game (snapshot null), load or new game: the next snapshot starts fresh and plays nothing. */
   reset(): void;
+}
+
+/** The room loop's two inputs: the screen, and the first gesture (nothing plays before it). */
+export interface RoomInput {
+  onScene(scene: Scene): void;
+  onUnlock(): void;
 }
 
 /** The state a state rule compares with the one before. */
@@ -94,8 +108,14 @@ function stateCues(before: SeenState, now: SeenState, families: ReadonlySet<stri
 /** Seconds between the cues of one snapshot: the notes of one tick play in log order, 40 ms apart. */
 export const NOTE_GAP_S = 0.04;
 
-export function createDirector(sink: CueSink): Director {
+/** A sink without the ambience calls (a cue-only fixture) is never asked for them: the ambience stays silent. */
+const silentAmbience: AmbienceSink = { startLoop() {}, stopLoop() {}, setHum() {}, duckHum() {} };
+const hasAmbience = (s: object): s is AmbienceSink =>
+  ['startLoop', 'stopLoop', 'setHum', 'duckHum'].every((k) => k in s);
+
+export function createDirector(sink: CueSink & Partial<AmbienceSink>): Director & RoomInput {
   const notes = createNoteTracker();
+  const ambience = createAmbience(hasAmbience(sink) ? sink : silentAmbience);
   let keyPc: number | null = null;
   /** Queued swaps in the last snapshot; null before the first one (after a reset). */
   let prevPending: number | null = null;
@@ -133,6 +153,7 @@ export function createDirector(sink: CueSink): Director {
   return {
     onSnapshot(s) {
       setKey(keyPcForLevel(s.level.level));
+      ambience.onSnapshot({ powered: s.powered === true, devices: s.devices ?? [] });
       sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
       const pending = s.pendingSwaps?.length ?? 0;
@@ -177,7 +198,14 @@ export function createDirector(sink: CueSink): Director {
         for (const id of stateCues(before, now, families)) sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
       }
     },
+    onScene(scene) {
+      ambience.onRoom(scene === 'menu' || scene === 'game');
+    },
+    onUnlock() {
+      ambience.onUnlock();
+    },
     onUi(u) {
+      ambience.onSpeed(u.speed);
       const before = prevUi;
       prevUi = u;
       if (!before) return;
@@ -200,6 +228,7 @@ export function createDirector(sink: CueSink): Director {
     },
     reset() {
       notes.reset();
+      ambience.onSnapshot(null);
       keyPc = null;
       prevPending = null;
       prevState = null;

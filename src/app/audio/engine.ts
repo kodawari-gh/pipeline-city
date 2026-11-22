@@ -6,6 +6,7 @@ import { keyPcForLevel, pickFile, rootFPath, type Cue } from './keys';
 import { VoicePool, type VoiceRec } from './voices';
 import { audioMix } from './mix';
 import { busGains, dB, type Volumes } from './volume';
+import { LOOP_IDS, type LoopId } from './ambience';
 
 /** Set each bus to its default dB times the player's mix (busGains). A live change ramps (no clicks); a new graph sets it at once. */
 function applyBuses(g: Graph, m: Volumes, ramp: boolean): void {
@@ -53,6 +54,36 @@ const CUE = new Map<string, Cue>(MIX.cues.map((c): [string, Cue] => [c.id, c]));
 const rr = new Map<string, number>();
 const pool = new VoicePool();
 
+/** One playing copy of a loop: its own fade (a fade-out and a new start can overlap), then the loop's level. */
+interface Voice {
+  src: AudioBufferSourceNode;
+  fade: GainNode;
+}
+/** A room or hum loop. `want` is the director's wish; nothing plays before the graph opens (the gesture). */
+interface Loop {
+  want: boolean;
+  /** The fade times (ms) of the director's last start and stop. A start that waits for the gesture or a load uses them. */
+  fadeInMs: number;
+  fadeOutMs: number;
+  /** The level (dB) and rate `setHum` last asked for; applied when the graph opens. */
+  gainDb: number;
+  rate: number;
+  /** The pause dip (dB) `duckHum` last asked for; applied when the graph opens. */
+  dipDb: number;
+  /** Level, then dip, then the ambience duck. */
+  level: GainNode | null;
+  dip: GainNode | null;
+  voice: Voice | null;
+}
+const HUM: LoopId = 'amb_machine_hum_loop';
+const loops = new Map<LoopId, Loop>(LOOP_IDS.map((id): [LoopId, Loop] => [
+  id,
+  { want: false, fadeInMs: 0, fadeOutMs: 0, gainDb: 0, rate: 1, dipDb: 0, level: null, dip: null, voice: null },
+]));
+const loopPath = (id: LoopId): string => `ambience/${id}.ogg`;
+/** Loops whose decoded length differs from the manifest count: one warning each. */
+const warnedLength = new Set<string>();
+
 function openGraph(): Graph | null {
   if (typeof AudioContext === 'undefined') return null;
   const ctx = new AudioContext({ latencyHint: 'interactive' });
@@ -73,17 +104,27 @@ function openGraph(): Graph | null {
   musicDuck = md;
   const ambDuck = ctx.createGain();
   ambDuck.connect(bus.ambience);
+  for (const l of loops.values()) {
+    l.level = ctx.createGain();
+    l.level.gain.value = dB(l.gainDb);
+    l.dip = ctx.createGain();
+    l.dip.gain.value = dB(l.dipDb);
+    l.level.connect(l.dip);
+    l.dip.connect(ambDuck);
+  }
   const g: Graph = { ctx, bus, fade, queued: new Map(), duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
   applyBuses(g, audioMix.peek(), false);
   return g;
 }
 
-/** Open the context on the first gesture. Until then nothing plays. */
-export function unlockOnGesture(): void {
+/** Open the context on the first gesture. Until then nothing plays. `onOpen` (the director's unlock) runs after the loops follow. */
+export function unlockOnGesture(onOpen?: () => void): void {
   const go = () => {
     for (const e of MIX.unlock.events) window.removeEventListener(e, go, true);
     graph ??= openGraph();
     if (!hiddenNow) void graph?.ctx.resume().catch(() => {});
+    for (const id of LOOP_IDS) syncLoop(id);
+    onOpen?.();
   };
   for (const e of MIX.unlock.events) window.addEventListener(e, go, true);
 }
@@ -160,6 +201,7 @@ export async function preload(files: readonly string[]): Promise<void> {
 export function startLoading(): void {
   if (loadingOn) return;
   loadingOn = true;
+  for (const id of LOOP_IDS) void load(loopPath(id));
   const cues = [...MIX.cues].sort((a, b) => (a.bus === 'ui' ? 0 : 1) - (b.bus === 'ui' ? 0 : 1));
   for (const c of cues) {
     if (c.transpose === 'nearestRootRate') void load(rootFPath(c));
@@ -289,5 +331,112 @@ export function duck(db: number, when: number): void {
   }
 }
 
-/** What the director drives (director.ts `CueSink`). */
-export const engineSink = { playCue, setKeyPc };
+/** What the director drives (director.ts `CueSink`, and the ambience calls of `AmbienceSink`). */
+export const engineSink = { playCue, setKeyPc, startLoop, stopLoop, setHum, duckHum };
+
+/** Start or fade out a loop now that its wish (or the graph) changed. */
+function syncLoop(id: LoopId): void {
+  const l = loops.get(id);
+  if (!l) return;
+  if (l.want) startVoice(id);
+  else stopVoice(id);
+}
+
+/** Start one copy of a loop: it fades in over its token time, and ends on the manifest sample count. Waits for the file. */
+function startVoice(id: LoopId): void {
+  const l = loops.get(id);
+  const g = graph;
+  if (!l || !g || !l.want || l.voice || !l.level) return;
+  const path = audioPath(loopPath(id));
+  const buf = ready.get(path);
+  if (!buf) {
+    void load(loopPath(id)).then(() => {
+      if (l.want && !l.voice) startVoice(id);
+    });
+    return;
+  }
+  // The loop ends on the manifest's sample count (not the decoded length, which a decoder may trim).
+  const tok = MIX.ambience[id];
+  if (buf.length !== tok.samples && !warnedLength.has(path)) {
+    warnedLength.add(path);
+    console.warn('ambience loop length differs from the manifest', path, buf.length, 'expected', tok.samples);
+  }
+  const { ctx } = g;
+  const now = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.loopStart = 0;
+  src.loopEnd = tok.samples / MIX.sampleRate;
+  src.playbackRate.value = l.rate;
+  const fade = ctx.createGain();
+  fade.gain.setValueAtTime(0, now);
+  fade.gain.linearRampToValueAtTime(1, now + l.fadeInMs / 1000);
+  src.connect(fade).connect(l.level);
+  src.onended = () => {
+    src.disconnect();
+    fade.disconnect();
+  };
+  src.start(now);
+  l.voice = { src, fade };
+}
+
+/** Fade the loop's copy out over its token time, then stop it. A new start while it fades makes a new copy. */
+function stopVoice(id: LoopId): void {
+  const l = loops.get(id);
+  const v = l?.voice;
+  if (!l || !v) return;
+  l.voice = null;
+  const g = graph;
+  if (!g) return;
+  const now = g.ctx.currentTime;
+  const fadeS = l.fadeOutMs / 1000;
+  v.fade.gain.cancelScheduledValues(now);
+  v.fade.gain.setValueAtTime(v.fade.gain.value, now);
+  v.fade.gain.linearRampToValueAtTime(0, now + fadeS);
+  v.src.stop(now + fadeS + 0.05);
+}
+
+/** The director's wish for a loop: play it, fading in over `fadeInMs`. Before the gesture it waits; the graph's open starts it. */
+export function startLoop(id: LoopId, fadeInMs: number): void {
+  const l = loops.get(id);
+  if (!l) return;
+  l.fadeInMs = fadeInMs;
+  if (l.want) return;
+  l.want = true;
+  syncLoop(id);
+}
+
+/** Fade a loop out over `fadeOutMs`, then stop it. */
+export function stopLoop(id: LoopId, fadeOutMs: number): void {
+  const l = loops.get(id);
+  if (!l) return;
+  l.fadeOutMs = fadeOutMs;
+  if (!l.want) return;
+  l.want = false;
+  syncLoop(id);
+}
+
+/** The hum's level and rate, each ramped over `smoothMs` (a time constant of smoothMs / 3). */
+export function setHum(gainDb: number, rate: number, smoothMs: number): void {
+  const l = loops.get(HUM);
+  if (!l) return;
+  l.gainDb = gainDb;
+  l.rate = rate;
+  const g = graph;
+  if (!g || !l.level) return;
+  const t = g.ctx.currentTime;
+  const tau = smoothMs / 3000;
+  l.level.gain.setTargetAtTime(dB(gainDb), t, tau);
+  if (l.voice) l.voice.src.playbackRate.setTargetAtTime(rate, t, tau);
+}
+
+/** The hum's pause dip: `gainDb` (0 or less) over `fadeMs` (a time constant of fadeMs / 3). */
+export function duckHum(gainDb: number, fadeMs: number): void {
+  const l = loops.get(HUM);
+  if (!l) return;
+  l.dipDb = gainDb;
+  const g = graph;
+  if (!g || !l.dip) return;
+  l.dip.gain.setTargetAtTime(dB(gainDb), g.ctx.currentTime, fadeMs / 3000);
+}

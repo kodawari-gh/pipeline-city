@@ -111,7 +111,8 @@ export const MIX = {
    "bus": "ambience",
    "fadeInMs": 2000,
    "fadeOutMs": 1500,
-   "when": "room scene visible (main menu and game; not Build/Gallery studio)"
+   "when": "room scene visible (main menu and game; not Build/Gallery studio)",
+   "samples": 1152000
   },
   "amb_machine_hum_loop": {
    "bus": "ambience",
@@ -125,7 +126,8 @@ export const MIX = {
     "rateAt0": 0.92,
     "rateAt1": 1.12,
     "smoothMs": 800
-   }
+   },
+   "samples": 576000
   }
  },
  "levelUp": {

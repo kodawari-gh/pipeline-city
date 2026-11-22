@@ -1,7 +1,8 @@
 // Ticket #51: the director (index.ts initAudio). The sim is a fake: the test sets the store's snapshot and reads
 // what the audio asked the fake browser to do. Covers: nothing loads before `booted`; no sound and no console
 // error before the first gesture; the first snapshot plays nothing; a fresh payout note plays one payout cue in
-// the current level's key. With ?debug, the cue board's files also wait for `booted`.
+// the current level's key. With ?debug, the cue board's files also wait for `booted`. Ticket #58: the room loop
+// waits for the boot screen to go (sceneOf, the readScene of main.tsx).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 
@@ -247,6 +248,34 @@ describe('the clock and holds reach the director (readUi), with the real engine'
     await flush();
     ui.value = { speed: 0, hold: null, crashed: true };
     expect(playedFiles()).toContain('ui/ui_error.ogg');
+  });
+});
+
+describe('ticket #58: the room loop waits for the boot screen', () => {
+  // main.tsx passes `sceneOf` the boot screen's state: the room loop may not start while the boot screen shows,
+  // even after the first gesture.
+  const roomStarted = (): boolean => started().some((s) => s.buffer?.path?.includes('amb_room_city_loop'));
+
+  it('sceneOf: the boot screen is its own scene until booted, then the room scenes follow', async () => {
+    const idx = await import('./index');
+    const base = { booted: false, build: false, gallery: false, game: false };
+    expect(idx.sceneOf(base)).toBe('boot');
+    expect(idx.sceneOf({ ...base, booted: true })).toBe('menu');
+    expect(idx.sceneOf({ ...base, booted: true, game: true })).toBe('game');
+    expect(idx.sceneOf({ ...base, booted: true, build: true, game: true })).toBe('build');
+    expect(idx.sceneOf({ ...base, booted: true, gallery: true })).toBe('gallery');
+  });
+
+  it('a gesture before booted does not start the room loop; booted then starts it', async () => {
+    const idx = await import('./index');
+    const boot = await import('../boot');
+    idx.initAudio(undefined, undefined, () => idx.sceneOf({ booted: boot.booted.value, build: false, gallery: false, game: false }));
+    gesture('pointerdown');
+    await flush();
+    expect(roomStarted()).toBe(false);
+    boot.booted.value = true;
+    await flush();
+    expect(roomStarted()).toBe(true);
   });
 });
 

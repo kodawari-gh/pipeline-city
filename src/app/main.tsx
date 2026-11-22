@@ -1,10 +1,10 @@
 import { render } from 'preact';
-import { crash, loadAutosaveOffer, speed } from './store';
-import { bootFail, bootMenu, bootStage } from './boot';
+import { crash, loadAutosaveOffer, snapshot, speed } from './store';
+import { booted, bootFail, bootMenu, bootStage } from './boot';
 import { guardPage } from './touchguard';
 import { Hud } from '../core/ui/Hud';
-import { gameMenuOpen, levelUp, popupPause } from '../core/ui/state';
-import { initAudio } from './audio';
+import { buildOpen, galleryOpen, gameMenuOpen, levelUp, popupPause } from '../core/ui/state';
+import { initAudio, sceneOf } from './audio';
 
 // A pinch is the camera's zoom, never the page's (`touchguard.ts`).
 guardPage();
@@ -18,7 +18,7 @@ initAudio(undefined, () => ({
   hold: levelUp.value ? 'levelUp' : popupPause.value ? 'tutorial' : gameMenuOpen.value ? 'menu' : null,
   crashed: crash.value !== null,
   levelUp: levelUp.value?.level ?? null,
-}));
+}), () => sceneOf({ booted: booted.value, build: buildOpen.value, gallery: galleryOpen.value, game: snapshot.value !== null }));
 // The 3D renderer (docs/render/three.md) is the game's view. Its code loads here; the boot screen stays until the 3D mount ends it (docs/render/load.md).
 // If the world cannot start (no WebGL), the screen stays and says why (`bootFail`): there is no game to play without it.
 const host = document.getElementById('board')!;

@@ -29,6 +29,7 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `cueBoard.ts` | `?debug` board: one button per cue |
 | `volume.ts` | The player's mix rules (pure): slider gain, snap, `busGains` (bus dB times slider gain), per-device read and write |
 | `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
+| `ambience.ts` | Ambience controller (pure): room loop on/off, hum on while powered, hum level and rate from fan speed, pause dip. Driven by the director through an `AmbienceSink` (`startLoop`, `stopLoop`, `setHum`, `duckHum`), so tests use a fake |
 
 ### Settings mix
 - The Sound block sits in the Settings modal (`src/core/ui/panels/MainMenu.tsx`, `SoundRows`).
@@ -69,5 +70,14 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Files: a level change loads the new key's stinger (`setKeyPc` -> `preloadKey`) and the next level's stinger, so the level-up after this one finds it decoded. The first snapshot of a game sets the level 1 key, which loads the level 2 stinger. A jump of several levels in one tick can skip the stinger of the level it lands on (its file loads at that change). A cue whose file is not decoded when it plays is skipped, never delayed. The stinger ducks other sound by the `milestone` depth.
 - The popup can open before the snapshot of its level. The stinger then sets its own level's key first (`director.ts`, `stinger`), so its file is the new key's.
 
+### Ambience: room and hum (ticket #58)
+- `director.ts` owns `createAmbience` (`ambience.ts`). It takes each snapshot (`powered`, `devices`), each clock input (`speed`), the scene (`onScene`, from `main.tsx`: `menu` and `game` are the room scene; `build` and `gallery` are the studios) and the first gesture (`onUnlock`, from `unlockOnGesture`). A sink without the ambience calls (a cue-only test) gets none.
+- Room loop `amb_room_city_loop`: on while the room scene shows and after the first gesture. Fades in 2000 ms (`startLoop`), out 1500 ms (`stopLoop`). Clock stops do not change it.
+- Hum `amb_machine_hum_loop`: on while `snapshot.powered`. Fades in 1200 ms, out 900 ms.
+- Hum level: `humGainDb(x)` (-6 dB at x = 0, 0 dB at 1) and rate `humRate(x)` (0.92 to 1.12), sent by `setHum` and ramped over `fanFollow.smoothMs` (800 ms). `x` is `fanSpeed`: the mean `DeviceSnap.fan` of the devices that have a fan (kind `gpu` or `npu`, or any device whose fan turns), or 0.5 when none does.
+- Clock stopped (speed 0: Pause or Hold): `duckHum` dips the hum by `pause.ambienceGainDb` (-4 dB) over `pause.fadeMs`. The room does not dip.
+- Engine: each loop is level, then pause dip, then the ambience duck. A start or fade gets its own fade node, so a fade-out and a new start can overlap. A loop wished before the AudioContext opens starts at the gesture. A loop not yet decoded starts when it loads.
+- Loop ends: `loopStart = 0`, `loopEnd = MIX.ambience[id].samples / sampleRate`. The counts come from the manifest (`build_manifest.py` writes `samples` into the ambience tokens). A decoded length that differs logs one warning per file.
+
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Not yet built: ambience, music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #58: room loop and machine hum. Not yet built: music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.

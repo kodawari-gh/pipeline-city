@@ -26,11 +26,14 @@ class Node {
 }
 class Gain extends Node { gain = new Param(); }
 class Source extends Node {
-  buffer: { path: string } | null = null;
+  buffer: { path: string; length: number } | null = null;
   playbackRate = new Param();
   onended: (() => void) | null = null;
   started = false;
   stopped = false;
+  loop = false;
+  loopStart = -1;
+  loopEnd = -1;
   /** The context time the engine asked this source to start at. */
   when = -1;
   start(when = 0): void { this.started = true; this.when = when; }
@@ -52,13 +55,16 @@ class FakeCtx {
 }
 /** A stand-in OfflineAudioContext: engine.ts decodes each fetched file with it. The decoded "buffer" keeps the path. */
 class FakeOffline {
-  decodeAudioData(data: { path: string }): Promise<{ path: string }> { return Promise.resolve(data); }
+  decodeAudioData(data: { path: string; length: number }): Promise<{ path: string; length: number }> { return Promise.resolve(data); }
 }
 
 // Network: each fetch records its path. A test can hold one file (a gate), or make one fail.
 const fetched: string[] = [];
 const failing = new Set<string>();
 const gates = new Map<string, Promise<void>>();
+/** A file's decoded length (samples) when a test sets one: a decoder that trims a loop. Default: the manifest's count. */
+const decodedLength = new Map<string, number>();
+const manifestSamples = new Map<string, number>(Object.entries(MIX.ambience).map(([id, t]) => [`ambience/${id}.ogg`, t.samples]));
 let inFlight = 0;
 let maxInFlight = 0;
 async function fakeFetch(url: string) {
@@ -69,7 +75,8 @@ async function fakeFetch(url: string) {
   await (gates.get(path) ?? Promise.resolve());
   inFlight--;
   if (failing.has(path)) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
-  return { ok: true, status: 200, arrayBuffer: async () => ({ path }) };
+  const length = decodedLength.get(path) ?? manifestSamples.get(path) ?? 0;
+  return { ok: true, status: 200, arrayBuffer: async () => ({ path, length }) };
 }
 
 let target: EventTarget;
@@ -101,6 +108,7 @@ beforeEach(() => {
   fetched.length = 0;
   failing.clear();
   gates.clear();
+  decodedLength.clear();
   inFlight = 0;
   maxInFlight = 0;
   vi.resetModules();
@@ -513,5 +521,55 @@ describe('level-up stinger: the music beat', () => {
     eng.playCue('level_up', { quantise: 'beat' });
     expect(startedAt('sfx/payout__F.ogg')).toBeCloseTo(12.5, 9);
     expect(startedAt(LEVEL_UP_F)).toBe(startedAt('sfx/payout__F.ogg'));
+  });
+});
+
+// Ticket #58: a room or hum loop ends on the manifest's sample count, and a decoder that trims the file logs one warning.
+describe('ticket #58: loop end and the decoder trim', () => {
+  const ROOM_ID = 'amb_room_city_loop' as const;
+  const ROOM_FILE = `ambience/${ROOM_ID}.ogg`;
+  const ROOM_SAMPLES = MIX.ambience[ROOM_ID].samples;
+  const roomSources = (): Source[] => sourcesOf().filter((s) => s.started && s.buffer?.path === ROOM_FILE);
+
+  it('the loop ends on the manifest sample count, with no warning when the decode matches', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('pointerdown');
+    eng.startLoop(ROOM_ID, 0);
+    await flush();
+    const [src] = roomSources();
+    expect(src).toBeDefined();
+    expect(src!.loop).toBe(true);
+    expect(src!.loopStart).toBe(0);
+    expect(src!.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('a decoder that trims the loop logs one warning, and the loop still ends on the manifest count', async () => {
+    const eng = await import('./engine');
+    const trimmed = ROOM_SAMPLES - 1000;
+    decodedLength.set(ROOM_FILE, trimmed);
+    eng.unlockOnGesture();
+    gesture('pointerdown');
+    eng.startLoop(ROOM_ID, 0);
+    await flush();
+    const [src] = roomSources();
+    expect(src!.loopEnd).toBeCloseTo(ROOM_SAMPLES / MIX.sampleRate, 9);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith('ambience loop length differs from the manifest', expect.stringContaining(ROOM_FILE), trimmed, 'expected', ROOM_SAMPLES);
+  });
+
+  it('a trimmed loop that starts again logs no second warning', async () => {
+    const eng = await import('./engine');
+    decodedLength.set(ROOM_FILE, ROOM_SAMPLES - 1000);
+    eng.unlockOnGesture();
+    gesture('pointerdown');
+    eng.startLoop(ROOM_ID, 0);
+    await flush();
+    eng.stopLoop(ROOM_ID, 0);
+    eng.startLoop(ROOM_ID, 0);
+    await flush();
+    expect(roomSources()).toHaveLength(2);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });
