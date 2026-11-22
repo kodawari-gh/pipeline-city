@@ -212,7 +212,7 @@ Exact gradients are in `tokens.css`. Positions on the 1080-tall references:
 | `--ramp-tutorial` | none (desktop uses an edge tab) | 0 % at y 640, 86 % from y 700 | 11 phone |
 | `--ramp-wide` | `--c-shade` 86 % with the `--scrim-wide` stops | same as `--scrim-wide` | 04 and 06 opened inside a game (§5.6a) |
 | Studio stage | flat `--c-studio`, no ramp | same | 08 |
-Phone gradients are anchored to the bottom edge (they are written bottom-up in `tokens.css`), because phone content is bottom-anchored (§6.3). The stops above are where they fall on a 1080 px phone.
+Phone gradients are anchored to the bottom edge (they are written bottom-up in `tokens.css`), because phone content is bottom-anchored (§6.3). The stops above are where they fall on the 844 px tall phone reference (390 × 844).
 Between two stops the opacity is linear. Linear gradients in sRGB, no easing.
 
 ---
@@ -492,7 +492,7 @@ Where each existing feature lives now, and where its new layout is specified. "A
 Only the two reference sizes are mocked. Everything else follows these rules. Check at least 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844 (phone reference), 360 × 800, 412 × 915, 844 × 390 (landscape phone) and 820 × 1180 (`ACCEPTANCE.md` §4).
 
 ### 6.1 Which layout
-- **Phone layout** when `(max-width: 48em), (max-aspect-ratio: 3/4)` matches (48em = 768 CSS px; media-query em is always 16 px). This covers phones in portrait and portrait tablets.
+- **Phone layout** when `(max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 600px) and (orientation: landscape)` matches (48em = 768 CSS px; media-query em is always 16 px). This covers phones in portrait, portrait tablets and landscape phones (height under 600 px, §6.5).
 - **Desktop layout** otherwise. Landscape 844 × 390 uses the phone layout (§6.5).
 - Use the same media query in CSS and in TS (`matchMedia`); never branch on user agent.
 
