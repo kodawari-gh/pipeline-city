@@ -12,15 +12,15 @@ export const STAGES = ['IF', 'ID', 'EX', 'MEM', 'WB'] as const;
 export const PHONE_QUERY = '(max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape)';
 
 /** The wordmark or a display title, its five-cell strip after the last word, and a Mono meta line under it. `share`: loading (0 to 1), the cells
- *  of boot stages reached turn ink (SPEC §5.3, `stripInk`). */
-export function DisplayTitle({ lines, meta, share }: { lines: string[]; meta?: string; share?: number }) {
+ *  of boot stages reached turn ink (SPEC §5.3, `stripInk`). `lit`: the strip cell of the stage the screen came from (cyan, SPEC §4.3). */
+export function DisplayTitle({ lines, meta, share, lit }: { lines: string[]; meta?: string; share?: number; lit?: number }) {
   const ink = share === undefined ? [] : stripInk(share);
   return (
     <header class="pl-head">
       <h1 class="pl-title">
         {lines.slice(0, -1).map((l) => <span key={l} class="pl-line">{l}</span>)}
         <span class="pl-line">{lines[lines.length - 1]}<span class="pl-strip" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((i) => <i key={i} class={i === 0 ? 'brand' : ink[i - 1] ? 'ink' : ''} />)}
+          {[0, 1, 2, 3, 4].map((i) => <i key={i} class={i === 0 ? 'brand' : i === lit ? 'lit' : ink[i - 1] ? 'ink' : ''} />)}
         </span></span>
       </h1>
       {meta && <p class="pl-meta">{meta}</p>}

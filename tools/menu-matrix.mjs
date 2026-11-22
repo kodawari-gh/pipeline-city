@@ -38,7 +38,141 @@ const browser = await chromium.launch({
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; };
 
+// Screens 04 (New game) and 05 (Load confirm) of ticket #37: SPEC §5.4 and §5.5. Run at every viewport above, with and without an autosave.
+// The save comes from the dev server (the game module is imported in the page), so the script needs no fixture file.
+const SAVE_KEY = 'pipeline-city.autosave';
+const SAVE_AT_KEY = 'pipeline-city.autosave.at';
+const RED = 'rgb(255, 90, 120)'; // --c-bad #ff5a78
+let fixture = null;
+
+async function getFixture(b) {
+  const ctx = await b.newContext();
+  const p = await ctx.newPage();
+  await p.goto(url);
+  const save = await p.evaluate(async () => {
+    const m = await import('/src/worker/game/game.ts');
+    return JSON.parse(JSON.stringify(new m.Game({ seed: 7 }).toSave()));
+  });
+  await ctx.close();
+  return save;
+}
+
+async function openMenu(b, vp, withSave) {
+  const ctx = await b.newContext({ viewport: { width: vp.w, height: vp.h } });
+  if (withSave) {
+    await ctx.addInitScript(([k, ka, v, at]) => { localStorage.setItem(k, v); localStorage.setItem(ka, String(at)); },
+      [SAVE_KEY, SAVE_AT_KEY, JSON.stringify(fixture), Date.now() - 2 * 3600e3]);
+  }
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(url);
+  await page.waitForSelector('.pl-row', { timeout: 30000 });
+  await page.waitForTimeout(900);
+  return { ctx, page, errors };
+}
+
+/** Nothing outside the viewport, no page scroll, no two buttons over each other. */
+async function fits(page, label) {
+  const geo = await page.evaluate(() => {
+    const boxes = [...document.querySelectorAll('button')].filter((e) => e.getClientRects().length).map((e) => {
+      const r = e.getBoundingClientRect();
+      return { t: (e.textContent || '').trim().slice(0, 24), x: r.left, y: r.top, r: r.right, b: r.bottom };
+    });
+    return { boxes, vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth };
+  });
+  const outside = geo.boxes.filter((b) => b.x < -1 || b.y < -1 || b.r > geo.vw + 1 || b.b > geo.vh + 1);
+  check(outside.length === 0, `${label}: no button outside the viewport${outside.length ? ' (' + outside.map((b) => b.t).join(', ') + ')' : ''}`);
+  check(geo.sw <= geo.vw + 1, `${label}: no horizontal page scroll (${geo.sw} <= ${geo.vw})`);
+  let overlap = null;
+  for (let i = 0; i < geo.boxes.length && !overlap; i++) for (let j = i + 1; j < geo.boxes.length && !overlap; j++) {
+    const a = geo.boxes[i], c = geo.boxes[j];
+    if (a.x < c.r - 0.5 && c.x < a.r - 0.5 && a.y < c.b - 0.5 && c.y < a.b - 0.5) overlap = `${a.t} / ${c.t}`;
+  }
+  check(!overlap, `${label}: buttons do not overlap${overlap ? ' (' + overlap + ')' : ''}`);
+}
+
+/** The colour of the text leaf that starts with `start` (what the player reads). */
+const colourOf = (page, start) => page.evaluate((t) => {
+  const leaf = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith(t));
+  return leaf ? getComputedStyle(leaf).color : null;
+}, start);
+
+async function newGameScreen(b, vp, withSave) {
+  const { ctx, page, errors } = await openMenu(b, vp, withSave);
+  const tag = `${vp.name} ${vp.w}x${vp.h} 04 ${withSave ? 'with save' : 'no save'}`;
+  await page.getByRole('button', { name: /^New game/ }).click();
+  const hero = page.getByRole('button', { name: withSave ? /^Replace save and start/ : /^Start$/ });
+  await hero.first().waitFor({ timeout: 5000 }).catch(() => {});
+  check(await hero.count() === 1, `${tag}: the hero reads ${withSave ? '"Replace save and start"' : '"Start"'}`);
+  const colour = await colourOf(page, withSave ? 'Replace save and start' : 'Start');
+  check(withSave ? colour === RED : colour !== RED, `${tag}: the hero label is ${withSave ? 'red' : 'not red'} (${colour})`);
+  const body = await page.evaluate(() => document.body.innerText);
+  check(withSave === /Overwrites your autosave: Level \d+ · \$[\d,]+/.test(body), `${tag}: the warn meta names the autosave only when a save exists`);
+  await fits(page, tag);
+  await page.screenshot({ path: `${outDir}/04-new-game-${withSave ? 'save' : 'nosave'}-${vp.name}.png` });
+  if (!withSave) {
+    await page.getByRole('button', { name: /^← Back/ }).click();
+    await page.waitForTimeout(300);
+    check(await page.getByRole('button', { name: /^New game/ }).isVisible(), `${tag}: Back returns to the main menu`);
+    await page.getByRole('button', { name: /^New game/ }).click();
+  }
+  // two clicks reach the game: the hero starts it, and no second question appears
+  await hero.first().click();
+  await page.waitForTimeout(400);
+  const asked = await page.evaluate(() => /Replace and start|Discard and start|This (replaces|discards)/.test(document.body.innerText));
+  check(!asked, `${tag}: the hero starts the game with no second confirm`);
+  check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
+  await ctx.close();
+}
+
+async function loadScreen(b, vp, withSave) {
+  const { ctx, page, errors } = await openMenu(b, vp, withSave);
+  const tag = `${vp.name} ${vp.w}x${vp.h} 05 ${withSave ? 'with save' : 'no save'}`;
+  const file = (name, buffer) => page.locator('input[type=file]').setInputFiles({ name, mimeType: 'application/json', buffer });
+  await file('save.json', Buffer.from(JSON.stringify(fixture)));
+  const wb = page.getByRole('button', { name: /^Replace save and load/ });
+  await wb.first().waitFor({ timeout: 5000 }).catch(() => {});
+  check(await wb.count() === 1, `${tag}: the Load confirm screen shows "Replace save and load"`);
+  const body = await page.evaluate(() => document.body.innerText);
+  check(/Load this\s+game\?/.test(body), `${tag}: title "Load this game?"`);
+  check(withSave ? /SAVE\s+Level \d+ · \$/.test(body) : /SAVE\s+none/.test(body), `${tag}: SAVE line ${withSave ? 'shows the autosave' : 'reads "none"'}`);
+  check(/FILE\s+Level \d+ · \$/.test(body), `${tag}: FILE line shows the file`);
+  check(/choose\s+Enter confirm\s+Esc cancel/.test(body), `${tag}: hints shown`);
+  const focused = await page.evaluate(() => (document.activeElement?.textContent || '').trim());
+  check(/^Cancel/.test(focused), `${tag}: Cancel has focus (${focused})`);
+  const colour = await colourOf(page, 'Replace save and load');
+  check(colour === RED, `${tag}: the hero label is red (${colour})`);
+  if (vp.name === 'desktop') {
+    const pos = await page.evaluate(() => {
+      const leaf = [...document.querySelectorAll('body *')].find((e) => e.childElementCount === 0 && (e.textContent || '').trim().startsWith('SAVE'));
+      const btn = (re) => [...document.querySelectorAll('button')].find((x) => re.test((x.textContent || '').trim()));
+      const at = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left, y: r.top }; };
+      return { save: at(leaf), cancel: at(btn(/^Cancel/)), wb: at(btn(/^Replace save and load/)) };
+    });
+    // SPEC §5.5 positions, read as the top-left of each item, within 2 px
+    const near = (p, x, y) => p && Math.abs(p.x - x) <= 2 && Math.abs(p.y - y) <= 2;
+    check(near(pos.save, 165, 560), `${tag}: SAVE line at 165, 560 (${pos.save?.x}, ${pos.save?.y})`);
+    check(pos.cancel && Math.abs(pos.cancel.y - 803) <= 2, `${tag}: Cancel row at y 803 (${pos.cancel?.y})`);
+    check(pos.wb && Math.abs(pos.wb.y - 864) <= 2, `${tag}: Replace row at y 864 (${pos.wb?.y})`);
+  }
+  await fits(page, tag);
+  await page.screenshot({ path: `${outDir}/05-load-confirm-${withSave ? 'save' : 'nosave'}-${vp.name}.png` });
+  if (withSave) {
+    // an unreadable file: no question, the toast names the problem
+    await page.getByRole('button', { name: /^Cancel/ }).click();
+    await page.waitForTimeout(200);
+    await file('bad.json', Buffer.from('not json'));
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => document.body.innerText);
+    check(/not a Pipeline City save/.test(after) && !/Load this\s+game\?/.test(after), `${tag}: an unreadable file gives a toast and no question`);
+  }
+  check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
+  await ctx.close();
+}
+
 try {
+  fixture = await getFixture(browser);
   for (const vp of VIEWPORTS) {
     const label = `${vp.name} ${vp.w}x${vp.h}`;
     const page = await (await browser.newContext({ viewport: { width: vp.w, height: vp.h } })).newPage();
@@ -114,6 +248,10 @@ try {
 
     check(errors.length === 0, `${label}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
     await page.context().close();
+    await newGameScreen(browser, vp, true);
+    await newGameScreen(browser, vp, false);
+    await loadScreen(browser, vp, true);
+    await loadScreen(browser, vp, false);
   }
 } finally {
   await browser.close();

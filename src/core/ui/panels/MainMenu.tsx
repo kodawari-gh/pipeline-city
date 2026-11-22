@@ -10,7 +10,7 @@ import { bootLine } from '../bootLine';
 import { cycleValue, mouseMayMoveFocus, moveFocus } from '../menuNav';
 import { DisplayTitle, PHONE_QUERY, STAGES, TestPoint, TraceLayer } from '../kit/Pipeline';
 import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
-import { loadFromFile } from './loadgame';
+import { loadFromFile, loadOffer } from './loadgame';
 import { openNewGame, newGameOpen } from './NewGame';
 
 // The MAIN MENU (screens 01 to 03 of docs/pipeline-city-menu-ui): a spine of tagged rows over the live room, with the display title and its
@@ -37,7 +37,7 @@ const partsText = () => {
 export function MainMenu({ ready = true }: { ready?: boolean }) {
   const offer = autosaveOffer.value;
   const previous = previousOffer.value;
-  const modal = newGameOpen.value || settingsOpen.value || galleryOpen.value || buildOpen.value;
+  const modal = newGameOpen.value || loadOffer.value !== null || settingsOpen.value || galleryOpen.value || buildOpen.value;
   const root = useRef<HTMLDivElement>(null);
   const fileIn = useRef<HTMLInputElement>(null);
   const [at, setAt] = useState(0);

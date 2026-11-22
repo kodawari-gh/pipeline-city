@@ -18,9 +18,9 @@ import { NetDock } from '../../features/network/ui/NetPanel';
 import { OsModal } from '../../features/os/ui/OsPanel';
 import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
-import { NewGameDialog, openNewGame } from './panels/NewGame';
+import { NewGameScreen, openNewGame } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
-import { ConfirmDialog } from './panels/Confirm';
+import { LoadConfirm } from './panels/LoadConfirm';
 import { Controls } from './panels/Controls';
 import { loadFromFile } from './panels/loadgame';
 import { leaveGame } from './leave';
@@ -321,9 +321,9 @@ export function Hud() {
     return (
       <>
         {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} /> : <MainMenu ready={ready} />}
-        <NewGameDialog />
+        <NewGameScreen />
         {ready && <><Gallery /><BuildMode /><GraphicsModal /></>}
-        <ConfirmDialog />
+        <LoadConfirm />
         <div class="stack"><Notice /></div>
       </>
     );
@@ -367,7 +367,7 @@ export function Hud() {
         </div>
       </header>
       <PickerCard />
-      <NewGameDialog />
+      <NewGameScreen />
       <MilestoneScreen s={s} />
       <Shop s={s} />
       {statsOpen.value && (
@@ -378,7 +378,7 @@ export function Hud() {
       )}
       <NetDock />
       <GraphicsModal />
-      <ConfirmDialog />
+      <LoadConfirm />
       <Controls />
       {leaving.value && <Starting text="Saving…" />}
       <OsModal />

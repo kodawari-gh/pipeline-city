@@ -1981,7 +1981,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .pl-head { flex: none; }
 .pl-title { margin: 0; font: 600 6.667rem/0.86 var(--f-cond), sans-serif; text-transform: uppercase; color: var(--c-ink); }
 .pl-line { display: block; }
-.pl-strip { display: inline-flex; gap: 0.4rem; margin-left: 7.4rem; vertical-align: baseline; position: relative; bottom: 0.6rem; }
+.pl-strip { display: inline-flex; gap: 0.4rem; margin-left: var(--s4); vertical-align: baseline; position: relative; bottom: 0.6rem; }
 .pl-strip i { display: block; width: 0.926rem; height: 0.926rem; background: var(--c-trace); }
 .pl-strip i.brand { background: var(--c-brand); }
 .pl-strip i.ink { background: var(--c-ink); }
@@ -2048,6 +2048,40 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .pl-row.hero .pl-label { font-size: 1.8rem; }
   .pl-row { min-height: 2.4rem; }
   .pl-row.hero { min-height: 3.6rem; }
+}
+/* New game (panels/NewGame.tsx, SPEC §5.4) and Load confirm (panels/LoadConfirm.tsx, §5.5): the same spine. A branch row holds its values on a
+   rail with a 2 px trace between them; the meta line sits under the values. */
+.pl-strip i.lit { background: var(--c-accent); }
+.pl-menu.newgame { background: var(--scrim-wide); }
+.pl-menu.newgame.ingame { background: var(--ramp-wide); }
+.pl-menu.loadconfirm { background: var(--scrim-menu); }
+/* The spine sits on the hints: a 1.07rem gap (not 1.17rem) puts the NOP row at y 803 and the WB row at y 864 at 1920 x 1080 (SPEC §5.5, Appendix A 05-load-confirm-desktop). */
+.pl-menu.loadconfirm .pl-hints { margin-top: 1.07rem; }
+.pl-menu.mainmenu[inert] { visibility: hidden; } /* New game or Load confirm is open on top of the menu */
+.pl-back { position: absolute; left: 5.93rem; top: 2.47rem; z-index: 1; display: inline-flex; align-items: baseline; padding: 0.2rem 0; border: 0; background: none;
+  font: 500 0.933rem/1.45 var(--f-sans), sans-serif; color: var(--c-mute); cursor: pointer; }
+.pl-back:focus-visible { outline: none; color: var(--c-ink); text-decoration: underline; text-decoration-color: var(--c-accent); text-decoration-thickness: 0.125rem; text-underline-offset: 0.25rem; }
+.pl-esc { margin-left: 0.6rem; font: 500 0.8rem/1 var(--f-mono), monospace; color: var(--c-mute); }
+.pl-row.branch .pl-text { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+.pl-vals { display: flex; flex-wrap: wrap; align-items: baseline; }
+.pl-vals .pl-label { font-size: 2.133rem; margin-right: 1.067rem; color: var(--c-mute); }
+.pl-val { min-height: 3rem; padding: 0.4rem 0; border: 0; background: none; font: 600 2.133rem/1.1 var(--f-cond), sans-serif; color: var(--c-mute); cursor: pointer; }
+.pl-val:hover:not(:disabled) { background: none; border-color: transparent; color: var(--c-ink); }
+.pl-val[aria-checked="true"] { color: var(--c-ink); }
+.pl-val + .pl-val::before { content: ''; display: inline-block; width: 1.4rem; height: 0.125rem; margin: 0 1.067rem 0.25rem; background: var(--c-trace); vertical-align: middle; }
+.pl-val:focus-visible { outline: none; text-decoration: underline; text-decoration-color: var(--c-accent); text-decoration-thickness: 0.125rem; text-underline-offset: 0.25rem; }
+/* The WB row and its warn line under it (SPEC §5.4): the warn sits outside the button, at the label's x (4.26 rem desktop, 4.6 rem phone). */
+.pl-wb { flex: 0 0 100%; width: 100%; }
+.pl-wb-warn { margin: 0.4rem 0 0; padding-left: 4.26rem; font: 500 0.8rem/1.35 var(--f-mono), monospace; color: var(--c-warn); }
+.pl-facts { margin: 14rem 0 0; padding-left: 4.26rem; font: 500 0.8rem/1.7 var(--f-mono), monospace; color: var(--c-mute); }
+.pl-facts p { margin: 0; line-height: 1.8rem; }
+.pl-facts b { display: inline-block; width: 4.2rem; font-weight: 600; color: var(--c-ink); }
+@media (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape) {
+  .pl-back { left: 1.6rem; top: 1.6rem; }
+  .pl-facts { margin: auto 0 1.6rem; }
+  .pl-facts + .pl-spine { margin-top: 0; }
+  .pl-row.hero .pl-label, .pl-row.branch .pl-meta-row { white-space: normal; }
+  .pl-wb-warn { padding-left: 4.6rem; }
 }
 @media (prefers-reduced-motion: reduce) { .pl-menu { animation: none; } }
 
