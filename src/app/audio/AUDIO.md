@@ -45,5 +45,14 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Notes of one snapshot play in log order, 40 ms apart. The tracker resets on load, new game, leaving a game and a tick that moves back (ADR-0002).
 - Every `note(kind, text)` call site in `src/features` and `src/worker` maps to a cue through these rules. Call sites with another signature are not audio: `npu/sim/port.ts` (`note(index, op, ...)`), `tpm/sim/tpm.ts` (`note(ticks, cmd)`), `cpu/sim/engines/common.ts` (`note(kind: number, ...)`), and the UI helpers `board/ui/builddrag.ts` and `board/render/three/buildmode3d.ts`. The note `download #NN failed` (`network/sim/network.ts`) has the generic `ui_notify` cue.
 
+### State rules and the clock (ticket #54)
+- `director.ts` `onSnapshot` plays the state rules of SPEC §3.2 from the diff with the last snapshot: link up, saturated, link down, POST, booted, error, PSU trip, key out.
+- Boot: `post_boot` on `posting`. `boot_ready` on `idle-os`, or on the first `running` after POST (the no-OS flow). The director keeps a `posted` flag per boot, so a later job's `loading` -> `running` plays nothing.
+- A rule is skipped when a note of its family played a cue in the same snapshot: error and PSU trip skip on a `fault` note, key out on a `key` note.
+- No state rule plays on the first snapshot, after a reset, or on the snapshot where a loaded save's tick goes back.
+- `onUi(UiInput)` plays the clock cues: `pause` on stop, `resume` on start, `speed_up` / `speed_down` between non-zero speeds, `ui_error` on a sim crash (the stop plays `pause` too).
+- Holds: `levelUp`, `tutorial` (popup) and `menu`. A stop under a hold plays no `pause`; lifting the hold plays no `resume`. Opening the menu plays `ui_panel_open`. `index.ts` derives the hold from the signals.
+- The clock never suspends the AudioContext. Cues play while the clock is stopped.
+
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Not yet built: state rules, ambience, music, sliders, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Not yet built: ambience, music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.

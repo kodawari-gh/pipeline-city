@@ -208,3 +208,44 @@ describe('?debug cue board: files wait for booted', () => {
     expect(maxInFlight).toBe(1);
   });
 });
+
+describe('the clock and holds reach the director (readUi), with the real engine', () => {
+  // Ticket #54: index.ts passes readUi to the director as `onUi`. A signal stands in for the store; the test
+  // sets it and reads what the engine started. The context must never suspend while the clock is stopped.
+  it('a Pause plays pause, a menu hold plays its panel cue, and the context stays running', async () => {
+    const idx = await import('./index');
+    const boot = await import('../boot');
+    const { signal } = await import('@preact/signals');
+    const ui = signal({ speed: 4, hold: null as 'menu' | null, crashed: false });
+    idx.initAudio(undefined, () => ui.value);
+    gesture('pointerdown');
+    boot.booted.value = true;
+    await flush();
+    const ctx = FakeCtx.last!;
+    expect(ctx.state).toBe('running');
+    const suspend = vi.spyOn(ctx, 'suspend');
+
+    ui.value = { speed: 0, hold: null, crashed: false };
+    expect(playedFiles()).toEqual(['sfx/pause.ogg']);
+
+    ui.value = { speed: 0, hold: 'menu', crashed: false };
+    expect(playedFiles()).toEqual(['sfx/pause.ogg', 'ui/ui_panel_open.ogg']);
+
+    expect(suspend).not.toHaveBeenCalled();
+    expect(ctx.state).toBe('running');
+    expect(ctx.sources.some((s) => s.stopped)).toBe(false);
+  });
+
+  it('a sim crash plays the error cue through the engine', async () => {
+    const idx = await import('./index');
+    const boot = await import('../boot');
+    const { signal } = await import('@preact/signals');
+    const ui = signal({ speed: 4, hold: null as null, crashed: false });
+    idx.initAudio(undefined, () => ui.value);
+    gesture('pointerdown');
+    boot.booted.value = true;
+    await flush();
+    ui.value = { speed: 0, hold: null, crashed: true };
+    expect(playedFiles()).toContain('ui/ui_error.ogg');
+  });
+});

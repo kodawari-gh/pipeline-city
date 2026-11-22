@@ -1,13 +1,24 @@
 // The director: each new snapshot becomes cues. It sets the key from the level and plays one cue per new log note that has one.
+// It also plays the state rules (a change between two snapshots, SPEC §3.2) and, through `onUi`, the clock and holds.
 // It talks to the sound only through `CueSink`, so a test drives it with a fake (engine.ts is the real sink).
 import type { CueId } from './mixTokens';
 import { keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
-import type { GameEvent } from '../../worker/game/types';
+import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
   playCue(id: CueId, opts?: { delayS?: number }): void;
   setKeyPc(pc: number): void;
+}
+
+/** What holds the clock while it is stopped by a popup or the menu. A Hold plays no pause or resume cue. */
+export type Hold = 'levelUp' | 'tutorial' | 'menu';
+
+/** What the UI tells the director: the clock's speed (0 = stopped), the hold on it, and whether the sim crashed. */
+export interface UiInput {
+  speed: number;
+  hold: Hold | null;
+  crashed: boolean;
 }
 
 export interface DirectorSnap {
@@ -15,12 +26,65 @@ export interface DirectorSnap {
   level: { level: number };
   /** Queued swaps (a snapshot always has it; optional so a fixture may omit it). */
   pendingSwaps?: readonly unknown[];
+  /** The fields below feed the state rules. A fixture may omit them: then no state rule plays. */
+  baseTick?: number;
+  phase?: Phase;
+  net?: { state: LinkState };
+  power?: { tripped: boolean };
+  plugged?: unknown | null;
+  keyActivity?: KeyActivity;
 }
 
 export interface Director {
   onSnapshot(s: DirectorSnap): void;
+  /** The clock, the hold and the crash, each time one of them may have changed. */
+  onUi(u: UiInput): void;
   /** No game (snapshot null), load or new game: the next snapshot starts fresh and plays nothing. */
   reset(): void;
+}
+
+/** The state a state rule compares with the one before. */
+interface SeenState {
+  baseTick?: number;
+  phase?: Phase;
+  net?: LinkState;
+  tripped?: boolean;
+  plugged: boolean;
+  keyActivity?: KeyActivity;
+  /** POST ran and the machine has not reached `running` or `idle-os` yet: the next `running` is this boot's `boot_ready`. */
+  posted: boolean;
+}
+
+const LINK_DOWN: readonly LinkState[] = ['down', 'no-cable', 'no-os', 'no-device'];
+
+/**
+ * The state rules (SPEC §3.2) between the last snapshot and this one. A rule is skipped when a note of its family
+ * already played a cue in this snapshot (`families`: the note kinds that played), so one fault gives one cue.
+ */
+function stateCues(before: SeenState, now: SeenState, families: ReadonlySet<string>): CueId[] {
+  const out: CueId[] = [];
+  if (now.net !== before.net) {
+    const from = before.net;
+    if (now.net === 'link-up' && from !== 'saturated') out.push('net_link_up');
+    if (now.net === 'saturated') out.push('net_saturated');
+    if ((from === 'link-up' || from === 'saturated') && LINK_DOWN.includes(now.net!)) out.push('net_down');
+  }
+  if (now.phase !== before.phase) {
+    if (now.phase === 'posting') out.push('post_boot');
+    // Booted: POST ran, then the OS idles or the no-OS flow runs. Once per boot: a later job's phases play nothing (`posted` is spent).
+    if ((now.phase === 'idle-os' || now.phase === 'running') && before.posted) out.push('boot_ready');
+  }
+  if (!families.has('fault')) {
+    const error = now.phase === 'error' && before.phase !== 'error';
+    const psu = now.tripped === true && before.tripped !== true;
+    if (error || psu) out.push('fault_hard');
+  }
+  if (!families.has('key')) {
+    const unplugged = before.plugged && !now.plugged;
+    const done = before.keyActivity === 'done' && now.keyActivity === 'none';
+    if (unplugged || done) out.push('key_eject');
+  }
+  return out;
 }
 
 /** Seconds between the cues of one snapshot: the notes of one tick play in log order, 40 ms apart. */
@@ -31,6 +95,12 @@ export function createDirector(sink: CueSink): Director {
   let keyPc: number | null = null;
   /** Queued swaps in the last snapshot; null before the first one (after a reset). */
   let prevPending: number | null = null;
+  /** The last snapshot's state; null before the first one (after a reset): that snapshot plays no state rule. */
+  let prevState: SeenState | null = null;
+  /** The last UI input. Kept across a reset: the clock does not stop when the game does. */
+  let prevUi: UiInput | null = null;
+  /** The last speed-0 edge was a hold (not a Pause): lifting the hold plays no resume. */
+  let pausedByHold = false;
 
   return {
     onSnapshot(s) {
@@ -45,19 +115,61 @@ export function createDirector(sink: CueSink): Director {
       prevPending = pending;
       let i = 0;
       let swapCued = false;
-      for (const e of notes.fresh(s.log)) {
+      const fresh = notes.fresh(s.log);
+      // The note kinds that played a cue now: a state rule of the same family is skipped (one fault, not two).
+      const families = new Set<string>();
+      for (const e of fresh) {
         let id = cueForNote(e);
         if (id === 'install' && swapDone) {
           id = swapCued ? null : 'swap_done';
           swapCued = true;
         }
-        if (id) sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
+        if (id) {
+          families.add(e.kind);
+          sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
+        }
+      }
+      // A save loaded (the tick went back) is one snapshot of silence, like the notes.
+      const before = prevState;
+      const now: SeenState = {
+        baseTick: s.baseTick,
+        phase: s.phase,
+        net: s.net?.state,
+        tripped: s.power?.tripped,
+        plugged: s.plugged != null,
+        keyActivity: s.keyActivity,
+        posted: s.phase === 'posting' || (before?.posted === true && s.phase !== 'running' && s.phase !== 'idle-os'),
+      };
+      prevState = now;
+      const loaded = before?.baseTick !== undefined && now.baseTick !== undefined && now.baseTick < before.baseTick;
+      if (before && !loaded) {
+        for (const id of stateCues(before, now, families)) sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
+      }
+    },
+    onUi(u) {
+      const before = prevUi;
+      prevUi = u;
+      if (!before) return;
+      // A sim crash plays the error cue; the stop it causes plays `pause` through the speed rule below.
+      if (u.crashed && !before.crashed) sink.playCue('ui_error');
+      // A hold starts: the in-game menu plays its panel cue. The level-up and tutorial popups play nothing.
+      if (u.hold === 'menu' && before.hold !== 'menu') sink.playCue('ui_panel_open');
+      if (u.speed !== before.speed) {
+        if (u.speed === 0) {
+          pausedByHold = u.hold !== null;
+          if (!pausedByHold) sink.playCue('pause');
+        } else if (before.speed === 0) {
+          if (!pausedByHold && u.hold === null) sink.playCue('resume');
+        } else {
+          sink.playCue(u.speed > before.speed ? 'speed_up' : 'speed_down');
+        }
       }
     },
     reset() {
       notes.reset();
       keyPc = null;
       prevPending = null;
+      prevState = null;
     },
   };
 }
