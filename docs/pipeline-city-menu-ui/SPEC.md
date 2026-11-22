@@ -14,11 +14,11 @@ Repo baseline: `main` at `7f56e17`. Where the code lives and what to change: `IM
 The in-game mocks (07 to 12, v3) are in `mocks/` and win over §5.7 to §5.12 the same way.
 
 ### 0.2 Units
-- Coordinates are CSS px at two reference viewports: **desktop 1920 × 1080** and **phone 390 × 844** (the layout reference; the phone mocks were drawn at 530 × 1080, and their numbers are kept as rem, see below). Origin top-left, before safe-area insets. Boxes are `x, y, w × h`.
+- Coordinates are CSS px at two reference viewports: **desktop 1920 × 1080** and **phone 390 × 844** (the layout reference; the phone mocks were drawn at a 530 px wide layout, and their numbers are kept as rem, see below). Origin top-left, before safe-area insets. Boxes are `x, y, w × h`.
 - The repo forbids px in UI code (`src/core/ui/scaling.test.ts`). Convert: **desktop px ÷ 16.2 = rem**, **phone px ÷ 15 = rem**. The root rule in `ui.css` already makes 1rem exactly 16.2 px and 15 px at those viewports. Use a token from `tokens.css` where one exists.
 - Allowed px: `1px` hairlines (ornament strokes) and values computed at runtime from measured boxes (the trace overlay).
 - Tolerance: ±2 px at both references.
-- Mock files: desktop PNGs are 1920 × 1080 (1:1). **Phone PNGs are 1166 × 2376, drawn at 2.2× the 530 × 1080 layout**: divide anything you measure on a phone mock by 2.2. The phone numbers in §5 and Appendix A are the mocks' 530 × 1080 measurements. Read them as rem (px ÷ 15), not as fixed px, and check the 390 × 844 layout by screenshot.
+- Mock files: desktop PNGs are 1920 × 1080 (1:1). **Phone PNGs are 1166 × 2376, drawn at 2.2× a 530 px wide layout**: divide anything you measure on a phone mock by 2.2. The phone numbers in §5 and Appendix A are the mocks' measurements at that width, already converted to rem (px ÷ 15). Check the 390 × 844 layout by screenshot.
 
 ### 0.3 Terms
 | Term | Meaning |
@@ -123,7 +123,7 @@ States everywhere: default, hover and keyboard focus (the same look), pressed, d
 - Traces are drawn by one SVG overlay per screen that reads the live boxes of strip cells, tags, values and targets, and redraws on focus change, value change, resize and font load. Stroke width in that SVG is `Math.max(2, Math.round(0.125 * rem))` user units (px), so it stays crisp.
 
 ### 4.2 Stage tag and chip
-- Tag: `--t-xs` Mono 500 `--c-mute`, centred in a cell of 43 × 26 desktop, 40 × 24 phone, centred on the spine.
+- Tag: `--t-xs` Mono 500 `--c-mute`, centred in a cell of 43 × 26 desktop, 2.67 × 1.6 rem phone, centred on the spine.
 - Names: IF, ID, EX, MEM, WB (pipeline stages, top to bottom); NOP for "do nothing" (Cancel); opcodes for part types (§4.9).
 - Focus: the cell fills `--c-accent`, radius 4 px, text `--c-void` (contrast 13.1:1). This is the chip.
 - Pressed: label 1 px down for 80 ms.
@@ -132,7 +132,7 @@ States everywhere: default, hover and keyboard focus (the same look), pressed, d
 
 ### 4.3 Display title, strip and meta
 - Title text: `--t-display-lg` on desktop menu screens at x 96, top 112. Smaller sizes where each screen says. Uppercase; may wrap to two lines ("LOAD THIS / GAME?", "BUILD / MY PC") where the screen says.
-- Strip: 5 square cells, 15 × 15 with 6.5 gap desktop, 14 × 14 with 6 gap phone. Bottom-aligned 10 px above the last title line's baseline, `--s4` after the last word. Cell 1 `--c-brand`. The cell of the stage you came from is `--c-accent` (IF 1, ID 2, EX 3, MEM 4, WB 5). Other cells `--c-trace`. On Loading, finished boot stages turn `--c-ink` (§5.3).
+- Strip: 5 square cells, 15 × 15 with 6.5 gap desktop, 0.93 rem with 0.4 rem gap phone. Bottom-aligned 10 px above the last title line's baseline, `--s4` after the last word. Cell 1 `--c-brand`. The cell of the stage you came from is `--c-accent` (IF 1, ID 2, EX 3, MEM 4, WB 5). Other cells `--c-trace`. On Loading, finished boot stages turn `--c-ink` (§5.3).
 - Meta: `--t-xs` Mono `--c-mute`, `--s4` under the title. Pattern "STAGE · screen · fact", for example "ID · new game · last played: campaign".
 - The lit trace leaves the lit cell (or cell 1 if none is lit) downward, runs to 16 px under the meta, chamfers to the spine column and runs down to the focused item.
 - One component renders the wordmark (01 to 03) and every display title, with props: lines, size, lit cell index (or none), meta.
@@ -148,18 +148,18 @@ States everywhere: default, hover and keyboard focus (the same look), pressed, d
 | Utility | 52 / 48 | `--t-sm` Sans 500, several targets 34.6 px apart | none |
 | Branch | 52 / 48 | a value branch (§4.5) | Mono line under it, describing the selected value |
 - Label colour: idle `--c-mute`, focus or selected `--c-ink`, hero always ink, destructive `--c-bad`. The whole row width is the hit area (504 px on menu screens at both references; Appendix A).
-- Label x: 165 desktop (tag cell at x 96 + 43 + gaps), 88 phone. See Appendix A.
+- Label x: 165 desktop (tag cell at x 96 + 43 + gaps), 5.87 rem phone. See Appendix A.
 
 ### 4.5 Value branch
 - The options sit on a horizontal trace that leaves the row's tag (or label). Values `--t-xl` desktop, `--t-lg` phone, Cond 600. Gap between values `--s4` + 16 px, with a 2 px `--c-trace` segment in each gap.
 - Selected value `--c-ink`; others `--c-mute`.
 - On the focused row, the trace from the tag to the selected value is lit; it is the last leg of the lit path.
 - ← → changes the value. Tap or click a value to pick it. Hit area: the value's width × 48.
-- Phone: if a branch would pass x 506, stack it under its label (indented to x 118).
+- Phone: if a branch would pass x 33.73 rem, stack it under its label (indented to x 7.87 rem).
 
 ### 4.6 Rail and stage tabs
 - A rail is a spine turned 90°: items on a horizontal 2 px trace with 8 px gaps.
-- Stage tabs (Settings, Controls): a tag cell on the trace with its label (`--t-lg`, phone `--t-md`) 8 px under it, centred. Selected tab: chip on its tag, label ink. Pitch: tag width + 90 px desktop, + 51 px phone.
+- Stage tabs (Settings, Controls): a tag cell on the trace with its label (`--t-lg`, phone `--t-md`) 8 px under it, centred. Selected tab: chip on its tag, label ink. Pitch: tag width + 90 px desktop, + 3.4 rem phone.
 - In-game rails (HUD, Build) put text items 24 to 26 px apart with a trace segment between items and a via between groups.
 
 ### 4.7 Buttons
@@ -229,18 +229,18 @@ Live data used on several screens:
 ### 5.1 Main menu (`01-main-menu-v2-desktop.png`, `-phone.png`)
 - Backdrop: the live room behind the main menu, as today. Surface: `--scrim-menu`.
 - Wordmark "PIPELINE" / "CITY" on two lines, `--t-display-lg` (108 / 100) ink; strip after "CITY": cell 1 violet, cells 2 to 5 graphite, no cyan cell. The lit trace leaves the bottom of cell 1 (desktop x 447, y 281) and runs to the IF chip (Appendix A gives the polyline). Build line Mono `--t-xs` mute under the wordmark: "build 7f56e17" *(sample)*.
-- Spine, desktop x 96, phone x 24 (rows 504 wide at both references):
+- Spine, desktop x 96, phone x 1.6 rem (rows 504 px wide on desktop, 33.6 rem on phone):
 
 | Tag | Row | Copy | Desktop y | Phone y |
 |---|---|---|---|---|
-| IF (focused) | Hero | "Continue" + meta save summary | 622 | 752 |
-| ID | Normal | "New game" + "campaign · sandbox" | 717 | 840 |
-| EX | Normal | "Build my PC" + saved builds count | 777 | 896 |
-| MEM | Normal | "Gallery" + Gallery count | 838 | 952 |
-| WB | Utility | "Load file"  "Settings" | 898 | 1008 |
+| IF (focused) | Hero | "Continue" + meta save summary | 622 | 50.13 |
+| ID | Normal | "New game" + "campaign · sandbox" | 717 | 56 |
+| EX | Normal | "Build my PC" + saved builds count | 777 | 59.73 |
+| MEM | Normal | "Gallery" + Gallery count | 838 | 63.47 |
+| WB | Utility | "Load file"  "Settings" | 898 | 67.2 |
 - Hints (desktop only) Mono `--t-xs` mute at x 165, y 967: "↑ ↓ move   Enter open   Esc back" (three spaces between pairs).
 - No test point on 01 (the approved mock has none).
-- Wordmark on phone: glyph boxes from y 513 ("PIPELINE") and 582 ("CITY"), build line at y 685 (Appendix A).
+- Wordmark on phone: glyph boxes from y 34.2 rem ("PIPELINE") and 38.8 rem ("CITY"), build line at y 45.67 rem (Appendix A).
 - Behaviour: "Continue" resumes the autosave. "New game" opens 04. "Build my PC" opens 07, "Gallery" opens 08, "Load file" opens the file picker then 05, "Settings" opens 06. The current "Sandbox" row is removed (Sandbox lives in New game).
 
 ### 5.2 Main menu, no save (`02-main-menu-nosave-v2-*`)
@@ -265,13 +265,13 @@ Test point rule: the spine ends in K5 "TP1" on desktop only, as on this screen's
 
 | Element | Copy | Desktop | Phone |
 |---|---|---|---|
-| Back | "← Back" + "Esc" | x 96, y 40 | x 24, y 410 |
-| Title | "New game", strip cell 2 lit | x 96, top 112, `--t-display-lg` | x 24, top 470, `--t-display` |
+| Back | "← Back" + "Esc" | x 96, y 40 | x 1.6, y 27.33 |
+| Title | "New game", strip cell 2 lit | x 96, top 112, `--t-display-lg` | x 1.6, top 31.33, `--t-display` |
 | Meta | "ID · new game · last played: campaign" *(sample: last mode)* | under the title | under the title |
-| IF branch row (focused) | "Campaign" ━ "Sandbox", lit to the selected value | y 709 | y 834 |
+| IF branch row (focused) | "Campaign" ━ "Sandbox", lit to the selected value | y 709 | y 55.6 |
 | Meta under IF | Campaign: "Bare board · starter crate · $600 · earn every part". Sandbox: "Unlimited money · every part unlocked · slots, watts and heat still count" | | |
-| ID branch row | Campaign: "Tutorial" "On" ━ "Off". Sandbox: "Start with" "Assembled" ━ "Bare board" | y 783 | y 902 |
-| WB hero | "Replace save and start" (no save: "Start") | y 843 | y 958 |
+| ID branch row | Campaign: "Tutorial" "On" ━ "Off". Sandbox: "Start with" "Assembled" ━ "Bare board" | y 783 | y 60.13 |
+| WB hero | "Replace save and start" (no save: "Start") | y 843 | y 63.87 |
 | Warn meta | "Overwrites your autosave: Level 4 · $12,480" in `--c-warn` (only when a save exists) | under WB | under WB |
 | Hints | "↑ ↓ stage   ← → value   Enter start   Esc back" | x 165, y 967 | none |
 - Behaviour: WB starts the game at once (Loading if the world is not ready, then First frame). There is no extra confirm: "New game" on 01 plus WB is the agreed 2 clicks, and the warn meta names what is replaced. Esc or Back returns to the opener.
@@ -279,17 +279,17 @@ Test point rule: the spine ends in K5 "TP1" on desktop only, as on this screen's
 ### 5.5 Load confirm (`05-load-confirm-v2-*`)
 - Opened after the file picker returns a readable file. Surface `--scrim-menu`.
 - Title "Load this" / "game?" (two lines), strip cell 5 lit, meta "WB · load file · replaces your autosave".
-- Facts, Mono `--t-xs`, label ink, value mute: "SAVE  Level 4 · $12,480 · saved 2 h ago" and "FILE  Level 7 · $88,200" *(sample)* at x 165, y 560 desktop (phone x 88, y 640). With no autosave, the SAVE line reads "SAVE  none".
-- Spine: NOP "Cancel" + meta "keep your save" (focused; desktop y 803, phone 920); WB hero "Replace save and load" in `--c-bad` (desktop y 864, phone 976). "TP1".
+- Facts, Mono `--t-xs`, label ink, value mute: "SAVE  Level 4 · $12,480 · saved 2 h ago" and "FILE  Level 7 · $88,200" *(sample)* at x 165, y 560 desktop (phone x 5.87 rem, y 42.67 rem). With no autosave, the SAVE line reads "SAVE  none".
+- Spine: NOP "Cancel" + meta "keep your save" (focused; desktop y 803, phone 920); WB hero "Replace save and load" in `--c-bad` (desktop y 864, phone 65.07 rem). "TP1".
 - Hints "↑ ↓ choose   Enter confirm   Esc cancel".
 - Unreadable file: no confirm; a toast "[ no ]" with the existing `friendlyError` text.
 
 ### 5.6 Settings (`06-settings-v2-*`)
 - Surface `--scrim-wide`. Opens on the Quality tab. Same screen from the main menu and from Paused (Back returns to the opener).
 - Back; title "Settings", strip cell 5 lit; meta "WB · settings · kept on this device, not in the save".
-- Stage tabs (§4.6), desktop rail at x 144, y 520; phone x 64, y 500: IF "Quality" (selected), ID "Display", EX "Light", MEM "Detail", WB "Interface". The lit trace runs from strip cell 5 down, left, and into the IF tag from above.
-- Quality tab: a secondary spine from the Quality tag (unlit), desktop x 146 from y 620; phone x 66 from y 584:
-  - "Preset" + branch "Low" ━ "Medium" ━ "High" ━ "Ultra" (desktop inline; phone stacked under the label at x 118). Meta: the selected preset's `PRESET_INFO` text ("Fastest. No shadows or glow." / "Balanced. Soft light and glow." / "The look the game is made for." / "Sharpest. Needs a strong GPU.").
+- Stage tabs (§4.6), desktop rail at x 144, y 520; phone x 4.27 rem, y 33.33 rem: IF "Quality" (selected), ID "Display", EX "Light", MEM "Detail", WB "Interface". The lit trace runs from strip cell 5 down, left, and into the IF tag from above.
+- Quality tab: a secondary spine from the Quality tag (unlit), desktop x 146 from y 620; phone x 4.4 rem from y 38.93 rem:
+  - "Preset" + branch "Low" ━ "Medium" ━ "High" ━ "Ultra" (desktop inline; phone stacked under the label at x 7.87 rem). Meta: the selected preset's `PRESET_INFO` text ("Fastest. No shadows or glow." / "Balanced. Soft light and glow." / "The look the game is made for." / "Sharpest. Needs a strong GPU.").
   - "Device" + branch "Auto" ━ "Low" ━ "Medium" ━ "High". Meta: `tierNote()` ("Auto picked Low: software rendering." *(sample)*).
   - Idle pad, then Mono "NOW  1 fps · 1016.6 ms · 1440 × 810" *(sample: live frame stats)*. Plain mute; no fps colour.
   - "TP2".
@@ -297,7 +297,7 @@ Test point rule: the spine ends in K5 "TP1" on desktop only, as on this screen's
 - Light and Detail tabs: one branch row per entry of the code's `LIGHT` and `DETAIL` lists, label and options as in the code.
 - Interface tab: "UI size" slider, 80 % to 150 % (`UI_SCALE_MIN`, `UI_SCALE_MAX`).
 - Slider: a 2 px trace; the part from the start to the value is ink at rest and cyan when the row is focused; thumb 12 × 24 radius 4, ink at rest, cyan when focused; value Mono `--t-xs` ink after the trace ("100 %").
-- Foot (desktop y 898, phone 1008): text buttons "Hold to peek" and "Reset to defaults". No Done button: every change applies at once; Back or Esc leaves.
+- Foot (desktop y 898, phone 67.2 rem): text buttons "Hold to peek" and "Reset to defaults". No Done button: every change applies at once; Back or Esc leaves.
 - "Hold to peek": while held (pointer down, or Space or Enter held on it), the whole Settings layer including the scrim fades to 0 opacity in 120 ms, and returns on release.
 - Hints: "← → category   ↑ ↓ option   Space peek   Esc back".
 
@@ -331,11 +331,11 @@ Flyout state: open while the pointer is over the rail or flyout, while a rail ta
 
 **Phone**
 - Scene: the Build stage fills the screen; the camera frames the machine inside y 100 to 800 (between the two tabs). Letterbox and clear colour `#49484a`.
-- Top tab 0, 0, 530 × 100: "← Back" at 16, 0; "Benchmark" `--t-md` Cond ink at right 16, top 8; title "Build my PC" `--t-xl`-size caps (32) at 16, top 46, strip cell 3 lit; Mono "EX · ready · $53,180 · 29 parts" ("ready" in ok green).
-- Bottom tab 0, 800, 530 × 280:
-  - Category rail at 16, 806, items 12 px apart: opcode tags; the selected one is a chip followed by its name `--t-md` Cond ink ("CS Case"). Swipe to scroll.
-  - Parts row at 16, 866: cards 150 wide, 16 apart: still 96 × 67, name `--t-md` Cond (ink if picked), Mono "T2 · $160". Swipe to scroll.
-  - Bar at 16, 1024, items 28 apart, `--t-md` Cond: "Parts" ━ "Machine" ━ "Run" (selected ink, no chip). "Machine" shows the machine list in this tab; "Run" shows the run rail, step speed and view.
+- Top tab 0, 0, 35.33 × 6.67 rem: "← Back" at 1.07, 0; "Benchmark" `--t-md` Cond ink at right 1.07, top 0.53; title "Build my PC" `--t-xl`-size caps (32) at 1.07, top 3.07 rem, strip cell 3 lit; Mono "EX · ready · $53,180 · 29 parts" ("ready" in ok green).
+- Bottom tab 0, 53.33, 35.33 × 18.67 rem:
+  - Category rail at 1.07, 53.73 rem, items 0.8 rem apart: opcode tags; the selected one is a chip followed by its name `--t-md` Cond ink ("CS Case"). Swipe to scroll.
+  - Parts row at 1.07, 57.73 rem: cards 10 rem wide, 1.07 rem apart: still 6.4 × 4.47 rem, name `--t-md` Cond (ink if picked), Mono "T2 · $160". Swipe to scroll.
+  - Bar at 1.07, 68.27 rem, items 1.87 rem apart, `--t-md` Cond: "Parts" ━ "Machine" ━ "Run" (selected ink, no chip). "Machine" shows the machine list in this tab; "Run" shows the run rail, step speed and view.
 
 ### 5.8 Gallery (`08-gallery-v3-*`)
 **Scene.** The Gallery turntable (`Showcase.tsx`, `viewer.ts`) on flat `--c-studio`: the CSS backdrop and the 3D floor and background are neutral (IMPLEMENTATION.md step 7). The part is framed inside the K1 bracket box via the viewer's stage insets.
@@ -349,10 +349,10 @@ Flyout state: open while the pointer is over the rail or flyout, while a rail ta
 - Hints Mono at 380, 1000: "Drag pan · Right-drag turn · Scroll zoom · Double-click reset · ← → part · ↑ ↓ category · Esc back".
 
 **Phone**
-- "← Back" at 16, 0; Mono meta "MEM · gallery · 75 parts" right-aligned at right 16, top 16. No display title (the part name is the title).
-- K1 brackets 12, 56, 506 × 520 (arms 16) with pin 1; silk "U3 · CASE" at 16, 582. Viewer insets frame the part inside.
-- At 16, 610, 498 wide: Mono "CS · case · tier 2 · ATX case"; then on one line the name `--t-display-sm` (48) caps left and the price `--t-xl` ink right.
-- Category rail at 16, 706: tags, the selected one a chip + name. Shelf at 16, 770: cards 112 wide, 12 apart, still 96 × 67, name, Mono price. K3 + numbers at 16, 930. Hints at 16, 1040: "Drag to pan · Pinch to zoom · Swipe the shelf".
+- "← Back" at 1.07, 0; Mono meta "MEM · gallery · 75 parts" right-aligned at right 1.07, top 1.07 rem. No display title (the part name is the title).
+- K1 brackets 0.8, 3.73, 33.73 × 34.67 rem (arms 1.07) with pin 1; silk "U3 · CASE" at 1.07, 38.8 rem. Viewer insets frame the part inside.
+- At 1.07, 40.67 rem, 33.2 rem wide: Mono "CS · case · tier 2 · ATX case"; then on one line the name `--t-display-sm` (48) caps left and the price `--t-xl` ink right.
+- Category rail at 1.07, 47.07 rem: tags, the selected one a chip + name. Shelf at 1.07, 51.33 rem: cards 7.47 rem wide, 0.8 rem apart, still 6.4 × 4.47 rem, name, Mono price. K3 + numbers at 1.07, 62 rem. Hints at 1.07, 69.33 rem: "Drag to pan · Pinch to zoom · Swipe the shelf".
 
 ### 5.9 Controls (`09-controls-v3-*`)
 Opened from Paused → "Controls" or the "?" key. In game it uses the Paused frame (HUD paused, `--ramp-pause`). From the main menu, there is no entry; "?" works only in game, as today.
@@ -366,7 +366,7 @@ Opened from Paused → "Controls" or the "?" key. In game it uses the Paused fra
   - Game: "Space" Pause or resume; "P" Power lens; "A" Airflow lens; "N" Network lens; "Esc" Close what is open, or open the menu; "?" This list.
 - Hints at x 64, y 1000: "← → group   Esc or ? back".
 
-**Phone**: Back at x 24, y 540; title "Controls" `--t-display-md` (60) at x 24, top 604, strip cell 4 lit; meta "MEM · controls · touch". K3 pin row at y 760, then rows 48 tall: label `--t-lg` Cond ink (142 px column), action `--t-sm` mute: "Drag" Pan the view; "Pinch" Zoom in or out; "Tap a part" Pick it and open its card; "Drag a part" From the shelf onto the board to fit it. No tabs, no lit path.
+**Phone**: Back at x 1.6, y 36 rem; title "Controls" `--t-display-md` (60) at x 1.6, top 40.27 rem, strip cell 4 lit; meta "MEM · controls · touch". K3 pin row at y 50.67 rem, then rows 3.2 rem tall: label `--t-lg` Cond ink (9.47 rem column), action `--t-sm` mute: "Drag" Pan the view; "Pinch" Zoom in or out; "Tap a part" Pick it and open its card; "Drag a part" From the shelf onto the board to fit it. No tabs, no lit path.
 
 Closing Controls (Back, Esc, "?") returns to Paused when opened from Paused, else to the game.
 
@@ -394,7 +394,7 @@ Then "TP1". The lit path runs from strip cell 1 to the IF chip.
 - Hints Mono at x 64, y 1000: "↑ ↓ move   Enter open   Esc resume".
 - All text ends before x 560 (the ramp's solid part).
 
-**Phone**: title "Paused" `--t-display-md` (60) at x 24, top 548; meta "Clock stopped at 2 s" (short, so the lit trace does not cross it). Spine at x 24, 482 wide, bottom 40. No hints.
+**Phone**: title "Paused" `--t-display-md` (60) at x 1.6, top 36.53 rem; meta "Clock stopped at 2 s" (short, so the lit trace does not cross it). Spine at x 1.6, 32.13 rem wide, bottom 2.67 rem. No hints.
 
 Today's "UI size" slider in the menu moves to Settings → Interface. "Graphics" becomes "Settings".
 
@@ -410,7 +410,7 @@ The first moment of a new campaign with the tutorial on, and every tutorial popu
 - Action at 48, 984: IF chip + "Next" `--t-lg` Cond ink (the chip shows because "Next" has focus on open).
 - Lit path: from "Next" right along y 1000, then 45° down into the dock item the step is about ("Inventory 1").
 
-**Phone**: `--ramp-tutorial`. Block at x 24, top 716, 482 wide: Mono "IF · tutorial · step 1" + "Skip tutorial" right-aligned; "Welcome" `--t-display-sm` (48), 12 px under; body `--t-sm` ink, 12 px under. IF chip + "Next" at 24, 922. Lit trace straight down from the chip into "Inventory 1" (dock tab 150 × 64 at bottom-left, chamfer top-right).
+**Phone**: `--ramp-tutorial`. Block at x 1.6, top 47.73 rem, 32.13 rem wide: Mono "IF · tutorial · step 1" + "Skip tutorial" right-aligned; "Welcome" `--t-display-sm` (48), 0.8 rem under; body `--t-sm` ink, 0.8 rem under. IF chip + "Next" at 1.6, 61.47 rem. Lit trace straight down from the chip into "Inventory 1" (dock tab 10 × 4.27 rem at bottom-left, chamfer top-right).
 
 Steps with a different target draw the lit trace to that control. Steps whose target is in the 3D scene (not a HUD control) draw no trace.
 
@@ -433,9 +433,9 @@ Level progress cells: `levelBar(s)` gives `pct` and `label` (client base "0 / 3"
 **Phone**
 | Element | Box | Content |
 |---|---|---|
-| Top tab | 0, 0, 530 × 96, no chamfers (it spans both edges) | Row 1: "$600" `--t-lg` Cond ink at 16, 12; Mono "2 s · rep 1.00" at 88, 20; speed "Pause" ━ "1x" at x 300 (tap the speed to step to the next, wrapping); "Menu" `--t-md` Cond at right 16, top 14. Row 2 at y 58: "Level 1 · Garage Bench" `--t-md` Cond ink, then the progress cells and Mono label without " clients" ("0 / 3"). Power, phase, net and OS segments move into Paused → Tools as text rows (same actions) |
-| Toast tab | 0, 96, 290 × 34; chamfer bottom-right 10 | "[ ok ] Saved.  Dismiss" Mono at 16, 104 |
-| Dock tab | 0, 1016, 530 × 64 | Rail at x 16, items 14 px apart: "Inventory 1" ━ "Shop" ▪ "Lens" ▪ "Almanac" ━ "Log" (+ "OS" when installed). "Lens" opens an upward branch with "Power", "Airflow" and (once ready) "Network"; while a lens is on, "Lens" reads its name in ink ("Power") |
+| Top tab | 0, 0, 35.33 × 6.4 rem, no chamfers (it spans both edges) | Row 1: "$600" `--t-lg` Cond ink at 1.07, 0.8 rem; Mono "2 s · rep 1.00" at 5.87, 1.33 rem; speed "Pause" ━ "1x" at x 20 rem (tap the speed to step to the next, wrapping); "Menu" `--t-md` Cond at right 1.07, top 0.93 rem. Row 2 at y 3.87 rem: "Level 1 · Garage Bench" `--t-md` Cond ink, then the progress cells and Mono label without " clients" ("0 / 3"). Power, phase, net and OS segments move into Paused → Tools as text rows (same actions) |
+| Toast tab | 0, 6.4 rem, 19.33 × 2.27 rem; chamfer bottom-right 0.67 rem | "[ ok ] Saved.  Dismiss" Mono at 1.07, 6.93 rem |
+| Dock tab | 0, 67.73 rem, 35.33 × 4.27 rem | Rail at x 1.07 rem, items 0.93 rem apart: "Inventory 1" ━ "Shop" ▪ "Lens" ▪ "Almanac" ━ "Log" (+ "OS" when installed). "Lens" opens an upward branch with "Power", "Airflow" and (once ready) "Network"; while a lens is on, "Lens" reads its name in ink ("Power") |
 
 
 ### 5.13 Flow diagram (`13-flow-diagram-v2-desktop.png`, desktop only)
@@ -446,6 +446,8 @@ A design document, not a game screen. Nothing to implement; use it to check the 
 ### 5.14 Error, empty and offline states
 Proposed in this package, not in the mocks. Check each with the owner before the PR.
 - Save file unreadable: no confirm; toast "[ no ]" with the existing `friendlyError` text (§5.5).
+- Save file incompatible (readable, but from another version): no confirm; toast "[ no ]" with the existing `friendlyError` text. Home: the Load-confirm toast pattern (§5.5).
+- Save or export failed: the save on disk is not changed; toast "[ no ]" with the existing `friendlyError` text. Home: the Load-confirm toast pattern (§5.5).
 - No save: "Continue" is absent (02). With no autosave, the Continue meta reads "SAVE  none" (§5.5).
 - Empty shelf for a kind: one Mono line in mute, "none yet". Wording to confirm.
 - Boot failure: no design yet. The Loading screen (03) keeps its build line; the failure text and its actions are open (KNOWN-ISSUES 12).
@@ -455,6 +457,26 @@ Proposed in this package, not in the mocks. Check each with the owner before the
 ### 5.15 Not covered by this package
 - Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls.
 - Existing features that keep their behaviour: save and load, autosave, speed, pause, tutorial steps, Build run, Gallery stills, Controls bindings, Settings persistence.
+
+Where each existing feature lives now, and where its new layout is specified. "Add" means the feature has no row or text in the named section yet; add it there before the PR.
+
+| Feature | Current home (file or screen) | New home (spec section) |
+|---|---|---|
+| Controls: Double-click row, touch list | `src/core/ui/panels/Controls.tsx` (Double-click row; TOUCH list) | §5.9 Controls (Double-click: add row) |
+| Build part kinds (every kind) | `src/features/board/ui/BuildMode.tsx` (KINDS from `STUDIO_KINDS` and `NET_KINDS`) | §4.9 opcode tags; §5.7 Build (kinds: add) |
+| Gallery Router (last in `STUDIO_KINDS` order) | `src/features/economy/ui/shop/shopdata.ts`, `GalleryHud.tsx` | §5.8 Gallery (add) |
+| Gallery stepper | `src/features/economy/ui/shop/GalleryHud.tsx` (`GalleryFoot`) | §5.8 Gallery (add) |
+| Gallery Spin, Reset | `src/features/economy/ui/shop/Showcase.tsx` | §5.8 Gallery (add) |
+| Gallery stat bars | `src/features/economy/ui/shop/GalleryHud.tsx` (`bld-bar`) | §5.8 Gallery, stats rows (add bar form) |
+| Build Benchmark | `src/features/board/ui/BuildBench.tsx` | §5.7 top-right tab, "Benchmark" |
+| Build OS sheet | `src/features/board/ui/BuildOs.tsx` | §5.7 Tools tab (add) |
+| Saved builds | `src/features/board/ui/BuildStart.tsx`, `savedbuilds.ts` (key `pipeline-city.builds`) | §5.1 "Build my PC" count; §5.7 (add) |
+| Build alerts | `src/features/board/ui/BuildAlerts.tsx` | §5.7 toasts row (add) |
+| Network sheet | `src/features/board/ui/BuildNet.tsx` | §5.7 Lens rail or Tools (add) |
+| Settings | `src/core/ui/panels/MainMenu.tsx` (`SettingsCard`), `src/core/ui/panels/Graphics.tsx` | §5.6 Settings |
+| Pause | `src/core/ui/Hud.tsx` (`PauseKey`, pause pill, removed) | §5.10 Paused; §0.4 |
+| Speed rail | `src/core/ui/Hud.tsx` (`speedctl`) | §4.8 speed rail; §5.12 top tab |
+| Previous save | No code yet (glossary term, ADR 0001) | Add to §5.5 Load confirm (new) |
 
 ## 6. Responsive rules
 
@@ -602,7 +624,7 @@ UI size 80 % to 150 % scales rem. Browser zoom works the same way. Display title
 ---
 ## Appendix A. Boxes measured on the approved mocks (01 to 06, 13)
 
-Generated from `assets/geometry/*.json`, which Asset Maker's renderer wrote while drawing the mocks, so these numbers are the mocks' own. CSS px at 1920 × 1080 (desktop) and 530 × 1080 (phone), origin top-left, before safe-area insets. Row boxes are hit areas. Lit path = the cyan trace polyline, point by point.
+Generated from `assets/geometry/*.json`, which Asset Maker's renderer wrote while drawing the mocks, so these numbers are the mocks' own. CSS px at 1920 × 1080 (desktop). Phone values are rem (px ÷ 15) at 390 × 844, converted from the mocks' 530 px wide layout. Origin top-left, before safe-area insets. Row boxes are hit areas. Lit path = the cyan trace polyline, point by point.
 
 #### 01-main-menu-desktop
 
@@ -639,31 +661,31 @@ Lit path: (447, 281) → (447, 325) → (423, 349) → (141, 349) → (117, 373)
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| row IF Continue (hero, focused) | 24 | 752 | 504 | 80 |
-| row ID New game | 24 | 840 | 504 | 48 |
-| row EX Build my PC | 24 | 896 | 504 | 48 |
-| row MEM Gallery | 24 | 952 | 504 | 48 |
-| row WB Load file · Settings | 24 | 1008 | 504 | 48 |
-| text "wordmark PIPELINE" | 24 | 513 | 334 | 104 |
-| text "wordmark CITY" | 24 | 582 | 165 | 104 |
-| text "build line" | 24 | 685 | 91 | 15 |
-| text "Continue" | 88 | 755 | 149 | 52 |
-| text "Continue meta" | 88 | 812 | 231 | 15 |
-| text "IF (on chip)" | 37 | 772 | 14 | 15 |
-| text "lab1" | 88 | 848 | 106 | 32 |
-| text "meta1" | 206 | 861 | 126 | 15 |
-| text "tag1" | 37 | 856 | 14 | 15 |
-| text "lab2" | 88 | 904 | 121 | 32 |
-| text "meta2" | 221 | 917 | 98 | 15 |
-| text "tag2" | 37 | 912 | 14 | 15 |
-| text "lab3" | 88 | 960 | 72 | 32 |
-| text "meta3" | 172 | 973 | 56 | 15 |
-| text "tag3" | 34 | 968 | 21 | 15 |
-| text "WB" | 37 | 1024 | 14 | 15 |
-| text "Load file" | 88 | 1022 | 54 | 18 |
-| text "Settings" | 174 | 1022 | 53 | 18 |
+| row IF Continue (hero, focused) | 1.6 | 50.13 | 33.6 | 5.33 |
+| row ID New game | 1.6 | 56 | 33.6 | 3.2 |
+| row EX Build my PC | 1.6 | 59.73 | 33.6 | 3.2 |
+| row MEM Gallery | 1.6 | 63.47 | 33.6 | 3.2 |
+| row WB Load file · Settings | 1.6 | 67.2 | 33.6 | 3.2 |
+| text "wordmark PIPELINE" | 1.6 | 34.2 | 22.27 | 6.93 |
+| text "wordmark CITY" | 1.6 | 38.8 | 11 | 6.93 |
+| text "build line" | 1.6 | 45.67 | 6.07 | 1 |
+| text "Continue" | 5.87 | 50.33 | 9.93 | 3.47 |
+| text "Continue meta" | 5.87 | 54.13 | 15.4 | 1 |
+| text "IF (on chip)" | 2.47 | 51.47 | 0.93 | 1 |
+| text "lab1" | 5.87 | 56.53 | 7.07 | 2.13 |
+| text "meta1" | 13.73 | 57.4 | 8.4 | 1 |
+| text "tag1" | 2.47 | 57.07 | 0.93 | 1 |
+| text "lab2" | 5.87 | 60.27 | 8.07 | 2.13 |
+| text "meta2" | 14.73 | 61.13 | 6.53 | 1 |
+| text "tag2" | 2.47 | 60.8 | 0.93 | 1 |
+| text "lab3" | 5.87 | 64 | 4.8 | 2.13 |
+| text "meta3" | 11.47 | 64.87 | 3.73 | 1 |
+| text "tag3" | 2.27 | 64.53 | 1.4 | 1 |
+| text "WB" | 2.47 | 68.27 | 0.93 | 1 |
+| text "Load file" | 5.87 | 68.13 | 3.6 | 1.2 |
+| text "Settings" | 11.6 | 68.13 | 3.53 | 1.2 |
 
-Lit path: (267, 654) → (267, 694) → (243, 718) → (68, 718) → (44, 742) → (44, 761)
+Lit path: (17.8, 43.6) → (17.8, 46.27) → (16.2, 47.87) → (4.53, 47.87) → (2.93, 49.47) → (2.93, 50.73)
 
 #### 02-main-menu-nosave-desktop
 
@@ -686,18 +708,18 @@ Lit trace: (446, 281) → (446, 324) → (422, 348) → (141, 348) → (117, 372
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| wordmark: PIPELINE CITY | 24 | 531 | 332 | 170 |
-| stage strip: (none) | 259 | 640 | 94 | 14 |
-| build/status line: build 7f56e17 | 24 | 685 | 332 | 16 |
-| vertical rail: IF New game Campaign or sandbox ID Build my PC 3 saved build | 24 | 808 | 482 | 248 |
-| row (selected): IF New game Campaign or sandbox | 24 | 808 | 482 | 80 |
-| row: ID Build my PC 3 saved builds | 24 | 896 | 482 | 48 |
-| row: EX Gallery 64 parts | 24 | 952 | 482 | 48 |
-| row: MEM Load file Settings | 24 | 1008 | 482 | 48 |
-| cyan cell (chip or lit strip cell) | 24 | 824 | 40 | 24 |
-| violet strip cell 1 | 259 | 640 | 14 | 14 |
+| wordmark: PIPELINE CITY | 1.6 | 35.4 | 22.13 | 11.33 |
+| stage strip: (none) | 17.27 | 42.67 | 6.27 | 0.93 |
+| build/status line: build 7f56e17 | 1.6 | 45.67 | 22.13 | 1.07 |
+| vertical rail: IF New game Campaign or sandbox ID Build my PC 3 saved build | 1.6 | 53.87 | 32.13 | 16.53 |
+| row (selected): IF New game Campaign or sandbox | 1.6 | 53.87 | 32.13 | 5.33 |
+| row: ID Build my PC 3 saved builds | 1.6 | 59.73 | 32.13 | 3.2 |
+| row: EX Gallery 64 parts | 1.6 | 63.47 | 32.13 | 3.2 |
+| row: MEM Load file Settings | 1.6 | 67.2 | 32.13 | 3.2 |
+| cyan cell (chip or lit strip cell) | 1.6 | 54.93 | 2.67 | 1.6 |
+| violet strip cell 1 | 17.27 | 42.67 | 0.93 | 0.93 |
 
-Lit trace: (265, 654) → (265, 693) → (241, 717) → (68, 717) → (44, 741) → (44, 816)
+Lit trace: (17.67, 43.6) → (17.67, 46.2) → (16.07, 47.8) → (4.53, 47.8) → (2.93, 49.4) → (2.93, 54.4)
 
 #### 03-loading-desktop
 
@@ -721,19 +743,19 @@ Lit trace: (446, 281) → (446, 324) → (422, 348) → (141, 348) → (117, 372
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| wordmark: PIPELINE CITY | 24 | 531 | 332 | 170 |
-| stage strip: (none) | 259 | 640 | 94 | 14 |
-| build/status line: Lighting the room · 62 % | 24 | 685 | 332 | 16 |
-| vertical rail: IF Continue Level 4 · $12,480 · saved 2 h ago ID New game ca | 24 | 752 | 482 | 304 |
-| row (selected): IF Continue Level 4 · $12,480 · saved 2 h ago | 24 | 752 | 482 | 80 |
-| row: ID New game campaign · sandbox | 24 | 840 | 482 | 48 |
-| row (disabled): EX Build my PC after loading | 24 | 896 | 482 | 48 |
-| row (disabled): MEM Gallery after loading | 24 | 952 | 482 | 48 |
-| row: WB Load file Settings | 24 | 1008 | 482 | 48 |
-| cyan cell (chip or lit strip cell) | 24 | 768 | 40 | 24 |
-| violet strip cell 1 | 259 | 640 | 14 | 14 |
+| wordmark: PIPELINE CITY | 1.6 | 35.4 | 22.13 | 11.33 |
+| stage strip: (none) | 17.27 | 42.67 | 6.27 | 0.93 |
+| build/status line: Lighting the room · 62 % | 1.6 | 45.67 | 22.13 | 1.07 |
+| vertical rail: IF Continue Level 4 · $12,480 · saved 2 h ago ID New game ca | 1.6 | 50.13 | 32.13 | 20.27 |
+| row (selected): IF Continue Level 4 · $12,480 · saved 2 h ago | 1.6 | 50.13 | 32.13 | 5.33 |
+| row: ID New game campaign · sandbox | 1.6 | 56 | 32.13 | 3.2 |
+| row (disabled): EX Build my PC after loading | 1.6 | 59.73 | 32.13 | 3.2 |
+| row (disabled): MEM Gallery after loading | 1.6 | 63.47 | 32.13 | 3.2 |
+| row: WB Load file Settings | 1.6 | 67.2 | 32.13 | 3.2 |
+| cyan cell (chip or lit strip cell) | 1.6 | 51.2 | 2.67 | 1.6 |
+| violet strip cell 1 | 17.27 | 42.67 | 0.93 | 0.93 |
 
-Lit trace: (265, 654) → (265, 693) → (241, 717) → (68, 717) → (44, 741) → (44, 760)
+Lit trace: (17.67, 43.6) → (17.67, 46.2) → (16.07, 47.8) → (4.53, 47.8) → (2.93, 49.4) → (2.93, 50.67)
 
 #### 04-new-game-desktop
 
@@ -759,21 +781,21 @@ Lit trace: (660, 188) → (660, 230) → (636, 254) → (141, 254) → (117, 278
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| display title: NEW GAME ID · new game · last played: campaign | 24 | 470 | 494 | 101 |
-| vertical rail: IF Campaign Sandbox Bare board · starter crate · $600 · earn | 24 | 834 | 482 | 222 |
-| back: ← Back | 24 | 410 | 47 | 48 |
-| row (selected): IF Campaign Sandbox | 24 | 834 | 482 | 48 |
-| horizontal rail: Campaign Sandbox | 104 | 834 | 221 | 48 |
-| row: ID Tutorial On Off | 24 | 902 | 482 | 48 |
-| horizontal rail: On Off | 206 | 902 | 91 | 48 |
-| row: WB Replace save and start | 24 | 958 | 482 | 80 |
-| cyan cell (chip or lit strip cell) | 444 | 510 | 14 | 14 |
-| cyan cell (chip or lit strip cell) | 24 | 846 | 40 | 24 |
-| violet strip cell 1 | 424 | 510 | 14 | 14 |
+| display title: NEW GAME ID · new game · last played: campaign | 1.6 | 31.33 | 32.93 | 6.73 |
+| vertical rail: IF Campaign Sandbox Bare board · starter crate · $600 · earn | 1.6 | 55.6 | 32.13 | 14.8 |
+| back: ← Back | 1.6 | 27.33 | 3.13 | 3.2 |
+| row (selected): IF Campaign Sandbox | 1.6 | 55.6 | 32.13 | 3.2 |
+| horizontal rail: Campaign Sandbox | 6.93 | 55.6 | 14.73 | 3.2 |
+| row: ID Tutorial On Off | 1.6 | 60.13 | 32.13 | 3.2 |
+| horizontal rail: On Off | 13.73 | 60.13 | 6.07 | 3.2 |
+| row: WB Replace save and start | 1.6 | 63.87 | 32.13 | 5.33 |
+| cyan cell (chip or lit strip cell) | 29.6 | 34 | 0.93 | 0.93 |
+| cyan cell (chip or lit strip cell) | 1.6 | 56.4 | 2.67 | 1.6 |
+| violet strip cell 1 | 28.27 | 34 | 0.93 | 0.93 |
 
-Lit trace: (72, 858) → (96, 858)
+Lit trace: (4.8, 57.2) → (6.4, 57.2)
 
-Lit trace: (450, 524) → (450, 563) → (426, 587) → (68, 587) → (44, 611) → (44, 838)
+Lit trace: (30, 34.93) → (30, 37.53) → (28.4, 39.13) → (4.53, 39.13) → (2.93, 40.73) → (2.93, 55.87)
 
 #### 05-load-confirm-desktop
 
@@ -793,15 +815,15 @@ Lit trace: (528, 281) → (528, 323) → (504, 347) → (141, 347) → (117, 371
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| display title: LOAD THIS GAME? WB · load file · replaces your autosave | 24 | 420 | 369 | 170 |
-| vertical rail: NOP Cancel keep your save WB Replace save and load | 24 | 920 | 482 | 136 |
-| row (selected): NOP Cancel keep your save | 24 | 920 | 482 | 48 |
-| row: WB Replace save and load | 24 | 976 | 482 | 80 |
-| cyan cell (chip or lit strip cell) | 358 | 529 | 14 | 14 |
-| cyan cell (chip or lit strip cell) | 24 | 932 | 40 | 24 |
-| violet strip cell 1 | 278 | 529 | 14 | 14 |
+| display title: LOAD THIS GAME? WB · load file · replaces your autosave | 1.6 | 28 | 24.6 | 11.33 |
+| vertical rail: NOP Cancel keep your save WB Replace save and load | 1.6 | 61.33 | 32.13 | 9.07 |
+| row (selected): NOP Cancel keep your save | 1.6 | 61.33 | 32.13 | 3.2 |
+| row: WB Replace save and load | 1.6 | 65.07 | 32.13 | 5.33 |
+| cyan cell (chip or lit strip cell) | 23.87 | 35.27 | 0.93 | 0.93 |
+| cyan cell (chip or lit strip cell) | 1.6 | 62.13 | 2.67 | 1.6 |
+| violet strip cell 1 | 18.53 | 35.27 | 0.93 | 0.93 |
 
-Lit trace: (365, 543) → (365, 582) → (341, 606) → (68, 606) → (44, 630) → (44, 924)
+Lit trace: (24.33, 36.2) → (24.33, 38.8) → (22.73, 40.4) → (4.53, 40.4) → (2.93, 42) → (2.93, 61.6)
 
 #### 06-settings-desktop
 
@@ -826,20 +848,20 @@ Lit trace: (679, 188) → (679, 230) → (655, 254) → (189, 254) → (165, 278
 
 | Element | x | y | w | h |
 |---|---|---|---|---|
-| display title: SETTINGS WB · settings · kept on this device, not in the sav | 24 | 300 | 460 | 101 |
-| horizontal rail: IF Quality ID Display EX Light MEM Detail WB Interface | 64 | 500 | 404 | 24 |
-| vertical rail: Preset Low Medium High Ultra Fastest. No shadows or glow. De | 66 | 584 | 482 | 256 |
-| back: ← Back | 24 | 240 | 47 | 48 |
-| row: Preset | 66 | 584 | 482 | 36 |
-| horizontal rail: Low Medium High Ultra | 118 | 620 | 430 | 48 |
-| row: Device | 66 | 688 | 482 | 36 |
-| horizontal rail: Auto Low Medium High | 118 | 724 | 430 | 48 |
-| row: NOW 1 fps · 1016.6 ms · 1440 × 810 | 66 | 792 | 482 | 48 |
-| cyan cell (chip or lit strip cell) | 470 | 340 | 14 | 14 |
-| cyan cell (chip or lit strip cell) | 64 | 500 | 40 | 24 |
-| violet strip cell 1 | 390 | 340 | 14 | 14 |
+| display title: SETTINGS WB · settings · kept on this device, not in the sav | 1.6 | 20 | 30.67 | 6.73 |
+| horizontal rail: IF Quality ID Display EX Light MEM Detail WB Interface | 4.27 | 33.33 | 26.93 | 1.6 |
+| vertical rail: Preset Low Medium High Ultra Fastest. No shadows or glow. De | 4.4 | 38.93 | 32.13 | 17.07 |
+| back: ← Back | 1.6 | 16 | 3.13 | 3.2 |
+| row: Preset | 4.4 | 38.93 | 32.13 | 2.4 |
+| horizontal rail: Low Medium High Ultra | 7.87 | 41.33 | 28.67 | 3.2 |
+| row: Device | 4.4 | 45.87 | 32.13 | 2.4 |
+| horizontal rail: Auto Low Medium High | 7.87 | 48.27 | 28.67 | 3.2 |
+| row: NOW 1 fps · 1016.6 ms · 1440 × 810 | 4.4 | 52.8 | 32.13 | 3.2 |
+| cyan cell (chip or lit strip cell) | 31.33 | 22.67 | 0.93 | 0.93 |
+| cyan cell (chip or lit strip cell) | 4.27 | 33.33 | 2.67 | 1.6 |
+| violet strip cell 1 | 26 | 22.67 | 0.93 | 0.93 |
 
-Lit trace: (477, 354) → (477, 393) → (453, 417) → (108, 417) → (84, 441) → (84, 492)
+Lit trace: (31.8, 23.6) → (31.8, 26.2) → (30.2, 27.8) → (7.2, 27.8) → (5.6, 29.4) → (5.6, 32.8)
 
 #### 13-flow-diagram-desktop
 
