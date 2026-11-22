@@ -70,7 +70,7 @@ The prompt you send gives only the per-run facts: ticket number, worktree path, 
    - `FAIL` with a numbered list. Each item: file, line, what is wrong, which acceptance item it breaks.
 
 4. **Decide**:
-   - `PASS`: squash-merge `ticket/<n>` into `$BASE` as exactly one commit (`git merge --squash`, then one commit, explicit paths only). Set the board to `in-review`, then close the ticket with a comment that lists the reviewer's commands. Remove the round's worktrees.
+   - `PASS`: a merge agent (`swarm-merger`, Haiku, same effort row) squash-merges `ticket/<n>` into `$BASE` as exactly one commit (`git merge --squash`, then one commit, explicit paths only). The orchestrator does not run this step itself. Set the board to `in-review`, then close the ticket with a comment that lists the reviewer's commands. Remove the round's worktrees.
    - `FAIL` and round < limit: start the next round with the findings.
    - `FAIL` at the limit: stop. Board to `backlog`. Comment the findings on the issue.
 
@@ -95,7 +95,7 @@ Apply the row to every agent in the round (coder, tester, merger, reviewer). Whe
 - Keep each prompt self-contained: the ticket number, the branch, the worktree path, the commit rule, and the 3-line report limit.
 - Nothing merges into any branch other than `$BASE`. Never merge into `main` from this skill.
 - The orchestrator (main session) does not run tests or read diffs itself. It reads only the reviewer's verdict and the merge result.
-- The merge is run by the orchestrator, not a Haiku agent. A merge agent adds a spawn and a context handover with no gain.
+- Round merges (coder + tester into `ticket/<n>`) are run by the orchestrator with literal-path git. The final squash onto `$BASE` on PASS is run by the `swarm-merger` agent, which makes exactly one commit per ticket.
 - Agents do not share worktrees. The three worktrees and their branches are the only layout; they are not recreated per round.
 - Commit subject <= 72 chars, body <= 3 lines. End each commit with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
 - Stage explicit paths only.
