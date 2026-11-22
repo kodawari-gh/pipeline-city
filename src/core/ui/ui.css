@@ -10,7 +10,7 @@
   --art-plate: #0e1a3c; --menu-solid: #0a0e22;
   --sel-bg: color-mix(in srgb, var(--accent) 17%, transparent); --sel-line: color-mix(in srgb, var(--accent) 42%, transparent); /* a chosen toggle, tab or segment */
   --hair: rgba(150, 170, 255, .10); --veil: rgba(255, 255, 255, .06); /* a hairline inside a panel; the faint fill of a quiet chip or hover */
-  --ui: system-ui, 'Segoe UI', sans-serif; --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --ui: 'Plex Sans', var(--f-sans), sans-serif; --mono: 'Plex Mono', var(--f-mono), monospace; /* IBM Plex, from tokens.css */
   --fs-label: 0.667rem; --fs-body: 0.8rem; --fs-title: 1rem; --r-tile: 0.7rem; /* one scale for the panels: titles, section labels, tiles */
   color-scheme: dark;
 }
