@@ -4,7 +4,7 @@ import { booted } from '../boot';
 import { snapshot } from '../store';
 import { debugOn } from '../debugflag';
 import { createDirector, type UiInput } from './director';
-import { applyMix, engineSink, startLoading, unlockOnGesture } from './engine';
+import { applyMix, engineSink, setHidden, startLoading, unlockOnGesture } from './engine';
 import { audioMix } from './mix';
 
 /**
@@ -13,6 +13,9 @@ import { audioMix } from './mix';
  */
 export function initAudio(search?: string, readUi?: () => UiInput): void {
   unlockOnGesture();
+  // The hidden tab fades the sound and suspends the context (engine.ts `setHidden`). Only visibility drives it.
+  setHidden(document.visibilityState === 'hidden');
+  document.addEventListener('visibilitychange', () => setHidden(document.visibilityState === 'hidden'));
   effect(() => { applyMix(audioMix.value); });
   const query = search ?? (typeof location === 'undefined' ? '' : location.search);
   let loading = false;

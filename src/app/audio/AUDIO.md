@@ -52,7 +52,14 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - No state rule plays on the first snapshot, after a reset, or on the snapshot where a loaded save's tick goes back.
 - `onUi(UiInput)` plays the clock cues: `pause` on stop, `resume` on start, `speed_up` / `speed_down` between non-zero speeds, `ui_error` on a sim crash (the stop plays `pause` too).
 - Holds: `levelUp`, `tutorial` (popup) and `menu`. A stop under a hold plays no `pause`; lifting the hold plays no `resume`. Opening the menu plays `ui_panel_open`. `index.ts` derives the hold from the signals.
-- The clock never suspends the AudioContext. Cues play while the clock is stopped.
+- The clock never suspends the AudioContext. Cues play while the clock is stopped. Only a hidden tab suspends it (ticket #59).
+
+### Hidden tab (ticket #59)
+- `index.ts` listens to `visibilitychange` and calls `engine.setHidden(hidden)`. Nothing else calls it: Pause and Hold never suspend.
+- Hidden: queued cues (voices not yet started) stop, new cues are refused, and the master fades out over `hiddenTab.fadeOutMs` (500 ms). The context suspends `hiddenTab.suspendAfterMs` (2000 ms) after hiding. A tab that returns first cancels the suspend.
+- Visible: the context resumes and the master fades in over `hiddenTab.fadeInMs` (800 ms).
+- The fade is its own node between master and the output, so the Settings mix does not fight it.
+- The game clock and the sim are not touched. The tokens are in `mix-tokens.json` (`hiddenTab`).
 
 ### Level-up stinger and key change (ticket #55)
 - A `level` log note, or the level-up popup opening, plays `level_up` of the NEW key once. Several levels in one tick give one stinger. The popup and the note of one level play it once between them.

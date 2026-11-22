@@ -26,6 +26,10 @@ export function applyMix(m: Volumes): void {
 interface Graph {
   ctx: AudioContext;
   bus: Record<BusId, GainNode>;
+  /** The hidden-tab fade (between master and the output). The mix never touches it. */
+  fade: GainNode;
+  /** Queued cues: the voices that start later, with their start time (ctx seconds). Dropped when the tab hides. */
+  queued: Map<VoiceRec, number>;
   /** Music and ambience dip through these (ducking never fights the sliders). */
   duckNodes: GainNode[];
   musicDuck: GainNode;
@@ -41,6 +45,9 @@ const cache = new Map<string, Promise<AudioBuffer | null>>();
 let queue: Promise<unknown> = Promise.resolve();
 let loadingOn = false;
 let keyPc = keyPcForLevel(1);
+/** The tab is hidden (set by `setHidden`). Read at once by `openGraph`, so a context opened while hidden starts silent. */
+let hiddenNow = false;
+let suspendTimer: ReturnType<typeof setTimeout> | null = null;
 
 const CUE = new Map<string, Cue>(MIX.cues.map((c): [string, Cue] => [c.id, c]));
 const rr = new Map<string, number>();
@@ -50,8 +57,11 @@ function openGraph(): Graph | null {
   if (typeof AudioContext === 'undefined') return null;
   const ctx = new AudioContext({ latencyHint: 'interactive' });
   const bus = {} as Record<BusId, GainNode>;
+  const fade = ctx.createGain();
+  fade.gain.value = hiddenNow ? 0 : 1;
+  fade.connect(ctx.destination);
   const master = ctx.createGain();
-  master.connect(ctx.destination);
+  master.connect(fade);
   bus.master = master;
   for (const id of Object.keys(MIX.buses) as BusId[]) {
     if (id === 'master') continue;
@@ -63,7 +73,7 @@ function openGraph(): Graph | null {
   musicDuck = md;
   const ambDuck = ctx.createGain();
   ambDuck.connect(bus.ambience);
-  const g: Graph = { ctx, bus, duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
+  const g: Graph = { ctx, bus, fade, queued: new Map(), duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
   applyBuses(g, audioMix.peek(), false);
   return g;
 }
@@ -73,9 +83,44 @@ export function unlockOnGesture(): void {
   const go = () => {
     for (const e of MIX.unlock.events) window.removeEventListener(e, go, true);
     graph ??= openGraph();
-    void graph?.ctx.resume().catch(() => {});
+    if (!hiddenNow) void graph?.ctx.resume().catch(() => {});
   };
   for (const e of MIX.unlock.events) window.addEventListener(e, go, true);
+}
+
+/** Ramp the hidden-tab fade to `target` over `ms`, from its value now. */
+function fadeTo(g: Graph, target: number, ms: number): void {
+  const p = g.fade.gain;
+  const t = g.ctx.currentTime;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(p.value, t);
+  p.linearRampToValueAtTime(target, t + ms / 1000);
+}
+
+/**
+ * The tab hid or came back (index.ts, on `visibilitychange`). Hidden: queued cues are dropped, new cues are refused, master fades
+ * out (`hiddenTab.fadeOutMs`) and the context suspends after `suspendAfterMs`. Visible: the context resumes and the fade comes back
+ * (`fadeInMs`). Only the tab does this; the game clock, a Pause and a Hold never reach here.
+ */
+export function setHidden(hidden: boolean): void {
+  hiddenNow = hidden;
+  const g = graph;
+  if (!g) return;
+  if (hidden) {
+    const now = g.ctx.currentTime;
+    for (const [v, when] of g.queued) if (when > now) v.stop();
+    g.queued.clear();
+    fadeTo(g, 0, MIX.hiddenTab.fadeOutMs);
+    suspendTimer ??= setTimeout(() => {
+      suspendTimer = null;
+      void g.ctx.suspend().catch(() => {});
+    }, MIX.hiddenTab.suspendAfterMs);
+  } else {
+    if (suspendTimer !== null) clearTimeout(suspendTimer);
+    suspendTimer = null;
+    void g.ctx.resume().catch(() => {});
+    fadeTo(g, 1, MIX.hiddenTab.fadeInMs);
+  }
 }
 
 /** A file path as the engine keys it: `audio/sfx/x.ogg` (keys.ts). `sfx/x.ogg` (relative to the audio folder) is the same file. */
@@ -172,7 +217,7 @@ export function setBeatClock(c: BeatClock | null): void {
 /** Play one cue now (or after `delayS`). Returns nothing: a refused, skipped or unloaded cue is silent. */
 export function playCue(id: CueId, opts: PlayOpts = {}): void {
   const g = graph;
-  if (!g || g.ctx.state !== 'running') return;
+  if (!g || hiddenNow || g.ctx.state !== 'running') return;
   const c = CUE.get(id);
   if (!c) return;
   const pick = pickFile(c, keyPc, rr);
@@ -203,6 +248,7 @@ export function playCue(id: CueId, opts: PlayOpts = {}): void {
     t: now,
     stop: () => {
       pool.remove(v);
+      g.queued.delete(v);
       const t = ctx.currentTime;
       gain.gain.setTargetAtTime(0, t, 0.005);
       src.stop(t + 0.03);
@@ -210,9 +256,11 @@ export function playCue(id: CueId, opts: PlayOpts = {}): void {
   };
   src.onended = () => {
     pool.remove(v);
+    g.queued.delete(v);
     gain.disconnect();
   };
   pool.add(v);
+  if (when > ctx.currentTime) g.queued.set(v, when);
   src.start(when);
   if (c.duckClass) duck(MIX.ducking.cueDuckDb[c.duckClass as keyof typeof MIX.ducking.cueDuckDb], when);
 }

@@ -333,6 +333,96 @@ describe('level-up stinger: engine', () => {
   });
 });
 
+// Ticket #59: the hidden tab. The master fades out (the fade node, the first gain the context makes), queued cues are dropped,
+// the context suspends after `hiddenTab.suspendAfterMs`, and a visible tab resumes it and fades back in.
+describe('hidden tab', () => {
+  const FADE = (): Gain => ctx().gains[0]!; // openGraph makes the fade node first
+  const lastTarget = (g: Gain): number | undefined => g.gain.log[g.gain.log.length - 1];
+
+  it('a cue asked for while hidden is refused', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload(filesOf('payout'));
+    eng.setHidden(true);
+    eng.playCue('payout');
+    expect(playedFiles()).toEqual([]);
+  });
+
+  it('a queued cue (not yet started) is dropped when the tab hides, and a playing one is not cut', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload(filesOf('payout'));
+    let t = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => (t += 1000)); // past the cue's rate limit
+    eng.playCue('payout');                   // starts now
+    eng.playCue('payout', { delayS: 5 });    // queued
+    const [now, queued] = sourcesOf();
+    eng.setHidden(true);
+    expect(queued!.stopped).toBe(true);
+    expect(now!.stopped).toBe(false);
+  });
+
+  it('hiding fades the master out over fadeOutMs and visible fades it back in over fadeInMs', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload(filesOf('payout'));
+    eng.playCue('payout');
+    eng.setHidden(true);
+    expect(lastTarget(FADE())).toBe(0);
+    eng.setHidden(false);
+    expect(lastTarget(FADE())).toBe(1);
+  });
+
+  it('the context suspends suspendAfterMs after hiding, and a visible tab resumes it', async () => {
+    vi.useFakeTimers();
+    try {
+      const eng = await import('./engine');
+      eng.unlockOnGesture();
+      gesture('keydown');
+      expect(ctx().state).toBe('running');
+      eng.setHidden(true);
+      vi.advanceTimersByTime(MIX.hiddenTab.suspendAfterMs - 1);
+      expect(ctx().state).toBe('running');
+      vi.advanceTimersByTime(1);
+      expect(ctx().state).toBe('suspended');
+      eng.setHidden(false);
+      expect(ctx().state).toBe('running');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a tab that comes back before the suspend keeps the context running', async () => {
+    vi.useFakeTimers();
+    try {
+      const eng = await import('./engine');
+      eng.unlockOnGesture();
+      gesture('keydown');
+      eng.setHidden(true);
+      vi.advanceTimersByTime(MIX.hiddenTab.suspendAfterMs / 2);
+      eng.setHidden(false);
+      vi.advanceTimersByTime(MIX.hiddenTab.suspendAfterMs * 2);
+      expect(ctx().state).toBe('running');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a cue plays again once the tab is visible', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload(filesOf('payout'));
+    eng.setHidden(true);
+    eng.setHidden(false);
+    eng.playCue('payout');
+    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
+  });
+});
+
 // Ticket #55: the music's beat clock (setBeatClock, the hook the music tickets use). A cue with `quantise: 'beat'`
 // starts on the clock's next beat; with no clock (no music running) it starts at once. A cue without the option ignores the clock.
 describe('level-up stinger: the music beat', () => {
