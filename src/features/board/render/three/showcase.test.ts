@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Box3 } from 'three';
+import { Box3, Vector3, type Object3D } from 'three';
 import { builtinTheme } from '@/core/render/theme';
+import { idOf } from '@/core/render/three/pick';
 import { DEVICE_SPECS } from '@/features/board/sim/specs';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
 import { buildShowcaseModel } from './showcase';
@@ -55,6 +56,18 @@ describe('the showcase models', () => {
     const b = new Box3().setFromObject(buildShowcaseModel('ram0', T)!), s = b.getSize(b.max.clone());
     expect(s.x).toBeGreaterThan(s.y);
     expect(s.x).toBeGreaterThan(s.z);
+  });
+
+  it('turns a NIC to show its parts first: its jacks stand on the viewer\'s side of the card (+z), as a graphics card shows its cooler', () => {
+    for (const id of ['nic1', 'nic2', 'nic3']) {
+      const m = buildShowcaseModel(id, T)!;
+      m.updateMatrixWorld(true);
+      let jack: Object3D | null = null;
+      m.traverse((o) => { if (idOf(o)?.endsWith('.nic-jack')) jack = o; });
+      expect(jack, id).not.toBeNull();
+      const whole = new Box3().setFromObject(m).getCenter(new Vector3()), at = new Box3().setFromObject(jack!).getCenter(new Vector3());
+      expect(at.z - whole.z, id).toBeGreaterThan(1);
+    }
   });
 
   it('leaves the live layout as it was, and gives null for an unknown id', () => {

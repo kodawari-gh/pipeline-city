@@ -98,11 +98,14 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     case 'gpu': case 'npu': case 'nic': {
       const cs = spec as CardSpec | NicSpec;
       // (standing, as in the case before the camera comes in: its face shows once it swings down flat)
-      return upright(withLayout(() => withArt((art) => {
+      const card = upright(withLayout(() => withArt((art) => {
         const card = cardModel(art, T, spec.kind as 'gpu' | 'npu' | 'nic', cs.visual, 0);
         card.pose(0);
         return card.root;
       })));
+      // (a graphics card's cooler hangs on its south face, toward the viewer; a NIC's parts stand on its north face, away from it: half a turn shows them first)
+      if (spec.kind === 'nic') card.rotation.y = Math.PI;
+      return card;
     }
     case 'cpu': return upright(withLayout(() => withArt((art) => {
       const c = cpuModel(art, T, spec as CpuSpec);
