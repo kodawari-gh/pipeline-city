@@ -13,7 +13,7 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] Only Plex fonts render (DevTools > Rendered fonts), weights 400, 500, 600.
 - [ ] Only token colours in UI CSS for in-scope screens; no `backdrop-filter`, `box-shadow`, `text-shadow`; no radius above 4 px.
 - [ ] **One lit path** per screen, from its source strip cell to the focused item (or the selected value on a focused branch). Count cyan regions: the lit trace plus at most one chip.
-- [ ] **Cyan per screen** (SPEC §1 rule 2): 01 to 06 one chip and one lit path; 07 one chip on the category rail; 08 one chip on the category spine; 09 one chip on the stage tab; 10 one chip on the focused spine item; 11 one chip on "Next"; 12 none at rest. Any other cyan fails.
+- [ ] **Cyan per screen** (SPEC §1 rule 2): 01 to 06 one chip and one lit path; 07 and 08 none at rest (cyan only on focus and its lit trace); 09 one chip on the stage tab; 10 one chip on the focused spine item; 11 one chip on "Next"; 12 none at rest. Any other cyan fails.
 - [ ] **Selected is ink, focused is cyan** (SPEC §1 rule 3). Selected values are ink 600. HUD at rest (no keyboard focus, no hover): zero pixels within ΔE 10 of `#3be3ff`.
 - [ ] Traces 2 px, 45° corners only, 8 px gaps around tags and values; spines end in a test point where SPEC says.
 - [ ] Ornament only from K1 to K7, within the per-screen budget, 1 px graphite, never over text or the 3D subject.
@@ -74,7 +74,7 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 ## 4. Responsive
 At 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844 (phone reference), 360 × 800, 412 × 915, 844 × 390 (landscape phone) and 820 × 1180, for 01, 04, 06, 07, 10 and 12:
 - [ ] No overlaps (16 px minimum between elements); SPEC §6.4 collision steps applied in order.
-- [ ] Phone layout at 390 × 844, 360 × 800, 412 × 915 and 820 × 1180; desktop layout at 844 × 390 with scrolling columns (SPEC §6.1, §6.5).
+- [ ] Phone layout at 390 × 844, 360 × 800, 412 × 915, 820 × 1180 and 844 × 390 (landscape: reflows, does not scale the 530 px numbers); content scrolls at 844 × 390 (SPEC §6.1, §6.5).
 - [ ] Notched phone: nothing under the safe-area insets except tab fills.
 
 ## 5. Coverage method (in-game screens)

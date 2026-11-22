@@ -12,7 +12,7 @@ Read the repo's own rules first: `CLAUDE.md` (root) and `src/core/ui/CLAUDE.md`.
 
 | Screen | Files and functions (main `7f56e17`) |
 |---|---|
-| Boot screen, before mount (03 first frame) | `index.html:6` viewport (`maximum-scale=1, user-scalable=no` today), `:9` theme colour, `:13-51` boot styles (`.boot-title`, `.boot-bar`, `.boot-stage`, `.boot-pipe`), boot markup below; `src/app/boot.ts:12` `bootStage(label, at)`, `:80` `bootMenu`, `:86` `bootDone` ("Ready" at `:90`) |
+| Boot screen, before mount (03 first frame) | `index.html:6` viewport (`width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no` today), `:9` theme colour, `:13-51` boot styles (`.boot-title`, `.boot-bar`, `.boot-stage`, `.boot-pipe`), boot markup below; `src/app/boot.ts:12` `bootStage(label, at)`, `:80` `bootMenu`, `:86` `bootDone` ("Ready" at `:90`) |
 | Boot stages (03 build line, strip) | `src/app/main.tsx:15`; `src/features/board/render/three/board3d.ts:110, 243, 246, 248, 253, 254, 704, 724, 878, 882` (`bootDone` at 885) |
 | 01, 02, 03 Main menu | `src/core/ui/panels/MainMenu.tsx:16` `MainMenu` (rows 40-51; "Sandbox" row at `:44`); `Hud.tsx:308` `Hud()` mounts it when there is no snapshot (`:313-324`), with `Title` (`Hud.tsx:80`) and `Starting` (`Hud.tsx:299`) |
 | 04 New game | `src/core/ui/panels/NewGame.tsx:19` `NewGameDialog` (`newGameOpen` `:12`, `newGameMode` `:14`, `openNewGame` `:15`; choices `:87-104`, note `:105`, actions and warning `:106-109`) |

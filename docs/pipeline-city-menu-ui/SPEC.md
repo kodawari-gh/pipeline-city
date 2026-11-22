@@ -44,7 +44,7 @@ Screens 01 to 13 below. No gameplay change. The in-game HUD gets a re-skin and a
 
 ## 1. Rules (apply everywhere)
 1. **The motif rule.** The focused item is always the cyan chip on the lit trace. On a focused value branch, the lit trace ends at the selected value instead.
-2. **One lit path per screen.** The only cyan is the focus chip and the lit trace it sits on. Spines and category rails keep the chip on their current item, even without focus (screens 01 to 06, Paused, Controls, First frame, Build's category rail and Gallery's category spine show one chip and one lit path). The HUD has no spine: at rest (no keyboard focus, no hover) it shows no cyan at all.
+2. **One lit path per screen.** Cyan only on the focused item and its lit trace. On screens 01 to 06, Paused, Controls and First frame, the spine keeps the chip on its current item, even without focus, with one lit path. Build's category rail and Gallery's category spine show no cyan at rest. The HUD has no spine: at rest (no keyboard focus, no hover) it shows no cyan at all.
 3. **Selected is ink, focused is cyan.** A selected value (speed, view, tab) is `--c-ink` weight 600. Only keyboard focus or pointer hover adds the chip.
 4. **Display titles.** Sub-screen titles are uppercase Plex Sans Condensed 600 with line height 0.86, followed by the strip and a Mono meta line (§4.3).
 5. **No boxes.** No borders, cards, plates, pills or rounded panels. Menu screens use one scrim; in-game screens use edge tabs and ramps. Radius 4 px on chips only.
@@ -222,7 +222,7 @@ Between two stops the opacity is linear. Linear gradients in sRGB, no easing.
 Each screen lists: backdrop, surface (scrim, ramp or edge tabs), elements with copy and position at both references, and behaviour. Exact boxes for 01 to 06 and 13 are in Appendix A. Copy in quotes is exact; *(sample)* marks live data shown with sample values, with the source named.
 
 Live data used on several screens:
-- Save summary: `saveSummary()` (`logic.ts:557`) extended to include money: "Level 4 · $12,480 · saved 2 h ago" (sandbox saves: "Sandbox · saved 2 h ago").
+- Save summary: `saveSummary()` (`logic.ts:555`) extended to include money: "Level 4 · $12,480 · saved 2 h ago" (sandbox saves: "Sandbox · saved 2 h ago").
 - Build line: "build " + the short git hash of the build (`__BUILD__`, IMPLEMENTATION.md step 3).
 - Saved builds count: "3 saved builds" (`n saved builds`, "1 saved build", or "no saved builds"). Gallery count: "75 parts" (the live count of parts in the Gallery list: 17 groups, the case and board tiers, then one group per kind, see `galleryGroups()` in `shopdata.ts`). The mocks show "64 parts"; that is an older count and the live value wins.
 
@@ -493,7 +493,7 @@ Only the two reference sizes are mocked. Everything else follows these rules. Ch
 
 ### 6.1 Which layout
 - **Phone layout** when `(max-width: 48em), (max-aspect-ratio: 3/4)` matches (48em = 768 CSS px; media-query em is always 16 px). This covers phones in portrait and portrait tablets.
-- **Desktop layout** otherwise, including phones in landscape (§6.5).
+- **Desktop layout** otherwise. Landscape 844 × 390 uses the phone layout (§6.5).
 - Use the same media query in CSS and in TS (`matchMedia`); never branch on user agent.
 
 ### 6.2 Scale
@@ -522,7 +522,7 @@ When two elements would come closer than 16 px (1rem), apply these steps in orde
 The Paused and Controls ramp keeps its rem stops; text never extends past the ramp's solid part.
 
 ### 6.5 Short screens (height under 600 px, landscape phones)
-- Desktop layout with rem 15 px. HUD tabs keep their sizes; the dock stays at the bottom.
+- Phone layout (§6.3) at rem 15 px. It reflows; it does not scale the 530 px numbers. The bottom-anchored stack and the dock stay at the bottom.
 - Menus, Paused, Controls and Settings: the content column scrolls; the title steps down to `--t-display-sm`.
 - First frame: the instruction tab shrinks to its content height, anchored to the bottom.
 - Build and Gallery: the flyout and the right column scroll inside their tabs.
