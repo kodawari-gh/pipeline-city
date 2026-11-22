@@ -4,7 +4,7 @@ import { selected, viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
 import { dragging, highlight } from '../../app/interaction';
 import {
-  exportSave, lastRunSpeed, leaving, saveNow, setSpeed, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  exportSave, lastRunSpeed, leaving, saveNow, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
@@ -35,7 +35,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { GraphicsModal } from './panels/Graphics';
 import {
-  buildOpen, controlsOpen, galleryOpen, gameMenuOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, osOpen, runAt, toggleGraphics, toggleOs, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -52,11 +52,13 @@ const speedTitle = (s: number) => `Run at ${speedLabel(s)}`;
  */
 function SpeedControl() {
   const [open, setOpen] = useState(false);
-  const v = speed.value, shown = v === 0 ? lastRunSpeed.value : v;
+  const v = speed.value, shown = v === 0 ? lastRunSpeed.value : v, held = holdActive.value;
+  // A hold (popup, menu) cannot be lifted here: the rail says "Held" and no resume hint.
   return (
     <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
-      <button class="icon pp" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
-        <Icon name={v === 0 ? 'play' : 'pause'} size={14} />
+      <button class="icon pp" aria-label={v === 0 ? (held ? 'Held' : 'Resume') : 'Pause'} title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'} aria-pressed={v === 0} onClick={() => { if (!held) togglePause(); }}>
+        <Icon name={v === 0 && !held ? 'play' : 'pause'} size={14} />
+        {v === 0 && <span class="pp-state">{held ? 'Held' : 'Paused'}</span>}
       </button>
       <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
         title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
@@ -64,7 +66,7 @@ function SpeedControl() {
       </button>
       <div class="seg speeds" role="group" aria-label="Speed" onClick={() => setOpen(true)}>
         {SPEEDS.filter((x) => x !== 0).map((x) => (
-          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { setSpeed(x); setOpen(false); }}>
+          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { runAt(x); setOpen(false); }}>
             {speedLabel(x)}
           </button>
         ))}
@@ -96,14 +98,14 @@ function PauseKey() {
       e.preventDefault();
       if (e.repeat) return;
       (document.activeElement as HTMLElement | null)?.blur?.(); // a focused button would also take the Space as a press
-      togglePause();
+      if (!holdActive.peek()) togglePause();
     };
     const up = (e: KeyboardEvent) => { if (mine(e)) e.preventDefault(); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
-  if (speed.value === 0) return !popupPause.value ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
+  if (speed.value === 0) return !holdActive.value ?<div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
   const slow = zoomSlowdown.value;
   // zoomed in, the machine is shown in slow motion so a block can be followed: say so, and how to get the full pace back
   return slow < 0.97 ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in, zoom out for full pace</span></div> : null;
@@ -235,7 +237,10 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
     if (!open) return;
     const items = () => [...(root.current?.querySelectorAll<HTMLElement>('.menu-pop button[role="menuitem"]') ?? [])];
     items()[0]?.focus();
-    const outside = (e: PointerEvent) => { if (root.current && !root.current.contains(e.target as Node)) close(); };
+    // A press on the HUD speed rail is left to its click: that click runs the speed and closes the menu in one step (runAt).
+    const outside = (e: PointerEvent) => {
+      if (root.current && !root.current.contains(e.target as Node) && !(e.target as Element).closest?.('.speeds')) close();
+    };
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); close(); root.current?.querySelector<HTMLElement>('button[aria-label="Menu"]')?.focus(); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -257,7 +262,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
         <div class="card menu-pop" role="menu">
           <div class="menu-h">Game</div>
           <button role="menuitem" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
-          <button role="menuitem" onClick={() => { close(); leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
+          <button role="menuitem" onClick={() => { leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
           <label class="menuitem" title="Load a game file">
             <Icon name="import" size={13} /> Import game
@@ -285,7 +290,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
             <b class="value">{Math.round(uiScale.value * 100)}%</b>
           </label>
           <div class="menu-h">Help</div>
-          <button role="menuitem" onClick={() => { close(); controlsOpen.value = true; }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
+          <button role="menuitem" onClick={() => { openControlsFromMenu(); }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
           {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
           <button role="menuitem" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>

@@ -3,10 +3,10 @@
 // from the snapshot's `progress` flags; skip/finish/replay/acks live here and are also written into every save
 // (`saveHooks`), so loading a save restores them. localStorage is the copy for the running game.
 
-import { effect, signal } from '@preact/signals';
+import { batch, computed, effect, signal } from '@preact/signals';
 import { selected } from '../../app/hover';
-import { saveHooks, snapshot, speed, togglePause } from '../../app/store';
-import type { Snapshot } from '../../worker/protocol';
+import { lastRunSpeed, saveHooks, setSpeed, snapshot, speed } from '../../app/store';
+import type { Snapshot, Speed } from '../../worker/protocol';
 import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/progress/levelui';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from '../../features/tutorial/ui/tutorial';
@@ -191,36 +191,84 @@ function loadSeen_(): number | null {
 }
 let seenLevel: number | null = loadSeen_();
 export const levelUp = signal<Celebration | null>(null);
-/** The level-up popup pauses the game while it is read (fair play); Next resumes at the speed it was running. */
-let pausedByLevelUp = false;
-let pausedByTutorial = false;
-/** True while a popup (level-up, tutorial) holds the game: the player cannot resume it, so no "Space to resume" hint. */
-export const popupPause = signal(false);
-const syncPopupPause = () => { popupPause.value = pausedByLevelUp || pausedByTutorial; };
-export function dismissLevelUp() {
-  levelUp.value = null;
-  if (pausedByLevelUp && speed.peek() === 0) togglePause();
-  pausedByLevelUp = false;
-  syncPopupPause();
+// ---- holds on the clock (SPEC §9). A hold stops the clock while it lasts: a level-up popup, a tutorial popup, or the menu family.
+// The player cannot lift a hold from the HUD. The last hold to close resumes the clock at the speed it ran at, unless the player
+// had paused first (then the clock was not running when the holds began, and nothing resumes).
+export type Hold = 'levelUp' | 'tutorial' | 'menu';
+const holds = new Set<Hold>();
+/** True when the clock was running when the first hold came: the last release resumes it. */
+let resumeOnRelease = false;
+/** True while any hold stops the clock: the HUD rail shows "Held" and no resume hint. */
+export const holdActive = signal(false);
+
+export function setHold(h: Hold, on: boolean): void {
+  if (on) {
+    if (holds.has(h)) return;
+    if (holds.size === 0 && speed.peek() !== 0) { resumeOnRelease = true; setSpeed(0); }
+    holds.add(h);
+  } else {
+    if (!holds.delete(h)) return;
+    if (holds.size === 0) {
+      if (resumeOnRelease && speed.peek() === 0) setSpeed(lastRunSpeed.peek());
+      resumeOnRelease = false;
+    }
+  }
+  holdActive.value = holds.size > 0;
 }
 
-/** A tutorial popup (the welcome, the next-lesson offer) pauses the game while it is open, like the level-up. */
+/** Leaving a game: drop every hold without resuming (SPEC §9.5). */
+export function clearHolds(): void {
+  holds.clear();
+  resumeOnRelease = false;
+  holdActive.value = false;
+}
+
+/**
+ * A speed picked in the HUD rail. It closes the menu family (SPEC §9.4) and runs at that speed in one step, so the clock resumes once, with no
+ * second toggle. A popup still holding the clock keeps it stopped: the speed is kept for its release.
+ */
+export function runAt(s: Speed): void {
+  batch(() => {
+    gameMenuOpen.value = false;
+    if (controlsFromMenu.peek()) controlsOpen.value = false;
+    holds.delete('menu');
+    if (holds.size > 0) { lastRunSpeed.value = s; holdActive.value = true; return; }
+    resumeOnRelease = false;
+    holdActive.value = false;
+    setSpeed(s);
+  });
+}
+
+/** Controls opened from the menu: the menu family stays one holder while Controls is open (SPEC §9.3). */
+export const controlsFromMenu = signal(false);
+export function openControlsFromMenu(): void {
+  batch(() => {
+    controlsFromMenu.value = true;
+    controlsOpen.value = true;
+    gameMenuOpen.value = false;
+  });
+}
+effect(() => { if (!controlsOpen.value) controlsFromMenu.value = false; });
+const menuFamily = computed(() => gameMenuOpen.value || (controlsOpen.value && controlsFromMenu.value));
+effect(() => setHold('menu', menuFamily.value));
+
+export function dismissLevelUp() {
+  levelUp.value = null;
+  setHold('levelUp', false);
+}
+
+/** A tutorial popup (the welcome, the next-lesson offer) holds the clock while it is open, like the level-up. */
 export function pauseForTutorialPopup(open: boolean) {
-  if (open && !pausedByTutorial && speed.peek() !== 0) { togglePause(); pausedByTutorial = true; }
-  else if (!open && pausedByTutorial) {
-    if (speed.peek() === 0 && !levelUp.peek()) togglePause();
-    pausedByTutorial = false;
-  }
-  syncPopupPause();
+  setHold('tutorial', open);
 }
 
 effect(() => {
   const s = snapshot.value;
-  if (!s) { dismissLevelUp(); return; }
+  if (!s) { clearHolds(); dismissLevelUp(); return; }
   const owed = celebrationFor(s, seenLevel);
   if (owed && !levelUp.peek()) {
     levelUp.value = owed;
-    if (speed.peek() !== 0) { togglePause(); pausedByLevelUp = true; syncPopupPause(); }
+    setHold('levelUp', true);
     seenLevel = owed.level;
     writeStore(SEEN_KEY, String(seenLevel));
     return;

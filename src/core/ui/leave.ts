@@ -6,9 +6,10 @@ import { traceOpen } from '../../app/scrub';
 import { leaveSim } from '../../app/store';
 import { almanacOpen } from '../../features/jobs/ui/AlmanacPanel';
 import { logOpen } from './panels/LogPanel';
-import { controlsOpen, gameMenuOpen, graphicsOpen, history, milestones, netOpen, osOpen, shopOpen, statsOpen } from './state';
+import { clearHolds, controlsOpen, gameMenuOpen, graphicsOpen, history, milestones, netOpen, osOpen, shopOpen, statsOpen } from './state';
 
 export function leaveGame(): void {
+  clearHolds(); // first: closing the menu below must not resume a game being left
   for (const open of [statsOpen, netOpen, osOpen, shopOpen, graphicsOpen, controlsOpen, gameMenuOpen, almanacOpen, logOpen, traceOpen]) open.value = false;
   milestones.value = null;
   selected.value = null;
