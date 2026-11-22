@@ -67,10 +67,14 @@ describe('the AI card view', () => {
     v.frame(0.016, true);
     const packets = () => (v as unknown as { cards: { packets: unknown[]; touch: unknown }[] }).cards[0]!.packets.length;
     const touched = () => (v as unknown as { cards: { touch: unknown }[] }).cards[0]!.touch !== null;
+    const told: { slot: string; ids: string[] }[] = [];
+    v.onTraffic = (slot, hops) => told.push({ slot, ids: hops.map((h) => `${h.link.from}>${h.link.to}${h.reverse ? '<' : ''}`) });
     v.touch('pcie9', true, 0x1000); // not a card of the scene
     expect(touched()).toBe(false);
     v.touch('pcie1', true, 0x1000); // a word copied in
     expect(touched()).toBe(true);
+    // (the copper on the PCB is told: a word into card memory runs the host link and the memory bus inward)
+    expect(told).toEqual([{ slot: 'pcie1', ids: ['host>cardmem'] }]);
     expect(packets()).toBe(1);
     v.touch('pcie1', true, 0x1004); // the next word of the copy: the same stretch, no new packet this soon
     expect(packets()).toBe(1);

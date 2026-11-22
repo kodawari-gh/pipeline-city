@@ -117,7 +117,7 @@ export interface Card3D {
   die: { root: Object3D; z: number; rect: RectLike; stand: Lying; zTop: number; scale: number } | null;
   /** A NIC's lit copper (`Chips3D.traces`): the frame the lanes' drawing is in (the card's component side, a band of the drawing for its slot), the depth just over the mask's face in it, and the lanes
    * (`nicflow.ts`). Null on the other cards. */
-  copper: { root: Object3D; z: number; lanes: NicLanes } | null;
+  copper: { root: Object3D; z: number; lanes: NicLanes; /** The zoom band the lit copper fades in over (a GPU's and an AI card's: with their dies; a NIC's: `DEVICE_LOD.nic.parts`). */ band?: readonly [number, number] } | null;
   lids: Object3D[];
   /** A GPU's or an AI card's two dies (`accelparts3d.ts`): the main die's and the card memory's, each with the live layer's frame and depth, its plan's rectangle in that frame (board space), where it stands, the depth of its top in the card's flat frame, the layout units to a plan unit and its lid's fade. Empty on the other cards. */
   dies: CardDie[];
@@ -134,7 +134,7 @@ export interface Card3D {
 }
 
 /** The card's 2D geometry as it is built: its PCB's west end and length (the 2D card's), its cooler's east end, the slot line, its 2D rect's north and south edges (a NIC's: its flat strip). */
-function frame(kind: CardKind, visual: string, slot: number) {
+export function frame(kind: CardKind, visual: string, slot: number) {
   const y0 = nicY(slot), r = kind === 'nic' ? nicFaceRect(slot, visual) : cardRect(slot, visual);
   const L = kind === 'nic' ? NIC_LEN[visual] ?? 1500 : CARD_LEN[visual] ?? 1500;
   const base = { x0: BD.x, x1: BD.x + L, xe: BD.x + lenOf(kind, visual), y0, top: r.y, south: r.y + r.h, end: y0 + STAND[kind], r };
@@ -228,7 +228,15 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
     const o = cardOrigin(slot, visual), geo = kind === 'gpu' ? gpuPlan(visual) : npuGeo(visual);
     const plans = { core: moveRect(geo.core, o), mem: moveRect(geo.memory, o) };
     const at = kind === 'gpu' ? gpuDie(f) : npuShroud(f).die;
-    const made = accelParts(parts, { visual, at, x0: x0, x1, plans, floor: (part) => accel(part, plans[part]) }, Z);
+    const made = accelParts(parts, {
+      visual, at, x0, x1, plans, floor: (part) => accel(part, plans[part]), slot, tab: { x: tab.x, w: tab.w }, y0, board: rect(x0, y0, x1 - x0, south - y0),
+      mask: kind === 'gpu' ? { mask: '#0e1320', trace: '#1a2237' } : { mask: '#101118', trace: '#1c1d28' },
+    }, Z);
+    // the lit copper's frame: in the packages' group, shifted so the lanes' drawing (the card's band of the shared one) lands on the card
+    const tr = new Group();
+    tr.position.x = -made.lanes.off;
+    made.top.add(tr);
+    copper = { root: tr, z: Z + TRACE_LIFT, lanes: made.lanes, band: [DEVICE_LOD[kind].fade[0] + 0.04, DEVICE_LOD[kind].fade[1]] };
     for (const d of made.dies) {
       if (!d.chip.die) continue;
       dies.push({ part: d.part, root: d.chip.die.root, z: d.chip.die.z, rect: d.plan, stand: standIn(slot, d.rect, Z + d.chip.dieTop), zTop: Z + d.chip.dieTop, scale: d.chip.scale, lod: d.chip.lod });

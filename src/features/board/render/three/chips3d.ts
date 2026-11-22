@@ -34,6 +34,7 @@ import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
 import type { NicLanes } from './nicflow';
 import { NicTraceView } from './nictrace';
+import { busesOf } from './accelbus';
 
 /** `nictrace`: a network card's copper, lit (nictrace.ts), on the card's component side; the others are dies. */
 export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm' | 'nic' | 'router' | 'nictrace';
@@ -80,6 +81,8 @@ export const livePx = (crop: Rect, need: number, max = MAX_PX, side = MAX_SIDE):
 
 interface Face {
   kind: ChipKind;
+  /** A lit copper's fade-in band over the zoom (a card's, with its dies); the network card's by default. */
+  band?: readonly [number, number];
   parent: Object3D;
   rect: Rect;
   z: number;
@@ -137,6 +140,10 @@ export class Chips3D {
     };
     // a frame leaves a card's way: its copper lights first, and the die's packets wait for it (nictrace.ts)
     this.nic.onLaunch = (slot, dir, at, total) => this.nicTrace.launch(slot, dir, at, total);
+    // a graphics card's or an AI card's buses: the receive lines and the memory bus light with the words the die's view sends (accelbus.ts)
+    const traffic = (slot: string, hops: Parameters<typeof busesOf>[0]) => { for (const [bus, dir] of busesOf(hops)) this.nicTrace.pulse(slot, bus, dir); };
+    this.gpu.onTraffic = traffic;
+    this.npu.onTraffic = traffic;
   }
 
   /** A new machine (machine3d.ts): the CPU's floorplan and the cards from its parts; the old faces go, the parts bring their new ones (`face`). */
@@ -194,10 +201,11 @@ export class Chips3D {
    * A network card's copper (card3d.ts): its lit lanes on a plane over the card's component side, in `parent` (the frame the card's parts stand in; the lanes' drawing is layout's, y down)
    * at depth `z`. The frames the card's die view launches (`NicView.onLaunch`) run on them, in the colour of the way they go.
    */
-  traces(parent: Object3D, slot: string, lanes: NicLanes, z: number): void {
+  traces(parent: Object3D, slot: string, lanes: NicLanes, z: number, band?: readonly [number, number]): void {
     if (!lanes.media.length && !lanes.host.length) return;
     this.nicTrace.add(slot, lanes);
     this.face(parent, 'nictrace', lanes.rect, z, slot);
+    if (band) this.faces[this.faces.length - 1]!.band = band;
   }
 
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
@@ -262,7 +270,7 @@ export class Chips3D {
     for (const f of this.faces) {
       if (f.kind !== 'nictrace' || !f.slot) continue;
       f.parent.updateWorldMatrix(true, false);
-      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth(DEVICE_LOD.nic.parts[0], DEVICE_LOD.nic.parts[1], tv.zoom) : 0;
+      const tv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), alpha = shown(f.parent) ? smooth((f.band ?? DEVICE_LOD.nic.parts)[0], (f.band ?? DEVICE_LOD.nic.parts)[1], tv.zoom) : 0;
       this.traceAlpha.set(f.slot, alpha);
       this.nicTrace.setSight(f.slot, { zoom: tv.zoom, shown: alpha > 0.01 });
     }

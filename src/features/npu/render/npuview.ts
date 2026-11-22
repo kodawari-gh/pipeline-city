@@ -63,8 +63,13 @@ interface CardView {
 /** How long a CPU access stays lit in the die (ms), the least gap between two packets of the same kind, and the longest stretch of card memory shown as one access (bytes). */
 const TOUCH_MS = 900, HOST_GAP_MS = 140, TOUCH_SPAN = 256;
 
+/** A route's hops, as the board's live layer lights the card's copper from them (`board/three/accelbus.ts`). */
+export type TrafficHops = readonly { link: { from: string; to: string }; reverse: boolean }[];
+
 export class NpuCardView {
   readonly root = new Container();
+  /** A route is sent (a launch crossing the host link, a descriptor reaching card memory, the CPU's word into it): the card's slot and the hops, for the copper lit on the PCB. */
+  onTraffic?: (slot: string, hops: TrafficHops) => void;
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
@@ -130,6 +135,7 @@ export class NpuCardView {
     } else c.touch = { store, reg: ctlRowOf(off), lo: 0, hi: 0, at: now };
     c.sig = ''; // an idle card redraws
     const access: HostAccess = `${mem ? 'mem' : 'reg'}-${store ? 'write' : 'read'}`;
+    this.onTraffic?.(slot, npuHostRoute(c.geo.plan, access));
     // (nothing is sent while the die is not drawn, or packets would pile up unseen)
     if (!c.die.visible || c.packets.length > 40 || now - (c.sentAt.get(access) ?? -1e9) < HOST_GAP_MS) return;
     c.sentAt.set(access, now);
@@ -206,6 +212,7 @@ export class NpuCardView {
     if (phase === 'run' && !show.step) return;
     const route = npuRoute(c.geo.plan, op, phase);
     if (route.length === 0) return;
+    this.onTraffic?.(c.slot, route);
     const color = phase === 'in' ? T.alu : phase === 'out' ? T.st : this.stepColor(T, op);
     const total = !show.replay ? LIVE_HOP_MS : phase === 'run' ? replayStepMs(show.step!) : REPLAY_HOP_MS, sp = (total * 0.9) / route.length, dur = Math.max(sp * 1.1, 200);
     route.forEach((h, i) => {

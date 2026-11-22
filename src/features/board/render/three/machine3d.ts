@@ -679,7 +679,7 @@ export class Machine3D {
     if (c.parts) this.still.push(c.parts);
     this.apart.push(...c.lids);
     // (the card's copper lights with the frames the die's view launches, over the mask of its component side)
-    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z);
+    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z, c.copper.band);
     if (!c.die) return;
     this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
     this.revealOn(c.die.stand, c.lod);
@@ -692,6 +692,8 @@ export class Machine3D {
    */
   private accelBits(d: DeviceSnap, c: Card3D, kind: 'gpu' | 'npu'): void {
     this.apart.push(...c.lids);
+    // (the card's copper lights with the words the dies' views send, over the mask of its component side)
+    if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z, c.copper.band);
     for (const die of c.dies) {
       this.chips?.face(die.root, kind, die.rect, die.z, d.slot);
       this.revealOn(die.stand, die.lod);

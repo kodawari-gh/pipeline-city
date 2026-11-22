@@ -100,3 +100,19 @@ describe("the network card's copper, alive", () => {
     expect(v.launch('pcie0', 'rx', 5000, 1000)).toBe(0);
   });
 });
+
+describe("a graphics card's or an AI card's copper, alive", () => {
+  it('lights a bus when the die\'s view tells of a word on it, at most once in a while, and only while the copper is seen', () => {
+    const { v } = view('nic-10g');
+    v.pulse('pcie0', 'host', 1); // (not seen yet: nothing is lit)
+    expect(v.busy('pcie0')).toBe(false);
+    v.setSight('pcie0', { zoom: 1, shown: true });
+    v.frame(1000);
+    v.pulse('pcie0', 'mem', 1);
+    expect(v.busy('pcie0')).toBe(true);
+    v.frame(1000 + FADE_MS + MAX_MS + 100);
+    expect(v.busy('pcie0')).toBe(false);
+    v.pulse('pcie9', 'host', 1); // (no such card)
+    expect(v.busy('pcie9')).toBe(false);
+  });
+});

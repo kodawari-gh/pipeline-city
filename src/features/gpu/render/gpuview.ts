@@ -127,8 +127,13 @@ interface CardView {
   sig: string;
 }
 
+/** A route's hops, as the board's live layer lights the card's copper from them (`board/three/accelbus.ts`). */
+export type TrafficHops = readonly { link: { from: string; to: string }; reverse: boolean }[];
+
 export class GpuView {
   readonly root = new Container();
+  /** A route is sent (a launch crossing the host link, a load or store reaching card memory): the card's slot and the hops, for the copper lit on the PCB. */
+  onTraffic?: (slot: string, hops: TrafficHops) => void;
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
@@ -275,9 +280,11 @@ export class GpuView {
   }
 
   /** Send an instruction along its route: a packet on each wire in turn, in its colour. One card cycle a wire on the engines that pipeline, the instruction's own length shared out on the unit. */
-  private fly(c: CardView, route: Hop[], color: string, cost: number): void {
+  private fly(c: CardView, route: Hop[], color: string, cost: number, back = false): void {
     const n = route.length;
     if (n === 0) return;
+    // (a load brings its word from the card memory: the way back along the route)
+    this.onTraffic?.(c.slot, back ? route.map((h) => ({ link: h.link, reverse: !h.reverse })) : route);
     const pipelined = c.plan.die.input.kind !== 'simd', sp = pipelined ? CYCLE_MS * 0.9 : Math.max(CYCLE_MS * 0.9, (Math.max(1, cost) * CYCLE_MS) / n), dur = Math.max(sp * 1.1, 180);
     route.forEach((h, i) => {
       const link = this.hopLink(c, h), t0 = this.now + i * sp, { packet, trail } = packetOn(link, h.reverse, t0, dur, color);
@@ -304,7 +311,7 @@ export class GpuView {
         const key = `${s.launches}:${sm.index}`;
         if (c.sent.get(sm.sm) === key) continue;
         c.sent.set(sm.sm, key);
-        if (sm.step) this.fly(c, gpuRoute(plan.die, sm.step, sm.sm), kindColor(T, sm.step.kind), sm.step.cost);
+        if (sm.step) this.fly(c, gpuRoute(plan.die, sm.step, sm.sm), kindColor(T, sm.step.kind), sm.step.cost, sm.step.kind === 'ld');
       }
     }
     c.flights = c.flights.filter((f) => f.t0 + f.dur > now);

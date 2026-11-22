@@ -86,7 +86,7 @@ type P = [number, number];
 const SIG = CU.sig / MM, PWR = CU.pwr / MM, WIDE = CU.wide / MM;
 const same = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
 /** The polyline without repeated or collinear points. */
-function clean(pts: Pt[]): Pt[] {
+export function clean(pts: Pt[]): Pt[] {
   const out: Pt[] = [];
   for (const p of pts) if (!out.length || !same(out[out.length - 1]!, p)) out.push(p);
   return out.filter((b, i) => {
@@ -96,7 +96,7 @@ function clean(pts: Pt[]): Pt[] {
   });
 }
 /** Each right-angle bend cut by a 45-degree run along each leg (at most a third of the shorter leg), as a router chamfers it. */
-function chamfer(pts: Pt[], c = 0.22): Pt[] {
+export function chamfer(pts: Pt[], c = 0.22): Pt[] {
   const out: Pt[] = [pts[0]!];
   for (let i = 1; i < pts.length - 1; i++) {
     const a = pts[i - 1]!, b = pts[i]!, d = pts[i + 1]!;

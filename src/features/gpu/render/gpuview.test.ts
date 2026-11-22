@@ -63,6 +63,29 @@ describe('GPU view', () => {
     expect(fanBank.get('gpu:pcie0')).toBe(0);
   });
 
+  it('tells the board of each route it sends a packet along: the launch over the host link, a load or a store over the card memory', () => {
+    setLayoutTier(3, 3);
+    const v = new GpuView();
+    v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
+    v.setZoom(1);
+    const told: { slot: string; ends: string[]; reverse: boolean[] }[] = [];
+    v.onTraffic = (slot, hops) => told.push({ slot, ends: hops.flatMap((h) => [h.link.from, h.link.to]), reverse: hops.map((h) => h.reverse) });
+    v.update([snap({ phase: 'in' })], undefined);
+    v.frame(1 / 30, true);
+    expect(told.some((t) => t.slot === 'pcie0' && t.ends[0] === 'pcie' && t.reverse.every((r) => !r))).toBe(true);
+    // (a card seen in the middle of its run: the load on show brings its word from the card memory)
+    const w = new GpuView();
+    w.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
+    w.setZoom(1);
+    w.onTraffic = v.onTraffic;
+    told.length = 0;
+    w.update([snap({ phase: 'run' })], undefined);
+    for (let i = 0; i < 400; i++) w.frame(1 / 30, true);
+    const mem = told.find((t) => t.ends.includes('dram'));
+    // (the step on show is a load: its word comes from the card memory, the way back along the route)
+    expect(mem?.reverse.every(Boolean)).toBe(true);
+  });
+
   it('colours each kind of instruction apart and names every phase', () => {
     const kinds = ['alu', 'ld', 'st', 'mask', 'br', 'sys'] as const;
     expect(new Set(kinds.map((k) => kindColor(T, k))).size).toBe(kinds.length);

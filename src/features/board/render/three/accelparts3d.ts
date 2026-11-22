@@ -5,7 +5,10 @@ import { Group } from 'three';
 import type { RectLike } from '@/core/render/three/geometry';
 import { DIE_FILL } from './chipdie3d';
 import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
-import { inductor, MM, passiveRow, passives, type Passive } from './pcbkit3d';
+import { accelCopper, accelLanes, POUR_CLEAR, type AccelCopper } from './accelcopper';
+import type { NicLanes } from './nicflow';
+import { inductor, maskTop, MM, passiveRow, passives, type Passive } from './pcbkit3d';
+import { CU } from './niccopper';
 
 export type AccelPart = 'core' | 'mem';
 
@@ -33,6 +36,11 @@ export interface AccelOut {
   dies: AccelDie[];
   /** Where the live layer of a die goes: the face (`DieFloor` made it) and its depth. */
   floors: { part: AccelPart; root: NicChip['die'] }[];
+  /** The PCB's copper, painted under the mask, and its lit runs (`accelLanes`: the slot's receive lines, and the memory bus). */
+  copper: AccelCopper;
+  lanes: NicLanes;
+  /** The group the packages and the copper stand in (layout y negated): the lit copper's plane goes in it. */
+  top: Group;
 }
 
 /** What a card tells the builder: where its main die stands (layout), how far its PCB reaches east, its slot's line, and the plans' rectangles in board space. */
@@ -45,6 +53,12 @@ export interface AccelSpec {
   /** The plan rectangles of the two dies (board space) and the floor (the die's art in a frame) for each. */
   plans: Record<AccelPart, RectLike>;
   floor: (part: AccelPart) => DieFloor;
+  /** The slot (its band in the shared drawing of the lit copper), the finger tab (layout x of its bracket end, its length), the slot's line, the PCB's face (layout) and its mask's colours. */
+  slot: number;
+  tab: { x: number; w: number };
+  y0: number;
+  board: RectLike;
+  mask: { mask: string; trace: string };
 }
 
 /** The packages and the power stage of a card, on the PCB's top face at depth `Z`, into `g` (a group in the lying card's frame). */
@@ -63,10 +77,10 @@ export function accelParts(g: Group, s: AccelSpec, Z: number): AccelOut {
   const mem = place('mem', memSide, memX, s.at.y, ['GDDR', 'MEM']);
   dies.push(core, mem);
   // the power stage: a block of inductors west of the main die, in two rows, and the decoupling rows along the dies' north and south edges
-  const west = core.rect.x - 0.03 * core.rect.w - 6 * MM, ph = 5 * MM, rows = [s.at.y - 4 * MM, s.at.y + 4 * MM];
+  const west = core.rect.x - 0.03 * core.rect.w - 6 * MM, ph = 5 * MM, rows = [s.at.y - 4 * MM, s.at.y + 4 * MM], coils: RectLike[] = [];
   for (const y of rows) for (let k = 0; k < 3; k++) {
     const x = west - k * 7 * MM;
-    if (x - ph > s.x0 + 6 * MM) inductor(top, { x: x - ph / 2, y: y - ph / 2, w: ph, h: ph }, Z, 2 * MM, k % 2 ? '1R0' : 'R47');
+    if (x - ph > s.x0 + 6 * MM) { const r = { x: x - ph / 2, y: y - ph / 2, w: ph, h: ph }; coils.push(r); inductor(top, r, Z, 2 * MM, k % 2 ? '1R0' : 'R47'); }
   }
   const caps: Passive[] = [];
   const row = (d: AccelDie, n: number) => {
@@ -76,5 +90,15 @@ export function accelParts(g: Group, s: AccelSpec, Z: number): AccelOut {
   row(core, Math.max(4, Math.floor(core.rect.w / (1.6 * MM)) - 2));
   row(mem, Math.max(3, Math.floor(mem.rect.w / (1.6 * MM)) - 2));
   passives(top, caps, Z);
-  return { dies, floors: dies.map((d) => ({ part: d.part, root: d.chip.die })) };
+  // the copper under the mask on the PCB's face: the slot's receive pairs, the memory bus, the power runs, a ground pour round them
+  const copper = accelCopper({ tab: s.tab, y0: s.y0, core: core.rect, mem: mem.rect, inductors: coils });
+  const b = s.board, ref = (MARK[s.visual] ?? ['CARD']).slice(0, 2).join(' ');
+  top.add(maskTop(`accel-top:${s.visual}:${s.slot}`, b, Z, {
+    ...s.mask, seed: 0, parts: [], text: [{ x: b.x + 3 * MM, y: b.y + 3 * MM, s: `${ref} REV A`, mm: 1.6 }, { x: b.x + 3 * MM, y: b.y + 5.6 * MM, s: 'PCIE X16', mm: 1.2 }],
+    copper: {
+      traces: copper.traces.map((t) => ({ pts: t.pts, w: t.w })), vias: [], via: CU.via, drill: CU.drill, ring: CU.via, hole: CU.drill,
+      keep: dies.map((d) => d.rect), pour: { clear: POUR_CLEAR, edge: CU.edge, round: 0 },
+    },
+  }, { px: 24 }));
+  return { dies, floors: dies.map((d) => ({ part: d.part, root: d.chip.die })), copper, lanes: accelLanes(copper, s.slot, b.x), top };
 }
