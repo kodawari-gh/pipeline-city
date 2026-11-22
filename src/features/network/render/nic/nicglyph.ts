@@ -1,4 +1,5 @@
 import type { Graphics } from 'pixi.js';
+import { NIC_RX_SLOTS, NIC_TX_SLOTS } from '@/core/sim/memmap';
 import type { Theme } from '@/core/render/theme';
 import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
 import { STRETCH } from '../jackleds';
@@ -66,22 +67,34 @@ export function statsGeom(a: Rect) {
   return { rx: row(0), tx: row(1), rxVal: R(a.x + nw, row(0).y, a.w - nw, rh), txVal: R(a.x + nw, row(1).y, a.w - nw, rh), rxBar: bar(0), txBar: bar(1), nw };
 }
 
-/** A queue: the ring of slots along its top, and below it the transfers in flight, a row each. */
-export function queueGeom(a: Rect, ring: number) {
-  const ch = 16, cw = (a.w - 8) / ring, rows = Math.max(0, Math.min(3, Math.floor((a.h - ch - 8) / 26)));
+/**
+ * A queue: along its top the chip's own buffer, one cell for each segment it holds (`fifo`: only the receive side has one, the transmit side reads the kernel's ring straight), and below it
+ * the transfers in flight, a row each.
+ */
+export function queueGeom(a: Rect, fifo: number) {
+  const ch = 16, lw = 40, cw = (a.w - lw - 4) / Math.max(1, fifo), top = fifo > 0 ? ch + 8 : 0, rows = Math.max(0, Math.min(3, Math.floor((a.h - top) / 26)));
   return {
-    cells: Array.from({ length: ring }, (_, k) => R(a.x + k * cw + 1, a.y + 1, cw - 2, ch)), ringBox: R(a.x, a.y, ring * cw, ch + 2),
-    flows: Array.from({ length: rows }, (_, k) => { const y = a.y + ch + 8 + k * 26, h = 22; return { row: R(a.x, y, a.w, h), label: R(a.x + 2, y, a.w * 0.5, h), bar: R(a.x + a.w * 0.53, y + h * 0.28, a.w * 0.34, h * 0.44), pct: R(a.x + a.w * 0.89, y, a.w * 0.11, h) }; }),
+    cells: Array.from({ length: fifo }, (_, k) => R(a.x + lw + k * cw + 1, a.y + 1, cw - 2, ch)), fifoBox: fifo > 0 ? R(a.x + lw, a.y, fifo * cw, ch + 2) : null, label: R(a.x, a.y, lw, ch + 2),
+    flows: Array.from({ length: rows }, (_, k) => { const y = a.y + top + k * 26, h = 22; return { row: R(a.x, y, a.w, h), label: R(a.x + 2, y, a.w * 0.5, h), bar: R(a.x + a.w * 0.53, y + h * 0.28, a.w * 0.34, h * 0.44), pct: R(a.x + a.w * 0.89, y, a.w * 0.11, h) }; }),
   };
 }
 
-/** The DMA engine: the descriptor ring, the two ways a frame goes (into RAM, out of RAM) and the line that counts them. */
-export function dmaGeom(a: Rect) {
-  const rh = Math.min(46, a.h * 0.2), gap = 14, ey = a.y + rh + gap, eh = Math.max(40, a.h - rh - 2 * gap - 34);
-  const cw = (a.w - 2 * 8) / 6;
+/**
+ * The DMA engine: the two descriptor rings it walks (the kernel's receive slots and transmit slots, in RAM: `rx` and `tx` cells), the two ways a frame goes (into RAM, out of RAM) and the
+ * line that counts the words it moved.
+ */
+export function dmaGeom(a: Rect, rx: number, tx: number) {
+  const rh = Math.min(40, a.h * 0.22), gap = 16, foot = 22, ey = a.y + rh + gap, eh = Math.max(30, a.h - rh - gap - foot - 4);
+  const pad = 8, lw = 22, mid = 12, gw = (a.w - 2 * pad - mid) / 2, cy = a.y + rh * 0.28, ch = rh * 0.44;
+  // (the engine's two halves: the way into RAM on the left, the way out of it on the right, each an arrow and its name)
+  const half = (k: number) => R(a.x + 4 + k * (a.w / 2), ey + 4, a.w / 2 - 8, eh - 8);
+  const group = (k: number, n: number) => {
+    const x0 = a.x + pad + k * (gw + mid), cw = (gw - lw) / Math.max(1, n);
+    return { label: R(x0, a.y, lw, rh), cells: Array.from({ length: n }, (_, i) => R(x0 + lw + i * cw + 1, cy, cw - 2, ch)) };
+  };
   return {
-    ring: R(a.x, a.y, a.w, rh), cells: Array.from({ length: 6 }, (_, k) => R(a.x + 8 + k * cw + 1, a.y + rh * 0.28, cw - 2, rh * 0.44)),
-    engine: R(a.x, ey, a.w, eh), down: R(a.x + a.w * 0.12, ey + 8, a.w * 0.32, eh - 16), up: R(a.x + a.w * 0.56, ey + 8, a.w * 0.32, eh - 16), note: R(a.x, a.y + a.h - 28, a.w, 28),
+    ring: R(a.x, a.y, a.w, rh), rx: group(0, rx), tx: group(1, tx),
+    engine: R(a.x, ey, a.w, eh), down: half(0), up: half(1), note: R(a.x, a.y + a.h - foot, a.w, foot),
   };
 }
 
@@ -140,26 +153,31 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
       break;
     }
     case 'rxq': case 'txq': {
-      const q = queueGeom(a, input.ring);
-      for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
-      outline(q.ringBox);
+      const q = queueGeom(a, b.kind === 'rxq' ? input.fifo : 0);
+      if (q.fifoBox) {
+        lab('FIFO', q.label.x, q.label.y + q.label.h / 2);
+        for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
+        outline(q.fifoBox);
+      }
       for (const f of q.flows) { rect(f.bar.x, f.bar.y, f.bar.w, f.bar.h, soft); outline(f.bar); }
       break;
     }
     case 'dma': {
-      const q = dmaGeom(a);
+      const q = dmaGeom(a, NIC_RX_SLOTS, NIC_TX_SLOTS);
       rect(q.ring.x, q.ring.y, q.ring.w, q.ring.h, T.die); outline(q.ring);
-      for (const r of q.cells) rect(r.x, r.y, r.w, r.h, soft);
-      lab('descriptor ring', q.ring.x + 6, q.ring.y + q.ring.h + 8);
+      for (const [grp, t] of [[q.rx, 'RX'], [q.tx, 'TX']] as [typeof q.rx, string][]) {
+        lab(t, grp.label.x, grp.label.y + grp.label.h / 2);
+        for (const r of grp.cells) rect(r.x, r.y, r.w, r.h, soft);
+      }
+      lab('descriptor rings, in RAM', q.ring.x + 6, q.ring.y + q.ring.h + 9);
       rect(q.engine.x, q.engine.y, q.engine.w, q.engine.h, T.die); outline(q.engine);
       // two arrows: a received frame goes down into RAM, a frame to send comes up out of it
-      for (const [r, up] of [[q.down, false], [q.up, true]] as [Rect, boolean][]) {
-        const cx = r.x + r.w / 2, y0 = up ? r.y + r.h : r.y, y1 = up ? r.y : r.y + r.h, d = up ? 1 : -1;
+      for (const [r, up, t] of [[q.down, false, 'to RAM'], [q.up, true, 'from RAM']] as [Rect, boolean, string][]) {
+        const cx = r.x + 12, y0 = up ? r.y + r.h : r.y, y1 = up ? r.y : r.y + r.h, d = up ? 1 : -1;
         stub(cx, y0, cx, y1);
         g.poly([cx, y1, cx - 5, y1 + 7 * d, cx + 5, y1 + 7 * d]).fill({ color: line });
-        for (let k = 0; k < 3; k++) rect(r.x + 2, r.y + 4 + k * ((r.h - 12) / 3), r.w - 4, (r.h - 12) / 3 - 4, soft);
+        lab(t, r.x + 26, r.y + r.h / 2);
       }
-      put('to RAM', q.down.x + q.down.w / 2, q.engine.y + q.engine.h - 7, 10); put('from RAM', q.up.x + q.up.w / 2, q.engine.y + q.engine.h - 7, 10);
       break;
     }
     case 'pcie': {
@@ -228,9 +246,11 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
       break;
     }
     case 'rxq': case 'txq': {
-      const q = queueGeom(a, input.ring), down = b.kind === 'rxq', flows = down ? s.downs : s.ups, act = down ? rx : tx, key: LiveKey = down ? 'alu' : 'mul';
-      q.cells.forEach((r, k) => { if (on && act > 0 && Math.floor(wave(ms, down ? k : q.cells.length - k, 0.5 + 1.2 * act) * 3) === 2) out.lit.push({ rect: r, color: key, a: 0.2 + 0.3 * act }); });
-      txt(head(b.rect, 0.5), down ? `${flows.length} in flight` : `${flows.length} out${s.waiting ? ` · ${s.waiting} wait` : ''}`, 18);
+      const down = b.kind === 'rxq', q = queueGeom(a, down ? input.fifo : 0), flows = down ? s.downs : s.ups, key: LiveKey = down ? 'alu' : 'mul';
+      // the chip's buffer as the sim has it: a cell for each segment waiting, all red once it is full (the next segment is lost)
+      const full = s.fifo >= q.cells.length && q.cells.length > 0;
+      q.cells.forEach((r, k) => { if (k < s.fifo) out.lit.push({ rect: r, color: full ? 'bad' : key, a: 0.55 }); });
+      txt(head(b.rect, 0.5), down ? `FIFO ${s.fifo}/${q.cells.length}${s.drops ? ` · ${s.drops} lost` : ''}` : `${flows.length} out${s.waiting ? ` · ${s.waiting} wait` : ''}`, 20);
       q.flows.forEach((f, k) => {
         const t = flows[k];
         if (!t) return;
@@ -241,11 +261,13 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
       break;
     }
     case 'dma': {
-      const q = dmaGeom(a);
-      q.cells.forEach((r, k) => { if (on && any > 0 && Math.floor(wave(ms, k, 1 + any) * 2) === 1) out.lit.push({ rect: r, color: 'mul', a: 0.35 }); });
+      const q = dmaGeom(a, NIC_RX_SLOTS, NIC_TX_SLOTS);
+      // the two rings as the kernel and the card share them: a cell for each slot that holds a segment the other side has not taken yet
+      q.rx.cells.forEach((r, k) => { if (k < s.rxUsed) out.lit.push({ rect: r, color: 'alu', a: 0.55 }); });
+      q.tx.cells.forEach((r, k) => { if (k < s.txUsed) out.lit.push({ rect: r, color: 'mul', a: 0.55 }); });
       if (on && rx > 0) out.lit.push({ rect: q.down, color: 'alu', a: 0.04 + 0.1 * rx * (0.6 + 0.4 * wave(ms, 0)) });
       if (on && tx > 0) out.lit.push({ rect: q.up, color: 'mul', a: 0.04 + 0.1 * tx * (0.6 + 0.4 * wave(ms, 1)) });
-      txt(q.note, on ? `${fmtFrames(s.rx + s.tx)} frames /s` : 'idle', 20);
+      txt(q.note, s.driver ? `${fmtFrames(s.dmaWords)} words moved` : on ? 'no driver yet' : 'idle', 26);
       break;
     }
     case 'pcie': {

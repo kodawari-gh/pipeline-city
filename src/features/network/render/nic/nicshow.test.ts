@@ -82,6 +82,17 @@ describe('what the card shows', () => {
     expect([s.downloaded, s.uploaded]).toEqual([7, 5]);
   });
 
+  it('reads the buffers the sim keeps for the port the cable is in, and none for a card with no cable', () => {
+    const busy = (s: Snapshot): Snapshot => { s.net!.stack = { ...s.net!.stack, nic: { ...s.net!.stack.nic, enabled: true, fifo: 3, rxUsed: 2, txUsed: 1, drops: 4, dmaWords: 900 } }; return s; };
+    expect(nicShow(busy(game()), 'pcie1', new FrameMeter(), 0)).toMatchObject({ fifo: 3, rxUsed: 2, txUsed: 1, drops: 4, dmaWords: 900, driver: true });
+    expect(nicShow(busy(game({ plugged: false })), 'pcie1', new FrameMeter(), 0)).toMatchObject({ fifo: 0, rxUsed: 0, txUsed: 0, drops: 0, dmaWords: 0, driver: false });
+    // (the board's jack is a port like a card's: the same buffers when the cable is in it, none when it is in a card)
+    expect(nicShow(busy(boardGame()), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({ fifo: 3, rxUsed: 2, drops: 4, driver: true });
+    expect(nicShow(busy(boardGame({ plugged: false })), BOARD_NIC, new FrameMeter(), 0)).toMatchObject({ fifo: 0, drops: 0, driver: false });
+    // a card with the driver not yet running has empty buffers and says so
+    expect(nicShow(game(), 'pcie1', new FrameMeter(), 0)).toMatchObject({ fifo: 0, rxUsed: 0, txUsed: 0, drops: 0, driver: false });
+  });
+
   it('takes the heat and the power from the card itself', () => {
     const s = nicShow(game({ temp: 77, throttle: 0.5 }), 'pcie1', new FrameMeter(), 0)!;
     expect(s.tempC).toBe(77);

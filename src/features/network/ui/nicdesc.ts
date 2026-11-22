@@ -4,6 +4,7 @@
 // `pcie2.nic-mac`. Pure. It imports nothing from logic.ts (logic.ts imports netdesc.ts, which calls this).
 
 import { getSpec, type NicSpec } from '../../board/sim/specs';
+import { NIC_RX_SLOT_BYTES, NIC_RX_SLOTS, NIC_TX_SLOT_BYTES, NIC_TX_SLOTS } from '@/core/sim/memmap';
 import type { Snapshot } from '@/worker/game/game';
 import type { Description } from '@/core/ui/regions';
 import { NET } from '../sim/specs';
@@ -40,6 +41,8 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
   const plan = onboard ? BOARD_LINK[boardLook(mbps)] : spec ? NIC_LINK[spec.visual] : undefined, n = s?.net;
   const here = onboard ? n?.port.kind === 'board' : !!dev && n?.port.kind === 'nic' && n.port.deviceId === dev.id;
   const name = onboard ? 'onboard Ethernet' : spec ? spec.name : 'network card', chip = plan ? `${plan.chip}, ${plan.std}` : 'network chip';
+  // (the sim has one NIC device: its buffers and counters are this port's while the cable is in it)
+  const nic = here ? n?.stack.nic : undefined;
   switch (kind) {
     case 'ctl': return onboard ? {
       title: 'Ethernet controller',
@@ -82,22 +85,22 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     case 'stats': return {
       title: 'Statistics',
       plain: `The counters of the port: how many frames came in and went out since the game started, and how fast they come now. The bars show how much of the line speed the frames use. A ${onboard ? 'port' : 'card'} on a slow plan uses a small part of its speed.`,
-      nerd: here && n ? `rx ${fmtFrames(n.frames.rx)} frames | tx ${fmtFrames(n.frames.tx)} frames | counted from the bytes the transfers move | the limit now: ${n.bandwidth.binding ?? 'none'}` : 'rx and tx frame counters | counted from the bytes the transfers move | not saved: a loaded game counts from zero',
+      nerd: here && n ? `rx ${fmtFrames(n.frames.rx)} frames | tx ${fmtFrames(n.frames.tx)} frames | counted from the bytes the transfers move | the limit now: ${n.bandwidth.binding ?? 'none'} | the card took ${nic!.rx} segments, sent ${nic!.tx}, lost ${nic!.drops}` : 'rx and tx frame counters | counted from the bytes the transfers move | not saved: a loaded game counts from zero',
     };
     case 'rxq': return {
       title: 'Receive queue',
-      plain: 'Frames that came in wait here until the DMA engine moves them to RAM. Each row is a download that is moving now: the job and how far it has got.',
-      nerd: here && n ? `${n.transfers.filter((t) => t.dir === 'down').length} downloads in flight | ${n.offers.length} jobs wait at the ISP side | ${n.counters.downloaded} downloaded so far` : 'downloads in flight, one row each | the speed is split between them',
+      plain: `Segments of a job come in from the wire and wait here, in the ${onboard ? 'chip' : 'card'}'s own buffer (a FIFO), until the DMA engine puts them in the ring in RAM. A deeper buffer rides out a kernel that is busy with a program. When the buffer is full, the next segment is lost and the sender must send it again. Each row is a download that is moving now: the job and how far it has got.`,
+      nerd: here && n ? `FIFO ${nic!.fifo}/${nic!.fifoSegs} segments, ${nic!.drops} lost to a full FIFO | ${n.transfers.filter((t) => t.dir === 'down').length} downloads in flight | ${n.offers.length} jobs wait at the ISP side | ${n.counters.downloaded} downloaded so far` : `${plan ? `FIFO of ${plan.fifo} segments | ` : ''}downloads in flight, one row each | the speed is split between them`,
     };
     case 'txq': return {
       title: 'Transmit queue',
-      plain: 'Frames to send wait here. Each row is an upload that is moving now. Finished results that wait for a free client slot are counted next to the title.',
-      nerd: here && n ? `${n.transfers.filter((t) => t.dir === 'up').length} uploads in flight | ${n.uploadsWaiting} results wait for a client slot | ${n.counters.uploaded} uploaded so far` : 'uploads in flight, one row each | a client slot serves one transfer',
+      plain: 'Segments to send leave from here. The kernel writes an acknowledgement, or the result of a finished job, into the transmit ring in RAM. The DMA engine reads it and the card puts it on the wire. Each row is an upload that is moving now. Finished results that wait for a free client slot are counted next to the title.',
+      nerd: here && n ? `${n.transfers.filter((t) => t.dir === 'up').length} uploads in flight | ${n.uploadsWaiting} results wait for a client slot | ${n.counters.uploaded} uploaded so far | ${nic!.tx} segments sent` : 'uploads in flight, one row each | a client slot serves one transfer',
     };
     case 'dma': return {
       title: 'DMA engine',
-      plain: `Moves frames between the ${onboard ? 'chip' : 'card'} and RAM by itself, so the CPU does not copy each byte. A ring of descriptors says where each frame goes. The left arrow lights while frames come in, the right arrow while frames go out.`,
-      nerd: `descriptor ring | scatter and gather | ${here && n ? `${fmtFrames(n.frames.rx + n.frames.tx)} frames moved since the game started` : 'the OS fetches packets when it wants'}`,
+      plain: `Moves segments between the ${onboard ? 'chip' : 'card'} and RAM by itself, so the CPU does not copy each word. The kernel gives it two rings in RAM: the ${onboard ? 'chip' : 'card'} puts received segments in one and reads the segments to send from the other. A cell is lit for each slot that the other side has not taken yet. The kernel does not wait for an interrupt: it looks at the rings itself.`,
+      nerd: here && n ? `receive ring ${nic!.rxUsed}/${nic!.rxSlots} slots, transmit ring ${nic!.txUsed}/${nic!.txSlots} slots | ${NIC_RX_SLOT_BYTES} and ${NIC_TX_SLOT_BYTES} bytes a slot | ${fmtFrames(nic!.dmaWords)} words moved since the game started | ${nic!.irqs} interrupts: the kernel polls` : `rings of ${NIC_RX_SLOTS} receive and ${NIC_TX_SLOTS} transmit slots in RAM | ${NIC_RX_SLOT_BYTES} and ${NIC_TX_SLOT_BYTES} bytes a slot | the kernel polls the rings`,
     };
     case 'pcie': return onboard ? {
       title: 'Hub link',

@@ -9,6 +9,10 @@ import { isNicId } from './nicdesc';
 
 const CARDS = [['nic1', 'nic-gbe', 1000], ['nic2', 'nic-10g', 10000], ['nic3', 'nic-40g', 40000]] as const;
 const ROUTER = { id: 'router4', name: 'Edge router', mbps: 40000, clients: 16, visual: 'router-core' };
+/** The card's buffers and counters as the sim reports them (`NetSnap.stack`): a FIFO of `fifoSegs` with `fifo` waiting, a segment lost, words moved. */
+const stackOf = (fifoSegs: number, fifo: number) => ({
+  ...snap().net!.stack, sent: 211, nic: { enabled: true, fifo, fifoSegs, rxUsed: 1, rxSlots: 4, txUsed: 0, txSlots: 4, rx: 211, drops: 2, tx: 205, dmaWords: 15000, irqs: 0 },
+});
 
 /** A running machine with the card `spec` in slot pcie1, the cable in it (or in no card), over a router. */
 function game(spec: string, mbps: number, plugged = true): Snapshot {
@@ -20,6 +24,7 @@ function game(spec: string, mbps: number, plugged = true): Snapshot {
       ...base.net!, state: plugged ? 'link-up' : 'no-cable', reason: plugged ? null : 'no cable', port: plugged ? { kind: 'nic', deviceId: 'n1', mbps } : { kind: null, deviceId: null, mbps: 0 }, router: ROUTER,
       isp: { id: 'isp5', name: 'Backbone', downMbps: 20000, upMbps: 10000, clients: 32 }, bandwidth: { downMbps: 2000, upMbps: 2000, clients: 16, binding: 'disk' },
       transfers: [{ jobId: 4, label: '#4 db', dir: 'down', totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false }], uploadsWaiting: 2, frames: { rx: 123456, tx: 61728 }, counters: { delivered: 9, downloaded: 11, uploaded: 7, lost: 0 },
+      stack: stackOf(8, 3),
     },
   });
 }
@@ -48,12 +53,27 @@ describe('the words for the network card\'s parts', () => {
     expect(describeId('pcie1.nic-jack', s)!.nerd).toMatch(/link up, 10 Gbit/);
     expect(describeId('pcie1.nic-phy', s)!.nerd).toMatch(/10GBASE-T.*link up, 10 Gbit.*rated 10 Gbit/);
     expect(describeId('pcie1.nic-stats', s)!.nerd).toMatch(/rx 123 k frames.*tx 62 k frames/);
-    expect(describeId('pcie1.nic-rxq', s)!.nerd).toMatch(/1 downloads in flight.*11 downloaded/);
-    expect(describeId('pcie1.nic-txq', s)!.nerd).toMatch(/0 uploads in flight.*2 results wait.*7 uploaded/);
+    expect(describeId('pcie1.nic-rxq', s)!.nerd).toMatch(/FIFO 3\/8 segments, 2 lost to a full FIFO.*1 downloads in flight.*11 downloaded/);
+    expect(describeId('pcie1.nic-txq', s)!.nerd).toMatch(/0 uploads in flight.*2 results wait.*7 uploaded.*205 segments sent/);
+    expect(describeId('pcie1.nic-stats', s)!.nerd).toMatch(/the card took 211 segments, sent 205, lost 2/);
     expect(describeId('pcie1.nic-temp', s)!.nerd).toMatch(/^52 C \| half speed from \d+ C/);
     expect(describeId('pcie1.nic-vreg', s)!.nerd).toMatch(/7\.5 W now \| 5 W idle, 11 W at full load/);
     expect(describeId('pcie1.nic-pcie', s)!.nerd).toMatch(/x4, 8 pairs/);
     expect(describeId('pcie1.nic-ctl', s)!.nerd).toMatch(/10GbE card \| RL-N510, 10GBASE-T/);
+  });
+
+  it('says what the DMA engine and the rings hold now: the slots in use, their size, the words moved, and that the kernel polls', () => {
+    const d = describeId('pcie1.nic-dma', game('nic2', 10000))!;
+    expect(d.nerd).toMatch(/receive ring 1\/4 slots, transmit ring 0\/4 slots \| 280 and 48 bytes a slot \| 15 k words moved since the game started \| 0 interrupts: the kernel polls/);
+    expect(d.plain).toMatch(/two rings in RAM/);
+    expect(d.plain).not.toMatch(/scatter|descriptor ring\b/);
+    // the receive queue explains the FIFO, and the buffer the card has is its own: the depth shows even where the cable is in another jack
+    expect(describeId('pcie1.nic-rxq', game('nic2', 10000))!.plain).toMatch(/FIFO.*the next segment is lost/);
+    expect(describeId('pcie1.nic-rxq', game('nic3', 40000, false))!.nerd).toMatch(/^FIFO of 16 segments \| downloads in flight/);
+    expect(describeId('pcie1.nic-rxq', game('nic1', 1000, false))!.nerd).toMatch(/^FIFO of 4 segments/);
+    expect(describeId('pcie1.nic-dma', game('nic2', 10000, false))!.nerd).toMatch(/^rings of 4 receive and 4 transmit slots in RAM \| 280 and 48 bytes a slot \| the kernel polls/);
+    expect(describeId('pcie1.nic-dma')!.nerd).toMatch(/the kernel polls/);
+    expect(describeId('pcie1.nic-txq', game('nic2', 10000))!.plain).toMatch(/transmit ring in RAM/);
   });
 
   it('names the port\'s own address on the MAC block, the card\'s burnt-in one, and none with no game', () => {
@@ -99,6 +119,7 @@ function boardGame(tier: number, plugged = true): Snapshot {
       ...base.net!, state: plugged ? 'link-up' : 'no-cable', reason: plugged ? null : 'no cable', port: plugged ? { kind: 'board', deviceId: null, mbps } : { kind: null, deviceId: null, mbps: 0 }, router: ROUTER,
       isp: { id: 'isp5', name: 'Backbone', downMbps: 20000, upMbps: 10000, clients: 32 }, bandwidth: { downMbps: 100, upMbps: 100, clients: 16, binding: 'port' },
       transfers: [{ jobId: 4, label: '#4 db', dir: 'down', totalMB: 80, doneMB: 20, percent: 25, etaTicks: 6, persisted: false }], uploadsWaiting: 2, frames: { rx: 123456, tx: 61728 }, counters: { delivered: 9, downloaded: 11, uploaded: 7, lost: 0 },
+      stack: stackOf(2, 2),
     },
   });
 }
@@ -128,9 +149,11 @@ describe('the words for the Ethernet chip on the motherboard', () => {
     expect(describeId('board.nic-ctl', s)!.nerd).toMatch(/onboard Ethernet \| RL-E111, 1000BASE-T \| soldered to the board/);
     expect(describeId('board.nic-phy', s)!.nerd).toMatch(/1000BASE-T.*link up, 1 Gbit.*the port is rated 1 Gbit/);
     expect(describeId('board.nic-stats', s)!.nerd).toMatch(/rx 123 k frames.*tx 62 k frames/);
-    expect(describeId('board.nic-rxq', s)!.nerd).toMatch(/1 downloads in flight.*11 downloaded/);
+    expect(describeId('board.nic-rxq', s)!.nerd).toMatch(/FIFO 2\/2 segments.*1 downloads in flight.*11 downloaded/);
     expect(describeId('board.nic-txq', s)!.nerd).toMatch(/0 uploads in flight.*2 results wait.*7 uploaded/);
-    expect(describeId('board.nic-dma', s)!.nerd).toMatch(/185 k frames moved/);
+    expect(describeId('board.nic-dma', s)!.nerd).toMatch(/15 k words moved/);
+    // (the board's jack has the smallest buffer of the ports, with no cable in it too)
+    expect(describeId('board.nic-rxq', boardGame(3, false))!.nerd).toMatch(/^FIFO of 2 segments \| downloads in flight/);
     // the board's jack has its own address in the address model (board tier 3)
     expect(describeId('board.nic-mac', s)!.nerd).toMatch(/this port's address 02:48:41:4B:03:01/);
     expect(describeId('board.nic-mac')!.nerd).not.toMatch(/address/);

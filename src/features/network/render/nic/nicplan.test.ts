@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NIC_LANES } from '../../../board/render/three/niccopper';
+import { NIC_FIFO } from '../../sim/specs';
 import { BOARD_LINK, NIC_DIE, NIC_LINK, boardLook, nicInput, nicPlan, type NicBlockKind } from './nicplan';
 import { nicRoute, BLOCKS } from './nicroute';
 import type { Rect } from '../plan/netplan';
@@ -72,10 +73,13 @@ describe('the controller\'s die as a floorplan', () => {
     expect(NIC_LINK['nic-40g']!.ports).toBe(2);
     expect(NIC_LINK['nic-gbe']!.ports).toBe(1);
     expect(nicInput('nic-unknown')).toBe(NIC_LINK['nic-gbe']);
-    // the three cards are three different dies: each has its own chip, standard and queue ring
+    // the three cards are three different dies: each has its own chip, standard and input FIFO, and the FIFO is the sim's (the board's jack has the smallest)
     expect(new Set(VISUALS.map((v) => NIC_LINK[v]!.chip)).size).toBe(3);
     expect(new Set(VISUALS.map((v) => NIC_LINK[v]!.std)).size).toBe(3);
-    expect(NIC_LINK['nic-gbe']!.ring).toBeLessThan(NIC_LINK['nic-40g']!.ring);
+    expect(VISUALS.map((v) => NIC_LINK[v]!.fifo)).toEqual([NIC_FIFO.nic1, NIC_FIFO.nic2, NIC_FIFO.nic3]);
+    expect(NIC_LINK['nic-gbe']!.fifo).toBeLessThan(NIC_LINK['nic-40g']!.fifo);
+    for (const v of Object.keys(BOARD_LINK)) expect(BOARD_LINK[v]!.fifo, v).toBe(NIC_FIFO.board);
+    expect(NIC_FIFO.board).toBeLessThan(NIC_LINK['nic-gbe']!.fifo);
     expect(nicPlan('nic-gbe').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x1');
     expect(nicPlan('nic-40g').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x8');
   });

@@ -55,6 +55,13 @@ export interface NicShow {
   /** Jobs received and sent over the network since the game started. */
   downloaded: number;
   uploaded: number;
+  /** The buffers of the card's port (`NetSnap.stack.nic`, the sim's own numbers; all 0 and no driver when the cable is not in this card): the segments in the chip's input FIFO, the slots of each ring in use, the segments the kernel dropped, the words the DMA engine moved, and whether the driver runs. How many cells each has is the plan's (`NicPlanInput.fifo`, `NIC_RX_SLOTS`, `NIC_TX_SLOTS`). */
+  fifo: number;
+  rxUsed: number;
+  txUsed: number;
+  drops: number;
+  dmaWords: number;
+  driver: boolean;
   /** The visual clock (ms): the motion runs on it. */
   ms: number;
 }
@@ -86,6 +93,8 @@ export function nicShow(s: Snapshot | null | undefined, slot: string, meter: Pic
   const net = s.net, { plugged, rated } = p, link = plugged && linkOf(s).pc;
   const mbps = link ? net!.port.mbps : 0, line = lineFrames(mbps), rx = link ? meter.rx : 0, tx = link ? meter.tx : 0;
   const flows = (dir: 'down' | 'up'): NicFlow[] => (plugged ? (net?.transfers ?? []).filter((t) => t.dir === dir).map((t) => ({ label: t.label, percent: t.percent })) : []);
+  // (the sim has one NIC device: its buffers are this port's only while the cable is in it)
+  const mine = plugged ? net?.stack.nic : undefined;
   return {
     powered: s.powered && !s.power.tripped, plugged, link, state: net?.state ?? 'no-device', reason: net?.reason ?? null, mbps, rated, burnt: p.burnt, hot: p.hot,
     tempC: p.tempC, throttleC: p.throttleC, unstableC: p.unstableC, damageC: p.damageC,
@@ -93,6 +102,7 @@ export function nicShow(s: Snapshot | null | undefined, slot: string, meter: Pic
     rx, tx, rxTotal: plugged ? net?.frames.rx ?? 0 : 0, txTotal: plugged ? net?.frames.tx ?? 0 : 0, rxLoad: loadOf(rx, line), txLoad: loadOf(tx, line), rxAct: busy(rx, line), txAct: busy(tx, line),
     downs: flows('down'), ups: flows('up'), waiting: plugged ? net?.uploadsWaiting ?? 0 : 0, offers: plugged ? net?.offers.length ?? 0 : 0,
     binding: plugged ? net?.bandwidth.binding ?? null : null, limitMbps: plugged ? net?.bandwidth.downMbps ?? 0 : 0,
-    downloaded: plugged ? net?.counters.downloaded ?? 0 : 0, uploaded: plugged ? net?.counters.uploaded ?? 0 : 0, ms,
+    downloaded: plugged ? net?.counters.downloaded ?? 0 : 0, uploaded: plugged ? net?.counters.uploaded ?? 0 : 0,
+    fifo: mine?.fifo ?? 0, rxUsed: mine?.rxUsed ?? 0, txUsed: mine?.txUsed ?? 0, drops: mine?.drops ?? 0, dmaWords: mine?.dmaWords ?? 0, driver: mine?.enabled ?? false, ms,
   };
 }

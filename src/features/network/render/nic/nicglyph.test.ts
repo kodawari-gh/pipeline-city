@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NIC_RX_SLOTS, NIC_TX_SLOTS } from '@/core/sim/memmap';
 import { STRETCH } from '../jackleds';
 import type { Rect } from '../plan/netplan';
 import {
@@ -18,7 +19,7 @@ const apart = (a: Rect, b: Rect): boolean => a.x >= b.x + b.w - 0.01 || b.x >= a
 const show = (o: Partial<NicShow> = {}): NicShow => ({
   powered: true, plugged: true, link: true, state: 'link-up', reason: null, mbps: 10000, rated: 10000, burnt: false, hot: false, tempC: 45, throttleC: 85, unstableC: 95, damageC: 110,
   powerW: 8, idleW: 5, loadW: 11, rx: 0, tx: 0, rxTotal: 12000, txTotal: 6000, rxLoad: 0, txLoad: 0, rxAct: 0, txAct: 0, downs: [], ups: [], waiting: 0, offers: 0, binding: 'isp', limitMbps: 200,
-  downloaded: 4, uploaded: 3, ms: 1234, ...o,
+  downloaded: 4, uploaded: 3, fifo: 0, rxUsed: 0, txUsed: 0, drops: 0, dmaWords: 0, driver: true, ms: 1234, ...o,
 });
 const live = (k: string, s: NicShow) => nicLive(block(k), area(k), s, input);
 const BUSY = { rx: 5000, tx: 900, rxAct: 0.7, txAct: 0.5, rxLoad: 0.01, txLoad: 0.002 };
@@ -85,15 +86,26 @@ describe('the parts of the symbols', () => {
     for (const r of [st.rx, st.tx, st.rxVal, st.txVal, st.rxBar, st.txBar]) expect(inside(r, area('stats'))).toBe(true);
     expect(apart(st.rxBar, st.txBar)).toBe(true);
     for (const k of ['rxq', 'txq']) {
-      const q = queueGeom(area(k), input.ring);
-      expect(q.cells.length).toBe(input.ring);
-      for (const r of [...q.cells, q.ringBox, ...q.flows.map((f) => f.row)]) expect(inside(r, area(k)), k).toBe(true);
+      // (only the receive side has a buffer of its own: the chip's input FIFO)
+      const q = queueGeom(area(k), k === 'rxq' ? input.fifo : 0);
+      expect(q.cells.length, k).toBe(k === 'rxq' ? input.fifo : 0);
+      for (const r of [...q.cells, ...(q.fifoBox ? [q.fifoBox, q.label] : []), ...q.flows.map((f) => f.row)]) expect(inside(r, area(k)), k).toBe(true);
       expect(q.flows.length).toBeGreaterThanOrEqual(1);
       for (let i = 1; i < q.flows.length; i++) expect(apart(q.flows[i - 1]!.row, q.flows[i]!.row), k).toBe(true);
+      for (const f of q.flows) for (const c of q.cells) expect(apart(c, f.row), k).toBe(true);
     }
-    const d = dmaGeom(area('dma'));
-    for (const r of [d.ring, d.engine, d.down, d.up, d.note, ...d.cells]) expect(inside(r, area('dma'))).toBe(true);
+    const d = dmaGeom(area('dma'), NIC_RX_SLOTS, NIC_TX_SLOTS);
+    expect(d.rx.cells.length).toBe(NIC_RX_SLOTS);
+    expect(d.tx.cells.length).toBe(NIC_TX_SLOTS);
+    for (const r of [d.ring, d.engine, d.down, d.up, d.note, d.rx.label, d.tx.label, ...d.rx.cells, ...d.tx.cells]) expect(inside(r, area('dma'))).toBe(true);
     expect(apart(d.down, d.up)).toBe(true);
+    // the ring's box, the engine and the note stack without touching; the two ways are in the engine
+    expect(apart(d.ring, d.engine) && apart(d.engine, d.note) && apart(d.ring, d.note)).toBe(true);
+    expect(inside(d.down, d.engine) && inside(d.up, d.engine)).toBe(true);
+    // the two rings sit side by side in the ring's box, each cell apart from the next and from the other ring's
+    for (const c of [...d.rx.cells, ...d.tx.cells]) expect(inside(c, d.ring)).toBe(true);
+    expect(apart(d.rx.cells[NIC_RX_SLOTS - 1]!, d.tx.cells[0]!)).toBe(true);
+    for (const cells of [d.rx.cells, d.tx.cells]) for (let i = 1; i < cells.length; i++) expect(apart(cells[i - 1]!, cells[i]!)).toBe(true);
     const p = pcieGeom(area('pcie'), input.lanes);
     expect(p.lanes.length).toBe(input.lanes);
     for (const l of p.lanes) { expect(inside(l.rx, area('pcie'))).toBe(true); expect(inside(l.tx, area('pcie'))).toBe(true); expect(apart(l.rx, l.tx)).toBe(true); }
@@ -158,13 +170,42 @@ describe('what a block shows now', () => {
 
   it('puts each transfer in flight in a row of its queue, its name and how far it is', () => {
     const s = show({ ...BUSY, downs: [{ label: '#5 hash', percent: 40 }, { label: '#6 db', percent: 80.4 }] });
-    const out = live('rxq', s), flows = queueGeom(area('rxq'), input.ring).flows;
-    expect(out.texts.map((x) => x.top)).toEqual(expect.arrayContaining(['2 in flight', '#5 hash', '40%']));
+    const out = live('rxq', s), flows = queueGeom(area('rxq'), input.fifo).flows;
+    expect(out.texts.map((x) => x.top)).toEqual(expect.arrayContaining([`FIFO 0/${input.fifo}`, '#5 hash', '40%']));
     const bars = out.lit.filter((l) => flows.some((f) => f.bar.y === l.rect.y));
     expect(bars.length).toBeGreaterThanOrEqual(1);
     expect(bars[0]!.rect.w).toBeCloseTo(flows[0]!.bar.w * 0.4, 6);
     // the transmit queue has none of them, and counts the results that wait for a client slot
     expect(live('txq', show({ waiting: 3 })).texts.map((x) => x.top)).toEqual(['0 out · 3 wait']);
+  });
+
+  it('lights a cell of the input FIFO for each segment it holds, red once it is full, and says how many were lost', () => {
+    const cells = queueGeom(area('rxq'), input.fifo).cells, isCell = (l: { rect: Rect }) => cells.some((c) => c.x === l.rect.x && c.y === l.rect.y);
+    expect(live('rxq', show()).lit.filter(isCell).length).toBe(0);
+    const some = live('rxq', show({ fifo: 3 }));
+    expect(some.lit.filter(isCell).length).toBe(3);
+    expect(some.lit.filter(isCell).every((l) => l.color === 'alu')).toBe(true);
+    expect(some.texts[0]!.top).toBe(`FIFO 3/${input.fifo}`);
+    // a full FIFO is red, and the segments it threw away are counted beside it
+    const full = live('rxq', show({ fifo: input.fifo, drops: 5 }));
+    expect(full.lit.filter(isCell).length).toBe(input.fifo);
+    expect(full.lit.filter(isCell).every((l) => l.color === 'bad')).toBe(true);
+    expect(full.texts[0]!.top).toBe(`FIFO ${input.fifo}/${input.fifo} · 5 lost`);
+    // the transmit side has no FIFO to light: the card reads the kernel's ring straight
+    expect(live('txq', show({ fifo: 5 })).lit.filter(isCell).length).toBe(0);
+  });
+
+  it('lights a cell of each descriptor ring for each slot in use, and counts the words the DMA engine moved', () => {
+    const q = dmaGeom(area('dma'), NIC_RX_SLOTS, NIC_TX_SLOTS), at = (cells: Rect[]) => (l: { rect: Rect }) => cells.some((c) => c.x === l.rect.x && c.y === l.rect.y);
+    const out = live('dma', show({ rxUsed: 2, txUsed: 1, dmaWords: 12345 }));
+    const rxLit = out.lit.filter(at(q.rx.cells)), txLit = out.lit.filter(at(q.tx.cells));
+    expect([rxLit.length, txLit.length]).toEqual([2, 1]);
+    expect(rxLit.every((l) => l.color === 'alu') && txLit.every((l) => l.color === 'mul')).toBe(true);
+    expect(out.texts.map((x) => x.top)).toEqual(['12 k words moved']);
+    expect(live('dma', show({ rxUsed: NIC_RX_SLOTS })).lit.filter(at(q.rx.cells)).length).toBe(NIC_RX_SLOTS);
+    // the card with no driver yet moves nothing, and one with no link or cable says it is idle
+    expect(live('dma', show({ driver: false })).texts.map((x) => x.top)).toEqual(['no driver yet']);
+    expect(live('dma', show({ driver: false, link: false })).texts.map((x) => x.top)).toEqual(['idle']);
   });
 
   it('says the PHY\'s state in words: the speed, the halving of a hot card, no link', () => {

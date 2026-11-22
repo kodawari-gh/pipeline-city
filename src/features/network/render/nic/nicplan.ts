@@ -6,6 +6,7 @@
 // bus, and goes the other way for a frame to send; the heat sensor sits by the DMA engine and throttles the link.
 
 import { col, leaf, row, type Node, type Spec, type WireSpec } from '../../../cpu/render/core/cpufloor';
+import { NIC_FIFO } from '../../sim/specs';
 import { layPlan, type Margins, type NetBlock, type NetLink, type NetPlan } from '../plan/netplan';
 
 export type NicBlockKind = 'ctl' | 'phy' | 'mac' | 'stats' | 'rxq' | 'txq' | 'dma' | 'pcie' | 'temp';
@@ -24,8 +25,8 @@ export interface NicPlanInput {
   ports: 1 | 2;
   /** The wire pairs the line standard uses: 100BASE-TX runs on two (one to send, one to receive), the others on four. */
   pairs: 2 | 4;
-  /** Slots drawn in each queue's ring. */
-  ring: number;
+  /** The segments the chip's input FIFO holds (the sim's `NIC_FIFO`: the board's jack 2, a card 4, 8 or 16). The receive queue draws a cell for each; the rings have the kernel's slots, the same on every chip (`NIC_RX_SLOTS`, `NIC_TX_SLOTS`). */
+  fifo: number;
   /** The chip has a heat sensor the sim reads (a card's controller has: the card throttles). */
   heat: boolean;
   /** What the host link goes to (the second line of its block). */
@@ -35,9 +36,9 @@ export type NicPlan = NetPlan<NicBlockKind, NicLinkKind, NicPlanInput>;
 
 /** The three cards: the chip each carries, its standard, its edge, its jacks, its queues. The 3D card is built the same (`NIC_LANES` in niccopper.ts, `jacksOf` in nic3d.ts, `CTRL` there for the chip). */
 export const NIC_LINK: Record<string, NicPlanInput> = {
-  'nic-gbe': { visual: 'nic-gbe', chip: 'RL-N210', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, ring: 8, heat: true, host: 'the host link' },
-  'nic-10g': { visual: 'nic-10g', chip: 'RL-N510', std: '10GBASE-T', lanes: 4, pairs: 4, ports: 1, ring: 12, heat: true, host: 'the host link' },
-  'nic-40g': { visual: 'nic-40g', chip: 'RL-N740', std: '40GBASE-T', lanes: 8, pairs: 4, ports: 2, ring: 16, heat: true, host: 'the host link' },
+  'nic-gbe': { visual: 'nic-gbe', chip: 'RL-N210', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, fifo: NIC_FIFO.nic1!, heat: true, host: 'the host link' },
+  'nic-10g': { visual: 'nic-10g', chip: 'RL-N510', std: '10GBASE-T', lanes: 4, pairs: 4, ports: 1, fifo: NIC_FIFO.nic2!, heat: true, host: 'the host link' },
+  'nic-40g': { visual: 'nic-40g', chip: 'RL-N740', std: '40GBASE-T', lanes: 8, pairs: 4, ports: 2, fifo: NIC_FIFO.nic3!, heat: true, host: 'the host link' },
 };
 
 /**
@@ -45,8 +46,8 @@ export const NIC_LINK: Record<string, NicPlanInput> = {
  * port speed (`BOARD_TIERS`: 100 Mbit on the Basic and Mainstream boards, 1000 on the Enthusiast board). It talks to the I/O hub over one lane. No heat sensor: the sim keeps no temperature for it.
  */
 export const BOARD_LINK: Record<string, NicPlanInput> = {
-  'board-fe': { visual: 'board-fe', chip: 'RL-E100', std: '100BASE-TX', lanes: 1, pairs: 2, ports: 1, ring: 6, heat: false, host: 'to the I/O hub' },
-  'board-ge': { visual: 'board-ge', chip: 'RL-E111', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, ring: 8, heat: false, host: 'to the I/O hub' },
+  'board-fe': { visual: 'board-fe', chip: 'RL-E100', std: '100BASE-TX', lanes: 1, pairs: 2, ports: 1, fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
+  'board-ge': { visual: 'board-ge', chip: 'RL-E111', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
 };
 /** The slot id the onboard chip's parts carry (`board.nic-mac`), as a card's carry the slot's (`pcie2.nic-mac`). */
 export const BOARD_NIC = 'board';
