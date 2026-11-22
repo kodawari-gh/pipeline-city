@@ -126,48 +126,6 @@ export function keepInside(v: OrbitView, r: Room, o: { targetZ0?: number; fovBas
   return out;
 }
 
-/** Does the segment a to b pass through the box `r`, grown by `gap` on every side? */
-function crosses(a: readonly number[], b: readonly number[], r: Room, gap: number): boolean {
-  const lo = [r.x0 - gap, r.y0 - gap, r.z0 - gap], hi = [r.x1 + gap, r.y1 + gap, r.z1 + gap];
-  let t0 = 0, t1 = 1;
-  for (let i = 0; i < 3; i++) {
-    const d = b[i]! - a[i]!;
-    if (Math.abs(d) < 1e-12) { if (a[i]! < lo[i]! || a[i]! > hi[i]!) return false; continue; }
-    const s = (lo[i]! - a[i]!) / d, e = (hi[i]! - a[i]!) / d;
-    t0 = Math.max(t0, Math.min(s, e));
-    t1 = Math.min(t1, Math.max(s, e));
-    if (t0 > t1) return false;
-  }
-  return true;
-}
-
-/** The middle share of the picture (of its half width and half height at the target) that a lean keeps clear of the blocks, and the gap it keeps from them. */
-const LEAN_SEEN = 0.6, LEAN_GAP = 60;
-
-/**
- * The lean toward `want` (a yaw added about the target; `at(a)` is the view as the camera has it after a lean of `a`) that leaves the picture clear of the
- * `blocks`. A lean that swung the eye round a solid part of the case (the drive cage) would show its wall, not what was leaned over. Rays from the eye to the middle,
- * the corners and the edge middles of the middle of the picture, as it stands at the target, must meet none of them. `want` itself if they meet none, else the most of
- * it that they meet none (found by halving), 0 at worst.
- */
-export function leanClear(at: (a: number) => OrbitView, want: number, blocks: readonly Room[], aspect: number): number {
-  if (!blocks.length || want === 0) return want;
-  const clear = (a: number): boolean => {
-    const v = at(a), e = eyeOf(v), c = Math.cos(v.pitch), sy = Math.sin(v.yaw), cy = Math.cos(v.yaw), sp = Math.sin(v.pitch);
-    const right = [cy, 0, -sy], up = [-sy * sp, c, -cy * sp], from = [e.x, e.y, e.z], hh = (v.height / 2) * LEAN_SEEN, hw = hh * aspect;
-    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      const to = [v.x + right[0]! * i * hw + up[0]! * j * hh, v.y + right[1]! * i * hw + up[1]! * j * hh, v.z + right[2]! * i * hw + up[2]! * j * hh];
-      if (blocks.some((b) => crosses(from, to, b, LEAN_GAP))) return false;
-    }
-    return true;
-  };
-  if (clear(want)) return want;
-  if (!clear(0)) return 0;
-  let lo = 0, hi = 1;
-  for (let i = 0; i < 10; i++) { const m = (lo + hi) / 2; if (clear(want * m)) lo = m; else hi = m; }
-  return want * lo;
-}
-
 /** The view height that fits a `w` by `h` box on a screen of this aspect, with the margin (1 fills the screen). */
 export const fitHeight = (w: number, h: number, aspect: number, margin = 0.92): number => Math.max(h, w / aspect) / margin;
 
@@ -186,6 +144,50 @@ export function zoomAt(v: OrbitView, k: number, nx: number, ny: number, aspect: 
 export function panBy(v: OrbitView, dx: number, dy: number): OrbitView {
   const sy = Math.sin(v.yaw), cy = Math.cos(v.yaw), sp = Math.sin(v.pitch), cp = Math.cos(v.pitch);
   return { ...v, x: v.x + dx * cy - dy * sp * sy, y: v.y + dy * cp, z: v.z - dx * sy - dy * sp * cy };
+}
+
+/**
+ * How much a turn may change the view before the room has stopped it. The height of the view may change by this share (the eye next to a wall or a piece of
+ * furniture has run out of room to back off: `keepInside` would shrink the view into it); and one step of the turn may move the eye this much more than the
+ * plain orbit would, in shares of its distance (the line of sight comes to a piece's edge: `keepInside` would put the eye in front of it, or on its far side, at once).
+ */
+const TURN_SLACK = 0.2, TURN_JUMP = 4, TURN_JUMP_PLAIN = 0.004;
+
+/**
+ * The angles a turn reaches. The view `base` turns about its target from the angles `from` toward the angles `to` (both inside the limits); `fit` is
+ * the room's say on a view (`keepInside`). The turn goes all the way if the room leaves the view at about the height `ref` all along the step, and the
+ * eye moves as a plain orbit moves it (a few times the arc, no jump); else it stops where it last did (found by stepping along it, then halving): a wall
+ * or a piece of furniture stops a turn, it never shrinks the view into it or throws the eye to the far side of it. The step is short (a pointer event),
+ * and each stops at the end of the one before, so the view never snaps back. Stopped, it slides: the yaw alone, or the pitch alone, whichever goes farther
+ * (as a pan slides along a wall).
+ */
+export function turnReach(base: OrbitView, from: { yaw: number; pitch: number }, to: { yaw: number; pitch: number }, fit: (v: OrbitView) => OrbitView, ref = fit(base).height): { yaw: number; pitch: number } {
+  const calm = (a: OrbitView, b: OrbitView, arc: number): boolean => {
+    if (b.height < ref * (1 - TURN_SLACK) || b.height > ref * (1 + TURN_SLACK)) return false;
+    const p = eyeOf(a), q = eyeOf(b);
+    return Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) <= distanceOf(a) * (TURN_JUMP * arc + TURN_JUMP_PLAIN);
+  };
+  const along = (end: { yaw: number; pitch: number }): { yaw: number; pitch: number } => {
+    const at = (t: number) => ({ yaw: from.yaw + (end.yaw - from.yaw) * t, pitch: from.pitch + (end.pitch - from.pitch) * t });
+    const span = Math.hypot(end.yaw - from.yaw, end.pitch - from.pitch), N = Math.max(6, Math.ceil(span / 0.02));
+    let lo = 0, seen = fit({ ...base, ...from }), hi = 1;
+    for (let i = 1; i <= N; i++) {
+      const c = fit({ ...base, ...at(i / N) });
+      if (!calm(seen, c, span / N)) { hi = i / N; break; }
+      lo = i / N; seen = c;
+    }
+    if (hi === 1 && lo === 1) return end;
+    for (let i = 0; i < 8; i++) {
+      const t = (lo + hi) / 2, c = fit({ ...base, ...at(t) });
+      if (calm(seen, c, span * (t - lo))) { lo = t; seen = c; } else hi = t;
+    }
+    return at(lo);
+  };
+  const whole = along(to);
+  if (whole === to) return to;
+  const run = (a: { yaw: number; pitch: number }) => Math.hypot(a.yaw - from.yaw, a.pitch - from.pitch);
+  const best = [along({ yaw: to.yaw, pitch: from.pitch }), along({ yaw: from.yaw, pitch: to.pitch })].reduce((a, b) => (run(b) > run(a) ? b : a));
+  return run(best) > run(whole) ? best : whole;
 }
 
 export function orbitBy(v: OrbitView, dYaw: number, dPitch: number): OrbitView {

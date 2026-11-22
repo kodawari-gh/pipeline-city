@@ -5,7 +5,7 @@ import { findById } from '@/core/render/three/pick';
 import { NIC_FACE } from '@/features/network/render/nic/niclayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { nicY, setLayoutTier } from '../layout/layout';
-import { HINGE_Z, STAND, card3d, type CardKind } from './card3d';
+import { HINGE_Z, SLOT_BAY, STAND, card3d, standIn, type CardKind } from './card3d';
 
 const build = (kind: CardKind, visual: string, slot = 0) => {
   const art = new Group();
@@ -35,68 +35,89 @@ describe('the 3D expansion cards', () => {
     }
   });
 
-  it('fades the cooler, then swings the card down flat to its 2D face up close, and stands it up again', () => {
+  it('fades the cooler and shows the 2D face on the standing card up close, and never turns the card', () => {
     setLayoutTier(3, 3);
     const { c, art } = build('gpu', 'gpu-2');
+    const up = () => { c.root.updateMatrixWorld(true); return art.getWorldDirection(new Vector3()); };
     c.pose(0);
     expect(art.visible).toBe(false);
-    c.pose(DEVICE_LOD.gpu.fade[1] + 0.1);
+    expect(up().y).toBeCloseTo(1, 6);
+    const before = box(c.root);
+    for (const zoom of [0.1, DEVICE_LOD.gpu.fade[0], (DEVICE_LOD.gpu.fade[0] + DEVICE_LOD.gpu.fade[1]) / 2, DEVICE_LOD.gpu.fade[1] + 0.1, 5]) {
+      c.pose(zoom);
+      // (the face looks north, up in the tower, whatever the zoom: the card stays on its slot's line, standing)
+      expect(up().y, `zoom ${zoom}`).toBeCloseTo(1, 6);
+      expect(box(c.root).min.z, `zoom ${zoom}`).toBeGreaterThan(BOARD_Z + 40);
+    }
     expect(art.visible).toBe(true);
-    const flat = box(c.root);
-    expect(flat.max.z).toBeLessThan(HINGE_Z + 5);
+    // (the cooler and the upper PCB are gone, the part on the slot's line stays where it stood)
+    const bare = box(c.root);
+    expect(bare.max.z).toBeLessThan(before.max.z);
+    expect(bare.max.z).toBeGreaterThan(HINGE_Z + 100);
     c.pose(0);
     expect(box(c.root).max.z).toBeGreaterThan(HINGE_Z + STAND.gpu - 40);
   });
 
-  it('folds a NIC flat to the south once it swings down, as a GPU does: its parts, its jacks too, stay on the PCB\'s top face, its fingers stay at its own slot, the controller\'s die faces the glass with its floorplan upright, and the bodies stand where the card says', () => {
+  it('puts a card\'s face, and each part\'s, where the standing card has them: `standIn` turns the flat pose a quarter about the slot\'s line', () => {
+    setLayoutTier(3, 3);
+    const y0 = nicY(2), at = standIn(2, { x: 500, y: y0 + 100, w: 400, h: 300 }, HINGE_Z + 50);
+    // (east-west as it was; its middle is 250 south of the line, so 250 toward the glass; its top is 50 over the PCB, so 50 over the line's height)
+    expect(at).toEqual({ x: 500, w: 400, z: HINGE_Z + 250, d: 300, y: -y0 + 50 });
+    for (const [kind, visual] of [['gpu', 'gpu-3'], ['npu', 'npu-1'], ['nic', 'nic-10g']] as const) {
+      const f = build(kind, visual, 2).c.face;
+      expect(f.y, visual).toBeCloseTo(-y0, 6);
+      expect(f.z - f.d / 2, visual).toBeCloseTo(HINGE_Z, 6);
+      expect(f.d, visual).toBeGreaterThan(300);
+      expect(f.d, visual).toBeLessThanOrEqual(STAND[kind]);
+    }
+  });
+
+  it('keeps a NIC standing as its cooler fades: its parts, its jacks too, are on the PCB\'s top face, its fingers are at its own slot, the controller\'s die faces up with its floorplan upright, and the bodies stand where the card says', () => {
     setLayoutTier(3, 3);
     for (const visual of ['nic-gbe', 'nic-10g', 'nic-40g']) {
       const floor = new Group(), c = card3d('nic', visual, 1, () => { throw new Error('no 2D face'); }, { id: 'pcie1', floor: (frame) => { frame.add(floor); return { root: floor, z: 3 }; } });
-      const [swing0, swing1] = [DEVICE_LOD.nic.fade[0] + 0.04, DEVICE_LOD.nic.fade[1]], dir = (v: Vector3) => v.transformDirection(floor.matrixWorld);
-      // standing: nothing has folded, the parts are on the PCB's top face and the die faces north (up in the tower, toward the camera: a mirror of the tower's card, whose parts face down)
+      const [show0, show1] = [DEVICE_LOD.nic.fade[0] + 0.04, DEVICE_LOD.nic.fade[1]], dir = (v: Vector3) => v.transformDirection(floor.matrixWorld);
+      // the detail comes in with the zoom: none far away, all of it past the band, and the card is where it was all the way
       c.pose(0);
-      expect(c.flat(), visual).toBe(0);
-      c.root.updateMatrixWorld(true);
-      expect(dir(new Vector3(0, 0, 1)).y, `${visual} standing`).toBeCloseTo(1, 6);
-      // half way the card is up in the air, and clear of the board all the way down
-      c.pose((swing0 + swing1) / 2);
-      expect(c.flat(), visual).toBeGreaterThan(0.2);
-      expect(c.flat(), visual).toBeLessThan(0.8);
+      expect(c.detail(), visual).toBe(0);
+      c.pose((show0 + show1) / 2);
+      expect(c.detail(), visual).toBeGreaterThan(0.2);
+      expect(c.detail(), visual).toBeLessThan(0.8);
       for (let k = 0; k <= 8; k++) {
-        c.pose(swing0 + ((swing1 - swing0) * k) / 8);
-        expect(box(c.root).min.z, `${visual} swing ${k}`).toBeGreaterThan(BOARD_Z + 40);
+        c.pose(show0 + ((show1 - show0) * k) / 8);
+        c.root.updateMatrixWorld(true);
+        // (the parts are on the PCB's top face and the die faces north: up in the tower, toward the camera: a mirror of the tower's card, whose parts face down; the plan's top is away from the glass)
+        expect(dir(new Vector3(0, 0, 1)).y, `${visual} up ${k}`).toBeCloseTo(1, 6);
+        expect(dir(new Vector3(1, 0, 0)).x, `${visual} x ${k}`).toBeCloseTo(1, 6);
+        expect(dir(new Vector3(0, 1, 0)).z, `${visual} top ${k}`).toBeCloseTo(-1, 6);
+        expect(box(c.root).min.z, `${visual} ${k}`).toBeGreaterThan(BOARD_Z + 40);
       }
-      // flat: the die's frame is as the world's (x east, y north: the plan's top is the screen's top), and its face is toward the glass
-      c.pose(swing1 + 0.1);
-      expect(c.flat(), visual).toBe(1);
-      c.root.updateMatrixWorld(true);
-      expect(dir(new Vector3(1, 0, 0)).x, `${visual} x`).toBeCloseTo(1, 6);
-      expect(dir(new Vector3(0, 1, 0)).y, `${visual} y`).toBeCloseTo(1, 6);
-      expect(dir(new Vector3(0, 0, 1)).z, `${visual} z`).toBeCloseTo(1, 6);
-      // the card lies south of its slot's line, over its body (its mask and its parts run on to its far edge), and only its finger tab reaches north of the line: its fingers are at its own slot, not at the previous one's
-      const flat = box(c.root), y0 = nicY(1);
-      expect(-flat.max.y, `${visual} fingers`).toBeGreaterThanOrEqual(y0 - NIC_FACE.north - 1);
-      expect(-flat.max.y, `${visual} fingers`).toBeLessThanOrEqual(y0 - 100);
-      expect(-flat.min.y, `${visual} body`).toBeGreaterThan(y0 + NIC_FACE.south);
-      expect(-flat.min.y, `${visual} body`).toBeLessThanOrEqual(y0 + STAND.nic + 1);
-      expect(flat.min.z, `${visual} down`).toBeGreaterThan(HINGE_Z - 60);
-      // the die lies where the card says (its footprint, the depth of its top): the plan's middle is on the die's middle
+      c.pose(show1 + 0.1);
+      expect(c.detail(), visual).toBe(1);
+      // the card stands on its slot's line (its own, not the previous one's): its parts stand over the PCB's top face, up to the jacks' height, its fingers go down into the slot, and its mask runs up to the card's height
+      const bare = box(c.root), y0 = nicY(1);
+      expect(-bare.max.y, `${visual} parts`).toBeLessThanOrEqual(y0 - 100);
+      expect(-bare.max.y, `${visual} parts`).toBeGreaterThanOrEqual(y0 - SLOT_BAY.north - 1);
+      expect(bare.min.z, `${visual} fingers`).toBeLessThan(HINGE_Z - 40);
+      expect(bare.max.z, `${visual} face`).toBeGreaterThan(HINGE_Z + NIC_FACE.south - 1);
+      expect(bare.max.z, `${visual} face`).toBeLessThanOrEqual(HINGE_Z + STAND.nic + 1);
+      // the die stands where the card says: the plan's middle is on the die's middle, at the depth of its top over the line's height
       const d = c.die!, w = floor.localToWorld(new Vector3(d.rect.x + d.rect.w / 2, -(d.rect.y + d.rect.h / 2), 0));
-      expect(w.z, visual).toBeCloseTo(d.zTop, 3);
-      expect(w.x, visual).toBeCloseTo(d.at.x + d.at.w / 2, 3);
-      expect(-w.y, visual).toBeCloseTo(d.at.y + d.at.h / 2, 3);
+      expect(w.y, visual).toBeCloseTo(d.stand.y, 3);
+      expect(w.x, visual).toBeCloseTo(d.stand.x + d.stand.w / 2, 3);
+      expect(w.z, visual).toBeCloseTo(d.stand.z, 3);
       // each body stands inside its footprint as the card reports it, and as high as it says
       const ids = c.bodies.map((b) => b.id);
       expect(ids, visual).toEqual(['jack', 'ctl', 'xtal', 'nvm', 'vreg', 'label'].map((p) => `pcie1.nic-${p}`));
       for (const b of c.bodies) {
         const o = findById(c.root, b.id);
         expect(o, `${visual} ${b.id}`).not.toBeNull();
-        const bx = new Box3().setFromObject(o!), m = 60;
-        expect(bx.min.x, `${visual} ${b.id} x0`).toBeGreaterThanOrEqual(b.rect.x - m);
-        expect(bx.max.x, `${visual} ${b.id} x1`).toBeLessThanOrEqual(b.rect.x + b.rect.w + m);
-        expect(-bx.max.y, `${visual} ${b.id} y0`).toBeGreaterThanOrEqual(b.rect.y - m);
-        expect(-bx.min.y, `${visual} ${b.id} y1`).toBeLessThanOrEqual(b.rect.y + b.rect.h + m);
-        if (!b.id.endsWith('label')) { expect(bx.max.z, `${visual} ${b.id} top`).toBeLessThanOrEqual(b.z + m); expect(bx.max.z, `${visual} ${b.id} top`).toBeGreaterThanOrEqual(b.z - m); }
+        const bx = new Box3().setFromObject(o!), m = 60, l = b.lie;
+        expect(bx.min.x, `${visual} ${b.id} x0`).toBeGreaterThanOrEqual(l.x - m);
+        expect(bx.max.x, `${visual} ${b.id} x1`).toBeLessThanOrEqual(l.x + l.w + m);
+        expect(bx.min.z, `${visual} ${b.id} z0`).toBeGreaterThanOrEqual(l.z - l.d / 2 - m);
+        expect(bx.max.z, `${visual} ${b.id} z1`).toBeLessThanOrEqual(l.z + l.d / 2 + m);
+        if (!b.id.endsWith('label')) { expect(bx.max.y, `${visual} ${b.id} top`).toBeLessThanOrEqual(l.y + m); expect(bx.max.y, `${visual} ${b.id} top`).toBeGreaterThanOrEqual(l.y - m); }
       }
     }
   });
@@ -113,7 +134,7 @@ describe('the 3D expansion cards', () => {
       expect(c.lids, visual).toEqual([]);
       expect(c.bodies, visual).toEqual([]);
       c.pose(1);
-      expect(c.flat(), visual).toBe(0);
+      expect(c.detail(), visual).toBe(0);
     }
   });
 

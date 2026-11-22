@@ -12,7 +12,7 @@ describe('wheelZoom', () => {
   });
   it('caps one event, so a fast wheel never jumps the whole way', () => {
     const k = wheelZoom({ deltaY: 100000, deltaMode: 0, ctrlKey: false });
-    expect(k).toBeCloseTo(Math.exp(300 * 0.0012), 10);
+    expect(k).toBeCloseTo(Math.exp(300 * 0.0018), 10);
     expect(wheelZoom({ deltaY: 5000, deltaMode: 2, ctrlKey: false })).toBe(k);
   });
   it('takes a trackpad pinch (ctrl held) in finer steps with a stronger effect per pixel', () => {

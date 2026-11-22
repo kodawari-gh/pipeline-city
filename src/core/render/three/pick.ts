@@ -41,18 +41,21 @@ export const unseen = <T extends Object3D>(o: T): T => { o.layers.set(UNDRAWN); 
 const ray = new Raycaster(), at = new Vector2();
 ray.layers.enable(UNDRAWN);
 
-function hit(roots: readonly Object3D[], camera: Camera, nx: number, ny: number) {
+function hit(roots: readonly Object3D[], camera: Camera, nx: number, ny: number, skip?: (o: Object3D) => boolean) {
   at.set(nx, ny);
   ray.setFromCamera(at, camera);
   // a ray meets hidden objects too (a faded cooler, a shroud): skip them
-  return ray.intersectObjects(roots as Object3D[], true).find((h) => shown(h.object));
+  return ray.intersectObjects(roots as Object3D[], true).find((h) => shown(h.object) && !skip?.(h.object));
 }
 
 /** What is under the pointer (`nx`, `ny` in -1..1, y up). The nearest surface wins, even when it has no id: a wall hides what stands behind it. */
 export const pick = (roots: readonly Object3D[], camera: Camera, nx: number, ny: number): Object3D | null => hit(roots, camera, nx, ny)?.object ?? null;
 
-/** Where the ray under the pointer meets that nearest surface (world), or null: the camera zooms and pans at its depth. */
-export const pickPoint = (roots: readonly Object3D[], camera: Camera, nx: number, ny: number): Vector3 | null => hit(roots, camera, nx, ny)?.point ?? null;
+/**
+ * Where the ray under the pointer meets that nearest surface (world), or null: the camera zooms and pans at its depth. `skip`: an object the ray goes through (a plate
+ * that only takes a click over a window: the camera's depth is the surface behind it).
+ */
+export const pickPoint = (roots: readonly Object3D[], camera: Camera, nx: number, ny: number, skip?: (o: Object3D) => boolean): Vector3 | null => hit(roots, camera, nx, ny, skip)?.point ?? null;
 
 export function shown(o: Object3D): boolean {
   for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;

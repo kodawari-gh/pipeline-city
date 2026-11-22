@@ -1,8 +1,8 @@
 // The memory sticks in 3D as real DIMMs (docs/render/three.md). The 2D draws a stick flat, its face seen from above;
 // here it stands in its socket: the gold fingers down in the groove, the chips on both faces, a latch clipped into the notch at each end. The
 // look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
-// (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
-// see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
+// (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`); the camera never turns by itself, so the
+// faces are read by turning the view, or from the angled view a double click flies to (`RAM_FACE_YAW`). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, Vector3, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { BRAND_FONT, drawLockup, lockupWidth } from '@/core/render/brands';
 import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
@@ -35,9 +35,11 @@ const PCB_T = 29, PCB_H = Math.round(31.25 * STICK_MM), CHIP_T = 23, PAD = 12, E
 const NOTCH_V = Math.round(PCB_H * 0.44), NOTCH_R = 16, LATCH_Z = Z0 + NOTCH_V + 14;
 /** How far a spreader reaches over the PCB's top edge (real sticks: a finned DDR3 37 mm, an RGB DDR4 or DDR5 44 mm, to the PCB's 31.25). */
 const OVER = { bare: 0, low: 0, fins: Math.round(6 * STICK_MM), rgb: Math.round(12.75 * STICK_MM) } as const;
-/** The camera's lean (radians of yaw) to read the stick faces in a row, and the zoom band it comes in over (board3d.ts). */
-export const RAM_LEAN = 0.72;
-/** The zoom band (screen pixels per unit) the spreaders fade over and the chips' dies come in over, after the lean: the part's own chips show once its cover is gone. */
+/** The yaw and the pitch (radians) of the view a double click on the sticks flies to, to read their faces in a row (the faces look east; from above, the eye clears the drive cages). */
+export const RAM_FACE_YAW = 0.5, RAM_FACE_PITCH = 0.35;
+/** The depth over the board (layout units) the view of the sticks' faces is aimed at: about the middle of their chips (a stick's chips stand 320 to 500 over its socket). */
+export const RAM_FACE_AT = 450;
+/** The zoom band (screen pixels per unit) the spreaders fade over and the chips' dies come in over: the part's own chips show once its cover is gone. */
 export const RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 
 export type StickLook = 'bare' | 'low' | 'fins' | 'rgb';

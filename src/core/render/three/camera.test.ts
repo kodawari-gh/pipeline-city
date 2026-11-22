@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, leanClear, orbitBy, panBy, reach, retarget, settled, sight, stepView, zoomAt,
-  zoomAbout, zoomOn, type OrbitView, type Room,
+  LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, orbitBy, panBy, reach, retarget, settled, sight, stepView, zoomAt,
+  turnReach, zoomAbout, zoomOn, type OrbitView, type Room,
 } from './camera';
 
 const V: OrbitView = { x: 100, y: 200, z: 300, yaw: 0, pitch: 0, height: 1000, fov: 30 };
@@ -229,42 +229,53 @@ describe('3D camera', () => {
       expect(sight({ ...back, z: 12000 }, short, [B])).toEqual([1000, 1000]);
     });
 
+    describe('a turn that the room stops', () => {
+      const walled: Room = { x0: -5000, x1: 5000, y0: -2000, y1: 3000, z0: 500, z1: 8000 };
+      const fit = (r: Room, blocks: Room[] = []) => (v: OrbitView) => keepInside(v, r, { restore: true, blocks });
+
+      it('goes all the way when the room leaves the eye its place', () => {
+        const base = { ...V, x: 0, y: 0, z: 4000, height: 1000, fov: 26 };
+        expect(turnReach(base, { yaw: 0, pitch: 0 }, { yaw: 0.5, pitch: 0.3 }, fit(walled))).toEqual({ yaw: 0.5, pitch: 0.3 });
+      });
+
+      it('stops at a wall the target is at, not shrinking the view into it', () => {
+        // the target 500 east of the west wall: a turn that puts the eye west of the wall would shrink the view to nothing
+        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 }, f = fit(walled), ref = f(base).height;
+        const got = turnReach(base, { yaw: 0, pitch: 0 }, { yaw: -1, pitch: 0 }, f, ref);
+        expect(got.yaw).toBeGreaterThan(-0.6);
+        expect(got.yaw).toBeLessThan(-0.2);
+        const k = f({ ...base, ...got });
+        expect(k.height).toBeGreaterThan(ref * 0.79);
+        expect(k.height).toBeLessThan(ref * 1.26);
+        // the other way is free
+        expect(turnReach(base, { yaw: 0, pitch: 0 }, { yaw: 1, pitch: 0 }, f, ref).yaw).toBe(1);
+      });
+
+      it('slides along the stop: the pitch goes on when the yaw cannot', () => {
+        const base = { ...V, x: -4500, y: 0, z: 4000, height: 1000, fov: 26 }, f = fit(walled), ref = f(base).height;
+        const stop = turnReach(base, { yaw: 0, pitch: 0 }, { yaw: -1, pitch: 0 }, f, ref);
+        const got = turnReach(base, stop, { yaw: stop.yaw - 0.5, pitch: 0.4 }, f, ref);
+        expect(got.pitch).toBeGreaterThan(0.2);
+        expect(got.yaw).toBeGreaterThan(stop.yaw - 0.05);
+      });
+
+      it('never puts the eye on the far side of a block', () => {
+        const wide: Room = { x0: -50000, x1: 50000, y0: -20000, y1: 20000, z0: 0, z1: 60000 };
+        const B: Room = { x0: -2000, x1: 2000, y0: -20000, y1: 0, z0: 10000, z1: 14000 };
+        // the target on the near face of the cupboard, looked at from the south: a turn through the cupboard would throw the eye to its north
+        const base = { ...V, x: 0, y: -5000, z: 9950, height: 1000, fov: 26 }, f = fit(wide, [B]), ref = f(base).height;
+        for (const yaw of [-1.1, -0.5, 0.5, 1.1]) {
+          const got = turnReach(base, { yaw: 0, pitch: 0 }, { yaw, pitch: 0 }, f, ref), k = f({ ...base, ...got });
+          expect(k.height).toBeGreaterThan(ref * 0.79);
+          expect(k.height).toBeLessThan(ref * 1.26);
+        }
+      });
+    });
+
     it('sizes the near plane for a wide room view', () => {
       // beside a tall block, looking along its face: the wider the fov, the sooner its near plane would reach the face
       const tall: Room = { ...B, y1: 20000 }, v = { ...V, x: 2400, y: 0, z: 2000, height: 8000, fov: 26 };
       expect(reach(v, R, [tall], 40)).toBeLessThan(reach(v, R, [tall], 26));
-    });
-  });
-
-  describe('a lean over a part inside a case', () => {
-    // the target at the origin, the eye 4000 away, the screen 1000 tall by 2 wide; a solid body to the east and in front, like a drive cage
-    const at = (a: number): OrbitView => ({ x: 0, y: 0, z: 0, yaw: a, pitch: 0, height: 1000, fov: 14 });
-    const cage: Room = { x0: 1500, x1: 3000, y0: -2000, y1: 2000, z0: -500, z1: 3000 };
-
-    it('leans as far as it wants where nothing stands in the way', () => {
-      expect(leanClear(at, 0.7, [], 2)).toBe(0.7);
-      expect(leanClear(at, 0.7, [{ ...cage, x0: 9000, x1: 9500 }], 2)).toBe(0.7);
-      expect(leanClear(at, 0, [cage], 2)).toBe(0);
-    });
-
-    it('stops short of the lean that would put a solid body between the eye and the target', () => {
-      const got = leanClear(at, 0.7, [cage], 2);
-      expect(got).toBeGreaterThan(0.1);
-      expect(got).toBeLessThan(0.7);
-      // the same for a lean the other way, in the mirror
-      const mirror: Room = { ...cage, x0: -cage.x1, x1: -cage.x0 };
-      expect(leanClear((a) => at(-a), 0.7, [mirror], 2)).toBeCloseTo(got, 6);
-      // asking for more gives no more
-      expect(leanClear(at, 1.2, [cage], 2)).toBeCloseTo(got, 1);
-    });
-
-    it('gives the lean its sign', () => {
-      expect(leanClear((a) => at(a), -0.7, [cage], 2)).toBe(-0.7);
-      expect(leanClear((a) => at(a), 0.7, [{ ...cage, x0: -cage.x1, x1: -cage.x0 }], 2)).toBe(0.7);
-    });
-
-    it('does not lean at all where the eye is already behind the body', () => {
-      expect(leanClear(at, 0.7, [{ ...cage, x0: -500, x1: 500, z0: 500, z1: 3500 }], 2)).toBe(0);
     });
   });
 

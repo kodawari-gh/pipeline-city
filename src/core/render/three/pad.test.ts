@@ -155,7 +155,7 @@ describe('mouse', () => {
   it('the wheel zooms at the pointer', () => {
     const { core, log } = rig();
     core.wheel({ clientX: 70, clientY: 80, deltaY: -100, deltaMode: 0, ctrlKey: false });
-    expect(log).toEqual([`zoom ${+Math.exp(-0.12).toFixed(2)} 70,80`]);
+    expect(log).toEqual([`zoom ${+Math.exp(-0.18).toFixed(2)} 70,80`]);
   });
 });
 
@@ -333,7 +333,7 @@ describe('attachPad', () => {
     on.get('contextmenu')!({ preventDefault: () => stopped++ } as never);
     on.get('wheel')!({ preventDefault: () => stopped++, clientX: 5, clientY: 6, deltaY: 100, deltaMode: 0, ctrlKey: false } as never);
     expect(stopped).toBe(2);
-    expect(log).toEqual([`zoom ${Math.exp(0.12).toFixed(2)}`]);
+    expect(log).toEqual([`zoom ${Math.exp(0.18).toFixed(2)}`]);
     pad.dispose();
     expect(on.size).toBe(0);
     expect(w.on.size).toBe(0);

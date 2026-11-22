@@ -11,7 +11,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export const TURN = 4;
 
 /** Sensitivity of a wheel (per pixel of its delta, in the exponent) and of a trackpad's pinch (which the browser sends as ctrl + wheel in small steps). */
-const WHEEL_K = 0.0012, PINCH_K = 0.006;
+const WHEEL_K = 0.0018, PINCH_K = 0.006;
 
 /** The zoom a wheel event asks for, as a factor on the height shown (under 1: closer). A line or a page of a wheel that counts them is about 40 or 800 pixels. */
 export function wheelZoom(e: { deltaY: number; deltaMode: number; ctrlKey: boolean }): number {

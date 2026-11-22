@@ -848,11 +848,14 @@ export class BuildStage {
   /** Fly to `v`: it is the goal, and the flight is marked (the first touch of the view catches it). */
   private fly(v: OrbitView): void { this.goal = v; this.flying = true; }
 
-  /** The nearest surface under a client point (world) among the machine, the wall and the monitor, or null: a zoom and a pan go at its depth. */
+  /**
+   * The nearest surface under a client point (world) among the machine, the wall and the monitor, or null: a zoom and a pan go at its depth. The plate that takes a click on
+   * the shut glass side (`case.side`) is no surface: the ray goes through it to the board behind (at the glass's depth the board would pan slower than the pointer).
+   */
   private surfaceAt(x: number, y: number): Vector3 | null {
     if (this.dead || !this._machine) return null;
     const r = this.ctx.renderer.domElement.getBoundingClientRect();
-    return pickPoint([this.machine.root, ...(this.wall ? [this.wall.root] : []), ...(this.monitor ? [this.monitor] : [])], this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
+    return pickPoint([this.machine.root, ...(this.wall ? [this.wall.root] : []), ...(this.monitor ? [this.monitor] : [])], this.ctx.camera, ((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1), (o) => idOf(o) === 'case.side');
   }
 
   /** A part this big on the screen is looked at, not carried (`BIG_SIDE`, `BIG_AREA`). */
@@ -1004,18 +1007,26 @@ export class BuildStage {
   }
 
   /**
-   * Fly the camera to a fitted part (its device id): head on, in the middle of the window the panels leave free, the part filling `FOCUS_FILL` of its
-   * larger side (a tall stick by its height, a wide card by its width). False when it has no model.
+   * Fly the camera to a fitted part (its device id): in the middle of the window the panels leave free, the part filling `FOCUS_FILL` of its
+   * larger side (a tall stick by its height, a wide card by its width). Head on, but for a part whose face does not look at the glass: a card stands on edge, its face looks up, so the
+   * flight looks down on it as far as the camera tilts (as the game's `focusPart` does); a stick's faces look east, so it turns to read them. Nothing else turns the camera: this is the
+   * player's own flight. False when it has no model.
    */
   focusDevice(id: string): boolean {
     const o = this.objectOf(devNode(id));
     if (!o) return false;
     o.updateWorldMatrix(true, true);
-    const box = new Box3().setFromObject(o), c = box.getCenter(new Vector3()), s = box.getSize(new Vector3());
-    const height = Math.max(s.y, s.x / (this.W / this.H), 150) / FOCUS_FILL;
+    const box = new Box3().setFromObject(o), c = box.getCenter(new Vector3()), s = box.getSize(new Vector3()), aspect = this.W / this.H;
+    const rail = this.machine.rails.find((r) => r.id === id), turned = getSpec(this.board.devices.find((d) => d.id === id)?.spec ?? '')?.kind === 'ram' ? this.machine.rails.find((r) => r.id === 'ram') : undefined;
     // (the free window's middle is a little east of the screen's: the start view's shift, the same share of the view's width)
-    const shift = WALL_SHIFT * (height / this.frameView().height);
-    this.fly({ ...this.goal, x: c.x - shift, y: c.y, z: c.z, yaw: 0, pitch: 0, height });
+    const shiftOf = (height: number) => WALL_SHIFT * (height / this.frameView().height);
+    if (rail?.lie) {
+      const l = rail.lie, eff = l.d * Math.sin(LIMITS.pitchMax), v = fitRect({ x: rail.rect.x, y: -l.y - eff / 2, w: rail.rect.w, h: eff }, rail.z, aspect, { yaw: 0, pitch: LIMITS.pitchMax, fov: this.goal.fov }, FOCUS_FILL);
+      this.fly({ ...v, x: v.x - shiftOf(v.height) });
+      return true;
+    }
+    const height = Math.max(s.y, s.x / aspect, 150) / FOCUS_FILL;
+    this.fly({ ...this.goal, x: c.x - shiftOf(height), y: c.y, z: turned ? turned.z : c.z, yaw: turned?.angle?.yaw ?? 0, pitch: turned?.angle?.pitch ?? 0, height });
     return true;
   }
 

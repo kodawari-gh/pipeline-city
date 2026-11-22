@@ -60,10 +60,9 @@ import type { PhyChip } from './phychip3d';
 import { CPU_Z, cpuModel } from './cpu3d';
 import { HOSE_COLD, HOSE_HOT, LoopHoses, coolerFanBox, coolerFanLead, coolerFoot, coolerModel, hoseEnds, radiatorFlow, radiatorModel, type Model, type RadiatorAt, type RadiatorFlow } from './cooler3d';
 import type { AirBody } from './air/plan';
-import type { Room } from '@/core/render/three/camera';
 import { caseFan, fanDepth, fanPart, type FanFit, type Spin } from './fans3d';
 import { CARD_PLUG, standingPlug } from './cables3d';
-import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, type Card3D } from './card3d';
+import { HINGE_Z, cardModel, gpuVideoAt, nicJackAt, slotBlank, standIn, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, innerStrips, stripLight, type CaseModel } from './case3d';
@@ -96,7 +95,7 @@ import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
 import { tpmDieFace, tpmDieFade, tpmModel, TPM_Z } from './tpm3d';
-import { RAM_LEAN, SLOT_H, dieShown, ramStick, stickFade } from './ram3d';
+import { RAM_FACE_AT, RAM_FACE_PITCH, RAM_FACE_YAW, SLOT_H, dieShown, ramStick, stickFade } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
 /** The network lead's light blue (a common patch-cable colour). */
@@ -106,7 +105,7 @@ const union = (a: RectLike, b: RectLike): RectLike => {
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 };
-/** The RAM band (`DEVICE_LOD.ram.show` on): the camera leans over its first part, the spreaders fade over the second. */
+/** The RAM band (`DEVICE_LOD.ram.show` on): the spreaders fade over it and the chips' dies come in. A flight to the bank ends at its far end. */
 const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
@@ -153,7 +152,7 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 }
 
 type Fan = Spin & { speed: number };
-type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike };
+type Reveal = { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike; box?: Box3 };
 
 /** What one built part added to the machine's shared lists: a patch (`Machine3D.patch`) takes exactly this away, or adds it for a new part. */
 interface Owned { id: string; kind: string; slot: string; roots: Object3D[]; reveals: Reveal[]; fades: Object3D[]; apart: Object3D[]; still: Object3D[]; fans: Fan[]; obstacles: Object3D[]; keep: Object3D[]; caseRoots: Object3D[]; rails: Rail[] }
@@ -247,7 +246,7 @@ export class Machine3D {
   private frustum = new Frustum();
   /** The radiator bolted on a side of the case (it takes that side's fan mounts) and the loop's tubes run to. */
   private rad: (RadiatorAt & { span: FanMount & { ids: string[] } }) | null = null;
-  /** The installed sticks' bank: the camera leans over it up close (`lean`). */
+  /** The installed sticks' bank: the memory map's reveal and its flight (a double click) are read over it. */
   private ram: RectLike | null = null;
   /** The sticks (slot, size, the faces of their four data chips) and the live memory map painted on those faces. */
   private ramSticks: ConstructorParameters<typeof RamMap3D>[0] = [];
@@ -564,10 +563,18 @@ export class Machine3D {
     return v;
   }
 
+  /** The same for a face that stands (a card on edge: `standIn`) or lies, not one on the board's plane: the zoom is seen at the point of its box nearest the view's centre line. */
+  private revealOn(l: Lying, apply: (z: number) => void): Reveal {
+    const box = new Box3(new Vector3(l.x, l.y, l.z - l.d / 2), new Vector3(l.x + l.w, l.y, l.z + l.d / 2));
+    const v: Reveal = { at: box.getCenter(new Vector3()), apply, anywhere: false, box };
+    this.reveals.push(v);
+    return v;
+  }
+
   /** A part's detailed view: its face `r` at depth `z`, its detail all in from `zoom` (screen pixels per world unit: the end of its fade, so no lid
    * half covers it); a double click flies the view to it. */
-  private rail(id: string, r: RectLike, z: number, zoom: number): Rail {
-    const v: Rail = { id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom };
+  private rail(id: string, r: RectLike, z: number, zoom: number, angle?: Rail['angle']): Rail {
+    const v: Rail = { id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom, ...(angle ? { angle } : {}) };
     this.rails.push(v);
     return v;
   }
@@ -605,7 +612,7 @@ export class Machine3D {
     this.ramMap = null;
     if (!this.ram || !this.ramSticks.length) return;
     const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
-    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]) };
+    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + RAM_FACE_AT, RAM_IN[1], { yaw: RAM_FACE_YAW, pitch: RAM_FACE_PITCH }) };
   }
 
   /**
@@ -662,13 +669,13 @@ export class Machine3D {
   }
 
   /**
-   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): once the card lies flat, the card and each of its parts is a flight (a double click) and can be pointed at; the
+   * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): the card and each of its parts is a flight (a double click, to an angled view of the standing card's face) and, once its cooler has gone, can be pointed at; the
    * controller's die wears the floorplan, which its lid hides until the zoom takes the lid away (the live layer runs on the die's face, `Chips3D`). The lid fades alone, so its materials are its own.
    */
   private nicBits(d: DeviceSnap, c: Card3D, i: number, visual: string): void {
     const turn = DEVICE_LOD.nic.parts[1];
-    this.rail(d.id, nicFaceRect(i, visual), HINGE_Z, turn);
-    for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.rail(b.id, b.rect, b.z, turn);
+    this.lie(d.id, c.face, turn);
+    for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.lie(b.id, b.lie, turn);
     // (the parts are a stand-in anchor of their own: the card's tree is left out of the distance level of detail, and three cards' parts would draw one by one at the overview)
     if (c.parts) this.still.push(c.parts);
     this.apart.push(...c.lids);
@@ -676,8 +683,8 @@ export class Machine3D {
     if (c.copper) this.chips?.traces(c.copper.root, d.slot, c.copper.lanes, c.copper.z);
     if (!c.die) return;
     this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
-    this.reveal(c.die.at, c.die.zTop, c.lod);
-    this.rail(`${d.slot}.nic-ctl`, c.die.at, c.die.zTop, DEVICE_LOD.die.fade[1] / c.die.scale);
+    this.revealOn(c.die.stand, c.lod);
+    this.lie(`${d.slot}.nic-ctl`, c.die.stand, DEVICE_LOD.die.fade[1] / c.die.scale);
   }
 
   /**
@@ -693,15 +700,14 @@ export class Machine3D {
   }
 
   /**
-   * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until the card lies flat and shows its parts (a standing or a swinging card is hit on whatever
-   * side it shows). The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
+   * What a pick of `id` means: a part of a NIC (`pcie2.nic-xtal`) is the card itself until its cooler has gone and it shows its parts. The die's blocks (`pcie2.nic-mac`) are not asked: they are hit only through the live layer, once the lid is gone.
    */
   pickId(id: string | null): string | null {
     // (a part of the router's board is the router until the shell is gone and shows its parts)
     if (id && /^router\.[a-z]+$/.test(id)) return this.routerBits?.board.shown() ? id : 'router';
     const m = id ? /^(pcie\d+)\.nic-(?:jack|edge|ctl|xtal|nvm|vreg|label)$/.exec(id) : null;
     const card = m && this.cards.get(m[1]!);
-    return card && card.flat() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
+    return card && card.detail() < 0.9 ? this.devs.find((d) => d.slot === m![1])?.id ?? id : id;
   }
 
   /** The same for a built object: its box as seen from the glass, its face the box's front. */
@@ -787,11 +793,6 @@ export class Machine3D {
       { id: 'basement', kind: 'basement', ...box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT) },
       { id: 'cage', kind: 'cage', ...cageBox(this.cage) },
     ];
-  }
-
-  /** The boxes a camera leaning over a part inside the case must not look through (`leanClear` in camera.ts): the case's solid bodies. */
-  sightBlocks(): Room[] {
-    return this.solidBodies().map((b) => ({ x0: b.min[0], x1: b.max[0], y0: b.min[1], y1: b.max[1], z0: b.min[2], z1: b.max[2] }));
   }
 
   /** Run `draw` with the side panel taken off: the picture of an open machine, whatever the panel's kind (a steel one hides the inside, a glass one tints it). */
@@ -942,19 +943,18 @@ export class Machine3D {
         return;
       }
       case 'gpu': case 'npu': case 'nic': {
-        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat: a GPU shows the shop picture's art (the die with its
-        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC folds down flat the other way, parts up, and shows them in 3D (`nicBits`)
+        // the card stands in its slot (`card3d`) and stays there: up close its cooler fades and its face shows. A GPU shows the shop picture's art (the die with its
+        // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC shows its parts, which are in 3D (`nicBits`). The face looks north: the player turns the view
+        // to it, or a double click flies to its angled view (`focusPart`: the face is a `Lying` rail)
         const i = idx(d.slot), kind = spec.kind;
         const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); }, d.slot);
         this.model(g, c);
-        // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
         this.obstacles.push(c.root);
         this.fades.push(c.root);
-        this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
-        // (flat, the card's face lies on the hinge's plane)
+        this.revealOn(c.face, c.pose);
         if (kind === 'nic') this.nicBits(d, c, i, visual);
-        else this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
+        else this.lie(d.id, standIn(i, chipRect(kind, visual, i), HINGE_Z), DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
         if (c.lan) this.lan.set(d.id, c.lan);
         this.apart.push(c.fades);
@@ -1675,7 +1675,7 @@ export class Machine3D {
     // the board view's zoom on this screen (`boardView` in board3d.ts: the inside of the case, fitted at 0.95)
     if (this.door) this.door.board = (H * 0.95) / Math.max(CASE_IN.h, CASE_IN.w / cam.aspect);
     for (const r of this.reveals) {
-      const at = r.area ? nearestOn(r.area, r.at.z, cam.position, LOD_DIR) : r.at;
+      const at = r.box ? nearestIn(r.box, cam.position, LOD_DIR) : r.area ? nearestOn(r.area, r.at.z, cam.position, LOD_DIR) : r.at;
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
@@ -1686,16 +1686,6 @@ export class Machine3D {
     if (lowDetail()) setCaseShade(this.shadeBox, this.root.matrixWorld, CASE_PASS);
     this.partLod?.update(screenPx(LOD_BOX.copy(this.caseBox).applyMatrix4(this.root.matrixWorld).distanceToPoint(cam.position), cam.fov, H));
     this.art.update(cam, this.frustum, H, dpr, now);
-  }
-
-  /**
-   * The yaw the camera adds to read what stands at the view's target (layout x, y) at this zoom: the stick faces stand edge-on to the glass, so
-   * over the RAM bank, in the RAM band, the camera leans to see them in a row. 0 elsewhere.
-   */
-  lean(x: number, y: number, zoom: number): number {
-    const r = this.ram && grow(this.ram, 260);
-    if (!r || x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) return 0;
-    return RAM_LEAN * smooth(RAM_IN[0], RAM_IN[1], zoom);
   }
 
   /** Open the case's outer side whatever the zoom (a part or a cable is dragged, a tutorial target is inside), or let the zoom decide again. */
@@ -1760,6 +1750,13 @@ function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
 }
 
 const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3(), LOD_BOX = new Box3();
+
+/** The point of the box `b` nearest the view's centre line: the line's point nearest the box's middle, held inside the box. */
+function nearestIn(b: Box3, eye: Vector3, dir: Vector3): Vector3 {
+  b.getCenter(NEAREST).sub(eye);
+  const t = Math.max(0, NEAREST.dot(dir));
+  return NEAREST.copy(dir).multiplyScalar(t).add(eye).clamp(b.min, b.max);
+}
 
 /** Where the view's centre line meets the plane at depth `z`, held inside the layout rect `r`. */
 function nearestOn(r: RectLike, z: number, eye: Vector3, dir: Vector3): Vector3 {

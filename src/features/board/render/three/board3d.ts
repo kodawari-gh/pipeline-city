@@ -20,7 +20,7 @@ import { whenDebug } from '@/app/debugflag';
 import { loadBaked } from '@/core/render/three/baked';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
-  applyView, clampView, distanceOf, fitRect, heightAt, keepInside, leanClear, LIMITS, orbitBy, panBy, retarget, settled, stepView, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+  applyView, clampView, distanceOf, fitRect, heightAt, keepInside, LIMITS, orbitBy, panBy, retarget, settled, stepView, turnReach, zoomAt, zoomOn, type Box, type OrbitView, type Room,
 } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { turnOf } from '@/core/render/three/gesture';
@@ -45,7 +45,6 @@ import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { lowDetail, setLowDetail } from '@/core/render/three/detail';
 import { Machine3D, machineKey } from './machine3d';
 import { whileHidden } from './whileHidden';
-import { RAM_LEAN } from './ram3d';
 import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -358,9 +357,13 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (machine) out.push(machine.root);
     return out;
   };
-  /** The surface under a client point (world), if a target may lie there (not on a wall or the floor, not out of the window): a zoom and a pan go at its depth. */
+  /**
+   * The surface under a client point (world), if a target may lie there (not on a wall or the floor, not out of the window): a zoom and a pan go at its depth.
+   * The shut side panel is glass, and the plate that takes a click on it (`case.side`) is no surface: the ray goes through it to the board, so a zoom and a pan
+   * take hold of what is seen (at the plate's depth the board would move slower than the pointer, and a zoom would stop at the glass).
+   */
   const anchor = (e: { clientX: number; clientY: number }) => {
-    const { nx, ny } = ndc(e), p = pickPoint(roots(), camera, nx, ny), r = eyeRoom();
+    const { nx, ny } = ndc(e), p = pickPoint(roots(), camera, nx, ny, (o) => idOf(o) === 'case.side'), r = eyeRoom();
     return p && p.z >= TARGET_Z0 && p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1 ? p : null;
   };
   /** The id under a client point; `raw`: the backdrops too (the board, the case), which hover nothing but take a dropped plug. */
@@ -409,7 +412,15 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * no surface under it), and a turn's start: the view it turns from, and the angles it has reached (a turn that runs into a wall or a piece of
    * furniture comes back to the player's own height when it turns away again).
    */
-  let grabZ: number | undefined, pinchAt: { x: number; y: number; z: number } | null | undefined, turning: { base: OrbitView; yaw: number; pitch: number } | null = null;
+  let grabZ: number | undefined, pinchAt: { x: number; y: number; z: number } | null | undefined, turning: { base: OrbitView; ref: number; yaw: number; pitch: number } | null = null;
+  /** The turn the room allows: a wall or a piece of furniture stops it where it is (`turnReach`), the view is never shrunk into one or thrown to its far side. */
+  const startTurn = (): NonNullable<typeof turning> => ({ base: goal, ref: inRoom(goal).height, yaw: goal.yaw, pitch: goal.pitch });
+  const turnStep = (s: NonNullable<typeof turning>, dYaw: number, dPitch: number): void => {
+    const want = { yaw: Math.max(-LIMITS.yaw, Math.min(LIMITS.yaw, s.yaw + dYaw)), pitch: Math.max(LIMITS.pitchMin, Math.min(LIMITS.pitchMax, s.pitch + dPitch)) };
+    const got = turnReach(s.base, s, want, (v) => inRoom(v), s.ref);
+    s.yaw = got.yaw; s.pitch = got.pitch;
+    goal = inRoom({ ...s.base, ...got });
+  };
   /** `Drag3D` took the pointer (it listens on the window): the canvas lets it go. False: refused (it said why), the press goes on as a pan. */
   const taken = (ok: boolean, e: PointerEvent): boolean => { if (ok) { try { canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ } } return ok; };
   /**
@@ -417,11 +428,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    * board in its shell) is looked down on from the front, as far down as the camera tilts: its top fills the window as that tilt shows it (its depth, short by the sine of the tilt).
    */
   const focusPart = (id: string): boolean => {
-    const r = machine?.rails.find((x) => x.id === id);
+    // (a stick is the bank's flight: the sticks' faces are read together, in a row)
+    const r = machine?.rails.find((x) => x.id === id) ?? (snapshot.peek()?.devices.find((d) => d.id === id)?.kind === 'ram' ? machine?.rails.find((x) => x.id === 'ram') : undefined);
     if (r) {
       // (close enough that its detail is all in, `Rail.zoom`)
       const eff = r.lie ? r.lie.d * Math.sin(LIE.pitch) : 0;
-      const v = r.lie ? inFree({ x: r.rect.x, y: -r.lie.y - eff / 2, w: r.rect.w, h: eff }, r.z, LIE, 0.8) : inFree(r.rect, r.z, FLAT, 0.8);
+      const v = r.lie ? inFree({ x: r.rect.x, y: -r.lie.y - eff / 2, w: r.rect.w, h: eff }, r.z, LIE, 0.8) : inFree(r.rect, r.z, r.angle ? { ...r.angle, fov: ROOM_ANGLE.fov } : FLAT, 0.8);
       flyTo({ ...v, height: Math.min(v.height, H / r.zoom) });
       return true;
     }
@@ -456,7 +468,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         // the view turns about what the player looks at: the surface under the middle of the free window
         const f = freeRect(), m = anchor({ clientX: f.x + f.w / 2, clientY: f.y + f.h / 2 });
         if (m) { goal = retarget(goal, m.z); view = retarget(view, m.z); }
-        turning = { base: goal, yaw: goal.yaw, pitch: goal.pitch };
+        turning = startTurn();
         return;
       }
       const p = anchor({ clientX: at.x, clientY: at.y });
@@ -471,13 +483,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     },
     turn(dx, dy) {
       const t = turnOf(dx, dy, H);
-      turning ??= { base: goal, yaw: goal.yaw, pitch: goal.pitch };
-      turning.yaw = Math.max(-LIMITS.yaw, Math.min(LIMITS.yaw, turning.yaw + t.yaw));
-      turning.pitch = Math.max(LIMITS.pitchMin, Math.min(LIMITS.pitchMax, turning.pitch + t.pitch));
-      goal = inRoom({ ...turning.base, yaw: turning.yaw, pitch: turning.pitch });
+      turning ??= startTurn();
+      turnStep(turning, t.yaw, t.pitch);
     },
     zoom: (k, at) => zoomToward({ clientX: at.x, clientY: at.y }, k, pinchAt),
-    twist(rad) { goal = inRoom({ ...goal, yaw: Math.max(-LIMITS.yaw, Math.min(LIMITS.yaw, goal.yaw + rad)) }); },
+    // (two fingers turning: the pinch moves the goal meanwhile, so each twist is a turn of its own from where the goal is now)
+    twist(rad) { turnStep(startTurn(), rad, 0); },
     end() { grabZ = pinchAt = undefined; turning = null; settle(); },
     tap: (_at, e) => click(idAt(e)),
     focus(_at, e) {
@@ -679,14 +690,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   effect(() => { graphics.value; debugOverride.value; resetWatches(performance.now()); });
 
   // ---- the frame ----
-  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
-  /** The view as the camera has it after a lean of `a` (`Machine3D.lean`): turned about the target, which is lifted to the middle of the sticks. */
-  const leaned = (v: OrbitView, a: number): OrbitView => (Math.abs(a) < 1e-4 ? v : { ...v, yaw: v.yaw + a, z: v.z + 170 * (a / RAM_LEAN) });
-  /** The lean over the RAM bank at this view, as far as the case lets the eye go round (the drive cage stands to the east of the bank, and is solid). */
-  const leanFor = (v: OrbitView): number => {
-    const want = machine?.lean(v.x, -v.y, H / v.height) ?? 0;
-    return want && machine ? leanClear((a) => leaned(v, a), want, machine.sightBlocks(), aspect()) : 0;
-  };
+  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
   /** The boot screen has gone (`onShown` ends the mount's wait); when the last programs linked. */
   let revealed = false, linkedAt = 0, stillAt = 0, onShown = () => {};
   const STILL_MS = 30000;
@@ -741,12 +745,11 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     view = inRoom(stepView(view, goal, dt), false);
     if (flying && settled(view, goal)) flying = false;
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
-    // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
-    lean += (leanFor(view) - lean) * (1 - Math.pow(0.02, dt));
-    applyView(camera, leaned(view, lean), aspect());
+    // (the camera goes where the player and the flights put it, nothing else: no part turns it)
+    applyView(camera, view, aspect());
     // the HUD's inset changed while the overview shows: fit it again to what is left free
     const ins = viewInset.peek(), insKey = `${ins.left}|${ins.right}|${ins.top}|${ins.bottom}`;
-    const rk = `${view.x.toFixed(1)}|${view.y.toFixed(1)}|${view.z.toFixed(1)}|${view.height.toFixed(1)}|${view.yaw.toFixed(3)}|${view.pitch.toFixed(3)}|${lean.toFixed(3)}|${W}|${H}|${insKey}|${machKey}|${snapshot.peek()?.cables.map((c) => +c.connected).join('') ?? ''}`;
+    const rk = `${view.x.toFixed(1)}|${view.y.toFixed(1)}|${view.z.toFixed(1)}|${view.height.toFixed(1)}|${view.yaw.toFixed(3)}|${view.pitch.toFixed(3)}|${W}|${H}|${insKey}|${machKey}|${snapshot.peek()?.cables.map((c) => +c.connected).join('') ?? ''}`;
     if (atOverview && !revKey.includes(insKey)) goal = overview();
     if (rk !== revKey) { revKey = rk; cameraRev.value += 1; }
     machine?.lod(camera, H, ratio * (TEXTURE_LEVELS[g.textures] ?? 1));
@@ -811,7 +814,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       room?.drawOutside(renderer, scene, camera, g.msaa);
       post.render();
       saveStill(canvas);
-      applyView(camera, leaned(view, lean), aspect());
+      applyView(camera, view, aspect());
       post.setReach(seenH);
       eyeAt(near);
     }

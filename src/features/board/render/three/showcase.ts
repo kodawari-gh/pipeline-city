@@ -15,6 +15,7 @@ import { kitFit, radiatorGrade } from '../cooler';
 import { ArtSet } from './artset3d';
 import { boardModel } from './boardmodel3d';
 import { cardModel } from './card3d';
+import type { Lying } from './routerboard3d';
 import { basementPlan, shroud } from './basement3d';
 import { baseCagePlan, cagePlan, driveCage } from './drivecage3d';
 import { sataDriveModel } from './drive3d';
@@ -74,6 +75,14 @@ function marker(parent: Object3D, r: RectLike, z: number): Object3D {
   return o;
 }
 
+/** The same at the middle of a face that stands or lies (a `Lying`: a card on edge). */
+function markerOn(parent: Object3D, l: Lying): Object3D {
+  const o = new Object3D();
+  o.position.set(l.x + l.w / 2, l.y, l.z);
+  parent.add(o);
+  return o;
+}
+
 /**
  * The router of a tier with the board that lies in its shell, as the room's shelf shows it (`routerInsides`): the shell fades away as the camera comes in and the board shows through,
  * then the SoC's lid fades over the die and its floorplan shows.
@@ -126,13 +135,13 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     }
     case 'gpu': case 'npu': case 'nic': {
       const cs = spec as CardSpec | NicSpec;
-      // (standing, as in the case before the camera comes in: its face shows once it swings down flat, as the camera comes in)
+      // (standing, as in the case, and it stays so: its cooler fades and its face shows as the camera comes in)
       const card = upright(withLayout(() => withArt((art) => {
         const card = cardModel(art, T, spec.kind as 'gpu' | 'npu' | 'nic', cs.visual, 0);
         card.pose(0);
-        art.reveal(marker(card.root, card.at, BOARD_Z + 300), card.pose);
+        art.reveal(markerOn(card.root, card.face), card.pose);
         // (a NIC's controller: its lid fades over the die's own band, as in the case)
-        if (card.die) art.reveal(marker(card.root, card.die.at, card.die.zTop), card.lod);
+        if (card.die) art.reveal(markerOn(card.root, card.die.stand), card.lod);
         return card.root;
       })));
       // (a graphics card's cooler hangs on its south face, toward the viewer; a NIC's parts stand on its north face, away from it: half a turn shows them first)

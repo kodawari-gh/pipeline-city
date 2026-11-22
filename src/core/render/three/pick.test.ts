@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, PerspectiveCamera } from 'three';
 import { drawnMeshes } from './partlod';
-import { idOf, pick, seeThrough, tag, unseen } from './pick';
+import { idOf, pick, pickPoint, seeThrough, tag, unseen } from './pick';
 
 const camera = (): PerspectiveCamera => {
   const c = new PerspectiveCamera(30, 1, 1, 1000);
@@ -31,5 +31,15 @@ describe('the pick ray', () => {
     root.updateMatrixWorld(true);
     hit.visible = false;
     expect(idOf(pick([root], camera(), 0, 0))).toBe('part');
+  });
+
+  it('finds the depth of the surface behind a plate that only takes a click (`skip`)', () => {
+    const root = new Group(), plate = unseen(tag(box(5), 'case.side')), part = tag(box(0), 'part');
+    root.add(plate, part);
+    root.updateMatrixWorld(true);
+    const cam = camera();
+    expect(pickPoint([root], cam, 0, 0)?.z).toBeCloseTo(5.5);
+    expect(pickPoint([root], cam, 0, 0, (o) => idOf(o) === 'case.side')?.z).toBeCloseTo(0.5);
+    expect(pickPoint([root], cam, 0, 0, () => true)).toBeNull();
   });
 });
