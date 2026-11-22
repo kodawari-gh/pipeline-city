@@ -16,6 +16,7 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 | #54 | 1 | haiku medium | FAIL | tests fed speed, crash, hold through onSnapshot |
 | #54 | 2 | haiku high | FAIL | boot test stale; posted rule untested |
 | #54 | 3 | haiku xhigh | FAIL | reviewer compared against ui-rework, the wrong base |
-| #54 | 3 re-review | haiku xhigh | pending | against ticket/50-audio |
+| #54 | 3 re-review | haiku xhigh | FAIL | against ticket/50-audio: boot_ready on every idle-os entry |
+| #54 | 4 | sonnet medium | PASS | squashed as 311a054e on ticket/50-audio |
 
 Earlier tickets (#30, #32, #33, #34, #35, #50, #51, #52) are not logged: their tier and round count were not recorded in this session.
