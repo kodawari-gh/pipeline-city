@@ -52,7 +52,7 @@ import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
 import { ArtSet, LV_DIE } from './artset3d';
 import type { ArtBaker } from './bake';
-import { routerStand } from './router3d';
+import { qsfpPorts, routerStand } from './router3d';
 import { routerBoard, type Lying, type RouterBoard } from './routerboard3d';
 import { LEVER_OPEN } from './boardhw3d';
 import { boardModel } from './boardmodel3d';
@@ -86,7 +86,7 @@ import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { monitorPlan, monitorSeats } from '@/features/room/render/three/monitor3d';
 import { rigBuild, seatPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { inFlowOrder, reversed, type CableRun, type RigPower } from './power/runs';
-import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, rj45Jack, rj45Plug, rj45Real, swissEngage, swissPlug, swissReal } from './plugs3d';
+import { boardHdmi, boardRj45, hdmiPlug, hdmiReal, qsfpAt, qsfpPlug, qsfpReal, qsfpSide, rj45Jack, rj45Plug, rj45Real, swissEngage, swissPlug, swissReal } from './plugs3d';
 import { ROOM_SOCKET } from './swisssocket3d';
 import { JACK_SINK, MM as WALL_MM, routerSolid, routerTier, type StageWall } from './studiowall3d';
 import { sleeveOf } from '@/core/render/cable';
@@ -1287,28 +1287,30 @@ export class Machine3D {
     if (has('lan') && (w || (netVisible(s) && this.inRoom))) {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: LAN_LEAD, accent: null };
-      // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot. On the studio's wall: the router's first LAN jack, in its front, a real plug in a real jack)
-      const lan = routerLan();
+      // (its router end: a plug in the router's side jack, sunk in its mouth as in the board's, 20 behind the jack's face; the lead leaves its boot. On the studio's wall: the router's first LAN jack, in its front, a real plug in a real jack.
+      // The edge router's LAN ports are QSFP+ cages: its end is a QSFP+ plug, and the card's end follows the card's port, so a lead to a copper card is the adapter lead)
+      const lan = routerLan(), quad = qsfpPorts(routerTier(s.net?.router?.id) ?? 0) > 0, tone = hexNum(LAN_LEAD);
       const fixed = w
-        ? seatPlug({ at: [w.plan.router.lan[0], w.plan.router.lan[1], w.plan.router.lan[2] - JACK_SINK], axis: [0, 0, 1] }, rj45Plug(rj45Jack(WALL_MM, look.r, hexNum(LAN_LEAD))))
-        : seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD))));
+        ? seatPlug({ at: [w.plan.router.lan[0], w.plan.router.lan[1], w.plan.router.lan[2] - JACK_SINK], axis: [0, 0, 1] }, quad ? qsfpPlug(qsfpAt(WALL_MM, look.r, tone)) : rj45Plug(rj45Jack(WALL_MM, look.r, tone)))
+        : seatPlug({ at: [lan.x - 20, -lan.y, lan.z], axis: [1, 0, 0] }, quad ? qsfpPlug(qsfpSide(look.r, tone)) : rj45Plug(boardRj45(look.r, tone)));
       g.add(fixed.root);
       const from: RopeEnd = fixed.strands[0]!;
       // (a card's jack is on its bracket, in the slot's opening: the plug goes into its mouth, nic3d's `mouthAt`)
+      const visualOf = (d: { spec: string }): string => (getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '';
       const nicAt = (d: { spec: string; slot: string }): V3 => {
-        const p = nicJackAt((getSpec(d.spec) as { visual?: string } | undefined)?.visual ?? '', idx(d.slot));
+        const p = nicJackAt(visualOf(d), idx(d.slot));
         return [p.x - 2, -p.y, p.z];
       };
       // its ports: the board's jack, and each network card's (the 2D game's `eth0`, `eth1`...); the plug stands in the one the sim has it in
-      const jacks = [...((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0 && !s.board.burnt ? [{ port: 'board', at: [CASE.x, -ly, lz] as V3 }] : []), ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, at: nicAt(d) }))];
+      const jacks = [...((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0 && !s.board.burnt ? [{ port: 'board', visual: '', at: [CASE.x, -ly, lz] as V3 }] : []), ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, visual: visualOf(d), at: nicAt(d) }))];
       // (no jack at all, a board without one and no card: the plug waits at the board's place, and nothing takes it)
-      const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', at: [CASE.x, -ly, lz] as V3 };
+      const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0] || { port: 'board', visual: '', at: [CASE.x, -ly, lz] as V3 };
       const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = stage ?? { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
-      // (a card's jack is real, its latch slot up; the board's is cut to its rear I/O's smaller mouth, its latch notch down)
-      const plug = (port: string) => () => (port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, hexNum(LAN_LEAD)))) : seatPlug(seat, rj45Plug(rj45Real(look.r, hexNum(LAN_LEAD))), Math.PI));
+      // (a card's jack is real, its latch slot up; the board's is cut to its rear I/O's smaller mouth, its latch notch down; the 40G card's QSFP+ cage takes a QSFP+ plug, its pull tab down)
+      const plug = (j: { port: string; visual: string }) => () => (j.port === 'board' ? seatPlug(seat, rj45Plug(boardRj45(look.r, tone))) : j.visual === 'nic-40g' ? seatPlug(seat, qsfpPlug(qsfpReal(look.r, tone))) : seatPlug(seat, rj45Plug(rj45Real(look.r, tone)), Math.PI));
       this.addRig(g, {
-        id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: plug(now.port), seat, canSeat: true, engage: 380,
-        port: now.port, alts: jacks.filter((j) => j !== now).map((j) => ({ ...j, model: plug(j.port) })),
+        id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: plug(now), seat, canSeat: true, engage: 380,
+        port: now.port, alts: jacks.filter((j) => j !== now).map((j) => ({ port: j.port, at: j.at, model: plug(j) })),
         seated: (ex) => [hangPts(from, ex[0]!, look, env, o)], deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, on('lan'));
       this.wires.add(g);

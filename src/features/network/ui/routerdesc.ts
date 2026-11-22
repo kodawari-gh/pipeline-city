@@ -39,7 +39,7 @@ export function describeRouterId(id: string, s?: Snapshot | null): Description |
     };
     case 'wanmac': return {
       title: 'WAN MAC',
-      plain: 'The line side of the router. It owns two addresses on the line: the MAC address of the WAN jack, which is fixed in the hardware, and the IP address the provider gave it. The provider sees the router by these, never your PC. The gateway of the provider is the next hop.',
+      plain: 'The line side of the router. It owns two addresses on the line: the MAC address of the WAN port, which is fixed in the hardware, and the IP address the provider gave it. The provider sees the router by these, never your PC. The gateway of the provider is the next hop.',
       nerd: a?.wan ? `WAN ${a.wan.ip}/${a.wan.prefix} | MAC ${a.wan.mac} | gateway ${a.wan.gateway.ip} (${a.wan.gateway.mac}) | DNS ${a.wan.dns.join(', ')}` : 'the WAN IP and MAC show with a plan on the line | the MAC is fixed in the hardware, the IP comes from the provider',
     };
     case 'mem': return {
@@ -49,8 +49,8 @@ export function describeRouterId(id: string, s?: Snapshot | null): Description |
     };
     case 'label': return {
       title: 'Label',
-      plain: 'The sticker on the board. It names the model and prints the two MAC addresses of the router: one for the WAN jack and one for the LAN jacks. A MAC address is made in the factory and does not change. It names one network jack on one wire.',
-      nerd: a?.router ? `LAN MAC ${a.router.lan} | WAN MAC ${a.router.wan} | ${i.soc}` : `${i.soc} | a MAC for the LAN jacks and one for the WAN jack`,
+      plain: 'The sticker on the board. It names the model and prints the two MAC addresses of the router: one for the WAN port and one for the LAN ports. A MAC address is made in the factory and does not change. It names one network port on one wire.',
+      nerd: a?.router ? `LAN MAC ${a.router.lan} | WAN MAC ${a.router.wan} | ${i.soc}` : `${i.soc} | a MAC for the LAN ports and one for the WAN port`,
     };
     case 'pkt': return {
       title: i.engine === 'NAT ENGINE' ? 'NAT engine' : 'Forwarding ASIC',
@@ -84,12 +84,12 @@ export function describeRouterId(id: string, s?: Snapshot | null): Description |
     };
     case 'wanphy': return {
       title: 'WAN PHY',
-      plain: 'Turns the signal on the line into bits, and bits into signal. It stands over the WAN jack, which is the west jack of the row. The slower of your plan and the router sets the speed of the line.',
+      plain: 'Turns the signal on the line into bits, and bits into signal. It stands over the WAN port, which is the west port of the row. The slower of your plan and the router sets the speed of the line.',
       nerd: `${i.std} | ${wan && n?.isp ? `plan ${fmtMbit(n.isp.downMbps)} down` : 'no plan'}${r ? ` | the router is rated ${fmtMbit(r.mbps)}` : ''}`,
     };
     case 'lanphy': return {
       title: 'LAN PHY',
-      plain: 'Turns the signal on the cables of the LAN into bits, and bits into signal. It stands over the four LAN jacks. When the cable goes in, it agrees a speed with the network jack of the PC: the slower of the two.',
+      plain: 'Turns the signal on the cables of the LAN into bits, and bits into signal. It stands over the four LAN ports. When the cable goes in, it agrees a speed with the network port of the PC: the slower of the two.',
       nerd: `${i.std} | ${pc ? `link up, ${fmtMbit(lan)}` : n && r ? `no link${n.reason ? `: ${n.reason}` : ''}` : 'no game'}${r && n ? ` | the PC port ${fmtMbit(n.port.mbps)}, the router ${fmtMbit(r.mbps)}` : ''}`,
     };
     case 'stat': return {

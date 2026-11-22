@@ -16,9 +16,9 @@
   "machine/Group#47": {
     "meshes": 20,
     "draws": 15,
-    "verts": 33624,
+    "verts": 35856,
     "instances": 186,
-    "sum": "994c76ce"
+    "sum": "19b32224"
   },
   "machine/Group#7": {
     "meshes": 1,
@@ -140,11 +140,11 @@
     "sum": "3f8c9184"
   },
   "machine/cable.lan": {
-    "meshes": 15,
-    "draws": 15,
-    "verts": 14736,
-    "instances": 32,
-    "sum": "6075dafa"
+    "meshes": 9,
+    "draws": 9,
+    "verts": 14784,
+    "instances": 112,
+    "sum": "721e0bc4"
   },
   "machine/cable.monmains": {
     "meshes": 5,
@@ -408,9 +408,9 @@
   "machine/dev34": {
     "meshes": 20,
     "draws": 15,
-    "verts": 24208,
+    "verts": 25168,
     "instances": 318,
-    "sum": "b422190b"
+    "sum": "46a78d38"
   },
   "machine/io": {
     "meshes": 8,
@@ -441,11 +441,11 @@
     "sum": "c4567dbc"
   },
   "machine/pcie2.nic-jack": {
-    "meshes": 6,
-    "draws": 6,
-    "verts": 4032,
-    "instances": 16,
-    "sum": "dbdb5f06"
+    "meshes": 7,
+    "draws": 7,
+    "verts": 3240,
+    "instances": 76,
+    "sum": "1a98e5c6"
   },
   "machine/pcie2.nic-nvm": {
     "meshes": 3,
@@ -466,7 +466,7 @@
     "draws": 2,
     "verts": 76,
     "instances": 0,
-    "sum": "462c4923"
+    "sum": "6c762129"
   },
   "machine/power": {
     "meshes": 2,

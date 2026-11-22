@@ -62,6 +62,21 @@ describe('the words for the network card\'s parts', () => {
     expect(describeId('pcie1.nic-ctl', s)!.nerd).toMatch(/10GbE card \| RL-N510, 10GBASE-T/);
   });
 
+  it('calls the 40G card\'s port a QSFP+ cage without transformers and its PHY four lanes with no echo to cancel, and keeps the RJ45 jack and the pairs for the copper cards', () => {
+    const s = game('nic3', 40000), jack = describeId('pcie1.nic-jack', s)!, phy = describeId('pcie1.nic-phy', s)!;
+    expect(jack.title).toBe('QSFP+ cage');
+    expect(jack.plain).toMatch(/no transformers/);
+    expect(jack.nerd).toMatch(/link up, 40 Gbit \| two cages on the bracket, the game has one cable \| 4 lanes of 10\.3125 Gbit\/s each way, 40GBASE-CR4 direct attach lead/);
+    expect(phy.plain).toMatch(/four lanes.*no echo to cancel/);
+    expect(phy.plain).not.toMatch(/cancels echo/);
+    expect(phy.nerd).toMatch(/^40GBASE-CR4 \| link up, 40 Gbit/);
+    expect(describeId('pcie1.nic-ctl', s)!.nerd).toMatch(/40GbE card \| RL-N740, 40GBASE-CR4/);
+    const copper = game('nic2', 10000);
+    expect(describeId('pcie1.nic-jack', copper)!.title).toBe('RJ45 jack');
+    expect(describeId('pcie1.nic-jack', copper)!.nerd).not.toMatch(/cages/);
+    expect(describeId('pcie1.nic-phy', copper)!.plain).toMatch(/Each pair has a front end.*cancels echo/);
+  });
+
   it('says what the DMA engine and the rings hold now: the slots in use, their size, the words moved, and that the kernel polls', () => {
     const d = describeId('pcie1.nic-dma', game('nic2', 10000))!;
     expect(d.nerd).toMatch(/receive ring 1\/4 slots, transmit ring 0\/4 slots \| 280 and 48 bytes a slot \| 15 k words moved since the game started \| 0 interrupts: the kernel polls/);

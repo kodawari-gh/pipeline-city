@@ -1,8 +1,9 @@
 // The router as a 3D model (docs/render/net.md "The router"): one builder for the gallery's showcase and its stills, the Build my PC studio's wall
 // (`studiowall3d.ts`) and the room's shelf (`room3d.ts`), so a router reads the same in all three. Four tiers: the home router (two aerials, four lights),
-// the gigabit one (stouter aerials, a satin front, vents), the 10G switch-router (no aerials, a lit bar, fins) and the edge router (a rack unit: ears, a
-// row of SFP cages, two rows of lights). Every tier has the same five front jacks, a real RJ45 each at real size (`rj45jack3d.ts`): the first LAN east,
-// the WAN west, so a cord's plug seats in the same place on every tier. relay makes it (docs/brands/relay.md): its lockup is debossed in the top.
+// the gigabit one (stouter aerials, a satin front, vents), the 10G switch-router (no aerials, a lit bar, fins) and the edge router (a rack unit: ears, two
+// rows of lights). Every tier has the same five front ports in a row, the first LAN east, the WAN west, so a cord's plug seats in the same place on every tier: a real
+// RJ45 jack each at real size (`rj45jack3d.ts`), but the edge router's five ports, which run at 40G, are QSFP+ cages (`qsfp3d.ts`: a real edge router has no copper port,
+// and its WAN takes the 20 Gbit/s backbone plan). relay makes it (docs/brands/relay.md): its lockup is debossed in the top.
 // The frame: x east, y up (0 is the shelf), z toward the viewer (0 is the front); the east end of the body at x = 0. 23 units a mm (`MM`).
 import { Group, Mesh, MeshStandardMaterial, SphereGeometry, type Texture } from 'three';
 import { BRAND_FONT, MAKER } from '@/core/render/brands';
@@ -12,10 +13,15 @@ import type { V3 } from '@/core/render/three/rope';
 import { ROUTER_SPOT } from '../layout/layout';
 import { debossMat, decal, decalTop, outlinePts, shapeOf, slab, tex } from './casekit3d';
 import { MM } from './pcbkit3d';
+import { QSFP, qsfpFace, qsfpLamps, qsfpLook, type QsfpLook } from './qsfp3d';
 import { jackFace, jackLamp, springGold, type JackLamps, type JackLook } from './rj45jack3d';
 
 /** An RJ45 jack's face, real size (`jackFace`: 13.75 mm over its span's depth), how deep its insert goes. */
 export const RJ = { w: 13.75 * MM, h: 10.7 * MM, deep: 15.5 * MM } as const;
+/** A QSFP+ cage's face on the edge router's front, real size (`qsfpFace`: 18.95 mm across, 10 tall; a real cage is longer, this one is as deep as the jacks' inserts). */
+export const CAGE = { w: QSFP.cage.w * MM, h: QSFP.cage.h * MM, deep: RJ.deep } as const;
+/** How many of the front's five ports (from the first LAN) are QSFP+ cages on a tier: all five of the edge router's, its WAN port too; the other tiers have RJ45 jacks. */
+export const qsfpPorts = (tier: number): number => (tier === 4 ? 5 : 0);
 /** The body's depth in the studio and the gallery (every tier: its jacks stand in the same place), and the pitch of its jacks. */
 export const ROUTER_BODY = 2240;
 export const PITCH = 440;
@@ -63,6 +69,16 @@ const jackRow = (): Group => { const row = new Group(); row.rotation.y = Math.PI
 /** A jack in a `jackRow`, its latch slot down. `face` is its face's z. */
 const jackIn = (row: Group, x: number, y: number, face: number, look: JackLook, fine: boolean): void => {
   jackFace(row, -face, { y0: -(y + RJ.h / 2), y1: -(y - RJ.h / 2), z0: x - RJ.w / 2, z1: x + RJ.w / 2 }, RJ.deep, look, fine);
+};
+
+/**
+ * A QSFP+ cage in a `jackRow`, its two lights over it in the bezel (lenses on the front: the bezel's face is z = 0, so they stand on it, not on the cage's face). `face` is the cage's
+ * face's z.
+ */
+const cageIn = (row: Group, x: number, y: number, face: number, look: QsfpLook, lamps: JackLamps, fine: boolean): void => {
+  const s = { y0: -(y + CAGE.h / 2), y1: -(y - CAGE.h / 2), z0: x - CAGE.w / 2, z1: x + CAGE.w / 2 };
+  qsfpFace(row, -face, s, CAGE.deep, look, fine);
+  qsfpLamps(row, 0, s, '-y', lamps, look, false);
 };
 
 /** A jack in a front facing the viewer, in a row of its own. `face` is its face's z. */
@@ -145,7 +161,9 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
 
   // the body: the shell behind, the front bezel (open at each jack) in front of it, the plinth and the four feet under it
   sh.add(softBox(lay(-w, 0, UNDER, h), -D, -SEAM, shell, L.r));
-  const holes = [0, 1, 2, 3, 4].map((k) => { const [x, y] = routerJack(k); return outlinePts(lay(x - RJ.w / 2, x + RJ.w / 2, y - RJ.h / 2, y + RJ.h / 2), 0); });
+  // (an opening for each RJ45 jack; the edge router's QSFP+ cages stand in one, a hair apart as in a ganged cage)
+  const nq = qsfpPorts(t), holes = [0, 1, 2, 3, 4].filter((k) => k >= nq).map((k) => { const [x, y] = routerJack(k); return outlinePts(lay(x - RJ.w / 2, x + RJ.w / 2, y - RJ.h / 2, y + RJ.h / 2), 0); });
+  if (nq) { const a = routerJack(nq - 1), b = routerJack(0), m = 6; holes.push(outlinePts(lay(a[0] - CAGE.w / 2 - m, b[0] + CAGE.w / 2 + m, b[1] - CAGE.h / 2 - m, b[1] + CAGE.h / 2 + m), 0)); }
   sh.add(slab(shapeOf(outlinePts(lay(-w, 0, UNDER, h), L.r, undefined, SEG.cornerCoarse), holes), -SEAM, 0, front));
   g.add(softBox(lay(-w + 70, -70, FOOT, ROUTER_FLOOR), -D + 90, -70, plinth, 30));
   for (const x of [-170, -w + 170]) for (const z of [-200, -D + 200]) g.add(post(x, 0, z, 70, FOOT, rubber, SEG.smallDisc));
@@ -154,8 +172,12 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   // One it does not has a dark lens and no lamp.
   const insert = mat(0x131518, { roughness: 0.9 }), contact = springGold(), off = mat(0x131518, { roughness: 0.3 }), driven = new Set(o.drive ?? [0, 1, 2, 3, 4]);
   const jacks = [0, 1, 2, 3, 4].map((k): JackLamps | null => (driven.has(k) ? { link: jackLamp(LINK), act: jackLamp(ACT) } : null));
-  const row = jackRow();
-  jacks.forEach((j, k) => { const [x, y, z] = routerJack(k); jackIn(row, x, y, z, { shell: steel, insert, contact, link: j?.link ?? off, act: j?.act ?? off }, fine); });
+  const row = jackRow(), cages = nq ? qsfpLook(steel) : null;
+  jacks.forEach((j, k) => {
+    const [x, y, z] = routerJack(k), lamps = { link: j?.link ?? off, act: j?.act ?? off };
+    if (cages && k < nq) cageIn(row, x, y, z, cages, lamps, fine);
+    else jackIn(row, x, y, z, { shell: steel, insert, contact, ...lamps }, fine);
+  });
   g.add(row);
   const lg = legend();
   if (lg) sh.add(decal(lay(lg.x0, lg.x1, 118, 170), 0.8, print(lg.t)));
@@ -167,19 +189,9 @@ export function routerModel(tier: number, o: RouterOpts = {}): RouterModel {
   for (const y of rows) for (const x of xs) sh.add(drum(x, -y, 2, 12, t === 4 ? 22 : 26, led, SEG.part));
   // (the wider tiers have room west of the WAN jack: slots that breathe)
   if (t >= 2) {
-    const x1 = routerJack(4)[0] - RJ.w / 2 - 120, top = t === 2 ? 430 : t === 3 ? 520 : 640;
+    const x1 = routerJack(4)[0] - (nq > 4 ? CAGE.w : RJ.w) / 2 - 120, top = t === 2 ? 430 : t === 3 ? 520 : 640;
     for (let x = -w + 140; x + 44 <= x1; x += 90) sh.add(rectBox(lay(x, x + 44, 200, top), -3, 5, dark));
   }
-  // (the edge router: a row of SFP cages over its jacks, each a steel frame round a dark mouth: a steel of their own, the jacks' is not the shell's)
-  if (t === 4) {
-    const cage = mat(0x959aa3, { metalness: 0.8, roughness: 0.44 });
-    for (let k = 1; k <= 4; k++) {
-      const x = routerJack(k)[0];
-      sh.add(slab(shapeOf(outlinePts(lay(x - 165, x + 165, 500, 696), 14, undefined, SEG.cornerCoarse), [outlinePts(lay(x - 135, x + 135, 530, 666), 8, undefined, SEG.cornerCoarse)]), -4, 7, cage));
-      sh.add(rectBox(lay(x - 135, x + 135, 530, 666), 0, 3, dark));
-    }
-  }
-
   // the top: the lit bar (10G and core), the fins (10G), the vents, and the maker's lockup debossed in it
   if (t >= 3) sh.add(rectBox(lay(-w + 420, -420, h - 5, h + 3), -240, -170, led));
   const vz0 = -D + 300, vz1 = Math.min(-D + 1000, -SEAM - 100);

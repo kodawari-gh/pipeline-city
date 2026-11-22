@@ -30,6 +30,8 @@ const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h })
 const wave = (ms: number, k: number, speed = 1): number => 0.5 + 0.5 * Math.sin(ms / (90 / speed) - k * 0.9);
 /** The speed pairs of the cable, as the standards name them. */
 export const PAIRS = ['A', 'B', 'C', 'D'] as const;
+/** The four lanes of a QSFP+ port, as 40GBASE-R numbers them (each lane is one way over its own twinax pair, so a stage has no echo to cancel). */
+export const LANES = ['0', '1', '2', '3'] as const;
 /** The Ethernet frame's fields and the width each takes in the drawing (not to scale: the payload is up to 1500 bytes, the rest a few). */
 export const FRAME_FIELDS = [['PRE', 10], ['DST', 14], ['SRC', 14], ['TYPE', 9], ['PAYLOAD', 41], ['FCS', 12]] as const;
 /** The three stages each pair goes through in the PHY. */
@@ -37,11 +39,14 @@ export const PHY_STAGES = ['AFE', 'DSP', 'PCS'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing and the live layer share
 
-/** The PHY: a row for each pair the standard uses (`pairs`: four, or two for 100BASE-TX) with its three stages, the speed gauge and the line under it. */
-export function phyGeom(a: Rect, pairs: number = PAIRS.length) {
+/** The names of a PHY's rows: a copper port's pairs, or a QSFP+ port's lanes. */
+export const phyNames = (input: Pick<NicPlanInput, 'port'>): readonly string[] => (input.port === 'qsfp' ? LANES : PAIRS);
+
+/** The PHY: a row for each pair the standard uses (`pairs`: four, or two for 100BASE-TX; a QSFP+ port's four are lanes, `names`) with its three stages, the speed gauge and the line under it. */
+export function phyGeom(a: Rect, pairs: number = PAIRS.length, names: readonly string[] = PAIRS) {
   const lw = 20, foot = 50, pitch = (a.h - foot) / pairs, gap = 12, sw = (a.w - lw - 2 * gap) / 3;
   return {
-    pairs: PAIRS.slice(0, pairs).map((name, k) => {
+    pairs: names.slice(0, pairs).map((name, k) => {
       const y = a.y + k * pitch, h = Math.min(30, pitch - 8), cy = y + pitch / 2;
       return { name, cy, stages: PHY_STAGES.map((_, j) => R(a.x + lw + j * (sw + gap), cy - h / 2, sw, h)) };
     }),
@@ -128,7 +133,7 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
   const arrow = (x0: number, y: number, x1: number) => { stub(x0, y, x1, y); g.poly([x1, y, x1 - 4, y - 2.5, x1 - 4, y + 2.5]).fill({ color: line }); };
   switch (b.kind) {
     case 'phy': {
-      const q = phyGeom(a, input.pairs);
+      const q = phyGeom(a, input.pairs, phyNames(input));
       for (const p of q.pairs) {
         lab(p.name, a.x, p.cy);
         p.stages.forEach((r, j) => {
@@ -223,7 +228,7 @@ export function nicLive(b: Pick<NicBlock, 'kind' | 'rect'>, a: Rect, s: NicShow,
   const txt = (r: Rect, t: string, fit?: number) => out.texts.push({ rect: r, top: t, ink: true, ...(fit !== undefined ? { fit } : {}) });
   switch (b.kind) {
     case 'phy': {
-      const q = phyGeom(a, input.pairs);
+      const q = phyGeom(a, input.pairs, phyNames(input));
       if (on && any > 0) q.pairs.forEach((p, k) => p.stages.forEach((r, j) => out.lit.push({ rect: r, color: j === 1 ? 'mul' : 'alu', a: 0.12 * any * wave(ms, k + j * 1.5, 1.4) })));
       const full = s.rated > 0 ? Math.min(1, s.mbps / s.rated) : 0;
       if (on) out.lit.push({ rect: { ...q.gauge, w: q.gauge.w * full }, color: s.hot ? 'ld' : 'alu', a: 0.45 });

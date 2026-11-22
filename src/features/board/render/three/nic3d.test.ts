@@ -5,10 +5,11 @@ import { nicGeo } from '@/features/network/render/nic/niclayout';
 import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier } from '../layout/layout';
 import { cardReach, HINGE_Z, nicJackAt, STAND } from './card3d';
 import type { CardFrame } from './gpu3d';
-import { JACK, JACK_X, jacksOf, MOUTH, mouthAt, nicBack, nicParts, type NicBuild } from './nic3d';
+import { CAGE, JACK, JACK_X, jackOf, jacksOf, MOUTH, mouthAt, nicBack, nicParts, type NicBuild } from './nic3d';
 import { DIE_MM } from './nicchip3d';
 import { COOLER_FROM, NIC_LANES, nicCopper } from './niccopper';
 import { TAB, tabOf } from './pcie';
+import { QSFP } from './qsfp3d';
 
 const MM = 23, Z = HINGE_Z, PCB_T = 24, Zp = Z - PCB_T;
 const frame = (visual: string): CardFrame => {
@@ -20,25 +21,30 @@ const copper = (visual: string, f: CardFrame) => nicCopper(visual, f, tabOf(0, f
 const build = (visual: string, floor?: NicBuild['floor']): NicBuild => ({ slot: 'pcie0', plan: nicGeo(visual, 0).die, ...(floor ? { floor } : {}) });
 
 describe("the network card's real parts", () => {
-  it('builds the RJ45 jacks at their real size, out through the bracket, and seats the LAN plug in the first one\'s mouth', () => {
+  it('builds the ports at their real size (the RJ45 jacks, the 40G card\'s QSFP+ cages), out through the bracket, and seats the LAN plug in the first one\'s mouth', () => {
     setLayoutTier(3, 3);
     expect([JACK.w, JACK.h, JACK.d].map((v) => v / MM)).toEqual([16, 13.5, 22]);
     expect(MOUTH.w / MM).toBeCloseTo(11.68, 2);
+    // (the cage: 18.95 x 10 mm, the lights' block 2.4 mm over it, as deep as the jack so the controller and the sink stay where they are)
+    expect([CAGE.w, CAGE.h, CAGE.d].map((v) => v / MM)).toEqual([expect.closeTo(18.95, 6), expect.closeTo(12.4, 6), 22]);
+    expect(jackOf('nic-gbe')).toBe(JACK);
+    expect(jackOf('nic-10g')).toBe(JACK);
+    expect(jackOf('nic-40g')).toBe(CAGE);
     for (const [visual, n] of [['nic-gbe', 1], ['nic-10g', 1], ['nic-40g', 2]] as const) {
-      const y0 = nicY(0), ys = jacksOf(visual, y0);
+      const y0 = nicY(0), ys = jacksOf(visual, y0), P = jackOf(visual), up = visual === 'nic-40g' ? (QSFP.cage.h * MM) / 2 : MOUTH.base + MOUTH.main / 2;
       expect(ys, visual).toHaveLength(n);
-      // the jacks stand inside the card's height, apart
-      expect(ys[ys.length - 1]! + JACK.w, visual).toBeLessThan(y0 + STAND.nic);
-      if (n > 1) expect(ys[1]! - ys[0]!).toBeGreaterThan(JACK.w);
-      // the plug's seat, standing: the first mouth's middle, out past the bracket's face, north of the slot's line (the jack stands on the PCB's top face: the PCB is below the ports)
-      const p = nicJackAt(visual, 0), m = mouthAt(ys[0]!, Z);
+      // the ports stand inside the card's height, apart
+      expect(ys[ys.length - 1]! + P.w, visual).toBeLessThan(y0 + STAND.nic);
+      if (n > 1) expect(ys[1]! - ys[0]!).toBeGreaterThan(P.w);
+      // the plug's seat, standing: the first mouth's middle, out past the bracket's face, north of the slot's line (the port stands on the PCB's top face: the PCB is below it)
+      const p = nicJackAt(visual, 0), m = mouthAt(ys[0]!, Z, visual);
       expect(p.x).toBe(JACK_X);
       expect(p.x).toBeLessThan(NIC_BRACKET_X);
       expect(y0 - p.y).toBeGreaterThan(0);
-      expect(y0 - p.y).toBeLessThan(JACK.h);
-      expect(y0 - p.y).toBeCloseTo(MOUTH.base + MOUTH.main / 2, 3);
+      expect(y0 - p.y).toBeLessThan(P.h);
+      expect(y0 - p.y).toBeCloseTo(up, 3);
       expect(p.z - HINGE_Z).toBeCloseTo(m.y - y0, 3);
-      expect(p.z - HINGE_Z).toBeCloseTo(ys[0]! - y0 + JACK.w / 2, 3);
+      expect(p.z - HINGE_Z).toBeCloseTo(ys[0]! - y0 + P.w / 2, 3);
     }
   });
 
@@ -56,10 +62,10 @@ describe("the network card's real parts", () => {
       expect(b.min.x, visual).toBeGreaterThanOrEqual(JACK_X - 1);
       expect(b.max.x, visual).toBeLessThanOrEqual(f.x1 + 1);
       // the jacks are the tallest thing (their ground springs and ribs a hair over their shield's face), in front of the controller, and clear of the cooler of a card north of it (`COOLER_FROM`)
-      const jacks = findById(g, 'pcie0.nic-jack')!, ju = new Box3().setFromObject(jacks);
+      const jacks = findById(g, 'pcie0.nic-jack')!, ju = new Box3().setFromObject(jacks), P = jackOf(visual);
       expect(ju.min.z, visual).toBeGreaterThanOrEqual(Z - 1);
-      expect(ju.max.z - Z, visual).toBeGreaterThanOrEqual(JACK.h);
-      expect(ju.max.z - Z, visual).toBeLessThanOrEqual(JACK.h + 0.5 * MM + 1);
+      expect(ju.max.z - Z, visual).toBeGreaterThanOrEqual(P.h - 1e-6);
+      expect(ju.max.z - Z, visual).toBeLessThanOrEqual(P.h + 0.5 * MM + 1);
       expect(b.max.z, visual).toBeCloseTo(ju.max.z, 6);
       expect(ju.max.x - BD.x, visual).toBeLessThanOrEqual(COOLER_FROM);
     }
@@ -80,9 +86,9 @@ describe("the network card's real parts", () => {
         expect(b.rect.y + b.rect.h, `${visual} ${b.id}`).toBeLessThanOrEqual(f.end + 1);
         expect(b.h, `${visual} ${b.id}`).toBeGreaterThanOrEqual(0);
       }
-      // the jack is the tallest, its height the real 13.5 mm; the others stand no higher than the card's north reach; the label is a sticker with no height
+      // the jack is the tallest, its height the real 13.5 mm (the 40G card's cage with its lights' block, 12.4 mm); the others stand no higher than the card's north reach; the label is a sticker with no height
       const jack = out.bodies.find((b) => b.id === 'pcie0.nic-jack')!;
-      expect(jack.h, visual).toBe(JACK.h);
+      expect(jack.h, visual).toBeCloseTo(jackOf(visual).h, 6);
       expect(Math.max(...out.bodies.map((b) => b.h)), visual).toBe(jack.h);
       for (const b of out.bodies.filter((o) => o !== jack)) expect(b.h, `${visual} ${b.id}`).toBeLessThanOrEqual(cardReach('nic', visual).north);
       expect(out.bodies.find((b) => b.id === 'pcie0.nic-label')!.h, visual).toBe(0);

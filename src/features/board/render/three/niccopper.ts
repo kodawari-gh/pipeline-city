@@ -10,7 +10,8 @@
 // straight to the controller; its transmit pairs (side A's PER) leave the fingers on the back through their AC-coupling capacitors, then to vias
 // at the controller. The reference clock, PERST# and the 3.3 V pins are on side A; WAKE# and a third 3.3 V pin on side B; PRSNT1# loops to the
 // last PRSNT2# on the inner layer (the slot reads the card's width). The jacks: twelve contacts in two rows (the four pairs and their centre
-// taps, each tap to ground through a capacitor on the back), the lights' four pins at the front, the shield's legs and two plastic pegs. Their
+// taps, each tap to ground through a capacitor on the back), the lights' four pins at the front, the shield's legs and two plastic pegs. The 40G card's two QSFP+ cages
+// take the same pin frame, centred under the wider cage (`pinShift`): its netlist stays this copper bus, a stand-in for the four direct attach lanes. Their
 // pairs and the lights' lines run east as one bus to the controller's west edge, closing to its pitch by 45-degree jogs; the crystal's two lines
 // join it. The SPI flash east of the controller, the regulator with its two inductors and polymer capacitors past it.
 import { BD_X } from '../layout/boardlayout';
@@ -24,6 +25,15 @@ export type Layer = Face | 'in1';
 
 /** An RJ45 jack with its magnetics (mm, as layout units): across the bracket, off the PCB's top face, and deep; the tallest part on the card. */
 export const JACK = { w: 16 * MM, h: 13.5 * MM, d: 22 * MM };
+/**
+ * The 40G card's QSFP+ port (qsfp3d.ts): the cage 18.95 mm across the bracket, as deep as the jack (a real cage is longer, the controller stands in the way) and 10 mm over the PCB, the light pipe's
+ * block on it 2.4 mm more: `h` is the whole of it. The cage's pins stand where an RJ45 jack's would, centred under it (`pinShift`), and the copper is the same four-lane bus.
+ */
+export const CAGE = { w: 18.95 * MM, h: 12.4 * MM, d: 22 * MM };
+/** A card's port: its box on the PCB (across the bracket, off the PCB's top face, deep): the RJ45 jack's, or the 40G card's QSFP+ cage. */
+export const jackOf = (visual: string): { w: number; h: number; d: number } => (visual === 'nic-40g' ? CAGE : JACK);
+/** How far a port's pin frame stands in from the port's edge (layout units): the RJ45 jack's pins are 16 mm across, a wider cage centres them. */
+export const pinShift = (visual: string): number => (jackOf(visual).w - JACK.w) / 2;
 /** The jacks' front: past the bracket's face, through the case's rear wall, the mouths just in from its outer face (where the LAN plug goes in). */
 export const JACK_X = NIC_BRACKET_X - 150;
 /**
@@ -31,8 +41,8 @@ export const JACK_X = NIC_BRACKET_X - 150;
  * the card in the slot north of it (a GPU's shroud, an AI card's blower), so no cooler stands over them (`fit.test.ts`).
  */
 export const COOLER_FROM = JACK_X + JACK.d + 14 - BD_X;
-/** A card's jacks (two on the 40G card), as their slot-side edges, lying. */
-export const jacksOf = (visual: string, y0: number): number[] => (visual === 'nic-40g' ? [0, 1] : [0]).map((k) => y0 + 120 + k * (JACK.w + 30));
+/** A card's jacks (two cages on the 40G card), as their slot-side edges, lying. */
+export const jacksOf = (visual: string, y0: number): number[] => (visual === 'nic-40g' ? [0, 1] : [0]).map((k) => y0 + 120 + k * (jackOf(visual).w + 30));
 /** A NIC's link width: x1, x4 or x8 (a GPU's and an AI card's are x16). */
 export const NIC_LANES: Record<string, number> = { 'nic-gbe': 1, 'nic-10g': 4, 'nic-40g': 8 };
 
@@ -145,7 +155,8 @@ export function nicCopper(visual: string, f: { x0: number; x1: number; y0: numbe
   const sink = qfn ? null : { x: chip.x + chip.w / 2 - C.sink / 2, y: chip.y + chip.h / 2 - C.sink / 2, w: C.sink, h: C.sink };
   const east = sink ? sink.x + sink.w : chip.x + chip.w + 3.5;
   const xF = east + 5.5, yF = qfn ? chip.y + chip.h / 2 : 23, xR = xF, yR = qfn ? 27 : 35, pcx = xR + 11;
-  const jys = jacksOf(visual, 0).map((y) => y / MM), xJ = 17, cyX = jys.length > 1 ? 42.3 : 25;
+  // (the ports' edges, and their pin frames: a wider cage centres its pins; the crystal stands south of the last port)
+  const edges = jacksOf(visual, 0).map((y) => y / MM), jys = edges.map((y) => y + pinShift(visual) / MM), xJ = 17, cyX = jys.length > 1 ? 47 : 25;
 
   // ---- the PCIe edge: a gold finger per pin on each face, each wired pin's stub into the board
   const fx = (p: number) => tx + pinAt(p) / MM, fy0 = (FINGER.from - TAB) / MM, fy1 = fy0 + FINGER.len / MM, fs = fy1 - 0.3;
@@ -368,10 +379,10 @@ export function nicCopper(visual: string, f: { x0: number; x1: number; y0: numbe
   // the labels, the jacks' footprints, the fiducials, every other net's copper)
   const flashR = { x: xF - 1.95, y: yF - 2.45, w: 3.9, h: 4.9 }, regR = { x: xR - 1.5, y: yR - 1.5, w: 3, h: 3 };
   const label = { x: Math.min(pcx + 9, L - 24), y: H - 14, w: 20, h: 6.2 }, serial = { x: Math.min(pcx + 6, L - 30), y: 8, w: 26, h: 9 };
-  const fids: Pt[] = [[L - 3, 2.5], [3, H - 3]], jx1 = (JACK_X + JACK.d - f.x0) / MM;
+  const fids: Pt[] = [[L - 3, 2.5], [3, H - 3]], jx1 = (JACK_X + jackOf(visual).d - f.x0) / MM;
   const keep: Rect[] = [
     sink ?? chip, crystal, flashR, regR, label, serial, ...inductors, ...cans.map((c) => ({ x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r })),
-    ...jys.map((y) => ({ x: -1, y, w: jx1 + 1, h: JACK.w / MM })), ...fids.map(([x, y]) => ({ x: x - 1, y: y - 1, w: 2, h: 2 })),
+    ...edges.map((y) => ({ x: -1, y, w: jx1 + 1, h: jackOf(visual).w / MM })), ...fids.map(([x, y]) => ({ x: x - 1, y: y - 1, w: 2, h: 2 })),
     ...parts.map((p) => { const [l, w] = PKG[p.pkg], sx = p.turn ? w : l, sy = p.turn ? l : w; return { x: p.x - sx / 2, y: p.y - sy / 2, w: sx, h: sy }; }),
   ];
   const vr = CU.via / MM, ok = (net: string, g: number) => g >= (net === 'GND' ? vr + 0.1 : vr + CU.clear / MM + 0.15);

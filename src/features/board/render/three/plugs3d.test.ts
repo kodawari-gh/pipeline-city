@@ -5,8 +5,10 @@ import { IO_HALF, IO_Z } from './boardhw3d';
 import { OUTPUTS } from './gpu3d';
 import { MOUTH } from './nic3d';
 import {
-  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissEngage, swissLength, swissPlug, swissReal, T13,
+  boardHdmi, boardRj45, HDMI, hdmiLength, hdmiPlug, hdmiReal, lozenge, QSFP_SIDE_K, qsfpAt, qsfpLength, qsfpPlug, QSFPM, qsfpReal, qsfpSide, RJ45, rj45Length, rj45Plug, rj45Real, SWISS, swissEngage, swissLength,
+  swissPlug, swissReal, T13,
 } from './plugs3d';
+import { QSFP } from './qsfp3d';
 
 const MM = 23, VIDEO_R = 34, LAN_R = 40;
 
@@ -50,6 +52,37 @@ describe('the cables plugs', () => {
       expect(scale).toBeGreaterThanOrEqual(f.k);
       expect((2 * f.cable) / (h * scale)).toBeLessThanOrEqual(share + 1e-9);
     }
+  });
+
+  it('builds a QSFP+ plug at real size: the module fits the cage\'s mouth, its nose goes in ahead of it, the boot and the pull tab stay out, the cable leaves at 0', () => {
+    const f = qsfpReal(LAN_R, 0x8cc3e0), plug = qsfpPlug(f), b = new Box3().setFromObject(plug.body);
+    // the module is 18.35 x 8.5 (SFF-8436) and goes into the cage's mouth (qsfp3d.ts) with a clearance
+    expect(f.body.w / MM).toBeCloseTo(QSFP.module.w, 6);
+    expect(f.body.h / MM).toBeCloseTo(QSFP.module.h, 6);
+    expect(f.body.w).toBeLessThan(QSFP.mouth.w * MM);
+    expect(f.body.h).toBeLessThan(QSFP.mouth.h * MM);
+    expect(plug.l).toBe(qsfpLength(f));
+    expect(plug.l).toBeCloseTo(QSFPM.l * MM);
+    // the nose 16 ahead of the mouth (z = -l), its gold fingers a hair proud of it (0.15 mm), the cable leaving at 0
+    expect(b.min.z).toBeLessThan(-plug.l - QSFPM.in * MM);
+    expect(b.min.z).toBeGreaterThan(-plug.l - (QSFPM.in + 0.2) * MM);
+    expect(b.max.z).toBeLessThanOrEqual(1);
+    // the boot is the widest part, a hair over the housing; the pull tab hangs under it on the keyed side (-y), and nothing else stands lower than it
+    expect((b.max.x - b.min.x) / MM).toBeCloseTo(QSFPM.boot.w, 0);
+    expect(b.min.y).toBeLessThan(-(QSFPM.boot.h / 2) * MM);
+    expect(b.max.y).toBeLessThanOrEqual((QSFPM.boot.h / 2 + 0.4) * MM);
+    // the cable's boot keeps a real plug's share of it at a smaller scale (the room's router's side cage): never thinner than the cable over a real share
+    const small = qsfpAt(11, LAN_R, 0), scale = qsfpLength(small) / QSFPM.l;
+    expect(scale).toBeGreaterThanOrEqual(small.k);
+    expect((2 * small.cable) / (QSFPM.boot.h * scale)).toBeLessThanOrEqual(0.6 + 1e-9);
+  });
+
+  it('draws the room router\'s QSFP+ side cage at the scale of the board\'s rear RJ45, with a plug that fits its mouth', () => {
+    expect(QSFP_SIDE_K * 13.75).toBeCloseTo(IO_Z.rj45[1] - IO_Z.rj45[0], 6);
+    const f = qsfpSide(LAN_R, 0);
+    expect(f.k).toBe(QSFP_SIDE_K);
+    expect(f.body.w).toBeLessThan(QSFP.mouth.w * QSFP_SIDE_K);
+    expect(f.body.h).toBeLessThan(QSFP.mouth.h * QSFP_SIDE_K);
   });
 
   it('builds a Swiss plug at real size: the head and the pins go in ahead of the mouth, the plug stands out of it, the cord leaves at 0', () => {

@@ -72,9 +72,9 @@ const lenOf = (kind: CardKind, visual: string) => (kind === 'nic' ? NIC_LEN[visu
 export const cardReach = (kind: CardKind, visual: string) => ({ len: lenOf(kind, visual), south: PCB_T + coolerT(kind, visual), north: kind === 'nic' ? Math.ceil(NIC_TOP) : BACK_T });
 /** The GPU's HDMI mouth (gpu3d's `OUTPUTS`), standing: its face (layout x), its middle (layout y) and depth, where the monitor's cable plugs in. */
 export const gpuVideoAt = (_visual: string, slot: number) => ({ x: NIC_BRACKET_X + OUT_IN + 2, y: nicY(slot) + PCB_T + outDepth(OUTPUTS[0]!), z: HINGE_Z + OUTPUTS[0]!.c });
-/** A NIC's first RJ45 opening (nic3d's `mouthAt`), standing: its face (layout x), its middle (layout y: north of the slot's line, the jack stands on the PCB's top face) and depth, where the LAN plug goes in. */
+/** A NIC's first port's opening (nic3d's `mouthAt`: an RJ45 jack's, or the 40G card's QSFP+ cage's), standing: its face (layout x), its middle (layout y: north of the slot's line, the jack stands on the PCB's top face) and depth, where the LAN plug goes in. */
 export const nicJackAt = (visual: string, slot: number) => {
-  const y0 = nicY(slot), m = mouthAt(jacksOf(visual, y0)[0]!, HINGE_Z);
+  const y0 = nicY(slot), m = mouthAt(jacksOf(visual, y0)[0]!, HINGE_Z, visual);
   return { x: JACK_X, y: y0 - (m.z - HINGE_Z), z: HINGE_Z + (m.y - y0) };
 };
 

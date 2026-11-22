@@ -3,7 +3,7 @@ import { NIC_RX_SLOTS, NIC_TX_SLOTS } from '@/core/sim/memmap';
 import { STRETCH } from '../jackleds';
 import type { Rect } from '../plan/netplan';
 import {
-  FRAME_FIELDS, NIC_GLYPH_KINDS, PAIRS, PHY_STAGES, actLevel, dmaGeom, macGeom, nicGlyphArea, nicLive, pcieGeom, phyGeom, queueGeom, statsGeom, tempAt, tempGeom,
+  FRAME_FIELDS, LANES, NIC_GLYPH_KINDS, PAIRS, PHY_STAGES, actLevel, dmaGeom, macGeom, nicGlyphArea, nicLive, pcieGeom, phyGeom, phyNames, queueGeom, statsGeom, tempAt, tempGeom,
 } from './nicglyph';
 import { macOf } from './nicmac';
 import { nicInput, nicPlan, type NicBlock } from './nicplan';
@@ -62,6 +62,15 @@ describe('the parts of the symbols', () => {
     for (const p of two.pairs) { expect(p.stages.length).toBe(PHY_STAGES.length); for (const s of p.stages) expect(inside(s, a)).toBe(true); expect(apart(p.stages[0]!, two.gauge)).toBe(true); }
     expect(two.pairs[1]!.cy - two.pairs[0]!.cy).toBeGreaterThan(four.pairs[1]!.cy - four.pairs[0]!.cy);
     expect(two.pairs[0]!.stages[0]!.h).toBe(four.pairs[0]!.stages[0]!.h);
+  });
+
+  it('names a QSFP+ port\'s four rows as lanes 0 to 3 and a copper port\'s as pairs A to D, on the same rows and stages', () => {
+    expect(phyNames(nicInput('nic-40g'))).toEqual([...LANES]);
+    for (const v of ['nic-gbe', 'nic-10g', 'board-fe', 'board-ge']) expect(phyNames(nicInput(v)), v).toEqual([...PAIRS]);
+    const a = area('phy'), lanes = phyGeom(a, 4, phyNames(nicInput('nic-40g')));
+    expect(lanes.pairs.map((p) => p.name)).toEqual(['0', '1', '2', '3']);
+    expect(lanes.pairs.map((p) => p.cy)).toEqual(phyGeom(a).pairs.map((p) => p.cy));
+    expect(lanes.pairs.every((p) => p.stages.length === PHY_STAGES.length)).toBe(true);
   });
 
   it('lights a Fast Ethernet chip\'s PHY on its two pairs only, with its own standard', () => {

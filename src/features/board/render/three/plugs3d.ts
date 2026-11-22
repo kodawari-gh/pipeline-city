@@ -1,5 +1,5 @@
 // The plugs of the cables the player moves at the PC's end (and the video cable's at the monitor), as real ones: an HDMI plug, an RJ45 (8P8C)
-// plug and a Swiss mains (type 12) plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
+// plug, a QSFP+ plug (the end of a 40GBASE-CR4 lead) and a Swiss mains (type 12) plug, built `k` units a mm. Each is built round its own z axis: the socket's mouth at z = -l, the cable leaving at z = 0 (`seatPlug`,
 // cablerig3d.ts, stands one in its seat), the part that goes into the socket ahead of the mouth (hidden when it is seated, seen when it lies
 // loose); its long side along x, its keyed side (HDMI's cut corners, the RJ45's latch) at -y. A real socket (a card's, the monitor's) takes a
 // real plug. The board's rear I/O is drawn at about a third of real size: its plug's tip is cut to its mouth, and its boot keeps a real plug's
@@ -24,8 +24,17 @@ export const HDMI = { tip: { w: 13.9, h: 4.45, cut: 1.3 }, in: 8.5, boot: { w: 2
  */
 export const RJ45 = { body: { w: 11.6, h: 6.5 }, in: 14, out: 6, latch: { w: 6, rise: 1.8 }, boot: { w: 13.5, h: 10, w1: 9.5, h1: 8.5 }, l: 23 } as const;
 
+/**
+ * A QSFP+ plug's real size (mm), the end of a 40GBASE-CR4 direct attach lead: the module's housing 18.35 x 8.5, 16 of it drawn ahead of the cage's mouth (the nose, its card edge's gold fingers in
+ * a dark recess) and 13 of it out of the cage with grip ribs on both broad faces; the collar, then the moulded boot 18.9 x 10 drawn in to 12 x 9.4 over 24, the ribbed strain relief; the pull tab,
+ * a flat strip 9 wide on the keyed side under the boot with its ring at the far end (30 long, 0.9 thick); 44 out of the cage to the cable.
+ */
+export const QSFPM = { body: { w: 18.35, h: 8.5 }, in: 16, out: 13, boot: { w: 18.9, h: 10, w1: 12, h1: 9.4, l: 24 }, tab: { w: 9, l: 30, t: 0.9, ring: 2.2, root: 1.6 }, l: 44 } as const;
+
 /** An HDMI plug for one socket: `k` units a mm, its tip's cross-section (the socket's mouth), the cable's radius. */
 export interface HdmiFit { k: number; tip: { w: number; h: number; cut: number }; cable: number }
+/** A QSFP+ plug for one cage: `k` units a mm, its module's cross-section (the cage's mouth), the cable's radius and the boot's colour. */
+export interface QsfpFit { k: number; body: { w: number; h: number }; cable: number; tone: number }
 /** An RJ45 plug for one jack: `k` units a mm, its body's cross-section and its latch (the jack's mouth and latch slot), the cable's radius and colour. */
 export interface Rj45Fit { k: number; body: { w: number; h: number }; latch: { w: number; rise: number }; cable: number; tone: number }
 
@@ -37,6 +46,16 @@ export const rj45Real = (cable: number, tone: number): Rj45Fit => ({
 
 /** A plug for a compact jack (rj45jack3d.ts `jackFace`) built `k` units a mm: its mouth is 11.68 wide and 8.2 high, its latch slot 4.2 across and 0.7 past the latch side. */
 export const rj45Jack = (k: number, cable: number, tone: number): Rj45Fit => ({ k, body: { w: RJ45.body.w * k, h: RJ45.body.h * k }, latch: { w: 3.8 * k, rise: 0.55 * k }, cable, tone });
+
+/** A plug for a QSFP+ cage (qsfp3d.ts `qsfpFace`) built `k` units a mm: the card's cage and the router's are real size (`k` 23), the room's router has a small side cage. */
+export const qsfpAt = (k: number, cable: number, tone: number): QsfpFit => ({ k, body: { w: QSFPM.body.w * k, h: QSFPM.body.h * k }, cable, tone });
+export const qsfpReal = (cable: number, tone: number): QsfpFit => qsfpAt(MM, cable, tone);
+/**
+ * Units a mm of the room's router's side port when it is a QSFP+ cage (the edge router): the port is as wide as the board's rear RJ45 (`IO_Z.rj45`, which holds a 13.75 mm shell), so the
+ * cage is drawn at the scale the board's jack is.
+ */
+export const QSFP_SIDE_K = (IO_Z.rj45[1] - IO_Z.rj45[0]) / 13.75;
+export const qsfpSide = (cable: number, tone: number): QsfpFit => qsfpAt(QSFP_SIDE_K, cable, tone);
 
 /**
  * The board's rear I/O sockets (`ioShield`, casedetail3d.ts: the HDMI mouth 8 in from its shell, its corners cut 16; the RJ45 mouth 16 and 12 in
@@ -57,6 +76,7 @@ const bootScale = (k: number, cable: number, h: number, share: number): number =
 /** How far a plug stands out of its socket (its seat's `l`). */
 export const hdmiLength = (f: HdmiFit): number => HDMI.l * bootScale(f.k, f.cable, HDMI.boot.h, 0.68);
 export const rj45Length = (f: Rj45Fit): number => RJ45.l * bootScale(f.k, f.cable, RJ45.boot.h, 0.62);
+export const qsfpLength = (f: QsfpFit): number => QSFPM.l * bootScale(f.k, f.cable, QSFPM.boot.h, 0.6);
 
 /** A box in the plug's own frame. */
 function box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
@@ -202,6 +222,54 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ridges)));
   const r1 = cable + 0.3 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(3.9 * b, cable + 1.2 * b));
   g.add(relief(z2 - 0.5 * b, 0, r0, r1, 1.5 * b, 0.22 * b, boot));
+  return { body: g, l };
+}
+
+/** The pull tab: a strip `w` wide (along x) from `z0` to `z1`, its far end rounded round a ring's hole (radius `ring`), `t` thick, its top face at `y`. */
+function pullTab(w: number, z0: number, z1: number, ring: number, t: number, y: number, m: Material): Mesh {
+  const r = w / 2, zc = z1 - r, s = new Shape(), hole = new Path();
+  s.moveTo(-r, z0); s.lineTo(r, z0); s.lineTo(r, zc); s.absarc(0, zc, r, 0, Math.PI, false); s.lineTo(-r, z0);
+  hole.absarc(0, zc, ring, 0, Math.PI * 2, true);
+  s.holes.push(hole);
+  // (its depth runs down from the top face: the shape's y is the plug's z)
+  const g = extrude(s, { depth: t, bevelEnabled: false, curveSegments: SEG.curveFlat }).rotateX(Math.PI / 2).translate(0, y, 0);
+  return place(new Mesh(g, m));
+}
+
+/**
+ * A QSFP+ plug: the module's satin housing (its nose with the dark recess and the two rows of gold fingers of its card edge, the grip ribs across both broad faces out of the cage), the collar, the
+ * moulded boot in the cable's colour with its ribs, the strain relief down to the cable, and the blue pull tab on the keyed side (-y) with its ring.
+ */
+export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
+  const { k, body: B, cable } = f, Q = QSFPM, b = bootScale(k, cable, Q.boot.h, 0.6), l = Q.l * b, g = new Group();
+  const zinc = mat(0x959aa3, { metalness: 0.85, roughness: 0.42 }), dark = mat(0x050608, { roughness: 0.7 }), goldM = mat(0xd4af5f, { metalness: 0.9, roughness: 0.3 });
+  const boot = mat(f.tone, { roughness: 0.55 }), tabM = mat(0x16294d, { roughness: 0.5 });
+  const hx = B.w / 2, hy = B.h / 2, zf = -l - Q.in * k, zo = -l + Q.out * b;
+  // the housing, from its nose to the collar, and the nose's recess with the card edge's fingers in it
+  g.add(softBox({ x: -hx, y: -hy, w: B.w, h: B.h }, zf, zo, zinc, 0.5 * k));
+  const iw = B.w - 2.4 * k, ih = 3.4 * k, pitch = 0.8 * k, fingers = [];
+  g.add(box(-iw / 2, iw / 2, -ih / 2, ih / 2, zf - 0.08 * k, zf + 0.3 * k, dark));
+  for (const s of [-1, 1]) for (let i = 0; i < 19; i++) fingers.push({ x: (i - 9) * pitch, y: s * 0.95 * k, z: zf - 0.1 * k, sx: 0.42 * k, sy: 1.1 * k, sz: 0.1 * k });
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), goldM, fingers)));
+  // the grip: four ribs across each broad face, on the part that stands out of the cage
+  const grip = [];
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) grip.push({ x: 0, y: s * (hy + 0.12 * k), z: -l + (2.6 + i * 2.5) * b, sx: B.w * 0.72, sy: 0.4 * k, sz: 0.7 * k });
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), zinc, grip)));
+  // the collar, the boot with its ribs, the strain relief
+  const T = Q.boot, bw = T.w * b, bh = T.h * b, z1 = zo + 1.2 * b, z2 = zo + (1.2 + T.l) * b, ribs = [];
+  g.add(softBox({ x: -(hx + 0.2 * k), y: -(hy + 0.2 * k), w: B.w + 0.4 * k, h: B.h + 0.4 * k }, zo - 0.2 * b, z1 + 0.4 * b, boot, 0.6 * k));
+  g.add(taper(bw, bh, T.w1 * b, T.h1 * b, z1, z2, 2.4 * b, 1.1 * b, boot));
+  for (let i = 0; i < 5; i++) {
+    const z = z1 + (4 + i * 3.6) * b, u = (z - z1) / (z2 - z1), w = (T.w + (T.w1 - T.w) * u) * b, h = (T.h + (T.h1 - T.h) * u) * b;
+    for (const s of [-1, 1]) ribs.push({ x: 0, y: s * (h / 2 + 0.05 * b), z, sx: w * 0.62, sy: 0.5 * b, sz: 0.6 * b });
+  }
+  g.add(place(instanced(new BoxGeometry(1, 1, 1), boot, ribs)));
+  const r1 = cable + 0.3 * b, r0 = Math.max(r1 + 0.3 * b, Math.min(4.6 * b, cable + 1.6 * b));
+  g.add(relief(z2 - 0.6 * b, 0, r0, r1, 1.8 * b, 0.25 * b, boot));
+  // the pull tab: a strip just under the boot, its root on the housing's keyed side
+  const A = Q.tab, tw = A.w * k, top = -(bh / 2 + 0.25 * k), zr = -l + A.root * k;
+  g.add(pullTab(tw, zr, zr + A.l * k, A.ring * k, A.t * k, top, tabM));
+  g.add(box(-tw / 2, tw / 2, top - A.t * k, -hy + 0.3 * k, zr, zr + 2.2 * k, tabM));
   return { body: g, l };
 }
 

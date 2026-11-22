@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NIC_LANES } from '../../../board/render/three/niccopper';
+import { CAGE, jackOf, NIC_LANES } from '../../../board/render/three/niccopper';
 import { NIC_FIFO } from '../../sim/specs';
 import { BOARD_LINK, NIC_DIE, NIC_LINK, boardLook, nicInput, nicPlan, type NicBlockKind } from './nicplan';
 import { nicRoute, BLOCKS } from './nicroute';
@@ -82,6 +82,16 @@ describe('the controller\'s die as a floorplan', () => {
     expect(NIC_FIFO.board).toBeLessThan(NIC_LINK['nic-gbe']!.fifo);
     expect(nicPlan('nic-gbe').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x1');
     expect(nicPlan('nic-40g').blocks.find((b) => b.id === 'pcie')!.label).toBe('PCIe x8');
+  });
+});
+
+describe('the ports on the bracket', () => {
+  it('are RJ45 jacks, but the 40G card has two QSFP+ cages and a 40GBASE-CR4 line (40G is not sold on copper pairs), as the 3D card builds them', () => {
+    expect(VISUALS.map((v) => NIC_LINK[v]!.port)).toEqual(['rj45', 'rj45', 'qsfp']);
+    for (const v of VISUALS) expect(jackOf(v) === CAGE, v).toBe(NIC_LINK[v]!.port === 'qsfp');
+    expect(NIC_LINK['nic-40g']!.std).toBe('40GBASE-CR4');
+    expect(nicPlan('nic-40g').blocks.find((b) => b.id === 'phy')!.sub).toBe('40GBASE-CR4 line side');
+    for (const v of Object.keys(BOARD_LINK)) expect(BOARD_LINK[v]!.port, v).toBe('rj45');
   });
 });
 

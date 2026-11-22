@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, MeshStandardMaterial, type Object3D } from 'three';
 import { ROUTER_SPOT, setLayoutTier } from '../layout/layout';
 import { MM } from './pcbkit3d';
-import { LED_ON, PITCH, RJ, ROUTER_BODY, ROUTER_SIZE, ROUTER_UNDER, routerFit, routerJack, routerModel, routerTier } from './router3d';
+import { CAGE, LED_ON, PITCH, qsfpPorts, RJ, ROUTER_BODY, ROUTER_SIZE, ROUTER_UNDER, routerFit, routerJack, routerModel, routerTier } from './router3d';
 
 const TIERS = [1, 2, 3, 4];
 const meshes = (o: Object3D): Mesh[] => { const out: Mesh[] = []; o.traverse((c) => { if ((c as Mesh).isMesh) out.push(c as Mesh); }); return out; };
@@ -118,6 +118,60 @@ describe('the front jacks', () => {
     expect(glowing(both.root)).toBeLessThan(glowing(all.root));
     // (the driven jacks' lights are out as well)
     for (const x of both.jacks) if (x) expect(lit(x.link) || lit(x.act)).toBe(false);
+  });
+});
+
+describe("the edge router's QSFP+ ports", () => {
+  it('are five cages on the edge router, its WAN port too (a real edge router has no copper port), and none on the other tiers', () => {
+    expect(TIERS.map(qsfpPorts)).toEqual([0, 0, 0, 5]);
+    expect(qsfpPorts(0)).toBe(0);
+    expect(qsfpPorts(5)).toBe(0);
+  });
+
+  it('are real cages, 18.95 x 10 mm, in the 19.13 mm of the jacks\' pitch and inside the front like the jacks', () => {
+    expect(CAGE.w / MM).toBeCloseTo(18.95, 5);
+    expect(CAGE.h / MM).toBeCloseTo(10, 5);
+    expect(CAGE.w).toBeLessThan(PITCH);
+    expect(PITCH - CAGE.w).toBeGreaterThan(0);
+    const { w, h } = ROUTER_SIZE[4]!;
+    for (let k = 0; k < qsfpPorts(4); k++) {
+      const [x, y] = routerJack(k);
+      expect(x - CAGE.w / 2, `cage ${k} west`).toBeGreaterThan(-w);
+      expect(x + CAGE.w / 2, `cage ${k} east`).toBeLessThan(0);
+      expect(y - CAGE.h / 2, `cage ${k} low`).toBeGreaterThan(UNDER);
+      // (its lights stand over it in the bezel, under the status lights' strip)
+      expect(y + CAGE.h / 2 + 3 * MM, `cage ${k} high`).toBeLessThan(h - 210 - 46);
+    }
+  });
+
+  it('put each port\'s two lenses in the bezel over its cage, 5.3 mm either side of its middle, the link light west', () => {
+    const m = routerModel(4), j = m.jacks as { link: MeshStandardMaterial; act: MeshStandardMaterial }[];
+    // (the jacks stand in a turned group: its matrices first, so a mesh's box is where it stands in the router)
+    m.root.updateMatrixWorld(true);
+    const lens = (mat: MeshStandardMaterial) => { const b = new Box3(); for (const c of meshes(m.root)) if (c.material === mat) b.expandByObject(c); return b; };
+    for (let k = 0; k < qsfpPorts(4); k++) {
+      const [x, y] = routerJack(k), link = lens(j[k]!.link), act = lens(j[k]!.act);
+      expect((link.min.x + link.max.x) / 2, `cage ${k} link`).toBeCloseTo(x - 5.3 * MM, 3);
+      expect((act.min.x + act.max.x) / 2, `cage ${k} act`).toBeCloseTo(x + 5.3 * MM, 3);
+      // (clear over the cage's top edge, and standing in the front, not in its mouth)
+      for (const b of [link, act]) {
+        expect(b.min.y, `cage ${k}`).toBeGreaterThan(y + CAGE.h / 2);
+        expect(b.max.z, `cage ${k}`).toBeLessThanOrEqual(2);
+        expect(b.max.z, `cage ${k}`).toBeGreaterThan(-RJ.deep);
+      }
+    }
+    // (the other tiers' lights are in the RJ45's own face: under the top of its mouth)
+    const rj = routerModel(3), jj = rj.jacks as { link: MeshStandardMaterial }[];
+    rj.root.updateMatrixWorld(true);
+    const b3 = new Box3();
+    for (const c of meshes(rj.root)) if (c.material === jj[0]!.link) b3.expandByObject(c);
+    expect(b3.max.y, 'tier 3').toBeLessThan(routerJack(0)[1] + RJ.h / 2);
+  });
+
+  it('leave the cages\' connectors out at the fine setting off, as the jacks\' springs', () => {
+    const fine = meshes(routerModel(4, { fine: true }).root).length, plain = meshes(routerModel(4, { fine: false }).root).length;
+    // (three draws a cage: its connector's housing, its slot, its 38 contacts)
+    expect(fine - plain).toBeGreaterThanOrEqual(3 * qsfpPorts(4));
   });
 });
 

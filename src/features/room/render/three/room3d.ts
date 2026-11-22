@@ -20,9 +20,11 @@ import {
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
 import { LAYOUT_CASE, LAYOUT_TIER, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, ispPlate, routerLan, type Rect } from '@/features/board/render/layout/layout';
+import { QSFP_SIDE_K } from '@/features/board/render/three/plugs3d';
+import { QSFP, qsfpFace, qsfpLamps, qsfpLook } from '@/features/board/render/three/qsfp3d';
 import { jackFace, jackLook, type JackLamps } from '@/features/board/render/three/rj45jack3d';
 import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jackleds';
-import { routerModel, routerStand } from '@/features/board/render/three/router3d';
+import { qsfpPorts, routerModel, routerStand } from '@/features/board/render/three/router3d';
 import { ROOM_SOCKET, wallPlate } from '@/features/board/render/three/swisssocket3d';
 import { bakedTex } from '@/core/render/three/baked';
 import { SEG, disposeTree, drum, paint, place, post, rectBox, shareTex, softBox, tube, worldUv } from '@/core/render/three/geometry';
@@ -765,7 +767,12 @@ export class Room3D {
       // the LAN jack on its east side, where the lead's plug stays (turned to face east)
       const side = new Group(), look = jackLook(jackSteel);
       side.rotation.y = Math.PI;
-      jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look, !lowDetail());
+      if (qsfpPorts(tier) > 0) {
+        // (the edge router's LAN ports are QSFP+ cages, this one too: at the scale the board's jack is drawn, its two lights in a block over it)
+        const w = QSFP.cage.w * QSFP_SIDE_K, h = QSFP.cage.h * QSFP_SIDE_K, s = { y0: lan.y - h / 2, y1: lan.y + h / 2, z0: -lan.z - w / 2, z1: -lan.z + w / 2 }, cage = qsfpLook(jackSteel);
+        qsfpFace(side, -lan.x, s, DEEP, cage, !lowDetail());
+        qsfpLamps(side, -lan.x, s, '-y', look, cage, true);
+      } else jackFace(side, -lan.x, { y0: lan.y - PORT.h / 2, y1: lan.y + PORT.h / 2, z0: -lan.z - PORT.w / 2, z1: -lan.z + PORT.w / 2 }, DEEP, look, !lowDetail());
       router.add(side);
       // (the frames light them: `frame`)
       this.routerLamps = { lan: look, wan: m.jacks[4] ?? null };

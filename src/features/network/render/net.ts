@@ -24,7 +24,7 @@ const GEOM: Record<string, Geom> = {
   'router-home': { w: 1050, h: 320, nLan: 2 },
   'router-gbe': { w: 1250, h: 360, nLan: 4 },
   'router-10g': { w: 1450, h: 400, nLan: 8 },
-  'router-core': { w: 1600, h: 300, nLan: 12 },
+  'router-core': { w: 1600, h: 300, nLan: 4 },
 };
 const geom = (visual: string): Geom => GEOM[visual] ?? GEOM['router-home']!;
 // The router is drawn at its design size around its shelf corner (ROUTER_EAST, SHELF_Y) in a container scaled by NET_K, so the box and
@@ -79,11 +79,12 @@ export function routerArt(T: Theme, visual: string, name: string): Container {
   // LED wells: power, activity, and one over each of the WAN and used LAN sockets (lit by NetView.frame)
   const wells = [dHdrLed(r, 0), dHdrLed(r, 1), dSockLed(dWanX(visual)), dSockLed(dLanX(visual))];
   for (const w of wells) disc(g, w.x, w.y, 15, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
-  // sockets open at the bottom edge: WAN on the left, LAN ports from the right
-  const sw = Math.min(110, pitch(visual) - 22);
+  // sockets open at the bottom edge: WAN on the left, LAN ports from the right. The edge router's five are QSFP+ cages (wider, one flat mouth with the connector's slot in it), the others RJ45 jacks
+  const cage = visual === 'router-core', sw = cage ? Math.min(140, pitch(visual) - 10) : Math.min(110, pitch(visual) - 22);
   const sock = (x: number, used = false) => {
     box(g, x - sw / 2, SHELF_Y - SOCK_H, sw, SOCK_H + 2, 8, { fill: '#05070c', stroke: used ? T.alu : T.line, lw: 3, sa: used ? 0.8 : 0.6 });
-    for (let k = 0; k < 4; k++) g.rect(x - sw / 2 + 14 + k * ((sw - 36) / 3), SHELF_Y - SOCK_H + 8, 6, 20);
+    if (cage) g.rect(x - sw / 2 + 16, SHELF_Y - SOCK_H + 30, sw - 32, 8);
+    else for (let k = 0; k < 4; k++) g.rect(x - sw / 2 + 14 + k * ((sw - 36) / 3), SHELF_Y - SOCK_H + 8, 6, 20);
     g.fill({ color: T.pin, alpha: 0.55 });
   };
   sock(dWanX(visual));
@@ -158,10 +159,12 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
       g.stroke({ width: 6, color: '#000000', alpha: 0.28 });
     }
   }
-  // bracket on the board edge and the jack that pokes out of it (mouth faces west)
+  // bracket on the board edge and the jack that pokes out of it (mouth faces west); the 40G card has two QSFP+ cages, whose steel body in profile is the jack's, a little wider
   box(g, NIC_BRACKET_X, y - 120, 30, 240, 4, { fill: '#aab4c9', stroke: T.line, lw: 4 });
-  portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: jack.x, y, w: jack.w, h: jack.h }, true, { wallX: IO_X, wallW: WALL_T }); // the jack, in the same side profile as the board's own
-  for (const w of nicLeds(i)) disc(g, w.x, w.y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
+  const quad = visual === 'nic-40g';
+  for (const dy of quad ? [-62, 62] : [0]) portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: jack.x, y: y + dy, w: jack.w, h: quad ? 112 : jack.h }, true, { wallX: IO_X, wallW: WALL_T }); // in the same side profile as the board's own jack
+  // (a cage has no lights in its face: the 40G card's stand in a block over it, out of this picture)
+  if (!quad) for (const w of nicLeds(i)) disc(g, w.x, w.y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
   root.addChild(label(visual === 'nic-gbe' ? 'GbE' : visual === 'nic-10g' ? '10G' : '40G', x0 + 90, y - 50, 44, T.alu, { head: true, a: 0.85 }));
   void r;
   return root;

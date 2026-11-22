@@ -83,6 +83,8 @@ describe('the router SoC as a floorplan', () => {
     expect(routerInput(99)).toBe(ROUTER_PARTS[1]);
     expect(new Set(TIERS.map((t) => ROUTER_PARTS[t]!.soc)).size).toBe(4);
     expect(new Set(TIERS.map((t) => ROUTER_PARTS[t]!.std)).size).toBe(4);
+    // (40G is not sold on copper pairs: the edge router's ports are QSFP+ cages on a direct attach line, router3d's `qsfpPorts`)
+    expect(TIERS.map((t) => ROUTER_PARTS[t]!.std)).toEqual(['100BASE-TX', '1000BASE-T', '10GBASE-T', '40GBASE-CR4']);
     expect(ROUTER_PARTS[1]!.cores).toBeLessThan(ROUTER_PARTS[4]!.cores);
     expect(ROUTER_PARTS[1]!.dram.mb).toBeLessThan(ROUTER_PARTS[4]!.dram.mb);
     // (the radio is the home routers' only: they have aerials)

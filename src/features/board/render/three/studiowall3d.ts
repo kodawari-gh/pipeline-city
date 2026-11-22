@@ -11,8 +11,8 @@ import type { V3 } from '@/core/render/three/rope';
 import { lightJack, type LinkLevels } from '@/features/network/render/jackleds';
 import { seatPlug } from './cablerig3d';
 import { outlinePts, shapeOf, slab } from './casekit3d';
-import { rj45Jack, rj45Plug } from './plugs3d';
-import { jackAt, LED_ON, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel } from './router3d';
+import { qsfpAt, qsfpPlug, rj45Jack, rj45Plug } from './plugs3d';
+import { jackAt, LED_ON, qsfpPorts, RJ, ROUTER_BODY, ROUTER_SIZE, routerJack, routerModel } from './router3d';
 import { jackLook, type JackLamps } from './rj45jack3d';
 import { pinwheel, tripleSocket, TRIPLE } from './swisssocket3d';
 import { cableMesh, hangPts, type Env, type Look } from './wires3d';
@@ -202,8 +202,9 @@ export class StudioWall {
     if (this.lead) { this.root.remove(this.lead); disposeTree(this.lead); this.lead = null; }
     if (!on) return;
     const { plan: p } = this, g = new Group(), look: Look = { r: 40, base: '#caa24a', accent: null }, tone = 0xcaa24a;
-    const end = (at: V3) => seatPlug({ at: [at[0], at[1], at[2] - JACK_SINK], axis: [0, 0, 1] }, rj45Plug(rj45Jack(MM, look.r, tone)));
-    const a = end(p.isp.jack), b = end(p.router.wan);
+    const end = (at: V3, plug: { body: Group; l: number }) => seatPlug({ at: [at[0], at[1], at[2] - JACK_SINK], axis: [0, 0, 1] }, plug);
+    // (each end follows its port: the plate's jack is an RJ45, the edge router's WAN port a QSFP+ cage, so a lead between those two is an adapter lead)
+    const a = end(p.isp.jack, rj45Plug(rj45Jack(MM, look.r, tone))), b = end(p.router.wan, qsfpPorts(this.net.router ?? 0) > 0 ? qsfpPlug(qsfpAt(MM, look.r, tone)) : rj45Plug(rj45Jack(MM, look.r, tone)));
     g.add(a.root, b.root);
     const env: Env = { planes: [{ n: [0, 0, 1], d: p.face.z + 80 }], solids: [routerSolid(p, this.net.router)] };
     g.add(cableMesh(hangPts(a.strands[0]!, b.strands[0]!, look, env, { slack: 1.12, extra: 500, stiff: 0.35, n: 30 }), look));

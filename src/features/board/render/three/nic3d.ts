@@ -1,7 +1,7 @@
 // A network card's own parts as real ones (docs/PC_PARTS.md), in card3d's lying pose (gpu3d.ts's frame), face up. A card as the photos of real ones show it, with its parts on the PCB's top face
 // (standing in its slot, that face looks north, toward the camera and the glass: the mirror of a tower's card, whose parts face down). The RJ45 jacks with their magnetics stand on that face at
 // the bracket, so the PCB is below the ports: a tin-plated steel shield with its ground springs against the bracket's inside, the mouth with its latch slot, the eight gold contacts inside
-// at their 1.02 mm pitch, the link and activity lights either side of the latch slot. The controller east of them: a QFN on the gigabit card, a
+// at their 1.02 mm pitch, the link and activity lights either side of the latch slot. The 40G card has two QSFP+ cages in their place (qsfp3d.ts: the cage, the 38 contacts, a light block on top). The controller east of them: a QFN on the gigabit card, a
 // lidded BGA under a low finned sink with its push pins on the faster cards (the fins run along the card, in the case's front-to-back air). Its 25 MHz
 // crystal, the SPI flash on its gull-wing legs, the core rail's regulator with its inductors and polymer capacitors, the passives, the MAC
 // label, and the solder mask with its traces and silkscreen. East of the jacks nothing on this face stands over `NIC_TOP`: the card in the next slot north has its cooler 5 mm from it, and
@@ -18,22 +18,26 @@ import { tag } from '@/core/render/three/pick';
 import { decal, outlinePts, tex, wallPt, wallX, type Span } from './casekit3d';
 import { prismX, type CardFrame } from './gpu3d';
 import { mirror, nicChip, type DieFloor, type NicChip } from './nicchip3d';
-import { CU, JACK, JACK_X, jacksOf, type Face, type NicCopper } from './niccopper';
+import { CAGE, CU, JACK, JACK_X, jackOf, jacksOf, type Face, type NicCopper } from './niccopper';
 import { crystal, decalMat, inductor, maskTop, MM, passives, pkg, type MaskCopper, type Passive } from './pcbkit3d';
 import { KEY, TAB } from './pcie';
+import { QSFP, qsfpFace, qsfpLamps, qsfpLook, type QsfpLook } from './qsfp3d';
 import { jackLamp, springGold, unshadowed, type JackLamps } from './rj45jack3d';
 
-export { JACK, JACK_X, jacksOf };
+export { CAGE, JACK, JACK_X, jackOf, jacksOf };
 /** The mouth (mm): 11.68 across, its opening 6.6 tall from 2.3 up off the PCB's top face, then the latch slot, 6.2 wide, 1.9 on away from the PCB. */
 export const MOUTH = { w: 11.68 * MM, base: 2.3 * MM, main: 6.6 * MM, slotW: 6.2 * MM, slot: 1.9 * MM };
-/** The middle of a jack's opening, lying: across it (y) and off the PCB (z, `Z` the PCB's top face the jack stands on), for the jack whose edge is at `y`. */
-export const mouthAt = (y: number, Z: number) => ({ y: y + JACK.w / 2, z: Z + MOUTH.base + MOUTH.main / 2 });
+/**
+ * The middle of a port's opening, lying: across it (y) and off the PCB (z, `Z` the PCB's top face the port stands on), for the port whose edge is at `y`. The RJ45 jack's mouth stands 2.3 mm
+ * up; the 40G card's QSFP+ cage (`visual` `nic-40g`) has its mouth in the middle of its 10 mm.
+ */
+export const mouthAt = (y: number, Z: number, visual = '') => (visual === 'nic-40g' ? { y: y + CAGE.w / 2, z: Z + (QSFP.cage.h * MM) / 2 } : { y: y + JACK.w / 2, z: Z + MOUTH.base + MOUTH.main / 2 });
 
 /** Each card's controller (its package's side, mm), its sink (0: none, as on a real gigabit card), the sink's and the push pins' finish, its marking. */
 const CTRL: Record<string, { chip: number; sink: number; sinkHex: number; pinHex: number; mark: string[] }> = {
   'nic-gbe': { chip: 9, sink: 0, sinkHex: 0, pinHex: 0, mark: ['RL-N210', 'GBE Q9A2', '2241'] },
   'nic-10g': { chip: 25, sink: 40, sinkHex: 0xb9c0c8, pinHex: 0xe6e4dc, mark: ['RL-N510', '10GBASE-T', 'A1 2244'] },
-  'nic-40g': { chip: 25, sink: 45, sinkHex: 0x24272d, pinHex: 0x1a1c20, mark: ['RL-N740', '40GBASE-T', 'B0 2251'] },
+  'nic-40g': { chip: 25, sink: 45, sinkHex: 0x24272d, pinHex: 0x1a1c20, mark: ['RL-N740', '40GBASE-R', 'B0 2251'] },
 };
 /** How far the tallest part on the top face stands off the PCB (the sink's top): the card in the next slot north has its cooler this close (`card3d.ts` `cardReach`). */
 export const NIC_TOP = 4.3 * MM;
@@ -97,6 +101,18 @@ function jack(g: Group, y: number, Z: number, M: JackMats, inX: number): void {
   for (const ry of [y + 3 * MM, y + w - 4.2 * MM]) g.add(rectBox({ x: x0 + 5 * MM, y: ry, w: d - 9 * MM, h: 1.2 * MM }, z1, z1 + 0.18 * MM, M.steel));
   g.add(rectBox({ x: x1, y: yc - 0.4 * MM, w: 0.15 * MM, h: 0.8 * MM }, z0 + 0.6 * MM, z1 - 0.6 * MM, M.back));
   for (const [ya, yb] of [[y - 0.2 * MM, y], [y + w, y + w + 0.2 * MM]] as const) g.add(rectBox({ x: x0 + 9 * MM, y: ya, w: 5 * MM, h: yb - ya }, z0 + 3 * MM, z0 + 6.5 * MM, M.steel));
+}
+
+/**
+ * One QSFP+ cage on the PCB (its edge at lying `y`, its base on the top face `Z`), its front at `JACK_X`: the cage (qsfp3d.ts `qsfpFace`: the face plate with its mouth, the walls, the connector at the
+ * back), the light pipe's block on it with the port's two lights (`lamps`), and the ground springs bent out of its sides, pressing on the bracket's inside (`inX`, its inner face).
+ */
+function cage(g: Group, y: number, Z: number, Q: QsfpLook, steel: Material, lamps: JackLamps, inX: number): void {
+  const w = CAGE.w, h = QSFP.cage.h * MM, span: Span = { y0: y, y1: y + w, z0: Z, z1: Z + h };
+  qsfpFace(g, JACK_X, span, CAGE.d, Q);
+  qsfpLamps(g, JACK_X, span, 'z', lamps, Q, true);
+  const sx = inX + 0.3 * MM, sw = 2 * MM;
+  for (const zz of [Z + h * 0.3, Z + h * 0.72]) for (const [ya, yb] of [[y - 0.5 * MM, y], [y + w, y + w + 0.5 * MM]] as const) g.add(rectBox({ x: sx, y: ya, w: sw, h: yb - ya }, zz - 1.2 * MM, zz + 1.2 * MM, steel));
 }
 
 /** The MAC label: a white sticker with its barcode and address. */
@@ -207,10 +223,14 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Z: number, inX:
     green: jackLamp(0x5cff9a), amber: jackLamp(0xffc247),
   };
   const id = (part: string) => `${b.slot}.nic-${part}`;
-  // (the lights are the network's: out until it lights them. The cable goes into the first jack, so a second one (the 40G card's) has dark lenses and no lamp)
-  const dark = mat(0x131518, { roughness: 0.3 }), ys = jacksOf(visual, f.y0), spare: JackMats = { ...M, green: dark, amber: dark };
+  // (the lights are the network's: out until it lights them. The cable goes into the first port, so a second one (the 40G card's) has dark lenses and no lamp)
+  const dark = mat(0x131518, { roughness: 0.3 }), ys = jacksOf(visual, f.y0), spare: JackMats = { ...M, green: dark, amber: dark }, P = jackOf(visual);
   const jacks = tag(new Group(), id('jack'));
-  ys.forEach((y, k) => jack(jacks, y, Z, k ? spare : M, inX));
+  if (visual === 'nic-40g') {
+    // (the 40G card's ports are QSFP+ cages: the plug is the end of a 40GBASE-CR4 lead, not an RJ45)
+    const Q = qsfpLook(steel), off: JackLamps = { link: dark, act: dark };
+    ys.forEach((y, k) => cage(jacks, y, Z, Q, steel, k ? off : { link: M.green, act: M.amber }, inX));
+  } else ys.forEach((y, k) => jack(jacks, y, Z, k ? spare : M, inX));
   g.add(jacks);
   // the rest stands on the top face too: a group in the card's own frame (layout y as the negative of its y, depth up off the PCB's top, `Z`)
   const top = new Group(), zu = Z;
@@ -269,7 +289,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Z: number, inX:
   // (the lights' names, behind each jack)
   const text = [
     { x: f.x1 - 26 * MM, y: f.y0 + 6 * MM, s: `RELAY NIC ${SPEED[visual] ?? '1G'} REV A2`, mm: 1.6 },
-    ...ys.map((y, k) => ({ x: JACK_X + JACK.d + 1 * MM, y: y + JACK.w / 2, s: `LAN${k + 1}  LNK ACT`, mm: 1.1 })),
+    ...ys.map((y, k) => ({ x: JACK_X + P.d + 1 * MM, y: y + P.w / 2, s: visual === 'nic-40g' ? `QSFP+ ${k + 1}` : `LAN${k + 1}  LNK ACT`, mm: 1.1 })),
   ];
   const f1 = cu.pads.find((p) => p.id === 'U2.1')!, dots = [{ x: f1.r.x - 0.5 * MM, y: f1.r.y - 0.4 * MM, r: 0.25 * MM }];
   if (a.qfn) dots.push({ x: chip.x - 0.9 * MM, y: chip.y - 0.9 * MM, r: 0.25 * MM });
@@ -277,7 +297,7 @@ export function nicParts(g: Group, visual: string, f: CardFrame, Z: number, inX:
   top.add(maskTop(`nic-top:${cu.key}`, board, Z, { ...MASK, parts, text, seed: 0, copper: { ...copperOf(cu, 'top'), dots }, pads: cu.pads.filter((p) => p.face === 'top' && !p.edge).map((p) => p.r) }, { px: 24 }));
   top.add(tabMask(cu, f, 'top', Z - 1));
   const bodies: NicBody[] = [
-    { id: id('jack'), rect: { x: JACK_X, y: ys[0]!, w: JACK.d, h: ys[ys.length - 1]! + JACK.w - ys[0]! }, h: JACK.h },
+    { id: id('jack'), rect: { x: JACK_X, y: ys[0]!, w: P.d, h: ys[ys.length - 1]! + P.w - ys[0]! }, h: P.h },
     { id: id('ctl'), rect: a.sink ?? chip, h: a.sink ? SINK_H : core.top },
     { id: id('xtal'), rect: a.crystal, h: 0.8 * MM }, { id: id('nvm'), rect: a.flash, h: 1.4 * MM },
     { id: id('vreg'), rect: hull([a.reg, ...a.inductors, ...a.cans.map((c) => ({ x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }))]), h: CAN_H },
@@ -349,7 +369,7 @@ export function nicBack(g: Group, visual: string, f: CardFrame, Zp: number, cu: 
  * the PCB's top face and under its underside.
  */
 export function nicBracket(visual: string, y0: number, Z: number, x0: number, x1: number, s: Span, m: Material): ReturnType<typeof wallX> {
-  const e = 0.4 * MM, ys = jacksOf(visual, y0), holes: (Span | Vector2[])[] = ys.map((y) => ({ y0: y - e, y1: y + JACK.w + e, z0: Z - e, z1: Z + JACK.h + e, r: 0.7 * MM }));
-  for (let y = ys[ys.length - 1]! + JACK.w + 6 * MM; y < s.y1 - 120; y += 64) holes.push({ y0: y - 16, y1: y + 16, z0: Z + 70, z1: s.z1 - 70, r: 14 }, { y0: y - 16, y1: y + 16, z0: s.z0 + 70, z1: Z - 70, r: 14 });
+  const e = 0.4 * MM, ys = jacksOf(visual, y0), P = jackOf(visual), holes: (Span | Vector2[])[] = ys.map((y) => ({ y0: y - e, y1: y + P.w + e, z0: Z - e, z1: Z + P.h + e, r: 0.7 * MM }));
+  for (let y = ys[ys.length - 1]! + P.w + 6 * MM; y < s.y1 - 120; y += 64) holes.push({ y0: y - 16, y1: y + 16, z0: Z + 70, z1: s.z1 - 70, r: 14 }, { y0: y - 16, y1: y + 16, z0: s.z0 + 70, z1: Z - 70, r: 14 });
   return wallX(x0, x1, s, holes, m);
 }

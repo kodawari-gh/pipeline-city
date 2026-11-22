@@ -53,10 +53,14 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
       plain: 'The chip that does the work of the card. On one side it speaks to the cable (through the jack). On the other side it speaks to your computer (the queues, the DMA engine and the PCIe link). Zoom in until the lid fades: the die under it shows each part.',
       nerd: `${name} | ${chip}${dev ? ` | ${dev.tempC.toFixed(0)} C, ${dev.powerW.toFixed(1)} W` : ''}`,
     };
-    case 'jack': return {
+    case 'jack': return plan?.port === 'qsfp' ? {
+      title: 'QSFP+ cage',
+      plain: 'The socket for a QSFP+ module. The plug of the cable is the module: it carries four lanes, and each lane carries data one way over its own twinax wire. A cage has no transformers: the four lanes go straight from the plug to the chip on short tracks. The green light is on while the link is up. The amber light flashes with the frames that pass. Both lights stand in a small block over the cage and follow the real link.',
+      nerd: `${linkWords(s, dev?.id)} | two cages on the bracket, the game has one cable | 4 lanes of 10.3125 Gbit/s each way, ${plan.std} direct attach lead | amber follows the frame counter`,
+    } : {
       title: 'RJ45 jack',
       plain: 'The socket for the ethernet cable. Inside it, small transformers (the magnetics) keep the card electrically apart from the cable, so a surge on the line does not reach the chip: there is one for each of the four wire pairs. The green light is on while the link is up. The amber light flashes with the frames that pass. Both lights follow the real link.',
-      nerd: `${linkWords(s, dev?.id)}${plan && plan.ports > 1 ? ' | two jacks on the bracket, the game has one cable' : ''} | 4 transformers, 1.5 kV isolation | amber follows the frame counter`,
+      nerd: `${linkWords(s, dev?.id)} | 4 transformers, 1.5 kV isolation | amber follows the frame counter`,
     };
     case 'edge': return {
       title: 'PCIe edge',
@@ -70,7 +74,7 @@ export function describeNicId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'phy': return {
       title: 'PHY',
-      plain: `Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage.${onboard ? (plan?.pairs === 2 ? ' This port is Fast Ethernet: it uses two of the four pairs, one to send and one to receive.' : '') : ' A card that is too hot falls back to half speed.'}`,
+      plain: `Turns the signal on the wires into bits, and bits into signal. When the cable goes in it agrees a speed with the router. ${plan?.port === 'qsfp' ? 'Each of the four lanes has a front end, an equaliser that makes up for the loss in the wire, and a coding stage. A lane carries data one way only, so there is no echo to cancel.' : 'Each pair has a front end, a signal processor that cancels echo and noise, and a coding stage.'}${onboard ? (plan?.pairs === 2 ? ' This port is Fast Ethernet: it uses two of the four pairs, one to send and one to receive.' : '') : ' A card that is too hot falls back to half speed.'}`,
       nerd: `${plan ? plan.std : 'line standard'} | ${linkWords(s, dev?.id, onboard)}${spec ? ` | the card is rated ${fmtMbit(spec.mbps)}` : onboard && mbps > 0 ? ` | the port is rated ${fmtMbit(mbps)}` : ''}`,
     };
     case 'mac': {

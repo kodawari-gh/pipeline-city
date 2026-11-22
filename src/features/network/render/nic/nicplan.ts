@@ -20,10 +20,12 @@ export interface NicPlanInput {
   /** The controller's marking (as nic3d's chip) and the standard its PHY speaks. */
   chip: string;
   std: string;
-  /** The card's edge connector (x1, x4, x8) and the jacks on its bracket. */
+  /** The card's edge connector (x1, x4, x8) and the ports on its bracket. */
   lanes: 1 | 4 | 8;
   ports: 1 | 2;
-  /** The wire pairs the line standard uses: 100BASE-TX runs on two (one to send, one to receive), the others on four. */
+  /** What the ports are: RJ45 jacks on twisted pairs, or QSFP+ cages on four lanes of twinax (the 40G card's). */
+  port: 'rj45' | 'qsfp';
+  /** The rows the PHY draws: the wire pairs the line standard uses (100BASE-TX runs on two, one to send and one to receive, the other copper ones on four), or the four lanes of a QSFP+ port. */
   pairs: 2 | 4;
   /** The segments the chip's input FIFO holds (the sim's `NIC_FIFO`: the board's jack 2, a card 4, 8 or 16). The receive queue draws a cell for each; the rings have the kernel's slots, the same on every chip (`NIC_RX_SLOTS`, `NIC_TX_SLOTS`). */
   fifo: number;
@@ -36,9 +38,10 @@ export type NicPlan = NetPlan<NicBlockKind, NicLinkKind, NicPlanInput>;
 
 /** The three cards: the chip each carries, its standard, its edge, its jacks, its queues. The 3D card is built the same (`NIC_LANES` in niccopper.ts, `jacksOf` in nic3d.ts, `CTRL` there for the chip). */
 export const NIC_LINK: Record<string, NicPlanInput> = {
-  'nic-gbe': { visual: 'nic-gbe', chip: 'RL-N210', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, fifo: NIC_FIFO.nic1!, heat: true, host: 'the host link' },
-  'nic-10g': { visual: 'nic-10g', chip: 'RL-N510', std: '10GBASE-T', lanes: 4, pairs: 4, ports: 1, fifo: NIC_FIFO.nic2!, heat: true, host: 'the host link' },
-  'nic-40g': { visual: 'nic-40g', chip: 'RL-N740', std: '40GBASE-T', lanes: 8, pairs: 4, ports: 2, fifo: NIC_FIFO.nic3!, heat: true, host: 'the host link' },
+  'nic-gbe': { visual: 'nic-gbe', chip: 'RL-N210', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, port: 'rj45', fifo: NIC_FIFO.nic1!, heat: true, host: 'the host link' },
+  'nic-10g': { visual: 'nic-10g', chip: 'RL-N510', std: '10GBASE-T', lanes: 4, pairs: 4, ports: 1, port: 'rj45', fifo: NIC_FIFO.nic2!, heat: true, host: 'the host link' },
+  // (40G is never sold on copper pairs: the card has two QSFP+ cages, and a 40GBASE-CR4 lead, direct attach twinax, is the module in the cage)
+  'nic-40g': { visual: 'nic-40g', chip: 'RL-N740', std: '40GBASE-CR4', lanes: 8, pairs: 4, ports: 2, port: 'qsfp', fifo: NIC_FIFO.nic3!, heat: true, host: 'the host link' },
 };
 
 /**
@@ -46,8 +49,8 @@ export const NIC_LINK: Record<string, NicPlanInput> = {
  * port speed (`BOARD_TIERS`: 100 Mbit on the Basic and Mainstream boards, 1000 on the Enthusiast board). It talks to the I/O hub over one lane. No heat sensor: the sim keeps no temperature for it.
  */
 export const BOARD_LINK: Record<string, NicPlanInput> = {
-  'board-fe': { visual: 'board-fe', chip: 'RL-E100', std: '100BASE-TX', lanes: 1, pairs: 2, ports: 1, fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
-  'board-ge': { visual: 'board-ge', chip: 'RL-E111', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
+  'board-fe': { visual: 'board-fe', chip: 'RL-E100', std: '100BASE-TX', lanes: 1, pairs: 2, ports: 1, port: 'rj45', fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
+  'board-ge': { visual: 'board-ge', chip: 'RL-E111', std: '1000BASE-T', lanes: 1, pairs: 4, ports: 1, port: 'rj45', fifo: NIC_FIFO.board!, heat: false, host: 'to the I/O hub' },
 };
 /** The slot id the onboard chip's parts carry (`board.nic-mac`), as a card's carry the slot's (`pcie2.nic-mac`). */
 export const BOARD_NIC = 'board';

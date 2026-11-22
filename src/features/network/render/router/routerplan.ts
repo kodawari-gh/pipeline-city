@@ -22,7 +22,7 @@ export interface RouterPlanInput {
   mhz: number;
   /** The forwarding engine's name: the home routers do it in a NAT engine, the faster ones in an ASIC. */
   engine: string;
-  /** The standard of the PHYs and the number of LAN jacks behind the switch (the WAN jack is one more). */
+  /** The standard of the PHYs and the number of LAN ports behind the switch (the WAN port is one more). They are RJ45 jacks, but on the edge router (40GBASE-CR4) QSFP+ cages, all five. */
   std: string;
   lan: number;
   /** The memory: size in MB, its kind and the number of chips on the board. */
@@ -36,7 +36,7 @@ export interface RouterPlanInput {
 export type RouterPlan = NetPlan<RouterBlockKind, RouterLinkKind, RouterPlanInput>;
 
 /**
- * The four routers' parts, by tier (`ROUTER_SPECS` in network/sim/specs.ts: Home 100 Mbit, Gigabit, 10G switch-router, Core 40G). The names and sizes are what the parts are made of, in
+ * The four routers' parts, by tier (`ROUTER_SPECS` in network/sim/specs.ts: Home 100 Mbit, Gigabit, 10G switch-router, Edge 40G). The names and sizes are what the parts are made of, in
  * words; the game's numbers for a router are its speed and its clients (`NetSnap.router`), which the live view shows as they are. The 3D router has the aerials the radio feeds
  * (tiers 1 and 2) and the rack ears of the edge router (`router3d.ts`); its board carries the rest (`routerboard3d.ts`).
  */
@@ -44,7 +44,7 @@ export const ROUTER_PARTS: Record<number, RouterPlanInput> = {
   1: { tier: 1, soc: 'RL-R110', cores: 1, mhz: 400, engine: 'NAT ENGINE', std: '100BASE-TX', lan: 4, dram: { mb: 64, kind: 'DDR2', chips: 1 }, flash: { mb: 8, kind: 'SPI NOR' }, radio: { bands: '2.4 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },
   2: { tier: 2, soc: 'RL-R210', cores: 2, mhz: 880, engine: 'NAT ENGINE', std: '1000BASE-T', lan: 4, dram: { mb: 256, kind: 'DDR3', chips: 2 }, flash: { mb: 16, kind: 'SPI NOR' }, radio: { bands: '2.4 + 5 GHz', aerials: 2 }, inlet: 'DC 12 V jack' },
   3: { tier: 3, soc: 'RL-R510', cores: 4, mhz: 1400, engine: 'FORWARDING ASIC', std: '10GBASE-T', lan: 4, dram: { mb: 1024, kind: 'DDR4', chips: 2 }, flash: { mb: 128, kind: 'NAND' }, radio: null, inlet: 'DC 19 V jack' },
-  4: { tier: 4, soc: 'RL-R740', cores: 8, mhz: 2000, engine: 'FORWARDING ASIC', std: '40GBASE-T', lan: 4, dram: { mb: 8192, kind: 'DDR4 ECC', chips: 4 }, flash: { mb: 512, kind: 'NAND' }, radio: null, inlet: 'mains inlet' },
+  4: { tier: 4, soc: 'RL-R740', cores: 8, mhz: 2000, engine: 'FORWARDING ASIC', std: '40GBASE-CR4', lan: 4, dram: { mb: 8192, kind: 'DDR4 ECC', chips: 4 }, flash: { mb: 512, kind: 'NAND' }, radio: null, inlet: 'mains inlet' },
 };
 export const routerInput = (tier: number): RouterPlanInput => ROUTER_PARTS[tier] ?? ROUTER_PARTS[1]!;
 

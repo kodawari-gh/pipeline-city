@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BD, NIC_LEN, nicY, setLayoutTier, type Rect } from '../layout/layout';
 import { STAND } from './card3d';
-import { CU, JACK, JACK_X, jacksOf, NIC_LANES, nicCopper, PLANES, type Layer, type NicCopper, type Pt } from './niccopper';
+import { CU, JACK_X, jackOf, jacksOf, NIC_LANES, nicCopper, PLANES, type Layer, type NicCopper, type Pt } from './niccopper';
 import { edgeNet, edgePins, tabOf } from './pcie';
 
 // Copper as the checks see it: a run's segment (a capsule of its half width), an SMD pad's rect, a hole's, a via's or a fiducial's disc.
@@ -204,7 +204,8 @@ describe("the network card's routed copper", () => {
         const [l, w] = p.pkg === '0402' ? [1, 0.5] : [1.6, 0.8], sx = (p.turn ? w : l) * MM, sy = (p.turn ? l : w) * MM;
         return { x: p.x - sx / 2, y: p.y - sy / 2, w: sx, h: sy };
       };
-      const jacks = jacksOf(visual, f.y0).map((y): Rect => ({ x: f.x0, y, w: JACK_X + JACK.d - f.x0, h: JACK.w }));
+      // (a port's box: the RJ45 jack's, or the 40G card's QSFP+ cage, which is wider)
+      const P = jackOf(visual), jacks = jacksOf(visual, f.y0).map((y): Rect => ({ x: f.x0, y, w: JACK_X + P.d - f.x0, h: P.w }));
       const top: [string, Rect][] = [
         ['U1', a.sink ?? a.chip], ['Y1', a.crystal], ['U2', a.flash], ['U3', a.reg], ...a.inductors.map((r, k): [string, Rect] => [`L${k + 1}`, r]),
         ...a.cans.map((c): [string, Rect] => [c.ref, { x: c.x - c.r, y: c.y - c.r, w: 2 * c.r, h: 2 * c.r }]), ...jacks.map((r, k): [string, Rect] => [`J${k + 1}`, r]),

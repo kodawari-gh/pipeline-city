@@ -343,7 +343,8 @@ function Display() {
 
 /**
  * A network card: PCB with its controller chip, gold fingers along the slot edge, a bracket with the ethernet jack and its two
- * LED wells. Tier 1 is bare, tier 2 has a finned heatsink, tier 3 a big heatsink with a heat pipe and a small fan.
+ * LED wells. Tier 1 is bare, tier 2 has a finned heatsink, tier 3 a big heatsink with a heat pipe and a small fan, and two QSFP+ cages
+ * (wider than the jack, with a flat mouth) in place of the jack; their lights stand in a block over the first.
  */
 function NicCard({ tier }: { tier: number }) {
   return (
@@ -351,10 +352,25 @@ function NicCard({ tier }: { tier: number }) {
       {Array.from({ length: 12 }, (_, i) => <rect key={i} x={14 + i * 6.4} y={64} width={3.6} height={7} rx={0.6} class="pin" />)}
       <rect x={8} y={18} width={92} height={46} rx={3} class="plate edge" />
       <rect x={100} y={12} width={6} height={58} rx={1} class="ink2" />
-      <rect x={90} y={26} width={10} height={14} rx={1.2} class="jack" />
-      <rect x={92} y={29} width={6} height={8} rx={0.8} class="screen" />
-      <circle cx={92.6} cy={45} r={1.3} class="led-on" />
-      <circle cx={97} cy={45} r={1.3} class="led-on dim" />
+      {tier >= 3 ? (
+        <>
+          {[0, 1].map((i) => (
+            <g key={i}>
+              <rect x={90} y={22 + i * 19} width={10} height={17} rx={1.2} class="jack" />
+              <rect x={92} y={27 + i * 19} width={6} height={7} rx={0.8} class="screen" />
+            </g>
+          ))}
+          <circle cx={92.6} cy={20} r={1.2} class="led-on" />
+          <circle cx={97} cy={20} r={1.2} class="led-on dim" />
+        </>
+      ) : (
+        <>
+          <rect x={90} y={26} width={10} height={14} rx={1.2} class="jack" />
+          <rect x={92} y={29} width={6} height={8} rx={0.8} class="screen" />
+          <circle cx={92.6} cy={45} r={1.3} class="led-on" />
+          <circle cx={97} cy={45} r={1.3} class="led-on dim" />
+        </>
+      )}
       {tier === 1 && (
         <>
           <rect x={28} y={30} width={22} height={20} rx={2} class="ink" />
@@ -387,7 +403,7 @@ function NicCard({ tier }: { tier: number }) {
 
 const led = (x: number, y: number, on = true) => <circle key={`l${x}`} cx={x} cy={y} r={1.5} class={on ? 'led-on' : 'led-on dim'} />;
 
-/** The four routers: a small home box with antennas, a dark gigabit box, a brushed 10G box with an SFP cage, a 1U rack unit. */
+/** The four routers: a small home box with antennas, a dark gigabit box, a brushed 10G box with its row of jacks, a 1U rack unit with five QSFP+ cages. */
 function RouterArt({ tier }: { tier: number }) {
   if (tier <= 1) {
     return (
@@ -435,8 +451,14 @@ function RouterArt({ tier }: { tier: number }) {
       {[40, 60].map((y) => <circle key={`b${y}`} cx={111.5} cy={y} r={1.6} class="screw" />)}
       {Array.from({ length: 10 }, (_, i) => <rect key={i} x={18 + i * 5} y={38} width={2.4} height={10} rx={1} class="vent" />)}
       {[0, 1, 2, 3, 4].map((i) => led(76 + i * 6, 42, i !== 4))}
-      <rect x={18} y={54} width={80} height={9} rx={1} class="ink2" />
-      {Array.from({ length: 12 }, (_, i) => <rect key={i} x={20 + i * 6.5} y={56} width={4.6} height={5} rx={0.8} class="jack" />)}
+      <rect x={18} y={52} width={84} height={13} rx={1} class="ink2" />
+      {/* five QSFP+ cages in one row, the WAN port and the four LAN ports: a wide flat mouth each */}
+      {Array.from({ length: 5 }, (_, i) => (
+        <g key={i}>
+          <rect x={20 + i * 16.4} y={54} width={15} height={9} rx={0.9} class="jack" />
+          <rect x={22 + i * 16.4} y={57.5} width={11} height={2} rx={0.5} class="screen" />
+        </g>
+      ))}
     </>
   );
 }
