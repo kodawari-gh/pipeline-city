@@ -59,7 +59,7 @@ function Radios<T extends string | number | boolean>({ label, items, pick, class
   return (
     <div class={cls} role="radiogroup" aria-label={label} onKeyDown={onKey}>
       {items.map((it, i) => (
-        <button key={String(it.id)} type="button" role="radio" aria-checked={it.on} tabIndex={i === stop ? 0 : -1} data-id={String(it.id)} onClick={() => pick(it.id)}>{it.node}</button>
+        <button key={String(it.id)} type="button" role="radio" data-cue="ui_value_change" aria-checked={it.on} tabIndex={i === stop ? 0 : -1} data-id={String(it.id)} onClick={() => pick(it.id)}>{it.node}</button>
       ))}
     </div>
   );
@@ -89,7 +89,7 @@ function Slider({ label, help, min, max, value, set }: { label: string; help: st
     <label class="gfx-opt">
       <span class="gfx-name"><b>{label}</b><span class="gfx-help">{help}</span></span>
       <span class="gfx-slide">
-        <input type="range" min={min} max={max} step={0.05} value={value} aria-label={label} aria-valuetext={text} style={{ '--p': `${((value - min) / (max - min)) * 100}%` }}
+        <input type="range" data-cue="ui_value_change" min={min} max={max} step={0.05} value={value} aria-label={label} aria-valuetext={text} style={{ '--p': `${((value - min) / (max - min)) * 100}%` }}
           onInput={(e) => set(Number(e.currentTarget.value))} />
         <b class="gfx-val">{text}</b>
       </span>
@@ -131,7 +131,7 @@ function AutoNote({ g }: { g: Graphics }) {
     <div class="gfx-note" role="status">
       <Icon name="warn" size={12} />
       <span>Frames were slow, so auto-adjust lowered {names.join(', ')}.</span>
-      <button onClick={retryPicture}>Try again</button>
+      <button data-cue="ui_click" onClick={retryPicture}>Try again</button>
     </div>
   );
 }
@@ -149,7 +149,7 @@ function Tabs({ tab, set }: { tab: TabId; set: (t: TabId) => void }) {
   return (
     <div class="gfx-tabs" role="tablist" aria-label="Groups of options" onKeyDown={onKey}>
       {TABS.map((t) => (
-        <button key={t.id} type="button" role="tab" id={`gfx-tab-${t.id}`} aria-controls="gfx-panel" aria-selected={t.id === tab} tabIndex={t.id === tab ? 0 : -1} onClick={() => set(t.id)}>
+        <button key={t.id} type="button" role="tab" data-cue="ui_tab_switch" id={`gfx-tab-${t.id}`} aria-controls="gfx-panel" aria-selected={t.id === tab} tabIndex={t.id === tab ? 0 : -1} onClick={() => set(t.id)}>
           <Icon name={t.icon} size={12} />{t.name}
         </button>
       ))}
@@ -185,7 +185,7 @@ function Peek({ set }: { set: (on: boolean) => void }) {
   };
   const key = (on: boolean) => (e: KeyboardEvent) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) set(on); };
   return (
-    <button class="gfx-peek" type="button" title="Hold to see the whole picture" onPointerDown={hold} onKeyDown={key(true)} onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') set(false); }}
+    <button class="gfx-peek" type="button" data-cue="ui_click" title="Hold to see the whole picture" onPointerDown={hold} onKeyDown={key(true)} onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') set(false); }}
       onBlur={() => set(false)} onContextMenu={(e) => e.preventDefault()}>
       <Icon name="eye" size={12} />Peek
     </button>
@@ -240,7 +240,7 @@ export function GraphicsModal() {
         <header class="gfx-head">
           <div class="mode-head"><span class="mode-eyebrow">Picture · changes apply at once</span><b id="gfx-title">Graphics</b></div>
           <Numbers limit={g.fps} />
-          <button class="gfx-close" type="button" aria-label="Close graphics" title="Close (Esc)" onClick={close}><Icon name="close" size={12} /></button>
+          <button class="gfx-close" type="button" data-cue="ui_back" aria-label="Close graphics" title="Close (Esc)" onClick={close}><Icon name="close" size={12} /></button>
         </header>
 
         <div class="gfx-body">
@@ -273,8 +273,8 @@ export function GraphicsModal() {
         <footer class="gfx-foot">
           <Peek set={setPeek} />
           <span class="mode-hint gfx-kept">Kept on this device, not in the save.</span>
-          <button type="button" class="gfx-reset" title="The detected tier's picture, with the frame limit, the brightness and auto-adjust at their defaults" onClick={resetGraphics}><Icon name="undo" size={12} />Reset to defaults</button>
-          <button type="button" class="gfx-done" onClick={close}><Icon name="check" size={12} />Done</button>
+          <button type="button" class="gfx-reset" data-cue="ui_click" title="The detected tier's picture, with the frame limit, the brightness and auto-adjust at their defaults" onClick={resetGraphics}><Icon name="undo" size={12} />Reset to defaults</button>
+          <button type="button" class="gfx-done" data-cue="ui_back" onClick={close}><Icon name="check" size={12} />Done</button>
         </footer>
       </section>
     </div>

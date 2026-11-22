@@ -69,7 +69,7 @@ export function NewGameDialog() {
   };
   const choice = (m: Mode, title: string, text: string) => (
     <div
-      role="radio" tabIndex={mode === m ? 0 : -1} aria-checked={mode === m} class={`ng-choice ${mode === m ? 'on' : ''}`}
+      role="radio" data-cue="ui_value_change" tabIndex={mode === m ? 0 : -1} aria-checked={mode === m} class={`ng-choice ${mode === m ? 'on' : ''}`}
       onClick={() => pick(m)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(m); }
@@ -91,22 +91,22 @@ export function NewGameDialog() {
         {mode === 'campaign' && (
           <div class="ng-sub" role="group" aria-label="Tutorial">
             <span class="mute ng-q">Guided tutorial?</span>
-            <button class={tutorialOn ? 'on' : ''} aria-pressed={tutorialOn} onClick={() => setTutorialOn(true)}>Yes, show me</button>
-            <button class={!tutorialOn ? 'on' : ''} aria-pressed={!tutorialOn} onClick={() => setTutorialOn(false)}>No, I know the game</button>
+            <button data-cue="ui_value_change" class={tutorialOn ? 'on' : ''} aria-pressed={tutorialOn} onClick={() => setTutorialOn(true)}>Yes, show me</button>
+            <button data-cue="ui_value_change" class={!tutorialOn ? 'on' : ''} aria-pressed={!tutorialOn} onClick={() => setTutorialOn(false)}>No, I know the game</button>
           </div>
         )}
         {mode === 'sandbox' && (
           <div class="ng-sub" role="group" aria-label="Sandbox start">
             <span class="mute ng-q">Start with</span>
-            <button class={assembled ? 'on' : ''} aria-pressed={assembled} onClick={() => setAssembled(true)}>Assembled machine</button>
-            <button class={!assembled ? 'on' : ''} aria-pressed={!assembled} onClick={() => setAssembled(false)}>Bare board</button>
+            <button data-cue="ui_value_change" class={assembled ? 'on' : ''} aria-pressed={assembled} onClick={() => setAssembled(true)}>Assembled machine</button>
+            <button data-cue="ui_value_change" class={!assembled ? 'on' : ''} aria-pressed={!assembled} onClick={() => setAssembled(false)}>Bare board</button>
           </div>
         )}
         {lost && !confirm && <div class="ng-note"><Icon name="warn" size={13} /> A new game takes the place of {lost}.</div>}
         <div class="ng-actions">
           {confirm && <span class="ng-warn" role="alert">This {running ? 'discards' : 'replaces'} {lost}.</span>}
-          {dismissable && <button onClick={() => { newGameOpen.value = false; }}>Cancel</button>}
-          <button class="primary" onClick={start}>{confirm ? (running ? 'Discard and start' : 'Replace and start') : 'Start'}</button>
+          {dismissable && <button data-cue="ui_back" onClick={() => { newGameOpen.value = false; }}>Cancel</button>}
+          <button class="primary" data-cue="ui_confirm" onClick={start}>{confirm ? (running ? 'Discard and start' : 'Replace and start') : 'Start'}</button>
         </div>
       </div>
     </div>

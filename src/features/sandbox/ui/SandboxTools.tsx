@@ -43,7 +43,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
   return (
     <div class="sbx">
       <button
-        ref={chip} class={`sbx-chip ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbx-tools"
+        data-cue="ui_click" ref={chip} class={`sbx-chip ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbx-tools"
         title="Sandbox game: infinite money, everything unlocked. Click for the sandbox tools."
         onClick={() => setOpen(!open)}
       >
@@ -59,11 +59,11 @@ export function SandboxTools({ s }: { s: Snapshot }) {
             <select aria-label="Work multiplier" value={scale} title="Work multiplier" onChange={(e) => setScale(Number(e.currentTarget.value))}>
               {[1, 2, 4, 8, 16].map((n) => <option key={n} value={n}>x{n}</option>)}
             </select>
-            <button onClick={() => spawnKey(tpl, scale)} aria-label="Spawn a key with this job">Spawn</button>
+            <button data-cue="ui_confirm" onClick={() => spawnKey(tpl, scale)} aria-label="Spawn a key with this job">Spawn</button>
           </div>
           <div class="sbx-row">
-            <button onClick={clearQueue} title="Throw away every key in the tray">Clear queue</button>
-            <button onClick={repairAll} title="Un-burn all parts and the board, cool everything down, reset a tripped PSU">Repair all</button>
+            <button data-cue="ui_click" onClick={clearQueue} title="Throw away every key in the tray">Clear queue</button>
+            <button data-cue="ui_click" onClick={repairAll} title="Un-burn all parts and the board, cool everything down, reset a tripped PSU">Repair all</button>
           </div>
           <h4>Reputation</h4>
           <div class="sbx-row">
@@ -82,7 +82,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
             {JOB_CLASSES.map((c) => {
               const atLevel = !!levelDef(s.level.level).mix[c.id], off = s.level.classesOff.includes(c.id);
               return (
-                <button key={c.id} class={`sbj-kind${off ? '' : ' on'}${atLevel ? '' : ' dim'}`} aria-pressed={!off}
+                <button key={c.id} class={`sbj-kind${off ? '' : ' on'}${atLevel ? '' : ' dim'}`} data-cue="ui_toggle" aria-pressed={!off}
                   title={`${CLASS_NEEDS[c.id] ? `${CLASS_NEEDS[c.id]}. ` : ''}${atLevel ? '' : `Not part of the arrival mix at level ${s.level.level}: spawn one by hand, or raise the rules level (the LEVEL button).`}`.trim() || undefined}
                   onClick={() => setJobClasses(JOB_CLASSES.map((x) => x.id).filter((id) => (id === c.id ? !off : s.level.classesOff.includes(id))))}>
                   {CLASS_LABEL[c.id] ?? c.id}
@@ -91,12 +91,12 @@ export function SandboxTools({ s }: { s: Snapshot }) {
             })}
           </div>
           <div class="sbx-row">
-            <button onClick={() => setJobClasses([])} title="Let every class arrive again">All on</button>
-            <button onClick={() => setJobClasses(JOB_CLASSES.map((c) => c.id))} title="Stop every class: no key arrives until you spawn one or switch a class on">All off</button>
+            <button data-cue="ui_click" onClick={() => setJobClasses([])} title="Let every class arrive again">All on</button>
+            <button data-cue="ui_click" onClick={() => setJobClasses(JOB_CLASSES.map((c) => c.id))} title="Stop every class: no key arrives until you spawn one or switch a class on">All off</button>
           </div>
           <h4>Speed</h4>
           <div class="sbx-row">
-            <button class={speed.value === 64 ? 'on' : ''} aria-pressed={speed.value === 64} onClick={() => setSpeed(speed.value === 64 ? 1 : 64)}>
+            <button class={speed.value === 64 ? 'on' : ''} data-cue="ui_toggle" aria-pressed={speed.value === 64} onClick={() => setSpeed(speed.value === 64 ? 1 : 64)}>
               {speed.value === 64 ? '16x on (back to 1x)' : 'Run at 16x'}
             </button>
           </div>

@@ -15,13 +15,13 @@ export function LevelBar({ s }: { s: Snapshot }) {
   const m = levelBar(s);
   if (m.sandbox) {
     return (
-      <button class="lvl-chip" title={m.tooltip} aria-label={`Rules level ${m.level}, ${m.name}. Open the levels`} onClick={() => openMilestones()}>
+      <button class="lvl-chip" data-cue="ui_click" data-cue-next="ui_transition_in" title={m.tooltip} aria-label={`Rules level ${m.level}, ${m.name}. Open the levels`} onClick={() => openMilestones()}>
         {m.label}
       </button>
     );
   }
   return (
-    <button class={`lvl ${m.atMax ? 'max' : ''}`} title={m.tooltip} aria-label={`Level ${m.level}, ${m.name}. Client base ${m.label}. Open the levels`} onClick={() => openMilestones()}>
+    <button class={`lvl ${m.atMax ? 'max' : ''}`} data-cue="ui_click" data-cue-next="ui_transition_in" title={m.tooltip} aria-label={`Level ${m.level}, ${m.name}. Client base ${m.label}. Open the levels`} onClick={() => openMilestones()}>
       <span class="lvl-n">{m.level}</span>
       <span class="lvl-name">{m.name}</span>
       <span class="lvl-bar" aria-hidden="true"><i style={{ width: `${m.pct}%` }} /></span>

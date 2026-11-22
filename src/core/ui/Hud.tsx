@@ -55,16 +55,16 @@ function SpeedControl() {
   const v = speed.value, shown = v === 0 ? lastRunSpeed.value : v;
   return (
     <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
-      <button class="icon pp" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
+      <button class="icon pp" data-cue="silent" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
         <Icon name={v === 0 ? 'play' : 'pause'} size={14} />
       </button>
-      <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
+      <button class="icon zs" data-cue="ui_click" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
         title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
         <Icon name="gauge" size={14} />
       </button>
       <div class="seg speeds" role="group" aria-label="Speed" onClick={() => setOpen(true)}>
         {SPEEDS.filter((x) => x !== 0).map((x) => (
-          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { setSpeed(x); setOpen(false); }}>
+          <button key={x} data-cue="silent" class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { setSpeed(x); setOpen(false); }}>
             {speedLabel(x)}
           </button>
         ))}
@@ -182,7 +182,7 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = hudNetChip(s);
   if (!c) return null;
   return (
-    <button class={`chip ${c.level}`} title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
+    <button class={`chip ${c.level}`} data-cue="ui_click" title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
       <Icon name={c.icon} size={12} /> {c.text}
     </button>
   );
@@ -192,7 +192,7 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
 function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   if (!s.os) return null;
   return (
-    <button class="chip idle" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
+    <button class="chip idle" data-cue="ui_click" data-cue-next="ui_transition_in" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
       <Icon name="layers" size={12} /> OS {s.os.spool.used}/{s.os.spool.slots}
     </button>
   );
@@ -250,19 +250,19 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   }, [open]);
   return (
     <div class="menu" ref={root}>
-      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !open; }}>
+      <button class={`icon ${open ? 'on' : ''}`} data-cue="silent" aria-expanded={open} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !open; }}>
         <Icon name="menu" size={14} />
       </button>
       {open && (
         <div class="card menu-pop" role="menu">
           <div class="menu-h">Game</div>
-          <button role="menuitem" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
-          <button role="menuitem" onClick={() => { close(); leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
-          <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
-          <label class="menuitem" title="Load a game file">
+          <button role="menuitem" data-cue="ui_confirm" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
+          <button role="menuitem" data-cue="ui_confirm" data-cue-next="ui_transition_out" onClick={() => { close(); leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
+          <button role="menuitem" data-cue="ui_click" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
+          <label class="menuitem" data-cue="ui_click" title="Load a game file">
             <Icon name="import" size={13} /> Import game
             <input
-              type="file" accept="application/json,.json" hidden
+              type="file" accept="application/json,.json" hidden data-cue="silent"
               onChange={(e) => {
                 const f = e.currentTarget.files?.[0];
                 if (f) void loadFromFile(f);
@@ -271,24 +271,24 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
               }}
             />
           </label>
-          <button class="danger" role="menuitem" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
+          <button class="danger" role="menuitem" data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
           <div class="menu-h">Tools</div>
-          <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
-          <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
-          <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
+          <button role="menuitem" data-cue="ui_click" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
+          <button role="menuitem" data-cue="ui_click" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
+          <button role="menuitem" data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <div class="menu-h">View</div>
-          <button role="menuitem" aria-haspopup="dialog" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> Graphics</button>
+          <button role="menuitem" data-cue="ui_click" data-cue-next="ui_transition_in" aria-haspopup="dialog" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> Graphics</button>
           <label class="scale-row" title="Make the whole interface smaller or larger">
             <span>UI size</span>
-            <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
+            <input type="range" data-cue="ui_value_change" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
               onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
             <b class="value">{Math.round(uiScale.value * 100)}%</b>
           </label>
           <div class="menu-h">Help</div>
-          <button role="menuitem" onClick={() => { close(); controlsOpen.value = true; }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
-          <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
-          {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
-          <button role="menuitem" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>
+          <button role="menuitem" data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => { close(); controlsOpen.value = true; }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
+          <button role="menuitem" data-cue="ui_click" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
+          {active && <button role="menuitem" data-cue="ui_click" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
+          <button role="menuitem" data-cue="ui_click" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>
         </div>
       )}
     </div>
@@ -367,7 +367,7 @@ export function Hud() {
       <Shop s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
-          <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
           <Stats />
         </aside>
       )}

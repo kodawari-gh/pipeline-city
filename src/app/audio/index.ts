@@ -7,6 +7,7 @@ import { debugOn } from '../debugflag';
 import { createDirector, type Scene, type UiInput } from './director';
 import { applyMix, engineSink, setHidden, startLoading, unlockOnGesture } from './engine';
 import { audioMix } from './mix';
+import { installUiCues } from './uiListener';
 
 /** The screen the room loop follows. Until the boot screen has gone there is no screen yet (`boot`): the room loop waits. */
 export function sceneOf(s: { booted: boolean; build: boolean; gallery: boolean; game: boolean }): Scene {
@@ -22,6 +23,7 @@ export function sceneOf(s: { booted: boolean; build: boolean; gallery: boolean; 
 export function initAudio(search?: string, readUi?: () => UiInput, readScene?: () => Scene): void {
   const director = createDirector(engineSink);
   unlockOnGesture(() => director.onUnlock());
+  installUiCues();
   // The hidden tab fades the sound and suspends the context (engine.ts `setHidden`). Only visibility drives it.
   setHidden(document.visibilityState === 'hidden');
   document.addEventListener('visibilitychange', () => setHidden(document.visibilityState === 'hidden'));

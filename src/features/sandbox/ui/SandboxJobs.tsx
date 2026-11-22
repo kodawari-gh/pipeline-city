@@ -48,7 +48,7 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
   return (
     <div class="sbx">
       <button
-        ref={btn} class={`sbx-chip sbj-btn ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbj-panel"
+        data-cue="ui_click" ref={btn} class={`sbx-chip sbj-btn ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbj-panel"
         title="Sandbox: pick the level the rules follow and which kinds of job arrive."
         onClick={() => setOpen(!open)}
       >
@@ -64,8 +64,8 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
           <div class="sbx-msg"><b>{levelDef(level).name}</b>. Arrivals: {mixLine(level)}.</div>
           <h4>Kinds of job <span class="sbj-count">{allOn}/{all.length}</span></h4>
           <div class="sbx-row">
-            <button onClick={() => set(all, true)} title="Let every kind of job arrive again">All on</button>
-            <button onClick={() => set(all, false)} title="Stop every kind of job: nothing arrives until you spawn one or switch a kind on">All off</button>
+            <button data-cue="ui_click" onClick={() => set(all, true)} title="Let every kind of job arrive again">All on</button>
+            <button data-cue="ui_click" onClick={() => set(all, false)} title="Stop every kind of job: nothing arrives until you spawn one or switch a kind on">All off</button>
           </div>
           <div class="sbj-groups">
             {DEX_GROUPS.map((g) => {
@@ -75,10 +75,10 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
               return (
                 <section key={g.id} class={`sbj-group${shown ? ' open' : ''}`} style={{ '--grp': g.color }}>
                   <div class="sbj-head">
-                    <button class="sbj-fold" aria-expanded={shown} onClick={() => setOpened({ ...opened, [g.id]: !shown })}>
+                    <button class="sbj-fold" data-cue="ui_click" aria-expanded={shown} onClick={() => setOpened({ ...opened, [g.id]: !shown })}>
                       <span class="chev" aria-hidden="true">›</span> {g.name} <span class="sbj-count">{onCount}/{ids.length}</span>
                     </button>
-                    <button class={`sbj-tog ${full ? 'on' : onCount ? 'some' : ''}`} aria-pressed={full} aria-label={`${g.name}: ${full ? 'all off' : 'all on'}`} title={full ? 'Switch the whole group off' : 'Switch the whole group on'} onClick={() => set(ids, !full)}>
+                    <button class={`sbj-tog ${full ? 'on' : onCount ? 'some' : ''}`} data-cue="ui_toggle" aria-pressed={full} aria-label={`${g.name}: ${full ? 'all off' : 'all on'}`} title={full ? 'Switch the whole group off' : 'Switch the whole group on'} onClick={() => set(ids, !full)}>
                       {full ? 'on' : onCount ? 'some' : 'off'}
                     </button>
                   </div>
@@ -90,7 +90,7 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
                         const why = !atLevel ? `Starts arriving at level ${taskLevel(e)}. Raise the level, or spawn one by hand.`
                           : classOff ? `Its class (${e.cls}) is switched off in the sandbox tools.` : undefined;
                         return (
-                          <button key={id} class={`sbj-kind${isOn ? ' on' : ''}${why ? ' dim' : ''}`} aria-pressed={isOn} title={why ?? e.blurb} onClick={() => set([id], !isOn)}>
+                          <button key={id} class={`sbj-kind${isOn ? ' on' : ''}${why ? ' dim' : ''}`} data-cue="ui_toggle" aria-pressed={isOn} title={why ?? e.blurb} onClick={() => set([id], !isOn)}>
                             {e.name}{!atLevel && <span class="sbj-lvl">L{taskLevel(e)}</span>}
                           </button>
                         );

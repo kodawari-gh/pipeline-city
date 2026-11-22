@@ -75,7 +75,7 @@ export function Controls() {
           <section aria-label="Touch"><h3>Touch</h3><Rows rows={TOUCH} /></section>
           <section aria-label="Keys"><h3>Keys</h3><Rows rows={KEYS} /></section>
         </div>
-        <div class="pactions"><button class="primary" autofocus onClick={() => { controlsOpen.value = false; }}>Done</button></div>
+        <div class="pactions"><button class="primary" data-cue="ui_back" autofocus onClick={() => { controlsOpen.value = false; }}>Done</button></div>
       </div>
     </div>
   );

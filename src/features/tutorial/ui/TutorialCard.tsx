@@ -34,7 +34,7 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
   useEffect(() => { onEnd?.(done && !more); }, [done, more, text]);
   const advance = () => { if (!done) setN(cur.length); else if (more) setPage(page + 1); };
   return (
-    <button type="button" class="dlg" onClick={advance} aria-label={more || !done ? 'Next' : 'Dialogue'}>
+    <button type="button" class="dlg" data-cue="ui_click" onClick={advance} aria-label={more || !done ? 'Next' : 'Dialogue'}>
       <span class="dlg-text" aria-live="polite">
         <span>{cur.slice(0, n)}</span><span class="dlg-rest">{cur.slice(n)}</span>
       </span>
@@ -51,7 +51,7 @@ function AckDialogue({ id, text }: { id: string; text: string }) {
     <>
       <Dialogue text={text} onEnd={setAtEnd} />
       <div class={`pactions dlg-actions ${atEnd ? 'on' : ''}`}>
-        <button class="primary" onClick={() => ackStep(id)}>Got it</button>
+        <button class="primary" data-cue="ui_confirm" onClick={() => ackStep(id)}>Got it</button>
       </div>
     </>
   );
@@ -323,15 +323,15 @@ export function TutorialCard() {
       return (
         <PopupDialogue label="Next lesson" title="The operating system" name="offer"
           text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.">
-          <button onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
-          <button class="primary" onClick={takeOsLesson}>Start the lesson</button>
+          <button data-cue="ui_back" onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
+          <button class="primary" data-cue="ui_confirm" onClick={takeOsLesson}>Start the lesson</button>
         </PopupDialogue>
       );
     }
     return (
       <PopupDialogue label="Tutorial" title={step!.title} text={step!.text} name={step!.id}>
-        <button onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
-        <button class="primary" onClick={startTutorial}>Start</button>
+        <button data-cue="ui_back" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
+        <button class="primary" data-cue="ui_confirm" onClick={startTutorial}>Start</button>
       </PopupDialogue>
     );
   }
@@ -356,8 +356,8 @@ export function TutorialCard() {
           <div class="thead">
             <span class="mute">{label}</span>
             <span class="tbtns">
-              {offscreen && <button class="link" onClick={showMe} title="Fly the camera to what this step is about">Show me</button>}
-              <button class="link" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
+              {offscreen && <button class="link" data-cue="ui_click" onClick={showMe} title="Fly the camera to what this step is about">Show me</button>}
+              <button class="link" data-cue="ui_back" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
             </span>
           </div>
           <div class="tut-text" key={step.id}>
@@ -371,7 +371,7 @@ export function TutorialCard() {
             )}
             {problem && <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">{problem}</div>}
             {step.id === 'done' && (
-              <div class="pactions"><button class="primary" onClick={finishTutorial}>Got it</button></div>
+              <div class="pactions"><button class="primary" data-cue="ui_confirm" onClick={finishTutorial}>Got it</button></div>
             )}
           </div>
         </div>

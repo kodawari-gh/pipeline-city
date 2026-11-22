@@ -27,6 +27,8 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `events.ts` | Log note to cue (`logRules`), and the new-notes tracker (no sound on a first snapshot) |
 | `director.ts` | Snapshot to key change and cues. Driven through a `CueSink`, so tests use a fake |
 | `cueBoard.ts` | `?debug` board: one button per cue |
+| `uiCues.ts` | UI sound mapping (pure): `data-cue` value and event to cue id; the click's transition step |
+| `uiListener.ts` | The one document-level UI listener (hover, keyboard focus, click, checkbox change, arrows, Esc). Installed by `initAudio` |
 | `volume.ts` | The player's mix rules (pure): slider gain, snap, `busGains` (bus dB times slider gain), per-device read and write |
 | `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
 | `ambience.ts` | Ambience controller (pure): room loop on/off, hum on while powered, hum level and rate from fan speed, pause dip. Driven by the director through an `AmbienceSink` (`startLoop`, `stopLoop`, `setHum`, `duckHum`), so tests use a fake |
@@ -36,7 +38,7 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 - Gain is `(v / 100)^2` on top of each bus default. Each slider drives its buses only. Mute sets every bus to 0.
 - `index.ts` follows `audioMix` and calls `engine.applyMix`. A live change ramps (20 ms); a new graph sets it at once.
 - Stored per device in localStorage (`MIX.sliders.storageKey`), wrapped in try/catch. Not in the save.
-- Releasing the Sounds slider plays one `ui_click` at the new level.
+- Each slider plays `ui_value_change` on its arrow keys and on release (its click), at the new level.
 
 Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue whose file is not decoded is skipped, and its file loads for next time.
 
@@ -79,5 +81,17 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Engine: each loop is level, then pause dip, then the ambience duck. A start or fade gets its own fade node, so a fade-out and a new start can overlap. A loop wished before the AudioContext opens starts at the gesture. A loop not yet decoded starts when it loads.
 - Loop ends: `loopStart = 0`, `loopEnd = MIX.ambience[id].samples / sampleRate`. The counts come from the manifest (`build_manifest.py` writes `samples` into the ambience tokens). A decoded length that differs logs one warning per file.
 
+### UI sounds (ticket #56)
+- A DOM attribute names the cue. `data-cue="<cue id>"` plays that cue on click (a native button or link by its own click; Enter and Space on a non-native element, such as a `role="radio"` div, by the key listener). It also turns on hover and focus sounds for the element.
+- `data-cue="ui_toggle"` (a checkbox) plays `ui_toggle_on` or `ui_toggle_off` on its change event.
+- `data-cue="ui_tab_switch"` on a tab plays on click. Arrow keys between tabs play the focus cue.
+- `data-cue="ui_value_change"` on a range input plays on click and on the Left and Right arrow keys. Value branches (New game choices) use it too.
+- `data-cue="silent"` plays no click sound; hover and focus still play. Use it where the clock or the menu already plays the cue (speed, pause, menu button).
+- A label that wraps a hidden file input carries `data-cue="ui_click"`; the input gets `data-cue="silent"`. The click the label forwards to the input then plays nothing, so one activation plays one click.
+- `data-cue-next="<cue id>"` plays a second cue 70 ms after the click (the sub-screen transition). Put it on a click that opens a dialog (`ui_click` then `ui_transition_in`). A chip that opens and closes a panel plays no transition.
+- Hover: `ui_hover` on `pointerover` from outside the element, on `(hover: hover)` devices only. Focus: `ui_focus_move` on `focusin` after a key press. Esc: `ui_back` while a `[role=dialog]`, `[role=alertdialog]` or `[role=menu]` is open. Arrows: `ui_value_change` on an element with `data-cue="ui_value_change"`, for Left and Right (Up and Down play nothing).
+- Nothing plays before the unlock gesture (`playCue` is silent until the context runs).
+- Covered: the main menu (buttons, Settings sliders, Graphics entry), New game, the in-game menu (items, UI size slider), the HUD chips, speed rail, level bar, power bill, stats dock, the HUD InventoryBar (8 buttons), the sandbox HUD (SANDBOX and LEVEL chips), the tutorial card buttons, the Controls Done and Confirm buttons (Back), the OS window (tabs, close) and the Graphics sheet (tab bar, slider). Not yet: other panels (Log, Shop, Build my PC, OS pages, Trace), the rest of the Graphics sheet, and the tutorial typing.
+
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #58: room loop and machine hum. Not yet built: music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Not yet built: music, UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.

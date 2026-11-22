@@ -46,8 +46,8 @@ export function ConfirmDialog() {
         <div class="big" id="cf-title">{r.title}</div>
         <div class="pplain" id="cf-text">{r.text}</div>
         <div class="pactions">
-          <button ref={cancel} onClick={() => answer(false)}>Cancel</button>
-          <button class="danger" onClick={() => answer(true)}>{r.ok}</button>
+          <button ref={cancel} data-cue="ui_back" onClick={() => answer(false)}>Cancel</button>
+          <button class="danger" data-cue="ui_confirm" onClick={() => answer(true)}>{r.ok}</button>
         </div>
       </div>
     </div>
