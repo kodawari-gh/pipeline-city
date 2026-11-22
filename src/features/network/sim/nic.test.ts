@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { IRQ, JobState, KDATA_BASE, KSLOT, KSLOT_BYTES, NET_KEY, NIC_ACK_NEXT_MASK, NIC_REG, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_STAMP_SHIFT, NIC_TX_HEAD_WORDS, NICA, NICK, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot } from "@/core/sim/memmap";
 import { ECONOMY, type EconomyConfig } from "../../economy/sim/economy";
 import { Game } from "@/worker/game/game";
-import { econ, netRig, rig } from "@/worker/game/testkit";
+import { econ, netRig, rig, type Keys } from "@/worker/game/testkit";
 import { Nic, NIC_FIFO_SEGS, type NicPacket, type NicSegment } from "./nic";
 import { fifoSegsOf } from "./specs";
 
@@ -279,10 +279,10 @@ describe("the NIC with the kernel", { timeout: 60000 }, () => {
 
 
 /** A machine on `os` and `cpu` with 256K of RAM and the network (a router, a plan, the cable), powered on and run until the link is up. */
-function tierMachine(os: "os2" | "os3" | "os4", cpu: string, enthusiast: boolean, economy: Partial<EconomyConfig> = {}): Game {
+function tierMachine(os: "os1" | "os2" | "os3" | "os4", cpu: string, enthusiast: boolean, economy: Partial<EconomyConfig> = {}, keys: Keys = []): Game {
   let g: Game;
   if (enthusiast) {
-    g = new Game({ seed: 7, preassembled: true, economy: { ...econ([]), levelGating: false, caseGating: false, ...economy } });
+    g = new Game({ seed: 7, preassembled: true, economy: { ...econ(keys), levelGating: false, caseGating: false, ...economy } });
     g.money = 1_000_000;
     g.powerButton();
     for (const id of ["board1", "board2", "board3", "psu2", cpu, "cooler2", "rad2"]) {
@@ -299,7 +299,7 @@ function tierMachine(os: "os2" | "os3" | "os4", cpu: string, enthusiast: boolean
       if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
     }
   } else {
-    g = rig("ssd1", { cpu, os: false, keys: [], economy });
+    g = rig("ssd1", { cpu, os: false, keys, economy });
     for (const d of g.board.devices.filter((x) => x.spec.startsWith("ram"))) g.uninstall(d.id);
     for (const id of ["ram4", os]) {
       const b = g.purchase(id);
@@ -321,7 +321,8 @@ function tierMachine(os: "os2" | "os3" | "os4", cpu: string, enthusiast: boolean
 }
 
 describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
-  const cases: [string, "os2" | "os3" | "os4", string, boolean][] = [
+  const cases: [string, "os1" | "os2" | "os3" | "os4", string, boolean][] = [
+    ["OS 1, one core", "os1", "cpu2", false],
     ["OS 2, one core", "os2", "cpu2", false],
     ["OS 2, two cores", "os2", "cpu2d", true],
     ["OS 3, one core", "os3", "cpu2", false],
@@ -340,9 +341,9 @@ describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
       expect(g.nic.view()).toMatchObject({ rx: 3, tx: 4 });
       expect(kword(g, "GOT")).toBe(3);
       expect(kword(g, "SENT")).toBe(1);
-      // OS 3 and up take the NIC's interrupt (a segment in, a packet sent: at least one line each way); OS 2 runs a job with interrupts off and polls, so the line never rises
+      // OS 1 and OS 2 run a job with interrupts off and poll, so the NIC's line never rises; OS 3 and up take it (a segment in, a packet sent: at least one line each way)
       const irqs = g.nic.view().irqs;
-      if (os === "os2") expect(irqs).toBe(0);
+      if (os === "os1" || os === "os2") expect(irqs).toBe(0);
       else expect(irqs).toBeGreaterThanOrEqual(3 + 4);
       // the driver ran for every one of them: no event is left waiting
       for (let i = 0; i < 40 && kword(g, "EV") !== 0; i++) g.advanceBaseTick();
@@ -350,8 +351,8 @@ describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
     });
   }
 
-  it("an OS that takes the interrupt leaves the driver alone while the network is quiet: no line, no flag", () => {
-    const g = tierMachine("os3", "cpu2", false);
+  it.each(["os2", "os3"] as const)("%s: while the network is quiet no line is raised and the flag stays clear", (os) => {
+    const g = tierMachine(os, "cpu2", false);
     for (let i = 0; i < 60; i++) g.advanceBaseTick(); // (the first pass of the loop looks at the rings and the link once)
     const irqs = g.nic.view().irqs, taken = g.machine.intc.taken;
     expect(kword(g, "EV")).toBe(0);
@@ -362,10 +363,12 @@ describe("every kernel tier drives the NIC", { timeout: 300000 }, () => {
   });
 });
 
-// ---- the tiers that take the interrupt, when things go wrong: the same cut cable, power loss and lossy wire, with the driver run by the flag the handler sets
+// ---- the tiers that run the driver, when things go wrong: the same cut cable, power loss and lossy wire. OS 2 runs it by polling; OS 3 and up run it by the flag the handler sets
 
-describe("the tiers that take the NIC's interrupt, when things go wrong", { timeout: 300000 }, () => {
-  const tiers: [string, "os3" | "os4", string, boolean][] = [
+describe("the tiers that run the NIC driver, when things go wrong", { timeout: 300000 }, () => {
+  const tiers: [string, "os2" | "os3" | "os4", string, boolean][] = [
+    ["OS 2, one core", "os2", "cpu2", false],
+    ["OS 2, two cores", "os2", "cpu2d", true],
     ["OS 3, one core", "os3", "cpu2", false],
     ["OS 3, two cores", "os3", "cpu2d", true],
     ["OS 4, threads", "os4", "cpu3t", true],
@@ -376,16 +379,25 @@ describe("the tiers that take the NIC's interrupt, when things go wrong", { time
     expect(g.snapshot().net.counters.delivered).toBe(before + 1);
   };
   for (const [name, os, cpu, big] of tiers) {
-    it(`${name}: a cut cable is a link interrupt: the driver frees the receiving slot, and the job comes in whole on the next link`, () => {
+    it(`${name}: a cut cable drops the link: the driver notices it, and the job comes in whole and is sent on the next link`, () => {
       const g = tierMachine(os, cpu, big);
       offer(g, "web.dns", 4);
       for (let i = 0; i < 60 && !g.kernelJobs().some((j) => j.net && j.state === JobState.Receiving); i++) g.advanceBaseTick();
       expect(g.kernelJobs().some((j) => j.net && j.state === JobState.Receiving)).toBe(true);
       expect(g.disconnectCable("lan").ok).toBe(true);
-      for (let i = 0; i < 60 && g.kernelJobs().some((j) => j.net); i++) g.advanceBaseTick();
-      expect(g.kernelJobs().some((j) => j.net)).toBe(false);
-      expect(kword(g, "JOBS")).toBe(0);
-      expect(g.snapshot().net.offers).toHaveLength(1);
+      if (os === "os2") {
+        // polling: the pass of the loop sees the link go down (LINK word clears); the receive had finished (all segments in), so no receive is left half done
+        for (let i = 0; i < 200 && kword(g, "LINK") !== 0; i++) g.advanceBaseTick();
+        expect(kword(g, "LINK")).toBe(0);
+        expect(kword(g, "GOT")).toBe(3);
+        expect(g.kernelJobs().some((j) => j.net && j.state === JobState.Receiving)).toBe(false);
+        expect(g.nic.view().irqs).toBe(0); // polling: the NIC's line is never enabled
+      } else {
+        for (let i = 0; i < 60 && g.kernelJobs().some((j) => j.net); i++) g.advanceBaseTick();
+        expect(g.kernelJobs().some((j) => j.net)).toBe(false);
+        expect(kword(g, "JOBS")).toBe(0);
+        expect(g.snapshot().net.offers).toHaveLength(1);
+      }
       expect(g.connectCable("lan").ok).toBe(true);
       deliver(g);
     });
@@ -401,7 +413,7 @@ describe("the tiers that take the NIC's interrupt, when things go wrong", { time
       expect(g.spool).toHaveLength(0);
     });
 
-    it(`${name}: jobs one after another, with a quiet spell between: every one is received, run and sent (the flag is set and cleared each time)`, () => {
+    it(`${name}: jobs one after another, with a quiet spell between: every one is received, run and sent (the driver runs for each one)`, () => {
       const g = tierMachine(os, cpu, big);
       for (let n = 0; n < 3; n++) {
         offer(g, "web.dns", 4);
@@ -422,6 +434,35 @@ describe("the tiers that take the NIC's interrupt, when things go wrong", { time
       expect(kword(g, "GOT")).toBe(3);
     });
   }
+});
+
+// ---- OS 2 polls: a segment that comes in while a program runs waits in the NIC's ring (the NIC DMAs it, no line is raised) until the program ends and the driver polls
+
+describe("OS 2 polls the NIC while a program runs", { timeout: 120000 }, () => {
+  it("one core: a segment that arrives during a local program's run raises no line and waits in the ring, and the network job still comes in whole once the program ends", () => {
+    const g = tierMachine("os2", "cpu2", false, { baseDemandPerTick: 0 }, [{ template: "cli.log" }]);
+    const key = g.trayKeyIds()[0]!;
+    expect(g.plugKey(key).ok).toBe(true);
+    for (let i = 0; i < 40 && !g.kernelJobs().some((j) => !j.net && j.state === JobState.Running); i++) g.advanceBaseTick();
+    expect(g.kernelJobs().some((j) => !j.net && j.state === JobState.Running)).toBe(true);
+    offer(g, "web.dns", 4);
+    let irqsDuringRun = 0, pendingDuringRun = 0;
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 6000 && g.snapshot().net.counters.delivered === before; i++) {
+      const running = g.kernelJobs().some((j) => !j.net && j.state === JobState.Running);
+      const irqs = g.nic.view().irqs;
+      g.advanceBaseTick();
+      if (running) {
+        irqsDuringRun += g.nic.view().irqs - irqs;
+        pendingDuringRun = Math.max(pendingDuringRun, g.nic.rxPending);
+      }
+    }
+    expect(irqsDuringRun).toBe(0);
+    expect(pendingDuringRun).toBeGreaterThan(0);
+    expect(g.snapshot().net.counters.delivered).toBe(before + 1);
+    expect(kword(g, "GOT")).toBe(3);
+    expect(kword(g, "SENT")).toBe(1);
+  });
 });
 
 // ---- what goes wrong: a full table, a cut cable, a power loss
