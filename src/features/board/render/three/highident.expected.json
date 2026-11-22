@@ -333,77 +333,77 @@
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "ab597302"
+    "sum": "007527eb"
   },
   "machine/dev24": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "9838ae39"
+    "sum": "b9488e9e"
   },
   "machine/dev25": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "530d282f"
+    "sum": "bf5bba65"
   },
   "machine/dev26": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "1815a6a7"
+    "sum": "6d65d2fe"
   },
   "machine/dev27": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "c8611160"
+    "sum": "30d324de"
   },
   "machine/dev28": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "c8611160"
+    "sum": "30d324de"
   },
   "machine/dev29": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "c8611160"
+    "sum": "30d324de"
   },
   "machine/dev30": {
     "meshes": 13,
     "draws": 4,
     "verts": 924,
     "instances": 196,
-    "sum": "c8611160"
+    "sum": "30d324de"
   },
   "machine/dev31": {
-    "meshes": 14,
-    "draws": 14,
-    "verts": 7074,
+    "meshes": 19,
+    "draws": 19,
+    "verts": 13374,
     "instances": 515,
-    "sum": "461db966"
+    "sum": "d01cb793"
   },
   "machine/dev32": {
-    "meshes": 14,
-    "draws": 14,
-    "verts": 7074,
+    "meshes": 19,
+    "draws": 19,
+    "verts": 13374,
     "instances": 515,
-    "sum": "7ae75839"
+    "sum": "77f8e07d"
   },
   "machine/dev33": {
-    "meshes": 14,
-    "draws": 14,
-    "verts": 7074,
+    "meshes": 19,
+    "draws": 19,
+    "verts": 13374,
     "instances": 515,
-    "sum": "461db966"
+    "sum": "d01cb793"
   },
   "machine/dev34": {
     "meshes": 20,
@@ -525,11 +525,11 @@
     "sum": "14a9fabb"
   },
   "machine/standin": {
-    "meshes": 7,
+    "meshes": 8,
     "draws": 0,
-    "verts": 234534,
+    "verts": 234768,
     "instances": 0,
-    "sum": "ac8f8b25"
+    "sum": "cf823b3a"
   },
   "machine/tpm0": {
     "meshes": 1,

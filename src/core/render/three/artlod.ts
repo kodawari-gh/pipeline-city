@@ -98,6 +98,17 @@ export function fadeTree(o: Object3D, a: number): void {
   });
 }
 
+/**
+ * Give every mesh under `o` materials of its own (copies, their textures shared), so that fading `o` (`fadeTree`) leaves alone the other meshes that share a cached material with it
+ * (every moulded chip of a board shares one black epoxy).
+ */
+export function ownMaterials(o: Object3D): void {
+  o.traverse((x) => {
+    const m = x as Mesh, mt = m.material as Material | Material[] | undefined;
+    if (mt) m.material = Array.isArray(mt) ? mt.map((c) => c.clone()) : mt.clone();
+  });
+}
+
 /** Is `o` drawn (it and every parent visible)? */
 export function shown(o: Object3D): boolean {
   for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;

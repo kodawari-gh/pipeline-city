@@ -3,15 +3,20 @@
 // look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
-import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
+import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, Vector3, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { BRAND_FONT, drawLockup, lockupWidth } from '@/core/render/brands';
 import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { sheetCut } from '@/core/render/three/detail';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { seeThrough, unseen } from '@/core/render/three/pick';
+import type { Theme } from '@/core/render/theme';
+import { ramDieArt, ramDiePlan, type RamDiePlan, type RamDieSpec } from '@/features/memory/render/ramdie';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
 import { ramChips, ramNotch } from '../devices';
+import { LV_DIE, type ArtSet } from './artset3d';
 import { tex } from './casekit3d';
 import { glowMat, light, type Spin } from './fans3d';
 
@@ -32,6 +37,8 @@ const NOTCH_V = Math.round(PCB_H * 0.44), NOTCH_R = 16, LATCH_Z = Z0 + NOTCH_V +
 const OVER = { bare: 0, low: 0, fins: Math.round(6 * STICK_MM), rgb: Math.round(12.75 * STICK_MM) } as const;
 /** The camera's lean (radians of yaw) to read the stick faces in a row, and the zoom band it comes in over (board3d.ts). */
 export const RAM_LEAN = 0.72;
+/** The zoom band (screen pixels per unit) the spreaders fade over and the chips' dies come in over, after the lean: the part's own chips show once its cover is gone. */
+export const RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 
 export type StickLook = 'bare' | 'low' | 'fins' | 'rgb';
 export const stickLook = (visual: string): StickLook =>
@@ -153,15 +160,48 @@ export interface Stick {
   spreader: Group;
   /** An unseen box over the 2D rect: the thin stick is easy to click from the glass. */
   hit: Mesh;
-  /** The data chips' faces toward the leaning camera (east), in the 2D chips' order: the live memory map is painted on them (`RamMap3D`). */
+  /** The data chips' faces toward the leaning camera (east), in the 2D chips' order, each over its die: the live memory map is painted on them (`RamMap3D`), in the die's banks. */
   mapFaces: Mesh[];
+  /** The dies on the data chips' two faces (`ramDieArt`): they fade in as the spreader goes (`fadeTree`). Empty without a plan (`dies`). */
+  dies: Group[];
+  /** The plan of the dies: where the banks lie on a chip's face. Null without a plan. */
+  plan: RamDiePlan | null;
   spins: Spin[];
   /** The materials that follow the part's state (`PartSkin`). */
   skin: MeshStandardMaterial[];
 }
 
-/** One stick standing in the socket over `r`, `label` (its model) printed on its spreader or on a sticker over its chips. */
-export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''): Stick {
+/** What a stick needs to show its chips' dies: the set that bakes the art, the palette, and the banks of the stick's generation. */
+export interface RamDies { art: ArtSet; T: Theme; spec: RamDieSpec }
+
+/** A stick's cover goes and its dies come in, `f` from 0 to 1 (`dieShown`). */
+export function stickFade(st: Stick, f: number): void {
+  fadeTree(st.spreader, 1 - f);
+  for (const die of st.dies) fadeTree(die, f);
+}
+
+/** How far a stick has shown its dies at `zoom` (screen pixels per unit): 0 to 1 over `RAM_FADE`. */
+export const dieShown = (zoom: number): number => smooth(RAM_FADE[0], RAM_FADE[1], zoom);
+
+/** The gap between a chip's face and the art on it, and the live map over the art. */
+const DIE_OFF = 0.3, MAP_OFF = 2;
+
+/**
+ * A frame on a chip's face (`side`: east 1, west -1) in which a plan drawn from its top left corner reads upright from outside the face, centred at (x, y, z). Its z is out of the face.
+ * `inner` is the plan's own frame; `k` scales it (a smaller chip carries the same die smaller).
+ */
+function faceFrame(plan: RamDiePlan, side: 1 | -1, x: number, y: number, z: number, k = 1): { frame: Group; inner: Group } {
+  const frame = new Group(), inner = new Group();
+  frame.position.set(x, y, z);
+  frame.scale.setScalar(k);
+  frame.setRotationFromMatrix(new Matrix4().makeBasis(new Vector3(0, side, 0), new Vector3(0, 0, 1), new Vector3(side, 0, 0)));
+  inner.position.set(-plan.w / 2, plan.h / 2, 0);
+  frame.add(inner);
+  return { frame, inner };
+}
+
+/** One stick standing in the socket over `r`, `label` (its model) printed on its spreader or on a sticker over its chips. `dies`: each data chip then shows its die as the spreader goes. */
+export function ramStick(visual: string, ecc: boolean, r: RectLike, label = '', dies?: RamDies): Stick {
   const look = stickLook(visual), cx = r.x + r.w / 2;
   const L = r.h - 2 * END, ys = -(r.y + r.h - END), root = new Group(), spreader = new Group(), spins: Spin[] = [];
   /** A 2D stick y (0 at its north end, DIMM_H long) as a world y. */
@@ -187,22 +227,35 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   const chipBox = new BoxGeometry(1, 1, 1);
   chipBox.clearGroups(); chipBox.addGroup(0, 12, 0); chipBox.addGroup(12, 24, 1);
   root.add(instanced(chipBox, [top, side] as unknown as MeshStandardMaterial, items));
-  // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
-  const mapFaces = chips.slice(0, d.length).map((c) => {
-    const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
-    f.position.set(cx + PCB_T / 2 + CHIP_T + 0.6, (wy(c.y) + wy(c.y + c.h)) / 2, (c.z0 + c.z1) / 2);
-    f.visible = false;
-    root.add(f);
-    return f;
-  });
+  // the dies: each DRAM chip's two faces wear the die's plan (one bake for the stick, `ramDieArt`; the parity chip of an ECC stick is the same die, smaller); the data
+  // chips' east face also carries the live map, a plane over the plan that stays hidden until the map is painted and the camera is close
+  const mapFaces: Mesh[] = [], dieFrames: Group[] = [], plan = dies ? ramDiePlan(dies.spec) : null;
+  if (dies && plan) {
+    const bake = dies.art.baker(() => ramDieArt(dies.T, plan)), out = PCB_T / 2 + CHIP_T;
+    for (const [i, c] of chips.slice(0, d.length + (ecc ? 1 : 0)).entries()) for (const sd of [1, -1] as const) {
+      const x = cx + sd * out, y = (wy(c.y) + wy(c.y + c.h)) / 2, z = (c.z0 + c.z1) / 2, k = Math.min(1, (c.h - 6) / plan.w, (c.z1 - c.z0 - 6) / plan.h);
+      const art = faceFrame(plan, sd, x + sd * DIE_OFF, y, z, k);
+      dies.art.surface(art.inner, bake.bake, { x: 0, y: 0, w: plan.w, h: plan.h }, 0, LV_DIE, FINISH.die);
+      dieFrames.push(art.frame);
+      root.add(art.frame);
+      if (sd < 0 || i >= d.length) continue;
+      const live = faceFrame(plan, sd, x + sd * MAP_OFF, y, z), f = new Mesh(new PlaneGeometry(plan.w, plan.h), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
+      f.position.set(plan.w / 2, -plan.h / 2, 0);
+      f.visible = false;
+      live.inner.add(f);
+      root.add(live.frame);
+      mapFaces.push(f);
+    }
+  }
   // a row of passives between the fingers and the chips, on both faces
   const caps = [];
   for (let u = 30; u < L - 30; u += 27) for (const s of [-1, 1]) caps.push({ x: cx + s * (PCB_T / 2 + 5), y: ys + u, z: TOP + 14, sx: 10, sy: 16, sz: 8 });
   root.add(instanced(new BoxGeometry(1, 1, 1), mat(CERAMIC, { roughness: 0.55 }), caps));
   if (look === 'bare') {
-    // the maker's sticker across the first group of chips on the west face (the live map lands on the east)
-    if (label) root.add(faceLabel(label, true, cx - PCB_T / 2 - CHIP_T - 2.5, wy((d[0]!.y + d[3]!.y + d[3]!.h) / 2), Z0 + (CHIP_Z0 + CHIP_Z1) / 2, -1, Math.min(760, d[3]!.y + d[3]!.h - d[0]!.y - 40), CHIP_Z1 - CHIP_Z0 - 30));
-    return { root, spreader, hit: hitBox(r, look), spins, skin: [edge], mapFaces };
+    // the maker's sticker across the first group of chips on the west face: it goes with the spreaders, over the chips' dies (the live map lands on the east)
+    if (label) spreader.add(faceLabel(label, true, cx - PCB_T / 2 - CHIP_T - 2.5, wy((d[0]!.y + d[3]!.y + d[3]!.h) / 2), Z0 + (CHIP_Z0 + CHIP_Z1) / 2, -1, Math.min(760, d[3]!.y + d[3]!.h - d[0]!.y - 40), CHIP_Z1 - CHIP_Z0 - 30));
+    root.add(spreader);
+    return { root, spreader, hit: hitBox(r, look), spins, skin: [edge], mapFaces, dies: dieFrames, plan };
   }
   // the spreader: a plate over each face, on a thermal pad over the chips. No tier colours: the tiers read by how premium the metal looks,
   // stamped steel (DDR2), dark anodised fins (DDR3), matte black under a light bar (DDR4), brushed dark titanium with a diamond-cut edge (DDR5)
@@ -239,7 +292,7 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = ''):
   // the model printed on each plate, toward the stick's south end (clear of the accent line; 3 proud, or the far gallery camera loses it in the plate)
   if (label) for (const s of [-1, 1] as const) spreader.add(faceLabel(label, false, cx + s * (x0 + t + 3), ys + L * 0.3, Z0 + (SINK + 14 + PCB_H) / 2, s, Math.min(760, L * 0.34), 110));
   root.add(spreader);
-  return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM], mapFaces };
+  return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM], mapFaces, dies: dieFrames, plan };
 }
 
 /**

@@ -75,6 +75,7 @@ import { stripModeOf, type StripMode } from '@/features/room/render/shell/exteri
 import { SHROUD, basementPlan, shroud } from './basement3d';
 import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot, type CagePlan } from './drivecage3d';
 import { footShade } from './footshade3d';
+import { COVER_BAND, DIE_BAND } from './chipdie3d';
 import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
@@ -95,7 +96,7 @@ import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
 import { tpmDieFace, tpmDieFade, tpmModel, TPM_Z } from './tpm3d';
-import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
+import { RAM_LEAN, SLOT_H, dieShown, ramStick, stickFade } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
 /** The network lead's light blue (a common patch-cable colour). */
@@ -106,7 +107,7 @@ const union = (a: RectLike, b: RectLike): RectLike => {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 };
 /** The RAM band (`DEVICE_LOD.ram.show` on): the camera leans over its first part, the spreaders fade over the second. */
-const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
+const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
@@ -604,7 +605,7 @@ export class Machine3D {
     this.ramMap = null;
     if (!this.ram || !this.ramSticks.length) return;
     const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
-    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]) };
+    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]) };
   }
 
   /**
@@ -928,14 +929,15 @@ export class Machine3D {
       case 'ram': {
         // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
         const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, rs = spec as RamSpec;
-        const st = ramStick(rs.visual, !!rs.ecc, r, rs.name);
+        const st = ramStick(rs.visual, !!rs.ecc, r, rs.name, { art: this.art, T: this.T, spec: rs });
         g.add(st.root);
         for (const s of st.spins) this.spin(s);
         this.fades.push(st.spreader);
-        this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));
+        // (the spreader goes, and the chips' dies come in where it was)
+        this.reveal(r, BOARD_Z + 200, (z) => stickFade(st, dieShown(z)));
         this.root.add(g, tag(st.hit, d.id));
         this.ram = this.ram ? union(this.ram, r) : r;
-        this.ramSticks.push({ idx: i, bytes: rs.sizeBytes, faces: st.mapFaces });
+        this.ramSticks.push({ idx: i, bytes: rs.sizeBytes, faces: st.mapFaces, plan: st.plan });
         this.softSkin(d.id, ...st.skin);
         return;
       }
@@ -981,16 +983,26 @@ export class Machine3D {
       case 'storage': {
         const kind = driveKindOf(visual), b = driveBody(kind, d.slot);
         // an M.2 stick lies on its socket and standoff; a SATA drive (drive3d.ts, at its real size) lies on its tray in its bay of the cage, the tray with it
-        if (kind === 'ssd-nvme') { this.softSkin(d.id, nvmeStick(g, b, nvmeLook(spec as StorageSpec))); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
+        if (kind === 'ssd-nvme') {
+          // (its label or heat sink fades as the camera comes in, then each package's cap: the dies show, `chipdie3d.ts`)
+          this.softSkin(d.id, nvmeStick(g, b, nvmeLook(spec as StorageSpec), { art: this.art, T: this.T, reveal: (r, z, apply) => { this.reveal(r, z, apply); } }));
+          this.railOf(d.id, g, DIE_BAND[1]);
+          break;
+        }
         const spot = traySpot(this.cages, idx(d.slot));
         if (!spot) break;
-        const hdd = kind === 'hdd', dm = sataDriveModel(hdd, { name: spec.name, capacityBytes: (spec as StorageSpec).capacityBytes }), o = onTray(hdd);
+        // (its cover fades as the camera comes in and its inside shows: the platters and the actuator, or the board and its packages' dies, `driveinner3d.ts`; a place of its own frame is the machine's by the tray's spot)
+        const hdd = kind === 'hdd', o = onTray(hdd);
+        const dm = sataDriveModel(hdd, { name: spec.name, capacityBytes: (spec as StorageSpec).capacityBytes }, {
+          art: this.art, T: this.T,
+          reveal: (p, apply) => { this.reveal({ x: spot.x + o.x + p[0], y: -(spot.y + o.y + p[1]), w: 0, h: 0 }, spot.z + o.z + p[2], apply); },
+        });
         const tray = trayAt(CASE_KIND[LAYOUT_CASE] ?? 'gamer', spot, hdd ? 'hdd' : 'ssd');
         dm.root.position.set(o.x, o.y, o.z);
         tray.add(dm.root);
         g.add(tray);
         this.skin(d.id, dm.body);
-        this.railOf(d.id, tray, DEVICE_LOD.disk.fade[1]);
+        this.railOf(d.id, tray, hdd ? COVER_BAND[1] : DIE_BAND[1]);
         // its receptacles at its back, toward the tray sheet: the cables plug in there (`setCables`)
         const w = (p: V3): V3 => [spot.x + o.x + p[0], spot.y + o.y + p[1], spot.z + o.z + p[2]];
         this.driveSockets.set(d.slot, { data: w(dm.data), power: w(dm.power) });

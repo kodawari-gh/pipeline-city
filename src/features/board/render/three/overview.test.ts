@@ -11,9 +11,10 @@ quietCanvas();
  * skins. A material that carries a part's temperature joins no palette stand-in, so its meshes draw as one: the radiator's four materials, one for each
  * sink, and the two hoses (one more than the single draw they were in). 151: the NIC's insides are real parts now: its jack's two lamps and its three
  * chip markings keep a material of their own, and its PCB and its parts' odd shadow flags leave a few meshes alone in their sets. 153: the Ethernet chip on the motherboard is a real
- * package with a die: its mould and its marking fade with the zoom, so they keep a material of their own. The board's small parts hide at the overview in the room, so only this count sees them.)
+ * package with a die: its mould and its marking fade with the zoom, so they keep a material of their own. The board's small parts hide at the overview in the room, so only this count sees them. 155: the packages of the NVMe sticks and the RAM chips are caps over
+ * dies (`chipdie3d.ts`): each cap fades alone, so it keeps materials of its own.)
  */
-const CEILING = 153;
+const CEILING = 155;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {

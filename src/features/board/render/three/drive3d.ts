@@ -7,10 +7,14 @@
 // y up, z along it from the connector end (0) to its front; a tray of the cage (drivecage3d.ts) carries it in the case.
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, Mesh, Vector2, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { drawLockup } from '@/core/render/brands';
+import { smooth } from '@/core/render/lod/lod';
+import { fadeTree, ownMaterials } from '@/core/render/three/artlod';
 import { SEG, extrude, instanced, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import type { RopeEnd, V3 } from '@/core/render/three/rope';
 import { brushed, decalTop, outlinePts, screws, shapeOf, slab, tex, tiled, turned, type Facing, type Spot } from './casekit3d';
+import { COVER_BAND } from './chipdie3d';
+import { hddInside, ssdBoard, type DriveHost } from './driveinner3d';
 import { barcode, FONT, hash, matrix, MONO, roundRect, seeded } from './nvme3d';
 import { decalMat, gold, MM } from './pcbkit3d';
 
@@ -94,8 +98,11 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
 }
 
 // ------------------------------------------------------------------ the hard disk
-/** The 3.5 in. hard disk (see the header). */
-export function hddModel(look: DriveLook): DriveModel {
+/**
+ * The 3.5 in. hard disk (see the header). `host`: the casting is a frame round an open cavity, and the cover, the label and the screws on it are a lid that fades as the camera
+ * comes in, so the platters and the actuator show (`driveinner3d.ts`); without it the casting is solid.
+ */
+export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(), W = m(HDD_MM.w), T = m(HDD_MM.t), L = m(HDD_MM.l), top = T - m(0.8), r = m(2.2);
   // (a dark drive, art-style §4: a black casting under a brushed dark stainless cover)
   const cast = mat(0x2a2d32, { metalness: 0.65, roughness: 0.55 });
@@ -103,19 +110,20 @@ export function hddModel(look: DriveLook): DriveModel {
   const screwM = mat(0x2a2d32, { metalness: 0.7, roughness: 0.4 }), s = socketMats();
   // the casting: its lower part round the receptacles' pocket, its upper part whole, its sides down to the rails it stands on
   const pocket = { x0: m(6), x1: m(52), d: m(6.8) }, pocketTop = m(8.2), foot = m(1.8);
-  g.add(flat(pocketed(W, L, r, pocket), foot, pocketTop, cast, m(0.15)), flat(xz(0, 0, W, L, r), pocketTop, top, cast, m(0.45)));
+  const lid = host ? new Group() : g, wall = m(4.5);
+  g.add(flat(pocketed(W, L, r, pocket), foot, pocketTop, cast, m(0.15)), flat(xz(0, 0, W, L, r), pocketTop, top, cast, m(0.45), host ? [xz(wall, wall, W - wall, L - wall, m(2))] : []));
   for (const [x0, x1] of [[0, m(4.5)], [W - m(4.5), W]] as const) g.add(box(x0, x1, 0, foot + 2, r, L - r, cast));
   g.add(box(m(4.5), W - m(4.5), 0, foot + 2, L - m(3.4), L - r, cast));
   // the cover: a brushed sheet inset in the casting's rim
-  g.add(flat(xz(m(1.4), m(1.6), W - m(1.4), L - m(1.4), m(3.2)), top - 2, T, cover, m(0.25)));
+  lid.add(flat(xz(m(1.4), m(1.6), W - m(1.4), L - m(1.4), m(3.2)), top - 2, T, cover, m(0.25)));
   // the label (its hole round the spindle's screw), the screws, the breather hole
-  const lab = { x0: m(7.2), x1: W - m(7.2), z0: m(22), z1: L - m(7.5) }, spin = { x: W / 2, z: L - m(51.5) }, pivot = { x: W - m(16), z: m(12.5) };
+  const lab = { x0: m(7.2), x1: W - m(7.2), z0: m(22), z1: L - m(7.5) }, spin = { x: W / 2, z: L - m(51.5) }, pivot = { x: W - m(20), z: m(19.5) };
   const lw = (lab.x1 - lab.x0) / MM, lh = (lab.z1 - lab.z0) / MM;
-  g.add(decalTop(-(T + 0.8), lab.x0, lab.x1, lab.z0, lab.z1, decalMat(hddLabel(look, lw, lh, { u: (spin.x - lab.x0) / MM, v: (spin.z - lab.z0) / MM, r: 4.4 }), { rough: 0.62, cut: true })));
+  lid.add(decalTop(-(T + 0.8), lab.x0, lab.x1, lab.z0, lab.z1, decalMat(hddLabel(look, lw, lh, { u: (spin.x - lab.x0) / MM, v: (spin.z - lab.z0) / MM, r: 4.4 }), { rough: 0.62, cut: true })));
   const rim: Spot[] = [[m(4.0), m(4.6)], [W - m(4.0), m(4.6)], [m(4.0), L - m(4.2)], [W - m(4.0), L - m(4.2)], [m(4.0), L * 0.47], [W - m(4.0), L * 0.53], [W / 2, L - m(4.2)]].map(([x, z]) => ({ x: x!, y: T, z: z! }));
-  g.add(screws(rim, 'y+', m(1.8), screwM), screws([{ x: spin.x, y: T + 3, z: spin.z }], 'y+', m(2.7), screwM), screws([{ x: pivot.x, y: T, z: pivot.z }], 'y+', m(2.3), screwM));
-  g.add(place(new Mesh(new CylinderGeometry(m(3.3), m(3.3), 3, SEG.drum).translate(spin.x, T + 1.5, spin.z), mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }))));
-  g.add(bores([{ x: m(12), y: T, z: m(9) }], 'y+', m(0.8)));
+  lid.add(screws(rim, 'y+', m(1.8), screwM), screws([{ x: spin.x, y: T + 3, z: spin.z }], 'y+', m(2.7), screwM), screws([{ x: pivot.x, y: T, z: pivot.z }], 'y+', m(2.3), screwM));
+  lid.add(place(new Mesh(new CylinderGeometry(m(3.3), m(3.3), 3, SEG.drum).translate(spin.x, T + 1.5, spin.z), mat(0xb9babf, { metalness: 0.9, roughness: 0.3 }))));
+  lid.add(bores([{ x: m(12), y: T, z: m(9) }], 'y+', m(0.8)));
   // the threaded holes along each side, 6.35 mm up
   const sides = [28.5, 70.1, 130.1].map((f) => L - m(f));
   g.add(bores(sides.map((z) => ({ x: -0.4, y: m(6.35), z })), 'x-', m(1.75)), bores(sides.map((z) => ({ x: W + 0.4, y: m(6.35), z })), 'x+', m(1.75)));
@@ -129,31 +137,55 @@ export function hddModel(look: DriveLook): DriveModel {
   g.add(box(jx, jx + m(5.1), y0 + m(0.6), y0 + m(4.4), m(5.0), m(6.6), s.body));
   g.add(instanced(new BoxGeometry(m(0.64), m(0.64), m(4)), s.gold, [0, 1].flatMap((i) => [0, 1].map((j) => ({ x: jx + m(1.27 + i * 2.54), y: y0 + m(1.3 + j * 2.0), z: m(3.2) })))));
   g.add(box(pocket.x0, pocket.x1, foot, pocketTop, pocket.d - 1, pocket.d, s.dark));
+  // (a place over the platters, one over the actuator and one over the board's end: the lid goes where the camera is, over a drive far larger than the view)
+  if (host) coverAway(g, lid, hddInside(host, { spin, pivot, floor: pocketTop }), host, [[spin.x, T / 2, spin.z], [pivot.x, T / 2, pivot.z + m(30)], [W / 2, T / 2, L * 0.3]]);
   return { root: g, body: cast, w: W, t: T, l: L, data, power };
 }
 
 // ------------------------------------------------------------------ the SSD
-/** The 2.5 in. SSD (see the header). */
-export function ssdModel(look: DriveLook): DriveModel {
+/** The 2.5 in. SSD (see the header). `host`: its top shell and label are a lid that fades as the camera comes in, so its board shows (`driveinner3d.ts`); the side walls stay. */
+export function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(), W = m(SSD_MM.w), T = m(SSD_MM.t), L = m(SSD_MM.l), r = m(1.8), s = socketMats();
   const base = mat(0x1d1e22, { roughness: 0.62, metalness: 0.25 }), shell = mat(0x4e5360, { metalness: 0.8, roughness: 0.46 });
   // the base and the shell over it meet at a seam 3 mm up; both are cut round the receptacles' pocket, the shell closes over it
   const pocket = { x0: m(5), x1: m(43), d: m(5.6) }, seam = m(3), roof = m(6.2);
   const e = m(0.4), seamPts = pocketed(W - 2 * e, L - 2 * e, r, { x0: pocket.x0 - e, x1: pocket.x1 - e, d: pocket.d - e }).map((v) => new Vector2(v.x + e, v.y + e));
   g.add(flat(pocketed(W, L, r, pocket), 0, seam, base, m(0.2)), flat(seamPts, seam, seam + 2, mat(0x050608, { roughness: 0.8 })));
-  g.add(flat(pocketed(W, L, r, pocket), seam + 2, roof, shell, m(0.2)), flat(xz(0, 0, W, L, r), roof, T, shell, m(0.55)));
+  const lid = host ? new Group() : g, wall = m(1.4), top = flat(xz(0, 0, W, L, r), roof, T, shell, m(0.55));
+  // (the walls of an open drive are a material of their own: the lid's fade does not touch them)
+  g.add(flat(pocketed(W, L, r, pocket), seam + 2, roof, host ? mat(0x4e5360, { metalness: 0.8, roughness: 0.46 }) : shell, m(0.2), host ? [xz(wall, pocket.d + m(1.2), W - wall, L - wall, m(1))] : []));
+  lid.add(top);
   // the label on top, the holes along its sides (3 mm up) and under it
-  g.add(decalTop(-(T + 0.6), m(3.2), W - m(3.2), m(5), L - m(5), decalMat(ssdLabel(look, SSD_MM.w - 6.4, SSD_MM.l - 10), { rough: 0.5, cut: true })));
+  lid.add(decalTop(-(T + 0.6), m(3.2), W - m(3.2), m(5), L - m(5), decalMat(ssdLabel(look, SSD_MM.w - 6.4, SSD_MM.l - 10), { rough: 0.5, cut: true })));
   const along = [14, 90.6].map((f) => L - m(f));
   g.add(bores(along.map((z) => ({ x: -0.4, y: m(3), z })), 'x-', m(1.5)), bores(along.map((z) => ({ x: W + 0.4, y: m(3), z })), 'x+', m(1.5)));
   g.add(bores(along.flatMap((z) => [m(4.07), W - m(4.07)].map((x) => ({ x, y: -0.4, z }))), 'y-', m(1.5)));
   // the receptacles: data, then power
   const y0 = m(0.9), data = receptacle(g, 7, m(6.4), y0, s), power = receptacle(g, 15, m(6.4) + socketW(7) + m(1.9), y0, s);
   g.add(box(pocket.x0, pocket.x1, 0, roof, pocket.d - 1, pocket.d, s.dark));
-  return { root: g, body: shell, w: W, t: T, l: L, data, power };
+  if (host) coverAway(g, lid, ssdBoard(host, m((SSD_MM.w - 65) / 2), seam + 2, pocket.d + m(1.6)), host, [0.25, 0.5, 0.75].map((f) => [W / 2, T / 2, L * f] as V3));
+  // (the lid's materials are its own copies: the machine lights the top shell's)
+  return { root: g, body: top.material as MeshStandardMaterial, w: W, t: T, l: L, data, power };
 }
 
-export const sataDriveModel = (hdd: boolean, look: DriveLook): DriveModel => (hdd ? hddModel(look) : ssdModel(look));
+/**
+ * Fade the `lid` of a drive over `COVER_BAND` as the camera comes in and show `inside` under it; the inside is hidden while the lid is whole. A drive is far larger than the view
+ * up close, so it asks for its zoom at several places (the drive's own frame) and the lid goes at the highest.
+ */
+function coverAway(g: Group, lid: Group, inside: Group, host: DriveHost, at: readonly V3[]): void {
+  ownMaterials(lid);
+  g.add(inside, lid);
+  inside.visible = false;
+  const seen = at.map(() => 0);
+  at.forEach((p, i) => host.reveal(p, (zoom) => {
+    seen[i] = zoom;
+    const f = smooth(COVER_BAND[0], COVER_BAND[1], Math.max(...seen));
+    fadeTree(lid, 1 - f);
+    inside.visible = f > 0.01;
+  }));
+}
+
+export const sataDriveModel = (hdd: boolean, look: DriveLook, host?: DriveHost): DriveModel => (hdd ? hddModel(look, host) : ssdModel(look, host));
 
 // ------------------------------------------------------------------ the cable's plugs
 /** A SATA cable's plug pushed into a receptacle whose mouth is at `at`: its body behind the drive, grip ribs on top, a latch on the data plug; its cord leaves the back. */

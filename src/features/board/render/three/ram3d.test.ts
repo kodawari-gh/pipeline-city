@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Box3 } from 'three';
+import { builtinTheme } from '@/core/render/theme';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H, GEO, setLayoutTier } from '../layout/layout';
+import { ArtSet } from './artset3d';
 import { SLOT_H, SLOT_W, STICK, STICK_MM, dimmSlot, ramStick, stickLook, stickTop } from './ram3d';
 
 describe('the 3D memory sticks', () => {
@@ -46,5 +48,29 @@ describe('the 3D memory sticks', () => {
     const r = GEO.dimm[0]!.rect;
     expect(dimmSlot(r, false).latches.children.map((p) => Math.abs(p.rotation.x))).toEqual([0, 0]);
     expect(dimmSlot(r, true).latches.children.map((p) => Math.abs(p.rotation.x))).toEqual([0.5, 0.5]);
+  });
+
+  it('puts a die on each DRAM chip face: eight data chips, two faces each, a ninth chip on an ECC stick; the live map only on the east faces of the data chips', () => {
+    setLayoutTier(3, 3);
+    const r = GEO.dimm[0]!.rect, art = new ArtSet(), T = builtinTheme();
+    const plain = ramStick('dimm-ddr5', false, r, '', { art, T, spec: { banks: 32, bankGroups: 8, subChannels: 2 } });
+    expect(plain.dies).toHaveLength(16);
+    expect(plain.mapFaces).toHaveLength(8);
+    expect(plain.plan!.banks).toHaveLength(32);
+    const ecc = ramStick('dimm-ddr5ecc', true, r, '', { art, T, spec: { banks: 32, bankGroups: 8, subChannels: 2 } });
+    expect(ecc.dies).toHaveLength(18);
+    expect(ecc.mapFaces).toHaveLength(8);
+    // (the parity chip's die is the same plan, smaller)
+    expect(ecc.dies[16]!.scale.x).toBeLessThan(1);
+    expect(ecc.dies[0]!.scale.x).toBe(1);
+    art.dispose();
+  });
+
+  it('builds a stick with no dies when the set is not given (the sticks keep only their chips)', () => {
+    setLayoutTier(3, 3);
+    const s = ramStick('dimm-ddr5', false, GEO.dimm[0]!.rect);
+    expect(s.dies).toHaveLength(0);
+    expect(s.mapFaces).toHaveLength(0);
+    expect(s.plan).toBeNull();
   });
 });

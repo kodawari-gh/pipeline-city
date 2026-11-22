@@ -36,8 +36,8 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
 
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
-/** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. */
-const CEILING = { machine: 44, room: 4 };
+/** The draws that instancing every set would save (members less one per set): the machine, the room. It may only fall. (49: the NAND packages of the three NVMe sticks are caps over dies, each with materials of its own.) */
+const CEILING = { machine: 49, room: 4 };
 
 describe('the repeated meshes', () => {
   it('stay under the ceiling of draws to save', () => {

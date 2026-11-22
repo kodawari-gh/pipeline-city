@@ -51,6 +51,8 @@ The big heap (`HEAP_BASE` 0x10000) is where memory-hungry jobs keep their data (
 ## Look
 No text on the sticks. A stick is a real stick's length and carries eight data chips (`CHIPS_PER_STICK`), four either side of its key notch. A chip is a grid of 256-byte pages (src/features/cpu/DIE.md "Memory"); the open row of every bank is outlined; an ECC stick has a ninth, smaller chip of parity bits in green.
 
+In 3D each chip package is a cap over a die (`chipdie3d.ts`; `docs/PC_PARTS.md` "Chip dies, RAM and drives"): as the camera comes in the spreader fades, then each chip shows its DRAM die (`memory/render/ramdie.ts`: the banks of its generation in bank groups round a central spine, the I/O pads; SDR 2 banks, DDR2 4, DDR3 8, DDR4 16 in 4 groups, DDR5 32 in 8 groups with two sub-channels). The live map (`rammap3d.ts`) is painted into the banks of the die on each data chip's east face: a page lands in the bank the controller maps it to (`pageSlot`), so a busy bank is a busy part of the die; the ECC chip's die is the same plan, smaller.
+
 ## Larger memory (evaluation, not built)
 The sim array stays 64 KiB. Each RAM tier gets a *scale* (one sim page stands for N real pages); chips become windows onto a sparse virtual space; the OS table and workload footprints are scaled numbers; only touched pages (`Bus.dirty`, regions) are real, everything else is drawn procedurally by level of detail (far: bank and row heat; near: pages). DRAM timing already works on any address, so it needs nothing more.
 

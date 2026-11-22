@@ -6,12 +6,17 @@
 // a raised plateau with a brushed silver insert, skirts that clip it to the board's edges). The underside carries its own mask and the serial sticker.
 import { BoxGeometry, Group, type MeshStandardMaterial, type Texture } from 'three';
 import { drawLockup } from '@/core/render/brands';
+import { smooth } from '@/core/render/lod/lod';
+import { fadeTree } from '@/core/render/three/artlod';
 import { instanced, rectBox, type RectLike } from '@/core/render/three/geometry';
 import { lowDetail } from '@/core/render/three/detail';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { ramDieArt, ramDiePlan, RAM_DIE } from '@/features/memory/render/ramdie';
+import { CTRL_DIE, NAND_DIE, ctrlDieArt, nandDieArt } from '@/features/storage/render/diskdie';
 import { NVME_FINGERS } from '@/features/storage/render/drives';
 import { brushed, decal, grow, outlinePts, screws, shapeOf, slab, tex, tiled } from './casekit3d';
+import { COVER_BAND, dieInPackage, type DieHost } from './chipdie3d';
 import { arc, crystal, decalMat, drape, fingers, inductor, maskTop, MM, padRing, passiveRow, passives, pcbSlab, pkg, type Bump, type MaskArt, type Passive } from './pcbkit3d';
 
 /** How a stick looks: its name and capacity (the label's print), and whether it wears a heat sink. */
@@ -27,9 +32,10 @@ const MASK = 0x121519, MASK_ART = { mask: '#121519', trace: '#1b2027' } as const
 
 /**
  * The stick over its body `b` (the PCB east of the fingers: `driveBody`), into `g`. Returns the material the machine lights with the
- * drive's state (the label, or the heat sink).
+ * drive's state (the label, or the heat sink). `dies`: the label (or the heat sink) fades as the camera comes in and then each package's cap, and the dies show: the controller with its cores and
+ * channels, the DRAM cache, the two NAND packages of four dies each (`chipdie3d.ts`).
  */
-export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMaterial {
+export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost): MeshStandardMaterial {
   const X0 = b.x - NVME_FINGERS, X1 = b.x + b.w, Y0 = b.y, Y1 = b.y + b.h, cy = (Y0 + Y1) / 2, z0 = NVME_Z.pcb, z1 = NVME_Z.top;
   const R = (x: number, y: number, w: number, h: number): RectLike => ({ x: X0 + x * MM, y: Y0 + y * MM, w: w * MM, h: h * MM });
   // the M key: a 1.2 mm slot into the finger edge, 5 mm from the south edge, between top pads 29 and 33
@@ -58,10 +64,20 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
   pkg(g, pmic, z1, 0.75 * MM, ['P9M', '21A']);
   ind.forEach((r, i) => inductor(g, r, z1, 1.0 * MM, ['1R0', 'R47', 'R68', '1R0'][i]));
   // (a package under the label or the heat sink keeps its marking to itself)
-  pkg(g, ctrl, z1, 1.4 * MM, look.heatsink ? [] : ['PC5016-E4', '2304 TW', 'B47Q2.1'], { lid: true });
-  crystal(g, xtal, z1, 0.55 * MM);
-  pkg(g, dram, z1, 1.0 * MM, []);
-  nand.forEach((r) => pkg(g, r, z1, 1.25 * MM, []));
+  const marks = look.heatsink ? [] : ['PC5016-E4', '2304 TW', 'B47Q2.1'];
+  if (dies) {
+    // the packages hold their dies under their caps: the controller's (a lidded package), the DRAM cache's (a DRAM die turned to lie along its package) and the NAND's (four dies in each)
+    const ctrlBake = dies.art.baker(() => ctrlDieArt(dies.T, 'ssd-nvme')), nandBake = dies.art.baker(() => nandDieArt(dies.T, 4, 'ssd-nvme')), dramBake = dies.art.baker(() => ramDieArt(dies.T, ramDiePlan({ banks: 8, bankGroups: 2 })));
+    dieInPackage(g, dies, ctrl, z1, 1.4 * MM, marks, { lid: true }, { ...CTRL_DIE, bake: ctrlBake });
+    crystal(g, xtal, z1, 0.55 * MM);
+    dieInPackage(g, dies, dram, z1, 1.0 * MM, [], {}, { ...RAM_DIE, bake: dramBake, turn: true });
+    for (const r of nand) dieInPackage(g, dies, r, z1, 1.25 * MM, [], {}, { ...NAND_DIE, bake: nandBake });
+  } else {
+    pkg(g, ctrl, z1, 1.4 * MM, marks, { lid: true });
+    crystal(g, xtal, z1, 0.55 * MM);
+    pkg(g, dram, z1, 1.0 * MM, []);
+    nand.forEach((r) => pkg(g, r, z1, 1.25 * MM, []));
+  }
 
   // the passives: the regulator's, the controller's (on its substrate too), the DRAM's and the NAND's decoupling
   const at = (x: number, y: number) => [X0 + x * MM, Y0 + y * MM] as const;
@@ -113,16 +129,19 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook): MeshStandardMa
   // the screw through the notch into the standoff: an M2 pan head, 4 mm across
   g.add(screws([{ x: X1, y: -cy, z: z1 }], 'z+', 46, mat(0xb9babf, { metalness: 0.9, roughness: 0.3 })));
 
-  if (look.heatsink) return heatsink(g, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
+  // (the cover over the packages: a heat sink or a label, which fades first)
+  const cover = new Group(), L = R(20.8, 0.6, 54.6, 20.8);
+  g.add(cover);
+  if (dies) dies.reveal(L, z1 + 24, (zoom) => fadeTree(cover, 1 - smooth(COVER_BAND[0], COVER_BAND[1], zoom)));
+  if (look.heatsink) return heatsink(cover, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
   // the label, over the DRAM and the NAND to short of the notch, draped over them
-  const L = R(20.8, 0.6, 54.6, 20.8);
   const bumps: Bump[] = [
     { r: dram, top: z1 + 1.0 * MM, fall: 2.2 * MM }, ...nand.map((r) => ({ r, top: z1 + 1.25 * MM, fall: 2.2 * MM })),
     ...parts.filter((p) => p.x > L.x - 20 && p.x < L.x + L.w + 20).map((p) => ({ r: { x: p.x - 10, y: p.y - 6, w: 20, h: 12 }, top: z1 + { '0201': 7, '0402': 11.5, '0603': 18, '0805': 23, '1206': 28 }[p.pkg], fall: 8 })),
   ];
   // (drawn over the mask's decal where it lies on the board)
   const label = mat(0xffffff, { map: labelTex(look), roughness: 0.46, metalness: 0.15, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  g.add(drape(L, z1, bumps, label, 24, lowDetail())); // (ASR3: about 1 mm a quad, some 2,000 triangles, was 24,344; Low: one flat quad over the packages, its whole picture, no part through it)
+  cover.add(drape(L, z1, bumps, label, 24, lowDetail())); // (ASR3: about 1 mm a quad, some 2,000 triangles, was 24,344; Low: one flat quad over the packages, its whole picture, no part through it)
   return label;
 }
 

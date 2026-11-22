@@ -28,7 +28,7 @@ import { fanDepth, fanPart } from './fans3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
 import { tpmDieFace, tpmDieFade, tpmModel } from './tpm3d';
 import { sinkBody } from './sink3d';
-import { ramStick } from './ram3d';
+import { dieShown, ramStick, stickFade } from './ram3d';
 import { routerModel, routerTier } from './router3d';
 import { routerInsides } from './routerinside3d';
 
@@ -117,7 +117,12 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
   switch (spec.kind) {
     case 'ram': {
       const rs = spec as RamSpec;
-      return upright(withLayout(() => ramStick(rs.visual, !!rs.ecc, GEO.dimm[0]!.rect, rs.name).root), true);
+      // (the spreaders go and the chips' dies come in as the camera comes to a chip: each chip's face reads its own zoom, the cover goes with the nearest)
+      return upright(withLayout(() => withArt((art) => {
+        const st = ramStick(rs.visual, !!rs.ecc, GEO.dimm[0]!.rect, rs.name, { art, T, spec: rs }), seen = st.dies.map(() => 0);
+        st.dies.forEach((at, i) => art.reveal(at, (zoom) => { seen[i] = dieShown(zoom); stickFade(st, Math.max(...seen)); }));
+        return st.root;
+      })), true);
     }
     case 'gpu': case 'npu': case 'nic': {
       const cs = spec as CardSpec | NicSpec;
@@ -148,12 +153,22 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
     case 'storage': {
       // (an M.2 stick in board space, stood up; a SATA drive lies flat as it lies on its tray, its label up)
       const ss = spec as StorageSpec, kind = driveKindOf(ss.visual);
-      if (kind !== 'ssd-nvme') return centred(sataDriveModel(kind === 'hdd', { name: ss.name, capacityBytes: ss.capacityBytes }).root);
-      return upright(withLayout(() => {
+      if (kind !== 'ssd-nvme') {
+        // (its cover fades as the camera comes in: the inside shows, `driveinner3d.ts`; a marker at each place of the drive's own frame carries the zoom)
+        return centred(withArt((art) => {
+          const root = new Group();
+          root.add(sataDriveModel(kind === 'hdd', { name: ss.name, capacityBytes: ss.capacityBytes }, {
+            art, T,
+            reveal: (p, apply) => { const o = new Object3D(); o.position.set(p[0], p[1], p[2]); root.add(o); art.reveal(o, apply); },
+          }).root);
+          return root;
+        }));
+      }
+      return upright(withLayout(() => withArt((art) => {
         const g = new Group();
-        nvmeStick(g, driveBody(kind, 'm20'), nvmeLook(ss));
+        nvmeStick(g, driveBody(kind, 'm20'), nvmeLook(ss), { art, T, reveal: (r, z, apply) => { art.reveal(marker(g, r, z), apply); } });
         return g;
-      }));
+      })));
     }
     case 'psu': {
       const ps = spec as PsuSpec;
