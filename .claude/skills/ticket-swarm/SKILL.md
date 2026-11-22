@@ -26,12 +26,16 @@ Never leave a ticket in `in-progress` after the run stops. On a stop at the roun
 
 ## Layout
 
-The base is whatever branch the parent work is on. Take it from the current session, never hardcode it: `BASE=$(git branch --show-current)`. Run every git command from the session's own worktree, not from a different checkout. Each round uses its own branch and worktree, created from `$BASE`:
+The base is whatever branch the parent work is on. Take it from the current session, never hardcode it: `BASE=$(git branch --show-current)`. Run every git command from the session's own worktree, not from a different checkout. The coder and tester never share a branch or worktree, so neither sees the other's work before the merge. One pair per ticket, reused across rounds. At the start of each round, reset both branches to the round's start point: `$BASE` in round 1, the tip of the integration branch `ticket/<n>` in round 2 and later (it holds the last merged fixes).
 
 ```
-git worktree add .claude/worktrees/t<n>-coder -b ticket/<n>-coder "$BASE"
-git worktree add .claude/worktrees/t<n>-tester -b ticket/<n>-tester "$BASE"
+git worktree add .claude/worktrees/t<n>-coder -b ticket/<n>-coder "$BASE"   # round 1
+git worktree add .claude/worktrees/t<n>-tester -b ticket/<n>-tester "$BASE" # round 1
+git branch -f ticket/<n>-coder ticket/<n>                                    # round 2+, before the agent starts
+git branch -f ticket/<n>-tester ticket/<n>                                   # round 2+, before the agent starts
 ```
+
+Reset a branch only when its worktree is clean and not checked out by an agent. Remove both worktrees after the ticket merges.
 
 Do not junction `node_modules` into a worktree. A worker that needs packages runs `npm ci` in its own worktree. Remove each worktree after its branch is merged.
 
