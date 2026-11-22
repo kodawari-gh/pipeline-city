@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { DEVICE_LOD, FAR_ZOOM, TierBudget, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
+import { DEVICE_LOD, DIE_SHOW, FAR_ZOOM, TierBudget, bandAlpha, deviceLod, dieShow, dieZoom, onBand, seenZoom, smooth, zoomSlow } from './lod';
+
+describe('the lid rule', () => {
+  it('opens a die over the same on-screen width, whatever its size', () => {
+    for (const side of [10, 300, 2500]) {
+      expect(dieShow(DIE_SHOW[0] / side, side)).toBe(0);
+      expect(dieShow(DIE_SHOW[1] / side, side)).toBe(1);
+      expect(dieShow(dieZoom(side), side)).toBe(1);
+      const mid = dieShow((DIE_SHOW[0] + DIE_SHOW[1]) / 2 / side, side);
+      expect(mid).toBeGreaterThan(0.4);
+      expect(mid).toBeLessThan(0.6);
+    }
+  });
+});
 
 describe('smooth', () => {
   it('runs 0..1 over the band and clamps', () => {

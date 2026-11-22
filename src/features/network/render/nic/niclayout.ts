@@ -1,5 +1,5 @@
 import { BD, NIC_LEN, nicJack, nicY, type Rect } from '../../../board/render/layout/layout';
-import { BOARD_LINK, BOARD_NIC, NIC_DIE, nicPlan, type NicPlan } from './nicplan';
+import { BOARD_LINK, BOARD_NIC, nicDieSize, nicPlan, type NicPlan } from './nicplan';
 
 // The NIC card in board space (docs/render/net.md "Inside the NIC and the router"). The card is built in 3D, part by part (board/render/three/nic3d.ts), as a GPU is: face up, its body south of
 // its slot's line, its finger tab north of it, its bracket west. Its parts stand on the top face (the controller with its sink, the crystal, the flash, the regulator, the label), only the jacks
@@ -40,7 +40,7 @@ const cache = new Map<string, NicGeo>();
 export function nicGeo(visual: string, slot: number): NicGeo {
   const key = `${visual}|${slot}`, hit = cache.get(key);
   if (hit) return hit;
-  const origin = { x: slot * NIC_BAND, y: 0 }, geo: NicGeo = { visual, face: visual in BOARD_LINK ? null : nicFaceRect(slot, visual), origin, die: { x: origin.x, y: origin.y, w: NIC_DIE.w, h: NIC_DIE.h }, plan: nicPlan(visual) };
+  const origin = { x: slot * NIC_BAND, y: 0 }, geo: NicGeo = { visual, face: visual in BOARD_LINK ? null : nicFaceRect(slot, visual), origin, die: { x: origin.x, y: origin.y, ...nicDieSize(visual) }, plan: nicPlan(visual) };
   cache.set(key, geo);
   return geo;
 }

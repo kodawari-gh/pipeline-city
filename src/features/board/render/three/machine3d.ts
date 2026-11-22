@@ -15,7 +15,7 @@ import { DARK, lightJack, type LinkLevels } from '@/features/network/render/jack
 import type { JackLamps } from './rj45jack3d';
 import { cardOrigin, tpmRect } from '@/core/render/accelart';
 import { fanBank } from '@/core/render/fanmotor';
-import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
+import { DEVICE_LOD, dieZoom, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { FINISH, fadeTree, frustumOf, screenPx, type ArtSurface, type BakeQueue } from '@/core/render/three/artlod';
 import { setCaseShade, type CasePass } from '@/core/render/three/caseshade';
@@ -74,7 +74,7 @@ import { stripModeOf, type StripMode } from '@/features/room/render/shell/exteri
 import { SHROUD, basementPlan, shroud } from './basement3d';
 import { baseCagePlan, cageBox, cageGrommet, cagePlan, driveCage, onTray, trayAt, trayHit, traySpot, type CagePlan } from './drivecage3d';
 import { footShade } from './footshade3d';
-import { COVER_BAND, DIE_BAND } from './chipdie3d';
+import { COVER_BAND, DRIVE_DIE_ZOOM } from './chipdie3d';
 import { drivePlug, sataDriveModel } from './drive3d';
 import { mainsInlet, mainsPlug, PLUG_TAIL, psuUnit } from './psu3d';
 import { fanHub } from './fanhub3d';
@@ -95,7 +95,7 @@ import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { nvmeLook, nvmeStick } from './nvme3d';
 import { tpmDieFace, tpmDieFade, tpmModel, TPM_Z } from './tpm3d';
-import { RAM_FACE_AT, RAM_FACE_PITCH, RAM_FACE_YAW, SLOT_H, dieShown, ramStick, stickFade } from './ram3d';
+import { RAM_DIE_ZOOM, RAM_FACE_AT, RAM_FACE_PITCH, RAM_FACE_YAW, SLOT_H, dieShown, ramStick, stickFade } from './ram3d';
 import { RamMap3D } from './rammap3d';
 
 /** The network lead's light blue (a common patch-cable colour). */
@@ -106,7 +106,6 @@ const union = (a: RectLike, b: RectLike): RectLike => {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 };
 /** The RAM band (`DEVICE_LOD.ram.show` on): the spreaders fade over it and the chips' dies come in. A flight to the bank ends at its far end. */
-const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 /** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
 const DOOR_ZOOM = [0.82, 0.92] as const;
@@ -612,7 +611,7 @@ export class Machine3D {
     this.ramMap = null;
     if (!this.ram || !this.ramSticks.length) return;
     const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
-    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + RAM_FACE_AT, RAM_IN[1], { yaw: RAM_FACE_YAW, pitch: RAM_FACE_PITCH }) };
+    this.ramBits = { reveal: this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(dieShown(z)), false, true), rail: this.rail('ram', this.ram, BOARD_Z + RAM_FACE_AT, RAM_DIE_ZOOM, { yaw: RAM_FACE_YAW, pitch: RAM_FACE_PITCH }) };
   }
 
   /**
@@ -663,7 +662,7 @@ export class Machine3D {
     if (board.die) {
       const at = board.die.at;
       reveals.push(this.reveal({ x: at.x, y: -at.y, w: at.w, h: 0 }, at.z, board.lod));
-      rails.push(this.lie('router.soc', at, DEVICE_LOD.die.fade[1] / board.die.scale));
+      rails.push(this.lie('router.soc', at, dieZoom(board.die.scale * board.die.rect.w)));
     }
     this.routerBits = { tier, board, art, surface: held.surface, reveals, rails };
   }
@@ -684,7 +683,7 @@ export class Machine3D {
     if (!c.die) return;
     this.chips?.face(c.die.root, 'nic', c.die.rect, c.die.z, d.slot);
     this.revealOn(c.die.stand, c.lod);
-    this.lie(`${d.slot}.nic-ctl`, c.die.stand, DEVICE_LOD.die.fade[1] / c.die.scale);
+    this.lie(`${d.slot}.nic-ctl`, c.die.stand, dieZoom(c.die.scale * c.die.rect.w));
   }
 
   /**
@@ -696,7 +695,7 @@ export class Machine3D {
     if (!p.die) return;
     this.chips?.face(p.die.root, 'nic', p.plan, p.die.z, BOARD_NIC);
     this.reveal(p.rect, BOARD_Z + p.dieTop, p.lod);
-    this.rail(`${BOARD_NIC}.nic-ctl`, p.rect, BOARD_Z + p.dieTop, DEVICE_LOD.die.fade[1] / p.scale);
+    this.rail(`${BOARD_NIC}.nic-ctl`, p.rect, BOARD_Z + p.dieTop, dieZoom(p.scale * p.plan.w));
   }
 
   /**
@@ -901,7 +900,7 @@ export class Machine3D {
         this.chips?.face(c.die.root, 'die', DIE_PLAN, c.die.z);
         this.fades.push(c.lid);
         this.reveal(DIE, CPU_Z.top - 60, c.lod);
-        this.rail(d.id, DIE, CPU_Z.die, DEVICE_LOD.die.fade[1] / CPU_S);
+        this.rail(d.id, DIE, CPU_Z.die, dieZoom(DIE.w));
         this.skin(d.id, ...c.skin);
         break;
       }
@@ -966,7 +965,7 @@ export class Machine3D {
         // PC) the die's still is baked there and fades in as the camera comes in, as the live die does
         const face = (top: Group, r: RectLike, z: number, part: 'die' | 'lens') => {
           if (this.chips) this.chips.face(top, 'tpm', r, z + 2, d.slot);
-          else if (part === 'die') { const root = tpmDieFace(this.art, this.T, visual, top, r, z + 2); this.reveal(r, z + 2, (zoom) => tpmDieFade(root, zoom), false, true); }
+          else if (part === 'die') { const root = tpmDieFace(this.art, this.T, visual, top, r, z + 2); this.reveal(r, z + 2, (zoom) => tpmDieFade(root, zoom, r.w), false, true); }
         };
         if (tpmModel(g, visual, face)) this.rail(d.id, tpmRect(GEO.tier)!, TPM_Z.top, DEVICE_LOD.tpm.lid);
         this.powerSkin(d.id, g);
@@ -986,7 +985,7 @@ export class Machine3D {
         if (kind === 'ssd-nvme') {
           // (its label or heat sink fades as the camera comes in, then each package's cap: the dies show, `chipdie3d.ts`)
           this.softSkin(d.id, nvmeStick(g, b, nvmeLook(spec as StorageSpec), { art: this.art, T: this.T, reveal: (r, z, apply) => { this.reveal(r, z, apply); } }));
-          this.railOf(d.id, g, DIE_BAND[1]);
+          this.railOf(d.id, g, DRIVE_DIE_ZOOM);
           break;
         }
         const spot = traySpot(this.cages, idx(d.slot));
@@ -1002,7 +1001,7 @@ export class Machine3D {
         tray.add(dm.root);
         g.add(tray);
         this.skin(d.id, dm.body);
-        this.railOf(d.id, tray, hdd ? COVER_BAND[1] : DIE_BAND[1]);
+        this.railOf(d.id, tray, hdd ? COVER_BAND[1] : DRIVE_DIE_ZOOM);
         // its receptacles at its back, toward the tray sheet: the cables plug in there (`setCables`)
         const w = (p: V3): V3 => [spot.x + o.x + p[0], spot.y + o.y + p[1], spot.z + o.z + p[2]];
         this.driveSockets.set(d.slot, { data: w(dm.data), power: w(dm.power) });

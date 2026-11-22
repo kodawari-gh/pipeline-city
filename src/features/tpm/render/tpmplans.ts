@@ -8,8 +8,8 @@ import type { TpmBlock, TpmBlockKind, TpmLinkKind, TpmPlan, TpmPlanInput } from 
 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
 export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
-/** The die: wide and short, like the module it sits in. */
-export const TPM_DIE = { w: 1500, h: 480 };
+/** The die has the shape of its package, a TSSOP-28 (9.7 x 4.4 mm): wide and short, so the floorplan fills the chip and no bare package shows round it (tpmlayout.ts). */
+export const TPM_DIE = { w: 1500, h: 680 };
 
 type K = TpmBlockKind;
 type N = Node<K>;

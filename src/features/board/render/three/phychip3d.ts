@@ -30,7 +30,7 @@ export interface PhyChip extends NicChip {
  */
 export function phyChip(r: RectLike, look: string, id: string, plan: RectLike, floor?: DieFloor): PhyChip {
   const root = tag(new Group(), id);
-  // (the die fills the pad's width, as a card's QFN's does: the floorplan covers the whole chip)
-  const core = nicChip(root, mirror(r), true, BOARD_Z, PHY_MARK[look] ?? PHY_MARK['board-ge']!, mirror, plan, floor, { height: CHIP_H, die: Math.min(r.w, r.h) - MM });
+  // (the die fills the package to a thin rim, as a card's QFN's does, and has the package's shape (`BOARD_DIE`): the floorplan covers the whole chip)
+  const core = nicChip(root, mirror(r), true, BOARD_Z, PHY_MARK[look] ?? PHY_MARK['board-ge']!, mirror, plan, floor, { height: CHIP_H, die: r.w - 6 });
   return { ...core, rect: mirror(core.rect), root, plan };
 }

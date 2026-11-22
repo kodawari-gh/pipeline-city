@@ -6,7 +6,7 @@
 // Sizes are real (23 units a mm). The board is built in its own plate frame (x east, y DOWN from its top edge, z off the component side), as the PCB kit expects, and laid in the router's model
 // frame (router3d.ts: x east, y up from the shelf, z toward the viewer): its top edge is the back, its jack side the front.
 import { BoxGeometry, Group, type Object3D } from 'three';
-import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { dieShow } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
 import { drum, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -246,7 +246,7 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     show: (gone) => { shown = gone > 0.5; },
     shown: () => shown,
     lod: (zoom) => {
-      const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], zoom * stand.k * scale);
+      const a = dieShow(zoom * stand.k * scale, ROUTER_DIE.w);
       fadeTree(lid, 1 - a);
       if (made) made.root.visible = a > 0.01;
     },

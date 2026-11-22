@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BD, NIC_BRACKET_X, NIC_LEN, nicY, setLayoutTier, type Rect } from '../../../board/render/layout/layout';
 import { BOARD_BAND, NIC_BAND, NIC_BODIES, NIC_FACE, boardNicIds, moveBy, nicFaceRect, nicGeo, nicIds, nicParts } from './niclayout';
-import { NIC_DIE, nicInput } from './nicplan';
+import { BOARD_DIE, NIC_DIE, nicInput } from './nicplan';
 
 const VISUALS = ['nic-gbe', 'nic-10g', 'nic-40g'];
 const inside = (r: Rect, o: Rect): boolean => r.x >= o.x - 0.01 && r.y >= o.y - 0.01 && r.x + r.w <= o.x + o.w + 0.01 && r.y + r.h <= o.y + o.h + 0.01;
@@ -104,7 +104,7 @@ describe('the Ethernet chip on the motherboard', () => {
       const g = nicGeo(v, BOARD_BAND);
       expect(g.face, v).toBeNull();
       expect(g.origin, v).toEqual({ x: BOARD_BAND * NIC_BAND, y: 0 });
-      expect(g.die, v).toEqual({ x: BOARD_BAND * NIC_BAND, y: 0, w: NIC_DIE.w, h: NIC_DIE.h });
+      expect(g.die, v).toEqual({ x: BOARD_BAND * NIC_BAND, y: 0, ...BOARD_DIE });
       expect(g.plan.input, v).toBe(nicInput(v));
       for (const slot of [0, 1, 2, 3]) expect(apart(g.die, nicGeo('nic-gbe', slot).die), `${v} ${slot}`).toBe(true);
     }

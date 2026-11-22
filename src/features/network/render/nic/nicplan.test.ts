@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAGE, jackOf, NIC_LANES } from '../../../board/render/three/niccopper';
 import { NIC_FIFO } from '../../sim/specs';
-import { BOARD_LINK, NIC_DIE, NIC_LINK, boardLook, nicInput, nicPlan, type NicBlockKind } from './nicplan';
+import { BOARD_DIE, BOARD_LINK, NIC_DIE, NIC_LINK, boardLook, nicInput, nicPlan, type NicBlockKind } from './nicplan';
 import { nicRoute, BLOCKS } from './nicroute';
 import type { Rect } from '../plan/netplan';
 
@@ -111,10 +111,10 @@ describe('the Ethernet chip on the motherboard', () => {
     expect(BOARD_LINK['board-ge']!.std).toBe('1000BASE-T');
   });
 
-  it('is the cards\' die without the heat sensor, its host link going to the I/O hub, square and in order', () => {
+  it('is the cards\' die without the heat sensor, its host link going to the I/O hub, in the chip\'s own shape (taller than a card\'s) and in order', () => {
     for (const v of BOARD) {
       const p = nicPlan(v), ids = p.blocks.map((b) => b.id), leaves = p.blocks.filter((b) => b.kind !== 'ctl');
-      expect(p.die, v).toEqual({ x: 0, y: 0, w: NIC_DIE.w, h: NIC_DIE.h });
+      expect(p.die, v).toEqual({ x: 0, y: 0, ...BOARD_DIE });
       expect(ids, v).toEqual(expect.arrayContaining(['ctl', 'phy', 'mac', 'stats', 'rxq', 'txq', 'dma', 'pcie']));
       expect(ids, v).not.toContain('temp');
       expect(p.links.map((l) => l.id), v).not.toContain('temp-dma');

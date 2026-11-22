@@ -11,7 +11,7 @@ import { tpmRoute } from './tpmroute';
 import type { TpmBlock } from './tpmplan';
 import { tpmCover } from '@/core/render/accelart';
 import { tpmGeo, tpmLed, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
+import { DEVICE_LOD, dieShow, seenZoom, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
 import { RectCache } from '@/core/render/lod/lodrect';
 import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
@@ -21,9 +21,9 @@ import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 // values in their slots, the bus master on the RAM bus, the range guard with its window on a ruler over RAM. A command runs as packets along the
 // die's own routed wires (tpm/tpmroute.ts); one that finished before the player looked is replayed in slow motion (tpm/tpmplayer.ts).
 
-// Zoom levels (board scale: the die is only a few hundred board units across, so they sit above the cards'): the lid fades 1.0 -> 1.8, the traces and
+// Zoom levels (board scale: the die is only a few hundred board units across, so they sit above the cards'): the lid fades over the band every chip uses (`dieShow`), the traces and
 // symbols come with it, the names at 2.2, the second lines at 3.4.
-const [FADE_FROM, FADE_TO] = DEVICE_LOD.tpm.fade, TEXT_Z = DEVICE_LOD.tpm.text, DETAIL_Z = DEVICE_LOD.tpm.detail;
+const TEXT_Z = DEVICE_LOD.tpm.text, DETAIL_Z = DEVICE_LOD.tpm.detail;
 /** How long a hop of a live command's packet takes (ms): the module's own phases are far shorter than a frame. */
 const LIVE_HOP_MS = 420;
 
@@ -136,7 +136,7 @@ export class TpmView {
       m.player.advance(step);
       const show = m.player.show(this.now);
       this.lockBadge(T, m, show);
-      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = dieShow(z, m.geo.die.w);
       m.root.visible = on;
       m.cover.alpha = 1 - fade;
       // (the LED is a light on the module: it stays lit up close)

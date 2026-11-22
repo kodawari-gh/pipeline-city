@@ -7,7 +7,7 @@ import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry
 import { Container, Graphics } from 'pixi.js';
 import { drawLockup } from '@/core/render/brands';
 import { box } from '@/core/render/ink';
-import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { dieShow } from '@/core/render/lod/lod';
 import type { Theme } from '@/core/render/theme';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { instanced, softBox, type RectLike } from '@/core/render/three/geometry';
@@ -132,7 +132,7 @@ export function cpuModel(art: ArtSet, T: Theme, spec: CpuSpec): Cpu3D {
     root: g, lid, skin: [nickel], centre,
     die: { root: face.root, z: 3 / CPU_S },
     lod: (zoom) => {
-      const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], zoom * CPU_S);
+      const a = dieShow(zoom, DIE.w);
       fadeTree(lid, 1 - a);
       face.root.visible = a > 0.01;
     },

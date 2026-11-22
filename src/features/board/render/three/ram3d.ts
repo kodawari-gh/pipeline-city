@@ -1,18 +1,18 @@
 // The memory sticks in 3D as real DIMMs (docs/render/three.md). The 2D draws a stick flat, its face seen from above;
 // here it stands in its socket: the gold fingers down in the groove, the chips on both faces, a latch clipped into the notch at each end. The
 // look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
-// (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`); the camera never turns by itself, so the
+// (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (the shared lid band, `dieShow`); the camera never turns by itself, so the
 // faces are read by turning the view, or from the angled view a double click flies to (`RAM_FACE_YAW`). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
 import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, Vector3, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { BRAND_FONT, drawLockup, lockupWidth } from '@/core/render/brands';
 import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
-import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { dieShow, dieZoom } from '@/core/render/lod/lod';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { sheetCut } from '@/core/render/three/detail';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { seeThrough, unseen } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
-import { ramDieArt, ramDiePlan, type RamDiePlan, type RamDieSpec } from '@/features/memory/render/ramdie';
+import { RAM_DIE, ramDieArt, ramDiePlan, type RamDiePlan, type RamDieSpec } from '@/features/memory/render/ramdie';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DIMM_H } from '../layout/layout';
 import { ramChips, ramNotch } from '../devices';
@@ -39,8 +39,6 @@ const OVER = { bare: 0, low: 0, fins: Math.round(6 * STICK_MM), rgb: Math.round(
 export const RAM_FACE_YAW = 0.5, RAM_FACE_PITCH = 0.35;
 /** The depth over the board (layout units) the view of the sticks' faces is aimed at: about the middle of their chips (a stick's chips stand 320 to 500 over its socket). */
 export const RAM_FACE_AT = 450;
-/** The zoom band (screen pixels per unit) the spreaders fade over and the chips' dies come in over: the part's own chips show once its cover is gone. */
-export const RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 
 export type StickLook = 'bare' | 'low' | 'fins' | 'rgb';
 export const stickLook = (visual: string): StickLook =>
@@ -182,8 +180,11 @@ export function stickFade(st: Stick, f: number): void {
   for (const die of st.dies) fadeTree(die, f);
 }
 
-/** How far a stick has shown its dies at `zoom` (screen pixels per unit): 0 to 1 over `RAM_FADE`. */
-export const dieShown = (zoom: number): number => smooth(RAM_FADE[0], RAM_FADE[1], zoom);
+/** How far a stick has shown its dies at `zoom` (screen pixels per unit): 0 to 1 over the band every chip's lid uses (`dieShow`, lod.ts), read on a chip's die. */
+export const dieShown = (zoom: number): number => dieShow(zoom, RAM_DIE.w);
+
+/** The zoom a flight to the sticks ends at: where a chip's die is wholly shown. */
+export const RAM_DIE_ZOOM = dieZoom(RAM_DIE.w);
 
 /** The gap between a chip's face and the art on it, and the live map over the art. */
 const DIE_OFF = 0.3, MAP_OFF = 2;

@@ -11,7 +11,7 @@
     "draws": 59,
     "verts": 74490,
     "instances": 734,
-    "sum": "211cc5e7"
+    "sum": "785ad990"
   },
   "machine/Group#47": {
     "meshes": 20,
@@ -74,7 +74,7 @@
     "draws": 3,
     "verts": 1840,
     "instances": 0,
-    "sum": "b4ef0b1f"
+    "sum": "b56b84a6"
   },
   "machine/cable.atx": {
     "meshes": 2,
@@ -389,21 +389,21 @@
     "draws": 19,
     "verts": 13374,
     "instances": 515,
-    "sum": "d01cb793"
+    "sum": "b2032094"
   },
   "machine/dev32": {
     "meshes": 19,
     "draws": 19,
     "verts": 13374,
     "instances": 515,
-    "sum": "77f8e07d"
+    "sum": "92fbb15f"
   },
   "machine/dev33": {
     "meshes": 19,
     "draws": 19,
     "verts": 13374,
     "instances": 515,
-    "sum": "d01cb793"
+    "sum": "b2032094"
   },
   "machine/dev34": {
     "meshes": 20,
@@ -438,7 +438,7 @@
     "draws": 4,
     "verts": 19492,
     "instances": 17,
-    "sum": "c4567dbc"
+    "sum": "b0632de6"
   },
   "machine/pcie2.nic-jack": {
     "meshes": 7,
@@ -529,7 +529,7 @@
     "draws": 0,
     "verts": 234768,
     "instances": 0,
-    "sum": "cf823b3a"
+    "sum": "10d56276"
   },
   "machine/tpm0": {
     "meshes": 1,

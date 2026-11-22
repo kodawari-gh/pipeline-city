@@ -159,8 +159,10 @@ function opacityOf(g: Object3D): number {
   return a;
 }
 
-/** Where the camera looks to see a faded part: the middle of its box. A NIC's lid lies where the card folds down to, not where its box is built (the card stands): its die's rail says where. */
+/** Where the camera looks to see a faded part: the middle of its box. A NIC's lid lies where the card folds down to, not where its box is built (the card stands): its die's rail says where. A RAM stick is read where its reveal point is. */
 function aim(m: Machine3D, f: Object3D): Vector3 {
+  const o = [...(m as unknown as { owned: Map<string, { id: string; kind: string; reveals: { at: Vector3 }[] }> }).owned.values()].find((x) => x.id === idOf(f) && x.kind === 'ram');
+  if (o?.reveals.length) return o.reveals[0]!.at.clone();
   const r = m.rails.find((x) => x.id === idOf(f) && x.id.endsWith('.nic-ctl'));
   return r ? new Vector3(r.rect.x + r.rect.w / 2, -(r.rect.y + r.rect.h / 2), r.z) : new Box3().setFromObject(f).getCenter(new Vector3());
 }
@@ -208,7 +210,7 @@ describe('Machine3D merge and share (PERF22 part 2)', () => {
     // the camera comes in on each faded part, from the board view to its face: on the way the level of detail fades it out
     const half = new Set<number>();
     for (const f of wf) {
-      const at = new Box3().setFromObject(f).getCenter(new Vector3());
+      const at = aim(was, f);
       for (let d = 30000; d > 300; d *= 0.95) {
         const cam = new PerspectiveCamera(40, 16 / 9, 10, 200000);
         cam.position.set(at.x, at.y, at.z + d); cam.lookAt(at); cam.updateMatrixWorld();
@@ -392,10 +394,11 @@ describe('Machine3D Ethernet chip on the motherboard', () => {
       const rails = m.rails.filter((r) => r.id === 'board.nic-ctl');
       expect(rails, `merge ${merge}`).toHaveLength(1);
       const r = rails[0]!;
-      // over the chip, as wide as its pad, at the die's face between the board and the mould's top
+      // over the chip, as wide as its die, which fills the chip to a thin rim, at the die's face between the board and the mould's top
       expect(r.rect.x + r.rect.w / 2).toBeCloseTo(g.x + g.w / 2, 3);
       expect(r.rect.y + r.rect.h / 2).toBeCloseTo(g.y + g.h / 2, 3);
-      expect(r.rect.w).toBeCloseTo(Math.min(g.w, g.h) - 23, 3);
+      expect(r.rect.w).toBeGreaterThan(0.97 * g.w);
+      expect(r.rect.w).toBeLessThanOrEqual(g.w);
       expect(r.z).toBeGreaterThan(BOARD_Z);
       expect(r.z).toBeLessThan(BOARD_Z + CHIP_H);
       expect(r.zoom).toBeGreaterThan(0);

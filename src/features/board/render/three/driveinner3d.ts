@@ -48,7 +48,7 @@ export function ssdBoard(host: DriveHost, x: number, y: number, z: number): Grou
   const R = (a: number, b: number, c: number, d: number): RectLike => ({ x: m(a), y: m(b), w: m(c), h: m(d) });
   g.add(pcbSlab([[0, 0], [m(w), 0], [m(w), m(l)], [0, m(l)]], 0, pt, 0x121519));
   const die: DieHost = { art: host.art, T: host.T, reveal: (r, d, apply) => host.reveal([x + r.x + r.w / 2, y + d, z + r.y + r.h / 2], apply) };
-  const ctrl = R(7, 9, 13, 13), xtal = R(8.6, 4.2, 2, 1.6), dram = R(25.5, 9, 8, 13), pmic = R(44, 9.5, 3, 3);
+  const ctrl = R(7, 9, 13, 13), xtal = R(8.6, 4.2, 2, 1.6), dram = R(25.5, 9, 8, 10.35), pmic = R(44, 9.5, 3, 3);
   const nand = [R(12, 34, 18, 12), R(35, 34, 18, 12), R(12, 56, 18, 12), R(35, 56, 18, 12)];
   const ctrlBake = host.art.baker(() => ctrlDieArt(host.T, 'ssd-sata')), nandBake = host.art.baker(() => nandDieArt(host.T, 1, 'ssd-sata'));
   const dramBake = host.art.baker(() => ramDieArt(host.T, ramDiePlan({ banks: 8, bankGroups: 2 })));

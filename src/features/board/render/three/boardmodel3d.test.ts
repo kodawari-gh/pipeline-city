@@ -71,7 +71,7 @@ describe('the board model\'s Ethernet chip', () => {
       expect(b.phy, `tier ${tier}`).not.toBeNull();
       expect(b.phy!.root.parent, `tier ${tier}`).toBe(b.small);
       expect(b.phy!.root.userData.id, `tier ${tier}`).toBe('board.nic-ctl');
-      expect(b.phy!.rect.w, `tier ${tier}`).toBeCloseTo(Math.min(g.w, g.h) - MM, 6);
+      expect(b.phy!.rect.w / g.w, `tier ${tier}`).toBeGreaterThan(0.97);
       expect(b.phy!.rect.x + b.phy!.rect.w / 2, `tier ${tier}`).toBeCloseTo(g.x + g.w / 2, 6);
       expect(b.phy!.rect.y + b.phy!.rect.h / 2, `tier ${tier}`).toBeCloseTo(g.y + g.h / 2, 6);
       // the die has its floorplan: the live layer has a face to cover, over the board's

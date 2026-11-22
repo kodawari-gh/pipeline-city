@@ -39,9 +39,13 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
 
   it('has its die as wide as the pad, in the middle of the chip, the die\'s rectangle in layout units as the board\'s', () => {
     for (const look of LOOKS) {
-      const c = chip(look), r = GEO.phy!, side = Math.min(r.w, r.h) - MM;
-      expect(c.rect.w, look).toBeCloseTo(side, 6);
-      expect(c.rect.h, look).toBeCloseTo(side, 6);
+      const c = chip(look), r = GEO.phy!, plan = nicGeo(look, BOARD_BAND).die;
+      // (no bare package round the floorplan: the die has the plan's shape and fills the chip to a rim of 3 % at most)
+      expect(c.rect.w / c.rect.h, look).toBeCloseTo(plan.w / plan.h, 6);
+      expect(c.rect.w / r.w, look).toBeGreaterThan(0.97);
+      expect(c.rect.h / r.h, look).toBeGreaterThan(0.97);
+      expect(c.rect.w, look).toBeLessThanOrEqual(r.w);
+      expect(c.rect.h, look).toBeLessThanOrEqual(r.h);
       expect(c.rect.x + c.rect.w / 2, look).toBeCloseTo(r.x + r.w / 2, 6);
       expect(c.rect.y + c.rect.h / 2, look).toBeCloseTo(r.y + r.h / 2, 6);
       // the die stands on its pad, under the mould's top

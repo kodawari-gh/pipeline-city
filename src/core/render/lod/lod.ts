@@ -28,6 +28,18 @@ export interface LodRect { x: number; y: number; w: number; h: number }
  */
 export const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
 
+/**
+ * The one rule for a chip's lid: the CPU's, a graphics or AI card's, a network card's, a RAM chip's, the TPM's, the router's and a drive's chips all fade their lid, cap or mould away over the same band,
+ * measured on the die itself: how wide the die is on the screen, in pixels (the zoom, in pixels per unit, times the die's width in the same unit). So a big die and a small one open at the same distance.
+ */
+export const DIE_SHOW = [240, 360] as const;
+
+/** How far a die of width `side` shows: 0 with its lid on, 1 with the lid gone. `zoom`: screen pixels per unit, `side`: the die's width in that unit. */
+export const dieShow = (zoom: number, side: number): number => smooth(DIE_SHOW[0], DIE_SHOW[1], zoom * side);
+
+/** The zoom (pixels per unit) at which a die of width `side` is wholly shown: where a flight to it ends. */
+export const dieZoom = (side: number): number => DIE_SHOW[1] / side;
+
 /** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.35 of it, so its stages start later than at the centre. */
 export const FAR_ZOOM = 0.35;
 

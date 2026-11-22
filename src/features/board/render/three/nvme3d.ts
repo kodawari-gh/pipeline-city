@@ -60,7 +60,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
 
   // the parts (mm from the finger edge and the north edge)
   const pmic = R(3.7, 9.75, 2.5, 2.5), ind = [R(3.75, 1.4, 1.6, 2.0), R(3.75, 4.0, 1.6, 2.0), R(3.75, 16.0, 1.6, 2.0), R(3.75, 18.6, 1.6, 2.0)];
-  const ctrl = R(7.0, 4.5, 13, 13), xtal = R(8.6, 1.3, 2.0, 1.6), dram = R(21.5, 4.5, 8.0, 13.0), nand = [R(31.0, 5.0, 18.0, 12.0), R(51.5, 5.0, 18.0, 12.0)];
+  const ctrl = R(7.0, 4.5, 13, 13), xtal = R(8.6, 1.3, 2.0, 1.6), dram = R(21.5, 4.5, 8.0, 10.35), nand = [R(31.0, 5.0, 18.0, 12.0), R(51.5, 5.0, 18.0, 12.0)];
   pkg(g, pmic, z1, 0.75 * MM, ['P9M', '21A']);
   ind.forEach((r, i) => inductor(g, r, z1, 1.0 * MM, ['1R0', 'R47', 'R68', '1R0'][i]));
   // (a package under the label or the heat sink keeps its marking to itself)

@@ -201,7 +201,7 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
         tpmModel(g, visual, (top, r, z, part) => {
           if (part !== 'die') return;
           const face = tpmDieFace(art, T, visual, top, r, z + 2);
-          art.reveal(marker(top, r, z + 2), (zoom) => tpmDieFade(face, zoom));
+          art.reveal(marker(top, r, z + 2), (zoom) => tpmDieFade(face, zoom, r.w));
         });
         return g;
       })));

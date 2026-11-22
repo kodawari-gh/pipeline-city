@@ -9,7 +9,7 @@ import type { Snapshot } from '@/worker/protocol';
 import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
 import { cardOrigin } from '@/core/render/accelart';
 import { machineLive } from '@/core/render/fanmotor';
-import { DEVICE_LOD, TierBudget, deviceLod, seenZoom, smooth, type LodRect } from '@/core/render/lod/lod';
+import { DEVICE_LOD, TierBudget, deviceLod, dieShow, seenZoom, smooth, type LodRect } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { DECODE_SRGB, rawSrgb, screenPx, shown, type Rect } from '@/core/render/three/artlod';
 import { shareTex } from '@/core/render/three/geometry';
@@ -237,7 +237,7 @@ export class Chips3D {
     if (this.cpu && dieFace) {
       dieFace.parent.updateWorldMatrix(true, false);
       const v = viewOn(cam, H, dieFace.z, INV.copy(dieFace.parent.matrixWorld).invert()), view = v.rect ?? EVERYWHERE, p = deviceLod(DIE_PLAN, view), seen = seenZoom(v.zoom, p.focus);
-      this.dieAlpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seen) : 0;
+      this.dieAlpha = p.onScreen ? dieShow(seen, DIE_PLAN.w) : 0;
       this.die.setZoom(v.zoom, seen, view);
       this.die.frame(this.t, paused, this.dieAlpha > 0.01 && shown(dieFace.parent));
     }
@@ -253,7 +253,7 @@ export class Chips3D {
       if (f.kind !== 'nic' || !f.slot) continue;
       f.parent.updateWorldMatrix(true, false);
       const nv = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), nview = nv.rect ?? EVERYWHERE, p = deviceLod(f.rect, nview);
-      const alpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seenZoom(nv.zoom, p.focus)) : 0;
+      const alpha = p.onScreen ? dieShow(seenZoom(nv.zoom, p.focus), f.rect.w) : 0;
       this.nicAlpha.set(f.slot, alpha);
       this.nic.setSight(f.slot, { zoom: nv.zoom, view: nview, shown: alpha > 0.01 && shown(f.parent) });
     }
@@ -276,7 +276,7 @@ export class Chips3D {
     if (this.routerGeo && rf) {
       rf.parent.updateWorldMatrix(true, false);
       const rv = viewOn(cam, H, rf.z, INV.copy(rf.parent.matrixWorld).invert()), rview = rv.rect ?? EVERYWHERE, p = deviceLod(rf.rect, rview);
-      this.routerAlpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seenZoom(rv.zoom, p.focus)) : 0;
+      this.routerAlpha = p.onScreen ? dieShow(seenZoom(rv.zoom, p.focus), rf.rect.w) : 0;
       this.router.setSight({ zoom: rv.zoom, view: rview, shown: this.routerAlpha > 0.01 && shown(rf.parent) });
     }
     this.router.frame(dt, true, paused);

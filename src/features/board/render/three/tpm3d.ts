@@ -9,7 +9,7 @@
 import { BoxGeometry, Group, LatheGeometry, Matrix4, Object3D, Shape, Vector2, type MeshStandardMaterial } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
-import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { dieShow } from '@/core/render/lod/lod';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { extrude, instanced, rectBox, SEG, softBox, type RectLike } from '@/core/render/three/geometry';
 import { NYLON, mat } from '@/core/render/three/materials';
@@ -91,10 +91,9 @@ export function tpmDieFace(art: ArtSet, T: Theme, visual: string, top: Object3D,
   return art.surface(top, b.bake, r, z, LV_DIE, FINISH.die).root;
 }
 
-/** The die fades in as the camera comes in, over the band the live die uses (`DEVICE_LOD.tpm.fade`); `zoom`: screen pixels per unit. */
-export function tpmDieFade(face: Object3D, zoom: number): void {
-  const [a, b] = DEVICE_LOD.tpm.fade;
-  fadeTree(face, smooth(a, b, zoom));
+/** The die fades in as the camera comes in, over the band every chip's lid uses (`dieShow`); `zoom`: screen pixels per unit, `side`: the die's width in that unit (the die rect's `w`). */
+export function tpmDieFade(face: Object3D, zoom: number, side: number): void {
+  fadeTree(face, dieShow(zoom, side));
 }
 
 /**

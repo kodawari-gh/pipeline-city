@@ -4,18 +4,17 @@
 // Built in a frame whose y is the negative of layout's and whose depth runs up off the PCB (the card's component side, nic3d.ts, and the board's own frame, phychip3d.ts): it takes the
 // rectangles mirrored in y (`mirror`) and the same function to turn them back (`U`).
 import { Group, type Object3D } from 'three';
-import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
+import { dieShow } from '@/core/render/lod/lod';
 import { fadeTree } from '@/core/render/three/artlod';
 import { rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { NIC_DIE } from '@/features/network/render/nic/nicplan';
 import { MM, lidBase, pkg } from './pcbkit3d';
 
 /** A rectangle mirrored in y about layout's origin: in the chip's frame and out of it (the mirror is its own inverse). */
 export const mirror = (r: RectLike): RectLike => ({ x: r.x, y: -(r.y + r.h), w: r.w, h: r.h });
 
-/** The die's side in mm: a QFN's (a 9 mm package, its pad 8 mm: the die fills the pad) and a lidded BGA's (a 25 mm package: the die fills the substrate to a 2 mm border). The floorplan covers the whole chip. */
-export const DIE_MM = { qfn: 7.6, bga: 21 } as const;
+/** The die's width in mm: a QFN's (a 9 mm package: the die fills it to a 0.2 mm rim) and a lidded BGA's (a 25 mm package: to a 0.5 mm rim). The floorplan covers the whole chip. */
+export const DIE_MM = { qfn: 8.6, bga: 24 } as const;
 
 /** Puts the floorplan on a frame: the die's baked art in `frame` (which is scaled by `scale`, a layout unit to a plan unit), and where its live face goes. Null: no art (the gallery's plain card). */
 export type DieFloor = (frame: Group, scale: number) => { root: Object3D; z: number };
@@ -42,8 +41,9 @@ export interface NicChip {
  * not the card's 0.9 mm; `o.die`: the die's side (layout units) when it is not the card's (the motherboard's Ethernet chip is a taller package with a bigger pad, phychip3d.ts).
  */
 export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark: readonly string[], U: (r: RectLike) => RectLike, plan: RectLike, floor?: DieFloor, o: { height?: number; die?: number } = {}): NicChip {
-  const lid = new Group(), side = o.die ?? (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM, scale = side / NIC_DIE.w;
-  const cx = chip.x + chip.w / 2, cy = chip.y + chip.h / 2, rect = { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
+  // (the die has its plan's shape, `plan.h` over `plan.w`: the floorplan fills the die and the die fills the package)
+  const lid = new Group(), side = o.die ?? (qfn ? DIE_MM.qfn : DIE_MM.bga) * MM, scale = side / plan.w, dh = plan.h * scale;
+  const cx = chip.x + chip.w / 2, cy = chip.y + chip.h / 2, rect = { x: cx - side / 2, y: cy - dh / 2, w: side, h: dh };
   const silicon = mat(0x1d1e22, { metalness: 0.35, roughness: 0.3 });
   let zTop: number, top: number, dieTop: number;
   if (qfn) {
@@ -76,7 +76,7 @@ export function nicChip(u: Group, chip: RectLike, qfn: boolean, zu: number, mark
   return {
     lid, die, scale, rect, top, dieTop,
     lod: (zoom) => {
-      const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], zoom * scale);
+      const a = dieShow(zoom, side);
       fadeTree(lid, 1 - a);
       if (made) made.root.visible = a > 0.01;
     },

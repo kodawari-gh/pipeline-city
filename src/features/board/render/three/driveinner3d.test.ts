@@ -4,7 +4,7 @@ import { builtinTheme } from '@/core/render/theme';
 import type { V3 } from '@/core/render/three/rope';
 import { MM } from './pcbkit3d';
 import { ArtSet } from './artset3d';
-import { COVER_BAND, DIE_BAND } from './chipdie3d';
+import { COVER_BAND } from './chipdie3d';
 import { HDD_MM, SSD_MM, sataDriveModel } from './drive3d';
 import { hddInside, ssdBoard, type DriveHost } from './driveinner3d';
 

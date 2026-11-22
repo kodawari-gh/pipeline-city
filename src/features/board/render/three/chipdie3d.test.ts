@@ -5,7 +5,8 @@ import type { RectLike } from '@/core/render/three/geometry';
 import { NAND_DIE, nandDieArt } from '@/features/storage/render/diskdie';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { ArtSet } from './artset3d';
-import { COVER_BAND, DIE_BAND, dieInPackage, type DieHost } from './chipdie3d';
+import { COVER_BAND, DIE_FILL, dieInPackage, type DieHost } from './chipdie3d';
+import { DIE_SHOW } from '@/core/render/lod/lod';
 import { driveBody } from '@/features/storage/render/drives';
 import { MM } from './pcbkit3d';
 import { nvmeStick } from './nvme3d';
@@ -18,6 +19,8 @@ function host(): DieHost & { asks: { r: RectLike; z: number; apply: (zoom: numbe
 
 describe('a chip package that shows its die', () => {
   const r: RectLike = { x: 100, y: 100, w: 18 * MM, h: 12 * MM };
+  // (the die is the package's width, less its rim: the band is read on the die)
+  const SIDE = 18 * MM * DIE_FILL;
 
   it('has its cap, its substrate, its die and the die\'s frame; the die\'s art is hidden while the cap is whole', () => {
     const d = host(), g = new Group();
@@ -29,13 +32,13 @@ describe('a chip package that shows its die', () => {
     // (asked at the package's centre, a step over its top)
     expect(d.asks[0]!.r).toEqual(r);
     expect(d.asks[0]!.z).toBeCloseTo(BOARD_Z + 1.25 * MM, 5);
-    d.zoom(DIE_BAND[0] - 0.1);
+    d.zoom(DIE_SHOW[0] / SIDE - 0.1);
     expect(cap.visible).toBe(true);
     expect(frame.visible).toBe(false);
-    d.zoom((DIE_BAND[0] + DIE_BAND[1]) / 2);
+    d.zoom((DIE_SHOW[0] + DIE_SHOW[1]) / 2 / SIDE);
     expect(cap.visible).toBe(true);
     expect(frame.visible).toBe(true);
-    d.zoom(DIE_BAND[1] + 0.1);
+    d.zoom(DIE_SHOW[1] / SIDE + 0.1);
     expect(cap.visible).toBe(false);
     expect(frame.visible).toBe(true);
     d.art.dispose();

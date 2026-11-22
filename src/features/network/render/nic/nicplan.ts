@@ -60,6 +60,10 @@ export const nicInput = (visual: string): NicPlanInput => NIC_LINK[visual] ?? BO
 
 /** The die's plan is this big (plan units): square, as a die is. The blocks are sized for it: a symbol fits a block of about 250 by 150. */
 export const NIC_DIE = { w: 680, h: 680 };
+/** The Ethernet chip on the motherboard (`BOARD_LINK`) is a taller package (220 x 260 board units), so its die has the package's shape: the floorplan fills the chip, no bare package round it. */
+export const BOARD_DIE = { w: 680, h: 810 };
+/** The size of the die's plan of look `visual`. */
+export const nicDieSize = (visual: string): { w: number; h: number } => (visual in BOARD_LINK ? BOARD_DIE : NIC_DIE);
 const M: Margins = { x: 10, top: 10, bottom: 30 };
 
 type K = NicBlockKind;
@@ -106,5 +110,5 @@ function build(i: NicPlanInput): { tree: N; specs: WireSpec<NicLinkKind>[] } {
 /** The floorplan of a card's controller die. */
 export function nicPlan(visual: string): NicPlan {
   const i = nicInput(visual), { tree, specs } = build(i);
-  return layPlan<K, NicLinkKind, NicPlanInput>(`nicdie|${visual}`, i, NIC_DIE, M, tree, specs, 'nicplan');
+  return layPlan<K, NicLinkKind, NicPlanInput>(`nicdie|${visual}`, i, nicDieSize(visual), M, tree, specs, 'nicplan');
 }
