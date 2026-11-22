@@ -5,7 +5,7 @@
    This file sits under src/core/ui once copied, so the relative-units test scans it.
    1rem is 15 px at any width up to about 1765 px (the root rule in ui.css, per issue #29). Spec px convert as: desktop px / 16.2, phone px / 15.
    Phone reference: 390 x 844. Inline ornament SVGs carry no numeric width or height; they scale with rem.
-   The phone layout applies at (max-width: 48em), (max-aspect-ratio: 3/4). See SPEC.md section 6. */
+   The phone layout applies at (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 600px) and (orientation: landscape). See SPEC.md section 6. */
 
 /* ---------- Fonts: IBM Plex, self-hosted, SIL Open Font License 1.1 (fonts/LICENSE.txt ships with them) ---------- */
 @font-face { font-family: 'Plex Cond'; src: url('./fonts/IBMPlexSansCondensed-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
@@ -102,7 +102,7 @@
 }
 
 /* ---------- Phone layout (reference 390 x 844, 1rem = 15 px). Gradients run bottom-up so they follow bottom-anchored content. ---------- */
-@media (max-width: 48em), (max-aspect-ratio: 3/4) {
+@media (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 600px) and (orientation: landscape) {
   :root {
     --t-silk: 0.733rem;       /* 11 px */
     --edge-menu: 1.6rem;      /* 24 */
@@ -116,7 +116,7 @@
     --k3-sq: 0.267rem; --k3-pitch: 0.533rem; --k5-r: 0.267rem;
     --k7-tick: 0.533rem; --k7-minor-h: 0.267rem; --k7-major-h: 0.533rem; --k7-major-every: 2.667rem; /* 40 */
     --ch-sm: 0.667rem; --ch: 0.933rem; --ch-lg: 1.333rem;
-    /* menu: clear at y 400, 88 % from 580 on a 1080 frame = 0 % at 680 px and 88 % from 500 px above the bottom */
+    /* menu: clear at y 400, 88 % from 580 on the 1080 px phone mock frame = 0 % at 680 px and 88 % from 500 px above the bottom */
     --scrim-menu: linear-gradient(0deg, rgba(4, 6, 15, 0.88) 0, rgba(4, 6, 15, 0.88) 33.333rem, rgba(4, 6, 15, 0) 45.333rem);
     /* wide: clear at y 140, 88 % from 300 = 0 % at 940 and 88 % from 780 above the bottom */
     --scrim-wide: linear-gradient(0deg, rgba(4, 6, 15, 0.88) 0, rgba(4, 6, 15, 0.88) 52rem, rgba(4, 6, 15, 0) 62.667rem);

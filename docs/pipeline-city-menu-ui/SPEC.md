@@ -6,12 +6,12 @@ Repo baseline: `main` at `7f56e17`. Where the code lives and what to change: `IM
 ## 0. How to read this spec
 
 ### 0.1 Precedence
-1. **Mock PNGs in `mocks/` win.** If this text and a mock disagree on a position, size, colour or string, build the mock.
-2. **This spec wins over the reference renders** in `reference/` (layout checks I drew myself, not mocks).
+1. **Game behaviour wins** over everything: the code on `main` and the rules in §0 to §4.
+2. **This text wins over the mock PNGs** in `mocks/`. If this text and a mock disagree on a position, size, colour or string, build the text and list the case in your PR description. The mocks win over the reference renders in `reference/` (layout checks I drew myself, not mocks).
 3. `assets/geometry/*.json` holds the mocks' own measured boxes and trace polylines for 01 to 06 and 13 (Appendix A prints them). Treat them as part of the mocks.
 4. Where neither a mock nor this text says anything, follow the rules in §1 and the component definitions in §4, then list the case in your PR description.
 
-The in-game mocks (07 to 12, v3) are in `mocks/` and win over §5.7 to §5.12 the same way.
+The in-game mocks (07 to 12, v3) are in `mocks/` and rank below §5.7 to §5.12 the same way.
 
 ### 0.2 Units
 - Coordinates are CSS px at two reference viewports: **desktop 1920 × 1080** and **phone 390 × 844** (the layout reference; the phone mocks were drawn at a 530 px wide layout, and their numbers are kept as rem, see below). Origin top-left, before safe-area insets. Boxes are `x, y, w × h`.
@@ -201,7 +201,7 @@ Defaults: 1 px stroke `--c-trace`; text `--c-mute`; `aria-hidden`; never interac
 Budget per screen: one K1 set, three K2, two K3, one K7, one K5 per spine.
 
 ### 4.13 Scrims (menus) and ramps (in game)
-Exact gradients are in `tokens.css`. Positions on the 1080-tall references:
+Exact gradients are in `tokens.css`. Desktop positions are on the 1920 × 1080 reference. Phone positions are on the phone mock frame (the 530 px wide, 1080 px tall layout that maps to the 390 × 844 reference, §0.2):
 
 | Name | Desktop (horizontal, from the left edge) | Phone (vertical) | Screens |
 |---|---|---|---|
@@ -212,7 +212,7 @@ Exact gradients are in `tokens.css`. Positions on the 1080-tall references:
 | `--ramp-tutorial` | none (desktop uses an edge tab) | 0 % at y 640, 86 % from y 700 | 11 phone |
 | `--ramp-wide` | `--c-shade` 86 % with the `--scrim-wide` stops | same as `--scrim-wide` | 04 and 06 opened inside a game (§5.6a) |
 | Studio stage | flat `--c-studio`, no ramp | same | 08 |
-Phone gradients are anchored to the bottom edge (they are written bottom-up in `tokens.css`), because phone content is bottom-anchored (§6.3). The stops above are where they fall on the 844 px tall phone reference (390 × 844).
+Phone gradients are anchored to the bottom edge (they are written bottom-up in `tokens.css`), because phone content is bottom-anchored (§6.3). The phone stops above are 1080 px frame values (the mock frame, §0.2), not 844 px values. `tokens.css` carries them as rem from the bottom edge, so they scale to the 390 × 844 reference.
 Between two stops the opacity is linear. Linear gradients in sRGB, no easing.
 
 ---
@@ -617,6 +617,7 @@ Every screen change reads as the trace growing from where you were to where you 
 | Loading | 15.7 | 9.1 | 12.2 | 11.7 | 6.3 | 14.8 | 7.0 |
 | In-game edge tab or ramp (86 % `#0a0a0c`), over pure white | 11.5 | 6.7 | 9.0 | 8.6 | 4.6 | 10.9 | 5.1 |
 | `--c-studio` `#111113` | 15.7 | 9.1 | 12.2 | 11.7 | 6.3 | 14.8 | 7.0 |
+Contrast exceptions: none.
 Void text on a cyan chip: 13.1:1. Silkscreen (`--c-mute`, 11 px) passes as mute. Graphite trace and ornament measure 2.0 to 2.6:1 and are decoration only, never information.
 Text placed on the scene without a tab or ramp is not allowed.
 
@@ -628,7 +629,7 @@ Text placed on the scene without a tab or ramp is not allowed.
 - On Paused open, announce "Paused. Clock stopped." (`role="status"`).
 
 ### 11.3 Scaling and zoom
-UI size 80 % to 150 % scales rem. Browser zoom works the same way. Display titles step down one size rather than wrap to three lines.
+UI size 80 % to 150 % scales rem. Browser zoom works the same way where the browser allows it. `index.html` keeps its viewport meta as is (`maximum-scale=1, user-scalable=no`), so pinch zoom of the page is off on touch devices and is not required; the UI size setting is the supported way to scale there. No meta change is part of this package. Display titles step down one size rather than wrap to three lines.
 
 ---
 ## Appendix A. Boxes measured on the approved mocks (01 to 06, 13)
