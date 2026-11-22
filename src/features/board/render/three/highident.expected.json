@@ -329,60 +329,60 @@
     "sum": "a3391a05"
   },
   "machine/dev23": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "007527eb"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "d59f36cc"
   },
   "machine/dev24": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "b9488e9e"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "c6796788"
   },
   "machine/dev25": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "bf5bba65"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "2208d03e"
   },
   "machine/dev26": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "6d65d2fe"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "ced9a56f"
   },
   "machine/dev27": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "30d324de"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "d4ea024e"
   },
   "machine/dev28": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "30d324de"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "d4ea024e"
   },
   "machine/dev29": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "30d324de"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "d4ea024e"
   },
   "machine/dev30": {
-    "meshes": 13,
-    "draws": 4,
-    "verts": 924,
-    "instances": 196,
-    "sum": "30d324de"
+    "meshes": 15,
+    "draws": 6,
+    "verts": 2084,
+    "instances": 58,
+    "sum": "d4ea024e"
   },
   "machine/dev31": {
     "meshes": 19,
@@ -527,9 +527,9 @@
   "machine/standin": {
     "meshes": 8,
     "draws": 0,
-    "verts": 234768,
+    "verts": 195024,
     "instances": 0,
-    "sum": "10d56276"
+    "sum": "baa29aeb"
   },
   "machine/tpm0": {
     "meshes": 1,

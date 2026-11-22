@@ -12,9 +12,9 @@ quietCanvas();
  * sink, and the two hoses (one more than the single draw they were in). 151: the NIC's insides are real parts now: its jack's two lamps and its three
  * chip markings keep a material of their own, and its PCB and its parts' odd shadow flags leave a few meshes alone in their sets. 153: the Ethernet chip on the motherboard is a real
  * package with a die: its mould and its marking fade with the zoom, so they keep a material of their own. The board's small parts hide at the overview in the room, so only this count sees them. 155: the packages of the NVMe sticks and the RAM chips are caps over
- * dies (`chipdie3d.ts`): each cap fades alone, so it keeps materials of its own.)
+ * dies (`chipdie3d.ts`): each cap fades alone, so it keeps materials of its own. 163: the top RAM sticks wear spreader plates and a light bar now (`ram3d.ts`, one plate material a side and the glowing bar, eight sticks).)
  */
-const CEILING = 155;
+const CEILING = 163;
 
 describe('the machine at the room overview', () => {
   it('draws as stand-ins', () => {

@@ -1,14 +1,13 @@
 // The memory sticks in 3D as real DIMMs (docs/render/three.md). The 2D draws a stick flat, its face seen from above;
 // here it stands in its socket: the gold fingers down in the groove, the chips on both faces, a latch clipped into the notch at each end. The
-// look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
-// (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (the shared lid band, `dieShow`); the camera never turns by itself, so the
+// look follows the tier, one linear ladder (`RUNGS`): a bare green stick, then one straight plate that grows, gains a light bar, a groove line and a better metal at each rung. Up close the spreaders fade to the chips (the shared lid band, `dieShow`); the camera never turns by itself, so the
 // faces are read by turning the view, or from the angled view a double click flies to (`RAM_FACE_YAW`). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
-import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, Vector3, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BoxGeometry, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, Vector3, type BufferGeometry, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { BRAND_FONT, drawLockup, lockupWidth } from '@/core/render/brands';
-import { instanced, paint, paintLow, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
+import { instanced, paint, place, rectBox, SEG, shareTex, softBox, type RectLike } from '@/core/render/three/geometry';
 import { dieShow, dieZoom } from '@/core/render/lod/lod';
 import { FINISH, fadeTree } from '@/core/render/three/artlod';
-import { sheetCut } from '@/core/render/three/detail';
 import { CERAMIC, mat } from '@/core/render/three/materials';
 import { seeThrough, unseen } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
@@ -19,6 +18,7 @@ import { ramChips, ramNotch } from '../devices';
 import { LV_DIE, type ArtSet } from './artset3d';
 import { tex } from './casekit3d';
 import { glowMat, light, type Spin } from './fans3d';
+import { plateFace, ramFace, type Foot } from './ramface3d';
 
 /** The socket: a housing along the stick, `SLOT_W` wide (a real one is about 6 mm) and `SLOT_H` high; the stick's fingers sink `SINK` into its `GROOVE`. */
 export const SLOT_W = 140, SLOT_H = 110;
@@ -33,25 +33,43 @@ export const STICK_MM = DIMM_H / 133.35;
 const PCB_T = 29, PCB_H = Math.round(31.25 * STICK_MM), CHIP_T = 23, PAD = 12, END = 8, CHIP_Z1 = PCB_H - 60, CHIP_Z0 = CHIP_Z1 - 180;
 /** The latch: the notch its hook takes in the stick's end (height over the PCB's bottom edge, radius), and how high the latch stands. */
 const NOTCH_V = Math.round(PCB_H * 0.44), NOTCH_R = 16, LATCH_Z = Z0 + NOTCH_V + 14;
-/** How far a spreader reaches over the PCB's top edge (real sticks: a finned DDR3 37 mm, an RGB DDR4 or DDR5 44 mm, to the PCB's 31.25). */
-const OVER = { bare: 0, low: 0, fins: Math.round(6 * STICK_MM), rgb: Math.round(12.75 * STICK_MM) } as const;
+/**
+ * The ladder. One straight-edged plate on every spreader; each tier up adds a step you can count: the plate grows (a low plate over the chips, then the PCB's full height), a light bar
+ * rises on it (4, 7, 10, 13 mm over the PCB's top edge), a groove line is cut in the plate (one more a tier, three at most), and the metal gets better (stamped steel, dark anodised, matte black,
+ * brushed gunmetal, dark titanium with a polished chamfer, titanium with gold trim). Tier 0 is the bare green stick. The ECC sticks (tiers 4 and 6) are the DDR4 and DDR5 sticks one step up.
+ */
+interface Rung { over: number; plate: number; t: number; metal: number; rough: number; color: number; grooves: number; trim: boolean; gold: boolean }
+const RUNGS: Record<number, Rung> = {
+  1: { over: 0, plate: -6, t: 14, metal: 0.6, rough: 0.5, color: 0x4e5360, grooves: 0, trim: false, gold: false },
+  2: { over: 0, plate: 0, t: 18, metal: 0.6, rough: 0.45, color: 0x2a2d32, grooves: 1, trim: false, gold: false },
+  3: { over: 4, plate: 40, t: 22, metal: 0.2, rough: 0.7, color: 0x131518, grooves: 2, trim: false, gold: false },
+  4: { over: 7, plate: 56, t: 26, metal: 0.8, rough: 0.3, color: 0x4e5360, grooves: 3, trim: false, gold: false },
+  5: { over: 10, plate: 70, t: 30, metal: 0.85, rough: 0.25, color: 0x959aa3, grooves: 3, trim: true, gold: false },
+  6: { over: 13, plate: 84, t: 32, metal: 0.9, rough: 0.22, color: 0xb9babf, grooves: 3, trim: true, gold: true },
+};
+/** The ladder's rung of a stick (0 is the bare stick). */
+export const stickTier = (visual: string): number =>
+  ({ 'dimm-basic': 0, 'dimm-fast': 1, 'dimm-ddr3': 2, 'dimm-lowlat': 3, 'dimm-ecc': 4, 'dimm-ddr5': 5, 'dimm-ddr5ecc': 6 } as Record<string, number>)[visual] ?? 0;
 /** The yaw and the pitch (radians) of the view a double click on the sticks flies to, to read their faces in a row (the faces look east; from above, the eye clears the drive cages). */
 export const RAM_FACE_YAW = 0.5, RAM_FACE_PITCH = 0.35;
 /** The depth over the board (layout units) the view of the sticks' faces is aimed at: about the middle of their chips (a stick's chips stand 320 to 500 over its socket). */
 export const RAM_FACE_AT = 450;
 
-export type StickLook = 'bare' | 'low' | 'fins' | 'rgb';
-export const stickLook = (visual: string): StickLook =>
-  visual === 'dimm-fast' ? 'low' : visual === 'dimm-ddr3' ? 'fins' : visual === 'dimm-lowlat' || visual === 'dimm-ddr5' ? 'rgb' : 'bare';
+/** bare (tier 0), a low plate (1), a full plate (2), a plate under a light bar (3 to 6). */
+export type StickLook = 'bare' | 'low' | 'flat' | 'rgb';
+export const stickLook = (visual: string): StickLook => { const t = stickTier(visual); return t === 0 ? 'bare' : t === 1 ? 'low' : t === 2 ? 'flat' : 'rgb'; };
 
-/** How high a stick of this look reaches over the board (its spreader or light bar included). */
-export const stickTop = (look: StickLook): number => Z0 + PCB_H + OVER[look];
+/** How high a stick reaches over the board (its spreader or light bar included). */
+export const stickTop = (visual: string): number => Z0 + PCB_H + Math.round((RUNGS[stickTier(visual)]?.over ?? 0) * STICK_MM);
 
 /** The PCB's bottom edge over the board, and its height: a stick's real proportions are checked against them. */
 export const STICK = { z0: Z0, h: PCB_H, t: PCB_T + 2 * CHIP_T } as const;
 
-/** An RGB stick's plates reach this far over the PCB; its light bar's dark cap sits on them, the frosted bar on the cap to `OVER.rgb`. */
-const RGB_PLATE = 70;
+
+/** Boxes of one material as one mesh, each placed where it stands (their geometry is local to their position). */
+function fuse(parts: Mesh[], m: Material): Mesh {
+  return place(new Mesh(mergeGeometries(parts.map((p) => p.geometry.clone().translate(p.position.x, p.position.y, p.position.z)), false)!, m));
+}
 
 /** A shape drawn in the stick's plane (u along it, v up from the PCB's bottom edge), extruded `t` thick, turned to stand at `x` (its near face) from its south end `y`. */
 function standing(s: Shape, t: number, x: number, y: number, bevel = 0): BufferGeometry {
@@ -69,62 +87,38 @@ function pcbShape(L: number, notchU: number): Shape {
   return s;
 }
 
-/** A spreader plate's outline over u0..u1: low and flat, crowned with fins, or cut with chamfers under a light bar. */
-function plateShape(look: StickLook, u0: number, u1: number): Shape {
+/** A spreader plate's outline over u0..u1: a plain rectangle up to `v1` with its top corners cut at 45 degrees (`c`; the lowest rung rounds them). */
+function plateShape(v1: number, u0: number, u1: number, c: number): Shape {
   // (from just over the socket's top)
   const s = new Shape(), v0 = SINK + 14;
-  if (look === 'low') {
-    const v1 = PCB_H - 6, r = 14;
-    s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1 - r).quadraticCurveTo(u1, v1, u1 - r, v1).lineTo(u0 + r, v1).quadraticCurveTo(u0, v1, u0, v1 - r).closePath();
-  } else if (look === 'fins') {
-    // the crown: teeth along the top edge, the gaps between them reaching down to the PCB's edge
-    const v1 = PCB_H + OVER.fins, gap = PCB_H, n = Math.floor((u1 - u0) / 64), w = (u1 - u0) / n;
-    s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1);
-    for (let k = n - 1; k >= 0; k--) { const a = u0 + k * w; s.lineTo(a + w * 0.62, v1).lineTo(a + w * 0.62, gap).lineTo(a + w * 0.22, gap).lineTo(a + w * 0.22, v1).lineTo(a, v1); }
-    s.closePath();
-  } else {
-    // a chamfered plate up to the light bar's cap
-    const v1 = PCB_H + RGB_PLATE, c = 34;
-    s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1 - c).lineTo(u1 - c, v1).lineTo(u0 + c, v1).lineTo(u0, v1 - c).closePath();
-  }
+  s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1 - c).lineTo(u1 - c, v1).lineTo(u0 + c, v1).lineTo(u0, v1 - c).closePath();
   return s;
 }
 
 // ------------------------------------------------------------------ painted faces
-const pcbTex = new Map<string, Texture | null>();
 let chipTex: Texture | null | undefined;
 
 /** The gold fingers on each face by generation: an SDR stick has 168 pins, a DDR2 or DDR3 240, a DDR4 or DDR5 288 (half on each face). */
 export const stickPins = (visual: string): number => (visual === 'dimm-basic' ? 84 : visual === 'dimm-fast' || visual === 'dimm-ddr3' ? 120 : 144);
 
-/** The PCB's face: the solder mask with faint traces up from the fingers, the gold fingers (`pins` of them) along the bottom edge with the key's gap. */
-function pcbFace(color: string, L: number, notchU: number, pins: number): Texture | null {
-  const W = 1536, H = Math.round((W * PCB_H) / L), py = (v: number) => H - (v / PCB_H) * H, px = (u: number) => (u / L) * W;
-  const key = `${color}|${notchU}|${pins}|${sheetCut(W, H)}`; // (the sheet is half size at Low: its own entry)
-  if (pcbTex.has(key)) return pcbTex.get(key)!;
-  // (the fingers fill the edge but for a 3 mm margin at each end and the key's gap)
-  const m = 3 * STICK_MM, pitch = (L - 2 * m - 24) / pins;
-  const t = paintLow(W, H, (c) => {
-    c.fillStyle = color; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(255,255,255,0.07)'; c.lineWidth = 2;
-    for (let u = m; u < L - m; u += pitch) { if (Math.abs(u - notchU) < 12) continue; c.beginPath(); c.moveTo(px(u + pitch / 2), py(SINK + 8)); c.lineTo(px(u + pitch / 2), py(SINK + 22 + ((Math.round(u) * 7) % 23))); c.stroke(); }
-    c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, py(SINK + 12), W, 3);
-    c.fillStyle = '#d4af5f';
-    for (let k = 0, u = m; k < pins; k++, u += pitch) { if (Math.abs(u + pitch / 2 - notchU) < 12) u += 24; c.fillRect(px(u + pitch * 0.18), py(SINK + 3), px(pitch * 0.64), py(4) - py(SINK + 3)); }
-  });
-  if (t) t.repeat.set(1 / L, 1 / PCB_H);
-  pcbTex.set(key, shareTex(t));
-  return t;
-}
-
-/** A DRAM chip's face: black epoxy, the pin-1 dot, a faint laser-etched mark. */
+/** A DRAM chip's face (as wide as the chip is long, 230 by 180): black epoxy with a sheen, the pin-1 dot, the maker's lockup, a part number, a date code and a data-matrix square, laser-etched. */
 function chipFace(): Texture | null {
   if (chipTex !== undefined) return chipTex;
-  return chipTex = shareTex(paint(128, 128, (c, w, h) => {
-    c.fillStyle = '#16171c'; c.fillRect(0, 0, w, h);
-    c.fillStyle = 'rgba(255,255,255,0.14)'; c.beginPath(); c.arc(w * 0.16, h * 0.16, 7, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(200,210,230,0.12)';
-    for (const [y, f] of [[0.42, 0.62], [0.56, 0.48], [0.7, 0.36]] as const) c.fillRect(w * 0.2, h * y, w * f, h * 0.07);
+  return chipTex = shareTex(paint(256, 200, (c, w, h) => {
+    const g = c.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#1d1f25'); g.addColorStop(1, '#101115');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+    c.fillStyle = 'rgba(255,255,255,0.22)'; c.beginPath(); c.arc(w * 0.12, h * 0.14, 6, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,0.08)'; c.lineWidth = 2; c.strokeRect(5, 5, w - 10, h - 10);
+    const ink = 'rgba(208,216,230,0.62)';
+    drawLockup(c, 'kaiju', w * 0.2, h * 0.14, h * 0.13, ink);
+    c.fillStyle = ink; c.textAlign = 'left'; c.textBaseline = 'middle'; c.font = `600 ${Math.round(h * 0.11)}px ${BRAND_FONT}`;
+    c.fillText('KJ8G08BJ-DC', w * 0.2, h * 0.46);
+    c.fillStyle = 'rgba(208,216,230,0.42)'; c.font = `500 ${Math.round(h * 0.085)}px ${BRAND_FONT}`;
+    c.fillText('2441  K9H3Q7', w * 0.2, h * 0.62);
+    c.fillText('FBGA96  1.2V', w * 0.2, h * 0.76);
+    // the data-matrix: a small square of cells
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) if ((i * 5 + j * 3 + i * j) % 3) c.fillRect(w * 0.76 + i * 5, h * 0.58 + j * 5, 4, 4);
   }));
 }
 
@@ -214,19 +208,25 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = '', 
   // the PCB: green on the bare sticks (the server sticks too), the 2D stick's navy under a spreader
   const green = look === 'bare', pcbColor = green ? '#1d5a3c' : '#171b23';
   const edge = mat(green ? 0x174a32 : 0x12151b, { roughness: 0.5 });
-  const face = mat(0xffffff, { map: pcbFace(pcbColor, L, notchU, stickPins(visual)), roughness: 0.45, metalness: 0.1 });
-  root.add(place(new Mesh(standing(pcbShape(L, notchU), PCB_T, cx - PCB_T / 2, ys), [face, edge])));
   // the chips on both faces, where the 2D chips are along the stick (`ramChips`); in the gap between the two groups an ECC stick has its parity
-  // chip, a DDR5 its PMIC, every stick its SPD
-  const Zc0 = Z0 + CHIP_Z0, Zc1 = Z0 + CHIP_Z1;
-  const chips: { y: number; h: number; z0: number; z1: number }[] = ramChips().map((c) => ({ y: c.y, h: c.h, z0: Zc0, z1: Zc1 }));
-  const d = ramChips(), gy = (d[3]!.y + d[3]!.h + d[4]!.y) / 2;
-  if (ecc) chips.push({ y: gy - 70, h: 140, z0: Zc0, z1: Zc1 });
-  if (visual === 'dimm-ddr5' || visual === 'dimm-ddr5ecc') chips.push({ y: gy + (ecc ? 80 : -23), h: 46, z0: Zc0 - 120, z1: Zc0 - 70 });
-  chips.push({ y: gy - 11, h: 22, z0: Zc0 - 170, z1: Zc0 - 140 });
-  const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x131518, { roughness: 0.6 });
-  const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
-  // (two draws, not six: the box's two x faces are one group for the printed top, its four other faces one group for the sides)
+  // chip, a DDR5 its PMIC, every stick its SPD (off to a side, clear of the runs to the others)
+  const Zc0 = Z0 + CHIP_Z0, Zc1 = Z0 + CHIP_Z1, d = ramChips(), gy = (d[3]!.y + d[3]!.h + d[4]!.y) / 2;
+  const chips: { y: number; h: number; z0: number; z1: number; kind: Foot['kind'] }[] = d.map((c) => ({ y: c.y, h: c.h, z0: Zc0, z1: Zc1, kind: 'dram' as const }));
+  if (ecc) chips.push({ y: gy - 70, h: 140, z0: Zc0, z1: Zc1, kind: 'reg' });
+  if (visual === 'dimm-ddr5' || visual === 'dimm-ddr5ecc') chips.push({ y: gy + (ecc ? 72 : -23), h: 46, z0: Zc0 - 120, z1: Zc0 - 70, kind: 'pmic' });
+  chips.push({ y: gy + (ecc ? -97 : 59), h: 22, z0: Zc0 - 170, z1: Zc0 - 140, kind: 'spd' });
+  // the PCB's face: the copper from each finger to the chip it feeds (`ramFace`); a chip's place along the PCB (u from its south end) and over its bottom edge (v)
+  const foot: Foot[] = chips.map((c) => ({ u0: L + END - c.y - c.h, u1: L + END - c.y, v0: c.z0 - Z0, v1: c.z1 - Z0, kind: c.kind }));
+  const rank = ['DDR3', 'DDR4', 'DDR5'].find((g) => label.includes(g)) ?? 'SDR';
+  const marks = [`${rank} ${ecc ? 'ECC REG' : 'UNB'} DIMM`, `${ecc ? '9' : '8'}x 1R  ${stickPins(visual) * 2}P`];
+  const face = mat(0xffffff, { map: ramFace(pcbColor, { L, H: PCB_H, notchU, pins: stickPins(visual), sink: SINK, foot }, marks), roughness: 0.45, metalness: 0.1 });
+  root.add(place(new Mesh(standing(pcbShape(L, notchU), PCB_T, cx - PCB_T / 2, ys), [face, edge])));
+  // each chip is a package: a mould with its marks and a dark rim (two draws, not six: the mould box's two x faces are one group
+  // for the printed top, its four other faces one group for the sides)
+  const top = mat(0xffffff, { map: chipFace(), roughness: 0.5 }), side = mat(0x131518, { roughness: 0.6 });
+  const face0 = PCB_T / 2;
+  const sides = [-1, 1] as const, cyOf = (c: { y: number; h: number }) => (wy(c.y) + wy(c.y + c.h)) / 2;
+  const items = chips.flatMap((c) => sides.map((s) => ({ x: cx + s * (face0 + CHIP_T / 2), y: cyOf(c), z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h - 4, sz: c.z1 - c.z0 - 4 })));
   const chipBox = new BoxGeometry(1, 1, 1);
   chipBox.clearGroups(); chipBox.addGroup(0, 12, 0); chipBox.addGroup(12, 24, 1);
   root.add(instanced(chipBox, [top, side] as unknown as MeshStandardMaterial, items));
@@ -250,52 +250,46 @@ export function ramStick(visual: string, ecc: boolean, r: RectLike, label = '', 
       mapFaces.push(f);
     }
   }
-  // a row of passives between the fingers and the chips, on both faces
-  const caps = [];
-  for (let u = 30; u < L - 30; u += 27) for (const s of [-1, 1]) caps.push({ x: cx + s * (PCB_T / 2 + 5), y: ys + u, z: TOP + 14, sx: 10, sy: 16, sz: 8 });
+  // decoupling capacitors under each DRAM chip, on both faces
+  const caps: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+  for (const c of chips) if (c.kind === 'dram' || c.kind === 'reg') for (const s of sides) for (const o of [-0.3, 0.3]) {
+    const x = cx + s * (face0 + 4), y = cyOf(c) + o * c.h, z = Z0 + CHIP_Z0 - 22;
+    caps.push({ x, y, z, sx: 8, sy: 18, sz: 10 });
+  }
   root.add(instanced(new BoxGeometry(1, 1, 1), mat(CERAMIC, { roughness: 0.55 }), caps));
   if (look === 'bare') {
     // the maker's sticker across the first group of chips on the west face: it goes with the spreaders, over the chips' dies (the live map lands on the east)
     if (label) spreader.add(faceLabel(label, true, cx - PCB_T / 2 - CHIP_T - 2.5, wy((d[0]!.y + d[3]!.y + d[3]!.h) / 2), Z0 + (CHIP_Z0 + CHIP_Z1) / 2, -1, Math.min(760, d[3]!.y + d[3]!.h - d[0]!.y - 40), CHIP_Z1 - CHIP_Z0 - 30));
     root.add(spreader);
-    return { root, spreader, hit: hitBox(r, look), spins, skin: [edge], mapFaces, dies: dieFrames, plan };
+    return { root, spreader, hit: hitBox(r, visual), spins, skin: [edge], mapFaces, dies: dieFrames, plan };
   }
-  // the spreader: a plate over each face, on a thermal pad over the chips. No tier colours: the tiers read by how premium the metal looks,
-  // stamped steel (DDR2), dark anodised fins (DDR3), matte black under a light bar (DDR4), brushed dark titanium with a diamond-cut edge (DDR5)
-  const t = look === 'low' ? 14 : look === 'fins' ? 30 : 32, x0 = PCB_T / 2 + CHIP_T + PAD, u0 = 18, u1 = L - 18, best = visual === 'dimm-ddr5';
-  const plateM = look === 'low' ? mat(0x4e5360, { metalness: 0.6, roughness: 0.45 }) // (a dark anodised clip-on, art-style §4)
-    : look === 'fins' ? mat(0x2a2d32, { metalness: 0.6, roughness: 0.45 })
-    : best ? mat(0x2a2d32, { metalness: 0.85, roughness: 0.3 }) : mat(0x2a2d32, { metalness: 0.5, roughness: 0.55 });
-  for (const s of [-1, 1]) spreader.add(place(new Mesh(standing(plateShape(look, u0, u1), t, s < 0 ? cx - x0 - t : cx + x0, ys, 1.5), plateM)));
-  // polished trim: a thin bright line, the one sign of a better stick
-  const trim = mat(0xb9babf, { metalness: 0.95, roughness: best ? 0.12 : 0.22 });
+  // the spreader: one straight plate over each face, on a thermal pad over the chips; `RUNGS` says what this tier adds to it
+  const rung = RUNGS[stickTier(visual)]!, t = rung.t, x0 = PCB_T / 2 + CHIP_T + PAD, u0 = 18, u1 = L - 18, top0 = PCB_H + rung.plate, over = Math.round(rung.over * STICK_MM);
+  // each plate wears one picture (`plateFace`): brushed metal, the groove lines (one more a tier; the first is polished on the better rungs, gold on the best), a dark band under the light bar, the model.
+  // Its edge takes the same picture
+  const sideM = mat(rung.color, { metalness: rung.metal, roughness: rung.rough }), hex = `#${rung.color.toString(16).padStart(6, '0')}`;
+  const ink = (k: number) => (rung.gold ? '#d4af5f' : k === 0 && rung.trim ? '#b9babf' : '#050608');
+  const lines = [...Array.from({ length: rung.grooves }, (_, k) => ({ v: top0 - 30 - 34 * k, ink: ink(k) })), ...(rung.trim ? [{ v: SINK + 22, ink: ink(0) }] : [])];
+  const skin: MeshStandardMaterial[] = [];
+  for (const s of [-1, 1] as const) {
+    const map = plateFace({ color: hex, L, top: top0, lines, band: over > 0 ? 8 : 0, text: label, textInk: rung.trim ? '#1b1e26' : '#c7ccd6', flip: s < 0 }), capM = mat(0xffffff, { map, metalness: rung.metal, roughness: rung.rough });
+    skin.push(capM);
+    spreader.add(place(new Mesh(standing(plateShape(top0, u0, u1, look === 'low' ? 14 : 30), t, s < 0 ? cx - x0 - t : cx + x0, ys, 1.5), capM)));
+  }
   if (look === 'low') {
     // the spring clips over the top edge that hold the two plates
-    for (const f of [0.3, 0.7]) spreader.add(rectBox({ x: cx - x0 - t, y: -(ys + L * f) - 10, w: 2 * (x0 + t), h: 20 }, Z0 + PCB_H - 8, Z0 + PCB_H + 4, plateM));
-  } else if (look === 'fins') {
-    // a polished line along each plate, under the crown
-    for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + u1 - 30), w: 2, h: u1 - u0 - 60 }, Z0 + PCB_H - 30, Z0 + PCB_H - 22, trim));
-  } else {
-    // the light bar: a dark cap across the plates, a frosted diffuser on it that glows with the fans; an accent line down each plate
-    const cap = Z0 + PCB_H + RGB_PLATE - 8;
-    spreader.add(softBox({ x: cx - x0 - t, y: -(ys + u1 - 20), w: 2 * (x0 + t), h: u1 - u0 - 40 }, cap, cap + 16, mat(0x131518, { roughness: 0.5 }), 4));
+    spreader.add(fuse([0.3, 0.7].map((f) => rectBox({ x: cx - x0 - t, y: -(ys + L * f) - 10, w: 2 * (x0 + t), h: 20 }, Z0 + PCB_H - 8, Z0 + PCB_H + 4, sideM)), sideM));
+  }
+  if (over > 0) {
+    // the light bar on the plates: one frosted diffuser that glows with the fans. It rises with the tier (`over`)
     // (smoked: unlit, the bar reads as dark acrylic, not a pale block)
     const bar = glowMat(0xffffff, 0x2c303b);
     bar.roughness = 0.85;
-    spreader.add(seeThrough(softBox({ x: cx - x0 - t + 6, y: -(ys + u1 - 26), w: 2 * (x0 + t) - 12, h: u1 - u0 - 52 }, cap + 14, Z0 + PCB_H + OVER.rgb, bar, 14)));
+    spreader.add(seeThrough(softBox({ x: cx - x0 - t + 6, y: -(ys + u1 - 26), w: 2 * (x0 + t) - 12, h: u1 - u0 - 52 }, Z0 + top0 - 2, Z0 + PCB_H + over, bar, 10)));
     spins.push(light(bar, undefined, 0.8));
-    if (best) {
-      // the diamond-cut edge: a bright chamfer along the top of each plate, under the cap
-      for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + u1 - 22), w: 2, h: u1 - u0 - 44 }, cap - 30, cap - 4, trim));
-    } else {
-      // a thin silver pinstripe down each plate
-      for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + L * 0.66), w: 2, h: L * 0.32 }, Z0 + PCB_H - 44, Z0 + PCB_H - 38, trim));
-    }
   }
-  // the model printed on each plate, toward the stick's south end (clear of the accent line; 3 proud, or the far gallery camera loses it in the plate)
-  if (label) for (const s of [-1, 1] as const) spreader.add(faceLabel(label, false, cx + s * (x0 + t + 3), ys + L * 0.3, Z0 + (SINK + 14 + PCB_H) / 2, s, Math.min(760, L * 0.34), 110));
   root.add(spreader);
-  return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM], mapFaces, dies: dieFrames, plan };
+  return { root, spreader, hit: hitBox(r, visual), spins, skin, mapFaces, dies: dieFrames, plan };
 }
 
 /**
@@ -330,6 +324,6 @@ function faceLabel(text: string, sticker: boolean, x: number, y: number, z: numb
 }
 
 /** The unseen box a click hits: the whole 2D rect, up to the stick's top. */
-function hitBox(r: RectLike, look: StickLook): Mesh {
-  return unseen(rectBox(r, BOARD_Z, stickTop(look), mat(0, { transparent: true, opacity: 0, depthWrite: false })));
+function hitBox(r: RectLike, visual: string): Mesh {
+  return unseen(rectBox(r, BOARD_Z, stickTop(visual), mat(0, { transparent: true, opacity: 0, depthWrite: false })));
 }
