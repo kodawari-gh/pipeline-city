@@ -14,11 +14,11 @@ Repo baseline: `main` at `7f56e17`. Where the code lives and what to change: `IM
 The in-game mocks (07 to 12, v3) are in `mocks/` and win over §5.7 to §5.12 the same way.
 
 ### 0.2 Units
-- Coordinates are CSS px at two reference viewports: **desktop 1920 × 1080** and **phone 530 × 1080**. Origin top-left, before safe-area insets. Boxes are `x, y, w × h`.
+- Coordinates are CSS px at two reference viewports: **desktop 1920 × 1080** and **phone 390 × 844** (the layout reference; the phone mocks were drawn at 530 × 1080, and their numbers are kept as rem, see below). Origin top-left, before safe-area insets. Boxes are `x, y, w × h`.
 - The repo forbids px in UI code (`src/core/ui/scaling.test.ts`). Convert: **desktop px ÷ 16.2 = rem**, **phone px ÷ 15 = rem**. The root rule in `ui.css` already makes 1rem exactly 16.2 px and 15 px at those viewports. Use a token from `tokens.css` where one exists.
 - Allowed px: `1px` hairlines (ornament strokes) and values computed at runtime from measured boxes (the trace overlay).
 - Tolerance: ±2 px at both references.
-- Mock files: desktop PNGs are 1920 × 1080 (1:1). **Phone PNGs are 1166 × 2376, drawn at 2.2× the 530 × 1080 layout**: divide anything you measure on a phone mock by 2.2. All phone numbers in this spec are already in 530 × 1080 CSS px.
+- Mock files: desktop PNGs are 1920 × 1080 (1:1). **Phone PNGs are 1166 × 2376, drawn at 2.2× the 530 × 1080 layout**: divide anything you measure on a phone mock by 2.2. The phone numbers in §5 and Appendix A are the mocks' 530 × 1080 measurements. Read them as rem (px ÷ 15), not as fixed px, and check the 390 × 844 layout by screenshot.
 
 ### 0.3 Terms
 | Term | Meaning |
@@ -44,7 +44,7 @@ Screens 01 to 13 below. No gameplay change. The in-game HUD gets a re-skin and a
 
 ## 1. Rules (apply everywhere)
 1. **The motif rule.** The focused item is always the cyan chip on the lit trace. On a focused value branch, the lit trace ends at the selected value instead.
-2. **One lit path per screen.** Nothing else on the screen is cyan, except the chip. On a spine or category rail, the chip sits on the current item until focus moves (so 01 to 06, Paused, Controls, First frame, Build's category rail and Gallery's category spine always show one chip and one lit path). The HUD has no spine: at rest (no keyboard focus, no hover) it shows no cyan at all.
+2. **One lit path per screen.** The only cyan is the focus chip and the lit trace it sits on. Spines and category rails keep the chip on their current item, even without focus (screens 01 to 06, Paused, Controls, First frame, Build's category rail and Gallery's category spine show one chip and one lit path). The HUD has no spine: at rest (no keyboard focus, no hover) it shows no cyan at all.
 3. **Selected is ink, focused is cyan.** A selected value (speed, view, tab) is `--c-ink` weight 600. Only keyboard focus or pointer hover adds the chip.
 4. **Display titles.** Sub-screen titles are uppercase Plex Sans Condensed 600 with line height 0.86, followed by the strip and a Mono meta line (§4.3).
 5. **No boxes.** No borders, cards, plates, pills or rounded panels. Menu screens use one scrim; in-game screens use edge tabs and ramps. Radius 4 px on chips only.
@@ -224,7 +224,7 @@ Each screen lists: backdrop, surface (scrim, ramp or edge tabs), elements with c
 Live data used on several screens:
 - Save summary: `saveSummary()` (`logic.ts:557`) extended to include money: "Level 4 · $12,480 · saved 2 h ago" (sandbox saves: "Sandbox · saved 2 h ago").
 - Build line: "build " + the short git hash of the build (`__BUILD__`, IMPLEMENTATION.md step 3).
-- Saved builds count: "3 saved builds" (`n saved builds`, "1 saved build", or "no saved builds"). Gallery count: "64 parts" (the number of parts in the Gallery list).
+- Saved builds count: "3 saved builds" (`n saved builds`, "1 saved build", or "no saved builds"). Gallery count: "75 parts" (the live count of parts in the Gallery list: 17 groups, the case and board tiers, then one group per kind, see `galleryGroups()` in `shopdata.ts`). The mocks show "64 parts"; that is an older count and the live value wins.
 
 ### 5.1 Main menu (`01-main-menu-v2-desktop.png`, `-phone.png`)
 - Backdrop: the live room behind the main menu, as today. Surface: `--scrim-menu`.
@@ -251,13 +251,13 @@ Same as 01 without "Continue":
 | ID | Normal | "Build my PC" + saved builds count | 777 | see App. A |
 | EX | Normal | "Gallery" + Gallery count | 838 | see App. A |
 | MEM | Utility | "Load file"  "Settings" | 898 | see App. A |
-The spine ends in K5 "TP1" (desktop; the phone mock has no room and shows none).
+Test point rule: the spine ends in K5 "TP1" on desktop only, as on this screen's mock. Phone screens show no test point.
 
 ### 5.3 Loading (`03-loading-v2-*`)
 - Shown while the 3D world boots (before `booted`). Backdrop: the boot still as today. Surfaces: `--veil-loading` then `--scrim-menu`.
 - Wordmark as 01. The build line becomes the boot status: `<stage label> · <pct> %`, for example "Lighting the room · 62 %" (labels from `bootStage()` calls, then "Ready").
 - Strip: cell n (2 to 5) turns `--c-ink` when the boot share ≥ (n − 1) × 0.2. At 62 %, cells 2, 3 and 4 are ink. Cell 1 stays violet.
-- Rows as 01 (or 02 when there is no save). "Build my PC" and "Gallery" are disabled bubbles (§4.2) with the meta "after loading". The spine ends in "TP1".
+- Rows as 01 (or 02 when there is no save). "Build my PC" and "Gallery" are disabled bubbles (§4.2) with the meta "after loading". Test point rule: desktop only, as on 02 (the spine ends in K5 "TP1"). Phone shows none.
 - No progress bar, no bottom bar. `index.html` shows only the `--c-void` page and the static wordmark (same position and size as 01) before the app mounts.
 
 ### 5.4 New game (`04-new-game-v2-*`)
@@ -341,18 +341,18 @@ Flyout state: open while the pointer is over the rail or flyout, while a rail ta
 **Scene.** The Gallery turntable (`Showcase.tsx`, `viewer.ts`) on flat `--c-studio`: the CSS backdrop and the 3D floor and background are neutral (IMPLEMENTATION.md step 7). The part is framed inside the K1 bracket box via the viewer's stage insets.
 
 **Desktop**
-- Back at 32, 2: "← Back" + "Esc". Title "Gallery" `--t-display-sm` (52) at 32, top 52, strip cell 4 lit; meta "MEM · gallery · 64 parts".
+- Back at 32, 2: "← Back" + "Esc". Title "Gallery" `--t-display-sm` (52) at 32, top 52, strip cell 4 lit; meta "MEM · gallery · 75 parts" (live count).
 - Category spine at x 32 from y 190, rows 39 (48 coarse), 240 wide: opcode tag, name `--t-md` Cond (ink if selected, else mute), Mono count. Categories in the Gallery's order *(sample: CS Case 4, MB Board 4, CPU Processor 6, CL Cooling 3, FAN Fan 3, RAD Radiator 2, RAM Memory 5, PSU Power 4, MON Monitor 3, SSD Drive 4, VRM VRM sink 2, RSK RAM sink 2, NET Network 3, GPU Graphics 5, AI AI card 2, SEC Secure 2)*. Lit from strip cell 4 to the selected category's chip. No TP on this spine (it runs to the bottom).
 - K1 brackets 380, 140, 1120 × 760 with pin 1. Silk "U3 · CASE · MID TOWER" at 380, 124: "U" + the part's 1-based position in its category, the kind, the part name, in caps *(sample)*. Silk "3 / 4" right-aligned inside the bottom-right corner at y 882. K7 ruler at 380, 910, 1120 wide. Viewer insets: the part fits inside the bracket box with at least 40 px air.
 - Right column x 1560, top 150, 330 wide: K3 pin row; Mono "CS · case · tier 2"; part name `--t-display-sm` (52) caps ("Mid tower"); detail `--t-md` mute ("ATX case"); price `--t-xl` Cond ink ("$160"); then the part's numbers (`GalleryPart` stats) as Mono rows, label caps mute left, value ink right ("BIGGEST BOARD … ATX", "MEMORY SLOTS IT CAN HOLD … 4").
 - Shelf at x 1560, top 520: the category's parts, rows 62 tall, still 64 × 45, name `--t-md` Cond (ink for the shown one), Mono "T2 · $160".
-- Hints Mono at 380, 1000: "Drag turn · Right-drag pan · Scroll zoom · Double-click reset · ← → part · ↑ ↓ category · Esc back".
+- Hints Mono at 380, 1000: "Drag pan · Right-drag turn · Scroll zoom · Double-click reset · ← → part · ↑ ↓ category · Esc back".
 
 **Phone**
-- "← Back" at 16, 0; Mono meta "MEM · gallery · 64 parts" right-aligned at right 16, top 16. No display title (the part name is the title).
+- "← Back" at 16, 0; Mono meta "MEM · gallery · 75 parts" right-aligned at right 16, top 16. No display title (the part name is the title).
 - K1 brackets 12, 56, 506 × 520 (arms 16) with pin 1; silk "U3 · CASE" at 16, 582. Viewer insets frame the part inside.
 - At 16, 610, 498 wide: Mono "CS · case · tier 2 · ATX case"; then on one line the name `--t-display-sm` (48) caps left and the price `--t-xl` ink right.
-- Category rail at 16, 706: tags, the selected one a chip + name. Shelf at 16, 770: cards 112 wide, 12 apart, still 96 × 67, name, Mono price. K3 + numbers at 16, 930. Hints at 16, 1040: "Drag to turn · Pinch to zoom · Swipe the shelf".
+- Category rail at 16, 706: tags, the selected one a chip + name. Shelf at 16, 770: cards 112 wide, 12 apart, still 96 × 67, name, Mono price. K3 + numbers at 16, 930. Hints at 16, 1040: "Drag to pan · Pinch to zoom · Swipe the shelf".
 
 ### 5.9 Controls (`09-controls-v3-*`)
 Opened from Paused → "Controls" or the "?" key. In game it uses the Paused frame (HUD paused, `--ramp-pause`). From the main menu, there is no entry; "?" works only in game, as today.
@@ -421,7 +421,7 @@ Shown while playing. No ramp. Keep every control and behaviour the HUD has today
 | Element | Box | Content |
 |---|---|---|
 | Top-left tab | 0, 0, 420 × 84 (112 with a toast); chamfer bottom-right 14 | Money `--t-xl` Cond ink at 32, 12: "$600" *(sample; "∞" in sandbox)*. Meta Mono `--t-xs` mute at 32, 54: "2 s · rep 1.00 · power $0 · machine off" *(sample)*. Segments in order: game time; "rep " + reputation (2 decimals); "power " + the power bill; "machine " + the phase chip's text in lower case ("machine off", "machine running"), coloured by the chip's status level (ok, warn, bad) or mute when it has none; then "net …" (only when the network chip exists today) and "OS 2/4" (only when an OS is installed). Each segment keeps today's action and tooltip (power opens the bill card, net and OS open their panels, rep and phase show their tooltips) and gets a 48 px tall hit area. Toast line at 32, 80: "[ ok ] Saved.  Dismiss" (§4.10) |
-| Sandbox group (sandbox only) | a second line in the same tab at 32, 80; the toast line moves to 32, 108; the tab grows to 112 (140 with a toast) | "Tools" and "Jobs" text buttons (`SandboxTools`, `SandboxJobs`), `--t-sm` Sans 500 mute |
+| Sandbox group (sandbox only) | a second line in the same tab at 32, 80; the toast line moves to 32, 108; the tab grows to 112 (140 with a toast) | A "SANDBOX" chip (`SandboxTools`; its popover holds the 64x speed, labelled "Run at 16x") and a "LEVEL n · JOBS" chip (`SandboxJobs`), `--t-sm` Sans 500 mute |
 | Top-centre tab | x 770, 0, 380 × 72 (centred: left = 50 % − 190); chamfers bottom-left and bottom-right 14 | Line 1 centred, `--t-md` Cond ink: "Level 1 · Garage Bench" (level number and name). Line 2 centred, 6 px under: progress cells + Mono `--t-xs` mute label. Not shown in sandbox (today's rule). Click opens the levels (today's action) |
 | Top-right tab | x 1260, 0, 660 × 64; chamfer bottom-left 14 | Speed rail (§4.8) starting at x 1288, items 26 px apart: "Pause" ━ "0.25x" ━ "0.5x" ━ "1x" ━ "2x" ━ "3x", via, "Zoom slow" + Mono "ON". "Menu" `--t-md` Cond at right 32, top 18: mute, ink while the menu is open. When the zoom slowdown is active (`zoomSlowdown < 0.97`), a Mono `--t-xs` mute line inside the tab under the rail: "slow motion 40 % · zoom out for full pace" *(sample: percentage)*; the tab grows to 88 tall |
 | Dock tab | centred, 860 × 56 at y 1024; chamfers top-left and top-right 14 | Rail centred, items 26 px apart, `--t-md` Cond mute: "Inventory 1" ━ "Shop" ▪ "Power" ━ "Airflow" ▪ "Almanac" ━ "Job log" (▪ = via). "Network" joins after "Airflow" once the network lens is ready; "OS" joins after "Job log" once an OS is installed; the tab widens to fit. "Inventory" carries its count ("Inventory 1"). The open panel or active lens is ink 600. Silk "J1" at x (tab left + 18), y 1062 |
@@ -443,9 +443,22 @@ A design document, not a game screen. Nothing to implement; use it to check the 
 
 ---
 
+### 5.14 Error, empty and offline states
+Proposed in this package, not in the mocks. Check each with the owner before the PR.
+- Save file unreadable: no confirm; toast "[ no ]" with the existing `friendlyError` text (§5.5).
+- No save: "Continue" is absent (02). With no autosave, the Continue meta reads "SAVE  none" (§5.5).
+- Empty shelf for a kind: one Mono line in mute, "none yet". Wording to confirm.
+- Boot failure: no design yet. The Loading screen (03) keeps its build line; the failure text and its actions are open (KNOWN-ISSUES 12).
+- Offline: the menus work. The only network state is the NET chip in the HUD. Verify during the work (KNOWN-ISSUES 12).
+- Crash panel and starting screen keep their current wording; only their surfaces change.
+
+### 5.15 Not covered by this package
+- Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls.
+- Existing features that keep their behaviour: save and load, autosave, speed, pause, tutorial steps, Build run, Gallery stills, Controls bindings, Settings persistence.
+
 ## 6. Responsive rules
 
-Only the two reference sizes are mocked. Everything else follows these rules. Check at least 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844, 844 × 390 and 820 × 1180 (`ACCEPTANCE.md` §4).
+Only the two reference sizes are mocked. Everything else follows these rules. Check at least 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844 (phone reference), 360 × 800, 412 × 915, 844 × 390 (landscape phone) and 820 × 1180 (`ACCEPTANCE.md` §4).
 
 ### 6.1 Which layout
 - **Phone layout** when `(max-width: 48em), (max-aspect-ratio: 3/4)` matches (48em = 768 CSS px; media-query em is always 16 px). This covers phones in portrait and portrait tablets.
@@ -549,7 +562,7 @@ Every screen change reads as the trace growing from where you were to where you 
 | First, last | Home, End | | |
 | Settings category | ← → on the tab rail | click a tab | tap a tab |
 | Build category and part | ↑ ↓ on the rail, → into the flyout, ← back | click | tap, swipe |
-| Studio camera | | drag turn, right-drag pan, scroll zoom | drag turns, pinch zooms |
+| Studio camera | | drag pan, right-drag turn, scroll zoom (Shift-drag also turns) | drag pans, pinch zooms |
 | Game camera | F, G, B, R or Home | drag pan, right-drag turn, scroll zoom | drag pans, pinch zooms |
 | Peek (Settings) | hold Space on "Hold to peek" | press and hold | press and hold |
 | Pause menu | Esc toggles | "Menu" | "Menu" |

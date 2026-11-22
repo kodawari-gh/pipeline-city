@@ -2,7 +2,9 @@
    Drop-in: copy to src/core/ui/tokens.css, copy assets/fonts/*.woff2 to src/core/ui/fonts/, and import this file before ui.css.
    Rules this file keeps (repo CLAUDE.md, src/core/ui/scaling.test.ts): every length is rem/em/%/vw/vh or a clamp of those; the only px
    literals allowed in UI code are 1px hairlines and the root clamp, which stays in ui.css untouched.
-   1rem = 16.2 px at 1920 x 1080 and 15 px at 530 x 1080 (the root rule in ui.css). Spec px convert as: desktop px / 16.2, phone px / 15.
+   This file sits under src/core/ui once copied, so the relative-units test scans it.
+   1rem is 15 px at any width up to about 1765 px (the root rule in ui.css, per issue #29). Spec px convert as: desktop px / 16.2, phone px / 15.
+   Phone reference: 390 x 844. Inline ornament SVGs carry no numeric width or height; they scale with rem.
    The phone layout applies at (max-width: 48em), (max-aspect-ratio: 3/4). See SPEC.md section 6. */
 
 /* ---------- Fonts: IBM Plex, self-hosted, SIL Open Font License 1.1 (fonts/LICENSE.txt ships with them) ---------- */
@@ -99,7 +101,7 @@
   --d-fast: 120ms; --d-med: 160ms; --d-trace: 240ms; --d-flash: 80ms;
 }
 
-/* ---------- Phone layout (references at 530 x 1080, 1rem = 15 px). Gradients run bottom-up so they follow bottom-anchored content. ---------- */
+/* ---------- Phone layout (reference 390 x 844, 1rem = 15 px). Gradients run bottom-up so they follow bottom-anchored content. ---------- */
 @media (max-width: 48em), (max-aspect-ratio: 3/4) {
   :root {
     --t-silk: 0.733rem;       /* 11 px */

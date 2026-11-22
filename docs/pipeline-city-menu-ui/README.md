@@ -1,6 +1,6 @@
 # Pipeline City: menu and in-game UI handoff
 
-This folder is everything needed to implement the new menus and in-game UI of Pipeline City, a CPU-pipeline city builder, in its repo (`main` at `7f56e17`). The look is "Pipeline": a neon motherboard style where every screen is a stage of a CPU pipeline, navigation runs along PCB traces, and the focused item is a cyan instruction chip on the one lit trace. In game, the UI shrinks to small neutral tabs at the screen edges so the game stays visible.
+This folder is everything needed to implement the new menus and in-game UI of Pipeline City, a CPU-pipeline city builder, in its repo (current baseline: `main`; the code this package was checked against is at `7f56e17`, and `ui-rework` is the working branch). The look is "Pipeline": a neon motherboard style where every screen is a stage of a CPU pipeline, navigation runs along PCB traces, and the focused item is a cyan instruction chip on the one lit trace. In game, the UI shrinks to small neutral tabs at the screen edges so the game stays visible.
 
 You need only the repo and this folder.
 
@@ -28,7 +28,15 @@ You need only the repo and this folder.
 7. `KNOWN-ISSUES.md`: gaps and open points.
 
 ## Precedence
-Mock PNGs win over the spec text. The spec text wins over the reference renders. `assets/geometry/*.json` is part of the mocks (their measured boxes).
+1. Game behaviour wins over everything: the code on `main` and the rules in SPEC §0 to §4.
+2. The package text (SPEC, IMPLEMENTATION, ACCEPTANCE) wins over the pictures.
+3. The approved mock PNGs win over the reference renders. `assets/geometry/*.json` is part of the mocks (their measured boxes).
+
+## Superseded mocks
+These pictures do not match the current spec. Do not build from them:
+- `13` Flow diagram (`mocks/`): a reference picture only. Its Gallery and Build thumbnails are superseded by the 07 and 08 v3 slots (`mocks/SLOTS.md`).
+- The "64 parts" count in the mocks: superseded by the live count, 75 parts in 17 groups (SPEC §5.8).
+- The phone mocks stay the measured reference for 01 to 06 (drawn at 530 x 1080). The phone layout is checked at 390 x 844 (SPEC §0.2).
 
 ## Folder
 ```

@@ -3,7 +3,7 @@
 Check every item with screenshots of the real game (`npm run shot -- out.png --size WxH`, plus `--prod` before a push), compared against `mocks/`. Where a v3 mock is not in `mocks/` yet, compare 07 to 12 against `reference/renders-r3/` for layout and against SPEC.md for numbers.
 
 ## 1. How to compare
-- Capture at **1920 × 1080** and **530 × 1080**, UI size 100 %. Desktop at device scale factor 1. Phone mocks are 1166 × 2376 (2.2×): either capture the phone at device scale factor 2.2 (`tools/shot.mjs` takes a viewport; add `deviceScaleFactor` to its context if needed) or downscale the mock to 530 × 1080 before comparing. For 01 to 06, use a game state matching the mock's sample data where you can (a save at Level 4 with $12,480 for 01; no save for 02).
+- Capture at **1920 × 1080** (desktop reference) and **390 × 844** (phone reference), UI size 100 %, plus the extra sizes in §4. Desktop at device scale factor 1. The phone mocks are 1166 × 2376 (2.2× the old 530 × 1080 layout): to compare 01 to 06 and 13 with the phone mocks, either capture at 530 × 1080 with device scale factor 2.2 (`tools/shot.mjs` takes a viewport; add `deviceScaleFactor` to its context if needed) or downscale the mock to 530 px wide. The numbers still hold as rem (SPEC §0.2); the 390 × 844 check is by screenshot. For 01 to 06, use a game state matching the mock's sample data where you can (a save at Level 4 with $12,480 for 01; no save for 02).
 - Overlay the mock at 50 % opacity (or diff it) and measure the boxes in SPEC Appendix A (01 to 06) and SPEC §5.7 to §5.12 (07 to 12). **Tolerance ±2 px** for position and size of every listed box, title line, tag, chip and lit-path vertex.
 - Live 3D content (room, machine, part) will differ from the mocks' captured frames. Compare UI only; for the scene, check the framing rules (Build machine box, Gallery bracket box).
 - Colour checks: sample pixels from the screenshot. Contrast: compute WCAG contrast between each text colour and the worst (lightest) backing pixel under it.
@@ -13,10 +13,11 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] Only Plex fonts render (DevTools > Rendered fonts), weights 400, 500, 600.
 - [ ] Only token colours in UI CSS for in-scope screens; no `backdrop-filter`, `box-shadow`, `text-shadow`; no radius above 4 px.
 - [ ] **One lit path** per screen, from its source strip cell to the focused item (or the selected value on a focused branch). Count cyan regions: the lit trace plus at most one chip.
-- [ ] **Cyan only on focus.** No cyan anywhere else: selected values are ink 600. HUD at rest (no keyboard focus, no hover): zero pixels within ΔE 10 of `#3be3ff`.
+- [ ] **Cyan per screen** (SPEC §1 rule 2): 01 to 06 one chip and one lit path; 07 one chip on the category rail; 08 one chip on the category spine; 09 one chip on the stage tab; 10 one chip on the focused spine item; 11 one chip on "Next"; 12 none at rest. Any other cyan fails.
+- [ ] **Selected is ink, focused is cyan** (SPEC §1 rule 3). Selected values are ink 600. HUD at rest (no keyboard focus, no hover): zero pixels within ΔE 10 of `#3be3ff`.
 - [ ] Traces 2 px, 45° corners only, 8 px gaps around tags and values; spines end in a test point where SPEC says.
 - [ ] Ornament only from K1 to K7, within the per-screen budget, 1 px graphite, never over text or the 3D subject.
-- [ ] All text contrast ≥ 4.5:1 against the lightest pixel under it.
+- [ ] Text contrast ≥ 4.5:1 against the lightest pixel under it, except the text marked as an exception in SPEC §11.1. Every exception is listed there before the PR; none is accepted by default. Known open points are in KNOWN-ISSUES 13.
 - [ ] On a coarse pointer (DevTools touch emulation), every target ≥ 48 × 48 CSS px (check with the element's box, including hit-area padding).
 - [ ] Keyboard only: every action reachable; focus order and initial focus as SPEC §10; focus returns to the opener on close.
 - [ ] Reduced motion (`prefers-reduced-motion: reduce`): no animation, no typing, end states at once.
@@ -35,7 +36,7 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 ### 04 New game
 - [ ] Opens on the last mode. Branch rows switch with ← →; meta lines change with the selection. WB "Replace save and start" with the warn meta when a save exists, "Start" without. Two clicks from 01 to a started game.
 ### 05 Load confirm
-- [ ] Cancel focused on open. "Replace save and load" in bad red. Unreadable file → "[ no ]" toast, no confirm.
+- [ ] Cancel focused on open. "Replace save and load" in bad red. Unreadable file → "[ no ]" toast, no confirm (SPEC §5.14).
 ### 06 Settings
 - [ ] Opens on Quality. Five tabs. No fps colour. No Done button; changes apply at once. Hold to peek fades the whole layer. Back returns to the opener (main menu or Paused). In game: `--ramp-wide`, HUD paused.
 ### 07 Build my PC
@@ -46,6 +47,8 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] Run speeds 1x 4x 16x 64x; step speeds 0.5x to 4x behind "Steps"; views behind "View".
 ### 08 Gallery
 - [ ] Stage flat `#111113` (sample 5 points outside the part: all within ±2 of 17,17,19). No navy.
+- [ ] Count reads "75 parts" (live count, 17 groups; SPEC §5.8). The mocks' "64 parts" is an older count and does not fail the check.
+- [ ] Drag pans, right-drag turns (pad.ts, shared with game and Build). Hints match.
 - [ ] Part inside the K1 box with ≥ 40 px air. **Coverage ≥ 85 %** desktop.
 ### 09 Controls
 - [ ] No "Shift-drag" row; Shift-drag still turns the view in game. Tabs Mouse, View, Game. Closing returns to Paused when opened from it. Coverage ≥ 60 % desktop.
@@ -53,6 +56,7 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] Opening stops the clock; "Pause" ink in the rail; no pause pill.
 - [ ] Resume, Esc, "Menu" again, or a click on the scene right of the ramp restarts at the previous speed. A HUD speed click runs at that speed and closes Paused.
 - [ ] Paused before opening → still paused after closing.
+- [ ] **Pause** (player stop) and **Hold** (a popup or menu holder): a Hold ends when its popup closes. If the clock was running before Hold, it resumes at the same speed. Pause is kept until the player resumes it.
 - [ ] Settings and Controls from Paused keep the clock stopped and return to Paused.
 - [ ] All text ends before x 560 desktop. Coverage ≥ 60 % desktop.
 ### 11 First frame
@@ -64,10 +68,13 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] `InsetReporter` gets the new tab boxes: the board overview frames inside the free area.
 - [ ] **Coverage ≥ 88 %** desktop, ≥ 80 % phone, Level 1 state with a toast.
 
+## 3a. Error and empty states
+- [ ] Each state in SPEC §5.14 renders with its toast or line, and nothing else changes. Items marked "proposed" need owner sign-off before they count as passed.
+
 ## 4. Responsive
-At 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844, 844 × 390 and 820 × 1180, for 01, 04, 06, 07, 10 and 12:
+At 1366 × 768, 1440 × 900, 2560 × 1440, 3440 × 1440, 390 × 844 (phone reference), 360 × 800, 412 × 915, 844 × 390 (landscape phone) and 820 × 1180, for 01, 04, 06, 07, 10 and 12:
 - [ ] No overlaps (16 px minimum between elements); SPEC §6.4 collision steps applied in order.
-- [ ] Phone layout at 390 × 844 and 820 × 1180; desktop layout at 844 × 390 with scrolling columns.
+- [ ] Phone layout at 390 × 844, 360 × 800, 412 × 915 and 820 × 1180; desktop layout at 844 × 390 with scrolling columns (SPEC §6.1, §6.5).
 - [ ] Notched phone: nothing under the safe-area insets except tab fills.
 
 ## 5. Coverage method (in-game screens)
