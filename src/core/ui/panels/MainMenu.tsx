@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { autosaveAt, autosaveOffer, startSim } from '@/app/store';
+import { autosaveAt, autosaveOffer, previousAt, previousOffer, startSim } from '@/app/store';
 import { saveSummary } from '../logic';
 import { Icon } from '../kit/Icons';
 import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
@@ -15,6 +15,7 @@ const settingsOpen = signal(false);
 /** `ready`: the 3D world is up. Build my PC, Gallery and the graphics settings need it; the rest of the menu works while it loads (a game chosen starts after, `startSim`). */
 export function MainMenu({ ready = true }: { ready?: boolean }) {
   const offer = autosaveOffer.value;
+  const previous = previousOffer.value;
   const list = useRef<HTMLDivElement>(null);
   const modal = newGameOpen.value || settingsOpen.value || galleryOpen.value || buildOpen.value;
 
@@ -40,7 +41,13 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
             <span class="mm-t">Continue<span class="mm-d">{saveSummary(offer, autosaveAt.value, Date.now())}</span></span>
           </button>
         )}
-        <button class={`mm-btn ${offer ? '' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game<span class="mm-d">Guided campaign</span></span></button>
+        {previous && (
+          <button class="mm-btn" onClick={() => startSim(previous)}>
+            <Icon name="undo" size={14} />
+            <span class="mm-t">Previous save<span class="mm-d">{saveSummary(previous, previousAt.value, Date.now())}</span></span>
+          </button>
+        )}
+        <button class={`mm-btn ${offer ? 'bad' : 'primary'}`} onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game<span class="mm-d">Guided campaign</span></span></button>
         <button class="mm-btn" onClick={() => openNewGame('sandbox')}><Icon name="box" size={14} /><span class="mm-t">Sandbox<span class="mm-d">Everything unlocked</span></span></button>
         <button class="mm-btn" disabled={!ready} onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">{ready ? 'Fit and swap parts' : 'Getting ready…'}</span></span></button>
         <button class="mm-btn" disabled={!ready} onClick={() => { galleryOpen.value = true; }}><Icon name="eye" size={14} /><span class="mm-t">Gallery<span class="mm-d">{ready ? 'Every part in 3D' : 'Getting ready…'}</span></span></button>

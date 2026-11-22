@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { loadAutosaveOffer } from './store';
+import { loadAutosaveOffer, loadPreviousOffer } from './store';
 import { bootFail, bootMenu, bootStage } from './boot';
 import { guardPage } from './touchguard';
 import { Hud } from '../core/ui/Hud';
@@ -9,6 +9,7 @@ guardPage();
 
 // The main menu (Continue when an autosave exists, New game, Load game, Settings) shows once the boot screen has gone. The sim only starts once the player chooses.
 loadAutosaveOffer();
+loadPreviousOffer();
 // The 3D renderer (docs/render/three.md) is the game's view. Its code loads here; the boot screen stays until the 3D mount ends it (docs/render/load.md).
 // If the world cannot start (no WebGL), the screen stays and says why (`bootFail`): there is no game to play without it.
 const host = document.getElementById('board')!;

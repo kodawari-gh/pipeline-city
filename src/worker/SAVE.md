@@ -64,7 +64,7 @@ The worker ticks every 100 ms of wall time: `advance` adds `elapsed x speed` bas
 
 ## Main thread (`src/app/store.ts`)
 
-Signals `snapshot`, `speed`, `lastError`, `autosaveOffer`. Actions: `purchase`, `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey`, `setSpeed`, `setCpuClock`, `powerCycle`. `exportSave()` downloads `pipeline-city-<tick>.json`; `importSave(file)` validates (and migrates) on the main thread and restarts the worker with it. Every 10 s the latest save goes to `localStorage` (`pipeline-city.autosave`, in try/catch); on startup a valid autosave (any supported version) is offered (Continue / New game) before the sim starts.
+Signals `snapshot`, `speed`, `lastError`, `autosaveOffer`. Actions: `purchase`, `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey`, `setSpeed`, `setCpuClock`, `powerCycle`. `exportSave()` downloads `pipeline-city-<tick>.json`; `importSave(file)` validates (and migrates) on the main thread and restarts the worker with it. Every 10 s the latest save goes to `localStorage` (`pipeline-city.autosave`, in try/catch); on startup a valid autosave (any supported version) is offered (Continue / New game) before the sim starts. New game (`startNewGame`) first copies the autosave to `pipeline-city.previous` (and its time to `pipeline-city.previous.at`); the menu offers that copy as "Previous save" while it exists. The save format is unchanged.
 
 ## Fast model (design, T87; not built)
 

@@ -1997,6 +1997,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mm-t { font-weight: 650; }
 .mm-d { font: 500 0.72rem var(--ui); letter-spacing: 0.01em; opacity: 1; color: var(--mute); }
 .mm-btn:disabled { opacity: 0.45; }
+.mm-btn.bad .mm-t { color: var(--bad); }
 .mm-btn:focus-visible { outline-width: 1px; outline-offset: -1px; }
 .mainmenu > .mm-btn:nth-last-child(4), .mainmenu > .mm-btn:nth-last-child(2) { margin-top: 0.4rem; }
 

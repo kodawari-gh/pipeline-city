@@ -28,6 +28,10 @@ export const crash = signal<CrashReport | null>(null);
 export const autosaveOffer = signal<SaveV1 | null>(null);
 /** When the autosave was written (ms since 1970), if it is known: the menu says how long ago ("Level 3 · 5 min ago"). */
 export const autosaveAt = signal<number | null>(null);
+/** The previous save: the autosave as New game found it, kept before New game replaced it. The menu offers it while it exists. */
+export const previousOffer = signal<SaveV1 | null>(null);
+/** When the previous save was written (ms since 1970), if it is known. */
+export const previousAt = signal<number | null>(null);
 /** A game is starting: the worker boots and its first snapshot has not come. The menu shows "Starting…" in place of its buttons, so the click is seen at once. */
 export const starting = signal(false);
 /** The player pressed Main menu: the game saves, then the room goes back to its title, which holds the page for about a second. The HUD says "Saving…" meanwhile. */
@@ -38,6 +42,8 @@ const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFra
 
 const AUTOSAVE_KEY = 'pipeline-city.autosave';
 const AUTOSAVE_AT_KEY = 'pipeline-city.autosave.at';
+const PREVIOUS_KEY = 'pipeline-city.previous';
+const PREVIOUS_AT_KEY = 'pipeline-city.previous.at';
 const AUTOSAVE_EVERY_MS = 10_000;
 /** A sim that does not answer a save request in this long (ms) does not keep the player in the game (`leaveSim`). */
 const LEAVE_WAIT_MS = 1500;
@@ -169,6 +175,43 @@ export function loadAutosaveOffer(): boolean {
     autosaveOffer.value = null;
     return false;
   }
+}
+
+/** Read the previous save, if any and valid, and offer it in the menu. Returns whether one was found. */
+export function loadPreviousOffer(): boolean {
+  try {
+    const raw = localStorage.getItem(PREVIOUS_KEY);
+    if (!raw) { previousOffer.value = null; previousAt.value = null; return false; }
+    const at = Number(localStorage.getItem(PREVIOUS_AT_KEY));
+    previousAt.value = Number.isFinite(at) && at > 0 ? at : null;
+    previousOffer.value = parseSave(JSON.parse(raw));
+    return true;
+  } catch {
+    previousOffer.value = null;
+    previousAt.value = null;
+    return false;
+  }
+}
+
+/** Copy the autosave to the previous-save key, if an autosave exists. No autosave: no copy, the old previous save stays. */
+function keepAutosaveAsPrevious(): void {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return;
+    localStorage.setItem(PREVIOUS_KEY, raw);
+    const at = localStorage.getItem(AUTOSAVE_AT_KEY);
+    if (at) localStorage.setItem(PREVIOUS_AT_KEY, at);
+    else localStorage.removeItem(PREVIOUS_AT_KEY);
+  } catch {
+    /* storage unavailable: no previous save is kept */
+  }
+  loadPreviousOffer();
+}
+
+/** New game: the autosave is kept as the previous save first, then a new game starts (`startSim`). */
+export function startNewGame(opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}): void {
+  keepAutosaveAsPrevious();
+  startSim(null, opts);
 }
 
 export const purchase = (id: string) => send({ type: 'purchase', id });
