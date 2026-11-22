@@ -530,6 +530,30 @@ describe("the stamp, the round trip, the loss table and the input FIFO", { timeo
     expect(lost("isp1", "router1")).toBeGreaterThan(lost("isp2", "router2"));
   });
 
+  it("the snapshot carries the transport and the NIC: the counters, the loss now, the round trip, the buffer and rings, and each download's window", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    expect(g.snapshot().net.stack).toMatchObject({ sent: 0, resent: 0, lost: 0, timeouts: 0, loss: 0, rtt: null, nic: { enabled: true, fifo: 0, fifoSegs: 2, rxUsed: 0, rxSlots: 4, txUsed: 0, txSlots: 4, rx: 0, drops: 0, irqs: 0 } });
+    // a download that has segments left to send is listed (400 MB of a db job at 50 Mbit: sixty-odd ticks for three segments)
+    (g as unknown as { enqueue(t: string, s: number, c: string, n: boolean): boolean }).enqueue("web.dns", 4, "db", true);
+    const flows: NonNullable<ReturnType<Game["snapshot"]>["net"]["transfers"][number]["flow"]>[] = [];
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === 0; i++) {
+      g.advanceBaseTick();
+      const f = g.snapshot().net.transfers.find((t) => t.dir === "down")?.flow;
+      if (f) flows.push(f);
+    }
+    expect(flows.length).toBeGreaterThan(10);
+    expect(flows[0]).toMatchObject({ segs: 3, acked: 0, resent: 0, timeouts: 0 });
+    expect(flows[0]!.window).toBeGreaterThanOrEqual(2);
+    expect(flows.some((f) => f.acked >= 1)).toBe(true); // the kernel's answers come back while the rest is still on the line
+    const k = g.snapshot().net.stack;
+    expect(k).toMatchObject({ sent: 3, resent: 0, lost: 0, timeouts: 0, nic: { rx: 3, tx: 4, drops: 0 } });
+    expect(k.rtt!.srtt).toBeGreaterThanOrEqual(1);
+    expect(k.rtt!.rto).toBeGreaterThanOrEqual(3);
+    expect(k.nic.dmaWords).toBeGreaterThan(0);
+    const lossy = netRig("ssd1", { economy: { baseDemandPerTick: 0, lossTable: true } });
+    expect(lossy.snapshot().net.stack.loss).toBeCloseTo(1 - 0.98 * 0.98, 9);
+  });
+
   it("the input FIFO is as deep as the chip the cable is in: the board's jack 2 segments, nic1 4, nic2 8, nic3 16", () => {
     expect([null, "board", "nic1", "nic2", "nic3"].map(fifoSegsOf)).toEqual([2, 2, 4, 8, 16]);
     for (const [port, depth] of [[undefined, 2], ["nic1", 4], ["nic2", 8]] as const) {

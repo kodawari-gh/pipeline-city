@@ -49,6 +49,14 @@ export function NetPanel() {
           </div>
         )}
       </section>
+      {m.stack && (
+        <details class="stat-fold" open>
+          <summary title="How the jobs travel: in segments, each answered by the kernel. A segment the line loses, or the card drops because the kernel is busy, is sent again after a timeout.">
+            <h3>Packets</h3><span class="mute">{m.stack.rows.find((r) => r.id === 'loss')?.text} loss</span>
+          </summary>
+          {m.stack.rows.map((r) => <div class={`kv${r.level === 'warn' ? ' warn' : ''}`} key={r.id} title={r.title}><span>{r.label}</span><b>{r.text}</b></div>)}
+        </details>
+      )}
       {m.addrs.rows.length > 0 && (
         <details class="stat-fold" open>
           <summary title="The names the network uses. An IP address says where a machine is. A MAC address says which network jack it is. The router's DHCP gives the PC its IP address while the link is up.">
@@ -75,10 +83,13 @@ export function NetPanel() {
         <section>
           <h3>Transfers</h3>
           {m.transfers.map((t) => (
-            <div class="bar-row" key={`${t.jobId}${t.dir}`} title={`${t.doneMB.toFixed(1)} of ${t.totalMB.toFixed(1)} MB, ${t.etaText} left`}>
-              <span>{t.dir === 'down' ? 'down' : 'up'} {t.label}</span>
-              <Meter value={t.pct} max={100} level="ok" label={`${t.label} ${t.dir}load`} text={`${Math.round(t.pct)} percent`} />
-              <b>{Math.round(t.pct)}%</b>
+            <div key={`${t.jobId}${t.dir}`}>
+              <div class="bar-row" title={`${t.doneMB.toFixed(1)} of ${t.totalMB.toFixed(1)} MB, ${t.etaText} left`}>
+                <span>{t.dir === 'down' ? 'down' : 'up'} {t.label}</span>
+                <Meter value={t.pct} max={100} level="ok" label={`${t.label} ${t.dir}load`} text={`${Math.round(t.pct)} percent`} />
+                <b>{Math.round(t.pct)}%</b>
+              </div>
+              {t.flow && <div class="mute sub" title={t.flow.title}>{t.flow.text}{t.flow.resent > 0 && <b class="warn"> · {t.flow.resent} sent again</b>}</div>}
             </div>
           ))}
         </section>

@@ -10,7 +10,7 @@ import { Flow, RttEstimate } from "./transport";
 import type { Game } from "@/worker/game/game";
 import type { Key, KernelJob, Link, Transfer } from "@/worker/game/internal";
 import { needsMet } from "../../economy/sim/levels";
-import type { LinkState, NetSnap, TransferSnap } from "@/worker/game/types";
+import type { FlowSnap, LinkState, NetSnap, NetStackSnap, TransferSnap } from "@/worker/game/types";
 
 /** The uplink port the cable is in: its speed (a hot NIC runs at half), or none. */
 export function portInfo(this: Game): Link["port"] {
@@ -401,6 +401,7 @@ export function transferSnaps(this: Game): TransferSnap[] {
     out.push({
       jobId: t.key.id, label: `#${String(t.key.jobNo).padStart(2, "0")} ${t.key.type}`, dir, totalMB: t.totalMB, doneMB: t.doneMB,
       percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)), etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1, persisted: false,
+      ...(dir === "down" && t.flow ? { flow: flowSnap(t.flow) } : {}),
     });
   };
   for (const t of this.downloads) if (t.flow?.sending ?? true) add(t, "down"); // one that has put every segment on the wire is the kernel's now (`stageOf`: ingesting)
@@ -426,5 +427,24 @@ export function netSnap(this: Game, jobs: KernelJob[]): NetSnap {
     retiredKeys: this.tray.waiting().filter((k) => k.retired).length,
     counters: { ...this.netCount },
     frames: { rx: Math.round(this.netFrames.rx), tx: Math.round(this.netFrames.tx) },
+    stack: stackSnap(this),
+  };
+}
+
+/** A download's transport as the snapshot has it. */
+function flowSnap(f: Flow): FlowSnap {
+  return { segs: f.segs, acked: f.acked, inflight: f.inflight, window: f.window, resent: f.stats.resent, timeouts: f.stats.timeouts, rto: f.rto };
+}
+
+/** The transport's counters, the loss now, the round trip the senders measured and the NIC's buffers and rings. */
+function stackSnap(g: Game): NetStackSnap {
+  const v = g.nic.view();
+  return {
+    ...g.netWire, loss: g.wireLoss(),
+    rtt: g.netRtt?.sampled ? { srtt: g.netRtt.srtt, rttvar: g.netRtt.rttvar, rto: g.netRtt.rto } : null,
+    nic: {
+      enabled: v.enabled, fifo: v.fifo, fifoSegs: v.fifoSegs, rxUsed: g.nic.rxPending, rxSlots: v.rxSlots, txUsed: g.nic.txPending, txSlots: v.txSlots,
+      rx: v.rx, drops: v.drops, tx: v.tx, dmaWords: v.dmaWords, irqs: v.irqs,
+    },
   };
 }

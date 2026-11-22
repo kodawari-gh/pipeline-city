@@ -642,6 +642,57 @@ export interface TransferSnap {
   etaTicks: number;
   /** Transfers are RAM: lost on power loss (the spooled job is not). */
   persisted: false;
+  /** A download's transport (docs/NETSTACK.md 3.7): the segments it has had acknowledged, its window and its resends. Absent for an upload. */
+  flow?: FlowSnap;
+}
+
+/** One download's transport state. */
+export interface FlowSnap {
+  /** Segments in the job, the ones the kernel has acknowledged and the ones in flight now (sent, not yet acknowledged). */
+  segs: number;
+  acked: number;
+  inflight: number;
+  /** The window: the most segments it may have in flight (it opens as acknowledgements come and closes at a timeout). */
+  window: number;
+  /** Segments this download has sent again and timers that fired, since it started. */
+  resent: number;
+  timeouts: number;
+  /** The timeout now, in ticks. */
+  rto: number;
+}
+
+/** The transport and the NIC as numbers (docs/NETSTACK.md 3.7, 3.5). Not saved: a loaded game counts from zero. */
+export interface NetStackSnap {
+  /** Segments the senders put on the wire since the game started, the resends among them, the ones the wire lost and the timers that fired. */
+  sent: number;
+  resent: number;
+  lost: number;
+  timeouts: number;
+  /** The chance a segment is lost on the way now, 0 to 1 (the plan, the router and a hot card, `Game.wireLoss`). */
+  loss: number;
+  /** The round trip the senders have measured to the machine, in ticks: smoothed, its mean deviation and the timeout they give. Null before the first answer (or after the link went down). */
+  rtt: { srtt: number; rttvar: number; rto: number } | null;
+  /** The NIC the cable is in: its packet buffer and rings, as the kernel's driver and the DMA engine leave them. */
+  nic: NicStackSnap;
+}
+
+export interface NicStackSnap {
+  /** The kernel has set the NIC up (it is on). */
+  enabled: boolean;
+  /** Segments waiting in the chip's input FIFO, and its depth. */
+  fifo: number;
+  fifoSegs: number;
+  /** Receive ring: slots the kernel has not read yet, of how many. Transmit ring: packets the NIC has not sent yet, of how many. */
+  rxUsed: number;
+  rxSlots: number;
+  txUsed: number;
+  txSlots: number;
+  /** Counters since the NIC was last reset: segments taken into the ring, segments dropped (FIFO full), packets sent, words moved by DMA, interrupts raised (the kernel polls: 0). */
+  rx: number;
+  drops: number;
+  tx: number;
+  dmaWords: number;
+  irqs: number;
 }
 
 /** The network block (docs/NETWORK.md "Snapshot"). */
@@ -670,6 +721,8 @@ export interface NetSnap {
    * of uploads), `tx` sent. They only grow; the jacks' activity lights follow how fast (`network/render/jackleds.ts`). Not saved: a loaded game counts from 0.
    */
   frames: { rx: number; tx: number };
+  /** The transport and the NIC (`NetStackSnap`). */
+  stack: NetStackSnap;
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };

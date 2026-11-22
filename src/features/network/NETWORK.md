@@ -271,6 +271,7 @@ net: null | {
   bandwidth: { downMbps: number; upMbps: number; clients: number; binding: "port" | "router" | "isp" | "disk" | null };
   transfers: { jobId: number; label: string; dir: "down" | "up"; totalMB: number; doneMB: number; etaTicks: number }[];
   frames: { rx: number; tx: number };          // Ethernet frames the uplink port has carried, cumulative, not saved: the jacks' activity lights follow their growth
+  stack: NetStackSnap;                        // the transport and the card (NETSTACK.md 6): sent, resent, lost, timeouts, loss now, round trip, the NIC's FIFO, rings, counters; a download's TransferSnap also has `flow` (segments, acked, in flight, window, resent, timeouts, rto)
   offers: OfferSnap[];                        // KeySnap-like: id, label, type, arrivalTick, deadlineTick, age, late, payoutEstimate, needs, runnable, missing
   usbRetired: boolean;                        // progress.networkLinked
   usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };  // see "USB fallback"

@@ -344,7 +344,13 @@ export interface TransferRow {
   etaText: string;
   doneMB: number;
   totalMB: number;
+  /** A download's segments and window in words (`3 of 6 segments in · window 2`), the segments it has sent again and the words behind them. Null for an upload. */
+  flow: { text: string; resent: number; title: string } | null;
 }
+
+/** One line of the panel's packet section: what it counts, its value, the words behind it and how it looks (`warn`: something is going wrong). */
+export interface StackRow { id: 'rtt' | 'loss' | 'segments' | 'nic'; label: string; text: string; title: string; level: 'info' | 'warn' }
+export interface StackModel { rows: StackRow[] }
 export interface SpoolRow { key: KeySnap; label: string; state: string; level: 'info' | 'ok' | 'warn' }
 export interface UsbModel { state: 'retired' | 'waiting' | 'fallback'; text: string; detail: string | null; level: ChipLevel; countdown: number | null }
 
@@ -374,6 +380,8 @@ export interface NetPanelModel {
   retiredKeys: number;
   delivered: number;
   addrs: AddrModel;
+  /** The transport and the NIC in numbers (`NetSnap.stack`), or null while nothing has crossed the wire and there is no link. */
+  stack: StackModel | null;
 }
 
 const SPOOL_STATE: Record<string, { text: string; level: SpoolRow['level'] }> = {
@@ -443,6 +451,53 @@ export function addressModel(s: Snapshot): AddrModel {
   return { rows, nat };
 }
 
+/** A share of segments in words: `0%`, `0.5%`, `4.0%`, `12%`. */
+export const fmtLoss = (f: number): string => (f <= 0 ? '0%' : f < 0.1 ? `${(f * 100).toFixed(f < 0.01 ? 2 : 1)}%` : `${Math.round(f * 100)}%`);
+
+/**
+ * The transport and the NIC as the panel's lines (docs/NETSTACK.md 3.7): the round trip the senders measured, the chance the line loses a segment now, the segments sent and sent
+ * again, and the NIC's buffer, ring and drops. Null with no link and nothing sent (there is nothing to count).
+ */
+export function stackModel(s: Snapshot): StackModel | null {
+  const k = s.net.stack;
+  if (!k || !(linkUsable(s) || k.sent > 0)) return null;
+  const again = k.sent > 0 ? k.resent / k.sent : 0;
+  const nic = k.nic;
+  const rows: StackRow[] = [
+    k.rtt
+      ? {
+        id: 'rtt', label: 'Round trip', text: fmtTicks(k.rtt.srtt), level: 'info',
+        title: `How long a segment takes to be answered, as the senders measured it (smoothed). The kernel answers when its loop gets to the card, so a job that runs on OS 1 or 2 makes it longer. A sender waits ${fmtTicks(k.rtt.rto)} for an answer before it sends a segment again.`,
+      }
+      : { id: 'rtt', label: 'Round trip', text: '-', level: 'info', title: 'No segment has been answered yet. Each download sends its first segments with a short timer, then learns the real round trip.' },
+    {
+      id: 'loss', label: 'Loss chance', text: fmtLoss(k.loss), level: k.loss >= 0.03 ? 'warn' : 'info',
+      title: 'The chance the line loses a segment now: the plan\'s line, the router, and a card that has gone too hot (unstable). A lost segment is sent again after the timeout. A better plan and router lose fewer.',
+    },
+    {
+      id: 'segments', label: 'Segments', text: `${k.sent} sent${k.resent > 0 ? ` · ${k.resent} again` : ''}`, level: again >= 0.1 ? 'warn' : 'info',
+      title: `A job's program travels in segments of one drive block. ${k.sent} put on the wire since the game started, ${k.resent} of them sent again (${k.timeouts} timers fired), ${k.lost} lost by the line itself. A segment is sent again when the line lost it, when the card dropped it because the kernel was busy, or when the answer came too late.`,
+    },
+    {
+      id: 'nic', label: 'Card buffer', text: !nic.enabled ? 'card off' : `${nic.fifo}/${nic.fifoSegs} waiting · ring ${nic.rxUsed}/${nic.rxSlots}${nic.drops > 0 ? ` · ${nic.drops} dropped` : ''}`, level: nic.drops > 0 ? 'warn' : 'info',
+      title: nic.enabled
+        ? `The card holds ${nic.fifoSegs} segments in its own buffer (a bigger card holds more) until the kernel has a free slot in the receive ring in RAM (${nic.rxSlots} slots). A segment that finds the buffer full is dropped and sent again after the timeout: the kernel was busy, usually with a job on OS 1 or 2. ${nic.rx} taken in, ${nic.drops} dropped, ${nic.tx} packets sent (answers and results).`
+        : 'The kernel sets the card up when it boots. Until then the card takes nothing.',
+    },
+  ];
+  return { rows };
+}
+
+/** A download's transport in words for its line in the transfer list, or null for an upload. */
+function flowRow(t: TransferSnap): TransferRow['flow'] {
+  const f = t.flow;
+  if (!f) return null;
+  return {
+    text: `${f.acked} of ${f.segs} segments in · window ${f.window}`, resent: f.resent,
+    title: `${f.acked} of ${f.segs} segments acknowledged, ${f.inflight} on the way. The window is how many it may send before an answer comes (it opens with each answer and closes after a timeout). ${f.timeouts} timers fired. It waits ${fmtTicks(f.rto)} for an answer.`,
+  };
+}
+
 /** The panel's whole model, or null when no network exists yet. */
 export function netPanel(s: Snapshot): NetPanelModel | null {
   const chip = netStateChip(s);
@@ -455,7 +510,7 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
   const busyJobs = new Set(n.transfers.map((t) => t.jobId));
   const row = (t: TransferSnap): TransferRow => ({
     jobId: t.jobId, label: t.label, dir: t.dir, pct: Math.min(100, Math.max(0, t.percent)),
-    etaText: t.etaTicks > 0 ? fmtTicks(t.etaTicks) : 'now', doneMB: t.doneMB, totalMB: t.totalMB,
+    etaText: t.etaTicks > 0 ? fmtTicks(t.etaTicks) : 'now', doneMB: t.doneMB, totalMB: t.totalMB, flow: flowRow(t),
   });
   return {
     chip,
@@ -484,6 +539,7 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
     retiredKeys: n.retiredKeys,
     delivered: n.counters.delivered,
     addrs: addressModel(s),
+    stack: stackModel(s),
   };
 }
 

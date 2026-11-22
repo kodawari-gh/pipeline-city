@@ -154,7 +154,9 @@ If segments arrive faster than the CPU can run the handler, the CPU spends every
 
 ## 6. Observability (for the UI, stage 5)
 
-Counters on the `net` snapshot: segments sent, retransmitted, dropped (wire / ring), ring occupancy and the high-water mark, interrupts taken and the average and worst `lastLatency` / `maxLatency` of `Intc`, CPU cycles spent in handlers (to be added to `Intc`: cycles between `enter` and the matching `iret`), per-transfer `cwnd`, RTT and retries. The network panel shows loss and the window; the CPU view shows the handler's instructions passing through the pipeline (they are ordinary instructions) with a chip for the interrupt; the NIC prop's LED blinks on rx.
+**Built (the snapshot and the panel).** `net.stack` (`NetStackSnap` in `src/worker/game/types.ts`) holds the transport counters (sent, resent, lost on the wire, timeouts), the loss chance now (`Game.wireLoss()`), the shared round-trip estimate (`srtt`, `rttvar`, `rto`, or `null` before the first sample) and the card (`nic`: FIFO use and depth, RX and TX ring use and slots, the frames it took and sent, the segments the driver dropped, the DMA words, the interrupts, which stay 0 because the driver polls). Each download in `net.transfers` also carries `flow` (segments, acked, in flight, window, resent, timeouts, rto). The network panel shows them in a "Packets" fold (round trip, loss chance, segments and resends, card buffer) and one line under each download. The numbers are the real ones: nothing is invented for the display.
+
+Not built: interrupts taken, handler cycles, the CPU view of the handler (the driver polls, so there is none to show).
 
 ## 7. Plan
 
@@ -164,7 +166,7 @@ Each stage is committed on its own, with its tests, and keeps the game playable.
 2. **The NIC device and the kernel driver, still without loss. Built** (section 3.6). Device and registers, rings, DMA, a polling driver in the kernel, the virtual USB key removed. The transfers keep the bandwidth counters. Not in it: the PIO path, the interrupt handler and bottom half (the driver polls; the line is there for a later tier).
 3. **The transport. Built** (section 3.7). `transport.ts` with segments, ACKs, the window, the timeout, retries and the stateless loss roll, unit-tested alone; wired between the line and the NIC; the NIC's drop when its FIFO is full and the driver's drop and ACK. Zero loss reproduces stage 2 (the timings of `NETWORK.md` "Pacing" hold; the patience test moved by one hundredth because the kernel image is a few blocks longer to boot).
 4. **Loss sources and the NIC tiers. Built** (sections 3.2, 3.5 and 3.7). The loss table (plan, router, hot card), a FIFO depth for each chip, a timestamp echo and a shared round-trip estimate so the timer follows the kernel's real turn. Coalescing and checksum offload are not built, and the onboard jack stays a DMA jack (reasons in 3.2). Retuned with the bots (`NETWORK.md` "Measured with the transport and the loss table"): the jobs are CPU-bound, so the price ladder in `PROGRESSION.md` did not move.
-5. **UI and render.** Network panel numbers, interrupt chip and handler visible in the CPU view, tutorial lines about "packets" if the lesson text needs them.
+5. **UI and render. Partly built.** The snapshot and the network panel numbers (section 6) are built. Left: the NIC die shows the real rings and FIFO, the 40G card and the Edge router get QSFP+ ports, and tutorial lines about "packets" if the lesson text needs them. There is no interrupt chip to show while the driver polls.
 
 ## 8. Invariants to test
 
