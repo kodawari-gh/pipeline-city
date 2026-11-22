@@ -26,7 +26,7 @@
 
 import { Game } from "@/worker/game/game";
 import { Prng } from "@/core/sim/prng";
-import { BLOCK_BYTES, STORAGE_REG } from "@/core/sim/memmap";
+import { BLOCK_BYTES, PchPhase, STORAGE_REG } from "@/core/sim/memmap";
 import { deviceSpec, fullDrawW, installedPsu, type DeviceKind } from "../../board/sim";
 import { KIND_NAME } from "../../board/sim/buildalerts";
 import { Operator } from "../../economy/sim/operator";
@@ -47,17 +47,17 @@ export interface Stop { aborted: boolean }
  */
 export const REFERENCE_RATE: Record<string, number> = {
   // everyday
-  log: 2.2, calc: 1.77778, checksum: 1.60526, fib: 6.96552, reverse: 4.65116, gcd: 10.6538, popcount: 13.1633, sort: 8.64557, matmul: 13.5676, crc: 20.9444,
+  log: 1.77143, calc: 1.77778, checksum: 1.22, fib: 4.925, reverse: 3.37705, gcd: 6, popcount: 10.6349, sort: 7.87342, matmul: 13.2105, crc: 19.1266,
   // memory
-  scan: 1.73733, chase: 1.19483, stream: 8.03061, stencil: 12.1754, transpose: 9.35461, sieve: 27.6903, db: 1.91009, hashtab: 4.62058,
+  scan: 1.86139, chase: 1.15134, stream: 8.31338, stencil: 12.1754, transpose: 8.24375, sieve: 27.6903, db: 1.88924, hashtab: 4.15318,
   // network
-  page: 5.91946, api: 2.78462, dns: 7.97619, form: 16.625, search: 11.8817, upload: 5.53333, image: 11.3675, video: 7.73171,
+  page: 5.65385, api: 2.51389, dns: 6.65517, form: 15.2874, search: 9.39167, upload: 4.45455, image: 9.54599, video: 6.52263,
   // trust
-  secure: 8.21429, verify: 5.54545, measure: 5.96774, encrypt: 18.5094, vault: 6.84615, rotate: 6.95238, attest: 7.69231,
+  secure: 8.21429, verify: 5.30435, measure: 5.78125, encrypt: 18.1667, vault: 6.84615, rotate: 6.7907, attest: 7.69231,
   // accelerators
-  vadd: 288.575, saxpy: 298.621, thresh: 280.784, blur3: 327.968, poly: 304.599, mandel: 363.067, sphere: 312.722, perceptron: 22.6471, npu: 22.8142, deep: 24.3631,
+  vadd: 286.821, saxpy: 297.161, thresh: 279.35, blur3: 331.095, poly: 303.014, mandel: 362.288, sphere: 314.473, perceptron: 24.1506, npu: 24.1381, deep: 26.8726,
   // high-performance
-  "hpc-reduce": 4.30426, "hpc-matmul": 15.9052, "hpc-nbody": 17.1351, "hpc-montecarlo": 15.879, "hpc-sort": 20.0298, "hpc-bfs": 7.23805, "hpc-fft": 9.71159,
+  "hpc-reduce": 4.244, "hpc-matmul": 15.7085, "hpc-nbody": 16.7271, "hpc-montecarlo": 17.5669, "hpc-sort": 18.4967, "hpc-bfs": 9.4606, "hpc-fft": 10.4942,
   // the drive test (bytes per second)
   disk: 20605.2,
 };
@@ -293,7 +293,8 @@ async function bootedCopy(game: Game, task: BenchTask, pace: Pace, stop: Stop): 
   }
   const op = new Operator(g);
   const link = task.needs.some((n) => n.kind === "net");
-  const ready = (): boolean => (!g.hasOs() || !!g.snapshot().os?.up) && (!link || g.linkUsable);
+  // (the OS is up as the kernel loads, but the boot phase runs every clock at `osBootBoost`: the copy is ready once the kernel reaches its idle loop, so the drive test reads the drive at the normal boost)
+  const ready = (): boolean => (!g.hasOs() || (!!g.snapshot().os?.up && g.pch.phase !== PchPhase.OsBoot)) && (!link || g.linkUsable);
   for (let t = 0; t < MAX_BOOT_TICKS && !ready() && g.errors < CRASH_LIMIT && !stoppedBy(g); t++) {
     if (stop.aborted) return { note: "stopped" };
     g.advanceBaseTick();
