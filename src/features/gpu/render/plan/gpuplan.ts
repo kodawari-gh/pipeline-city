@@ -67,7 +67,11 @@ export interface GpuPlanInput {
 
 export interface GpuPlan {
   input: GpuPlanInput;
+  /** The layout space: the main die and the memory die side by side, with the gap between them that the wires cross (a real card's memory is a chip of its own). */
   die: Rect;
+  /** The main die (the SM, the host link, the L2) and the memory die (the card memory, `dram`), in the layout space. */
+  core: Rect;
+  memory: Rect;
   blocks: GpuBlock[];
   links: GpuLink[];
 }

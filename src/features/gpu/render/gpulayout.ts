@@ -1,7 +1,7 @@
 import { specsOfKind } from '../../board/sim/specs';
 import type { Pt } from '../../cpu/render/core/cpuplan';
 import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from './plan/gpuplan';
-import { gpuCells, GPU_DIE, gpuPlan as dieOf, maskParts } from './plan/gpuplans';
+import { DIE_GAP, gpuCells, GPU_DIE, GPU_MEM, gpuPlan as dieOf, maskParts } from './plan/gpuplans';
 import type { Rect } from '../../board/render/layout/layout';
 
 // The floorplan of a graphics card (docs/GPU.md section 7), in card-local units: (0, 0) is the PCB's north-west corner. The die's insides come
@@ -9,15 +9,17 @@ import type { Rect } from '../../board/render/layout/layout';
 // (the shroud, the fans along the top edge) and gives the card view the rectangles it animates and the hover table the parts it hits. Like
 // `cpuplan` for the die: the tooltip test enumerates the ids from here, so a part cannot be drawn without a description.
 
-/** The PCB: a fan band over the die, a margin all round, the host side and the power plugs at the ends. */
+/** The PCB: a fan band over the dies, a margin all round, the host side and the power plugs at the ends. */
 const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 130, FAN_W = 900, DIE_Y = 138;
-/** The height every accelerator card has (a GPU and an NPU alike), and how far its north edge is above its slot's rail: a card hangs mostly below the rail,
- * away from the CPU, so cards in neighbouring slots (700 apart) never overlap and a stack of them lines up. */
-export const CARD_H = 600, CARD_TOP = 150;
+/** How far a card's north edge is above its slot's rail: a card hangs mostly below the rail, away from the CPU. */
+export const CARD_TOP = 150;
 
-/** Card size by the spec's `visual` key; the card hangs from its slot's rail (`CARD_TOP`). */
-export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, GPU_DIE[gpuPlanInput(s.gpu!).kind].w + 2 * MARGIN + SHROUD_X + TAIL]));
-export const GPU_H: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, CARD_H]));
+/** The width of the two dies side by side (the layout space of a plan): the main die, the gap, the card memory. */
+const dieSpan = (kind: GpuPlanInput['kind']): number => GPU_DIE[kind].w + DIE_GAP + GPU_MEM.w;
+
+/** Card size by the spec's `visual` key; the card hangs from its slot's rail (`CARD_TOP`): the fans over the dies, the main die as tall as the card. */
+export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, dieSpan(gpuPlanInput(s.gpu!).kind) + 2 * MARGIN + SHROUD_X + TAIL]));
+export const GPU_H: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, DIE_Y + GPU_DIE[gpuPlanInput(s.gpu!).kind].h + MARGIN]));
 
 /** A fan module seen edge-on, like the case fans (card-local rectangle, long side along x). */
 export type GpuFan = Rect;
@@ -40,6 +42,9 @@ export interface GpuPlan {
   fans: GpuFan[];
   /** The die's plan (die coordinates) and where its north-west corner is on the card. */
   die: DiePlan;
+  /** The main die and the memory die, card-local. */
+  core: Rect;
+  memory: Rect;
   origin: { x: number; y: number };
   /** Every block of the die, card-local: the hover table's parts (`id` is the plan's block id, `sm0.lanes` on a multi-SM card). */
   blocks: { id: string; kind: GpuBlock['kind']; rect: Rect; sm: number | undefined }[];
@@ -94,7 +99,7 @@ export function gpuPlan(visual: string): GpuPlan {
   const hit = cache.get(visual);
   if (hit) return hit;
   const input = gpuInputOf(visual), die = dieOf(input), { lanes, banks, memBytes } = input;
-  const w = GPU_LEN[visual] ?? SHROUD_X + 2 * MARGIN + die.die.w + TAIL, h = GPU_H[visual] ?? CARD_H;
+  const w = GPU_LEN[visual] ?? SHROUD_X + 2 * MARGIN + die.die.w + TAIL, h = GPU_H[visual] ?? DIE_Y + die.die.h + MARGIN;
   const shroud: Rect = { x: SHROUD_X, y: MARGIN, w: die.die.w + 2 * MARGIN, h: h - 2 * MARGIN };
   const n = gpuFanCount(visual), cell = shroud.w / n;
   const fans: GpuFan[] = Array.from({ length: n }, (_, k) => {
@@ -125,7 +130,7 @@ export function gpuPlan(visual: string): GpuPlan {
   }
   const f = first!;
   const plan: GpuPlan = {
-    visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin,
+    visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin, core: mv(die.core), memory: mv(die.memory),
     blocks: die.blocks.map((b) => ({ id: b.id, kind: b.kind, rect: mv(b.rect), sm: b.sm })),
     links: die.links.map((l) => ({ id: l.id, kind: l.kind, lanes: l.lanes, pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]) })),
     link: mv(get('pcie').rect), pc: f.pc, laneCells, lanesBlock: f.lanes, mask: f.mask.strip, maskBits, maskStack: f.mask.stack, maskSlots: f.mask.slots,

@@ -104,7 +104,8 @@ describe('caches', () => {
     const cache = { level: 'L2' as const, lineWords: 8, lines: Array.from({ length: 64 }, (_, k) => (k < 3 ? { line: 64 + k, words: [90, 80, 70, 60, 50, 40, 30, 20] } : null)) };
     const live = gpuMemLive(b, a, ctx({ step: s, memStep: s, cache }));
     expect(live.texts.filter((t) => t.grp === 'tag').map((t) => t.top)).toEqual(['0800', '0820', '0840']);
-    expect(live.texts.filter((t) => t.grp === 'words').map((t) => t.top)).toEqual(['90', '80', '70', '60', '50', '40', '30', '20']); // line 64 = slot 0 was hit
+    // (the card's L2 is a roomy column of the main die: every cached line prints its words in two rows; a small cache prints the words of the line an access hit one by one)
+    expect(live.texts.filter((t) => !t.grp).map((t) => [t.top, t.bottom])).toEqual([['90 80 70 60', '50 40 30 20']].concat([['90 80 70 60', '50 40 30 20'], ['90 80 70 60', '50 40 30 20']]));
     expect(Math.max(...live.lit.map((l) => l.a))).toBeGreaterThanOrEqual(0.6);
     expect(gpuMemLive(b, a, ctx({ step: s, memStep: s })).texts).toHaveLength(0); // no cache view, nothing to show
   });

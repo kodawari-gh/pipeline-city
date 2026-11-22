@@ -52,7 +52,11 @@ export interface NpuPlanInput {
 
 export interface NpuPlan {
   input: NpuPlanInput;
+  /** The layout space: the main die and the memory die side by side, with the gap between them that the wires cross. */
   die: Rect;
+  /** The main die (the host link, the registers, the queue and the datapath) and the memory die (`cardmem`), in the layout space. */
+  core: Rect;
+  memory: Rect;
   blocks: NpuBlock[];
   links: NpuLink[];
 }

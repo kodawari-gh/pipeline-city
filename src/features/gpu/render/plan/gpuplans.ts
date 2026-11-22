@@ -9,12 +9,19 @@ import type { GpuBlock, GpuBlockKind, GpuLinkKind, GpuPlan, GpuPlanInput } from 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
 export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
 
-/** The die's size by kind: the card is tall enough for the labels and symbols to read (docs/GPU.md section 7). */
+/**
+ * The main die's size by kind: about 3:2, as a die is, and big enough for the labels and symbols to read (docs/GPU.md section 7). The card memory is a chip of its own beside it (`GPU_MEM`), so the
+ * main die holds only the SM, the host link and the L2.
+ */
 export const GPU_DIE: Record<GpuPlanInput['kind'], { w: number; h: number }> = {
-  simd: { w: 2300, h: 440 },
-  warp: { w: 2800, h: 440 },
-  multi: { w: 3400, h: 440 },
+  simd: { w: 1350, h: 900 },
+  warp: { w: 1500, h: 1000 },
+  multi: { w: 1950, h: 1300 },
 };
+
+/** The memory die: the card memory's map of 64 x 40 cells with its row buffer under it, inside the margins. `DIE_GAP`: the gap between the two dies, where the wires cross. */
+export const GPU_MEM = { w: 640, h: 520 };
+export const DIE_GAP = 180;
 
 /** Room a symbol keeps beside its cell grid: the register file's row decoder (left) and its operand latches (under), a cache's index decoder (left) and its tag compare (under). */
 export function cellInset(b: Pick<GpuBlock, 'kind' | 'rect'>): { l: number; b: number } {
@@ -52,16 +59,21 @@ interface Built { tree: N; specs: W[]; /** The block the launch registers feed, 
 function simdSm(i: GpuPlanInput): Built {
   const lanes = i.lanes;
   // the front end is a column (the program counter, the fetch, the decoder) like the CPU's IF and ID stages: wide blocks, not tall empty ones
+  // two bands on the left, the way the data goes (the front end and the registers above, the lanes under them), the bank arbiter and the banks, the way out to the card memory, in the east
   const tree = row<K>([
     col<K>([
-      L('pc', 'pc', 'PC', { sub: 'program counter', f: 34 }),
-      L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 31 }),
-      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 35 }),
-    ], { f: 16 }),
-    L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 13 }),
-    col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 17 }),
-    L('arb', 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), f: 6 }),
-    L('banks', 'banks', 'BANKS', { shape: [1, i.banks], f: 9 }),
+      row<K>([
+        col<K>([
+          L('pc', 'pc', 'PC', { sub: 'program counter', f: 34 }),
+          L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 31 }),
+          L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 35 }),
+        ], { f: 36 }),
+        L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 64 }),
+      ], { f: 50 }),
+      col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 50 }),
+    ], { f: 76 }),
+    L('arb', 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), f: 8 }),
+    L('banks', 'banks', 'BANKS', { shape: [1, i.banks], f: 16 }),
   ], { f: 1 });
   const specs: W[] = [
     ['pc-fetch', 'control', 'pc', 'fetch', 1], ['fetch-decode', 'control', 'fetch', 'decode', 2], ['decode-regs', 'control', 'decode', 'regs', 2],
@@ -91,10 +103,12 @@ function warpSm(i: GpuPlanInput, p: string, cached: boolean): Built {
     const warps = L(id('warps'), 'warps', 'WARPS', { sub: 'pc · mask · stack each', shape: [i.warps, 1], f: 40 });
     specs.push([id('sched-warps'), 'control', id('sched'), id('warps'), 2], [id('arb-banks'), 'mem', id('arb'), id('banks'), 2]);
     const tree = row<K>([
-      col<K>([row<K>([fetch, decode, sched], { f: 40 }), warps], { f: 31 }),
-      regs, lanesCol, coal,
-      L(id('arb'), 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), f: 6 }),
-      L(id('banks'), 'banks', 'BANKS', { shape: [1, i.banks], f: 4 }),
+      col<K>([
+        row<K>([col<K>([row<K>([fetch, decode, sched], { f: 40 }), warps], { f: 56 }), { ...regs, f: 44 }], { f: 50 }),
+        row<K>([{ ...lanesCol, f: 70 }, { ...coal, f: 30 }], { f: 50 }),
+      ], { f: 74 }),
+      L(id('arb'), 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), f: 10 }),
+      L(id('banks'), 'banks', 'BANKS', { shape: [1, i.banks], f: 16 }),
     ], { f: 1 });
     return { tree, specs, entry: id('fetch'), exit: id('banks') };
   }
@@ -102,23 +116,26 @@ function warpSm(i: GpuPlanInput, p: string, cached: boolean): Built {
   const warps = L(id('warps'), 'warps', 'WARPS', { sub: 'pc · mask · stack', shape: [i.warps, 1], f: 8 });
   specs.push([id('sched-warps'), 'control', id('sched'), id('warps'), 2], [id('arb-l1'), 'mem', id('arb'), id('l1'), 2]);
   const tree = row<K>([
-    fetch, decode, sched, warps, regs, lanesCol, coal,
-    L(id('arb'), 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), shape: [1, i.banks], f: 6 }),
-    L(id('l1'), 'l1', 'L1', { sub: `${i.l1Lines} lines`, cells: i.l1Lines, f: 4 }),
+    col<K>([
+      row<K>([fetch, decode, sched, warps], { f: 34 }),
+      row<K>([{ ...regs, f: 30 }, { ...lanesCol, f: 50 }, { ...coal, f: 20 }], { f: 66 }),
+    ], { f: 72 }),
+    L(id('arb'), 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), shape: [1, i.banks], f: 12 }),
+    L(id('l1'), 'l1', 'L1', { sub: `${i.l1Lines} lines`, cells: i.l1Lines, f: 16 }),
   ], { f: 1 });
   return { tree, specs, entry: id('fetch'), exit: id('l1') };
 }
 
+/** The main die's tree (the card memory is a die of its own: `gpuPlan` places it) and every wire, the ones to the memory too. */
 function build(i: GpuPlanInput): { tree: N; specs: WireSpec<GpuLinkKind>[] } {
   const west = col<K>([L('pcie', 'pcie', 'PCIe', { sub: 'host link', f: 1 }), L('launch', 'launch', 'LAUNCH', { sub: 'regs · command', f: 1 })], { f: 7 });
-  const dram = L('dram', 'dram', 'CARD MEMORY', { sub: kb(i.memBytes), f: 9 });
   const specs: W[] = [['pcie-launch', 'launch', 'pcie', 'launch', 2]];
   if (i.sms === 1) {
     const sm = i.kind === 'simd' ? simdSm(i) : warpSm(i, '', false);
     specs.push([`launch-${sm.entry}`, 'launch', 'launch', sm.entry, 1], ...sm.specs, [`${sm.exit}-dram`, 'mem', sm.exit, 'dram', 3]);
     // the one SM is framed like each SM of a multi-SM card (id `sm0`; its blocks keep their plain ids)
     const frame = { id: 'sm0', kind: 'sm' as const, label: i.kind === 'simd' ? 'SIMD UNIT' : 'SM 0', sub: `${plural(i.warps, 'warp')} · ${plural(i.lanes, 'lane')}` };
-    return { tree: row<K>([west, { ...(sm.tree as Extract<N, { dir: string }>), frame, pad: 8, title: 22, f: 56 }, dram], { f: 1 }), specs: wires(specs) };
+    return { tree: row<K>([west, { ...(sm.tree as Extract<N, { dir: string }>), frame, pad: 8, title: 22, f: 90 }], { f: 1 }), specs: wires(specs) };
   }
   const frames: N[] = [];
   for (let k = 0; k < i.sms; k++) {
@@ -127,8 +144,8 @@ function build(i: GpuPlanInput): { tree: N; specs: WireSpec<GpuLinkKind>[] } {
     specs.push([`launch-${sm.entry}`, 'launch', 'launch', sm.entry, 1], ...sm.specs, [`${sm.exit}-l2`, 'mem', sm.exit, 'l2', 2]);
   }
   specs.push(['l2-dram', 'mem', 'l2', 'dram', 3]);
-  const l2 = L('l2', 'l2', 'L2', { sub: `shared · ${i.l2Lines} lines`, cells: i.l2Lines, f: 8 });
-  return { tree: row<K>([west, col<K>(frames, { f: 56 }), l2, dram], { f: 1 }), specs: wires(specs) };
+  const l2 = L('l2', 'l2', 'L2', { sub: `shared · ${i.l2Lines} lines`, cells: i.l2Lines, f: 17 });
+  return { tree: row<K>([west, col<K>(frames, { f: 76 }), l2], { f: 1 }), specs: wires(specs) };
 }
 
 function make(s: Spec<K>, r: GpuBlock['rect'], parent: string | undefined): GpuBlock {
@@ -163,16 +180,19 @@ export function gpuPlan(i: GpuPlanInput, size: { w: number; h: number } = GPU_DI
   const key = JSON.stringify([i, size]);
   const hit = cache.get(key);
   if (hit) return hit;
-  const die = { x: 0, y: 0, w: size.w, h: size.h };
+  // the main die at the origin, the memory die beside it over the gap, its south edge on the main die's (the way out to the memory leaves the SM's south east corner)
+  const core = { x: 0, y: 0, w: size.w, h: size.h }, memory = { x: size.w + DIE_GAP, y: size.h - GPU_MEM.h, w: GPU_MEM.w, h: GPU_MEM.h };
+  const die = { x: 0, y: 0, w: memory.x + memory.w, h: size.h };
   const { tree, specs } = build(i);
   const blocks: GpuBlock[] = [];
   const M = DIE_MARGIN;
   placeTree<K, GpuBlock>(tree, { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom }, blocks, (s, r, parent) => make(s, r, parent));
+  placeTree<K, GpuBlock>(L('dram', 'dram', 'CARD MEMORY', { sub: kb(i.memBytes) }), { x: memory.x + M.x, y: memory.y + M.top, w: memory.w - 2 * M.x, h: memory.h - M.top - M.bottom }, blocks, (s, r, parent) => make(s, r, parent));
   const byId = new Map(blocks.map((b) => [b.id, b]));
   const dram = byId.get('dram');
   if (dram) dram.bytes = i.memBytes;
   for (const b of blocks) if (b.parent && b.sm === undefined) b.sm = byId.get(b.parent)?.sm;
-  const plan: GpuPlan = { input: i, die, blocks, links: routeWires(die, blocks, specs, undefined, 'gpuplan') };
+  const plan: GpuPlan = { input: i, die, core, memory, blocks, links: routeWires(die, blocks, specs, undefined, 'gpuplan') };
   cache.set(key, plan);
   return plan;
 }

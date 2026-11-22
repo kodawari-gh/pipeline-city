@@ -5,7 +5,7 @@ import { specsOfKind } from '@/features/board/sim/specs';
 import type { Pt, Rect } from '@/features/cpu/render/core/cpuplan';
 import { leaf, routeWires, row, placeTree } from '@/features/cpu/render/core/cpufloor';
 import { gpuPlanInput, type GpuBlock, type GpuPlan, type GpuPlanInput } from './gpuplan';
-import { DIE_MARGIN, GPU_DIE, gpuPlan } from './gpuplans';
+import { DIE_GAP, DIE_MARGIN, GPU_DIE, GPU_MEM, gpuPlan } from './gpuplans';
 
 const inside = (a: Rect, o: Rect): boolean => a.x >= o.x && a.y >= o.y && a.x + a.w <= o.x + o.w && a.y + a.h <= o.y + o.h;
 const apart = (a: Rect, c: Rect): boolean => a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y;
@@ -95,10 +95,12 @@ describe('gpu floorplans', () => {
     it('uses most of the die', () => {
       const frames = new Set(plan.blocks.map((b) => b.parent).filter(Boolean));
       const area = plan.blocks.filter((b) => !frames.has(b.id) && b.kind !== 'sm').reduce((n, b) => n + b.rect.w * b.rect.h, 0);
-      expect(area / ((plan.die.w - 2 * DIE_MARGIN.x) * (plan.die.h - DIE_MARGIN.top - DIE_MARGIN.bottom))).toBeGreaterThan(0.7);
+      const inner = (d: Rect) => (d.w - 2 * DIE_MARGIN.x) * (d.h - DIE_MARGIN.top - DIE_MARGIN.bottom);
+      expect(area / (inner(plan.core) + inner(plan.memory))).toBeGreaterThan(0.65);
     });
     it('leaves the south margin for the title strip and knows the card memory size', () => {
       for (const b of plan.blocks) expect(b.rect.y + b.rect.h, b.id).toBeLessThanOrEqual(plan.die.h - DIE_MARGIN.bottom + 0.5);
+      for (const b of plan.blocks) expect(inside(b.rect, b.id === 'dram' ? plan.memory : plan.core), `${b.id} on its die`).toBe(true);
       expect(plan.blocks.find((b) => b.id === 'dram')?.bytes).toBe(input.memBytes);
     });
   });
@@ -135,8 +137,27 @@ describe('gpu floorplans', () => {
     expect(b.blocks.find((x) => x.kind === 'regfile')?.grid?.cols).toBe(32);
   });
 
-  it('plans are the size GPU_DIE says', () => {
-    for (const [name, input] of CONFIGS) expect(gpuPlan(input).die, name).toMatchObject({ w: GPU_DIE[input.kind].w, h: GPU_DIE[input.kind].h });
+  it('plans are the size GPU_DIE says: the main die about 3:2, the card memory a die of its own beside it, with the gap between', () => {
+    for (const [name, input] of CONFIGS) {
+      const p = gpuPlan(input), c = GPU_DIE[input.kind];
+      expect(p.core, name).toEqual({ x: 0, y: 0, w: c.w, h: c.h });
+      expect(c.w / c.h, name).toBeGreaterThan(1.3);
+      expect(c.w / c.h, name).toBeLessThan(1.6);
+      expect(p.memory, name).toMatchObject({ x: c.w + DIE_GAP, w: GPU_MEM.w, h: GPU_MEM.h });
+      expect(p.memory.y + p.memory.h, name).toBe(c.h);
+      expect(p.die, name).toEqual({ x: 0, y: 0, w: c.w + DIE_GAP + GPU_MEM.w, h: c.h });
+      expect(p.blocks.filter((b) => b.kind === 'dram').length, name).toBe(1);
+    }
+  });
+
+  it('every wire to the card memory crosses the gap between the dies', () => {
+    for (const [name, input] of CONFIGS) {
+      const p = gpuPlan(input), w = p.links.filter((l) => l.to === 'dram');
+      expect(w.length, name).toBe(1);
+      const xs = w[0]!.pts.map((q) => q[0]);
+      expect(Math.min(...xs), name).toBeLessThan(p.core.w);
+      expect(Math.max(...xs), name).toBeGreaterThan(p.memory.x);
+    }
   });
 
   it('the router throws when a link has nowhere to go', () => {

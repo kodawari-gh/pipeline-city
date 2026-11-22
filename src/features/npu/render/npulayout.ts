@@ -3,8 +3,7 @@ import { NPU_LIST_SHOWN } from '../sim/port';
 import { NPU_TILES } from '@/core/sim/memmap';
 import { arrayGeom, descGeom, npuGlyphArea, tilesGeom } from './npuglyph';
 import type { NpuPlan, NpuPlanInput } from './npuplan';
-import { npuDie, npuPlan } from './npuplans';
-import { CARD_H } from '../../gpu/render/gpulayout';
+import { NPU_GAP, NPU_MEM, npuDie, npuPlan } from './npuplans';
 import type { Rect } from '../../board/render/layout/layout';
 
 // The AI card in its PCIe slot (docs/ACCEL.md "NPU internal view"), in card-local units: (0, 0) is the PCB's north-west corner, like `gpulayout`. The die
@@ -14,8 +13,8 @@ import type { Rect } from '../../board/render/layout/layout';
 
 /** Where the die starts on the card, and the tail behind it (power lead, heatsink). */
 const DIE_AT = { x: 160, y: 50 }, TAIL = 100, LID_PAD = 8;
-/** What is left under the die so the card is as tall as a graphics card (gpulayout `CARD_H`): they share a slot height, so cards stack. */
-const BOTTOM = CARD_H - DIE_AT.y - npuDie(4).h;
+/** What is left under the dies. */
+const BOTTOM = 50;
 
 /** The plan input of a card from its spec's `visual` key (`npu-1`, `npu-2`). */
 export function npuInputOf(visual: string): NpuPlanInput {
@@ -24,7 +23,7 @@ export function npuInputOf(visual: string): NpuPlanInput {
 }
 
 /** Card size by the spec's `visual` key. */
-export const NPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('npu').map((s) => [s.visual, DIE_AT.x + npuDie(s.npu!.grid).w + TAIL]));
+export const NPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('npu').map((s) => [s.visual, DIE_AT.x + npuDie(s.npu!.grid).w + NPU_GAP + NPU_MEM.w + TAIL]));
 export const NPU_H: Record<string, number> = Object.fromEntries(specsOfKind('npu').map((s) => [s.visual, DIE_AT.y + npuDie(s.npu!.grid).h + BOTTOM]));
 
 export interface NpuGeo {
@@ -33,8 +32,10 @@ export interface NpuGeo {
   /** The PCB. */
   w: number;
   h: number;
-  /** The die and the lid over it, card-local. */
+  /** The two dies side by side (the plan's layout space), the main die and the card memory's, and the lid over the main die, card-local. */
   die: Rect;
+  core: Rect;
+  memory: Rect;
   lid: Rect;
   origin: { x: number; y: number };
   plan: NpuPlan;
@@ -49,7 +50,8 @@ export function npuGeo(visual: string): NpuGeo {
   const input = npuInputOf(visual), plan = npuPlan(input), d = plan.die;
   const geo: NpuGeo = {
     visual, grid: input.grid, w: NPU_LEN[visual] ?? DIE_AT.x + d.w + TAIL, h: NPU_H[visual] ?? DIE_AT.y + d.h + BOTTOM,
-    die: { x: DIE_AT.x, y: DIE_AT.y, w: d.w, h: d.h }, lid: { x: DIE_AT.x - LID_PAD, y: DIE_AT.y - LID_PAD, w: d.w + 2 * LID_PAD, h: d.h + 2 * LID_PAD }, origin: { ...DIE_AT }, plan,
+    die: { x: DIE_AT.x, y: DIE_AT.y, w: d.w, h: d.h }, core: onCard({ origin: DIE_AT }, plan.core), memory: onCard({ origin: DIE_AT }, plan.memory),
+    lid: { x: DIE_AT.x - LID_PAD, y: DIE_AT.y - LID_PAD, w: plan.core.w + 2 * LID_PAD, h: plan.core.h + 2 * LID_PAD }, origin: { ...DIE_AT }, plan,
   };
   cache.set(visual, geo);
   return geo;

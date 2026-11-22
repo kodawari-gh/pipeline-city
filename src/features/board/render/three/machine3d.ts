@@ -687,6 +687,19 @@ export class Machine3D {
   }
 
   /**
+   * A GPU's or an AI card's two dies (`accelparts3d.ts`): each lid fades over the die's own band, the floorplan on it shows live (`Chips3D`) and a double click flies to it (`<slot>.gpu-core`, `<slot>.gpu-mem`; the AI card's: `npu-`).
+   * The lids fade alone, so their materials are their own.
+   */
+  private accelBits(d: DeviceSnap, c: Card3D, kind: 'gpu' | 'npu'): void {
+    this.apart.push(...c.lids);
+    for (const die of c.dies) {
+      this.chips?.face(die.root, kind, die.rect, die.z, d.slot);
+      this.revealOn(die.stand, die.lod);
+      this.lie(`${d.slot}.${kind}-${die.part}`, die.stand, dieZoom(die.scale * die.rect.w));
+    }
+  }
+
+  /**
    * The Ethernet chip on the board (docs/render/net.md "Inside the NIC and the router"): as a NIC's controller (`nicBits`), its mould fades over the die's own band and the floorplan on the
    * die shows, live (`Chips3D`); a double click flies to the die. The mould fades alone, so its materials are its own.
    */
@@ -946,14 +959,14 @@ export class Machine3D {
         // floorplan), an AI card its die without the lid (`npuFace`), and the dies run on them. A NIC shows its parts, which are in 3D (`nicBits`). The face looks north: the player turns the view
         // to it, or a double click flies to its angled view (`focusPart`: the face is a `Lying` rail)
         const i = idx(d.slot), kind = spec.kind;
-        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); }, d.slot);
+        const c = cardModel(this.art, T, kind, visual, i, d.slot);
         this.model(g, c);
         c.pose(0);
         this.obstacles.push(c.root);
         this.fades.push(c.root);
         this.revealOn(c.face, c.pose);
         if (kind === 'nic') this.nicBits(d, c, i, visual);
-        else this.lie(d.id, standIn(i, chipRect(kind, visual, i), HINGE_Z), DEVICE_LOD[kind].fade[1]);
+        else { this.lie(d.id, standIn(i, chipRect(kind, visual, i), HINGE_Z), DEVICE_LOD[kind].fade[1]); this.accelBits(d, c, kind); }
         this.cards.set(d.slot, c);
         if (c.lan) this.lan.set(d.id, c.lan);
         this.apart.push(c.fades);

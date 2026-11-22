@@ -16,7 +16,13 @@ describe('the AI card in its slot', () => {
     setLayoutTier(3, 3);
     for (const s of specsOfKind('npu')) {
       const g = npuGeo(s.visual), r = { x: 0, y: 0, w: g.w, h: g.h };
-      expect(inside(g.die, g.lid), s.id).toBe(true);
+      // (the lid is over the main die; the card memory is a chip of its own beside it, with no lid)
+      expect(inside(g.core, g.lid), s.id).toBe(true);
+      expect(inside(g.lid, r), s.id).toBe(true);
+      expect(inside(g.memory, r), s.id).toBe(true);
+      expect(inside(g.memory, g.die) && inside(g.core, g.die), s.id).toBe(true);
+      expect(g.core.w / g.core.h, s.id).toBeGreaterThan(1.1);
+      expect(g.core.w / g.core.h, s.id).toBeLessThan(1.5);
       expect(inside(g.lid, r), s.id).toBe(true);
       expect(g.w, s.id).toBe(NPU_LEN[s.visual]);
       expect(g.h, s.id).toBe(NPU_H[s.visual]);

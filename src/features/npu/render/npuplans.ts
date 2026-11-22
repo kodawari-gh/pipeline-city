@@ -9,8 +9,10 @@ import type { NpuBlock, NpuBlockKind, NpuLinkKind, NpuPlan, NpuPlanInput } from 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
 export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
 
-/** The die grows with the array in width only: a card has the height of a graphics card (board/gpulayout `CARD_H`), so a bigger array is a longer die, not a taller one. */
-export const npuDie = (grid: number): { w: number; h: number } => ({ w: 840 + grid * 100, h: 500 });
+/** The main die grows with the array, about 5:4 as a die is. The card memory is a chip of its own beside it (`NPU_MEM`), `NPU_GAP` away. */
+export const npuDie = (grid: number): { w: number; h: number } => ({ w: 760 + grid * 60, h: 600 + grid * 50 });
+export const NPU_MEM = { w: 600, h: 480 };
+export const NPU_GAP = 180;
 
 type K = NpuBlockKind;
 type N = Node<K>;
@@ -21,20 +23,13 @@ type W = [id: string, kind: NpuLinkKind, from: string, to: string, lanes?: 1 | 2
 const wires = (a: W[]): WireSpec<NpuLinkKind>[] => a.map(([id, kind, from, to, lanes]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}) }));
 
 function build(i: NpuPlanInput): { tree: N; specs: WireSpec<NpuLinkKind>[] } {
-  const tree = row<K>([
-    col<K>([
-      L('host', 'host', 'PCIE LINK', { sub: `x${i.lanes}, to the machine`, f: 30 }),
-      L('ctl', 'ctl', 'CONTROL', { sub: 'what the CPU writes', f: 70 }),
-    ], { f: 14 }),
-    col<K>([
-      L('desc', 'desc', 'DESCRIPTORS', { sub: 'the list being run', f: 62 }),
-      L('cardmem', 'cardmem', 'CARD MEMORY', { sub: `${Math.round(i.memBytes / 1024)}K, weights and activations`, f: 38 }),
-    ], { f: 26 }),
-    col<K>([
-      L('tiles', 'tiles', 'TILE REGISTERS', { sub: 'four tiles of the array size', f: 20 }),
-      L('array', 'array', 'MAC ARRAY', { sub: `${i.grid} x ${i.grid} multiply-accumulate cells`, f: 62 }),
-      L('post', 'post', 'BIAS AND RELU', { sub: 'after the array, before the store', f: 18 }),
-    ], { f: 60 }),
+  // top to bottom the way the data goes; the host link in the north east, and every block that talks to the card memory (the die beside this one, in the east) has a free east edge
+  const tree = col<K>([
+    row<K>([L('ctl', 'ctl', 'CONTROL', { sub: 'what the CPU writes', f: 58 }), L('host', 'host', 'PCIE LINK', { sub: `x${i.lanes}, to the machine`, f: 42 })], { f: 16 }),
+    L('desc', 'desc', 'DESCRIPTORS', { sub: 'the list being run', f: 18 }),
+    L('tiles', 'tiles', 'TILE REGISTERS', { sub: 'four tiles of the array size', f: 11 }),
+    L('array', 'array', 'MAC ARRAY', { sub: `${i.grid} x ${i.grid} multiply-accumulate cells`, f: 43 }),
+    L('post', 'post', 'BIAS AND RELU', { sub: 'after the array, before the store', f: 12 }),
   ], { f: 1 });
   const specs: W[] = [
     ['host-ctl', 'host', 'host', 'ctl', 2],
@@ -64,12 +59,15 @@ export function npuPlan(i: NpuPlanInput, size: { w: number; h: number } = npuDie
   const key = JSON.stringify([i, size]);
   const hit = cache.get(key);
   if (hit) return hit;
-  const die = { x: 0, y: 0, w: size.w, h: size.h };
+  // the main die at the origin, the card memory's die beside it over the gap, its south edge on the main die's
+  const core = { x: 0, y: 0, w: size.w, h: size.h }, memory = { x: size.w + NPU_GAP, y: size.h - NPU_MEM.h, w: NPU_MEM.w, h: NPU_MEM.h };
+  const die = { x: 0, y: 0, w: memory.x + memory.w, h: size.h };
   const { tree, specs } = build(i);
   const blocks: NpuBlock[] = [];
   const M = DIE_MARGIN;
   placeTree<K, NpuBlock>(tree, { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom }, blocks, (s, r) => make(s, r));
-  const plan: NpuPlan = { input: i, die, blocks, links: routeWires(die, blocks, specs, undefined, 'npuplan') };
+  placeTree<K, NpuBlock>(L('cardmem', 'cardmem', 'CARD MEMORY', { sub: `${Math.round(i.memBytes / 1024)}K, weights and activations` }), { x: memory.x + M.x, y: memory.y + M.top, w: memory.w - 2 * M.x, h: memory.h - M.top - M.bottom }, blocks, (s, r) => make(s, r));
+  const plan: NpuPlan = { input: i, die, core, memory, blocks, links: routeWires(die, blocks, specs, undefined, 'npuplan') };
   cache.set(key, plan);
   return plan;
 }

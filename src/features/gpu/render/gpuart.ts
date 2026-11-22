@@ -36,10 +36,15 @@ export const GPU_LEGEND: { text: string; key: Key }[] = [
   { text: 'ALU', key: 'alu' }, { text: 'MEMORY', key: 'ld' }, { text: 'REGISTERS', key: 'st' }, { text: 'SCHEDULING', key: 'mul' }, { text: 'CONTROL', key: 'br' },
 ];
 
-/** The die's floor, the SM frames, the blocks, the bond pads round the edge and the pin-1 mark: the far view. */
+/** The two dies' floors, the SM frames, the blocks, the bond pads round the edges and the pin-1 mark: the far view. The main die and the card memory are two chips (the gap between them is the board). */
 export function gpuFar(g: Graphics, T: Theme, plan: GpuPlan): void {
-  const D = plan.die, accent = gpuAccent(T, plan);
-  g.roundRect(D.x, D.y, D.w, D.h, 6).fill({ color: mix(T.die, '#000000', 0.25) }).stroke({ width: 3, color: mix(T.line, accent, 0.6) });
+  const D = plan.core, accent = gpuAccent(T, plan), floor = mix(T.die, '#000000', 0.25);
+  g.roundRect(D.x, D.y, D.w, D.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, accent, 0.6) });
+  const Mm = plan.memory;
+  g.roundRect(Mm.x, Mm.y, Mm.w, Mm.h, 6).fill({ color: floor }).stroke({ width: 3, color: mix(T.line, T.ld, 0.6) });
+  for (let x = Mm.x + DIE_MARGIN.x; x + 6 <= Mm.x + Mm.w - DIE_MARGIN.x; x += 12) { g.rect(x, Mm.y + 8, 6, 6); g.rect(x, Mm.y + Mm.h - 14, 6, 6); }
+  g.fill({ color: T.pin, alpha: 0.7 });
+  g.poly([Mm.x + 6, Mm.y + 6, Mm.x + 22, Mm.y + 6, Mm.x + 6, Mm.y + 22]).fill({ color: T.ld, alpha: 0.9 });
   // the bond pad ring in the margin (the CPU die's gold pads), the host edge in the link's colour
   const x0 = D.x + DIE_MARGIN.x, x1 = D.x + D.w - DIE_MARGIN.x, y0 = D.y + DIE_MARGIN.top, y1 = D.y + D.h - DIE_MARGIN.bottom;
   for (let x = x0; x + 6 <= x1; x += 12) { g.rect(x, D.y + 8, 6, 6); g.rect(x, D.y + D.h - 14, 6, 6); }
@@ -73,7 +78,7 @@ export const gpuLaneLines = laneLines;
 export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
   const art = planNear(T, plan, GPU_STYLE);
   // the strip under the blocks: the card's name, the colour legend, the revision (the CPU package's text, docs/DIE.md)
-  const D = plan.die, sy = D.y + D.h - DIE_MARGIN.bottom + 15, names = art.names;
+  const D = plan.core, sy = D.y + D.h - DIE_MARGIN.bottom + 15, names = art.names;
   names.addChild(label(gpuTitle(plan), D.x + DIE_MARGIN.x, sy, 13, T.mute, { weight: '700', a: 0.85 }));
   const legend = new Graphics();
   names.addChild(legend);

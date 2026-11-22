@@ -142,9 +142,11 @@ export function buildShowcaseModel(specId: string, T: Theme = builtinTheme()): O
         art.reveal(markerOn(card.root, card.face), card.pose);
         // (a NIC's controller: its lid fades over the die's own band, as in the case)
         if (card.die) art.reveal(markerOn(card.root, card.die.stand), card.lod);
+        // (a graphics or an AI card's two dies: each lid fades over its own die's band)
+        for (const d of card.dies) art.reveal(markerOn(card.root, d.stand), d.lod);
         return card.root;
       })));
-      // (a graphics card's cooler hangs on its south face, toward the viewer; a NIC's parts stand on its north face, away from it: half a turn shows them first)
+      // (a graphics or an AI card shows its backplate, over its parts; a NIC's parts stand on its north face, away from the viewer: half a turn shows them first)
       if (spec.kind === 'nic') card.rotation.y = Math.PI;
       return card;
     }

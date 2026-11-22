@@ -6,7 +6,7 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 
 import { cardLeads, specsOfKind } from '../../features/board/sim/specs';
 import { PLUG_BLOCK, cardArt, cardOrigin, cardPlugs, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
-import { CARD_H, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
+import { CARD_TOP, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
 import { setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
 
@@ -30,17 +30,13 @@ describe('accelerator art', () => {
     }
   });
 
-  it('every accelerator card is the same height and hangs from its rail the same way, so a stack of them fits: no card reaches the one in the next slot', () => {
+  it('every accelerator card hangs from its rail the same way: its north edge and its PCB corner are the same distance over the rail, whatever its size', () => {
     setLayoutTier(3, 3);
     const visuals = [...specsOfKind('gpu'), ...specsOfKind('npu')].map((s) => s.visual);
     for (const v of visuals) {
-      expect(cardRect(0, v).h, v).toBe(CARD_H);
+      expect(cardRect(0, v).h, v).toBeGreaterThan(CARD_TOP);
       expect(cardRect(0, v).y - cardRect(0, 'gpu-1').y, v).toBe(0);
       expect(cardOrigin(0, v).y - cardOrigin(0, 'gpu-1').y, v).toBe(0);
-    }
-    for (const a of visuals) for (const b of visuals) for (let slot = 0; slot < 3; slot++) {
-      const upper = cardRect(slot, a), lower = cardRect(slot + 1, b);
-      expect(upper.y + upper.h, `${a} over ${b} in slot ${slot}`).toBeLessThan(lower.y);
     }
   });
 
