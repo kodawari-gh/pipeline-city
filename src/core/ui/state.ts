@@ -248,6 +248,14 @@ export function openControlsFromMenu(): void {
     gameMenuOpen.value = false;
   });
 }
+/** Close Controls. Opened from the menu, the menu shows again: its hold never lets go in between (the clock stays stopped). */
+export function closeControls(): void {
+  batch(() => {
+    const back = controlsFromMenu.peek();
+    controlsOpen.value = false;
+    if (back) gameMenuOpen.value = true;
+  });
+}
 effect(() => { if (!controlsOpen.value) controlsFromMenu.value = false; });
 const menuFamily = computed(() => gameMenuOpen.value || (controlsOpen.value && controlsFromMenu.value));
 effect(() => setHold('menu', menuFamily.value));

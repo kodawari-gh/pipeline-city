@@ -125,3 +125,39 @@ describe('menu hold on the clock', () => {
     expect(speed()).toBe(store.DEFAULT_SPEED);
   });
 });
+
+// Controls opened from the menu (ticket #35): the hand-off keeps the menu's hold, and closing Controls shows the menu again.
+describe('controls hand-off from the menu', () => {
+  it('opening Controls from the menu keeps the clock stopped and takes the menu off the screen', () => {
+    store.setSpeed(2);
+    st.openControlsFromMenu();
+    expect(st.controlsOpen.value).toBe(true);
+    expect(st.gameMenuOpen.value).toBe(false);
+    expect(speed()).toBe(0);
+  });
+
+  it('closing Controls shows the menu again and does not resume the clock', () => {
+    store.setSpeed(2);
+    st.openControlsFromMenu();
+    st.closeControls();
+    expect(st.gameMenuOpen.value).toBe(true);
+    expect(speed()).toBe(0);
+  });
+
+  it('closing the menu after the hand-off resumes the clock at its earlier speed', () => {
+    store.setSpeed(2);
+    st.openControlsFromMenu();
+    st.controlsOpen.value = false;
+    closeMenu();
+    expect(speed()).toBe(2);
+  });
+
+  it('closing Controls opened from the HUD does not open the menu', () => {
+    store.setSpeed(2);
+    st.controlsOpen.value = true;
+    expect(speed()).toBe(2);
+    st.controlsOpen.value = false;
+    expect(st.gameMenuOpen.value).toBe(false);
+    expect(speed()).toBe(2);
+  });
+});

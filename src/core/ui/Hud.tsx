@@ -35,7 +35,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { GraphicsModal } from './panels/Graphics';
 import {
-  buildOpen, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, osOpen, runAt, toggleGraphics, toggleOs, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, osOpen, runAt, toggleGraphics, toggleOs, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -214,7 +214,8 @@ function MenuKeys() {
       if (e.key === '?') {
         if (taken && !controlsOpen.peek()) return;
         e.preventDefault();
-        controlsOpen.value = !controlsOpen.peek();
+        if (controlsOpen.peek()) closeControls();
+        else controlsOpen.value = true;
       } else if (e.key === 'Escape' && !taken && !selected.peek() && !dragging.peek()) gameMenuOpen.value = true;
     };
     window.addEventListener('keydown', down);
