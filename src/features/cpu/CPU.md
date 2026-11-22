@@ -133,7 +133,7 @@ Not supported, on purpose: **nesting** (interrupts stay off in the handler; a ha
 
 ### Using it from a device
 
-A device calls `machine.intc.raise(IRQ.X)` from its own `tick()`. Give the device a clock domain (as the storage ports do) so it raises mid-base-tick, at CPU-cycle granularity; a raise from game code (`Game.netTick`, once per base tick, after the machine ran) works but arrives at base-tick granularity. The kernel installs its handler by writing `VECTOR`, `MASK` and `CTRL` during boot. None of this is wired into the kernel or the boot ROM yet.
+A device calls `machine.intc.raise(IRQ.X)` from its own `tick()`. Give the device a clock domain (as the storage ports do) so it raises mid-base-tick, at CPU-cycle granularity; a raise from game code (`Game.netTick`, once per base tick, after the machine ran) works but arrives at base-tick granularity. The kernel installs its handler by writing `VECTOR`, `MASK` and `CTRL` during boot. OS 3 and up do this for the timer and for the NIC's line (`IRQ.NIC`, routed to core 0): one entry, `ktimer`, saves the context, acknowledges what it sees pending and picks the next context; for the NIC it also sets a flag the kernel's loop reads (src/features/os/OS.md "The NIC driver"). OS 1 and 2 run with interrupts off, and OS 1 could not take one safely: the memory protection (`MPU`) has no privilege level and drops the stores of a handler that interrupts a job.
 
 ### Open decisions
 

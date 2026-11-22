@@ -10,7 +10,10 @@
 //             Then the doorbell (`TX_TAIL`). The NIC reads the slot by DMA, sends it, and writes status Done back. The next pass reclaims the slot and frees the job's table slot.
 //   link      a dead link ends every receive in progress (their slots are freed) and empties the ring: what the NIC had is stale.
 //
-// The driver polls: OS 1 and 2 reach it between jobs, OS 3 and 4 on each pass of the kernel's own context. (The NIC can raise `IRQ.NIC`; the kernel keeps it masked.)
+// How the driver is reached depends on the tier. OS 1 and 2 run a job to the end with interrupts off (OS 1 has no privilege: a handler's stores would hit the memory protection of the job it
+// interrupted), so they poll: `knic` runs on each pass of the kernel's loop, between jobs. OS 3 and up run with interrupts on (the timer), so the NIC's line is taken: the handler (`ktimer`, the
+// kernel's one interrupt entry) only acknowledges the line and sets the flag `NICK.EV`, and the kernel's own context, the bottom half, runs `knic` when it finds the flag set. The flag is also set when
+// a network job ends (a result to send) and once at boot. With no traffic the kernel never runs the driver.
 // Calling convention: `knic` (call it with `ra`) keeps s0 (PCH base), s1 (the boot drive's port) and s3 (the OS header) and clobbers a0-a3, t0-t4, s2 and ra.
 
 import {
@@ -39,10 +42,12 @@ if ((NIC_RX_SLOTS & (NIC_RX_SLOTS - 1)) !== 0 || (NIC_TX_SLOTS & (NIC_TX_SLOTS -
 
 /**
  * The lines for `kmain`: clear the driver's area, give the NIC its rings and turn it on. The NIC keeps its indexes across a restart of the kernel, so the kernel's side of each ring starts
- * where the NIC's side is.
+ * where the NIC's side is. `irq`: the tier takes the NIC's interrupt: the NIC is switched off first (a line left over from the kernel that ran before is not taken into a half cleared area), it is
+ * then switched on with its interrupts, and the flag is set so that the first pass of the loop looks at the rings and the link.
  */
-export function nicInit(): string[] {
+export function nicInit(irq = false): string[] {
   return [
+    ...(irq ? [`  li t4, ${NIC_BASE}`, `  sw zero, ${NIC_REG.CTRL}(t4)`] : []),
     `  li t0, ${NICA}`,
     `  li t1, ${NIC_AREA_END}`,
     "nc_zero:",
@@ -63,7 +68,8 @@ export function nicInit(): string[] {
     `  lw t0, ${NIC_REG.TX_HEAD}(t4)`,
     `  sw t0, ${NIC_REG.TX_TAIL}(t4)`,
     `  sw t0, ${nk("TXC")}(zero)`,
-    `  li t0, ${NicCtrl.Enable}`,
+    ...(irq ? ["  li t0, 1", `  sw t0, ${nk("EV")}(zero)`] : []),
+    `  li t0, ${irq ? NicCtrl.Enable | NicCtrl.RxIrq | NicCtrl.TxIrq | NicCtrl.LinkIrq : NicCtrl.Enable}`,
     `  sw t0, ${NIC_REG.CTRL}(t4)`,
   ];
 }

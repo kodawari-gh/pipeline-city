@@ -687,7 +687,7 @@ export interface NicStackSnap {
   rxSlots: number;
   txUsed: number;
   txSlots: number;
-  /** Counters since the NIC was last reset: segments taken into the ring, segments dropped (FIFO full), packets sent, words moved by DMA, interrupts raised (the kernel polls: 0). */
+  /** Counters since the NIC was last reset: segments taken into the ring, segments dropped (FIFO full), packets sent, words moved by DMA, interrupts raised (0 on OS 1 and 2, which poll; OS 3 and up take them). */
   rx: number;
   drops: number;
   tx: number;

@@ -57,7 +57,7 @@ export const REFERENCE_RATE: Record<string, number> = {
   // accelerators
   vadd: 286.821, saxpy: 297.161, thresh: 279.35, blur3: 331.095, poly: 303.014, mandel: 362.288, sphere: 314.473, perceptron: 24.1506, npu: 24.1381, deep: 26.8726,
   // high-performance
-  "hpc-reduce": 4.244, "hpc-matmul": 15.7085, "hpc-nbody": 16.7271, "hpc-montecarlo": 17.5669, "hpc-sort": 18.4967, "hpc-bfs": 9.4606, "hpc-fft": 10.4942,
+  "hpc-reduce": 4.2525, "hpc-matmul": 15.7363, "hpc-nbody": 16.7271, "hpc-montecarlo": 16.3443, "hpc-sort": 19.1457, "hpc-bfs": 10.672, "hpc-fft": 9.72032,
   // the drive test (bytes per second)
   disk: 20605.2,
 };

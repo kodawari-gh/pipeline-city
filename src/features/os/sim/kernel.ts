@@ -15,7 +15,7 @@
 import { assemble } from "../../cpu/sim/asm";
 import {
   BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, MAX_THREADS_PER_JOB, OS_HEADER, OS_HEADER_BASE,
-  INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_PVEC, KERNEL_SECONDARY, KERNEL_TIMER, KERNEL_TVEC, KERNEL_VEC_CORES, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, OS_SPOOL_MAP, SPOOL_PORT_SHIFT, STORAGE_BASE, STORAGE_STRIDE, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
+  INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_PVEC, KERNEL_SECONDARY, KERNEL_TIMER, KERNEL_TVEC, KERNEL_VEC_CORES, MMU_BASE, NICA, NICK, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, OS_SPOOL_MAP, SPOOL_PORT_SHIFT, STORAGE_BASE, STORAGE_STRIDE, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
 } from "@/core/sim/memmap";
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
@@ -78,6 +78,8 @@ const SLEEP = TABLE_END + 64;
 const HINT = TABLE_END + 68; // OS 3: where the frame allocator looks next (nothing below it is free: frames are only freed by kfreeown, which resets it) // OS 3: rounds the idle kernel is skipped for
 /** Rounds of the scheduler an idle kernel sits out while programs run. */
 const KERNEL_NAP = 3;
+/** OS 3 and up: the NIC driver's event flag (`NICK.EV`). The interrupt handler and the end of a network job set it; the kernel's loop clears it and runs the driver. */
+const NIC_EV = NICA + NICK.EV;
 const PFSB = PCBS + 9 * PCB.BYTES; // OS 3: registers the page-fault handler borrows (seven saved, then the slot, the page, the level 1 entry and the PTE)
 const KSCR = PFSB + 48; // OS 3: kstart's scratch: ra, slot, image pages, owner, the four table frames
 export const KDATA_END_PRE = KSCR + 32;
@@ -159,6 +161,8 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
   const lockIn = (tag: string, a: string, b: string, c: string): string[] => smp ? [`  li ${a}, ${LOCK3}`, `  li ${b}, 1`, `${tag}:`, `  lw ${c}, 0(${a})`, `  bne ${c}, zero, ${tag}`, `  amoswap ${c}, ${b}, (${a})`, `  bne ${c}, zero, ${tag}`] : []; // read first: a spinner on the shared L2 port would starve the holder
   const unlockIn = (a: string): string[] => smp ? [`  li ${a}, ${LOCK3}`, `  sw zero, 0(${a})`] : [];
   const ackBits = (1 << IRQ.TIMER) | (smp ? 1 << IRQ.IPI : 0);
+  /** A job's slot (a0) has been marked done: when it is a network job, its result is for the NIC (clobbers t0). The flag is set after the state, so that the driver finds the result. */
+  const nicKick = (tag: string): string[] => [`  lw t0, ${KSLOT.KEY}(a0)`, `  bge t0, zero, ${tag}`, "  li t0, 1", `  sw t0, ${NIC_EV}(zero)`, `${tag}:`];
   const rowSave = [
     `  li t1, ${JOB_ROW_ADDR}`,
     `  addi t2, t0, ${PCB.ROW}`,
@@ -176,6 +180,15 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     `  sw t2, ${PCB.PC}(t0)`,
     `  li t2, ${ackBits}`,
     `  sw t2, ${INTC_REG.ACK}(t1)`,
+    // the NIC's line (core 0 takes it): acknowledge it only when it is seen pending here (one that rises after is taken again), note that the NIC wants service and wake the kernel's context,
+    // which runs the driver (the bottom half). The nonzero value of the masked bit is the flag.
+    `  lw t2, ${INTC_REG.PENDING}(t1)`,
+    `  andi t2, t2, ${1 << IRQ.NIC}`,
+    "  beq t2, zero, ktnic",
+    `  sw t2, ${INTC_REG.ACK}(t1)`,
+    `  sw t2, ${NIC_EV}(zero)`,
+    `  sw zero, ${SLEEP}(zero)`,
+    "ktnic:",
     `  lw t1, ${PCB.SLOT}(t0)`,
     "  beq t1, zero, kpick", // the kernel (and an idle core) has no output row
     ...(thr ? [`  lw t2, ${KSLOT.DEAD}(t1)`, "  bne t2, zero, kthrdead"] : []), // a thread of a job that was killed ends here
@@ -446,6 +459,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
       "  call kfreeown",
       "  li t0, 4",
       `  sw t0, ${KSLOT.STATE}(a0)`,
+      ...nicKick("knk3"),
       "  j kpick",
       "kthrdead:", // a thread of a killed job found out at its interrupt: t1 = the job's slot
       "  mv a0, t1",
@@ -462,8 +476,10 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
       `  sw zero, ${PCB.CORE}(t0)`,
       "  li t0, 4",
       `  sw t0, ${KSLOT.STATE}(a0)`,
+      ...nicKick("knk2"),
       "  j kpick",
     ] : [
+      ...nicKick("knk1"), // the slot was marked done before kfinish
       "  call kcnt",
       "  bne a0, zero, kpick",
       `  li t2, ${TIMER_BASE}`,
@@ -1444,8 +1460,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
     `  li t2, ${INTC_BASE}`,
     `  li t0, ${KERNEL_TIMER}`,
     `  sw t0, ${INTC_REG.VECTOR}(t2)`,
-    `  sw t1, ${INTC_REG.MASK}(t2)`,
-    `  sw t1, ${INTC_REG.CTRL}(t2)`, // interrupts on: the timer only fires while a program runs
+    `  li t0, ${(1 << IRQ.TIMER) | (1 << IRQ.NIC)}`,
+    `  sw t0, ${INTC_REG.MASK}(t2)`, // the timer and the NIC (core 0 takes the NIC's line)
+    `  sw t1, ${INTC_REG.CTRL}(t2)`, // interrupts on: the timer only fires while a program runs, the NIC's line whenever it has something
     ...(smp ? [`  lw t3, ${INTC_REG.CORES}(t2)`, "  li t4, 1", "  sll t4, t4, t3", "  addi t4, t4, -2", `  sw t4, ${INTC_REG.IPI}(t2)`] : []), // wake the other cores: each sets itself up and idles (k3entry)
   ] : paged ? [
     `  lw t0, ${PCH_REG.RAM_KB}(s0)`,
@@ -1484,12 +1501,13 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
     `  li t0, ${KDATA_END}`,
     `  sw t0, ${MPU_REG.R1_HI}(t2)`,
   ]),
-  ...nicInit(), // the NIC gets its rings and is switched on
+  ...nicInit(pre), // the NIC gets its rings and is switched on (OS 3 and up: with its interrupts)
   "kloop:",
   `  li s0, ${PCH_BASE}`,
   `  li s3, ${OS_HEADER_BASE}`,
   `  lw s1, ${PCH_REG.BOOT_DEV}(s0)`,
-  "  call knic", // the network driver: segments that came in, results that go out
+  // the network driver: segments that came in, results that go out. OS 3 and up (interrupts on) run it when the handler or the end of a network job has set the flag; the others poll on each pass.
+  ...(pre ? [`  lw t0, ${NIC_EV}(zero)`, "  beq t0, zero, knoev", `  sw zero, ${NIC_EV}(zero)`, "  call knic", "knoev:"] : ["  call knic"]),
   `  lw t0, ${PCH_REG.PHASE}(s0)`,
   `  li t1, ${PchPhase.OsIdle}`,
   "  beq t0, t1, kpoll",

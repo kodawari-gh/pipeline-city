@@ -391,8 +391,8 @@ export const NIC_REG = {
 } as const;
 /** `STATUS` bits: the link is up (cable, router, power), a segment waits in the ring, a packet waits to be sent, a segment was dropped since the last reset, the NIC is enabled. */
 export const NicStatus = { Link: 1, RxPending: 2, TxBusy: 4, Dropped: 8, Enabled: 16 } as const;
-/** `CTRL` bits: the NIC runs, it raises the line for a received segment, it raises it for a sent packet. */
-export const NicCtrl = { Enable: 1, RxIrq: 2, TxIrq: 4 } as const;
+/** `CTRL` bits: the NIC runs, it raises the line for a received segment, for a sent packet, and when the link goes up or down. */
+export const NicCtrl = { Enable: 1, RxIrq: 2, TxIrq: 4, LinkIrq: 8 } as const;
 /** A received segment carries up to one spool block of the job's program: 64 words. */
 export const NIC_SEG_WORDS = 64;
 /** A receive slot: the header (the job's key, the segment number, the segments in the job, the words this segment holds, the words in the program, flags) then the payload, zero padded. */
@@ -432,6 +432,7 @@ export const NIC_TX_AT = NIC_RX_AT + NIC_RX_SLOTS * NIC_RX_SLOT_BYTES;
 export const NIC_AREA_END = NIC_TX_AT + NIC_TX_SLOTS * NIC_TX_SLOT_BYTES;
 /**
  * The kernel's words in the NIC area (byte offsets from `NICA`): the next transmit slot to reclaim, the link as the last pass saw it, the network jobs in the table (a counter: the kernel scans for
- * finished ones only while it is above zero), the segments written to the spool, the segments thrown away, the results posted.
+ * finished ones only while it is above zero), the segments written to the spool, the segments thrown away, the results posted, and the flag of the kernels that take the NIC's interrupt (OS 3 and up): the handler sets it,
+ * the kernel's loop clears it and runs the driver (the bottom half).
  */
-export const NICK = { TXC: 0x00, LINK: 0x04, JOBS: 0x08, GOT: 0x0c, DROPS: 0x10, SENT: 0x14 } as const;
+export const NICK = { TXC: 0x00, LINK: 0x04, JOBS: 0x08, GOT: 0x0c, DROPS: 0x10, SENT: 0x14, EV: 0x18 } as const;

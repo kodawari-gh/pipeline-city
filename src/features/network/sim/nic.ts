@@ -7,7 +7,10 @@
 //   transmit  the kernel fills a TX slot (status Ready) and writes TX_TAIL (the doorbell) -> the NIC reads the slot by DMA, hands the packet to the wire (`onTransmit`), writes status Done back
 //             by DMA -> head + 1 -> line IRQ.NIC (when `TxIrq` is set)
 //
-// The kernel's driver polls (`os/sim/nicdriver.ts`) and leaves both interrupt enables off; the line is there for a driver that wants it.
+//   link      the cable, the router or the power makes or breaks the link -> line IRQ.NIC (when `LinkIrq` is set)
+//
+// The kernel's driver (`os/sim/nicdriver.ts`) takes the line on the tiers that run with interrupts on (OS 3 and up: the handler only notes that the NIC wants service, the kernel's loop runs the
+// driver) and polls on the others (OS 1 and 2 run a job to the end with interrupts off). It sets the enables it needs.
 // A segment that finds the ring full waits in the FIFO until the kernel frees a slot; the FIFO full, the next one is dropped. (`accept`, the push entry the unit tests use, says no instead.)
 
 import {
@@ -38,8 +41,14 @@ export class Nic implements Device {
   /** Starts stopped; the game sets the rate (`applyRates`). */
   readonly clock: Rate = { mul: 0, div: 1 };
 
-  /** The cable, the router and the power make the link: the game sets it each tick. A NIC without a link sends nothing and takes nothing from the wire. */
-  linkUp = false;
+  /** The cable, the router and the power make the link: the game sets it each tick. A NIC without a link sends nothing and takes nothing from the wire. A change raises the line (when `LinkIrq` is set). */
+  get linkUp(): boolean { return this.link; }
+  set linkUp(up: boolean) {
+    if (up === this.link) return;
+    this.link = up;
+    if (this.enabled && (this.ctrl & NicCtrl.LinkIrq)) this.interrupt();
+  }
+  private link = false;
   /** Where the packets the NIC sends go (the wire). */
   onTransmit: ((p: NicPacket) => void) | null = null;
   /** Where the segments come from: the wire. Each NIC step the input FIFO asks for one while it has room (null: the wire has none for the NIC now). */
@@ -206,7 +215,7 @@ export class Nic implements Device {
     if (k !== 3) { this.partial.set(reg, next); return; }
     this.partial.delete(reg);
     switch (reg) {
-      case NIC_REG.CTRL: this.ctrl = next & (NicCtrl.Enable | NicCtrl.RxIrq | NicCtrl.TxIrq); break;
+      case NIC_REG.CTRL: this.ctrl = next & (NicCtrl.Enable | NicCtrl.RxIrq | NicCtrl.TxIrq | NicCtrl.LinkIrq); break;
       case NIC_REG.RX_BASE: this.rxBase = next; break;
       case NIC_REG.RX_SLOTS: this.rxSlots = next; break;
       case NIC_REG.RX_TAIL: this.rxTail = next; break;

@@ -86,8 +86,9 @@ describe('the words for the network card\'s parts', () => {
     expect(describeId('pcie1.nic-rxq', game('nic2', 10000))!.plain).toMatch(/FIFO.*the next segment is lost/);
     expect(describeId('pcie1.nic-rxq', game('nic3', 40000, false))!.nerd).toMatch(/^FIFO of 16 segments \| downloads in flight/);
     expect(describeId('pcie1.nic-rxq', game('nic1', 1000, false))!.nerd).toMatch(/^FIFO of 4 segments/);
-    expect(describeId('pcie1.nic-dma', game('nic2', 10000, false))!.nerd).toMatch(/^rings of 4 receive and 4 transmit slots in RAM \| 280 and 48 bytes a slot \| the kernel polls/);
-    expect(describeId('pcie1.nic-dma')!.nerd).toMatch(/the kernel polls/);
+    expect(describeId('pcie1.nic-dma', game('nic2', 10000, false))!.nerd).toMatch(/^rings of 4 receive and 4 transmit slots in RAM \| 280 and 48 bytes a slot \| OS 3 and 4 take the interrupt, OS 1 and 2 poll the rings/);
+    expect(describeId('pcie1.nic-dma')!.nerd).toMatch(/OS 1 and 2 poll the rings/);
+    expect(d.plain).toMatch(/OS 3 and OS 4 take it.*OS 1 and OS 2.*interrupts off/);
     expect(describeId('pcie1.nic-txq', game('nic2', 10000))!.plain).toMatch(/transmit ring in RAM/);
   });
 
