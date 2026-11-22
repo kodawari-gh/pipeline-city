@@ -78,9 +78,9 @@ Count failures per ticket: each round whose reviewer returns `FAIL` is one failu
 | 0 (round 1) | `haiku` | `medium` |
 | 1 | `haiku` | `high` |
 | 2 | `haiku` | `xhigh` |
-| 3 or more | `sonnet` | `xhigh` |
+| 3 or more | `sonnet` | `medium` |
 
-Apply the row to every agent in the round (coder, tester, merger, reviewer). Once a ticket moves to Sonnet, keep it there for the rest of that ticket. Do not step back down. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint.
+Apply the row to every agent in the round (coder, tester, merger, reviewer). When the model switches, effort resets to `medium`; do not start Sonnet at `xhigh`. Once a ticket moves to Sonnet, keep it there for the rest of that ticket, and raise its effort one step per further FAIL (`medium`, `high`, `xhigh`). Do not step back down. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint.
 
 ## Rules
 
