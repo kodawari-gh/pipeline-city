@@ -320,7 +320,6 @@ export function Hud() {
     const ready = booted.value;
     return (
       <>
-        <Title on={!galleryOpen.value && !buildOpen.value} quick={galleryOpen.value || buildOpen.value} />
         {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} /> : <MainMenu ready={ready} />}
         <NewGameDialog />
         {ready && <><Gallery /><BuildMode /><GraphicsModal /></>}

@@ -8,11 +8,15 @@ export const booted = signal(false);
 
 let share = 0;
 
+/** The boot's stage label and how far along it is (0 to 1), for the loading screen (menu 03, `MainMenu`). */
+export const bootProgress = signal({ label: 'Loading', share: 0 });
+
 /** The stage the boot is at (said under the bar) and how far along it is, 0 to 1: the bar only grows. */
 export function bootStage(label: string, at: number): void {
+  share = Math.max(share, Math.min(1, at));
+  bootProgress.value = { label, share };
   const el = typeof document === 'undefined' ? null : document.getElementById('boot');
   if (!el) return;
-  share = Math.max(share, Math.min(1, at));
   el.style.setProperty('--boot', share.toFixed(3));
   const t = el.querySelector('.boot-stage');
   if (t && t.textContent !== label) t.textContent = label;

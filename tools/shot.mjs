@@ -62,7 +62,9 @@ try {
   // --build: open "Build my PC" from the main menu instead of a game (then --click / --eval work on that screen)
   if (args.includes('--build')) { await p.click('text=Build my PC'); await p.waitForSelector('.bld-foot', { timeout: 20000 }); await p.waitForTimeout(4000); }
   else {
-    await p.click('text=Sandbox');
+    // (the main menu has no Sandbox row: New game opens the dialog, whose Sandbox choice starts a sandbox game)
+    await p.click('.pl-row:has-text("New game")');
+    await p.click('.ng-choice:has-text("Sandbox")');
     await p.click('button:has-text("Start")');
     if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
     else {
