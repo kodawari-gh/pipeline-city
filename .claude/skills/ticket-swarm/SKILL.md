@@ -37,7 +37,7 @@ Do not junction `node_modules` into a worktree. A worker that needs packages run
 
 ## Agent files
 
-Each role is a subagent file in `C:\Users\Khalil\.claude\agents\`. Launch each with its `subagent_type` and pass `model: "haiku"`:
+Each role is a subagent file in this project's `.claude/agents/`. Launch each with its `subagent_type` and pass `model: "haiku"`:
 
 | Role | `subagent_type` |
 | --- | --- |
