@@ -33,8 +33,10 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #55 | 4 | sonnet medium | PASS | squashed as 80e08cce on audio; closed Done |
 | #56 | 1 | haiku medium | FAIL | test imported missing attachUiCues/cueForUi; typecheck TS2305; Hud label double-click |
 | #56 | 2 | haiku high | FAIL | data-cue missing on tabs, Graphics button, sliders, OS close button |
-| #56 | 3 | haiku xhigh | pending | coder running; reviewer next |
-| #58 | 1 | haiku medium | pending | coder and tester running on 80e08cce |
+| #56 | 3 | haiku xhigh | FAIL | keyboard choices silent (NewGame); Controls Done and Confirm Cancel lack ui_back; OS chip lacks transition; inventory bar, sandbox HUD, tutorial card lack data-cue |
+| #56 | 4 | sonnet medium | pending | coder and tester running on 14596ede |
+| #58 | 1 | haiku medium | FAIL | director does not call ambience; 12 tester tests red; reviewer skipped (red run was the evidence) |
+| #58 | 2 | haiku high | pending | coder running on 949535ab |
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
