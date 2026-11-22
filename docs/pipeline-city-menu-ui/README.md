@@ -36,7 +36,7 @@ You need only the repo and this folder.
 These pictures do not match the current spec. Do not build from them:
 - `13` Flow diagram (`mocks/`): a reference picture only. Its Gallery and Build thumbnails are superseded by the 07 and 08 v3 slots (`mocks/SLOTS.md`).
 - The "64 parts" count in the mocks: superseded by the live count, 75 parts in 17 groups (SPEC §5.8).
-- The phone mocks stay the measured reference for 01 to 06 (drawn at 530 x 1080). The phone layout is checked at 390 x 844 (SPEC §0.2).
+- The phone mocks stay the measured reference for 01 to 06 (drawn at a 530 px wide layout). The phone layout is checked at 390 x 844 (SPEC §0.2).
 
 ## Folder
 ```

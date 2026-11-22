@@ -283,6 +283,7 @@ Test point rule: the spine ends in K5 "TP1" on desktop only, as on this screen's
 - Spine: NOP "Cancel" + meta "keep your save" (focused; desktop y 803, phone 920); WB hero "Replace save and load" in `--c-bad` (desktop y 864, phone 65.07 rem). "TP1".
 - Hints "↑ ↓ choose   Enter confirm   Esc cancel".
 - Unreadable file: no confirm; a toast "[ no ]" with the existing `friendlyError` text.
+- Previous save has no confirm of its own yet; its main menu row shows only while the copy exists (GLOSSARY.md).
 
 ### 5.6 Settings (`06-settings-v2-*`)
 - Surface `--scrim-wide`. Opens on the Quality tab. Same screen from the main menu and from Paused (Back returns to the opener).
@@ -328,6 +329,9 @@ Settings (from Paused) and New game (from Paused → Files) open over the paused
 | Part card, tooltip, drag ghost, toasts | as today, restyled to edge tabs or Mono lines | The part card opens as an edge tab from the right edge (x 1500 to 1920), below the machine list tab |
 No K1 brackets and no silkscreen on Build.
 Flyout state: open while the pointer is over the rail or flyout, while a rail tag or flyout item has keyboard focus, or during a drag from it; closes 400 ms after none holds. Collapsed, only the rail shows (coverage about 83 %).
+- The OS sheet (`BuildOs.tsx`) opens from the Tools tab as an edge tab (§4.11), with its own tab row at the top.
+- Build alerts (`BuildAlerts.tsx`) are Mono lines at the top of the right panel, with the toasts in the edge-tab style (§4.10); nothing shows when there is no alert.
+- The network sheet (`BuildNet.tsx`) opens from the Tools tab as an edge tab (§4.11), next to the OS sheet.
 
 **Phone**
 - Scene: the Build stage fills the screen; the camera frames the machine inside y 100 to 800 (between the two tabs). Letterbox and clear colour `#49484a`.
@@ -347,6 +351,10 @@ Flyout state: open while the pointer is over the rail or flyout, while a rail ta
 - Right column x 1560, top 150, 330 wide: K3 pin row; Mono "CS · case · tier 2"; part name `--t-display-sm` (52) caps ("Mid tower"); detail `--t-md` mute ("ATX case"); price `--t-xl` Cond ink ("$160"); then the part's numbers (`GalleryPart` stats) as Mono rows, label caps mute left, value ink right ("BIGGEST BOARD … ATX", "MEMORY SLOTS IT CAN HOLD … 4").
 - Shelf at x 1560, top 520: the category's parts, rows 62 tall, still 64 × 45, name `--t-md` Cond (ink for the shown one), Mono "T2 · $160".
 - Hints Mono at 380, 1000: "Drag pan · Right-drag turn · Scroll zoom · Double-click reset · ← → part · ↑ ↓ category · Esc back".
+- The Router category sits last in the spine, after SEC, as the last entry in `STUDIO_KINDS`, and its parts use the shelf like the others.
+- The part stepper (`GalleryFoot`) is a toolbar of previous and next buttons with "n of N" between them, in the bottom dock; the buttons are disabled when there is one part.
+- Spin and Reset (`Showcase.tsx`) are buttons in the §4.7 style; Spin shows pressed while it turns the part by itself.
+- Each stat row in the right column gets a thin bar (`bld-bar`) filled to the part's goodness score, in ink, because cyan is for the focused item (§5.7 shared rules).
 
 **Phone**
 - "← Back" at 1.07, 0; Mono meta "MEM · gallery · 75 parts" right-aligned at right 1.07, top 1.07 rem. No display title (the part name is the title).
@@ -362,6 +370,7 @@ Opened from Paused → "Controls" or the "?" key. In game it uses the Paused fra
 - Stage tabs at x 64, y 372, pitch tag + 96: IF "Mouse" (selected, chip), ID "View", EX "Game". The lit trace runs from strip cell 4 into the IF tag.
 - List at x 64, y 470, 480 wide: a K3 pin row, 14 px gap, then rows 44 px tall: key Mono `--t-md` ink in a 132 px column, action `--t-sm` Sans mute.
   - Mouse: "Drag" Pan the view; "Right-drag" Turn the view; "Scroll" Zoom in or out at the pointer; "Click" Pick a part and open its card; "Drag a part" From the shelf onto the board to fit it. (No "Shift-drag" row; the binding itself stays.)
+  - Mouse also has a "Double-click" row after "Click": fly to a part, or back to the room (`Controls.tsx`).
   - View: "F" Zoom to the processor; "G" Zoom to the graphics card; "B" Zoom to the board; "R or Home" Back to the whole room; "O" Open or close the side panel.
   - Game: "Space" Pause or resume; "P" Power lens; "A" Airflow lens; "N" Network lens; "Esc" Close what is open, or open the menu; "?" This list.
 - Hints at x 64, y 1000: "← → group   Esc or ? back".
