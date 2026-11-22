@@ -27,6 +27,15 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `events.ts` | Log note to cue (`logRules`), and the new-notes tracker (no sound on a first snapshot) |
 | `director.ts` | Snapshot to key change and cues. Driven through a `CueSink`, so tests use a fake |
 | `cueBoard.ts` | `?debug` board: one button per cue |
+| `volume.ts` | The player's mix rules (pure): slider gain, snap, `busGains` (bus dB times slider gain), per-device read and write |
+| `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
+
+### Settings mix
+- The Sound block sits in the Settings modal (`src/core/ui/panels/MainMenu.tsx`, `SoundRows`).
+- Gain is `(v / 100)^2` on top of each bus default. Each slider drives its buses only. Mute sets every bus to 0.
+- `index.ts` follows `audioMix` and calls `engine.applyMix`. A live change ramps (20 ms); a new graph sets it at once.
+- Stored per device in localStorage (`MIX.sliders.storageKey`), wrapped in try/catch. Not in the save.
+- Releasing the Sounds slider plays one `ui_click` at the new level.
 
 Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue whose file is not decoded is skipped, and its file loads for next time.
 

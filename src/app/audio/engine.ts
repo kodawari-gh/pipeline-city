@@ -4,8 +4,24 @@
 import { MIX, type BusId, type CueId } from './mixTokens';
 import { keyPcForLevel, pickFile, rootFPath, type Cue } from './keys';
 import { VoicePool, type VoiceRec } from './voices';
+import { audioMix } from './mix';
+import { busGains, dB, type Volumes } from './volume';
 
-export const dB = (d: number) => Math.pow(10, d / 20);
+/** Set each bus to its default dB times the player's mix (busGains). A live change ramps (no clicks); a new graph sets it at once. */
+function applyBuses(g: Graph, m: Volumes, ramp: boolean): void {
+  const gains = busGains(m);
+  const t = g.ctx.currentTime;
+  for (const id of Object.keys(MIX.buses) as BusId[]) {
+    const target = gains[id];
+    if (ramp) g.bus[id].gain.setTargetAtTime(target, t, 0.02);
+    else g.bus[id].gain.value = target;
+  }
+}
+
+/** The player's mix changed: the buses follow. Before the context opens, `openGraph` reads the mix. */
+export function applyMix(m: Volumes): void {
+  if (graph) applyBuses(graph, m, true);
+}
 
 interface Graph {
   ctx: AudioContext;
@@ -35,13 +51,11 @@ function openGraph(): Graph | null {
   const ctx = new AudioContext({ latencyHint: 'interactive' });
   const bus = {} as Record<BusId, GainNode>;
   const master = ctx.createGain();
-  master.gain.value = dB(MIX.buses.master.defaultDb);
   master.connect(ctx.destination);
   bus.master = master;
   for (const id of Object.keys(MIX.buses) as BusId[]) {
     if (id === 'master') continue;
     bus[id] = ctx.createGain();
-    bus[id].gain.value = dB(MIX.buses[id].defaultDb);
     bus[id].connect(master);
   }
   const md = ctx.createGain();
@@ -49,7 +63,9 @@ function openGraph(): Graph | null {
   musicDuck = md;
   const ambDuck = ctx.createGain();
   ambDuck.connect(bus.ambience);
-  return { ctx, bus, duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
+  const g: Graph = { ctx, bus, duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
+  applyBuses(g, audioMix.peek(), false);
+  return g;
 }
 
 /** Open the context on the first gesture. Until then nothing plays. */

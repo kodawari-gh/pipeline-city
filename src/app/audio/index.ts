@@ -4,11 +4,13 @@ import { booted } from '../boot';
 import { snapshot } from '../store';
 import { debugOn } from '../debugflag';
 import { createDirector } from './director';
-import { engineSink, startLoading, unlockOnGesture } from './engine';
+import { applyMix, engineSink, startLoading, unlockOnGesture } from './engine';
+import { audioMix } from './mix';
 
 /** `search` defaults to the page's query string, read here (not at import), so a test without `location` can call it. */
 export function initAudio(search?: string): void {
   unlockOnGesture();
+  effect(() => { applyMix(audioMix.value); });
   const query = search ?? (typeof location === 'undefined' ? '' : location.search);
   let loading = false;
   effect(() => {

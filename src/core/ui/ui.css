@@ -111,6 +111,7 @@ button.chip[aria-pressed=true] { box-shadow: inset 0 0 0 1px color-mix(in srgb, 
 .scale-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.45rem; font-size: 0.75rem; }
 .scale-row input { flex: 1; min-width: 5rem; accent-color: var(--accent); }
 .scale-row .value { min-width: 2.6rem; text-align: right; }
+.sound-rows { display: grid; gap: 0.35rem; }
 .menu-h { font: 600 0.633rem var(--ui); text-transform: uppercase; letter-spacing: .09em; color: var(--mute); padding: 0.4rem 0.467rem 0.133rem; }
 .menu-pop hr { width: 100%; border: 0; border-top: 1px solid var(--glass-line); margin: 0.2rem 0; }
 .invbtn { position: relative; padding: 0.2rem 0.533rem; }

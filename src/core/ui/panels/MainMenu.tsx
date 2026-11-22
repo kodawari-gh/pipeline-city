@@ -1,6 +1,9 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { autosaveAt, autosaveOffer, startSim } from '@/app/store';
+import { playCue } from '@/app/audio/engine';
+import { audioMix, setMuted, setSlider, SLIDER_IDS, SLIDER_LABEL } from '@/app/audio/mix';
+import { MIX } from '@/app/audio/mixTokens';
 import { saveSummary } from '../logic';
 import { Icon } from '../kit/Icons';
 import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
@@ -72,9 +75,28 @@ function SettingsCard({ ready }: { ready: boolean }) {
           <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
           <b class="value">{Math.round(uiScale.value * 100)}%</b>
         </label>
+        <SoundRows />
         <div class="mm-row"><span>Picture</span><button disabled={!ready} title={ready ? undefined : 'Available when the room is ready'} onClick={toggleGraphics} aria-haspopup="dialog">Graphics…</button></div>
         <div class="pactions"><button class="primary" autofocus onClick={() => { settingsOpen.value = false; }}>Done</button></div>
       </div>
+    </div>
+  );
+}
+
+/** The Sound block: four sliders (0..100, step 5) and Mute. Per device; the save does not hold it. */
+function SoundRows() {
+  const mix = audioMix.value;
+  return (
+    <div class="sound-rows">
+      <div class="mm-row"><span>Sound</span><label><input type="checkbox" checked={mix.muted} onChange={(e) => setMuted(e.currentTarget.checked)} /> Mute</label></div>
+      {SLIDER_IDS.map((id) => (
+        <label class="mm-row scale-row" key={id}><span>{SLIDER_LABEL[id]}</span>
+          <input type="range" min={0} max={100} step={MIX.sliders.stepPercent} value={mix[id]} aria-label={`${SLIDER_LABEL[id]} volume`}
+            onInput={(e) => setSlider(id, Number(e.currentTarget.value))}
+            onChange={id === 'sounds' ? () => playCue('ui_click') : undefined} />
+          <b class="value">{mix[id]}%</b>
+        </label>
+      ))}
     </div>
   );
 }
