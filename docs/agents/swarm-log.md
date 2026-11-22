@@ -25,6 +25,12 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 | #50 | 2 | haiku high | PASS (inferred) | from transcript spawn records; squash f4de5d09 |
 | #51 | 4 | sonnet medium | PASS (inferred) | from transcript spawn records; squash dcb05cec |
 | #52 | 2 | haiku high | PASS (inferred) | from transcript spawn records; squash 1c6c54c9 |
+| #39 | 1 | haiku medium | FAIL | inset test stubs old .hud selector; branch ticket/39 380e9062 |
+| #39 | 2 | haiku high | BLOCKED | tester refused by worktree guard; stopped, Backlog |
+| #45 | 1 | haiku medium | FAIL | non-JSON save message has no way forward; corrupt save not back to menu |
+| #45 | 2 | haiku high | FAIL | offline state missing; return-to-menu untested |
+| #45 | 3 | haiku xhigh | FAIL | offline test not wired; export and wrong-shape messages lack next step |
+| #45 | 4 | sonnet medium | FAIL | round limit; offline test red, tester blocked by worktree guard; Backlog |
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
