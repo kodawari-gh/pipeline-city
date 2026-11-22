@@ -69,7 +69,7 @@ The prompt you send gives only the per-run facts: ticket number, worktree path, 
 
 ## Model rule
 
-Every agent in this skill is Haiku. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint. Accept more rounds before a model change; the user prefers iteration to a larger model.
+Start every agent on Haiku (`model: "haiku"`). Count failures per ticket: each round whose reviewer returns `FAIL` is one failure. After the second Haiku failure on a ticket, escalate that ticket's coder, tester, merger and reviewer to `model: "sonnet"` for every later round. Do not go back to Haiku for that ticket. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint.
 
 ## Rules
 
