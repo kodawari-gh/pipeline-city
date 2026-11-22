@@ -17,5 +17,18 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 - Do not hard-code levels, timings or file lists. Read them from `MIX` and the music spec.
 - Check the package: `PYTHONUTF8=1 python3 docs/pipeline-city-audio/pipeline-city-audio/sources/check_refs.py` must print `OK`.
 
+## Code
+| File | Role |
+|---|---|
+| `index.ts` | `initAudio()`, wired from `main.tsx`: unlock, load after `booted`, follow each snapshot; `?debug` adds the cue board |
+| `engine.ts` | The real sink: AudioContext (opened on the first gesture), buses, ducking, one-file-at-a-time loader, `playCue` |
+| `voices.ts` | Pure voice policy: rate limit, burst collapse, per-cue, per-bus and global caps, stealing |
+| `keys.ts` | Level to key, file and rate per cue (pure) |
+| `events.ts` | Log note to cue (`logRules`), and the new-notes tracker (no sound on a first snapshot) |
+| `director.ts` | Snapshot to key change and cues. Driven through a `CueSink`, so tests use a fake |
+| `cueBoard.ts` | `?debug` board: one button per cue |
+
+Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue whose file is not decoded is skipped, and its file loads for next time.
+
 ## Status
-Assets are in the repo. The engine (`engine.ts`, loader, cue API) is not yet written. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Not yet built: state rules, ambience, music, sliders, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.
