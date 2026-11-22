@@ -67,9 +67,20 @@ The prompt you send gives only the per-run facts: ticket number, worktree path, 
    - `FAIL` and round < limit: start the next round with the findings.
    - `FAIL` at the limit: stop. Board to `backlog`. Comment the findings on the issue.
 
-## Model rule
+## Model and effort rule
 
-Start every agent on Haiku (`model: "haiku"`). Count failures per ticket: each round whose reviewer returns `FAIL` is one failure. After the second Haiku failure on a ticket, escalate that ticket's coder, tester, merger and reviewer to `model: "sonnet"` for every later round. Do not go back to Haiku for that ticket. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint.
+Every agent call sets both `model` and `effort`. Use the `effort` parameter of the Agent tool; the user asked for it on every spawn.
+
+Count failures per ticket: each round whose reviewer returns `FAIL` is one failure. Raise effort before you change model:
+
+| Failures so far | Model | Effort |
+| --- | --- | --- |
+| 0 (round 1) | `haiku` | `medium` |
+| 1 | `haiku` | `high` |
+| 2 | `haiku` | `xhigh` |
+| 3 or more | `sonnet` | `xhigh` |
+
+Apply the row to every agent in the round (coder, tester, merger, reviewer). Once a ticket moves to Sonnet, keep it there for the rest of that ticket. Do not step back down. If a round fails twice on the same finding, add the finding to the next round's prompt as a required test, not as a hint.
 
 ## Rules
 
