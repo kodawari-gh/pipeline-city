@@ -17,6 +17,7 @@ initAudio(undefined, () => ({
   speed: speed.value,
   hold: levelUp.value ? 'levelUp' : popupPause.value ? 'tutorial' : gameMenuOpen.value ? 'menu' : null,
   crashed: crash.value !== null,
+  levelUp: levelUp.value?.level ?? null,
 }));
 // The 3D renderer (docs/render/three.md) is the game's view. Its code loads here; the boot screen stays until the 3D mount ends it (docs/render/load.md).
 // If the world cannot start (no WebGL), the screen stays and says why (`bootFail`): there is no game to play without it.

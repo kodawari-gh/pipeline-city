@@ -1,6 +1,6 @@
 // Ticket #53: the director (director.ts) plays one cue per new log note. The sound is a fake CueSink, so the test
 // reads which cues were asked for and at what delay. Covers: the first snapshot plays nothing; a burst of three
-// new notes at one tick plays in log order, 40 ms apart; only unseen notes play; `level` plays nothing; reset
+// new notes at one tick plays in log order, 40 ms apart; only unseen notes play; `level` plays one `level_up`; reset
 // (new game, load, leaving a game) and a loaded save (tick goes back) play nothing for the old notes.
 import { describe, expect, it } from 'vitest';
 import { createDirector, NOTE_GAP_S, type CueSink } from './director';
@@ -58,12 +58,12 @@ describe('director: one cue per new log note', () => {
     expect(f.ids()).toEqual(['payout']);
   });
 
-  it('a level note plays nothing (the level kind has no cue yet)', () => {
+  it('a level note plays one level_up (the level-up stinger, see director.levelup.test.ts)', () => {
     const f = fakeSink();
     const d = createDirector(f.sink);
     d.onSnapshot(snap([]));
     d.onSnapshot(snap([note(4, 'level', 'Level 2: Desk')], 2));
-    expect(f.plays).toEqual([]);
+    expect(f.ids()).toEqual(['level_up']);
   });
 
   it('reset (new game, load or leaving a game): the next snapshot plays nothing, later notes play', () => {

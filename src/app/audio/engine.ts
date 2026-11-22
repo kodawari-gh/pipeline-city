@@ -136,16 +136,37 @@ export function loadAll(): void {
   for (const c of MIX.cues) for (const f of c.files) void load(f);
 }
 
-/** The level's key changed: the new key's files load, the sound follows at once. */
+/**
+ * The level's key changed: the new key's files load, the sound follows at once. The next level's stinger loads too, so the
+ * level-up after this one finds it decoded. The first snapshot of a game sets the level 1 key, so the level 2 stinger loads then.
+ */
 export function setKeyPc(pc: number): void {
   keyPc = pc;
-  if (loadingOn) preloadKey(pc);
+  if (!loadingOn) return;
+  preloadKey(pc);
+  const stinger = CUE.get('level_up');
+  if (stinger) void load(pickFile(stinger, (pc + MIX.transpose.stepSemitones) % 12, new Map()).path);
 }
 
 export interface PlayOpts {
   /** Seconds from now. */
   delayS?: number;
   gainDb?: number;
+  /** `beat`: start on the music clock's next beat (at once with no beat clock). */
+  quantise?: 'beat';
+}
+
+/** The music's beat clock (the music tickets set it). The level-up stinger and the key change share it. */
+export interface BeatClock {
+  /** Seconds from AudioContext time `nowS` to the next beat (0 or more). */
+  secondsToNextBeat(nowS: number): number;
+}
+
+let beatClock: BeatClock | null = null;
+
+/** Set or clear the music's beat clock. Null (no music running): a quantised cue plays at once. */
+export function setBeatClock(c: BeatClock | null): void {
+  beatClock = c;
 }
 
 /** Play one cue now (or after `delayS`). Returns nothing: a refused, skipped or unloaded cue is silent. */
@@ -172,7 +193,8 @@ export function playCue(id: CueId, opts: PlayOpts = {}): void {
   const gain = ctx.createGain();
   gain.gain.value = dB(opts.gainDb ?? 0);
   src.connect(gain).connect(g.bus[c.bus as BusId]);
-  const when = ctx.currentTime + Math.max(0, opts.delayS ?? 0);
+  const wait = opts.quantise === 'beat' && beatClock ? Math.max(0, beatClock.secondsToNextBeat(ctx.currentTime)) : 0;
+  const when = ctx.currentTime + Math.max(0, opts.delayS ?? 0) + wait;
 
   const v: VoiceRec = {
     cue: id,

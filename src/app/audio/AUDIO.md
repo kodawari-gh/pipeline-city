@@ -54,5 +54,13 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Holds: `levelUp`, `tutorial` (popup) and `menu`. A stop under a hold plays no `pause`; lifting the hold plays no `resume`. Opening the menu plays `ui_panel_open`. `index.ts` derives the hold from the signals.
 - The clock never suspends the AudioContext. Cues play while the clock is stopped.
 
+### Level-up stinger and key change (ticket #55)
+- A `level` log note, or the level-up popup opening, plays `level_up` of the NEW key once. Several levels in one tick give one stinger. The popup and the note of one level play it once between them.
+- Timing: `level_up` has `quantise: 'beat'`: it starts on the music clock's next beat. This replaces the SPEC's next-bar rule (owner choice). Token: `levelUp.quantise` in `mix-tokens.json` (generator `build_manifest.py`). With no beat clock (no music running) it plays at once.
+- The music sets the clock with `setBeatClock({ secondsToNextBeat(nowS) })` (`engine.ts`). The key change and chord use the same clock (music tickets).
+- Sandbox games, load, new game and any level change with no note move the key and play no stinger.
+- Files: a level change loads the new key's stinger (`setKeyPc` -> `preloadKey`) and the next level's stinger, so the level-up after this one finds it decoded. The first snapshot of a game sets the level 1 key, which loads the level 2 stinger. A jump of several levels in one tick can skip the stinger of the level it lands on (its file loads at that change). A cue whose file is not decoded when it plays is skipped, never delayed. The stinger ducks other sound by the `milestone` depth.
+- The popup can open before the snapshot of its level. The stinger then sets its own level's key first (`director.ts`, `stinger`), so its file is the new key's.
+
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Not yet built: ambience, music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Not yet built: ambience, music, UI sounds in components. The plan is in the package's `IMPLEMENTATION.md`.

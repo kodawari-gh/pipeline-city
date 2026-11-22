@@ -1,13 +1,13 @@
 // The director: each new snapshot becomes cues. It sets the key from the level and plays one cue per new log note that has one.
 // It also plays the state rules (a change between two snapshots, SPEC §3.2) and, through `onUi`, the clock and holds.
 // It talks to the sound only through `CueSink`, so a test drives it with a fake (engine.ts is the real sink).
-import type { CueId } from './mixTokens';
+import { MIX, type CueId } from './mixTokens';
 import { keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
-  playCue(id: CueId, opts?: { delayS?: number }): void;
+  playCue(id: CueId, opts?: { delayS?: number; quantise?: 'beat' }): void;
   setKeyPc(pc: number): void;
 }
 
@@ -19,11 +19,15 @@ export interface UiInput {
   speed: number;
   hold: Hold | null;
   crashed: boolean;
+  /** The level of the open level-up popup, or null. A new value plays the stinger (once per level). */
+  levelUp?: number | null;
 }
 
 export interface DirectorSnap {
   log: GameEvent[];
   level: { level: number };
+  /** Sandbox games move the key but play no level-up stinger. */
+  sandbox?: boolean;
   /** Queued swaps (a snapshot always has it; optional so a fixture may omit it). */
   pendingSwaps?: readonly unknown[];
   /** The fields below feed the state rules. A fixture may omit them: then no state rule plays. */
@@ -101,14 +105,35 @@ export function createDirector(sink: CueSink): Director {
   let prevUi: UiInput | null = null;
   /** The last speed-0 edge was a hold (not a Pause): lifting the hold plays no resume. */
   let pausedByHold = false;
+  /** The level the last snapshot showed; null before the first one (after a reset). */
+  let level: number | null = null;
+  /** The level whose stinger has played, or was passed over as silent. One level, one stinger (the note or the popup). */
+  let stingerLevel: number | null = null;
+  let sandbox = false;
+
+  /** Sets the key once per change. The sink picks each cue's file from the key it holds. */
+  const setKey = (pc: number) => {
+    if (pc === keyPc) return;
+    keyPc = pc;
+    sink.setKeyPc(pc);
+  };
+
+  /**
+   * The level-up stinger for `lvl`, on the music's next beat. Sandbox and a level already marked play nothing.
+   * The popup can open before the snapshot of its level: the stinger takes its own level's key first.
+   */
+  const stinger = (lvl: number) => {
+    if (lvl === stingerLevel) return;
+    stingerLevel = lvl;
+    if (sandbox) return;
+    setKey(keyPcForLevel(lvl));
+    sink.playCue('level_up', { quantise: MIX.levelUp.quantise === 'beat' ? 'beat' : undefined });
+  };
 
   return {
     onSnapshot(s) {
-      const pc = keyPcForLevel(s.level.level);
-      if (pc !== keyPc) {
-        keyPc = pc;
-        sink.setKeyPc(pc);
-      }
+      setKey(keyPcForLevel(s.level.level));
+      sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
       const pending = s.pendingSwaps?.length ?? 0;
       const swapDone = prevPending !== null && pending < prevPending;
@@ -129,6 +154,12 @@ export function createDirector(sink: CueSink): Director {
           sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
         }
       }
+      // A level note plays the stinger once, for the level now shown (several levels in one tick: one stinger).
+      // A level change with no note (a load, a new game, a sandbox level) moves the key and plays nothing.
+      const lvl = s.level.level;
+      if (fresh.some((e) => e.kind === 'level')) stinger(lvl);
+      else stingerLevel = lvl;
+      level = lvl;
       // A save loaded (the tick went back) is one snapshot of silence, like the notes.
       const before = prevState;
       const now: SeenState = {
@@ -150,6 +181,8 @@ export function createDirector(sink: CueSink): Director {
       const before = prevUi;
       prevUi = u;
       if (!before) return;
+      // The level-up popup opens: its stinger, unless a note of that level already played it. Before any snapshot (after a reset) nothing plays.
+      if (u.levelUp != null && u.levelUp !== before.levelUp && level !== null) stinger(u.levelUp);
       // A sim crash plays the error cue; the stop it causes plays `pause` through the speed rule below.
       if (u.crashed && !before.crashed) sink.playCue('ui_error');
       // A hold starts: the in-game menu plays its panel cue. The level-up and tutorial popups play nothing.
@@ -170,6 +203,8 @@ export function createDirector(sink: CueSink): Director {
       keyPc = null;
       prevPending = null;
       prevState = null;
+      level = null;
+      stingerLevel = null;
     },
   };
 }

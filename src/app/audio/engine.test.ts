@@ -3,6 +3,7 @@
 // its sources played, what it logged.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
+import { pickFile } from './keys';
 
 /** Engine paths are relative to `audio/` (the basePath), e.g. `sfx/payout__F.ogg`. */
 const rel = (p: string): string => p.replace(/^\/?audio\//, '');
@@ -30,7 +31,9 @@ class Source extends Node {
   onended: (() => void) | null = null;
   started = false;
   stopped = false;
-  start(): void { this.started = true; }
+  /** The context time the engine asked this source to start at. */
+  when = -1;
+  start(when = 0): void { this.started = true; this.when = when; }
   stop(): void { this.stopped = true; }
 }
 /** A stand-in AudioContext. Every node it makes is kept, so a test can read the calls. */
@@ -233,5 +236,192 @@ describe('voices, rate limits and ducking', () => {
     const writes = (eng.musicDuck as unknown as Gain).gain.log;
     expect(Math.min(...writes)).toBeCloseTo(deep, 3);
     expect(writes[writes.length - 1]!).toBeCloseTo(1, 6); // the release returns music to unity gain
+  });
+});
+
+// Ticket #55: the level-up stinger in the engine. A level change loads the new key's stinger at once; a stinger not
+// decoded yet is skipped; the stinger plays at rate 1 and ducks music by the milestone depth.
+describe('level-up stinger: engine', () => {
+  const LEVEL_UP_F = 'sfx/level_up__F.ogg';
+  const LEVEL_UP_C = 'sfx/level_up__C.ogg'; // level 2 is key C (pitch class 0)
+
+  it('a level change loads the new key stinger; the old key stinger is not fetched again', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.startLoading();
+    await flush();
+    expect(fetched).toContain(LEVEL_UP_F);
+    expect(fetched).not.toContain(LEVEL_UP_C);
+    eng.setKeyPc(0);
+    await flush();
+    expect(fetched).toContain(LEVEL_UP_C);
+  });
+
+  it('a stinger whose new key file is not decoded yet is skipped, not played late', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.startLoading();
+    await flush();
+    let release!: () => void;
+    gates.set(LEVEL_UP_C, new Promise<void>((r) => { release = r; }));
+    eng.setKeyPc(0);
+    await flush();
+    eng.playCue('level_up');
+    expect(playedFiles()).not.toContain(LEVEL_UP_C);
+    release();
+    await flush();
+    expect(playedFiles()).not.toContain(LEVEL_UP_C); // not delayed until the file arrives
+    eng.playCue('level_up');
+    expect(playedFiles()).toContain(LEVEL_UP_C);
+  });
+
+  it('the stinger plays its new key file at rate 1', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.setKeyPc(0);
+    await eng.preload([LEVEL_UP_C]);
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.playCue('level_up');
+    const src = sourcesOf().find((s) => s.started && s.buffer?.path === LEVEL_UP_C);
+    expect(src).toBeTruthy();
+    expect(src!.playbackRate.value).toBe(1);
+  });
+
+  it('the stinger ducks music by the milestone depth', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.setKeyPc(0);
+    await eng.preload([LEVEL_UP_C]);
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.playCue('level_up');
+    const deep = Math.pow(10, MIX.ducking.cueDuckDb.milestone / 20);
+    const writes = (eng.musicDuck as unknown as Gain).gain.log;
+    expect(Math.min(...writes)).toBeCloseTo(deep, 3);
+  });
+
+  it('the stinger ducks the ambience by the milestone depth too, not only the music', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.setKeyPc(0);
+    await eng.preload([LEVEL_UP_C]);
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.playCue('level_up');
+    const deep = Math.pow(10, MIX.ducking.cueDuckDb.milestone / 20);
+    // Every gain node that dipped to the milestone depth: the music duck and the ambience duck.
+    const dipped = ctx().gains.filter((g) => g.gain.log.some((x) => Math.abs(x - deep) < 1e-3));
+    expect(dipped.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a level change loads the pitched root files of the new key, and none of them at boot', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.startLoading();
+    await flush();
+    const pitched = MIX.cues.filter((c) => c.transpose === 'nearestRootRate');
+    const newKeyFiles = pitched.map((c) => rel(pickFile(c, 0, new Map()).path)); // key C (pitch class 0)
+    expect(newKeyFiles.length).toBeGreaterThan(0);
+    for (const f of newKeyFiles) expect(fetched).not.toContain(f);
+    eng.setKeyPc(0);
+    await flush();
+    for (const f of newKeyFiles) expect(fetched).toContain(f);
+  });
+});
+
+// Ticket #55: the music's beat clock (setBeatClock, the hook the music tickets use). A cue with `quantise: 'beat'`
+// starts on the clock's next beat; with no clock (no music running) it starts at once. A cue without the option ignores the clock.
+describe('level-up stinger: the music beat', () => {
+  const LEVEL_UP_F = 'sfx/level_up__F.ogg';
+
+  /** A clock that answers `secs` for every time, and keeps the times it was asked about. */
+  const clockAt = (secs: number) => {
+    const asked: number[] = [];
+    return { asked, clock: { secondsToNextBeat(nowS: number) { asked.push(nowS); return secs; } } };
+  };
+  /** The start time of the first started source that played `path`. */
+  const startedAt = (path: string): number | undefined => sourcesOf().find((s) => s.started && s.buffer?.path === path)?.when;
+
+  it('with no music running the stinger starts at once', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F]);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.setBeatClock(null);
+    eng.playCue('level_up', { quantise: 'beat' });
+    expect(startedAt(LEVEL_UP_F)).toBe(12);
+  });
+
+  it('when the music stops (its clock is cleared) the stinger starts at once', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F]);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.setBeatClock(clockAt(0.75).clock);
+    eng.setBeatClock(null);
+    eng.playCue('level_up', { quantise: 'beat' });
+    expect(startedAt(LEVEL_UP_F)).toBe(12);
+  });
+
+  it('with a music clock the stinger starts on the next beat the clock gives', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F]);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    const { asked, clock } = clockAt(0.75);
+    eng.setBeatClock(clock);
+    eng.playCue('level_up', { quantise: 'beat' });
+    expect(asked).toEqual([12]); // the clock is asked from the context's own time
+    expect(startedAt(LEVEL_UP_F)).toBeCloseTo(12.75, 9);
+  });
+
+  it('a clock that says the beat is now starts the stinger at once', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F]);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.setBeatClock(clockAt(0).clock);
+    eng.playCue('level_up', { quantise: 'beat' });
+    expect(startedAt(LEVEL_UP_F)).toBe(12);
+  });
+
+  it('a cue without the quantise option ignores the clock and starts at once', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F]);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    const { asked, clock } = clockAt(0.75);
+    eng.setBeatClock(clock);
+    eng.playCue('level_up');
+    expect(asked).toEqual([]);
+    expect(startedAt(LEVEL_UP_F)).toBe(12);
+  });
+
+  it('a stinger and another beat-quantised cue in one bar start on the same beat (the music hook)', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([LEVEL_UP_F, 'sfx/payout__F.ogg']);
+    ctx().currentTime = 12;
+    vi.spyOn(performance, 'now').mockReturnValue(5000);
+    eng.setBeatClock(clockAt(0.5).clock);
+    eng.playCue('payout', { quantise: 'beat' });
+    eng.playCue('level_up', { quantise: 'beat' });
+    expect(startedAt('sfx/payout__F.ogg')).toBeCloseTo(12.5, 9);
+    expect(startedAt(LEVEL_UP_F)).toBe(startedAt('sfx/payout__F.ogg'));
   });
 });

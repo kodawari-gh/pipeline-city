@@ -249,3 +249,35 @@ describe('the clock and holds reach the director (readUi), with the real engine'
     expect(playedFiles()).toContain('ui/ui_error.ogg');
   });
 });
+
+// Ticket #55: the level-up stinger through the real director and engine. The sim writes the `level` note in the same
+// tick as the level change, so the note arrives in the snapshot that changes the key.
+describe('level-up stinger: the real director and engine', () => {
+  it('the level change asks for the new key stinger file', async () => {
+    const idx = await import('./index');
+    const boot = await import('../boot');
+    const store = await import('../store');
+    idx.initAudio();
+    gesture('pointerdown');
+    boot.booted.value = true;
+    await flush();
+    store.snapshot.value = snap(1, 1, []);
+    store.snapshot.value = snap(2, 2, [note(2, 'Level 2: Desk', 'level')]);
+    await flush();
+    expect(fetched).toContain('sfx/level_up__C.ogg'); // level 2 is key C
+  });
+
+  it('a level note plays level_up of the new key, in the same snapshot as the level change', async () => {
+    const idx = await import('./index');
+    const boot = await import('../boot');
+    const store = await import('../store');
+    idx.initAudio();
+    gesture('pointerdown');
+    boot.booted.value = true;
+    await flush();
+    store.snapshot.value = snap(1, 1, []);
+    await flush(); // the stinger decodes before the level changes
+    store.snapshot.value = snap(2, 2, [note(2, 'Level 2: Desk', 'level')]);
+    expect(playedFiles()).toEqual(['sfx/level_up__C.ogg']);
+  });
+});
