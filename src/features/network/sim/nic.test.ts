@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { IRQ, JobState, KDATA_BASE, KSLOT, KSLOT_BYTES, NET_KEY, NIC_REG, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_TX_HEAD_WORDS, NICA, NICK, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot } from "@/core/sim/memmap";
+import { IRQ, JobState, KDATA_BASE, KSLOT, KSLOT_BYTES, NET_KEY, NIC_ACK_NEXT_MASK, NIC_REG, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_STAMP_SHIFT, NIC_TX_HEAD_WORDS, NICA, NICK, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot } from "@/core/sim/memmap";
 import { ECONOMY } from "../../economy/sim/economy";
 import { Game } from "@/worker/game/game";
 import { econ, netRig, rig } from "@/worker/game/testkit";
 import { Nic, NIC_FIFO_SEGS, type NicPacket, type NicSegment } from "./nic";
+import { fifoSegsOf } from "./specs";
 
 // The NIC as a device, alone: registers, the receive ring and the transmit ring by DMA, the FIFO, the link.
 
@@ -198,6 +199,7 @@ describe("the NIC device", () => {
 
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
+ECONOMY.lossTable = false; // no segment is lost unless a test asks for it (`wireLoss`) or switches the table on (`lossTable: true`)
 
 const offer = (g: Game, template = "cli.log", scale = 1): void => {
   (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(template, scale, undefined, true);
@@ -386,6 +388,26 @@ describe("the NIC and the kernel when things go wrong", { timeout: 120000 }, () 
     expect(run()).toEqual(run());
   });
 
+  it("an old copy of segment 0 does not undo the job's progress: the kernel does not take it, says what it wants, and takes each segment once", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    offer(g, "web.dns", 4);
+    const key = g.offersQ.waiting()[0]!;
+    g.offersQ.take(key.id); // the host does not download it: this test is the sender
+    const words = g.jobWords(key);
+    const seg = (seq: number): NicSegment => ({ key: key.id, seq, count: 3, total: words.length, words: words.subarray(seq * 64, (seq + 1) * 64), flags: 0 });
+    // what a sender's timeouts leave behind: a copy of segment 0 in the ring between segments 1 and 2
+    for (const s of [0, 1, 0, 2]) g.wireQ.push({ at: g.baseTick + 1, seg: seg(s) });
+    const states = new Set<number>();
+    for (let i = 0; i < 80; i++) {
+      g.advanceBaseTick();
+      for (const j of g.kernelJobs()) if (j.net) states.add(j.state);
+    }
+    expect(g.nic.view().rx).toBe(4); // the NIC took all four
+    expect(kword(g, "GOT")).toBe(3); // the kernel took segments 0, 1 and 2 once each
+    expect(kword(g, "DROPS")).toBe(1); // and threw the copy away
+    expect(states.has(JobState.Running)).toBe(true); // the job came in whole and ran
+  });
+
   it("with no loss and a roomy ring nothing is resent and nothing is dropped, anywhere", () => {
     const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
     offer(g, "web.dns", 4);
@@ -432,5 +454,87 @@ describe("the NIC and the kernel when things go wrong", { timeout: 120000 }, () 
     expect(g.snapshot().net.counters.delivered).toBe(before + 1);
     expect(g.nic.view().rx).toBe(3); // the same three segments, from the spool this time
     expect(g.spool).toHaveLength(0);
+  });
+});
+
+// ---- the round trip, the loss table and the packet buffer of each chip
+
+describe("the stamp, the round trip, the loss table and the input FIFO", { timeout: 120000 }, () => {
+  it("the kernel's acknowledgement carries the stamp of the segment it answers, with the segment it wants in the low byte", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    offer(g, "web.dns", 4);
+    const key = g.offersQ.waiting()[0]!;
+    g.offersQ.take(key.id); // the host does not download it: this test is the sender
+    const words = g.jobWords(key);
+    const seg = (seq: number, stamp: number): NicSegment => ({ key: key.id, seq, count: 3, total: words.length, words: words.subarray(seq * 64, (seq + 1) * 64), flags: (stamp << NIC_STAMP_SHIFT) >>> 0 });
+    const acks: { next: number; stamp: number }[] = [];
+    const wireSend = g.wireSend.bind(g);
+    g.wireSend = (p) => { if (p.words.length === 0) acks.push({ next: p.arg & NIC_ACK_NEXT_MASK, stamp: p.arg >>> NIC_STAMP_SHIFT }); wireSend(p); };
+    [0, 1, 0, 2].forEach((s, i) => g.wireQ.push({ at: g.baseTick + 1, seg: seg(s, 0x111 * (i + 1)) })); // the third is an old copy of segment 0
+    for (let i = 0; i < 80; i++) g.advanceBaseTick();
+    expect(acks).toEqual([{ next: 1, stamp: 0x111 }, { next: 2, stamp: 0x222 }, { next: 2, stamp: 0x333 }, { next: 3, stamp: 0x444 }]);
+  });
+
+  it("the downloads of a link time the round trip together, and the estimate is gone with the link", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    expect(g.netRtt).toBeNull();
+    offer(g, "web.dns", 4);
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+    expect(g.netRtt?.sampled).toBe(true);
+    expect(g.netRtt!.srtt).toBeGreaterThanOrEqual(1);
+    expect(g.disconnectCable("lan").ok).toBe(true);
+    g.advanceBaseTick();
+    expect(g.netRtt).toBeNull();
+  });
+
+  it("a download of one segment times its round trip too: the last acknowledgement comes in the tick the host adopts the job", () => {
+    const g = netRig("ssd1", { economy: { baseDemandPerTick: 0 } });
+    offer(g, "cli.log", 1); // a program of one segment
+    const before = g.snapshot().net.counters.delivered;
+    for (let i = 0; i < 4000 && g.snapshot().net.counters.delivered === before; i++) g.advanceBaseTick();
+    expect(g.nic.view().rx).toBe(1);
+    expect(g.netRtt?.sampled).toBe(true);
+  });
+
+  it("the loss the parts of the link make: the ISP plan, the router and a hot card, combined; the table can be switched off", () => {
+    const cheap = netRig("ssd1", { economy: { baseDemandPerTick: 0, lossTable: true } }); // isp1 and router1: 2% each
+    expect(cheap.wireLoss()).toBeCloseTo(1 - 0.98 * 0.98, 9);
+    const card = netRig("ssd1", { port: "nic1", isp: "isp2", router: "router2", economy: { baseDemandPerTick: 0, lossTable: true } }); // 0.5% each
+    expect(card.wireLoss()).toBeCloseTo(1 - 0.995 * 0.995, 9);
+    const st = card.thermal.state(card.link.port.deviceId!)!;
+    st.errProb = 0.3;
+    st.unstable = false;
+    expect(card.wireLoss()).toBeCloseTo(1 - 0.995 * 0.995, 9); // a card that is not unstable loses nothing, whatever its error odds
+    st.unstable = true;
+    expect(card.wireLoss()).toBeCloseTo(1 - 0.995 * 0.995 * 0.7, 9); // an unstable one corrupts segments
+    const off = netRig("ssd1", { economy: { baseDemandPerTick: 0, lossTable: false } });
+    expect(off.wireLoss()).toBe(0);
+    const extra = netRig("ssd1", { economy: { baseDemandPerTick: 0, lossTable: false, wireLoss: 0.1 } });
+    expect(extra.wireLoss()).toBeCloseTo(0.1, 9);
+    const both = netRig("ssd1", { economy: { baseDemandPerTick: 0, lossTable: true, wireLoss: 0.1 } });
+    expect(both.wireLoss()).toBeCloseTo(1 - 0.9 * 0.98 * 0.98, 9);
+  });
+
+  it("a better plan and router lose fewer segments over the same jobs", () => {
+    const lost = (isp: string, router: string): number => {
+      let total = 0;
+      for (const seed of [1, 2, 3]) {
+        const g = netRig("ssd1", { isp, router, seed, economy: { baseDemandPerTick: 0, lossTable: true } });
+        for (let k = 0; k < 6; k++) offer(g, "web.dns", 4);
+        for (let i = 0; i < 6000; i++) g.advanceBaseTick();
+        total += g.netWire.lost;
+      }
+      return total;
+    };
+    expect(lost("isp1", "router1")).toBeGreaterThan(lost("isp2", "router2"));
+  });
+
+  it("the input FIFO is as deep as the chip the cable is in: the board's jack 2 segments, nic1 4, nic2 8, nic3 16", () => {
+    expect([null, "board", "nic1", "nic2", "nic3"].map(fifoSegsOf)).toEqual([2, 2, 4, 8, 16]);
+    for (const [port, depth] of [[undefined, 2], ["nic1", 4], ["nic2", 8]] as const) {
+      const g = netRig("ssd1", { port, economy: { baseDemandPerTick: 0 } });
+      expect(g.nic.view().fifoSegs, String(port)).toBe(depth);
+    }
   });
 });

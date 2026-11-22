@@ -66,7 +66,7 @@ Speeds are in Mbit/s. Sizes of jobs are in "game MB" (fiction units, see "Job si
 | `nic2` | 10GbE card | 10000 | $500 | 5 / 11 | 65 / 80 / 95 | level 11 |
 | `nic3` | 40GbE card | 40000 | $1800 | 9 / 22 | 60 / 75 / 90 | level 17 |
 
-  The card's load watts follow its traffic (utilisation of the link), so a busy 40G card is a real power and heat source and counts against the PSU rated load at install time like any part (`heatFactor` 1). Above its throttle temperature the card runs at half speed, above unstable it drops frames (transfers stall, a retry timer), above damage it burns (like any device; replace it). Fast cards want airflow, so cooler and case-fan choices matter again. A card needs a free `pcie` slot (Basic has 1, Mainstream 2, Enthusiast 4), so the network competes for slots with the future GPU, NPU and TPM: a deliberate choice.
+  The card's load watts follow its traffic (utilisation of the link), so a busy 40G card is a real power and heat source and counts against the PSU rated load at install time like any part (`heatFactor` 1). Above its throttle temperature the card runs at half speed, above unstable it corrupts frames (each segment that crosses it is lost with the card's error odds, `errProb`: 1% plus 2% per degree, at most 50%, and the sender sends it again after its timeout), above damage it burns (like any device; replace it). Each chip has its own **input FIFO**, the packets that wait for a free ring slot: the onboard jack 2 segments, `nic1` 4, `nic2` 8, `nic3` 16 (`NIC_FIFO` in `network/sim/specs.ts`). A segment that finds it full is dropped, so a deeper FIFO rides out a longer spell of a busy kernel (`NETSTACK.md` 3.2). Fast cards want airflow, so cooler and case-fan choices matter again. A card needs a free `pcie` slot (Basic has 1, Mainstream 2, Enthusiast 4), so the network competes for slots with the future GPU, NPU and TPM: a deliberate choice.
 - On Basic and Mainstream the onboard jack is 100 Mbit, so `nic1` (level 7) is the cheap step from 100 to 1000 without the $700 Enthusiast board (level 9). Enthusiast already has 1 Gbit, and a card is for 10G and 40G.
 
 ### The cable (a drag)
@@ -84,6 +84,8 @@ A separate external box placed beside the monitor, powered from the wall (no PSU
 | `router3` | 10G switch-router | 10000 | 8 | $700 | level 11 |
 | `router4` | Edge router | 40000 | 16 | $2500 | level 17 |
 
+Each router loses a share of the segments that cross it (`RouterSpec.loss`, placeholders): `router1` 2%, `router2` 0.5%, `router3` and `router4` 0.1%.
+
 ### The ISP plan (a one-off purchase; the wall jack)
 
 Bought once, not an installed part and not a bill (owner): `purchase("isp1")` sets the plan; a higher plan replaces it (no refund, no downgrade offer). The router is pre-wired to the wall jack, so there is no second cable. The plan caps the download and upload bandwidth and how many clients can be served at once.
@@ -95,6 +97,8 @@ Bought once, not an installed part and not a bill (owner): `purchase("isp1")` se
 | `isp3` | Fibre | 1000 / 300 | 8 | $1500 | level 9 |
 | `isp4` | Business fibre | 5000 / 1500 | 16 | $5000 | level 14 |
 | `isp5` | Backbone | 20000 / 10000 | 32 | $15000 | level 18 |
+
+The plan's line loses segments too (`IspSpec.loss`, placeholders): `isp1` 2%, `isp2` 0.5%, `isp3` to `isp5` 0.1%. The chance a segment is lost is the combination of the plan, the router, a card that has gone unstable from heat and the extra `ECONOMY.wireLoss` (0 by default): `1 - (1 - a)(1 - b)(1 - c)(1 - d)` (`NETSTACK.md` 3.5). `ECONOMY.lossTable = false` leaves only `wireLoss` (the tests that pin a transfer to the tick use it).
 
 ### Effective bandwidth and clients
 
@@ -380,6 +384,26 @@ Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2` (96K), level 4 to 7 start
 | 7 | `isp2` / `router2` | 113 | 162 | 60% | 89% | 7,843 |
 
 `isp2` pays visibly more at every level (more web jobs delivered, and a better yield from level 5), and `router2` adds 14 to 43% on top of it. The SLA's own share of that is the yield column: small at level 4 (the CPU, not the line, sets the time), 5 to 8 points from level 5. A sweep of `slaTicks` from 45 to 120 left the yield gap between `isp1` and `isp2` / `router2` unchanged (level 4: 0 to 1 points, 5: 5 to 7, 6: 7 to 8, 7: 6) and only 120 keeps `isp2` / `router2` on time at 60% or more at every level (at 45 it is 60, 54, 21 and 19%), so **120 stays**. No other balance number changed.
+
+### Measured with the transport and the loss table (2026-11-22)
+
+Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2`, the onboard jack, demand 0.03 per tick, the level's job mix, 3 seeds of 4,000 ticks (sums over the seeds). *Done* is jobs completed; *sent* the segments the senders put on the wire, *resent* the resends among them, *timeouts* the retransmission timers that fired. *Table off* is no loss (`ECONOMY.lossTable = false`), *on* the plan and router shares of 3.5.
+
+| Level | Plan / router | Table | Done | Sent | Resent | Timeouts | NIC drops |
+|---|---|---|---|---|---|---|---|
+| 4 | `isp1` / `router1` | off / on | 380 / 383 | 595 / 635 | 12 / 47 | 30 / 61 | 0 / 1 |
+| 4 | `isp2` / `router1` | off / on | 505 / 489 | 835 / 828 | 21 / 58 | 34 / 71 | 4 / 0 |
+| 4 | `isp2` / `router2` | off / on | 503 / 478 | 819 / 799 | 13 / 31 | 29 / 46 | 0 / 0 |
+| 5 | `isp1` / `router1` | off / on | 359 / 317 | 590 / 555 | 14 / 45 | 30 / 54 | 1 / 0 |
+| 5 | `isp2` / `router1` | off / on | 463 / 455 | 793 / 816 | 14 / 52 | 23 / 62 | 1 / 0 |
+| 5 | `isp2` / `router2` | off / on | 466 / 458 | 796 / 796 | 13 / 27 | 24 / 43 | 0 / 0 |
+| 7 | `isp1` / `router1` | off / on | 311 / 279 | 544 / 524 | 5 / 35 | 15 / 52 | 0 / 0 |
+| 7 | `isp2` / `router1` | off / on | 382 / 386 | 692 / 746 | 15 / 51 | 25 / 62 | 5 / 6 |
+| 7 | `isp2` / `router2` | off / on | 379 / 377 | 696 / 705 | 14 / 31 | 25 / 45 | 4 / 4 |
+
+With the table on, a resend is mostly a lost segment sent again: *resent* is about the segments the wire lost plus a dozen. The cheap plan costs the most: at levels 5 and 7 `isp1` / `router1` delivers 10 to 12% fewer jobs than the same line without loss, `isp2` / `router2` 0 to 5% fewer. The jobs are CPU-bound otherwise, so the plan and router prices (`PROGRESSION.md`) did not move. The measured round trip settles at 4 to 29 ticks: the kernel answers when its loop gets to the NIC, and a job that runs on OS 1 or 2 holds it up for the job's length.
+
+*Before the timestamp echo and the shared estimate* (the first transport) the `isp2` runs sent 1,100 to 1,350 segments and resent 430 to 550 of them (about 40%), because each download started with a 3-tick timer against a kernel that answered 8 to 60 ticks later. Every download now starts with the round trip the link has shown, and a timer fires for a lost segment, not for a slow answer.
 
 ## Decided (2026-10-24)
 

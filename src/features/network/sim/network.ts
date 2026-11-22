@@ -3,10 +3,10 @@
 
 import { BOARD_TIERS, deviceSpec, type NicSpec } from "../../board/sim";
 import { generate } from "../../jobs/sim/gen";
-import { JOB_ROW, JobState, NIC_FLAG_ABORT, NIC_FLAG_REPLAY, NIC_SEG_WORDS } from "@/core/sim/memmap";
-import { bandwidth, DISK_NET_MBPS, ispByTier, jobSizes, NET, pickOffer, routerByTier } from ".";
+import { JOB_ROW, JobState, NIC_ACK_NEXT_MASK, NIC_FLAG_ABORT, NIC_FLAG_REPLAY, NIC_SEG_WORDS, NIC_STAMP_MASK, NIC_STAMP_SHIFT } from "@/core/sim/memmap";
+import { bandwidth, DISK_NET_MBPS, fifoSegsOf, ispByTier, jobSizes, NET, pickOffer, routerByTier } from ".";
 import type { NicPacket, NicSegment } from "./nic";
-import { Flow } from "./transport";
+import { Flow, RttEstimate } from "./transport";
 import type { Game } from "@/worker/game/game";
 import type { Key, KernelJob, Link, Transfer } from "@/worker/game/internal";
 import { needsMet } from "../../economy/sim/levels";
@@ -51,6 +51,21 @@ export function computeLink(this: Game): Link {
     return { ...up, state: "saturated", reason: slotsFull ? "every client slot is busy" : "the spool is full" };
   }
   return up;
+}
+
+/**
+ * The chance the wire loses a segment now (docs/NETSTACK.md 3.5). The parts of the link each lose their own share (`ECONOMY.lossTable`): the ISP plan's line, the router and, in the cabled
+ * card, a chip that has gone unstable from heat (above its throttle mark the card only runs at half speed, `portInfo`; its errors start at the unstable mark and grow with the temperature,
+ * the thermal model's `errProb`). `ECONOMY.wireLoss` is a fourth, extra source. The chances combine as independent events: 1 - (1 - a)(1 - b)(1 - c)(1 - d).
+ */
+export function wireLoss(this: Game): number {
+  let keep = 1 - this.cfg.wireLoss;
+  if (this.cfg.lossTable) {
+    const id = this.link.port.deviceId;
+    const hot = id ? this.thermal.state(id) : undefined;
+    keep *= (1 - (this.link.isp?.loss ?? 0)) * (1 - (this.link.router?.loss ?? 0)) * (1 - (hot?.unstable ? hot.errProb : 0));
+  }
+  return 1 - keep;
 }
 
 /**
@@ -114,6 +129,8 @@ export function netTick(this: Game): void {
     this.deadTicks++;
   }
   this.nic.linkUp = usable;
+  this.nic.fifoSegs = fifoSegsOf(this.board.devices.find((d) => d.id === this.link.port.deviceId)?.spec ?? null); // the chip the cable is in has its own packet buffer
+  if (usable) deliverAcks(this); // the answers reach their senders before the host adopts a job (the last acknowledgement of a download that is one segment long comes in the tick it is whole)
   this.adoptReceived(); // what the kernel has whole is kept, whatever the link does next
   if (!usable) this.loseTransfers();
   else this.runTransfers();
@@ -149,7 +166,7 @@ function countFrames(f: { rx: number; tx: number }, mb: number, dir: "rx" | "tx"
 
 /**
  * Start downloads for waiting offers, run every flow a tick (the segments it puts on the wire, `network/sim/transport.ts`) and move the bytes of the uploads. The acknowledgements the kernel
- * sent come back first (`wireSend` queued them).
+ * sent come back first (`wireSend` queued them; `netTick` has handed over the ones that were due already, so this finds none unless it is called alone).
  */
 export function runTransfers(this: Game): void {
   const bw = this.link.bw;
@@ -212,7 +229,9 @@ function newDownload(g: Game, key: Key, replay: boolean): Transfer {
   const segMB = replay ? 0 : jobSizes(key.cls, key.type, key.scale).downMB / segs;
   const share = g.link.bw.downMbps / 8 / (g.downloads.length + 1);
   const cwnd = segMB > 0 ? Math.ceil((share * NET.rttTicks) / segMB) : 2;
-  const flow = new Flow({ id: key.id, seed: g.seed, segs, segMB, rtt: NET.rttTicks, cwnd, loss: replay ? 0 : g.cfg.wireLoss });
+  // the downloads of a link learn the round trip together; a replay never leaves the machine, so what it measures says nothing about the link
+  const rtt = replay ? NET.rttTicks : (g.netRtt ??= new RttEstimate(NET.rttTicks));
+  const flow = new Flow({ id: key.id, seed: g.seed, segs, segMB, rtt, cwnd, loss: replay ? 0 : g.wireLoss() });
   return { key, totalMB: flow.workMB, doneMB: 0, words, segs, flow, ...(replay ? { replay: true } : {}) };
 }
 
@@ -220,6 +239,7 @@ function newDownload(g: Game, key: Key, replay: boolean): Transfer {
 function runFlow(g: Game, t: Transfer, share: number): void {
   const f = t.flow!;
   const was = { ...f.stats };
+  if (!t.replay) f.loss = g.wireLoss(); // the line, the router and the card can change while a download runs (a card heats up)
   const sends = f.step(g.baseTick, f.moving ? share : 0);
   for (const k of ["sent", "resent", "lost", "timeouts"] as const) g.netWire[k] += f.stats[k] - was[k];
   if (!t.replay) {
@@ -228,19 +248,20 @@ function runFlow(g: Game, t: Transfer, share: number): void {
     t.totalMB = f.workMB;
   }
   const words = t.words!;
+  const stamp = (g.baseTick & NIC_STAMP_MASK) << NIC_STAMP_SHIFT; // the clock the segment leaves by: the kernel echoes it in the acknowledgement
   for (const s of sends) {
     if (s.lost) continue;
-    const seg: NicSegment = { key: t.key.id, seq: s.seq, count: t.segs!, total: words.length, words: words.subarray(s.seq * NIC_SEG_WORDS, (s.seq + 1) * NIC_SEG_WORDS), flags: t.replay ? NIC_FLAG_REPLAY : 0 };
+    const seg: NicSegment = { key: t.key.id, seq: s.seq, count: t.segs!, total: words.length, words: words.subarray(s.seq * NIC_SEG_WORDS, (s.seq + 1) * NIC_SEG_WORDS), flags: ((t.replay ? NIC_FLAG_REPLAY : 0) | stamp) >>> 0 };
     g.wireQ.push({ at: g.baseTick + 1, seg }); // the NIC's step in the next tick takes it
   }
 }
 
-/** The acknowledgements that have reached their senders: each tells a flow which segment the kernel wants next. */
+/** The acknowledgements that have reached their senders: each tells a flow which segment the kernel wants next, and (the echo of the segment's stamp) how long ago that segment left. */
 function deliverAcks(g: Game): void {
   const due = g.wireAcks.filter((a) => a.at <= g.baseTick);
   if (due.length === 0) return;
   g.wireAcks = g.wireAcks.filter((a) => a.at > g.baseTick);
-  for (const a of due) (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(g.baseTick, a.next);
+  for (const a of due) (g.downloads.find((t) => t.key.id === a.key) ?? g.restores.find((t) => t.key.id === a.key))?.flow?.ack(g.baseTick, a.next, (g.baseTick - a.stamp) & NIC_STAMP_MASK);
 }
 
 /** A segment sent more times than the transport allows without an answer: the download fails. The offer goes back (attempts + 1) and a reset tells the kernel to free what it holds of the job. */
@@ -289,7 +310,7 @@ export function wirePull(this: Game): NicSegment | null {
  */
 export function wireSend(this: Game, p: NicPacket): void {
   if (p.words.length === 0) {
-    this.wireAcks.push({ at: this.baseTick, key: p.key, next: p.arg });
+    this.wireAcks.push({ at: this.baseTick, key: p.key, next: p.arg & NIC_ACK_NEXT_MASK, stamp: p.arg >>> NIC_STAMP_SHIFT });
     return;
   }
   // a result means the kernel had the whole job, even if the last acknowledgement has not reached the sender (it was lost, or is late): the download is over
@@ -369,6 +390,7 @@ export function loseTransfers(this: Game): void {
   this.restores = [];
   this.wireQ = []; // what was on the wire is gone with the link
   this.wireAcks = [];
+  this.netRtt = null; // and so is what the senders had learned of its round trip
   this.nic.flush();
 }
 

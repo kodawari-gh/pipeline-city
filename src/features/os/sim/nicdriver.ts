@@ -14,7 +14,7 @@
 // Calling convention: `knic` (call it with `ra`) keeps s0 (PCH base), s1 (the boot drive's port) and s3 (the OS header) and clobbers a0-a3, t0-t4, s2 and ra.
 
 import {
-  JobState, KSLOT, KSLOT_BYTES, NET_KEY, NIC_AREA_END, NIC_BASE, NIC_FLAG_ABORT, NIC_REG, NIC_RX_AT, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_RX_SLOTS, NIC_TX_AT, NIC_TX_HEAD_WORDS, NIC_TX_SLOT_BYTES, NIC_TX_SLOTS,
+  JobState, KSLOT, KSLOT_BYTES, NET_KEY, NIC_AREA_END, NIC_BASE, NIC_FLAG_ABORT, NIC_REG, NIC_RX_AT, NIC_RX_HEAD_WORDS, NIC_RX_SLOT_BYTES, NIC_RX_SLOTS, NIC_STAMP_SHIFT, NIC_TX_AT, NIC_TX_HEAD_WORDS, NIC_TX_SLOT_BYTES, NIC_TX_SLOTS,
   NICA, NICK, NicCtrl, NicRx, NicStatus, NicTx, NicTxSlot, OS_HEADER, OS_SPOOL_MAP, PCH_REG, PCH_RESULT_WORDS, PchPhase,
 } from "@/core/sim/memmap";
 
@@ -207,8 +207,7 @@ export function nicPoll(env: NicDriverEnv): string[] {
     `  lw t0, ${word(NicRx.SEQ)}(a2)`,
     `  lw t1, ${KSLOT.RESULT}(a3)`,
     "  beq t0, t1, nc_write",
-    "  bne t0, zero, nc_ooo", // not the segment the job wants: not taken, and the acknowledgement says which one is
-    `  sw zero, ${KSLOT.RESULT}(a3)`, // segment 0 again: the transfer began over
+    "  j nc_ooo", // not the segment the job wants (an old copy that waited in the ring, or one that jumped ahead): not taken, and the acknowledgement says which one is. Never a restart: the copies of segment 0 a sender's timeouts leave behind would undo the job's progress
     "nc_write:",
     `  lw a1, ${KSLOT.LBA}(a3)`,
     "  add a1, a1, t0", // the job's spool block of this segment
@@ -257,7 +256,11 @@ export function nicPoll(env: NicDriverEnv): string[] {
     `  lw t3, ${word(NicRx.KEY)}(a2)`,
     `  sw t3, ${word(NicTxSlot.KEY)}(t1)`,
     `  sw zero, ${word(NicTxSlot.NWORDS)}(t1)`,
-    `  sw a1, ${word(NicTxSlot.ARG)}(t1)`,
+    `  lw t3, ${word(NicRx.FLAGS)}(a2)`, // the segment's stamp (above the flags) goes back in the acknowledgement, with the segment wanted below it
+    `  srli t3, t3, ${NIC_STAMP_SHIFT}`,
+    `  slli t3, t3, ${NIC_STAMP_SHIFT}`,
+    "  or t3, t3, a1",
+    `  sw t3, ${word(NicTxSlot.ARG)}(t1)`,
     `  li t3, ${NicTx.Ready}`,
     `  sw t3, ${word(NicTxSlot.STATUS)}(t1)`,
     "  addi t0, t0, 1",

@@ -75,8 +75,8 @@ export interface Transfer {
 /** A segment on its way to the NIC: it reaches the NIC's input at the tick `at`. */
 export interface WireSegment { at: number; seg: NicSegment }
 
-/** An acknowledgement the kernel sent, on its way back to the sender: it reaches it at the tick `at`. */
-export interface WireAck { at: number; key: number; next: number }
+/** An acknowledgement the kernel sent, on its way back to the sender: it reaches it at the tick `at`. `stamp` is the clock the segment it answers carried when it left (`NIC_STAMP_SHIFT`). */
+export interface WireAck { at: number; key: number; next: number; stamp: number }
 
 /** The link as evaluated each tick. */
 export interface Link {

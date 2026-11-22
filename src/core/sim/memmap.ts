@@ -402,7 +402,7 @@ export const NIC_RX_SLOT_BYTES = 4 * (NIC_RX_HEAD_WORDS + NIC_SEG_WORDS);
 export const NIC_RX_SLOTS = 4;
 /**
  * A transmit slot: status (`NicTx`), the job's key, the words that follow (0: an acknowledgement, no result), the argument (a result: the job table slot it came from; an acknowledgement: the
- * next segment the kernel wants), then the result words.
+ * next segment the kernel wants in the low byte, `NIC_ACK_NEXT_MASK`, and the stamp of the segment it answers above it, `NIC_STAMP_SHIFT`), then the result words.
  */
 export const NIC_TX_HEAD_WORDS = 4;
 export const NicTxSlot = { STATUS: 0, KEY: 1, NWORDS: 2, ARG: 3 } as const;
@@ -414,6 +414,14 @@ export const NicTx = { Free: 0, Ready: 1, Done: 2 } as const;
 export const NIC_FLAG_REPLAY = 1;
 /** The header flag of a reset: the sender gave the transfer up, and the kernel may free the job's slot if it is still receiving it. It carries no payload and is not acknowledged. */
 export const NIC_FLAG_ABORT = 2;
+/**
+ * The rest of a segment's flags word is a stamp: the sender's clock when the segment left, in ticks, `NIC_STAMP_BITS` of it (a TCP timestamp option). The kernel copies it into the acknowledgement
+ * it sends (`NicTxSlot.ARG`, above the segment number in the low byte), so the sender can time the round trip of every segment, even one it sent twice.
+ */
+export const NIC_STAMP_SHIFT = 8;
+export const NIC_STAMP_BITS = 24;
+export const NIC_STAMP_MASK = 0xffffff;
+export const NIC_ACK_NEXT_MASK = 0xff;
 /**
  * The RAM the kernel keeps for the NIC, above the kernel image of every tier and below the job table: its own words, the receive ring and the transmit ring. It lies inside the range
  * the OS protects from the jobs (the OS header to the end of its data), so a job cannot touch it.

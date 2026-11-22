@@ -22,12 +22,12 @@ export interface NicSegment { key: number; seq: number; count: number; total: nu
 /** A packet the NIC sends: the job it answers, the result words the kernel put in the transmit ring (none: an acknowledgement) and the argument (an acknowledgement: the next segment the kernel wants). */
 export interface NicPacket { key: number; words: Uint32Array; arg: number }
 
-/** Segments the input FIFO holds: the chip's own packet buffer, small, so the wire feels a slow kernel soon. */
+/** Segments the input FIFO holds on the smallest chip (the port on the board): the chip's own packet buffer, small, so the wire feels a slow kernel soon. A card's is deeper (`NIC_FIFO` in `specs.ts`). */
 export const NIC_FIFO_SEGS = 2;
 
 /** What the NIC shows from the outside (the views and the tests). */
 export interface NicView {
-  enabled: boolean; link: boolean; fifo: number; rxHead: number; rxTail: number; rxSlots: number; txHead: number; txTail: number; txSlots: number;
+  enabled: boolean; link: boolean; fifo: number; fifoSegs: number; rxHead: number; rxTail: number; rxSlots: number; txHead: number; txTail: number; txSlots: number;
   rx: number; drops: number; tx: number; irqs: number; dmaWords: number;
 }
 
@@ -44,6 +44,8 @@ export class Nic implements Device {
   onTransmit: ((p: NicPacket) => void) | null = null;
   /** Where the segments come from: the wire. Each NIC step the input FIFO asks for one while it has room (null: the wire has none for the NIC now). */
   pull: (() => NicSegment | null) | null = null;
+  /** The depth of the input FIFO, in segments: a property of the chip the cable is in (the game sets it from the port, `NIC_FIFO`). */
+  fifoSegs = NIC_FIFO_SEGS;
 
   private ctrl = 0;
   private rxBase = 0;
@@ -86,7 +88,7 @@ export class Nic implements Device {
 
   /** The wire offers a segment: taken into the FIFO if the NIC runs, the link is up and there is room; false: not now, the wire keeps it and asks again. */
   accept(seg: NicSegment): boolean {
-    if (!this.enabled || !this.linkUp || this.fifo.length >= NIC_FIFO_SEGS) return false;
+    if (!this.enabled || !this.linkUp || this.fifo.length >= this.fifoSegs) return false;
     this.fifo.push(seg);
     return true;
   }
@@ -98,7 +100,7 @@ export class Nic implements Device {
 
   view(): NicView {
     return {
-      enabled: this.enabled, link: this.linkUp, fifo: this.fifo.length, rxHead: this.rxHead, rxTail: this.rxTail, rxSlots: this.rxSlots, txHead: this.txHead, txTail: this.txTail, txSlots: this.txSlots,
+      enabled: this.enabled, link: this.linkUp, fifo: this.fifo.length, fifoSegs: this.fifoSegs, rxHead: this.rxHead, rxTail: this.rxTail, rxSlots: this.rxSlots, txHead: this.txHead, txTail: this.txTail, txSlots: this.txSlots,
       rx: this.statRx, drops: this.statDrop, tx: this.statTx, irqs: this.statIrq, dmaWords: this.dmaWords,
     };
   }
@@ -121,7 +123,7 @@ export class Nic implements Device {
     if (this.linkUp && this.pull) {
       const seg = this.pull();
       if (seg) {
-        if (this.fifo.length < NIC_FIFO_SEGS) this.fifo.push(seg);
+        if (this.fifo.length < this.fifoSegs) this.fifo.push(seg);
         else this.drop();
       }
     }

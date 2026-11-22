@@ -36,6 +36,7 @@ import { Prng } from "../../core/sim/prng";
 import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from "../../core/sim/memmap";
 import { NetworkSource } from "../../features/network/sim";
 import { Nic } from "../../features/network/sim/nic";
+import type { RttEstimate } from "../../features/network/sim/transport";
 import { Pch, type PchKey } from "../../features/board/sim/pch";
 import * as bill from "../../features/economy/sim/bill";
 import * as clients from "../../features/economy/sim/clients";
@@ -217,6 +218,8 @@ export class Game {
   wireAcks: WireAck[] = [];
   /** What the senders have done since the game started (the transport's counters, not saved): segments put on the wire, the resends among them, segments the wire lost, timeouts. */
   netWire = { sent: 0, resent: 0, lost: 0, timeouts: 0 };
+  /** The round trip the senders have measured to this machine (the smoothed time and its deviation), shared by the downloads of the link; null until the first download. RAM-like: lost with the link. */
+  netRtt: RttEstimate | null = null;
   link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
   netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
   /** The frames the uplink port has received and sent since the game started (fractions kept; counted from the bytes the transfers move, `network.ts` `countFrames`). Not saved. */

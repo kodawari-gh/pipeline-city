@@ -4,26 +4,39 @@
 
 export interface RouterSpec {
   id: string; tier: number; name: string; mbps: number; clients: number; price: number; visual: string;
+  /** The chance the router loses a segment it forwards (docs/NETSTACK.md 3.5): a cheap one has small buffers and a slow forwarding path. */
+  loss: number;
 }
 
 export interface IspSpec {
   id: string; tier: number; name: string; downMbps: number; upMbps: number; clients: number; price: number;
+  /** The chance the plan's line loses a segment: the basic plans are noisy, a backbone is not. */
+  loss: number;
 }
 
 export const ROUTER_SPECS: readonly RouterSpec[] = [
-  { id: "router1", tier: 1, name: "Home router", mbps: 100, clients: 2, price: 60, visual: "router-home" },
-  { id: "router2", tier: 2, name: "Gigabit router", mbps: 1000, clients: 4, price: 200, visual: "router-gbe" },
-  { id: "router3", tier: 3, name: "10G switch-router", mbps: 10000, clients: 8, price: 700, visual: "router-10g" },
-  { id: "router4", tier: 4, name: "Edge router", mbps: 40000, clients: 16, price: 2500, visual: "router-core" },
+  { id: "router1", tier: 1, name: "Home router", mbps: 100, clients: 2, price: 60, visual: "router-home", loss: 0.02 },
+  { id: "router2", tier: 2, name: "Gigabit router", mbps: 1000, clients: 4, price: 200, visual: "router-gbe", loss: 0.005 },
+  { id: "router3", tier: 3, name: "10G switch-router", mbps: 10000, clients: 8, price: 700, visual: "router-10g", loss: 0.001 },
+  { id: "router4", tier: 4, name: "Edge router", mbps: 40000, clients: 16, price: 2500, visual: "router-core", loss: 0.001 },
 ];
 
 export const ISP_SPECS: readonly IspSpec[] = [
-  { id: "isp1", tier: 1, name: "Basic DSL", downMbps: 50, upMbps: 10, clients: 2, price: 150 },
-  { id: "isp2", tier: 2, name: "Cable", downMbps: 200, upMbps: 50, clients: 4, price: 500 },
-  { id: "isp3", tier: 3, name: "Fibre", downMbps: 1000, upMbps: 300, clients: 8, price: 1500 },
-  { id: "isp4", tier: 4, name: "Business fibre", downMbps: 5000, upMbps: 1500, clients: 16, price: 5000 },
-  { id: "isp5", tier: 5, name: "Backbone", downMbps: 20000, upMbps: 10000, clients: 32, price: 15000 },
+  { id: "isp1", tier: 1, name: "Basic DSL", downMbps: 50, upMbps: 10, clients: 2, price: 150, loss: 0.02 },
+  { id: "isp2", tier: 2, name: "Cable", downMbps: 200, upMbps: 50, clients: 4, price: 500, loss: 0.005 },
+  { id: "isp3", tier: 3, name: "Fibre", downMbps: 1000, upMbps: 300, clients: 8, price: 1500, loss: 0.001 },
+  { id: "isp4", tier: 4, name: "Business fibre", downMbps: 5000, upMbps: 1500, clients: 16, price: 5000, loss: 0.001 },
+  { id: "isp5", tier: 5, name: "Backbone", downMbps: 20000, upMbps: 10000, clients: 32, price: 15000, loss: 0.001 },
 ];
+
+/**
+ * The depth of each port's input FIFO, in segments (the chip's packet buffer; docs/NETSTACK.md 3.2): the key is the card's spec id, `board` is the jack on the motherboard. A deeper one rides out
+ * a kernel that is busy running a program (the ring is the kernel's 4 slots, the FIFO is on top of it), so a faster card drops fewer segments when the line outruns the CPU.
+ */
+export const NIC_FIFO: Readonly<Record<string, number>> = { board: 2, nic1: 4, nic2: 8, nic3: 16 };
+
+/** The FIFO depth of the port the cable is in: a card by its spec id, the motherboard's jack for `null`. */
+export const fifoSegsOf = (spec: string | null): number => NIC_FIFO[spec ?? "board"] ?? NIC_FIFO.board!;
 
 export const getRouterSpec = (id: string): RouterSpec | undefined => ROUTER_SPECS.find((r) => r.id === id);
 export const getIspSpec = (id: string): IspSpec | undefined => ISP_SPECS.find((r) => r.id === id);

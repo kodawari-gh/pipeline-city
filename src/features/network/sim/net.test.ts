@@ -9,6 +9,7 @@ import { econ, netRig, rig } from "@/worker/game/testkit";
 // Hardware tests: every item is buyable (levels have their own tests).
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
+ECONOMY.lossTable = false; // these tests pin transfers to the tick: no segment is lost unless a test asks for it (`wire loss` below uses the table on purpose)
 
 const tick = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 function until(g: Game, done: () => boolean, max = 3000): number {
