@@ -264,7 +264,7 @@ export const MIX = {
   {
    "kind": "level",
    "match": "",
-   "cue": "level_up"
+   "cue": null
   },
   {
    "kind": "ecc",

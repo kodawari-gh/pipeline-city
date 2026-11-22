@@ -49,7 +49,7 @@ LOG_RULES = [
  ("power", "powered on|reconnected", "power_on"), ("power", "powered off", "power_off"),
  ("key", "refused|pulled before", "key_refused"), ("key", "plugged in", "key_plug"), ("key", "told two friends", "new_clients"),
  ("job", "", "job_fulfilled"), ("payout", "\\(late\\)$", "payout_late"), ("payout", "", "payout"),
- ("drop", "", "client_drop"), ("expire", "", "job_expired"), ("decline", "", "job_declined"), ("level", "", "level_up"), ("ecc", "", "ecc"),
+ ("drop", "", "client_drop"), ("expire", "", "job_expired"), ("decline", "", "job_declined"), ("level", "", None), ("ecc", "", "ecc"),
  ("fault", "crashed and rebooted", "fault_crash"),
  ("fault", "VRM burnt out|cut the wall|power cord was pulled|hard power-off", "fault_hard"), ("fault", "", "fault_soft"),
  ("purchase", "^sold", "sell"), ("purchase", "", "purchase"), ("bill", "^paid", "bill_paid"), ("bill", "", "bill_issued"),

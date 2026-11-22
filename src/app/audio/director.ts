@@ -13,6 +13,8 @@ export interface CueSink {
 export interface DirectorSnap {
   log: GameEvent[];
   level: { level: number };
+  /** Queued swaps (a snapshot always has it; optional so a fixture may omit it). */
+  pendingSwaps?: readonly unknown[];
 }
 
 export interface Director {
@@ -27,6 +29,8 @@ export const NOTE_GAP_S = 0.04;
 export function createDirector(sink: CueSink): Director {
   const notes = createNoteTracker();
   let keyPc: number | null = null;
+  /** Queued swaps in the last snapshot; null before the first one (after a reset). */
+  let prevPending: number | null = null;
 
   return {
     onSnapshot(s) {
@@ -35,15 +39,25 @@ export function createDirector(sink: CueSink): Director {
         keyPc = pc;
         sink.setKeyPc(pc);
       }
+      // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
+      const pending = s.pendingSwaps?.length ?? 0;
+      const swapDone = prevPending !== null && pending < prevPending;
+      prevPending = pending;
       let i = 0;
+      let swapCued = false;
       for (const e of notes.fresh(s.log)) {
-        const id = cueForNote(e);
+        let id = cueForNote(e);
+        if (id === 'install' && swapDone) {
+          id = swapCued ? null : 'swap_done';
+          swapCued = true;
+        }
         if (id) sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
       }
     },
     reset() {
       notes.reset();
       keyPc = null;
+      prevPending = null;
     },
   };
 }
