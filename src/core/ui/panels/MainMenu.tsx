@@ -1,4 +1,3 @@
-import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { bootProgress } from '@/app/boot';
 import { autosaveAt, autosaveOffer, previousAt, previousOffer, startSim } from '@/app/store';
@@ -9,9 +8,10 @@ import { BUILD_HASH } from '../build';
 import { bootLine } from '../bootLine';
 import { cycleValue, mouseMayMoveFocus, moveFocus } from '../menuNav';
 import { DisplayTitle, PHONE_QUERY, STAGES, TestPoint, TraceLayer } from '../kit/Pipeline';
-import { buildOpen, galleryOpen, graphicsOpen, setUiScale, toggleGraphics, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
+import { buildOpen, galleryOpen, openSettings, settingsOpen } from '../state';
 import { loadFromFile, loadOffer } from './loadgame';
 import { openNewGame, newGameOpen } from './NewGame';
+import { SettingsScreen } from './Settings';
 
 // The MAIN MENU (screens 01 to 03 of docs/pipeline-city-menu-ui): a spine of tagged rows over the live room, with the display title and its
 // strip. 01 has a save (Continue is the hero row), 02 has none, 03 is the loading screen while the 3D world boots (Build my PC and Gallery wait).
@@ -20,7 +20,6 @@ import { openNewGame, newGameOpen } from './NewGame';
 // Keys: ↑ ↓ move between rows, ← → move between the utility buttons, Enter opens. The mouse does not move focus for one second
 // after a key press. Styles: ui.css (the Pipeline section).
 
-const settingsOpen = signal(false);
 const desktopOnly = () => !matchMedia(PHONE_QUERY).matches;
 
 /** SPEC §5.1 meta of Build my PC: "no saved builds", "1 saved build" or "3 saved builds". */
@@ -147,7 +146,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
               </button>
             )}
             <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => fileIn.current?.click()} onFocus={utilOn} onPointerEnter={utilOn}>Load file</button>
-            <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => { settingsOpen.value = true; }} onFocus={utilOn} onPointerEnter={utilOn}>Settings</button>
+            <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => openSettings('menu')} onFocus={utilOn} onPointerEnter={utilOn}>Settings</button>
             <input ref={fileIn} type="file" accept="application/json,.json" hidden
               onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void loadFromFile(f); e.currentTarget.value = ''; }} />
             {tp && <TestPoint />}
@@ -156,31 +155,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
           <TraceLayer root={root} at={at} tp={tp} />
         </div>
       </div>
-      <SettingsCard ready={ready} />
+      <SettingsScreen />
     </>
-  );
-}
-
-function SettingsCard({ ready }: { ready: boolean }) {
-  const open = settingsOpen.value;
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !graphicsOpen.peek()) settingsOpen.value = false; };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-  if (!open) return null;
-  return (
-    <div class="modal-back" onClick={(e) => { if (e.target === e.currentTarget) settingsOpen.value = false; }}>
-      <div class="card modal mm-card" role="dialog" aria-modal="true" aria-label="Settings">
-        <div class="big">Settings</div>
-        <label class="mm-row scale-row"><span>UI size</span>
-          <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
-          <b class="value">{Math.round(uiScale.value * 100)}%</b>
-        </label>
-        <div class="mm-row"><span>Picture</span><button disabled={!ready} title={ready ? undefined : 'Available when the room is ready'} onClick={toggleGraphics} aria-haspopup="dialog">Graphics…</button></div>
-        <div class="pactions"><button class="primary" autofocus onClick={() => { settingsOpen.value = false; }}>Done</button></div>
-      </div>
-    </div>
   );
 }

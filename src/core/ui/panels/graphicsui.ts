@@ -1,4 +1,4 @@
-// What the graphics modal (`Graphics.tsx`) says and how its keys move, as plain functions so a test can hold them.
+// What the Settings screen (`Settings.tsx`) says and how its keys move, as plain functions so a test can hold them.
 import { TIER_NAMES, type Preset, type TierRecord } from '@/app/graphics';
 
 /** A preset's card: its level (pips out of four) and what it is for, in a line. */
@@ -14,13 +14,6 @@ export function tierNote(rec: TierRecord): string {
   if (rec.mode === 'manual') return 'Set by you. Auto picks from the GPU and the CPU.';
   const name = TIER_NAMES.find(([id]) => id === rec.tier)![1];
   return `Auto picked ${name}${rec.reason ? `: ${rec.reason}` : ''}.`;
-}
-
-/** How the frame rate reads: under 30 is bad; under 90% of the limit (when there is one) is a warning; else fine. 0 FPS is not measured yet. */
-export function fpsTone(fps: number, limit: number): 'none' | 'ok' | 'warn' | 'bad' {
-  if (!fps) return 'none';
-  if (fps < 30) return 'bad';
-  return limit > 0 && fps < limit * 0.9 ? 'warn' : 'ok';
 }
 
 /**

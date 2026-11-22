@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { buildOpen, graphicsOpen } from '@/core/ui/state';
+import { buildOpen, settingsOpen } from '@/core/ui/state';
 import { airflowLens, powerLens } from '@/app/hover';
 import type { SavedBuild, Shown } from '@/features/board/sim/buildspecs';
 import { devNode } from '@/features/board/sim/removal';
@@ -116,7 +116,7 @@ export function BuildMode() {
         else if (benchRef.current) setBench(false);
         else if (air.current) cancel();
         else if (st?.selected.peek()) st.select(null);
-        else if (!graphicsOpen.peek()) buildOpen.value = false;
+        else if (!settingsOpen.peek()) buildOpen.value = false;
         return;
       }
       if (e.altKey || !st || benchRef.current || osRef.current) return;

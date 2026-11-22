@@ -8,6 +8,7 @@ import { selected } from '../../app/hover';
 import { lastRunSpeed, saveHooks, setSpeed, snapshot, speed } from '../../app/store';
 import type { Snapshot, Speed } from '../../worker/protocol';
 import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/progress/levelui';
+import { closeSettings as closeSettingsScreen, openSettings as openSettingsScreen, settingsOpener, type SettingsFrom } from './panels/settingsnav';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from '../../features/tutorial/ui/tutorial';
 
@@ -28,7 +29,8 @@ export const UI_SCALE_MIN = 0.8;
 export const UI_SCALE_MAX = 1.5;
 export const clampScale = (v: number) => (Number.isFinite(v) ? Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(v * 20) / 20)) : 1);
 export const uiScale = signal<number>(clampScale(Number(readStore(SCALE_KEY) ?? 1)));
-effect(() => { document.documentElement.style.setProperty('--ui-scale', String(uiScale.value)); });
+// (no page in the node test run: the root is touched only when the document has one)
+effect(() => { if (typeof document !== 'undefined') document.documentElement?.style.setProperty('--ui-scale', String(uiScale.value)); });
 export function setUiScale(v: number) {
   uiScale.value = clampScale(v);
   writeStore(SCALE_KEY, String(uiScale.value));
@@ -38,7 +40,7 @@ export function setUiScale(v: number) {
 
 // Paused (speed 0): UI animations that show sim activity stop too. CSS keys on `.paused` at the root (see `.sim-anim`).
 // Purely interactive feedback (hover, panels, toasts) is not frozen.
-effect(() => { document.documentElement.classList.toggle('paused', speed.value === 0); });
+effect(() => { if (typeof document !== 'undefined') document.documentElement?.classList.toggle('paused', speed.value === 0); });
 
 export const statsOpen = signal(false);
 export const netOpen = signal(false);
@@ -46,13 +48,18 @@ export const netOpen = signal(false);
 export const osOpen = signal(false);
 export const toggleOs = () => { osOpen.value = !osOpen.value; };
 export const closeOs = () => { osOpen.value = false; };
-/** The graphics settings: a modal sheet in the middle of the screen (`panels/Graphics.tsx`), over the game, the main menu and both studio screens. */
-export const graphicsOpen = signal(false);
+/** The Settings screen (SPEC §5.6, `panels/Settings.tsx`): the picture and the interface, over the menu, the game or a studio screen. Its opener lives in `panels/settingsnav.ts`. */
+export const settingsOpen = computed(() => settingsOpener.value !== null);
+export const settingsFrom = computed<SettingsFrom>(() => settingsOpener.value ?? 'menu');
+export const openSettings = (from: SettingsFrom = 'menu') => openSettingsScreen(from);
+/** Back and Esc: closes Settings and returns to its opener. The game menu shows again when it opened Settings (SPEC §9). */
+export const closeSettings = () => {
+  batch(() => { if (closeSettingsScreen() === 'paused') gameMenuOpen.value = true; });
+};
 // The stats and network drawers dock on the same side: opening one closes the other.
 export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) netOpen.value = false; };
 /** The network panel (opened from the HUD chip once a router exists). */
 export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) statsOpen.value = false; };
-export const toggleGraphics = () => { graphicsOpen.value = !graphicsOpen.value; };
 /** The in-game menu (the "…" button in the bar). Esc opens it when nothing else is open (`Hud.tsx`). */
 export const gameMenuOpen = signal(false);
 /** The controls reference: every key and mouse move of the game (`panels/Controls.tsx`; the menu's Help, and the ? key). */
@@ -257,7 +264,7 @@ export function closeControls(): void {
   });
 }
 effect(() => { if (!controlsOpen.value) controlsFromMenu.value = false; });
-const menuFamily = computed(() => gameMenuOpen.value || (controlsOpen.value && controlsFromMenu.value));
+const menuFamily = computed(() => gameMenuOpen.value || (settingsOpen.value && settingsFrom.value === 'paused') || (controlsOpen.value && controlsFromMenu.value));
 effect(() => setHold('menu', menuFamily.value));
 
 export function dismissLevelUp() {

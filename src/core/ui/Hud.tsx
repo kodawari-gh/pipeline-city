@@ -33,9 +33,9 @@ import { toggleTrace, TracePanel, traceOpen } from '../../features/cpu/ui/TraceP
 import { AlmanacPanel } from '../../features/jobs/ui/AlmanacPanel';
 import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
-import { GraphicsModal } from './panels/Graphics';
+import { SettingsScreen } from './panels/Settings';
 import {
-  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, osOpen, runAt, toggleGraphics, toggleOs, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, openSettings, osOpen, runAt, toggleOs, replayTutorial, resetHints, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -91,7 +91,7 @@ function PauseKey() {
       if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
-      return !document.querySelector('.modal-back, .ng-back, .gfx-back, .menu-pop');
+      return !document.querySelector('.modal-back, .ng-back, .menu-pop, .pl-menu.settings');
     };
     const down = (e: KeyboardEvent) => {
       if (!mine(e)) return;
@@ -283,13 +283,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <div class="menu-h">View</div>
-          <button role="menuitem" aria-haspopup="dialog" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> Graphics</button>
-          <label class="scale-row" title="Make the whole interface smaller or larger">
-            <span>UI size</span>
-            <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
-              onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
-            <b class="value">{Math.round(uiScale.value * 100)}%</b>
-          </label>
+          <button role="menuitem" aria-haspopup="dialog" onClick={() => { close(); openSettings('paused'); }} title="Picture, light, detail and the interface size"><Icon name="screen" size={13} /> Settings</button>
           <div class="menu-h">Help</div>
           <button role="menuitem" onClick={() => { openControlsFromMenu(); }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
@@ -322,7 +316,7 @@ export function Hud() {
       <>
         {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} /> : <MainMenu ready={ready} />}
         <NewGameScreen />
-        {ready && <><Gallery /><BuildMode /><GraphicsModal /></>}
+        {ready && <><Gallery /><BuildMode /></>}
         <LoadConfirm />
         <div class="stack"><Notice /></div>
       </>
@@ -377,7 +371,7 @@ export function Hud() {
         </aside>
       )}
       <NetDock />
-      <GraphicsModal />
+      <SettingsScreen />
       <LoadConfirm />
       <Controls />
       {leaving.value && <Starting text="Saving…" />}

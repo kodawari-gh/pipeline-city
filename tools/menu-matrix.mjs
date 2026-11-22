@@ -75,7 +75,8 @@ async function openMenu(b, vp, withSave) {
 /** Nothing outside the viewport, no page scroll, no two buttons over each other. */
 async function fits(page, label) {
   const geo = await page.evaluate(() => {
-    const boxes = [...document.querySelectorAll('button')].filter((e) => e.getClientRects().length).map((e) => {
+    // (a screen over the menu leaves the menu inert and hidden: its buttons are not on the page the player sees)
+    const boxes = [...document.querySelectorAll('button')].filter((e) => e.getClientRects().length && !e.closest('[inert]')).map((e) => {
       const r = e.getBoundingClientRect();
       return { t: (e.textContent || '').trim().slice(0, 24), x: r.left, y: r.top, r: r.right, b: r.bottom };
     });
@@ -171,8 +172,91 @@ async function loadScreen(b, vp, withSave) {
   await ctx.close();
 }
 
+// The Settings screen (ticket #38, SPEC §5.6): one screen for the picture and the interface. Tab moves to the rail, ← → move between tabs, ↓ to a row,
+// ↑ ↓ between rows, ← → change a value. Peek hides it while held (mouse, keyboard, touch). Back and Esc return to the menu. The frame readout is never red.
+async function settingsScreen(b, vp) {
+  const { ctx, page, errors } = await openMenu(b, vp, false);
+  const tag = `${vp.name} ${vp.w}x${vp.h} settings`;
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  const focused = () => page.evaluate(() => {
+    const el = document.activeElement;
+    return { role: el?.getAttribute('role'), text: (el?.textContent || '').trim(), row: el?.getAttribute('data-row'), now: el?.getAttribute('aria-valuenow') };
+  });
+  const peeking = () => page.evaluate(() => document.querySelector('.pl-menu.settings')?.classList.contains('peek') ?? false);
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await dialog.waitFor({ timeout: 5000 }).catch(() => {});
+  check(await dialog.isVisible(), `${tag}: opens from the main menu`);
+  let f = await focused();
+  check(f.role === 'tab' && /Quality/.test(f.text), `${tag}: the rail takes the focus on Quality (${f.text})`);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(80);
+  const selected = await page.evaluate(() => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim() ?? '');
+  check(/Display/.test(selected), `${tag}: ArrowRight moves to the next tab (${selected})`);
+  await page.keyboard.press('ArrowDown');
+  f = await focused();
+  check(f.row === '0', `${tag}: ArrowDown moves from the rail to the first row`);
+  // Display, row 0: Render scale is a slider, so ArrowRight raises it
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(80);
+  const f2 = await focused();
+  check(Number(f2.now) > Number(f.now), `${tag}: ArrowRight raises the render scale (${f.now} -> ${f2.now})`);
+  await page.keyboard.press('ArrowDown');
+  f = await focused();
+  check(f.row === '1', `${tag}: ArrowDown moves to the next row`);
+
+  // Peek: the mouse, the keyboard and a touch each hide the screen while held and show it on release
+  const peekBtn = page.locator('.st-peek');
+  await peekBtn.scrollIntoViewIfNeeded(); // (the list scrolls on a short screen)
+  const box = await peekBtn.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(80);
+  const heldMouse = await peeking();
+  await page.mouse.up();
+  await page.waitForTimeout(80);
+  check(heldMouse && !(await peeking()), `${tag}: Peek hides the screen while the mouse is held`);
+  await peekBtn.focus();
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(80);
+  const heldKey = await peeking();
+  await page.keyboard.up(' ');
+  await page.waitForTimeout(80);
+  check(heldKey && !(await peeking()), `${tag}: Peek hides the screen while Space is held`);
+  await page.evaluate(() => document.querySelector('.st-peek')?.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerType: 'touch', bubbles: true })));
+  await page.waitForTimeout(80);
+  const heldTouch = await peeking();
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch' })));
+  await page.waitForTimeout(80);
+  check(heldTouch && !(await peeking()), `${tag}: Peek hides the screen under a touch`);
+
+  // no alarm colour on the frame readout
+  await page.getByRole('tab', { name: /Quality/ }).click();
+  await page.waitForTimeout(80);
+  const nowColour = await page.evaluate(() => {
+    const el = document.querySelector('.st-now');
+    return el ? getComputedStyle(el).color : null;
+  });
+  check(nowColour !== null && nowColour !== RED, `${tag}: the frame readout is shown and not red (${nowColour})`);
+
+  await fits(page, tag);
+  await page.screenshot({ path: `${outDir}/06-settings-${vp.name}.png` });
+  await page.getByRole('button', { name: /^← Back/ }).click();
+  await page.waitForTimeout(200);
+  check(!(await dialog.isVisible()), `${tag}: Back closes the screen`);
+  check(await page.getByRole('button', { name: 'Settings', exact: true }).isVisible(), `${tag}: Back returns to the main menu`);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await dialog.waitFor({ timeout: 5000 }).catch(() => {});
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  check(!(await dialog.isVisible()), `${tag}: Esc closes the screen`);
+  check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
+  await ctx.close();
+}
+
 try {
-  fixture = await getFixture(browser);
+  // (the fixture imports the game from the source, so a production build, which has none, skips the save screens below)
+  fixture = await getFixture(browser).catch(() => null);
   for (const vp of VIEWPORTS) {
     const label = `${vp.name} ${vp.w}x${vp.h}`;
     const page = await (await browser.newContext({ viewport: { width: vp.w, height: vp.h } })).newPage();
@@ -248,10 +332,13 @@ try {
 
     check(errors.length === 0, `${label}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
     await page.context().close();
-    await newGameScreen(browser, vp, true);
-    await newGameScreen(browser, vp, false);
-    await loadScreen(browser, vp, true);
-    await loadScreen(browser, vp, false);
+    if (fixture) {
+      await newGameScreen(browser, vp, true);
+      await newGameScreen(browser, vp, false);
+      await loadScreen(browser, vp, true);
+      await loadScreen(browser, vp, false);
+    } else console.log(`info ${label}: no save fixture (dev source only): screens 04 and 05 skipped`);
+    await settingsScreen(browser, vp);
   }
 } finally {
   await browser.close();

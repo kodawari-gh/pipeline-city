@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { galleryOpen, graphicsOpen } from '@/core/ui/state';
+import { galleryOpen, settingsOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { GalleryFoot, GalleryPart, GalleryRead } from './GalleryHud';
 import { PartShelf, type ShelfPart } from './PartShelf';
@@ -31,7 +31,7 @@ export function Gallery() {
     const cat = (d: number) => { setGi((g) => (g + d + all.length) % all.length); setIi(0); };
     const onKey = (e: KeyboardEvent) => {
       // (the graphics modal shuts itself on Escape: the Gallery stays)
-      if (e.key === 'Escape') { if (!graphicsOpen.peek()) galleryOpen.value = false; return; }
+      if (e.key === 'Escape') { if (!settingsOpen.peek()) galleryOpen.value = false; return; }
       else if (e.key === 'ArrowRight') step(1);
       else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowDown') cat(1);

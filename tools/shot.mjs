@@ -79,10 +79,10 @@ try {
   if (flag('preset', '')) {
     const name = flag('preset', '');
     await p.click('[aria-label=Menu]');
-    await p.click('role=menuitem[name=/Graphics/]');
-    await p.click(`.gfx .gfx-presets [data-id=${name.toLowerCase()}]`);
-    await p.click('.gfx [aria-label=Auto-adjust] >> text=Off');
-    await p.click('[aria-label="Close graphics"]');
+    await p.click('role=menuitem[name=/Settings/]');
+    await p.click(`.pl-menu.settings [role=radiogroup][aria-label=Preset] >> role=radio[name="${name}"i]`);
+    await p.click('.pl-menu.settings [role=tab][id=st-tab-display]'); await p.click('.pl-menu.settings [role=radiogroup][aria-label=Auto-adjust] >> text=Off');
+    await p.click('.pl-menu.settings .pl-back');
     const g = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics') ?? 'null'));
     const t = await p.evaluate(() => JSON.parse(localStorage.getItem('pipeline-city.graphics.tier') ?? 'null'));
     // the preset's tier is saved as manual; `auto` false means the switch held

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
+import { openSettings, settingsOpen } from '@/core/ui/state';
 import { clearance } from '@/core/ui/kit/clearance';
 import { Icon } from '@/core/ui/kit/Icons';
 
@@ -66,7 +66,7 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
           {spin}
           {reset}
           <i class="mode-sep" aria-hidden="true" />
-          <button class={graphicsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
+          <button class={settingsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Picture, light and detail settings" onClick={() => openSettings('studio')}><Icon name="sliders" size={12} />Settings</button>
         </div>
       ) : (
         <div class="showcase-bar">

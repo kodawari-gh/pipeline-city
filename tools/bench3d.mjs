@@ -265,7 +265,7 @@ try {
         await p.mouse.move(c.x, c.y, { steps: 6 }); await p.mouse.up(); await wait(1500);
       },
     }],
-    ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Graphics/]'); await wait(2500); }, post: () => p.click('[aria-label="Close graphics"]') }],
+    ['panel open', { pre: () => go('flyToRoom'), run: async () => { await p.click('[aria-label=Menu]'); await p.click('role=menuitem[name=/Settings/]'); await wait(2500); }, post: () => p.click('.pl-menu.settings .pl-back') }],
     // the owner's report (2026-11-12): the room at night, the case's side panel under the pointer (its outline on), the city in the window.
     // `npm run bench:4k` runs it as he saw it: a 4K screen at 150 % (2560 x 1355 CSS px at dpr 1.5, a 3840 x 2032 canvas), Medium at 100 % scale,
     // and pins the GPU with `--gpu 'RTX 5080'` plus `--need-timers`, so a run on another GPU or without GPU timers throws
@@ -304,12 +304,12 @@ try {
   ];
   // a chosen preset, through the real panel; auto-adjust off, so a slow frame does not change the picture under the numbers
   await p.click('[aria-label=Menu]');
-  await p.click('role=menuitem[name=/Graphics/]');
-  if (flag('preset', '')) await p.click(`.gfx .gfx-presets [data-id=${flag('preset', '').toLowerCase()}]`);
-  await p.click('.gfx [aria-label=Auto-adjust] >> text=Off');
+  await p.click('role=menuitem[name=/Settings/]');
+  if (flag('preset', '')) await p.click(`.pl-menu.settings [role=radiogroup][aria-label=Preset] >> role=radio[name="${flag('preset', '')}"i]`);
+  await p.click('.pl-menu.settings [role=tab][id=st-tab-display]'); await p.click('.pl-menu.settings [role=radiogroup][aria-label=Auto-adjust] >> text=Off');
   // a render scale of the player's own over the preset's (the owner plays Medium at 100 %)
   if (flag('scale', '')) await p.evaluate(async (k) => (await import('/src/app/graphics.ts')).setGraphic('scale', k), Number(flag('scale', '')));
-  await p.click('[aria-label="Close graphics"]');
+  await p.click('.pl-menu.settings .pl-back');
   await wait(800);
 
   const report = { when: new Date().toISOString(), renderer: '3d', gl, size: `${W}x${H}`, preset: flag('preset', 'default'), scene: {}, scenarios: {} };

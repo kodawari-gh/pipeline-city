@@ -161,3 +161,32 @@ describe('controls hand-off from the menu', () => {
     expect(speed()).toBe(2);
   });
 });
+
+// Settings opened from the paused menu (ticket #38): Back returns to that menu, and the clock stays held until the menu closes.
+describe('Settings Back returns to its opener', () => {
+  it('closing Settings opened from the paused menu shows the menu again', () => {
+    store.setSpeed(2);
+    openMenu();
+    // The menu's Settings item closes the menu, then opens Settings from it.
+    closeMenu();
+    st.openSettings('paused');
+    expect(st.settingsOpen.value).toBe(true);
+    expect(st.gameMenuOpen.value).toBe(false);
+    expect(speed()).toBe(0);
+    st.closeSettings();
+    expect(st.settingsOpen.value).toBe(false);
+    expect(st.gameMenuOpen.value).toBe(true);
+    expect(speed()).toBe(0);
+    // The menu is the holder again: closing it resumes at the earlier speed.
+    closeMenu();
+    expect(speed()).toBe(2);
+  });
+
+  it('closing Settings opened from the main menu leaves the game menu closed', () => {
+    store.setSpeed(2);
+    st.openSettings('menu');
+    st.closeSettings();
+    expect(st.gameMenuOpen.value).toBe(false);
+    expect(speed()).toBe(2);
+  });
+});

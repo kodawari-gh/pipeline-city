@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PRESET_NAMES, type TierRecord } from '@/app/graphics';
-import { fpsTone, nextIndex, PRESET_INFO, tierNote } from './graphicsui';
+import { nextIndex, PRESET_INFO, tierNote } from './graphicsui';
 
 describe('preset cards', () => {
   it('each preset has a card, one pip more than the one before, in a line that says what it is for', () => {
@@ -22,24 +22,6 @@ describe('tierNote', () => {
   it('leaves the reason out when there is none', () => expect(tierNote(rec({ reason: '' }))).toBe('Auto picked High.'));
 
   it('says the player chose, whatever tier it was', () => expect(tierNote(rec({ mode: 'manual', tier: 'low', reason: 'chosen' }))).toBe('Set by you. Auto picks from the GPU and the CPU.'));
-});
-
-describe('fpsTone', () => {
-  it('is none until a frame rate is measured', () => expect(fpsTone(0, 60)).toBe('none'));
-  it('is bad under 30, whatever the limit', () => {
-    expect(fpsTone(29, 0)).toBe('bad');
-    expect(fpsTone(29, 30)).toBe('bad');
-  });
-  it('warns under 90% of the limit', () => {
-    expect(fpsTone(50, 60)).toBe('warn');
-    expect(fpsTone(54, 60)).toBe('ok');
-    expect(fpsTone(110, 120)).toBe('ok');
-  });
-  it('is fine at the limit, and with no limit above 30', () => {
-    expect(fpsTone(60, 60)).toBe('ok');
-    expect(fpsTone(30, 30)).toBe('ok');
-    expect(fpsTone(45, 0)).toBe('ok');
-  });
 });
 
 describe('nextIndex', () => {

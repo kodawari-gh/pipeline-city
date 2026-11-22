@@ -1,5 +1,5 @@
 import { airflowLens, powerLens } from '@/app/hover';
-import { graphicsOpen, toggleGraphics } from '@/core/ui/state';
+import { openSettings, settingsOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { fullDrawW } from '@/features/board/sim/compat';
@@ -58,7 +58,7 @@ export function ViewOptions({ ready }: { ready: boolean }) {
       <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!ready} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}><Icon name="bolt" size={12} />Power</button>
       <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!ready} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}><Icon name="wind" size={12} />Airflow</button>
       <i class="mode-sep" aria-hidden="true" />
-      <button class={graphicsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Graphics settings" onClick={toggleGraphics}><Icon name="sliders" size={12} />Graphics</button>
+      <button class={settingsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Picture, light and detail settings" onClick={() => openSettings('studio')}><Icon name="sliders" size={12} />Settings</button>
     </div>
   );
 }
