@@ -4,10 +4,10 @@ How to build the audio into the repo (TS, Vite, Preact signals, PixiJS, three.js
 
 ## 1. Files to add
 ```
-public/audio/sfx/*.ogg  ui/*.ogg  ambience/*.ogg        <- assets/sfx, assets/ui, assets/ambience
-public/audio/music/stems/*.ogg  notes/*.ogg  music-spec.json   <- assets/music
-public/audio/manifest.json                                 <- assets/manifest.json (optional; only loop sample counts are needed at runtime)
-src/app/audio/mixTokens.ts     <- mix-tokens.ts (generated, do not edit)
+public/audio/sfx/*.ogg  ui/*.ogg  ambience/*.ogg        <- already in place (ticket #50)
+public/audio/music/stems/*.ogg  notes/*.ogg  music-spec.json   <- already in place (ticket #50)
+assets/manifest.json stays in docs (build record, not shipped)
+src/app/audio/mixTokens.ts     <- already in place: generated, read-only app data, do not edit
 src/app/audio/engine.ts        context, buses, ducking, loader, playCue, voices      (§2–§4)
 src/app/audio/keys.ts          level -> key, file choice and playbackRate            (§4.2)
 src/app/audio/events.ts        snapshot diff -> cue ids (log rules + state rules)    (§5)
