@@ -51,19 +51,19 @@ The prompt you send gives only the per-run facts: ticket number, worktree path, 
 ## Round
 
 1. **Launch coder and tester in parallel** (one message, two Agent calls, both `model: "haiku"`).
-   - **Coder** (worktree `t<n>-coder`): implements the ticket's "What to build" and acceptance list. Writes source and docs only. Commits to `ticket/<n>-coder`. Does not run the full suite.
-   - **Tester** (worktree `t<n>-tester`): writes the tests the ticket names, from the acceptance list, before the code exists. Uses the repo's test seams (see the ticket). Commits to `ticket/<n>-tester`. Only test files.
+   - **Coder** (worktree `t<n>-coder`): implements the ticket's "What to build" and acceptance list. Writes source and docs only. Commits once per round to `ticket/<n>-coder` (amend, do not add commits). Does not run the full suite.
+   - **Tester** (worktree `t<n>-tester`): writes the tests the ticket names, from the acceptance list, before the code exists. Uses the repo's test seams (see the ticket). Commits to `ticket/<n>-tester`. Only test files. Commits once per round, same rule.
    - Both report the commit hash and up to 3 lines.
    - Round 2 and later: the coder and tester get the reviewer's findings from the last round, and fix them on their branches. Each round starts from the branch tip.
 
-2. **Merge step** (one Haiku agent, in the session's worktree on `$BASE`): merge both branches into one integration branch `ticket/<n>`. Test files come from the tester, source from the coder. On a conflict, resolve only in favour of the coder for source and the tester for tests. Stage explicit paths. Commit. If a conflict cannot be resolved, stop the round and report the files.
+2. **Merge step** (one Haiku agent, in the session's worktree on `$BASE`): merge both branches into one integration branch `ticket/<n>`. Test files come from the tester, source from the coder. On a conflict, resolve only in favour of the coder for source and the tester for tests. Stage explicit paths. Commit once, as the round squash. If a conflict cannot be resolved, stop the round and report the files.
 
 3. **Reviewer** (one Haiku agent, read-only): reviews the diff of `ticket/<n>` against `$BASE` against the ticket. It runs the checks the ticket names (tests, typecheck, the relative-units test) and reads the output. It does not edit files. It reports one of:
    - `PASS` with the commands it ran and their results, or
    - `FAIL` with a numbered list. Each item: file, line, what is wrong, which acceptance item it breaks.
 
 4. **Decide**:
-   - `PASS`: merge `ticket/<n>` into `$BASE` (merge commit, explicit commit only). Set the board to `in-review`, then close the ticket with a comment that lists the reviewer's commands. Remove the round's worktrees.
+   - `PASS`: squash-merge `ticket/<n>` into `$BASE` as exactly one commit (`git merge --squash`, then one commit, explicit paths only). Set the board to `in-review`, then close the ticket with a comment that lists the reviewer's commands. Remove the round's worktrees.
    - `FAIL` and round < limit: start the next round with the findings.
    - `FAIL` at the limit: stop. Board to `backlog`. Comment the findings on the issue.
 
@@ -90,3 +90,4 @@ Apply the row to every agent in the round (coder, tester, merger, reviewer). Whe
 - The orchestrator (main session) does not run tests or read diffs itself. It reads only the reviewer's verdict and the merge result.
 - Commit subject <= 72 chars, body <= 3 lines. End each commit with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
 - Stage explicit paths only.
+- Squash: each ticket lands on $BASE as exactly one commit. Agents commit at most once per round.

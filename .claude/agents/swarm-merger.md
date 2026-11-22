@@ -13,6 +13,6 @@ Rules:
 - On a conflict: take the coder's version for source files and the tester's version for test files. Never edit a conflict by hand beyond that rule.
 - If a conflict cannot be settled by that rule, stop. Do not commit. Report the file list.
 - Stage explicit paths only. Never `git add -A`.
-- Commit the merge: subject <= 72 chars, body <= 3 lines, last line `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
+- Commit once: the squash of the round. Subject <= 72 chars, body <= 3 lines, last line `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
 - Do not run tests. The reviewer runs them.
 - Final report, 3 lines max: integration branch, merge commit hash, or the conflict file list.
