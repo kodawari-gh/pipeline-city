@@ -1450,7 +1450,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
    Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
    the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). The Gallery has the same layout. */
-.build { --bld-l: 26.5rem; --bld-r: 19rem; --bld-u: 25rem; }
+.build { --bld-l: 26.5rem; --bld-r: 19rem; --bld-u: 25rem; --panel: rgba(14, 14, 16, .6); /* neutral glass on Build only: the navy tint failed the studio's navy limit */ }
 /* the Gallery's free box is the K1 box (SPEC §5.8: 380 to 1500 by 140 to 900 at 1920 x 1080): its panels are narrower than Build's */
 .gallery { --bld-l: 22.5rem; --bld-r: 25rem; --bld-u: 25rem; }
 .bld-host { position: absolute; inset: 0; }

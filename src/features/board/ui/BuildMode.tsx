@@ -183,6 +183,22 @@ export function BuildMode() {
     else if (wasShown.current !== 'machine') setKind('cpu');
     wasShown.current = shown;
   }, [shown]);
+  // the machine is framed in the free window the tabs leave: measured from their live boxes, again when they move or the page resizes (`buildframe.ts`)
+  useEffect(() => {
+    const el = root.current, box = host.current;
+    if (!stage || !el || !box) return;
+    const measure = () => {
+      const tabs = [...el.querySelectorAll<HTMLElement>('.bld-back, .bld-read, .bld-bin, .bld-inst.open, .bld-lens, .bld-dock, .bld-foot')];
+      const at = box.getBoundingClientRect();
+      stage.setTabs(tabs.map((t) => { const r = t.getBoundingClientRect(); return { x: r.left - at.left, y: r.top - at.top, w: r.width, h: r.height }; }));
+    };
+    measure();
+    const mo = new MutationObserver(measure);
+    mo.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-machine', 'data-pane'] });
+    el.addEventListener('transitionend', measure);
+    window.addEventListener('resize', measure);
+    return () => { mo.disconnect(); el.removeEventListener('transitionend', measure); window.removeEventListener('resize', measure); };
+  }, [stage]);
   if (!open) return null;
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;

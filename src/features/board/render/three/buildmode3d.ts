@@ -10,7 +10,8 @@ import { effective, FrameGate } from '@/app/graphics';
 import { airflowLens, powerLens } from '@/app/hover';
 import { BakeQueue, TEXTURE_LEVELS } from '@/core/render/three/artlod';
 import { ArtSet } from './artset3d';
-import { applyView, distanceOf, fitRect, heightAt, LIMITS, panBy, retarget, settled, stepView, zoomAt, zoomOn, type OrbitView } from '@/core/render/three/camera';
+import { applyView, distanceOf, fitRect, heightAt, LIMITS, panBy, retarget, settled, stepView, zoomAt, zoomOn, type Box, type OrbitView } from '@/core/render/three/camera';
+import { BUILD_START, frameMachine } from '@/core/render/three/buildframe';
 import { turnOf } from '@/core/render/three/gesture';
 import { attachPad, type PadHost } from '@/core/render/three/pad';
 import { DrawGate, STILL_PX, ViewWatch, frameDt } from '@/core/render/three/ondemand';
@@ -102,8 +103,8 @@ type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: G
 
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
-const FOV = 30, START = { yaw: 0.42, pitch: 0.3, fov: FOV };
-/** How far west (units) the start view moves the picture of the case and the wall, to centre it in the space between the two side panels. */
+const FOV = 30, START = BUILD_START;
+/** How far west (units) the start view moves the picture of the case and the wall (the wall's own views, `wallView`). */
 const WALL_SHIFT = 1400;
 /** The z the Wall preset aims at: between the plates' faces and the router's front. */
 const WALL_FOCUS_Z = 1800;
@@ -336,10 +337,15 @@ export class BuildStage {
   private outlineKey = '';
   private viewKey = '';
   private hoverTime = 0;
+  /** The free window the UI leaves round the machine (CSS px from each edge). The machine is framed in it. */
+  /** The tab boxes the UI measured (CSS px in the stage): the machine is framed in the free window they leave. */
+  private tabs: Box[] = [];
+  /** Tab boxes the UI measured and this stage has not framed yet: a drag in progress holds them (`applyTabs`). */
+  private wantTabs: Box[] | null = null;
 
   private constructor(host: HTMLElement) {
     this.host = host;
-    this.ctx = createRenderContext(host, '#0e1118');
+    this.ctx = createRenderContext(host, '#49484a');
     const { scene, camera, renderer } = this.ctx;
     this.W = Math.max(1, host.clientWidth);
     this.H = Math.max(1, host.clientHeight);
@@ -496,12 +502,28 @@ export class BuildStage {
   }
 
   // ------------------------------------------------------------------ drawing
-  /** The case and the wall's plates and router (the wall stands west of the case, the plates over where the case hides it from the start view). */
+  /** The case alone: the machine. The wall's plates and router stand behind it and may leave the frame (the Wall preset shows them). */
   private frameView(): OrbitView {
-    const c = CASE_RECT, f = (this.wall?.plan ?? this.wallPlanNow()).frame;
-    const x0 = Math.min(c.x, f.x0), x1 = Math.max(c.x + c.w, f.x1), y0 = Math.min(c.y, -f.y1), y1 = Math.max(c.y + c.h, -f.y0);
-    // (the left shelf is wider than the right panel: the middle of the free window is a little east of the screen's: the picture goes that much to the east, the target to the west)
-    return fitRect({ x: x0 - WALL_SHIFT, y: y0, w: x1 - x0, h: y1 - y0 }, BOARD_Z, this.W / this.H, START, 0.55);
+    // the machine fills the free window the tabs leave, and its middle sits at the window's middle (`frameMachine`, `core/render/three/buildframe.ts`)
+    const c = CASE_RECT;
+    return frameMachine({ x: 0, y: 0, w: this.W, h: this.H }, this.tabs, { centre: { x: c.x + c.w / 2, y: -(c.y + c.h / 2), z: BOARD_Z }, size: { x: c.w, y: c.h, z: 0 } });
+  }
+
+  /** The tab boxes the UI measured (CSS px in the stage): the machine is framed in the free window they leave. A drag in progress holds the framing until it ends. */
+  setTabs(tabs: Box[]): void {
+    this.wantTabs = tabs;
+    this.applyTabs();
+  }
+
+  /** Frame the machine in the window the UI last measured, once no drag is in progress; the view eases there (`goal`). */
+  private applyTabs(): void {
+    const t = this.wantTabs;
+    if (!t || this.carried || this.hand.kind) return;
+    this.wantTabs = null;
+    if (JSON.stringify(t) === JSON.stringify(this.tabs)) return;
+    this.tabs = t;
+    this.goal = this.frameView();
+    this.demand.ask();
   }
 
   /** The wall's plates, the router and the cords between (the Wall preset): seen nearly head on, a little from the east, the target a little west for the free window. */
@@ -668,7 +690,7 @@ export class BuildStage {
   private stage(_caseTier: number): void {
     const { scene } = this.ctx;
     if (!this.floor) {
-      this.floor = new Mesh(new CircleGeometry(1, SEG.fineRing).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x171b25), roughness: 0.55, metalness: 0.25 }));
+      this.floor = new Mesh(new CircleGeometry(1, SEG.fineRing).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x1c1c1e), roughness: 0.55, metalness: 0.25 }));
       this.floor.receiveShadow = true;
       scene.add(this.floor);
     }
@@ -683,6 +705,7 @@ export class BuildStage {
     const dt = frameDt(now, this.last);
     this.last = now;
     const { scene, camera, renderer } = this.ctx;
+    this.applyTabs();
     const arrived = settled(this.view, this.goal);
     if (arrived) this.flying = false;
     this.view = arrived ? this.goal : stepView(this.view, this.goal, dt);
