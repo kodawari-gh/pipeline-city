@@ -34,6 +34,7 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
 | `ambience.ts` | Ambience controller (pure): room loop on/off, hum on while powered, hum level and rate from fan speed, pause dip. Driven by the director through an `AmbienceSink` (`startLoop`, `stopLoop`, `setHum`, `duckHum`), so tests use a fake |
 | `music.ts` | Music controller (pure): the menu loop, the game stems (bed, pluck, bass, shimmer, stress) by phase, key, data feed and speed, crossfades. Driven by the director through a `MusicSink`, so tests use a fake |
+| `musicNotes.ts` | Music notes (pure): the event to note map (`noteSpecFor`), the scale math (`noteMidi`), the note id, and the 8-voice cap (`createNoteVoices`). Driven by the director through a `MusicNoteSink` |
 
 ### Settings mix
 - The Sound block sits in the Settings modal (`src/core/ui/panels/MainMenu.tsx`, `SoundRows`).
@@ -140,6 +141,13 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Hidden tab (`director.ts` `onHidden`, from `index.ts` with `setHidden`): the music records state and sends nothing. `engine.ts` `setHidden` drops the queued cues, the queued stingers and the queued music calls (the look-ahead), and returns whether a music call was dropped. Keys still load. On return one instant pass sets every call to 0 ms, quantise `now`: layer gains go straight to target, a key change swaps the stems at once (no fade, no stinger), and stems that stay on keep playing. Stems keep their phase: a stem starts at its place on the grid (`beginVoice`). If a music call was dropped, the return sends every layer call of the set again (the engine starts a missing stem, stops a stem that should be off, and stops the old set's stems); the engine keeps a stem that already plays.
 - Engine: every voice has a low-pass node (`lp`, ticket #62); the pluck uses it for the pause. `setMusicLowpass` and `playStinger` are optional on `MusicSink`, so a fake without them is still valid.
 
+### Music notes (ticket #65)
+- Each mapped log note plays its music note on the music bus, in addition to its cue. The note is quieter than its cue (`MIX.music.cueGainDb`), and it has its own echo send (`NOTE_ECHO`, a 0.75-beat delay at -12 dB, feedback 0.3). The matching cue ducks the music bus by its duck class.
+- Key: the note follows the level key (F at level 1, C at level 2). `noteMidi` keeps a degree inside its register (`REGISTER`, inclusive bounds). A note is never rate-shifted.
+- Cap: 8 note voices at once (`NOTE_VOICE_MAX`). A ninth steals the oldest. A voice ends after its length (`NOTE_DUR_S`), so an ended voice is not stolen.
+- Files: `public/audio/music/notes/<id>.ogg`, id `music_note_<family>_<token>` (for example `music_note_glint_F5`). The engine decodes all 75 note files at boot (`startLoading`, as fixed files), so each note plays on its first hit. A note whose file failed to load is skipped.
+- Not built: cents detune (it would rate-shift the file), the 1/12-beat quantise snap, per-kind rate limits, and the reverb send (the graph has no reverb node).
+
 ### Level-key change in the music (ticket #64)
 - A level change crossfades bed, pluck and bass to the new key over `TIMING.keyChangeMs` (1.4 s) on the next beat; the old key's voices fade out on the same beat. Load, new game and sandbox are one crossfade with no chord.
 - A level-up note (`stepped`, from `director.ts`) walks the key one fifth per beat: step `i` starts on beat `i - 1` (`startMusic`/`stopMusic` take a `beats` offset). The keys passed through are decoded too.
@@ -148,4 +156,4 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Two level keys stay decoded: the current and the next (`keysInMemory`). Released keys are freed.
 
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Ticket #62: data, stress and speed layers in the music (see "Music: data, stress and speed"). Ticket #63: music under pause, failure and hidden tab. Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Ticket #62: data, stress and speed layers in the music (see "Music: data, stress and speed"). Ticket #63: music under pause, failure and hidden tab. Ticket #65: music notes on game events. Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.

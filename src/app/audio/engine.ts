@@ -8,6 +8,7 @@ import { audioMix } from './mix';
 import { busGains, dB, type Volumes } from './volume';
 import { LOOP_IDS, type LoopId } from './ambience';
 import { BAR_S, BEAT_S, LAYERS, MENU_ID, OPEN_HZ, PAD, nextOnGrid, stitchStem, type Quant } from './music';
+import { NOTE_ECHO, type NoteOpts } from './musicNotes';
 
 /** Set each bus to its default dB times the player's mix (busGains). A live change ramps (no clicks); a new graph sets it at once. */
 function applyBuses(g: Graph, m: Volumes, ramp: boolean): void {
@@ -36,6 +37,8 @@ interface Graph {
   duckNodes: GainNode[];
   musicDuck: GainNode;
   ambDuck: GainNode;
+  /** The music notes' bus (ticket #65): not behind the music duck. */
+  noteBus: GainNode;
 }
 
 let graph: Graph | null = null;
@@ -113,7 +116,7 @@ function openGraph(): Graph | null {
     l.level.connect(l.dip);
     l.dip.connect(ambDuck);
   }
-  const g: Graph = { ctx, bus, fade, queued: new Map(), duckNodes: [md, ambDuck], musicDuck: md, ambDuck };
+  const g: Graph = { ctx, bus, fade, queued: new Map(), duckNodes: [md, ambDuck], musicDuck: md, ambDuck, noteBus: openNoteBus(ctx, bus.music) };
   applyBuses(g, audioMix.peek(), false);
   return g;
 }
@@ -158,6 +161,12 @@ export function setHidden(hidden: boolean): boolean {
       if (s.at > now) s.src.stop();
     }
     stingers.clear();
+    for (const [token, r] of notesInFlight) {
+      if (r.at > now) {
+        r.src.stop();
+        notesInFlight.delete(token);
+      }
+    }
     droppedMusic = dropMusicQueue();
     fadeTo(g, 0, MIX.hiddenTab.fadeOutMs);
     suspendTimer ??= setTimeout(() => {
@@ -211,7 +220,10 @@ export async function preload(files: readonly string[]): Promise<void> {
   for (const f of files) await load(f);
 }
 
-/** At boot (after `booted`): the UI files, the F root of each pitched cue, and the fixed SFX. Then the current key. */
+/**
+ * At boot (after `booted`): the UI files, the F root of each pitched cue, the fixed SFX and the music notes (fixed files, so each
+ * note is decoded before its first hit). Then the current key.
+ */
 export function startLoading(): void {
   if (loadingOn) return;
   loadingOn = true;
@@ -570,6 +582,64 @@ function setVoiceGain(id: string, gainDb: number, fadeMs: number, t: number): vo
   p.linearRampToValueAtTime(dB(gainDb), t + fadeMs / 1000);
 }
 
+// Music notes (ticket #65): one-shot notes (`music_note_<family>_<NOTE>`), chromatic and never rate-shifted. Each goes through the
+// note bus: dry to the music bus, and through the echo send (NOTE_ECHO: 0.75 beat delay, -12 dB, feedback 0.3).
+
+/** The note bus of a graph: dry into the music bus, and an echo send with its feedback. The music duck does not reach it. */
+function openNoteBus(ctx: AudioContext, music: GainNode): GainNode {
+  const notes = ctx.createGain();
+  notes.connect(music);
+  const send = ctx.createGain();
+  send.gain.value = dB(NOTE_ECHO.levelDb);
+  const delay = ctx.createDelay(2);
+  delay.delayTime.value = NOTE_ECHO.delayBeats * BEAT_S;
+  const feedback = ctx.createGain();
+  feedback.gain.value = NOTE_ECHO.feedback;
+  notes.connect(send).connect(delay);
+  delay.connect(feedback).connect(delay);
+  delay.connect(music);
+  return notes;
+}
+
+/** The notes started or queued and not yet ended, by token. A stop or the end takes one off. */
+const notesInFlight = new Map<number, { src: AudioBufferSourceNode; gain: GainNode; at: number }>();
+
+/** Play one note now (or after `delayS`), then duck the music bus by its class. Refused while hidden; not decoded yet: skipped and loaded. */
+function playMusicNote(id: string, o: NoteOpts): void {
+  const g = graph;
+  if (!g || hiddenNow || g.ctx.state !== 'running') return;
+  const buf = ready.get(audioPath(noteFile(id)));
+  if (!buf) {
+    void load(noteFile(id));
+    return;
+  }
+  const { ctx } = g;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.value = dB(o.gainDb);
+  src.connect(gain).connect(g.noteBus);
+  const at = ctx.currentTime + Math.max(0, o.delayS);
+  notesInFlight.set(o.token, { src, gain, at });
+  src.onended = () => {
+    notesInFlight.delete(o.token);
+    gain.disconnect();
+  };
+  src.start(at);
+  duck(MIX.ducking.cueDuckDb[o.duckClass], at);
+}
+
+/** Fade a note out and stop it (a stolen note). A note not started yet stays silent. Unknown or ended tokens do nothing. */
+function stopMusicNote(token: number): void {
+  const g = graph;
+  const r = notesInFlight.get(token);
+  if (!g || !r) return;
+  notesInFlight.delete(token);
+  const t = g.ctx.currentTime;
+  r.gain.gain.setTargetAtTime(0, t, 0.005);
+  r.src.stop(t + 0.03);
+}
+
 /** Ramp the voice's low-pass cutoff from grid time `t` (a due call). The Hz is kept, like the gain. */
 function setVoiceLowpass(id: string, hz: number, fadeMs: number, t: number): void {
   musicHz.set(id, hz);
@@ -625,7 +695,17 @@ const musicSink = {
 };
 
 /** What the director drives (director.ts `CueSink`, the ambience calls of `AmbienceSink`, the music calls of `MusicSink`). */
-export const engineSink = { playCue, setKeyPc, startLoop, stopLoop, setHum, duckHum, ...musicSink };
+export const engineSink = {
+  playCue,
+  setKeyPc,
+  startLoop,
+  stopLoop,
+  setHum,
+  duckHum,
+  ...musicSink,
+  playNote: playMusicNote,
+  stopNote: stopMusicNote,
+};
 
 /** Start or fade out a loop now that its wish (or the graph) changed. */
 function syncLoop(id: LoopId): void {

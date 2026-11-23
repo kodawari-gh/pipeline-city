@@ -235,6 +235,7 @@ class FakeCtx {
   sources: Source[] = [];
   constructor() { FakeCtx.last = this; }
   createGain(): Gain { return new Gain(); }
+  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
   suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }

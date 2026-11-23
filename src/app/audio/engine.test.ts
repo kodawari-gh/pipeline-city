@@ -52,6 +52,7 @@ class FakeCtx {
   sources: Source[] = [];
   constructor() { FakeCtx.last = this; }
   createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
+  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
   createBiquadFilter(): Filter { return new Filter(); }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
@@ -679,5 +680,23 @@ describe('ticket #58: loop end and the decoder trim', () => {
     await flush();
     expect(roomSources()).toHaveLength(2);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Ticket #65: a music note is a music-bus cue. Production loads it at boot (`startLoading`, no debug board), so its first hit
+// finds the decoded file and plays. A note that waited for its first hit was silent then.
+describe('ticket #65: the first hit of a music note plays', () => {
+  const NOTE_CUES = MIX.cues.filter((c) => c.id.startsWith('music_note_'));
+
+  it('every note file is decoded at boot, so each note sounds on its first hit', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    eng.startLoading();
+    await flush();
+    expect(NOTE_CUES.length).toBeGreaterThan(0);
+    NOTE_CUES.forEach((c, i) => eng.engineSink.playNote(c.id, { token: i + 1, delayS: 0, gainDb: 0, duckClass: 'standard' }));
+    expect(playedFiles()).toEqual(NOTE_CUES.map((c) => rel(c.files[0]!)));
+    expect(warn).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,8 @@ import { MIX, type CueId } from './mixTokens';
 import { keyName, keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
-import { createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
+import { BEAT_S, createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
+import { createNoteVoices, noteGainDb, noteId, noteMidi, noteSpecFor, NOTE_DUR_S, type MusicNoteSink, type NoteSpec } from './musicNotes';
 import { stressAmount, type StressSnap } from './stress';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
@@ -162,10 +163,21 @@ const silentMusic: MusicSink = {
 const hasMusic = (s: object): s is MusicSink =>
   ['startMusic', 'stopMusic', 'setMusicGain', 'preloadMusic', 'decodeKey', 'releaseKey'].every((k) => k in s);
 
-export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<MusicSink>): Director & RoomInput {
+/** A sink without the note calls (a cue-only fixture) gets no music notes. */
+const hasNotes = (s: object): s is MusicNoteSink => ['playNote', 'stopNote'].every((k) => k in s);
+
+/**
+ * `clock` (seconds) times the note voices for the cap. The engine's sink does not need it; a test passes a fake.
+ */
+export function createDirector(
+  sink: CueSink & Partial<AmbienceSink> & Partial<MusicSink> & Partial<MusicNoteSink>,
+  clock: () => number = () => performance.now() / 1000,
+): Director & RoomInput {
   const notes = createNoteTracker();
   const ambience = createAmbience(hasAmbience(sink) ? sink : silentAmbience);
   const music: Music = createMusic(hasMusic(sink) ? sink : silentMusic);
+  const noteSink = hasNotes(sink) ? sink : null;
+  const noteVoices = createNoteVoices();
   let keyPc: number | null = null;
   /** Queued swaps in the last snapshot; null before the first one (after a reset). */
   let prevPending: number | null = null;
@@ -182,6 +194,30 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
   /** The level whose stinger has played, or was passed over as silent. One level, one stinger (the note or the popup). */
   let stingerLevel: number | null = null;
   let sandbox = false;
+
+  /**
+   * An event's music notes (ticket #65), each `beat` beats after `at` (seconds). A note that takes a ninth voice steals the oldest.
+   * The file is the scale degree's MIDI note in the key `pc` (the level's key); the note is never rate-shifted.
+   */
+  const playNotes = (spec: NoteSpec, at: number, pc: number) => {
+    for (const st of spec.steps) {
+      const delayS = at + st.beat * BEAT_S;
+      const id = noteId(st.family, noteMidi(pc, st.reg, st.degree));
+      // A cue-only sink plays the note as its cue (the engine's VoicePool caps the music bus).
+      if (noteSink === null) {
+        sink.playCue(id as CueId, { delayS });
+        continue;
+      }
+      const { token, stolen } = noteVoices.admit(clock(), clock() + delayS, NOTE_DUR_S[st.family]);
+      for (const t of stolen) noteSink.stopNote(t);
+      noteSink.playNote(id, {
+        token,
+        delayS,
+        gainDb: noteGainDb(st),
+        duckClass: spec.duck,
+      });
+    }
+  };
 
   /** Sets the key once per change. The sink picks each cue's file from the key it holds. */
   const setKey = (pc: number) => {
@@ -230,10 +266,14 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
           id = swapCued ? null : 'swap_done';
           swapCued = true;
         }
+        const at = i * NOTE_GAP_S;
         if (id) {
           families.add(e.kind);
           sink.playCue(id, { delayS: i++ * NOTE_GAP_S, perBeat: eventCap });
         }
+        // The event's music note plays with its cue (not in place of it), in the level's key. No key yet: none.
+        const spec = noteSpecFor(e);
+        if (spec && keyPc !== null) playNotes(spec, at, keyPc);
       }
       // A level note plays the stinger once, for the level now shown (several levels in one tick: one stinger).
       // A level change with no note (a load, a new game, a sandbox level) moves the key and plays nothing.

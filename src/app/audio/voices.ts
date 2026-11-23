@@ -36,7 +36,7 @@ export class VoicePool {
     const sameVictim = same.length >= c.maxVoices ? oldest(same) : undefined;
     const rest = this.list.filter((v) => v !== sameVictim);
 
-    const cap = c.bus === 'ui' ? MIX.voices.ui : MIX.voices.sfx;
+    const cap = c.bus === 'ui' ? MIX.voices.ui : c.bus === 'music' ? MIX.voices.music : MIX.voices.sfx;
     const onBus = rest.filter((v) => v.bus === c.bus);
     const busFull = onBus.length >= cap;
     const globalFull = rest.length >= MIX.voices.global;

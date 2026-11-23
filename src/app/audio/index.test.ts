@@ -43,6 +43,7 @@ class FakeCtx {
   sources: Source[] = [];
   constructor() { FakeCtx.last = this; }
   createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
+  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
   createBiquadFilter(): Filter { return new Filter(); }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
@@ -72,6 +73,8 @@ const flush = async (): Promise<void> => { for (let i = 0; i < 30; i++) await ne
 /** The sources started so far. None exist before the first gesture (no context yet). */
 const started = (): Source[] => FakeCtx.last?.sources.filter((s) => s.started) ?? [];
 const playedFiles = (): (string | undefined)[] => started().map((s) => s.buffer?.path);
+/** The sfx sources started so far. A payout also starts its glint notes (music bus), which these tests do not check. */
+const sfxSources = (): Source[] => started().filter((s) => s.buffer?.path?.startsWith('sfx/'));
 
 /** A log note as the sim writes it: `Game.note(kind, text)` at a tick. */
 const note = (tick: number, text: string, kind = 'payout') => ({ tick, kind, text });
@@ -102,7 +105,8 @@ beforeEach(() => {
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   error = vi.spyOn(console, 'error').mockImplementation(() => {});
 });
-afterEach(() => {
+afterEach(async () => {
+  await flush(); // a gesture or a snapshot can start loads that the test does not wait for: they finish while fetch is still the fake
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -138,7 +142,7 @@ describe('no sound before the first gesture', () => {
     expect(warn).not.toHaveBeenCalled();
     gesture(type);
     store.snapshot.value = snap(1, 3, [note(2, 'key 1 (F): $120'), note(3, 'key 2 (F): $140')]);
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
+    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
     expect(error).not.toHaveBeenCalled();
   });
 });
@@ -155,8 +159,8 @@ describe('payout note plays its cue in the current level key', () => {
     store.snapshot.value = snap(1, 1, [note(1, 'key 1 (F): $120')]);
     expect(playedFiles()).toEqual([]);
     store.snapshot.value = snap(1, 2, [note(1, 'key 1 (F): $120'), note(2, 'key 2 (F): $140')]);
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
-    expect(started()[0]!.playbackRate.value).toBeCloseTo(1, 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
+    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(1, 6);
   });
 
   it('level 2 is key C: the payout plays payout__B, one semitone up', async () => {
@@ -171,8 +175,8 @@ describe('payout note plays its cue in the current level key', () => {
     store.snapshot.value = snap(2, 2, []);
     await flush(); // the new key's roots load on the level change
     store.snapshot.value = snap(2, 3, [note(3, 'key 1 (C): $200')]);
-    expect(playedFiles()).toEqual(['sfx/payout__B.ogg']);
-    expect(started()[0]!.playbackRate.value).toBeCloseTo(Math.pow(2, 1 / 12), 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__B.ogg']);
+    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(Math.pow(2, 1 / 12), 6);
   });
 
   it('level 13 wraps to key F: the payout plays payout__F at rate 1', async () => {
@@ -187,8 +191,8 @@ describe('payout note plays its cue in the current level key', () => {
     store.snapshot.value = snap(13, 2, []);
     await flush();
     store.snapshot.value = snap(13, 3, [note(3, 'key 1 (F): $300')]);
-    expect(playedFiles()).toEqual(['sfx/payout__F.ogg']);
-    expect(started()[0]!.playbackRate.value).toBeCloseTo(1, 6);
+    expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__F.ogg']);
+    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(1, 6);
   });
 });
 

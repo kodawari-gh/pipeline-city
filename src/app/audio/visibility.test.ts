@@ -75,6 +75,7 @@ class FakeCtx {
   constructor() { FakeCtx.last = this; }
   get currentTime(): number { return clock.t; }
   createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
+  createDelay() { return Object.assign(new Gain(), { delayTime: new Param() }); }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
   suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }

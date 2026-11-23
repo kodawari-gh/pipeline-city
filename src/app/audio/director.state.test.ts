@@ -8,13 +8,16 @@ import type { GameEvent } from '../../worker/game/types';
 
 function fakeSink() {
   const plays: { id: string; delayS: number }[] = [];
+  /** The music note cues (ticket #65) are read in music.notes.test.ts: this file reads the game cues only. */
+  const notes: string[] = [];
   const sink: CueSink = {
     playCue(id, opts) {
+      if (id.startsWith('music_note_')) return void notes.push(id);
       plays.push({ id, delayS: opts?.delayS ?? 0 });
     },
     setKeyPc() {},
   };
-  return { plays, sink, ids: () => plays.map((p) => p.id) };
+  return { plays, notes, sink, ids: () => plays.map((p) => p.id) };
 }
 
 const note = (tick: number, kind: string, text: string): GameEvent => ({ tick, kind, text });

@@ -110,6 +110,7 @@ def main():
     # ambience loop ends: the decoded sample count of each loop (the app ends each loop there, AUDIO.md)
     for a in ("amb_room_city_loop", "amb_machine_hum_loop"): TOKENS["ambience"][a]["samples"] = checks[f"assets/ambience/{a}.ogg"]["decoded_samples"]
     assert ms["mix"]["levelup_with_sfx_db"] == TOKENS["music"]["levelupWithSfxDb"]
+    TOKENS["voices"]["music"] = ms["voices"]["cue_max"]   # the music bus's note voices (8, the oldest stolen)
     for m in ms["manifest"]:
         if m["path"].startswith("previews/"): continue          # the music preview lives in previews/, not in assets
         c = mc.get(m["path"], {}); stem = os.path.basename(m["path"])[:-4]; parts = stem.split("_")
@@ -125,6 +126,14 @@ def main():
             transpose=("perKeyFile" if id == "level_up" else "nearestRootRate" if pitched else "fixed"),
             files=sorted(set(r["repo_path"].replace("public/", "") for r in rs)),
             fileLevel=rs[0]["level"], trigger=rs[0]["trigger"], **rl))
+    # music event notes (ticket #65): one one-shot cue per note file (music-spec.json manifest), on the music bus, one file each (never rate-shifted)
+    for m in ms["manifest"]:
+        stem = os.path.basename(m["path"])[:-4]
+        if not stem.startswith("music_note_"): continue
+        TOKENS["cues"].append(dict(id=stem, bus="music", duckClass=None, priority=2, pitched=False, transpose="fixed",
+            files=["audio/music/" + m["path"]], fileLevel="music.note",
+            trigger="music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+            minIntervalMs=0, maxVoices=1, collapseMs=0))
     json.dump(TOKENS, open(os.path.join(PKG, "mix-tokens.json"), "w"), indent=1, ensure_ascii=False)
     with open(os.path.join(REPO, "src", "app", "audio", "mixTokens.ts"), "w") as fh:
         fh.write("// Generated from mix-tokens.json by sources/build_manifest.py. Do not edit by hand: edit the generator, re-run.\n")
