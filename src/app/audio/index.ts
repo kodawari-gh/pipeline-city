@@ -7,6 +7,7 @@ import { debugOn } from '../debugflag';
 import { createDirector, type Scene, type UiInput } from './director';
 import { applyMix, engineSink, setHidden, startLoading, unlockOnGesture } from './engine';
 import { audioMix } from './mix';
+import { studioMachine } from './studio';
 import { installUiCues } from './uiListener';
 
 /** The screen the room loop follows. Until the boot screen has gone there is no screen yet (`boot`): the room loop waits. */
@@ -49,4 +50,6 @@ export function initAudio(search?: string, readUi?: () => UiInput, readScene?: (
   });
   if (readUi) effect(() => { director.onUi(readUi()); });
   if (readScene) effect(() => { director.onScene(readScene()); });
+  // The studio's machine (Build my PC sets it while its machine shows): the hum follows it (ticket #66).
+  effect(() => { director.onStudio(studioMachine.value); });
 }

@@ -9,6 +9,7 @@ import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
 import { BEAT_S, createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
 import { createNoteVoices, noteGainDb, noteId, noteMidi, noteSpecFor, NOTE_DUR_S, type MusicNoteSink, type NoteSpec } from './musicNotes';
 import { stressAmount, type StressSnap } from './stress';
+import type { StudioMachine } from './studio';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
@@ -75,7 +76,14 @@ export interface Director {
 export interface RoomInput {
   onScene(scene: Scene): void;
   onUnlock(): void;
+  /** The studio's machine (ticket #66): null when no studio machine shows. Only Build my PC has one. */
+  onStudio(m: StudioMachine | null): void;
 }
+
+/** The key a studio plays in (level 1, F), whatever game is loaded (ticket #66). */
+const STUDIO_KEY_PC = keyPcForLevel(1);
+/** A studio with no machine on show: the hum stays off. */
+const NO_MACHINE: StudioMachine = { powered: false, devices: [] };
 
 /** The state a state rule compares with the one before. */
 interface SeenState {
@@ -191,6 +199,12 @@ export function createDirector(
   let eventCap = EVENT_NOTES_PER_BEAT * NEUTRAL_SPEED.density;
   /** The level the last snapshot showed; null before the first one (after a reset). */
   let level: number | null = null;
+  /** The screen the director last heard (`onScene`); a studio plays its own key and hum. */
+  let scene: Scene = 'boot';
+  /** The studio's machine as the studio sets it (Build my PC; null: none on show). */
+  let studioMachine: StudioMachine | null = null;
+  /** The key the game plays (its level's), kept so leaving a studio gets it back. */
+  let gameKeyPc: number | null = null;
   /** The level whose stinger has played, or was passed over as silent. One level, one stinger (the note or the popup). */
   let stingerLevel: number | null = null;
   let sandbox = false;
@@ -241,15 +255,23 @@ export function createDirector(
     sink.playStinger?.(`music_levelup_${keyName(keyPcForLevel(first))}`, 'beat', MIX.music.levelupWithSfxDb);
   };
 
+  /** The ambience's studio source: the build's machine (off until it is set), the gallery's none (off), else none (the game's). */
+  const syncStudio = () => {
+    ambience.onStudio(scene === 'gallery' ? NO_MACHINE : scene === 'build' ? (studioMachine ?? NO_MACHINE) : null);
+  };
+
   return {
     onSnapshot(s) {
       const fresh = notes.fresh(s.log);
-      setKey(keyPcForLevel(s.level.level));
+      gameKeyPc = keyPcForLevel(s.level.level);
+      // A studio keeps its own key (F) while it shows; the game's key waits for the menu or the game.
+      const key = scene === 'build' || scene === 'gallery' ? STUDIO_KEY_PC : gameKeyPc;
+      setKey(key);
       ambience.onSnapshot({ powered: s.powered === true, devices: s.devices ?? [] });
       // The phase first: a key change on the same snapshot then starts the layers of the new phase.
       music.onPhase(s.phase);
       // A level-up note walks the key one fifth per beat; a load, a new game or a sandbox level is one crossfade.
-      music.onKey(keyPcForLevel(s.level.level), s.sandbox !== true && fresh.some((e) => e.kind === 'level'));
+      music.onKey(key, s.sandbox !== true && fresh.some((e) => e.kind === 'level'));
       music.onFeed(musicFeed(s));
       sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
@@ -302,9 +324,20 @@ export function createDirector(
         if (hardFault(before, now)) music.onFault();
       }
     },
-    onScene(scene) {
-      ambience.onRoom(scene === 'menu' || scene === 'game');
-      music.onScene(scene);
+    onScene(next) {
+      const wasStudio = scene === 'build' || scene === 'gallery';
+      const isStudio = next === 'build' || next === 'gallery';
+      scene = next;
+      ambience.onRoom(next === 'menu' || next === 'game');
+      music.onScene(next);
+      syncStudio();
+      // Into a studio: its key (F). Out of one: the game's key back (kept from the last snapshot).
+      if (isStudio && !wasStudio) { setKey(STUDIO_KEY_PC); music.onKey(STUDIO_KEY_PC, false); }
+      else if (!isStudio && wasStudio && gameKeyPc !== null) { setKey(gameKeyPc); music.onKey(gameKeyPc, false); }
+    },
+    onStudio(m) {
+      studioMachine = m;
+      syncStudio();
     },
     onUnlock() {
       ambience.onUnlock();
@@ -342,6 +375,7 @@ export function createDirector(
       notes.reset();
       ambience.onSnapshot(null);
       keyPc = null;
+      gameKeyPc = null;
       prevPending = null;
       prevState = null;
       level = null;

@@ -81,12 +81,12 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
       <div class="bld-shelf">
         <div class="bld-rail" role="tablist" aria-label="Part kinds">
           {all && (
-            <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All parts (${parts.length})`} aria-label="All parts" onClick={() => setKind('all')}>
+            <button role="tab" data-cue="ui_tab_switch" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All parts (${parts.length})`} aria-label="All parts" onClick={() => setKind('all')}>
               <Icon name="grid" size={14} /><span class="bld-rl" aria-hidden="true">All</span>
             </button>
           )}
           {kinds.map((k) => (
-            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
+            <button key={k} role="tab" data-cue="ui_tab_switch" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
               <Icon name={kindIcon(k)} size={14} /><span class="bld-rl" aria-hidden="true">{railLabel(k)}</span>
             </button>
           ))}

@@ -69,6 +69,8 @@ export interface Ambience {
   onUnlock(): void;
   /** The clock's speed (0 = stopped: Pause or Hold). A change dips the hum once. */
   onSpeed(speed: number): void;
+  /** A studio's machine (ticket #66): while it is set the hum follows it, not the game. Null: the game's machine again. */
+  onStudio(s: { powered: boolean; devices: readonly FanDevice[] } | null): void;
 }
 
 export function createAmbience(sink: AmbienceSink): Ambience {
@@ -79,6 +81,9 @@ export function createAmbience(sink: AmbienceSink): Ambience {
   let fan = 0.5;
   let stopped = false;
   let lastHum: { gainDb: number; rate: number } | null = null;
+  /** The game's machine (each snapshot) and the studio's machine (null: no studio shows). */
+  let game: { powered: boolean; devices: readonly FanDevice[] } | null = null;
+  let studio: { powered: boolean; devices: readonly FanDevice[] } | null = null;
 
   /** The room loop plays while the room scene shows and after the gesture. */
   const syncRoom = () => {
@@ -98,16 +103,27 @@ export function createAmbience(sink: AmbienceSink): Ambience {
     sink.setHum(gainDb, rate, hum().smoothMs);
   };
 
+  /** The hum follows the studio's machine while one shows, else the game's. */
+  const syncMachine = () => {
+    const s = studio ?? game;
+    const on = s !== null && s.powered;
+    fan = fanSpeed(s?.devices ?? []);
+    if (on !== powered) {
+      powered = on;
+      if (on) sink.startLoop(HUM, MIX.ambience[HUM].fadeInMs);
+      else sink.stopLoop(HUM, MIX.ambience[HUM].fadeOutMs);
+    }
+    syncHum();
+  };
+
   return {
     onSnapshot(s) {
-      const on = s !== null && s.powered;
-      fan = fanSpeed(s?.devices ?? []);
-      if (on !== powered) {
-        powered = on;
-        if (on) sink.startLoop(HUM, MIX.ambience[HUM].fadeInMs);
-        else sink.stopLoop(HUM, MIX.ambience[HUM].fadeOutMs);
-      }
-      syncHum();
+      game = s;
+      syncMachine();
+    },
+    onStudio(s) {
+      studio = s;
+      syncMachine();
     },
     onRoom(visible) {
       room = visible;
