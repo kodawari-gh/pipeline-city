@@ -26,7 +26,8 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #39 | 1 | haiku medium | FAIL | inset test stubs old .hud selector; branch ticket/39 380e9062 |
 | #39 | 2 | haiku high | BLOCKED | tester refused by worktree guard; stopped, Backlog |
 | #39 | 2 retry | haiku high | FAIL | tester fixed inset stub (d2e8dc78, 7 pass); reviewer: no browser script in four viewports, no Lens phone layout (ui.css:1892), no coverage script run, no screenshots |
-| #39 | 3 | haiku xhigh | pending | coder and tester on d2e8dc78 |
+| #39 | 3 | haiku xhigh | FAIL | coder 20cbd4b3 (phone top tab, Lens, bill card); tester b389e224; merged 503dd599. Reviewer: 2 phone speed-step tests red (test stub calls desktop path); scene coverage script not in repo |
+| #39 | 4 | sonnet medium | pending | last round; coder and tester reset to 503dd599 |
 | #45 | 1 | haiku medium | FAIL | non-JSON save message has no way forward; corrupt save not back to menu |
 | #45 | 2 | haiku high | FAIL | offline state missing; return-to-menu untested |
 | #45 | 3 | haiku xhigh | FAIL | offline test not wired; export and wrong-shape messages lack next step |
