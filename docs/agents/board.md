@@ -23,4 +23,4 @@ Legacy fields, read only: `Model` (winning model) and `Swarm effort`.
 - Test one file: `npx vitest run <path>`. Checks every ticket runs: `npm run typecheck`; UI sizes: `npx vitest run src/core/ui/scaling.test.ts`; rendering or UI: `npm run shot` (see `CLAUDE.md`).
 - A worktree that needs packages runs `npm ci` (no `node_modules` junction).
 - Planned model hints from the swarm log: UI layout tickets took 4 rounds from Haiku; plan them on Sonnet.
-- Held for human sign-off: #31.
+- The owner gives sign-off. Hold a ticket only when its planned model is Human.
