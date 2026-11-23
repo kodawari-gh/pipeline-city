@@ -892,24 +892,34 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .tbar i { display: block; height: 100%; background: var(--accent); border-radius: 99rem; transition: width var(--d-slow); }
 .pline.wait { color: var(--mute); }
 
-/* Level-up modal: above every other panel, the level swells in with rings, the unlocks pop in one by one. */
-.lvlmodal { z-index: 80; background: rgba(2, 6, 18, .62); }
-.lvl-card { width: min(100%, 30rem); align-items: center; text-align: center; padding: 1.4rem 1.5rem 1.2rem; animation: lvl-card-in var(--d-slow) cubic-bezier(.2, 1.2, .3, 1) both; border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
-.lvl-hero { position: relative; display: grid; place-items: center; width: 7rem; height: 7rem; }
-.lvl-big { display: grid; place-items: center; width: 4.6rem; height: 4.6rem; border-radius: 50%; background: var(--accent); color: var(--on); font: 800 2.4rem var(--mono); animation: lvl-big-in var(--d-long) cubic-bezier(.2, 1.4, .3, 1) var(--d-med) both; }
-.lvl-hero .ring { position: absolute; inset: 1.2rem; border-radius: 50%; border: 1px solid var(--accent); opacity: 0; animation: lvl-ring var(--d-loop-slow) ease-out infinite; }
-/* Reduced motion: the ring stops as a still halo (its pulse ends invisible). */
+/* Level-up (#77, ADR 0001): an edge tab on the left edge, flat and chamfered on its free corners (SPEC 4.11). No scrim, glass or
+   glow: the layer only takes the input, so the scene stays neutral and visible. Phone: a full-width tab at the bottom, no chamfer
+   (every corner sits on a screen edge). The level number swells in, the unlocks pop in one by one. */
+.lvlmodal { z-index: 80; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.lvlmodal .lvl-card { box-sizing: border-box; align-self: flex-start; width: min(100%, 26rem); max-height: 100%; overflow-y: auto; margin: 0; align-items: flex-start; text-align: left; gap: 0.4rem; padding: var(--edge-tab) calc(var(--edge-tab) + 0.5rem) var(--edge-tab) var(--edge-tab); background: var(--c-shade-86); color: var(--c-ink); border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; clip-path: polygon(0 0, calc(100% - var(--ch-lg)) 0, 100% var(--ch-lg), 100% calc(100% - var(--ch-lg)), calc(100% - var(--ch-lg)) 100%, 0 100%); animation: lvl-tab-in var(--d-slow) cubic-bezier(.2, .8, .2, 1) both; }
+.lvl-hero { position: relative; display: block; width: auto; height: auto; }
+/* The rings are gone (no borders, rule 5). The rule stays so reduced motion keeps its stop (motion.test.ts). */
+.lvl-hero .ring { display: none; position: absolute; inset: 1.2rem; border-radius: 50%; opacity: 0; animation: lvl-ring var(--d-loop-slow) ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .lvl-hero .ring { animation: none; opacity: .6; transform: scale(1.3); } }
-.lvl-hero .r2 { animation-delay: var(--d-slow); }
-.lvl-hero .r3 { animation-delay: var(--d-long); }
-.lvl-eyebrow { margin-top: 0.3rem; }
-.lvl-name-big { font-size: 1.5rem; font-weight: 700; animation: fade-in var(--d-slow) ease var(--d-slow) both; }
-.lvl-unl { margin-top: 0.8rem; animation: fade-in var(--d-slow) ease var(--d-long) both; }
-.lvl-unlocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; max-width: 100%; }
+.lvl-big { display: block; width: auto; height: auto; border-radius: 0; background: none; color: var(--c-ink); font: 600 var(--t-display-md) / var(--lh-display) var(--f-cond); font-variant-numeric: tabular-nums; animation: lvl-big-in var(--d-long) cubic-bezier(.2, 1.4, .3, 1) var(--d-med) both; }
+.lvl-eyebrow { margin-top: 0.3rem; font: 500 var(--t-xs) / 1.35 var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--c-mute); }
+.lvl-name-big { font: 600 var(--t-display-sm) / var(--lh-display) var(--f-cond); text-transform: uppercase; overflow-wrap: anywhere; color: var(--c-ink); animation: fade-in var(--d-slow) ease var(--d-slow) both; }
+.lvl-unl { margin-top: 0.8rem; font: 500 var(--t-xs) / 1.35 var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--c-mute); animation: fade-in var(--d-slow) ease var(--d-long) both; }
+.lvlmodal .lvl-unlocks { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.5rem; max-width: 100%; }
+.lvlmodal .lvl-unlocks .ut { width: auto; padding: 0; border: 0; border-radius: 0.25rem; background: none; }
 .lvl-pop { animation: lvl-pop var(--d-slow) cubic-bezier(.2, 1.3, .3, 1) both; }
-.lvl-actions { width: 100%; justify-content: space-between !important; align-items: center; margin-top: 1rem !important; }
-.lvl-actions .primary { min-width: 6rem; font-size: 0.95rem !important; }
-@keyframes lvl-card-in { from { opacity: 0; transform: translateY(1.5rem) scale(.92); } to { opacity: 1; transform: none; } }
+.lvlmodal .lvl-actions { width: 100%; justify-content: space-between !important; align-items: center; margin-top: 1rem !important; }
+.lvlmodal .lvl-actions button { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0.2rem 0; font: 600 var(--t-md) / 1.3 var(--f-sans); letter-spacing: 0; color: var(--c-ink); }
+.lvlmodal .lvl-actions button.link { color: var(--c-mute); }
+.lvlmodal .lvl-actions button:hover:not(:disabled) { background: none; border-color: transparent; color: var(--c-accent); }
+.lvlmodal .lvl-actions button:focus-visible { outline: 0.133rem solid var(--c-accent); outline-offset: 0.2rem; }
+.lvlmodal .lvl-actions .primary { min-width: 6rem; }
+@media (pointer: coarse) { .lvlmodal .lvl-actions button { min-height: 2.963rem; min-width: 2.963rem; } }
+@media (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape) {
+  .lvlmodal { justify-content: flex-end; }
+  .lvlmodal .lvl-card { width: 100%; max-height: 80%; clip-path: none; }
+}
+@keyframes lvl-tab-in { from { opacity: 0; transform: translateX(-1.5rem); } to { opacity: 1; transform: none; } }
 @keyframes lvl-big-in { from { opacity: 0; transform: scale(.2) rotate(-25deg); } to { opacity: 1; transform: none; } }
 @keyframes lvl-ring { 0% { opacity: .8; transform: scale(.8); } 100% { opacity: 0; transform: scale(2.1); } }
 @keyframes lvl-pop { from { opacity: 0; transform: translateY(0.8rem) scale(.6); } to { opacity: 1; transform: none; } }
