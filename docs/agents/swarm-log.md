@@ -34,6 +34,8 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 | #44 | 1 | haiku medium | FAIL | first round (tier inferred; see rounds 2-3 in git history) |
 | #44 | 2 | haiku high | FAIL | first round retry (tier inferred) |
 | #44 | 3 | haiku xhigh | FAIL | (tier inferred) |
+| #44 | 4 | sonnet medium | FAIL | merge 0a2e663c; Next never clickable in e2e (playthrough dies at welcome); browser test hardcodes PORT 5244 (clash); no dev or prod shots |
+| #44 | 5 | sonnet high | FAIL | merge 2950744f; e2e stuck on plugKey (15 tries), cause undecided (card vs 3D pick); test 8 welcome timeout |
 | #44 | 6 | sonnet medium | FAIL | merge 061729f3; browser test stall; desktop first frame camera; no prod shot |
 | #44 | 7 | sonnet max | FAIL | merge c0e14646; devhook test stale; browser run hung |
 | #44 | 8 | sonnet max | PASS | merge 7a1746ef; squashed ae59127a on ui-rework; closed Done |
