@@ -1078,7 +1078,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Almanac: a modal like the shop. The collection (collapsible groups of job tiles) on the left, the job's page on the right */
 .almanac-back { display: flex; align-items: center; justify-content: center; }
-.almanac { background: var(--bg); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 78rem); height: min(100%, 50rem); padding: 0.8rem 0.9rem; gap: 0.6rem; font-size: 0.8rem; animation: pop-in var(--d-trace) ease both; }
+.almanac { background: var(--c-shade-86); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 78rem); height: min(100%, 50rem); padding: 0.8rem 0.9rem; gap: 0.6rem; font-size: 0.8rem; animation: pop-in var(--d-trace) ease both; }
 .alm-head { position: relative; display: flex; align-items: center; gap: 0.7rem; padding-right: 2rem; flex-wrap: wrap; }
 .alm-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
 .alm-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 1rem; }
@@ -1094,8 +1094,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 @media (max-width: 59.99em) { .almanac-back.alm-edge { padding: 3.5rem 0; } } /* (a phone or a short landscape screen: the HUD bar and the dock keep their rows) */
 .almanac.alm-edge button { border: 0; }
 .almanac.alm-edge .close { border-radius: 0; }
-.almanac.alm-edge .seg > button, .almanac.alm-edge .seg > :first-child, .almanac.alm-edge .seg > :last-child { border-radius: 0; }
-.almanac.alm-edge .dx-gchip, .almanac.alm-edge .dx-need, .almanac.alm-edge .dx-tip { border-radius: 0.25rem; }
+.almanac.alm-edge .seg > button, .almanac.alm-edge .seg > :first-child, .almanac.alm-edge .seg > :last-child { border-radius: 0; margin-left: 0; }
+.alm-edge .dx-gchip, .alm-edge .dx-need, .alm-edge .dx-tip { border-radius: 0.25rem; }
 .dx-prog { display: inline-flex; align-items: center; gap: 0.4rem; font: 700 0.75rem var(--mono); color: var(--mute); }
 .dx-prog .bar { width: 7rem; height: 0.5rem; background: var(--glass-line); overflow: hidden; }
 .dx-prog .bar i { display: block; height: 100%; background: var(--accent); }

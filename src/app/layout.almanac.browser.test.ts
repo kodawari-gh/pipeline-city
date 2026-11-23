@@ -84,12 +84,16 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
           });
           return els.map((e, i) => {
             const r = e.getBoundingClientRect();
-            const inList = !!e.closest('.alm-main');
+            const scroller = e.closest('.alm-main, .alm-list');
+            const inList = !!scroller;
+            // a row scrolled out of its list is clipped by the list: it is not on screen, so it cannot overlap
+            const sr = scroller?.getBoundingClientRect();
+            const scrolledOut = !!sr && (r.bottom <= sr.top + 0.5 || r.top >= sr.bottom - 0.5 || r.right <= sr.left + 0.5 || r.left >= sr.right - 0.5);
             const nested = els.some((o, j) => j !== i && o.contains(e));
-            return { name: (e.textContent ?? '').trim().slice(0, 24) || e.getAttribute('aria-label') || '?', box: { x: r.left, y: r.top, r: r.right, b: r.bottom }, inList, nested };
+            return { name: (e.textContent ?? '').trim().slice(0, 24) || e.getAttribute('aria-label') || '?', box: { x: r.left, y: r.top, r: r.right, b: r.bottom }, inList, nested, scrolledOut };
           });
         });
-        const flat = controls.filter((c) => !c.nested);
+        const flat = controls.filter((c) => !c.nested && !c.scrolledOut);
         const pairs: string[] = [];
         for (let i = 0; i < flat.length; i++) for (let j = i + 1; j < flat.length; j++) {
           const a = flat[i]!, c = flat[j]!;
