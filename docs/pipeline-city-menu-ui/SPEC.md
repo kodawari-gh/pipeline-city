@@ -464,7 +464,7 @@ Proposed in this package, not in the mocks. Check each with the owner before the
 - Crash panel and starting screen keep their current wording; only their surfaces change.
 
 ### 5.15 Not covered by this package
-- Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls.
+- Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls. The proposed audio sliders under Settings → Interface are specified in `docs/pipeline-city-audio/pipeline-city-audio/SPEC.md` §10.
 - Existing features that keep their behaviour: save and load, autosave, speed, pause, tutorial steps, Build run, Gallery stills, Controls bindings, Settings persistence.
 
 Where each existing feature lives now, and where its new layout is specified. "Add" means the feature has no row or text in the named section yet; add it there before the PR.
