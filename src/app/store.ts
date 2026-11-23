@@ -22,6 +22,8 @@ export function toggleZoomSlow(): void {
   try { localStorage.setItem(ZOOM_SLOW_KEY, zoomSlowOn.value ? 'on' : 'off'); } catch { /* storage blocked: the choice lasts for the session */ }
 }
 export const lastError = signal<string | null>(null);
+/** Whether the browser says the player is online. Offline, the game still runs; pictures that come from the server may not show (`setOnline`). */
+export const online = signal(typeof navigator === 'undefined' || navigator.onLine !== false);
 /** The report of the sim's last crash (it paused itself); the HUD shows it until it is dismissed (docs/ARCHITECTURE.md "Crash report"). */
 export const crash = signal<CrashReport | null>(null);
 /** An autosave found on startup; the HUD offers it before the sim starts. */
@@ -289,7 +291,17 @@ function download(name: string, text: string) {
 
 /** Download the current game as pipeline-city-<tick>.json. */
 export function exportSave() {
-  requestSave((save) => download(`pipeline-city-${save.baseTick}.json`, JSON.stringify(save, null, 1)));
+  if (!worker) {
+    lastError.value = SAY + 'The game is not running, so it cannot be saved to a file. Your save is unchanged. Start a game, then try again.';
+    return;
+  }
+  requestSave((save) => {
+    try {
+      download(`pipeline-city-${save.baseTick}.json`, JSON.stringify(save, null, 1));
+    } catch {
+      lastError.value = SAY + 'The file could not be saved. Your save is unchanged. Try again, or check your download settings in your browser.';
+    }
+  });
 }
 
 /** Download the crash report (with the game as it was, so it can be loaded and replayed) as pipeline-city-crash-<tick>.json. */
@@ -307,9 +319,10 @@ export async function readSaveFile(file: File): Promise<SaveV1 | null> {
   try {
     return parseSave(JSON.parse(await file.text()));
   } catch (e) {
+    // (a file that is not JSON is not a save; a save this version cannot read is from another version, or damaged)
     lastError.value = e instanceof SyntaxError
-      ? SAY + 'That file is not a Pipeline City save.'
-      : SAY + `That save cannot be loaded: ${(e as Error).message.replace(/^save: /, '')}.`;
+      ? SAY + 'That file is not a Pipeline City save. Pick another file, or go back to the menu.'
+      : SAY + 'That save cannot be loaded. It may be from another version of the game, or damaged. Your save is unchanged. Pick another file, or go back to the menu.';
     return null;
   }
 }
@@ -318,4 +331,22 @@ export async function readSaveFile(file: File): Promise<SaveV1 | null> {
 export async function importSave(file: File) {
   const save = await readSaveFile(file);
   if (save) startSim(save);
+}
+
+/** Offline: the game still runs, and the way forward is a reload once the connection is back (the pictures load on the page's start). */
+const OFFLINE_NOTICE = SAY + 'You are offline. The game still runs, but pictures from the server may not show. Reconnect, then reload the page.';
+
+/** Record the browser's connection state. Going offline shows the notice in `lastError`; coming back online clears it. */
+export function setOnline(on: boolean): void {
+  online.value = on;
+  if (!on) lastError.value = OFFLINE_NOTICE;
+  else if (lastError.peek() === OFFLINE_NOTICE) lastError.value = null;
+}
+
+/** Follow the browser's online and offline events. Called once, when the page starts: a page opened offline shows the notice at once. */
+export function watchConnection(): void {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('offline', () => setOnline(false));
+  window.addEventListener('online', () => setOnline(true));
+  if (!online.peek()) setOnline(false);
 }
