@@ -40,7 +40,14 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #56 | 3 | haiku xhigh | FAIL | keyboard choices silent (NewGame); Controls Done and Confirm Cancel lack ui_back; OS chip lacks transition; inventory bar, sandbox HUD, tutorial card lack data-cue |
 | #56 | 4 | sonnet medium | FAIL | round limit; 6 tester checks red (Enter/Space; Inventory 8 of 14, sandbox 1 of 8 and 1 of 6, tutorial 2 of 9); Backlog, comment posted |
 | #58 | 1 | haiku medium | FAIL | director does not call ambience; 12 tester tests red; reviewer skipped (red run was the evidence) |
-| #58 | 2 | haiku high | pending | coder landed 58e6a973; reviewer running |
+| #58 | 2 | haiku high | PASS | coder landed 58e6a973; reviewer PASS after fixes; squashed 82f7ee91 |
+| #56 | 5 | opus medium | PASS | retry outside round limit; merger opus; squashed 378f5391 |
+| #57 | 1 | haiku medium | FAIL | panel open literal data-cue missing; no close on machine list |
+| #57 | 2 | haiku high | FAIL | second close X on Build screen (duplicate) |
+| #57 | 3 | haiku xhigh | FAIL | slider cues missing; Build flyout open cue wrong |
+| #57 | 4 | sonnet medium | PASS | squashed as d5085f00 (tier inferred from ladder) |
+| #61 | 1 | haiku medium | FAIL | no AUDIO.md music section; no look-ahead timer |
+| #61 | 2 | haiku high | PASS | merged as 73c11670 on audio; closed Done |
 | #59 | 1 | haiku medium | pending | coder and tester running on 80e08cce |
 
 #33 is not recorded: no spawn records found in the transcript.
