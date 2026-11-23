@@ -1,4 +1,4 @@
-// `node tools/menu-matrix.mjs [outDir]`: the main menu flows (SPEC screens 02 and 03, and the keys of §10) at five viewports: the 1920 x 1080
+// `node tools/menu-matrix.mjs [outDir] [--prod]`: the main menu flows (SPEC screens 02 and 03, and the keys of §10) at five viewports: the 1920 x 1080
 // reference, the phone references 390 x 844, 360 x 800 and 412 x 915, and the landscape phone 844 x 390 (the phone layout). For each one it:
 //   - waits for the loading screen (03) and then the booted menu (02), and saves a screenshot of each in outDir (default: the scratchpad, not the repo);
 //   - fails on a page error, on two rows or buttons that overlap, on a control outside the viewport, or on a page wider than the window;
@@ -7,15 +7,20 @@
 //     the menu, the Lens branch and the power bill, with real clicks and keys. The board is 3D, so that part runs on the GPU (shot.mjs's
 //     flags) and fails on a software renderer.
 // Starts the dev server (PORT, default 5199) when it is not running. Software GL is not needed for the menu: it draws no 3D.
+// --prod: builds the game (`vite build`) and runs the checks on the optimized build, served by `vite preview` on PORT. A server already on PORT
+//   stops the run (it may be the dev server). Screens 04 and 05 are skipped (their save fixture imports the game source). The default outDir is
+//   menu-matrix-prod, so the dev screenshots stay. The Gallery screenshots are gallery-<viewport>.png in both modes (ticket #42).
 // Exit code 0 when every check passes; 1 otherwise. Prints one line per check.
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
+const args = process.argv.slice(2);
+const PROD = args.includes('--prod');
 const PORT = Number(process.env.PORT || 5199);
 const url = `http://localhost:${PORT}/`;
-const outDir = resolve(process.argv[2] ?? 'menu-matrix');
+const outDir = resolve(args.find((a) => !a.startsWith('--')) ?? (PROD ? 'menu-matrix-prod' : 'menu-matrix'));
 mkdirSync(dirname(outDir + '/x'), { recursive: true });
 
 const VIEWPORTS = [
@@ -26,12 +31,22 @@ const VIEWPORTS = [
   { w: 844, h: 390, name: 'landscape' },
 ];
 
+// --prod: the optimized build (what players run). It has no `window.__board`, and the checks wait for the canvas instead.
+if (PROD) {
+  const b = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
+  if ((await new Promise((r) => b.on('exit', (code) => r(code)))) !== 0) { console.log('the build failed'); process.exit(1); }
+}
 let server = null;
+const listening = async () => { try { await fetch(url); return true; } catch { return false; } };
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
-if (!(await up())) {
-  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+// A server on PORT is reused only when it is the game (2xx) and this is not --prod (it may be the dev server). Anything else on PORT stops the run.
+if (await listening()) {
+  if (PROD || !(await up())) { console.log(`port ${PORT} is in use by another server: stop it or set PORT`); process.exit(2); }
+} else {
+  server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(PROD ? ['preview'] : []), '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
   for (let i = 0; i < 100 && !(await up()); i++) await new Promise((r) => setTimeout(r, 300));
 }
+console.log(`info ${PROD ? 'production build (vite preview)' : 'dev server'} at ${url}`);
 process.on('exit', () => { try { server?.kill(); } catch { /* gone */ } });
 
 const browser = await chromium.launch({
@@ -267,6 +282,104 @@ const HUD_VIEWPORTS = [
 ];
 const GPU_ARGS = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
 
+// Screen 08 (Gallery), ACCEPTANCE §3 "08 Gallery": from the main menu, at the four HUD viewports. The rail lists every category (Router last), each
+// count is the real one (the rail's title, the section's heading and the stepper agree), the stepper, Spin, Reset and Settings work, the K1 brackets
+// clear the panels and sit inside the stage, and no navy covers more than 2 % of the screenshot (SPEC §5.8, ACCEPTANCE §2 "Cyan per screen").
+async function galleryScreen(gb, vp) {
+  const tag = `gallery ${vp.name} ${vp.w}x${vp.h}`;
+  const ctx = await gb.newContext({ viewport: { width: vp.w, height: vp.h } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(url);
+  await page.waitForSelector('.pl-row', { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+  await page.getByRole('button', { name: /^Gallery/ }).click();
+  await page.waitForSelector('.gallery .bld-tile', { timeout: 20000 });
+  await page.waitForTimeout(900);
+
+  const kinds = await page.locator('.bld-rail [role=tab]').evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')));
+  check(kinds.includes('Router') && kinds.includes('Case') && kinds.includes('Motherboard'), `${tag}: the rail has every category, Router included (${kinds.length})`);
+
+  // every category: its heading count, its rail count and the stepper's "of N" agree with the tiles shown
+  let bad = null;
+  for (let i = 0; i < kinds.length && !bad; i++) {
+    await page.locator('.bld-rail [role=tab]').nth(i).click();
+    const r = await page.evaluate(() => {
+      const sec = document.querySelector('.bld-parts section');
+      const tab = document.querySelector('.bld-rail [role=tab][aria-selected=true]')?.getAttribute('title') ?? '';
+      return {
+        heading: Number(sec?.querySelector('.bld-sub span')?.textContent),
+        tiles: sec?.querySelectorAll('.bld-tile').length ?? 0,
+        rail: Number(/\((\d+)\)$/.exec(tab)?.[1]),
+        pos: document.querySelector('.gal-pos')?.textContent ?? '',
+      };
+    });
+    if (r.heading !== r.tiles || r.rail !== r.tiles || !r.pos.endsWith(`of ${r.tiles}`)) bad = `${kinds[i]} ${JSON.stringify(r)}`;
+  }
+  check(!bad, `${tag}: every category's count is the real count${bad ? ' (' + bad + ')' : ''}`);
+
+  // stepper: Next moves to part 2 and Previous back (the first category has more than one part)
+  const first = await page.locator('.gal-pos').textContent();
+  await page.getByRole('button', { name: 'Next part' }).click();
+  const second = await page.locator('.gal-pos').textContent();
+  await page.getByRole('button', { name: 'Previous part' }).click();
+  const back = await page.locator('.gal-pos').textContent();
+  check(first !== second && back === first, `${tag}: the stepper moves through the category (${first.trim()} -> ${second.trim()} -> ${back.trim()})`);
+
+  // Spin toggles its pressed state; Reset runs
+  const spin = page.getByRole('button', { name: 'Spin' });
+  const spin0 = await spin.getAttribute('aria-pressed');
+  await spin.click();
+  const spin1 = await spin.getAttribute('aria-pressed');
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  check(spin0 !== spin1, `${tag}: Spin toggles (${spin0} -> ${spin1}) and Reset runs`);
+
+  // Settings opens the one Settings screen; Escape closes it and the Gallery stays
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  const opened = await dialog.waitFor({ timeout: 5000 }).then(() => true, () => false);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check(opened && await page.locator('.gallery').isVisible(), `${tag}: Settings opens and Escape keeps the Gallery`);
+
+  // the brackets: inside the stage, clear of the shelf, the summary, the right column and the foot
+  const geo = await page.evaluate(() => {
+    const box = (q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+    return { frame: box('.gal-brackets'), stage: box('.gal-main'), panels: ['.bld-bin', '.bld-read', '.gal-side', '.bld-foot'].map(box) };
+  });
+  const f = geo.frame;
+  const inside = !!f && !!geo.stage && f.l >= geo.stage.l - 1 && f.r <= geo.stage.r + 1 && f.t >= geo.stage.t - 1 && f.b <= geo.stage.b + 1;
+  const clash = geo.panels.filter((p) => p && f && f.l < p.r && p.l < f.r && f.t < p.b && p.t < f.b).length;
+  check(inside && clash === 0 && f.r - f.l > 200 && f.b - f.t > 150, `${tag}: the brackets sit in the stage and clear every panel (${clash} overlaps)`);
+
+  // no navy: pixels with B - R > 6 and luminance below 0.06 (ACCEPTANCE §3 "08 Gallery", the navy rule of §5.7)
+  const png = `${outDir}/gallery-${vp.name}.png`;
+  await page.screenshot({ path: png });
+  const share = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    let navy = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 2] - d[i] <= 6) continue;
+      if (0.2126 * lin(d[i] / 255) + 0.7152 * lin(d[i + 1] / 255) + 0.0722 * lin(d[i + 2] / 255) < 0.06) navy++;
+    }
+    return navy / (d.length / 4);
+  }, readFileSync(png).toString('base64'));
+  check(share <= 0.02, `${tag}: no navy over 2 % of the screenshot (${(share * 100).toFixed(2)} %)`);
+
+  check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
+  await ctx.close();
+}
+
 async function hudScreen(gb, vp) {
   const tag = `hud ${vp.name} ${vp.w}x${vp.h}`;
   const phone = vp.w <= 768; // (48em)
@@ -426,7 +539,7 @@ async function hudScreen(gb, vp) {
 
 try {
   // (the fixture imports the game from the source, so a production build, which has none, skips the save screens below)
-  fixture = await getFixture(browser).catch(() => null);
+  fixture = PROD ? null : await getFixture(browser).catch(() => null);
   // HUD_ONLY=1: skip the menu sweep (the HUD section below still runs), for a quick run of the HUD checks
   for (const vp of process.env.HUD_ONLY ? [] : VIEWPORTS) {
     const label = `${vp.name} ${vp.w}x${vp.h}`;
@@ -518,7 +631,10 @@ try {
     args: GPU_ARGS,
   });
   try {
-    for (const vp of HUD_VIEWPORTS) await hudScreen(gpu, vp);
+    for (const vp of HUD_VIEWPORTS) {
+      await hudScreen(gpu, vp);
+      await galleryScreen(gpu, vp);
+    }
   } finally {
     await gpu.close();
   }

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openSettings, settingsOpen } from '@/core/ui/state';
-import { clearance } from '@/core/ui/kit/clearance';
 import { Icon } from '@/core/ui/kit/Icons';
 
 type Viewer = import('@/core/render/three/viewer').Viewer;
@@ -10,10 +9,10 @@ type Build = (specId: string) => import('three').Object3D | null;
  * The showcase: the part you picked as a 3D model on a turntable. Its pointers read as the game's (`core/render/three/pad.ts`): drag to pan, right-drag or
  * two fingers swiped together to turn it, scroll or pinch to zoom toward a point, double-click or double-tap to reset. The viewer
  * and the part builders load on the first look, so the shop opens as fast as before; one WebGL context lives while this is open.
- * `studio`: the Gallery's look (the stage fills the screen, its bar is the studio's pill bar with Graphics, and the part sits clear of the panels
- * `avoid` names, which float over the stage).
+ * `studio`: the Gallery's look (the stage fills the screen, its bar is the studio's pill bar with Graphics, and the part is framed in the box
+ * `frame` names: the viewer's insets are that box's edges measured from the stage).
  */
-export function Showcase({ specId, onClose, studio }: { specId: string; onClose: () => void; studio?: { avoid: () => (HTMLElement | null)[] } }) {
+export function Showcase({ specId, onClose, studio }: { specId: string; onClose: () => void; studio?: { frame: () => HTMLElement | null } }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const build = useRef<Build | null>(null);
@@ -30,12 +29,17 @@ export function Showcase({ specId, onClose, studio }: { specId: string; onClose:
         build.current = sc.buildShowcaseModel;
         // (the panels' own size changes too: the dock grows with a part's variants)
         const fit = () => {
-          if (studio) vw.setInsets(clearance(el.getBoundingClientRect(), studio.avoid().map((p) => p?.getBoundingClientRect() ?? null), parseFloat(getComputedStyle(el).fontSize) || 15));
+          const f = studio?.frame();
+          if (studio && f) {
+            const s = el.getBoundingClientRect(), b = f.getBoundingClientRect();
+            vw.setInsets({ left: Math.max(0, b.left - s.left), right: Math.max(0, s.right - b.right), top: Math.max(0, b.top - s.top), bottom: Math.max(0, s.bottom - b.bottom) });
+          }
           vw.resize();
         };
         ro = new ResizeObserver(fit);
         ro.observe(el);
-        for (const p of studio?.avoid() ?? []) if (p) ro.observe(p);
+        const f = studio?.frame();
+        if (f) ro.observe(f);
         fit();
         setState('ready');
       } catch { setState('failed'); }

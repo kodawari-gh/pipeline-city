@@ -16,12 +16,14 @@ export function Gallery() {
   const all = useMemo(galleryGroups, []);
   const kinds = useMemo(() => all.map((g) => g.kind), [all]);
   const parts = useMemo<ShelfPart[]>(() => all.flatMap((g) => g.items.map((i) => ({ id: i.id, name: i.name, kind: g.kind, tier: i.tier }))), [all]);
+  const total = useMemo(() => all.reduce((n, g) => n + g.items.length, 0), [all]);
   const [gi, setGi] = useState(0);
   const [ii, setIi] = useState(0);
   const shelf = useRef<HTMLElement>(null);
   const read = useRef<HTMLElement>(null);
   const side = useRef<HTMLDivElement>(null);
   const foot = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
   const group = all[gi]!, at = Math.min(ii, group.items.length - 1), item = group.items[at]!;
   const n = group.items.length;
 
@@ -47,11 +49,14 @@ export function Gallery() {
   return (
     <div class="gallery mode" role="dialog" aria-modal="true" aria-label="Gallery">
       <div class="gal-main">
-        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} studio={{ avoid: () => [shelf.current, read.current, side.current, foot.current] }} />
+        <Showcase specId={item.id} onClose={() => { galleryOpen.value = false; }} studio={{ frame: () => frame.current }} />
+        {/* the K1 brackets: the free box the part is framed in (the viewer's insets come from it) */}
+        <div class="gal-brackets" ref={frame} aria-hidden="true" />
       </div>
+
       <PartShelf
         shelf={shelf}
-        eyebrow="Every part in 3D"
+        eyebrow={`Every part in 3D · ${total} parts`}
         title="Gallery"
         kinds={kinds}
         parts={parts}

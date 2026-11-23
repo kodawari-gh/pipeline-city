@@ -1315,8 +1315,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   /* radii: a panel, a card, a row or small button; a pill is a bar's button or a chip */
   --m-r-panel: 1rem; --m-r-card: 0.8rem; --m-r-row: 0.6rem; --m-r-pill: 99rem; }
 .mode { position: fixed; inset: 0; z-index: 70; overflow: hidden; animation: fade-in .3s ease both; color: var(--ink);
-  /* (the Gallery's backdrop; Build my PC's stage paints a flat #1b1f2b of its own, so the gradient is that colour over most of the screen) */
-  background: radial-gradient(120% 90% at 50% 38%, #232836 0%, #1b1f2b 50%, #0d0f15 100%); }
+  /* the studio's backdrop is flat grey: no gradient and no navy (SPEC §5.8, ACCEPTANCE §3 08) */
+  background: var(--c-studio); }
 .mode::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 10rem rgba(0, 0, 0, 0.5); }
 .mode-panel, .mode-bar { position: absolute; z-index: 3; box-sizing: border-box; border: 1px solid var(--glass-line); border-radius: var(--m-r-panel); background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), var(--panel); backdrop-filter: blur(1.1rem) saturate(1.3); box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 .mode-panel { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.9rem; min-height: 0; }
@@ -1354,6 +1354,24 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .gal-main .showcase { flex: 1; min-height: 0; min-width: 0; margin: 0; }
 .gal-main .showcase-host { flex: 1; height: auto; min-height: 12rem; border-radius: 0; background: none; }
 .gal-main .showcase-bar { position: absolute; }
+/* the flat studio: no backdrop gradient and no vignette, and neutral glass (a blue tint in the panels reads as navy on the stage) */
+.gallery { background: var(--c-studio); }
+.gallery::after { display: none; }
+.gallery { --panel: rgba(30, 30, 31, 0.86); --glass-line: rgba(255, 255, 255, 0.14); }
+/* at rest nothing is cyan here: the selected category, the kind and the lit buttons are ink on grey (cyan is for focus, SPEC §1) */
+.gallery .gal-kind { color: var(--ink); background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.gallery .bld-rail button.on { color: var(--ink); background: var(--glass-hi); }
+.gallery .showcase-bar button.on, .gallery .mode-bar button.on { color: var(--ink); background: rgba(255, 255, 255, 0.12); border-color: var(--glass-line); }
+.gallery .bld-art { background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 72%); }
+.gallery .bld-tile.on { background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)); }
+/* the K1 brackets: four corners round the free box the viewer frames the part in (its insets are this box's edges, `Showcase.tsx`) */
+.gal-brackets { position: absolute; z-index: 2; left: calc(var(--bld-l) + 1rem); right: calc(var(--bld-r) + 1rem); top: 8.6rem; bottom: 11.1rem; pointer-events: none;
+  --k1: rgba(233, 238, 255, 0.55); --arm: 1.6rem;
+  background:
+    linear-gradient(var(--k1), var(--k1)) left top / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) left top / 1px var(--arm) no-repeat,
+    linear-gradient(var(--k1), var(--k1)) right top / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) right top / 1px var(--arm) no-repeat,
+    linear-gradient(var(--k1), var(--k1)) left bottom / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) left bottom / 1px var(--arm) no-repeat,
+    linear-gradient(var(--k1), var(--k1)) right bottom / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) right bottom / 1px var(--arm) no-repeat; }
 .gal-kind { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.85rem 0.4rem 0.65rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
 .gal-read .bld-fig .bld-pips { margin: 0.3rem 0 0.15rem; }
 /* the right column is as tall as the screen (so the part keeps clear of all of it) and holds the card at its top */
@@ -1383,12 +1401,36 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   /* (the stage is a card of its own here, not the screen's backdrop) */
   .gal-main, .bld-host { border-radius: var(--m-r-panel); overflow: hidden; border: 1px solid var(--glass-line); }
   .gal-side { position: static; width: auto; pointer-events: auto; }
+  .gal-brackets { left: 1rem; right: 1rem; top: 3rem; bottom: 1rem; }
+}
+/* a landscape phone (844 x 390, SPEC §6 and ACCEPTANCE §4): too short for the desktop floor plan, so the Gallery stacks as a phone does (the stage,
+   the summary, the stepper and keys, then the shelf and the card), and the page scrolls. Scoped to the Gallery: Build my PC keeps its own rules. */
+@media (max-height: 30em) {
+  .gallery.mode { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; overflow-y: auto; }
+  .gallery .gal-main { position: relative; inset: auto; height: 60vh; flex: none; order: 0; }
+  .gallery .gal-main .mode-top { top: 0; right: 2.9rem; }
+  .gallery .gal-main, .gallery .gal-main .showcase-host { border-radius: var(--m-r-panel); overflow: hidden; }
+  .gallery .gal-brackets { left: 1rem; right: 1rem; top: 3rem; bottom: 1rem; }
+  .gallery .bld-read, .gallery .bld-foot { position: static; width: auto; max-width: none; margin: 0; }
+  .gallery .bld-read { order: 1; flex-wrap: wrap; justify-content: center; gap: 0.5rem 0.9rem; }
+  .gallery .bld-read .mode-sep { display: none; }
+  .gallery .bld-foot { order: 2; }
+  /* (the shelf keeps its own height: as a shrinking flex item it is clipped to a strip, and its rail with it; the page scrolls instead) */
+  .gallery .bld-bin { position: static; width: auto; order: 3; flex: none; }
+  .gallery .bld-shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 24rem); }
+  .gallery .bld-rail { flex-direction: row; flex-wrap: wrap; }
+  .gallery .mode .bld-rail button { width: auto; padding: 0 0.7rem; }
+  .gallery .bld-tiles { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+  .gallery .gal-side { position: static; width: auto; order: 4; pointer-events: auto; }
+  .gallery .gal-side > .mode-panel { overflow: visible; }
 }
 
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
    Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
    the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). The Gallery has the same layout. */
-.build, .gallery { --bld-l: 26.5rem; --bld-r: 19rem; --bld-u: 25rem; }
+.build { --bld-l: 26.5rem; --bld-r: 19rem; --bld-u: 25rem; }
+/* the Gallery's free box is the K1 box (SPEC §5.8: 380 to 1500 by 140 to 900 at 1920 x 1080): its panels are narrower than Build's */
+.gallery { --bld-l: 22.5rem; --bld-r: 25rem; --bld-u: 25rem; }
 .bld-host { position: absolute; inset: 0; }
 .bld-host.drop::after { content: ''; position: absolute; inset: 0.5rem; border: 0.133rem solid var(--accent); border-radius: 1.2rem; box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 35%, transparent); pointer-events: none; }
 .bld-note { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; pointer-events: none; }
@@ -1759,7 +1801,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
-  .build, .gallery { --bld-l: 23.5rem; --bld-r: 17rem; }
+  .build { --bld-l: 23.5rem; --bld-r: 17rem; }
   /* (the right panel is narrower: its Start from button says only Start, or the title would wrap) */
   .bld-from { display: none; }
   /* (and the pictures of the Start list are smaller, to leave the names their room) */

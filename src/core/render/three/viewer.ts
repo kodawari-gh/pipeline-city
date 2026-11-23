@@ -115,13 +115,13 @@ function studio(antialias: boolean, still = false) {
   scene.environment = studioEnv(pmrem);
   scene.environmentIntensity = 0.55;
   scene.add(new AmbientLight(0xffffff, 0.25));
-  const key = new DirectionalLight(0xfff0dc, 2.4), rim = new DirectionalLight(0x9ab8ff, 1.2);
+  const key = new DirectionalLight(0xfff0dc, 2.4), rim = new DirectionalLight(0xc8d0e0, 1.2);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   scene.add(key, key.target, rim, rim.target);
   // the floor of Build my PC's stage (`buildmode3d.ts`: the same roughness and metal), faded out at the rim over the studio's backdrop. This studio's key light
   // is about three times as strong as that stage's, so the paint is as much darker: lit, the two floors come out as one grey
-  const floor = new Mesh(new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x0c0f18), roughness: 0.55, metalness: 0.25, ...(still ? {} : { transparent: true, alphaMap: floorFade() }) }));
+  const floor = new Mesh(new CircleGeometry(1, SEG.fineDisc).rotateX(-Math.PI / 2), new MeshStandardMaterial({ color: new Color(0x1c1c1e), roughness: 0.55, metalness: 0.25, ...(still ? {} : { transparent: true, alphaMap: floorFade() }) }));
   floor.receiveShadow = true;
   scene.add(floor);
   /** Light a part of this size round this centre. */

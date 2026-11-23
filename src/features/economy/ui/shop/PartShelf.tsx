@@ -46,8 +46,14 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
   // (the top tier of each kind: a tile's pips are its tier against it)
   const top = useMemo(() => { const m = new Map<string, number>(); for (const p of parts) m.set(p.kind, Math.max(m.get(p.kind) ?? 0, p.tier)); return m; }, [parts]);
   const shown = kind === 'all' ? kinds : [kind];
-  // a part chosen by a key (the Gallery's arrows) brings its tile into view
-  useEffect(() => { list.current?.querySelector('.bld-tile.on')?.scrollIntoView({ block: 'nearest' }); }, [current, kind]);
+  // a part chosen by a key (the Gallery's arrows) brings its tile into view: the list scrolls to it, the page does not (a stacked screen keeps its stage on top)
+  useEffect(() => {
+    const box = list.current, tile = box?.querySelector<HTMLElement>('.bld-tile.on');
+    if (!box || !tile) return;
+    const b = box.getBoundingClientRect(), t = tile.getBoundingClientRect();
+    if (t.top < b.top) box.scrollTop -= b.top - t.top;
+    else if (t.bottom > b.bottom) box.scrollTop += t.bottom - b.bottom;
+  }, [current, kind]);
 
   const tile = (p: ShelfPart) => {
     const price = priceOf(p.id), lit = pips(p.tier, top.get(p.kind) ?? 0), on = current === p.id;
