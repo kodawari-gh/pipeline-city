@@ -29,6 +29,15 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #39 | 3 | haiku xhigh | FAIL | coder 20cbd4b3 (phone top tab, Lens, bill card); tester b389e224; merged 503dd599. Reviewer: 2 phone speed-step tests red (test stub calls desktop path); scene coverage script not in repo |
 | #39 | 4 | sonnet medium | FAIL | coder f357621c, tester 73811aa0, merged f178e044. Reviewer: innerWidth <= 768 in phoneLayout() diverges from CSS 48em; coverage script not run or called |
 | #39 | 5 | sonnet high | PASS | coder c2778221, tester 97b44597, merged 1aec5e9b; reviewer PASS (no innerWidth fallback; 294 tests; coverage 93.8% desktop, 84.1% phone); squashed as d65357f5 on ui-rework; closed Done. Prod shot not run |
+| #40 | 1 | haiku medium | FAIL | first round |
+| #40 | 2 | haiku high | FAIL | landscape rows 1.75rem (below 48px); phone title at top; 7rem padding |
+| #40 | 3 | haiku xhigh | FAIL | saving state missing; paused-check dock probe vacuous; spine top 544 vs about 520; Space ambiguity |
+| #40 | 4 | sonnet medium | PASS | coder 5a89762e, tester ff9820f4, merged 44e88827; squashed c47eaf98; closed Done. Caveats: overlap check vacuous while dock hidden; spine 544 accepted (bottom anchor binds) |
+| #41 | 1 | haiku medium | FAIL | Power on dimmed while busy |
+| #41 | 2 | haiku high | FAIL | round 2 |
+| #41 | 3 | haiku xhigh | FAIL | round 3; coder and tester killed by rate limit, resumed |
+| #41 | 4 | sonnet medium | FAIL | part card 697px; Power disabled and click mismatch; zero Back controls on merged branch |
+| #41 | 5 | sonnet high | PASS | fixes 6850924a, 62ab6a52, regex fix; squashed a135cce3 on ui-rework; closed Done |
 | #45 | 1 | haiku medium | FAIL | non-JSON save message has no way forward; corrupt save not back to menu |
 | #45 | 2 | haiku high | FAIL | offline state missing; return-to-menu untested |
 | #45 | 3 | haiku xhigh | FAIL | offline test not wired; export and wrong-shape messages lack next step |
@@ -49,6 +58,23 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #61 | 1 | haiku medium | FAIL | no AUDIO.md music section; no look-ahead timer |
 | #61 | 2 | haiku high | PASS | merged as 73c11670 on audio; closed Done |
 | #59 | 1 | haiku medium | pending | coder and tester running on 80e08cce |
+| #62 | 1 | haiku medium | FAIL | first round; see ticket |
+| #62 | 2 | haiku high | FAIL | density unused; token dB vs spec linear |
+| #62 | 3 | haiku xhigh | PASS | coder fixed gains and density via perBeat; merged eda6be5b; post-merge review FAIL (pause did not silence shimmer and stress) |
+| #62 | 3 fix | sonnet medium | FAIL | pause gating fixed in 93a30fcc; AUDIO.md lines and fadeMs timing red |
+| #62 | 3 fix 2 | sonnet high | PASS | fix 01ecc054; squashed 55959036 on audio |
+| #63 | 1 | haiku medium | FAIL | first round |
+| #63 | 2 | haiku high | PASS | squashed 12c16cb3 on audio; closed Done |
+| #64 | 1 | haiku medium | FAIL | no hold-until-decoded test (AC5) |
+| #64 | 2 | haiku high | PASS | tester added three tests (7ec54d79); reviewer PASS; squashed 15e561de on audio |
+| #65 | 1 | haiku medium | FAIL | 15 red event-map tests; no note events via playCue |
+| #65 | 2 | haiku high | FAIL | coder e2164a20; reviewer: first note hit silently dropped (no preload) |
+| #65 | 3 | haiku xhigh | PASS | decode all 75 note files at boot (d378af85); reviewer PASS (a6b9af78); squashed d9f80986 on audio; closed Done |
+| #66 | 1 | haiku medium | FAIL | front-panel leads played no cable cue; fixed by haiku high (6965c062) |
+| #66 | 2 | haiku high | PASS | re-review PASS (a093a53d); squashed ebee53df on audio; closed Done |
+| #67 | 1 | haiku medium | FAIL | browser checks PASS on compiled game; spam, loop seams, memory NOT RUN |
+| #67 | 2 | haiku high | FAIL | 64x voice cap (max 7) and peak (0.701) PASS; loop seams and memory NOT RUN |
+| #67 | 3 | haiku xhigh | PASS | memory unit test PASS; loop seams asset check PASS (75/75, asset only); bench:boot equal to main; squashed 1933d70f on audio; closed Done |
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
