@@ -53,7 +53,8 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   });
 
   it('the Shop panel fills with the neutral backing --c-shade-86, not navy (SPEC rule 7)', () => {
-    const panel = shopRules.filter(([sel]) => /(^|,\s*|\s)\.shop(?![\w-])/.test(sel));
+    // the panel itself (`.shop`, `.shop.card`), not its descendants: a bar's fill or a tint is a data colour, not the backing
+    const panel = shopRules.filter(([sel]) => sel.split(',').some((s) => /^\.shop(\.card)?$/.test(s.trim())));
     const bg = panel.flatMap(([, body]) => [...body.matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)].map((m) => m[1]!.trim()));
     expect(bg.length).toBeGreaterThan(0);
     for (const v of bg) {

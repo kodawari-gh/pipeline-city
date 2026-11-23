@@ -196,6 +196,8 @@ button.chip[aria-pressed=true] { box-shadow: inset 0 0 0 1px color-mix(in srgb, 
   position: fixed; left: 0; top: 0; width: 22rem; max-width: calc(100vw - 1rem); z-index: 20; display: flex; flex-direction: column; padding: 0;
   transition: transform var(--d-med) linear, height var(--d-trace) ease; will-change: transform;
 }
+/* ADR 0001 / SPEC §1 rules 5 to 7: the picker card is an edge tab (#78): flat, square, neutral --c-shade-86 fill, no glass. */
+.picker { border: 0; border-radius: 0; box-shadow: none; filter: none; backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--c-shade-86); }
 .picker.nomove { transition: none; }
 .picker.glide { transition: transform var(--d-slow) cubic-bezier(.2, .8, .2, 1), height var(--d-slow) ease; }
 .pk-body { flex: 1; min-height: 0; overflow-y: auto; border-radius: inherit; scrollbar-width: thin; }
@@ -960,7 +962,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* The shop: a near full-screen modal in three fixed zones: category rail, items, the picked part (3D view over its stat bars). */
 .shop-back { display: flex; align-items: center; justify-content: center; }
-.shop { background: var(--bg); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 92rem); height: min(100%, 58rem); padding: 0.8rem 0.9rem; gap: 0.6rem; animation: pop-in var(--d-trace) ease both; }
+.shop { background: var(--c-shade-86); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 92rem); height: min(100%, 58rem); padding: 0.8rem 0.9rem; gap: 0.6rem; animation: pop-in var(--d-trace) ease both; }
 .shop-head { position: relative; display: flex; align-items: center; gap: 0.7rem; padding-right: 2rem; }
 .shop-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
 .shop-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: var(--fs-title, 1rem); }
@@ -988,17 +990,17 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* The shop as an edge tab (#73, SPEC §4.11, ADR 0001): flat, flush to the right edge, chamfered on its free left corners (20 px; 10 px on phone).
    No glass, border, radius, shadow or gradient, and no navy behind the 3D view: the backing is --c-shade-86. */
 .shop-back { align-items: stretch; justify-content: flex-end; padding: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.shop.card { width: min(100%, 92rem); height: 100%; padding: 1.5rem 1.6rem 4.2rem 2.2rem; background: var(--c-shade-86); border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+.shop.card { width: min(100%, 92rem); height: 100%; padding: 1.5rem 1.6rem 4.2rem 2.2rem; background: var(--c-shade-86); border: 0; border-radius: 0px; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
   clip-path: polygon(var(--ch-lg) 0, 100% 0, 100% 100%, var(--ch-lg) 100%, 0 calc(100% - var(--ch-lg)), 0 var(--ch-lg)); }
 @media (max-width: 48em) { .shop.card { padding: 1.2rem 1rem 1rem 1.1rem; clip-path: polygon(var(--ch-sm) 0, 100% 0, 100% 100%, var(--ch-sm) 100%, 0 calc(100% - var(--ch-sm)), 0 var(--ch-sm)); } }
 .shop .shop-rail button { border-radius: 0; }
-.shop .shop-rail button:hover { background: var(--veil); }
+.shop .shop-rail button:hover { background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink)); }
 .shop .shop-rail button.on { color: var(--ink); font-weight: 600; }
-.shop .rung { border: 0; border-radius: 0; background: none; }
-.shop .rung.picked { background: var(--veil); box-shadow: none; }
-.shop .bld-bar { border-radius: 0; background: var(--veil); }
-.shop .bld-bar i { border-radius: 0; background: var(--g, var(--accent)); }
-.shop-detail .showcase-host { border-radius: 0; background: none; }
+.shop .rung { border: 0; border-radius: 0px; background: var(--c-shade-86); }
+.shop .rung.picked { background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink)); box-shadow: none; }
+.shop .bld-bar { border-radius: 0px; background: color-mix(in srgb, var(--c-shade-86) 88%, var(--c-ink)); }
+.shop .bld-bar i { border-radius: 0px; background: var(--g, var(--accent)); }
+.shop-detail .showcase-host { border-radius: 0px; background: none; }
 
 /* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays
    small, so the board keeps the rest of the screen (the camera frames it in the free area). */
