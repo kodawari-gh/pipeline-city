@@ -133,6 +133,24 @@ describe('music: only two level keys stay decoded', () => {
   });
 });
 
+describe('memory (ticket #67): three level-ups keep at most two level keys decoded', () => {
+  it('after three level-ups through the director snapshots, at most two level keys are decoded: the current key and the next one', () => {
+    const rec = recorder();
+    const d = createDirector(rec.sink as unknown as Parameters<typeof createDirector>[0]);
+    d.onUnlock();
+    d.onScene('game');
+    d.onSnapshot(snapOf(1));
+    const log: ReturnType<typeof note>[] = [];
+    for (const level of [2, 3, 4]) {
+      log.push(note(level * 5, 'level', `Level ${level}`));
+      d.onSnapshot(snapOf(level, [...log]));
+      const decoded = rec.decodedNow();
+      expect(decoded.size, `decoded keys after level ${level}`).toBeLessThanOrEqual(2);
+      expect(decoded).toEqual(new Set(keysInMemory(keyPcForLevel(level))));
+    }
+  });
+});
+
 describe('director: the level-up chord with the SFX stinger', () => {
   /** A director in the running game at level 1, with the first snapshot played and the calls cleared. */
   function gameAtLevelOne() {

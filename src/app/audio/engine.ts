@@ -88,6 +88,16 @@ const loopPath = (id: LoopId): string => `ambience/${id}.ogg`;
 /** Loops whose decoded length differs from the manifest count: one warning each. */
 const warnedLength = new Set<string>();
 
+// Test probe (ticket #67, `tools/audio-check.mjs`): read-only counts. Filled only when the page set `window.__audioProbe` before
+// this module ran (the check's init script does). A normal game sets nothing here.
+const probe = (globalThis as { __audioProbe?: Record<string, () => number> }).__audioProbe;
+if (probe) {
+  probe.voices = () => pool.list.length;
+  probe.stemKeys = () => new Set([...ready.keys()]
+    .filter((p) => p.includes('/music/stems/') && !p.includes(MENU_ID))
+    .map((p) => p.replace(/\.ogg$/, '').split('_').pop() ?? '')).size;
+}
+
 function openGraph(): Graph | null {
   if (typeof AudioContext === 'undefined') return null;
   const ctx = new AudioContext({ latencyHint: 'interactive' });

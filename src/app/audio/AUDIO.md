@@ -165,5 +165,12 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - The Gallery button keeps `data-cue-next="ui_transition_in"`. The Build my PC button does not (its open cue is the flyout's; `uiPanels.test.ts` checks it).
 - Open: the SPEC's "Done: N steps" confirm (SPEC line 199) is not built. The SPEC's save-level rule (line 302) is not followed: studios always use F.
 
+### Browser check (ticket #67)
+- `node tools/audio-check.mjs [--no-build] [--png out.png]` runs the compiled game (`vite build`, then `vite preview` on `PORT`, default 5198) in headless Chrome on the real GPU.
+- It checks: each ambience decode equals its manifest `samples`; each stem decode is at least loop + 2 x `loopPadSamples`; no AudioContext or source start before a click; the context runs after it; a burst of install and cable cue calls (cue board, `?debug`) keeps the voices at 24 or fewer and the master peak under 1.0; no console or page error.
+- The voice count is `window.__audioProbe.voices` (engine.ts). It is filled only when the page sets `window.__audioProbe` first, so a normal game sets nothing.
+- The menu stem is the only stem decoded at the menu. Game stems need a game start, which the check does not do.
+- Offline, not in the browser check: `node tools/loop-seams.mjs` decodes each ambience loop and music stem in Chrome and checks the seam step against the typical step (factor 4). It checks the asset, not the playback. Memory across level-ups is a vitest test (`music.levelKey.test.ts`: at most two level keys decoded after three level-ups). Nothing here shows that no click is heard.
+
 ## Status
 Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Ticket #62: data, stress and speed layers in the music (see "Music: data, stress and speed"). Ticket #63: music under pause, failure and hidden tab. Ticket #65: music notes on game events. Ticket #66: studios (Build my PC and Gallery) with their own hum, key and cues (see "Studios"). Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.
