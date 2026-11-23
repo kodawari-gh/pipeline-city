@@ -27,7 +27,8 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #39 | 2 | haiku high | BLOCKED | tester refused by worktree guard; stopped, Backlog |
 | #39 | 2 retry | haiku high | FAIL | tester fixed inset stub (d2e8dc78, 7 pass); reviewer: no browser script in four viewports, no Lens phone layout (ui.css:1892), no coverage script run, no screenshots |
 | #39 | 3 | haiku xhigh | FAIL | coder 20cbd4b3 (phone top tab, Lens, bill card); tester b389e224; merged 503dd599. Reviewer: 2 phone speed-step tests red (test stub calls desktop path); scene coverage script not in repo |
-| #39 | 4 | sonnet medium | FAIL | round limit; coder f357621c, tester 73811aa0, merged f178e044. Reviewer: innerWidth <= 768 in phoneLayout() diverges from CSS 48em; coverage script not run or called; Backlog, comment posted |
+| #39 | 4 | sonnet medium | FAIL | coder f357621c, tester 73811aa0, merged f178e044. Reviewer: innerWidth <= 768 in phoneLayout() diverges from CSS 48em; coverage script not run or called |
+| #39 | 5 | sonnet high | pending | round limit lifted by owner; coder and tester on f178e044 |
 | #45 | 1 | haiku medium | FAIL | non-JSON save message has no way forward; corrupt save not back to menu |
 | #45 | 2 | haiku high | FAIL | offline state missing; return-to-menu untested |
 | #45 | 3 | haiku xhigh | FAIL | offline test not wired; export and wrong-shape messages lack next step |
