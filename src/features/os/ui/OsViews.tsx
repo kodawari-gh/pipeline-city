@@ -202,7 +202,7 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
         : (
           <label class="scale-row" title={`Each slot keeps one waiting job and takes ${fmtBytes(slotBytes)}.`}>
             <span>spool slots</span>
-            <input type="range" min={0} max={top} step={1} value={Math.min(d.alloc ?? d.slots, top)} disabled={top === 0} aria-label={`Spool slots on ${d.label}`}
+            <input type="range" data-cue="ui_slider_tick" min={0} max={top} step={1} value={Math.min(d.alloc ?? d.slots, top)} disabled={top === 0} aria-label={`Spool slots on ${d.label}`}
               onInput={(e) => act.setSpoolAlloc(d.deviceId, Number(e.currentTarget.value))} />
             <b class="value">{d.alloc === null ? `auto (${d.slots})` : d.alloc}</b>
           </label>
@@ -210,7 +210,7 @@ function DriveCard({ d, slotBytes, room, act }: { d: AllocDrive; slotBytes: numb
       {!d.why && (
         <label class="scale-row" title="Room kept for the datasets of cloud contracts. The spool cannot use it. With no reserve, datasets and spool share the free room.">
           <span>dataset reserve</span>
-          <input type="range" min={0} max={reserveTop} step={1} value={Math.min(reserveSteps, reserveTop)} aria-label={`Dataset reserve on ${d.label}`}
+          <input type="range" data-cue="ui_slider_tick" min={0} max={reserveTop} step={1} value={Math.min(reserveSteps, reserveTop)} aria-label={`Dataset reserve on ${d.label}`}
             onInput={(e) => act.setDataReserve(d.deviceId, Number(e.currentTarget.value) * RESERVE_STEP)} />
           <b class="value">{d.reserveBytes === null ? 'none' : fmtBytes(d.reserveBytes)}</b>
         </label>

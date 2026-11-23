@@ -110,7 +110,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const shellCost = shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0);
 
   return (
-    <aside class="bld-inst mode-panel">
+    <aside class="bld-inst mode-panel" data-cue="ui_panel_open">
       <header class="mode-head bld-head">
         <span class="bld-ht"><span class="mode-eyebrow">{sheet ? plural(sheet.parts, 'part') : 'Loading…'}</span><b>In the machine</b></span>
         <button class={`bld-startbtn ${showStart ? 'on' : ''}`} aria-expanded={showStart} disabled={off} title="Start again from a ready-made machine, or one you saved (Undo brings the old one back)" onClick={() => setStartOpen(!showStart)}>

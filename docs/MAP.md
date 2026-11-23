@@ -28,6 +28,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 |---|---|
 | `app/` | `main.tsx` entry, `store.ts` (owns the worker, signals, save/load), hover, interaction, scrub, `debug/` (the `?debug` overlay, see `docs/render/three.md`) |
 | `worker/` | worker entry, `host`, `protocol`, `crash`; `game/` is the `Game` state, snapshot, save (`SAVE.md`) |
+| `app/audio/` | main-thread audio: `mixTokens.ts` (read-only app data, generated). Feature doc: `AUDIO.md` in that folder; the source package is `docs/pipeline-city-audio/` |
 | `core/sim/` | machine model: `machine`, `engine` base, `memmap`, `prng`; `hw/` bus, device, interrupts, timer, clock, display (`MACHINE.md`) |
 | `core/render/` | helpers: camera, theme, ink, shape, `live` (snapshot to views); `lod/` level of detail; `three/` the Three.js renderer, the game's view (`docs/render/three.md`) |
 | `core/ui/` | `Hud`, state, logic, `ui.css`; `panels/` log, crash, stats, toasts, new game; `kit/` icons, meter, sprite |

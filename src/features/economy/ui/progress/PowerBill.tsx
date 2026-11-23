@@ -28,7 +28,7 @@ export function PowerBill({ s }: { s: Snapshot }) {
   return (
     <div class="bill">
       <button
-        ref={chip} class={`chip ${c.level}`} aria-expanded={open} aria-controls="bill-pop" data-hud="bill"
+        ref={chip} class={`chip ${c.level}`} data-cue="ui_click" aria-expanded={open} aria-controls="bill-pop" data-hud="bill"
         title={`Power bill: ${rate}, issued every ${fmtTicks(b.periodTicks)} and paid from your money. Click for the details.`}
         onClick={() => setOpen(!open)}
       >

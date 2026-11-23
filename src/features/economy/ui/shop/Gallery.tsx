@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { galleryOpen, graphicsOpen } from '@/core/ui/state';
+import { playCue } from '@/app/audio/engine';
 import { Icon } from '@/core/ui/kit/Icons';
 import { GalleryFoot, GalleryPart, GalleryRead } from './GalleryHud';
 import { PartShelf, type ShelfPart } from './PartShelf';
@@ -27,8 +28,9 @@ export function Gallery() {
 
   useEffect(() => {
     if (!open) return;
-    const step = (d: number) => setIi((i) => (i + d + n) % n);
-    const cat = (d: number) => { setGi((g) => (g + d + all.length) % all.length); setIi(0); };
+    // (the cues of a part and a category change, ticket #66: the turntable's drag and zoom stay silent)
+    const step = (d: number) => { playCue('ui_value_change'); setIi((i) => (i + d + n) % n); };
+    const cat = (d: number) => { playCue('ui_tab_switch'); setGi((g) => (g + d + all.length) % all.length); setIi(0); };
     const onKey = (e: KeyboardEvent) => {
       // (the graphics modal shuts itself on Escape: the Gallery stays)
       if (e.key === 'Escape') { if (!graphicsOpen.peek()) galleryOpen.value = false; return; }
@@ -59,12 +61,12 @@ export function Gallery() {
         setKind={(k) => { setGi(Math.max(0, kinds.indexOf(k))); setIi(0); }}
         current={item.id}
         tip={(p) => `Show ${p.name}`}
-        onActivate={(p) => setIi(Math.max(0, group.items.findIndex((x) => x.id === p.id)))}
+        onActivate={(p) => { playCue('ui_value_change'); setIi(Math.max(0, group.items.findIndex((x) => x.id === p.id))); }}
       />
       <GalleryRead read={read} group={group} item={item} at={at} />
       <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { galleryOpen.value = false; }}><Icon name="close" size={12} /></button>
       <GalleryPart side={side} group={group} item={item} />
-      <GalleryFoot foot={foot} at={at} n={n} step={(d) => setIi((i) => (i + d + n) % n)} />
+      <GalleryFoot foot={foot} at={at} n={n} step={(d) => { playCue('ui_value_change'); setIi((i) => (i + d + n) % n); }} />
     </div>
   );
 }

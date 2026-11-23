@@ -5,6 +5,7 @@ import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { fullDrawW } from '@/features/board/sim/compat';
 import { OFF, RUN_SPEEDS } from '@/features/board/sim/buildrun';
 import { specSheet } from '@/features/board/sim/buildspecs';
+import { playCue } from '@/app/audio/engine';
 import { overallOfRuns } from './benchhud';
 import { pillOf, powerMeter } from './buildhud';
 
@@ -76,12 +77,12 @@ export function RunControls({ stage, busy, bare }: { stage: Stage | null; busy: 
     <>
       <button class={`bld-pow ${run.on ? 'on' : ''}`} aria-pressed={run.on} disabled={!stage || busy || bare}
         title={bare ? 'There is no machine to switch on: fit a case, a board and its parts' : run.on ? 'Switch the machine off. A job that runs is lost, as in the game.' : 'Switch the machine on (it needs a power supply with its main cable). It boots, then runs at the speed beside it.'}
-        onClick={() => stage?.power()}>
+        data-cue="silent" onClick={() => stage?.power()}>
         <Icon name="power" size={13} />{run.on ? 'Power off' : 'Power on'}
       </button>
       <span class={`bld-chip ${run.tone}`} role="status" aria-live="polite" title={run.why ?? run.text}><i aria-hidden="true" />{run.text}</span>
       <div class="seg" role="group" aria-label="Speed of the machine" title="How fast the machine runs: 1x is the game's own speed, a tick a second">
-        {RUN_SPEEDS.map((x) => <button key={x} class={speed === x ? 'on' : ''} aria-pressed={speed === x} disabled={!run.on} onClick={() => { if (stage) stage.simSpeed.value = x; }}>{x}x</button>)}
+        {RUN_SPEEDS.map((x) => <button key={x} class={speed === x ? 'on' : ''} aria-pressed={speed === x} disabled={!run.on} data-cue="silent" onClick={() => { if (!stage) return; const cur = stage.simSpeed.peek(); if (x !== cur) playCue(x > cur ? 'speed_up' : 'speed_down'); stage.simSpeed.value = x; }}>{x}x</button>)}
       </div>
     </>
   );

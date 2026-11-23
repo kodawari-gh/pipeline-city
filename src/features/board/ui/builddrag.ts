@@ -2,6 +2,7 @@
 // window listeners, so the drag goes on over the panels; the stage outlines what the part fits while it is held (`BuildStage.carry`).
 import type { RefObject } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { playCue } from '@/app/audio/engine';
 import { netKindOf } from '@/features/board/sim/buildnet';
 import { devNode } from '@/features/board/sim/removal';
 
@@ -65,6 +66,7 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
         if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) return;
         moving = true;
         air.current = true;
+        playCue('ui_pickup');
         st?.carry(src.from === 'shelf' ? { item: src.item } : { device: src.item });
         // a shelf part can only land on a socket with the case open
         if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) st.openInside(true);

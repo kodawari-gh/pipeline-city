@@ -141,7 +141,7 @@ function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['devi
         <i class={`knob ${zone}`} style={{ left: `${pos(c.value)}%` }} />
       </div>
       <input
-        type="range" class="dinput" min={c.min} max={c.max} step={0.05} value={c.value} aria-label="CPU clock"
+        type="range" data-cue="ui_slider_tick" class="dinput" min={c.min} max={c.max} step={0.05} value={c.value} aria-label="CPU clock"
         onInput={(e) => setCpuClock(Number(e.currentTarget.value))}
       />
       <div class="drow">
@@ -174,7 +174,7 @@ function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<PickerModel['d
         <i class={`knob ${zone}`} style={{ left: `${pos(value)}%` }} />
       </div>
       <input
-        type="range" class="dinput" min={z.min} max={z.max} step={0.05} value={value} aria-label="Memory clock"
+        type="range" data-cue="ui_slider_tick" class="dinput" min={z.min} max={z.max} step={0.05} value={value} aria-label="Memory clock"
         onInput={(e) => setRamClock(dev.id, Number(e.currentTarget.value))}
       />
       <div class="drow">

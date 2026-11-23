@@ -113,7 +113,7 @@ export function TracePanel() {
       {paused && range && (
         <div class="trace-scrub" role="group" aria-label="Move the die to a cycle">
           <button title="One cycle back" disabled={at <= range.lo} onClick={() => goTo(at - 1)}>&#9664;</button>
-          <input type="range" aria-label="Cycle" min={range.lo} max={range.hi} value={at < 0 ? range.hi : at} onInput={(e) => goTo(Number((e.currentTarget as HTMLInputElement).value))} />
+          <input type="range" data-cue="ui_slider_tick" aria-label="Cycle" min={range.lo} max={range.hi} value={at < 0 ? range.hi : at} onInput={(e) => goTo(Number((e.currentTarget as HTMLInputElement).value))} />
           <button title="One cycle forward" disabled={at >= range.hi} onClick={() => goTo(at + 1)}>&#9654;</button>
           <span class="mute">{card ? `${card.slot} at cycle ${at}` : `die at cycle ${at}`}</span>
         </div>

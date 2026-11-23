@@ -84,7 +84,7 @@ Text sources (grep `this.note(` in the repo): `parts.ts` (install, cable, fault)
 | Saturated | `net.state` → `"saturated"` | `net_saturated` |
 | Link down | `net.state` from `"link-up"`/`"saturated"` → `"down"`, `"no-cable"`, `"no-os"`, `"no-device"` | `net_down` |
 | POST | `phase` → `"posting"` | `post_boot` |
-| Booted | `phase` → `"idle-os"`, or `"loading"` → `"running"` | `boot_ready` |
+| Booted | `phase` → `"idle-os"` or `"running"`, once after POST (not on later jobs) | `boot_ready` |
 | Error | `phase` → `"error"` with no `fault` note in the same snapshot | `fault_hard` |
 | PSU trip | `power.tripped` false → true with no `fault` note in the same snapshot | `fault_hard` |
 | Key out | `plugged` non-null → null (or `keyActivity` `"done"` → `"none"`) with no `key` note | `key_eject` |

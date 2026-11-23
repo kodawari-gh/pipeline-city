@@ -26,7 +26,7 @@ function InventoryButton({ s }: { s: Snapshot }) {
   return (
     <button
       class={`invbtn ${open ? 'on' : ''} ${pulse ? 'pulse' : ''}`}
-      aria-pressed={open}
+      data-cue="ui_click" aria-pressed={open}
       aria-label={`Inventory, ${n} ${n === 1 ? 'part' : 'parts'}`}
       title="Inventory: spare parts you own. Drag them onto the board."
       onClick={toggleInventory}
@@ -42,7 +42,7 @@ function InventoryButton({ s }: { s: Snapshot }) {
 function ShopButton() {
   const open = shopOpen.value;
   return (
-    <button class={`invbtn ${open ? 'on' : ''} ${!open && highlight.value.includes('hud:shop') ? 'pulse' : ''}`} data-hud="shop" aria-pressed={open} aria-label="Shop" title="Shop: everything you can buy" onClick={toggleShop}>
+    <button class={`invbtn ${open ? 'on' : ''} ${!open && highlight.value.includes('hud:shop') ? 'pulse' : ''}`} data-cue="ui_click" data-hud="shop" aria-pressed={open} aria-label="Shop" title="Shop: everything you can buy" onClick={toggleShop}>
       <Icon name="shop" size={14} />
       <span class="hide-narrow">Shop</span>
     </button>
@@ -53,7 +53,7 @@ function ShopButton() {
 function LensButton() {
   const on = powerLens.value;
   return (
-    <button class={`invbtn ${on ? 'on' : ''} ${!on && highlight.value.includes('hud:lens') ? 'pulse' : ''}`} data-hud="lens" aria-pressed={on} aria-label="Power lens" title="Power lens (P): see where power must be plugged in and where it flows" onClick={() => { powerLens.value = !powerLens.value; }}>
+    <button class={`invbtn ${on ? 'on' : ''} ${!on && highlight.value.includes('hud:lens') ? 'pulse' : ''}`} data-cue="ui_click" data-hud="lens" aria-pressed={on} aria-label="Power lens" title="Power lens (P): see where power must be plugged in and where it flows" onClick={() => { powerLens.value = !powerLens.value; }}>
       <Icon name="bolt" size={14} />
       <span class="hide-narrow">Power</span>
     </button>
@@ -64,7 +64,7 @@ function LensButton() {
 function AirflowButton() {
   const on = airflowLens.value;
   return (
-    <button class={`invbtn ${on ? 'on' : ''}`} data-hud="airflow" aria-pressed={on} aria-label="Airflow lens" title="Airflow lens (A): see how air crosses the case and where it heats up" onClick={() => { airflowLens.value = !airflowLens.value; }}>
+    <button class={`invbtn ${on ? 'on' : ''}`} data-cue="ui_click" data-hud="airflow" aria-pressed={on} aria-label="Airflow lens" title="Airflow lens (A): see how air crosses the case and where it heats up" onClick={() => { airflowLens.value = !airflowLens.value; }}>
       <Icon name="fan" size={14} />
       <span class="hide-narrow">Airflow</span>
     </button>
@@ -76,7 +76,7 @@ function NetLensButton({ s }: { s: Snapshot }) {
   const on = networkLens.value;
   if (!on && !netLensReady(s)) return null;
   return (
-    <button class={`invbtn ${on ? 'on' : ''}`} data-hud="netlens" aria-pressed={on} aria-label="Network lens" title="Network lens (N): see the path data takes, and which link is the slowest" onClick={() => { networkLens.value = !networkLens.value; }}>
+    <button class={`invbtn ${on ? 'on' : ''}`} data-cue="ui_click" data-hud="netlens" aria-pressed={on} aria-label="Network lens" title="Network lens (N): see the path data takes, and which link is the slowest" onClick={() => { networkLens.value = !networkLens.value; }}>
       <Icon name="net" size={14} />
       <span class="hide-narrow">Network</span>
     </button>
@@ -87,7 +87,7 @@ function NetLensButton({ s }: { s: Snapshot }) {
 function AlmanacButton() {
   const open = almanacOpen.value;
   return (
-    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="almanac" aria-pressed={open} aria-label="Almanac" title="Almanac: every kind of job, its code and how to do it better" onClick={toggleAlmanac}>
+    <button class={`invbtn ${open ? 'on' : ''}`} data-cue="ui_click" data-hud="almanac" aria-pressed={open} aria-label="Almanac" title="Almanac: every kind of job, its code and how to do it better" onClick={toggleAlmanac}>
       <Icon name="layers" size={14} />
       <span class="hide-narrow">Almanac</span>
     </button>
@@ -98,7 +98,7 @@ function AlmanacButton() {
 function LogButton() {
   const open = logOpen.value;
   return (
-    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="joblog" aria-pressed={open} aria-label="Job log" title="Job log: the jobs that ended and where their time went" onClick={toggleLog}>
+    <button class={`invbtn ${open ? 'on' : ''}`} data-cue="ui_click" data-hud="joblog" aria-pressed={open} aria-label="Job log" title="Job log: the jobs that ended and where their time went" onClick={toggleLog}>
       <Icon name="clock" size={14} />
       <span class="hide-narrow">Log</span>
     </button>
@@ -110,7 +110,7 @@ function OsButton({ s }: { s: Snapshot }) {
   if (!s.os) return null;
   const open = osOpen.value;
   return (
-    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="os" aria-pressed={open} aria-label="Operating system" title="Operating system: resource monitor, job queue and apps" onClick={toggleOs}>
+    <button class={`invbtn ${open ? 'on' : ''}`} data-cue="ui_click" data-hud="os" aria-pressed={open} aria-label="Operating system" title="Operating system: resource monitor, job queue and apps" onClick={toggleOs}>
       <Icon name="cpu" size={14} />
       <span class="hide-narrow">OS</span>
     </button>
@@ -163,7 +163,7 @@ function Tile({ st, pulse, queued, queuedId, active, onHover }: { st: Stack<Inve
       }}
     >
       {!!queued && (
-        <button class="tqueue" aria-label={`Queued ${queued}: loads when the job is done. Press to cancel`} title="Queued: loads when the job is done. Press to cancel."
+        <button class="tqueue" data-cue="ui_back" aria-label={`Queued ${queued}: loads when the job is done. Press to cancel`} title="Queued: loads when the job is done. Press to cancel."
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); cancelSwap(queuedId); }}>{queued === 1 ? 'NEXT' : `#${queued}`} ✕</button>
       )}
@@ -171,7 +171,7 @@ function Tile({ st, pulse, queued, queuedId, active, onHover }: { st: Stack<Inve
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
       {active && !!it.sellPrice && (
-        <button class="tsell" aria-label={`Sell ${shortName(it.name)} for $${it.sellPrice}`}
+        <button class="tsell" data-cue="ui_confirm" aria-label={`Sell ${shortName(it.name)} for $${it.sellPrice}`}
           title={`Sell one back for $${it.sellPrice}: you lose ${Math.round((1 - SELL_RATE) * 100)}% of its price.`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); selected.value = null; sell(it.id); }}>Sell ${it.sellPrice}</button>
@@ -218,7 +218,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const infoId = hover ?? (sel?.startsWith('inv:') ? sel.slice(4) : null);
   const info = infoId ? s.inventory.find((x) => x.id === infoId) : undefined;
   return (
-    <section class={`inv ${away ? 'away' : ''} ${lifted ? 'drop' : ''} ${lifted && overInventory.value ? 'over' : ''}`} aria-label="Inventory">
+    <section class={`inv ${away ? 'away' : ''} ${lifted ? 'drop' : ''} ${lifted && overInventory.value ? 'over' : ''}`} data-cue="ui_panel_open" aria-label="Inventory">
       {info && !away && (
         <aside class="card inv-info" aria-label={`${info.name} stats`}>
           <StatCard s={s} specId={info.spec} fit={{ ok: info.installable, text: info.installable ? 'Fits: drag it onto a socket' : info.reason ?? 'Nothing to fit it to right now' }} />
@@ -229,20 +229,20 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
         {fit && fitting.length > 0 ? (
           <span class="inv-fit">
             <span class="chip ok" title={`Only the parts that fit ${fit.label}`}><Icon name="check" size={11} /> Fits {fit.label}</span>
-            <button class="link" onClick={() => { fitTarget.value = null; }}>Show all</button>
+            <button class="link" data-cue="ui_click" onClick={() => { fitTarget.value = null; }}>Show all</button>
           </span>
         ) : kinds.length > 1 && (
           <span class="inv-chips" role="group" aria-label="Filter by kind">
-            <button class={!kind ? 'on' : ''} aria-pressed={!kind} onClick={() => { inventoryKind.value = null; }}>All</button>
+            <button class={!kind ? 'on' : ''} data-cue="ui_tab_switch" aria-pressed={!kind} onClick={() => { inventoryKind.value = null; }}>All</button>
             {kinds.map((k) => (
-              <button key={k} class={`ic ${kind === k ? 'on' : ''}`} aria-pressed={kind === k} aria-label={kindLabel(k)} title={kindLabel(k)}
+              <button key={k} class={`ic ${kind === k ? 'on' : ''}`} data-cue="ui_tab_switch" aria-pressed={kind === k} aria-label={kindLabel(k)} title={kindLabel(k)}
                 onClick={() => { inventoryKind.value = kind === k ? null : k; }}>
                 <Icon name={kindIcon(k)} size={12} /> <span>{kindLabel(k)}</span>
               </button>
             ))}
           </span>
         )}
-        <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
+        <button class="close" data-cue="ui_panel_close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
       </header>
       {n === 0 ? (
         <div class="inv-empty mute">

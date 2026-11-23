@@ -1,5 +1,5 @@
 """Package consistency check (ACCEPTANCE §1.4). Fails (exit 1) unless:
- 1. every audio file named in SPEC.md, IMPLEMENTATION.md, mix-tokens.json or assets/music/music-spec.json exists under assets/,
+ 1. every audio file named in SPEC.md, IMPLEMENTATION.md, mix-tokens.json or public/audio/music/music-spec.json exists under public/audio/,
  2. every shipped asset is covered by the SPEC.md map (named directly or by a pattern),
  3. mix-tokens cue files == the sfx/ui files on disk, and assets/manifest.json == every asset on disk,
  4. every logRules cue id is a token cue.
@@ -7,7 +7,7 @@ Patterns understood in the docs: {a,b,c} and {a|b|c} alternatives, {1..3} number
 {C3..C6} chromatic notes (sharp tokens: Cs4). References containing `$` or `<` are code templates and are skipped.
 Run: python3 check_refs.py   (stdlib only)"""
 import os, re, sys, json, glob, itertools
-HERE = os.path.dirname(os.path.abspath(__file__)); PKG = os.path.dirname(HERE); A = os.path.join(PKG, "assets")
+HERE = os.path.dirname(os.path.abspath(__file__)); PKG = os.path.dirname(HERE); A = os.path.join(PKG, "..", "..", "..", "public", "audio")  # shipped audio (ticket #50)
 KEYS = ["C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B"]
 def notes(a, b):
     m = lambda s: KEYS.index(s[:-1].replace("#", "s")) + 12 * (int(s[-1]) + 1)
@@ -50,7 +50,7 @@ if uncovered: fail.append(f"SPEC.md map does not cover {len(uncovered)} assets, 
 tokfiles = {f.replace("audio/", "", 1) for c in tok["cues"] for f in c["files"]} | {f"ambience/{k}.ogg" for k in tok["ambience"]}
 nonmusic = {d for d in disk if not d.startswith("music/")}
 if tokfiles != nonmusic: fail.append(f"tokens vs disk (sfx/ui/ambience): only tokens {sorted(tokfiles - nonmusic)[:5]}, only disk {sorted(nonmusic - tokfiles)[:5]}")
-man = {f["file"].replace("assets/", "", 1) for f in json.load(open(os.path.join(A, "manifest.json")))["files"]}
+man = {f["file"].replace("assets/", "", 1) for f in json.load(open(os.path.join(PKG, "assets", "manifest.json")))["files"]}
 if man != disk: fail.append(f"manifest vs disk: only manifest {sorted(man - disk)[:5]}, only disk {sorted(disk - man)[:5]}")
 cues = {c["id"] for c in tok["cues"]}
 bad = [r["cue"] for r in tok["logRules"] if r["cue"] and r["cue"] not in cues]
