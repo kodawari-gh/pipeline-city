@@ -975,6 +975,20 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .shop-detail { width: auto; max-height: 45%; }
   .shop-detail .showcase-host { height: clamp(9rem, 26vh, 15rem); }
 }
+/* The shop as an edge tab (#73, SPEC §4.11, ADR 0001): flat, flush to the right edge, chamfered on its free left corners (20 px; 10 px on phone).
+   No glass, border, radius, shadow or gradient, and no navy behind the 3D view: the backing is --c-shade-86. */
+.shop-back { align-items: stretch; justify-content: flex-end; padding: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.shop.card { width: min(100%, 92rem); height: 100%; padding: 1.5rem 1.6rem 4.2rem 2.2rem; background: var(--c-shade-86); border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  clip-path: polygon(var(--ch-lg) 0, 100% 0, 100% 100%, var(--ch-lg) 100%, 0 calc(100% - var(--ch-lg)), 0 var(--ch-lg)); }
+@media (max-width: 48em) { .shop.card { padding: 1.2rem 1rem 1rem 1.1rem; clip-path: polygon(var(--ch-sm) 0, 100% 0, 100% 100%, var(--ch-sm) 100%, 0 calc(100% - var(--ch-sm)), 0 var(--ch-sm)); } }
+.shop .shop-rail button { border-radius: 0; }
+.shop .shop-rail button:hover { background: var(--veil); }
+.shop .shop-rail button.on { color: var(--ink); font-weight: 600; }
+.shop .rung { border: 0; border-radius: 0; background: none; }
+.shop .rung.picked { background: var(--veil); box-shadow: none; }
+.shop .bld-bar { border-radius: 0; background: var(--veil); }
+.shop .bld-bar i { border-radius: 0; background: var(--g, var(--accent)); }
+.shop-detail .showcase-host { border-radius: 0; background: none; }
 
 /* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays
    small, so the board keeps the rest of the screen (the camera frames it in the free area). */
