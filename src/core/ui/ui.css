@@ -2371,3 +2371,59 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build.bld-tabs[data-layout="phone"] .bld-card { position: absolute; z-index: 5; max-height: 40vh; overflow-y: auto; }
 .build.bld-tabs[data-layout="phone"] .bld-back { top: 1.5rem; left: 1.4rem; background: none; clip-path: none; padding: 0.2rem 0.4rem; }
 .build.bld-tabs[data-layout="phone"] .bld-back em { display: none; }
+
+/* Build my PC is flat (#70, SPEC §1 rules 5 and 6, §4.11): no border, card, pill, radius, shadow, blur, glow or gradient. Radius 4 px (0.24 rem) on chips only.
+   The tabs are --c-shade-86, flush with a screen edge, with a 45 degree chamfer on each free corner. These rules come last and win on purpose. */
+.build, .build *, .build *::before, .build *::after { border-width: 0 !important; border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background-image: none !important; }
+.build :is(.bld-chip, .bld-ready, .bld-door em, .bld-os em, .bench-tabs em, .os-card-head em, .mode kbd) { border-radius: 0.24rem !important; }
+.build :is(.bld-tile, .bld-srow, .bld-save, .os-card, .bench-row, .bld-thumb, .bld-cart, .bld-sico, .bld-art, .bld-part, .bld-shellbtn, .bld-none, .bld-ghost, .bld-cabletip, .bld-toast, .bld-al > button, .bld-al > div, .bld-out, .bld-ico, .bld-x, .bench-close, .bench-one, .os-core):not(.on):not(.sure) { background: transparent !important; }
+.build :is(.bld-tile, .bld-srow, .bld-part, .bld-shellbtn):hover { background: var(--glass-hi) !important; transform: none; }
+.build :is(.bld-ghost, .bld-cabletip, .bld-toast) { background: var(--c-shade-86) !important; clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem); }
+.build .bld-bin-note { background: var(--c-shade-86) !important; }
+.build.bld-tabs .bld-bin.drop .bld-bin-note, .build .bld-host.drop::after { background: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
+/* (a drawn chevron: a V cut from a block, in place of two borders) */
+.build .bld-chev { width: 0.55rem; height: 0.35rem; background: currentColor !important; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
+.build [aria-expanded="true"] > .bld-chev { transform: rotate(180deg); }
+.build .bld-history summary::after { width: 0.55rem; height: 0.35rem; background: currentColor !important; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
+.build .bld-history[open] summary::after { transform: rotate(180deg); }
+.build .bench-wait i { background: var(--accent) !important; animation: bld-pulse var(--d-loop) ease-in-out infinite; }
+.build .bld-pips i { background: rgba(255, 255, 255, 0.2) !important; }
+.build .bld-pips i.on { background: var(--accent) !important; }
+.build :is(.bld-meter, .bld-bar, .bench-meter) i { background: var(--g, var(--ok)) !important; }
+.build .bld-bar i { background: var(--g, var(--accent)) !important; }
+.build :is(.bld-hint > i, .bld-chip > i) { background: currentColor !important; }
+.build .bld-hint > i { background: var(--accent) !important; }
+.build .bld-hint.warn > i { background: var(--warn) !important; }
+.build .bld-rail button.on { background: color-mix(in srgb, var(--accent) 14%, transparent) !important; }
+/* the tabs: a solid backing, chamfered where a corner is free */
+.build :is(.mode-bar, .mode-panel):not(.bld-read):not(.bld-lens):not(.bld-run-sheet) { background: var(--c-shade-86) !important; }
+.build .bld-hint { background: none !important; }
+.build :is(.bld-tools, .bld-views, .bld-run, .bld-panes, .bld-dock .mode-bar) { background: none !important; }
+.build .bld-foot { background: var(--c-shade-86); padding: 0.8rem 1.4rem 0.6rem; clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem); }
+.build .bld-foot > * { pointer-events: auto; }
+.build .bench-scrim { background: var(--c-shade-86); }
+.build.bld-tabs .bld-read, .build.bld-tabs .bld-lens { background: none !important; }
+.build.bld-tabs .bld-read::before, .build.bld-tabs .bld-lens::before { background: var(--c-shade-86) !important; }
+/* (flush with the screen edge: the tab keeps its text where it was, with the old gap as padding) */
+.build.bld-tabs .bld-back { top: 0; left: 0; padding: 1.55rem 0.9rem 0.55rem 1.9rem; }
+.build.bld-tabs[data-layout="desk"] .bld-read { top: 0; padding-top: 1.35rem; padding-left: 0.85rem; --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
+.build.bld-tabs[data-layout="desk"] .bld-lens { top: 0; right: 0; padding: 1.35rem 1.4rem 0.35rem 0.85rem; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed { right: 0; top: 8.75rem; width: 14rem; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed .bld-mtog { width: 14rem; padding-right: 2rem; }
+.build.bld-tabs[data-layout="desk"] .bld-mtog { right: 0; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
+.build.bld-tabs[data-layout="desk"] .bld-inst.open { right: 0; bottom: 0; width: var(--bld-r); padding-right: 1.9rem; padding-bottom: 1.9rem; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
+.build.bld-tabs[data-layout="desk"] .bld-bin { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
+.build.bld-tabs[data-layout="desk"] .bld-foot { bottom: 0; }
+.build.bld-tabs[data-layout="desk"] .bld-parts { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
+.build.bld-tabs[data-layout="phone"] { padding: 0; }
+.build.bld-tabs[data-layout="phone"] .bld-read { margin: 0; padding-top: 0.6rem; --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
+.build.bld-tabs[data-layout="phone"] .bld-lens { right: 0; --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
+.build.bld-tabs[data-layout="phone"] .bld-foot { left: 0; right: 0; bottom: 0; clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem); }
+.build.bld-tabs[data-layout="phone"][data-pane="parts"] .bld-bin, .build.bld-tabs[data-layout="phone"][data-pane="machine"] .bld-inst { left: 0; right: 0; clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem); }
+@media (max-height: 37.5em) and (orientation: landscape) {
+  .build.bld-tabs[data-layout="phone"] .bld-foot { right: auto; width: 14rem; clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
+  .build.bld-tabs[data-layout="phone"][data-pane="parts"] .bld-bin, .build.bld-tabs[data-layout="phone"][data-pane="machine"] .bld-inst { right: auto; clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
+  .build.bld-tabs[data-layout="phone"] .bld-parts { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
+}
+.build.bld-tabs[data-layout="desk"] .bld-foot { box-sizing: border-box; right: calc(var(--bld-r) + 1rem); max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem); }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed { background: none !important; padding: 0; }
