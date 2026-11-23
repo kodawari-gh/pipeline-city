@@ -1,6 +1,6 @@
 ---
 name: orchestrate-parent
-description: Run a whole parent feature on the Pipeline City board as orchestrator. Keeps every unblocked ticket moving through the ticket-swarm loop, in parallel where branches allow, until the parent is done or a critical failure stops it. Use when the user asks to implement a parent feature, or to keep the swarm going on a board.
+description: Run a whole parent feature on the project board as orchestrator. Keeps every unblocked ticket moving through the ticket-swarm loop, in parallel where branches allow, until the parent is done or a critical failure stops it. Use when the user asks to implement a parent feature, or to keep the swarm going on a board.
 ---
 
 # Orchestrate a parent feature
@@ -45,6 +45,6 @@ A free slot with a ready ticket waiting is the signal to start that ticket now.
 ## Starter prompt for a new orchestrator
 
 ```
-Orchestrate parent #<N> on the Pipeline City board. Use the orchestrate-parent skill.
+Orchestrate parent #<N> on the project board. Use the orchestrate-parent skill.
 Base branch: <branch>. Up to two tickets in flight.
 ```

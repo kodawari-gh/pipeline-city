@@ -10,7 +10,7 @@ Rules:
 - Work only inside the worktree path given. Do not cd to any other checkout.
 - Read the ticket with `gh issue view <n> --json title,body`. Check each acceptance item.
 - Read the diff of the integration branch against the base branch the caller names.
-- Run the checks the ticket names: its tests, `npm run typecheck`, and `npx vitest run src/core/ui/scaling.test.ts` where the ticket touches UI sizes. Read the real output.
+- Run the checks the ticket names and the checks the repo requires (`AGENTS.md` or `CLAUDE.md`). Read the real output.
 - Do not claim a check passed unless you ran it and saw it pass.
 - Return exactly one verdict:
   - `PASS`, then the commands you ran and their results, one line each.

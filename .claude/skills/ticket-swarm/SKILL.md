@@ -1,6 +1,6 @@
 ---
 name: ticket-swarm
-description: Build one tracker ticket with a loop of subagents: coder and tester in parallel, a round merge, then a reviewer; repeat until the reviewer passes, escalating model and effort from the ticket's planned model. Updates the Pipeline City board at each stage. Use when the user asks to implement a ticket with a swarm of subagents.
+description: Build one tracker ticket with a loop of subagents: coder and tester in parallel, a round merge, then a reviewer; repeat until the reviewer passes, escalating model and effort from the ticket's planned model. Updates the project board at each stage. Use when the user asks to implement a ticket with a swarm of subagents.
 ---
 
 # Ticket swarm
@@ -35,7 +35,7 @@ Board writes go through `update-gh-board`:
 | Squash lands, issue closed | Done, `Rounds` = reviewer verdicts including the PASS |
 | Any other stop | Backlog, open findings commented on the issue |
 
-After each reviewer verdict, append one row to `docs/agents/swarm-log.md` (ticket, round, tier, result, notes) and commit it with its explicit path.
+After each reviewer verdict, append one row to the swarm log named in `docs/agents/board.md` (ticket, round, tier, result, notes) and commit it with its explicit path.
 
 ## Layout
 
@@ -51,11 +51,11 @@ git worktree add .claude/worktrees/t<n>-merge -b ticket/<n> "$BASE"
 
 Round 2 and later reset the relaunched agent's branch to the integration tip, while its worktree is clean and no agent runs in it: `git branch -f ticket/<n>-<role> ticket/<n>`.
 
-A worker that needs packages runs `npm ci` in its own worktree (no `node_modules` junction). Remove all three worktrees and branches after the squash.
+Install dependencies in a worktree as the repo notes in `docs/agents/board.md` say. Remove all three worktrees and branches after the squash.
 
 ## Agents
 
-Each role is a subagent in `.claude/agents/`. The prompt gives only per-run facts: ticket number, worktree path, branch names, base branch, round findings, and the co-author line for the round's model (`Co-Authored-By: Claude <Haiku|Sonnet|Opus> 5.5 <noreply@anthropic.com>`). The rules live in the agent files.
+Each role is a subagent in `.claude/agents/`. The prompt gives only per-run facts: ticket number, worktree path, branch names, base branch, round findings, and the co-author line naming the round's model (`Co-Authored-By: Claude <model name> <noreply@anthropic.com>`). The rules live in the agent files.
 
 | Role | `subagent_type` |
 | --- | --- |

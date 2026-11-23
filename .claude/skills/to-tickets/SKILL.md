@@ -1,6 +1,6 @@
 ---
 name: to-tickets
-description: Break a plan, spec, or the current conversation into tracer-bullet tickets on the Pipeline City board, each with blocking edges, a planned model, and the test seam the swarm needs.
+description: Break a plan, spec, or the current conversation into tracer-bullet tickets on the project board, each with blocking edges, a planned model, and the test seam the swarm needs.
 disable-model-invocation: true
 ---
 
@@ -18,13 +18,13 @@ Work from the conversation. If the user passes a reference (a spec path, an issu
 
 ### 2. Explore the codebase
 
-Learn the current state of the code. Use the glossary vocabulary (`GLOSSARY.md`) and respect the ADRs in the area. Find the test seam for each slice: the module, the exported functions, and the test helpers a tester can call. Look for prefactoring: "make the change easy, then make the easy change."
+Learn the current state of the code. Use the domain glossary vocabulary and respect the ADRs in the area (`docs/agents/domain.md`). Find the test seam for each slice: the module, the exported functions, and the test helpers a tester can call. Look for prefactoring: "make the change easy, then make the easy change."
 
 ### 3. Draft vertical slices
 
 <vertical-slice-rules>
 
-- Each slice cuts a narrow but COMPLETE path through every layer it touches (sim, worker protocol, UI, tests).
+- Each slice cuts a narrow but COMPLETE path through every layer it touches (data, logic, API, UI, tests).
 - A completed slice is demoable or verifiable on its own.
 - Each slice fits in one fresh context window of its planned model.
 - Prefactoring comes first.
@@ -81,7 +81,7 @@ The module and exported functions the tester calls, and the test helpers to use.
 
 ## Checks
 
-The commands the reviewer runs: the test files, `npm run typecheck`, and `npx vitest run src/core/ui/scaling.test.ts` for UI sizes. For rendering or UI work, the `npm run shot` view to capture.
+The commands the reviewer runs: the test files, plus the checks the repo requires (`AGENTS.md` or `CLAUDE.md`, and the repo notes in `docs/agents/board.md`). For visual work, the screenshot to capture.
 
 </issue-template>
 

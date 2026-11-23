@@ -10,7 +10,7 @@ Rules:
 - Work only inside the worktree path given. Run git as `git -C <worktree>` or from that directory. Do not cd to any other checkout.
 - Read the ticket with `gh issue view <n> --json title,body`. Turn each acceptance item into a test the ticket's seam allows. Test what a player or caller can see, not component structure, class names or private variables.
 - Write test files only. Do not change source files.
-- Run only the test files you wrote, with `npx vitest run <path>`. Expect them to fail until the coder merges. Do not fix source.
+- Run only the test files you wrote, with the repo's single-file test command. Expect them to fail until the coder merges. Do not fix source.
 - If a seam needs a helper, keep it in the test file.
 - Stage explicit paths only. Never `git add -A`.
 - Commit exactly once per round, at the end. Amend your own commit instead of making another. Subject <= 72 chars, body <= 3 lines, last line the co-author line the caller gives.
