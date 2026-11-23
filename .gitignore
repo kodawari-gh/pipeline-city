@@ -1,6 +1,7 @@
 node_modules/
 *.zip
 .claude/settings.local.json
+.claude/worktrees/
 __pycache__/
 dist/
 e2e/shots/

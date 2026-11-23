@@ -185,7 +185,7 @@ Done (T178): `vertexAo` (`src/core/render/three/vertexao.ts`, `docs/render/cloth
 
 ### Task split (the owner approved it, T154, 2026-11-06; the bake engine is Blender's Cycles)
 
-In order. Each is one commit; each is checked with shots against the targets. The tasks are T172 to T181 in `docs/TODO.md`.
+In order. Each is one commit; each is checked with shots against the targets. The tasks were T172 to T181 in the old work list (`git log -- docs/TODO.md`).
 
 1. **Units, white point, glass.** `kelvin()` and one white point; every room light to decay 2 in metres from lumens; one constant glass tint for the view and the light; the day look at 14:00 holds, the wall gets lighter.
 2. **The floor lantern** (mesh, glow, point light, shadow).

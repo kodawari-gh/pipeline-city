@@ -387,7 +387,7 @@ Ceilings are today's **High** counts (`budget.test.ts`, `BUDGET`). The test fail
 | Board view | to set | to set | to set | Owner (J) after LPC4 |
 | Part close-up | to set | to set | to set | Owner (J) after LPC4 |
 
-Phones: the mobile targets in [TODO.md](TODO.md) (PERF9, Review against mobile budgets) govern the draw count. Those figures are reference values, not measured limits for this game. The owner sets the phone limit (PERF9).
+Phones: the mobile budgets (PERF9, Review against mobile budgets) govern the draw count. Those figures are reference values, not measured limits for this game. The owner sets the phone limit (PERF9).
 
 ### 6. Textures
 

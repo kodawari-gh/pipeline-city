@@ -40,7 +40,7 @@ Shimmer under the pan (third line of the tool, `--turns N`, default 8): the shar
 9. **KTX2 lightmaps (PERF25, KTX1).** Less memory; the saving can buy lightmap resolution.
 10. **Far city as cards (LODD3).** Also removes most sub-pixel lights.
 
-The open items are tasks LPC1–LPC11 in `docs/TODO.md` ("Look per cost"), with the order and the reasons.
+The open items were tasks LPC1–LPC11 ("Look per cost") in the old work list (`git log -- docs/TODO.md`), with the order and the reasons.
 
 ## Assets against art-style v3
 
