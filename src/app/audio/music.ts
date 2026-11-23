@@ -16,19 +16,22 @@ export type DataLayer = 'shimmer' | 'stress';
 
 /** The sink the director drives (`engine.ts` is the real one). Ids: `music_menu_F`, `music_<layer>_<KEY>` or `music_fault_<KEY>`. */
 export interface MusicSink {
-  startMusic(id: string, fadeInMs: number, quantise: Quant): void;
-  stopMusic(id: string, fadeOutMs: number, quantise: Quant): void;
+  /** `beats`: the call takes effect this many beats after its quantise point (a key change steps one fifth per beat). */
+  startMusic(id: string, fadeInMs: number, quantise: Quant, beats?: number): void;
+  stopMusic(id: string, fadeOutMs: number, quantise: Quant, beats?: number): void;
   /** `gainDb` is the layer's token dB (MIX.music.layerGainDb) plus 20 log10 of its linear target, plus the speed, saturation and pause-dip offsets. */
   setMusicGain(id: string, gainDb: number, fadeMs: number, quantise: Quant): void;
   /** A low-pass on one voice, `hz` (OPEN_HZ: none). Optional: a sink without it plays without the filters. */
   setMusicLowpass?(id: string, hz: number, fadeMs: number, quantise: Quant): void;
   /** A one-shot stem (the fault stinger). Optional: a sink without it plays no stinger. */
-  playStinger?(id: string, quantise: Quant): void;
+  playStinger?(id: string, quantise: Quant, gainDb?: number): void;
   /** A loop decode started before it is needed. */
   preloadMusic(id: string): void;
   /** The keyed stems of one key ('F', 'C', ...) decoded, or freed. */
   decodeKey(key: string): void;
   releaseKey(key: string): void;
+  /** Whether a key's layer stems are all decoded. Optional: a sink without it is always ready. A key change holds until it is. */
+  keyReady?(key: string): boolean;
 }
 
 /** What the snapshot says about the data and the machine (director.ts feeds it each snapshot). */
@@ -44,8 +47,11 @@ export interface MusicFeed {
 
 export interface Music {
   onScene(scene: Scene): void;
-  /** The save's level key, as a pitch class (0 = C). */
-  onKey(pc: number): void;
+  /**
+   * The save's level key, as a pitch class (0 = C). `stepped`: the level rose by one or more level-up notes, so the key walks
+   * one fifth per beat to the target. Otherwise (a load, a new game, a sandbox level) it is one crossfade on the next beat.
+   */
+  onKey(pc: number, stepped?: boolean): void;
   /** The game's phase (`Phase`), or undefined when there is no game. */
   onPhase(phase: string | undefined): void;
   /** The data and stress inputs, each snapshot. */
@@ -166,6 +172,9 @@ export function keysInMemory(pc: number): string[] {
   return [keyName(pc), keyName((pc + MIX.transpose.stepSemitones) % 12)];
 }
 
+/** The number of fifths up (+7 semitones each) from one key to another, 0..11: the steps a level change walks. */
+export const fifthsBetween = (from: number, to: number): number => ((((to - from) * 7) % 12) + 12) % 12;
+
 export function createMusic(sink: MusicSink): Music {
   let unlocked = false;
   let scene: Scene | null = null;
@@ -177,6 +186,11 @@ export function createMusic(sink: MusicSink): Music {
   const decoded = new Set<string>();
   /** What plays now: 'menu', a key token, or null (nothing yet). */
   let set: string | null = null;
+  /** The pitch class of the key that plays now (null: the menu or nothing), and of the key the save wants. */
+  let setPc: number | null = null;
+  let targetPc: number | null = null;
+  /** The last key change came from a level-up note: it walks the fifths. */
+  let stepped = false;
   /** Each playing id, with the gain (dB) last sent for it (null: started, no gain sent yet). */
   const active = new Map<string, number | null>();
   /** The last low-pass cutoff sent per playing id (absent: open). Reset when the voice starts. */
@@ -205,8 +219,11 @@ export function createMusic(sink: MusicSink): Music {
     return scene === 'game' && key !== null ? key : 'menu';
   };
 
-  const stopAll = (fadeMs: number) => {
-    for (const id of active.keys()) sink.stopMusic(id, fx(fadeMs), fq('bar'));
+  /** A beat offset for a sink call: none on the instant pass. */
+  const fb = (beats: number): number => (instant ? 0 : beats);
+
+  const stopAll = (fadeMs: number, q: Quant = 'bar', beats = 0) => {
+    for (const id of active.keys()) sink.stopMusic(id, fx(fadeMs), fq(q), fb(beats));
     active.clear();
     hzOf.clear();
   };
@@ -224,7 +241,7 @@ export function createMusic(sink: MusicSink): Music {
    * offset. The bed is muffled while a bill is unpaid, over `TIMING.debtFadeMs`. While the clock is stopped the pluck is dimmed by
    * `pause.musicHold.pluckDb` and low-passed.
    */
-  const setLayers = (fadeMs: number, q: Quant, force = false) => {
+  const setLayers = (fadeMs: number, q: Quant, force = false, beats = 0) => {
     if (set === null || set === 'menu') return;
     const targets = { ...layerTargets(phase, stopped) };
     if (!speed.bass) targets.bass = 0;
@@ -246,7 +263,7 @@ export function createMusic(sink: MusicSink): Music {
         continue;
       }
       if (!on) {
-        sink.startMusic(id, fx(fadeMs), fq(q));
+        sink.startMusic(id, fx(fadeMs), fq(q), fb(beats));
         active.set(id, null);
         hzOf.delete(id);
       }
@@ -308,16 +325,20 @@ export function createMusic(sink: MusicSink): Music {
   };
 
   /** The keyed and the data layers together. */
-  const refresh = (fadeMs: number, q: Quant = 'bar', force = false) => {
-    setLayers(fadeMs, q, force);
+  const refresh = (fadeMs: number, q: Quant = 'bar', force = false, beats = 0) => {
+    setLayers(fadeMs, q, force, beats);
     setDataLayers(fadeMs, force);
   };
 
   const sync = () => {
     const want = wanted();
     if (want === null || want === set) return;
+    // A new key holds the old one until it is decoded: the next snapshot calls sync again (onFeed).
+    if (want !== 'menu' && sink.keyReady?.(want) === false) return;
     const from = set;
+    const fromPc = setPc;
     set = want;
+    setPc = want === 'menu' ? null : targetPc;
     if (from === null) {
       // The first set: the menu comes in at once; a game set (key known first) starts on the bar.
       if (want === 'menu') {
@@ -338,9 +359,19 @@ export function createMusic(sink: MusicSink): Music {
     if (from === 'menu') {
       stopAll(TIMING.stateFadeMs);
       refresh(TIMING.stateFadeMs);
-    } else {
-      stopAll(TIMING.keyChangeMs);
-      refresh(TIMING.keyChangeMs);
+      return;
+    }
+    // Key to key: a level-up note walks one fifth per beat (step i on beat i - 1); any other change is one step on the next beat.
+    const base = fromPc ?? 0;
+    const to = targetPc ?? base;
+    const steps = stepped && fromPc !== null ? Math.max(1, fifthsBetween(base, to)) : 1;
+    for (let i = 1; i <= steps; i++) {
+      const last = i === steps;
+      const beats = i - 1;
+      set = last ? want : keyName((base + 7 * i) % 12);
+      stopAll(TIMING.keyChangeMs, 'beat', beats);
+      if (last) refresh(TIMING.keyChangeMs, 'beat', false, beats);
+      else setLayers(TIMING.keyChangeMs, 'beat', false, beats);
     }
   };
 
@@ -372,12 +403,18 @@ export function createMusic(sink: MusicSink): Music {
       scene = s;
       if (!hidden) sync();
     },
-    onKey(pc) {
+    onKey(pc, stepOn = false) {
       const k = keyName(pc);
       if (k === key) return;
       key = k;
+      targetPc = pc;
+      stepped = stepOn;
       // Decoding is loading, not sound: the keys follow the level even while hidden.
       const want = new Set(keysInMemory(pc));
+      // The keys a walk passes through are decoded too: a step starts its stems on its own beat.
+      if (stepOn && setPc !== null) {
+        for (let i = 1; i < fifthsBetween(setPc, pc); i++) want.add(keyName((setPc + 7 * i) % 12));
+      }
       for (const w of want) {
         if (!decoded.has(w)) {
           sink.decodeKey(w);
@@ -402,7 +439,11 @@ export function createMusic(sink: MusicSink): Music {
     },
     onFeed(f) {
       feed = f;
-      if (!hidden) refresh(BAR_MS);
+      // Each snapshot retries a key change that holds for its decode.
+      if (!hidden) {
+        sync();
+        refresh(BAR_MS);
+      }
     },
     onSpeed(s) {
       speed = speedMix(s);

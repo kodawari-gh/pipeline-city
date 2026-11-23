@@ -310,6 +310,7 @@ describe('level-up stinger: the real director and engine', () => {
     store.snapshot.value = snap(1, 1, []);
     await flush(); // the stinger decodes before the level changes
     store.snapshot.value = snap(2, 2, [note(2, 'Level 2: Desk', 'level')]);
-    expect(playedFiles()).toEqual(['sfx/level_up__C.ogg']);
+    // The SFX stinger and the music's level-up chord (ticket #64), both in the new key.
+    expect(playedFiles()).toEqual(['sfx/level_up__C.ogg', 'music/notes/music_levelup_C.ogg']);
   });
 });

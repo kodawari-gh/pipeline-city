@@ -387,10 +387,10 @@ const stingers = new Set<{ src: AudioBufferSourceNode; at: number }>();
 const stemLoop = (id: string): number => (id === MENU_ID ? MIX.music.menuLoopSamples : MIX.music.loopSamples);
 
 /** The time a call takes effect: now, or the next beat or bar line on the grid. */
-function quantTime(g: Graph, q: Quant): number {
+function quantTime(g: Graph, q: Quant, beats = 0): number {
   const now = g.ctx.currentTime;
   if (q === 'now' || musicT0 === null) return now;
-  return nextOnGrid(now + 0.05, musicT0, q === 'bar' ? BAR_S : BEAT_S);
+  return nextOnGrid(now + 0.05, musicT0, q === 'bar' ? BAR_S : BEAT_S) + beats * BEAT_S;
 }
 
 // Look-ahead (ticket #61): a music call is queued with its grid time. A timer (every TICK_MS) runs each queued call once its time
@@ -445,10 +445,10 @@ function queueMusic(g: Graph, id: string, at: number, run: () => void): void {
   runDue(g);
 }
 
-function startMusic(id: string, fadeInMs: number, q: Quant): void {
+function startMusic(id: string, fadeInMs: number, q: Quant, beats = 0): void {
   const g = graph;
   if (!g) return;
-  const at = quantTime(g, q);
+  const at = quantTime(g, q, beats);
   queueMusic(g, id, at, () => beginVoice(g, id, fadeInMs, at));
 }
 
@@ -505,7 +505,7 @@ function beginVoice(g: Graph, id: string, fadeInMs: number, t: number): void {
  * A one-shot stem (the fault stinger) on the grid: `quantTime` gives its start. Refused while hidden, and not started
  * before the tab hides again (`setHidden`). Not decoded yet: skipped, and its file loads for next time.
  */
-function playStinger(id: string, q: Quant): void {
+function playStinger(id: string, q: Quant, gainDb = MIX.music.cueGainDb.fault): void {
   const g = graph;
   if (!g || hiddenNow || g.ctx.state !== 'running') return;
   const path = audioPath(noteFile(id));
@@ -519,7 +519,7 @@ function playStinger(id: string, q: Quant): void {
   const src = ctx.createBufferSource();
   src.buffer = buf;
   const gain = ctx.createGain();
-  gain.gain.value = dB(MIX.music.cueGainDb.fault);
+  gain.gain.value = dB(gainDb);
   src.connect(gain).connect(g.musicDuck);
   const rec = { src, at };
   stingers.add(rec);
@@ -530,10 +530,10 @@ function playStinger(id: string, q: Quant): void {
   src.start(Math.max(at, ctx.currentTime));
 }
 
-function stopMusic(id: string, fadeOutMs: number, q: Quant): void {
+function stopMusic(id: string, fadeOutMs: number, q: Quant, beats = 0): void {
   const g = graph;
   if (!g) return;
-  const at = quantTime(g, q);
+  const at = quantTime(g, q, beats);
   queueMusic(g, id, at, () => endVoice(id, fadeOutMs, at));
 }
 
@@ -586,16 +586,23 @@ function unloadPath(path: string): void {
   cache.delete(path);
 }
 
-/** Decode a key's stems and its fault stinger (the controller keeps the current and the next key). */
+/** Decode a key's stems, its fault stinger and its level-up chord (the controller keeps the current and the next key). */
 function decodeKey(key: string): void {
   for (const l of LAYERS) void load(stemFile(`music_${l}_${key}`));
   void load(noteFile(`music_fault_${key}`));
+  void load(noteFile(`music_levelup_${key}`));
 }
 
 /** Free a key's stems: the map entries go, and a voice still playing keeps its own buffer. */
 function releaseKey(key: string): void {
   for (const l of LAYERS) unloadPath(audioPath(stemFile(`music_${l}_${key}`)));
   unloadPath(audioPath(noteFile(`music_fault_${key}`)));
+  unloadPath(audioPath(noteFile(`music_levelup_${key}`)));
+}
+
+/** True when all the key's layer stems are decoded: a key change waits for this (the old key holds until then). */
+function keyReady(key: string): boolean {
+  return LAYERS.every((l) => ready.has(audioPath(stemFile(`music_${l}_${key}`))));
 }
 
 function setMusicLowpass(id: string, hz: number, fadeMs: number, q: Quant): void {
@@ -614,6 +621,7 @@ const musicSink = {
   preloadMusic: (id: string) => void load(stemFile(id)),
   decodeKey,
   releaseKey,
+  keyReady,
 };
 
 /** What the director drives (director.ts `CueSink`, the ambience calls of `AmbienceSink`, the music calls of `MusicSink`). */

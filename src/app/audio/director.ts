@@ -3,7 +3,7 @@
 // It also drives the ambience (ambience.ts): the room loop (`onScene`, `onUnlock`), the hum (each snapshot) and the pause dip (`onUi`).
 // It talks to the sound only through `CueSink` and the ambience calls, so a test drives it with a fake (engine.ts is the real sink).
 import { MIX, type CueId } from './mixTokens';
-import { keyPcForLevel } from './keys';
+import { keyName, keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
 import { createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
@@ -200,15 +200,20 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
     if (sandbox) return;
     setKey(keyPcForLevel(lvl));
     sink.playCue('level_up', { quantise: MIX.levelUp.quantise === 'beat' ? 'beat' : undefined });
+    // The level-up chord (ticket #64) is the first step's key, on the same beat, 6 dB under the SFX. Several levels: one chord.
+    const first = Math.min(lvl, (level ?? lvl - 1) + 1);
+    sink.playStinger?.(`music_levelup_${keyName(keyPcForLevel(first))}`, 'beat', MIX.music.levelupWithSfxDb);
   };
 
   return {
     onSnapshot(s) {
+      const fresh = notes.fresh(s.log);
       setKey(keyPcForLevel(s.level.level));
       ambience.onSnapshot({ powered: s.powered === true, devices: s.devices ?? [] });
       // The phase first: a key change on the same snapshot then starts the layers of the new phase.
       music.onPhase(s.phase);
-      music.onKey(keyPcForLevel(s.level.level));
+      // A level-up note walks the key one fifth per beat; a load, a new game or a sandbox level is one crossfade.
+      music.onKey(keyPcForLevel(s.level.level), s.sandbox !== true && fresh.some((e) => e.kind === 'level'));
       music.onFeed(musicFeed(s));
       sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
@@ -217,7 +222,6 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
       prevPending = pending;
       let i = 0;
       let swapCued = false;
-      const fresh = notes.fresh(s.log);
       // The note kinds that played a cue now: a state rule of the same family is skipped (one fault, not two).
       const families = new Set<string>();
       for (const e of fresh) {
