@@ -4,7 +4,7 @@ import { configDefaults } from 'vitest/config';
 import preact from '@preact/preset-vite';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { HEAVY_TESTS } from './tools/heavy-tests';
+import { HEAVY_TESTS } from './tools/heavy-tests.ts';
 
 const BROWSER_TESTS = '**/*.browser.test.ts';
 const EXCLUDE = [...configDefaults.exclude, '**/.claude/**'];
@@ -32,9 +32,9 @@ export default defineConfig(({ command }) => ({
     pool: 'vmThreads',
     exclude: EXCLUDE,
     projects: [
-      { extends: true, test: { name: 'fast', exclude: [...EXCLUDE, ...HEAVY_TESTS, BROWSER_TESTS] } },
-      { extends: true, test: { name: 'heavy', include: [...HEAVY_TESTS], maxWorkers: 6, testTimeout: 400_000, hookTimeout: 120_000 } },
-      { extends: true, test: { name: 'browser', include: [BROWSER_TESTS], fileParallelism: false, testTimeout: 240_000 } },
+      { extends: true, test: { name: 'fast', sequence: { groupOrder: 1 }, exclude: [...EXCLUDE, ...HEAVY_TESTS, BROWSER_TESTS] } },
+      { extends: true, test: { name: 'heavy', sequence: { groupOrder: 2 }, include: [...HEAVY_TESTS], maxWorkers: 6, testTimeout: 400_000, hookTimeout: 120_000 } },
+      { extends: true, test: { name: 'browser', sequence: { groupOrder: 3 }, include: [BROWSER_TESTS], fileParallelism: false, testTimeout: 240_000 } },
     ],
   },
 }));

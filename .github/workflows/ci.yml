@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +26,20 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           path: dist
+
+  # The slow 3D and simulation tests (tools/heavy-tests.ts). Started by hand from the Actions tab; they do not gate the deploy.
+  heavy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:heavy
 
   deploy:
     needs: check
