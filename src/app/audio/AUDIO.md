@@ -32,6 +32,7 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `volume.ts` | The player's mix rules (pure): slider gain, snap, `busGains` (bus dB times slider gain), per-device read and write |
 | `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
 | `ambience.ts` | Ambience controller (pure): room loop on/off, hum on while powered, hum level and rate from fan speed, pause dip. Driven by the director through an `AmbienceSink` (`startLoop`, `stopLoop`, `setHum`, `duckHum`), so tests use a fake |
+| `music.ts` | Music controller (pure): the menu loop, the game stems (bed, pluck, bass) by phase and key, crossfades. Driven by the director through a `MusicSink`, so tests use a fake |
 
 ### Settings mix
 - The Sound block sits in the Settings modal (`src/core/ui/panels/MainMenu.tsx`, `SoundRows`).
@@ -101,5 +102,25 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Sliders: every range input (`input[type=range]`) plays `ui_slider_tick` once per 5 % step (`sliderStep` in `uiCues.ts`). The listener compares the step on each input event. A click on a slider plays no extra tick.
 - The Build flyout (`BuildMode.tsx`): `panelCues.ts` plays `ui_panel_open` when `buildOpen` turns on (the Build my PC button plays `ui_click` only). Its X carries `ui_panel_close`. The machine list (`BuildMachine.tsx`) carries the open marker and has no close button of its own.
 
+### Music: menu and game (ticket #61)
+- `music.ts` (`createMusic`) gets the scene, the save's key, the phase and the unlock from `director.ts`. `engine.ts` is its sink (`startMusic`, `stopMusic`, `setMusicGain`, `preloadMusic`, `decodeKey`, `releaseKey`).
+- Tempo: 66 bpm, fixed by the file. A loop is 4 bars of 4 beats (`BAR_S`, `BEAT_S`, from `MIX.music.loopSamples`). Each stem loops on its inner region (`loopStart` = PAD, `loopEnd` = PAD + loop) and is stitched once per decode (`stitchStem`).
+- Scheduling: a grid call (`bar`, `beat`) is queued with its grid time. A 25 ms timer starts it once that time is within 100 ms of `ctx.currentTime`. Calls on one voice keep their issue order. A `now` call runs at once.
+- Menu: `music_menu_F` always, whatever the save's level. After the unlock it starts at once with a 2 s fade in. It preloads at the first phase after `booted` (`off`, `posting`, `mounting` and `loading` do not preload it).
+- First game frame: the menu fades out over 2 s on the next bar, and the game stems fade in on that bar.
+- Key change in the game: the stems cross over 1.4 s.
+- Main menu from the game: the game stems fade over 1.5 s, and the menu loop starts on the next bar. Going back to the game stops the menu on the next bar (2 s).
+- Phase table (state targets; a layer gain is target times `MIX.music.layerGainDb`):
+
+| State | Phases | Bed | Pluck | Bass |
+|---|---|---|---|---|
+| off | `off` | 0.5 | 0 | 0 |
+| boot | `posting`, `mounting`, `loading`, `booting-os` | 1 | 0.5 | 0 |
+| idle | `idle-os`, `halted`, `waiting-for-key`, `done-remove-key` | 1 | 0.6 | 0 |
+| running | `running`, `running-os`, `ingesting`, `flashing`, `writing` | 1 | 1 | 1 |
+
+- Other phases (`error`, and any not listed) play no keyed layer. Entries start on the bar. Exits stop on the beat, with a 1 s fade. A state change fades the gains over 2 s.
+- Keys: the save's level key (`keyName(keyPcForLevel(level))`). Memory holds the current key and the key a fifth up (+7 semitones). A key change decodes the new pair and releases the rest.
+
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Not yet built: music, UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.

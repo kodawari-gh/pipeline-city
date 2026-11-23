@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 import { pickFile } from './keys';
+import { BAR_S, MENU_ID } from './music';
 
 /** Engine paths are relative to `audio/` (the basePath), e.g. `sfx/payout__F.ogg`. */
 const rel = (p: string): string => p.replace(/^\/?audio\//, '');
@@ -521,6 +522,44 @@ describe('level-up stinger: the music beat', () => {
     eng.playCue('level_up', { quantise: 'beat' });
     expect(startedAt('sfx/payout__F.ogg')).toBeCloseTo(12.5, 9);
     expect(startedAt(LEVEL_UP_F)).toBe(startedAt('sfx/payout__F.ogg'));
+  });
+});
+
+// Ticket #61: music calls on the grid run through a look-ahead timer. A call runs once its grid time is within 100 ms of the
+// audio clock (the timer ticks every 25 ms), so a bar line seconds away plays nothing until the window reaches it.
+describe('ticket #61: music look-ahead', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('a call with no grid time (now) starts at once', async () => {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([`music/stems/${MENU_ID}.ogg`]);
+    ctx().currentTime = 10;
+    eng.engineSink.startMusic(MENU_ID, 2000, 'now');
+    expect(sourcesOf().find((s) => s.started)?.when).toBe(10);
+  });
+
+  it('a bar call is not started until the look-ahead window reaches its bar line', async () => {
+    vi.useFakeTimers();
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([`music/stems/${MENU_ID}.ogg`, 'music/stems/music_bed_F.ogg']);
+    ctx().currentTime = 10;
+    eng.engineSink.startMusic(MENU_ID, 2000, 'now'); // sets the grid: t0 = 10
+    const bar = 10 + BAR_S;
+    eng.engineSink.startMusic('music_bed_F', 2000, 'bar');
+    const bedStarted = () => sourcesOf().find((s) => s.started && s.buffer?.path === 'music/stems/music_bed_F.ogg');
+    expect(bedStarted()).toBeUndefined();
+
+    ctx().currentTime = bar - 0.2; // 200 ms ahead: outside the 100 ms window
+    vi.advanceTimersByTime(25);
+    expect(bedStarted()).toBeUndefined();
+
+    ctx().currentTime = bar - 0.05; // inside the window: the next tick starts it on its bar line
+    vi.advanceTimersByTime(25);
+    expect(bedStarted()?.when).toBeCloseTo(bar, 9);
   });
 });
 

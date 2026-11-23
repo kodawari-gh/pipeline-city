@@ -7,6 +7,7 @@ import { VoicePool, type VoiceRec } from './voices';
 import { audioMix } from './mix';
 import { busGains, dB, type Volumes } from './volume';
 import { LOOP_IDS, type LoopId } from './ambience';
+import { BAR_S, BEAT_S, LAYERS, MENU_ID, PAD, nextOnGrid, stitchStem, type Quant } from './music';
 
 /** Set each bus to its default dB times the player's mix (busGains). A live change ramps (no clicks); a new graph sets it at once. */
 function applyBuses(g: Graph, m: Volumes, ramp: boolean): void {
@@ -178,6 +179,11 @@ export function load(file: string): Promise<AudioBuffer | null> {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         decoder ??= new OfflineAudioContext(1, 1, MIX.sampleRate);
         const buf = await decoder.decodeAudioData(await r.arrayBuffer());
+        // A music stem is stitched once, here: each decode makes a new buffer, and the cache keeps it (music.ts `stitchStem`).
+        if (path.includes('/music/stems/')) {
+          const channels = Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c));
+          stitchStem(channels, path.includes(`/${MENU_ID}.`) ? MIX.music.menuLoopSamples : MIX.music.loopSamples);
+        }
         ready.set(path, buf);
         return buf;
       } catch (e) {
@@ -331,8 +337,160 @@ export function duck(db: number, when: number): void {
   }
 }
 
-/** What the director drives (director.ts `CueSink`, and the ambience calls of `AmbienceSink`). */
-export const engineSink = { playCue, setKeyPc, startLoop, stopLoop, setHum, duckHum };
+// Music (ticket #61): one looping stem per voice: src -> fade (the start and stop ramps) -> level (the layer gain) -> music duck.
+// The grid runs from `musicT0`, the first start: a bar is 4 beats, a loop 4 bars (music.ts). A quantised call waits for its grid point.
+interface MusicVoice {
+  src: AudioBufferSourceNode;
+  fade: GainNode;
+  level: GainNode;
+}
+const musicVoices = new Map<string, MusicVoice>();
+let musicT0: number | null = null;
+const stemFile = (id: string): string => `music/stems/${id}.ogg`;
+const stemLoop = (id: string): number => (id === MENU_ID ? MIX.music.menuLoopSamples : MIX.music.loopSamples);
+
+/** The time a call takes effect: now, or the next beat or bar line on the grid. */
+function quantTime(g: Graph, q: Quant): number {
+  const now = g.ctx.currentTime;
+  if (q === 'now' || musicT0 === null) return now;
+  return nextOnGrid(now + 0.05, musicT0, q === 'bar' ? BAR_S : BEAT_S);
+}
+
+// Look-ahead (ticket #61): a music call is queued with its grid time. A timer (every TICK_MS) runs each queued call once its time
+// is within LOOK_AHEAD_S of the audio clock, in time order. Calls on one voice keep their issue order (see `queueMusic`).
+interface Due {
+  at: number;
+  id: string;
+  run: () => void;
+}
+const LOOK_AHEAD_S = 0.1;
+const TICK_MS = 25;
+const due: Due[] = [];
+/** The last grid time queued per voice id. A later call on that id is never earlier, so a start, gain and stop stay in order. */
+const lastAt = new Map<string, number>();
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Run every queued call due within the look-ahead window. The timer stops when the queue is empty. */
+function runDue(g: Graph): void {
+  const horizon = g.ctx.currentTime + LOOK_AHEAD_S;
+  while (due.length > 0 && due[0]!.at <= horizon) due.shift()!.run();
+  if (due.length === 0 && tickTimer !== null) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+}
+
+/** Queue a music call for grid time `at` (ordered after the voice's earlier calls, and by time), then run what is already due. */
+function queueMusic(g: Graph, id: string, at: number, run: () => void): void {
+  const t = Math.max(at, lastAt.get(id) ?? -Infinity);
+  lastAt.set(id, t);
+  let i = due.length;
+  while (i > 0 && due[i - 1]!.at > t) i--;
+  due.splice(i, 0, { at: t, id, run });
+  tickTimer ??= setInterval(() => {
+    if (graph) runDue(graph);
+  }, TICK_MS);
+  runDue(g);
+}
+
+function startMusic(id: string, fadeInMs: number, q: Quant): void {
+  const g = graph;
+  if (!g) return;
+  const at = quantTime(g, q);
+  queueMusic(g, id, at, () => beginVoice(g, id, fadeInMs, at));
+}
+
+/** Start the voice at grid time `t` (a due call). Not decoded yet: the cue is skipped (as a cue is), and its file loads for next time. */
+function beginVoice(g: Graph, id: string, fadeInMs: number, t: number): void {
+  if (musicVoices.has(id)) return;
+  const buf = ready.get(audioPath(stemFile(id)));
+  if (!buf) {
+    void load(stemFile(id));
+    return;
+  }
+  const { ctx } = g;
+  musicT0 ??= t;
+  const loop = stemLoop(id);
+  const loopSec = loop / MIX.sampleRate;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.loopStart = PAD / MIX.sampleRate;
+  src.loopEnd = (PAD + loop) / MIX.sampleRate;
+  const fade = ctx.createGain();
+  fade.gain.setValueAtTime(0, t);
+  fade.gain.linearRampToValueAtTime(1, t + fadeInMs / 1000);
+  const level = ctx.createGain();
+  level.gain.value = 0;
+  src.connect(fade).connect(level).connect(g.musicDuck);
+  // The phase: where the file's grid stands at `t`, so every stem stays on the one bar line.
+  const phase = (((t - musicT0) % loopSec) + loopSec) % loopSec;
+  src.start(t, PAD / MIX.sampleRate + phase);
+  musicVoices.set(id, { src, fade, level });
+}
+
+function stopMusic(id: string, fadeOutMs: number, q: Quant): void {
+  const g = graph;
+  if (!g) return;
+  const at = quantTime(g, q);
+  queueMusic(g, id, at, () => endVoice(id, fadeOutMs, at));
+}
+
+/** Fade the voice out from grid time `t`, then stop it (a due call). */
+function endVoice(id: string, fadeOutMs: number, t: number): void {
+  const v = musicVoices.get(id);
+  if (!v) return;
+  musicVoices.delete(id);
+  const end = t + fadeOutMs / 1000;
+  v.fade.gain.cancelScheduledValues(t);
+  v.fade.gain.setValueAtTime(1, t);
+  v.fade.gain.linearRampToValueAtTime(0, end);
+  v.src.stop(end + 0.05);
+}
+
+function setMusicGain(id: string, gainDb: number, fadeMs: number, q: Quant): void {
+  const g = graph;
+  if (!g) return;
+  const at = quantTime(g, q);
+  queueMusic(g, id, at, () => setVoiceGain(id, gainDb, fadeMs, at));
+}
+
+/** Ramp the voice's layer level from grid time `t` (a due call). */
+function setVoiceGain(id: string, gainDb: number, fadeMs: number, t: number): void {
+  const v = musicVoices.get(id);
+  if (!v) return;
+  const p = v.level.gain;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(p.value, t);
+  p.linearRampToValueAtTime(dB(gainDb), t + fadeMs / 1000);
+}
+
+function unloadPath(path: string): void {
+  ready.delete(path);
+  cache.delete(path);
+}
+
+/** Decode a key's stems (the controller keeps the current and the next key). */
+function decodeKey(key: string): void {
+  for (const l of LAYERS) void load(stemFile(`music_${l}_${key}`));
+}
+
+/** Free a key's stems: the map entries go, and a voice still playing keeps its own buffer. */
+function releaseKey(key: string): void {
+  for (const l of LAYERS) unloadPath(audioPath(stemFile(`music_${l}_${key}`)));
+}
+
+const musicSink = {
+  startMusic,
+  stopMusic,
+  setMusicGain,
+  preloadMusic: (id: string) => void load(stemFile(id)),
+  decodeKey,
+  releaseKey,
+};
+
+/** What the director drives (director.ts `CueSink`, the ambience calls of `AmbienceSink`, the music calls of `MusicSink`). */
+export const engineSink = { playCue, setKeyPc, startLoop, stopLoop, setHum, duckHum, ...musicSink };
 
 /** Start or fade out a loop now that its wish (or the graph) changed. */
 function syncLoop(id: LoopId): void {

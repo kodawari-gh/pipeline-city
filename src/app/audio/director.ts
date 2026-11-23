@@ -6,6 +6,7 @@ import { MIX, type CueId } from './mixTokens';
 import { keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
+import { createMusic, type Music, type MusicSink } from './music';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
@@ -113,9 +114,17 @@ const silentAmbience: AmbienceSink = { startLoop() {}, stopLoop() {}, setHum() {
 const hasAmbience = (s: object): s is AmbienceSink =>
   ['startLoop', 'stopLoop', 'setHum', 'duckHum'].every((k) => k in s);
 
-export function createDirector(sink: CueSink & Partial<AmbienceSink>): Director & RoomInput {
+/** A sink without the music calls (a cue-only fixture) is never asked for them: the music stays silent. */
+const silentMusic: MusicSink = {
+  startMusic() {}, stopMusic() {}, setMusicGain() {}, preloadMusic() {}, decodeKey() {}, releaseKey() {},
+};
+const hasMusic = (s: object): s is MusicSink =>
+  ['startMusic', 'stopMusic', 'setMusicGain', 'preloadMusic', 'decodeKey', 'releaseKey'].every((k) => k in s);
+
+export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<MusicSink>): Director & RoomInput {
   const notes = createNoteTracker();
   const ambience = createAmbience(hasAmbience(sink) ? sink : silentAmbience);
+  const music: Music = createMusic(hasMusic(sink) ? sink : silentMusic);
   let keyPc: number | null = null;
   /** Queued swaps in the last snapshot; null before the first one (after a reset). */
   let prevPending: number | null = null;
@@ -154,6 +163,9 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink>): Director 
     onSnapshot(s) {
       setKey(keyPcForLevel(s.level.level));
       ambience.onSnapshot({ powered: s.powered === true, devices: s.devices ?? [] });
+      // The phase first: a key change on the same snapshot then starts the layers of the new phase.
+      music.onPhase(s.phase);
+      music.onKey(keyPcForLevel(s.level.level));
       sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
       const pending = s.pendingSwaps?.length ?? 0;
@@ -200,9 +212,11 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink>): Director 
     },
     onScene(scene) {
       ambience.onRoom(scene === 'menu' || scene === 'game');
+      music.onScene(scene);
     },
     onUnlock() {
       ambience.onUnlock();
+      music.onUnlock();
     },
     onUi(u) {
       ambience.onSpeed(u.speed);
