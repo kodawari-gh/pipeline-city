@@ -94,10 +94,10 @@ describe.skipIf(!GATE)('toasts never cover a row in the in-game menus or the HUD
         await page.waitForSelector('[aria-label="Controls"]', { state: 'detached' }).catch(() => {});
 
         for (const list of [/^Files/, /^Tools/, /^Help/]) {
-          const row = page.locator('.pl-menu.paused .pl-row', { hasText: list }).first();
+          const row = page.locator('.pl-menu.paused .pl-util', { hasText: list }).first();
           if (!(await row.count())) continue;
           await row.click();
-          const ng = page.locator('.pl-menu.paused .pl-row', { hasText: /^New game/ }).first();
+          const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/ }).first();
           if (await ng.count()) { await ng.click(); break; }
           await page.keyboard.press('Escape');
         }

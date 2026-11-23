@@ -2551,3 +2551,20 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .part-picker .tail { display: none; }
 .part-picker[data-side="dock"] { translate: 0.5rem 0; clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch)); }
 
+
+/* ADR 0001 / SPEC rules 5 and 6 for the in-game family (#72): the HUD, the dock, Paused, Settings, Controls and New game in game have no border, glass,
+   shadow, glow or gradient, and no radius above a 4 px chip. A chosen state shows by its tint or its underline. */
+.title, .hud .money { text-shadow: none !important; }
+:is(.hud, .dockbar, .ctl, .pl-menu.settings) :is(button, .chip, kbd, .st-row, .st-val) { border: 0 !important; box-shadow: none !important; }
+.hud .chip { border-radius: 0.2rem; }
+.dockbar, .card.modal.mm-card.ctl, .ctl kbd, .st-row { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.modal-back.ctl-back { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.pl-menu.paused, .pl-menu.settings, .pl-menu.newgame.ingame { background: var(--c-shade-86); }
+.pl-menu .pl-row.hero.pl-chip { border-radius: 0.2rem; }
+.st-tab[aria-selected="true"] { text-decoration: underline; text-decoration-color: var(--c-accent); text-underline-offset: 0.3rem; }
+.st-row.on { background: rgba(255, 255, 255, 0.1); }
+
+/* Menu feedback toast (SPEC 4.10): a plateless line at the menu position, never in the bottom stack. Phone: x 16, y 140, under the HUD tab. */
+.toast.menu-toast { position: fixed; left: 3.2rem; top: 6.7rem; z-index: 30; display: flex; gap: 0.5rem; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; backdrop-filter: none; font: 500 1rem/1.3 var(--mono); color: var(--c-ink); pointer-events: none; }
+.toast.menu-toast b { color: var(--ok); font-weight: 600; }
+@media (max-width: 48em), (max-height: 30em) { .toast.menu-toast { left: 1.1rem; top: 9.4rem; } }

@@ -247,6 +247,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
 
   const layer = (state: NonNullable<typeof s>) => h('div', { class: 'pl-menu paused', 'data-cue': 'ui_panel_open', ref: root, onKeyDown: onKey },
     h('input', { ref: fileInput, type: 'file', accept: 'application/json,.json', hidden: true, 'data-cue': 'silent', onChange: onFile }),
+    saved && h('div', { class: 'card toast menu-toast', role: 'status' }, h('b', null, '[ ok ]'), h('span', null, 'Saved')),
     h('div', { class: 'pl-stack' },
       h(DisplayTitle, {
         lines: ['Paused'],
