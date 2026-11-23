@@ -1,15 +1,18 @@
 ---
-name: setup-matt-pocock-skills
-description: "Configure this repo for the engineering skills: set up its issue tracker, triage label vocabulary, and domain doc layout. Run once before first use of the other engineering skills."
+name: setup-khalil-skills
+description: "Configure this repo for the engineering skills: issue tracker, triage labels, domain docs, project board, and code search. Run once before first use of the other engineering skills."
 disable-model-invocation: true
 ---
 
-# Setup Matt Pocock's Skills
+# Setup Khalil's Skills
 
 Scaffold the per-repo configuration that the engineering skills assume:
 
 - **Issue tracker**: where issues live (GitHub by default; local markdown is also supported out of the box)
 - **Triage labels**: the strings used for the five canonical triage roles
+- **Project board**: the GitHub Projects board the swarm skills write to
+- **Code search**: the cocoindex-code MCP server for semantic search
+- **Coding standards**: hand off to `setup-coding-standards` at the end
 - **Domain docs**: where `GLOSSARY.md` and ADRs live, and the consumer rules for reading them
 
 This is a prompt-driven skill, not a deterministic script. Explore, present what you found, confirm with the user, then write.
@@ -26,6 +29,8 @@ Look at the current repo to understand its starting state. Read whatever exists;
 - `docs/adr/` and any `src/*/docs/adr/` directories
 - `docs/agents/`: does this skill's prior output already exist?
 - `.scratch/`: a sign that a local-markdown issue tracker convention is already in use
+- `docs/agents/board.json`: is a board already configured? `gh project list --owner <owner>`: which boards exist?
+- `.mcp.json`: is `cocoindex-code` configured? Is `ccc` on PATH (`ccc --help`)?
 - Is the `triage` skill installed? (a `triage` skill folder alongside this one, or `triage` in your available skills.) This decides whether Section B runs at all.
 - Monorepo signals: a `pnpm-workspace.yaml`, a `workspaces` field in `package.json`, or a populated `packages/*` with its own `src/`. These are present only in a genuinely large multi-package repo; their absence means single-context, which is almost every repo.
 
@@ -61,6 +66,16 @@ The defaults are the five canonical roles, each label string equal to its name: 
 **Section C: Domain docs.** Default to **single-context** (one `GLOSSARY.md` + `docs/adr/` at the repo root). This fits almost every repo; write it without asking.
 
 Offer **multi-context** (a root `GLOSSARY-MAP.md` pointing to per-context `GLOSSARY.md` files) only when exploration found monorepo signals. Then confirm which layout they want.
+
+**Section D: Project board.** Only for a GitHub tracker. Recommend one GitHub Projects board per repo. Ask which existing board to use, or create one (`gh project create --owner <owner> --title <repo>`, then `gh project link`). Then run `node .claude/skills/update-gh-board/board.mjs init <owner> <number> <owner/repo>`: it creates the `Planned model`, `Rounds` and `Cost` fields and writes `docs/agents/board.json`. When init names missing `Status` options, have the user add them in the board UI (Backlog, Ready, In progress, In review, Done) and rerun it. Then add the `swarm` block to `board.json`: the swarm log path, the install command, the test-file pattern, the commands that need the machine lock (browser runs, heavy suites), slots, and the co-author names. Done when `board.mjs show <any issue>` prints its status.
+
+**Section E: Code search.** Recommend the cocoindex-code MCP server. If `ccc` is missing, give the user its install command and wait. Write `.mcp.json` at the repo root (project scope, committed, so every clone gets it):
+
+```json
+{ "mcpServers": { "cocoindex-code": { "command": "ccc", "args": ["mcp"] } } }
+```
+
+Add `.cocoindex_code/` (the local index) to `.gitignore`. Headless swarm agents load project MCP servers only once they are approved: add `"enableAllProjectMcpServers": true` to `.claude/settings.json` after the user agrees. Done when a search through the MCP tool returns results.
 
 ### 3. Confirm and edit
 
@@ -99,7 +114,17 @@ The block:
 ### Domain docs
 
 [one-line summary of layout: "single-context" or "multi-context"]. See `docs/agents/domain.md`.
+
+### Project board
+
+GitHub Projects board <number>. Read and write it with `board.mjs` (`update-gh-board`); swarms run through `swarm.mjs` (`ticket-swarm`). Config: `docs/agents/board.json`.
+
+### Code search
+
+Use the `cocoindex-code` MCP search before Grep or Glob.
 ```
+
+Include `### Project board` only when Section D ran, and `### Code search` only when Section E ran.
 
 Include the `### Triage labels` sub-block, and write `docs/agents/triage-labels.md`, only when `triage` is installed and Section B ran. When it isn't, both are omitted.
 
@@ -118,3 +143,5 @@ For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch us
 ### 5. Done
 
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention they can edit `docs/agents/*.md` directly later; re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
+
+Then offer `setup-coding-standards` if the repo has no `check` script that runs a linter, a formatter check and a type checker.
