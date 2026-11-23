@@ -106,10 +106,10 @@ describe.skipIf(!GATE)('in-game menus and HUD: no rule 5 or 6 breaks (ticket #72
 
         // New game, opened from a Paused utility list (Files, Tools or Help), then Escape
         for (const list of [/^Files/, /^Tools/, /^Help/]) {
-          const row = page.locator('.pl-menu.paused .pl-row', { hasText: list }).first();
+          const row = page.locator('.pl-menu.paused .pl-util', { hasText: list }).first();
           if (!(await row.count())) continue;
           await row.click();
-          const ng = page.locator('.pl-menu.paused .pl-row', { hasText: /^New game/ }).first();
+          const ng = page.locator('.pl-menu.paused .pl-sub-item', { hasText: /^New game/ }).first();
           if (await ng.count()) { await ng.click(); break; }
           await page.keyboard.press('Escape');
         }
