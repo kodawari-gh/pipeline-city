@@ -2485,6 +2485,24 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build.bld-tabs[data-layout="desk"] .bld-read { top: 0; padding-top: 1.35rem; padding-left: 0.85rem; --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
 .build.bld-tabs[data-layout="desk"] .bld-lens { top: 0; right: 0; padding: 1.35rem 1.4rem 0.35rem 0.85rem; }
 .build.bld-tabs[data-layout="desk"] .bld-inst.closed { right: 0; top: 8.75rem; width: 14rem; background: none; padding: 0; }
+/* The OS sheet (#76, SPEC §4.11, ADR 0001): an edge tab. Desk: flush to the right edge, chamfers on the two free corners. Phone: flush to the bottom, chamfers on the top two. No scrim over the 3D view: the scrim stays, clear, as the click-off target. */
+.build .os-scrim { background: transparent; }
+/* (the tabs under the sheet hide: their text would show through its 86 % backing) */
+.build:has(> .bld-os-sheet) :is(.bld-lens, .bld-inst, .bld-foot) { visibility: hidden; }
+.build.bld-tabs[data-layout="desk"] .bld-os-sheet { top: 0; bottom: 0; right: 0; left: auto; width: 44rem; max-width: 100%; margin: 0; padding: 1.35rem 1.4rem 1rem 1.9rem; clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch)); }
+.build.bld-tabs[data-layout="phone"] .bld-os-sheet { top: 2.5rem; bottom: 0; left: 0; right: 0; width: auto; max-width: none; margin: 0; padding: 1rem 1rem 0.9rem; clip-path: polygon(var(--ch-sm) 0, calc(100% - var(--ch-sm)) 0, 100% var(--ch-sm), 100% 100%, 0 100%, 0 var(--ch-sm)); }
+/* (the sheet's own parts: text on the tab, no plate, no pill; the selected page is ink, not a tinted button) */
+/* SPEC rule 5: no borders on the sheet or in it */
+.build .bld-os-sheet, .build .bld-os-sheet * { border: 0; }
+.build .bld-os-sheet .os-sheet-tabs { gap: 0.2rem 1.1rem; }
+.build .bld-os-sheet .os-sheet-tabs button { padding: 0.3rem 0; background: none; color: var(--mute); }
+.build .bld-os-sheet .os-sheet-tabs button.on { background: none; color: var(--ink); font-weight: 600; }
+.build .bld-os-sheet .os-card.on { background: none; }
+.build .bld-os-sheet .os-card-head em { background: none; padding: 0; color: var(--ok); }
+.build .bld-os-sheet .os-act.primary { background: none; color: var(--accent); }
+.build .bld-os-sheet .os-act.primary:hover:not(:disabled) { background: none; text-decoration: underline; }
+.build .bld-os-sheet .os-banner, .build .bld-os-sheet .os-tile, .build .bld-os-sheet .os-chart { background: none; }
+.build .bld-os-sheet .os-tile.sel .os-tile-txt b { font-weight: 600; }
 .build.bld-tabs[data-layout="desk"] .bld-inst.closed .bld-mtog { width: 14rem; padding-right: 2rem; }
 .build.bld-tabs[data-layout="desk"] .bld-mtog { right: 0; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
 .build.bld-tabs[data-layout="desk"] .bld-inst.open { right: 0; bottom: 0; width: var(--bld-r); padding-right: 1.9rem; padding-bottom: 1.9rem; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }

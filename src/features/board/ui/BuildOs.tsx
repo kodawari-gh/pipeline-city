@@ -36,7 +36,7 @@ export function BuildOs({ stage, onClose, onBench }: { stage: Stage; onClose: ()
 
   return (
     <>
-      <div class="bench-scrim" aria-hidden="true" onClick={onClose} />
+      <div class="bench-scrim os-scrim" aria-hidden="true" onClick={onClose} />
       <section class="bench mode-panel ospanel bld-os-sheet" aria-label="Operating system">
         <header class="bench-head">
           <div class="mode-head"><span class="mode-eyebrow">The system the machine runs</span><b>{s.os ? s.os.name : 'Operating system'}</b></div>
