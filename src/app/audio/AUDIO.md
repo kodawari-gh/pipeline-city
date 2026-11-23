@@ -26,13 +26,14 @@ The game serves `public/audio/` at `audio/` (the `basePath` in the tokens). Load
 | `keys.ts` | Level to key, file and rate per cue (pure) |
 | `events.ts` | Log note to cue (`logRules`), and the new-notes tracker (no sound on a first snapshot) |
 | `director.ts` | Snapshot to key change and cues. Driven through a `CueSink`, so tests use a fake |
-| `cueBoard.ts` | `?debug` board: one button per cue |
+| `cueBoard.ts` | `?debug` board: one button per cue, and the stress readout (each term) |
+| `stress.ts` | Stress amount (pure): worst throttle, VRM temperature and load ratio, power ratio; the largest term. Feeds the music stress layer and the cue board |
 | `uiCues.ts` | UI sound mapping (pure): `data-cue` value and event to cue id; the click's transition step |
 | `uiListener.ts` | The one document-level UI listener (hover, keyboard focus, click, checkbox change, arrows, Esc). Installed by `initAudio` |
 | `volume.ts` | The player's mix rules (pure): slider gain, snap, `busGains` (bus dB times slider gain), per-device read and write |
 | `mix.ts` | The live mix: signal `audioMix`, `setSlider`, `setMuted` (wraps `volume.ts` with localStorage) |
 | `ambience.ts` | Ambience controller (pure): room loop on/off, hum on while powered, hum level and rate from fan speed, pause dip. Driven by the director through an `AmbienceSink` (`startLoop`, `stopLoop`, `setHum`, `duckHum`), so tests use a fake |
-| `music.ts` | Music controller (pure): the menu loop, the game stems (bed, pluck, bass) by phase and key, crossfades. Driven by the director through a `MusicSink`, so tests use a fake |
+| `music.ts` | Music controller (pure): the menu loop, the game stems (bed, pluck, bass, shimmer, stress) by phase, key, data feed and speed, crossfades. Driven by the director through a `MusicSink`, so tests use a fake |
 
 ### Settings mix
 - The Sound block sits in the Settings modal (`src/core/ui/panels/MainMenu.tsx`, `SoundRows`).
@@ -110,7 +111,7 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - First game frame: the menu fades out over 2 s on the next bar, and the game stems fade in on that bar.
 - Key change in the game: the stems cross over 1.4 s.
 - Main menu from the game: the game stems fade over 1.5 s, and the menu loop starts on the next bar. Going back to the game stops the menu on the next bar (2 s).
-- Phase table (state targets; a layer gain is target times `MIX.music.layerGainDb`):
+- Phase table (state targets). Gains are linear: a layer gain is `MIX.music.layerGainDb` + 20 log10(target) dB (music-spec.md §4 and §8). The off bed (0.5) is -6 dB:
 
 | State | Phases | Bed | Pluck | Bass |
 |---|---|---|---|---|
@@ -122,12 +123,22 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Other phases (any not listed) play no keyed layer. Entries start on the bar. Exits stop on the beat, with a 1 s fade. A state change fades the gains over 2 s.
 - Keys: the save's level key (`keyName(keyPcForLevel(level))`). Memory holds the current key and the key a fifth up (+7 semitones). A key change decodes the new pair and releases the rest.
 
+### Music: data, stress and speed (ticket #62)
+- `director.ts` `musicFeed(s)` gives the music a `MusicFeed` each snapshot: `flowing` (link up or saturated, or a transfer, or a job key ingesting; a down link with a transfer or an ingest still flows), `saturated`, `stress` (0..1; `vrm` or `board.vrm`) and `debt` (`bill.unpaid > 0`). The stress layer's gain is the token dB plus 20 log10(stress^1.5). `onUi` passes the clock speed to `music.onSpeed`.
+- Shimmer `music_shimmer_<KEY>`: on while `flowing`. Fades with the data gain (`layerGainDb.shimmer`, -7 dB). Saturated adds +2 dB and a 4000 Hz low-pass. Otherwise the low-pass is open (the Nyquist frequency, 24000 Hz). Fades in and out on the bar (BAR_MS).
+- Stress `music_stress_<KEY>`: on while `stress > 0`. Gain is the token dB plus 20 log10(stress^1.5), as above (-6 dB at most), ramped on the bar.
+- Debt: the bed low-pass goes to 3000 Hz while `debt` is set, over 1 s (`TIMING.debtFadeMs`), and opens again over 1 s when it clears.
+- Speed: `speedMix(speed)` changes density and brightness only, never tempo (stems stay 66 bpm). Speed 1 cuts the bass and dims the shimmer 6 dB. Speed 2 lowers bass and shimmer 3 dB. Speed 4 is neutral. Speed 8 is brighter (+2 dB shimmer) and denser. Speed 12, 16 and 64 are brightest (+1 dB bass, +3 dB shimmer). Each change ramps over `TIMING.speedFadeMs` (500 ms). Density caps the event notes: each note cue carries `perBeat` = `EVENT_NOTES_PER_BEAT` (4, a judgement: the spec gives only the multipliers) x density. At most that many notes start in one beat of the grid (`engine.ts` `beatAllows`); the rest merge and are not played. Speed 1, 2, 4: 4 per beat. Speed 8: 8. Speed 12, 16, 64: 12. The stateCues (state rules) are not capped.
+- Stress amount (`stress.ts`): each term is 0 at its threshold and reaches 1 at `STRESS_SCALE` (0.2) past it. Throttle: 1 minus the worst device throttle. Temperature: VRM temperature between throttle and damage temperature. VRM: load ratio minus 1. Power: totalW / budgetW minus 0.9. The amount is the largest term. The cue board shows each term.
+- Decode on first use: a shimmer or stress start whose file is not decoded yet waits. It starts on the next bar after the load. A stop of a waiting start drops it.
+- Pause (speed 0): shimmer and stress go silent (spec: 0). They stop over the 1 s pause fade, on the next beat. Bass is off while stopped (see #63). The speed mix itself stays neutral while stopped.
+
 ### Music under pause, failure and hidden tab (ticket #63)
-- Clock stopped (`onUi` speed 0: Pause or Hold; `director.ts` passes `onStopped`). The bed gives way to `pausebed` over 1 s, on the next beat. The pluck drops `pause.musicHold.pluckDb` (-5 dB) and goes through a low-pass at `pause.musicHold.lowpassHz` (850 Hz), also over `pause.fadeMs`. Bass is quiet. Tempo does not change: all pause calls are on the beat grid. Resume: the same layers come back on the next beat over 1 s, and the pluck opens. `shimmer` and `stress` are not in this build (not in `LAYERS`), so they are not played.
+- Clock stopped (`onUi` speed 0: Pause or Hold; `director.ts` passes `onStopped`). The bed gives way to `pausebed` over 1 s, on the next beat. The pluck drops `pause.musicHold.pluckDb` (-5 dB) and goes through a low-pass at `pause.musicHold.lowpassHz` (850 Hz), also over `pause.fadeMs`. Bass is quiet. Tempo does not change: all pause calls are on the beat grid. Resume: the same layers come back on the next beat over 1 s, and the pluck opens. The data layers (shimmer, stress) are off while stopped (spec: shimmer 0, stress 0 on pause). They stop over 1 s on the next beat (the pause fade) and start again on the bar after resume, if the feed still asks for them (the spec says the next beat; kept on the bar).
 - Error phase: `pausebed` alone (bar entry, 2 s), no other keyed layer.
 - Hard failure (`director.ts` `hardFault`): a part burnt (the error phase starts without a POST error), the PSU trips, or the wall is cut for the bill (`bill.cut`). It plays one fault stinger `music_fault_<KEY>` (`notes/`), in the current key, on the next beat. A POST error is soft: the error phase plays the pausebed alone, and no stinger. The stinger is its own sound: a note of the same fault does not skip it.
 - Hidden tab (`director.ts` `onHidden`, from `index.ts` with `setHidden`): the music records state and sends nothing. `engine.ts` `setHidden` drops the queued cues, the queued stingers and the queued music calls (the look-ahead), and returns whether a music call was dropped. Keys still load. On return one instant pass sets every call to 0 ms, quantise `now`: layer gains go straight to target, a key change swaps the stems at once (no fade, no stinger), and stems that stay on keep playing. Stems keep their phase: a stem starts at its place on the grid (`beginVoice`). If a music call was dropped, the return sends every layer call of the set again (the engine starts a missing stem, stops a stem that should be off, and stops the old set's stems); the engine keeps a stem that already plays.
-- Engine: the pluck voice has a low-pass node (`tone`). `setMusicLowpass` and `playStinger` are optional on `MusicSink`, so a fake without them is still valid.
+- Engine: every voice has a low-pass node (`lp`, ticket #62); the pluck uses it for the pause. `setMusicLowpass` and `playStinger` are optional on `MusicSink`, so a fake without them is still valid.
 
 ## Status
-Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Ticket #63: music under pause, failure and hidden tab. Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.
+Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Ticket #61: menu and game music, with the look-ahead scheduler (see "Music"). Ticket #62: data, stress and speed layers in the music (see "Music: data, stress and speed"). Ticket #63: music under pause, failure and hidden tab. Not yet built: UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.

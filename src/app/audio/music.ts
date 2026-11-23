@@ -6,16 +6,21 @@ import { keyName } from './keys';
 import { dB } from './volume';
 import type { Scene } from './director';
 
+/** The stress amount lives in stress.ts; re-exported here with the music that plays it. */
+export { stressAmount } from './stress';
+
 export type Quant = 'bar' | 'beat' | 'now';
 export type Layer = 'bed' | 'pluck' | 'bass' | 'pausebed';
+/** The data layers (ticket #62): shimmer while data flows, stress under load. Each decodes on its first use. */
+export type DataLayer = 'shimmer' | 'stress';
 
 /** The sink the director drives (`engine.ts` is the real one). Ids: `music_menu_F`, `music_<layer>_<KEY>` or `music_fault_<KEY>`. */
 export interface MusicSink {
   startMusic(id: string, fadeInMs: number, quantise: Quant): void;
   stopMusic(id: string, fadeOutMs: number, quantise: Quant): void;
-  /** `gainDb` is the layer's target times its token dB (MIX.music.layerGainDb), plus any pause dip. */
+  /** `gainDb` is the layer's token dB (MIX.music.layerGainDb) plus 20 log10 of its linear target, plus the speed, saturation and pause-dip offsets. */
   setMusicGain(id: string, gainDb: number, fadeMs: number, quantise: Quant): void;
-  /** A keyed voice's low-pass corner (Hz). Optional: a sink without it plays the pluck unfiltered. */
+  /** A low-pass on one voice, `hz` (OPEN_HZ: none). Optional: a sink without it plays without the filters. */
   setMusicLowpass?(id: string, hz: number, fadeMs: number, quantise: Quant): void;
   /** A one-shot stem (the fault stinger). Optional: a sink without it plays no stinger. */
   playStinger?(id: string, quantise: Quant): void;
@@ -26,12 +31,27 @@ export interface MusicSink {
   releaseKey(key: string): void;
 }
 
+/** What the snapshot says about the data and the machine (director.ts feeds it each snapshot). */
+export interface MusicFeed {
+  /** The link is up or saturated, a transfer runs or a job key ingests. */
+  flowing: boolean;
+  saturated: boolean;
+  /** The stress amount, 0..1 (stress.ts `stressAmount`). */
+  stress: number;
+  /** A power bill is unpaid: the bed is muffled. */
+  debt: boolean;
+}
+
 export interface Music {
   onScene(scene: Scene): void;
   /** The save's level key, as a pitch class (0 = C). */
   onKey(pc: number): void;
   /** The game's phase (`Phase`), or undefined when there is no game. */
   onPhase(phase: string | undefined): void;
+  /** The data and stress inputs, each snapshot. */
+  onFeed(feed: MusicFeed): void;
+  /** The game speed (0 = stopped). Changes density and brightness only (`speedMix`). */
+  onSpeed(speed: number): void;
   /** The clock is stopped (Pause or Hold): speed 0. */
   onStopped(stopped: boolean): void;
   /** A hard failure (burnt VRM, PSU trip, power cut): the fault stinger on the next beat. */
@@ -48,20 +68,64 @@ export interface Music {
 /** The menu loop's id: the file's name without `.ogg` (`music_menu_F`). */
 export const MENU_ID = MIX.music.menu.file.replace(/^.*\//, '').replace(/\.ogg$/, '');
 export const LAYERS: readonly Layer[] = ['bed', 'pluck', 'bass', 'pausebed'];
+const DATA_LAYERS: readonly DataLayer[] = ['shimmer', 'stress'];
 
-/** Fades, in ms. The menu's 2 s and the 1.5 s return are the ticket's numbers; the rest follow music-spec.json (states, key_change, pause). */
+/** Fades, in ms. The menu's 2 s and the 1.5 s return are the ticket's numbers; the rest follow music-spec.json (states, key_change, pause, speed). */
 export const TIMING = {
   menuInMs: 2000,
   stateFadeMs: 2000,
   gameOutMs: 1500,
   keyChangeMs: 1400,
   exitFadeMs: 1000,
+  /** A game speed change: the ramp of its gains (music-spec.json `speed.fade_s`). */
+  speedFadeMs: 500,
+  /** The bill's low-pass on the bed (music-spec.json `debt`: 1 s). */
+  debtFadeMs: 1000,
   /** The pause crossfade (bed to pausebed) and the resume: MIX.pause.fadeMs. */
   pauseFadeMs: MIX.pause.fadeMs,
 } as const;
 
-/** The low-pass corner that leaves the pluck open: the Nyquist frequency of the file's rate. */
-const OPEN_HZ = MIX.sampleRate / 2;
+/** Event notes per beat at speed 4, before merging (judgement: music-spec.json gives only the multiplier `density`). */
+export const EVENT_NOTES_PER_BEAT = 4;
+
+/** A cutoff with no filter (Hz): the Nyquist frequency of the file rate. */
+export const OPEN_HZ = MIX.sampleRate / 2;
+/** The low-pass cutoffs: the bed while a bill is unpaid, the shimmer while saturated (ticket #62). */
+export const FILTER = { debt: 3000, saturated: 4000 } as const;
+/** The shimmer's extra gain while the link is saturated (dB). */
+export const SATURATED_DB = 2;
+
+/** The game speed's mix (music-spec.json `speed.map`): bass on or off, bass and shimmer offsets (dB), and the event density. */
+export interface SpeedMix {
+  bass: boolean;
+  bassDb: number;
+  shimmerDb: number;
+  /** Multiplier of the event-note cap: notes per beat before merging = density * EVENT_NOTES_PER_BEAT. The director reads it (not the music). */
+  density: number;
+}
+
+/** The mix with no speed known (before the first `onSpeed`), at 0 (stopped), or at a speed the map does not list. */
+export const NEUTRAL_SPEED: SpeedMix = { bass: true, bassDb: 0, shimmerDb: 0, density: 1 };
+
+/** Speed changes density and brightness, never tempo (the stems are fixed 66 bpm). 1: no bass, dim shimmer; 2: bass and shimmer down 3 dB; 8 and up: brighter, denser. */
+export function speedMix(speed: number | undefined): SpeedMix {
+  switch (speed) {
+    case 1:
+      return { bass: false, bassDb: 0, shimmerDb: -6, density: 1 };
+    case 2:
+      return { bass: true, bassDb: -3, shimmerDb: -3, density: 1 };
+    case 4:
+      return NEUTRAL_SPEED;
+    case 8:
+      return { bass: true, bassDb: 0, shimmerDb: 2, density: 2 };
+    case 12:
+    case 16:
+    case 64:
+      return { bass: true, bassDb: 1, shimmerDb: 3, density: 3 };
+    default:
+      return NEUTRAL_SPEED;
+  }
+}
 
 /** Phases before the machine has booted: the menu loop is preloaded from the first phase after these. */
 const PRE_BOOT: ReadonlySet<string> = new Set(['off', 'posting', 'mounting', 'loading']);
@@ -115,6 +179,12 @@ export function createMusic(sink: MusicSink): Music {
   let set: string | null = null;
   /** Each playing id, with the gain (dB) last sent for it (null: started, no gain sent yet). */
   const active = new Map<string, number | null>();
+  /** The last low-pass cutoff sent per playing id (absent: open). Reset when the voice starts. */
+  const hzOf = new Map<string, number>();
+  /** The data layers whose file was asked for (decode on first use, once per id). */
+  const requested = new Set<string>();
+  let feed: MusicFeed = { flowing: false, saturated: false, stress: 0, debt: false };
+  let speed: SpeedMix = NEUTRAL_SPEED;
   /** The clock is stopped (speed 0: Pause or Hold). */
   let stopped = false;
   /** The tab is hidden: state changes are recorded, no sound is sent (`onHidden`). */
@@ -123,8 +193,6 @@ export function createMusic(sink: MusicSink): Music {
   let lost = false;
   /** Set for one instant pass on return: every call runs at once with no fade (`fx`, `fq`). */
   let instant = false;
-  /** The low-pass corner last sent per pluck voice (Hz). */
-  const toneSent = new Map<string, number>();
 
   /** A fade time for a sink call: none on the instant pass. */
   const fx = (ms: number): number => (instant ? 0 : ms);
@@ -140,51 +208,109 @@ export function createMusic(sink: MusicSink): Music {
   const stopAll = (fadeMs: number) => {
     for (const id of active.keys()) sink.stopMusic(id, fx(fadeMs), fq('bar'));
     active.clear();
-    toneSent.clear();
+    hzOf.clear();
+  };
+
+  /** A low-pass on a playing voice. Sent only when the cutoff changes (`force`: sent again, the record is not trusted). */
+  const setLowpass = (id: string, hz: number, fadeMs: number, q: Quant = 'bar', force = false) => {
+    if (!active.has(id) || (!force && (hzOf.get(id) ?? OPEN_HZ) === hz)) return;
+    hzOf.set(id, hz);
+    sink.setMusicLowpass?.(id, hz, fx(fadeMs), fq(q));
   };
 
   /**
-   * The keyed layers follow the phase and the clock: entries start on `q`, exits stop on the beat. Gains are target times token dB,
-   * the pluck is dimmed by `pause.musicHold.pluckDb` and low-passed while the clock is stopped.
+   * The keyed layers follow the phase, the clock and (bass) the speed: entries start on `q`, exits stop on the beat or within fadeMs.
+   * The target is a linear multiplier on the token (music-spec.md §4 and §8): dB = token + 20 log10(target), plus the speed's bass
+   * offset. The bed is muffled while a bill is unpaid, over `TIMING.debtFadeMs`. While the clock is stopped the pluck is dimmed by
+   * `pause.musicHold.pluckDb` and low-passed.
    */
   const setLayers = (fadeMs: number, q: Quant, force = false) => {
     if (set === null || set === 'menu') return;
-    const targets = layerTargets(phase, stopped);
+    const targets = { ...layerTargets(phase, stopped) };
+    if (!speed.bass) targets.bass = 0;
     for (const l of LAYERS) {
       const id = `music_${l}_${set}`;
       const to = targets[l];
       // `force`: the record is not trusted (the engine dropped calls), so the call goes out again. The engine keeps a stem that plays.
       if (force) {
         active.delete(id);
-        toneSent.delete(id);
+        hzOf.delete(id);
       }
       const on = active.has(id);
       if (to === 0) {
         if (on || force) {
-          sink.stopMusic(id, fx(TIMING.exitFadeMs), fq('beat'));
+          sink.stopMusic(id, fx(Math.min(fadeMs, TIMING.exitFadeMs)), fq('beat'));
           active.delete(id);
-          toneSent.delete(id);
+          hzOf.delete(id);
         }
         continue;
       }
       if (!on) {
         sink.startMusic(id, fx(fadeMs), fq(q));
         active.set(id, null);
+        hzOf.delete(id);
       }
-      if (l === 'pluck') {
-        const hz = stopped ? MIX.pause.musicHold.lowpassHz : OPEN_HZ;
-        if (toneSent.get(id) !== hz) {
-          sink.setMusicLowpass?.(id, hz, fx(TIMING.pauseFadeMs), fq(q));
-          toneSent.set(id, hz);
-        }
-      }
+      if (l === 'pluck') setLowpass(id, stopped ? MIX.pause.musicHold.lowpassHz : OPEN_HZ, TIMING.pauseFadeMs, q, force);
       const dip = l === 'pluck' && stopped ? MIX.pause.musicHold.pluckDb : 0;
-      const db = to * MIX.music.layerGainDb[l] + dip;
+      const db = round1(MIX.music.layerGainDb[l] + linearDb(to) + (l === 'bass' ? speed.bassDb : 0) + dip);
       if (active.get(id) !== db) {
         sink.setMusicGain(id, db, fx(fadeMs), fq(q));
         active.set(id, db);
       }
     }
+    setLowpass(`music_bed_${set}`, feed.debt ? FILTER.debt : OPEN_HZ, TIMING.debtFadeMs, q, force);
+  };
+
+  /**
+   * One data layer: on starts it on the bar (asking for its file first, so it decodes on first use); off stops it over a bar (over 1 s on the beat while paused).
+   * `db` is its gain, `hz` its low-pass; a gain change ramps over `fadeMs`.
+   */
+  const setData = (id: string, on: boolean, db: number, hz: number, fadeMs: number, force: boolean) => {
+    if (force) {
+      active.delete(id);
+      hzOf.delete(id);
+    }
+    if (!on) {
+      if (active.has(id) || force) {
+        // A pause stops it over the pause fade (1 s) on the next beat; a feed that stops asking stops it over a bar.
+        if (stopped) sink.stopMusic(id, fx(TIMING.pauseFadeMs), fq('beat'));
+        else sink.stopMusic(id, fx(BAR_MS), fq('bar'));
+        active.delete(id);
+        hzOf.delete(id);
+      }
+      return;
+    }
+    if (!requested.has(id)) {
+      requested.add(id);
+      sink.preloadMusic(id);
+    }
+    if (!active.has(id)) {
+      sink.startMusic(id, fx(BAR_MS), fq('bar'));
+      active.set(id, null);
+      hzOf.delete(id);
+    }
+    if (active.get(id) !== db) {
+      sink.setMusicGain(id, db, fx(fadeMs), fq('bar'));
+      active.set(id, db);
+    }
+    setLowpass(id, hz, fadeMs, 'bar', force);
+  };
+
+  /** The shimmer (on while data flows, +2 dB and a 4 kHz low-pass when saturated) and the stress (a linear stress^1.5 on its token dB). */
+  const setDataLayers = (fadeMs: number, force = false) => {
+    if (set === null || set === 'menu') return;
+    const sat = feed.saturated;
+    const shimmerDb = MIX.music.layerGainDb.shimmer + speed.shimmerDb + (sat ? SATURATED_DB : 0);
+    setData(`music_shimmer_${set}`, feed.flowing && !stopped, round1(shimmerDb), sat ? FILTER.saturated : OPEN_HZ, fadeMs, force);
+    // The stress target is a linear multiplier on the token (music-spec.json stress.gain): dB = token + 20 log10(stress^1.5).
+    const stressDb = feed.stress > 0 ? round1(MIX.music.layerGainDb.stress + linearDb(feed.stress ** 1.5)) : 0;
+    setData(`music_stress_${set}`, feed.stress > 0 && !stopped, stressDb, OPEN_HZ, fadeMs, force);
+  };
+
+  /** The keyed and the data layers together. */
+  const refresh = (fadeMs: number, q: Quant = 'bar', force = false) => {
+    setLayers(fadeMs, q, force);
+    setDataLayers(fadeMs, force);
   };
 
   const sync = () => {
@@ -198,7 +324,7 @@ export function createMusic(sink: MusicSink): Music {
         sink.startMusic(MENU_ID, fx(TIMING.menuInMs), 'now');
         active.set(MENU_ID, null);
       } else {
-        setLayers(TIMING.stateFadeMs, 'bar');
+        refresh(TIMING.stateFadeMs);
       }
       return;
     }
@@ -211,10 +337,10 @@ export function createMusic(sink: MusicSink): Music {
     // Menu to game: the menu fades out on the bar and the stems fade in. A key change crossfades in 1.4 s.
     if (from === 'menu') {
       stopAll(TIMING.stateFadeMs);
-      setLayers(TIMING.stateFadeMs, 'bar');
+      refresh(TIMING.stateFadeMs);
     } else {
       stopAll(TIMING.keyChangeMs);
-      setLayers(TIMING.keyChangeMs, 'bar');
+      refresh(TIMING.keyChangeMs);
     }
   };
 
@@ -225,17 +351,17 @@ export function createMusic(sink: MusicSink): Music {
       const old = set;
       sync();
       if (!dropped) {
-        setLayers(0, 'bar');
+        refresh(0);
         return;
       }
       // The engine dropped the calls queued at the hide: those layers never ran, and the stems of the old set may still play.
       // Every call of the set goes out again (a no-op in the engine where a stem already plays), and the old set stops.
       if (old !== null && old !== set) {
-        const oldIds = old === 'menu' ? [MENU_ID] : LAYERS.map((l) => `music_${l}_${old}`);
+        const oldIds = old === 'menu' ? [MENU_ID] : [...LAYERS, ...DATA_LAYERS].map((l) => `music_${l}_${old}`);
         for (const id of oldIds) sink.stopMusic(id, 0, 'now');
       }
       if (set === 'menu') sink.startMusic(MENU_ID, 0, 'now');
-      else setLayers(0, 'bar', true);
+      else refresh(0, 'bar', true);
     } finally {
       instant = false;
     }
@@ -272,13 +398,24 @@ export function createMusic(sink: MusicSink): Music {
         preloaded = true;
         sink.preloadMusic(MENU_ID);
       }
-      if (!hidden) setLayers(TIMING.stateFadeMs, 'bar');
+      if (!hidden) refresh(TIMING.stateFadeMs);
+    },
+    onFeed(f) {
+      feed = f;
+      if (!hidden) refresh(BAR_MS);
+    },
+    onSpeed(s) {
+      speed = speedMix(s);
+      if (!hidden) refresh(TIMING.speedFadeMs);
     },
     onStopped(s) {
       if (s === stopped) return;
       stopped = s;
       // Pause and resume: the bed and pausebed crossfade over 1 s, on the next beat (the tempo does not change).
-      if (!hidden) setLayers(TIMING.pauseFadeMs, 'beat');
+      if (!hidden) {
+        setLayers(TIMING.pauseFadeMs, 'beat');
+        setDataLayers(TIMING.pauseFadeMs);
+      }
     },
     onFault() {
       // The fault stinger in the key that plays now, on the next beat. Nothing with no keyed set (the menu, no game).
@@ -306,6 +443,13 @@ export function createMusic(sink: MusicSink): Music {
 export const LOOP_S = MIX.music.loopSamples / MIX.sampleRate;
 export const BAR_S = LOOP_S / 4;
 export const BEAT_S = LOOP_S / 16;
+/** One bar in ms. The data layers start, stop and fade over one bar (ticket #62). */
+export const BAR_MS = BAR_S * 1000;
+
+const round1 = (x: number): number => Math.round(x * 10) / 10;
+
+/** A linear gain as dB (20 log10). Layer targets are linear multipliers on their token (music-spec.json §8). */
+export const linearDb = (x: number): number => 20 * Math.log10(x);
 
 /** The first grid point `step` apart from `t0` at or after `t`. */
 export function nextOnGrid(t: number, t0: number, step: number): number {

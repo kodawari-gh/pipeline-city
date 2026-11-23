@@ -23,6 +23,8 @@ class Node {
   disconnect(): void {}
 }
 class Gain extends Node { gain = new Param(); }
+/** A lowpass filter stand-in: engine.ts sets its type and cutoff per music voice. */
+class Filter extends Node { type = ""; frequency = new Param(); }
 class Source extends Node {
   buffer: { path: string } | null = null;
   playbackRate = new Param();
@@ -42,6 +44,7 @@ class FakeCtx {
   constructor() { FakeCtx.last = this; }
   createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
+  createBiquadFilter(): Filter { return new Filter(); }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
   suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
 }

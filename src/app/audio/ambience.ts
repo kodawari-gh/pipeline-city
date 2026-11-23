@@ -24,6 +24,8 @@ export interface FanDevice {
   kind?: string;
   /** 0..1: how fast the device's fan turns (`DeviceSnap.fan`). */
   fan?: number;
+  /** 0..1: the device's throttle (`DeviceSnap.throttle`, 1 is full speed); the stress reads the worst one. */
+  throttle?: number;
 }
 
 /** Device kinds that have a fan of their own (types.ts `DeviceSnap.fan`: graphics and neural cards). */

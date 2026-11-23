@@ -7,7 +7,7 @@ import { VoicePool, type VoiceRec } from './voices';
 import { audioMix } from './mix';
 import { busGains, dB, type Volumes } from './volume';
 import { LOOP_IDS, type LoopId } from './ambience';
-import { BAR_S, BEAT_S, LAYERS, MENU_ID, PAD, nextOnGrid, stitchStem, type Quant } from './music';
+import { BAR_S, BEAT_S, LAYERS, MENU_ID, OPEN_HZ, PAD, nextOnGrid, stitchStem, type Quant } from './music';
 
 /** Set each bus to its default dB times the player's mix (busGains). A live change ramps (no clicks); a new graph sets it at once. */
 function applyBuses(g: Graph, m: Volumes, ramp: boolean): void {
@@ -255,6 +255,8 @@ export interface PlayOpts {
   gainDb?: number;
   /** `beat`: start on the music clock's next beat (at once with no beat clock). */
   quantise?: 'beat';
+  /** Event notes: at most this many start in one beat of the music grid. The rest are merged (not played). No grid, no limit. */
+  perBeat?: number;
 }
 
 /** The music's beat clock (the music tickets set it). The level-up stinger and the key change share it. */
@@ -282,20 +284,21 @@ export function playCue(id: CueId, opts: PlayOpts = {}): void {
     void load(pick.path);
     return;
   }
+  const { ctx } = g;
+  const wait = opts.quantise === 'beat' && beatClock ? Math.max(0, beatClock.secondsToNextBeat(ctx.currentTime)) : 0;
+  const when = ctx.currentTime + Math.max(0, opts.delayS ?? 0) + wait;
+  if (opts.perBeat !== undefined && !beatAllows(when, opts.perBeat)) return;
   const now = performance.now();
   const adm = pool.admit(c, now);
   if (!adm.ok) return;
   for (const v of adm.evict) v.stop();
 
-  const { ctx } = g;
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.playbackRate.value = pick.rate;
   const gain = ctx.createGain();
   gain.gain.value = dB(opts.gainDb ?? 0);
   src.connect(gain).connect(g.bus[c.bus as BusId]);
-  const wait = opts.quantise === 'beat' && beatClock ? Math.max(0, beatClock.secondsToNextBeat(ctx.currentTime)) : 0;
-  const when = ctx.currentTime + Math.max(0, opts.delayS ?? 0) + wait;
 
   const v: VoiceRec = {
     cue: id,
@@ -345,17 +348,37 @@ export function duck(db: number, when: number): void {
   }
 }
 
-// Music (ticket #61): one looping stem per voice: src -> fade (the start and stop ramps) -> level (the layer gain) -> music duck.
+// Music (ticket #61): one looping stem per voice: src -> fade (the start and stop ramps) -> level (the layer gain)
+// -> low-pass (the filters of ticket #62, open by default) -> music duck.
 // The grid runs from `musicT0`, the first start: a bar is 4 beats, a loop 4 bars (music.ts). A quantised call waits for its grid point.
 interface MusicVoice {
   src: AudioBufferSourceNode;
   fade: GainNode;
-  /** The pluck's low-pass (ticket #63); null on the other layers. */
-  tone: BiquadFilterNode | null;
   level: GainNode;
+  lp: BiquadFilterNode;
 }
 const musicVoices = new Map<string, MusicVoice>();
+/** A start whose file is not decoded yet (decode on first use): id -> its fade-in. It begins on the next bar once the file is in. */
+const waitingStart = new Map<string, number>();
+/** The last layer gain (dB) and low-pass (Hz) sent per id: a voice that starts late takes them at once. Cleared when it stops. */
+const musicDb = new Map<string, number>();
+const musicHz = new Map<string, number>();
 let musicT0: number | null = null;
+/** The event starts counted in the current beat (`perBeat`): the beat index and how many started in it. */
+let beatTally = { beat: -1, n: 0 };
+
+/**
+ * True when a cue at ctx time `at` may start: fewer than `perBeat` event cues start in its beat of the grid. It counts the start.
+ * No grid yet (no music started): always true.
+ */
+function beatAllows(at: number, perBeat: number): boolean {
+  if (musicT0 === null) return true;
+  const beat = Math.floor((at - musicT0) / BEAT_S + 1e-6);
+  if (beat !== beatTally.beat) beatTally = { beat, n: 0 };
+  if (beatTally.n >= perBeat) return false;
+  beatTally.n++;
+  return true;
+}
 const stemFile = (id: string): string => `music/stems/${id}.ogg`;
 /** The one-shot notes (the fault stinger): `music/notes/music_fault_<KEY>.ogg`. */
 const noteFile = (id: string): string => `music/notes/${id}.ogg`;
@@ -429,12 +452,23 @@ function startMusic(id: string, fadeInMs: number, q: Quant): void {
   queueMusic(g, id, at, () => beginVoice(g, id, fadeInMs, at));
 }
 
-/** Start the voice at grid time `t` (a due call). Not decoded yet: the cue is skipped (as a cue is), and its file loads for next time. */
+/**
+ * Start the voice at grid time `t` (a due call). A file not decoded yet is asked for, and the start waits for it: it then
+ * begins on the next bar (decode on first use). A file that fails to load is dropped (`load` warns once).
+ */
 function beginVoice(g: Graph, id: string, fadeInMs: number, t: number): void {
   if (musicVoices.has(id)) return;
-  const buf = ready.get(audioPath(stemFile(id)));
+  const path = audioPath(stemFile(id));
+  const buf = ready.get(path);
   if (!buf) {
-    void load(stemFile(id));
+    waitingStart.set(id, fadeInMs);
+    void load(stemFile(id)).then(() => {
+      if (!waitingStart.has(id)) return; // stopped while it loaded
+      waitingStart.delete(id);
+      if (!ready.has(path)) return;
+      const at = quantTime(g, 'bar');
+      queueMusic(g, id, at, () => beginVoice(g, id, fadeInMs, at));
+    });
     return;
   }
   const { ctx } = g;
@@ -451,37 +485,20 @@ function beginVoice(g: Graph, id: string, fadeInMs: number, t: number): void {
   fade.gain.linearRampToValueAtTime(1, t + fadeInMs / 1000);
   const level = ctx.createGain();
   level.gain.value = 0;
-  // The pluck goes through a low-pass (open until the clock stops); the other stems connect straight to the level.
-  const tone = id.includes('_pluck_') ? ctx.createBiquadFilter() : null;
-  if (tone) {
-    tone.type = 'lowpass';
-    tone.frequency.value = MIX.sampleRate / 2;
-    src.connect(fade).connect(tone).connect(level);
-  } else {
-    src.connect(fade).connect(level);
+  // A voice that starts late (it waited for its file) takes the gain and cutoff the controller last sent it.
+  const db = musicDb.get(id);
+  if (db !== undefined) {
+    level.gain.setValueAtTime(0, t);
+    level.gain.linearRampToValueAtTime(dB(db), t + fadeInMs / 1000);
   }
-  level.connect(g.musicDuck);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = musicHz.get(id) ?? OPEN_HZ;
+  src.connect(fade).connect(level).connect(lp).connect(g.musicDuck);
   // The phase: where the file's grid stands at `t`, so every stem stays on the one bar line.
   const phase = (((t - musicT0) % loopSec) + loopSec) % loopSec;
   src.start(t, PAD / MIX.sampleRate + phase);
-  musicVoices.set(id, { src, fade, tone, level });
-}
-
-/** Ramp a voice's low-pass corner to `hz` from grid time `t` (a due call), exponentially over `fadeMs`. */
-function setVoiceTone(id: string, hz: number, fadeMs: number, t: number): void {
-  const tone = musicVoices.get(id)?.tone;
-  if (!tone) return;
-  const p = tone.frequency;
-  p.cancelScheduledValues(t);
-  p.setValueAtTime(p.value, t);
-  p.exponentialRampToValueAtTime(hz, t + fadeMs / 1000);
-}
-
-function setMusicLowpass(id: string, hz: number, fadeMs: number, q: Quant): void {
-  const g = graph;
-  if (!g) return;
-  const at = quantTime(g, q);
-  queueMusic(g, id, at, () => setVoiceTone(id, hz, fadeMs, at));
+  musicVoices.set(id, { src, fade, level, lp });
 }
 
 /**
@@ -520,8 +537,11 @@ function stopMusic(id: string, fadeOutMs: number, q: Quant): void {
   queueMusic(g, id, at, () => endVoice(id, fadeOutMs, at));
 }
 
-/** Fade the voice out from grid time `t`, then stop it (a due call). */
+/** Fade the voice out from grid time `t`, then stop it (a due call). A start still waiting for its file is dropped. */
 function endVoice(id: string, fadeOutMs: number, t: number): void {
+  waitingStart.delete(id);
+  musicDb.delete(id);
+  musicHz.delete(id);
   const v = musicVoices.get(id);
   if (!v) return;
   musicVoices.delete(id);
@@ -539,14 +559,26 @@ function setMusicGain(id: string, gainDb: number, fadeMs: number, q: Quant): voi
   queueMusic(g, id, at, () => setVoiceGain(id, gainDb, fadeMs, at));
 }
 
-/** Ramp the voice's layer level from grid time `t` (a due call). */
+/** Ramp the voice's layer level from grid time `t` (a due call). The dB is kept, for a start that waits for its file. */
 function setVoiceGain(id: string, gainDb: number, fadeMs: number, t: number): void {
+  musicDb.set(id, gainDb);
   const v = musicVoices.get(id);
   if (!v) return;
   const p = v.level.gain;
   p.cancelScheduledValues(t);
   p.setValueAtTime(p.value, t);
   p.linearRampToValueAtTime(dB(gainDb), t + fadeMs / 1000);
+}
+
+/** Ramp the voice's low-pass cutoff from grid time `t` (a due call). The Hz is kept, like the gain. */
+function setVoiceLowpass(id: string, hz: number, fadeMs: number, t: number): void {
+  musicHz.set(id, hz);
+  const v = musicVoices.get(id);
+  if (!v) return;
+  const p = v.lp.frequency;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(p.value, t);
+  p.linearRampToValueAtTime(hz, t + fadeMs / 1000);
 }
 
 function unloadPath(path: string): void {
@@ -564,6 +596,13 @@ function decodeKey(key: string): void {
 function releaseKey(key: string): void {
   for (const l of LAYERS) unloadPath(audioPath(stemFile(`music_${l}_${key}`)));
   unloadPath(audioPath(noteFile(`music_fault_${key}`)));
+}
+
+function setMusicLowpass(id: string, hz: number, fadeMs: number, q: Quant): void {
+  const g = graph;
+  if (!g) return;
+  const at = quantTime(g, q);
+  queueMusic(g, id, at, () => setVoiceLowpass(id, hz, fadeMs, at));
 }
 
 const musicSink = {

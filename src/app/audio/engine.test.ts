@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 import { pickFile } from './keys';
-import { BAR_S, MENU_ID } from './music';
+import { BAR_S, BEAT_S, MENU_ID } from './music';
 
 /** Engine paths are relative to `audio/` (the basePath), e.g. `sfx/payout__F.ogg`. */
 const rel = (p: string): string => p.replace(/^\/?audio\//, '');
@@ -26,6 +26,8 @@ class Node {
   disconnect(): void {}
 }
 class Gain extends Node { gain = new Param(); }
+/** A lowpass filter stand-in: engine.ts sets its type and cutoff per music voice. */
+class Filter extends Node { type = ""; frequency = new Param(); }
 class Source extends Node {
   buffer: { path: string; length: number } | null = null;
   playbackRate = new Param();
@@ -51,6 +53,7 @@ class FakeCtx {
   constructor() { FakeCtx.last = this; }
   createGain(): Gain { const g = new Gain(); this.gains.push(g); return g; }
   createBufferSource(): Source { const s = new Source(); this.sources.push(s); return s; }
+  createBiquadFilter(): Filter { return new Filter(); }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve(); }
   suspend(): Promise<void> { this.state = 'suspended'; return Promise.resolve(); }
 }
@@ -586,6 +589,46 @@ describe('ticket #61: music look-ahead', () => {
     ctx().currentTime = 10;
     eng.engineSink.startMusic(MENU_ID, 2000, 'now');
     expect(eng.setHidden(true)).toBe(false);
+  });
+});
+
+// Ticket #62: the speed's density caps the event notes per beat of the music grid (`perBeat`); the notes past the cap merge.
+describe('ticket #62: event notes per beat', () => {
+  const NOTE_F = 'sfx/level_up__F.ogg';
+  /** How many sources started on the note's file. */
+  const notesPlayed = (): number => sourcesOf().filter((s) => s.started && s.buffer?.path === NOTE_F).length;
+
+  /** Music on the grid (t0 = 10 s). The clock moves 60 s per call, so the pool's rate limit does not hold the notes. */
+  async function onGrid() {
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([NOTE_F, `music/stems/${MENU_ID}.ogg`]);
+    let t = 5000;
+    vi.spyOn(performance, 'now').mockImplementation(() => (t += 60_000));
+    ctx().currentTime = 10;
+    eng.engineSink.startMusic(MENU_ID, 2000, 'now'); // sets the grid: t0 = 10
+    return eng;
+  }
+
+  it('at most perBeat notes start in one beat; the rest merge', async () => {
+    const eng = await onGrid();
+    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    expect(notesPlayed()).toBe(4);
+  });
+
+  it('the next beat has its own allowance', async () => {
+    const eng = await onGrid();
+    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    ctx().currentTime = 10 + BEAT_S + 0.01; // beat 1
+    for (let i = 0; i < 6; i++) eng.playCue('level_up', { perBeat: 4 });
+    expect(notesPlayed()).toBe(8);
+  });
+
+  it('a cue with no perBeat is not capped', async () => {
+    const eng = await onGrid();
+    for (let i = 0; i < 6; i++) eng.playCue('level_up');
+    expect(notesPlayed()).toBe(6);
   });
 });
 

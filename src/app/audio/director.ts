@@ -6,11 +6,13 @@ import { MIX, type CueId } from './mixTokens';
 import { keyPcForLevel } from './keys';
 import { cueForNote, createNoteTracker } from './events';
 import { createAmbience, type AmbienceSink, type FanDevice } from './ambience';
-import { createMusic, type Music, type MusicSink } from './music';
+import { createMusic, EVENT_NOTES_PER_BEAT, NEUTRAL_SPEED, speedMix, type Music, type MusicFeed, type MusicSink } from './music';
+import { stressAmount, type StressSnap } from './stress';
 import type { GameEvent, KeyActivity, LinkState, Phase } from '../../worker/game/types';
 
 export interface CueSink {
-  playCue(id: CueId, opts?: { delayS?: number; quantise?: 'beat' }): void;
+  /** `perBeat`: a note cue; at most that many start in one beat of the music grid (the speed's event density), the rest merge. */
+  playCue(id: CueId, opts?: { delayS?: number; quantise?: 'beat'; perBeat?: number }): void;
   setKeyPc(pc: number): void;
 }
 
@@ -39,10 +41,8 @@ export interface DirectorSnap {
   /** The fields below feed the state rules. A fixture may omit them: then no state rule plays. */
   baseTick?: number;
   phase?: Phase;
-  net?: { state: LinkState };
-  power?: { tripped: boolean };
-  /** The wall is cut for an unpaid bill (a hard failure, SPEC §6.3). */
-  bill?: { cut: boolean } | null;
+  net?: { state: LinkState; transfers?: readonly unknown[] };
+  power?: { tripped: boolean; totalW?: number; budgetW?: number };
   /** The last power-on ended in a POST error (phase 'error', a soft failure: no stinger). */
   postFailed?: boolean;
   plugged?: unknown | null;
@@ -50,6 +50,11 @@ export interface DirectorSnap {
   /** The machine's power and devices: the hum (a fixture may omit them: then no hum plays). */
   powered?: boolean;
   devices?: readonly FanDevice[];
+  /** The board's VRM (the stress and its cue-board terms; `board.vrm` is read when `vrm` is absent) and the power bill (the bed's low-pass while unpaid). */
+  vrm?: StressSnap['vrm'];
+  board?: StressSnap['board'];
+  /** `cut`: the wall is cut for an unpaid bill (a hard failure, SPEC §6.3). */
+  bill?: { unpaid?: number; cut?: boolean } | null;
 }
 
 export interface Director {
@@ -123,6 +128,25 @@ function stateCues(before: SeenState, now: SeenState, families: ReadonlySet<stri
   return out;
 }
 
+/**
+ * The music's data and stress inputs from one snapshot (ticket #62). Flowing: the link is up or saturated, a transfer runs or
+ * a job key ingests (`keyActivity` 'ingesting', or the plugged key's stage). A down link with a transfer or an ingest still flows.
+ */
+export function musicFeed(s: DirectorSnap): MusicFeed {
+  const link = s.net?.state;
+  const up = link === 'link-up' || link === 'saturated';
+  const transfers = (s.net?.transfers?.length ?? 0) > 0;
+  const plugged = s.plugged;
+  const ingest = s.keyActivity === 'ingesting' ||
+    (typeof plugged === 'object' && plugged !== null && (plugged as { stage?: unknown }).stage === 'ingesting');
+  return {
+    flowing: up || transfers || ingest,
+    saturated: link === 'saturated',
+    stress: stressAmount(s),
+    debt: (s.bill?.unpaid ?? 0) > 0,
+  };
+}
+
 /** Seconds between the cues of one snapshot: the notes of one tick play in log order, 40 ms apart. */
 export const NOTE_GAP_S = 0.04;
 
@@ -151,6 +175,8 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
   let prevUi: UiInput | null = null;
   /** The last speed-0 edge was a hold (not a Pause): lifting the hold plays no resume. */
   let pausedByHold = false;
+  /** The event notes per beat the speed allows (`perBeat` of each note cue). */
+  let eventCap = EVENT_NOTES_PER_BEAT * NEUTRAL_SPEED.density;
   /** The level the last snapshot showed; null before the first one (after a reset). */
   let level: number | null = null;
   /** The level whose stinger has played, or was passed over as silent. One level, one stinger (the note or the popup). */
@@ -183,6 +209,7 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
       // The phase first: a key change on the same snapshot then starts the layers of the new phase.
       music.onPhase(s.phase);
       music.onKey(keyPcForLevel(s.level.level));
+      music.onFeed(musicFeed(s));
       sandbox = s.sandbox === true;
       // A swap finished when the queue shrank. Its `install` notes play one `swap_done` (SPEC §3.2, "Swap done").
       const pending = s.pendingSwaps?.length ?? 0;
@@ -201,7 +228,7 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
         }
         if (id) {
           families.add(e.kind);
-          sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
+          sink.playCue(id, { delayS: i++ * NOTE_GAP_S, perBeat: eventCap });
         }
       }
       // A level note plays the stinger once, for the level now shown (several levels in one tick: one stinger).
@@ -244,7 +271,9 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
     },
     onUi(u) {
       ambience.onSpeed(u.speed);
+      music.onSpeed(u.speed);
       music.onStopped(u.speed === 0);
+      eventCap = EVENT_NOTES_PER_BEAT * speedMix(u.speed).density;
       const before = prevUi;
       prevUi = u;
       if (!before) return;

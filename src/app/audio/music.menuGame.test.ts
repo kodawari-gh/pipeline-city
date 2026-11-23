@@ -7,7 +7,7 @@
 //   preloadMusic(id)                       a loop decode started before it is needed
 //   decodeKey(key) / releaseKey(key)       the keyed stems of one key ('F', 'C', ...) decoded or freed
 // quantise: 'bar' (next bar line), 'beat' (next beat), 'now' (at once).
-// Layer gain: the state target times the token dB (MIX.music.layerGainDb), e.g. pluck target 0.5 -> 0.5 * -2 dB = -1 dB.
+// Layer gain: the token dB (MIX.music.layerGainDb) plus 20 log10 of the linear state target (music-spec.md §4), e.g. pluck target 0.5 -> token dB + -6 dB.
 // Values come from MIX, the music spec token or the key rules; the menu's 2 s and the 1.5 s return fade are the ticket's numbers.
 import { describe, expect, it } from 'vitest';
 import { createDirector, type DirectorSnap, type Scene, type UiInput } from './director';
@@ -84,6 +84,8 @@ const keyOf = (level: number) => keyName(keyPcForLevel(level));
 const keyed = (layer: Layer, level: number) => `music_${layer}_${keyOf(level)}`;
 /** The layer's token dB (MIX.music.layerGainDb), read from the token, not typed here. */
 const tokenDb = (layer: Layer) => MIX.music.layerGainDb[layer];
+/** Expected gain in dB: the token dB plus 20 log10 of the linear target (music-spec.md §4). */
+const gainFor = (layer: Layer, target: number) => tokenDb(layer) + 20 * Math.log10(target);
 
 function setup() {
   const b = fakeBackend();
@@ -185,7 +187,7 @@ describe('game music: phase table (bed, pluck, bass)', () => {
     const { b, d } = inGame(1, 'running');
     d.onSnapshot(snap(1, 'off'));
     const bed = b.gains(keyed('bed', 1)).at(-1)!;
-    expect(bed).toEqual(expect.objectContaining({ id: keyed('bed', 1), gainDb: 0.5 * tokenDb('bed'), fadeMs: ENTRY_FADE_MS }));
+    expect(bed).toEqual(expect.objectContaining({ id: keyed('bed', 1), gainDb: expect.closeTo(gainFor('bed', 0.5), 1), fadeMs: ENTRY_FADE_MS }));
     expect(b.stops()).toEqual(
       expect.arrayContaining([
         { kind: 'stop', id: keyed('pluck', 1), fadeOutMs: expect.any(Number), quantise: 'beat' },
@@ -194,17 +196,17 @@ describe('game music: phase table (bed, pluck, bass)', () => {
     );
   });
 
-  it('boot: the bed at 1 and the pluck at 0.5 (target times the token dB)', () => {
+  it('boot: the bed at 1 and the pluck at 0.5 (token dB plus 20 log10 of the target)', () => {
     const { b, d } = inGame(1, 'off');
     d.onSnapshot(snap(1, 'posting'));
-    expect(b.gains(keyed('bed', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('bed'), 9);
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(0.5 * tokenDb('pluck'), 9);
+    expect(b.gains(keyed('bed', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('bed', 1), 1);
+    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 0.5), 1);
   });
 
   it('idle: the pluck at 0.6 and no bass', () => {
     const { b, d } = inGame(1, 'posting');
     d.onSnapshot(snap(1, 'idle-os'));
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(0.6 * tokenDb('pluck'), 9);
+    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 0.6), 1);
     expect(b.starts().some((c) => c.id === keyed('bass', 1))).toBe(false);
   });
 
@@ -212,8 +214,8 @@ describe('game music: phase table (bed, pluck, bass)', () => {
     const { b, d } = inGame(1, 'idle-os');
     d.onSnapshot(snap(1, 'running'));
     expect(b.starts()).toContainEqual({ kind: 'start', id: keyed('bass', 1), fadeInMs: expect.any(Number), quantise: 'bar' });
-    expect(b.gains(keyed('bass', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('bass'), 9);
-    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(1 * tokenDb('pluck'), 9);
+    expect(b.gains(keyed('bass', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('bass', 1), 1);
+    expect(b.gains(keyed('pluck', 1)).at(-1)!.gainDb).toBeCloseTo(gainFor('pluck', 1), 1);
   });
 
   it('running to idle: the bass exits on the next beat', () => {

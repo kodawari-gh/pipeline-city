@@ -87,7 +87,7 @@ const snap = (level: number, phase: string = 'idle-os', extra: Partial<DirectorS
   ...extra,
 });
 
-const RUNNING: UiInput = { speed: 1, hold: null, crashed: false };
+const RUNNING: UiInput = { speed: 4, hold: null, crashed: false };
 const PAUSED: UiInput = { speed: 0, hold: null, crashed: false };
 const HELD: UiInput = { speed: 0, hold: 'levelUp', crashed: false };
 
@@ -290,7 +290,7 @@ describe('music while the tab is hidden', () => {
     const from = b.calls.length;
     d.onHidden(false);
     expect(b.gains(keyed('pluck', 1)).at(-1)).toEqual(
-      expect.objectContaining({ gainDb: 0.6 * tokenDb('pluck'), fadeMs: 0, quantise: 'now' }),
+      expect.objectContaining({ gainDb: Math.round((tokenDb('pluck') + 20 * Math.log10(0.6)) * 10) / 10, fadeMs: 0, quantise: 'now' }),
     );
     expect(b.stops(from)).toContainEqual({ kind: 'stop', id: keyed('bass', 1), fadeOutMs: 0, quantise: 'now' });
   });
