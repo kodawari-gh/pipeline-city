@@ -56,7 +56,7 @@ function shopLook(): {
     radius: cs?.borderTopLeftRadius ?? '',
     shadow: cs?.boxShadow ?? '',
     text: cs?.textShadow ?? '',
-    blur: `${cs?.backdropFilter ?? ''}|${(cs as any)?.webkitBackdropFilter ?? ''}`,
+    blur: `${cs?.backdropFilter ?? ''}|${(cs as any)?.webkitBackdropFilter || cs?.backdropFilter || ''}`,
     image: cs?.backgroundImage ?? '',
     bg: cs?.backgroundColor ?? '',
     back: back ? getComputedStyle(back).backgroundColor : '',
@@ -65,14 +65,25 @@ function shopLook(): {
 
 /** Runs in the page: the boxes of the visible Shop controls, and whether the page scrolls. */
 function shopControls(): { boxes: { name: string; x: number; y: number; r: number; b: number }[]; sw: number; sh: number } {
-  const boxes = [...document.querySelectorAll('.card.shop button, .card.shop [role="button"]')].filter((e) => {
+  const boxes: { name: string; x: number; y: number; r: number; b: number }[] = [];
+  const all = [...document.querySelectorAll('.card.shop button, .card.shop [role="button"]')];
+  for (const e of all) {
+    // A control that holds another control (a part card with its Buy button) is not an overlap with it: judge the inner one.
+    if (all.some((o) => o !== e && e.contains(o))) continue;
     const cs = getComputedStyle(e);
     const r = e.getBoundingClientRect();
-    return cs.display !== 'none' && cs.visibility === 'visible' && r.width > 0 && r.height > 0;
-  }).map((e) => {
-    const r = e.getBoundingClientRect();
-    return { name: (e.getAttribute('aria-label') || (e as HTMLElement).innerText || e.className || '').trim().slice(0, 30), x: r.left, y: r.top, r: r.right, b: r.bottom };
-  });
+    if (cs.display === 'none' || cs.visibility !== 'visible' || r.width <= 0 || r.height <= 0) continue;
+    // A control inside a scrolling list counts by its visible part only: the rest is scrolled away by design.
+    let x = r.left, y = r.top, rr = r.right, b = r.bottom;
+    for (let p = e.parentElement; p && !p.classList.contains('shop'); p = p.parentElement) {
+      const o = getComputedStyle(p);
+      if (o.overflowY === 'visible' && o.overflowX === 'visible') continue;
+      const c = p.getBoundingClientRect();
+      x = Math.max(x, c.left); y = Math.max(y, c.top); rr = Math.min(rr, c.right); b = Math.min(b, c.bottom);
+    }
+    if (rr <= x || b <= y) continue;
+    boxes.push({ name: (e.getAttribute('aria-label') || (e as HTMLElement).innerText || e.className || '').trim().slice(0, 30), x, y, r: rr, b });
+  }
   return { boxes, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight };
 }
 
