@@ -62,9 +62,16 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .card { padding: 0.533rem 0.667rem; }
 .big { font-size: 1rem; font-weight: 700; }
 
-/* HUD bar: one row of the few numbers that matter, the rest sits in the menu. */
-.hud { position: fixed; top: 0.533rem; left: 0.533rem; right: 0.533rem; z-index: 30; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.533rem; pointer-events: none; }
-.hud-side { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.667rem; padding: 0.333rem 0.533rem; min-height: 2.667rem; box-sizing: border-box; }
+/* HUD: edge tabs. Each tab touches a screen edge, is a flat shade with no border, radius or blur, and cuts its free corners at 45 degrees. */
+.hud { position: fixed; top: 0; left: 0; right: 0; z-index: 30; display: flex; justify-content: space-between; align-items: flex-start; gap: 0; pointer-events: none; }
+.hud-side { position: relative; isolation: isolate; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.667rem; padding: 0.8rem 1.6rem; min-height: 2.667rem; box-sizing: border-box; background: none; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* the fill is a pseudo-element, so the tab's own box does not clip the menus that open from it */
+.hud-side::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--c-shade-86); clip-path: var(--tab-clip, none); }
+.hud-left { --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
+.hud-center { --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
+.hud-right { --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
+.slow-note { flex-basis: 100%; font: 500 0.667rem var(--mono); color: var(--mute); text-align: right; }
+.slow-note .mute { color: var(--mute); }
 .hud-right { margin-left: auto; justify-content: flex-end; position: relative; z-index: 2; } /* (its menu opens over the level card, which sits later in the bar) */
 /* The level sits alone at the top centre, out of the stats bar. */
 /* Pause/play and the speed: collapsed to the play state and the current speed, the rest open on hover, focus or tap. */
@@ -577,8 +584,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 @media (max-width: 48em) {
   .money { font-size: 1.1rem; }
   .hide-narrow { display: none; }
-  .lvl-name, .lvl-num { display: none; }
-  .lvl-bar { width: 2.667rem; }
+  .lvl-word { display: none; }
   .dock { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
   .tooltip { max-width: calc(100vw - 1.1rem); }
   .tile { width: 6rem; }
@@ -606,14 +612,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .ng-warn { color: var(--bad); margin-right: auto; }
 .ng-note { display: flex; align-items: center; gap: 0.4rem; color: var(--warn); font-size: 0.85rem; }
 
-/* HUD level bar (Levels.tsx): level badge, name, thin progress to the next threshold, the client base as a fraction. */
-.lvl { gap: 0.4rem; padding: 0.2rem 0.5rem 0.2rem 0.25rem; border-radius: 99rem; background: var(--glass-hi); }
+/* HUD level bar (Levels.tsx): level badge, name, progress as small cells to the next threshold, the client base as a fraction. */
+.lvl { gap: 0.4rem; padding: 0.2rem 0.5rem 0.2rem 0.25rem; border-radius: 0; background: none; border: 0; }
+.lvl-cells { display: inline-flex; gap: 0.333rem; }
+.lvl-cells i { width: 0.733rem; height: 0.733rem; box-sizing: border-box; background: var(--c-trace); }
+.lvl-cells i.on { background: var(--c-ink); }
 .lvl-n { display: inline-grid; place-items: center; min-width: 1.333rem; height: 1.333rem; padding: 0 0.2rem; box-sizing: border-box; border-radius: 99rem; background: var(--accent); color: var(--on); font: 700 0.733rem var(--mono); }
 .lvl-name { font-weight: 600; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
-.lvl-bar { position: relative; width: 4.4rem; height: 0.333rem; border-radius: 0.2rem; background: var(--dot); overflow: hidden; }
-.lvl-bar i { display: block; height: 100%; border-radius: 0.2rem; background: var(--accent); transition: width .5s ease; }
 .lvl-num { font: 600 0.667rem var(--mono); color: var(--mute); }
-.lvl.max .lvl-bar i { background: var(--ok); }
 .lvl-chip { font: 700 0.667rem var(--ui); font-variant-numeric: tabular-nums; letter-spacing: .04em; padding: 0.2rem 0.55rem; border-radius: 99rem; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--glass-hi); }
 
 /* Milestone screen (Levels.tsx): a centred modal, the ladder of levels as cards. */
@@ -711,7 +717,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
-  .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i, .title, .hud, .stack { transition: none !important; animation: none !important; }
+  .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .title, .hud, .stack { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
   .bench, .bench-scrim, .bench-wait i { animation: none !important; }
 }
@@ -871,7 +877,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .inv-fit .link { font-size: 0.75rem; }
 
 /* Paused pill (Space), and the tutorial question in the New game dialog */
-.pausepill { position: fixed; top: 3.7rem; left: 50%; transform: translateX(-50%); z-index: 29; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.8rem; border-radius: 99rem; background: var(--panel); border: 1px solid var(--glass-line); backdrop-filter: blur(0.667rem); font-weight: 700; font-size: 0.8rem; pointer-events: none; }
 .ng-q { margin-right: 0.3rem; }
 
 /* Category icons: icon-only chips, the group name with its icon. */
@@ -1911,6 +1916,29 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* The dock keeps its place; on a narrow screen its labels are gone and the icons sit close. */
 @media (max-width: 48em) { .dockbar { gap: 0; padding: 0.2rem; } .dockbar .invbtn { padding: 0.4rem 0.6rem; } }
+
+/* Phone: one top tab. Its first row is the money, the speed and the menu; its second row is the level. It is one flat shade with no chamfers.
+   The power bill, phase, net, OS and slow motion are rows in the menu (Hud.tsx); the dock's lenses fold into one "Lens" branch (Inventory.tsx). */
+.lens-branch, .lens-pop { display: contents; }
+.lens-toggle { display: none; }
+@media (max-width: 48em) {
+  .hud { flex-wrap: wrap; }
+  .hud::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--c-shade-86); }
+  .hud-side::before { display: none; }
+  .hud-sys, .hud-sep, .hud .bill > .chip { display: none; }
+  .hud-right { flex-wrap: wrap; justify-content: flex-end; }
+  .hud-center { position: static; transform: none; order: 3; width: 100%; justify-content: center; padding: 0 1.067rem 0.8rem; }
+  .speedctl .speeds > button:not(.on) { display: none !important; }
+  .bill-pop { position: fixed; top: calc(var(--tabs-h, 5.6rem) + 0.4rem); left: 0.667rem; right: 0.667rem; }
+  .menu-info { font: 600 0.733rem var(--ui); color: var(--mute); padding: 0.333rem 0.467rem; }
+  .lens-branch { position: relative; display: inline-flex; }
+  .lens-toggle { display: inline-flex; }
+  .lens-pop { display: none; }
+  .lens-branch.open .lens-pop { display: flex; flex-direction: column; gap: 0.133rem; position: absolute; bottom: calc(100% + 0.6rem); left: 50%; transform: translateX(-50%); min-width: 9.5rem; padding: 0.35rem; border-radius: 0.8rem; background: var(--pop); border: 1px solid var(--glass-line); box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.5); }
+  .lens-pop .invbtn { width: 100%; justify-content: flex-start; padding: 0.45rem 0.7rem; }
+  .lens-pop .hide-narrow { display: inline; }
+  .lens-toggle.on { color: var(--accent); background: var(--sel-bg); border-color: transparent; }
+}
 
 /* Dialogs: a scrim and a soft blur sit on .modal-back and .ng-back themselves (the glass inside a fading layer cannot blur). The cards are
    nearly opaque. Before a game the menu behind goes away while a dialog is up, so the two never overlap. */

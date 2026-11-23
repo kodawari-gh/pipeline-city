@@ -3,7 +3,10 @@
 //   - waits for the loading screen (03) and then the booted menu (02), and saves a screenshot of each in outDir (default: the scratchpad, not the repo);
 //   - fails on a page error, on two rows or buttons that overlap, on a control outside the viewport, or on a page wider than the window;
 //   - moves focus with the arrow keys, and checks that a mouse move right after a key press does not move the chip for one second.
-// Starts the dev server (PORT, default 5199) when it is not running. Software GL is not needed: the menu draws no 3D.
+//   - for the HUD of a campaign game (ticket #39, SPEC §5.12) at 1920 x 1080, 1366 x 768, 390 x 844 and 844 x 390: the speed rail, pause,
+//     the menu, the Lens branch and the power bill, with real clicks and keys. The board is 3D, so that part runs on the GPU (shot.mjs's
+//     flags) and fails on a software renderer.
+// Starts the dev server (PORT, default 5199) when it is not running. Software GL is not needed for the menu: it draws no 3D.
 // Exit code 0 when every check passes; 1 otherwise. Prints one line per check.
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -254,10 +257,168 @@ async function settingsScreen(b, vp) {
   await ctx.close();
 }
 
+// The HUD of a campaign game (ticket #39, SPEC §5.12). Real clicks and keys. The phone layout is the one below 48em (ui.css, Hud.tsx's
+// `phoneLayout`): one top tab, the speed steps on a tap, the power bill and the machine status in the menu, and the Lens branch on the dock.
+const HUD_VIEWPORTS = [
+  { w: 1920, h: 1080, name: 'desktop' },
+  { w: 1366, h: 768, name: 'laptop' },
+  { w: 390, h: 844, name: 'phone' },
+  { w: 844, h: 390, name: 'landscape' },
+];
+const GPU_ARGS = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
+
+async function hudScreen(gb, vp) {
+  const tag = `hud ${vp.name} ${vp.w}x${vp.h}`;
+  const phone = vp.w <= 768; // (48em)
+  const ctx = await gb.newContext({ viewport: { width: vp.w, height: vp.h } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(url);
+  await page.waitForSelector('.pl-row', { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+  const renderer = await page.evaluate(() => {
+    const g = document.createElement('canvas').getContext('webgl2');
+    const e = g?.getExtension('WEBGL_debug_renderer_info');
+    return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown';
+  });
+  const software = /swiftshader|llvmpipe|software/i.test(renderer);
+  check(!software, `${tag}: the GPU draws the board (renderer ${renderer})`);
+  if (software) { await ctx.close(); return; }
+
+  // a campaign game: New game, Campaign, Start (the same two clicks as the new-game screen says)
+  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.locator('.pl-val', { hasText: /^Campaign$/ }).click();
+  await page.getByRole('button', { name: /^Start$/ }).click();
+  await page.waitForSelector('header.hud', { timeout: 60000 });
+  // the first frame frames the room again (shot.mjs waits for the same): a click before it would hit the room, not the HUD
+  await page.waitForFunction(() => !window.__board || window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
+  await page.waitForTimeout(2500);
+  // the welcome card holds the clock and dims the board: the menu's Skip tutorial ends it, so the HUD is live
+  await page.click('[aria-label="Menu"]');
+  await page.getByRole('menuitem', { name: 'Skip tutorial' }).click({ timeout: 15000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: 15000 }).catch(() => {});
+  check(await page.locator('.modal-back.dlg-back').count() === 0, `${tag}: the tutorial card is skipped (the clock runs)`);
+
+  const visible = (sel) => page.locator(sel).first().isVisible();
+  const pp = () => page.locator('.speedctl .pp').getAttribute('aria-label');
+  const speedOn = () => page.evaluate(() => document.querySelector('.speeds button.on')?.textContent.trim() ?? '');
+  check(await visible('[aria-label="Menu"]'), `${tag}: the Menu button is on the bar`);
+  check(await visible('.speedctl .pp'), `${tag}: the pause button is on the bar`);
+  check(await visible('[data-hud="money"]'), `${tag}: the money is on the bar`);
+  check(await visible('.hud-center .lvl'), `${tag}: the level is on the bar`);
+  if (phone) {
+    check(!(await visible('.hud-sys')), `${tag}: the machine status is not on the top tab (it is in the menu)`);
+    check(!(await visible('[data-hud="bill"]')), `${tag}: the power bill chip is not on the top tab (it is in the menu)`);
+    check(await page.locator('.speedctl .zs').count() === 0, `${tag}: the slow-motion button is not on the rail`);
+  } else {
+    check(await visible('.speedctl .zs'), `${tag}: the slow-motion button is on the rail`);
+    check(await visible('[data-hud="bill"]'), `${tag}: the power bill chip is on the bar`);
+  }
+  await fits(page, tag);
+  await page.screenshot({ path: `${outDir}/hud-${vp.name}-game.png` });
+
+  // pause: a click on the button, then Space (PauseKey) both toggle it
+  const p0 = await pp();
+  await page.click('.speedctl .pp');
+  await page.waitForTimeout(150);
+  const p1 = await pp();
+  check(p1 !== p0, `${tag}: the pause button toggles (${p0} -> ${p1})`);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(150);
+  check(await pp() === p0, `${tag}: Space toggles the pause back (${await pp()})`);
+
+  // speed: a phone tap steps to the next speed; the desktop rail runs the speed it is clicked on, and closes
+  if (phone) {
+    const before = await speedOn();
+    await page.locator('.speeds').click();
+    await page.waitForTimeout(150);
+    const after = await speedOn();
+    check(before !== '' && after !== '' && before !== after, `${tag}: a tap on the speed steps to the next one (${before} -> ${after})`);
+  } else {
+    const rail = page.locator('.speeds');
+    await rail.hover();
+    const btns = rail.locator('button');
+    const last = btns.nth(await btns.count() - 1);
+    const lastLabel = (await last.textContent()).trim();
+    await last.click();
+    await page.waitForTimeout(150);
+    check(await speedOn() === lastLabel, `${tag}: the rail runs the speed clicked (${lastLabel})`);
+    check(await page.locator('.speedctl.open').count() === 0, `${tag}: picking a speed closes the rail`);
+  }
+
+  // the menu: on a phone the machine status, the power bill, the network, the OS and the slow motion are its rows; on desktop they are not
+  await page.click('[aria-label="Menu"]');
+  await page.waitForSelector('.menu-pop', { timeout: 5000 });
+  const inMenu = (sel) => page.locator(`.menu-pop ${sel}`).count();
+  check(await inMenu('.menu-info') === (phone ? 1 : 0), `${tag}: the machine status is ${phone ? 'a menu row' : 'not a menu row'}`);
+  check(await inMenu('button:has-text("Zoom slow")') === (phone ? 1 : 0), `${tag}: Zoom slow is ${phone ? 'a menu row' : 'not a menu row'}`);
+  check(await inMenu('button[title^="Power bill"]') === (phone ? 1 : 0), `${tag}: the power bill is ${phone ? 'a menu row' : 'not a menu row'}`);
+  await page.screenshot({ path: `${outDir}/hud-${vp.name}-menu.png` });
+  if (phone) {
+    // the power bill opens its card from the menu (the menu closes); Escape closes the card
+    await page.click('.menu-pop button[title^="Power bill"]');
+    await page.waitForSelector('#bill-pop', { timeout: 5000 }).catch(() => {});
+    check(await visible('#bill-pop') && await page.locator('.menu-pop').count() === 0, `${tag}: the power bill row opens its card and the menu closes`);
+    await fits(page, `${tag} bill`);
+    await page.screenshot({ path: `${outDir}/hud-${vp.name}-bill.png` });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    check(await page.locator('#bill-pop').count() === 0, `${tag}: Escape closes the power bill card`);
+  } else {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    check(await page.locator('.menu-pop').count() === 0, `${tag}: Escape closes the menu`);
+  }
+
+  // the lenses: phone = the Lens branch on the dock (Escape, a click outside and a pick close it); desktop = the three buttons on the dock
+  if (phone) {
+    const toggle = page.locator('.lens-toggle');
+    check(await toggle.isVisible() && !(await visible('[data-hud="lens"]')), `${tag}: the dock has one Lens button, the lenses are in its branch`);
+    await toggle.click();
+    await page.waitForTimeout(150);
+    check(await page.locator('.lens-branch.open').count() === 1, `${tag}: the Lens button opens its branch`);
+    check(await page.locator('.lens-pop [data-hud="lens"]').isVisible() && await page.locator('.lens-pop [data-hud="airflow"]').isVisible(), `${tag}: the branch shows Power and Airflow`);
+    await page.screenshot({ path: `${outDir}/hud-${vp.name}-lens.png` });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: Escape closes the branch`);
+    check(await page.evaluate(() => document.activeElement?.classList.contains('lens-toggle') ?? false), `${tag}: Escape gives the focus back to the Lens button`);
+    await toggle.click();
+    await page.waitForTimeout(150);
+    await page.mouse.click(vp.w / 2, vp.h * 0.3);
+    await page.waitForTimeout(150);
+    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: a click outside closes the branch`);
+    await toggle.click();
+    await page.waitForTimeout(150);
+    await page.locator('.lens-pop [data-hud="lens"]').click();
+    await page.waitForTimeout(150);
+    check(await page.locator('.lens-branch.open').count() === 0, `${tag}: a pick closes the branch`);
+    check(/Power$/.test((await toggle.textContent()).trim()) && await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'true', `${tag}: the Lens button reads the lens on (Power)`);
+    await toggle.click();
+    await page.waitForTimeout(150);
+    await page.locator('.lens-pop [data-hud="lens"]').click();
+    await page.waitForTimeout(150);
+    check(/Lens$/.test((await toggle.textContent()).trim()), `${tag}: the Lens button reads Lens when no lens is on`);
+  } else {
+    check(!(await visible('.lens-toggle')) && await visible('[data-hud="lens"]'), `${tag}: the Power lens button is on the dock`);
+    await page.click('[data-hud="lens"]');
+    await page.waitForTimeout(150);
+    check(await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'true', `${tag}: a click turns the Power lens on`);
+    await page.keyboard.press('p');
+    await page.waitForTimeout(150);
+    check(await page.getAttribute('[data-hud="lens"]', 'aria-pressed') === 'false', `${tag}: the P key turns it off`);
+  }
+  await fits(page, `${tag} lens`);
+  check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
+  await ctx.close();
+}
+
 try {
   // (the fixture imports the game from the source, so a production build, which has none, skips the save screens below)
   fixture = await getFixture(browser).catch(() => null);
-  for (const vp of VIEWPORTS) {
+  // HUD_ONLY=1: skip the menu sweep (the HUD section below still runs), for a quick run of the HUD checks
+  for (const vp of process.env.HUD_ONLY ? [] : VIEWPORTS) {
     const label = `${vp.name} ${vp.w}x${vp.h}`;
     const page = await (await browser.newContext({ viewport: { width: vp.w, height: vp.h } })).newPage();
     const errors = [];
@@ -339,6 +500,17 @@ try {
       await loadScreen(browser, vp, false);
     } else console.log(`info ${label}: no save fixture (dev source only): screens 04 and 05 skipped`);
     await settingsScreen(browser, vp);
+  }
+  // the HUD runs the game (3D): its own browser with the GPU flags of shot.mjs. A software renderer fails its first check.
+  const gpu = await chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    args: GPU_ARGS,
+  });
+  try {
+    for (const vp of HUD_VIEWPORTS) await hudScreen(gpu, vp);
+  } finally {
+    await gpu.close();
   }
 } finally {
   await browser.close();

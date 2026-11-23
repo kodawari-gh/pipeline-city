@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
 import type { InventorySnap, Snapshot } from '@/worker/game/game';
 import { airflowLens, networkLens, powerLens, selected } from '@/app/hover';
 import { netLensReady } from '@/features/network/render/netvis';
@@ -117,6 +118,48 @@ function OsButton({ s }: { s: Snapshot }) {
   );
 }
 
+/** Whether the phone's lens branch is open (its "Lens" button on the dock). */
+export const lensBranchOpen = signal(false);
+
+/**
+ * The three lens switches. On a wider screen they sit in the dock; on a phone they fold into one "Lens" button that opens them as an upward
+ * branch, and the button reads the name of the lens that is on. A click outside, a pick of a lens or Escape closes the branch.
+ */
+function LensBranch({ s }: { s: Snapshot }) {
+  const open = lensBranchOpen.value;
+  const root = useRef<HTMLDivElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const lens = powerLens.value ? 'Power' : airflowLens.value ? 'Airflow' : networkLens.value ? 'Network' : null;
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: PointerEvent) => { if (root.current && !root.current.contains(e.target as Node)) lensBranchOpen.value = false; };
+    // (capture on the document: the menu's Escape handler reads defaultPrevented and leaves the key to this branch)
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      lensBranchOpen.value = false;
+      toggle.current?.focus();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', key, true);
+    return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', key, true); };
+  }, [open]);
+  return (
+    <div class={`lens-branch ${open ? 'open' : ''}`} ref={root}>
+      <button
+        ref={toggle} class={`invbtn lens-toggle ${lens || open ? 'on' : ''} ${!open && highlight.value.includes('hud:lens') ? 'pulse' : ''}`}
+        aria-expanded={open} aria-haspopup="true" aria-label="Lenses" title="Lenses: power, airflow and network views of the machine"
+        onClick={() => { lensBranchOpen.value = !open; }}
+      >
+        <Icon name="eye" size={14} /> {lens ?? 'Lens'}
+      </button>
+      <div class="lens-pop" onClick={(e) => { if ((e.target as Element).closest('button')) lensBranchOpen.value = false; }}>
+        <LensButton /><AirflowButton /><NetLensButton s={s} />
+      </div>
+    </div>
+  );
+}
+
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
   // one glass bar in three groups: what the player owns and buys, the lenses on the machine, the references and monitors
@@ -125,7 +168,7 @@ export function InventoryBar({ s }: { s: Snapshot }) {
       <div class="dockbar" role="toolbar" aria-label="Panels">
         <InventoryButton s={s} /><ShopButton />
         <i class="dock-sep" aria-hidden="true" />
-        <LensButton /><AirflowButton /><NetLensButton s={s} />
+        <LensBranch s={s} />
         <i class="dock-sep" aria-hidden="true" />
         <AlmanacButton /><LogButton /><OsButton s={s} />
       </div>

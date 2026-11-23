@@ -20,12 +20,16 @@ export function LevelBar({ s }: { s: Snapshot }) {
       </button>
     );
   }
+  // Progress as small cells: the next threshold when it is 10 or less, else 10 cells. Filled cells round the progress.
+  const next = s.level.next;
+  const n = next !== null && next <= 10 ? next : 10;
+  const filled = Math.round((m.pct / 100) * n);
   return (
     <button class={`lvl ${m.atMax ? 'max' : ''}`} title={m.tooltip} aria-label={`Level ${m.level}, ${m.name}. Client base ${m.label}. Open the levels`} onClick={() => openMilestones()}>
       <span class="lvl-n">{m.level}</span>
       <span class="lvl-name">{m.name}</span>
-      <span class="lvl-bar" aria-hidden="true"><i style={{ width: `${m.pct}%` }} /></span>
-      <span class="lvl-num">{m.label}{m.atMax ? ' +' : ''}</span>
+      <span class="lvl-cells" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} class={i < filled ? 'on' : ''} />)}</span>
+      <span class="lvl-num">{m.label}{m.atMax ? ' +' : <span class="lvl-word"> clients</span>}</span>
     </button>
   );
 }

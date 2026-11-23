@@ -6,6 +6,7 @@
 //   --tap x,y             click this screen point ("x,y|x,y": one after the other), before --click, e.g. the power supply, then --click "Power on"
 //   --dblclick x,y        double-click this screen point after the view is set (a part flies into view), then wait `--flight ms` (4500); "x,y|x,y" clicks one after the other
 //   --preset name         a graphics preset, picked in the real panel with auto-adjust off (as tools/bench3d.mjs does); it stops if the preset did not take
+//   --noui out2.png       also save the same frame with the HUD hidden (for tools/hud-coverage.mjs)
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
 //   (default)             the Three.js renderer, the game's view; --view also takes `room` there
@@ -64,7 +65,7 @@ try {
   else {
     // (the main menu has no Sandbox row: New game opens the dialog, whose Sandbox choice starts a sandbox game)
     await p.click('.pl-row:has-text("New game")');
-    await p.click('.ng-choice:has-text("Sandbox")');
+    await p.click('.pl-val:has-text("Sandbox")');
     await p.click('button:has-text("Start")');
     if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
     else {
@@ -129,6 +130,13 @@ try {
   const clip = flag('clip', '') === 'hud' ? { x: 0, y: 0, width: W, height: 90 } : undefined;
   await p.screenshot({ path: out, ...(clip ? { clip } : {}) });
   console.log('saved', out, errors.length ? `(page errors: ${errors.slice(0, 3).join(' | ')})` : '');
+  // --noui <png>: the same run, UI hidden, for `node tools/hud-coverage.mjs <out.png> <png>`
+  if (flag('noui', '')) {
+    await p.evaluate(() => { document.getElementById('hud').style.visibility = 'hidden'; });
+    await p.waitForTimeout(400);
+    await p.screenshot({ path: resolve(flag('noui', '')) });
+    console.log('saved', resolve(flag('noui', '')));
+  }
 } finally {
   await browser.close();
 }

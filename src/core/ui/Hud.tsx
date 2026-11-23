@@ -7,10 +7,10 @@ import {
   exportSave, lastRunSpeed, leaving, saveNow, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
-import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
+import { billChip, fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
 import { Icon } from './kit/Icons';
 import { hudNetChip } from '../../features/network/ui/netui';
-import { PowerBill } from '../../features/economy/ui/progress/PowerBill';
+import { billOpen, PowerBill } from '../../features/economy/ui/progress/PowerBill';
 import { InventoryBar, InventoryPanel } from '../../features/economy/ui/shop/Inventory';
 import { PickerCard } from '../../features/economy/ui/shop/PickerCard';
 import { Stats } from './panels/Stats';
@@ -45,10 +45,16 @@ const lit = (name: string) => (highlight.value.includes(`hud:${name}`) ? 'pulse'
 /** What the player reads: the sim's ticks per second over 4 (4 ticks a second is the designed pace, "1x"). */
 export const speedLabel = (s: number) => `${s / 4}x`;
 const speedTitle = (s: number) => `Run at ${speedLabel(s)}`;
+const runSteps = SPEEDS.filter((x) => x !== 0);
+/** The speed after `v` in the rail's steps, wrapping to the first. */
+const nextSpeed = (v: number) => runSteps[(runSteps.indexOf(v as (typeof runSteps)[number]) + 1) % runSteps.length]!;
+/** The phone layout (ui.css, the same query): the rail shows the speed only, and a tap on it steps to the next one. */
+// Same breakpoint as the CSS in ui.css, so JS and CSS agree at any root font size
+const phoneLayout = () => window.matchMedia?.('(max-width: 48em)').matches ?? false;
 
 /**
  * Pause/play plus the speed. Collapsed it is two small buttons (the play state and the current speed); hovering or
- * focusing it, or tapping the speed, opens the other speeds in place.
+ * focusing it, or tapping the speed, opens the other speeds in place. On a phone a tap steps to the next speed.
  */
 function SpeedControl() {
   const [open, setOpen] = useState(false);
@@ -60,13 +66,20 @@ function SpeedControl() {
         <Icon name={v === 0 && !held ? 'play' : 'pause'} size={14} />
         {v === 0 && <span class="pp-state">{held ? 'Held' : 'Paused'}</span>}
       </button>
-      <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
-        title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
-        <Icon name="gauge" size={14} />
-      </button>
-      <div class="seg speeds" role="group" aria-label="Speed" onClick={() => setOpen(true)}>
-        {SPEEDS.filter((x) => x !== 0).map((x) => (
-          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { runAt(x); setOpen(false); }}>
+      {!phoneLayout() && (
+        <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
+          title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
+          <Icon name="gauge" size={14} />
+        </button>
+      )}
+      <div class="seg speeds" role="group" aria-label="Speed" onClick={(e) => {
+        // phone: a tap on a step button is handled by that button; a tap on the gap between steps steps here
+        if (phoneLayout()) { if (!held && !(e.target as Element).closest('button')) runAt(nextSpeed(shown)); }
+        // a speed button runs its speed and closes the rail (above): the click that bubbles here must not reopen it
+        else if (!(e.target as Element).closest('button')) setOpen(true);
+      }}>
+        {runSteps.map((x) => (
+          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { if (phoneLayout()) { if (!held) runAt(nextSpeed(shown)); } else { runAt(x); setOpen(false); } }}>
             {speedLabel(x)}
           </button>
         ))}
@@ -105,10 +118,14 @@ function PauseKey() {
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
-  if (speed.value === 0) return !holdActive.value ?<div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
+  // (no pause pill: the speed rail shows the paused state)
+  return null;
+}
+
+/** Zoomed in, the machine is shown in slow motion so a block can be followed: a line under the rail says so, and how to get the full pace back. */
+function SlowNote() {
   const slow = zoomSlowdown.value;
-  // zoomed in, the machine is shown in slow motion so a block can be followed: say so, and how to get the full pace back
-  return slow < 0.97 ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in, zoom out for full pace</span></div> : null;
+  return slow < 0.97 ? <div class="slow-note" role="status">Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in · zoom out for full pace</span></div> : null;
 }
 
 /**
@@ -125,12 +142,17 @@ function InsetReporter() {
       const W = window.innerWidth, H = window.innerHeight;
       const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
-      const bar = document.querySelector('.hud');
-      // On a narrow screen the level pill drops below the bar: it counts as covered too, so cards and the camera start under it.
-      const pill = document.querySelector('.hud-center');
-      // the pill sits under the bar however tall it is (on a phone the stats card wraps to two rows)
-      if (bar) (bar as HTMLElement).style.setProperty('--bar-h', `${bar.getBoundingClientRect().height}px`);
-      if (bar) next.top = Math.ceil(Math.max(bar.getBoundingClientRect().bottom, pill?.getBoundingClientRect().bottom ?? 0) + gap);
+      // The edge tabs (`.hud-side`) are the HUD's boxes: the bar itself spans the screen, so it is not measured.
+      const tabs = [...document.querySelectorAll<HTMLElement>('.hud-side')];
+      const sideTabs = tabs.filter((t) => !t.classList.contains('hud-center'));
+      const bottomOf = (els: HTMLElement[]) => Math.max(0, ...els.map((t) => t.getBoundingClientRect().bottom));
+      // the top-centre tab sits under the side tabs on a narrow screen (its top is the bar's bottom plus a gap)
+      if (sideTabs.length) (hud as HTMLElement | null)?.style.setProperty('--bar-h', `${bottomOf(sideTabs)}px`);
+      // `--tabs-h`: the bottom of the whole top bar (the phone's level row included), for a card that opens under it
+      if (tabs.length) {
+        (hud as HTMLElement | null)?.style.setProperty('--tabs-h', `${bottomOf(tabs)}px`);
+        next.top = Math.ceil(bottomOf(tabs) + gap);
+      }
       let invSeen = false;
       for (const el of document.querySelectorAll('.dock, .inv, .invbar, .tut')) {
         const r = el.getBoundingClientRect();
@@ -234,6 +256,8 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const [saved, setSaved] = useState(false);
   const active = currentStep(s, tutorial.value) !== null;
   const close = () => { gameMenuOpen.value = false; };
+  // (the phone bar keeps only the money, the speed and the level: these are its other segments, as rows here)
+  const bill = billChip(s), net = hudNetChip(s), phone = phoneLayout();
   useEffect(() => {
     if (!open) return;
     const items = () => [...(root.current?.querySelectorAll<HTMLElement>('.menu-pop button[role="menuitem"]') ?? [])];
@@ -282,6 +306,11 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
+          {phone && bill && <button role="menuitem" onClick={() => { close(); billOpen.value = true; }} title="Power bill: the rate and the figures behind it"><Icon name="bolt" size={13} /> {bill.text}</button>}
+          {phone && <div class="menu-info" role="none" title={statusChip(s).title}>Machine {statusChip(s).text.toLowerCase()}</div>}
+          {phone && net && <button role="menuitem" onClick={() => { close(); toggleNet(); }} title={net.title}><Icon name={net.icon} size={13} /> {net.text}</button>}
+          {phone && s.os && <button role="menuitem" onClick={() => { close(); toggleOs(); }} title="The operating system: resource monitor, job queue and apps"><Icon name="layers" size={13} /> OS {s.os.spool.used}/{s.os.spool.slots}</button>}
+          {phone && <button role="menuitem" onClick={toggleZoomSlow} title="Slow motion when zoomed in: the machine runs slower while you zoom in"><Icon name="gauge" size={13} /> Zoom slow {zoomSlowOn.value ? 'on' : 'off'}</button>}
           <div class="menu-h">View</div>
           <button role="menuitem" aria-haspopup="dialog" onClick={() => { close(); openSettings('paused'); }} title="Picture, light, detail and the interface size"><Icon name="screen" size={13} /> Settings</button>
           <div class="menu-h">Help</div>
@@ -356,8 +385,9 @@ export function Hud() {
         {/* (a sandbox pins the rules level: its Jobs button says it, so the bar has no second pill for it) */}
         {!s.sandbox && <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>}
         <div class="hud-side hud-right">
-        <SpeedControl />
-        <Menu s={s} />
+          <SpeedControl />
+          <Menu s={s} />
+          <SlowNote />
         </div>
       </header>
       <PickerCard />

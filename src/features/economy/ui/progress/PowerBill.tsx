@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
+import { signal } from '@preact/signals';
 import type { Snapshot } from '@/worker/game/game';
 import { Icon } from '@/core/ui/kit/Icons';
 import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
@@ -6,9 +7,14 @@ import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
 // The power bill in the HUD bar (docs/GAME.md "The power bill"): a chip with what is running up and when it is due, and a
 // popover with the rate and the figures behind it. Styles are in ui.css (the power bill section).
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
+// On a phone the chip is hidden and the menu opens the card through `billOpen`.
+
+/** Whether the power bill card is open. Shared so the phone menu can open it. */
+export const billOpen = signal(false);
 
 export function PowerBill({ s }: { s: Snapshot }) {
-  const [open, setOpen] = useState(false);
+  const open = billOpen.value;
+  const setOpen = (v: boolean) => { billOpen.value = v; };
   const chip = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
