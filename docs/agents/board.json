@@ -1,0 +1,44 @@
+{
+  "owner": "kodawari-gh",
+  "number": 4,
+  "repo": "kodawari-gh/pipeline-city",
+  "projectId": "PVT_kwHOA2XHg84BsuAo",
+  "fields": {
+    "status": {
+      "id": "PVTSSF_lAHOA2XHg84BsuAozhq6zYA",
+      "options": {
+        "Backlog": "f75ad846",
+        "Ready": "61e4505c",
+        "In progress": "47fc9ee4",
+        "In review": "df73e18b",
+        "Done": "98236657"
+      }
+    },
+    "planned": {
+      "id": "PVTSSF_lAHOA2XHg84BsuAozhq-R_k",
+      "options": {
+        "Opus": "7f4653d4",
+        "Sonnet": "cde2c3a7",
+        "Haiku": "46bb0cb7",
+        "Human": "d285167b",
+        "Parent": "1fc3c805"
+      }
+    },
+    "rounds": { "id": "PVTF_lAHOA2XHg84BsuAozhrHypY" },
+    "cost": { "id": "PVTF_lAHOA2XHg84BsuAozhrH2Pg" }
+  },
+  "swarm": {
+    "log": "docs/agents/swarm-log.md",
+    "install": "npm ci",
+    "testFile": "\\.(test|spec)\\.[cm]?[jt]sx?$",
+    "locked": ["npm run shot", "npm run test:browser", "npm run test:heavy", "npm run prod"],
+    "slots": 2,
+    "permissionMode": "auto",
+    "agentTimeoutMin": 60,
+    "coAuthor": {
+      "haiku": "Claude Haiku 5.5",
+      "sonnet": "Claude Sonnet 5.5",
+      "opus": "Claude Opus 5.5"
+    }
+  }
+}

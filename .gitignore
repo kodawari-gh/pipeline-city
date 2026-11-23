@@ -6,3 +6,4 @@ __pycache__/
 dist/
 e2e/shots/
 .cocoindex_code/
+.claude/swarm/
