@@ -372,8 +372,8 @@ export function AlmanacPanel() {
   const sel = picked.value ?? playable.find((x) => stateOf(x.id) !== 'unseen')?.id ?? JOB_DEX[0]!.id;
   const e = dexEntry(sel)!, d = dex.find((x) => x.id === sel) ?? { id: sel, state: 'unseen', runs: 0, best: 0, seenTick: 0 } as DexSnap;
   return (
-    <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeAlmanac(); }}>
-      <div class="card almanac" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Almanac">
+    <div class="modal-back almanac-back alm-edge" onClick={(ev) => { if (ev.target === ev.currentTarget) closeAlmanac(); }}>
+      <div class="card almanac alm-edge" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Almanac">
         <header class="alm-head">
           <span class="alm-title"><Icon name="layers" size={16} /> Almanac</span>
           {sandbox

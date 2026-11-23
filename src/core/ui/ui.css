@@ -1074,13 +1074,23 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .alm-main { flex: 1; min-width: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 0.3rem; }
 .almanac h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
 .almanac h4 { margin: 0.6rem 0 0.25rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
+/* Almanac as an edge tab (#74, ADR 0001, SPEC 4.11): a flat shade flush to the right edge, no scrim, border, radius, shadow or blur.
+   Its free (left) corners are chamfered once it is narrower than the screen. Scoped to .alm-edge: the job log and the OS keep the modal look. */
+.almanac-back.alm-edge { align-items: center; justify-content: flex-end; padding: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.almanac.alm-edge { width: min(100%, 60rem); height: min(100%, 50rem); padding: 0.9rem 1.1rem; background: var(--c-shade-86); border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (min-width: 60rem) { .almanac.alm-edge { clip-path: polygon(var(--ch-lg) 0, 100% 0, 100% 100%, var(--ch-lg) 100%, 0 calc(100% - var(--ch-lg)), 0 var(--ch-lg)); } }
+@media (max-width: 59.99em) { .almanac-back.alm-edge { padding: 3.5rem 0; } } /* (a phone or a short landscape screen: the HUD bar and the dock keep their rows) */
+.almanac.alm-edge button { border: 0; }
+.almanac.alm-edge .close { border-radius: 0; }
+.almanac.alm-edge .seg > button, .almanac.alm-edge .seg > :first-child, .almanac.alm-edge .seg > :last-child { border-radius: 0; }
+.almanac.alm-edge .dx-gchip, .almanac.alm-edge .dx-need, .almanac.alm-edge .dx-tip { border-radius: 0.25rem; }
 .dx-prog { display: inline-flex; align-items: center; gap: 0.4rem; font: 700 0.75rem var(--mono); color: var(--mute); }
-.dx-prog .bar { width: 7rem; height: 0.5rem; background: var(--glass-line); border-radius: 99rem; overflow: hidden; }
+.dx-prog .bar { width: 7rem; height: 0.5rem; background: var(--glass-line); overflow: hidden; }
 .dx-prog .bar i { display: block; height: 100%; background: var(--accent); }
 
 /* the collection */
 .alm-list { width: 17rem; flex: none; display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; scrollbar-width: thin; padding-right: 0.2rem; }
-.dx-group { flex: none; border-radius: 0.8rem; background: var(--veil); box-shadow: inset 0 0 0 1px var(--hair); overflow: hidden; }
+.dx-group { flex: none; overflow: hidden; }
 .dx-ghead { display: flex; align-items: center; gap: 0.5rem; width: 100%; border: 0; border-radius: 0; background: transparent; color: var(--ink); padding: 0.45rem 0.7rem; text-align: left; }
 .dx-ghead:hover { background: var(--veil); }
 .dx-ghead .chev { display: inline-block; transition: transform var(--d-med); color: var(--g); font-weight: 700; }
@@ -1092,7 +1102,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .dx-ghead .pips i.full { background: var(--g); }
 .dx-ghead .cnt { font: 0.68rem var(--mono); color: var(--mute); }
 .dx-grid { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.3rem; }
-.dx-tile { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; text-align: left; color: var(--ink); border-color: transparent; background: transparent; }
+.dx-tile { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; text-align: left; color: var(--ink); border-color: transparent; border-radius: 0; background: transparent; }
 .dx-tile:hover:not(:disabled) { background: var(--veil); }
 .dx-tile.on { border-color: var(--sel-line); background: var(--sel-bg); color: var(--ink); }
 .dx-tile .no { font: 700 0.62rem var(--mono); color: var(--g); width: 1.1rem; }
@@ -1114,8 +1124,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* the job's page */
 .dx-page { display: flex; flex-direction: column; gap: 0.7rem; }
-.dx-hero { display: flex; gap: 1rem; padding: 0.9rem; border-radius: 0.9rem; box-shadow: inset 0 0 0 1px var(--hair); background: linear-gradient(135deg, color-mix(in srgb, var(--g) 14%, transparent), transparent 65%), var(--veil); }
-.dx-pic { position: relative; flex: none; width: 15rem; display: flex; align-items: center; justify-content: center; padding: 1.1rem 0.6rem 0.6rem; border-radius: 0.7rem; background: rgba(0,0,0,.35); }
+.dx-hero { display: flex; gap: 1rem; padding: 0.9rem; }
+.dx-pic { position: relative; flex: none; width: 15rem; display: flex; align-items: center; justify-content: center; padding: 1.1rem 0.6rem 0.6rem; }
 .dx-pic .spr { width: 100%; max-height: 8.5rem; }
 .dx-pic .no { position: absolute; top: 0.35rem; left: 0.55rem; font: 700 0.65rem var(--mono); color: var(--g); letter-spacing: .08em; }
 .dx-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1143,8 +1153,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .dx-record .stars { display: inline-flex; color: #e7b33a; }
 
 /* the program on the main page */
-.dx-code { display: flex; flex-direction: column; position: relative; box-shadow: inset 0 0 0 1px var(--hair); border-radius: 0.8rem; overflow: hidden; background: rgba(0,0,0,.22); gap: 0; }
-.dx-codebar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.7rem; background: var(--veil); border-bottom: 1px solid var(--hair); }
+.dx-code { display: flex; flex-direction: column; position: relative; overflow: hidden; gap: 0; }
+.dx-codebar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.7rem; }
 .dx-win { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--g); }
 .dx-codebar .seg button { padding: 0.15rem 0.6rem; font-size: 0.72rem; color: var(--mute); }
 .dx-codebar .seg button.on { color: var(--accent); background: var(--sel-bg); border-color: var(--sel-line); }
@@ -1160,7 +1170,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .dx-preview .mute { font-size: 0.68rem; margin-left: auto; }
 .dx-shot { display: block; width: 100%; max-height: 20rem; object-fit: contain; image-rendering: pixelated; background: #060418; }
 .dx-code .alm-code { max-height: 17rem; border: 0; border-radius: 0; background: none; }
-.dx-lock { display: flex; align-items: center; justify-content: center; height: 7rem; color: var(--mute); border: 1px dashed var(--glass-line); border-radius: 0.4rem; }
+.dx-lock { display: flex; align-items: center; justify-content: center; height: 7rem; color: var(--mute); background: var(--veil); }
 
 /* the ways to do it better */
 .dx-tips { display: flex; flex-direction: column; gap: 0.35rem; }
@@ -1171,7 +1181,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .dx-tip.none { border-style: dashed; color: var(--mute); text-decoration: line-through; background: transparent; }
 .dx-tip.none.on { background: var(--glass-line); color: var(--ink); text-decoration: none; }
 .dx-tip.lock { color: var(--mute); border-style: dashed; background: transparent; }
-.dx-tiptext { margin: 0.1rem 0 0; padding: 0.45rem 0.7rem; border-left: 0.2rem solid var(--g); background: color-mix(in srgb, var(--g) 8%, transparent); line-height: 1.4; max-width: 60rem; }
+.dx-tiptext { margin: 0.1rem 0 0; padding: 0.45rem 0.7rem; background: color-mix(in srgb, var(--g) 8%, transparent); line-height: 1.4; max-width: 60rem; }
 @media (max-width: 52rem) { .alm-body { flex-direction: column; } .alm-list { width: auto; max-height: 14rem; } .dx-hero { flex-direction: column; } .dx-pic { width: auto; } }
 
 /* Almanac: code views */
@@ -1185,7 +1195,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .alm-note { margin: 0 0 0.35rem; font-size: 0.7rem; }
 .alm-out { margin-top: 0.35rem; font-size: 0.7rem; }
 .alm-mix { margin-bottom: 0.5rem; }
-.alm-bar { display: flex; height: 0.7rem; border-radius: 0.2rem; overflow: hidden; background: var(--glass-line); }
+.alm-bar { display: flex; height: 0.7rem; overflow: hidden; background: var(--glass-line); }
 .alm-bar .seg { display: block; height: 100%; }
 .alm-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 0.7rem; margin: 0.3rem 0; font-size: 0.7rem; color: var(--mute); }
 .dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; vertical-align: -0.05rem; }
@@ -1197,13 +1207,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .alm-chips { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; font-size: 0.68rem; color: var(--mute); }
 .alm-chips span { padding: 0.05rem 0.4rem; border: 1px solid var(--glass-line); border-radius: 99rem; }
 .bg-alu { background: #3aa8d9; } .bg-ld { background: #d9a23a; } .bg-st { background: #4cc38a; } .bg-mul { background: #a78bfa; } .bg-br { background: #d96ad6; } .bg-sys { background: #8893b0; }
-.alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; background: rgba(0,0,0,.18); border: 1px solid var(--glass-line); border-radius: 0.3rem; padding: 0.35rem 0.1rem; max-height: 28rem; overflow: auto; }
+.alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; padding: 0.35rem 0.1rem; max-height: 28rem; overflow: auto; }
 /* the kernel of a graphics job: lanes picker, the busy numbers and its instruction mix, then the instruction set under the listing */
-.dx-kstats { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--glass-line); }
+.dx-kstats { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.6rem; }
 .dx-kstats .seg button { padding: 0.15rem 0.5rem; font-size: 0.72rem; color: var(--mute); }
 .dx-kstats .seg button.on { color: var(--ink); background: var(--glass-line); }
 .dx-kstats .alm-bar { flex: 1 1 8rem; min-width: 6rem; }
-.dx-isa { border-top: 1px solid var(--glass-line); padding: 0.4rem 0.6rem; font-size: 0.72rem; }
+.dx-isa { padding: 0.4rem 0.6rem; font-size: 0.72rem; }
 .dx-isa summary { cursor: pointer; font-weight: 700; color: var(--ink); }
 .dx-isa p { margin: 0.3rem 0; }
 .isa-group h4 { margin: 0.5rem 0 0.15rem; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); }
@@ -1215,7 +1225,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .alm-listing .ln.cold { opacity: 0.45; }
 .alm-listing .ad { color: var(--mute); }
 .alm-listing .wd { color: var(--mute); opacity: 0.7; }
-.alm-listing .hc { height: 0.4rem; background: var(--glass-line); border-radius: 0.15rem; overflow: hidden; }
+.alm-listing .hc { height: 0.4rem; background: var(--glass-line); overflow: hidden; }
 .alm-listing .hc i { display: block; height: 100%; }
 .alm-listing .ct { text-align: right; color: var(--mute); }
 .alm-listing .ln:hover { background: var(--glass-line); }
