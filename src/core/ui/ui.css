@@ -1385,6 +1385,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.4rem; border-radius: 1.4rem; }
 .mode .mode-bar button { padding: 0.4rem 0.9rem; font-size: var(--m-sm); border-radius: var(--m-r-pill); }
 .mode-bar .seg { gap: 0.1rem; padding: 0.15rem; border-radius: var(--m-r-pill); background: var(--glass-hi); }
+/* Build my PC is flat (#70, SPEC §1 rules 5 and 6): no border, radius, shadow, blur or gradient under .build. Chips keep 0.24 rem. */
+.build button { border-width: 0; border-radius: 0; }
+.build :is(.mode-panel, .mode-bar) { border-width: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--c-shade-86); }
+.build .mode-bar.bld-run-sheet, .build .bld-tools, .build .bld-views, .build .bld-run, .build .bld-panes, .build .bld-dock .mode-bar { background: none; }
+.build .mode-bar button, .build .mode-bar .seg { border-radius: 0; }
 .mode .mode-bar .seg > button { margin: 0; padding: 0.25rem 0.6rem; border-color: transparent; background: transparent; font-family: var(--mono); }
 .mode .mode-bar .seg > button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .mode-sep { width: 1px; height: 1.2rem; background: var(--glass-line); }
@@ -1454,6 +1459,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .gallery .gal-shelf .bld-shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 24rem); }
 /* the chips: Build my PC's presets */
 .mode .bld-presets button { padding: 0.3rem 0.75rem; border-radius: var(--m-r-pill); }
+.build .bld-presets button { border-radius: 0; }
 @media (max-width: 52em) {
   /* narrow screens stack the studio: the stage, its toolbar and hints, then the panels (the Gallery and Build my PC in the same order) */
   .mode { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; overflow-y: auto; }
@@ -1533,6 +1539,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-bin { left: 1rem; top: 1rem; bottom: 1rem; width: calc(var(--bld-l) - 1rem); overflow: hidden; transition: border-color var(--d-med), box-shadow var(--d-med); }
 .bld-bin.taking { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .bld-bin.drop { border-color: var(--accent); box-shadow: 0 0 0 0.133rem var(--accent), 0 0 2.4rem color-mix(in srgb, var(--accent) 30%, transparent), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.42); }
+.build .bld-bin.drop { box-shadow: none; }
 .bld-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: 6.1rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0.6rem; }
 .bld-rail { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: none; }
 /* (a category: its icon and its short name, so the rail reads without a hover; the tooltip and the heading say the full name) */
@@ -1544,6 +1551,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-rail button:hover:not(:disabled) { color: var(--ink); background: var(--glass-hi); border-color: transparent; }
 .mode .bld-rail button.on { color: var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 90%); border-color: transparent; }
 .bld-rail button.on::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 0.2rem; border-radius: 99rem; background: var(--accent); box-shadow: 0 0 0.6rem var(--accent); }
+.build .bld-rail button.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.build .bld-parts { border-radius: 0; background: none; }
 .bld-parts { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; margin-right: -0.3rem; padding-right: 0.3rem; scrollbar-width: thin; }
 .bld-sub { display: flex; align-items: baseline; gap: 0.5rem; margin: 0 0 0.4rem; }
 .bld-sub .mute { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
@@ -1555,13 +1564,19 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-tile.on { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), rgba(255, 255, 255, 0.03)); box-shadow: 0 0 0 1px var(--accent), 0 0 1.2rem color-mix(in srgb, var(--accent) 24%, transparent); }
 .gallery .bld-tile { cursor: pointer; touch-action: auto; }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
+.build .bld-tile { border-width: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.build .bld-tile:hover, .build .bld-tile:focus-visible { transform: none; background: var(--glass-hi); box-shadow: none; }
+.build .bld-tile.on { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: none; }
 .bld-art { display: block; width: 100%; border-radius: var(--m-r-row); overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(59, 227, 255, 0.1), rgba(255, 255, 255, 0.02) 72%); }
+.build .bld-art { border-radius: 0; background: none; }
 .bld-art .art { display: block; width: 100%; height: auto; }
 .bld-tname { padding: 0 0.15rem; font-size: var(--m-sm); line-height: 1.25; min-height: 2.5em; }
 .bld-tmeta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.2rem 0.3rem; padding: 0 0.15rem; }
 .bld-pips { display: inline-flex; gap: 0.15rem; }
 .bld-pips i { width: 0.5rem; height: 0.22rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.14); }
 .bld-pips i.on { background: var(--accent); box-shadow: 0 0 0.3rem color-mix(in srgb, var(--accent) 70%, transparent); }
+.build .bld-pips i { border-radius: 0; box-shadow: none; background: rgba(255, 255, 255, 0.2); }
+.build .bld-pips i.on { background: var(--accent); box-shadow: none; }
 .bld-price { font: 600 var(--m-xs) var(--mono); color: var(--mute); }
 .bld-bin-note { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; padding: 1.5rem; text-align: center; border-radius: inherit; background: color-mix(in srgb, #0a0e22 86%, transparent); color: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--d-med), background var(--d-med); }
 .bld-bin-note::before { content: ''; position: absolute; inset: 0.6rem; border: 0.133rem dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: var(--m-r-card); }
@@ -1571,6 +1586,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-bin.drop .bld-bin-note { background: color-mix(in srgb, var(--accent) 16%, #0a0e22); }
 .bld-bin.drop .bld-bin-note b { color: var(--ink); }
 .bld-bin.drop .bld-bin-note::before { border-style: solid; border-color: var(--accent); }
+.build .bld-bin-note { background: var(--c-shade-86); }
+.build .bld-bin.drop .bld-bin-note { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.build .bld-bin-note::before { border-width: 0; }
+.build .bld-host.drop::after { border-width: 0; border-radius: 0; box-shadow: none; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 /* The summary at the top: can it start, what it costs, what it draws against its supply, how many parts, the benchmark. */
 .bld-read { top: 1rem; left: calc(var(--bld-l) + 1rem); right: var(--bld-u); margin: 0 auto; width: max-content; max-width: calc(100% - var(--bld-l) - var(--bld-u) - 1rem); flex-wrap: nowrap; gap: 0.9rem; padding: 0.35rem 0.4rem 0.35rem 0.45rem; }
@@ -1579,12 +1598,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* (amber: a part is missing or it runs badly; red: something breaks, the supply trips or a card has no power) */
 .bld-ready.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 38%, transparent); }
 .bld-ready.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 45%, transparent); }
+.build .bld-ready { border-radius: 0.24rem; }
+.build .bld-ready.ok, .build .bld-ready.warn, .build .bld-ready.bad { box-shadow: none; }
 .bld-fig { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; line-height: 1.1; }
 .bld-fig b { font: 700 var(--m-md) var(--mono); letter-spacing: -0.01em; white-space: nowrap; }
 .bld-fig em { font: normal 650 var(--m-xs) var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
 .bld-power { min-width: 6.4rem; }
 .bld-meter { align-self: stretch; height: 0.28rem; margin-top: 0.2rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
 .bld-meter i { display: block; height: 100%; border-radius: inherit; background: var(--ok); transition: width var(--d-trace) ease, background var(--d-trace); }
+.build .bld-meter { border-radius: 0; background: none; }
+.build .bld-meter i { background: var(--g, var(--ok)); }
 .bld-power.none .bld-meter i { background: var(--mute); }
 .bld-power.warn .bld-meter i { background: var(--warn); }
 .bld-power.bad .bld-meter i { background: var(--bad); }
@@ -1606,6 +1629,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-startbtn { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border-radius: var(--m-r-pill); font: 600 var(--m-sm) var(--ui); }
 /* (a chevron that points down while its section is shut and up while it is open) */
 .bld-chev { flex: none; width: 0.4rem; height: 0.4rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-0.1rem) rotate(45deg); transition: transform var(--d-med); }
+/* (a drawn chevron: a V cut from a block, in place of two borders) */
+.build .bld-chev { width: 0.55rem; height: 0.35rem; border: 0; background: currentColor; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
+.build [aria-expanded="true"] > .bld-chev { transform: rotate(180deg); }
 [aria-expanded="true"] > .bld-chev { transform: translateY(0.1rem) rotate(-135deg); }
 /* the chips of the benchmark screen's task sets (Quick, All, None) */
 .bld-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
@@ -1618,9 +1644,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-srow:hover:not(:disabled) { transform: translateY(-0.08rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3), 0 0 0.9rem color-mix(in srgb, var(--accent) 10%, transparent); }
 .mode .bld-srow:active:not(:disabled) { transform: none; }
 .mode .bld-srow:disabled { opacity: 0.5; }
+.build .bld-srow { border-width: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.build .bld-srow:hover:not(:disabled) { background: var(--glass-hi); transform: none; box-shadow: none; }
 .bld-sico { flex: none; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: var(--m-r-row); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .bld-sico.pic { width: 5rem; height: 3.75rem; overflow: hidden; background: rgba(5, 8, 20, 0.7); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
 .bld-sico.pic.vacant { background: transparent; box-shadow: none; border: 1px dashed rgba(255, 255, 255, 0.22); color: var(--mute); }
+.build .bld-sico { border-radius: 0; background: transparent; box-shadow: none; }
+.build .bld-sico.pic.vacant { border-width: 0; }
 .bld-sico img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; }
 .bld-smain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
 .bld-sline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.15rem 0.5rem; }
@@ -1644,6 +1674,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* the bar of a score (the Gallery's stats use it too) */
 .bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
 .bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g, var(--accent)) 55%, transparent), var(--g, var(--accent))); }
+.build .bld-bar i { background: var(--g, var(--accent)); }
 /* what is wrong with the machine (`BuildAlerts.tsx`): at the top of the panel, a row per problem (red: it breaks or will not run; amber: it runs badly or is not finished). A row that
    names a part outlines it on the stage under the pointer, and a click picks it. The part's own row in the list carries a mark of the same colour. */
 .bld-alerts { flex: none; animation: fade-in var(--d-med) ease both; }
@@ -1673,8 +1704,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-part:hover { background: var(--glass-hi); border-color: var(--glass-line); }
 .bld-part.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .bld-part.shell, .bld-part.shell:hover { padding: 0; cursor: default; touch-action: auto; background: none; border-color: transparent; }
+.build .bld-part { border-width: 0; border-radius: 0; background: transparent; }
+.build .bld-part:hover { background: var(--glass-hi); }
+.build .bld-part.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.build .bld-part.shell, .build .bld-part.shell:hover { background: none; }
 .mode .bld-shellbtn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.55rem; padding: 0.2rem 0.3rem; text-align: left; background: transparent; border-color: transparent; border-radius: var(--m-r-row); }
 .mode .bld-shellbtn:hover:not(:disabled) { background: var(--glass-hi); border-color: var(--glass-line); }
+.build .bld-shellbtn { border-width: 0; border-radius: 0; }
+.build .bld-shellbtn:hover:not(:disabled) { background: var(--glass-hi); }
 /* a bare case: the board's place is a dashed row, in amber (it is what the machine lacks), and a click on it opens the shelf at the boards */
 .mode .bld-part.vacant .bld-shellbtn { border: 0.133rem dashed color-mix(in srgb, var(--warn) 45%, transparent); }
 .mode .bld-part.vacant .bld-shellbtn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--warn) 75%, transparent); }
@@ -1694,6 +1731,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-fold { padding: 0 0.3rem 0.15rem 1.35rem; font-size: var(--m-sm); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .bld-fold:hover { color: var(--ink); }
 .bld-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; margin-top: 0.3rem; padding: 1.2rem 0.8rem; text-align: center; color: var(--mute); border: 0.133rem dashed var(--glass-line); border-radius: var(--m-r-row); }
+.build .bld-none { border-width: 0; border-radius: 0; background: transparent; }
 .bld-none b { color: var(--ink); font-size: var(--m-md); }
 .bld-none span { font-size: var(--m-sm); }
 /* the link the network rows make: one line of what the machine gets, and what holds it back */
@@ -1708,9 +1746,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-name { font-size: var(--m-md); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bld-cost { flex: none; font: 600 var(--m-xs) var(--mono); color: var(--mute); }
 /* (Take out shows on the row under the pointer, the picked row and by keyboard; on a touch screen it always does) */
+.build .bld-thumb { border-radius: 0; background: transparent; }
 .mode .bld-out { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--mute); background: transparent; border-color: transparent; opacity: 0; }
 .bld-part:hover .bld-out, .bld-part.on .bld-out, .mode .bld-out:focus-visible { opacity: 1; }
 .mode .bld-out:hover:not(:disabled) { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.build .bld-out { border-width: 0; border-radius: 0; background: transparent; }
 @media (hover: none) { .mode .bld-out { opacity: 0.7; } }
 /* the benchmark's foot: its score (and the change from the machine before) or the run, Quick run and Open */
 .bld-bench { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--glass-line); }
@@ -1730,6 +1770,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-history summary::after { content: ''; margin-left: auto; width: 0.4rem; height: 0.4rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-0.1rem) rotate(45deg); transition: transform var(--d-med); }
 .bld-history[open] summary::after { transform: translateY(0.1rem) rotate(-135deg); }
 .bld-history summary em { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
+.build .bld-bench, .build .bld-history { border-top-width: 0; }
+.build .bld-history summary::after { width: 0.55rem; height: 0.35rem; border: 0; background: currentColor; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
+.build .bld-history[open] summary::after { transform: rotate(180deg); }
 .bld-log { margin: 0.4rem 0 0; padding-left: 1.1rem; overflow-y: auto; min-height: 0; max-height: 9rem; }
 
 /* The bottom: the line of what to do now (or the step that plays, with its Skip), the machine's tools, the camera, the keys. */
@@ -1742,6 +1785,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* a refusal ("it fits no socket"): amber, with a × to let it go; it goes by itself after a few seconds */
 .bld-hint.warn { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
 .bld-hint.warn > i { background: var(--warn); box-shadow: 0 0 0.6rem var(--warn); }
+.build .bld-hint { border-width: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: none; }
+.build .bld-hint > i { border-radius: 0; box-shadow: none; background: var(--accent); }
+.build .bld-hint.warn > i { background: var(--warn); }
 .mode .bld-hint button.bld-x { display: inline-grid; place-items: center; padding: 0.3rem; line-height: 0; }
 .mode .bld-hint button { padding: 0.25rem 0.7rem; font-size: var(--m-sm); border-radius: var(--m-r-pill); }
 @keyframes bld-pulse { 50% { opacity: 0.3; transform: scale(0.7); } }
@@ -1761,6 +1807,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-chip.busy > i { animation: bld-pulse var(--d-loop) ease-in-out infinite; }
 .bld-chip.ok { color: var(--ok); }
 .bld-chip.bad { color: var(--bad); }
+.build :is(.bld-chip, .bld-ready, .bld-door em, .bld-os em) { border-radius: 0.24rem; }
+.build .bld-chip > i { border-radius: 0; background: currentColor; box-shadow: none; }
+.build :is(.bld-wait, .bld-overall b, .bld-foot .mode-keys) { text-shadow: none; }
 .bld-foot .mode-keys { justify-content: center; text-shadow: 0 0.1rem 0.5rem #000; }
 
 /* Over the stage: the picked part's card (the game's picker, with its tail), the tooltip's last line, the part on the pointer, the note of a drop that did nothing. */
@@ -1782,6 +1831,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-cacts em { font: normal var(--m-xs) var(--mono); opacity: 0.7; }
 .bld-card .mode-hint { margin-top: 0.6rem; }
 .tooltip .tip-act { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid var(--glass-line); color: var(--accent); font-size: 0.7rem; }
+.build .bld-cart { border-width: 0; border-radius: 0; background: transparent; }
 .bld-ghost { position: fixed; z-index: 90; transform: translate(-50%, calc(-100% - 1.1rem)); pointer-events: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.9rem 0.4rem 0.4rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); font-size: var(--m-sm); white-space: nowrap; transition: border-color var(--d-fast), box-shadow var(--d-fast); }
 .bld-ghost b { display: block; font-size: var(--m-md); }
 .bld-ghost em { display: block; font-style: normal; color: var(--mute); }
@@ -1887,10 +1937,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .os-core i { width: 0.9rem; height: 0.9rem; border-radius: 0.15rem; border: 1px solid var(--glass-line); background: transparent; }
 .os-core i.busy { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0.5rem color-mix(in srgb, var(--accent) 60%, transparent); }
 .os-core i.parked { background: rgba(255, 255, 255, 0.06); border-style: dashed; opacity: 0.6; }
+.build :is(.os-card, .os-core) { border-width: 0; border-radius: 0; background: transparent; }
+.build .os-card.on { background: color-mix(in srgb, var(--ok) 14%, transparent); }
 
 /* The plug in the player's hand (a cable pulled from a socket), by the pointer: what a let-go would do (green: it seats). */
 .bld-cabletip { position: fixed; z-index: 92; transform: translate(-50%, calc(-100% - 1.4rem)); pointer-events: none; padding: 0.4rem 0.8rem; border-radius: var(--m-r-card); border: 1px solid var(--glass-line); background: rgba(10, 14, 32, 0.92); color: var(--ink); font: 600 var(--m-sm) var(--ui); white-space: nowrap; box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); transition: border-color var(--d-fast), color var(--d-fast); }
 .bld-cabletip.ok { color: var(--ok); border-color: var(--ok); box-shadow: 0 0 1.2rem color-mix(in srgb, var(--ok) 35%, transparent), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5); }
+.build :is(.bld-ghost, .bld-cabletip, .bld-toast) { border-width: 0; border-radius: 0; box-shadow: none; background: var(--c-shade-86); clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem); }
 
 /* Narrower than the studio needs: the stage is a card of its own, then the summary, the bottom bars, the shelf and what is fitted. */
 @media (max-width: 80em) {
@@ -2371,49 +2424,21 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build.bld-tabs[data-layout="phone"] .bld-card { position: absolute; z-index: 5; max-height: 40vh; overflow-y: auto; }
 .build.bld-tabs[data-layout="phone"] .bld-back { top: 1.5rem; left: 1.4rem; background: none; clip-path: none; padding: 0.2rem 0.4rem; }
 .build.bld-tabs[data-layout="phone"] .bld-back em { display: none; }
-
-/* Build my PC is flat (#70, SPEC §1 rules 5 and 6, §4.11): no border, card, pill, radius, shadow, blur, glow or gradient. Radius 4 px (0.24 rem) on chips only.
-   The tabs are --c-shade-86, flush with a screen edge, with a 45 degree chamfer on each free corner. These rules come last and win on purpose. */
-.build, .build *, .build *::before, .build *::after { border-width: 0 !important; border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background-image: none !important; }
-.build :is(.bld-chip, .bld-ready, .bld-door em, .bld-os em, .bench-tabs em, .os-card-head em, .mode kbd) { border-radius: 0.24rem !important; }
-.build :is(.bld-tile, .bld-srow, .bld-save, .os-card, .bench-row, .bld-thumb, .bld-cart, .bld-sico, .bld-art, .bld-part, .bld-shellbtn, .bld-none, .bld-ghost, .bld-cabletip, .bld-toast, .bld-al > button, .bld-al > div, .bld-out, .bld-ico, .bld-x, .bench-close, .bench-one, .os-core):not(.on):not(.sure) { background: transparent !important; }
-.build :is(.bld-tile, .bld-srow, .bld-part, .bld-shellbtn):hover { background: var(--glass-hi) !important; transform: none; }
-.build :is(.bld-ghost, .bld-cabletip, .bld-toast) { background: var(--c-shade-86) !important; clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem); }
-.build .bld-bin-note { background: var(--c-shade-86) !important; }
-.build.bld-tabs .bld-bin.drop .bld-bin-note, .build .bld-host.drop::after { background: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
-/* (a drawn chevron: a V cut from a block, in place of two borders) */
-.build .bld-chev { width: 0.55rem; height: 0.35rem; background: currentColor !important; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
-.build [aria-expanded="true"] > .bld-chev { transform: rotate(180deg); }
-.build .bld-history summary::after { width: 0.55rem; height: 0.35rem; background: currentColor !important; clip-path: polygon(0 15%, 12% 0, 50% 62%, 88% 0, 100% 15%, 50% 100%); transform: none; }
-.build .bld-history[open] summary::after { transform: rotate(180deg); }
-.build .bench-wait i { background: var(--accent) !important; animation: bld-pulse var(--d-loop) ease-in-out infinite; }
-.build .bld-pips i { background: rgba(255, 255, 255, 0.2) !important; }
-.build .bld-pips i.on { background: var(--accent) !important; }
-.build :is(.bld-meter, .bld-bar, .bench-meter) i { background: var(--g, var(--ok)) !important; }
-.build .bld-bar i { background: var(--g, var(--accent)) !important; }
-.build :is(.bld-hint > i, .bld-chip > i) { background: currentColor !important; }
-.build .bld-hint > i { background: var(--accent) !important; }
-.build .bld-hint.warn > i { background: var(--warn) !important; }
-.build .bld-rail button.on { background: color-mix(in srgb, var(--accent) 14%, transparent) !important; }
-/* the tabs: a solid backing, chamfered where a corner is free */
-.build :is(.mode-bar, .mode-panel):not(.bld-read):not(.bld-lens):not(.bld-run-sheet) { background: var(--c-shade-86) !important; }
-.build .bld-hint { background: none !important; }
-.build :is(.bld-tools, .bld-views, .bld-run, .bld-panes, .bld-dock .mode-bar) { background: none !important; }
+/* Build my PC tabs (#70): flat, flush with the screen edge, chamfered where a corner is free. */
 .build .bld-foot { background: var(--c-shade-86); padding: 0.8rem 1.4rem 0.6rem; clip-path: polygon(0.9rem 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%, 0 0.9rem); }
-.build .bld-foot > * { pointer-events: auto; }
 .build .bench-scrim { background: var(--c-shade-86); }
-.build.bld-tabs .bld-read, .build.bld-tabs .bld-lens { background: none !important; }
-.build.bld-tabs .bld-read::before, .build.bld-tabs .bld-lens::before { background: var(--c-shade-86) !important; }
+.build.bld-tabs .bld-read, .build.bld-tabs .bld-lens { background: none; }
+.build.bld-tabs .bld-read::before, .build.bld-tabs .bld-lens::before { background: var(--c-shade-86); }
 /* (flush with the screen edge: the tab keeps its text where it was, with the old gap as padding) */
 .build.bld-tabs .bld-back { top: 0; left: 0; padding: 1.55rem 0.9rem 0.55rem 1.9rem; }
 .build.bld-tabs[data-layout="desk"] .bld-read { top: 0; padding-top: 1.35rem; padding-left: 0.85rem; --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
 .build.bld-tabs[data-layout="desk"] .bld-lens { top: 0; right: 0; padding: 1.35rem 1.4rem 0.35rem 0.85rem; }
-.build.bld-tabs[data-layout="desk"] .bld-inst.closed { right: 0; top: 8.75rem; width: 14rem; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed { right: 0; top: 8.75rem; width: 14rem; background: none; padding: 0; }
 .build.bld-tabs[data-layout="desk"] .bld-inst.closed .bld-mtog { width: 14rem; padding-right: 2rem; }
 .build.bld-tabs[data-layout="desk"] .bld-mtog { right: 0; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
 .build.bld-tabs[data-layout="desk"] .bld-inst.open { right: 0; bottom: 0; width: var(--bld-r); padding-right: 1.9rem; padding-bottom: 1.9rem; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
 .build.bld-tabs[data-layout="desk"] .bld-bin { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
-.build.bld-tabs[data-layout="desk"] .bld-foot { bottom: 0; }
+.build.bld-tabs[data-layout="desk"] .bld-foot { bottom: 0; right: calc(var(--bld-r) + 1rem); max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem); box-sizing: border-box; }
 .build.bld-tabs[data-layout="desk"] .bld-parts { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
 .build.bld-tabs[data-layout="phone"] { padding: 0; }
 .build.bld-tabs[data-layout="phone"] .bld-read { margin: 0; padding-top: 0.6rem; --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
@@ -2425,5 +2450,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .build.bld-tabs[data-layout="phone"][data-pane="parts"] .bld-bin, .build.bld-tabs[data-layout="phone"][data-pane="machine"] .bld-inst { right: auto; clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
   .build.bld-tabs[data-layout="phone"] .bld-parts { clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%); }
 }
-.build.bld-tabs[data-layout="desk"] .bld-foot { box-sizing: border-box; right: calc(var(--bld-r) + 1rem); max-width: calc(100% - var(--bld-l) - var(--bld-r) - 2rem); }
-.build.bld-tabs[data-layout="desk"] .bld-inst.closed { background: none !important; padding: 0; }
+/* Flat buttons in the panels (no radius, chips excepted). Last, so these win the ties with the .mode rules above. */
+.build.mode button, .build.mode .mode-bar .bld-ico, .build.mode .bld-startbtn { border-radius: 0; }
+.build.bld-tabs .bld-parts, .build.bld-tabs[data-layout="phone"] .bld-parts { border-radius: 0; }
+
