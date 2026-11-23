@@ -426,6 +426,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   gap: 0.5rem; padding: 0 0.6rem 0.6rem; pointer-events: none;
 }
 .stack > * { pointer-events: auto; }
+/* Before a game the main menu (z 58) covers the page: its notice stands above it, so it is read at full strength and its x can be pressed. Settings (90) stay above. */
+.stack.over-menu { z-index: 88; }
 
 /* Inventory shelf: a wide glass panel along the bottom. Collapses (slides down, keeps its space) while a part is dragged. */
 .inv {
@@ -517,12 +519,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .tooltip b { font-size: 0.8rem; }
 .notice {
   display: flex; align-items: center; gap: 0.5rem; width: min(100%, 28rem); box-sizing: border-box;
-  border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font-weight: 600; font-size: 0.8rem; padding: 0.4rem 0.7rem;
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font-weight: 600; font-size: 1rem; padding: 0.5rem 0.8rem;
 }
+/* The error states (the notice, the toast, the crash panel, "Starting…") hold text that decides what the player does next: 1 rem, and a backing that is near solid,
+   so the text keeps 4.5:1 over the lightest pixel behind it (the translucent glass alone gives the warn colour 2.2:1 over white; "Starting…" has the same backing). */
+.notice, .toast, .modal.crash { background: color-mix(in srgb, var(--menu-solid) 96%, transparent); }
 .notice > span { flex: 1; }
+.notice button { font-size: 1rem; }
 .toasts { display: flex; flex-direction: column; gap: 0.35rem; width: min(100%, 24rem); }
-.toast { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.55rem; font-size: 0.75rem; }
-.toast button { font-size: 0.7rem; padding: 0.15rem 0.4rem; }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.55rem; font-size: 1rem; }
+.toast button { font-size: 1rem; padding: 0.15rem 0.4rem; }
 /* Level-up banner: a short, non-blocking card with the new unlocks as small chips (Toasts.tsx). */
 .lvlup { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem 0.65rem; border-color: color-mix(in srgb, var(--accent) 65%, transparent); animation: lvlup-in .4s cubic-bezier(.2, .8, .2, 1) both; }
 .lvlup-head { display: flex; align-items: center; gap: 0.6rem; }
@@ -543,15 +549,17 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .modal { width: min(100%, 26rem); padding: 1.1rem 1.25rem 1.2rem; animation: pop-in .3s ease both; display: flex; flex-direction: column; gap: 0.5rem; }
 .modal .big { font-size: 1.2rem; }
 .modal .ptitle { font-size: 1.05rem; }
-.modal .pplain { font-size: 0.85rem; color: var(--ink); opacity: .92; }
+.modal .pplain { font-size: 1rem; color: var(--ink); opacity: .92; } /* (1 rem: the crash screen's message says what to do next, errortext.test.ts) */
 .modal .pactions { margin-top: 0.6rem; justify-content: flex-end; }
 .modal button { font-size: 0.8rem; padding: 0.35rem 0.8rem; }
 /* The crash screen (CrashPanel.tsx): the headline, a few chips, and the whole report in a scrolling block on request. */
 .modal.crash { width: min(100%, 44rem); max-height: 100%; overflow: hidden; }
 .crash-head { position: relative; display: flex; align-items: center; padding-right: 2rem; }
 .crash-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
-.crash-line { margin: 0; font: 600 0.8rem var(--mono); color: var(--bad); overflow-wrap: anywhere; }
-.crash-text { margin: 0; min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; padding: 0.5rem 0.6rem; font: 0.68rem/1.35 var(--mono); border: 1px solid var(--glass-line); border-radius: 0.4rem; white-space: pre; user-select: text; }
+.crash-line { margin: 0; font: 600 1rem var(--mono); color: var(--bad); overflow-wrap: anywhere; }
+.crash-text { margin: 0; min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; padding: 0.5rem 0.6rem; font: 1rem/1.35 var(--mono); border: 1px solid var(--glass-line); border-radius: 0.4rem; white-space: pre; user-select: text; }
+.modal.crash .chips .chip { font-size: 1rem; }
+.modal.crash button { font-size: 1rem; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(0.6rem) scale(.97); } to { opacity: 1; transform: none; } }
 
@@ -568,8 +576,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .title:not(.gone) ~ .ng-back, .title:not(.gone) ~ .modal-back { background: radial-gradient(ellipse 80% 70% at 50% 58%, rgba(4, 8, 24, .12), rgba(4, 8, 24, .6)); }
 /* The main menu (panels/MainMenu.tsx): a column under the title, over the live room. */
 /* A game is starting: the ring and the word stand where the menu's buttons were (Hud.tsx `Starting`). The ring turns by transform, so it turns while the page is busy. */
-.starting { position: fixed; top: 35vh; left: 50%; translate: -50% 0; z-index: 58; display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem; box-sizing: border-box; font-size: 1.05rem; letter-spacing: .03em; color: var(--ink); background: color-mix(in srgb, var(--menu-solid) 84%, transparent); backdrop-filter: blur(0.5rem); border-radius: 0.6rem; box-shadow: 0 0.2rem 1rem rgba(2, 6, 18, .35); animation: fade-in .2s ease both; }
+.starting { position: fixed; top: 35vh; left: 50%; translate: -50% 0; z-index: 58; display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem; box-sizing: border-box; font-size: 1.05rem; letter-spacing: .03em; color: var(--ink); background: color-mix(in srgb, var(--menu-solid) 96%, transparent); backdrop-filter: blur(0.5rem); border-radius: 0.6rem; box-shadow: 0 0.2rem 1rem rgba(2, 6, 18, .35); animation: fade-in .2s ease both; }
 .starting-ring { width: 1.3rem; height: 1.3rem; box-sizing: border-box; border-radius: 50%; border: 0.18rem solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: starting-turn .8s linear infinite; }
+.starting-text { display: flex; flex-direction: column; gap: 0.2rem; }
+.starting-hint { font-size: 1rem; letter-spacing: 0; color: var(--mute); max-width: min(20rem, 70vw); }
 @keyframes starting-turn { to { transform: rotate(360deg); } }
 /* The controls reference (panels/Controls.tsx): the mouse and the keys, two columns that stack on a narrow screen. */
 .ctl { width: min(100%, 46rem); }

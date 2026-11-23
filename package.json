@@ -32,6 +32,7 @@
     "bake:tex": "node tools/bake/textures.mjs",
     "bake:models": "node tools/bake/models.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
+    "e2e:errors": "node e2e/errors.e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

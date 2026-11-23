@@ -48,11 +48,17 @@
          so it paints over it. `bootFail` takes the class off, and the screen covers all again. */
       #boot.menu { z-index: auto; justify-content: flex-end; padding: 0 0 5vh; gap: 1.1vmin; }
       #boot.menu .boot-title, #boot.menu .boot-pipe, #boot.menu .boot-log { display: none; }
-      /* The world could not start (boot.ts `bootFail`): the screen stays, the bar and the cells go, and the reason and a way to try again show. */
+      /* The world could not start (boot.ts `bootFail`): the screen stays, the bar and the cells go, and the reason and a way to try again show.
+         These words tell the player what to do next, so they never go under 1 rem (errortext.test.ts). `bootFail` runs after ui.css has set the rem.
+         `max(1rem, 2vmin)` is 2vmin on a big screen and 1 rem on a phone, where 2vmin is tiny. The screen keeps a side gutter, so the words wrap
+         inside the width and nothing scrolls sideways. The reason has the light colour of the help text: the picture shows through the words, and the
+         dim colour of the Loading stage was only 3 to 3.8 : 1 on the worst pixel under it (e2e/errors.e2e.mjs reads the pixels; the rule is 4.5 : 1). */
       .boot-help, .boot-retry { display: none; }
+      #boot.fail { padding-left: 1.1rem; padding-right: 1.1rem; }
       #boot.fail .boot-pipe, #boot.fail .boot-bar, #boot.fail .boot-log { display: none; }
-      #boot.fail .boot-help { display: block; max-width: 52vmin; text-align: center; font-size: 2vmin; line-height: 1.55; color: #c5d0f0; }
-      #boot.fail .boot-retry { display: inline-block; font: inherit; font-size: 2vmin; color: #08102a; background: #3be3ff; border: 0; border-radius: .8vmin; padding: 1vmin 2.6vmin; cursor: pointer; }
+      #boot.fail .boot-stage { max-width: 100%; text-align: center; font-size: max(1rem, 1.6vmin); color: #c5d0f0; }
+      #boot.fail .boot-help { display: block; max-width: max(52vmin, 24rem); text-align: center; font-size: max(1rem, 2vmin); line-height: 1.55; color: #c5d0f0; }
+      #boot.fail .boot-retry { display: inline-block; max-width: 100%; min-height: 3rem; font: inherit; font-size: max(1rem, 2vmin); color: #08102a; background: #3be3ff; border: 0; border-radius: max(.8vmin, .4rem); padding: max(1vmin, .7rem) max(2.6vmin, 1.5rem); cursor: pointer; }
       @media (prefers-reduced-motion: reduce) { #boot, .boot-bar i, .boot-still { transition: none; } .boot-bar::after { display: none; } .boot-pipe i { animation: none; } }
     </style>
   </head>

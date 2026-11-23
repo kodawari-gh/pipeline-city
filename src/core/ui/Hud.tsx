@@ -244,12 +244,15 @@ function MenuKeys() {
   return null;
 }
 
+/** What "Starting…" says to do next: wait a few seconds, and reload when nothing comes (a worker that fails shows its own notice, `store.ts`). */
+const STARTING_HINT = 'This takes a few seconds. If nothing happens, reload the page.';
+
 /** A game is starting (the worker boots): this stands where the menu was, so the click is seen at once. The ring turns on the compositor, so it turns while the page works. */
-function Starting({ text = 'Starting…' }: { text?: string }) {
+function Starting({ text = 'Starting…', hint }: { text?: string; hint?: string }) {
   return (
     <div class="starting" role="status" aria-live="polite">
       <i class="starting-ring" aria-hidden="true" />
-      <span>{text}</span>
+      <span class="starting-text">{text}{hint && <small class="starting-hint">{hint}</small>}</span>
     </div>
   );
 }
@@ -263,11 +266,11 @@ export function Hud() {
     const ready = booted.value;
     return (
       <>
-        {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} /> : <MainMenu ready={ready} />}
+        {starting.value ? <Starting text={ready ? 'Starting…' : 'Getting the room ready…'} hint={STARTING_HINT} /> : <MainMenu ready={ready} />}
         <NewGameScreen />
         {ready && <><Gallery /><BuildMode /></>}
         <LoadConfirm />
-        <div class="stack"><Notice /></div>
+        <div class="stack over-menu"><Notice /></div>
       </>
     );
   }
