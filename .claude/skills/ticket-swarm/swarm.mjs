@@ -257,18 +257,20 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
         const p = this.wt(n, role);
         this.clean(p);
         if (T.rounds > 1) git(p, 'reset', '--hard', tip);
-        const before = git(p, 'rev-parse', 'HEAD');
         const out = await this.agent(`swarm-${role}`, n, p, tier, this.facts(n, issue, role, tier, findingsText), WORK_SCHEMA);
         if (out.blocker) throw new Stop(`${role} blocker: ${out.blocker}`, 'blocked');
-        this.emit(`#${n} ${role}: ${out.summary.split(/\r?\n/)[0].slice(0, 160)}${out.unmet.length ? ` | unmet: ${out.unmet.length}` : ''}`);
-        return { role, changed: git(p, 'rev-parse', 'HEAD') !== before };
+        const dirty = git(p, 'status', '--porcelain', '--untracked-files=no');
+        this.emit(`#${n} ${role} ${git(p, 'rev-parse', '--short', 'HEAD')}: ${out.summary.split(/\r?\n/)[0].slice(0, 160)}${out.unmet.length ? ` | unmet: ${out.unmet.length}` : ''}${dirty ? ' | WARNING: uncommitted changes dropped' : ''}`);
       });
-      const res = await Promise.all(jobs);
+      await Promise.all(jobs);
 
       // Round merge: base first (keeps the review honest), then coder, then tester.
       this.clean(merge);
       await this.mergeBranch(n, tier, issue, this.base, 'base');
-      for (const r of res) if (r.changed) await this.mergeBranch(n, tier, issue, this.br(n, r.role), r.role);
+      // Merge every role branch the integration branch does not hold yet (covers commits from an earlier, interrupted run).
+      for (const role of ['coder', 'tester']) {
+        if (!gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, role), 'HEAD')) await this.mergeBranch(n, tier, issue, this.br(n, role), role);
+      }
 
       const head = git(merge, 'rev-parse', 'HEAD');
       const rv = await this.agent('swarm-reviewer', n, merge, tier, this.facts(n, issue, 'reviewer', tier,

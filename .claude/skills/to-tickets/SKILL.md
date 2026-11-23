@@ -14,7 +14,7 @@ Tracker operations: `docs/agents/issue-tracker.md`. Board operations and the pla
 
 ### 1. Gather context
 
-Work from the conversation. If the user passes a reference (a spec path, an issue number), read its full body and comments.
+Work from the conversation. If the user passes a reference (a spec path, an issue number), read its full body and comments. When the source is an old list (a TODO file, earlier tickets), check each item against the code first: drop what is already done.
 
 ### 2. Explore the codebase
 
@@ -54,11 +54,11 @@ Iterate until the user approves.
 
 Publish in dependency order (blockers first) so edges reference real numbers. For each ticket:
 
-1. `gh issue create` with the template below and the `ready-for-agent` label (`ready-for-human` for a Human ticket). If the source was an existing issue, create it as that issue's sub-issue.
+1. `gh issue create` with the template below and the `ready-for-agent` label (`ready-for-human` for a Human ticket). If there is a parent issue, create it as that issue's sub-issue.
 2. Add the native blocked-by edges.
-3. Add the issue to the board, set **Planned model**, and set **Status**: Ready when it has no open blocker, Backlog otherwise (Human tickets: always Backlog).
+3. Set the planned model: `node .claude/skills/update-gh-board/board.mjs planned <n> <Model>` (this also adds it to the board).
 
-Done when every ticket is on the board with a planned model, its edges, and a status. Leave the parent issue's body and state unchanged.
+Then run `board.mjs sync <parent>` and `board.mjs show <parent>`. Done when the parent lists every new ticket as a child and sync reports no ticket without a planned model. Leave the parent issue's body and state unchanged.
 
 <issue-template>
 
