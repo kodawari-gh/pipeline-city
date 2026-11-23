@@ -1,7 +1,7 @@
 // The one document-level UI sound listener. It reads `data-cue` (uiCues.ts) for hover, keyboard focus, click, Enter and Space on non-native cue elements, checkbox change and arrow keys,
 // and plays Esc as Back while a dialog or menu is open. Installed once from initAudio. playCue is silent before the unlock gesture.
 import { playCue } from './engine';
-import { CUE_ATTR, NEXT_ATTR, clickSteps, keyNeedsCue, uiCueFor, type CueStep } from './uiCues';
+import { CUE_ATTR, NEXT_ATTR, clickSteps, keyNeedsCue, sliderStep, uiCueFor, type CueStep } from './uiCues';
 
 const CUE_SELECTOR = `[${CUE_ATTR}]`;
 /** Esc plays Back while one of these is open (checked in the capture phase, before the handler closes it). */
@@ -23,7 +23,20 @@ export function installUiCues(doc: Document = document, win: Window = window): (
   let keyboard = false;
   const play = (steps: CueStep[]) => { for (const s of steps) playCue(s.id, { delayS: s.delayS }); };
 
-  const onPointerDown = () => { keyboard = false; };
+  // The last 5 % step each range input showed. A pointer press or focus records it, so the first move compares with it.
+  const steps = new WeakMap<Element, number>();
+  const remember = (t: EventTarget | null) => {
+    if (t instanceof HTMLInputElement && t.type === 'range') steps.set(t, sliderStep(Number(t.min), Number(t.max), Number(t.value)));
+  };
+  const onPointerDown = (e: Event) => { keyboard = false; remember(e.target); };
+  const onInput = (e: Event) => {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement) || t.type !== 'range') return;
+    const step = sliderStep(Number(t.min), Number(t.max), Number(t.value));
+    const prev = steps.get(t);
+    steps.set(t, step);
+    if (prev !== step) playCue('ui_slider_tick');
+  };
   const onKeyDown = (e: KeyboardEvent) => {
     keyboard = true;
     if (e.key === 'Escape') {
@@ -51,6 +64,7 @@ export function installUiCues(doc: Document = document, win: Window = window): (
     if (id) playCue(id);
   };
   const onFocusIn = (e: FocusEvent) => {
+    remember(e.target);
     if (!keyboard) return;
     const el = cueOf(e.target);
     const id = el && uiCueFor('focus', el.getAttribute(CUE_ATTR));
@@ -74,8 +88,10 @@ export function installUiCues(doc: Document = document, win: Window = window): (
   doc.addEventListener('focusin', onFocusIn as EventListener);
   doc.addEventListener('click', onClick as EventListener);
   doc.addEventListener('change', onChange);
+  doc.addEventListener('input', onInput as EventListener);
   return () => {
-    doc.removeEventListener('pointerdown', onPointerDown, true);
+    doc.removeEventListener('input', onInput as EventListener);
+    doc.removeEventListener('pointerdown', onPointerDown as EventListener, true);
     win.removeEventListener('keydown', onKeyDown, true);
     doc.removeEventListener('pointerover', onPointerOver as EventListener);
     doc.removeEventListener('focusin', onFocusIn as EventListener);

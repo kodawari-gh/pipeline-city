@@ -44,7 +44,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
         )}
         <button class={`mm-btn ${offer ? '' : 'primary'}`} data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => openNewGame()}><Icon name="star" size={14} /><span class="mm-t">New game<span class="mm-d">Guided campaign</span></span></button>
         <button class="mm-btn" data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => openNewGame('sandbox')}><Icon name="box" size={14} /><span class="mm-t">Sandbox<span class="mm-d">Everything unlocked</span></span></button>
-        <button class="mm-btn" disabled={!ready} data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">{ready ? 'Fit and swap parts' : 'Getting ready…'}</span></span></button>
+        <button class="mm-btn" disabled={!ready} data-cue="ui_click" onClick={() => { buildOpen.value = true; }}><Icon name="case" size={14} /><span class="mm-t">Build my PC<span class="mm-d">{ready ? 'Fit and swap parts' : 'Getting ready…'}</span></span></button>
         <button class="mm-btn" disabled={!ready} data-cue="ui_click" data-cue-next="ui_transition_in" onClick={() => { galleryOpen.value = true; }}><Icon name="eye" size={14} /><span class="mm-t">Gallery<span class="mm-d">{ready ? 'Every part in 3D' : 'Getting ready…'}</span></span></button>
         <label class="mm-btn btn" tabIndex={0} data-cue="ui_click" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}>
           <Icon name="import" size={14} /><span class="mm-t">Load from file<span class="mm-d">A game you exported</span></span>
@@ -71,7 +71,7 @@ function SettingsCard({ ready }: { ready: boolean }) {
       <div class="card modal mm-card" role="dialog" aria-modal="true" aria-label="Settings">
         <div class="big">Settings</div>
         <label class="mm-row scale-row"><span>UI size</span>
-          <input type="range" data-cue="ui_value_change" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
+          <input type="range" data-cue="ui_slider_tick"min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size" onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
           <b class="value">{Math.round(uiScale.value * 100)}%</b>
         </label>
         <SoundRows />
@@ -90,7 +90,7 @@ function SoundRows() {
       <div class="mm-row"><span>Sound</span><label><input type="checkbox" data-cue="ui_toggle" checked={mix.muted} onChange={(e) => setMuted(e.currentTarget.checked)} /> Mute</label></div>
       {SLIDER_IDS.map((id) => (
         <label class="mm-row scale-row" key={id}><span>{SLIDER_LABEL[id]}</span>
-          <input type="range" data-cue="ui_value_change" min={0} max={100} step={MIX.sliders.stepPercent} value={mix[id]} aria-label={`${SLIDER_LABEL[id]} volume`}
+          <input type="range" data-cue="ui_slider_tick"min={0} max={100} step={MIX.sliders.stepPercent} value={mix[id]} aria-label={`${SLIDER_LABEL[id]} volume`}
             onInput={(e) => setSlider(id, Number(e.currentTarget.value))} />
           <b class="value">{mix[id]}%</b>
         </label>

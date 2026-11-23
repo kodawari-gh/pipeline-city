@@ -54,11 +54,11 @@ export function Shop({ s }: { s: Snapshot }) {
   const shownKind = shown ? kindOf(shown, s) : null;
   return (
     <div class="modal-back shop-back" onClick={(e) => { if (e.target === e.currentTarget) closeShop(); }}>
-      <div class="card shop" role="dialog" aria-modal="true" aria-label="Shop">
+      <div class="card shop" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Shop">
         <header class="shop-head">
           <span class="shop-title"><Icon name="shop" size={16} /> Shop</span>
           <span class="chip" title="Your money"><Icon name="dollar" size={12} /> {s.sandbox ? 'free' : fmtMoney(s.money)}</span>
-          <button class="close" aria-label="Close shop" title="Close (Esc)" onClick={closeShop}><Icon name="close" size={12} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close shop" title="Close (Esc)" onClick={closeShop}><Icon name="close" size={12} /></button>
         </header>
         <div class="shop-body">
           <nav class="shop-rail" aria-label="Category">

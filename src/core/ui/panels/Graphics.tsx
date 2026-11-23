@@ -89,7 +89,7 @@ function Slider({ label, help, min, max, value, set }: { label: string; help: st
     <label class="gfx-opt">
       <span class="gfx-name"><b>{label}</b><span class="gfx-help">{help}</span></span>
       <span class="gfx-slide">
-        <input type="range" data-cue="ui_value_change" min={min} max={max} step={0.05} value={value} aria-label={label} aria-valuetext={text} style={{ '--p': `${((value - min) / (max - min)) * 100}%` }}
+        <input type="range" data-cue="ui_slider_tick"min={min} max={max} step={0.05} value={value} aria-label={label} aria-valuetext={text} style={{ '--p': `${((value - min) / (max - min)) * 100}%` }}
           onInput={(e) => set(Number(e.currentTarget.value))} />
         <b class="gfx-val">{text}</b>
       </span>

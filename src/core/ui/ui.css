@@ -1477,6 +1477,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
    the benchmark's foot and, with `?debug` in the address, what was done. */
 .bld-inst { right: 1rem; top: 4.3rem; bottom: 1rem; width: calc(var(--bld-r) - 1rem); }
 .bld-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 0.6rem; }
+.bld-x { position: absolute; top: 0.45rem; right: 0.45rem; z-index: 4; width: 1.8rem; height: 1.8rem; padding: 0; display: grid; place-items: center; border-radius: 50%; }
 .bld-ht { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .mode .bld-startbtn { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border-radius: var(--m-r-pill); font: 600 var(--m-sm) var(--ui); }
 /* (a chevron that points down while its section is shut and up while it is open) */

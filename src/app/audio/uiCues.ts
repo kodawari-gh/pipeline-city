@@ -19,15 +19,28 @@ export type UiEvent = 'hover' | 'focus' | 'click' | 'toggle' | 'value' | 'back';
  */
 export function uiCueFor(ev: UiEvent, attr: string | null, on = false): CueId | null {
   if (ev === 'back') return 'ui_back';
-  if (attr === null) return null;
+  // A panel root's open marker plays nothing here: the open cue comes from panelCues.ts or the director, so a click inside the panel stays silent.
+  if (attr === null || attr === 'ui_panel_open') return null;
   switch (ev) {
     case 'hover': return 'ui_hover';
     case 'focus': return 'ui_focus_move';
-    case 'click': return isCueId(attr) ? attr : null;
+    // A slider's tick comes from its input event (one per 5 % step), so a click on it plays nothing extra.
+    case 'click': return attr === 'ui_slider_tick' ? null : isCueId(attr) ? attr : null;
     case 'toggle': return attr === 'ui_toggle' ? (on ? 'ui_toggle_on' : 'ui_toggle_off') : null;
     case 'value': return attr === 'ui_value_change' ? 'ui_value_change' : null;
   }
 }
+
+/** A range input's 5 % step: 0..20 across its min..max. A tick plays when this number changes. */
+export function sliderStep(min: number, max: number, value: number): number {
+  const span = max - min;
+  if (!(span > 0)) return 0;
+  return Math.round(((value - min) / span) * 20);
+}
+
+/** Tutorial typing: a tick on every third character typed (`typed` is the count so far). */
+export const TYPE_EVERY = 3;
+export const typeTickDue = (typed: number): boolean => typed > 0 && typed % TYPE_EVERY === 0;
 
 export interface CueStep { id: CueId; delayS: number }
 

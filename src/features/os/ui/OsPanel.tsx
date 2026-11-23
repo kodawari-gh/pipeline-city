@@ -28,7 +28,7 @@ export function OsModal() {
   sampleHistory(history, resourceRows(s));
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeOs(); }}>
-      <div class="card almanac ospanel" role="dialog" aria-modal="true" aria-label="Operating system">
+      <div class="card almanac ospanel" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Operating system">
         <header class="alm-head">
           <span class="alm-title"><Icon name="cpu" size={16} /> {s.os ? s.os.name : 'Operating system'}</span>
           <div class="os-tabs seg" role="tablist">

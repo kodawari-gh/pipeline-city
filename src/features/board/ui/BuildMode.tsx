@@ -179,7 +179,7 @@ export function BuildMode() {
     : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, shown, shell: drag ? shellOf(drag.item) : undefined, on: stage.state.value.on, holding: !!stage.cableTip.value });
 
   return (
-    <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
+    <div class="build mode" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
       {!stage && !failed && <div class="bld-note mute" role="status"><span class="bld-wait"><i class="starting-ring" aria-hidden="true" />Loading the workshop…</span></div>}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
@@ -191,7 +191,7 @@ export function BuildMode() {
       />
       {stage && <Readout stage={stage} rev={rev} onBench={() => setBench(true)} />}
       <ViewOptions ready={!!stage} />
-      <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
+      <button class="mode-close" data-cue="ui_panel_close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
       <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} />
       <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} />
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}

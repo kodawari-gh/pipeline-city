@@ -58,7 +58,7 @@ export function SandboxJobs({ s }: { s: Snapshot }) {
         <div id="sbj-panel" class="card sbx-pop sbj-pop" role="dialog" aria-label="Sandbox level and jobs">
           <h4>Level</h4>
           <div class="sbj-level">
-            <input type="range" min={1} max={MAX_LEVEL} step={1} value={level} aria-label="Rules level" aria-valuetext={`${level}: ${levelDef(level).name}`} onInput={(e) => setLevel(Number(e.currentTarget.value))} />
+            <input type="range" data-cue="ui_slider_tick" min={1} max={MAX_LEVEL} step={1} value={level} aria-label="Rules level" aria-valuetext={`${level}: ${levelDef(level).name}`} onInput={(e) => setLevel(Number(e.currentTarget.value))} />
             <b class="sbx-val">{level}</b>
           </div>
           <div class="sbx-msg"><b>{levelDef(level).name}</b>. Arrivals: {mixLine(level)}.</div>

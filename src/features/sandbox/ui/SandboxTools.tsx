@@ -68,7 +68,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
           <h4>Reputation</h4>
           <div class="sbx-row">
             <input
-              type="range" min="0.4" max="4" step="0.05" value={shownRep} aria-label="Reputation"
+              type="range" data-cue="ui_slider_tick" min="0.4" max="4" step="0.05" value={shownRep} aria-label="Reputation"
               aria-valuetext={shownRep.toFixed(2)}
               onInput={(e) => { const v = Number(e.currentTarget.value); setRep(v); setReputation(v); }}
               // Keep the local value while the slider has focus: a keyboard step fires `change` on every press, and

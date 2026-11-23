@@ -218,7 +218,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const infoId = hover ?? (sel?.startsWith('inv:') ? sel.slice(4) : null);
   const info = infoId ? s.inventory.find((x) => x.id === infoId) : undefined;
   return (
-    <section class={`inv ${away ? 'away' : ''} ${lifted ? 'drop' : ''} ${lifted && overInventory.value ? 'over' : ''}`} aria-label="Inventory">
+    <section class={`inv ${away ? 'away' : ''} ${lifted ? 'drop' : ''} ${lifted && overInventory.value ? 'over' : ''}`} data-cue="ui_panel_open" aria-label="Inventory">
       {info && !away && (
         <aside class="card inv-info" aria-label={`${info.name} stats`}>
           <StatCard s={s} specId={info.spec} fit={{ ok: info.installable, text: info.installable ? 'Fits: drag it onto a socket' : info.reason ?? 'Nothing to fit it to right now' }} />

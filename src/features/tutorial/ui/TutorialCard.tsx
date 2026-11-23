@@ -11,6 +11,8 @@ import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial
 import { CHAR_MS, pagesOf } from './dialogue';
 import { anchorOf, flyTo, hasTarget } from './anchor';
 import { comfortablyVisible, type Rect } from '@/core/ui/place';
+import { playCue } from '@/app/audio/engine';
+import { typeTickDue } from '@/app/audio/uiCues';
 
 /**
  * JRPG-style dialogue: the text types out, a click (or Enter) completes the page, and the bobbing triangle shows a
@@ -29,6 +31,13 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
     const id = setInterval(() => setN((k) => { if (k >= cur.length) { clearInterval(id); return k; } return k + 1; }), CHAR_MS);
     return () => clearInterval(id);
   }, [cur]);
+  // One tick per third character as the text types (a skip to the end plays none: only single steps count).
+  const typed = useRef(0);
+  useEffect(() => {
+    const prev = typed.current;
+    typed.current = n;
+    if (n === prev + 1 && typeTickDue(n) && !reducedMotion()) playCue('ui_type_tick');
+  }, [n]);
   const done = n >= cur.length;
   const more = page < pages.length - 1;
   useEffect(() => { onEnd?.(done && !more); }, [done, more, text]);

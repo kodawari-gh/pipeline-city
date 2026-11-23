@@ -93,5 +93,13 @@ Loading decodes with an `OfflineAudioContext`, so it needs no gesture. A cue who
 - Nothing plays before the unlock gesture (`playCue` is silent until the context runs).
 - Covered: the main menu (buttons, Settings sliders, Graphics entry), New game, the in-game menu (items, UI size slider), the HUD chips, speed rail, level bar, power bill, stats dock, the HUD InventoryBar (8 buttons), the sandbox HUD (SANDBOX and LEVEL chips), the tutorial card buttons, the Controls Done and Confirm buttons (Back), the OS window (tabs, close) and the Graphics sheet (tab bar, slider). Not yet: other panels (Log, Shop, Build my PC, OS pages, Trace), the rest of the Graphics sheet, and the tutorial typing.
 
+### UI sounds: toasts, panels, drag, typing, sliders (ticket #57)
+- Hint toast (`Toasts.tsx`) plays `ui_warn` when it shows. The refused-action notice plays `ui_error`. The notify cue (`ui_notify`) stays on the network and sandbox log notes only.
+- Panels: each panel root carries `data-cue="ui_panel_open"` as a marker. `panelCues.ts` plays `ui_panel_open` when the inventory, Shop, Almanac, Log, OS or Build flag turns on. The director plays it when the in-game menu holds the clock. The marker itself plays nothing on click, hover or focus. Each close button carries `data-cue="ui_panel_close"`.
+- Part drag: `drag3d.ts` plays `ui_pickup` when a part drag starts (from the shelf or from the board).
+- Tutorial typing: `TutorialCard.tsx` plays `ui_type_tick` on every third typed character. A skip to the end plays none. Reduced motion plays none.
+- Sliders: every range input (`input[type=range]`) plays `ui_slider_tick` once per 5 % step (`sliderStep` in `uiCues.ts`). The listener compares the step on each input event. A click on a slider plays no extra tick.
+- The Build flyout (`BuildMode.tsx`): `panelCues.ts` plays `ui_panel_open` when `buildOpen` turns on (the Build my PC button plays `ui_click` only). Its X carries `ui_panel_close`. The machine list (`BuildMachine.tsx`) carries the open marker and has no close button of its own.
+
 ## Status
 Tracer bullet (ticket #51): log notes play their cues. Ticket #53: every log note has its cue, and the swap-done rule. Ticket #54: state rules, clock and holds. Ticket #55: level-up stinger and the beat hook. Ticket #56: UI sounds on the menus and HUD (see "UI sounds"). Ticket #58: room loop and machine hum. Not yet built: music, UI sounds on the remaining panels. The plan is in the package's `IMPLEMENTATION.md`.

@@ -18,6 +18,7 @@ import { NetDock } from '../../features/network/ui/NetPanel';
 import { OsModal } from '../../features/os/ui/OsPanel';
 import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
+import { watchPanelCues } from './panelCues';
 import { NewGameDialog, openNewGame } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
 import { ConfirmDialog } from './panels/Confirm';
@@ -254,7 +255,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
         <Icon name="menu" size={14} />
       </button>
       {open && (
-        <div class="card menu-pop" role="menu">
+        <div class="card menu-pop" data-cue="ui_panel_open" role="menu">
           <div class="menu-h">Game</div>
           <button role="menuitem" data-cue="ui_confirm" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
           <button role="menuitem" data-cue="ui_confirm" data-cue-next="ui_transition_out" onClick={() => { close(); leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
@@ -280,7 +281,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" data-cue="ui_click" data-cue-next="ui_transition_in" aria-haspopup="dialog" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> Graphics</button>
           <label class="scale-row" title="Make the whole interface smaller or larger">
             <span>UI size</span>
-            <input type="range" data-cue="ui_value_change" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
+            <input type="range" data-cue="ui_slider_tick"min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
               onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
             <b class="value">{Math.round(uiScale.value * 100)}%</b>
           </label>
@@ -307,6 +308,7 @@ function Starting({ text = 'Starting…' }: { text?: string }) {
 
 export function Hud() {
   const s = snapshot.value;
+  useEffect(() => watchPanelCues(), []);
   // (the menu shows over the boot screen while the world loads, app/boot.ts: what needs the 3D world waits for `booted`, and a game chosen
   // meanwhile starts when the screen goes, `startSim`)
   // (a game that is starting stands in place of the menu; the notice shows a refused file here as in a game)
