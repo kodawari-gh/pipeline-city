@@ -10,10 +10,10 @@ const CSS = `
 @keyframes cue3d-beat { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }
 @keyframes cue3d-spin { to { transform: rotate(360deg); } }
 .cue3d { position: fixed; pointer-events: none; z-index: 5; box-sizing: border-box; }
-.cue3d.key { border: 0.18rem solid #5fd0ff; border-radius: 0.9rem; background: rgba(95, 208, 255, 0.08); animation: cue3d-beat 1s ease-in-out infinite; }
-.cue3d.swap { border: 0.14rem dashed #5fd0ff; border-radius: 0.9rem; background: rgba(95, 208, 255, 0.06); animation: cue3d-beat 1.3s ease-in-out infinite; }
+.cue3d.key { border: 0.18rem solid #5fd0ff; border-radius: 0.9rem; background: rgba(95, 208, 255, 0.08); animation: cue3d-beat var(--d-loop) ease-in-out infinite; }
+.cue3d.swap { border: 0.14rem dashed #5fd0ff; border-radius: 0.9rem; background: rgba(95, 208, 255, 0.06); animation: cue3d-beat var(--d-loop) ease-in-out infinite; }
 .cue3d.veil { border-radius: 0.6rem; background: rgba(11, 14, 20, 0.6); }
-.cue3d i { position: absolute; left: 50%; top: 50%; width: 1.7rem; height: 1.7rem; margin: -0.85rem 0 0 -0.85rem; border-radius: 50%; border: 0.18rem solid rgba(95, 208, 255, 0.25); border-top-color: #5fd0ff; animation: cue3d-spin 0.9s linear infinite; }
+.cue3d i { position: absolute; left: 50%; top: 50%; width: 1.7rem; height: 1.7rem; margin: -0.85rem 0 0 -0.85rem; border-radius: 50%; border: 0.18rem solid rgba(95, 208, 255, 0.25); border-top-color: #5fd0ff; animation: cue3d-spin var(--d-long) linear infinite; }
 `;
 
 /** What the snapshot has the player waiting on: the key to pull, and the installs queued behind the running job. */

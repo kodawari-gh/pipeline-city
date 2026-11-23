@@ -22,24 +22,24 @@
       #boot {
         position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; gap: 2.4vmin; padding-top: 14vh;
         box-sizing: border-box; background: #04060f; color: #e2eaff;
-        font-family: 'Plex Sans', var(--f-sans), sans-serif; transition: opacity .9s ease; --boot: .04;
+        font-family: 'Plex Sans', var(--f-sans), sans-serif; transition: opacity var(--d-long) ease; --boot: .04;
       }
       #boot.done { opacity: 0; pointer-events: none; }
       /* The static wordmark (SPEC 5.3, 01 position): Plex Cond 600 caps on two lines. */
       .boot-title { font: 600 9.5vmin/0.86 var(--f-cond), 'IBM Plex Sans Condensed', sans-serif; text-transform: uppercase; color: #e2eaff; text-align: center; width: min-content; }
       .boot-bar { position: relative; width: 34vmin; height: .45vmin; border-radius: .3vmin; overflow: hidden; background: rgba(150, 170, 255, .14); }
-      .boot-bar i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--boot)); background: linear-gradient(90deg, #8b5cff, #3be3ff); transition: transform .5s ease; }
-      .boot-bar::after { content: ''; position: absolute; inset: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent); animation: boot-sweep 1.8s ease-in-out infinite; }
+      .boot-bar i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--boot)); background: linear-gradient(90deg, #8b5cff, #3be3ff); transition: transform var(--d-slow) ease; }
+      .boot-bar::after { content: ''; position: absolute; inset: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent); animation: boot-sweep var(--d-loop-slow) ease-in-out infinite; }
       .boot-stage { font-size: 1.6vmin; letter-spacing: .14em; text-transform: uppercase; color: #8fa0cc; }
       @keyframes boot-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
       /* The still: the last picture of the game (boot.ts `saveStill`), or the shipped one, soft behind everything. */
-      .boot-still { position: absolute; inset: -4%; z-index: -1; width: 108%; height: 108%; object-fit: cover; opacity: 0; filter: blur(1.1vmin) brightness(.5) saturate(1.15); transition: opacity 1.2s ease; pointer-events: none; }
+      .boot-still { position: absolute; inset: -4%; z-index: -1; width: 108%; height: 108%; object-fit: cover; opacity: 0; filter: blur(1.1vmin) brightness(.5) saturate(1.15); transition: opacity var(--d-loop) ease; pointer-events: none; }
       .boot-still.on { opacity: 1; }
       #boot::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse 75% 65% at 50% 55%, rgba(11, 15, 20, .15), rgba(11, 15, 20, .82)); pointer-events: none; }
       /* The CPU at work, kept simple: four cells, one lit at a time, hopping along. Only opacity and transform change, so the compositor
          keeps it going while the page builds the world. */
       .boot-pipe { display: flex; gap: 1.2vmin; margin-top: 1.6vmin; }
-      .boot-pipe i { width: 3.2vmin; height: 3.2vmin; border-radius: .6vmin; background: linear-gradient(135deg, #8b5cff, #3be3ff); opacity: .16; animation: boot-hop .8s steps(1) infinite; animation-delay: calc(var(--n) * .2s); }
+      .boot-pipe i { width: 3.2vmin; height: 3.2vmin; border-radius: .6vmin; background: linear-gradient(135deg, #8b5cff, #3be3ff); opacity: .16; animation: boot-hop var(--d-long) steps(1) infinite; animation-delay: calc(var(--n) * var(--d-long) / 4); }
       @keyframes boot-hop { 0% { opacity: 1; transform: scale(1.12); box-shadow: 0 0 1.6vmin rgba(59, 227, 255, .6); } 25%, 100% { opacity: .16; transform: none; box-shadow: none; } }
       .boot-log { min-height: 8.6vmin; text-align: left; font: 1.45vmin/2.1vmin var(--f-mono), ui-monospace, 'Cascadia Mono', Consolas, monospace; color: #7f93c8; white-space: pre; }
       .boot-log em { color: #3be3ff; font-style: normal; }

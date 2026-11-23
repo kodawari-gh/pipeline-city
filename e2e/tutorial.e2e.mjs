@@ -55,7 +55,8 @@ const browser = await chromium.launch({
   // (at 1920 x 1080 the page then draws about one frame a second and Playwright's "stable" check on a click never settles).
   args: [...(process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']), '--ignore-gpu-blocklist', `--window-size=${W},${H + 90}`],
 });
-const ctx = await browser.newContext({ viewport: { width: W, height: H } });
+// REDUCED_MOTION=1: the page runs with prefers-reduced-motion: reduce (the motion check, SPEC section 8).
+const ctx = await browser.newContext({ viewport: { width: W, height: H }, reducedMotion: process.env.REDUCED_MOTION ? 'reduce' : 'no-preference' });
 const p = await ctx.newPage();
 p.setDefaultTimeout(Number(process.env.TMO || 3000));
 // A step that does not advance fails: STEP_TICKS game ticks on one step without it changing, STALL_MS of wall clock with the game clock standing still

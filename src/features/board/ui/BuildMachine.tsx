@@ -208,7 +208,7 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
           );
         })}
         {/* (until the stage is open the machine is not known: rows that wait, not a claim that the case is empty) */}
-        {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `${i * 0.15}s` }} />)}
+        {!stage && [0, 1, 2, 3].map((i) => <li class="bld-skel" key={i} aria-hidden="true" style={{ animationDelay: `calc(${i} * var(--d-med))` }} />)}
         {stage && devices.length === 0 && (
           <li class="bld-none">
             <b>{none ? 'Nothing on the stage yet' : 'Nothing fitted yet'}</b>

@@ -93,7 +93,11 @@ export function bootDone(): void {
   if (!el) return;
   bootStage('Ready', 1);
   el.classList.add('done');
-  // (the bar's own transition ends inside it; with reduced motion there is no fade, and no transition ends)
+  // Reduced motion: no fade, so no transition ends; the screen goes at once.
+  let calm = false;
+  try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { calm = false; }
+  if (calm) { el.remove(); return; }
+  // (the bar's own transition ends inside it)
   el.addEventListener('transitionend', (e) => { if (e.target === el && e.propertyName === 'opacity') el.remove(); });
   setTimeout(() => el.remove(), 2000);
 }

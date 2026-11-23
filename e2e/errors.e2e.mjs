@@ -65,7 +65,7 @@ const browser = await chromium.launch({
  * (the worker then fails to load), or no `hold` for a free worker. `init` is a function the page runs before any script of its own.
  */
 async function open(tag, viewport, { hold = null, init = null, until = 'button.mm-btn:has-text("New game")' } = {}) {
-  const ctx = await browser.newContext({ viewport });
+  const ctx = await browser.newContext({ viewport, reducedMotion: process.env.REDUCED_MOTION ? 'reduce' : 'no-preference' });
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   const errors = [];

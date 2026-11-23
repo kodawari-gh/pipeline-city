@@ -98,7 +98,8 @@
 
   /* ---------- Motion ---------- */
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --d-fast: 120ms; --d-med: 160ms; --d-trace: 240ms; --d-flash: 80ms;
+  --d-none: 0ms; --d-fast: 120ms; --d-med: 160ms; --d-trace: 240ms; --d-flash: 80ms; --d-slow: 400ms; --d-long: 800ms; --d-hold: 2600ms;
+  --d-loop: 1200ms; --d-loop-slow: 1600ms; /* the same scale as ui.css; the boot screen (index.html) reads it before ui.css loads */
 }
 
 /* ---------- Phone layout (reference 390 x 844, 1rem = 15 px). Gradients run bottom-up so they follow bottom-anchored content. ---------- */
@@ -129,5 +130,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --d-fast: 0ms; --d-med: 0ms; --d-trace: 0ms; --d-flash: 0ms; }
+  :root {
+    --d-none: 0ms; --d-fast: 0ms; --d-med: 0ms; --d-trace: 0ms; --d-flash: 0ms; --d-slow: 0ms; --d-long: 0ms; --d-hold: 0ms;
+    --d-loop: 0ms; --d-loop-slow: 0ms;
+  }
 }

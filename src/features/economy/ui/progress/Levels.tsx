@@ -162,7 +162,7 @@ export function LevelUpModal() {
             <div class="eyebrow mute lvl-unl">Now unlocked</div>
             <div class="lvl-unlocks">
               {up.unlocked.map((u, i) => (
-                <span class="lvl-pop" key={u.id} style={{ animationDelay: `${0.7 + i * 0.12}s` }}><UnlockChip u={u} /></span>
+                <span class="lvl-pop" key={u.id} style={{ animationDelay: `calc(var(--d-long) + ${i} * var(--d-fast))` }}><UnlockChip u={u} /></span>
               ))}
             </div>
           </>
