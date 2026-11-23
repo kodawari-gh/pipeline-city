@@ -12,9 +12,11 @@
 // It starts its own dev server (a fresh one: module URLs must not carry HMR timestamps) and stops it at the end.
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { chromium } from 'playwright-core';
 
-const PORT = Number(process.env.PORT || 5198);
+// PORT=n pins the dev server port; by default a free one is picked (the server runs with --strictPort).
+const PORT = Number(process.env.PORT) || await new Promise((res, rej) => { const s = createServer(); s.once('error', rej); s.listen(0, () => { const p = s.address().port; s.close(() => res(p)); }); });
 const W = Number(process.env.W || 1600), H = Number(process.env.H || 900);
 const SPEED = Number(process.env.SPEED || 12);
 // R3D=1: play the 3D world (`?3d`) on the real GPU.
@@ -22,7 +24,7 @@ const R3D = !!process.env.R3D;
 const SHOTS = process.env.SHOTS_DIR ? new URL(`file:///${process.env.SHOTS_DIR.replace(/\\/g, '/').replace(/\/?$/, '/')}`) : new URL('./shots/', import.meta.url);
 mkdirSync(SHOTS, { recursive: true });
 
-const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'wall', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
+const EXPECTED = ['cpu', 'cooler', 'fan', 'ram', 'psu', 'monitor', 'cables', 'wall', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
   'fit', 'reachLevel3', 'buyDrive', 'drive', 'buyRam', 'fitRam', 'buyOs', 'os', 'bootOs', 'osIngest', 'osPaid',
   'reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'buyCase', 'fitCase', 'buyBoard', 'fitBoard', 'plugLan', 'linkUp', 'firstNetJob', 'done'];
 // A player may already be past these when they come up (the level is reached while the OS lesson runs).
@@ -49,20 +51,24 @@ const browser = await chromium.launch({
   headless: !!process.env.HEADLESS,
   slowMo: Number(process.env.SLOWMO || 0),
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  // The real GPU by default (a windowed run); SOFTWARE=1 (or HEADLESS=1 on a machine without one) falls back to SwiftShader, which is several times slower.
-  args: [...(process.env.SOFTWARE || process.env.HEADLESS ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : []), '--ignore-gpu-blocklist', ...(R3D && !process.env.SOFTWARE ? ['--enable-gpu', '--use-angle=d3d11'] : []), `--window-size=${W},${H + 90}`],
+  // The real GPU by default, headless too (as tools/shot.mjs: ANGLE/D3D11); SOFTWARE=1 falls back to SwiftShader, which is several times slower
+  // (at 1920 x 1080 the page then draws about one frame a second and Playwright's "stable" check on a click never settles).
+  args: [...(process.env.SOFTWARE ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=d3d11', '--enable-gpu-rasterization']), '--ignore-gpu-blocklist', `--window-size=${W},${H + 90}`],
 });
 const ctx = await browser.newContext({ viewport: { width: W, height: H } });
 const p = await ctx.newPage();
 p.setDefaultTimeout(Number(process.env.TMO || 3000));
-// A step that does not advance fails fast: STEP_MS wall clock on one step, STEP_TRIES rounds on it, RUN_MS for the whole run.
-const STEP_MS = Number(process.env.STEP_MS || 25000), STEP_TRIES = Number(process.env.STEP_TRIES || 14), RUN_MS = Number(process.env.RUN_MS || 600000);
+// A step that does not advance fails: STEP_TICKS game ticks on one step without it changing, STALL_MS of wall clock with the game clock standing still
+// (a held game, a dead page), RUN_MS for the whole run. The bound is in game ticks, not in tries or seconds: a waiting step lasts as many ticks as the game needs
+// (the first online job took 35 ticks in one run and 200 in another: 3 to 17 s of wall clock at 12 ticks a second, and a count of tries ended it on a slower run),
+// and the machine sets the wall clock.
+const STEP_TICKS = Number(process.env.STEP_TICKS || 1200), STALL_MS = Number(process.env.STALL_MS || 30000), RUN_MS = Number(process.env.RUN_MS || 600000);
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 p.on('crash', () => { errors.push('PAGE CRASHED'); console.log('!!! PAGE CRASHED: the browser tab died (a headless-GL flake seen about one run in three; rerun). Stopping.'); process.exit(2); });
 p.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`); });
 await p.goto(`http://localhost:${PORT}/${R3D ? '?3d' : ''}`);
-await p.waitForSelector('text=Yes, show me', { timeout: R3D ? 45000 : 10000 }).catch(() => { console.log('the new game dialog never came'); process.exit(3); });
+await p.waitForSelector('.pl-row:has-text("New game")', { timeout: R3D ? 45000 : 10000 }).catch(() => { console.log('the main menu never came'); process.exit(3); });
 
 const shot = (name) => p.screenshot({ path: new URL(`${name}.png`, SHOTS).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 let shotN = 0;
@@ -89,7 +95,9 @@ async function dragPart(invId, slotId) {
   const a = await anchor(slotId);
   if (!tile || !a) { log('  cannot drag', invId, slotId, !!tile, !!a); return false; }
   const bb = await tile.boundingBox();
-  await dragTo({ x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 }, center(a));
+  // A big target (the heatsink's fan spot fills the view) can have its centre off screen: drop on the part of it in view, above the shelf.
+  const x0 = Math.max(a.x, 0), x1 = Math.min(a.x + a.w, W), y0 = Math.max(a.y, 60), y1 = Math.min(a.y + a.h, H - 320);
+  await dragTo({ x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 }, x1 > x0 && y1 > y0 ? { x: (x0 + x1) / 2, y: (y0 + y1) / 2 } : center(a));
   return true;
 }
 /** Drag a cable's plug onto its own socket (the second rect of the cable id), not onto the device it sits on. */
@@ -152,7 +160,16 @@ async function validateHeld(id) {
     for (const h of have) {
       if (h.startsWith('hud:')) { if (!document.querySelector(`[data-hud="${h.slice(4)}"]`)) out.push(`no ${h} element on screen`); }
       else if (h.startsWith('inv:')) { if (!document.querySelector(`[data-inv~="${h.slice(4)}"]`)) out.push(`no tile for ${h}`); }
-      else if (h !== 'inventory' && !h.startsWith('buy:')) { const a = anchorOf(h); if (!a) out.push(`${h} is not in the world`); else if (!a.visible) out.push(`${h} is highlighted but not visible`); }
+      else if (h !== 'inventory' && !h.startsWith('buy:')) {
+        const a = anchorOf(h);
+        if (!a) out.push(`${h} is not in the world`);
+        else if (!a.visible) out.push(`${h} is highlighted but not visible`);
+        else if (h.startsWith('key:') && window.__board?.idAt) {
+          // A key is lifted by a press on it: nothing may stand over its middle (the chair's hoodie hid it once: the press then pans the view), no card either.
+          const x = a.x + a.w / 2, y = a.y + a.h / 2, under = window.__board.idAt(x, y), el = document.elementFromPoint(x, y);
+          if (under !== h || el?.tagName !== 'CANVAS') out.push(`${h} is covered at its middle (${Math.round(x)}, ${Math.round(y)}): a press there meets ${under ?? 'nothing'} under ${el?.tagName}.${el?.className}`);
+        }
+      }
     }
     const card = document.querySelector('aside.tut');
     if (!card) out.push('no tutorial card');
@@ -186,15 +203,23 @@ async function finishDialogue() {
   await p.click('.dlg-actions.on button.primary', { timeout: 1500 }).catch(() => { log('  the dialogue never showed its button'); });
   await p.waitForTimeout(400);
 }
+/** The welcome card: read its text (a click finishes the typing), then press its Next button (aside.tut, not a dialogue). */
+async function nextWelcome() {
+  await p.waitForSelector('aside.tut[data-step="welcome"] .pactions button.primary', { timeout: 20000 });
+  await waitTyped();
+  await p.click('aside.tut[data-step="welcome"] .pactions button.primary', { timeout: 3000, noWaitAfter: true }).catch((e) => { log('  the welcome card never showed its Next button', String(e).slice(0, 700)); });
+}
 /** Open the Shop and press the glowing Buy tile in it. */
 async function buyInShop() {
   // (a shop left open by an interrupted round covers its own button: close it first, and always close it again)
-  await p.keyboard.press('Escape'); await p.waitForTimeout(150);
+  // Esc closes the Shop only while it is open: with nothing open it opens the Paused menu, and that hides the dock (and the Shop button) behind it.
+  const closeShop = async () => { for (let i = 0; i < 3 && (await p.$('.shop, .pl-menu.paused').catch(() => null)); i++) { await p.keyboard.press('Escape').catch(() => {}); await p.waitForTimeout(250); } };
+  await closeShop();
   try {
     await p.click('[data-hud=shop]', { timeout: 1500 }); await p.waitForTimeout(700);
     const btn = await p.$('.shop .rung.pulse button.buy');
     if (btn) { await btn.evaluate((b) => b.click()); await p.waitForTimeout(500); } else log('  no glowing buy tile in the shop');
-  } finally { await p.keyboard.press('Escape').catch(() => {}); await p.waitForTimeout(400); }
+  } finally { await closeShop(); await p.waitForTimeout(150); }
 }
 /** Open a picker and press the glowing Buy tile in it. */
 async function buyGlowing(openId) {
@@ -216,14 +241,20 @@ async function buyGlowing(openId) {
 }
 
 // ---- play ----
-await p.click('text=Yes, show me'); await p.waitForTimeout(300);
-await p.click('.ng-back button.primary'); await p.waitForTimeout(1500);
-await finishDialogue(); // the welcome
-await p.waitForTimeout(500);
+// New game: a campaign with the tutorial on (Start in the dialog).
+await p.click('.pl-row:has-text("New game")');
+await p.waitForSelector('.pl-menu.newgame .pl-row.hero');
+await p.click('role=radio[name="Campaign"i]'); await p.click('role=radio[name="On"]');
+await p.click('.pl-menu.newgame .pl-row.hero');
+await p.waitForSelector('aside.tut[data-step="welcome"]', { timeout: 20000 });
+await validateHeld('welcome'); // step 1 too: its card shows the step's title, text and target (and writes NN-welcome.png)
+await nextWelcome(); // the welcome card: its Next button
+await p.waitForSelector('aside.tut[data-step="cpu"], [data-step="cpu"]');
 await setSpeed(SPEED);
 
 const seen = [];
-let last = null, stuck = 0, stepAt = Date.now();
+// tick0: the game clock when the step came up; lastTick, tickAt: the clock as last seen, and when it last moved (wall clock).
+let last = null, tick0 = 0, lastTick = -1, tickAt = Date.now();
 const T0 = Date.now();
 for (let i = 0; i < 1500; i++) {
   if (Date.now() - T0 > RUN_MS) { log('RUN TIMEOUT on', last); await shot(`stuck-${last}`); break; }
@@ -233,18 +264,19 @@ for (let i = 0; i < 1500; i++) {
     log('  level-up popup');
     if (await p.$('aside.tut, .dlg-popup')) { problems.push('the tutorial is shown together with the level-up popup'); log('  PROBLEM tutorial and level-up popup at the same time'); }
     await p.waitForTimeout(900); await stepShot('levelup'); await levelUp.evaluate((b) => b.click()).catch(() => {}); await p.waitForTimeout(500);
-    stepAt = Date.now(); stuck = 0; // (a popup the player must read is not the step's fault; RUN_MS still bounds the run)
+    tickAt = Date.now(); // (a popup the player must read holds the game, and is not the step's fault; RUN_MS still bounds the run)
     continue;
   }
   const id = await stepId();
   if (!id) { await p.waitForTimeout(300); continue; }
   const s = await snap();
+  if (s.baseTick !== lastTick) { lastTick = s.baseTick; tickAt = Date.now(); }
   if (id !== last) {
-    seen.push(id); last = id; stuck = 0; stepAt = Date.now();
+    seen.push(id); last = id; tick0 = s.baseTick;
     const heap = await p.evaluate(() => Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576)).catch(() => -1);
     log(`step ${id.padEnd(11)} game ${String(s.baseTick).padStart(4)}s  money $${Math.round(s.money)}  wall ${Math.round((Date.now() - T0) / 1000)}s  heap ${heap}MB`);
-    await validateStep(id);
-  } else if (++stuck > STEP_TRIES || Date.now() - stepAt > STEP_MS) { log('STUCK on', id, `after ${stuck} tries, ${Math.round((Date.now() - stepAt) / 1000)}s`); await shot(`stuck-${id}`); break; }
+    await validateStep(id); tickAt = Date.now(); // (the checks and the shots hold the game: the first one also warms the dev server)
+  } else if (s.baseTick - tick0 > STEP_TICKS || Date.now() - tickAt > STALL_MS) { log('STUCK on', id, `after ${s.baseTick - tick0} game ticks, game clock standing still for ${Math.round((Date.now() - tickAt) / 1000)}s`); await shot(`stuck-${id}`); break; }
   if (id === 'done') {
     await p.click('aside.tut .pactions button.primary').catch(() => {});
     await p.waitForTimeout(600);
@@ -257,6 +289,11 @@ for (let i = 0; i < 1500; i++) {
     case 'cpu': case 'cooler': case 'ram': case 'psu': case 'monitor': {
       const it = inv(id === 'monitor' ? 'display' : id);
       if (it?.freeSlots[0]) await dragPart(it.id, it.freeSlots[0]);
+      break; }
+    case 'fan': { // the heatsink's own fan spots (the card highlights them); another free fan slot, on the case, is not the step's
+      const it = inv('fan'), hl = await p.evaluate(async () => (await import('/src/app/interaction.ts')).highlight.value);
+      const slot = it?.freeSlots.find((x) => hl.includes(x));
+      if (slot) await dragPart(it.id, slot); else await p.waitForTimeout(800);
       break; }
     case 'cables': {
       const next = ['atx', 'cpu', 'cpufan', 'video'].find((k) => !s.cables.find((c) => c.id === k)?.connected);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, orbitBy, panBy, reach, retarget, settled, sight, stepView, zoomAt,
+  LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, keepWhole, lowerInBand, orbitBy, panBy, reach, retarget, settled, sight, stepView, zoomAt,
   turnReach, zoomAbout, zoomOn, type OrbitView, type Room,
 } from './camera';
 
@@ -276,6 +276,80 @@ describe('3D camera', () => {
       // beside a tall block, looking along its face: the wider the fov, the sooner its near plane would reach the face
       const tall: Room = { ...B, y1: 20000 }, v = { ...V, x: 2400, y: 0, z: 2000, height: 8000, fov: 26 };
       expect(reach(v, R, [tall], 40)).toBeLessThan(reach(v, R, [tall], 26));
+    });
+
+    describe('a view placed by fitting', () => {
+      // a desk top over the target's line of sight, the eye above it: a target a little under the slab leaves the eye a few thousand units, then the slab
+      const slab: Room = { x0: -20000, x1: 10000, y0: -360, y1: 0, z0: 0, z1: 12000 };
+      const opts = { blocks: [slab], restore: true };
+      const under = { ...V, x: -10000, y: -800, z: 5000, yaw: 0, pitch: 0.09, fov: 40, height: 44000 };
+      const room = keepInside(under, R, { restore: true }).height;
+
+      it('slides the target the least, along y only, where keepInside shrinks the view to a sliver', () => {
+        expect(keepInside(under, R, opts).height, 'the premise: this target is in the slab shadow').toBeLessThan(room * 0.2);
+        const k = keepWhole(under, R, opts);
+        expect(k.height).toBeGreaterThan(room * 0.6);
+        expect(Math.abs(k.y - under.y)).toBeLessThan(800);
+        expect([k.x, k.z, k.yaw, k.pitch]).toEqual([under.x, under.z, under.yaw, under.pitch]);
+      });
+
+      it('slides toward the y a flight goes to, so a view on its way is not held back above the block', () => {
+        // the slab's shadow reaches from 250 above the target to 450 below it: the shortest slide is up, a flight that goes down crosses it
+        const shortest = keepWhole(under, R, opts), down = keepWhole(under, R, opts, 0.6, -5000), up = keepWhole(under, R, opts, 0.6, 5000);
+        expect(shortest.y).toBeGreaterThan(under.y);
+        expect(down.y).toBeLessThan(under.y - 400);
+        expect(up.y).toBeGreaterThan(under.y);
+        for (const k of [shortest, down, up]) expect(k.height).toBeGreaterThan(room * 0.6);
+      });
+
+      it('leaves a view that keeps its height as keepInside has it', () => {
+        const clear = { ...under, y: 2000 };
+        expect(keepWhole(clear, R, opts)).toEqual(keepInside(clear, R, opts));
+        expect(keepWhole(under, R, { restore: true })).toEqual(keepInside(under, R, { restore: true }));
+      });
+
+      it('keeps its height from any target height, the floor to the ceiling', () => {
+        for (let y = -4000; y <= 4000; y += 50) {
+          const v = { ...under, y };
+          expect(keepWhole(v, R, opts).height, `the target at y ${y}`).toBeGreaterThan(room * 0.6);
+        }
+      });
+
+      it('gives up on a room that is all block', () => {
+        const all: Room = { ...R, x0: -60000, x1: 60000, y0: -30000, y1: 30000 };
+        expect(keepWhole(under, R, { blocks: [all], restore: true })).toEqual(keepInside(under, R, { blocks: [all], restore: true }));
+      });
+    });
+  });
+
+  describe('a small target low in the band the HUD leaves', () => {
+    // a screen 900 px tall, the view 9000 units high: 10 units a pixel; the target (a key and its port) is the point at y 100
+    const view = { ...V, height: 9000 }, keyY = 100;
+    // where a point is on the screen (px from the top), for a view looking straight on: its target is at the middle
+    const screenY = (v: OrbitView, y: number) => 450 - (y - v.y) / (v.height / 900);
+    // the view `inFree` gives: the key in the middle of the band the insets leave
+    const framed = (inset: { top: number; bottom: number }): OrbitView => ({ ...view, y: keyY - (450 - (inset.top + 900 - inset.bottom) / 2) * 10 });
+
+    it('goes to the middle of the screen when the band reaches it, not to the middle of the band', () => {
+      const inset = { top: 55, bottom: 340 }; // the card takes the bottom third: the band is 55 to 560, its middle 307
+      expect(screenY(framed(inset), keyY)).toBeCloseTo(307.5, 5);
+      expect(screenY(lowerInBand(framed(inset), inset, 900, 400), keyY)).toBeCloseTo(450, 5);
+    });
+
+    it('stays at the lowest the band allows when the band ends above the middle', () => {
+      const inset = { top: 55, bottom: 600 }; // the band is 55 to 300
+      // the target's bottom edge (half its height plus the margin) rests on the band's bottom edge
+      expect(screenY(lowerInBand(framed(inset), inset, 900, 400), keyY)).toBeCloseTo(300 - (400 / 10 / 2 + 24), 5);
+    });
+
+    it('does not move a view the HUD leaves alone', () => {
+      const inset = { top: 0, bottom: 0 };
+      expect(lowerInBand(framed(inset), inset, 900, 400)).toEqual(framed(inset));
+    });
+
+    it('rests a target taller than the band on the band bottom', () => {
+      const inset = { top: 55, bottom: 600 }, half = 6000 / 10 / 2 + 24; // 600 px tall: no band holds it
+      expect(screenY(lowerInBand(framed(inset), inset, 900, 6000), keyY) + half).toBeCloseTo(300, 5);
     });
   });
 

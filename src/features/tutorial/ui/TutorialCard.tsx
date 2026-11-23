@@ -57,11 +57,29 @@ function AckDialogue({ id, text }: { id: string; text: string }) {
   );
 }
 
-/** The welcome and the next-lesson offer: the same dialogue box, centred low over a dimmed board; the buttons appear when the last page is written. */
-function PopupDialogue({ label, title, text, name, children }: { label: string; title: string; text: string; name: string; children: ComponentChildren }) {
+/** The pointer layer: one SVG the guidance draws the lead line and the ghost hand in. */
+function Pointer({ svgRef }: { svgRef: { current: SVGSVGElement | null } }) {
+  return (
+    <svg ref={svgRef} class="pointer" aria-hidden="true">
+      <polyline class="ptr-path" points="0,0 0,0" />
+      <line class="ptr-line" x1="0" y1="0" x2="0" y2="0" />
+      <circle class="ptr-dot" cx="0" cy="0" />
+      <g class="ptr-ghost" style="opacity:0"><circle class="gh-ring" r="14" /><circle class="gh-core" r="6" /></g>
+    </svg>
+  );
+}
+
+/**
+ * The next-lesson offer: the instruction tab (desktop, bottom left) or the ramp block (phone), over a dimmed
+ * board; the buttons appear when the last page is written. `pointer` draws the lead line inside the dim layer.
+ */
+function PopupDialogue({ label, title, text, name, pointer, children }: {
+  label: string; title: string; text: string; name: string; pointer?: ComponentChildren; children: ComponentChildren;
+}) {
   const [atEnd, setAtEnd] = useState(false);
   return (
     <div class="modal-back dlg-back">
+      {pointer}
       <div class="tut dlg-popup" role="dialog" aria-modal="true" aria-label={name} data-step={name}>
         <div class="tut-in">
           <div class="thead"><span class="mute">{label}</span></div>
@@ -206,10 +224,12 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
           if (tg.hud && Math.hypot(cx - (cardRect.x + cardRect.w / 2), cy - (cardRect.y + cardRect.h / 2)) > window.innerHeight * 0.45) {
             svg.classList.remove('on'); st.shown = false; return;
           }
-          // Start on the card edge nearest the target.
+          // The lead starts at the card's cue (the Next button on step 1, else the bottom right of the dialogue), else at the card edge nearest the target.
+          const cueBtn = domRect(card?.querySelector('.pactions .primary') ?? null);
+          const cue = cueBtn ?? domRect(card?.querySelector('.dlg') ?? null);
           const above = cy < cardRect.y + cardRect.h / 2;
-          const sx = Math.min(cardRect.x + cardRect.w - 24, Math.max(cardRect.x + 24, cx));
-          const sy = above ? cardRect.y : cardRect.y + cardRect.h;
+          const sx = cue ? cue.x + cue.w : Math.min(cardRect.x + cardRect.w - 24, Math.max(cardRect.x + 24, cx));
+          const sy = cue ? (cue === cueBtn ? cue.y + cue.h / 2 : cue.y + cue.h) : above ? cardRect.y : cardRect.y + cardRect.h;
           if (!st.shown || reducedMotion()) { st.x = cx; st.y = cy; st.sx = sx; st.sy = sy; }
           else {
             // Short time constant: the pointer glides between steps but stays glued to the target while the camera moves.
@@ -220,6 +240,10 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
           st.shown = true;
           line.setAttribute('x1', String(st.sx)); line.setAttribute('y1', String(st.sy));
           line.setAttribute('x2', String(st.x)); line.setAttribute('y2', String(st.y));
+          // SPEC 5.11: from the button right along its line, then 45 degrees down into the target; else straight.
+          const dy = st.y - st.sy, bend = st.x - dy;
+          const pts = cue === cueBtn && dy > 0 && bend > st.sx ? `${st.sx},${st.sy} ${bend},${st.sy} ${st.x},${st.y}` : `${st.sx},${st.sy} ${st.x},${st.y}`;
+          svg.querySelector('.ptr-path')?.setAttribute('points', pts);
           dot.setAttribute('cx', String(st.x)); dot.setAttribute('cy', String(st.y));
           svg.classList.add('on');
         } else {
@@ -252,11 +276,12 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
 }
 
 /**
- * The guided tutorial. The step comes from the snapshot's progress flags (see tutorial.ts), never from a Next button:
- * only the welcome modal (Start) and the last card (Got it) have buttons. The welcome and the next-lesson offer are
- * centred modals; every other step is a card at the bottom centre, with text that cross-fades between steps, a pointer
- * to the target, and the camera gliding there. While a step is active its target ids are written to `highlight`, which
- * the renderer rings (and the HUD pulses the inventory button). Install steps open the inventory.
+ * The guided tutorial. The step comes from the snapshot's progress flags (see tutorial.ts), never from a button:
+ * the welcome (Next) and the last card (Got it) have a button; the other steps wait for the player's actions. The
+ * next-lesson offer is a centred modal; every step, the welcome included, is a card (desktop: bottom centre; phone:
+ * the ramp block) with text that cross-fades between steps, a pointer to the target, and the camera gliding there.
+ * While a step is active its target ids are written to `highlight`, which the renderer rings (and the HUD pulses the
+ * inventory button). Install steps open the inventory.
  */
 const GHOST_AFTER_MS = 8000;
 const TIP_AFTER_MS = 22000;
@@ -271,7 +296,8 @@ export function TutorialCard() {
   const targets = step && s && !holdForLevelUp ? step.targets(s, drag) : [];
   const key = targets.join('|');
   const offer = !!s && !step && offerNextLesson(s, st);
-  const modal = offer || step?.id === 'welcome';
+  const modal = offer;
+  const welcome = step?.id === 'welcome';
   const cardActive = !!s && !!step && !modal;
 
   const cardRef = useRef<HTMLElement>(null);
@@ -283,7 +309,7 @@ export function TutorialCard() {
   const stepId = step?.id ?? null;
   useEffect(() => {
     const prev = prevStep.current;
-    prevStep.current = step && !modal ? { id: step.id, title: step.title } : null;
+    prevStep.current = step && !modal && !welcome ? { id: step.id, title: step.title } : null;
     if (prev && stepId && prev.id !== stepId && !holdForLevelUp && !step?.ack) {
       setPraise(prev.title);
       const t = setTimeout(() => setPraise(null), 2600);
@@ -309,29 +335,32 @@ export function TutorialCard() {
   }, [key, modal]);
   useEffect(() => () => { highlight.value = []; }, []);
 
+  // The welcome (step 1) guides too: its lead runs from "Next" to the inventory button.
+  const welcomeNow = !!s && welcome && !holdForLevelUp;
   const { offscreen, showMe } = useGuidance(cardActive, targets, cardRef, svgRef);
 
+  // Step 1 stages the HUD: only the money, the menu and the dock show until the step is done (explained on the card).
+  useEffect(() => {
+    if (!welcomeNow) return;
+    const hud = document.getElementById('hud');
+    hud?.classList.add('staged');
+    return () => hud?.classList.remove('staged');
+  }, [welcomeNow]);
+  const pointer = <Pointer svgRef={svgRef} />;
+
   // A tutorial popup holds the game, like the level-up.
-  // The explain-only steps hold the game as well: the player reads at their own pace.
-  const hold = (modal || !!step?.ack) && !!s;
+  // The welcome and the explain-only steps hold the game as well: the player reads at their own pace.
+  const hold = (modal || welcome || !!step?.ack) && !!s;
   useEffect(() => { pauseForTutorialPopup(hold); }, [hold]);
   useEffect(() => () => pauseForTutorialPopup(false), []);
 
   if (holdForLevelUp) return null;
-  if (modal && s) {
-    if (offer) {
-      return (
-        <PopupDialogue label="Next lesson" title="The operating system" name="offer"
-          text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.">
-          <button onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
-          <button class="primary" onClick={takeOsLesson}>Start the lesson</button>
-        </PopupDialogue>
-      );
-    }
+  if (offer && s) {
     return (
-      <PopupDialogue label="Tutorial" title={step!.title} text={step!.text} name={step!.id}>
-        <button onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
-        <button class="primary" onClick={startTutorial}>Start</button>
+      <PopupDialogue label="Next lesson" title="The operating system" name="offer" pointer={pointer}
+        text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.">
+        <button onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
+        <button class="primary" onClick={takeOsLesson}>Start the lesson</button>
       </PopupDialogue>
     );
   }
@@ -344,11 +373,7 @@ export function TutorialCard() {
 
   return (
     <>
-      <svg ref={svgRef} class="pointer" aria-hidden="true">
-        <line class="ptr-line" x1="0" y1="0" x2="0" y2="0" />
-        <circle class="ptr-dot" cx="0" cy="0" />
-        <g class="ptr-ghost" style="opacity:0"><circle class="gh-ring" r="14" /><circle class="gh-core" r="6" /></g>
-      </svg>
+      {pointer}
       <aside class="card tut" ref={cardRef} aria-label="Tutorial" data-step={step.id}>
         {tip && !problem && <div class="tut-tip" role="note">Tip: press and hold the glowing part, move it to the glowing spot, then let go. On a touch screen, drag with your finger.</div>}
         {praise && <div class="tut-praise" role="status" key={praise}>✓ {praise}: done</div>}
@@ -369,7 +394,9 @@ export function TutorialCard() {
                 <span class="mute">{meter.label}</span>
               </div>
             )}
+            {welcomeNow && <div class="tut-stage" role="note">Only the money, the menu and the dock are on for now. The other controls come in after this step.</div>}
             {problem && <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">{problem}</div>}
+            {welcome && <div class="pactions"><button class="primary" onClick={startTutorial}>Next</button></div>}
             {step.id === 'done' && (
               <div class="pactions"><button class="primary" onClick={finishTutorial}>Got it</button></div>
             )}

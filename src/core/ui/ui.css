@@ -29,7 +29,7 @@ body { font: 0.8rem/1.35 var(--ui); }
 #hud > .stack, #hud > .pointer-layer, #hud > .title { pointer-events: none; }
 
 /* Glass: every panel and bar. Translucent, blurred, hairline border, no shadow. */
-.card, .hud-side, .dock, .dockbar, .picker, .tut, .inv, .notice, .toast {
+.card, .hud-side, .dock, .dockbar, .picker, .inv, .notice, .toast {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), var(--panel); border: 1px solid var(--glass-line); border-radius: 1rem;
   -webkit-backdrop-filter: blur(1.1rem) saturate(130%); backdrop-filter: blur(1.1rem) saturate(130%); box-sizing: border-box;
   box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -352,20 +352,46 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .nerd { margin-top: 0.267rem; font: 0.7rem/1.4 var(--mono); color: var(--mute); }
 .picker input[type=range] { accent-color: var(--accent); }
 
-/* Tutorial: a JRPG dialogue box at the bottom centre, above the inventory shelf. The text types out (TutorialCard.tsx,
-   Dialogue) and a bobbing triangle marks a finished page. The pointer is a glowing connector from the box to the target. */
+/* Tutorial, instruction tab (SPEC.md §5.11, screen 11): an edge tab at the bottom left that touches the screen edges, with a
+   20 px chamfer top-right. The text types out (TutorialCard.tsx, Dialogue) and a bobbing triangle marks a finished page.
+   The lead is a line from the card's "Next" cue to the target. Phone: the ramp block (see the phone rules below). */
 .tut {
-  position: relative; width: min(100%, 40rem); padding: 0; z-index: 25; box-sizing: border-box;
-  border: 0.15rem solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 0.7rem;
-  box-shadow: 0 0 0 0.15rem var(--bg), 0 0.5rem 1.5rem rgba(0, 0, 0, .35);
+  position: fixed; left: 0; bottom: 0; z-index: 25; box-sizing: border-box; width: 43.21rem; min-height: 22.22rem; max-width: 100%;
+  padding: 0; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: var(--c-shade-86); color: var(--c-ink); font-family: var(--f-sans), sans-serif;
+  clip-path: polygon(0 0, calc(100% - var(--ch-lg)) 0, 100% var(--ch-lg), 100% 100%, 0 100%);
   transition: opacity .2s ease;
+}
+.tut .tut-in { padding: 1.975rem 3.2rem 1.975rem 2.963rem; }
+.tut .thead { font-family: var(--f-mono); font-size: var(--t-xs); line-height: 1.35; letter-spacing: .04em; color: var(--c-mute); }
+.tut .thead .link { color: var(--c-mute); }
+.tut .ptitle { font-family: var(--f-cond); font-weight: 600; font-size: var(--t-display-md); line-height: var(--lh-display); letter-spacing: 0; text-transform: uppercase; color: var(--c-ink); margin: 0.99rem 0; }
+.tut .dlg { font-family: var(--f-sans), sans-serif; font-size: var(--t-md); line-height: 1.4; color: var(--c-ink); }
+.tut .dlg-next { color: var(--c-mute); }
+.tut .dlg-arrow { border-top-color: var(--c-mute); }
+.tut-stage { margin-top: 0.8rem; font-family: var(--f-mono); font-size: var(--t-xs); line-height: 1.35; color: var(--c-mute); }
+/* Tutorial step 1 stages the HUD (SPEC.md §5.11): hidden, not removed, so the layout does not jump when it comes back. */
+#hud.staged .hud-sys, #hud.staged .hud-sep, #hud.staged .time, #hud.staged .stat, #hud.staged .bill, #hud.staged .hud-sbx, #hud.staged .hud-center, #hud.staged .speedctl, #hud.staged .slow-note { visibility: hidden; }
+/* The staged dock is the one "Inventory" tab (SPEC 5.11: 150 wide, centred): its other items are not drawn, so the tab does not run under the card. */
+#hud.staged .dockbar > :not(:first-child) { display: none; }
+/* Landscape: the instruction tab (bottom left, 700 wide) never covers the shelf or the dock. The bottom stack starts right of it, so the tile a step
+   points at stays reachable (the staged first step keeps the dock centred). */
+@media (min-width: 48.01em) and (min-aspect-ratio: 1/1) { #hud:not(.staged):has(aside.tut) .stack { padding-left: 44.4rem; } }
+/* Phone: the same card is the ramp block at the bottom (SPEC.md §4.13, screen 11), 16 px gutters, clear of the dock tab. */
+@media (max-width: 48em) {
+  .tut { left: 1.067rem; right: 1.067rem; bottom: 4.267rem; width: auto; clip-path: none; background: linear-gradient(0deg, var(--c-shade-86) 0, var(--c-shade-86) 72%, rgba(10, 10, 12, 0) 100%); }
+  .tut .tut-in { padding: 2.4rem 1.067rem 0.8rem; }
+  .tut .ptitle { font-size: var(--t-display-sm); margin: 0.8rem 0; }
+  .tut .dlg { font-size: var(--t-sm); min-height: 0; }
+  .tut .thead, .tut-stage { font-size: var(--t-xs); }
 }
 /* While the picker popup is open it is the thing to read: the tutorial box and pointer step aside. */
 #hud:has(.picker) .tut { opacity: 0; pointer-events: none; }
 #hud:has(.picker) .pointer { opacity: 0 !important; }
 .tut-in { padding: 0.55rem 1rem 0.7rem; }
 .tut-text { animation: tut-in .35s ease both; }
-.tut .ptitle { font-size: 0.8rem; margin: 0.15rem 0 0.2rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.tut .ptitle { font-size: var(--t-display-md); margin: 0.99rem 0; letter-spacing: 0; color: var(--c-ink); }
+@media (max-width: 48em) { .tut .ptitle { font-size: var(--t-display-sm); margin: 0.8rem 0; } }
 .dlg {
   position: relative; display: block; width: 100%; min-height: 2.9rem; padding: 0 1.4rem 0 0; border: 0; background: transparent;
   text-align: left; white-space: normal; cursor: pointer; font: inherit; font-size: 1rem; line-height: 1.45; color: var(--ink);
@@ -378,7 +404,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .dlg-arrow.end { opacity: .45; animation: dlg-bob 1.4s ease-in-out infinite; }
 /* The welcome and the next-lesson offer: the same box, low on a dimmed board, buttons after the last page. */
 .modal-back.dlg-back { place-items: end center; padding-bottom: 5rem; }
-.dlg-popup { position: relative; background: var(--bg); }
 .dlg-actions { margin-top: 0.4rem; justify-content: flex-end; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
 .dlg-actions.on { opacity: 1; pointer-events: auto; }
 @keyframes dlg-bob { 0%, 100% { transform: translateY(-0.15rem); } 50% { transform: translateY(0.2rem); } }
@@ -389,7 +414,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 @keyframes tut-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
 .pointer { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 24; opacity: 0; transition: opacity .25s ease; pointer-events: none !important; overflow: visible; }
 .pointer.on { opacity: 1; }
-.ptr-line { stroke: var(--accent); stroke-width: 1px; stroke-linecap: round; stroke-dasharray: 0.3rem 0.35rem; animation: march 1.4s linear infinite; opacity: .6; }
+.ptr-line { stroke: none; }
+.ptr-path { fill: none; stroke: var(--accent); stroke-width: 0.125rem; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 0.3rem 0.35rem; animation: march 1.4s linear infinite; opacity: .85; }
 .ptr-dot { r: 0.28rem; fill: var(--accent); transform-box: fill-box; transform-origin: center; animation: dotpulse 1.6s ease-in-out infinite; }
 @keyframes march { to { stroke-dashoffset: -0.9rem; } }
 @keyframes dotpulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.3); opacity: .6; } }
@@ -711,7 +737,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
   .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .title, .hud, .stack { transition: none !important; animation: none !important; }
-  .ptr-line, .ptr-dot { animation: none !important; }
+  .ptr-path, .ptr-dot { animation: none !important; }
   .bench, .bench-scrim, .bench-wait i { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }
@@ -936,10 +962,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .inv-head .inv-chips { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 0.25rem; }
   #hud:has(.inv) .stack { right: 15.6rem; padding-bottom: 0.4rem; }
   #hud:has(.inv) .dock { right: 15.6rem; }
-  .tut { width: min(100%, 30rem); }
-  .tut-in { padding: 0.3rem 0.7rem 0.4rem; }
-  .dlg { font-size: 0.85rem; min-height: 2.2rem; line-height: 1.35; }
-  .tut .ptitle { font-size: 0.7rem; margin: 0.05rem 0 0.1rem; }
   .modal-back.dlg-back { padding-bottom: 1rem; }
 }
 
@@ -1980,10 +2002,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .ng-choice { border-radius: 0.8rem; background: var(--veil); }
 .ng-choice.on { background: color-mix(in srgb, var(--accent) 10%, var(--veil)); box-shadow: inset 0 0 0 1px var(--sel-line); border-color: transparent; }
 
-/* The tutorial box and the welcome: glass with a hairline of accent, not a black box with a thick cyan frame. */
-.tut { border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--glass-line)); border-radius: 1rem; box-shadow: 0 1.2rem 2.8rem rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), color-mix(in srgb, var(--menu-solid) 78%, transparent); }
-.dlg-popup { background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), color-mix(in srgb, var(--menu-solid) 92%, transparent); }
 
 /* The main menu (screens 01 to 03, panels/MainMenu.tsx, SPEC §5.1 to §5.3): a full-screen scrim, the display title at the top and a spine of
    tagged rows anchored to the bottom. Desktop: the column at x 96 px (5.93 rem); phone: x 1.6 rem. Shared parts: kit/Pipeline.tsx. */

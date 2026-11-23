@@ -204,7 +204,7 @@ The 3D camera is a perspective orbit whose **distance follows from the world hei
 
 ### Room overview
 
-`board3d.ts:58` `ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 }`; `:64` `LOOK_Z = 5000`; `:221` `roomRect()`; `:246` `overview = inRoom(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9))`. `keepInside` (`board3d.ts:231`, `camera.ts:114-126`) may widen FOV from 26 up to 40 to hold the height from closer. Measured: FOV **28.73°**, height **31,578**, distance **61,650**, **0.034 px per world unit** at the target plane. The mid-tower case (after `setLayoutTier(2)`) is 11,890 × 10,720, depth 4,500; a 120 mm fan (2,760 units) is **97 px** across at the front of the case in this view.
+`board3d.ts:58` `ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 }`; `:64` `LOOK_Z = 5000`; `:221` `roomRect()`; `:246` `overview = keepWhole(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9), ...)` (`keepWhole` is `keepInside` that slides a target out of the desk's shadow, `docs/render/interact.md`). `keepInside` (`board3d.ts:231`, `camera.ts:114-126`) may widen FOV from 26 up to 40 to hold the height from closer. Measured: FOV **28.73°**, height **31,578**, distance **61,650**, **0.034 px per world unit** at the target plane. The mid-tower case (after `setLayoutTier(2)`) is 11,890 × 10,720, depth 4,500; a 120 mm fan (2,760 units) is **97 px** across at the front of the case in this view.
 
 ### Machine mid-shot
 

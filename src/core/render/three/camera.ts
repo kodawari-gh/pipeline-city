@@ -104,6 +104,9 @@ export function sight(v: OrbitView, r: Room, blocks: readonly Room[] = [], fov =
 /** How far the eye can go from the target along its line of sight (the far end of its `sight`). */
 export const reach = (v: OrbitView, r: Room, blocks: readonly Room[] = [], fov = v.fov): number => sight(v, r, blocks, fov)[1];
 
+/** What `keepInside` takes besides the view and the room (see there). */
+export interface KeepOpts { targetZ0?: number; fovBase?: number; fovMax?: number; restore?: boolean; blocks?: readonly Room[] }
+
 /**
  * `v` with its eye inside the room: the walls, the floor and the ceiling then hide all that is outside. The target is first moved into the room
  * (`z0` may be behind the eye's own limit, `targetZ0`). A room view (a fov of `fovBase` or more) widens its fov up to `fovMax` to keep the
@@ -111,7 +114,7 @@ export const reach = (v: OrbitView, r: Room, blocks: readonly Room[] = [], fov =
  * when the room allows it (a goal); an eased view never narrows here, so it does not jump. `blocks`: the furniture, which the eye keeps out of
  * as it keeps off the walls; from a target at a piece or in it, the eye backs out through it and the height comes up (`sight`).
  */
-export function keepInside(v: OrbitView, r: Room, o: { targetZ0?: number; fovBase?: number; fovMax?: number; restore?: boolean; blocks?: readonly Room[] } = {}): OrbitView {
+export function keepInside(v: OrbitView, r: Room, o: KeepOpts = {}): OrbitView {
   const base = o.fovBase ?? 26, max = o.fovMax ?? 40;
   const out = { ...v, x: clamp(v.x, r.x0, r.x1), y: clamp(v.y, r.y0, r.y1), z: clamp(v.z, o.targetZ0 ?? r.z0, r.z1) };
   // (the near plane is sized for the widest fov this view may take)
@@ -124,6 +127,30 @@ export function keepInside(v: OrbitView, r: Room, o: { targetZ0?: number; fovBas
   if (distanceOf(out) > far * (1 + 1e-9)) out.height = Math.max(LIMITS.heightMin, 2 * far * tan);
   if (distanceOf(out) < near * (1 - 1e-9)) out.height = Math.min(LIMITS.heightMax, 2 * near * tan);
   return out;
+}
+
+/** The step (world units along y) and the number of steps each way that `keepWhole` tries. */
+const SLIDE = 80, SLIDES = 60;
+
+/**
+ * `keepInside` for a view that is placed by fitting (the overview) or flies to such a place, not one the player moves. A target a little under a block's
+ * face (the desk's top, with the eye above it) leaves the eye a line of sight of a few thousand units before the block, and `keepInside` shrinks the view to
+ * a sliver of the room: the underside of the desk and the blind. The target slides up or down by the least that gives the view back `share` of the height
+ * the room alone allows. `toward`: the y a flight goes to; the slide then goes that way (as far as it takes to clear the block), so a view on its way is never
+ * held back above the block. Without it the slide is the shortest, up or down.
+ */
+export function keepWhole(v: OrbitView, r: Room, o: KeepOpts = {}, share = 0.6, toward?: number): OrbitView {
+  const kept = keepInside(v, r, o);
+  if (!o.blocks?.length) return kept;
+  const room = keepInside(v, r, { ...o, blocks: [] }).height;
+  if (kept.height >= room * share) return kept;
+  const steps = Array.from({ length: SLIDES }, (_, i) => (i + 1) * SLIDE), way = toward !== undefined && toward < v.y ? -1 : 1;
+  // (a flight: toward its goal, then back; else up and down by turns, the shortest first)
+  for (const d of toward === undefined ? steps.flatMap((s) => [s, -s]) : [...steps.map((s) => way * s), ...steps.map((s) => -way * s)]) {
+    const slid = keepInside({ ...v, y: v.y + d }, r, o);
+    if (slid.height >= room * share) return slid;
+  }
+  return kept;
 }
 
 /** The view height that fits a `w` by `h` box on a screen of this aspect, with the margin (1 fills the screen). */
@@ -144,6 +171,18 @@ export function zoomAt(v: OrbitView, k: number, nx: number, ny: number, aspect: 
 export function panBy(v: OrbitView, dx: number, dy: number): OrbitView {
   const sy = Math.sin(v.yaw), cy = Math.cos(v.yaw), sp = Math.sin(v.pitch), cp = Math.cos(v.pitch);
   return { ...v, x: v.x + dx * cy - dy * sp * sy, y: v.y + dy * cp, z: v.z - dx * sy - dy * sp * cy };
+}
+
+/**
+ * `v` frames a small target in the middle of the band the HUD leaves free (`top` and `bottom`: its insets in px, on a screen `screen` px tall). A tall
+ * card at the bottom lifts that band's middle toward the top, and the eye with it: from up there furniture in front of the desk (the hoodie on the chair)
+ * hides what stands on the desk. The target goes down to the middle of the screen instead, no lower than the band lets all of it show (`h`: its height in
+ * world units, `margin` px round it): the eye moves no further than the HUD forces.
+ */
+export function lowerInBand(v: OrbitView, inset: { top: number; bottom: number }, screen: number, h: number, margin = 24): OrbitView {
+  const k = v.height / screen, half = h / k / 2 + margin;
+  const at = Math.min(Math.max(screen / 2, inset.top + half), screen - inset.bottom - half), mid = (inset.top + screen - inset.bottom) / 2;
+  return panBy(v, 0, (at - mid) * k);
 }
 
 /**

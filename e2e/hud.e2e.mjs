@@ -101,16 +101,11 @@ async function runViewport(vp) {
   await p.locator('.pl-row', { hasText: 'Continue' }).first().click({ timeout: 10000 });
   await p.waitForSelector('header.hud', { timeout: 60000 });
   await p.waitForTimeout(900);
-  // The welcome card is a modal and holds the game until it is answered. Its buttons show once the text is written:
-  // click the dialogue to finish each page, then Skip hides the tutorial for this run.
-  const dlg = p.locator('.modal-back.dlg-back');
-  for (let i = 0; i < 60 && (await dlg.count()) > 0; i++) {
-    if ((await p.locator('.modal-back.dlg-back .dlg-actions.on').count()) > 0) break;
-    await p.locator('.modal-back.dlg-back button.dlg').first().click({ timeout: 2000 }).catch(() => {});
-    await p.waitForTimeout(300);
-  }
-  await dlg.getByRole('button', { name: 'Skip', exact: true }).click({ timeout: 5000 }).catch(() => {});
-  await p.waitForSelector('.modal-back', { state: 'detached', timeout: 5000 }).catch(() => {});
+  // The welcome is a card (aside.tut) that holds the game until Next or Skip. Skip hides the tutorial for this run.
+  const card = p.locator('aside.tut');
+  await card.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+  await card.getByRole('button', { name: 'Skip', exact: true }).click({ timeout: 5000 }).catch(() => {});
+  await p.waitForSelector('aside.tut', { state: 'detached', timeout: 5000 }).catch(() => {});
   await p.waitForTimeout(300);
   const shot = (name) => p.screenshot({ path: join(SHOTS, `${vp.tag}-${name}.png`) });
   await shot('load');

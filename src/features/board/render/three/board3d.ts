@@ -20,7 +20,7 @@ import { whenDebug } from '@/app/debugflag';
 import { loadBaked } from '@/core/render/three/baked';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
-  applyView, clampView, distanceOf, fitRect, heightAt, keepInside, LIMITS, orbitBy, panBy, retarget, settled, stepView, turnReach, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+  applyView, clampView, distanceOf, fitRect, heightAt, keepInside, keepWhole, LIMITS, lowerInBand, orbitBy, panBy, retarget, settled, stepView, turnReach, zoomAt, zoomOn, type Box, type KeepOpts, type OrbitView, type Room,
 } from '@/core/render/three/camera';
 import { DrawGate, STILL_PX, ViewWatch } from '@/core/render/three/ondemand';
 import { turnOf } from '@/core/render/three/gesture';
@@ -268,7 +268,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
    */
   /** Dev only: while the shot tool holds its eye (`unclamped`), the view is as given; the prod build has no such branch. */
   let unclamped = false;
-  const inRoom = (v: OrbitView, restore = true): OrbitView => (import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks }));
+  const keeping = (restore: boolean): KeepOpts => ({ targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks });
+  const inRoom = (v: OrbitView, restore = true): OrbitView => (import.meta.env.DEV && unclamped ? v : keepInside(v, eyeRoom(), keeping(restore)));
   /** A pan that would push the eye through a wall or into the furniture slides along it (one axis), or stops. */
   const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
     for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
@@ -283,7 +284,14 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     const v = fitRect(r, z, fw / fh, from, margin), height = (v.height * H) / fh, k = height / H;
     return panBy({ ...v, height }, (-(i.left - i.right) / 2) * k, ((i.top - i.bottom) / 2) * k);
   };
-  const overview = (): OrbitView => inRoom(inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9));
+  /**
+   * The overview shows the whole room in the part of the screen the HUD leaves free. A tall card at the bottom (the tutorial's, 360 px at 1920 x 1080) moves its
+   * target to a height where the desk's top stands between the target and the eye: `keepWhole` slides it a little, `keepInside` would shrink the view to a sliver.
+   */
+  const overview = (): OrbitView => {
+    const v = inFree(roomRect(), LOOK_Z, ROOM_ANGLE, 0.9);
+    return import.meta.env.DEV && unclamped ? v : keepWhole(v, eyeRoom(), keeping(true));
+  };
   /** Before a game (the title over the live room): the overview, turning slowly a little way each side round its target. */
   const sway = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : MENU_SWAY;
   const menuView = (t: number): OrbitView => { const o = overview(); return inRoom({ ...o, yaw: o.yaw + sway * Math.sin(t / MENU_S) }); };
@@ -307,6 +315,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const cancelFlight = () => { unclamped = false; const p = pending; pending = null; p?.(false); };
   /** The view is the overview the player has not moved off: it fits itself again when the HUD's inset changes. */
   let atOverview = false;
+  /** The game's first flight, from the title's view to the overview: on its way the view does not shrink in the desk's shadow either (`keepWhole`), or the first frames would flash its underside. */
+  let intro = false;
   const flyTo = (v: OrbitView) => { cancelFlight(); atOverview = false; goal = inRoom(clampView(v)); flying = true; };
   /** Dev only (the shot tool): show this view at once, as it is (its angles stay until the player moves it). */
   const jump = (v: OrbitView) => { unclamped = false; view = goal = inRoom(v); };
@@ -632,6 +642,9 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     let v = inFree({ x: cx - cw / 2, y: -cy - ch / 2, w: cw, h: ch }, box.max.z, inCaseId ? FLAT : underDesk ? { ...ROOM_ANGLE, pitch: -0.07 } : ROOM_ANGLE, 1);
     v = { ...v, height: Math.min(v.height, overview().height) };
     if (o.zoom) v = { ...v, height: H / o.zoom };
+    // A key and its port are small: the eye moves no further than the HUD forces. Centred in the band the tutorial card leaves (it takes the bottom third),
+    // the eye would sit so high that the hoodie on the chair hides the key on its rack, and a press on it would pan instead of lift (`lowerInBand`).
+    if (id.startsWith('key:')) v = lowerInBand(v, viewInset.peek(), H, bh);
     flyTo(v);
     if (o.smooth === false) view = goal;
     pending = o.onDone ?? (() => {});
@@ -739,10 +752,12 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // a new machine whose programs have linked takes the old one's place
     if (next && linked(next.programs)) { install(next.m); next = null; }
     const s = snapshot.peek();
-    if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
+    if (!s) goal = menuView(now / 1000); else if (menu) { flyToRoom(); intro = true; }
     if (menu !== !s) { menu = !s; canvas.style.pointerEvents = menu ? 'none' : ''; }
     if (menu && hover.peek()) hover.value = null;
-    view = inRoom(stepView(view, goal, dt), false);
+    const eased = stepView(view, goal, dt);
+    view = intro && atOverview && !(import.meta.env.DEV && unclamped) ? keepWhole(eased, eyeRoom(), keeping(false), 0.6, goal.y) : inRoom(eased, false);
+    if (intro && settled(view, goal)) intro = false;
     if (flying && settled(view, goal)) flying = false;
     if (pending && settled(view, goal)) { const p = pending; pending = null; p(true); }
     // (the camera goes where the player and the flights put it, nothing else: no part turns it)
