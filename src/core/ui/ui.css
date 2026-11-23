@@ -197,7 +197,7 @@ button.chip[aria-pressed=true] { box-shadow: inset 0 0 0 1px color-mix(in srgb, 
   transition: transform var(--d-med) linear, height var(--d-trace) ease; will-change: transform;
 }
 /* ADR 0001 / SPEC §1 rules 5 to 7: the picker card is an edge tab (#78): flat, square, neutral --c-shade-86 fill, no glass. */
-.picker { border: 0; border-radius: 0; box-shadow: none; filter: none; backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--c-shade-86); }
+.picker { border: 0; border-radius: 0; box-shadow: none; filter: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--c-shade-86); }
 .picker.nomove { transition: none; }
 .picker.glide { transition: transform var(--d-slow) cubic-bezier(.2, .8, .2, 1), height var(--d-slow) ease; }
 .pk-body { flex: 1; min-height: 0; overflow-y: auto; border-radius: inherit; scrollbar-width: thin; }
@@ -2557,8 +2557,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .title, .hud .money { text-shadow: none !important; }
 :is(.hud, .dockbar, .ctl, .pl-menu.settings) :is(button, .chip, kbd, .st-row, .st-val) { border: 0 !important; box-shadow: none !important; }
 .hud .chip { border-radius: 0.2rem; }
-.dockbar, .card.modal.mm-card.ctl, .ctl kbd, .st-row { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-.modal-back.ctl-back { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.dockbar, .card.modal.mm-card.ctl, .ctl kbd, .st-row { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background-image: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.modal-back.ctl-back { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .pl-menu.paused, .pl-menu.settings, .pl-menu.newgame.ingame { background: var(--c-shade-86); }
 .pl-menu .pl-row.hero.pl-chip { border-radius: 0.2rem; }
 .st-tab[aria-selected="true"] { text-decoration: underline; text-decoration-color: var(--c-accent); text-underline-offset: 0.3rem; }
