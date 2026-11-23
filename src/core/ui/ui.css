@@ -1416,20 +1416,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .gallery::after { display: none; }
 .gallery { --panel: rgba(30, 30, 31, 0.86); --glass-line: rgba(255, 255, 255, 0.14); }
 /* at rest nothing is cyan here: the selected category, the kind and the lit buttons are ink on grey (cyan is for focus, SPEC §1) */
-.gallery .gal-kind { color: var(--ink); background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.gallery .gal-kind { color: var(--ink); background: var(--glass-hi); }
 .gallery .bld-rail button.on { color: var(--ink); background: var(--glass-hi); }
 .gallery .showcase-bar button.on, .gallery .mode-bar button.on { color: var(--ink); background: rgba(255, 255, 255, 0.12); border-color: var(--glass-line); }
-.gallery .bld-art { background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 72%); }
-.gallery .bld-tile.on { background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)); }
 /* the K1 brackets: four corners round the free box the viewer frames the part in (its insets are this box's edges, `Showcase.tsx`) */
 .gal-brackets { position: absolute; z-index: 2; left: calc(var(--bld-l) + 1rem); right: calc(var(--bld-r) + 1rem); top: 8.6rem; bottom: 11.1rem; pointer-events: none;
-  --k1: rgba(233, 238, 255, 0.55); --arm: 1.6rem;
-  background:
-    linear-gradient(var(--k1), var(--k1)) left top / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) left top / 1px var(--arm) no-repeat,
-    linear-gradient(var(--k1), var(--k1)) right top / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) right top / 1px var(--arm) no-repeat,
-    linear-gradient(var(--k1), var(--k1)) left bottom / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) left bottom / 1px var(--arm) no-repeat,
-    linear-gradient(var(--k1), var(--k1)) right bottom / var(--arm) 1px no-repeat, linear-gradient(var(--k1), var(--k1)) right bottom / 1px var(--arm) no-repeat; }
-.gal-kind { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.85rem 0.4rem 0.65rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+  /* the four corner arms are one vector image (no gradient, SPEC §1 rule 6); its arms are 2.5 % of the box wide and 2.3 % high */
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 2.3V0H2.5M97.5 0H100V2.3M100 97.7V100H97.5M2.5 100H0V97.7' fill='none' stroke='%23e9eeff' stroke-opacity='.55' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat; }
+.gal-kind { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.85rem 0.4rem 0.65rem; border-radius: var(--m-r-pill); font: 650 var(--m-sm) var(--ui); white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .gal-read .bld-fig .bld-pips { margin: 0.3rem 0 0.15rem; }
 /* the right column is as tall as the screen (so the part keeps clear of all of it) and holds the card at its top */
 .gal-side { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 0.7rem; pointer-events: none; }
@@ -1521,6 +1515,28 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
   .gallery .gal-shelf .bld-tmeta { grid-column: 2; grid-row: 2; padding: 0; }
 }
 
+/* Gallery is flat (#71, SPEC §1 rules 5 and 6): no border, radius, shadow, blur, text shadow or gradient. Chips and bars are text lines. Selectors
+   carry `.gallery.mode` so they win over the kit's rules (`.mode .mode-bar button` and the like). */
+.gallery.mode *, .gallery.mode *::before, .gallery.mode *::after { text-shadow: none; }
+.gallery.mode :is(.mode-panel, .mode-bar) { border-width: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: none; }
+.gallery.mode .mode-panel { background: var(--c-shade-86); }
+.gallery.mode button, .gallery.mode .mode-close, .gallery.mode .bld-ico, .gallery.mode kbd { border-width: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.gallery.mode kbd { border-bottom-width: 0; }
+.gallery.mode .mode-close { background: none; }
+.gallery.mode .gal-kind { padding: 0.2rem 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink); }
+.gallery.mode .mode-bar .bld-ico { border-radius: 0; }
+.gallery.mode .bld-foot .mode-keys { text-shadow: none; }
+.gallery.mode .bld-hint > i { border-radius: 0; box-shadow: none; }
+.gallery.mode .gal-row { border-radius: 0; }
+.gallery.mode .bld-tile, .gallery.mode .bld-tile:hover, .gallery.mode .bld-tile:focus-visible, .gallery.mode .bld-tile.on { border-width: 0; border-radius: 0; box-shadow: none; background: none; transform: none; }
+.gallery.mode .bld-tile.on { color: var(--ink); }
+.gallery.mode .bld-art { border-radius: 0; background: none; }
+.gallery.mode .bld-bar, .gallery.mode .bld-bar i { border-radius: 0; }
+.gallery.mode .bld-bar i { background: var(--ink); }
+.gallery.mode .bld-pips i, .gallery.mode .bld-pips i.on { border-radius: 0; box-shadow: none; }
+.gallery.mode .bld-pips i { background: rgba(255, 255, 255, 0.2); }
+.gallery.mode .bld-pips i.on { background: var(--ink); }
+
 /* Build my PC (features/board/ui/Build*.tsx): the machine alone on a stage. Left: the shelf of parts. Top: the summary of the machine, and the view options.
    Right: what is fitted. Bottom: the one line of what to do now, the machine's tools, the camera. Over the stage: the picked part's card, the tooltip,
    the part on the pointer. `--bld-l` and `--bld-r` are what the two panels take of the width (the bars between them keep clear of it). The Gallery has the same layout. */
@@ -1557,11 +1573,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-sub { display: flex; align-items: baseline; gap: 0.5rem; margin: 0 0 0.4rem; }
 .bld-sub .mute { font: normal var(--m-xs) var(--mono); letter-spacing: 0; opacity: 0.75; }
 .bld-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
-.bld-tile { position: relative; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem 0.35rem 0.45rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); cursor: grab; touch-action: none; user-select: none; transition: transform var(--d-med), border-color var(--d-med), box-shadow var(--d-med); }
-.bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.12rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.35), 0 0 1rem color-mix(in srgb, var(--accent) 12%, transparent); }
+.bld-tile { position: relative; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.35rem 0.35rem 0.45rem; border: 1px solid var(--glass-line); border-radius: var(--m-r-card); cursor: grab; touch-action: none; user-select: none; transition: transform var(--d-med), border-color var(--d-med), box-shadow var(--d-med); }
+.bld-tile:hover, .bld-tile:focus-visible { outline: none; transform: translateY(-0.12rem); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .bld-tile:active { cursor: grabbing; transform: none; }
 /* (the Gallery's shown part) */
-.bld-tile.on { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), rgba(255, 255, 255, 0.03)); box-shadow: 0 0 0 1px var(--accent), 0 0 1.2rem color-mix(in srgb, var(--accent) 24%, transparent); }
+.bld-tile.on { border-color: var(--accent); }
 .gallery .bld-tile { cursor: pointer; touch-action: auto; }
 .bld-tile.dim { opacity: 0.45; cursor: not-allowed; }
 .build .bld-tile { border-width: 0; border-radius: 0; box-shadow: none; background: transparent; }
@@ -1574,7 +1590,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .bld-tmeta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.2rem 0.3rem; padding: 0 0.15rem; }
 .bld-pips { display: inline-flex; gap: 0.15rem; }
 .bld-pips i { width: 0.5rem; height: 0.22rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.14); }
-.bld-pips i.on { background: var(--accent); box-shadow: 0 0 0.3rem color-mix(in srgb, var(--accent) 70%, transparent); }
+.bld-pips i.on { background: var(--accent); }
 .build .bld-pips i { border-radius: 0; box-shadow: none; background: rgba(255, 255, 255, 0.2); }
 .build .bld-pips i.on { background: var(--accent); box-shadow: none; }
 .bld-price { font: 600 var(--m-xs) var(--mono); color: var(--mute); }
@@ -1673,7 +1689,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode .bld-saveform button[type="submit"]:disabled { opacity: 0.45; }
 /* the bar of a score (the Gallery's stats use it too) */
 .bld-bar { height: 0.3rem; border-radius: 99rem; background: rgba(255, 255, 255, 0.09); overflow: hidden; }
-.bld-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--g, var(--accent)) 55%, transparent), var(--g, var(--accent))); }
+.bld-bar i { display: block; height: 100%; border-radius: inherit; background: var(--g, var(--accent)); }
 .build .bld-bar i { background: var(--g, var(--accent)); }
 /* what is wrong with the machine (`BuildAlerts.tsx`): at the top of the panel, a row per problem (red: it breaks or will not run; amber: it runs badly or is not finished). A row that
    names a part outlines it on the stage under the pointer, and a click picks it. The part's own row in the list carries a mark of the same colour. */
