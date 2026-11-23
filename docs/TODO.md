@@ -11,7 +11,7 @@ Source of truth for tasks in this repository. Rewritten 2026-11-17 for one theme
 - Use the Edit tool, never rewrite a file from a script.
 - Any task with a look needs a before and after shot (`npm run shot`), and a `--prod` shot before a push.
 - When done, delete the task's line. If a task is only part done, rewrite its `State` and keep it.
-- Test runner note (2026-11-17): on this checkout `vitest run` fails on every file ("Cannot read properties of undefined (reading 'config')"); `--pool=vmThreads` works. Heavy render tests take about 43 s here: their own timeouts are now 120 to 180 s. In a full run the default 5 s test timeout can hit a loaded machine: rerun the failed files alone with `--testTimeout=200000`.
+- Test runner note (2026-11-23): `vite.config.ts` sets `pool: 'vmThreads'` (the default pool fails here with "reading 'config'") and splits the suite into `fast` (`npm run test:fast`, about 30 s), `heavy` (`npm run test:heavy`, the files in `tools/heavy-tests.ts`, few workers) and `browser`. A file that takes 10 s or more moves to `tools/heavy-tests.ts`.
 
 ## Where things stand (2026-11-17, branch `main`)
 

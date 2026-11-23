@@ -200,7 +200,7 @@ describe('Machine3D merge and share (PERF22 part 2)', () => {
     }
   });
 
-  it('fades each lid, cooler, spreader and card through the zoom alone, as before', { timeout: 120_000 }, () => {
+  it('fades each lid, cooler, spreader and card through the zoom alone, as before', { timeout: 400_000 }, () => {
     const s = game().snapshot(), was = build(s, false), now = build(s, true);
     // (a RAM stick of the maxed machine has no spreader: its fade holds nothing)
     const roots = (m: Machine3D) => [...m.fades, ...m.apart].filter((g) => { let n = 0; g.traverse((o) => { if ((o as Mesh).isMesh) n++; }); return n > 0; });

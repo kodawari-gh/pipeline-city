@@ -1,7 +1,13 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 import preact from '@preact/preset-vite';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { HEAVY_TESTS } from './tools/heavy-tests';
+
+const BROWSER_TESTS = '**/*.browser.test.ts';
+const EXCLUDE = [...configDefaults.exclude, '**/.claude/**'];
 
 // The short git hash of this build, shown as the build line (src/core/ui/build.ts). The dev server reads 'dev'.
 function buildHash(): string {
@@ -19,4 +25,16 @@ export default defineConfig(({ command }) => ({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   worker: { format: 'es' },
   define: { __BUILD__: JSON.stringify(command === 'serve' ? 'dev' : buildHash()) },
+  // Tests. The default pool (forks) fails on this checkout ("reading 'config'"), so every run uses vmThreads.
+  // Three projects: `fast` (the bulk, under a minute), `heavy` (the slow 3D and long simulations, few workers so they do not time
+  // out on each other) and `browser` (Chrome, one file at a time; skipped unless T44_BROWSER=1). See `npm run test:fast`.
+  test: {
+    pool: 'vmThreads',
+    exclude: EXCLUDE,
+    projects: [
+      { extends: true, test: { name: 'fast', exclude: [...EXCLUDE, ...HEAVY_TESTS, BROWSER_TESTS] } },
+      { extends: true, test: { name: 'heavy', include: [...HEAVY_TESTS], maxWorkers: 6, testTimeout: 400_000, hookTimeout: 120_000 } },
+      { extends: true, test: { name: 'browser', include: [BROWSER_TESTS], fileParallelism: false, testTimeout: 240_000 } },
+    ],
+  },
 }));

@@ -4,7 +4,8 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 
 ## Commands
 - `npm run dev` | `npm run typecheck` | `npm run build` | `npm run prod` (build, then serve the optimized game and open it)
-- While working run only what you touched: `npx vitest run <path>`. Full `npm run test:q` (quiet) only before a push; plain `npm test` only to debug a failure.
+- While working run only what you touched: `npx vitest run <path>`. `npm run test:fast` (about 30 s, no heavy or browser files) any time. Before a push: `npm run test:q` (fast, then heavy). Browser files: `T44_BROWSER=1 npm run test:browser`, one Chrome at a time.
+- A test file that takes 10 s or more goes in `tools/heavy-tests.ts` (the `heavy` project in `vite.config.ts`).
 
 ## Where to look
 - Start with `docs/MAP.md` (architecture overview). To find code, use the `cocoindex-code` MCP search (`mcp__cocoindex-code__search`) before Grep or Glob.
