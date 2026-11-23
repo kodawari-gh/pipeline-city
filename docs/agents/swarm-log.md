@@ -76,6 +76,7 @@ One row per round. Tier = model and effort of the agent set for that round (code
 | #67 | 2 | haiku high | FAIL | 64x voice cap (max 7) and peak (0.701) PASS; loop seams and memory NOT RUN |
 | #67 | 3 | haiku xhigh | PASS | memory unit test PASS; loop seams asset check PASS (75/75, asset only); bench:boot equal to main; squashed 1933d70f on audio; closed Done |
 | #44 | 4 | sonnet medium | FAIL | merge 0a2e663c; Next never clickable in e2e (playthrough dies at welcome); browser test hardcodes PORT 5244 (clash); no dev or prod shots |
+| #44 | 5 | sonnet high | FAIL | merge 2950744f; e2e stuck on plugKey (15 tries), cause undecided (card vs 3D pick); test 8 welcome timeout |
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
