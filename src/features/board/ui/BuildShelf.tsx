@@ -12,7 +12,7 @@ export interface Pressed { item: string; spec: string; name: string }
  * The left panel: the catalogue (the studio's shelf, `PartShelf`, as the Gallery has it). Drag a tile onto the PC; a click fits it in the first free
  * socket. While a machine part is dragged the panel is the bin: it says so and takes the drop.
  */
-export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fit, taking, over }: {
+export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fit, taking, over, lift }: {
   shelf: RefObject<HTMLElement | null>;
   kinds: readonly string[];
   parts: readonly Part[];
@@ -26,11 +26,13 @@ export function BuildShelf({ shelf, kinds, parts, kind, setKind, busy, press, fi
   taking: boolean;
   /** ...and the pointer is over the shelf. */
   over: boolean;
+  /** A drag is in the air: the parts flyout stays open until it lets go. */
+  lift: boolean;
 }) {
   return (
     <PartShelf
       shelf={shelf}
-      class={`${taking ? 'taking' : ''} ${taking && over ? 'drop' : ''}`}
+      class={`${lift ? 'lift' : ''} ${taking ? 'taking' : ''} ${taking && over ? 'drop' : ''}`}
       eyebrow="Workshop"
       title="Build my PC"
       kinds={kinds}

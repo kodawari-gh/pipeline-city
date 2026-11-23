@@ -179,6 +179,8 @@ CS case, MB board, CPU processor, CL cooling, FAN fan, RAD radiator, RAM memory 
 
 ### 4.10 Toast
 A Mono line with no plate: "[ ok ]" / "[ !! ]" / "[ no ]" in the status colour, message `--c-ink`, "Dismiss" `--c-mute` (a text button). Menu screens: x 48, y 100 desktop; x 16, y 140 phone (on the solid scrim). In game: inside the HUD top-left tab (§5.12). One at a time, 6 s, `aria-live="polite"`.
+- **A toast never covers a row, a control or a title.** While any menu of the in-game family is open (Paused, Settings, Controls, New game; §9), game toasts (log notes, tutorial notices) are held: none is drawn and the newest one shows after the menu closes. Menu feedback ("saved", "[ no ]" errors) still shows, at the menu position above (phone: y 140, under the HUD tab), never in the bottom stack.
+- Outside menus, a toast on a phone sits under the top tab and never over the bottom stack.
 
 ### 4.11 Edge tab (in game)
 - Fill `--c-shade-86`. It must touch at least one screen edge. No border, no radius, no blur.
@@ -319,7 +321,7 @@ Settings (from Paused) and New game (from Paused → Files) open over the paused
 | Element | Box | Content |
 |---|---|---|
 | Top-left tab | 0, 0, 440 × 150; chamfer bottom-right 20 | "← Back" + "Esc" at 32, 2. Title "Build my PC" `--t-display-sm` (52) caps at 32, top 52, one line, strip cell 3 lit. Meta two lines Mono: "EX · ready to start" ("ready to start" in `--c-ok`; other states use the readout's status text, `BuildBars.tsx:25`) / "$53,180 · 58–263 W / 1000 W · 29 parts" *(sample: budget, idle to full watts over supply, part count)* |
-| Category rail tab | 0, 150, 96 × 802; no chamfers (it continues the top-left tab down the left edge) | Opcode tags only, at x 26 from y 178, 42 px pitch (48 on a coarse pointer): ALL, CS, MB, CPU, CL, FAN, RAD, MEM, PSU, SSD, GPU. The lit trace runs from strip cell 3 down to the selected category's chip (CS). Hover or focus on a tag shows its name ("Case") in the flyout header |
+| Category rail tab | 0, 150, 96 × 802; no chamfers (it continues the top-left tab down the left edge) | Opcode tags only, at x 26 from y 178, 42 px pitch (48 on a coarse pointer): every category the Build list has (ALL, CS, MB, CPU, CL, FAN, RAD, MEM, PSU, SSD, VRM, RSK, NET, GPU, AI, SEC, OS, RTR, ISP; none is dropped). When the tab is shorter than its rows, the rail scrolls inside the tab (§6.4 step 5a). The lit trace runs from strip cell 3 down to the selected category's chip (CS). Hover or focus on a tag shows its name ("Case") in the flyout header |
 | Flyout tab | 96, 214, 300 × 262; chamfers top-right and bottom-right 14 | Header at 116, 224: category name `--t-md` Cond ink ("Case") + Mono "3 fit this board" *(sample)*. Parts from 116, 278, rows 62 tall: still 64 × 45, name `--t-md` Cond (ink for the picked one, else mute), Mono "T2 · $160". Height grows with the list (bottom at most y 940, then the list scrolls). Top = the selected tag's top − 6 px (CS → 214) |
 | Top-right tab | 1400, 0, 520 × 64; chamfer bottom-left 14 | Lens rail at x 1432, items 16 px apart, `--t-sm`: "Power" ━ "Airflow" ━ "Graphics" (on = ink 600; Graphics opens Settings at Quality). "Benchmark" `--t-md` Cond ink at x 1690 + Mono "score —" (or "Score 1,240", "Running 3/8") |
 | Machine list tab (collapsed) | 1700, 140, 220 × 88; chamfers top-left and bottom-left 14 | "In the machine" `--t-md` Cond ink at 1724, 150; Mono "29 parts · $53,180  ‹". Click or Enter opens the full list (today's `BuildMachine` content: parts in the machine, "Start from…") as a tab from the right edge, 380 wide, y 140 to 940; "›" collapses it |
@@ -336,13 +338,14 @@ Flyout state: open while the pointer is over the rail or flyout, while a rail ta
 **Phone**
 - Scene: the Build stage fills the screen; the camera frames the machine inside y 100 to 800 (between the two tabs). Letterbox and clear colour `#49484a`.
 - Top tab 0, 0, 35.33 × 6.67 rem: "← Back" at 1.07, 0; "Benchmark" `--t-md` Cond ink at right 1.07, top 0.53; title "Build my PC" `--t-xl`-size caps (32) at 1.07, top 3.07 rem, strip cell 3 lit; Mono "EX · ready · $53,180 · 29 parts" ("ready" in ok green).
-- Bottom tab 0, 53.33, 35.33 × 18.67 rem:
-  - Category rail at 1.07, 53.73 rem, items 0.8 rem apart: opcode tags; the selected one is a chip followed by its name `--t-md` Cond ink ("CS Case"). Swipe to scroll.
-  - Parts row at 1.07, 57.73 rem: cards 10 rem wide, 1.07 rem apart: still 6.4 × 4.47 rem, name `--t-md` Cond (ink if picked), Mono "T2 · $160". Swipe to scroll.
-  - Bar at 1.07, 68.27 rem, items 1.87 rem apart, `--t-md` Cond: "Parts" ━ "Machine" ━ "Run" (selected ink, no chip). "Machine" shows the machine list in this tab; "Run" shows the run rail, step speed and view.
+- Bottom tab, collapsed (default): 0, 60.72, 35.33 × 11.28 rem (bottom edge at 72). It holds only the category rail and the bar. The parts row is hidden.
+  - Category rail at 1.07, 61.65 rem, 2.2 rem tall, items 0.8 rem apart: opcode tags; the selected one is a chip followed by its name `--t-md` Cond ink ("CS Case"). Swipe to scroll.
+  - Bar at 1.07, 68.27 rem, 2.8 rem tall, items 1.87 rem apart, `--t-md` Cond: "Parts" ━ "Machine" ━ "Run" (selected ink, no chip). "Machine" shows the machine list in this tab; "Run" shows the run rail, step speed and view.
+  - Hint line above the bar, as today: 2.07 rem tall, 0.55 rem above the bar, centred; hidden when there is no hint.
+- Parts row, open: a tap on "Parts" opens it; the next tap on "Parts", or a tap on "Machine" or "Run", shuts it. Open, the tab is 0, 53.33, 35.33 × 18.67 rem: the rail at 1.07, 53.73 rem as above; the parts row at 1.07, 57.73 rem: cards 10 rem wide, 1.07 rem apart: still 6.4 × 4.47 rem, name `--t-md` Cond (ink if picked), Mono "T2 · $160". Swipe to scroll. The bar stays at 1.07, 68.27 rem.
 
 ### 5.8 Gallery (`08-gallery-v3-*`)
-**Scene.** The Gallery turntable (`Showcase.tsx`, `viewer.ts`) on flat `--c-studio`: the CSS backdrop and the 3D floor and background are neutral (IMPLEMENTATION.md step 7). The part is framed inside the K1 bracket box via the viewer's stage insets.
+**Scene.** The Gallery turntable (`Showcase.tsx`, `viewer.ts`) on flat `--c-studio`: the CSS backdrop and the 3D floor and background are neutral (IMPLEMENTATION.md step 7). Flat means flat: no spotlight, no radial glow, no tinted floor disc and no bluish light on the case. Every pixel of the stage outside the part is within ±2 of 17,17,19 at all five sizes (ACCEPTANCE.md 08). The part is framed inside the K1 bracket box via the viewer's stage insets.
 
 **Desktop**
 - Back at 32, 2: "← Back" + "Esc". Title "Gallery" `--t-display-sm` (52) at 32, top 52, strip cell 4 lit; meta "MEM · gallery · 75 parts" (live count).
@@ -464,7 +467,7 @@ Proposed in this package, not in the mocks. Check each with the owner before the
 - Crash panel and starting screen keep their current wording; only their surfaces change.
 
 ### 5.15 Not covered by this package
-- Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls. The proposed audio sliders under Settings → Interface are specified in `docs/pipeline-city-audio/pipeline-city-audio/SPEC.md` §10.
+- Audio: no audio design is in scope. Sounds, music and volume keep their current behaviour and controls.
 - Existing features that keep their behaviour: save and load, autosave, speed, pause, tutorial steps, Build run, Gallery stills, Controls bindings, Settings persistence.
 
 Where each existing feature lives now, and where its new layout is specified. "Add" means the feature has no row or text in the named section yet; add it there before the PR.
@@ -517,6 +520,7 @@ When two elements would come closer than 16 px (1rem), apply these steps in orde
 3. Build: the hint tab moves up to sit on top of the run tab (left 0), chamfer top-right only.
 4. Build: the tools tab folds "Undo" ━ "Redo" into the "Steps"-style branch "Edit" (opens Undo, Redo).
 5. Build: the flyout overlaps the scene (it is already a tab; no change) and the machine list tab stays collapsed.
+5a. Build rail: when the screen is too short for every tag (for example 1366 × 768, UI size 150 %), rows shrink from the 42 px pitch to 34 px (48 px on a coarse pointer never shrinks). If they still do not fit, the rail scrolls inside its tab (wheel, keys, touch). The selected tag scrolls into view, and a 24 px fade on the cut edge shows that more tags follow. Every category, RTR Router included, can be reached and picked at every size in §6.
 6. Menus: if the title would wrap to three lines or the rows would overlap the title, step the title down one display size; if still colliding, the content column scrolls (no scrollbar shown, wheel and keys scroll focus into view).
 7. Paused and Controls: if the spine or list would overlap the title, the title steps down one size, then the stack scrolls.
 The Paused and Controls ramp keeps its rem stops; text never extends past the ramp's solid part.
@@ -526,6 +530,9 @@ The Paused and Controls ramp keeps its rem stops; text never extends past the ra
 - Menus, Paused, Controls and Settings: the content column scrolls; the title steps down to `--t-display-sm`.
 - First frame: the instruction tab shrinks to its content height, anchored to the bottom.
 - Build and Gallery: the flyout and the right column scroll inside their tabs.
+- Build (landscape phone), parts row open: the rail and the bar stay visible in their column. The parts row opens as a tab beside that column, at most 45 % of the screen wide, and scrolls inside. The machine keeps at least 40 % of the screen width. Opening or closing the row never moves the rail or the bar and never collapses the other tabs.
+- Gallery (phone, any height): Back, Spin, Reset, Settings and the part stepper are pinned (top toolbar, bottom dock) and never scroll away. Only the category list, shelf and numbers between them scroll, inside their own tab. At 360 × 800 and 844 × 390 every pinned control is fully on screen without a page scroll.
+- Build (844 × 390): the bottom tab is collapsed as in §5.7 Phone and moves to the left edge, with its rail and bar stacked in a column there; the top tab stays at the top.
 
 ### 6.6 UI size
 The player's UI size (80 % to 150 %) multiplies rem. At 150 % on a 1366 × 768 screen §6.4 applies. Rows keep at least 48 px on a coarse pointer at every UI size.
@@ -580,6 +587,7 @@ Every screen change reads as the trace growing from where you were to where you 
 6. "Save now" saves and stays; its meta reads "saved just now".
 7. The HUD rail shows "Pause" in ink while paused. There is no pause pill. Screen readers hear "Paused. Clock stopped." on open.
 8. Space (pause toggle) is ignored while Paused is open; Esc closes it.
+9. Game toasts are held while the menu family is open (§4.10). No toast covers a Paused row at 360 × 800, 390 × 844 or 844 × 390.
 
 ---
 

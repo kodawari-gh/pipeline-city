@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
-import { signal } from '@preact/signals';
 import type { Snapshot } from '@/worker/game/game';
+import { billOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
 
@@ -9,8 +9,7 @@ import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
 // On a phone the chip is hidden and the menu opens the card through `billOpen`.
 
-/** Whether the power bill card is open. Shared so the phone menu can open it. */
-export const billOpen = signal(false);
+export { billOpen };
 
 export function PowerBill({ s }: { s: Snapshot }) {
   const open = billOpen.value;
@@ -34,7 +33,7 @@ export function PowerBill({ s }: { s: Snapshot }) {
   return (
     <div class="bill">
       <button
-        ref={chip} class={`chip ${c.level}`} aria-expanded={open} aria-controls="bill-pop" data-hud="bill"
+        ref={chip} class={`chip ${c.level}`} data-cue="ui_click" aria-expanded={open} aria-controls="bill-pop" data-hud="bill"
         title={`Power bill: ${rate}, issued every ${fmtTicks(b.periodTicks)} and paid from your money. Click for the details.`}
         onClick={() => setOpen(!open)}
       >

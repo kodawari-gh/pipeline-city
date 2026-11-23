@@ -2,6 +2,7 @@
 // window listeners, so the drag goes on over the panels; the stage outlines what the part fits while it is held (`BuildStage.carry`).
 import type { RefObject } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { playCue } from '@/app/audio/engine';
 import { netKindOf } from '@/features/board/sim/buildnet';
 import { devNode } from '@/features/board/sim/removal';
 
@@ -40,12 +41,14 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
   const stop = useRef<() => void>(() => {});
   /** A drag is in the air (the press has moved past the slop). */
   const air = useRef(false);
+  /** The shelf takes a machine part: its panel, and the note that holds the parts flyout's place (the desk's flyout is a box beside the rail). */
+  const inBin = (x: number, y: number): boolean => within(shelf.current, x, y) || within(shelf.current?.querySelector<HTMLElement>('.bld-bin-note') ?? null, x, y);
 
   const drop = (src: Source, x: number, y: number): void => {
     const st = stage.current;
     if (!st) return;
     if (src.from === 'machine') {
-      if (within(shelf.current, x, y)) void st.remove(devNode(src.item));
+      if (inBin(x, y)) void st.remove(devNode(src.item));
       else if (onStage(host.current, x, y)) note('Drop it on the shelf to take it out', x, y);
       return;
     }
@@ -58,13 +61,14 @@ export function useBuildDrag(stage: { current: Stage | null }, host: RefObject<H
   const begin = (src: Source, e: PointerEvent, click: () => void): void => {
     const sx = e.clientX, sy = e.clientY;
     let moving = false;
-    const where = (x: number, y: number): Over => (within(shelf.current, x, y) ? 'bin' : onStage(host.current, x, y) ? 'stage' : null);
+    const where = (x: number, y: number): Over => (inBin(x, y) ? 'bin' : onStage(host.current, x, y) ? 'stage' : null);
     const move = (m: PointerEvent) => {
       const st = stage.current;
       if (!moving) {
         if (Math.hypot(m.clientX - sx, m.clientY - sy) < SLOP) return;
         moving = true;
         air.current = true;
+        playCue('ui_pickup');
         st?.carry(src.from === 'shelf' ? { item: src.item } : { device: src.item });
         // a shelf part can only land on a socket with the case open
         if (src.from === 'shelf' && st && !isShell(src.item) && !st.bare.peek() && !st.insideOpen) st.openInside(true);

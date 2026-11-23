@@ -115,7 +115,7 @@ function studio(antialias: boolean, still = false) {
   scene.environment = studioEnv(pmrem);
   scene.environmentIntensity = 0.55;
   scene.add(new AmbientLight(0xffffff, 0.25));
-  const key = new DirectionalLight(0xfff0dc, 2.4), rim = new DirectionalLight(0x9ab8ff, 1.2);
+  const key = new DirectionalLight(0xfff0dc, 2.4), rim = new DirectionalLight(0xffffff, 1.2);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   scene.add(key, key.target, rim, rim.target);
@@ -202,6 +202,7 @@ export async function renderStill(o: Object3D, w: number, h: number): Promise<HT
 
 export function mountViewer(host: HTMLElement): Viewer {
   const { renderer, scene, pmrem, key, floor, place: light } = studio(effective.peek().msaa > 0), camera = new PerspectiveCamera(FOV, 1, 1, 100000);
+  floor.visible = false; // flat studio (SPEC 5.8): no floor disc, no glow, the stage shows its flat colour
   renderer.setPixelRatio(pixelRatio(effective.peek().scale));
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block'; // (the pad takes the fingers: `attachPad`)
   host.appendChild(renderer.domElement);

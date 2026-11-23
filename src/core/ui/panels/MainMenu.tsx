@@ -118,6 +118,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
   // A row: a plain button. Its stage tag is an empty span (the letters come from CSS), so the button's text is its label and meta.
   const rowEl = (r: Row, g: number) => (
     <button key={r.key} class={`mm-btn pl-row ${r.hero ? 'hero' : ''} ${at === g ? 'pl-chip' : ''}`} disabled={r.disabled} data-group={g}
+       data-cue={r.key === 'continue' ? 'ui_confirm' : 'ui_click'} data-cue-next={r.key === 'new' || r.key === 'gallery' ? 'ui_transition_in' : undefined}
       onPointerEnter={() => onEnter(g)} onFocus={() => onEnter(g)} onClick={r.run}>
       <span class="pl-tag" data-tag={stage(g)} aria-hidden="true" />
       <span class="pl-text">
@@ -141,13 +142,13 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
             {rows.map((r, g) => rowEl(r, g))}
             <span class={`pl-tag pl-util-tag ${at === utilGroup ? 'pl-chip' : ''}`} data-tag={stage(utilGroup)} aria-hidden="true" />
             {previous && (
-              <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => startSim(previous)} onFocus={utilOn} onPointerEnter={utilOn}>
+              <button class="mm-btn pl-util" data-cue="ui_confirm" data-group={utilGroup} onClick={() => startSim(previous)} onFocus={utilOn} onPointerEnter={utilOn}>
                 Previous save<span class="pl-util-meta">{saveSummary(previous, previousAt.value, Date.now())}</span>
               </button>
             )}
-            <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => fileIn.current?.click()} onFocus={utilOn} onPointerEnter={utilOn}>Load file</button>
-            <button class="mm-btn pl-util" data-group={utilGroup} onClick={() => openSettings('menu')} onFocus={utilOn} onPointerEnter={utilOn}>Settings</button>
-            <input ref={fileIn} type="file" accept="application/json,.json" hidden
+            <button class="mm-btn pl-util" data-cue="ui_click" data-group={utilGroup} onClick={() => fileIn.current?.click()} onFocus={utilOn} onPointerEnter={utilOn}>Load file</button>
+            <button class="mm-btn pl-util" data-cue="ui_click" data-cue-next="ui_transition_in" data-group={utilGroup} onClick={() => openSettings('menu')} onFocus={utilOn} onPointerEnter={utilOn}>Settings</button>
+            <input ref={fileIn} type="file" accept="application/json,.json" hidden data-cue="silent"
               onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void loadFromFile(f); e.currentTarget.value = ''; }} />
             {tp && <TestPoint />}
           </nav>

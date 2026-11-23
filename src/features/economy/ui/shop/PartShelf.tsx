@@ -2,7 +2,7 @@ import type { ComponentChildren, RefObject } from 'preact';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { Icon } from '@/core/ui/kit/Icons';
 import { PartArt } from './PartArt';
-import { kindIcon, kindLabel, pips, priceOf, railLabel } from './shopdata';
+import { kindIcon, kindLabel, pips, priceOf, railLabel, railTag } from './shopdata';
 
 /** A part the shelf lists: its catalogue id, name, kind (the rail's category) and tier. */
 export interface ShelfPart { id: string; name: string; kind: string; tier: number }
@@ -15,7 +15,7 @@ const money = (n: number): string => (n <= 0 ? 'free' : `$${n.toLocaleString('en
  * is the screen's: the Gallery's click shows the part (`current` is the one shown), Build my PC's press starts a drag (`onPress`) and Enter fits it
  * (`onActivate`). Styles: ui.css (the shelf, `.bld-*`).
  */
-export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts, kind, setKind, all = false, current, dim = false, tip, onPress, onActivate, children }: {
+export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts, kind, setKind, all = false, rail = true, current, dim = false, tip, onPress, onActivate, children }: {
   shelf?: RefObject<HTMLElement | null>;
   /** More classes for the panel (Build my PC's drop zone marks). */
   class?: string;
@@ -28,6 +28,8 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
   setKind: (k: string) => void;
   /** The rail starts with an "all parts" button. */
   all?: boolean;
+  /** The rail of kinds (off where the kinds are a list of their own beside the shelf, as the Gallery's spine is). */
+  rail?: boolean;
   /** The part the screen shows now (its tile is lit, and kept in view). */
   current?: string;
   /** The tiles are out of reach for the moment (a step of the machine plays). */
@@ -42,10 +44,13 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
   children?: ComponentChildren;
 }) {
   const list = useRef<HTMLDivElement>(null);
+  const railBox = useRef<HTMLDivElement>(null);
   const count = (k: string): number => parts.filter((p) => p.kind === k).length;
   // (the top tier of each kind: a tile's pips are its tier against it)
   const top = useMemo(() => { const m = new Map<string, number>(); for (const p of parts) m.set(p.kind, Math.max(m.get(p.kind) ?? 0, p.tier)); return m; }, [parts]);
   const shown = kind === 'all' ? kinds : [kind];
+  // the rail's tag that is chosen: the desk's flyout hangs beside it (`--sel`, ui.css)
+  const sel = Math.max(0, (all ? ['all', ...kinds] : [...kinds]).indexOf(kind));
   // a part chosen by a key (the Gallery's arrows) brings its tile into view: the list scrolls to it, the page does not (a stacked screen keeps its stage on top)
   useEffect(() => {
     const box = list.current, tile = box?.querySelector<HTMLElement>('.bld-tile.on');
@@ -54,6 +59,37 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
     if (t.top < b.top) box.scrollTop -= b.top - t.top;
     else if (t.bottom > b.bottom) box.scrollTop += t.bottom - b.bottom;
   }, [current, kind]);
+
+  // the rail on a short screen (SPEC 6.4 step 5a): the rows shrink (`data-tight`), then the rail scrolls inside its tab with the chosen tag in view and a fade
+  // on the cut edge (`data-fade`); the desk's flyout hangs beside the chosen tag wherever it is (`--seltop`)
+  useEffect(() => {
+    const rail = railBox.current, bin = rail?.closest<HTMLElement>('.bld-bin');
+    if (!rail || !bin) return;
+    const fit = () => {
+      rail.removeAttribute('data-tight');
+      if (rail.scrollHeight > rail.clientHeight + 1) rail.setAttribute('data-tight', '');
+      const tag = rail.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (tag) {
+        const r = rail.getBoundingClientRect(), t = tag.getBoundingClientRect();
+        if (t.top < r.top) rail.scrollTop -= r.top - t.top;
+        else if (t.bottom > r.bottom) rail.scrollTop += t.bottom - r.bottom;
+        if (t.left < r.left) rail.scrollLeft -= r.left - t.left;
+        else if (t.right > r.right) rail.scrollLeft += t.right - r.right;
+      }
+      mark();
+    };
+    const mark = () => {
+      const up = rail.scrollTop > 1, down = rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1;
+      if (up || down) rail.setAttribute('data-fade', `${up ? 't' : ''}${down ? 'b' : ''}`); else rail.removeAttribute('data-fade');
+      const tag = rail.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (tag) bin.style.setProperty('--seltop', `${Math.round(tag.getBoundingClientRect().top - bin.getBoundingClientRect().top - 6)}px`);
+    };
+    fit();
+    rail.addEventListener('scroll', mark, { passive: true });
+    const ro = new ResizeObserver(fit);
+    ro.observe(rail);
+    return () => { rail.removeEventListener('scroll', mark); ro.disconnect(); };
+  }, [kind, rail]);
 
   const tile = (p: ShelfPart) => {
     const price = priceOf(p.id), lit = pips(p.tier, top.get(p.kind) ?? 0), on = current === p.id;
@@ -82,21 +118,21 @@ export function PartShelf({ shelf, class: cls = '', eyebrow, title, kinds, parts
   };
 
   return (
-    <aside class={`bld-bin mode-panel ${cls}`} ref={shelf}>
+    <aside class={`bld-bin mode-panel ${cls}`} ref={shelf} style={`--sel: ${sel}`}>
       <header class="mode-head"><span class="mode-eyebrow">{eyebrow}</span><b>{title}</b></header>
       <div class="bld-shelf">
-        <div class="bld-rail" role="tablist" aria-label="Part kinds">
+        {rail && <div class="bld-rail" role="tablist" aria-label="Part kinds" ref={railBox}>
           {all && (
-            <button role="tab" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All parts (${parts.length})`} aria-label="All parts" onClick={() => setKind('all')}>
-              <Icon name="grid" size={14} /><span class="bld-rl" aria-hidden="true">All</span>
+            <button role="tab" data-cue="ui_tab_switch" aria-selected={kind === 'all'} class={kind === 'all' ? 'on' : ''} title={`All parts (${parts.length})`} aria-label="All parts" onClick={() => setKind('all')}>
+              <Icon name="grid" size={14} /><span class="bld-rl" aria-hidden="true">All</span><span class="bld-tag" aria-hidden="true">ALL</span>
             </button>
           )}
           {kinds.map((k) => (
-            <button key={k} role="tab" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
-              <Icon name={kindIcon(k)} size={14} /><span class="bld-rl" aria-hidden="true">{railLabel(k)}</span>
+            <button key={k} role="tab" data-cue="ui_tab_switch" aria-selected={k === kind} class={k === kind ? 'on' : ''} title={`${kindLabel(k)} (${count(k)})`} aria-label={kindLabel(k)} onClick={() => setKind(k)}>
+              <Icon name={kindIcon(k)} size={14} /><span class="bld-rl" aria-hidden="true">{railLabel(k)}</span><span class="bld-tag" aria-hidden="true">{railTag(k)}</span>
             </button>
           ))}
-        </div>
+        </div>}
         <div class="bld-parts" aria-label="Parts" ref={list}>
           {shown.map((k) => (
             <section key={k}>

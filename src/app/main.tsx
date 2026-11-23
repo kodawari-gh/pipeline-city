@@ -1,8 +1,10 @@
 import { render } from 'preact';
-import { loadAutosaveOffer, loadPreviousOffer, watchConnection } from './store';
-import { bootFail, bootMenu, bootStage } from './boot';
+import { crash, loadAutosaveOffer, loadPreviousOffer, snapshot, speed, watchConnection } from './store';
+import { booted, bootFail, bootMenu, bootStage } from './boot';
 import { guardPage } from './touchguard';
 import { Hud } from '../core/ui/Hud';
+import { buildOpen, galleryOpen, holdTop, levelUp } from '../core/ui/state';
+import { initAudio, sceneOf } from './audio';
 
 // A pinch is the camera's zoom, never the page's (`touchguard.ts`).
 guardPage();
@@ -10,6 +12,14 @@ guardPage();
 // The main menu (Continue when an autosave exists, New game, Load game, Settings) shows once the boot screen has gone. The sim only starts once the player chooses.
 loadAutosaveOffer();
 loadPreviousOffer();
+// Sound (src/app/audio/AUDIO.md): silent until the first gesture, loads after the boot screen, and plays the log notes of each snapshot.
+// The clock's hold: level-up outranks the tutorial popup, which outranks the in-game menu.
+initAudio(undefined, () => ({
+  speed: speed.value,
+  hold: holdTop.value,
+  crashed: crash.value !== null,
+  levelUp: levelUp.value?.level ?? null,
+}), () => sceneOf({ booted: booted.value, build: buildOpen.value, gallery: galleryOpen.value, game: snapshot.value !== null }));
 // The page follows the connection: offline, the notice says how to go on (`store.ts`, `setOnline`).
 watchConnection();
 // The 3D renderer (docs/render/three.md) is the game's view. Its code loads here; the boot screen stays until the 3D mount ends it (docs/render/load.md).

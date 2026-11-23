@@ -10,6 +10,7 @@ import { SPEEDS } from '../../worker/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
 import { Icon } from './kit/Icons';
 import { hudNetChip } from '../../features/network/ui/netui';
+import { currentStep } from '../../features/tutorial/ui/tutorial';
 import { PowerBill } from '../../features/economy/ui/progress/PowerBill';
 import { InventoryBar, InventoryPanel } from '../../features/economy/ui/shop/Inventory';
 import { PickerCard } from '../../features/economy/ui/shop/PickerCard';
@@ -18,9 +19,10 @@ import { NetDock } from '../../features/network/ui/NetPanel';
 import { OsModal } from '../../features/os/ui/OsPanel';
 import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
+import { watchPanelCues } from './panelCues';
 import { NewGameScreen } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
-import { Paused } from './panels/Paused';
+import { Paused, type PausedFeatures } from './panels/Paused';
 import { LoadConfirm } from './panels/LoadConfirm';
 import { Controls } from './panels/Controls';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
@@ -34,8 +36,11 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { SettingsScreen } from './panels/Settings';
 import {
-  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, osOpen, runAt, toggleOs, statsOpen, toggleNet, toggleStats,
+  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, osOpen, runAt, toggleOs, statsOpen, toggleNet, toggleStats, tutorial,
 } from './state';
+
+/** What the Paused screen needs from two features (it imports none itself). */
+const PAUSED_FEATURES: PausedFeatures = { netChip: hudNetChip, tutorialOn: (s) => currentStep(s, tutorial.value) !== null };
 
 /** The tutorial points at a number in the bar: `hud:<name>` in the highlight list pulses it. */
 const lit = (name: string) => (highlight.value.includes(`hud:${name}`) ? 'pulse' : '');
@@ -60,12 +65,12 @@ function SpeedControl() {
   // A hold (popup, menu) cannot be lifted here: the rail says "Held" and no resume hint.
   return (
     <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
-      <button class="icon pp" aria-label={v === 0 ? (held ? 'Held' : 'Resume') : 'Pause'} title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'} aria-pressed={v === 0} onClick={() => { if (!held) togglePause(); }}>
+      <button class="icon pp" data-cue="silent" aria-label={v === 0 ? (held ? 'Held' : 'Resume') : 'Pause'} title={v === 0 ? (held ? 'Held: a popup or the menu holds the clock' : 'Resume (Space)') : 'Pause (Space)'} aria-pressed={v === 0} onClick={() => { if (!held) togglePause(); }}>
         <Icon name={v === 0 && !held ? 'play' : 'pause'} size={14} />
         {v === 0 && <span class="pp-state">{held ? 'Held' : 'Paused'}</span>}
       </button>
       {!phoneLayout() && (
-        <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
+        <button class="icon zs" data-cue="ui_click" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
           title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
           <Icon name="gauge" size={14} />
         </button>
@@ -77,7 +82,7 @@ function SpeedControl() {
         else if (!(e.target as Element).closest('button')) setOpen(true);
       }}>
         {runSteps.map((x) => (
-          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { if (phoneLayout()) { if (!held) runAt(nextSpeed(shown)); } else { runAt(x); setOpen(false); } }}>
+          <button key={x} data-cue="silent" class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { if (phoneLayout()) { if (!held) runAt(nextSpeed(shown)); } else { runAt(x); setOpen(false); } }}>
             {speedLabel(x)}
           </button>
         ))}
@@ -204,7 +209,7 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = hudNetChip(s);
   if (!c) return null;
   return (
-    <button class={`chip ${c.level}`} title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
+    <button class={`chip ${c.level}`} data-cue="ui_click" title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
       <Icon name={c.icon} size={12} /> {c.text}
     </button>
   );
@@ -214,7 +219,7 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
 function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   if (!s.os) return null;
   return (
-    <button class="chip idle" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
+    <button class="chip idle" data-cue="ui_click" data-cue-next="ui_transition_in" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
       <Icon name="layers" size={12} /> OS {s.os.spool.used}/{s.os.spool.slots}
     </button>
   );
@@ -259,6 +264,7 @@ function Starting({ text = 'Starting…', hint }: { text?: string; hint?: string
 
 export function Hud() {
   const s = snapshot.value;
+  useEffect(() => watchPanelCues(), []);
   // (the menu shows over the boot screen while the world loads, app/boot.ts: what needs the 3D world waits for `booted`, and a game chosen
   // meanwhile starts when the screen goes, `startSim`)
   // (a game that is starting stands in place of the menu; the notice shows a refused file here as in a game)
@@ -311,21 +317,21 @@ export function Hud() {
         <div class="hud-side hud-right">
           <SpeedControl />
           <div class="menu">
-            <button class={`icon ${menuOpen ? 'on' : ''}`} aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !menuOpen; }}>
+            <button class={`icon ${menuOpen ? 'on' : ''}`} data-cue="silent" aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !menuOpen; }}>
               <Icon name="menu" size={14} />
             </button>
           </div>
           <SlowNote />
         </div>
       </header>
-      <Paused />
+      <Paused features={PAUSED_FEATURES} />
       <PickerCard />
       <NewGameScreen />
       <MilestoneScreen s={s} />
       <Shop s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
-          <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
           <Stats />
         </aside>
       )}

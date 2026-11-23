@@ -86,6 +86,8 @@ async function openMenu(b, vp, withSave) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.pl-row', { timeout: 30000 });
+  // (the menu rows stay disabled until the loader finishes: "after loading")
+  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
   await page.waitForTimeout(900);
   return { ctx, page, errors };
 }
@@ -152,12 +154,16 @@ async function loadScreen(b, vp, withSave) {
   await file('save.json', Buffer.from(JSON.stringify(fixture)));
   const wb = page.getByRole('button', { name: /^Replace save and load/ });
   await wb.first().waitFor({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(900); // the menu fades in
   check(await wb.count() === 1, `${tag}: the Load confirm screen shows "Replace save and load"`);
+  // (innerText: the title is upper case by CSS, and the label and its value have no space between them in the text)
   const body = await page.evaluate(() => document.body.innerText);
-  check(/Load this\s+game\?/.test(body), `${tag}: title "Load this game?"`);
-  check(withSave ? /SAVE\s+Level \d+ · \$/.test(body) : /SAVE\s+none/.test(body), `${tag}: SAVE line ${withSave ? 'shows the autosave' : 'reads "none"'}`);
-  check(/FILE\s+Level \d+ · \$/.test(body), `${tag}: FILE line shows the file`);
-  check(/choose\s+Enter confirm\s+Esc cancel/.test(body), `${tag}: hints shown`);
+  check(/load this\s*game\?/i.test(body), `${tag}: title "Load this game?"`);
+  check(withSave ? /SAVE\s*Level \d+ · \$/.test(body) : /SAVE\s*none/.test(body), `${tag}: SAVE line ${withSave ? 'shows the autosave' : 'reads "none"'}`);
+  check(/FILE\s*Level \d+ · \$/.test(body), `${tag}: FILE line shows the file`);
+  // (the key hints are hidden on a phone: the touch screen has no keys)
+  const hintsShown = await page.evaluate(() => { const h = document.querySelector('.loadconfirm .pl-hints'); return !!h && getComputedStyle(h).display !== 'none'; });
+  check(!hintsShown || /choose\s*Enter confirm\s*Esc cancel/.test(body), `${tag}: a displayed hint line has its text (shown ${hintsShown})`);
   const focused = await page.evaluate(() => (document.activeElement?.textContent || '').trim());
   check(/^Cancel/.test(focused), `${tag}: Cancel has focus (${focused})`);
   const colour = await colourOf(page, 'Replace save and load');
@@ -184,7 +190,7 @@ async function loadScreen(b, vp, withSave) {
     await file('bad.json', Buffer.from('not json'));
     await page.waitForTimeout(300);
     const after = await page.evaluate(() => document.body.innerText);
-    check(/not a Pipeline City save/.test(after) && !/Load this\s+game\?/.test(after), `${tag}: an unreadable file gives a toast and no question`);
+    check(/not a Pipeline City save/.test(after) && !/load this\s*game\?/i.test(after),`${tag}: an unreadable file gives a toast and no question`);
   }
   check(errors.length === 0, `${tag}: no page error${errors.length ? ' (' + errors.join(' | ') + ')' : ''}`);
   await ctx.close();
@@ -298,16 +304,16 @@ async function galleryScreen(gb, vp) {
   await page.waitForSelector('.gallery .bld-tile', { timeout: 20000 });
   await page.waitForTimeout(900);
 
-  const kinds = await page.locator('.bld-rail [role=tab]').evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')));
+  const kinds = await page.locator('.gal-spine .gal-row').evaluateAll((ts) => ts.map((t) => t.getAttribute('title').replace(/ \(\d+\)$/, '')));
   check(kinds.includes('Router') && kinds.includes('Case') && kinds.includes('Motherboard'), `${tag}: the rail has every category, Router included (${kinds.length})`);
 
   // every category: its heading count, its rail count and the stepper's "of N" agree with the tiles shown
   let bad = null;
   for (let i = 0; i < kinds.length && !bad; i++) {
-    await page.locator('.bld-rail [role=tab]').nth(i).click();
+    await page.locator('.gal-spine .gal-row').nth(i).click();
     const r = await page.evaluate(() => {
       const sec = document.querySelector('.bld-parts section');
-      const tab = document.querySelector('.bld-rail [role=tab][aria-selected=true]')?.getAttribute('title') ?? '';
+      const tab = document.querySelector('.gal-spine .gal-row[aria-current=true]')?.getAttribute('title') ?? '';
       return {
         heading: Number(sec?.querySelector('.bld-sub span')?.textContent),
         tiles: sec?.querySelectorAll('.bld-tile').length ?? 0,
@@ -419,7 +425,8 @@ async function hudScreen(gb, vp) {
   await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: 15000 }).catch(() => {});
   check(await page.locator('.modal-back.dlg-back').count() === 0, `${tag}: the tutorial card is skipped (the clock runs)`);
 
-  const visible = (sel) => page.locator(sel).first().isVisible();
+  // the HUD mounts after the skip: wait a little for each control before it counts as missing
+  const visible = (sel) => page.locator(sel).first().waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
   const pp = () => page.locator('.speedctl .pp').getAttribute('aria-label');
   const speedOn = () => page.evaluate(() => document.querySelector('.speeds button.on')?.textContent.trim() ?? '');
   check(await visible('[aria-label="Menu"]'), `${tag}: the Menu button is on the bar`);

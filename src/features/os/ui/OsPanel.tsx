@@ -28,15 +28,15 @@ export function OsModal() {
   sampleHistory(history, resourceRows(s));
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeOs(); }}>
-      <div class="card almanac ospanel" role="dialog" aria-modal="true" aria-label="Operating system">
+      <div class="card almanac ospanel" data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Operating system">
         <header class="alm-head">
           <span class="alm-title"><Icon name="cpu" size={16} /> {s.os ? s.os.name : 'Operating system'}</span>
           <div class="os-tabs seg" role="tablist">
             {OS_TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} class={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}</button>
+              <button key={t.id} role="tab" data-cue="ui_tab_switch" aria-selected={tab === t.id} class={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}</button>
             ))}
           </div>
-          <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
         </header>
         <div class="os-body">
           {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}

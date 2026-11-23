@@ -67,7 +67,7 @@ export function Controls() {
   }, [open]);
   if (!open) return null;
   return (
-    <div class="modal-back" onClick={(e) => { if (e.target === e.currentTarget) closeControls(); }}>
+    <div class="modal-back ctl-back" onClick={(e) => { if (e.target === e.currentTarget) closeControls(); }}>
       <div class="card modal mm-card ctl" role="dialog" aria-modal="true" aria-label="Controls">
         <div class="big">Controls</div>
         <div class="ctl-cols">
@@ -75,7 +75,7 @@ export function Controls() {
           <section aria-label="Touch"><h3>Touch</h3><Rows rows={TOUCH} /></section>
           <section aria-label="Keys"><h3>Keys</h3><Rows rows={KEYS} /></section>
         </div>
-        <div class="pactions"><button class="primary" autofocus onClick={() => closeControls()}>Done</button></div>
+        <div class="pactions"><button class="primary" data-cue="ui_back" autofocus onClick={() => closeControls()}>Done</button></div>
       </div>
     </div>
   );

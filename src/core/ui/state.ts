@@ -43,6 +43,8 @@ export function setUiScale(v: number) {
 effect(() => { if (typeof document !== 'undefined') document.documentElement?.classList.toggle('paused', speed.value === 0); });
 
 export const statsOpen = signal(false);
+/** Whether the power bill card is open. Shared so the phone menu can open it (PowerBill.tsx draws it). */
+export const billOpen = signal(false);
 export const netOpen = signal(false);
 /** The OS window (a modal like the almanac and the log): the resource monitor, the spool settings and (work in progress) apps. Opened from the bottom bar, the HUD chip and the menu. */
 export const osOpen = signal(false);
@@ -207,6 +209,12 @@ const holds = new Set<Hold>();
 let resumeOnRelease = false;
 /** True while any hold stops the clock: the HUD rail shows "Held" and no resume hint. */
 export const holdActive = signal(false);
+/** The hold that counts for sound: the level-up popup outranks the tutorial popup, which outranks the menu family. */
+export const holdTop = signal<Hold | null>(null);
+const syncHold = (): void => {
+  holdActive.value = holds.size > 0;
+  holdTop.value = holds.has('levelUp') ? 'levelUp' : holds.has('tutorial') ? 'tutorial' : holds.has('menu') ? 'menu' : null;
+};
 
 export function setHold(h: Hold, on: boolean): void {
   if (on) {
@@ -220,14 +228,14 @@ export function setHold(h: Hold, on: boolean): void {
       resumeOnRelease = false;
     }
   }
-  holdActive.value = holds.size > 0;
+  syncHold();
 }
 
 /** Leaving a game: drop every hold without resuming (SPEC §9.5). */
 export function clearHolds(): void {
   holds.clear();
   resumeOnRelease = false;
-  holdActive.value = false;
+  syncHold();
 }
 
 /**
@@ -239,9 +247,9 @@ export function runAt(s: Speed): void {
     gameMenuOpen.value = false;
     if (controlsFromMenu.peek()) controlsOpen.value = false;
     holds.delete('menu');
-    if (holds.size > 0) { lastRunSpeed.value = s; holdActive.value = true; return; }
+    if (holds.size > 0) { lastRunSpeed.value = s; syncHold(); return; }
     resumeOnRelease = false;
-    holdActive.value = false;
+    syncHold();
     setSpeed(s);
   });
 }

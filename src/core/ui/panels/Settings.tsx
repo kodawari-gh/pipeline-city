@@ -8,6 +8,10 @@ import {
   autoStep, BRIGHT_MAX, BRIGHT_MIN, CHOICES, effective, frameStats, graphics, presetOf, PRESET_NAMES, resetGraphics, retryPicture, SCALE_MAX, SCALE_MIN,
   setAutoTier, setGraphic, setPreset, setTier, TIER_NAMES, tierRecord, type Choice, type Graphics, type Preset, type Tier,
 } from '@/app/graphics';
+import { audioMix, setMuted, setSlider, SLIDER_IDS, SLIDER_LABEL } from '@/app/audio/mix';
+import { MIX } from '@/app/audio/mixTokens';
+import { playCue } from '@/app/audio/engine';
+import { sliderStep } from '@/app/audio/uiCues';
 import { closeSettings, setUiScale, settingsOpen, uiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '../state';
 import { cycleValue } from '../menuNav';
 import { DisplayTitle } from '../kit/Pipeline';
@@ -79,7 +83,22 @@ function rowsOf(tab: SettingsTabId, g: Graphics): Row[] {
   }
   if (tab === 'light') return LIGHT.map((r) => pickChoice(r.key, r.label, r.help, g));
   if (tab === 'detail') return DETAIL.map((r) => pickChoice(r.key, r.label, r.help, g));
-  return [slide('ui', 'UI size', 'The whole interface, smaller or larger.', UI_SCALE_MIN, UI_SCALE_MAX, uiScale.value, setUiScale)];
+  const mix = audioMix.value;
+  const soundStep = MIX.sliders.stepPercent / 100;
+  return [
+    slide('ui', 'UI size', 'The whole interface, smaller or larger.', UI_SCALE_MIN, UI_SCALE_MAX, uiScale.value, setUiScale),
+    { kind: 'pick', key: 'mute', label: 'Mute', help: 'Silences the whole game. Sound settings stay on this device.', options: [['off', 'Off'], ['on', 'On']], value: mix.muted ? 'on' : 'off', set: (id) => setMuted(id === 'on') },
+    ...SLIDER_IDS.map((id): SlideRow => (
+      { kind: 'slide', key: `vol-${id}`, label: SLIDER_LABEL[id], help: `The ${SLIDER_LABEL[id].toLowerCase()} volume.`, min: 0, max: 1, step: soundStep, value: mix[id] / 100, set: (v) => setSlider(id, Math.round(v * 100)) }
+    )),
+  ];
+}
+
+/** Sets a slider and ticks when it crosses a 5 % step, as a range input does (`uiCues.ts`). */
+function slideTo(r: SlideRow, v: number): void {
+  const moved = sliderStep(r.min, r.max, v) !== sliderStep(r.min, r.max, r.value);
+  r.set(v);
+  if (moved) playCue('ui_slider_tick');
 }
 
 /** The value a slider takes for a step, rounded to 0.01 and kept in its range. */
@@ -90,8 +109,9 @@ function change(r: Row, dir: 1 | -1): void {
   if (r.kind === 'pick') {
     const at = r.options.findIndex(([id]) => id === r.value);
     r.set(r.options[cycleValue(r.options.length, at, dir > 0 ? 'ArrowRight' : 'ArrowLeft')]![0]);
+    playCue('ui_value_change');
   } else if (r.kind === 'slide') {
-    r.set(stepped(r, dir));
+    slideTo(r, stepped(r, dir));
   }
 }
 
@@ -143,7 +163,7 @@ export function Settings() {
     const rect = track.getBoundingClientRect();
     const f = rect.width > 0 ? Math.min(1, Math.max(0, (x - rect.left) / rect.width)) : 0;
     const raw = r.min + f * (r.max - r.min);
-    r.set(Math.min(r.max, Math.max(r.min, Math.round(raw / r.step) * r.step)));
+    slideTo(r, Math.min(r.max, Math.max(r.min, Math.round(raw / r.step) * r.step)));
   };
 
   // Keys: the rail takes ← → Home End (↓ goes to the row); a row takes ↑ ↓ Home End (↑ on the first row goes to the rail) and ← → (its value).
@@ -189,7 +209,7 @@ export function Settings() {
           {name}
           <span class="st-vals" role="radiogroup" aria-label={r.label}>
             {r.options.map(([id, text]) => (
-              <button key={id} type="button" role="radio" tabIndex={-1} aria-checked={id === r.value} class="st-val"
+              <button key={id} type="button" role="radio" tabIndex={-1} aria-checked={id === r.value} class="st-val" data-cue="ui_value_change"
                 onClick={() => { setRow(i); r.set(id); }}>{text}</button>
             ))}
           </span>
@@ -214,7 +234,7 @@ export function Settings() {
       );
     }
     return (
-      <button key={r.key} type="button" class={`st-row st-act ${on ? 'on' : ''}`} data-row={i} tabIndex={tabIndex} onFocus={() => setRow(i)} onClick={r.run}>
+      <button key={r.key} type="button" class={`st-row st-act ${on ? 'on' : ''}`} data-cue="ui_click" data-row={i} tabIndex={tabIndex} onFocus={() => setRow(i)} onClick={r.run}>
         {name}
       </button>
     );
@@ -223,13 +243,13 @@ export function Settings() {
   const f = frameStats.value;
   return (
     <div class={`pl-menu settings ${peek ? 'peek' : ''}`} ref={root} onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Settings">
-      <button class="pl-back" type="button" onClick={closeSettings}>← Back<span class="pl-esc">Esc</span></button>
+      <button class="pl-back" type="button" data-cue="ui_back" onClick={closeSettings}>← Back<span class="pl-esc">Esc</span></button>
       <div class="pl-stack st-stack">
         <DisplayTitle lines={['Settings']} lit={4} meta="WB · settings · kept on this device, not in the save" />
         <div class="st-rail" role="tablist" aria-label="Settings groups">
           {SETTINGS_TABS.map((t, i) => (
             <button key={t.id} type="button" role="tab" id={`st-tab-${t.id}`} aria-selected={i === tab} aria-controls="st-list"
-              tabIndex={i === tab ? 0 : -1} class="st-tab" onClick={() => selectTab(i)}>
+              tabIndex={i === tab ? 0 : -1} class="st-tab" data-cue="ui_tab_switch" onClick={() => selectTab(i)}>
               <span class="pl-tag st-tag" data-tag={t.tag} aria-hidden="true" />
               <span class="st-label">{t.name}</span>
             </button>
@@ -242,12 +262,12 @@ export function Settings() {
           )}
         </div>
         <footer class="st-foot">
-          <button type="button" class="st-foot-btn st-peek"
+          <button type="button" class="st-foot-btn st-peek" data-cue="ui_click"
             onPointerDown={(e) => { if (e.button === 0) peekOn({ type: e.type, pointerType: e.pointerType }); }}
             onPointerLeave={(e) => peekOn({ type: e.type, pointerType: e.pointerType })}
             onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); peekOn({ type: e.type, key: e.key }); } }}
             onContextMenu={(e) => e.preventDefault()}>Hold to peek</button>
-          <button type="button" class="st-foot-btn" onClick={resetGraphics}>Reset to defaults</button>
+          <button type="button" class="st-foot-btn" data-cue="ui_click" onClick={resetGraphics}>Reset to defaults</button>
         </footer>
         <p class="pl-hints">← → category   ↑ ↓ option   Space peek   Esc back</p>
       </div>

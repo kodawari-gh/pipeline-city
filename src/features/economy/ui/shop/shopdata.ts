@@ -29,6 +29,12 @@ const RAIL_LABEL: Partial<Record<ShopKind, string>> = {
   'vrm-sink': 'VRM sink', 'ram-sink': 'RAM sink', os: 'Software', isp: 'Internet',
 };
 export const railLabel = (k: string): string => RAIL_LABEL[k as ShopKind] ?? kindLabel(k);
+/** A category's opcode tag (SPEC 4.2): the short caps the rail and the spine show before the name. */
+const RAIL_TAG: Partial<Record<ShopKind, string>> = {
+  case: 'CS', board: 'MB', cpu: 'CPU', cooler: 'CL', fan: 'FAN', radiator: 'RAD', ram: 'MEM', psu: 'PSU', display: 'MON', storage: 'SSD',
+  'vrm-sink': 'VRM', 'ram-sink': 'RSK', nic: 'NET', gpu: 'GPU', npu: 'AI', tpm: 'SEC', os: 'OS', router: 'RTR', isp: 'ISP',
+};
+export const railTag = (k: string): string => RAIL_TAG[k as ShopKind] ?? k.slice(0, 3).toUpperCase();
 /** The icon of a category, with a plain box for anything unknown. */
 export const kindIcon = (k: string): IconName => KIND_ICON[k as ShopKind] ?? 'box';
 

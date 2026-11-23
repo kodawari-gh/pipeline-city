@@ -84,7 +84,7 @@ Text sources (grep `this.note(` in the repo): `parts.ts` (install, cable, fault)
 | Saturated | `net.state` → `"saturated"` | `net_saturated` |
 | Link down | `net.state` from `"link-up"`/`"saturated"` → `"down"`, `"no-cable"`, `"no-os"`, `"no-device"` | `net_down` |
 | POST | `phase` → `"posting"` | `post_boot` |
-| Booted | `phase` → `"idle-os"`, or `"loading"` → `"running"` | `boot_ready` |
+| Booted | `phase` → `"idle-os"` or `"running"`, once after POST (not on later jobs) | `boot_ready` |
 | Error | `phase` → `"error"` with no `fault` note in the same snapshot | `fault_hard` |
 | PSU trip | `power.tripped` false → true with no `fault` note in the same snapshot | `fault_hard` |
 | Key out | `plugged` non-null → null (or `keyActivity` `"done"` → `"none"`) with no `key` note | `key_eject` |
@@ -306,13 +306,3 @@ See §1.3 and `mix-tokens.json` (`pause`, `hiddenTab`, `sliders`, `unlock`). Pau
 - Music stems carry 4 800 samples (100 ms) of wrap-around padding each side; loop on `[4800, 4800 + loopSamples)` after `stitchLoop()` (IMPLEMENTATION §7.3).
 - One-shots end with 10 ms of silence (some decoders trim up to 128 samples at the end; ffmpeg's decoder differs from the file's granule length by −128 to +1013 samples, libsndfile matches exactly; see KNOWN-ISSUES §3).
 - Repo paths: `public/audio/{sfx,ui,ambience,music}/<file>.ogg`, loaded with `` `${import.meta.env.BASE_URL}audio/...` `` (the repo's pattern for `stills/`, `models/`, `bake/`; `vite.config.ts` has `base: './'`). Full list: `assets/manifest.json` (`repoPath`; 353 files incl. music). `python3 sources/check_refs.py` proves every file named here exists and every asset is named here (ACCEPTANCE §1.4).
-
-## 10. Settings placement (menu package)
-Terms follow `docs/pipeline-city-menu-ui/SPEC.md`: Settings (§5.6), value branch (§4.5), stage tabs (§4.6), input (§10). This section is a document only. No audio code is part of #29.
-- Place: Settings, tab **Interface** (WB). Reach it from the main menu or from Paused. The tab rail takes ← → (§10).
-- Rows, top to bottom, under "UI size": "Master", "Music", "Sounds", "Ambience" as sliders (0–100 %, 5 % steps, default 100 %, §1 decision 3). Then "Mute" as a branch row, "Off" ━ "On".
-- Slider: the menu's slider kit (§5.6). Value text Mono after the trace, for example "100 %".
-- Keyboard: ↑ ↓ move between rows. ← → change the value of the focused slider (5 % steps) or branch.
-- Focus state: the focused row label is ink. On a slider, the trace from the start to the value and the thumb turn cyan. On the Mute branch, the lit trace runs to the selected value.
-- Selected state: on the Mute branch, the selected value is ink 600. Sliders have no selected state; their value text is ink.
-- Settings values stay on this device. They are not in the save (§1 decision 3, menu §5.6).

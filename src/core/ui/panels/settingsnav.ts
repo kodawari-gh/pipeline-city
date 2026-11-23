@@ -22,7 +22,7 @@ export const SETTINGS_ROWS: Record<SettingsTabId, readonly string[]> = {
   display: ['Render scale', 'Frame limit', 'Brightness', 'Auto-adjust'],
   light: ['Shadows', 'Room lamps', 'Lamp shadows', 'Ambient occlusion', 'Bloom'],
   detail: ['Anti-aliasing', 'Textures', 'Filtering', 'Live chips', 'Particles'],
-  interface: ['UI size'],
+  interface: ['UI size', 'Mute', 'Master', 'Music', 'Sounds', 'Ambience'],
 };
 
 /**

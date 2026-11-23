@@ -113,8 +113,8 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const shellCost = shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0);
 
   return (
-    <aside class={`bld-inst mode-panel ${open ? 'open' : 'closed'}`}>
-      <button class="bld-mtog" aria-expanded={open} title={open ? 'Shut the machine tab' : 'Open the machine tab'} onClick={onToggle}>
+    <aside class={`bld-inst mode-panel ${open ? 'open' : 'closed'}`} data-cue="ui_panel_open">
+      <button class="bld-mtog" data-cue="ui_click" aria-expanded={open} title={open ? 'Shut the machine tab' : 'Open the machine tab'} onClick={onToggle}>
         <span class="bld-mtog-eye">{sheet ? `${plural(sheet.parts, 'part')} · ${money(sheet.budget)}` : 'Machine'}</span><b>In the machine</b><i aria-hidden="true" />
       </button>
       <header class="mode-head bld-head">

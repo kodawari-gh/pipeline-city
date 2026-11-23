@@ -44,9 +44,12 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] With the flyout open, the machine box (case, monitor, plates, base) lies inside x 375 to 1446, y 140 to 898. No tab overlaps it.
 - [ ] **Coverage ≥ 75 %** unobstructed with the flyout open (method in §5); about 83 % with it closed.
 - [ ] Flyout does not re-frame the camera during a drag.
+- [ ] At 1366 × 768 every rail category, RTR Router included, can be reached and picked (SPEC §6.4 step 5a).
+- [ ] 844 × 390: opening the parts row keeps the rail and the bar visible and leaves the machine at least 40 % of the width (SPEC §6.5).
 - [ ] Run speeds 1x 4x 16x 64x; step speeds 0.5x to 4x behind "Steps"; views behind "View".
 ### 08 Gallery
 - [ ] Stage flat `#111113` (sample 5 points outside the part: all within ±2 of 17,17,19). No navy.
+- [ ] Phone and landscape: Back, Spin, Reset, Settings and the stepper are fully on screen at 360 × 800, 390 × 844 and 844 × 390 (SPEC §6.5).
 - [ ] Count reads "75 parts" (live count, 17 groups; SPEC §5.8). The mocks' "64 parts" is an older count and does not fail the check.
 - [ ] Drag pans, right-drag turns (pad.ts, shared with game and Build). Hints match.
 - [ ] Part inside the K1 box with ≥ 40 px air. **Coverage ≥ 85 %** desktop.
@@ -58,6 +61,7 @@ Check every item with screenshots of the real game (`npm run shot -- out.png --s
 - [ ] Paused before opening → still paused after closing.
 - [ ] **Pause** (player stop) and **Hold** (a popup or menu holder): a Hold ends when its popup closes. If the clock was running before Hold, it resumes at the same speed. Pause is kept until the player resumes it.
 - [ ] Settings and Controls from Paused keep the clock stopped and return to Paused.
+- [ ] No toast covers a Paused row at 360 × 800, 390 × 844 or 844 × 390; game toasts wait until the menu closes (SPEC §4.10, §9).
 - [ ] All text ends before x 560 desktop. Coverage ≥ 60 % desktop.
 ### 11 First frame
 - [ ] Staged HUD on step 1 only. Desktop instruction tab 0, 720, 700 × 360 with a 20 px chamfer top-right. Lit trace from "Next" into "Inventory 1". Coverage ≥ 84 % desktop.

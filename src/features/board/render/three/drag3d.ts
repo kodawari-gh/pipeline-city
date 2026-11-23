@@ -4,6 +4,7 @@
 // targets are outlined by board3d.ts.
 import { dragging, overInventory } from '@/app/interaction';
 import { hover } from '@/app/hover';
+import { playCue } from '@/app/audio/engine';
 import { connectCable, disconnectCable, ejectKey, install, plugKey, snapshot, uninstall, uninstallOs } from '@/app/store';
 import type { Snapshot } from '@/worker/protocol';
 import type { PlugHand } from './plughand3d';
@@ -60,6 +61,7 @@ export class Drag3D {
     if (!s || !it) return;
     this.cur = { invId, name: it.name, free: new Set(it.freeSlots), swap: new Set(it.swapSlots), why: it.installable ? null : (it.reason ?? 'Nowhere to put this right now'), over: null };
     dragging.value = { kind: 'part', id: invId };
+    playCue('ui_pickup');
     this.run(e.pointerId, e.clientX, e.clientY, e.target);
   }
 
@@ -70,6 +72,7 @@ export class Drag3D {
     if (s.powered) { this.toast('Power the machine off first: parts only come out while it is off.', e.clientX, e.clientY); return false; }
     this.cur = { dev, name: dev.name ?? dev.spec, osDrive: s.os?.deviceId === dev.id, over: null };
     dragging.value = { kind: 'part', id: dev.id, fromBoard: true };
+    playCue('ui_pickup');
     overInventory.value = false;
     this.run(e.pointerId, e.clientX, e.clientY, null);
     return true;

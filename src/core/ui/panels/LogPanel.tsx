@@ -250,11 +250,11 @@ export function LogPanel() {
   const sel = all.find((e) => e.id === picked.value) ?? null;
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeLog(); }}>
-      <div class={`card almanac joblog${all.length === 0 ? ' jl-none' : ''}`} role="dialog" aria-modal="true" aria-label="Job log">
+      <div class={`card almanac joblog${all.length === 0 ? ' jl-none' : ''}`} data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Job log">
         <header class="alm-head">
           <span class="alm-title"><Icon name="clock" size={16} /> Job log</span>
           <span class="alm-sub">{all.length} finished</span>
-          <button class="close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
+          <button class="close" data-cue="ui_panel_close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
         </header>
         {snap?.contracts && <ContractsSection contracts={snap.contracts} finished={finishedContracts} />}
         {snap && live.length > 0 && <Now list={live} s={snap} />}

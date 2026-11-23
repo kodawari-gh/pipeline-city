@@ -2,15 +2,13 @@ import { Fragment, h } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { batch } from '@preact/signals';
 import { autosaveAt, exportSave, lastRunSpeed, saveNow, saving, snapshot, toggleZoomSlow, zoomSlowOn } from '@/app/store';
-import { billOpen } from '@/features/economy/ui/progress/PowerBill';
-import { hudNetChip } from '@/features/network/ui/netui';
-import { toggleTrace, traceOpen } from '@/features/cpu/ui/TracePanel';
-import { currentStep } from '@/features/tutorial/ui/tutorial';
+import { traceOpen } from '@/app/scrub';
+import type { Snapshot } from '@/worker/game/game';
 import { billChip, fmtTicks, statusChip } from '../logic';
 import { cycleValue, mouseMayMoveFocus, moveFocus } from '../menuNav';
 import { DisplayTitle, PHONE_QUERY, STAGES, TestPoint, TraceLayer } from '../kit/Pipeline';
 import {
-  gameMenuOpen, menuReturnFocus, openControlsFromMenu, openMilestones, openSettings, replayTutorial, resetHints, skipTutorial,
+  billOpen, gameMenuOpen, menuReturnFocus, openControlsFromMenu, openMilestones, openSettings, replayTutorial, resetHints, skipTutorial,
   statsOpen, toggleNet, toggleOs, toggleStats, tutorial,
 } from '../state';
 import { leaveGame } from '../leave';
@@ -31,6 +29,11 @@ export const PAUSED_ANNOUNCE = 'Paused. Clock stopped.';
 type Branch = 'files' | 'tools' | 'help';
 const BRANCHES: Branch[] = ['files', 'tools', 'help'];
 const BRANCH_LABEL: Record<Branch, string> = { files: 'Files', tools: 'Tools', help: 'Help' };
+
+// The sound of each entry (`data-cue`, src/app/audio/uiCues.ts). Resume closes the screen like Back; the rest click. Screens that open play a transition after the click.
+const ROW_CUE: Record<string, string> = { Resume: 'ui_back', 'Save now': 'ui_confirm', 'Main menu': 'ui_confirm' };
+const ROW_NEXT: Record<string, string> = { Settings: 'ui_transition_in', Controls: 'ui_transition_in', 'Main menu': 'ui_transition_out' };
+const SUB_NEXT: Record<string, string> = { 'New game': 'ui_transition_in', Levels: 'ui_transition_in', OS: 'ui_transition_in' };
 /** The focus group of the utility line (the stage after the five rows). */
 const UTIL = 5;
 
@@ -64,8 +67,17 @@ function savedAgo(at: number): string {
 type Item = { label: string; text: string; title?: string; danger?: boolean; info?: boolean; run: () => void };
 type Row = { label: string; meta?: string; hero?: boolean; title?: string; run: () => void };
 
+/** What the HUD tells the screen about two features, so core code imports none: the network chip and whether a tutorial step is on. */
+export interface PausedFeatures {
+  netChip: (s: Snapshot) => { text: string; title: string } | null;
+  tutorialOn: (s: Snapshot) => boolean;
+}
+const NO_FEATURES: PausedFeatures = { netChip: () => null, tutorialOn: () => false };
+
+const toggleTrace = () => { traceOpen.value = !traceOpen.value; };
+
 /** The Paused screen. Shows only while the menu is open (`gameMenuOpen`); its live region is always mounted, so the status is announced. */
-export function Paused() {
+export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures } = {}) {
   const s = snapshot.value;
   const open = gameMenuOpen.value;
   const root = useRef<HTMLDivElement>(null);
@@ -81,9 +93,10 @@ export function Paused() {
   // The layout (SPEC §6.1) and the HUD's own phone breakpoint (ui.css, Hud.tsx): the bar hides its segments at the second one.
   const phone = window.matchMedia?.(PHONE_QUERY).matches ?? false;
   const hudPhone = window.matchMedia?.('(max-width: 48em)').matches ?? false;
-  const tutorialOn = s !== null && currentStep(s, tutorial.value) !== null;
+  void tutorial.value; // (the tutorial state is read here, so the screen draws again when a step changes)
+  const tutorialOn = s !== null && features.tutorialOn(s);
   const bill = s ? billChip(s) : null;
-  const net = s ? hudNetChip(s) : null;
+  const net = s ? features.netChip(s) : null;
 
   const close = () => { setBranch(null); gameMenuOpen.value = false; };
   const trigger = () => document.querySelector<HTMLElement>('.menu > button[aria-label="Menu"]');
@@ -210,6 +223,7 @@ export function Paused() {
 
   const rowEl = (r: Row, g: number) => h('button', {
     key: r.label, class: `mm-btn pl-row ${r.hero ? 'hero' : ''} ${at === g ? 'pl-chip' : ''}`, role: 'menuitem', 'data-group': g, title: r.title,
+    'data-cue': ROW_CUE[r.label] ?? 'ui_click', 'data-cue-next': ROW_NEXT[r.label],
     onPointerEnter: () => hold(g), onFocus: () => hold(g), onClick: r.run,
   },
   h('span', { class: 'pl-tag', 'data-tag': STAGES[g], 'aria-hidden': 'true' }),
@@ -222,17 +236,17 @@ export function Paused() {
     const isOpen = branch === b;
     return h('span', { key: b, class: 'pl-util-item', role: 'none' },
       h('button', {
-        class: 'mm-btn pl-util', role: 'menuitem', 'aria-haspopup': 'menu', 'aria-expanded': isOpen, 'aria-controls': `pl-${b}`, 'data-group': UTIL,
+        class: 'mm-btn pl-util', role: 'menuitem', 'data-cue': 'ui_click', 'aria-haspopup': 'menu', 'aria-expanded': isOpen, 'aria-controls': `pl-${b}`, 'data-group': UTIL,
         onFocus: () => hold(UTIL), onPointerEnter: () => hold(UTIL), onClick: () => setBranch(isOpen ? null : b),
       }, label),
       isOpen && h('div', { class: 'pl-sub', id: `pl-${b}`, role: 'group', 'aria-label': label },
         itemsOf(b).map((it) => (it.info
           ? h('div', { key: it.label, class: 'menu-info', role: 'none', title: it.title }, it.text)
-          : h('button', { key: it.label, class: `mm-btn pl-sub-item ${it.danger ? 'danger' : ''}`, role: 'menuitem', title: it.title, onClick: it.run }, it.text)))));
+          : h('button', { key: it.label, class: `mm-btn pl-sub-item ${it.danger ? 'danger' : ''}`, role: 'menuitem', title: it.title, 'data-cue': 'ui_click', 'data-cue-next': SUB_NEXT[it.label], onClick: it.run }, it.text)))));
   };
 
-  const layer = (state: NonNullable<typeof s>) => h('div', { class: 'pl-menu paused', ref: root, onKeyDown: onKey },
-    h('input', { ref: fileInput, type: 'file', accept: 'application/json,.json', hidden: true, onChange: onFile }),
+  const layer = (state: NonNullable<typeof s>) => h('div', { class: 'pl-menu paused', 'data-cue': 'ui_panel_open', ref: root, onKeyDown: onKey },
+    h('input', { ref: fileInput, type: 'file', accept: 'application/json,.json', hidden: true, 'data-cue': 'silent', onChange: onFile }),
     h('div', { class: 'pl-stack' },
       h(DisplayTitle, {
         lines: ['Paused'],

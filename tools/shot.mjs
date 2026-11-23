@@ -62,6 +62,8 @@ try {
   if (/swiftshader|llvmpipe|software/i.test(renderer) && !process.env.SOFTWARE) { console.log('The browser fell back to software GL: stopping (SOFTWARE=1 to allow it).'); process.exitCode = 2; throw new Error('software GL'); }
   // --build: open "Build my PC" from the main menu instead of a game (then --click / --eval work on that screen)
   if (args.includes('--build')) { await p.click('text=Build my PC'); await p.waitForSelector('.bld-foot', { timeout: 20000 }); await p.waitForTimeout(4000); }
+  // --menu: stop on the main menu (no game), so --click "Settings" opens the Settings modal
+  else if (args.includes('--menu')) { await p.waitForTimeout(1000); }
   else {
     // (the main menu has no Sandbox row: New game opens the dialog, whose Sandbox choice starts a sandbox game)
     await p.click('.pl-row:has-text("New game")');

@@ -64,7 +64,7 @@ export function LoadConfirm() {
           <p><b>FILE</b>{saveFacts(save)}</p>
         </div>
         <nav class="pl-spine" aria-label="Load this game">
-          <button class={`pl-row ${at === CANCEL ? 'pl-chip' : ''}`} data-group={CANCEL} data-tag="NOP" onClick={cancel}
+          <button class={`pl-row ${at === CANCEL ? 'pl-chip' : ''}`} data-group={CANCEL} data-tag="NOP" data-cue="ui_back" onClick={cancel}
             onFocus={() => setAt(CANCEL)} onPointerEnter={() => hover(CANCEL)}>
             <span class="pl-tag" data-tag="NOP" aria-hidden="true" />
             <span class="pl-text">
@@ -72,7 +72,7 @@ export function LoadConfirm() {
               <span class="pl-meta-row">keep your save</span>
             </span>
           </button>
-          <button class={`pl-row hero bad ${at === REPLACE ? 'pl-chip' : ''}`} data-group={REPLACE} data-tag="WB" onClick={replace}
+          <button class={`pl-row hero bad ${at === REPLACE ? 'pl-chip' : ''}`} data-group={REPLACE} data-tag="WB" data-cue="ui_confirm" onClick={replace}
             onFocus={() => setAt(REPLACE)} onPointerEnter={() => hover(REPLACE)}>
             <span class="pl-tag" data-tag="WB" aria-hidden="true" />
             <span class="pl-text">

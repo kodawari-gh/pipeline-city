@@ -26,11 +26,13 @@ vi.mock('@/core/render/three/post', () => ({
   },
 }));
 vi.mock('./lens3d', () => ({ Lens3D: class { frame() {} } }));
+vi.mock('@/app/audio/engine', async (orig) => ({ ...(await orig<typeof import('@/app/audio/engine')>()), playCue: vi.fn() }));
 
 import { BuildStage } from './buildmode3d';
 import { isPanelId } from './casetray3d';
 import { setLayoutTier } from '../layout/layout';
 import { Game } from '@/worker/game/game';
+import { playCue } from '@/app/audio/engine';
 
 const LEADS = ['panel:ARGB', 'panel:USB_3', 'panel:F_PANEL', 'panel:USB_2'];
 
@@ -44,7 +46,9 @@ interface Inside {
 }
 const hid = (s: BuildStage): Inside => s as unknown as Inside;
 
-interface Fake { calls: string[]; synced: number[]; held: string[][] }
+/** The hand's host callbacks as the stage built them (the real hand's, kept before the test puts its stub in place). */
+interface PlugHost { connect(id: string, port?: string): void; disconnect(id: string): void }
+interface Fake { calls: string[]; synced: number[]; held: string[][]; host?: PlugHost }
 
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed (it has the four leads), the hand only writes down what it was asked. */
 function stage(): { s: BuildStage; fake: Fake } {
@@ -65,6 +69,7 @@ function stage(): { s: BuildStage; fake: Fake } {
   s.door = () => Promise.resolve();
   // the hand: a front-panel lead it pulls or runs goes out of or into its header as the real hand's host would say (`plugPanelLead`); no other cable has a rig
   const t = s as unknown as Inside;
+  fake.host = (t.hand as { host: PlugHost }).host;
   s.hand = {
     root: new Group(), kind: null, cancel() {},
     pullOut: (id: string) => { if (!isPanelId(id)) return Promise.resolve(false); fake.calls.push(`pull ${id}`); t.plugPanelLead(id, false); return Promise.resolve(true); },
@@ -130,6 +135,18 @@ describe('the front-panel leads', () => {
     await s.fit('board3');
     // (the machine of the new board was told to hold every lead back: they show only as the hand runs them)
     expect(fake.held.flat()).toEqual(expect.arrayContaining(LEADS));
+  });
+
+  it('play the cable connect cue when the hand pushes a front-panel lead in, and the disconnect cue when it pulls one out', () => {
+    const { s, fake } = stage(), t = hid(s);
+    vi.mocked(playCue).mockClear();
+    // (the hand's own callbacks, as a plug in or out calls them: a lead out of its header, then back into it)
+    fake.host!.disconnect('panel:USB_3');
+    expect(t.panelOut.has('panel:USB_3')).toBe(true);
+    expect(vi.mocked(playCue).mock.calls).toEqual([['cable_disconnect']]);
+    fake.host!.connect('panel:USB_3', 'USB');
+    expect(t.panelOut.has('panel:USB_3')).toBe(false);
+    expect(vi.mocked(playCue).mock.calls).toEqual([['cable_disconnect'], ['cable_connect']]);
   });
 
   it('are in their headers again after a job whatever the hand did (a refused or a cancelled run shows nothing out)', async () => {

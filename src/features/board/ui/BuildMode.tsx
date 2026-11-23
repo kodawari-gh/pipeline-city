@@ -62,7 +62,13 @@ export function BuildMode() {
   const open = buildOpen.value;
   const phone = usePhone();
   const [pane, setPane] = useState<BuildPane>('parts');
-  const [machineOpen, setMachineOpen] = useState(true);
+  // the phone's parts row: shut until Parts is tapped (a second tap shuts it, another pane shuts it too)
+  const [shelfOpen, setShelfOpen] = useState(false);
+  const choosePane = (p: BuildPane) => {
+    if (p === 'parts' && pane === 'parts') setShelfOpen((o) => !o);
+    else { setPane(p); setShelfOpen(p === 'parts'); }
+  };
+  const [machineOpen, setMachineOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const shelf = useRef<HTMLElement>(null);
@@ -194,7 +200,7 @@ export function BuildMode() {
     };
     measure();
     const mo = new MutationObserver(measure);
-    mo.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-machine', 'data-pane'] });
+    mo.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-machine', 'data-pane', 'data-shelf'] });
     el.addEventListener('transitionend', measure);
     window.addEventListener('resize', measure);
     return () => { mo.disconnect(); el.removeEventListener('transitionend', measure); window.removeEventListener('resize', measure); };
@@ -215,7 +221,7 @@ export function BuildMode() {
     : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, shown, shell: drag ? shellOf(drag.item) : undefined, on: stage.state.value.on, holding: !!stage.cableTip.value });
 
   return (
-    <div class="build mode bld-tabs" data-layout={phone ? 'phone' : 'desk'} data-pane={pane} data-machine={machineOpen ? 'open' : 'shut'} role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
+    <div class="build mode bld-tabs" data-cue="ui_panel_open" data-layout={phone ? 'phone' : 'desk'} data-pane={pane} data-shelf={shelfOpen ? 'open' : 'shut'} data-machine={machineOpen ? 'open' : 'shut'} role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
       {!stage && !failed && <div class="bld-note mute" role="status"><span class="bld-wait"><i class="starting-ring" aria-hidden="true" />Loading the workshop…</span></div>}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
@@ -223,13 +229,13 @@ export function BuildMode() {
         shelf={shelf} kinds={KINDS} parts={parts} kind={kind} setKind={setKind} busy={busy}
         press={(t, e) => begin({ from: 'shelf', ...t }, e, () => { void stageRef.current?.fit(t.item); })}
         fit={(item) => { void stageRef.current?.fit(item); }}
-        taking={drag?.from === 'machine'} over={drag?.over === 'bin'}
+        taking={drag?.from === 'machine'} over={drag?.over === 'bin'} lift={!!drag}
       />
-      <button class="bld-back" title="Back to the game (Esc)" onClick={() => { buildOpen.value = false; }}><Icon name="prev" size={12} />Back<em>Esc</em></button>
+      <button class="bld-back" data-cue="ui_panel_close" title="Back to the game (Esc)" onClick={() => { buildOpen.value = false; }}><Icon name="prev" size={12} />Back<em>Esc</em></button>
       {stage && <Readout stage={stage} rev={rev} />}
       <ViewOptions ready={!!stage} stage={stage} onBench={() => setBench(true)} />
       <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} open={machineOpen} onToggle={() => setMachineOpen((o) => !o)} />
-      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} pane={pane} onPane={setPane} />
+      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} pane={pane} onPane={choosePane} />
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
       {stage && osSheet && <BuildOs stage={stage} onClose={() => setOsSheet(false)} onBench={() => { setOsSheet(false); setBench(true); }} />}
       {stage && picked && !drag && !bench && !osSheet && <BuildCard stage={stage} id={picked} avoid={avoid} sheet={phone ? () => root.current?.querySelector<HTMLElement>('.bld-foot') ?? null : undefined} />}

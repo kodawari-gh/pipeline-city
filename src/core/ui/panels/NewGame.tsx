@@ -105,7 +105,7 @@ export function NewGameScreen() {
         <span class="pl-vals" role="radiogroup" aria-label={label ?? (g === 0 ? 'Game type' : 'Options')}>
           {label && <span class="pl-label">{label}</span>}
           {optionsOf(g).map((o, i) => (
-            <button key={o} role="radio" aria-checked={selected(g) === i} data-group={g} data-i={i} class="pl-val"
+            <button key={o} role="radio" aria-checked={selected(g) === i} data-group={g} data-i={i} class="pl-val" data-cue="ui_value_change"
               onClick={() => { pick(g, i); setAt(g); }} onFocus={() => setAt(g)}>{o}</button>
           ))}
         </span>
@@ -116,14 +116,14 @@ export function NewGameScreen() {
 
   return (
     <div class={`pl-menu newgame ${running ? 'ingame' : ''}`} ref={root} onKeyDown={onKey}>
-      <button class="pl-back" onClick={close}>← Back<span class="pl-esc">Esc</span></button>
+      <button class="pl-back" data-cue="ui_back" onClick={close}>← Back<span class="pl-esc">Esc</span></button>
       <div class="pl-stack">
         <DisplayTitle lines={['New game']} lit={1} meta={meta} />
         <nav class="pl-spine" aria-label="New game">
           {branch(0, 'IF', null, ifMeta)}
           {branch(1, 'ID', mode === 'campaign' ? 'Tutorial' : 'Start with', null)}
           <div class="pl-wb">
-            <button class={`pl-row hero ${destructive ? 'bad' : ''} ${at === WB ? 'pl-chip' : ''}`} data-group={WB} data-tag="WB" onClick={start}
+            <button class={`pl-row hero ${destructive ? 'bad' : ''} ${at === WB ? 'pl-chip' : ''}`} data-group={WB} data-tag="WB" data-cue="ui_confirm" onClick={start}
               onFocus={() => setAt(WB)} onPointerEnter={() => hover(WB)}>
               <span class="pl-tag" data-tag="WB" aria-hidden="true" />
               <span class="pl-text">

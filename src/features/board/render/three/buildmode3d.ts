@@ -66,6 +66,9 @@ import { OS_SPECS } from '@/features/os/sim';
 import { buildAlerts, newAlerts, standing, type Alert } from '@/features/board/sim/buildalerts';
 import type { Stop } from '@/features/sandbox/sim/pcbench';
 import type { TaskResult } from '@/features/sandbox/sim/benchtasks';
+import { playCue } from '@/app/audio/engine';
+import type { CueId } from '@/app/audio/mixTokens';
+import { studioMachine } from '@/app/audio/studio';
 
 /** A part in the bin: what a player can fit (an OS, a router or an internet plan too: they are fitted to the room, not to a socket, `fitNet`). */
 export interface BinPart { id: string; name: string; kind: DeviceKind | 'board' | 'case' | NetKind; tier: number }
@@ -91,6 +94,13 @@ type Along = { spec: string; slot: string };
 /** The OS, the router or the internet plan changed from one item to another (ids; null for none): Undo sets the one it was. */
 type NetStep = { t: 'net'; kind: NetKind; from: string | null; to: string | null };
 type Step = PartStep | NetStep | { t: 'swap'; game: Game; shown: Shown };
+/** The cue of a step the player made (ticket #66): a part or an OS, router or plan in is an install; out, an uninstall. A new machine has none. */
+function stepCue(s: Step): CueId | null {
+  if (s.t === 'fit') return 'install';
+  if (s.t === 'remove') return 'uninstall';
+  if (s.t === 'net') return s.to ? 'install' : 'uninstall';
+  return null;
+}
 /** How many whole machines the history keeps (each holds a game): the oldest and the steps before it go first. */
 const KEEP_SWAPS = 8;
 /** How long a refusal stays on the hint line, counted from the end of the job that raised it. */
@@ -372,8 +382,8 @@ export class BuildStage {
     // them to the hand as cables)
     this.hand = new PlugHand({
       machine: () => this._machine, snapshot: () => this.handSnapshot(), toast: (t) => this.refuse(t),
-      connect: (id, port) => { if (isPanelId(id)) this.plugPanelLead(id, true); else this.cableChanged(this.edit((g) => g.connectCable(id, port)), 'plug it in'); },
-      disconnect: (id) => { if (isPanelId(id)) this.plugPanelLead(id, false); else this.cableChanged(this.edit((g) => g.disconnectCable(id)), 'pull it out'); },
+      connect: (id, port) => { if (isPanelId(id)) this.plugPanelLead(id, true); else this.cableChanged(this.edit((g) => g.connectCable(id, port)), 'plug it in', 'cable_connect'); },
+      disconnect: (id) => { if (isPanelId(id)) this.plugPanelLead(id, false); else this.cableChanged(this.edit((g) => g.disconnectCable(id)), 'pull it out', 'cable_disconnect'); },
     }, renderer.domElement);
     scene.add(this.hand.root);
     // the graphics settings, now and on every change while the stage is open (the frame limit is in `frame`)
@@ -452,6 +462,8 @@ export class BuildStage {
     if (!this._game) return;
     const s = this.snapshot, next = runState(s.powered, s.phase, s.phaseReason);
     if (!sameRun(this.state.peek(), next)) this.state.value = next;
+    // (the hum follows this machine: its power and fans, each tick)
+    studioMachine.value = { powered: s.powered === true, devices: s.devices ?? [] };
   }
 
   /**
@@ -465,6 +477,7 @@ export class BuildStage {
     this.syncRun();
     if (!r.ok) { this.refuse(r.reason.startsWith('no power: ') ? `Cannot power on: ${r.reason.slice(10)}` : r.reason); return; }
     this.clearRefusal();
+    playCue(r.powered ? 'power_on' : 'power_off');
     this.note(r.powered ? 'Powered on' : 'Powered off');
     this.bump();
   }
@@ -1075,6 +1088,8 @@ export class BuildStage {
   get canRedo(): boolean { return this.future.length > 0; }
   private record(s: Step): void {
     if (this.replay) return;
+    const cue = stepCue(s);
+    if (cue) playCue(cue);
     this.past.push(s);
     this.future = [];
     // (a swap keeps a whole game: past the limit the oldest goes, and with it the steps made on the machines before it)
@@ -1781,18 +1796,20 @@ export class BuildStage {
     return out;
   }
 
-  /** The hand pushed a front-panel lead into its header or pulled it out: the stage says so (the machine's built lead follows the hand: `PlugHand`). */
+  /** The hand pushed a front-panel lead into its header or pulled it out: the stage says so and plays the cable cue, as for the game's cables (the machine's built lead follows the hand: `PlugHand`). */
   private plugPanelLead(id: string, plugged: boolean): void {
     if (plugged) this.panelOut.delete(id); else this.panelOut.add(id);
     this.panelRev++;
+    playCue(plugged ? 'cable_connect' : 'cable_disconnect');
   }
 
   /**
    * The game's answer to a plug in or out. A refusal is said on the hint line. A cable moved by the player (no job runs) brings the machine in line with the game:
    * the wall's lights (the LAN lead), the chip, the alerts. A job does that at its end.
    */
-  private cableChanged(r: Result, what: string): void {
+  private cableChanged(r: Result, what: string, cue: CueId): void {
     if (!r.ok) { this.refuse(`Cannot ${what}: ${r.reason}`); return; }
+    playCue(cue);
     if (!this.status.peek().busy) this.rebuild();
   }
 
@@ -2076,6 +2093,7 @@ export class BuildStage {
       this.swapCount++;
     } else this.forget(); // (a new case or board is not a step to undo: the history ends here)
     if (this.dead) return;
+    playCue('install');
     // the case comes off when it is the new part, and when the new board is too big for it (the sandbox lets the case follow the board: `Game.install`)
     const newCase = isCase || !caseHolds(this.board, tier), glass = !this.steel;
     const steps = bare ? [] : removalPlan(buildGraph(this.board, this.cables), newCase ? CASE : BOARD);
@@ -2153,6 +2171,7 @@ export class BuildStage {
   async runBenchmark(ids?: readonly string[]): Promise<void> {
     if (this.dead || this.benching.peek() || this.status.peek().busy) return;
     const stop: Stop = this.benchStop = { aborted: false };
+    playCue('ui_confirm');
     this.benching.value = { id: null, n: 0, total: 0 };
     try {
       await this.loadBench();
@@ -2164,6 +2183,7 @@ export class BuildStage {
         onStart: (t, i, n) => { this.benching.value = { id: t.id, n: i + 1, total: n }; },
         onResult: (r) => { this.bench.value = { ...this.bench.peek(), [r.id]: r }; },
       });
+      if (!stop.aborted) playCue('job_fulfilled');
     } finally { this.benching.value = null; }
   }
 
@@ -2212,6 +2232,7 @@ export class BuildStage {
   dispose(): void {
     if (this.dead) return;
     this.dead = true;
+    studioMachine.value = null;
     this.onPicture(); // (an `open` that still waits for the first picture ends)
     this.benchStop.aborted = true; // (a run holds the game: it lets go at its next tick)
     clearTimeout(this.refusalTimer);

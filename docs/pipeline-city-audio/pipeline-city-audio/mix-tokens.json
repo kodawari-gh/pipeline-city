@@ -100,14 +100,16 @@
   "global": 24,
   "sfx": 12,
   "ui": 6,
-  "stealPolicy": "lowest priority, then oldest"
+  "stealPolicy": "lowest priority, then oldest",
+  "music": 8
  },
  "ambience": {
   "amb_room_city_loop": {
    "bus": "ambience",
    "fadeInMs": 2000,
    "fadeOutMs": 1500,
-   "when": "room scene visible (main menu and game; not Build/Gallery studio)"
+   "when": "room scene visible (main menu and game; not Build/Gallery studio)",
+   "samples": 1152000
   },
   "amb_machine_hum_loop": {
    "bus": "ambience",
@@ -121,11 +123,16 @@
     "rateAt0": 0.92,
     "rateAt1": 1.12,
     "smoothMs": 800
-   }
+   },
+   "samples": 576000
   }
  },
+ "levelUp": {
+  "_doc": "Level-up stinger (level_up__<new key>). quantise: beat = plays on the music clock's next beat (owner choice, ticket #55; SPEC bar line superseded); no music clock: at once. Reached levels in one tick: one stinger.",
+  "quantise": "beat"
+ },
  "transpose": {
-  "_doc": "Key root pitch class for game level L: (5 + 7*(L-1)) mod 12 (F Lydian at level 1, up a fifth per level). Pitched cues: pick the render root with the smallest signed distance d in -6..5 and play at playbackRate 2^(d/12) (|d| <= 1). Level-up: play level_up__<NEW key>.ogg at rate 1 on the next bar line (music lane clock); with no music clock, 0 ms.",
+  "_doc": "Key root pitch class for game level L: (5 + 7*(L-1)) mod 12 (F Lydian at level 1, up a fifth per level). Pitched cues: pick the render root with the smallest signed distance d in -6..5 and play at playbackRate 2^(d/12) (|d| <= 1). Level-up: play level_up__<NEW key>.ogg at rate 1 on the next beat (levelUp.quantise; music clock); with no music clock, 0 ms.",
   "levelOneKeyPc": 5,
   "stepSemitones": 7,
   "renderRoots": {
@@ -260,7 +267,7 @@
   {
    "kind": "level",
    "match": "",
-   "cue": "level_up"
+   "cue": null
   },
   {
    "kind": "ecc",
@@ -1047,7 +1054,7 @@
     "audio/sfx/level_up__Gs.ogg"
    ],
    "fileLevel": "sfx.stinger",
-   "trigger": "note kind 'level' / levelUp signal; play the file of the NEW key on the next bar line, rate 1.0",
+   "trigger": "note kind 'level' / levelUp signal; play the file of the NEW key on the next beat (levelUp.quantise), rate 1.0",
    "minIntervalMs": 3000,
    "maxVoices": 1,
    "collapseMs": 0
@@ -1424,6 +1431,1206 @@
    "fileLevel": "ui.tick",
    "trigger": "tutorial step meta types in (20 ms per char): play on every 3rd character, max 1 per 50 ms",
    "minIntervalMs": 50,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_A5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_A5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_A6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_A6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_As5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_As5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_As6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_As6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_B5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_B5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_B6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_B6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_C5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_C5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_C6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_C6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_C7",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_C7.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Cs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Cs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Cs6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Cs6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_D5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_D5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_D6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_D6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Ds5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Ds5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Ds6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Ds6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_E5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_E5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_E6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_E6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_F5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_F5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_F6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_F6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Fs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Fs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Fs6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Fs6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_G5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_G5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_G6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_G6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Gs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Gs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_glint_Gs6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_glint_Gs6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_A2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_A2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_As2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_As2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_B2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_B2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_C2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_C2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_C3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_C3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_Cs2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_Cs2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_D2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_D2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_Ds2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_Ds2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_E2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_E2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_F2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_F2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_Fs2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_Fs2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_G2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_G2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_low_Gs2",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_low_Gs2.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_A3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_A3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_A4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_A4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_A5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_A5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_As3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_As3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_As4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_As4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_As5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_As5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_B3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_B3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_B4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_B4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_B5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_B5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_C3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_C3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_C4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_C4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_C5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_C5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_C6",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_C6.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Cs3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Cs3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Cs4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Cs4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Cs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Cs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_D3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_D3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_D4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_D4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_D5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_D5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Ds3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Ds3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Ds4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Ds4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Ds5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Ds5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_E3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_E3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_E4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_E4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_E5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_E5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_F3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_F3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_F4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_F4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_F5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_F5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Fs3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Fs3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Fs4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Fs4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Fs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Fs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_G3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_G3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_G4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_G4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_G5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_G5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Gs3",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Gs3.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Gs4",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Gs4.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
+   "maxVoices": 1,
+   "collapseMs": 0
+  },
+  {
+   "id": "music_note_pluck_Gs5",
+   "bus": "music",
+   "duckClass": null,
+   "priority": 2,
+   "pitched": false,
+   "transpose": "fixed",
+   "files": [
+    "audio/music/notes/music_note_pluck_Gs5.ogg"
+   ],
+   "fileLevel": "music.note",
+   "trigger": "music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+   "minIntervalMs": 0,
    "maxVoices": 1,
    "collapseMs": 0
   }

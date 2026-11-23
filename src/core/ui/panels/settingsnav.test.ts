@@ -22,7 +22,7 @@ describe('the tab model', () => {
       'Render scale', 'Frame limit', 'Brightness', 'Auto-adjust',
       'Shadows', 'Room lamps', 'Lamp shadows', 'Ambient occlusion', 'Bloom',
       'Anti-aliasing', 'Textures', 'Filtering', 'Live chips', 'Particles',
-      'UI size',
+      'UI size', 'Mute', 'Master', 'Music', 'Sounds', 'Ambience',
     ]) expect(labels, name).toContain(name);
   });
 

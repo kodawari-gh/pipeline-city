@@ -49,7 +49,7 @@ LOG_RULES = [
  ("power", "powered on|reconnected", "power_on"), ("power", "powered off", "power_off"),
  ("key", "refused|pulled before", "key_refused"), ("key", "plugged in", "key_plug"), ("key", "told two friends", "new_clients"),
  ("job", "", "job_fulfilled"), ("payout", "\\(late\\)$", "payout_late"), ("payout", "", "payout"),
- ("drop", "", "client_drop"), ("expire", "", "job_expired"), ("decline", "", "job_declined"), ("level", "", "level_up"), ("ecc", "", "ecc"),
+ ("drop", "", "client_drop"), ("expire", "", "job_expired"), ("decline", "", "job_declined"), ("level", "", None), ("ecc", "", "ecc"),
  ("fault", "crashed and rebooted", "fault_crash"),
  ("fault", "VRM burnt out|cut the wall|power cord was pulled|hard power-off", "fault_hard"), ("fault", "", "fault_soft"),
  ("purchase", "^sold", "sell"), ("purchase", "", "purchase"), ("bill", "^paid", "bill_paid"), ("bill", "", "bill_issued"),
@@ -76,7 +76,8 @@ TOKENS = {
  "ambience": {"amb_room_city_loop": {"bus": "ambience", "fadeInMs": 2000, "fadeOutMs": 1500, "when": "room scene visible (main menu and game; not Build/Gallery studio)"},
               "amb_machine_hum_loop": {"bus": "ambience", "fadeInMs": 1200, "fadeOutMs": 900, "when": "snapshot.powered",
                 "fanFollow": {"_doc": "x = mean DeviceSnap.fan of fan-bearing devices (0..1), else 0.5", "gainDbAt0": -6.0, "gainDbAt1": 0.0, "rateAt0": 0.92, "rateAt1": 1.12, "smoothMs": 800}}},
- "transpose": {"_doc": "Key root pitch class for game level L: (5 + 7*(L-1)) mod 12 (F Lydian at level 1, up a fifth per level). Pitched cues: pick the render root with the smallest signed distance d in -6..5 and play at playbackRate 2^(d/12) (|d| <= 1). Level-up: play level_up__<NEW key>.ogg at rate 1 on the next bar line (music lane clock); with no music clock, 0 ms.",
+ "levelUp": {"_doc": "Level-up stinger (level_up__<new key>). quantise: beat = plays on the music clock's next beat (owner choice, ticket #55; SPEC bar line superseded); no music clock: at once. Reached levels in one tick: one stinger.", "quantise": "beat"},
+ "transpose": {"_doc": "Key root pitch class for game level L: (5 + 7*(L-1)) mod 12 (F Lydian at level 1, up a fifth per level). Pitched cues: pick the render root with the smallest signed distance d in -6..5 and play at playbackRate 2^(d/12) (|d| <= 1). Level-up: play level_up__<NEW key>.ogg at rate 1 on the next beat (levelUp.quantise; music clock); with no music clock, 0 ms.",
   "levelOneKeyPc": 5, "stepSemitones": 7, "renderRoots": {"F": 5, "Gs": 8, "B": 11, "D": 2},
   "keyNames": ["C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B"],
   "_keyNamesDoc": "indexed by pitch class; the same file tokens as the music lane (s = sharp, URL-safe). Level order: F C G D A E B Fs Cs Gs Ds As"},
@@ -106,7 +107,10 @@ def main():
     ms = json.load(open(os.path.join(REPO, "public", "audio", "music", "music-spec.json")))
     mc = {c["file"]: c for c in json.load(open(os.path.join(HERE, "music", "checks.json")))["files"]}
     TOKENS["music"].update(layerGainDb=ms["mix"]["layer_gain_db"], cueGainDb=ms["mix"]["cue_gain_db"], trimDb=ms["mix"]["music_trim_db"])
+    # ambience loop ends: the decoded sample count of each loop (the app ends each loop there, AUDIO.md)
+    for a in ("amb_room_city_loop", "amb_machine_hum_loop"): TOKENS["ambience"][a]["samples"] = checks[f"assets/ambience/{a}.ogg"]["decoded_samples"]
     assert ms["mix"]["levelup_with_sfx_db"] == TOKENS["music"]["levelupWithSfxDb"]
+    TOKENS["voices"]["music"] = ms["voices"]["cue_max"]   # the music bus's note voices (8, the oldest stolen)
     for m in ms["manifest"]:
         if m["path"].startswith("previews/"): continue          # the music preview lives in previews/, not in assets
         c = mc.get(m["path"], {}); stem = os.path.basename(m["path"])[:-4]; parts = stem.split("_")
@@ -122,6 +126,14 @@ def main():
             transpose=("perKeyFile" if id == "level_up" else "nearestRootRate" if pitched else "fixed"),
             files=sorted(set(r["repo_path"].replace("public/", "") for r in rs)),
             fileLevel=rs[0]["level"], trigger=rs[0]["trigger"], **rl))
+    # music event notes (ticket #65): one one-shot cue per note file (music-spec.json manifest), on the music bus, one file each (never rate-shifted)
+    for m in ms["manifest"]:
+        stem = os.path.basename(m["path"])[:-4]
+        if not stem.startswith("music_note_"): continue
+        TOKENS["cues"].append(dict(id=stem, bus="music", duckClass=None, priority=2, pitched=False, transpose="fixed",
+            files=["audio/music/" + m["path"]], fileLevel="music.note",
+            trigger="music event note (music-spec.json events and notes): the director sends it with the event's cue, in the level key",
+            minIntervalMs=0, maxVoices=1, collapseMs=0))
     json.dump(TOKENS, open(os.path.join(PKG, "mix-tokens.json"), "w"), indent=1, ensure_ascii=False)
     with open(os.path.join(REPO, "src", "app", "audio", "mixTokens.ts"), "w") as fh:
         fh.write("// Generated from mix-tokens.json by sources/build_manifest.py. Do not edit by hand: edit the generator, re-run.\n")
