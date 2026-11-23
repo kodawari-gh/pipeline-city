@@ -2513,6 +2513,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build .bld-os-sheet .os-act.primary:hover:not(:disabled) { background: none; text-decoration: underline; }
 .build .bld-os-sheet .os-banner, .build .bld-os-sheet .os-tile, .build .bld-os-sheet .os-chart { background: none; }
 .build .bld-os-sheet .os-tile.sel .os-tile-txt b { font-weight: 600; }
+/* ADR 0001 / SPEC rule 6: no glow, shadow, gradient or glass on any part of the sheet; corners at most a 4 px chip */
+.build .bld-os-sheet * { border-radius: 0.2rem; box-shadow: none; text-shadow: none; background-image: none; backdrop-filter: none; }
+.build .bld-os-sheet :is(.os-diskbar, .os-legend) .rsv { background: color-mix(in srgb, var(--ok) 45%, transparent); }
 .build.bld-tabs[data-layout="desk"] .bld-inst.closed .bld-mtog { width: 14rem; padding-right: 2rem; }
 .build.bld-tabs[data-layout="desk"] .bld-mtog { right: 0; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
 .build.bld-tabs[data-layout="desk"] .bld-inst.open { right: 0; bottom: 0; width: var(--bld-r); padding-right: 1.9rem; padding-bottom: 1.9rem; clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem), 0 0.9rem); }
