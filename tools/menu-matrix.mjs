@@ -294,9 +294,15 @@ async function hudScreen(gb, vp) {
   // the first frame frames the room again (shot.mjs waits for the same): a click before it would hit the room, not the HUD
   await page.waitForFunction(() => !window.__board || window.__board.renderer.domElement.style.pointerEvents !== 'none', null, { timeout: 60000 });
   await page.waitForTimeout(2500);
-  // the welcome card holds the clock and dims the board: the menu's Skip tutorial ends it, so the HUD is live
-  await page.click('[aria-label="Menu"]');
-  await page.getByRole('menuitem', { name: 'Skip tutorial' }).click({ timeout: 15000 }).catch(() => {});
+  // the welcome card holds the clock and dims the board: its own Skip ends it, so the HUD is live
+  await page.evaluate(async () => {
+    for (let i = 0; i < 80; i++) {
+      const skip = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Skip');
+      if (skip) { skip.click(); return; }
+      document.querySelector('button.dlg')?.click();
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  });
   await page.waitForFunction(() => !document.querySelector('.modal-back.dlg-back'), null, { timeout: 15000 }).catch(() => {});
   check(await page.locator('.modal-back.dlg-back').count() === 0, `${tag}: the tutorial card is skipped (the clock runs)`);
 
@@ -348,27 +354,31 @@ async function hudScreen(gb, vp) {
   }
 
   // the menu: on a phone the machine status, the power bill, the network, the OS and the slow motion are its rows; on desktop they are not
+  // (Paused, SPEC §5.10: these rows sit under Tools, so Tools opens first)
   await page.click('[aria-label="Menu"]');
-  await page.waitForSelector('.menu-pop', { timeout: 5000 });
-  const inMenu = (sel) => page.locator(`.menu-pop ${sel}`).count();
-  check(await inMenu('.menu-info') === (phone ? 1 : 0), `${tag}: the machine status is ${phone ? 'a menu row' : 'not a menu row'}`);
-  check(await inMenu('button:has-text("Zoom slow")') === (phone ? 1 : 0), `${tag}: Zoom slow is ${phone ? 'a menu row' : 'not a menu row'}`);
-  check(await inMenu('button[title^="Power bill"]') === (phone ? 1 : 0), `${tag}: the power bill is ${phone ? 'a menu row' : 'not a menu row'}`);
+  await page.waitForSelector('.pl-menu.paused', { timeout: 5000 });
+  await page.locator('.pl-util', { hasText: 'Tools' }).click();
+  const inMenu = (sel) => page.locator(`.pl-sub ${sel}`).count();
+  check(await inMenu('.menu-info') === (phone ? 1 : 0), `${tag}: the machine status is ${phone ? 'a Tools row' : 'not a Tools row'}`);
+  check(await inMenu('.pl-sub-item:has-text("Zoom slow")') === (phone ? 1 : 0), `${tag}: Zoom slow is ${phone ? 'a Tools row' : 'not a Tools row'}`);
+  check(await inMenu('.pl-sub-item[title^="Power bill"]') === (phone ? 1 : 0), `${tag}: the power bill is ${phone ? 'a Tools row' : 'not a Tools row'}`);
   await page.screenshot({ path: `${outDir}/hud-${vp.name}-menu.png` });
   if (phone) {
     // the power bill opens its card from the menu (the menu closes); Escape closes the card
-    await page.click('.menu-pop button[title^="Power bill"]');
+    await page.click('.pl-sub-item[title^="Power bill"]');
     await page.waitForSelector('#bill-pop', { timeout: 5000 }).catch(() => {});
-    check(await visible('#bill-pop') && await page.locator('.menu-pop').count() === 0, `${tag}: the power bill row opens its card and the menu closes`);
+    check(await visible('#bill-pop') && await page.locator('.pl-menu.paused').count() === 0, `${tag}: the power bill row opens its card and the menu closes`);
     await fits(page, `${tag} bill`);
     await page.screenshot({ path: `${outDir}/hud-${vp.name}-bill.png` });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
     check(await page.locator('#bill-pop').count() === 0, `${tag}: Escape closes the power bill card`);
   } else {
+    // Escape closes the Tools list first, then the menu
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
-    check(await page.locator('.menu-pop').count() === 0, `${tag}: Escape closes the menu`);
+    check(await page.locator('.pl-menu.paused').count() === 0, `${tag}: Escape closes the menu`);
   }
 
   // the lenses: phone = the Lens branch on the dock (Escape, a click outside and a pick close it); desktop = the three buttons on the dock

@@ -248,9 +248,12 @@ export function runAt(s: Speed): void {
 
 /** Controls opened from the menu: the menu family stays one holder while Controls is open (SPEC §9.3). */
 export const controlsFromMenu = signal(false);
+/** The menu row that gets focus when Paused shows again (Back from Settings or Controls returns to its row, SPEC §10). */
+export const menuReturnFocus = signal<string | null>(null);
 export function openControlsFromMenu(): void {
   batch(() => {
     controlsFromMenu.value = true;
+    menuReturnFocus.value = 'Controls';
     controlsOpen.value = true;
     gameMenuOpen.value = false;
   });

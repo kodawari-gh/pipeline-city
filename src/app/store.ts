@@ -135,8 +135,10 @@ function autosave(save: SaveV1) {
 }
 
 /** Save the game now, as the autosave does every 10 s (the menu's "Save now"); `done` runs once it is written. */
+export const saving = signal(false);
 export function saveNow(done?: () => void): void {
-  requestSave((save) => { autosave(save); done?.(); });
+  saving.value = true;
+  requestSave((save) => { autosave(save); saving.value = false; done?.(); });
 }
 
 /**

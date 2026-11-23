@@ -1,16 +1,16 @@
 import './ui.css';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../app/hover';
 import { booted } from '../../app/boot';
 import { dragging, highlight } from '../../app/interaction';
 import {
-  exportSave, lastRunSpeed, leaving, saveNow, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
+  lastRunSpeed, leaving, snapshot, speed, starting, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../app/store';
 import { SPEEDS } from '../../worker/protocol';
-import { billChip, fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
+import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
 import { Icon } from './kit/Icons';
 import { hudNetChip } from '../../features/network/ui/netui';
-import { billOpen, PowerBill } from '../../features/economy/ui/progress/PowerBill';
+import { PowerBill } from '../../features/economy/ui/progress/PowerBill';
 import { InventoryBar, InventoryPanel } from '../../features/economy/ui/shop/Inventory';
 import { PickerCard } from '../../features/economy/ui/shop/PickerCard';
 import { Stats } from './panels/Stats';
@@ -18,26 +18,24 @@ import { NetDock } from '../../features/network/ui/NetPanel';
 import { OsModal } from '../../features/os/ui/OsPanel';
 import { Tooltip } from './kit/Hover';
 import { Notice, Toasts } from './panels/Toasts';
-import { NewGameScreen, openNewGame } from './panels/NewGame';
+import { NewGameScreen } from './panels/NewGame';
 import { MainMenu } from './panels/MainMenu';
+import { Paused } from './panels/Paused';
 import { LoadConfirm } from './panels/LoadConfirm';
 import { Controls } from './panels/Controls';
-import { loadFromFile } from './panels/loadgame';
-import { leaveGame } from './leave';
 import { SandboxJobs } from '../../features/sandbox/ui/SandboxJobs';
 import { SandboxTools } from '../../features/sandbox/ui/SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from '../../features/economy/ui/progress/Levels';
 import { BuildMode, Gallery, Shop } from '../../features/economy/ui/shop/Shop';
 import { TutorialCard } from '../../features/tutorial/ui/TutorialCard';
-import { toggleTrace, TracePanel, traceOpen } from '../../features/cpu/ui/TracePanel';
+import { TracePanel } from '../../features/cpu/ui/TracePanel';
 import { AlmanacPanel } from '../../features/jobs/ui/AlmanacPanel';
 import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { SettingsScreen } from './panels/Settings';
 import {
-  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, openControlsFromMenu, openMilestones, openSettings, osOpen, runAt, toggleOs, replayTutorial, resetHints, skipTutorial, statsOpen, toggleNet, toggleStats, tutorial,
+  buildOpen, closeControls, controlsOpen, galleryOpen, gameMenuOpen, holdActive, netOpen, osOpen, runAt, toggleOs, statsOpen, toggleNet, toggleStats,
 } from './state';
-import { currentStep } from '../../features/tutorial/ui/tutorial';
 
 /** The tutorial points at a number in the bar: `hud:<name>` in the highlight list pulses it. */
 const lit = (name: string) => (highlight.value.includes(`hud:${name}`) ? 'pulse' : '');
@@ -104,7 +102,7 @@ function PauseKey() {
       if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
-      return !document.querySelector('.modal-back, .ng-back, .menu-pop, .pl-menu.settings');
+      return !document.querySelector('.modal-back, .ng-back, .pl-menu.paused, .pl-menu.settings');
     };
     const down = (e: KeyboardEvent) => {
       if (!mine(e)) return;
@@ -232,7 +230,7 @@ function MenuKeys() {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      const taken = !!document.querySelector('[role="dialog"], [role="alertdialog"], .menu-pop');
+      const taken = !!document.querySelector('[role="dialog"], [role="alertdialog"], .pl-menu.paused');
       if (e.key === '?') {
         if (taken && !controlsOpen.peek()) return;
         e.preventDefault();
@@ -244,84 +242,6 @@ function MenuKeys() {
     return () => window.removeEventListener('keydown', down);
   }, []);
   return null;
-}
-
-/**
- * The game's menu (the "…" button, or Esc): the game itself (save, the way back to the main menu, files, a new game), tools, the view and help. Kept out of the
- * bar. It closes on Esc and on a click outside, and the arrows move between its entries.
- */
-function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
-  const open = gameMenuOpen.value;
-  const root = useRef<HTMLDivElement>(null);
-  const [saved, setSaved] = useState(false);
-  const active = currentStep(s, tutorial.value) !== null;
-  const close = () => { gameMenuOpen.value = false; };
-  // (the phone bar keeps only the money, the speed and the level: these are its other segments, as rows here)
-  const bill = billChip(s), net = hudNetChip(s), phone = phoneLayout();
-  useEffect(() => {
-    if (!open) return;
-    const items = () => [...(root.current?.querySelectorAll<HTMLElement>('.menu-pop button[role="menuitem"]') ?? [])];
-    items()[0]?.focus();
-    // A press on the HUD speed rail is left to its click: that click runs the speed and closes the menu in one step (runAt).
-    const outside = (e: PointerEvent) => {
-      if (root.current && !root.current.contains(e.target as Node) && !(e.target as Element).closest?.('.speeds')) close();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); close(); root.current?.querySelector<HTMLElement>('button[aria-label="Menu"]')?.focus(); return; }
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-      const list = items(), at = list.indexOf(document.activeElement as HTMLElement);
-      if (!list.length) return;
-      e.preventDefault();
-      list[(at + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length]!.focus();
-    };
-    document.addEventListener('pointerdown', outside, true);
-    window.addEventListener('keydown', key);
-    return () => { document.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', key); };
-  }, [open]);
-  return (
-    <div class="menu" ref={root}>
-      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !open; }}>
-        <Icon name="menu" size={14} />
-      </button>
-      {open && (
-        <div class="card menu-pop" role="menu">
-          <div class="menu-h">Game</div>
-          <button role="menuitem" onClick={() => { saveNow(() => { setSaved(true); setTimeout(() => setSaved(false), 1800); }); }} title="Save the game now. It also saves by itself every 10 seconds."><Icon name={saved ? 'check' : 'save'} size={13} /> {saved ? 'Saved' : 'Save now'}</button>
-          <button role="menuitem" onClick={() => { leaveGame(); }} title="Save the game and go back to the main menu"><Icon name="prev" size={13} /> Main menu</button>
-          <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
-          <label class="menuitem" title="Load a game file">
-            <Icon name="import" size={13} /> Import game
-            <input
-              type="file" accept="application/json,.json" hidden
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                if (f) void loadFromFile(f);
-                e.currentTarget.value = '';
-                close();
-              }}
-            />
-          </label>
-          <button class="danger" role="menuitem" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
-          <div class="menu-h">Tools</div>
-          <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
-          <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
-          <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
-          {phone && bill && <button role="menuitem" onClick={() => { close(); billOpen.value = true; }} title="Power bill: the rate and the figures behind it"><Icon name="bolt" size={13} /> {bill.text}</button>}
-          {phone && <div class="menu-info" role="none" title={statusChip(s).title}>Machine {statusChip(s).text.toLowerCase()}</div>}
-          {phone && net && <button role="menuitem" onClick={() => { close(); toggleNet(); }} title={net.title}><Icon name={net.icon} size={13} /> {net.text}</button>}
-          {phone && s.os && <button role="menuitem" onClick={() => { close(); toggleOs(); }} title="The operating system: resource monitor, job queue and apps"><Icon name="layers" size={13} /> OS {s.os.spool.used}/{s.os.spool.slots}</button>}
-          {phone && <button role="menuitem" onClick={toggleZoomSlow} title="Slow motion when zoomed in: the machine runs slower while you zoom in"><Icon name="gauge" size={13} /> Zoom slow {zoomSlowOn.value ? 'on' : 'off'}</button>}
-          <div class="menu-h">View</div>
-          <button role="menuitem" aria-haspopup="dialog" onClick={() => { close(); openSettings('paused'); }} title="Picture, light, detail and the interface size"><Icon name="screen" size={13} /> Settings</button>
-          <div class="menu-h">Help</div>
-          <button role="menuitem" onClick={() => { openControlsFromMenu(); }} title="Every key and mouse move (press ? any time)"><Icon name="sliders" size={13} /> Controls</button>
-          <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
-          {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
-          <button role="menuitem" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 /** A game is starting (the worker boots): this stands where the menu was, so the click is seen at once. The ring turns on the compositor, so it turns while the page works. */
@@ -351,6 +271,7 @@ export function Hud() {
       </>
     );
   }
+  const menuOpen = gameMenuOpen.value;
   return (
     <>
       <Title on={false} />
@@ -386,10 +307,15 @@ export function Hud() {
         {!s.sandbox && <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>}
         <div class="hud-side hud-right">
           <SpeedControl />
-          <Menu s={s} />
+          <div class="menu">
+            <button class={`icon ${menuOpen ? 'on' : ''}`} aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Menu" title="Menu (Esc)" onClick={() => { gameMenuOpen.value = !menuOpen; }}>
+              <Icon name="menu" size={14} />
+            </button>
+          </div>
           <SlowNote />
         </div>
       </header>
+      <Paused />
       <PickerCard />
       <NewGameScreen />
       <MilestoneScreen s={s} />
