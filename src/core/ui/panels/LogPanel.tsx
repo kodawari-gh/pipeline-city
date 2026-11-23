@@ -249,7 +249,7 @@ export function LogPanel() {
   const maxTotal = Math.max(1, ...all.map((e) => phasesOf(e).total));
   const sel = all.find((e) => e.id === picked.value) ?? null;
   return (
-    <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeLog(); }}>
+    <div class="modal-back almanac-back joblog-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeLog(); }}>
       <div class={`card almanac joblog${all.length === 0 ? ' jl-none' : ''}`} data-cue="ui_panel_open" role="dialog" aria-modal="true" aria-label="Job log">
         <header class="alm-head">
           <span class="alm-title"><Icon name="clock" size={16} /> Job log</span>

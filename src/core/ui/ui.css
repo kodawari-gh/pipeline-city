@@ -1243,8 +1243,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .almanac.jl-none { height: auto; max-height: min(100%, 44rem); }
 .alm-sub { font-size: 0.75rem; color: var(--mute); }
 .jl-filter { display: flex; flex-wrap: wrap; gap: 0.2rem; }
-.jl-filter button { padding: 0.12rem 0.55rem; font-size: 0.7rem; color: var(--mute); background: transparent; border-color: transparent; }
-.jl-filter button.on { color: var(--accent); background: var(--sel-bg); border-color: var(--sel-line); }
+.jl-filter button { padding: 0.12rem 0.55rem; font-size: 0.7rem; color: var(--mute); background: none; border: 0; border-radius: 0.25rem; }
+.jl-filter button.on { color: var(--ink); font-weight: 600; background: none; }
 /* a job's time: the waiting is grey, the work is colour (so a long wait does not look like an alarm, and the tags that are one stand out) */
 .jl-wait { background: color-mix(in srgb, var(--mute) 55%, transparent); }
 .jl-queue { background: color-mix(in srgb, var(--ink) 34%, transparent); }
@@ -1255,9 +1255,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 /* the list of recent jobs */
 .jl-list { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1; }
 .jl-row { display: grid; grid-template-columns: 2.6rem 1fr 3rem 1.4rem; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; text-align: left; color: var(--ink); }
-.jl-row { background: transparent; border-color: transparent; }
+.jl-row { background: transparent; border: 0; border-radius: 0; }
 .jl-row:hover { background: var(--veil); }
-.jl-row.on { border-color: var(--sel-line); background: var(--sel-bg); color: var(--ink); }
+.jl-row.on { background: none; color: var(--ink); font-weight: 600; }
 .jl-row.off { opacity: 0.7; }
 .jl-row .spr { width: 2.6rem; height: 1.5rem; }
 .jl-row .mid { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
@@ -1265,20 +1265,20 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jl-row .tm { text-align: right; font: 0.7rem var(--mono); }
 .dotk { display: inline-flex; width: 1.2rem; height: 1.2rem; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--k) 16%, transparent); color: var(--k); }
 .dotk.k-none { background: none; }
-.jl-bar { display: flex; height: 0.55rem; border-radius: 99rem; overflow: hidden; background: var(--glass-line); min-width: 2rem; }
+.jl-bar { display: flex; height: 0.55rem; border-radius: 0; overflow: hidden; background: var(--glass-line); min-width: 2rem; }
 .jl-bar i { display: block; height: 100%; }
 
 /* colours of what held a job up */
 .k-queue { --k: #ffc247; } .k-collect { --k: #8b7cf6; } .k-memory { --k: #f0803c; } .k-branch { --k: #d96ad6; } .k-deps { --k: #3aa8d9; }
 .k-port { --k: #4fd1c5; } .k-paging { --k: #ef5b7b; } .k-compute { --k: #4cc38a; } .k-card { --k: #b48cf2; } .k-lost { --k: #8893b0; } .k-none { --k: #8893b0; } .k-ipc { --k: #4cc38a; }
-.jl-tag { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.6rem; border-radius: 99rem; color: var(--k); background: color-mix(in srgb, var(--k) 14%, transparent); font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+.jl-tag { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.6rem; border-radius: 0.25rem; color: var(--k); background: color-mix(in srgb, var(--k) 14%, transparent); font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
 /* in a row: the colour and the icon, no pill */
 .jl-tag.quiet { padding: 0; background: none; }
 /* where a job on the machine is: a dot and a word, in the colour of its phase */
 .jl-state { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: var(--k); }
 
 /* the overview */
-.jl-card { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.8rem 0.9rem; border-radius: 0.8rem; background: var(--veil); box-shadow: inset 0 0 0 1px var(--hair); }
+.jl-card { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.8rem 0; }
 .jl-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
 .jl-head h3 { margin: 0; font-size: 0.95rem; font-weight: 500; color: var(--mute); }
 .jl-head h3 b { color: var(--ink); font: 700 1.15rem var(--mono); margin-left: 0.2rem; }
@@ -1291,7 +1291,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jl-lg .tm { font: 0.7rem var(--mono); }
 .jl-why { margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--ink); max-width: 46rem; }
 /* what the runs were spent on: behind a fold, with the biggest one said on its line */
-.jl-inside { border-top: 1px solid var(--hair); padding-top: 0.5rem; }
+.jl-inside { padding-top: 0.5rem; }
 .jl-inside summary { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; cursor: pointer; list-style: none; font-size: 0.72rem; font-weight: 600; color: var(--ink); }
 .jl-inside summary::-webkit-details-marker { display: none; }
 .jl-inside summary::before { content: '›'; display: inline-block; width: 0.8rem; color: var(--mute); transition: transform var(--d-med) ease; }
@@ -1304,13 +1304,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jl-stalls { display: flex; flex-direction: column; gap: 0.3rem; max-width: 44rem; }
 .jl-stalls .row { display: grid; grid-template-columns: 1.2rem 11rem 1fr 2.8rem; align-items: center; gap: 0.5rem; }
 .jl-stalls .ic { color: var(--k); display: inline-flex; }
-.jl-stalls .b { height: 0.6rem; background: var(--glass-line); border-radius: 99rem; overflow: hidden; }
-.jl-stalls .b i { display: block; height: 100%; background: var(--k); border-radius: 99rem; }
+.jl-stalls .b { height: 0.6rem; background: var(--glass-line); border-radius: 0; overflow: hidden; }
+.jl-stalls .b i { display: block; height: 100%; background: var(--k); border-radius: 0; }
 .jl-stalls .v { text-align: right; font: 0.72rem var(--mono); }
 
 /* a card per kind of job */
 .jl-kinds { display: flex; flex-direction: column; gap: 0.15rem; max-width: 56rem; }
-.jl-kind { display: grid; grid-template-columns: 3.4rem 1fr 3.4rem 7.5rem 1rem; align-items: center; gap: 0.7rem; padding: 0.35rem 0.6rem; border: 0; border-radius: 0.6rem; background: transparent; text-align: left; color: var(--ink); font-weight: 400; }
+.jl-kind { display: grid; grid-template-columns: 3.4rem 1fr 3.4rem 7.5rem 1rem; align-items: center; gap: 0.7rem; padding: 0.35rem 0.6rem; border: 0; border-radius: 0; background: transparent; text-align: left; color: var(--ink); font-weight: 400; }
 .jl-kind:hover { background: var(--veil); }
 .jl-kind .go { color: var(--mute); text-align: right; font-size: 1rem; line-height: 1; }
 .jl-kind:hover .go { color: var(--accent); }
@@ -1322,22 +1322,22 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jl-kind .bad, .jl-kind .late { display: inline-flex; align-items: center; gap: 0.2rem; font: 700 0.65rem var(--mono); color: #8893b0; }
 .jl-kind .late { color: var(--warn); }
 .jl-kind .v { text-align: right; font: 0.75rem var(--mono); }
-.jl-alm { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; font-size: 0.7rem; }
+.jl-alm { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; font-size: 0.7rem; border: 0; border-radius: 0.25rem; background: var(--veil); }
 /* in a row: an icon only, quiet until it is pointed at */
-.jl-alm.ghost { padding: 0.25rem; background: transparent; border-color: transparent; color: var(--mute); line-height: 0; }
-.jl-alm.ghost:hover, .jl-alm.ghost:focus-visible { color: var(--accent); background: var(--sel-bg); }
+.jl-alm.ghost { padding: 0.25rem; background: transparent; color: var(--mute); line-height: 0; }
+.jl-alm.ghost:hover, .jl-alm.ghost:focus-visible { color: var(--accent); background: none; }
 
 /* the jobs on the machine now: one row each, a bar that fills toward the deadline */
-.jl-now { flex: none; max-height: 15rem; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.7rem; border-radius: 0.8rem; background: var(--veil); box-shadow: inset 0 0 0 1px var(--hair); }
+.jl-now { flex: none; max-height: 15rem; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem 0; }
 .jl-now h4 { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.1rem; }
-.jl-now h4 .count { font: 700 0.68rem var(--mono); color: var(--ink); background: var(--veil); padding: 0 0.4rem; border-radius: 99rem; letter-spacing: 0; }
+.jl-now h4 .count { font: 700 0.68rem var(--mono); color: var(--ink); background: var(--veil); padding: 0 0.4rem; border-radius: 0.25rem; letter-spacing: 0; }
 .jl-now-row { display: grid; grid-template-columns: 2.6rem 9rem 10rem 1fr 3.4rem 7rem 1.6rem; align-items: center; gap: 0.6rem; }
 .jl-now-row.off { opacity: 0.75; }
 .jl-now-row .spr { width: 2.6rem; height: 1.5rem; }
 .jl-now-row .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; }
 .jl-now-row .tm { text-align: right; font: 0.72rem var(--mono); }
 .jl-live { position: relative; height: 0.65rem; }
-.jl-live.late { box-shadow: 0 0 0 1px var(--warn); }
+.jl-live.late u { background: var(--warn); }
 .jl-live u { position: absolute; top: -0.1rem; bottom: -0.1rem; width: 0.15rem; background: var(--ink); opacity: 0.55; text-decoration: none; }
 .jl-more { margin: 0; font-size: 0.7rem; }
 
@@ -1355,10 +1355,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 @media (max-width: 52rem) { .joblog .jl-left { width: auto; max-height: 12rem; } .jl-kind { grid-template-columns: 3rem 1fr auto; } .jl-kind .v, .jl-kind .jl-alm { display: none; } .jl-stalls .row { grid-template-columns: 1.2rem 7rem 1fr 2.6rem; } .jl-now-row { grid-template-columns: 2.6rem 1fr auto; } .jl-now-row .jl-live, .jl-now-row .tm, .jl-now-row .jl-tag, .jl-now-row .jl-alm { display: none; } }
 
 /* cloud-storage contracts in the job log */
-.jl-contracts { flex: none; max-height: 24rem; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.4rem 0.6rem; border: 1px solid var(--glass-line); border-radius: 0.5rem; background: rgba(0,0,0,.16); }
+.jl-contracts { flex: none; max-height: 24rem; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.4rem 0; border: 0; border-radius: 0; background: none; }
 .jl-contracts h4 { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.1rem; }
 .jc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
-.jc-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem 0.6rem; border: 1px solid var(--glass-line); border-left: 0.25rem solid var(--k); border-radius: 0.4rem; background: rgba(0,0,0,.2); font-size: 0.75rem; }
+.jc-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem 0; border: 0; border-radius: 0; background: none; font-size: 0.75rem; }
 .jc-card header { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .jc-facts { display: flex; flex-wrap: wrap; gap: 0.25rem 0.7rem; margin: 0; padding: 0; list-style: none; color: var(--mute); }
 .jc-facts li { display: inline-flex; align-items: center; gap: 0.25rem; }
@@ -1370,6 +1370,17 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .jc-done { display: flex; flex-direction: column; gap: 0.2rem; margin: 0; padding: 0; list-style: none; font-size: 0.72rem; }
 .jc-done li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .jc-done .jl-pay { margin-left: auto; }
+
+/* The Log as an edge tab (#75, ADR 0001, SPEC 4.11): a flat shade on the right edge, chamfered on its free corners.
+   No scrim, no glass, no border, no shadow. The scene stays visible on the left. */
+.modal-back.almanac-back.joblog-back { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; justify-content: flex-end; align-items: stretch; padding: 0; }
+.card.almanac.joblog { width: min(100%, 56rem); height: auto; max-height: none; padding: 1.35rem 2rem 1rem 1.6rem; background: var(--c-shade-86); border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch)); }
+.joblog .alm-head .close, .joblog button.link { background: none; border-radius: 0; }
+.joblog .chip { border: 0; border-radius: 0.25rem; }
+@media (max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape) {
+  .modal-back.almanac-back.joblog-back { justify-content: stretch; align-items: flex-end; }
+  .card.almanac.joblog { width: 100%; height: min(100%, 82%); padding: 0.9rem 1rem 0.8rem; clip-path: polygon(0 var(--ch), var(--ch) 0, calc(100% - var(--ch)) 0, 100% var(--ch), 100% 100%, 0 100%); }
+}
 
 /* One look for the panels (shop, inventory, almanac, OS): the same tile corner, the same hover and selected states, the same section label. */
 .rung:hover, .tile:hover, .os-tile:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
