@@ -5,12 +5,12 @@ description: Build one tracker ticket with a loop of Haiku agents: coder and tes
 
 # Ticket swarm
 
-Builds one ticket. Every agent is Haiku (`model: "haiku"`). The loop repeats until the reviewer passes or the round limit is hit.
+Builds one ticket. Every agent is Haiku (`model: "haiku"`). The loop repeats until the reviewer passes.
 
 ## Inputs
 
 - Ticket number (required). Read it: `gh issue view <n> --json title,body`.
-- Round limit: 4 unless the user sets another.
+- No round cap. Keep raising the model tier per the escalation ladder below (0 failures haiku medium; 1 haiku high; 2 haiku xhigh; 3 or more sonnet medium, raising effort per further FAIL).
 
 ## Board updates
 
@@ -22,7 +22,7 @@ Use the `board-status` skill for every change. Map events:
 | Reviewer passes, commit on branch | `in-review` |
 | Ticket closed after merge | `done` (ticket flow closes it) |
 
-Never leave a ticket in `in-progress` after the run stops. On a stop at the round limit, set `backlog` and comment the open findings on the issue.
+Never leave a ticket in `in-progress` after the run stops. On any other stop, set `backlog` and comment the open findings on the issue.
 
 ## Layout
 
@@ -71,8 +71,7 @@ The prompt you send gives only the per-run facts: ticket number, worktree path, 
 
 4. **Decide**:
    - `PASS`: a merge agent (`swarm-merger`, Haiku, same effort row) squash-merges `ticket/<n>` into `$BASE` as exactly one commit (`git merge --squash`, then one commit, explicit paths only). The orchestrator does not run this step itself. Set the board to `in-review`, then close the ticket with a comment that lists the reviewer's commands. Remove the round's worktrees.
-   - `FAIL` and round < limit: start the next round with the findings.
-   - `FAIL` at the limit: stop. Board to `backlog`. Comment the findings on the issue.
+   - `FAIL`: start the next round with the findings.
 
 ## Model and effort rule
 

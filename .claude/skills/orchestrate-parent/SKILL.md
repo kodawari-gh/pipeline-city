@@ -11,7 +11,7 @@ You run the board for one parent issue (for example #29 or #49). You do not writ
 
 - Parent issue number (required). Example: 29.
 - Base branch for the parent's work (default: the current branch, `git branch --show-current`). Audio work goes on its own base (the audio branch), UI work on the UI base. Confirm the base before the first launch.
-- Round limit per ticket: 4.
+- No round cap per ticket. Keep raising the model tier per the escalation ladder in `ticket-swarm` (0 failures haiku medium; 1 haiku high; 2 haiku xhigh; 3 or more sonnet medium, raising effort per further FAIL).
 - Concurrency: up to two tickets at a time per base, so at most two integration branches are in flight.
 
 ## Read the state first
@@ -35,7 +35,7 @@ Repeat until every child is Done, or a critical failure stops the run:
 
 ## Stops
 
-- **Critical failure**: the same ticket fails at the round limit, a merge conflict cannot be settled by the rule, a squash is refused by a permission guard, or a branch or worktree state is unsafe. Stop that ticket. Set it to Backlog, comment the findings on the issue, and keep the rest of the parent running.
+- **Critical failure**: a merge conflict cannot be settled by the rule, a squash is refused by a permission guard, or a branch or worktree state is unsafe. Stop that ticket. Set it to Backlog, comment the findings on the issue, and keep the rest of the parent running.
 - **Blocker found by an agent**: an agent that returns early with a blocker is not a failure. Record it in the log, leave the ticket in Backlog, and move on.
 - **Human decision needed** (for example an unclear merge): surface the question with the options. Do not stall the other tickets while you wait.
 - **Parent done**: every child is Done. Report the list of squash commits.
@@ -55,6 +55,6 @@ Paste this to start a fresh session on a parent feature:
 
 ```
 Orchestrate parent #<N> on the Pipeline City board. Use the orchestrate-parent skill.
-Base branch: <branch>. Round limit 4. Up to two tickets in flight.
+Base branch: <branch>. No round cap. Up to two tickets in flight.
 First: read the parent, list its children, read each child's board status and blockedBy (GitHub, not ticket numbers). Move every unblocked open child to Ready. Start the ready tickets through the ticket-swarm loop, escalating per failure count. Keep the queue full after each squash. Stop only when every child is Done or a critical failure stops it. Report the squash commits at the end.
 ```
