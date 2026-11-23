@@ -1,7 +1,6 @@
 import { airflowLens, powerLens } from '@/app/hover';
-import { openSettings, settingsOpen } from '@/core/ui/state';
+import { openSettings } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
-import { type ModeKey, ModeKeys, VIEW_KEYS } from '@/core/ui/kit/ModeKit';
 import { fullDrawW } from '@/features/board/sim/compat';
 import { OFF, RUN_SPEEDS } from '@/features/board/sim/buildrun';
 import { specSheet } from '@/features/board/sim/buildspecs';
@@ -9,11 +8,12 @@ import { overallOfRuns } from './benchhud';
 import { pillOf, powerMeter } from './buildhud';
 
 type Stage = import('../render/three/buildmode3d').BuildStage;
+/** The phone's panes: the parts shelf, the machine tab, the run and tools bars. */
+export type BuildPane = 'parts' | 'machine' | 'run';
 
 const SPEEDS = [0.5, 1, 2, 4];
 const VIEWS = ['front', 'angle', 'side', 'top', 'wall'] as const;
-/** The hints under the dock: the camera in the Gallery's words, then what is Build's own. */
-const KEYS: readonly ModeKey[] = [...VIEW_KEYS, ['Double-click', 'focus or reset', 'Double-tap'], ['O', 'side panel', null], ['Esc', 'leave', null]];
+const PANES: readonly [BuildPane, string][] = [['parts', 'Parts'], ['machine', 'Machine'], ['run', 'Run']];
 const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 /**
@@ -22,14 +22,13 @@ const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
  * benchmark (its button opens the benchmark screen). From the part tables and the game's static checks; the machine is not run here. `rev` draws it again
  * on a change.
  */
-export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | undefined; onBench: () => void }) {
+export function Readout({ stage, rev }: { stage: Stage; rev: number | undefined }) {
   void rev;
   const s = stage.snapshot, shown = stage.shown.value, bare = shown !== 'machine';
   // (the draw is the machine's own, the one the supply alert quotes: it counts what the regulators waste, which the part list's watts do not)
   const sheet = specSheet({ boardTier: s.boardTier, caseTier: s.caseTier, specs: stage.board.devices.map((d) => d.spec), shown, drawW: bare ? undefined : fullDrawW(stage.board) });
   const status = pillOf(stage.alerts, shown), meter = powerMeter(sheet), over = meter.tone === 'bad';
   const short = sheet.psuW && sheet.loadW > sheet.psuW ? sheet.loadW - sheet.psuW : 0;
-  const score = overallOfRuns(stage.bench.value, {}), running = stage.benching.value;
   return (
     <section class="bld-read mode-bar" aria-label="Build summary">
       <span class={`bld-ready ${status.tone}`} role={status.tone === 'bad' ? 'alert' : 'status'} title={status.title}>
@@ -43,22 +42,24 @@ export function Readout({ stage, rev, onBench }: { stage: Stage; rev: number | u
         <span class="bld-meter" role="img" aria-label={`Full load is ${meter.pct}% of the supply`}><i style={{ width: `${meter.pct}%` }} /></span>
       </span>
       <span class="bld-fig" title={shown === 'nothing' ? 'Nothing is on the stage yet' : bare ? 'The case counts as one' : 'The case and the board count as one each'}><b>{sheet.parts}</b><em>Parts</em></span>
-      <i class="mode-sep" aria-hidden="true" />
-      <button class="bld-bench-btn" aria-haspopup="dialog" title="Run the almanac's jobs on this machine and score them: one, a set, or all. 1000 is par." onClick={onBench}>
-        <Icon name="gauge" size={13} />{running ? (running.total ? `Running ${running.n}/${running.total}` : 'Running…') : score.n ? <>Score <b>{score.overall}</b></> : 'Benchmark'}
-      </button>
     </section>
   );
 }
 
-/** The top right: the overlays on the machine (the game's P and A), the graphics settings. Close sits beside it. */
-export function ViewOptions({ ready }: { ready: boolean }) {
+/**
+ * The lens tab: the overlays on the machine (the game's P and A), Graphics (its settings, SPEC 5.7), and the benchmark, which opens its screen. Its label shows the score once it is known.
+ */
+export function ViewOptions({ ready, stage, onBench }: { ready: boolean; stage: Stage | null; onBench: () => void }) {
+  const score = overallOfRuns(stage?.bench.value ?? {}, {}), running = stage?.benching.value;
   return (
-    <div class="mode-bar mode-top bld-util" role="toolbar" aria-label="View options">
+    <div class="mode-bar bld-lens" role="toolbar" aria-label="View options">
       <button class={powerLens.value ? 'on' : ''} aria-pressed={powerLens.value} disabled={!ready} title="Power view (P)" onClick={() => { powerLens.value = !powerLens.value; }}><Icon name="bolt" size={12} />Power</button>
       <button class={airflowLens.value ? 'on' : ''} aria-pressed={airflowLens.value} disabled={!ready} title="Airflow view (A)" onClick={() => { airflowLens.value = !airflowLens.value; }}><Icon name="wind" size={12} />Airflow</button>
+      <button class="bld-gfx" aria-haspopup="dialog" title="Picture, light and detail settings" onClick={() => openSettings('studio')}><Icon name="sliders" size={12} />Graphics</button>
       <i class="mode-sep" aria-hidden="true" />
-      <button class={settingsOpen.value ? 'on' : ''} aria-haspopup="dialog" title="Picture, light and detail settings" onClick={() => openSettings('studio')}><Icon name="sliders" size={12} />Settings</button>
+      <button class="bld-bench-btn" aria-haspopup="dialog" title="Run the almanac's jobs on this machine and score them: one, a set, or all. 1000 is par." onClick={onBench}>
+        <Icon name="gauge" size={13} />{running ? (running.total ? `Running ${running.n}/${running.total}` : 'Running…') : score.n ? <>Score <b>{score.overall}</b></> : 'Benchmark'}
+      </button>
     </div>
   );
 }
@@ -74,9 +75,9 @@ export function RunControls({ stage, busy, bare }: { stage: Stage | null; busy: 
   const run = stage?.state.value ?? OFF, speed = stage?.simSpeed.value;
   return (
     <>
-      <button class={`bld-pow ${run.on ? 'on' : ''}`} aria-pressed={run.on} disabled={!stage || busy || bare}
-        title={bare ? 'There is no machine to switch on: fit a case, a board and its parts' : run.on ? 'Switch the machine off. A job that runs is lost, as in the game.' : 'Switch the machine on (it needs a power supply with its main cable). It boots, then runs at the speed beside it.'}
-        onClick={() => stage?.power()}>
+      <button class={`bld-pow ${run.on ? 'on' : 'primary'}`} aria-pressed={run.on} disabled={!stage || bare || (busy && run.on)}
+        title={bare ? 'There is no machine to switch on: fit a case, a board and its parts' : run.on ? 'Switch the machine off. A job that runs is lost, as in the game.' : busy ? 'A step is playing: this skips it (Space). Then switch the machine on.' : 'Switch the machine on (it needs a power supply with its main cable). It boots, then runs at the speed beside it.'}
+        onClick={() => { if (busy && !run.on) stage?.skip(); else stage?.power(); }}>
         <Icon name="power" size={13} />{run.on ? 'Power off' : 'Power on'}
       </button>
       <span class={`bld-chip ${run.tone}`} role="status" aria-live="polite" title={run.why ?? run.text}><i aria-hidden="true" />{run.text}</span>
@@ -104,7 +105,7 @@ function RunBar({ stage, busy, bare, onOs }: { stage: Stage | null; busy: boolea
  * The bottom: the one line that says what to do now (or the step that plays, with its Skip), then three bars: the machine's life (power, speed, the OS), the
  * machine (the side panel, undo and redo, the speed of the steps) and the camera (the views, and the picked part).
  */
-export function Foot({ stage, hint, undo, warn, onOs }: {
+export function Foot({ stage, hint, undo, warn, onOs, pane, onPane }: {
   stage: Stage | null;
   hint: string;
   /** Set while the hint says what a start just did: puts the old machine back. */
@@ -113,6 +114,9 @@ export function Foot({ stage, hint, undo, warn, onOs }: {
   warn?: () => void;
   /** Opens the OS sheet. */
   onOs: () => void;
+  /** Phone only: the pane that shows. */
+  pane: BuildPane;
+  onPane: (p: BuildPane) => void;
 }) {
   const st = stage?.status.value;
   const busy = !!st?.busy, open = stage?.open.value ?? false, picked = stage?.selected.value ?? null, speed = stage?.speed.value, noCase = stage?.shown.value === 'nothing';
@@ -125,6 +129,9 @@ export function Foot({ stage, hint, undo, warn, onOs }: {
         {warn && <button class="bld-x" aria-label="Dismiss" title="Dismiss" onClick={warn}><Icon name="close" size={10} /></button>}
       </div>
       <div class="bld-dock">
+        <div class="mode-bar bld-panes" role="tablist" aria-label="Pane">
+          {PANES.map(([k, label]) => <button key={k} role="tab" aria-selected={pane === k} class={pane === k ? 'on' : ''} onClick={() => onPane(k)}>{label}</button>)}
+        </div>
         <RunBar stage={stage} busy={busy} bare={!stage || stage.shown.value !== 'machine'} onOs={onOs} />
         <div class="mode-bar bld-tools" role="toolbar" aria-label="Machine">
           <button class={`bld-door ${open ? 'on' : ''}`} aria-pressed={open} disabled={busy || !stage || noCase} title={noCase ? 'There is no case yet: pick one from the shelf' : 'Open or shut the side panel (O): the parts inside are only in reach with it open'} onClick={() => stage?.openInside(!open)}>
@@ -145,7 +152,6 @@ export function Foot({ stage, hint, undo, warn, onOs }: {
           <button disabled={!stage || !picked} title="Fly to the picked part (F)" onClick={() => { if (picked) stage?.focusDevice(picked); }}><Icon name="focus" size={13} />Focus</button>
         </div>
       </div>
-      <ModeKeys keys={KEYS} />
     </div>
   );
 }

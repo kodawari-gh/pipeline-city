@@ -50,7 +50,7 @@ function BenchFoot({ stage, busy, onOpen }: { stage: Stage; busy: boolean; onOpe
  * each part it is about), and the benchmark at the foot. A row outlines its part on the stage while the pointer is on it, a click picks the part, and a
  * drag takes it out (drop it on the shelf), as the part itself does on the stage.
  */
-export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, selected, onBench, onShelf, onStart }: {
+export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, selected, onBench, onShelf, onStart, open, onToggle }: {
   stage: Stage | null;
   /** Counts up with every change of the machine: the list draws again. */
   rev: number | undefined;
@@ -66,6 +66,9 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   onShelf: (kind: string) => void;
   /** The machine was replaced by a start (a preset, a saved build, Empty, Full rig): what was done. */
   onStart: (line: string) => void;
+  /** The tab is open (the panel shows) or shut to its tab. */
+  open: boolean;
+  onToggle: () => void;
 }) {
   void rev;
   const devices = stage ? stage.board.devices : [];
@@ -110,7 +113,10 @@ export function BuildMachine({ stage, rev, kinds, saved, setSaved, busy, begin, 
   const shellCost = shell.reduce((n, r) => n + (priceOf(r.id) ?? 0), 0);
 
   return (
-    <aside class="bld-inst mode-panel">
+    <aside class={`bld-inst mode-panel ${open ? 'open' : 'closed'}`}>
+      <button class="bld-mtog" aria-expanded={open} title={open ? 'Shut the machine tab' : 'Open the machine tab'} onClick={onToggle}>
+        <span class="bld-mtog-eye">{sheet ? `${plural(sheet.parts, 'part')} · ${money(sheet.budget)}` : 'Machine'}</span><b>In the machine</b><i aria-hidden="true" />
+      </button>
       <header class="mode-head bld-head">
         <span class="bld-ht"><span class="mode-eyebrow">{sheet ? plural(sheet.parts, 'part') : 'Loading…'}</span><b>In the machine</b></span>
         <button class={`bld-startbtn ${showStart ? 'on' : ''}`} aria-expanded={showStart} disabled={off} title="Start again from a ready-made machine, or one you saved (Undo brings the old one back)" onClick={() => setStartOpen(!showStart)}>

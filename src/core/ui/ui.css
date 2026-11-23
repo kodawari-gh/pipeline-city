@@ -2079,3 +2079,68 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .mode button.on, .mode .mode-bar .seg > button.on { border-color: transparent; }
 .mode-keys { opacity: 0.62; transition: opacity .2s ease; }
 .mode:hover .mode-keys { opacity: 0.9; }
+
+/* Build my PC as edge tabs (#41): the summary, the lens and the bars are #39's tabs (`.hud-side`), each on its own edge. The shelf and the machine are
+   tall panels. Desk (data-layout="desk") and phone (data-layout="phone") differ; the phone shows one pane at a time (data-pane). The panes are the
+   parts shelf, the machine, and the run bars. Scoped to .build.bld-tabs so the Gallery keeps its own layout. */
+.build.bld-tabs .bld-panes { display: none; }
+.build.bld-tabs .bld-mtog { display: none; }
+.build.bld-tabs .bld-bin .mode-head { display: none; }
+.build.bld-tabs .bld-read, .build.bld-tabs .bld-lens { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.build.bld-tabs .bld-read::before, .build.bld-tabs .bld-lens::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--c-shade-86); clip-path: var(--tab-clip, none); }
+.build.bld-tabs .bld-read { --tab-clip: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); }
+.build.bld-tabs .bld-lens { --tab-clip: polygon(0 0, 100% 0, 100% 100%, 0.9rem 100%, 0 calc(100% - 0.9rem)); }
+/* (button.bld-pow.primary: the bare-button rule above has the same specificity and comes first, so the solid accent must tie it and follow it) */
+.mode .mode-bar button.bld-pow.primary { color: var(--on); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.mode .mode-bar button.bld-pow.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 82%, #fff); }
+.build.bld-tabs .bld-gfx { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+/* Desk: the summary top left, the lens top right, the machine a tab on the right that opens into its panel. */
+.build.bld-tabs[data-layout="desk"] .bld-read { left: 1rem; top: 1rem; right: auto; margin: 0; max-width: calc(100% - 2rem); }
+/* (the shelf starts under the summary bar, at the machine tab's top: a wrapped bar does not cover it) */
+.build.bld-tabs[data-layout="desk"] .bld-bin { top: 8.75rem; }
+.build.bld-tabs[data-layout="desk"] .bld-lens { position: absolute; top: 1rem; right: 1rem; margin: 0; width: max-content; }
+.build.bld-tabs[data-layout="desk"] .bld-mtog { display: flex; position: absolute; top: 8.75rem; right: 1rem; width: 13rem; align-items: center; gap: 0.5rem; padding: 0.7rem 1rem; border: 0; background: var(--c-shade-86); clip-path: polygon(0.9rem 0, 100% 0, 100% 100%, 0 100%, 0 0.9rem); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.build.bld-tabs[data-layout="desk"] .bld-mtog-eye { font-size: 0.75rem; opacity: 0.7; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed { right: 1rem; top: 8.75rem; bottom: auto; width: 13rem; height: auto; background: none; border: 0; box-shadow: none; overflow: visible; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed > :not(.bld-mtog) { display: none; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.closed .bld-mtog { display: flex; }
+.build.bld-tabs[data-layout="desk"] .bld-inst.open .bld-mtog { display: flex; position: static; width: auto; margin-bottom: 0.5rem; }
+
+/* Phone: one pane at a time, the foot at the bottom. The stage fills the screen behind the panes. */
+.build.bld-tabs[data-layout="phone"] .bld-host { position: absolute; inset: 0; height: auto; flex: none; }
+/* (relative, not static: the bar's ::before shade then sits in the bar. On a static bar its containing block was the whole screen, and it took the taps on the pane tabs) */
+.build.bld-tabs[data-layout="phone"] .bld-read { position: relative; top: auto; left: auto; right: auto; bottom: auto; width: auto; max-width: none; flex-wrap: wrap; justify-content: center; }
+.build.bld-tabs[data-layout="phone"] .bld-lens { position: absolute; top: 4.2rem; right: 0.5rem; }
+.build.bld-tabs[data-layout="phone"] .bld-foot { position: absolute; left: 0.5rem; right: 0.5rem; bottom: 0.5rem; width: auto; max-width: none; margin: 0; }
+.build.bld-tabs[data-layout="phone"] .bld-dock { display: contents; }
+.build.bld-tabs[data-layout="phone"] .bld-panes { display: flex; }
+.build.bld-tabs[data-layout="phone"] .bld-run, .build.bld-tabs[data-layout="phone"] .bld-tools, .build.bld-tabs[data-layout="phone"] .bld-views { display: none; }
+.build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-run, .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-tools, .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-views { display: flex; }
+.build.bld-tabs[data-layout="phone"] .bld-bin, .build.bld-tabs[data-layout="phone"] .bld-inst { display: none; }
+/* (the shelf is as tall as the screen allows above the foot, and at least 46vh: all the rail's rows show, the parts below them scroll) */
+.build.bld-tabs[data-layout="phone"][data-pane="parts"] .bld-bin { display: flex; top: auto; left: 0.5rem; right: 0.5rem; bottom: 11.5rem; width: auto; max-height: max(46vh, calc(100vh - 16rem)); }
+/* (the rail's rows show whole: as a scroll box the grid shrank it under the parts, and its last rows were cut with no bar to say so) */
+.build.bld-tabs[data-layout="phone"] .bld-rail { overflow: visible; }
+.build.bld-tabs[data-layout="phone"][data-pane="machine"] .bld-inst { display: flex; top: auto; left: 0.5rem; right: 0.5rem; bottom: 11.5rem; width: auto; max-height: 46vh; }
+.build.bld-tabs[data-layout="phone"] .bld-inst > .bld-mtog { display: none; }
+/* (the run pane's foot is tall: the lens sits under the summary and above it, not on the pane tabs and the bars) */
+.build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-lens { display: flex; top: 8rem; bottom: auto; right: 0.5rem; }
+.build.bld-tabs[data-layout="phone"]:not([data-pane="run"]) .bld-lens { display: none; }
+.build.bld-tabs[data-layout="phone"] .bld-mtog { display: none; }
+/* (landscape phone: the summary is one row and the foot starts low, so the shelf and the machine sit between them) */
+@media (max-height: 37.5em) and (orientation: landscape) {
+  .build.bld-tabs[data-layout="phone"][data-pane="parts"] .bld-bin, .build.bld-tabs[data-layout="phone"][data-pane="machine"] .bld-inst { top: 3.8rem; bottom: 6.5rem; max-height: none; }
+  /* (here the rail is a column beside the parts, not a row: it scrolls, with a thin bar, or its lower kinds are cut off) */
+  .build.bld-tabs[data-layout="phone"] .bld-rail { overflow-y: auto; scrollbar-width: thin; }
+  .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-lens { top: 4rem; }
+}
+
+/* The Back tab (SPEC 5.7): the one way out of Build my PC besides Esc; a tab top left, and on desk the summary starts after it. */
+.build.bld-tabs .bld-back { position: absolute; z-index: 4; top: 1rem; left: 1rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.9rem; border: 0; background: var(--c-shade-86); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.9rem), calc(100% - 0.9rem) 100%, 0 100%); color: inherit; font: inherit; cursor: pointer; }
+.build.bld-tabs .bld-back em { font: normal var(--m-xs) var(--mono); opacity: 0.6; }
+.build.bld-tabs[data-layout="desk"] .bld-read { left: 8rem; max-width: calc(100% - 9rem); }
+/* (phone: the picked part's card is a sheet over the pane, above the bottom bar) */
+.build.bld-tabs[data-layout="phone"] .bld-card { position: absolute; z-index: 5; max-height: 40vh; overflow-y: auto; }
+.build.bld-tabs[data-layout="phone"] .bld-back { top: 1.5rem; left: 1.4rem; background: none; clip-path: none; padding: 0.2rem 0.4rem; }
+.build.bld-tabs[data-layout="phone"] .bld-back em { display: none; }

@@ -13,12 +13,14 @@ type Stage = import('../render/three/buildmode3d').BuildStage;
 const fmt = (v: number, unit: string): string => `${Number.isInteger(v) ? v : Math.round(v * 100) / 100}${unit ? ` ${unit}` : ''}`;
 
 /** The card of the picked part, beside it on the stage as the game's picker is: what it is, its numbers, and the two things to do with it. */
-export function BuildCard({ stage, id, avoid }: {
+export function BuildCard({ stage, id, avoid, sheet }: {
   stage: Stage;
   /** The device id of the picked part. */
   id: string;
   /** The panels that float over the stage: the card stays out from under them. */
   avoid: () => (HTMLElement | null)[];
+  /** Phone: the panes fill the screen, so the card is a sheet over them, just above the bottom bar (`foot`). */
+  sheet?: () => HTMLElement | null;
 }) {
   void stage.viewRev.value; // (the part moves on the screen with the camera: the card follows)
   void stage.status.value.rev;
@@ -33,11 +35,22 @@ export function BuildCard({ stage, id, avoid }: {
     if (!el || !dev) return;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), gap = rem * 0.9;
     const vw = window.innerWidth, vh = window.innerHeight;
+    if (sheet) {
+      const f = sheet()?.getBoundingClientRect();
+      el.dataset.side = 'dock';
+      el.style.transform = 'none';
+      el.style.left = '0.5rem'; el.style.right = '0.5rem'; el.style.top = 'auto'; el.style.width = 'auto';
+      el.style.bottom = `${Math.max(0, vh - (f ? f.top : vh) + gap / 2)}px`;
+      return;
+    }
     const boxes = avoid().map((p) => { const r = p?.getBoundingClientRect(); return r ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null; });
     const c = clearance({ left: 0, top: 0, right: vw, bottom: vh }, boxes, gap / 2);
     const free = { x: c.left, y: c.top, w: Math.max(1, vw - c.left - c.right), h: Math.max(1, vh - c.top - c.bottom) };
     const size = { w: el.offsetWidth, h: el.offsetHeight }, a = stage.anchorOf(id);
     const p = a ? placePopup(a, size, free, gap) : dockPlacement(size, free);
+    // (whatever the free strip was, the card never leaves the screen)
+    p.x = Math.min(Math.max(0, p.x), Math.max(0, vw - size.w));
+    p.y = Math.min(Math.max(0, p.y), Math.max(0, vh - size.h));
     el.dataset.side = p.side;
     el.style.setProperty('--tail', `${p.tail}px`);
     el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;

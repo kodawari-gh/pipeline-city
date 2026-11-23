@@ -14,7 +14,7 @@ import { BuildCard } from './BuildCard';
 import { BuildMachine } from './BuildMachine';
 import { BuildOs } from './BuildOs';
 import { BuildShelf } from './BuildShelf';
-import { Foot, Readout, ViewOptions } from './BuildBars';
+import { Foot, Readout, ViewOptions, type BuildPane } from './BuildBars';
 import { hintLine } from './buildhud';
 import { loadBuildStills } from './buildstills';
 import { useBuildDrag, type Drag } from './builddrag';
@@ -43,8 +43,26 @@ const doesOf = (id: string, stage: Stage): string => {
   return stage.board.devices.some((d) => d.id === id) ? 'Click to pick it · drag it onto the shelf to take it out' : 'Drop a part here to fit it';
 };
 
+/** The phone's layout (SPEC 6.1): the same query as the rest of the menus, read here so the markup can change with it. */
+const PHONE_QUERY = '(max-width: 48em), (max-aspect-ratio: 3/4), (max-height: 37.5em) and (orientation: landscape)';
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const m = matchMedia(PHONE_QUERY);
+    const f = () => setPhone(m.matches);
+    m.addEventListener('change', f);
+    f();
+    return () => m.removeEventListener('change', f);
+  }, []);
+  return phone;
+}
+
 export function BuildMode() {
   const open = buildOpen.value;
+  const phone = usePhone();
+  const [pane, setPane] = useState<BuildPane>('parts');
+  const [machineOpen, setMachineOpen] = useState(true);
   const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const shelf = useRef<HTMLElement>(null);
@@ -168,7 +186,9 @@ export function BuildMode() {
   if (!open) return null;
   void rev;
   const picked = stage?.selected.value ?? null, hover = stage?.hover.value ?? null;
-  const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', '.bld-foot', '.bld-util'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
+  // the bottom box: on the phone the dock is `display: contents` and has no box, so the bottom bar (`.bld-foot`) stands for it
+  const bottom = phone ? '.bld-foot' : '.bld-dock';
+  const avoid = () => ['.bld-bin', '.bld-inst', '.bld-read', bottom, '.bld-lens'].map((q) => root.current?.querySelector<HTMLElement>(q) ?? null);
   // a start's line stays while it is the last thing done (a later change, or Undo itself, makes it stale) and nothing else is going on
   const flash = stage && said && said.swaps === stage.swaps && stage.lastWasSwap && !busy && !drag ? said.text : null;
   // a refusal ("it fits no socket") takes the line for a few seconds: the log of what was done is for `?debug` only, the player must still hear a no
@@ -179,7 +199,7 @@ export function BuildMode() {
     : refused ?? flash ?? hintLine({ busy, step: st?.step ?? '', dragging: drag?.from ?? null, over: drag?.over ?? null, picked: !!picked, open: stage.open.value, fitted: stage.board.devices.length, shown, shell: drag ? shellOf(drag.item) : undefined, on: stage.state.value.on, holding: !!stage.cableTip.value });
 
   return (
-    <div class="build mode" role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
+    <div class="build mode bld-tabs" data-layout={phone ? 'phone' : 'desk'} data-pane={pane} data-machine={machineOpen ? 'open' : 'shut'} role="dialog" aria-modal="true" aria-label="Build my PC" ref={root}>
       <div class={`bld-host ${drag?.over === 'stage' ? 'drop' : ''}`} ref={host} />
       {!stage && !failed && <div class="bld-note mute" role="status"><span class="bld-wait"><i class="starting-ring" aria-hidden="true" />Loading the workshop…</span></div>}
       {failed && <div class="bld-note mute">3D is not available here.</div>}
@@ -189,14 +209,14 @@ export function BuildMode() {
         fit={(item) => { void stageRef.current?.fit(item); }}
         taking={drag?.from === 'machine'} over={drag?.over === 'bin'}
       />
-      {stage && <Readout stage={stage} rev={rev} onBench={() => setBench(true)} />}
-      <ViewOptions ready={!!stage} />
-      <button class="mode-close" title="Close (Esc)" aria-label="Close" onClick={() => { buildOpen.value = false; }}><Icon name="close" size={12} /></button>
-      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} />
-      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} />
+      <button class="bld-back" title="Back to the game (Esc)" onClick={() => { buildOpen.value = false; }}><Icon name="prev" size={12} />Back<em>Esc</em></button>
+      {stage && <Readout stage={stage} rev={rev} />}
+      <ViewOptions ready={!!stage} stage={stage} onBench={() => setBench(true)} />
+      <BuildMachine stage={stage} rev={rev} kinds={KINDS} saved={saved} setSaved={setSaved} busy={busy} begin={begin} selected={picked} onBench={() => setBench(true)} onShelf={setKind} onStart={say} open={machineOpen} onToggle={() => setMachineOpen((o) => !o)} />
+      <Foot stage={stage} hint={hint} undo={!refused && flash && stage ? () => { void stage.undo(); } : undefined} warn={refused && stage ? () => stage.clearRefusal() : undefined} onOs={() => setOsSheet(true)} pane={pane} onPane={setPane} />
       {stage && bench && <BuildBench stage={stage} onClose={() => setBench(false)} />}
       {stage && osSheet && <BuildOs stage={stage} onClose={() => setOsSheet(false)} onBench={() => { setOsSheet(false); setBench(true); }} />}
-      {stage && picked && !drag && !bench && !osSheet && <BuildCard stage={stage} id={picked} avoid={avoid} />}
+      {stage && picked && !drag && !bench && !osSheet && <BuildCard stage={stage} id={picked} avoid={avoid} sheet={phone ? () => root.current?.querySelector<HTMLElement>('.bld-foot') ?? null : undefined} />}
       {stage && hover && !drag && !busy && !bench && !osSheet && hover.id !== picked && <TooltipBubble id={hover.id} x={hover.x} y={hover.y} s={stage.snapshot} extra={doesOf(hover.id, stage)} />}
       {stage && <CableTip stage={stage} />}
       {drag && <Ghost drag={drag} shown={shown} />}
