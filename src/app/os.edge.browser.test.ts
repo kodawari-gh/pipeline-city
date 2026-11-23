@@ -113,6 +113,9 @@ function spreadOf(color: string): number {
 async function openSheet(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^Build my PC/ }).click();
   await page.waitForSelector('.build.mode');
+  // on a phone the OS button sits in the Run pane (one pane shows at a time)
+  const runTab = page.getByRole('tab', { name: 'Run', exact: true });
+  if (await runTab.isVisible()) await runTab.click();
   await page.locator('button.bld-os').click();
   await page.waitForSelector('section.bld-os-sheet');
   await page.waitForTimeout(OPEN_SETTLE_MS);

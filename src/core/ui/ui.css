@@ -1965,7 +1965,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 
 /* The OS sheet (BuildOs.tsx): the benchmark's sheet, with the game's OS pages inside it (`.os-*` above) and the page that chooses the OS. The power controls sit in its head: the sheet covers the foot's. */
 .bld-os-sheet { width: 58rem; }
-.bld-os-sheet .bench-head { align-items: center; }
+.bld-os-sheet .bench-head { align-items: center; flex-wrap: wrap; }
+/* (the power controls wrap under the title on a narrow screen; the head must not push them past the sheet) */
+.bld-os-sheet .bench-head .bld-run-sheet { min-width: 0; max-width: 100%; justify-content: flex-start; }
 .mode-bar.bld-run-sheet { position: static; flex: none; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
 .os-sheet-tabs { --g: var(--accent); }
 .os-sheet-body { padding: 0 0.1rem 0.2rem; scrollbar-width: thin; }
@@ -2437,6 +2439,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build.bld-tabs[data-layout="phone"] .bld-lens { position: absolute; top: 4.2rem; right: 0.5rem; }
 .build.bld-tabs[data-layout="phone"] .bld-foot { position: absolute; left: 0.5rem; right: 0.5rem; bottom: 0.5rem; width: auto; max-width: none; margin: 0; }
 .build.bld-tabs[data-layout="phone"] .bld-dock { display: contents; }
+/* (the bars wrap inside the foot, never past it: the foot clips what leaves its box, and the landscape foot is 14 rem wide, so the OS button was cut off and could not be tapped) */
+.build.bld-tabs[data-layout="phone"] .bld-dock .mode-bar { flex-wrap: wrap; max-width: 100%; }
 .build.bld-tabs[data-layout="phone"] .bld-panes { display: flex; }
 .build.bld-tabs[data-layout="phone"] .bld-run, .build.bld-tabs[data-layout="phone"] .bld-tools, .build.bld-tabs[data-layout="phone"] .bld-views { display: none; }
 .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-run, .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-tools, .build.bld-tabs[data-layout="phone"][data-pane="run"] .bld-views { display: flex; }
