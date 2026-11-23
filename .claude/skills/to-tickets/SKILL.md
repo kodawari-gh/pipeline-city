@@ -1,105 +1,88 @@
 ---
 name: to-tickets
-description: Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, published to the configured tracker (edges as text in one file per ticket locally, or native blocking links on a real tracker).
+description: Break a plan, spec, or the current conversation into tracer-bullet tickets on the Pipeline City board, each with blocking edges, a planned model, and the test seam the swarm needs.
 disable-model-invocation: true
 ---
 
 # To Tickets
 
-Break a plan, spec, or conversation into a set of **tickets**: tracer-bullet vertical slices, each declaring the tickets that **block** it.
+Break a plan, spec, or conversation into **tickets**: tracer-bullet vertical slices, each declaring the tickets that **block** it. Each ticket is built later by `ticket-swarm`, so it carries what the swarm reads: acceptance items, the test seam, the checks, and a planned model.
 
-The issue tracker and triage label vocabulary should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
+Tracker operations: `docs/agents/issue-tracker.md`. Board operations and the planned-model rubric: the `update-gh-board` skill.
 
 ## Process
 
 ### 1. Gather context
 
-Work from whatever is already in the conversation context. If the user passes a reference (a spec path, an issue number or URL) as an argument, fetch it and read its full body and comments.
+Work from the conversation. If the user passes a reference (a spec path, an issue number), read its full body and comments.
 
-### 2. Explore the codebase (optional)
+### 2. Explore the codebase
 
-If you have not already explored the codebase, do so to understand the current state of the code. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect ADRs in the area you're touching.
-
-Look for opportunities to prefactor the code to make the implementation easier. "Make the change easy, then make the easy change."
+Learn the current state of the code. Use the glossary vocabulary (`GLOSSARY.md`) and respect the ADRs in the area. Find the test seam for each slice: the module, the exported functions, and the test helpers a tester can call. Look for prefactoring: "make the change easy, then make the easy change."
 
 ### 3. Draft vertical slices
 
-Break the work into **tracer bullet** tickets.
-
 <vertical-slice-rules>
 
-- Each slice cuts a narrow but COMPLETE path through every layer (schema, API, UI, tests): vertical, NOT a horizontal slice of one layer
-- A completed slice is demoable or verifiable on its own
-- Each slice is sized to fit in a single fresh context window
-- Any prefactoring should be done first
+- Each slice cuts a narrow but COMPLETE path through every layer it touches (sim, worker protocol, UI, tests).
+- A completed slice is demoable or verifiable on its own.
+- Each slice fits in one fresh context window of its planned model.
+- Prefactoring comes first.
 
 </vertical-slice-rules>
 
-Give each ticket its **blocking edges**: the other tickets that must complete before it can start. A ticket with no blockers can start immediately.
+Give each ticket its **blocking edges**: the tickets that must complete before it can start.
 
-**Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
+Give each ticket a **planned model** from the rubric in `update-gh-board`. When one slice mixes a Haiku part and a Sonnet part, split it so the Haiku part can land on Haiku.
+
+**Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change whose **blast radius** fans across the codebase, so no vertical slice can land green. Sequence it as **expand–contract**: expand (add the new form beside the old), migrate call sites in batches sized by blast radius (each batch a ticket blocked by the expand), then contract (delete the old form, blocked by every batch). When the batches cannot stay green alone, let them share an integration branch that blocks a final integrate-and-verify ticket.
 
 ### 4. Quiz the user
 
-Present the proposed breakdown as a numbered list. For each ticket, show:
+Show the breakdown as a numbered list. For each ticket: **Title**, **Blocked by**, **Planned model** with a one-line reason, **What it delivers**.
 
-- **Title**: short descriptive name
-- **Blocked by**: which other tickets (if any) must complete first
-- **What it delivers**: the end-to-end behaviour this ticket makes work
+Ask:
 
-Ask the user:
+- Is the granularity right (too coarse / too fine)?
+- Does each blocking edge gate genuinely?
+- Is each planned model right? (Too low costs rounds; too high costs tokens.)
+- Merge or split any tickets?
 
-- Does the granularity feel right? (too coarse / too fine)
-- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
-- Should any tickets be merged or split further?
+Iterate until the user approves.
 
-Iterate until the user approves the breakdown.
+### 5. Publish
 
-### 5. Publish the tickets to the configured tracker
+Publish in dependency order (blockers first) so edges reference real numbers. For each ticket:
 
-Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured; the tickets are the same either way, only the shape of the blocking edges changes:
+1. `gh issue create` with the template below and the `ready-for-agent` label (`ready-for-human` for a Human ticket). If the source was an existing issue, create it as that issue's sub-issue.
+2. Add the native blocked-by edges.
+3. Add the issue to the board, set **Planned model**, and set **Status**: Ready when it has no open blocker, Backlog otherwise (Human tickets: always Backlog).
 
-- **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
-- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. If the source was an existing issue, make each ticket its sub-issue (tracker doc's operation). Apply the `ready-for-agent` triage label unless instructed otherwise; the tickets are agent-grabbable by construction.
-
-Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
-
-Do NOT close or modify any parent issue.
-
-<local-ticket-template>
-
-# <NN>: <Ticket title>
-
-**What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective, not a layer-by-layer implementation list.
-
-**Blocked by:** the numbers/titles of the tickets that gate this one, or "None (can start immediately)".
-
-**Status:** ready-for-agent
-
-- [ ] Acceptance criterion 1
-- [ ] Acceptance criterion 2
-
-</local-ticket-template>
+Done when every ticket is on the board with a planned model, its edges, and a status. Leave the parent issue's body and state unchanged.
 
 <issue-template>
 
 ## Parent
 
-A reference to the parent issue on the tracker (if the source was an existing issue, otherwise omit this section).
+#<parent> (omit when there is no parent).
 
 ## What to build
 
-The end-to-end behaviour this ticket makes work, from the user's perspective, not layer-by-layer implementation.
+The end-to-end behaviour this ticket makes work, from the player's or caller's view, not a layer-by-layer list.
 
 ## Acceptance criteria
 
-- [ ] Criterion 1
+- [ ] Criterion 1, each one checkable by a test or a named command
 - [ ] Criterion 2
 
-## Blocked by
+## Test seam
 
-- A reference to each blocking ticket, or "None (can start immediately)". Omit this section when blockers were set as native edges.
+The module and exported functions the tester calls, and the test helpers to use. Name modules, not line numbers.
+
+## Checks
+
+The commands the reviewer runs: the test files, `npm run typecheck`, and `npx vitest run src/core/ui/scaling.test.ts` for UI sizes. For rendering or UI work, the `npm run shot` view to capture.
 
 </issue-template>
 
-In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
+Keep code out of the body: it goes stale. Exception: a prototype snippet that encodes a decision more precisely than prose (state machine, reducer, type shape). Inline the decision-rich part and note it came from a prototype.

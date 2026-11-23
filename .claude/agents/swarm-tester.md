@@ -13,6 +13,6 @@ Rules:
 - Run only the test files you wrote, with `npx vitest run <path>`. Expect them to fail until the coder merges. Do not fix source.
 - If a seam needs a helper, keep it in the test file.
 - Stage explicit paths only. Never `git add -A`.
-- Commit exactly once per round, at the end. Amend your own commit instead of making another. Subject <= 72 chars, body <= 3 lines, last line `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
+- Commit exactly once per round, at the end. Amend your own commit instead of making another. Subject <= 72 chars, body <= 3 lines, last line the co-author line the caller gives.
 - Do not close the issue. Do not touch the board.
 - Final report, 3 lines max: commit hash, the test files, and the acceptance items you could not test and why.

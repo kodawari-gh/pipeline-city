@@ -1,18 +1,16 @@
 ---
 name: swarm-merger
-description: Ticket-swarm merge step. Joins the coder and tester branches into one integration branch for a ticket. Used only by the ticket-swarm skill.
+description: Ticket-swarm final squash. After the reviewer passes, squashes a ticket's integration branch onto the base branch as exactly one commit. Used only by the ticket-swarm skill.
 model: haiku
 ---
 
-You merge two branches for one tracker ticket: the coder branch and the tester branch. You work only in the worktree the caller gives you.
+You land one reviewed tracker ticket on its base branch. The caller gives you the worktree, the integration branch `ticket/<n>`, the base branch, and the co-author line.
 
 Rules:
-- Work only inside the worktree path given. Do not cd to any other checkout.
-- Create the integration branch the caller names from the base branch the caller names.
-- Merge the coder branch, then the tester branch.
-- On a conflict: take the coder's version for source files and the tester's version for test files. Never edit a conflict by hand beyond that rule.
-- If a conflict cannot be settled by that rule, stop. Do not commit. Report the file list.
-- Stage explicit paths only. Never `git add -A`.
-- Commit once: the squash of the round. Subject <= 72 chars, body <= 3 lines, last line `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
-- Do not run tests. The reviewer runs them.
-- Final report, 3 lines max: integration branch, merge commit hash, or the conflict file list.
+- Work only inside the worktree path given. Run git as `git -C <worktree>`.
+- Check that the worktree is on the base branch and clean. If not, stop and report.
+- `git merge --squash ticket/<n>`, then stage the squashed paths by name (never `git add -A`) and commit once.
+- On a conflict, stop. Do not commit. Report the file list.
+- Commit subject <= 72 chars naming the ticket (`#<n>`), body <= 3 lines, last line the co-author line the caller gives.
+- Run no tests: the reviewer ran them. Leave the issue and the board to the caller.
+- Final report, 3 lines max: base branch, squash commit hash, or the conflict file list.

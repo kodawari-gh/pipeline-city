@@ -1,6 +1,6 @@
 ---
 name: update-gh-board
-description: Read and update the Pipeline City GitHub project board (project 4, kodawari-gh): status, planned and winning model, swarm effort, and which tickets are unblocked. Use whenever a ticket changes stage, when deciding what is ready to start, or when recording a swarm result on the board.
+description: Read and update the Pipeline City GitHub project board (project 4, kodawari-gh): status, planned model, rounds, and which tickets are unblocked. Use whenever a ticket is created or changes stage, when choosing a ticket's model, or when deciding what is ready to start.
 ---
 
 # Update the Pipeline City board
@@ -18,20 +18,34 @@ Project 4, owner `kodawari-gh`. Repo `kodawari-gh/pipeline-city`. Use `gh` only.
 | Status: In progress | `47fc9ee4` |
 | Status: In review | `df73e18b` |
 | Status: Done | `98236657` |
-| Model (winning) field | `PVTSSF_lAHOA2XHg84BsuAozhq7y5I` |
-| Model: Opus / Sonnet / Haiku / Human / Parent | `c7b8cd83` / `99edfc5c` / `fb85a23d` / `f99773a8` / `60754262` |
 | Planned model field | `PVTSSF_lAHOA2XHg84BsuAozhq-R_k` |
 | Planned: Opus / Sonnet / Haiku / Human / Parent | `7f4653d4` / `cde2c3a7` / `46bb0cb7` / `d285167b` / `1fc3c805` |
-| Swarm effort (text) field | `PVTF_lAHOA2XHg84BsuAozhq-NMQ` |
+| Rounds field (number) | `PVTF_lAHOA2XHg84BsuAozhrHypY` |
 
-Item ids are per ticket and per project, not the issue node id. Look them up, do not guess them.
+The `Model` and `Swarm effort` fields are legacy. Read them for old tickets; write `Rounds` instead.
+
+Item ids are per ticket and per project, not the issue node id. Look them up.
+
+## Planned model
+
+Every ticket gets a planned model when it is created (`to-tickets`). `ticket-swarm` starts its escalation ladder at this model. Choose by what makes the ticket hard:
+
+| Planned | Pick when |
+| --- | --- |
+| Haiku | One feature, sim or logic or wiring. A test seam already exists. Each acceptance item is a unit-test assertion. |
+| Sonnet | UI or render layout judged by a screenshot or pixel values. Cross-layer work (worker, protocol, main thread). Save format changes. A new test seam is needed. |
+| Opus | A change to an interface many features share. The expand step of a wide refactor. A design choice the ticket leaves open. Performance diagnosis. |
+| Human | Needs human sign-off, taste, credentials, or a decision only the user can make. Never swarmed. |
+| Parent | The issue only groups sub-issues. Never swarmed. |
+
+Check `docs/agents/swarm-log.md` for similar past tickets. If one needed 3 or more rounds at a tier, plan one model higher.
 
 ## Read
 
-Item id and status for one ticket:
+Item id, status, planned model for one ticket:
 
 ```
-gh project item-list 4 --owner kodawari-gh --limit 200 --format json --jq '.items[] | select(.content.number==38) | "\(.id) \(.status)"'
+gh project item-list 4 --owner kodawari-gh --limit 200 --format json --jq '.items[] | select(.content.number==38) | "\(.id) \(.status) \(."planned model" // "-")"'
 ```
 
 Count by status:
@@ -42,17 +56,21 @@ gh project item-list 4 --owner kodawari-gh --limit 200 --format json --jq '[.ite
 
 ## Write
 
-Set status:
+Add a new issue to the board (returns the item id):
 
 ```
-gh project item-edit --project-id PVT_kwHOA2XHg84BsuAo --id <item-id> --field-id PVTSSF_lAHOA2XHg84BsuAozhq6zYA --single-select-option-id <option-id>
+gh project item-add 4 --owner kodawari-gh --url https://github.com/kodawari-gh/pipeline-city/issues/<n> --format json --jq .id
 ```
 
-Set swarm effort (text) with `--text "haiku xhigh"` and `--field-id PVTF_lAHOA2XHg84BsuAozhq-NMQ`.
+Set a single-select field (Status, Planned model):
 
-Set the winning Model or Planned model with the single-select field id and option id from the table above.
+```
+gh project item-edit --project-id PVT_kwHOA2XHg84BsuAo --id <item-id> --field-id <field-id> --single-select-option-id <option-id>
+```
 
-## Blocked or not: read GitHub, never guess
+Set rounds: `--field-id PVTF_lAHOA2XHg84BsuAozhrHypY --number <n>`.
+
+## Blocked or not: read GitHub
 
 Ticket bodies do not name blockers. The blocked-by links on GitHub do. Check them before any ticket moves to Ready:
 
@@ -60,21 +78,16 @@ Ticket bodies do not name blockers. The blocked-by links on GitHub do. Check the
 gh api graphql -f query='query($n:Int!){repository(owner:"kodawari-gh",name:"pipeline-city"){issue(number:$n){state blockedBy(first:20){nodes{number state}}}}}' -F n=<n> --jq '.data.repository.issue | "\(.state) blocked-by=\([.blockedBy.nodes[] | "#\(.number)(\(.state))"] | join(","))"'
 ```
 
-A ticket is unblocked when every blocker is CLOSED (or it has none). Ready means unblocked. Do not infer order from ticket numbers or from a parent's chain.
+A ticket is unblocked when every blocker is CLOSED (or it has none). Ready means unblocked. Take order only from `blockedBy`, never from ticket numbers or a parent's list.
 
-Known mistake, do not repeat: I assumed a numeric chain (#38 to #48) and put blocked tickets in Ready and unblocked ones in Backlog. Always check `blockedBy` first.
+## Status rules
 
-## Rules
-
-- Ready: unblocked tickets only. Re-check blockedBy when a blocker closes; move newly unblocked tickets to Ready.
-- In progress: set when the first round's agents launch. Never leave a ticket in progress after its run stops.
-- In review: set when the reviewer passes and before the squash.
-- Done: set after the squash lands and the issue is closed. Close the issue with a comment naming the squash commit.
-- Backlog: set when a ticket hits the round limit, or when it is blocked and not yet started.
-- Do not batch many board writes in one shell call that might be interrupted. Each write is idempotent: re-read the item before retrying a write that may or may not have run.
-- Record the winning model and swarm effort on Done tickets. Record the planned model at the start.
-- Human-gated tickets (for example #31, held for human sign-off) stay in Backlog. Never move them to Ready.
+- Backlog: blocked, held (Human, Parent), or stopped (ladder exhausted, critical failure).
+- Ready: unblocked tickets only. When a blocker closes, re-check its dependents and move the newly unblocked ones to Ready.
+- In progress: set when round 1's agents launch. Never leave a ticket in progress after its run stops.
+- In review: set when the reviewer passes, before the squash.
+- Done: set after the squash lands and the issue is closed. Write `Rounds` = the number of reviewer verdicts, the PASS included. Close the issue with a comment naming the squash commit.
 
 ## Board writes are shared state
 
-Other sessions may read or write the board. Re-read an item's status just before you write it. Do not move a ticket another session has in progress.
+Other sessions read and write the board. Re-read an item just before you write it. Leave tickets another session has in progress alone. Make one write per shell call: each write is idempotent, so re-read and retry one that may not have run.
