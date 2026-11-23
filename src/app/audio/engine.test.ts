@@ -561,6 +561,32 @@ describe('ticket #61: music look-ahead', () => {
     vi.advanceTimersByTime(25);
     expect(bedStarted()?.when).toBeCloseTo(bar, 9);
   });
+
+  it('a music call still queued when the tab hides is dropped: it never starts, and the hide reports it', async () => {
+    vi.useFakeTimers();
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([`music/stems/${MENU_ID}.ogg`, 'music/stems/music_bed_F.ogg']);
+    ctx().currentTime = 10;
+    eng.engineSink.startMusic(MENU_ID, 2000, 'now');
+    eng.engineSink.startMusic('music_bed_F', 2000, 'bar'); // queued for the bar line, not yet in the window
+    expect(eng.setHidden(true)).toBe(true);
+    ctx().currentTime = 10 + BAR_S + 0.05; // past the bar line, while hidden
+    vi.advanceTimersByTime(100);
+    expect(sourcesOf().some((s) => s.started && s.buffer?.path === 'music/stems/music_bed_F.ogg')).toBe(false);
+  });
+
+  it('a hide with no music call queued reports nothing dropped', async () => {
+    vi.useFakeTimers();
+    const eng = await import('./engine');
+    eng.unlockOnGesture();
+    gesture('keydown');
+    await eng.preload([`music/stems/${MENU_ID}.ogg`]);
+    ctx().currentTime = 10;
+    eng.engineSink.startMusic(MENU_ID, 2000, 'now');
+    expect(eng.setHidden(true)).toBe(false);
+  });
 });
 
 // Ticket #58: a room or hum loop ends on the manifest's sample count, and a decoder that trims the file logs one warning.

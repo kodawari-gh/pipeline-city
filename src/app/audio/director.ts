@@ -41,6 +41,10 @@ export interface DirectorSnap {
   phase?: Phase;
   net?: { state: LinkState };
   power?: { tripped: boolean };
+  /** The wall is cut for an unpaid bill (a hard failure, SPEC §6.3). */
+  bill?: { cut: boolean } | null;
+  /** The last power-on ended in a POST error (phase 'error', a soft failure: no stinger). */
+  postFailed?: boolean;
   plugged?: unknown | null;
   keyActivity?: KeyActivity;
   /** The machine's power and devices: the hum (a fixture may omit them: then no hum plays). */
@@ -52,6 +56,11 @@ export interface Director {
   onSnapshot(s: DirectorSnap): void;
   /** The clock, the hold and the crash, each time one of them may have changed. */
   onUi(u: UiInput): void;
+  /**
+   * The tab hid (true) or came back (false). The music ignores state while hidden and sets it at once on return (ticket #63).
+   * `droppedMusic` (on hide): the engine dropped queued music calls, so the music sends its calls again on return.
+   */
+  onHidden(hidden: boolean, droppedMusic?: boolean): void;
   /** No game (snapshot null), load or new game: the next snapshot starts fresh and plays nothing. */
   reset(): void;
 }
@@ -68,6 +77,9 @@ interface SeenState {
   phase?: Phase;
   net?: LinkState;
   tripped?: boolean;
+  /** The wall is cut for the bill now. */
+  cut: boolean;
+  postFailed: boolean;
   plugged: boolean;
   keyActivity?: KeyActivity;
   /** POST ran and the machine has not reached `running` or `idle-os` yet: the next `running` is this boot's `boot_ready`. */
@@ -75,6 +87,15 @@ interface SeenState {
 }
 
 const LINK_DOWN: readonly LinkState[] = ['down', 'no-cable', 'no-os', 'no-device'];
+
+/**
+ * A hard failure (burnt VRM, PSU trip, power cut): the error phase starts for a part that burnt (not a POST error, which is
+ * soft), the PSU trips, or the wall is cut for the bill.
+ */
+const hardFault = (before: SeenState, now: SeenState): boolean =>
+  (now.phase === 'error' && before.phase !== 'error' && !now.postFailed) ||
+  (now.tripped === true && before.tripped !== true) ||
+  (now.cut && !before.cut);
 
 /**
  * The state rules (SPEC §3.2) between the last snapshot and this one. A rule is skipped when a note of its family
@@ -93,11 +114,7 @@ function stateCues(before: SeenState, now: SeenState, families: ReadonlySet<stri
     // Booted: POST ran, then the OS idles or the no-OS flow runs. Once per boot: a later job's phases play nothing (`posted` is spent).
     if ((now.phase === 'idle-os' || now.phase === 'running') && before.posted) out.push('boot_ready');
   }
-  if (!families.has('fault')) {
-    const error = now.phase === 'error' && before.phase !== 'error';
-    const psu = now.tripped === true && before.tripped !== true;
-    if (error || psu) out.push('fault_hard');
-  }
+  if (!families.has('fault') && hardFault(before, now)) out.push('fault_hard');
   if (!families.has('key')) {
     const unplugged = before.plugged && !now.plugged;
     const done = before.keyActivity === 'done' && now.keyActivity === 'none';
@@ -200,6 +217,8 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
         phase: s.phase,
         net: s.net?.state,
         tripped: s.power?.tripped,
+        cut: s.bill?.cut === true,
+        postFailed: s.postFailed === true,
         plugged: s.plugged != null,
         keyActivity: s.keyActivity,
         posted: s.phase === 'posting' || (before?.posted === true && s.phase !== 'running' && s.phase !== 'idle-os'),
@@ -208,6 +227,8 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
       const loaded = before?.baseTick !== undefined && now.baseTick !== undefined && now.baseTick < before.baseTick;
       if (before && !loaded) {
         for (const id of stateCues(before, now, families)) sink.playCue(id, { delayS: i++ * NOTE_GAP_S });
+        // The music's fault stinger is its own sound: a note of the same fault does not skip it.
+        if (hardFault(before, now)) music.onFault();
       }
     },
     onScene(scene) {
@@ -218,8 +239,12 @@ export function createDirector(sink: CueSink & Partial<AmbienceSink> & Partial<M
       ambience.onUnlock();
       music.onUnlock();
     },
+    onHidden(h, dropped) {
+      music.onHidden(h, dropped === true);
+    },
     onUi(u) {
       ambience.onSpeed(u.speed);
+      music.onStopped(u.speed === 0);
       const before = prevUi;
       prevUi = u;
       if (!before) return;

@@ -140,18 +140,25 @@ function fadeTo(g: Graph, target: number, ms: number): void {
 }
 
 /**
- * The tab hid or came back (index.ts, on `visibilitychange`). Hidden: queued cues are dropped, new cues are refused, master fades
- * out (`hiddenTab.fadeOutMs`) and the context suspends after `suspendAfterMs`. Visible: the context resumes and the fade comes back
- * (`fadeInMs`). Only the tab does this; the game clock, a Pause and a Hold never reach here.
+ * The tab hid or came back (index.ts, on `visibilitychange`). Hidden: queued cues, queued music calls and stingers are dropped,
+ * new cues are refused, master fades out (`hiddenTab.fadeOutMs`) and the context suspends after `suspendAfterMs`. Visible: the
+ * context resumes and the fade comes back (`fadeInMs`). Only the tab does this; the game clock, a Pause and a Hold never reach here.
+ * Returns true when queued music calls were dropped (the music sends its layer calls again on return).
  */
-export function setHidden(hidden: boolean): void {
+export function setHidden(hidden: boolean): boolean {
   hiddenNow = hidden;
   const g = graph;
-  if (!g) return;
+  if (!g) return false;
+  let droppedMusic = false;
   if (hidden) {
     const now = g.ctx.currentTime;
     for (const [v, when] of g.queued) if (when > now) v.stop();
     g.queued.clear();
+    for (const s of stingers) {
+      if (s.at > now) s.src.stop();
+    }
+    stingers.clear();
+    droppedMusic = dropMusicQueue();
     fadeTo(g, 0, MIX.hiddenTab.fadeOutMs);
     suspendTimer ??= setTimeout(() => {
       suspendTimer = null;
@@ -163,6 +170,7 @@ export function setHidden(hidden: boolean): void {
     void g.ctx.resume().catch(() => {});
     fadeTo(g, 1, MIX.hiddenTab.fadeInMs);
   }
+  return droppedMusic;
 }
 
 /** A file path as the engine keys it: `audio/sfx/x.ogg` (keys.ts). `sfx/x.ogg` (relative to the audio folder) is the same file. */
@@ -342,11 +350,17 @@ export function duck(db: number, when: number): void {
 interface MusicVoice {
   src: AudioBufferSourceNode;
   fade: GainNode;
+  /** The pluck's low-pass (ticket #63); null on the other layers. */
+  tone: BiquadFilterNode | null;
   level: GainNode;
 }
 const musicVoices = new Map<string, MusicVoice>();
 let musicT0: number | null = null;
 const stemFile = (id: string): string => `music/stems/${id}.ogg`;
+/** The one-shot notes (the fault stinger): `music/notes/music_fault_<KEY>.ogg`. */
+const noteFile = (id: string): string => `music/notes/${id}.ogg`;
+/** Fault stingers playing or queued: a hidden tab stops the ones not yet started. */
+const stingers = new Set<{ src: AudioBufferSourceNode; at: number }>();
 const stemLoop = (id: string): number => (id === MENU_ID ? MIX.music.menuLoopSamples : MIX.music.loopSamples);
 
 /** The time a call takes effect: now, or the next beat or bar line on the grid. */
@@ -378,6 +392,21 @@ function runDue(g: Graph): void {
     clearInterval(tickTimer);
     tickTimer = null;
   }
+}
+
+/**
+ * The tab hides: the calls not yet run are dropped (they would start or fade voices on a hidden tab). `lastAt` goes too, so the
+ * return is not held back by a dropped call's grid time. True when any call was dropped.
+ */
+function dropMusicQueue(): boolean {
+  const any = due.length > 0;
+  due.length = 0;
+  lastAt.clear();
+  if (tickTimer !== null) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+  return any;
 }
 
 /** Queue a music call for grid time `at` (ordered after the voice's earlier calls, and by time), then run what is already due. */
@@ -422,11 +451,66 @@ function beginVoice(g: Graph, id: string, fadeInMs: number, t: number): void {
   fade.gain.linearRampToValueAtTime(1, t + fadeInMs / 1000);
   const level = ctx.createGain();
   level.gain.value = 0;
-  src.connect(fade).connect(level).connect(g.musicDuck);
+  // The pluck goes through a low-pass (open until the clock stops); the other stems connect straight to the level.
+  const tone = id.includes('_pluck_') ? ctx.createBiquadFilter() : null;
+  if (tone) {
+    tone.type = 'lowpass';
+    tone.frequency.value = MIX.sampleRate / 2;
+    src.connect(fade).connect(tone).connect(level);
+  } else {
+    src.connect(fade).connect(level);
+  }
+  level.connect(g.musicDuck);
   // The phase: where the file's grid stands at `t`, so every stem stays on the one bar line.
   const phase = (((t - musicT0) % loopSec) + loopSec) % loopSec;
   src.start(t, PAD / MIX.sampleRate + phase);
-  musicVoices.set(id, { src, fade, level });
+  musicVoices.set(id, { src, fade, tone, level });
+}
+
+/** Ramp a voice's low-pass corner to `hz` from grid time `t` (a due call), exponentially over `fadeMs`. */
+function setVoiceTone(id: string, hz: number, fadeMs: number, t: number): void {
+  const tone = musicVoices.get(id)?.tone;
+  if (!tone) return;
+  const p = tone.frequency;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(p.value, t);
+  p.exponentialRampToValueAtTime(hz, t + fadeMs / 1000);
+}
+
+function setMusicLowpass(id: string, hz: number, fadeMs: number, q: Quant): void {
+  const g = graph;
+  if (!g) return;
+  const at = quantTime(g, q);
+  queueMusic(g, id, at, () => setVoiceTone(id, hz, fadeMs, at));
+}
+
+/**
+ * A one-shot stem (the fault stinger) on the grid: `quantTime` gives its start. Refused while hidden, and not started
+ * before the tab hides again (`setHidden`). Not decoded yet: skipped, and its file loads for next time.
+ */
+function playStinger(id: string, q: Quant): void {
+  const g = graph;
+  if (!g || hiddenNow || g.ctx.state !== 'running') return;
+  const path = audioPath(noteFile(id));
+  const buf = ready.get(path);
+  if (!buf) {
+    void load(noteFile(id));
+    return;
+  }
+  const { ctx } = g;
+  const at = quantTime(g, q);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.value = dB(MIX.music.cueGainDb.fault);
+  src.connect(gain).connect(g.musicDuck);
+  const rec = { src, at };
+  stingers.add(rec);
+  src.onended = () => {
+    stingers.delete(rec);
+    gain.disconnect();
+  };
+  src.start(Math.max(at, ctx.currentTime));
 }
 
 function stopMusic(id: string, fadeOutMs: number, q: Quant): void {
@@ -470,20 +554,24 @@ function unloadPath(path: string): void {
   cache.delete(path);
 }
 
-/** Decode a key's stems (the controller keeps the current and the next key). */
+/** Decode a key's stems and its fault stinger (the controller keeps the current and the next key). */
 function decodeKey(key: string): void {
   for (const l of LAYERS) void load(stemFile(`music_${l}_${key}`));
+  void load(noteFile(`music_fault_${key}`));
 }
 
 /** Free a key's stems: the map entries go, and a voice still playing keeps its own buffer. */
 function releaseKey(key: string): void {
   for (const l of LAYERS) unloadPath(audioPath(stemFile(`music_${l}_${key}`)));
+  unloadPath(audioPath(noteFile(`music_fault_${key}`)));
 }
 
 const musicSink = {
   startMusic,
   stopMusic,
   setMusicGain,
+  setMusicLowpass,
+  playStinger,
   preloadMusic: (id: string) => void load(stemFile(id)),
   decodeKey,
   releaseKey,

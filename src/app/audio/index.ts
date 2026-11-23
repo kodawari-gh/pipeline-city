@@ -25,8 +25,13 @@ export function initAudio(search?: string, readUi?: () => UiInput, readScene?: (
   unlockOnGesture(() => director.onUnlock());
   installUiCues();
   // The hidden tab fades the sound and suspends the context (engine.ts `setHidden`). Only visibility drives it.
-  setHidden(document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', () => setHidden(document.visibilityState === 'hidden'));
+  // The music follows too (ticket #63): it ignores state while hidden and sets it at once on return.
+  const hide = (h: boolean) => {
+    const droppedMusic = setHidden(h);
+    director.onHidden(h, droppedMusic);
+  };
+  hide(document.visibilityState === 'hidden');
+  document.addEventListener('visibilitychange', () => hide(document.visibilityState === 'hidden'));
   effect(() => { applyMix(audioMix.value); });
   const query = search ?? (typeof location === 'undefined' ? '' : location.search);
   let loading = false;
