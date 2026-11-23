@@ -2533,3 +2533,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--ui); font-variant-
 .build.mode button, .build.mode .mode-bar .bld-ico, .build.mode .bld-startbtn { border-radius: 0; }
 .build.bld-tabs .bld-parts, .build.bld-tabs[data-layout="phone"] .bld-parts { border-radius: 0; }
 
+/* The part picker is an edge tab (#78, ADR 0001, SPEC §1 rules 5 and 6, §4.11): a flat --c-shade-86 fill, no border, radius, shadow, blur or
+   gradient. Radius 4 px on chips only. Docked, it touches the right edge (the placement margin is cancelled) and has a chamfer on each free corner.
+   Last in the file, so these win the ties with the glass rules above. */
+.part-picker, .part-picker *, .part-picker *::before, .part-picker *::after { border-width: 0 !important; border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background-image: none !important; }
+.part-picker { background: var(--c-shade-86) !important; }
+.part-picker :is(.rung, .bcard, .pline, .pk-body, button:not(.primary):not(.on)) { background: transparent !important; }
+.part-picker :is(.rung, button:not(.primary)):hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
+.part-picker .rung.picked { background: var(--sel-bg) !important; }
+.part-picker :is(.chip, .zchip, button.lockbadge, .need-chip) { border-radius: 0.24rem !important; }
+.part-picker .zchip { background: color-mix(in srgb, currentColor 14%, transparent) !important; }
+.part-picker .tail { display: none; }
+.part-picker[data-side="dock"] { translate: 0.5rem 0; clip-path: polygon(var(--ch) 0, 100% 0, 100% 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch)); }
+

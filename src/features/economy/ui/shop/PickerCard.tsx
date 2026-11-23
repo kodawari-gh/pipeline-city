@@ -468,7 +468,7 @@ export function PickerCard() {
   if (!id || !s || !m) return null;
   // The shell is not keyed (position and height glide); the content is (a different selection starts with the default comparison).
   return (
-    <aside class="card picker" ref={shell} data-side="dock" aria-label={m.title}>
+    <aside class="card picker part-picker" ref={shell} data-side="dock" aria-label={m.title}>
       <i class="tail" aria-hidden="true" />
       <div class="pk-body"><Body key={id} m={m} s={s} content={content} /></div>
     </aside>
