@@ -1,15 +1,13 @@
-// `node tools/build-style-check.mjs [--prod] [--gallery] [--json]`: walks every element on "Build my PC" (or on the Gallery with `--gallery`) at five
-// viewports and lists the ones that break SPEC §1 rules 5 and 6: border width > 0, radius > 4 px, box-shadow, text-shadow, backdrop-filter, filter,
-// or a gradient background-image.
+// `node tools/build-style-check.mjs [--prod] [--json]`: walks every element on "Build my PC" at five viewports and lists the ones that break
+// SPEC §1 rules 5 and 6: border width > 0, radius > 4 px, box-shadow, text-shadow, backdrop-filter, filter, or a gradient background-image.
 // A chip (class contains "chip" or "key", or the element sets data-chip) may have a radius up to 4 px. Exit: 0 when the list is empty, 1 when not,
 // 2 on software GL. Dev server by default; `--prod` builds and serves the optimized game. Env: PORT (5199), CHROME_PATH.
 import { spawn } from 'node:child_process';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const PROD = args.includes('--prod');
-const GALLERY = args.includes('--gallery');
-const ROOT = GALLERY ? '.gallery' : '.build';
+const FIREFOX = args.includes('--firefox'); // Firefox (WebGL forced on, as shot.mjs) instead of Chrome
 const PORT = Number(process.env.PORT || 5199);
 const url = `http://localhost:${PORT}/`;
 const SIZES = [[1920, 1080], [390, 844], [360, 800], [412, 915], [844, 390]];
@@ -25,16 +23,18 @@ if (!(await up())) {
 }
 const stop = () => { try { server?.kill(); } catch { /* gone */ } };
 process.on('exit', stop);
-const browser = await chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
-});
+const browser = FIREFOX
+  ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+  : await chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
+  });
 /** Page side: every element inside .build that breaks a rule. */
-const walk = (root) => {
+const walk = () => {
   const out = [];
   const name = (e) => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : ''}`;
-  for (const e of document.querySelectorAll(`${root}, ${root} *`)) {
+  for (const e of document.querySelectorAll('.build, .build *')) {
     const cs = getComputedStyle(e);
     if (cs.display === 'none' || e.closest('canvas')) continue;
     const r = e.getBoundingClientRect();
@@ -60,27 +60,24 @@ try {
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
     const p = await ctx.newPage();
     await p.goto(url);
+    // The menu rows (Build my PC among them) stay disabled until the 3D world boots: wait for that, capped at 120 s.
+    await p.waitForSelector('.pl-row', { timeout: 60000 });
+    await p.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 120000 });
     await p.waitForTimeout(1500);
     const rend = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
     if (/swiftshader|llvmpipe|software/i.test(rend)) { console.log('software GL: stopping'); gl = true; break; }
-    if (GALLERY) {
-      await p.getByRole('button', { name: /^Gallery/ }).click();
-      await p.waitForSelector('.gallery .bld-tile', { timeout: 20000 });
-      await p.waitForTimeout(3000);
-    } else {
-      await p.click('text=Build my PC');
-      await p.waitForSelector('.bld-foot', { timeout: 20000 });
-      await p.waitForTimeout(3000);
-    }
+    await p.click('text=Build my PC');
+    await p.waitForSelector('.bld-foot', { timeout: 20000 });
+    await p.waitForTimeout(3000);
     const tabs = p.locator('.bld-panes [role=tab]:visible');
     const n = (await tabs.count().catch(() => 0));
-    if (n) for (let i = 0; i < n; i++) { await tabs.nth(i).click(); await p.waitForTimeout(300); for (const x of await p.evaluate(walk, ROOT)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`); }
+    if (n) for (let i = 0; i < n; i++) { await tabs.nth(i).click(); await p.waitForTimeout(300); for (const x of await p.evaluate(walk)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`); }
     else {
-      for (const x of await p.evaluate(walk, ROOT)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`);
+      for (const x of await p.evaluate(walk)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`);
       await p.locator('.bld-mtog').first().click().catch(() => {});
       await p.waitForTimeout(400);
     }
-    for (const x of await p.evaluate(walk, ROOT)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`);
+    for (const x of await p.evaluate(walk)) (all.get(x) ?? all.set(x, new Set()).get(x)).add(`${w}x${h}`);
     await ctx.close();
   }
 } finally { await browser.close(); stop(); }

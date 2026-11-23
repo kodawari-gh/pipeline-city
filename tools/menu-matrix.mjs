@@ -14,10 +14,11 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const PROD = args.includes('--prod');
+const FIREFOX = args.includes('--firefox'); // Firefox (WebGL forced on, as shot.mjs) instead of Chrome
 const PORT = Number(process.env.PORT || 5199);
 const url = `http://localhost:${PORT}/`;
 const outDir = resolve(args.find((a) => !a.startsWith('--')) ?? (PROD ? 'menu-matrix-prod' : 'menu-matrix'));
@@ -49,10 +50,12 @@ if (await listening()) {
 console.log(`info ${PROD ? 'production build (vite preview)' : 'dev server'} at ${url}`);
 process.on('exit', () => { try { server?.kill(); } catch { /* gone */ } });
 
-const browser = await chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-});
+const browser = FIREFOX
+  ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+  : await chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+  });
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; };
 
@@ -86,8 +89,10 @@ async function openMenu(b, vp, withSave) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.pl-row', { timeout: 30000 });
-  // (the menu rows stay disabled until the loader finishes: "after loading")
-  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch(() => {});
+  // (the menu rows stay disabled until the loader finishes: "after loading"). A boot that does not finish fails the run here, with the reason.
+  await page.waitForFunction(() => document.querySelectorAll('.pl-row:disabled').length === 0, null, { timeout: 90000 }).catch((e) => {
+    throw new Error(`the boot did not finish: menu rows still disabled after 90 s (${url}). ${e.message.split('\n')[0]}`);
+  });
   await page.waitForTimeout(900);
   return { ctx, page, errors };
 }
@@ -632,11 +637,13 @@ try {
     await settingsScreen(browser, vp);
   }
   // the HUD runs the game (3D): its own browser with the GPU flags of shot.mjs. A software renderer fails its first check.
-  const gpu = await chromium.launch({
-    headless: true,
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-    args: GPU_ARGS,
-  });
+  const gpu = FIREFOX
+    ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+    : await chromium.launch({
+      headless: true,
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+      args: GPU_ARGS,
+    });
   try {
     for (const vp of HUD_VIEWPORTS) {
       await hudScreen(gpu, vp);

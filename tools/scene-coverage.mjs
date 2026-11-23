@@ -9,7 +9,7 @@
 // the package, so it is printed, not gated. Exit code 1 when a gate fails or a page error shows.
 // The pure part (the figures, the judgement, the grid and the share) is unit-tested in tools/scene-coverage.test.ts.
 import { spawn } from 'node:child_process';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 export const SCREENS = ['hud', 'build', 'gallery'];
 export const FIGURES = {
@@ -57,6 +57,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('/scene-coverage.mjs')) await 
 async function main() {
   const args = process.argv.slice(2);
   const PROD = args.includes('--prod');
+  const FIREFOX = args.includes('--firefox'); // Firefox (WebGL forced on, as shot.mjs) instead of Chrome
   const PORT = Number(process.env.PORT || (PROD ? 5300 : 5199));
   const url = `http://localhost:${PORT}/`;
   const VIEWPORTS = [
@@ -83,7 +84,9 @@ async function main() {
   process.on('exit', stop);
 
   const gpu = ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
-  const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }), args: gpu });
+  const browser = FIREFOX
+    ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+    : await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }), args: gpu });
 
   /** The menu, booted: every row enabled (the rows stay disabled "after loading"). */
   async function openMenu(page) {

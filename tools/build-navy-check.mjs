@@ -5,11 +5,12 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const outDir = resolve(args.find((a) => !a.startsWith('--')) ?? 'build-navy');
 const PROD = args.includes('--prod');
+const FIREFOX = args.includes('--firefox'); // Firefox (WebGL forced on, as shot.mjs) instead of Chrome
 const PORT = Number(process.env.PORT || 5199);
 const url = `http://localhost:${PORT}/`;
 const MAX_NAVY = 0.06;
@@ -28,11 +29,13 @@ if (!(await up())) {
 const stop = () => { try { server?.kill(); } catch { /* gone */ } };
 process.on('exit', stop);
 
-const browser = await chromium.launch({
-  headless: true,
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
-});
+const browser = FIREFOX
+  ? await firefox.launch({ headless: true, firefoxUserPrefs: { 'webgl.force-enabled': true } })
+  : await chromium.launch({
+    headless: true,
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
+  });
 let code = 0;
 try {
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
