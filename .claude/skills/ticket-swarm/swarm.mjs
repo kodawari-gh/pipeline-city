@@ -761,10 +761,17 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     T.rows.push(
       `| #${n} | ${T.rounds} | ${tierName(tier)} | FAIL | runner check failed: ${failed.cmd.replaceAll('|', '/')} |`,
     );
+    // The merged source is the contract: only the tester adapts to a name or shape. Else both rename to match each other, and swap places each round.
+    const side = {
+      tester:
+        'Fix test files only. The exported names and shapes of the merged source are final: make the tests use them. Never ask for a rename.',
+      coder:
+        'Fix source and docs only. Keep every exported name and shape the merged source has; add, never rename or remove. A test that disagrees on a name is the tester to fix.',
+    };
     T.findings = workers.map((role) => ({
       role,
       file: '(repo gate)',
-      problem: `"${failed.cmd}" failed after the round merge. Fix the part on your side (${role === 'tester' ? 'test files' : 'everything but test files'}). Output tail:\n${failed.tail}`,
+      problem: `"${failed.cmd}" failed after the round merge. ${side[role] ?? ''} Output tail:\n${failed.tail}`,
     }));
     T.failures++;
     this.save();
