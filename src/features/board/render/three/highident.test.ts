@@ -5,7 +5,7 @@ import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { Matrix4, Object3D, type BufferAttribute, type InstancedMesh, type Mesh } from 'three';
+import { Matrix4, Object3D, Mesh, type BufferAttribute, type InstancedMesh } from 'three';
 import { Room3D } from '@/features/room/render/three/room3d';
 import { idOf, shown } from '@/core/render/three/pick';
 import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
@@ -114,18 +114,32 @@ function readGolden(): Record<string, Row> | null {
   return Object.keys(parsed).length ? parsed : null;
 }
 
-const measure = (): Record<string, Row> => {
+/** The maxed machine and the room, built as the golden builds them. */
+function build() {
   const machine = buildMachine(maxedSnapshot(), true, true);
   const room = new Room3D();
-  return fingerprint([
+  return { machine, room };
+}
+
+/** The root an extra child goes under. */
+const rootOf = {
+  machine: (b: ReturnType<typeof build>): Object3D => b.machine.root,
+  room: (b: ReturnType<typeof build>): Object3D => b.room.root,
+};
+
+/**
+ * Fingerprint both roots, group by group. Build once per test: `materialKey` mints a `#id` for each texture it meets, and a later build in the
+ * same process can merge in another order. The golden is this file's first build.
+ */
+const measure = ({ machine, room }: ReturnType<typeof build>): Record<string, Row> =>
+  fingerprint([
     ['machine', machine.root],
     ['room', room.root],
   ]);
-};
 
 describe('High builds the same machine and room', () => {
   it('matches highident.expected.json, group by group', () => {
-    const got = measure();
+    const got = measure(build());
     const rows = Object.values(got);
     const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + f(r), 0);
     console.log(
@@ -143,4 +157,29 @@ describe('High builds the same machine and room', () => {
     ).not.toBeNull();
     expect(got).toEqual(want);
   }, 120_000);
+
+  it('names every top-level group, none by its position', () => {
+    const got = measure(build());
+    expect(Object.keys(got).filter((k) => /#\d+$/u.test(k))).toStrictEqual([]);
+  }, 120_000);
+
+  it.each(['machine', 'room'] as const)(
+    'an untagged child added to the %s root changes no other key',
+    (which) => {
+      const built = build();
+      const before = measure(built);
+      const root = rootOf[which](built);
+      const child = new Mesh();
+      root.children.unshift(child);
+      child.parent = root;
+      const after = measure(built);
+      const added = Object.keys(after).filter((k) => !(k in before));
+      expect(added).toHaveLength(1);
+      expect(added[0]?.startsWith(`${which}/`)).toBe(true);
+      for (const k of Object.keys(before)) {
+        expect(after[k]).toStrictEqual(before[k]);
+      }
+    },
+    240_000,
+  );
 });

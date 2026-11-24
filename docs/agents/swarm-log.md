@@ -92,3 +92,6 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
+| #102 | 2 | haiku medium | FAIL | src/core/render/three/merge.ts: Merged meshes are named 'merged' (also line 345). Top-level untagged merged meshes in the room share this key, so room/merged aggregates 57 meshes. The name does not say what the group is, which breaks the ticket's naming criterion.; src/core/render/three/merge.ts: Th |
+| #102 | 3 | haiku high | FAIL | src/features/board/render/three/highident.test.ts: The extra-child tests fail. After one extra child, existing keys change sum: room/merged reads ebbf10e7 before and 12b26533 after (golden 221e9fd5); a machine key reads 4510e745 before and 97e1b791 after. A plain rebuild in the same process already |
+| #102 | 4 | haiku xhigh | PASS | npx vitest run src/features/board/render/three/highident.test.ts: PASS, 4 of 4 tests (golden match, no positional key, added child changes no other key for machine and room). 155 s.; Golden diff check |

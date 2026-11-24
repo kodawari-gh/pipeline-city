@@ -1,53 +1,4 @@
 {
-  "machine/Group#3": {
-    "meshes": 9,
-    "draws": 9,
-    "verts": 4822,
-    "instances": 50,
-    "sum": "3e81169c"
-  },
-  "machine/Group#4": {
-    "meshes": 63,
-    "draws": 59,
-    "verts": 74490,
-    "instances": 734,
-    "sum": "785ad990"
-  },
-  "machine/Group#47": {
-    "meshes": 20,
-    "draws": 15,
-    "verts": 35856,
-    "instances": 186,
-    "sum": "19b32224"
-  },
-  "machine/Group#7": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 9372,
-    "instances": 0,
-    "sum": "952e8462"
-  },
-  "machine/Group#8": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 9372,
-    "instances": 0,
-    "sum": "f24a0159"
-  },
-  "machine/Mesh#0": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 24,
-    "instances": 0,
-    "sum": "c4c5dcc9"
-  },
-  "machine/Mesh#1": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 24,
-    "instances": 0,
-    "sum": "6ea493de"
-  },
   "machine/atx": {
     "meshes": 2,
     "draws": 2,
@@ -68,6 +19,13 @@
     "verts": 1284,
     "instances": 0,
     "sum": "5b6eebb1"
+  },
+  "machine/board part": {
+    "meshes": 63,
+    "draws": 59,
+    "verts": 74490,
+    "instances": 734,
+    "sum": "785ad990"
   },
   "machine/board.nic-ctl": {
     "meshes": 3,
@@ -215,6 +173,27 @@
     "verts": 157366,
     "instances": 1230,
     "sum": "758024de"
+  },
+  "machine/case door": {
+    "meshes": 9,
+    "draws": 9,
+    "verts": 4822,
+    "instances": 50,
+    "sum": "3e81169c"
+  },
+  "machine/case strip 0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "c4c5dcc9"
+  },
+  "machine/case strip 1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "6ea493de"
   },
   "machine/case.side": {
     "meshes": 1,
@@ -419,6 +398,20 @@
     "instances": 51,
     "sum": "0c9a16a7"
   },
+  "machine/pcie blank 0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 9372,
+    "instances": 0,
+    "sum": "952e8462"
+  },
+  "machine/pcie blank 1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 9372,
+    "instances": 0,
+    "sum": "f24a0159"
+  },
   "machine/pcie0": {
     "meshes": 2,
     "draws": 2,
@@ -559,243 +552,47 @@
     "instances": 0,
     "sum": "8de04e0b"
   },
-  "room/Group#10": {
-    "meshes": 7,
-    "draws": 7,
-    "verts": 4648,
-    "instances": 0,
-    "sum": "88e3bc78"
+  "machine/wires": {
+    "meshes": 20,
+    "draws": 15,
+    "verts": 35856,
+    "instances": 186,
+    "sum": "19b32224"
   },
-  "room/Group#11": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1164,
-    "instances": 0,
-    "sum": "5a22203b"
-  },
-  "room/Group#12": {
-    "meshes": 2,
-    "draws": 2,
-    "verts": 176,
-    "instances": 0,
-    "sum": "3465235a"
-  },
-  "room/Group#13": {
-    "meshes": 9,
-    "draws": 9,
-    "verts": 6236,
-    "instances": 0,
-    "sum": "0f70a823"
-  },
-  "room/Group#15": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 1208,
-    "instances": 0,
-    "sum": "cd18b1d8"
-  },
-  "room/Group#18": {
-    "meshes": 2,
-    "draws": 2,
-    "verts": 904,
-    "instances": 0,
-    "sum": "3750cccd"
-  },
-  "room/Group#19": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 24,
-    "instances": 0,
-    "sum": "b1ca0070"
-  },
-  "room/Group#21": {
-    "meshes": 4,
-    "draws": 4,
-    "verts": 1283,
-    "instances": 0,
-    "sum": "6c384c01"
-  },
-  "room/Group#30": {
-    "meshes": 5,
-    "draws": 5,
-    "verts": 2005,
-    "instances": 0,
-    "sum": "824aef4e"
-  },
-  "room/Group#31": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 425,
-    "instances": 0,
-    "sum": "6b0ae9c5"
-  },
-  "room/Group#32": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 124,
-    "instances": 0,
-    "sum": "807dfece"
-  },
-  "room/Group#33": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 928,
-    "instances": 0,
-    "sum": "ca3557d1"
-  },
-  "room/Group#34": {
-    "meshes": 2,
-    "draws": 2,
-    "verts": 1024,
-    "instances": 0,
-    "sum": "e1b83b53"
-  },
-  "room/Group#35": {
-    "meshes": 3,
-    "draws": 3,
-    "verts": 936,
-    "instances": 0,
-    "sum": "586002c4"
-  },
-  "room/Group#6": {
+  "room/aloe": {
     "meshes": 1,
     "draws": 1,
     "verts": 124,
     "instances": 0,
     "sum": "119a8fad"
   },
-  "room/Group#7": {
+  "room/arc lamp": {
+    "meshes": 4,
+    "draws": 4,
+    "verts": 1283,
+    "instances": 0,
+    "sum": "6c384c01"
+  },
+  "room/bed": {
     "meshes": 4,
     "draws": 4,
     "verts": 24138,
     "instances": 0,
     "sum": "e5d91bd4"
   },
-  "room/Group#8": {
-    "meshes": 7,
-    "draws": 7,
-    "verts": 2447,
-    "instances": 0,
-    "sum": "1d912892"
-  },
-  "room/Group#9": {
-    "meshes": 11,
-    "draws": 11,
-    "verts": 2552,
-    "instances": 358,
-    "sum": "66cbd105"
-  },
-  "room/Mesh#0": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 24,
-    "instances": 0,
-    "sum": "dc01653c"
-  },
-  "room/Mesh#1": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 4,
-    "instances": 0,
-    "sum": "12fd1a9d"
-  },
-  "room/Mesh#2": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 900,
-    "instances": 0,
-    "sum": "11ade38b"
-  },
-  "room/Mesh#22": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 2916,
-    "instances": 0,
-    "sum": "34de2d6a"
-  },
-  "room/Mesh#23": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 148,
-    "instances": 0,
-    "sum": "51b99b40"
-  },
-  "room/Mesh#24": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 148,
-    "instances": 0,
-    "sum": "7c23311d"
-  },
-  "room/Mesh#25": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 24,
-    "instances": 0,
-    "sum": "77f1b8b9"
-  },
-  "room/Mesh#29": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 900,
-    "instances": 0,
-    "sum": "17cadfc0"
-  },
-  "room/Mesh#4": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 900,
-    "instances": 0,
-    "sum": "6340e3b3"
-  },
-  "room/Mesh#41": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 900,
-    "instances": 0,
-    "sum": "45fefe48"
-  },
-  "room/Mesh#45": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 52,
-    "instances": 0,
-    "sum": "3797c180"
-  },
-  "room/Mesh#46": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 52,
-    "instances": 0,
-    "sum": "7e9d0b63"
-  },
-  "room/Mesh#47": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 52,
-    "instances": 0,
-    "sum": "bead0ab3"
-  },
-  "room/Mesh#48": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 52,
-    "instances": 0,
-    "sum": "257158d9"
-  },
-  "room/Mesh#49": {
-    "meshes": 1,
-    "draws": 1,
-    "verts": 52,
-    "instances": 0,
-    "sum": "04450e0f"
-  },
-  "room/Mesh#5": {
+  "room/bench plinth": {
     "meshes": 1,
     "draws": 1,
     "verts": 900,
     "instances": 0,
     "sum": "8bf959fd"
+  },
+  "room/bench slab": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "6340e3b3"
   },
   "room/blind": {
     "meshes": 15,
@@ -804,6 +601,27 @@
     "instances": 0,
     "sum": "4fedf4fe"
   },
+  "room/bookcase": {
+    "meshes": 11,
+    "draws": 11,
+    "verts": 2552,
+    "instances": 358,
+    "sum": "66cbd105"
+  },
+  "room/ceiling": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "dc01653c"
+  },
+  "room/ceiling light": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1164,
+    "instances": 0,
+    "sum": "5a22203b"
+  },
   "room/clock": {
     "meshes": 3,
     "draws": 3,
@@ -811,12 +629,131 @@
     "instances": 0,
     "sum": "dcb8fda2"
   },
+  "room/desk chair": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 928,
+    "instances": 0,
+    "sum": "ca3557d1"
+  },
+  "room/desk foot 0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 148,
+    "instances": 0,
+    "sum": "51b99b40"
+  },
+  "room/desk foot 1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 148,
+    "instances": 0,
+    "sum": "7c23311d"
+  },
+  "room/desk knee": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "77f1b8b9"
+  },
+  "room/desk mat": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "17cadfc0"
+  },
+  "room/desk top": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 2916,
+    "instances": 0,
+    "sum": "34de2d6a"
+  },
   "room/display0": {
     "meshes": 1,
     "draws": 0,
     "verts": 24,
     "instances": 0,
     "sum": "e6fd2945"
+  },
+  "room/door": {
+    "meshes": 7,
+    "draws": 7,
+    "verts": 4648,
+    "instances": 0,
+    "sum": "88e3bc78"
+  },
+  "room/east wall": {
+    "meshes": 9,
+    "draws": 9,
+    "verts": 6236,
+    "instances": 0,
+    "sum": "0f70a823"
+  },
+  "room/floor lamp": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 1208,
+    "instances": 0,
+    "sum": "cd18b1d8"
+  },
+  "room/floor mess": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 1024,
+    "instances": 0,
+    "sum": "e1b83b53"
+  },
+  "room/floor plant": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 176,
+    "instances": 0,
+    "sum": "3465235a"
+  },
+  "room/isp dot 0": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "3797c180"
+  },
+  "room/isp dot 1": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "7e9d0b63"
+  },
+  "room/isp dot 2": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "bead0ab3"
+  },
+  "room/isp dot 3": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "257158d9"
+  },
+  "room/isp dot 4": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 52,
+    "instances": 0,
+    "sum": "04450e0f"
+  },
+  "room/keyboard": {
+    "meshes": 5,
+    "draws": 5,
+    "verts": 2005,
+    "instances": 0,
+    "sum": "824aef4e"
   },
   "room/lamp": {
     "meshes": 16,
@@ -846,6 +783,48 @@
     "instances": 8,
     "sum": "29c6ff94"
   },
+  "room/mouse": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 425,
+    "instances": 0,
+    "sum": "6b0ae9c5"
+  },
+  "room/nightstand": {
+    "meshes": 7,
+    "draws": 7,
+    "verts": 2447,
+    "instances": 0,
+    "sum": "1d912892"
+  },
+  "room/notebook": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 124,
+    "instances": 0,
+    "sum": "807dfece"
+  },
+  "room/oak floor": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 4,
+    "instances": 0,
+    "sum": "12fd1a9d"
+  },
+  "room/picture": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 24,
+    "instances": 0,
+    "sum": "b1ca0070"
+  },
+  "room/print": {
+    "meshes": 2,
+    "draws": 2,
+    "verts": 904,
+    "instances": 0,
+    "sum": "3750cccd"
+  },
   "room/router": {
     "meshes": 28,
     "draws": 27,
@@ -853,12 +832,33 @@
     "instances": 102,
     "sum": "6f53a099"
   },
+  "room/router shelf": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "45fefe48"
+  },
+  "room/rug": {
+    "meshes": 1,
+    "draws": 1,
+    "verts": 900,
+    "instances": 0,
+    "sum": "11ade38b"
+  },
   "room/socket": {
     "meshes": 1,
     "draws": 1,
     "verts": 4464,
     "instances": 0,
     "sum": "f05f590a"
+  },
+  "room/tea cup": {
+    "meshes": 3,
+    "draws": 3,
+    "verts": 936,
+    "instances": 0,
+    "sum": "586002c4"
   },
   "room/tray": {
     "meshes": 1,

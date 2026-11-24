@@ -679,6 +679,7 @@ export class Machine3D {
         }
         yield;
       }
+      this.wires.name = 'wires';
       this.root.add(this.wires);
       yield* this.cablesSteps(s, geo);
     }
@@ -751,10 +752,14 @@ export class Machine3D {
     if (lowDetail()) shell.add(...this.cages.map(underCage));
     // light strips along the inside of the top and the front (`innerStrips`)
     const strips = innerStrips(kind, cm);
-    for (const m of strips.roots) this.root.add(m);
+    for (const [i, m] of strips.roots.entries()) {
+      m.name = `case strip ${i}`;
+      this.root.add(m);
+    }
     this.caseRoots.push(...strips.roots);
     for (const l of strips.spins) this.spin(l);
     shell.add(fanHub());
+    cm.door.name = 'case door';
     this.root.add(shell, cm.door);
     this.caseRoots.push(shell, cm.door);
     this.grommets = GROMMETS[kind];
@@ -1092,6 +1097,7 @@ export class Machine3D {
     else this.lan.delete('board');
     for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
     for (const l of b.lights) this.spin(l);
+    b.root.name = 'board part';
     this.root.add(b.root);
     // far out the flat drawing is enough: the small parts stand up only up close
     this.small = b.small;
@@ -1123,6 +1129,7 @@ export class Machine3D {
     PCIE_RAILS.forEach((_, i) => {
       if (!filled.has(`pcie${i}`)) {
         const b = slotBlank(nicY(i), blank);
+        b.name = `pcie blank ${i}`;
         this.blanks.set(`pcie${i}`, b);
         this.root.add(b);
       }
@@ -1144,6 +1151,7 @@ export class Machine3D {
     this.blankTone = blank;
     PCIE_RAILS.forEach((_, i) => {
       const b = slotBlank(nicY(i), blank);
+      b.name = `pcie blank ${i}`;
       this.blanks.set(`pcie${i}`, b);
       this.root.add(b);
       this.caseRoots.push(b);
@@ -2590,6 +2598,7 @@ export class Machine3D {
         this.blanks.delete(slot);
       } else if (!filled && !b) {
         const n = slotBlank(nicY(i), this.blankTone);
+        n.name = `pcie blank ${i}`;
         this.blanks.set(slot, n);
         this.root.add(n);
         added.push(n);
