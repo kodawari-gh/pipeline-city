@@ -19,7 +19,21 @@ export function run(cmd, args, opts = {}) {
     ...opts,
   }).trim();
 }
-export const gh = (args) => run('gh', args);
+const TRANSIENT = /Bad credentials|HTTP 401|HTTP 5\d\d|ECONNRESET|ETIMEDOUT|timed out/iu;
+/** gh call; a transient auth or network failure retries up to 5 times with a growing pause. */
+export function gh(args) {
+  for (let i = 0; ; i++) {
+    try {
+      return run('gh', args);
+    } catch (error) {
+      const text = `${error.stderr ?? ''}${error.message ?? ''}`;
+      if (i >= 4 || !TRANSIENT.test(text)) {
+        throw error;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000 * (i + 1));
+    }
+  }
+}
 /** The main checkout's root, also from inside a linked worktree (its config is the live one). */
 export const repoRoot = (cwd = process.cwd()) =>
   dirname(run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd }));
