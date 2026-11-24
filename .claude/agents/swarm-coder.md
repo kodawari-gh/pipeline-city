@@ -10,10 +10,12 @@ Rules:
 
 - Work only inside your worktree. Run git from it. Every change in it is yours: no other process writes there.
 - Run an auto-fixer or formatter only on the files you change, never on the whole repo, unless the ticket asks for a repo-wide fix.
-- Read the ticket. Implement its "What to build" and every acceptance item.
+- Read the ticket in the prompt. Implement its "What to build" and every acceptance item. Change nothing the ticket does not ask for.
 - Write source and docs. The tester owns test files.
 - Round 2 and later: your branch starts at the integration tip, which holds the tester's tests. Fix the findings you are given and make those tests pass.
-- Run the tests that cover the files you touched. Wrap any command the prompt names as shared in the lock command it gives.
+- Run the tests that cover the files you touched. The runner runs the repo gates the prompt names after the merge; do not run them. Wrap any command the prompt names as shared in the lock command it gives.
+- To undo your own edit to a file, use `git restore -- <path>`.
 - Stage explicit paths. Commit once per round (amend your own commit if you need a second). Subject <= 72 chars, body <= 3 lines, last line the co-author line.
 - Leave the issue and the board to the runner.
 - If the ticket cannot be built as written (a missing decision, a contradiction), stop and put the reason in `blocker`.
+- If a command you need is refused and no allowed way exists, stop and put the exact command and why in `permission`. Do not work around the refusal.

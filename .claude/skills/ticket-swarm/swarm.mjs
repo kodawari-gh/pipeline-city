@@ -36,12 +36,16 @@ import {
 /**
  * @typedef {{ keys: string[], dirs: string[] }} ShareDeps
  * @typedef {{ slots: number, permissionMode: string, agentTimeoutMin: number, testFile: string, locked: string[],
- *   coAuthor: Record<string, string>, install?: string, shareDeps?: ShareDeps, log?: string, claudeBin?: string }} SwarmConfig
+ *   coAuthor: Record<string, string>, install?: string, shareDeps?: ShareDeps, log?: string, claudeBin?: string,
+ *   checks?: string[], allow?: string[] }} SwarmConfig
  */
 
 /** A git or tool failure: the ticket stops, its worktrees stay for diagnosis, a rerun resumes it. */
 class Critical extends Error {}
-/** The ticket cannot go on as written (`blocked`) or every tier failed (`exhausted`). */
+/**
+ * The ticket cannot go on as written (`blocked`), every tier failed (`exhausted`), or an agent needs a
+ * command the permission rules refuse (`permission`: worktrees stay, a rerun resumes it).
+ */
 class Stop extends Error {
   constructor(msg, kind) {
     super(msg);
@@ -53,6 +57,46 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SELF = join(HERE, 'swarm.mjs');
 const MODELS = ['haiku', 'sonnet', 'opus'];
 const EFFORTS = ['medium', 'high', 'xhigh'];
+/** Phases a rerun resumes: their worktrees are kept. */
+const RESUMABLE = new Set(['running', 'critical', 'permission']);
+/** Permission rules for every swarm agent; `swarm.allow` adds the repo's own commands. */
+const AGENT_ALLOW = [
+  'Bash(git status:*)',
+  'Bash(git diff:*)',
+  'Bash(git log:*)',
+  'Bash(git show:*)',
+  'Bash(git blame:*)',
+  'Bash(git grep:*)',
+  'Bash(git ls-files:*)',
+  'Bash(git rev-parse:*)',
+  'Bash(git merge-base:*)',
+  'Bash(git add:*)',
+  'Bash(git rm:*)',
+  'Bash(git mv:*)',
+  'Bash(git commit:*)',
+  'Bash(git restore:*)',
+  'Bash(git checkout --ours:*)',
+  'Bash(git checkout --theirs:*)',
+  'Bash(git merge --abort)',
+  `Bash(node "${SELF}" lock:*)`,
+  `Bash(node "${SELF}" deps)`,
+];
+const AGENT_DENY = [
+  'Bash(git push:*)',
+  'Bash(git rebase:*)',
+  'Bash(git branch -D:*)',
+  'Bash(git worktree:*)',
+  'Bash(gh issue close:*)',
+  'Bash(gh issue edit:*)',
+  'Bash(gh issue comment:*)',
+  'Bash(gh project:*)',
+  'Bash(gh pr:*)',
+];
+const PERMISSION_FIELD = {
+  type: 'string',
+  description:
+    'empty, or the exact command or tool you need that the permission rules refused, and why. Fill it only when no allowed way exists; the runner asks the user to allow it.',
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toTimeString().slice(0, 5);
 
@@ -225,8 +269,9 @@ const WORK_SCHEMA = {
     summary: { type: 'string', description: 'what changed, at most 3 lines' },
     unmet: { type: 'array', items: { type: 'string' }, description: 'acceptance items not met, and why' },
     blocker: { type: 'string', description: 'empty, or why the ticket cannot be done as written' },
+    permission: PERMISSION_FIELD,
   },
-  required: ['commit', 'summary', 'unmet', 'blocker'],
+  required: ['commit', 'summary', 'unmet', 'blocker', 'permission'],
 };
 const REVIEW_SCHEMA = {
   type: 'object',
@@ -247,13 +292,14 @@ const REVIEW_SCHEMA = {
         required: ['role', 'file', 'problem'],
       },
     },
+    permission: PERMISSION_FIELD,
   },
-  required: ['verdict', 'commands', 'findings'],
+  required: ['verdict', 'commands', 'findings', 'permission'],
 };
 const MERGE_SCHEMA = {
   type: 'object',
-  properties: { resolved: { type: 'boolean' }, summary: { type: 'string' } },
-  required: ['resolved', 'summary'],
+  properties: { resolved: { type: 'boolean' }, summary: { type: 'string' }, permission: PERMISSION_FIELD },
+  required: ['resolved', 'summary', 'permission'],
 };
 
 /** Agent definitions read from the main checkout, so worktrees on older bases still get current rules. */
@@ -300,6 +346,9 @@ class Swarm {
     this.base = this.state.base;
     this.claude = findClaude(cfg);
     this.agents = agentsJson(this.root);
+    this.agentSettings = JSON.stringify({
+      permissions: { allow: [...AGENT_ALLOW, ...(this.sw.allow ?? [])], deny: AGENT_DENY },
+    });
     this.testRe = new RegExp(this.sw.testFile);
   }
   save() {
@@ -343,6 +392,8 @@ class Swarm {
       this.sw.permissionMode,
       '--permission-prompts',
       'none',
+      '--settings',
+      this.agentSettings,
     ];
     for (let attempt = 1; attempt <= 2; attempt++) {
       const r = await sh(this.claude, args, { cwd, input: prompt, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
@@ -351,17 +402,15 @@ class Swarm {
         j = JSON.parse(r.out);
       } catch {}
       const so = j?.structured_output;
-      const denials = j?.permission_denials?.length ?? 0;
       if (j?.total_cost_usd) {
         const T = this.t(n);
         T.cost = (T.cost || 0) + j.total_cost_usd;
         this.save();
       }
       if (r.code === 0 && so && !j.is_error) {
-        if (denials) {
-          this.emit(
-            `#${n} ${role}: ${denials} permission denial(s): ${j.permission_denials.map((d) => d.tool_name).join(', ')}`,
-          );
+        this.reportDenials(n, role, j.permission_denials ?? []);
+        if (so.permission) {
+          throw new Stop(`${role} needs permission: ${so.permission}`, 'permission');
         }
         return so;
       }
@@ -373,6 +422,22 @@ class Swarm {
     throw new Critical(`${role} agent failed twice`);
   }
 
+  /** Log each refused tool call with its command or path, so a missing allow rule is easy to see. */
+  reportDenials(n, role, denials) {
+    if (denials.length === 0) {
+      return;
+    }
+    const what = denials
+      .map((d) => `${d.tool_name}(${String(d.tool_input?.command ?? d.tool_input?.file_path ?? '').slice(0, 100)})`)
+      .join(', ');
+    this.emit(`#${n} ${role}: ${denials.length} permission denial(s): ${what}`);
+  }
+
+  /** Repo gates as a quoted list, or '' when `swarm.checks` is empty. */
+  gatesList() {
+    return (this.sw.checks ?? []).map((c) => `"${c}"`).join(', ');
+  }
+
   facts(n, issue, role, tier, extra = '') {
     const lockLine = this.sw.locked.length
       ? `Shared-resource lock: run any command starting with ${this.sw.locked.map((c) => `"${c}"`).join(', ')} as: node "${SELF}" lock -- <command>\n`
@@ -380,21 +445,35 @@ class Swarm {
     const depsLine = this.sw.shareDeps
       ? `Dependencies: ${this.sw.shareDeps.dirs.join(', ')} link to an install other worktrees share. Never run "${this.sw.install}" or a package add/remove command there. To change dependencies, first run: node "${SELF}" deps (it makes a private install in your worktree).\n`
       : '';
-    const locked = lockLine + depsLine;
-    return `Ticket #${n} in ${this.cfg.repo}: "${issue.title}". Read it with: gh issue view ${n} --repo ${this.cfg.repo} --json title,body
-Your worktree (cwd): ${this.wt(n, role === 'reviewer' ? 'merge' : role)}
-Your branch: ${this.br(n, role === 'reviewer' ? 'merge' : role)}
+    const gates = this.gatesList();
+    const checksLine = gates
+      ? `Repo gates the runner runs on the integration branch after the round merge: ${gates}. Do not run them yourself; run only the checks for what you touched.\n`
+      : '';
+    const at = role === 'reviewer' || role === 'merge' ? this.intRole(n) : role;
+    return `Ticket #${n} in ${this.cfg.repo}: "${issue.title}". Its full text is below; do not fetch it again.
+<ticket>
+${(issue.body ?? '').trim()}
+</ticket>
+Your worktree (cwd): ${this.wt(n, at)}
+Your branch: ${this.br(n, at)}
 Base branch: ${this.base}
 Round ${this.t(n).rounds}, tier ${tierName(tier)}.
 Co-author line for commits: ${this.coAuthor(tier.model)}
-${locked}${extra}`;
+${lockLine}${depsLine}${role === 'reviewer' ? '' : checksLine}${extra}`;
   }
 
   // ---------- worktrees ----------
 
-  /** Worktree roles a ticket needs: no tester when its body says `Tests: none`. */
+  /**
+   * Worktree roles a ticket needs. `Tests: none` means no tester, and with one worker the coder's branch
+   * is the integration branch: no merge worktree.
+   */
   roles(n) {
-    return this.t(n).noTests ? ['coder', 'merge'] : ['coder', 'tester', 'merge'];
+    return this.t(n).noTests ? ['coder'] : ['coder', 'tester', 'merge'];
+  }
+  /** The role whose worktree and branch hold the integration branch. */
+  intRole(n) {
+    return this.t(n).noTests ? 'coder' : 'merge';
   }
 
   async ensureWorktrees(n) {
@@ -534,7 +613,7 @@ ${locked}${extra}`;
   // ---------- round merge ----------
 
   async mergeBranch(n, tier, issue, ref, side) {
-    const p = this.wt(n, 'merge');
+    const p = this.wt(n, this.intRole(n));
     if (gitOk(p, 'merge', '--no-ff', '--no-edit', ref)) {
       return;
     }
@@ -554,6 +633,7 @@ ${locked}${extra}`;
       }
     }
     // Base conflicts, a file the rule cannot settle, or a hook refusal: a merger agent settles it once, else stop.
+    const into = this.br(n, this.intRole(n));
     const out = await this.agent(
       'swarm-merger',
       n,
@@ -564,7 +644,7 @@ ${locked}${extra}`;
         issue,
         'merge',
         tier,
-        `Task: the merge of ${ref} into ${this.br(n, 'merge')} is in progress and ${why}
+        `Task: the merge of ${ref} into ${into} is in progress and ${why}
 Finish it: keep the ticket's intent and the other side's changes, make the repo's commit hooks pass, stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.`,
       ),
       MERGE_SCHEMA,
@@ -580,6 +660,88 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     if (!gitOk(p, 'checkout', theirs ? '--theirs' : '--ours', '--', f)) return false;
     git(p, 'add', '--', f);
     return true;
+  }
+
+  /** After a reset or merge: relink shared dependencies when the key files changed. */
+  async relinkDeps(n, p) {
+    if (this.sw.install && this.sw.shareDeps) {
+      await this.ensureDeps(n, p);
+    }
+  }
+
+  /** A repo gate failed: count a FAIL round and send the output to every worker, each for its own files. */
+  gateFail(n, tier, failed) {
+    const T = this.t(n);
+    const workers = this.roles(n).filter((r) => r !== 'merge');
+    T.rows.push(
+      `| #${n} | ${T.rounds} | ${tierName(tier)} | FAIL | runner check failed: ${failed.cmd.replaceAll('|', '/')} |`,
+    );
+    T.findings = workers.map((role) => ({
+      role,
+      file: '(repo gate)',
+      problem: `"${failed.cmd}" failed after the round merge. Fix the part on your side (${role === 'tester' ? 'test files' : 'everything but test files'}). Output tail:\n${failed.tail}`,
+    }));
+    T.failures++;
+    this.save();
+  }
+
+  reviewTask(n) {
+    const gates = this.gatesList();
+    const ran = gates
+      ? `The runner ran these repo gates on this HEAD and they passed; do not rerun them: ${gates}. Run only the ticket's other checks.\n`
+      : '';
+    const tag = this.t(n).noTests
+      ? 'The ticket says Tests: none. Tag every finding coder.'
+      : 'Tag each finding with the role whose branch must fix it: tester for test files, coder for everything else.';
+    return `Review: git diff ${this.base}...HEAD in your worktree. Do not edit, stage or commit.\n${ran}${tag}\n`;
+  }
+
+  /** Run `swarm.checks` in worktree `p`, in order. Returns the first failure, or null when all pass. */
+  async runChecks(n, p) {
+    for (const cmd of this.sw.checks ?? []) {
+      const shared = this.sw.locked.some((l) => cmd.startsWith(l));
+      const line = shared ? `node "${SELF}" lock -- ${cmd}` : cmd;
+      const t0 = Date.now();
+      const r = await sh(line, [], { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
+      const secs = Math.round((Date.now() - t0) / 1000);
+      if (r.code !== 0) {
+        this.emit(`#${n} check failed (${secs}s): ${cmd}`);
+        return { cmd, tail: `${r.out}${r.err}`.trim().slice(-2500) };
+      }
+      this.emit(`#${n} check ok (${secs}s): ${cmd}`);
+    }
+    return null;
+  }
+
+  /**
+   * Keep each worktree's uncommitted work as a commit under refs/swarm/wip/<n>-<role> before a stop drops it.
+   * Uses a private index and commit-tree: no hooks run and the worktree and branch stay as they are.
+   */
+  saveWip(n) {
+    const kept = [];
+    for (const role of ['coder', 'tester', 'merge']) {
+      const p = this.wt(n, role);
+      if (!existsSync(join(p, '.git')) || !git(p, 'status', '--porcelain')) {
+        continue;
+      }
+      const env = { ...process.env, GIT_INDEX_FILE: join(this.dir, `wip-${n}-${role}.index`) };
+      try {
+        run('git', ['read-tree', 'HEAD'], { cwd: p, env });
+        run('git', ['add', '-A'], { cwd: p, env });
+        const tree = run('git', ['write-tree'], { cwd: p, env });
+        const sha = run('git', ['commit-tree', tree, '-p', 'HEAD', '-m', `swarm wip #${n} ${role}`], { cwd: p, env });
+        const ref = `refs/swarm/wip/${n}-${role}`;
+        git(this.root, 'update-ref', ref, sha);
+        kept.push(ref);
+      } catch (error) {
+        this.emit(
+          `#${n} could not save uncommitted ${role} work: ${String(error.stderr || error.message).slice(0, 200)}`,
+        );
+      } finally {
+        rmSync(env.GIT_INDEX_FILE, { force: true });
+      }
+    }
+    return kept;
   }
 
   // ---------- one ticket ----------
@@ -602,7 +764,8 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       return r.length ? r : workers;
     };
     let relaunch = T.findings.length ? routed(T.findings) : workers;
-    const merge = this.wt(n, 'merge');
+    const int = this.intRole(n);
+    const merge = this.wt(n, int);
     this.clean(merge);
     // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
     let pending =
@@ -637,9 +800,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
         if (T.rounds > 1) {
           git(p, 'reset', '--hard', tip);
         }
-        if (this.sw.install && this.sw.shareDeps) {
-          await this.ensureDeps(n, p);
-        }
+        await this.relinkDeps(n, p);
         const out = await this.agent(
           `swarm-${role}`,
           n,
@@ -662,13 +823,19 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       this.clean(merge);
       await this.mergeBranch(n, tier, issue, this.base, 'base');
       // Merge every role branch the integration branch does not hold yet (covers commits from an earlier, interrupted run).
-      for (const role of workers) {
+      for (const role of workers.filter((r) => r !== int)) {
         if (!gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, role), 'HEAD')) {
           await this.mergeBranch(n, tier, issue, this.br(n, role), role);
         }
       }
-      if (this.sw.install && this.sw.shareDeps) {
-        await this.ensureDeps(n, merge);
+      await this.relinkDeps(n, merge);
+
+      // Repo gates run here, by the runner: a failure goes back to the workers without a reviewer run.
+      const failed = await this.runChecks(n, merge);
+      if (failed) {
+        this.gateFail(n, tier, failed);
+        relaunch = workers;
+        continue;
       }
 
       const head = git(merge, 'rev-parse', 'HEAD');
@@ -677,13 +844,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
         n,
         merge,
         tier,
-        this.facts(
-          n,
-          issue,
-          'reviewer',
-          tier,
-          `Review: git diff ${this.base}...HEAD in your worktree. Do not edit, stage or commit.\n${T.noTests ? 'The ticket says Tests: none. Tag every finding coder.' : 'Tag each finding with the role whose branch must fix it: tester for test files, coder for everything else.'}\n`,
-        ),
+        this.facts(n, issue, 'reviewer', tier, this.reviewTask(n)),
         REVIEW_SCHEMA,
       );
       if (git(merge, 'rev-parse', 'HEAD') !== head || git(merge, 'status', '--porcelain', '--untracked-files=no')) {
@@ -702,7 +863,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       );
       this.emit(`#${n} reviewer ${rv.verdict}${rv.verdict === 'FAIL' ? `: ${rv.findings.length} finding(s)` : ''}`);
       if (rv.verdict === 'PASS') {
-        T.commands = rv.commands;
+        T.commands = [...(this.sw.checks ?? []).map((c) => `${c}: ok (runner)`), ...rv.commands];
         this.save();
         return this.land(n, issue, tier);
       }
@@ -717,7 +878,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
   async land(n, issue, tier) {
     const T = this.t(n);
     setStatus(this.cfg, n, 'In review');
-    const merge = this.wt(n, 'merge');
+    const merge = this.wt(n, this.intRole(n));
     await this.mergeBranch(n, tier, issue, this.base, 'base');
     // Swarm log rows land with the squash.
     if (this.sw.log) {
@@ -754,7 +915,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
 
   /** Squash ticket/<n> onto base as one commit, without touching unrelated staged work. */
   async squash(n, msg) {
-    const ref = this.br(n, 'merge');
+    const ref = this.br(n, this.intRole(n));
     const wl = git(this.root, 'worktree', 'list', '--porcelain');
     const block = wl.split(/\r?\n\r?\n/).find((b) => b.includes(`branch refs/heads/${this.base}`));
     const msgFile = join(this.dir, `msg-${n}.txt`);
@@ -797,7 +958,15 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     T.phase = err instanceof Stop ? err.kind : 'critical';
     T.reason = err.message;
     this.save();
-    this.emit(`#${n} STOP ${T.phase}: ${err.message}`);
+    this.emit(
+      T.phase === 'permission'
+        ? `#${n} NEED permission: ${err.message} (add a rule to swarm.allow in board.json, then rerun)`
+        : `#${n} STOP ${T.phase}: ${err.message}`,
+    );
+    const wip = this.saveWip(n);
+    if (wip.length > 0) {
+      this.emit(`#${n} uncommitted work saved: ${wip.join(', ')}`);
+    }
     try {
       setStatus(this.cfg, n, 'Backlog');
       if (T.cost) {
@@ -809,12 +978,12 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       comment(
         this.cfg,
         n,
-        `Swarm stopped (${T.phase}): ${err.message}\n\nRounds: ${T.rounds}. Work kept on branch \`${this.br(n, 'merge')}\`.\n\n${open ? `Open findings:\n${open}\n\n` : ''}| Ticket | Round | Tier | Result | Notes |\n| --- | --- | --- | --- | --- |\n${T.rows.join('\n')}`,
+        `Swarm stopped (${T.phase}): ${err.message}\n\nRounds: ${T.rounds}. Work kept on branch \`${this.br(n, this.intRole(n))}\`.${wip.length > 0 ? ` Uncommitted work: ${wip.map((r) => `\`${r}\``).join(', ')} (see it with \`git show --stat <ref>\`).` : ''}\n\n${open ? `Open findings:\n${open}\n\n` : ''}| Ticket | Round | Tier | Result | Notes |\n| --- | --- | --- | --- | --- |\n${T.rows.join('\n')}`,
       );
     } catch (error) {
       this.emit(`#${n} board/comment write failed: ${error.message}`);
     }
-    if (T.phase !== 'critical') {
+    if (!RESUMABLE.has(T.phase)) {
       this.removeWorktrees(n, { branches: false });
     }
   }
@@ -825,8 +994,8 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     const running = new Map();
     const warned = new Set();
     for (const [n, T] of Object.entries(this.state.tickets)) {
-      // A critical stop keeps its worktrees for diagnosis; a rerun resumes it once the cause is fixed.
-      if (T.phase === 'running' || T.phase === 'critical') {
+      // A critical or permission stop keeps its worktrees; a rerun resumes it once the cause is fixed.
+      if (RESUMABLE.has(T.phase)) {
         T.phase = 'resume';
         delete T.reason;
         this.emit(`#${n} resuming at round ${T.rounds + 1}`);
@@ -916,6 +1085,14 @@ function gc(cfg) {
       gitOk(root, 'branch', '-D', br);
     }
     out.push(`removed #${n} worktrees and branches`);
+  }
+  const wipRefs = git(root, 'for-each-ref', '--format=%(refname)', 'refs/swarm/wip/');
+  for (const ref of wipRefs.split(/\r?\n/u).filter(Boolean)) {
+    const n = Number(/wip\/(?<n>\d+)-/u.exec(ref)?.groups?.n);
+    if (n && getIssue(cfg, n).state !== 'OPEN') {
+      gitOk(root, 'update-ref', '-d', ref);
+      out.push(`removed ${ref}`);
+    }
   }
   gitOk(root, 'worktree', 'prune');
   if (cfg.swarm?.shareDeps) {
