@@ -223,7 +223,7 @@ function InsetReporter() {
     const measure = () => {
       const W = window.innerWidth,
         H = window.innerHeight;
-      const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
+      const gap = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       // The edge tabs (`.hud-side`) are the HUD's boxes: the bar itself spans the screen, so it is not measured.
       const tabs = [...document.querySelectorAll<HTMLElement>('.hud-side')];

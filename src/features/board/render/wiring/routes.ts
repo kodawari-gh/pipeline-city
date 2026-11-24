@@ -428,7 +428,7 @@ function memBus(g: TierGeo, qx: number): Bus {
     w: 9,
     pad: 13,
     lanes: [],
-    taps: g.dimm.map((_, i) => ({ key: 'dimm' + i, lanes: [] })),
+    taps: g.dimm.map((_, i) => ({ key: `dimm${i}`, lanes: [] })),
   };
   byY.forEach((q, k) => {
     const pts: Pt[] = [q.pad, [q.xs, q.y0]];
@@ -547,7 +547,7 @@ function pcieBus(g: TierGeo): Bus {
       own.filter((l) => !far.includes(l)),
       far,
     );
-    heads.push({ name: 'pcie' + k, lanes: own });
+    heads.push({ name: `pcie${k}`, lanes: own });
   });
   return { id: 'pcie', w: 9, pad: 12, lanes, groups, heads };
 }
@@ -645,7 +645,7 @@ export function buildBuses(): Bus[] {
     for (let p = 0; p < g.usb; p++) {
       const own = legs.slice(2 * p, 2 * p + 2),
         yc = mean(own, 1),
-        port = ioPort('usb' + p),
+        port = ioPort(`usb${p}`),
         pads = ioPads(port, 2);
       for (const pts of bundleOn(
         [
@@ -1129,7 +1129,7 @@ export function buildBuses(): Bus[] {
     g.dimm.forEach((d, i) => {
       const [cx, ey] = dimmPowerPad(d.rect);
       bus.taps!.push({
-        key: 'dimm' + i,
+        key: `dimm${i}`,
         lanes: [
           mkLane(
             [

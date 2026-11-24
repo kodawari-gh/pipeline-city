@@ -57,7 +57,7 @@ export function metalColor(src: Color, metalness: number, out: Color = new Color
   const k = Math.min(1, Math.max(0, metalness));
   out.copy(src);
   if (k <= 0 || warmMetal(src)) return out;
-  const t = Math.min(1, Math.pow(0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b, 1 / 2.2));
+  const t = Math.min(1, (0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b) ** (1 / 2.2));
   return out.lerp(new Color().copy(DARK_METAL[0]).lerp(DARK_METAL[1], t), k);
 }
 
@@ -67,7 +67,7 @@ export function metalColor(src: Color, metalness: number, out: Color = new Color
  */
 function metalLive(m: Std): Color {
   const c = new Color(),
-    seen = [NaN, NaN, NaN, NaN],
+    seen = [Number.NaN, Number.NaN, Number.NaN, Number.NaN],
     mix = new Color();
   const fresh = (): Color => {
     const s = m.color,

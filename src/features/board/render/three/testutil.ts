@@ -8,7 +8,7 @@ import { roomGeo } from '@/features/room/render/shell/room';
 import { Machine3D } from './machine3d';
 
 // The 2D art draws on Pixi canvases: in Node a canvas that draws nothing is enough (the art bakes on its queue later, and never here).
-const nothing: unknown = new Proxy(function () {}, {
+const nothing: unknown = new Proxy(() => {}, {
   get: (_t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing,
 });

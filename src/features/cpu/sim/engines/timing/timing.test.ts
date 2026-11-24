@@ -29,11 +29,11 @@ describe('in-order hazards (width 1)', () => {
 
   it('load-use with forwarding costs exactly 1 bubble; one filler instruction hides it', () => {
     const base = `li s3, 4096\nlw t0, 0(s3)\n`;
-    const a = run(io(), base + `add t1, t0, t0\necall`);
+    const a = run(io(), `${base}add t1, t0, t0\necall`);
     expect(a.c[C.StallLoad]).toBe(1);
     expect(a.c[C.StallData]).toBe(0);
     expect(a.cycles).toBe(4 + 4 + 1);
-    const b = run(io(), base + `addi t2, zero, 1\nadd t1, t0, t0\necall`);
+    const b = run(io(), `${base}addi t2, zero, 1\nadd t1, t0, t0\necall`);
     expect(b.c[C.StallLoad]).toBe(0);
     expect(b.cycles).toBe(5 + 4);
   });

@@ -271,7 +271,7 @@ describe('the game around the VRM', () => {
     }
     expect(g.errors).toBeGreaterThan(0);
     const s = g.snapshot();
-    expect(s.log.some((e) => e.kind === 'fault' && /VRM voltage droop/.test(e.text))).toBe(true);
+    expect(s.log.some((e) => e.kind === 'fault' && e.text.includes('VRM voltage droop'))).toBe(true);
     expect(s.board.vrm.unstable).toBe(true);
     expect(s.board.vrm.loadRatio).toBeGreaterThan(1);
   });
@@ -287,7 +287,7 @@ describe('the game around the VRM', () => {
     expect(s).toMatchObject({ phase: 'error', phaseReason: 'board dead: replace the board' });
     expect(s.board).toMatchObject({ burnt: true, name: 'Starter' });
     expect(s.board.vrm.burnt).toBe(true);
-    expect(s.log.some((e) => /board dead/.test(e.text))).toBe(true);
+    expect(s.log.some((e) => e.text.includes('board dead'))).toBe(true);
     // Replacement: the same tier is for sale like any board (bought with the machine on, installed with it off).
     expect(s.purchases.find((p) => p.id === 'board0')!.blocked).toBeUndefined();
     g.powerButton();

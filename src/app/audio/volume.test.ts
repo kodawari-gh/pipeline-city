@@ -12,7 +12,7 @@ import { busGains, defaultVolumes, readVolumes, sliderGain, snapPercent, writeVo
 
 const KEYS = ['master', 'music', 'sounds', 'ambience'] as const;
 type SliderKey = (typeof KEYS)[number];
-const dB = (d: number): number => Math.pow(10, d / 20);
+const dB = (d: number): number => 10 ** (d / 20);
 
 /** A Storage stand-in: a Map behind getItem / setItem / removeItem. */
 class FakeStorage {

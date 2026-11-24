@@ -333,7 +333,7 @@ function buildField(alpha: Uint8Array, w: number, h: number, frame: Rect, cell: 
   // the edge cells: a partly covered cell with a 4-neighbour on the other side of the edge is placed from its own alpha (it says where in it the edge runs); a clear
   // or solid cell is an edge cell only where the edge between it and its neighbour is hard (the neighbour is clear or solid too), half a cell off; otherwise it is
   // reached from the partly covered cell beside it
-  const seed = new Float32Array(n).fill(NaN);
+  const seed = new Float32Array(n).fill(Number.NaN);
   const hard = (j: number) => a[j] === 0 || a[j] === 255;
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < cols; x++) {

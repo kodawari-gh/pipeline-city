@@ -139,7 +139,7 @@ export function ramRoutes(a: FaceIn): Routes {
 
 /** Mix a '#rrggbb' colour toward white (`t` 0 to 1). */
 function lift(hex: string, t: number): string {
-  const n = parseInt(hex.slice(1), 16),
+  const n = Number.parseInt(hex.slice(1), 16),
     c = (s: number) => Math.round(((n >> s) & 255) * (1 - t) + 255 * t);
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }

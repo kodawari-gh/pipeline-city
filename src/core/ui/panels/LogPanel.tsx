@@ -56,7 +56,7 @@ const PHASES = [
   ],
   ['run', 'Running', 'bolt', 'The time from the job first running until its result was written'],
   ['collect', 'Collecting', 'box', 'The time from the result being written until the client had it'],
-] as const satisfies ReadonlyArray<readonly [keyof Phases, string, IconName, string]>;
+] as const satisfies readonly (readonly [keyof Phases, string, IconName, string])[];
 
 /** The icon of each thing that can hold a job up. */
 const KIND_ICON: Record<VerdictKind, IconName> = {

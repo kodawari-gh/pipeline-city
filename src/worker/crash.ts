@@ -63,10 +63,10 @@ export interface CrashReport {
   parts: string[];
   cores: CrashCore[];
   /** The kernel's job table: slot, state, key id. */
-  jobs: Array<{ slot: number; state: number; key: number }>;
+  jobs: { slot: number; state: number; key: number }[];
   /** Where the keys are: the plugged one, the spool and the tray. */
   keys: { plugged: number | null; spool: number[]; tray: number };
-  regions: Array<{ name: string; lo: number; hi: number }>;
+  regions: { name: string; lo: number; hi: number }[];
   windows: CrashWindow[];
   events: GameEvent[];
   /** The game as saved right after the crash: load it to replay (the state is mid-tick, so it can differ from the last autosave). */
@@ -79,7 +79,7 @@ const h = (n: number): string => `0x${hex(n)}`;
 /** The address in an error message ("... at pc=0xd310"), if it names one. */
 export function pcOf(message: string): number | null {
   const m = /pc=0x([0-9a-f]+)/i.exec(message);
-  return m ? parseInt(m[1]!, 16) : null;
+  return m ? Number.parseInt(m[1]!, 16) : null;
 }
 
 function section<T>(f: () => T, fallback: T): T {
@@ -108,7 +108,7 @@ export function wordsHex(ram: Uint8Array, base: number, n: number): string {
 /** What lives at `pc`: a region by name, or how far it is past the end of the nearest one before it. */
 export function describePc(
   pc: number,
-  regions: ReadonlyArray<{ name: string; lo: number; hi: number }>,
+  regions: readonly { name: string; lo: number; hi: number }[],
   ramSize: number,
   word: number | null,
 ): string {
@@ -139,11 +139,10 @@ function coreText(c: CrashCore): string[] {
   ];
   for (let i = 0; i < c.regs.length; i += REG_ROWS)
     out.push(
-      '  ' +
-        c.regs
-          .slice(i, i + REG_ROWS)
-          .map((v, j) => `r${i + j}=${hex(v, 8)}`)
-          .join(' '),
+      `  ${c.regs
+        .slice(i, i + REG_ROWS)
+        .map((v, j) => `r${i + j}=${hex(v, 8)}`)
+        .join(' ')}`,
     );
   return out;
 }

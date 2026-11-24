@@ -290,7 +290,7 @@ export class AirTags3D {
     el.className = 'airtag';
     el.style.display = 'none';
     host.appendChild(el);
-    return { el, key: '', label: 0, visible: false, left: NaN, top: NaN, w: 0, h: 0 };
+    return { el, key: '', label: 0, visible: false, left: Number.NaN, top: Number.NaN, w: 0, h: 0 };
   }
 
   private setVisible(node: PillNode, on: boolean): void {

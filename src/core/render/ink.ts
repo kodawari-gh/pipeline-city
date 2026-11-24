@@ -142,7 +142,7 @@ export function mix(a: string, b: string, t: number): string {
   if (!pa || !pb) return a;
   const k = Math.max(0, Math.min(1, t));
   const c = pa.map((v, i) => Math.round(v + (pb[i]! - v) * k));
-  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function hex(s: string): number[] | null {
@@ -154,6 +154,6 @@ function hex(s: string): number[] | null {
       .split('')
       .map((c) => c + c)
       .join('');
-  const n = parseInt(h, 16);
+  const n = Number.parseInt(h, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }

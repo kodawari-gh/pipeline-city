@@ -94,9 +94,9 @@ describe('the showcase models', () => {
         return v;
       };
       runFrame(m, 60000);
-      expect(board(), id + ' far').toBe(false);
+      expect(board(), `${id} far`).toBe(false);
       runFrame(m, 1500);
-      expect(board(), id + ' near').toBe(true);
+      expect(board(), `${id} near`).toBe(true);
     }
   });
 

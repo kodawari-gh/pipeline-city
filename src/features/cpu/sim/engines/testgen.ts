@@ -41,7 +41,7 @@ class Gen {
     if (this.recent.length > 3) this.recent.shift();
   }
   private emit(s: string): void {
-    this.lines.push('  ' + s);
+    this.lines.push(`  ${s}`);
   }
   private label(): string {
     return `L${this.labels++}`;
@@ -132,7 +132,7 @@ class Gen {
     const n = 1 + this.r.nextInt(5);
     for (let i = 0; i < n; i++) this.alu();
     this.emit('ret');
-    return this.lines.join('\n') + '\n';
+    return `${this.lines.join('\n')}\n`;
   }
 }
 

@@ -35,13 +35,13 @@ function openingTags(code: string, tag: string): string[] {
 
 describe('toasts', () => {
   it('the hint toast card carries data-cue="ui_warn"', () => {
-    const tag = openingTags(src('src/core/ui/panels/Toasts.tsx'), 'div').find((t) => /class="card toast"/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/Toasts.tsx'), 'div').find((t) => t.includes('class="card toast"'));
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_warn"');
   });
 
   it('the refused-action notice card carries data-cue="ui_error"', () => {
-    const tag = openingTags(src('src/core/ui/panels/Toasts.tsx'), 'div').find((t) => /class="card notice"/.test(t));
+    const tag = openingTags(src('src/core/ui/panels/Toasts.tsx'), 'div').find((t) => t.includes('class="card notice"'));
     expect(tag).toBeDefined();
     expect(tag).toContain('data-cue="ui_error"');
   });
@@ -158,11 +158,11 @@ describe('sliders', () => {
   });
 
   it.each(SLIDER_FILES)('every range slider in the %s carries data-cue="ui_slider_tick"', (_name, file) => {
-    const tags = openingTags(src(file), 'input').filter((t) => /type="range"/.test(t));
+    const tags = openingTags(src(file), 'input').filter((t) => t.includes('type="range"'));
     expect(tags.length).toBeGreaterThan(0);
     const bare = tags
-      .filter((t) => !/data-cue="ui_slider_tick"/.test(t))
-      .map((t) => t.replace(/\s+/g, ' ').slice(0, 90));
+      .filter((t) => !t.includes('data-cue="ui_slider_tick"'))
+      .map((t) => t.replaceAll(/\s+/g, ' ').slice(0, 90));
     expect(bare).toEqual([]);
   });
 });

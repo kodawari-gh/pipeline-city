@@ -602,7 +602,7 @@ export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, pro
       if (it && s.out && s.out.w > 20) {
         const wr = writesOf(it.word ?? 0);
         out.lit.push({ rect: wipe(s.out, pr(0)), color: 'st', a: 0.9 });
-        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? '→ ' + regName(wr) : 'done', bottom: '' });
+        if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? `→ ${regName(wr)}` : 'done', bottom: '' });
       }
       break;
     case 'alu':

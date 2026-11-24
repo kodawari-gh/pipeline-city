@@ -18,7 +18,7 @@ import { readTheme } from '@/core/render/theme';
 let renderer: Renderer | null = null;
 let worker: Worker | null = null;
 /** Sent with each job and echoed back: a picture that arrives for another epoch is dropped. */
-let epoch = 0;
+const epoch = 0;
 const cache = new Map<string, string>();
 const failed = new Set<string>();
 /** Jobs asked of the worker and not answered yet, by key (moved to `queue` if the worker dies). */
@@ -77,7 +77,7 @@ function startWorker(): void {
   workerTried = true;
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
   try {
-    worker = new Worker(new URL('./thumbs.worker.ts', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('thumbs.worker.ts', import.meta.url), { type: 'module' });
   } catch {
     return;
   }

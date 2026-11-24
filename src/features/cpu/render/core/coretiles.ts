@@ -47,7 +47,7 @@ const hsl = (h: number, s: number, l: number): string => {
     Math.round(v * 255)
       .toString(16)
       .padStart(2, '0');
-  return '#' + c(f(0)) + c(f(8)) + c(f(4));
+  return `#${c(f(0))}${c(f(8))}${c(f(4))}`;
 };
 
 /**
@@ -148,7 +148,7 @@ export function oooStages(o: OooSnap): OooStages {
       },
     ],
     units: o.units.map((u, k) => ({
-      name: UNIT_NAMES[k] ?? 'U' + k,
+      name: UNIT_NAMES[k] ?? `U${k}`,
       cls: clsOf(u.op),
       progress: u.op && u.total > 0 ? Math.min(1, (u.total - u.left) / u.total) : 0,
     })),
@@ -188,8 +188,8 @@ export function tileModels(c: CoresSnap, rates: readonly CoreRate[] = []): TileM
       cells: asleep ? cells.map(() => null) : cells,
       fill,
       ooo: c.tiles[l.hw]?.ooo && !asleep ? oooStages(c.tiles[l.hw]!.ooo!) : null,
-      label: 'C' + l.core,
-      sub: running ? 'T' + l.thread : l.parked ? 'parked' : 'kernel',
+      label: `C${l.core}`,
+      sub: running ? `T${l.thread}` : l.parked ? 'parked' : 'kernel',
     };
   });
 }

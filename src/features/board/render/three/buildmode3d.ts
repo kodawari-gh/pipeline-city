@@ -525,7 +525,7 @@ export class BuildStage {
     key.position.set(-6000, 9000, 14000);
     const rim = new DirectionalLight(0x8fb0ff, 0.45);
     rim.position.set(9000, 3000, -4000);
-    const lamp = new PointLight(0xfff1dd, 1.0, 0, 0);
+    const lamp = new PointLight(0xfff1dd, 1, 0, 0);
     lamp.position.set(0, 4000, 9000);
     scene.add(key, rim, lamp);
     // the frame's cuts (docs/render/case.md "Build my PC's frame"): the still parts' matrices stay (`syncWorld` in `frame`), and the opaque
@@ -2099,7 +2099,7 @@ export class BuildStage {
   /** The scene object that stands for a node, or null (the monitor stands in the room, not in the machine). */
   private objectOf(node: string): Object3D | null {
     const root = this.machine.root;
-    if (isCableNode(node)) return findById(root, 'cable.' + node.slice(6));
+    if (isCableNode(node)) return findById(root, `cable.${node.slice(6)}`);
     if (isDevNode(node)) {
       const d = this.board.devices.find((x) => devNode(x.id) === node);
       if (!d) return null;
@@ -2445,7 +2445,7 @@ export class BuildStage {
   private refit(kept: { obj: Object3D; id: string; p: Vector3; z: number; y: number }, id: string): void {
     kept.obj.traverse((o) => {
       const i = o.userData.id;
-      if (typeof i === 'string' && (i === kept.id || i.startsWith(kept.id + '.')))
+      if (typeof i === 'string' && (i === kept.id || i.startsWith(`${kept.id}.`)))
         o.userData.id = id + i.slice(kept.id.length);
     });
     kept.obj.position.copy(kept.p);
@@ -3084,7 +3084,7 @@ export class BuildStage {
         });
       // (a case set down bare has no board to lower)
       if (!this.bare.peek()) {
-        this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
+        this.note(`Lower the ${isCase ? 'board' : `${BOARD_TIERS[tier]!.name} board`} onto its standoffs`);
         await this.playAll(board, 'board', 'in');
         // the case's front-panel leads run out of their hole to the board's headers and go in
         await this.plugPanel();

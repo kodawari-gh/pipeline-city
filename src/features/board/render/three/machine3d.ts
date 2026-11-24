@@ -949,15 +949,15 @@ export class Machine3D {
     if (old) {
       for (const r of old.reveals) {
         const k = this.reveals.indexOf(r);
-        if (k >= 0) this.reveals.splice(k, 1);
+        if (k !== -1) this.reveals.splice(k, 1);
       }
       for (const r of old.rails) {
         const k = this.rails.indexOf(r);
-        if (k >= 0) this.rails.splice(k, 1);
+        if (k !== -1) this.rails.splice(k, 1);
       }
       for (const o of [old.board.root, old.board.lid]) {
         const k = this.apart.indexOf(o);
-        if (k >= 0) this.apart.splice(k, 1);
+        if (k !== -1) this.apart.splice(k, 1);
       }
       old.board.root.removeFromParent();
       disposeTree(old.board.root);
@@ -1682,7 +1682,7 @@ export class Machine3D {
       // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260,
         slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
-      const g = tag(new Group(), 'cable.' + c.id),
+      const g = tag(new Group(), `cable.${c.id}`),
         accent = ACCENT(T, c.id as 'pcie'),
         look = lead(c.id),
         fixed = fromSlot(slot, 4);
@@ -1795,7 +1795,7 @@ export class Machine3D {
     const hubEnds = fromSlot(FAN_SLOT, hubHeaders().length + 1);
     for (const p of fanCordPlans()) {
       if (!has(p.id)) continue;
-      const g = tag(new Group(), 'cable.' + p.id),
+      const g = tag(new Group(), `cable.${p.id}`),
         plugged = on(p.id);
       // (the power goes from the header, out to the fan)
       const cord = (
@@ -1900,7 +1900,7 @@ export class Machine3D {
     }
     // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers: rigs the stage's hand can run (not the game's cables)
     for (const rig of panelRigs(env)) {
-      const g = tag(new Group(), 'cable.' + rig.id);
+      const g = tag(new Group(), `cable.${rig.id}`);
       this.addRig(g, rig, !this.panelOut.has(rig.id));
       this.wires.add(g);
     }
@@ -2044,7 +2044,7 @@ export class Machine3D {
       if (!has(id)) return;
       // the cord runs from its device through the desk's grommet for good; what the player moves is the plug under the desk. It lies loose on the
       // floor by the wall socket (nothing to weave through the desk) and goes into its outlet, out of the wall
-      const g = tag(new Group(), 'cable.' + id),
+      const g = tag(new Group(), `cable.${id}`),
         hole: V3 = [dg.x + dx, deskTop + 10, dg.z],
         low: RopeEnd = { at: [dg.x + dx, under - 10, dg.z], dir: [0, -1, 0] };
       // (the room's plate is drawn small, swisssocket3d.ts `ROOM_SOCKET`: its Swiss plug is built at the same scale, upright, its earth pin down)
@@ -2099,7 +2099,7 @@ export class Machine3D {
     // socket of the pinwheel it goes into: the power runs out of the plug)
     const wallMains = (id: string, from: RopeEnd) => {
       if (!has(id) || !w || !stage) return;
-      const g = tag(new Group(), 'cable.' + id),
+      const g = tag(new Group(), `cable.${id}`),
         at = w.plan.mains.outlet[id as 'pcmains' | 'monmains'],
         roll = w.plan.mains.turn[id as 'pcmains' | 'monmains'];
       if (!at) return;
@@ -2234,7 +2234,7 @@ export class Machine3D {
       this.key = null;
     }
     if (id === null) return;
-    const g = tag(new Group(), 'key:' + id),
+    const g = tag(new Group(), `key:${id}`),
       y = USB_PORT.y + USB_PORT.h / 2,
       z = BOARD_Z + 600;
     g.add(
@@ -2433,7 +2433,7 @@ export class Machine3D {
     const drop = <T>(list: T[], out: readonly T[]): void => {
       for (const x of out) {
         const i = list.indexOf(x);
-        if (i >= 0) list.splice(i, 1);
+        if (i !== -1) list.splice(i, 1);
       }
     };
     for (const d of gone) {
@@ -2629,13 +2629,13 @@ export class Machine3D {
     const turning = new Map<string, number>();
     for (const f of this.fans) {
       const want = live && (!f.needs || !!s?.cables.some((c) => c.id === f.needs && c.connected)) ? 1 : 0;
-      f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
+      f.speed += (want - f.speed) * (1 - (want ? 0.3 : 0.6) ** dt); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
       if (f.ring) {
         if (f.fixed === undefined) f.ring.emissive.copy(rgb);
         else f.ring.emissive.setHex(f.fixed);
-        f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed * this.ringK;
+        f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2)) * f.speed * this.ringK;
       }
       const bank = f.needs ? this.bankOf(f.needs) : null;
       if (bank) turning.set(bank, Math.max(turning.get(bank) ?? 0, f.speed));

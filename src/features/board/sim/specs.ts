@@ -1606,7 +1606,7 @@ export const basicFan = (size: FanSize): FanSpec =>
  * The share of a heatsink's rated cooling it gives with `air` of fans turning on it (the summed `airflow`): `bare` with none, 1 with one basic fan, and a
  * little more for each fan or grade beyond (the gain flattens: two fans give about a fifth more, not twice).
  */
-export const fanShare = (bare: number, air: number): number => bare + (1 - bare) * Math.pow(Math.max(0, air), 0.35);
+export const fanShare = (bare: number, air: number): number => bare + (1 - bare) * Math.max(0, air) ** 0.35;
 
 /** The smallest case tier that holds a board tier. */
 export const caseFor = (boardTier: number): number => CASE_TIERS.findIndex((c) => c.maxBoard >= boardTier);

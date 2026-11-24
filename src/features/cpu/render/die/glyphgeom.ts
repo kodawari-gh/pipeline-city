@@ -205,7 +205,7 @@ export function glyphPins(b: Block): Pins | null {
 
 /** The input pin a link enters a symbol at (the next-PC multiplexer has three, write-back three). */
 export function inPinFor(b: Block, linkId: string, pins: Pins): Pt | undefined {
-  if (b.kind === 'nextpc') return pins.ins[/pcadd/.test(linkId) ? '+4' : /irq/.test(linkId) ? 'irq' : 'br'];
+  if (b.kind === 'nextpc') return pins.ins[linkId.includes('pcadd') ? '+4' : linkId.includes('irq') ? 'irq' : 'br'];
   if (b.kind === 'wb') return pins.ins[/lsu|l3|mem/.test(linkId) ? 'mem' : 'alu'];
   return pins.ins.in ?? Object.values(pins.ins)[0];
 }

@@ -189,7 +189,7 @@ export class FrameView extends Container {
       this.sig = '';
       return;
     }
-    const sig = m.status + '|' + m.cells.map((c) => Math.round(c * 255)).join(',');
+    const sig = `${m.status}|${m.cells.map((c) => Math.round(c * 255)).join(',')}`;
     if (sig === this.sig) return;
     this.sig = sig;
     const g = this.g,

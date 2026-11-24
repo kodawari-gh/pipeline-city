@@ -343,7 +343,7 @@ const CAPS: Record<string, Glyph> = {
     },
   },
   V: { w: 0.72, sb: [-0.05, -0.05], draw: (g) => vee(g, 0) },
-  W: { w: 1.0, sb: [-0.04, -0.04], draw: (g) => dub(g, 0) },
+  W: { w: 1, sb: [-0.04, -0.04], draw: (g) => dub(g, 0) },
   X: { w: 0.7, sb: [-0.03, -0.03], draw: (g) => ex(g, 0) },
   Y: {
     w: 0.7,

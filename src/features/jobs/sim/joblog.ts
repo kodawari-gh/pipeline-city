@@ -276,7 +276,7 @@ function readingOf(e: JobLogEntry): Verdict {
         ? 'No counters for this run: the game was reloaded during it.'
         : 'No counters for this run (the machine restarted during it).',
     };
-  const stalls: Array<[number, string, string, VerdictKind, string]> = [
+  const stalls: [number, string, string, VerdictKind, string][] = [
     [
       w.stallCache,
       'waiting on memory (cache misses)',
@@ -399,7 +399,7 @@ export function summarise(list: readonly JobLogEntry[]): LogSummary {
 }
 
 /** The stall causes a run's cycles are spent on, as a share of its cycles, largest first. */
-export function stallShares(w: JobWindow): Array<{ key: string; label: string; share: number }> {
+export function stallShares(w: JobWindow): { key: string; label: string; share: number }[] {
   const c = Math.max(1, w.cycles);
   return [
     { key: 'cache', label: 'Waiting on memory', share: w.stallCache / c },

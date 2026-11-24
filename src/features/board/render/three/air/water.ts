@@ -78,7 +78,7 @@ void main() {
 }`;
 
 /** How bright the water is over the picture, the length of a band of light along it (units), and how fast the bands go at full flow (bands a second). */
-const STRENGTH = 1.0,
+const STRENGTH = 1,
   LAMBDA = 2600,
   SPEED = 0.45;
 /** The water's temperature, shown from the loop's mean this many times as far (the loop's own rise is a few kelvins: on the scale the parts glow by it would not show). */

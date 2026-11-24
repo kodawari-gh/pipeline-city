@@ -313,7 +313,7 @@ export function caseFan(
   f.root.position.set(r.x + r.w / 2, -(r.y + r.h / 2), zc);
   if (axis === 'x') f.root.rotation.y = Math.PI / 2;
   else f.root.rotation.x = Math.PI / 2;
-  return { root: f.root, spin: { ...f.spin, needs: 'fan:' + fit.slot } };
+  return { root: f.root, spin: { ...f.spin, needs: `fan:${fit.slot}` } };
 }
 
 /** A part's own round fan facing the glass (a card's): a round shroud with a lip, the motor on its struts and a curved-blade rotor, its face at depth `z`. */

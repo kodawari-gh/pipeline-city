@@ -142,7 +142,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capS
     caps,
     can,
     capSleeve
-      ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
+      ? mat(Number.parseInt(capSleeve.slice(1), 16), { roughness: 0.32 })
       : mat(0x959aa3, { metalness: 0.6, roughness: 0.45 }),
   );
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)

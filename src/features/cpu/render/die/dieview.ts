@@ -49,7 +49,7 @@ const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
 /** A register or memory value in a few characters. */
 export function showValue(v: number): string {
   if (v >= -999 && v <= 99999) return String(v);
-  return '0x' + hex(v);
+  return `0x${hex(v)}`;
 }
 
 const CLASS_LABEL: [OpClass, string][] = [
@@ -276,8 +276,8 @@ export class PlanView {
   poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number) {
     const plan = this.motion;
     if (!plan) return;
-    this.sysAt.set('mm:' + unit, now);
-    const link = plan.links.find((l) => l.id === 'fab-' + unit);
+    this.sysAt.set(`mm:${unit}`, now);
+    const link = plan.links.find((l) => l.id === `fab-${unit}`);
     if (link) this.send([{ link, reverse: !write, delay: 0, color: 'inst' }], now, 'ld');
   }
 
@@ -361,11 +361,11 @@ export class PlanView {
     for (const e of fr.applied) {
       if (e.kind === Ev.Reg) this.regWrite[e.a] = now;
       else if (e.kind === Ev.Hit || e.kind === Ev.Fill) this.slotTime.set(WHICH[e.a]! + e.b, now);
-      else if (e.kind === Ev.Pred) this.slotTime.set('p' + e.a, now);
+      else if (e.kind === Ev.Pred) this.slotTime.set(`p${e.a}`, now);
       else if (e.kind === Ev.Tlb) {
         if (e.a === 2) this.sysAt.set('fault', now);
         else {
-          this.slotTime.set('t' + e.b, now);
+          this.slotTime.set(`t${e.b}`, now);
           this.tlbKind.set(e.b, e.a);
         }
       } else if (e.kind === Ev.Irq) {
@@ -531,7 +531,7 @@ export class PlanView {
     for (const r of rows) {
       const k = r.id + r.ch;
       cb.set(k, this.cellBorn.get(k) ?? wall);
-      const rk = r.id + 'rat';
+      const rk = `${r.id}rat`;
       cb.set(rk, this.cellBorn.get(rk) ?? wall);
     }
     this.cellBorn = cb;
@@ -580,10 +580,10 @@ export class PlanView {
         const it = prod.get(k);
         if (!it) {
           box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.mute, lw: 1, sa: 0.35 });
-          ct.set(k, REG[k] ?? 'x' + k, '', r, T.mute);
+          ct.set(k, REG[k] ?? `x${k}`, '', r, T.mute);
           return;
         }
-        const u = Math.min(1, (wall - (cb.get(it.id + 'rat') ?? wall)) / WIPE_MS),
+        const u = Math.min(1, (wall - (cb.get(`${it.id}rat`) ?? wall)) / WIPE_MS),
           e = u * u * (3 - 2 * u);
         if (u < 1) this.cellAnim = true;
         const gw = r.w * (0.35 + 0.65 * e),
@@ -594,7 +594,7 @@ export class PlanView {
         });
         box(g, r.x + r.w - 8, r.y + 3, 5, 5, 2.5, { fill: idColor(it.id) });
         if (u < 0.6) ct.hide(k);
-        else ct.set(k, REG[k] ?? 'x' + k, r.h >= 24 ? pcText(it.pc) : '', r, T.on);
+        else ct.set(k, REG[k] ?? `x${k}`, r.h >= 24 ? pcText(it.pc) : '', r, T.on);
       });
     }
     fill(
@@ -699,7 +699,7 @@ export class PlanView {
       );
       for (const l of live.lit) box(g, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
       if (live.texts.length === 0) continue;
-      const ct = this.texts_('g:' + b.id, used);
+      const ct = this.texts_(`g:${b.id}`, used);
       live.texts.forEach((t, k) => ct.set(k, t.top, t.bottom, t.rect, T.on));
       ct.hideFrom(live.texts.length);
     }
@@ -738,7 +738,7 @@ export class PlanView {
             1,
             { fill: T.st, fa: 0.5 },
           );
-        const s1 = REG[k] ?? 'x' + k,
+        const s1 = REG[k] ?? `x${k}`,
           s2 = showValue(v);
         sigParts.push(s2);
         ct.set(k, s1, s2, r, T.ink);
@@ -756,7 +756,7 @@ export class PlanView {
     ) => {
       if (!b || !c) return;
       const cs = cellRects(b),
-        ct = this.texts_('data:' + id, used);
+        ct = this.texts_(`data:${id}`, used);
       cs.forEach((r, k) => {
         const tag = c.tags[k] ?? -1;
         if (tag < 0) {
@@ -769,7 +769,7 @@ export class PlanView {
         const words = c.words.get(tag);
         const s2 = content(words);
         sigParts.push(String(tag) + s2);
-        ct.set(k, '@' + hex(tag * c.lineBytes, 4), s2, r, T.ink);
+        ct.set(k, `@${hex(tag * c.lineBytes, 4)}`, s2, r, T.ink);
       });
     };
     drawCache('d', cacheBlock('dcache'), st.d, (w) => (w ? showValue(w[0]!) : '··'), T.ld);
@@ -789,7 +789,7 @@ export class PlanView {
           return;
         }
         box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.3 });
-        const f = fade(this.slotTime.get('t' + k) ?? -1, 900);
+        const f = fade(this.slotTime.get(`t${k}`) ?? -1, 900);
         if (f > 0)
           box(g, r.x, r.y, r.w, r.h, 1.5, {
             fill: this.tlbKind.get(k) === 1 ? T.st : T.alu,
@@ -798,7 +798,7 @@ export class PlanView {
             lw: 2,
             sa: f,
           }); // a fill (after a walk) or a hit
-        ct.set(k, 'v' + hex(vpn * 256, 4), 'p' + hex((tb.frame[k] ?? 0) * 256, 4), r, T.ink);
+        ct.set(k, `v${hex(vpn * 256, 4)}`, `p${hex((tb.frame[k] ?? 0) * 256, 4)}`, r, T.ink);
       });
     }
 
@@ -839,7 +839,7 @@ export class PlanView {
       cs.forEach((r, k) => {
         const v = st.pred.table[k] ?? 0;
         if (v > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.br, fa: 0.15 + 0.7 * (v / max) });
-        const f = fade(this.slotTime.get('p' + k) ?? -1, 700);
+        const f = fade(this.slotTime.get(`p${k}`) ?? -1, 700);
         if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: f });
       });
     }

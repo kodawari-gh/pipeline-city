@@ -524,7 +524,7 @@ export function routerBoard(tier: number, stand: RouterStand, floor?: DieFloor):
     const radio = part('router.radio'),
       can = mat(0xb9babf, { metalness: 0.85, roughness: 0.3 }),
       hole = mat(0x050608, { roughness: 0.8 });
-    pkg(radio, fit.radio, 0, mm(2), ['RL-W' + t + '10', i.radio.bands], { mould: 0x4e5360, bevel: 6, dot: false });
+    pkg(radio, fit.radio, 0, mm(2), [`RL-W${t}10`, i.radio.bands], { mould: 0x4e5360, bevel: 6, dot: false });
     for (const r of fit.ufl)
       radio.add(
         drum(r.x + r.w / 2, r.y + r.h / 2, 0, mm(1.2), mm(1.15), can, SEG.part),

@@ -422,7 +422,7 @@ export function card3d(
       extra.push(o);
       return () => {
         const i = extra.indexOf(o);
-        if (i >= 0) extra.splice(i, 1);
+        if (i !== -1) extra.splice(i, 1);
       };
     },
     pose: (zoom) => {

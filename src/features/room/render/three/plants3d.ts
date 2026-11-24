@@ -34,11 +34,11 @@ const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
 const OUTLINE = {
   /** the fiddle-leaf fig: a wedge at the base, widest past the middle, a waist below that, a broad round tip */
   fig: (u: number) =>
-    Math.pow(Math.max(0, Math.sin(Math.PI * u * u)), 0.55) * (1 - 0.12 * Math.exp(-(((u - 0.42) / 0.1) ** 2))),
+    Math.max(0, Math.sin(Math.PI * u * u)) ** 0.55 * (1 - 0.12 * Math.exp(-(((u - 0.42) / 0.1) ** 2))),
   /** pothos: a heart, wide at its lobes, to a pointed tip */
-  heart: (u: number) => Math.pow(Math.sin(Math.PI * (0.22 + 0.78 * u)), 0.9),
+  heart: (u: number) => Math.sin(Math.PI * (0.22 + 0.78 * u)) ** 0.9,
   /** a succulent's or an aloe's fleshy blade: wide at its base, to a point */
-  lance: (u: number) => Math.pow(1 - u, 0.9) * Math.min(1, 0.55 + u * 3),
+  lance: (u: number) => (1 - u) ** 0.9 * Math.min(1, 0.55 + u * 3),
 } as const;
 export type LeafShape = keyof typeof OUTLINE;
 
@@ -537,9 +537,9 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
         [0, 0],
         [r * 0.82, 0],
         [r * 0.9, r * 0.08],
-        [r * 1.0, r * 1.1],
+        [r * 1, r * 1.1],
         [r * 1.08, r * 1.2],
-        [r * 1.0, r * 1.22],
+        [r * 1, r * 1.22],
         [r * 0.95, r * 1.12],
       ],
       stoneware(),

@@ -488,7 +488,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
     labels.addChild(label('80+', l.x + l.w - 110, l.y + 640, 40, accent, { head: true, anchor: [0.5, 0.5] }));
   }
   // output sockets on the top edge: where the cables plug in
-  const sockets: Array<readonly [number, number, string]> = [
+  const sockets: (readonly [number, number, string])[] = [
     ...PSU_PORTS.pcie.slice(0, spec.pcieLeads).map((x, k) => [x, 76, `P${k + 1}`] as const),
     [PSU_PORTS.atx, 170, 'ATX 24'],
     [PSU_PORTS.cpu, 130, 'CPU 8'],

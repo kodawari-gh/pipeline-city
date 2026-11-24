@@ -133,7 +133,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
       // ← → change the utility button that has focus. The key moves the chip to the utility line itself, past the hold-off.
       const list = utils();
       const i = list.indexOf(active as HTMLElement);
-      if (i < 0) return;
+      if (i === -1) return;
       e.preventDefault();
       setAt(utilGroup);
       list[cycleValue(list.length, i, e.key)]!.focus();

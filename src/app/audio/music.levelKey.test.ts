@@ -17,7 +17,7 @@ interface Rec {
 }
 
 /** `notReady`: the keys the sink reports as not decoded yet (`keyReady` is false for them). Default: every key is ready. */
-function recorder(notReady: Set<string> = new Set()) {
+function recorder(notReady = new Set<string>()) {
   const calls: Rec[] = [];
   const sink = new Proxy({} as Record<string, (...a: unknown[]) => void>, {
     get: (_t, name) => {
@@ -52,7 +52,7 @@ const PLAYING_LAYERS = ['bed', 'pluck', 'bass'] as const;
 const idleFeed: MusicFeed = { flowing: false, saturated: false, stress: 0, debt: false };
 
 /** A music in the running game at level 1, with the first key set and its calls cleared. */
-function musicInGame(notReady: Set<string> = new Set()) {
+function musicInGame(notReady = new Set<string>()) {
   const rec = recorder(notReady);
   const m = createMusic(rec.sink as unknown as MusicSink);
   m.onUnlock();

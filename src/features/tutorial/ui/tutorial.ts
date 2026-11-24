@@ -108,7 +108,7 @@ export interface StepDef {
 }
 
 /** The twelve steps before storage and the OS existed. A player who finished them is not forced through the rest. */
-const OLD_FLAGS: Array<keyof Progress> = [
+const OLD_FLAGS: (keyof Progress)[] = [
   'cpuInstalled',
   'ramInstalled',
   'psuInstalled',
@@ -237,7 +237,7 @@ const cpuFanFitted = (s: Snapshot): boolean => {
 };
 
 /** The four cables of the first build, by cable id and the progress flag that says each is in (the fan cable has none: the cable list says). */
-const CABLES: Array<{ id: 'atx' | 'cpu' | 'cpufan' | 'video'; flag: keyof Progress | null; end: string }> = [
+const CABLES: { id: 'atx' | 'cpu' | 'cpufan' | 'video'; flag: keyof Progress | null; end: string }[] = [
   { id: 'atx', flag: 'atxConnected', end: 'psu' },
   { id: 'cpu', flag: 'cpuPowerConnected', end: 'psu' },
   { id: 'cpufan', flag: null, end: 'cooler' },
@@ -401,9 +401,9 @@ export const STEPS: StepDef[] = [
     chapter: 'First jobs',
     title: 'Spend your first money',
     flag: 'firstPurchase',
-    text:
-      'You have coins to spend! Better parts finish jobs sooner, and sooner means more money. Open the Shop and buy a processor upgrade. It lands in your inventory.' +
-      BROKE,
+    text: `You have coins to spend! Better parts finish jobs sooner, and sooner means more money. Open the Shop and buy a processor upgrade. It lands in your inventory.${
+      BROKE
+    }`,
     // The Shop, not the processor on the board: the cooler sits on top of it and takes the click.
     targets: whenAffordable(cheapestCpu, (s) => {
       const buy = cheapestCpu(s);
@@ -439,9 +439,9 @@ export const STEPS: StepDef[] = [
     title: 'Buy a drive',
     flag: null,
     done: (s) => ownsStorage(s),
-    text:
-      'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy the HDD.' +
-      BROKE,
+    text: `A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy the HDD.${
+      BROKE
+    }`,
     targets: whenAffordable('hdd0', () => ['bay', 'buy:hdd0']),
   },
   {
@@ -482,9 +482,9 @@ export const STEPS: StepDef[] = [
     title: 'Buy an operating system',
     flag: null,
     done: (s) => ownsOs(s),
-    text:
-      "An operating system (OS) is the machine's manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy the OS." +
-      BROKE,
+    text: `An operating system (OS) is the machine's manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy the OS.${
+      BROKE
+    }`,
     targets: whenAffordable('os1', () => ['bay', 'buy:os1']),
   },
   {
@@ -537,9 +537,9 @@ export const STEPS: StepDef[] = [
     chapter: 'The network',
     title: 'Buy an internet plan',
     flag: 'ispBought',
-    text:
-      'Going online takes three things: an internet plan, a router, and a network port on your board. First the plan. It decides how fast jobs travel and how many clients can send you work at once. Open the Shop and buy the Basic DSL plan.' +
-      BROKE,
+    text: `Going online takes three things: an internet plan, a router, and a network port on your board. First the plan. It decides how fast jobs travel and how many clients can send you work at once. Open the Shop and buy the Basic DSL plan.${
+      BROKE
+    }`,
     targets: whenAffordable('isp1', () => ['hud:shop', 'buy:isp1']),
   },
   {
@@ -548,9 +548,9 @@ export const STEPS: StepDef[] = [
     title: 'Buy a router',
     flag: null,
     done: (s, p) => p.routerInstalled || ownsRouter(s),
-    text:
-      'Now the router: the little box that connects your workshop to the internet. It has its own power, so it stays on even when your computer is off. Open the Shop and buy one.' +
-      BROKE,
+    text: `Now the router: the little box that connects your workshop to the internet. It has its own power, so it stays on even when your computer is off. Open the Shop and buy one.${
+      BROKE
+    }`,
     targets: whenAffordable('router1', () => ['hud:shop', 'buy:router1']),
   },
   {
@@ -570,9 +570,9 @@ export const STEPS: StepDef[] = [
     title: 'A bigger case',
     flag: null,
     done: (s) => ownsBiggerCase(s) || ownsJackBoard(s),
-    text:
-      'Your starter board has no network port, like a laptop with no socket for the cable. The Basic board has one, but it is bigger than your little Mini tower, and a board has to fit its case. First a roomier case. A case can only be changed while the machine is switched off, so press the power button first, then open the Shop and buy the Micro tower.' +
-      BROKE,
+    text: `Your starter board has no network port, like a laptop with no socket for the cable. The Basic board has one, but it is bigger than your little Mini tower, and a board has to fit its case. First a roomier case. A case can only be changed while the machine is switched off, so press the power button first, then open the Shop and buy the Micro tower.${
+      BROKE
+    }`,
     // The machine is still running from the OS lesson: the power button first, then the Shop.
     targets: (s) => (s.powered ? ['power'] : whenAffordable('case1', () => ['hud:shop', 'buy:case1'])(s)),
   },
@@ -591,9 +591,9 @@ export const STEPS: StepDef[] = [
     title: 'A board with a network port',
     flag: null,
     done: (s) => ownsJackBoard(s),
-    text:
-      'Now the board itself. The Basic board has a network port, and all your parts carry over to it. A board can only be bought while the machine is switched off, so keep it off, then open the Shop and buy it.' +
-      BROKE,
+    text: `Now the board itself. The Basic board has a network port, and all your parts carry over to it. A board can only be bought while the machine is switched off, so keep it off, then open the Shop and buy it.${
+      BROKE
+    }`,
     // The machine may still be running (an old save): the power button first, then the Shop.
     targets: (s) => (s.powered ? ['power'] : whenAffordable('board1', () => ['hud:shop', 'buy:board1'])(s)),
   },
@@ -880,7 +880,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
 }
 
 /** Milestones added with the OS and network lessons: any of them set means the player took those lessons. */
-const LESSON_FLAGS: Array<keyof Progress> = [
+const LESSON_FLAGS: (keyof Progress)[] = [
   'storageInstalled',
   'osInstalled',
   'firstOsJob',

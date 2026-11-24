@@ -82,7 +82,7 @@ type Out = Host | string;
 
 /** The stage and the K1 bracket box at 1920 x 1080 (SPEC §5.8); every other element is empty. */
 const rectOf = (cls: string) => {
-  if (/gal-brackets/.test(cls)) return { left: 380, top: 140, right: 1500, bottom: 900 };
+  if (cls.includes('gal-brackets')) return { left: 380, top: 140, right: 1500, bottom: 900 };
   if (/gal-main|showcase-host/.test(cls)) return { left: 0, top: 0, right: 1920, bottom: 1080 };
   return { left: 0, top: 0, right: 0, bottom: 0 };
 };
@@ -202,11 +202,12 @@ describe('Gallery acceptance (#42)', () => {
     // navy, as IMPLEMENTATION.md step 9 defines it: blue minus red above 6 and luminance under 0.06
     const lum = (hex: string) => {
       const c = [0, 2, 4]
-        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255)
         .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
       return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
     };
-    const navy = (hex: string) => parseInt(hex.slice(4, 6), 16) - parseInt(hex.slice(0, 2), 16) > 6 && lum(hex) < 0.06;
+    const navy = (hex: string) =>
+      Number.parseInt(hex.slice(4, 6), 16) - Number.parseInt(hex.slice(0, 2), 16) > 6 && lum(hex) < 0.06;
 
     const css = srcFile('../../../../core/ui/ui.css');
     const studioRules = [...css.matchAll(/(?:^|\n)\.mode \{([^}]*)\}/g)].map((m) => m[1]!);

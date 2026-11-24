@@ -55,7 +55,7 @@ export function boxProjected(m: Material, box: BoxEnv): void {
   if (hasBox(m)) return;
   patched.add(m);
   const prev = m.onBeforeCompile.bind(m),
-    key = m.customProgramCacheKey() + '|box';
+    key = `${m.customProgramCacheKey()}|box`;
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r) => {
     prev(sh, r);
     Object.assign(sh.uniforms, { boxMin: box.min, boxMax: box.max, boxAt: box.at, boxOn: box.on });

@@ -1805,7 +1805,7 @@ export class Room3D {
     tray.slice(0, 10).forEach((k, i) => {
       const hook = trayHook(i),
         c = trayKeyCentre(i),
-        g = tag(new Group(), 'key:' + k.id),
+        g = tag(new Group(), `key:${k.id}`),
         col = new Color(lanyardColour(k)).getHex();
       const label = paint(64, 256, (cx, w, h) => {
         cx.fillStyle = '#eceef2';
@@ -1935,7 +1935,7 @@ export class Room3D {
         .lerp(this.sun.color, 0.2 * low * day)
         .lerp(new Color(0x6f86d8), night);
     }
-    this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - Math.pow(0.02, dt));
+    this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - 0.02 ** dt);
     const wh = WINDOW.h - 900,
       bh = Math.max(1, this.blindK * wh);
     for (const b of this.blinds) {

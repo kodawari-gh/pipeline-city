@@ -173,7 +173,7 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
       !!mp.normal,
       !!mp.color,
       (mp.position ?? mp.normal ?? mp.color)?.length ?? 0,
-    ].join();
+    ].join(',');
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       if (!mat.visible) continue;
       const c = mat as Casting,
@@ -187,7 +187,7 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
           c.alphaMap?.channel ?? '-',
           c.displacementMap?.channel ?? '-',
           test > 0,
-        ].join();
+        ].join(',');
         if (seen.has(state + shape)) continue;
         seen.add(state + shape);
         let dm = pool.get(state);

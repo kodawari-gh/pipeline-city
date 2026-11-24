@@ -230,7 +230,7 @@ export function deviceAt(addr: number): DeviceHit | null {
   if (within(GPU_BASE, GPU_PORTS.length * GPU_STRIDE))
     return { kind: 'card', slot: GPU_PORTS[Math.floor((a - GPU_BASE) / GPU_STRIDE)]! };
   if (within(NPU_BASE, NPU_PORTS.length * NPU_STRIDE))
-    return { kind: 'card', slot: 'pcie' + Math.floor((a - NPU_BASE) / NPU_STRIDE) };
+    return { kind: 'card', slot: `pcie${Math.floor((a - NPU_BASE) / NPU_STRIDE)}` };
   if (
     within(PCH_BASE + PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE) ||
     within(PCH_BASE + PCH_RESULT_WINDOW, PCH_RESULT_WORDS * 4)
@@ -282,7 +282,7 @@ export function routeOnDie(die: DieTouch, addr: number, write: boolean, now: num
 export function npuAccess(addr: number): { slot: string; off: number } | null {
   const a = addr >>> 0;
   if (a < NPU_BASE || a >= NPU_BASE + NPU_PORTS.length * NPU_STRIDE) return null;
-  return { slot: 'pcie' + Math.floor((a - NPU_BASE) / NPU_STRIDE), off: (a - NPU_BASE) % NPU_STRIDE };
+  return { slot: `pcie${Math.floor((a - NPU_BASE) / NPU_STRIDE)}`, off: (a - NPU_BASE) % NPU_STRIDE };
 }
 
 /** The CPU reads or writes one of the chipset's registers (the boot phase, the key's id...): over DMI. */

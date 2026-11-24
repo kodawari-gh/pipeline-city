@@ -433,7 +433,7 @@ export class Chips3D {
       if (!this.cpuSpec) return [];
       return planOf(this.cpuSpec)
         .blocks.filter((b) => b.kind !== 'stage')
-        .map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: DEVICE_LOD.die.hover }));
+        .map((b) => ({ id: `cpu.${b.kind}`, rect: b.rect, min: DEVICE_LOD.die.hover }));
     }
     if (f.kind === 'tpm') {
       const m = f.slot ? this.tpms.get(f.slot) : undefined;

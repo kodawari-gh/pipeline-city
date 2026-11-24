@@ -91,7 +91,7 @@ export const NEON_WASH = 0x8fd9e6;
 
 /** A `#rrggbb` tone as [r, g, b] (0 to 255). */
 export const rgbOf = (hex: string): [number, number, number] =>
-  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+  [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 
 /**
  * `tone` as a shade of `over` (both `#rrggbb`), as `#rrggbb`: what a map holds where a material of colour `over` shows `tone` (the light

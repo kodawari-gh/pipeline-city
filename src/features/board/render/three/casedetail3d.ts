@@ -749,8 +749,8 @@ const PORTS: Record<CaseKind, Port[]> = {
 const pip = (c: number) => mat(0x050608, { emissive: c, emissiveIntensity: 0, roughness: 0.3 });
 
 /** An unseen plate over the power button, rising above the case's top: the button lies flat on top, so a click head on (the board view) finds it here. */
-const hitPlate = (x: number, y: number, z: number): Mesh => {
-  return unseen(
+const hitPlate = (x: number, y: number, z: number): Mesh =>
+  unseen(
     rectBox(
       { x: x - 210, y: y - 260, w: 420, h: 260 },
       z - 210,
@@ -758,7 +758,6 @@ const hitPlate = (x: number, y: number, z: number): Mesh => {
       mat(0, { transparent: true, opacity: 0, depthWrite: false }),
     ),
   );
-};
 
 /**
  * The power button, the status lights and the front ports of each kind. The Mini: a square beige button and two lamps on top of its plastic

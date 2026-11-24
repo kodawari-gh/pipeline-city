@@ -7,7 +7,7 @@ import { gpuKernelProfile } from '../../gpu/sim/gpucode';
 const kinds = (lang: 'asm' | 'cpp' | 'python', text: string) =>
   highlight(lang, text)
     .filter((t) => t.k !== 'plain' && t.k !== 'punct')
-    .map((t) => `${t.k}:${t.t}${t.cls ? '/' + t.cls : ''}`);
+    .map((t) => `${t.k}:${t.t}${t.cls ? `/${t.cls}` : ''}`);
 
 describe('syntax colouring', () => {
   it('assembly: labels, instructions by what they do, registers, numbers, comments', () => {
@@ -72,7 +72,7 @@ describe('syntax colouring', () => {
       '  halt',
     ].join('\n');
     const toks = highlightLines('gpu', text).flat(); // a line at a time, as the listing draws them: the first word of a line is the instruction
-    expect(toks.map((t) => t.t).join('')).toBe(text.replace(/\n/g, ''));
+    expect(toks.map((t) => t.t).join('')).toBe(text.replaceAll('\n', ''));
     const op = (n: string) => toks.find((t) => t.k === 'op' && t.t === n)?.cls;
     expect([op('vld'), op('vst'), op('vmul'), op('mseteq'), op('bany'), op('halt')]).toEqual([
       'ld',

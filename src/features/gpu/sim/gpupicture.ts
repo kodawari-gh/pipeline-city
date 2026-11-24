@@ -189,52 +189,53 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
   const level = `        vli v6, 0\n        vld v6, ${P + 4}(v6)\n`;
   switch (name) {
     case 'vadd': // brightness: scene + level, clamped
-      return (
-        head +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        level +
-        `        vadd v2, v2, v6\n` +
-        gClamp('v2', 'v3') +
-        tail('v2')
-      );
+      return `${head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level}        vadd v2, v2, v6\n${gClamp(
+        'v2',
+        'v3',
+      )}${tail('v2')}`;
     case 'saxpy': // contrast: (scene - 96) * level / 8 + 96, clamped
-      return (
-        head +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        level +
-        `        vaddi v2, v2, -96\n        vmul v2, v2, v6\n        vsrai v2, v2, 3\n        vaddi v2, v2, 96\n` +
-        gClamp('v2', 'v3') +
-        tail('v2')
-      );
+      return `${
+        head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
+      }        vaddi v2, v2, -96\n        vmul v2, v2, v6\n        vsrai v2, v2, 3\n        vaddi v2, v2, 96\n${gClamp(
+        'v2',
+        'v3',
+      )}${tail('v2')}`;
     case 'thresh': // a mask: an if and an else under the execution mask, so lanes diverge
-      return (
-        head +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        level +
-        `        mpush\n        msetge v2, v6\n        vli v4, 255\n        melse\n        vli v4, 0\n        mpop\n` +
-        tail('v4')
-      );
+      return `${
+        head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
+      }        mpush\n        msetge v2, v6\n        vli v4, 255\n        melse\n        vli v4, 0\n        mpop\n${tail(
+        'v4',
+      )}`;
     case 'poly': // a tone curve: blend of the scene and its square, level/256 toward the square
-      return (
-        head +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        level +
-        `        vmul v3, v2, v2\n        vsrai v3, v3, 8\n        vmul v3, v3, v6\n        vli v4, 256\n        vsub v4, v4, v6\n        vmul v4, v4, v2\n        vadd v3, v3, v4\n        vsrai v3, v3, 8\n` +
-        tail('v3')
-      );
+      return `${
+        head + gScene('v1', 'v2', 'v3', 'v4', 'v5') + level
+      }        vmul v3, v2, v2\n        vsrai v3, v3, 8\n        vmul v3, v3, v6\n        vli v4, 256\n        vsub v4, v4, v6\n        vmul v4, v4, v2\n        vadd v3, v3, v4\n        vsrai v3, v3, 8\n${tail(
+        'v3',
+      )}`;
     case 'blur3': // a box blur `level` wide: three scenes, the running sum parked in the picture's own word
       return (
-        head +
-        level +
-        `        vsub v1, v1, v6\n` +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        `        vadd v1, v1, v6\n        vslli v3, v1, 2\n        vst v2, ${OUT}(v3)\n` +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        `        vslli v3, v1, 2\n        vld v4, ${OUT}(v3)\n        vadd v2, v2, v4\n        vst v2, ${OUT}(v3)\n` +
-        `        vadd v1, v1, v6\n` +
-        gScene('v1', 'v2', 'v3', 'v4', 'v5') +
-        `        vsub v1, v1, v6\n        vslli v3, v1, 2\n        vld v4, ${OUT}(v3)\n        vadd v2, v2, v4\n        vli v4, 21846\n        vmul v2, v2, v4\n        vsrli v2, v2, 16\n` +
-        tail('v2')
+        `${head + level}        vsub v1, v1, v6\n${gScene(
+          'v1',
+          'v2',
+          'v3',
+          'v4',
+          'v5',
+        )}        vadd v1, v1, v6\n        vslli v3, v1, 2\n        vst v2, ${OUT}(v3)\n${gScene(
+          'v1',
+          'v2',
+          'v3',
+          'v4',
+          'v5',
+        )}        vslli v3, v1, 2\n        vld v4, ${OUT}(v3)\n        vadd v2, v2, v4\n        vst v2, ${OUT}(v3)\n` +
+        `        vadd v1, v1, v6\n${gScene(
+          'v1',
+          'v2',
+          'v3',
+          'v4',
+          'v5',
+        )}        vsub v1, v1, v6\n        vslli v3, v1, 2\n        vld v4, ${OUT}(v3)\n        vadd v2, v2, v4\n        vli v4, 21846\n        vmul v2, v2, v4\n        vsrli v2, v2, 16\n${tail(
+          'v2',
+        )}`
       );
     case 'sphere': {
       // eight lit, checkered balls; every lane runs the same straight-line code
@@ -421,7 +422,7 @@ const cClamp = (r: string, ns: string): string[] => [
  * are read from the two words at `CPU_PARAM`. It clobbers only a0-a3 and t0-t4.
  */
 export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): Kernel {
-  const loadParams = ['li t0, ' + CPU_PARAM, 'lw a2, 0(t0)', 'lw a3, 4(t0)', 'li a1, 0'];
+  const loadParams = [`li t0, ${CPU_PARAM}`, 'lw a2, 0(t0)', 'lw a3, 4(t0)', 'li a1, 0'];
   const next = [`sw t3, 0(a0)`, 'addi a0, a0, 4', 'addi a1, a1, 1', `li t0, ${p.len}`, `bne a1, t0, ${ns}_o`, 'ret'];
   switch (name) {
     case 'vadd':
@@ -516,7 +517,7 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
         ns,
         ['mem', 'mul', 'alu', 'branch'],
         [
-          'li t0, ' + CPU_PARAM,
+          `li t0, ${CPU_PARAM}`,
           'lw a3, 0(t0)',
           'li a1, 0',
           `${ns}_o:`,

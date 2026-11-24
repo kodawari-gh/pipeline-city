@@ -179,7 +179,7 @@ export const BASE_GROW = [350, 350, 800, 800];
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
 /** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: an 18.5 inch monitor (9900 units, 430 mm at the machine's 23 units a mm, as every PC part; its 3D body is `monitor3d.ts`) next to the case. */
-export const MONITOR_K = 3.0;
+export const MONITOR_K = 3;
 /** The monitor's east edge: the gap between it and the case holds the mug, then the cables' trunks by the case's rear wall. */
 export const MONITOR_EAST = IO_X - 2300;
 /** The screen's design size: the text and the OS screen are laid out in it, inside a container scaled by `MONITOR_K`. */

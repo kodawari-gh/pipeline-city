@@ -97,7 +97,7 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
           duck: 'standard',
           steps: [step('pluck', 'build', 4), step('pluck', 'build', 0, HALF), step('low', 'failure', 0)],
         };
-      if (/connected/.test(t))
+      if (t.includes('connected'))
         return { duck: 'standard', steps: [step('pluck', 'build', 0), step('pluck', 'build', 4, HALF)] };
       return null;
     case 'power':
@@ -127,13 +127,14 @@ export function noteSpecFor(e: Pick<GameEvent, 'kind' | 'text'>): NoteSpec | nul
       return { duck: 'standard', steps: [step('glint', 'glint', 3, 0, -4)] };
     case 'net':
       // The spec names the flow register here, but a rise 4 -> 7 fits only the glint register (flow folds it down).
-      if (/link up/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 7)] };
+      if (t.includes('link up'))
+        return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 7)] };
       return null;
     case 'bill':
       if (/^paid/.test(t)) return { duck: 'standard', steps: [step('glint', 'glint', 4), step('glint', 'glint', 0)] };
       return null;
     case 'contract':
-      if (/accepted/.test(t))
+      if (t.includes('accepted'))
         return { duck: 'standard', steps: [step('pluck', 'flow', 4), step('pluck', 'flow', 8, HALF)] };
       return { duck: 'standard', steps: [step('pluck', 'flow', 8), step('pluck', 'flow', 4, HALF)] };
     case 'purchase':

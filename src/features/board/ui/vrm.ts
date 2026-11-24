@@ -102,8 +102,8 @@ export function vrmReadout(s: Snapshot, rail: VrmRail = 'cpu'): VrmReadout | nul
 }
 
 /** Plain-words status lines for the VRM card. */
-export function vrmLines(v: VrmReadout): Array<{ level: Level | 'info'; text: string }> {
-  const out: Array<{ level: Level | 'info'; text: string }> = [];
+export function vrmLines(v: VrmReadout): { level: Level | 'info'; text: string }[] {
+  const out: { level: Level | 'info'; text: string }[] = [];
   if (v.burnt) {
     out.push({
       level: 'bad',
@@ -186,7 +186,7 @@ export interface BoardCard {
   deltaText: string;
 }
 
-const SLOT_LABELS: Array<{ key: string; label: string; icon: BoardSlotIcon }> = [
+const SLOT_LABELS: { key: string; label: string; icon: BoardSlotIcon }[] = [
   { key: 'cpu', label: 'processor sockets', icon: 'cpu' },
   { key: 'dimm', label: 'memory slots', icon: 'memory' },
   { key: 'pcie', label: 'expansion (PCIe) slots', icon: 'slot' },

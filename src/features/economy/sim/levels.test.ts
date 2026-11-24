@@ -657,7 +657,7 @@ describe('sandbox rules level', () => {
     expect(g.setLevel(3)).toMatchObject({ ok: true, level: 3 });
     expect(g.snapshot().patience.mul).toBe(3);
     expect(g.snapshot().level.level).toBe(3);
-    for (const bad of [0, 19, 2.5, NaN]) expect(g.setLevel(bad).ok, String(bad)).toBe(false);
+    for (const bad of [0, 19, 2.5, Number.NaN]) expect(g.setLevel(bad).ok, String(bad)).toBe(false);
     const c = new Game({ seed: 1 });
     expect(c.setLevel(5)).toEqual({ ok: false, reason: 'sandbox mode only' });
     expect(c.level).toBe(1);

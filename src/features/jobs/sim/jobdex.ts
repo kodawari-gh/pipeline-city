@@ -1727,6 +1727,6 @@ export function dexNeeds(e: DexEntry): { needs: string[]; firstLevel: number } {
 }
 
 /** What the class needs as chips: the kind (for an icon), the short label and the long phrase. */
-export function needChips(e: DexEntry): Array<{ kind: string; short: string; long: string }> {
+export function needChips(e: DexEntry): { kind: string; short: string; long: string }[] {
   return taskNeeds(e).map((n) => ({ kind: n.kind, ...describeNeed(n) }));
 }

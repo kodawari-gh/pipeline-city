@@ -56,7 +56,7 @@ export class ArtSet {
   /** Take a face and its art away (a part built again alone): its tiles and its textures go. */
   drop(s: ArtSurface, b?: ArtBaker): void {
     const i = this.surfaces.indexOf(s);
-    if (i >= 0) this.surfaces.splice(i, 1);
+    if (i !== -1) this.surfaces.splice(i, 1);
     s.root.removeFromParent();
     s.dispose();
     const j = b ? this.bakers.indexOf(b) : -1;
@@ -95,7 +95,7 @@ export class ArtSet {
     this.reveals.push(r);
     return () => {
       const i = this.reveals.indexOf(r);
-      if (i >= 0) this.reveals.splice(i, 1);
+      if (i !== -1) this.reveals.splice(i, 1);
     };
   }
 

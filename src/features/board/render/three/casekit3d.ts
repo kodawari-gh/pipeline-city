@@ -42,7 +42,7 @@ export { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 /** The outer side panel's thickness: it closes the body's open side, its face at `FRONT`. */
 export const SIDE_T = 36;
 export const NONE: Cuts = [0, 0, 0, 0];
-export const hex = (s: string) => parseInt(s.slice(1, 7), 16);
+export const hex = (s: string) => Number.parseInt(s.slice(1, 7), 16);
 
 /** The outline of a layout rect as world points (y up), clockwise in the layout: a corner with a cut is chamfered at 45 degrees, the others rounded by `r`. */
 export function outlinePts(rc: RectLike, r: number, cuts: Cuts = NONE, seg: number = SEG.corner): Vector2[] {
@@ -592,10 +592,10 @@ export function tex(
 ): Texture | null {
   // (a big sheet is half size at Low and has its own cache entry: a switch back to High paints the full one)
   const cut = sheetCut(w, h),
-    id = cut < 1 ? key + '@low' : key;
+    id = cut < 1 ? `${key}@low` : key;
   if (TEX.has(id)) return TEX.get(id)!;
   // (a baked sheet, `part-<key>` in `public/tex/`, stands for the canvas: `brushed` and `grain`)
-  let t: Texture | null = bakedTex('part-' + key);
+  let t: Texture | null = bakedTex(`part-${key}`);
   if (t) t.wrapS = t.wrapT = RepeatWrapping;
   else t = paintLow(w, h, draw, [1, 1]);
   TEX.set(id, shareTex(t));
@@ -614,7 +614,7 @@ export function tiled(t: Texture | null, rx: number, ry: number): Texture | null
 export type Perf = 'round' | 'hex' | 'mesh' | 'slot';
 /** A sheet with holes cut through it (white, so the material tints it): round holes in staggered rows, a honeycomb, a diamond mesh or long slots. */
 export function perforation(kind: Perf): Texture | null {
-  return tex('perf-' + kind, 128, kind === 'mesh' || kind === 'slot' ? 128 : 222, (c, w, h) => {
+  return tex(`perf-${kind}`, 128, kind === 'mesh' || kind === 'slot' ? 128 : 222, (c, w, h) => {
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, w, h);
     c.globalCompositeOperation = 'destination-out';
@@ -824,7 +824,7 @@ export function badgeTex(
   bg: string | null,
   o: LockupOpts & { h?: number } = {},
 ): Texture | null {
-  return tex('badge-' + key, w, h, (c) => {
+  return tex(`badge-${key}`, w, h, (c) => {
     if (bg) {
       c.fillStyle = bg;
       c.fillRect(0, 0, w, h);
@@ -845,7 +845,7 @@ export function debossMat(
   ink = '#050608',
   lip = '#2a2d32',
 ): Material {
-  const t = tex('deboss-' + key, w, h, (c) => {
+  const t = tex(`deboss-${key}`, w, h, (c) => {
     c.clearRect(0, 0, w, h);
     const o = { acc: null, align: 'center' as const },
       mh = h * 0.8,

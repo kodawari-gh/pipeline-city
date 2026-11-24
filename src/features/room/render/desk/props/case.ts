@@ -503,7 +503,7 @@ export class EdgeFan extends Container {
   /** Advance by `d` blade-lengths per frame's worth of spin and set the light level (0 = off, 1 = full). */
   spin(d: number, level: number) {
     this.phase = (this.phase + d * BLADE) % BLADE;
-    if (d === 0 && `${level.toFixed(2)}` === this.key) return;
+    if (d === 0 && level.toFixed(2) === this.key) return;
     this.draw(level);
   }
   private draw(level: number) {
@@ -514,7 +514,7 @@ export class EdgeFan extends Container {
       L = vertical ? h : w,
       S = vertical ? w : h,
       m = Math.min(70, S * 0.26);
-    this.key = `${level.toFixed(2)}`;
+    this.key = level.toFixed(2);
     g.clear();
     const pad = Math.min(60, L * 0.14); // the end margin: a short slab (a heatsink's fan) keeps blades and rails, they do not vanish
     for (let t = pad + 30 - BLADE + this.phase; t < L - pad - 10; t += BLADE) {
@@ -652,7 +652,7 @@ export function caseShade(T: Theme): Container {
   vig.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#00000000', '#000000', [0.5, 0.5], 0.72));
   vig.alpha = 0.26;
   const warm = new Graphics();
-  warm.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#ffb26a', '#ffb26a00', [0.0, 0.0], 0.8));
+  warm.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#ffb26a', '#ffb26a00', [0, 0], 0.8));
   warm.alpha = 0.05;
   root.addChild(vig, warm);
   // the cases with lights wash the inside: a violet and pink glow from the floor in the gaming case, a violet glow from the front edge in the showcase
@@ -662,8 +662,8 @@ export function caseShade(T: Theme): Container {
     if (kind === 'gamer') {
       glow.roundRect(r.x, r.y + r.h * 0.6, r.w, r.h * 0.4, 30).fill(lgrad('#a04dff00', '#a04dff', [0, 1]));
     } else {
-      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(T.mul + '00', T.mul, [1, 0]));
-      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.mul, T.mul + '00'));
+      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(`${T.mul}00`, T.mul, [1, 0]));
+      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.mul, `${T.mul}00`));
     }
     glow.alpha = 0.1;
     root.addChild(glow);

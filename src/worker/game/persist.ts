@@ -306,8 +306,8 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.osCfg = {
     spoolSlots: typeof s.osConfig?.spoolSlots === 'number' ? s.osConfig.spoolSlots : null,
     spoolOff: Array.isArray(s.osConfig?.spoolOff) ? [...s.osConfig.spoolOff] : [],
-    spoolAlloc: { ...(s.osConfig?.spoolAlloc ?? {}) },
-    dataReserve: { ...(s.osConfig?.dataReserve ?? {}) },
+    spoolAlloc: { ...s.osConfig?.spoolAlloc },
+    dataReserve: { ...s.osConfig?.dataReserve },
   };
   if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
   if (s.disks) this.restoreDisks(s.disks);
@@ -348,7 +348,7 @@ export function restoreSave(this: Game, s: SaveV5): void {
       this.pch.plug(this.pchKey);
     }
   } catch (e) {
-    throw new Error(`save: cannot regenerate a key (${(e as Error).message})`);
+    throw new Error(`save: cannot regenerate a key (${(e as Error).message})`, { cause: e });
   }
   if (s.tripped) this.thermal.power = { ...this.thermal.power, tripped: true };
   this.powered = false;

@@ -13,7 +13,7 @@ import { boxEnv, boxProjected } from './boxenv';
 const box = boxEnv([0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5]);
 // three's shader with every chunk in place, as the GPU gets it
 const expand = (s: string): string =>
-  s.replace(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
+  s.replaceAll(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
     expand((ShaderChunk as unknown as Record<string, string>)[n] ?? ''),
   );
 const compiled = (m: Material) => {

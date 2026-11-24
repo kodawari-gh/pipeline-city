@@ -248,7 +248,7 @@ export const urgencyColor = (T: Theme, u: Urgency) => (u === 'late' ? T.bad : u 
 /** Shorten with an ellipsis only when the text would overflow `w` world units at font size `size`. */
 function fit(str: string, size: number, w: number, em = 0.62): string {
   const n = Math.max(3, Math.floor(w / (size * em)));
-  return str.length <= n ? str : str.slice(0, n - 1) + '…';
+  return str.length <= n ? str : `${str.slice(0, n - 1)}…`;
 }
 
 /** The colour of a workload kind: the lanyard of its keys (the sticks themselves stay plain). The kinds are the sim's key types: the cli jobs and the job classes. */
@@ -477,7 +477,7 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
       },
     };
     objs.push({
-      id: 'key:' + k.id,
+      id: `key:${k.id}`,
       rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN },
       sil,
       node,
@@ -548,7 +548,7 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
     root,
     objs: [
       {
-        id: 'key:' + k.id,
+        id: `key:${k.id}`,
         rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 },
         sil,
         node,

@@ -30,7 +30,7 @@ export const fujin: Brand = {
   idea: "the wind god's crest: three tomoe chasing round a lit hub",
   colors: { accent: '#8fd9e6', light: '#b9babf', dark: '#0a0e22', plate: '#0a0e22', body: '#4e5360', trim: '#c0793a' },
   type: { s: 0.11, round: 0.55, wide: 1.32, slant: 0, track: 0.24 },
-  aspect: 1.0,
+  aspect: 1,
   lockup: { cap: 0.42, gap: 0.34 },
   mark: (c, ink, acc) => {
     const rh = 0.25,

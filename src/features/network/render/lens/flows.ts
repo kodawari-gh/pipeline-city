@@ -17,7 +17,7 @@ import { seedOf } from '@/features/board/render/three/power/flows';
 import type { NetDraw, NetShape } from './shape';
 
 /** The brightness of the lines over the picture. */
-const STRENGTH = 1.0;
+const STRENGTH = 1;
 /** Speed (units a second) and gap between comets (units) at the foot and the top of the speed scale. */
 const SPEED_LO = 1400,
   SPEED_HI = 5600,

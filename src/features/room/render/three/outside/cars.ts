@@ -139,7 +139,7 @@ function upload(a: BufferAttribute, from: number, n: number): void {
   a.needsUpdate = true;
 }
 
-const enum Part {
+enum Part {
   Paint = 0,
   Glass = 1,
   Tyre = 2,
@@ -211,7 +211,7 @@ export function carGeometry(model: number): BufferGeometry {
   const deck: [number, number][] =
     tail === 'boot'
       ? [
-          [-half + 1.0, belt + 0.03],
+          [-half + 1, belt + 0.03],
           [-half + 0.16, belt + 0.01],
         ]
       : [[-half + 0.2, belt]];
@@ -401,7 +401,7 @@ function poolGeometry(): BufferGeometry {
     );
     return g.setAttribute('kind', new Float32BufferAttribute(new Array(6).fill(kind), 1));
   };
-  return mergeGeometries([quad(2.0, 17, 2.6, 0), quad(-2.2, -5.2, 1.3, 1)])!;
+  return mergeGeometries([quad(2, 17, 2.6, 0), quad(-2.2, -5.2, 1.3, 1)])!;
 }
 
 /** The soft shadow under a car: dark under its middle, fading out past its sides. */

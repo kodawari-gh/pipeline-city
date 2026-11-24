@@ -920,9 +920,9 @@ export class PlugHand {
       pts = l.ropes.map((r) => r.points()),
       n = rig.n;
     const mean = Array.from({ length: n }, (_, j) =>
-      pts.reduce(
+      pts.reduce<V3>(
         (s, p) => [s[0] + p[j]![0] / pts.length, s[1] + p[j]![1] / pts.length, s[2] + p[j]![2] / pts.length] as V3,
-        [0, 0, 0] as V3,
+        [0, 0, 0],
       ),
     );
     l.spine = new Rope(
@@ -993,7 +993,7 @@ export class PlugHand {
         under = true;
         break;
       }
-    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, 'cable.' + id);
+    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, `cable.${id}`);
     for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide && !m.isHeldBack(id);
   }
 }

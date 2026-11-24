@@ -234,7 +234,7 @@ describe('saves from before the fan parts', () => {
     ]);
     const ids = m.board.devices.map((d) => d.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(m.board.nextId).toBeGreaterThan(Math.max(...ids.map((i) => Number(i.replace(/\D/g, '')))));
+    expect(m.board.nextId).toBeGreaterThan(Math.max(...ids.map((i) => Number(i.replaceAll(/\D/g, '')))));
   });
 
   it('the tower gets one fan; a Full case loses the mounts it no longer has, and their cables', () => {

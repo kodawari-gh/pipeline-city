@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Monitor } from './props3d';
 
 // a canvas whose 2D context takes any call
-const ctx: unknown = new Proxy(function () {}, { get: () => ctx, apply: () => ctx });
+const ctx: unknown = new Proxy(() => {}, { get: () => ctx, apply: () => ctx });
 const cv = () => ({ width: 1280, height: 720, getContext: () => ctx }) as unknown as HTMLCanvasElement;
 
 describe('Monitor.useLive', () => {

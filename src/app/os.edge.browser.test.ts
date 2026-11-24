@@ -66,15 +66,15 @@ function sheetSnapshot(): Sheet {
     const out: string[] = [];
     const bw = [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].some(
       (w, i) =>
-        parseFloat(w) > 0 &&
+        Number.parseFloat(w) > 0 &&
         [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle][i] !== 'none',
     );
     if (bw) out.push('border');
     if (
-      parseFloat(s.borderTopLeftRadius) > 4 ||
-      parseFloat(s.borderTopRightRadius) > 4 ||
-      parseFloat(s.borderBottomLeftRadius) > 4 ||
-      parseFloat(s.borderBottomRightRadius) > 4
+      Number.parseFloat(s.borderTopLeftRadius) > 4 ||
+      Number.parseFloat(s.borderTopRightRadius) > 4 ||
+      Number.parseFloat(s.borderBottomLeftRadius) > 4 ||
+      Number.parseFloat(s.borderBottomRightRadius) > 4
     )
       out.push(`radius ${s.borderTopLeftRadius}`);
     if (s.boxShadow !== 'none') out.push('box-shadow');
@@ -130,7 +130,7 @@ function sheetSnapshot(): Sheet {
     .map((e) => ({
       label: ((e as HTMLElement).innerText || e.getAttribute('aria-label') || e.tagName)
         .trim()
-        .replace(/\s+/g, ' ')
+        .replaceAll(/\s+/g, ' ')
         .slice(0, 32),
       box: box(e),
     }));
@@ -155,9 +155,9 @@ function sheetSnapshot(): Sheet {
 
 /** Channel spread of an rgb(a) colour: 0 for a grey, large for navy or blue. Transparent colours count as grey. */
 function spreadOf(color: string): number {
-  const m = color.match(/rgba?\(([^)]+)\)/);
+  const m = /rgba?\(([^)]+)\)/.exec(color);
   if (!m) return 0;
-  const [r, g, b, a] = m[1]!.split(',').map((v) => parseFloat(v));
+  const [r, g, b, a] = m[1]!.split(',').map((v) => Number.parseFloat(v));
   if (a !== undefined && a === 0) return 0;
   return Math.max(r!, g!, b!) - Math.min(r!, g!, b!);
 }

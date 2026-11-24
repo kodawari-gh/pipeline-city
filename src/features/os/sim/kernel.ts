@@ -514,9 +514,9 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
         ]
       : []),
     `  addi t1, a0, ${KSLOT.RESULT}`,
-    `  li t3, ${0x46474553}`, // "SEGF"
+    `  li t3, 1179075923`, // "SEGF"
     '  sw t3, 0(t1)',
-    `  li t3, ${0x544c5541}`, // "AULT"
+    `  li t3, 1414288705`, // "AULT"
     '  sw t3, 4(t1)',
     `  addi t2, t1, ${4 * PCH_RESULT_WORDS}`,
     '  addi t1, t1, 8',
@@ -1479,9 +1479,9 @@ function secondary(kendPage: number): string[] {
     '  amoadd t2, t1, (t0)',
     `  lw a0, ${CUR1}(zero)`,
     `  addi t1, a0, ${KSLOT.RESULT}`,
-    `  li t3, ${0x46474553}`, // "SEGF"
+    `  li t3, 1179075923`, // "SEGF"
     '  sw t3, 0(t1)',
-    `  li t3, ${0x544c5541}`, // "AULT"
+    `  li t3, 1414288705`, // "AULT"
     '  sw t3, 4(t1)',
     `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
     '  addi t1, t1, 8',
@@ -1696,7 +1696,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
     `  lw t0, ${PCH_REG.PHASE}(s0)`,
     `  li t1, ${PchPhase.OsIdle}`,
     '  beq t0, t1, kpoll',
-    ...(pre ? ['  call kcnt', '  li t1, ' + PchPhase.OsIdle, '  bne a0, zero, kpoll'] : []), // programs still running: the phase stays "running"
+    ...(pre ? ['  call kcnt', `  li t1, ${PchPhase.OsIdle}`, '  bne a0, zero, kpoll'] : []), // programs still running: the phase stays "running"
     ...(smp2 ? [`  lw t2, ${C1BUSY}(zero)`, '  bne t2, zero, kpoll'] : []), // core 1 still runs a job
     `  sw t1, ${PCH_REG.PHASE}(s0)`,
     `  li a3, ${DISPLAY_BASE}`,
@@ -1851,9 +1851,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
           `  li t0, ${CUR}`,
           '  lw a0, 0(t0)',
           `  addi t1, a0, ${KSLOT.RESULT}`,
-          `  li t3, ${0x46474553}`, // "SEGF"
+          `  li t3, 1179075923`, // "SEGF"
           '  sw t3, 0(t1)',
-          `  li t3, ${0x544c5541}`, // "AULT"
+          `  li t3, 1414288705`, // "AULT"
           '  sw t3, 4(t1)',
           `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
           '  addi t1, t1, 8',

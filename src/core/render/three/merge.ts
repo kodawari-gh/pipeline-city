@@ -682,7 +682,7 @@ export interface StandIn {
 export function standIns(
   frame: Object3D,
   meshes: readonly Mesh[],
-  pals: Map<string, MeshStandardMaterial> = new Map(),
+  pals = new Map<string, MeshStandardMaterial>(),
 ): StandIn[] {
   frame.updateWorldMatrix(true, true);
   type Part = { m: Mesh; j: Join };

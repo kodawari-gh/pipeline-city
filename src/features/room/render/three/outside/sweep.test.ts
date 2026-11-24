@@ -279,7 +279,7 @@ describe('sweptMerge against the plain way', () => {
   });
 
   it('leaves the meshes alone when their attributes differ (as the plain way does), and says why', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const err = vi.spyOn(console, 'error').mockReturnValue(undefined);
     try {
       const a = street(true),
         b = street(true);

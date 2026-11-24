@@ -314,7 +314,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     const cap = 50 * vw - 9.5 * rem;
     // the box model: a border-box cap includes the padding; a content-box cap adds it outside
     const padding = 2 * 0.4 * rem;
-    const panelRight = left + (/box-sizing:border-box;/.test(panel.style.cssText) ? cap : cap + padding);
+    const panelRight = left + (panel.style.cssText.includes('box-sizing:border-box;') ? cap : cap + padding);
     const btnWidth = Math.min(Math.max(13 * rem, 24 * vw), 17 * rem);
     const newGameLeft = 1920 / 2 - btnWidth / 2;
     expect(panelRight).toBeLessThan(newGameLeft);

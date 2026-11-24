@@ -43,7 +43,7 @@ describe('the paged OS', () => {
     const g = paged();
     g.powerButton();
     until(g, () => g.currentPhase() === 'idle-os');
-    expect(g.snapshot().display + '').toMatch(/OS READY|/);
+    expect(g.snapshot().display).toMatch(/OS READY|/);
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
     until(g, () => g.completed === 1 && g.pluggedKey() === null);
     expect(g.snapshot().faults).toBe(0);

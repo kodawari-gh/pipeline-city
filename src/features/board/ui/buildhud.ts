@@ -86,7 +86,7 @@ export function groupByKind<D extends { spec: string }>(
   }
   const rank = (k: string): number => {
     const i = order.indexOf(k);
-    return i < 0 ? order.length : i;
+    return i === -1 ? order.length : i;
   };
   return [...by].map(([kind, items]) => ({ kind, items })).sort((a, b) => rank(a.kind) - rank(b.kind));
 }

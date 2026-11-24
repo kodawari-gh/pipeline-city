@@ -122,7 +122,7 @@ export function chart(engine: PipelineEngine, src: string, summary?: (counters: 
     lines.push(
       `cycles=${c[0]} retired=${c[1]} load=${c[2]} data=${c[3]} flush=${c[4]} struct=${c[5]} cache=${c[6]} flushes=${c[7]} hits=${c[11]} misses=${c[12]}`,
     );
-  return '\n' + lines.join('\n') + '\n';
+  return `\n${lines.join('\n')}\n`;
 }
 
 // ---- Wide engines (inorder2, ooo) ----

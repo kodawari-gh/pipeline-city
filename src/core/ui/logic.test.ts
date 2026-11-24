@@ -76,7 +76,7 @@ describe('stats', () => {
 });
 
 describe('HUD status text', () => {
-  const phaseText: Array<[Phase, string]> = [
+  const phaseText: [Phase, string][] = [
     ['off', 'Off'],
     ['posting', 'POST'],
     ['waiting-for-key', 'Waiting for key'],
@@ -135,7 +135,7 @@ describe('refusal text', () => {
     expect(friendlyError('plugKey: a key is already plugged in!')).toBe('Not now: A key is already plugged in!');
   });
   it('shows the app\'s own sentence as it is, with no "Not now:"', () => {
-    expect(friendlyError(SAY + 'That file is not a Pipeline City save.')).toBe(
+    expect(friendlyError(`${SAY}That file is not a Pipeline City save.`)).toBe(
       'That file is not a Pipeline City save.',
     );
   });
@@ -331,7 +331,7 @@ describe('descriptions', () => {
       ...DIE_INPUTS.flatMap((i) =>
         cpuPlan(i)
           .blocks.filter((b) => b.kind !== 'stage')
-          .map((b) => 'cpu.' + b.kind),
+          .map((b) => `cpu.${b.kind}`),
       ),
     ];
     for (const id of ids) expect(describeId(id, s), id).not.toBeNull();
@@ -520,8 +520,8 @@ describe('graphics card stats in the picker', () => {
       expect(keys, id).toEqual(['sms', 'warps', 'lanes', 'l2', 'cardclk', 'cardmem', 'power']);
       for (const k of keys) expect(STAT_HELP[k], `${id} ${k}`).toBeTruthy();
     }
-    expect([1, 2, 3].map((n) => val('gpu' + n, 'sms'))).toEqual([1, 1, 2]);
-    expect([1, 2, 3].map((n) => val('gpu' + n, 'warps'))).toEqual([1, 2, 2]);
+    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'sms'))).toEqual([1, 1, 2]);
+    expect([1, 2, 3].map((n) => val(`gpu${n}`, 'warps'))).toEqual([1, 2, 2]);
     expect(val('gpu1', 'l2')).toBe(0);
     expect(val('gpu3', 'l2')).toBeGreaterThan(0);
   });

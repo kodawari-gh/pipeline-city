@@ -97,7 +97,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'setJobKinds':
         return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
       case 'purchase':
-        return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
+        return refusable(g, `purchase ${msg.id}`, g.purchase(msg.id));
       case 'sell':
         return refusable(g, 'sell', g.sell(msg.invId));
       case 'cancelSwap':

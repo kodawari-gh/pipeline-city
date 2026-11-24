@@ -28,7 +28,7 @@ export default defineConfig(({ command }) => ({
   // Per checkout, not in node_modules: swarm worktrees share one node_modules through a link (docs/agents/board.json shareDeps).
   cacheDir: '.cache/vite',
   plugins: [preact()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: { alias: { '@': fileURLToPath(new URL('src', import.meta.url)) } },
   worker: { format: 'es' },
   define: { __BUILD__: JSON.stringify(command === 'serve' ? 'dev' : buildHash()) },
   // Tests. The default pool (forks) fails on this checkout ("reading 'config'"), so every run uses vmThreads.

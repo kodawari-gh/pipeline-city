@@ -65,7 +65,7 @@ describe("the case's front-panel leads", () => {
           expect(f[0], r.id).toBeGreaterThanOrEqual(hole.x);
           expect(f[0], r.id).toBeLessThanOrEqual(hole.x + hole.w);
           expect(lengthOf(s), r.id).toBeGreaterThan(300);
-          strands.add(f.join());
+          strands.add(f.join(','));
           total++;
         }
       }

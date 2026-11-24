@@ -7,7 +7,7 @@ export const SUN_STEPS = 20;
 
 export class SunMap {
   /** The sun's step at the last `frame`. */
-  private step = NaN;
+  private step = Number.NaN;
   /** A map is owed: the sun stepped, or the map is new, since the last map. */
   private owed = true;
 

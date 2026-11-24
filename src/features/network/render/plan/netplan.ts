@@ -46,7 +46,7 @@ export interface Margins {
   bottom: number;
 }
 
-const cache = new Map<string, NetPlan<string, string, unknown>>();
+const cache = new Map<string, NetPlan<string, string>>();
 
 /**
  * Lay `tree` out in a `size` area inside the margins, route `specs` through the gutters and return the plan. `extra` adds wires the router does not
@@ -84,7 +84,7 @@ export function layPlan<K extends string, L extends string, I>(
   }));
   if (extra) links.push(...extra(blocks));
   const plan: NetPlan<K, L, I> = { input, die, blocks, links };
-  cache.set(key, plan as NetPlan<string, string, unknown>);
+  cache.set(key, plan as NetPlan<string, string>);
   return plan;
 }
 

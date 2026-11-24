@@ -782,7 +782,7 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'case' |
  * for sale whatever you own, and a tile you own carries a `more` offer (buy another: a spare, a downgrade, a second machine).
  */
 export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
-  const installed: Array<{ spec: string; devId: string }> =
+  const installed: { spec: string; devId: string }[] =
     kind === 'board'
       ? [{ spec: boardId(s.boardTier), devId: '' }]
       : kind === 'case'
@@ -957,7 +957,7 @@ export function allKeys(s: Snapshot): KeySnap[] {
   return [...s.tray, ...(s.plugged ? [s.plugged] : [])];
 }
 
-const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replace(/-/g, ' ')}` : 'Status: off');
+const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replaceAll('-', ' ')}` : 'Status: off');
 
 function emptyCard(id: string, kind: PickerKind, title: string, plain: string, nerd: string): PickerModel {
   return { id, kind, title, plain, nerd, ladder: [], current: null, focus: null, lines: [], actions: [], clock: false };
@@ -1127,7 +1127,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       ? [
           {
             level: 'info',
-            text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.keyIgnored ? 'ignored until the next boot' : s.phase.replace(/-/g, ' ')}`,
+            text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.keyIgnored ? 'ignored until the next boot' : s.phase.replaceAll('-', ' ')}`,
           },
           ...keyLines(k, s.baseTick).slice(1),
           ...(s.keyIgnored

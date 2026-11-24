@@ -66,7 +66,9 @@ describe('hpc kinds', () => {
     for (const k of KINDS) {
       const small = generate(k, 4, { scale: 1, row: 2, jobId: 9 }),
         big = generate(k, 4, { scale: 8, row: 2, jobId: 9 });
-      expect(small.meta.expectedText.split('\n')[2], k).toMatch(new RegExp(`^#09 ${k.replace('.', '\\.')}=\\d{4} OK$`));
+      expect(small.meta.expectedText.split('\n')[2], k).toMatch(
+        new RegExp(`^#09 ${k.replace('.', String.raw`\.`)}=\\d{4} OK$`),
+      );
       expect(big.meta.codeWords, k).toBeGreaterThanOrEqual(small.meta.codeWords);
     }
   });

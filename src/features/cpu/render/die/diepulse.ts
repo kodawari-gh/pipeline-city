@@ -112,7 +112,7 @@ export interface PulseAt {
 export function drawPulse(g: Graphics, dots: Map<string, Dot>, seen: Set<string>, p: PulseAt): void {
   let d = dots.get(p.key);
   if (!d) {
-    d = { px: NaN, py: NaN, hist: [], lastHost: '', env: 1 };
+    d = { px: Number.NaN, py: Number.NaN, hist: [], lastHost: '', env: 1 };
     dots.set(p.key, d);
   }
   seen.add(p.key);

@@ -13,7 +13,7 @@ import { buildMachine, maxedSnapshot, quietCanvas } from './testutil';
 quietCanvas();
 
 const fs = fsMod as any;
-const GOLDEN: string = urlMod.fileURLToPath(new URL('./highident.expected.json', import.meta.url));
+const GOLDEN: string = urlMod.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the draws a camera on layer 0 makes (a Mesh or an InstancedMesh is one), its vertices and instances, and a hash of them. */
 interface Row {

@@ -257,7 +257,7 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <bumpmap_pars_fragment>', `${ART_GLSL}\n#include <bumpmap_pars_fragment>`)
       // the height is the brightness, not the red channel
-      .replace(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
+      .replaceAll(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
       // far out a screen pixel covers many texels: the relief fades out there (it would only shimmer), and is whole from one texel per pixel in
       .replace(
         'return vec2( dBx, dBy );',

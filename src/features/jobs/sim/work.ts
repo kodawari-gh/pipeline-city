@@ -37,11 +37,11 @@ export class UsbTray<J extends Job> implements WorkSource<J> {
   }
   take(id: number): J | undefined {
     const k = this.keys.findIndex((j) => j.id === id);
-    return k < 0 ? undefined : this.keys.splice(k, 1)[0];
+    return k === -1 ? undefined : this.keys.splice(k, 1)[0];
   }
   giveBack(job: J): void {
     const k = this.keys.findIndex((j) => j.id > job.id);
-    this.keys.splice(k < 0 ? this.keys.length : k, 0, job);
+    this.keys.splice(k === -1 ? this.keys.length : k, 0, job);
   }
   /** Replace the contents (loading a save). */
   set(keys: J[]): void {

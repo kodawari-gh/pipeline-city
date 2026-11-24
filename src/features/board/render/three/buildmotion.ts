@@ -260,7 +260,7 @@ const MOTIONS: Record<string, Motion> = {
       hold(0.6, 'Undo the board screws', 'Tighten the board screws'),
       k([0, 0, 90], 0.4, 'Lift the board off its standoffs', 'Lower the board onto its standoffs'),
       k([260, 0, 90], 0.5, 'Slide the ports out of the rear opening', 'Slide the ports into the rear opening'),
-      k([260, 0, 4200], 1.0, 'Take the board away', 'Bring the board over the tray'),
+      k([260, 0, 4200], 1, 'Take the board away', 'Bring the board over the tray'),
     ],
   },
   case: {
@@ -275,7 +275,7 @@ const MOTIONS: Record<string, Motion> = {
  * Every action takes about a second, whatever the part (a player does this many times; the point is to see how it comes apart, not to wait): the keys above
  * give the shape and the proportions, and this sets the length. The shell and the board are bigger and take a little longer.
  */
-export const ACTION_SECONDS = 1.0,
+export const ACTION_SECONDS = 1,
   BIG_SECONDS = 1.5;
 const BIG = new Set(['case', 'board']);
 for (const [kind, m] of Object.entries(MOTIONS)) {

@@ -185,10 +185,10 @@ function callSites(src: string): { notes: { kind: string; text: string }[]; othe
     // String literals lose their quotes (either style: the formatter picks one), template parts become `{}`, and a wrapped argument reads as one line.
     const text = src
       .slice(i, j)
-      .replace(/\$\{[^}]*\}/g, '{}')
-      .replace(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, '$2')
-      .replace(/`/g, '')
-      .replace(/\s+/g, ' ')
+      .replaceAll(/\$\{[^}]*\}/g, '{}')
+      .replaceAll(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, '$2')
+      .replaceAll('`', '')
+      .replaceAll(/\s+/g, ' ')
       .replace(/,\s*$/, '')
       .trim();
     notes.push({ kind, text });

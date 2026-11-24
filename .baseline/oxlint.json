@@ -201,7 +201,6 @@
   "eslint(curly)": 18,
   "eslint(prefer-named-capture-group)": 6,
   "eslint(require-unicode-regexp)": 4,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 4,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -209,7 +208,6 @@
   "typescript(no-unsafe-assignment)": 5,
   "typescript(no-unsafe-call)": 5,
   "typescript(no-unsafe-member-access)": 16,
-  "typescript(prefer-regexp-exec)": 3,
   "typescript(prefer-ts-expect-error)": 2,
   "typescript(strict-boolean-expressions)": 5,
   "typescript(strict-void-return)": 1,
@@ -334,7 +332,6 @@
   "eslint(no-empty-function)": 3,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-shadow)": 2,
-  "eslint(prefer-exponentiation-operator)": 3,
   "eslint(require-unicode-regexp)": 1,
   "promise(param-names)": 4,
   "typescript(no-confusing-void-expression)": 4,
@@ -387,7 +384,7 @@
   "eslint(max-params)": 1,
   "eslint(no-template-curly-in-string)": 5,
   "eslint(prefer-named-capture-group)": 3,
-  "eslint(require-unicode-regexp)": 10,
+  "eslint(require-unicode-regexp)": 9,
   "typescript(ban-ts-comment)": 3,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 3,
@@ -399,7 +396,6 @@
   "typescript(prefer-ts-expect-error)": 3,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-string-replace-all)": 4,
   "vitest(prefer-strict-equal)": 10
  },
  "src/app/audio/events.ts": {
@@ -419,7 +415,6 @@
   "eslint(no-empty-function)": 6,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-unused-vars)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "eslint(require-unicode-regexp)": 1,
   "promise(param-names)": 1,
   "typescript(no-confusing-void-expression)": 2,
@@ -444,24 +439,20 @@
  },
  "src/app/audio/keys.test.ts": {
   "eslint(curly)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-assignment)": 2,
   "typescript(no-unsafe-call)": 3,
   "typescript(no-unsafe-member-access)": 3,
-  "typescript(prefer-regexp-exec)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-strict-equal)": 3
  },
  "src/app/audio/keys.ts": {
   "eslint(curly)": 2,
-  "eslint(prefer-exponentiation-operator)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-assertion)": 1
  },
@@ -470,9 +461,7 @@
  },
  "src/app/audio/mixTokens.ts": {
   "eslint(max-lines)": 1,
-  "unicorn(no-zero-fractions)": 38,
-  "unicorn(numeric-separators-style)": 5,
-  "unicorn(prefer-string-raw)": 1
+  "unicorn(numeric-separators-style)": 5
  },
  "src/app/audio/music.dataStress.test.ts": {
   "eslint(no-nested-ternary)": 1,
@@ -491,7 +480,6 @@
   "eslint(no-unused-vars)": 1,
   "eslint(no-use-before-define)": 15,
   "import(consistent-type-specifier-style)": 4,
-  "typescript(consistent-generic-constructors)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 9,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -587,11 +575,10 @@
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 12,
+  "eslint(require-unicode-regexp)": 9,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(prefer-includes)": 3,
   "typescript(prefer-string-starts-ends-with)": 3,
   "unicorn(prefer-string-starts-ends-with)": 3,
   "unicorn(switch-case-braces)": 13
@@ -606,7 +593,7 @@
   "eslint(no-empty-function)": 1,
   "eslint(no-negated-condition)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 13,
+  "eslint(require-unicode-regexp)": 4,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-extraneous-class)": 1,
@@ -615,11 +602,9 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-includes)": 9,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(no-useless-spread)": 1,
   "unicorn(prefer-dom-node-dataset)": 1,
-  "unicorn(prefer-string-replace-all)": 2,
   "vitest(prefer-import-in-mock)": 1,
   "vitest(prefer-strict-equal)": 3
  },
@@ -670,16 +655,14 @@
  "src/app/audio/uiPanels.test.ts": {
   "eslint(curly)": 3,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 10,
+  "eslint(require-unicode-regexp)": 6,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-return)": 1,
-  "typescript(prefer-includes)": 4,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 2,
   "vitest(prefer-strict-equal)": 1
  },
@@ -719,7 +702,6 @@
   "eslint(no-nested-ternary)": 1,
   "import(consistent-type-specifier-style)": 2,
   "typescript(prefer-readonly)": 1,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(no-array-reduce)": 2,
   "unicorn(no-useless-undefined)": 2
  },
@@ -727,7 +709,6 @@
   "eslint(class-methods-use-this)": 3,
   "eslint(curly)": 4,
   "eslint(max-classes-per-file)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-unnecessary-type-conversion)": 1,
@@ -738,7 +719,6 @@
  },
  "src/app/audio/volume.ts": {
   "eslint(curly)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1
@@ -763,14 +743,12 @@
   "eslint(curly)": 1,
   "eslint(prefer-named-capture-group)": 5,
   "eslint(require-unicode-regexp)": 11,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-assignment)": 3,
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 2,
-  "typescript(prefer-regexp-exec)": 6,
   "typescript(prefer-ts-expect-error)": 2,
   "vitest(no-conditional-in-test)": 1
  },
@@ -778,7 +756,6 @@
   "eslint(curly)": 2,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 5,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 3,
   "typescript(no-unsafe-argument)": 1,
@@ -827,12 +804,11 @@
   "eslint(curly)": 3,
   "eslint(no-empty-function)": 2,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(require-unicode-regexp)": 2,
+  "eslint(require-unicode-regexp)": 1,
   "promise(prefer-await-to-callbacks)": 1,
   "typescript(method-signature-style)": 3,
   "typescript(no-non-null-assertion)": 56,
   "typescript(no-unsafe-type-assertion)": 7,
-  "typescript(prefer-includes)": 1,
   "unicorn(consistent-function-scoping)": 3,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-import-in-mock)": 1,
@@ -881,7 +857,6 @@
   "typescript(require-await)": 2,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(import-style)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 4,
   "vitest(prefer-called-once)": 1,
   "vitest(prefer-strict-equal)": 2,
@@ -900,11 +875,9 @@
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-promise-executor-return)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(preserve-caught-error)": 2,
   "eslint(require-unicode-regexp)": 26,
   "import(consistent-type-specifier-style)": 3,
   "promise(param-names)": 3,
-  "typescript(array-type)": 1,
   "typescript(ban-ts-comment)": 3,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-explicit-any)": 8,
@@ -925,8 +898,6 @@
   "unicorn(no-await-expression-member)": 3,
   "unicorn(prefer-dom-node-text-content)": 2,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-expect-resolves)": 12,
   "vitest(prefer-hooks-in-order)": 2,
@@ -945,7 +916,6 @@
   "typescript(no-unsafe-member-access)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2,
   "vitest(prefer-each)": 1,
   "vitest(prefer-hooks-in-order)": 2,
   "vitest(prefer-strict-equal)": 1
@@ -961,7 +931,6 @@
   "typescript(no-unsafe-assignment)": 4,
   "unicorn(consistent-function-scoping)": 11,
   "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-number-properties)": 1,
   "vitest(no-conditional-expect)": 1,
   "vitest(no-conditional-in-test)": 8,
   "vitest(prefer-strict-equal)": 17,
@@ -981,12 +950,11 @@
   "eslint(no-unused-vars)": 1,
   "eslint(no-use-before-define)": 3,
   "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 6,
+  "eslint(require-unicode-regexp)": 5,
   "typescript(explicit-module-boundary-types)": 10,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 14,
-  "typescript(prefer-includes)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(explicit-length-check)": 2,
@@ -1001,7 +969,6 @@
   "eslint(no-empty-function)": 6,
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-loop-func)": 2,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 3,
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 1,
@@ -1027,7 +994,6 @@
   "eslint(no-empty-function)": 4,
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-promise-executor-return)": 1,
-  "eslint(preserve-caught-error)": 1,
   "eslint(require-unicode-regexp)": 7,
   "import(consistent-type-specifier-style)": 4,
   "promise(param-names)": 3,
@@ -1053,7 +1019,6 @@
   "unicorn(no-await-expression-member)": 1,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
   "vitest(prefer-hooks-in-order)": 2,
@@ -1066,7 +1031,6 @@
   "eslint(no-await-in-loop)": 2,
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-promise-executor-return)": 1,
-  "eslint(preserve-caught-error)": 1,
   "import(consistent-type-specifier-style)": 2,
   "promise(param-names)": 3,
   "typescript(ban-ts-comment)": 3,
@@ -1160,17 +1124,14 @@
   "eslint(no-empty-function)": 4,
   "eslint(no-loop-func)": 1,
   "eslint(prefer-named-capture-group)": 2,
-  "eslint(prefer-template)": 1,
-  "eslint(require-unicode-regexp)": 14,
+  "eslint(require-unicode-regexp)": 13,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
-  "typescript(prefer-includes)": 1,
   "unicorn(explicit-length-check)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2,
   "unicorn(prefer-spread)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-each)": 1,
@@ -1183,7 +1144,6 @@
   "eslint(no-empty-function)": 1,
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-promise-executor-return)": 1,
-  "eslint(preserve-caught-error)": 1,
   "import(consistent-type-specifier-style)": 2,
   "promise(param-names)": 3,
   "typescript(ban-ts-comment)": 3,
@@ -1223,7 +1183,6 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(prefer-nullish-coalescing)": 3,
-  "typescript(prefer-regexp-exec)": 1,
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(consistent-function-scoping)": 2,
@@ -1231,8 +1190,6 @@
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
   "unicorn(prefer-number-coercion)": 6,
-  "unicorn(prefer-number-properties)": 6,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 10,
   "vitest(prefer-each)": 1,
@@ -1248,7 +1205,6 @@
   "eslint(curly)": 2,
   "eslint(no-empty-function)": 7,
   "eslint(require-unicode-regexp)": 5,
-  "typescript(array-type)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "vitest(no-conditional-in-test)": 1
@@ -1270,7 +1226,6 @@
   "eslint(no-await-in-loop)": 1,
   "eslint(no-empty-function)": 2,
   "eslint(require-unicode-regexp)": 20,
-  "typescript(array-type)": 1,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 1,
@@ -1291,11 +1246,9 @@
   "eslint(no-implicit-coercion)": 3,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-template)": 6,
   "promise(always-return)": 1,
   "promise(param-names)": 1,
   "promise(prefer-await-to-then)": 1,
-  "typescript(array-type)": 1,
   "typescript(explicit-module-boundary-types)": 41,
   "typescript(no-confusing-void-expression)": 6,
   "typescript(no-unnecessary-boolean-literal-compare)": 1,
@@ -1422,8 +1375,7 @@
  "src/core/render/brands/fujin.ts": {
   "eslint(curly)": 2,
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "unicorn(no-zero-fractions)": 1
+  "import(consistent-type-specifier-style)": 2
  },
  "src/core/render/brands/hako.ts": {
   "import(consistent-type-specifier-style)": 1,
@@ -1432,8 +1384,7 @@
  },
  "src/core/render/brands/hikari.ts": {
   "eslint(curly)": 1,
-  "import(consistent-type-specifier-style)": 1,
-  "unicorn(no-zero-fractions)": 1
+  "import(consistent-type-specifier-style)": 1
  },
  "src/core/render/brands/index.ts": {
   "eslint(curly)": 4,
@@ -1447,8 +1398,7 @@
  },
  "src/core/render/brands/kaiju.ts": {
   "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 2,
-  "unicorn(no-zero-fractions)": 4
+  "import(consistent-type-specifier-style)": 2
  },
  "src/core/render/brands/kit.ts": {
   "eslint(curly)": 1,
@@ -1457,20 +1407,17 @@
   "typescript(no-non-null-assertion)": 6
  },
  "src/core/render/brands/kitsune.ts": {
-  "import(consistent-type-specifier-style)": 2,
-  "unicorn(no-zero-fractions)": 6
+  "import(consistent-type-specifier-style)": 2
  },
  "src/core/render/brands/kura.ts": {
   "import(consistent-type-specifier-style)": 1,
-  "typescript(no-confusing-void-expression)": 1,
-  "unicorn(no-zero-fractions)": 7
+  "typescript(no-confusing-void-expression)": 1
  },
  "src/core/render/brands/ocula.ts": {
   "import(consistent-type-specifier-style)": 1
  },
  "src/core/render/brands/pipeline.ts": {
-  "import(consistent-type-specifier-style)": 1,
-  "unicorn(no-zero-fractions)": 2
+  "import(consistent-type-specifier-style)": 1
  },
  "src/core/render/brands/pixi.ts": {
   "eslint(curly)": 1,
@@ -1481,13 +1428,11 @@
  },
  "src/core/render/brands/raiden.ts": {
   "import(consistent-type-specifier-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "unicorn(no-zero-fractions)": 1
+  "typescript(no-confusing-void-expression)": 1
  },
  "src/core/render/brands/relay.ts": {
   "import(consistent-type-specifier-style)": 2,
-  "typescript(no-confusing-void-expression)": 1,
-  "unicorn(no-zero-fractions)": 6
+  "typescript(no-confusing-void-expression)": 1
  },
  "src/core/render/brands/sigil.ts": {
   "import(consistent-type-specifier-style)": 2
@@ -1512,7 +1457,6 @@
   "typescript(no-non-null-assertion)": 8,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(explicit-length-check)": 2,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(prefer-at)": 1
  },
  "src/core/render/cable.test.ts": {
@@ -1534,8 +1478,7 @@
   "unicorn(prefer-at)": 2,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 4,
-  "vitest(prefer-strict-equal)": 4,
-  "vitest(valid-title)": 1
+  "vitest(prefer-strict-equal)": 4
  },
  "src/core/render/cable.ts": {
   "eslint(curly)": 10,
@@ -1585,7 +1528,6 @@
   "eslint(curly)": 9,
   "eslint(max-params)": 6,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(consistent-type-imports)": 1,
@@ -1593,8 +1535,7 @@
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 6,
-  "unicorn(no-array-fill-with-reference-type)": 2,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(no-array-fill-with-reference-type)": 2
  },
  "src/core/render/live.ts": {
   "eslint(class-methods-use-this)": 1,
@@ -1607,8 +1548,6 @@
   "eslint(no-negated-condition)": 5,
   "eslint(no-nested-ternary)": 26,
   "eslint(prefer-destructuring)": 10,
-  "eslint(prefer-exponentiation-operator)": 1,
-  "eslint(prefer-template)": 8,
   "eslint(require-unicode-regexp)": 2,
   "import(consistent-type-specifier-style)": 18,
   "import(max-dependencies)": 1,
@@ -1708,19 +1647,16 @@
   "typescript(strict-boolean-expressions)": 10,
   "unicorn(explicit-length-check)": 1,
   "unicorn(prefer-at)": 1,
-  "unicorn(prefer-math-min-max)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(prefer-math-min-max)": 1
  },
  "src/core/render/theme.ts": {
   "eslint(curly)": 3,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(prefer-template)": 2,
   "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 2,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(consistent-function-scoping)": 1
  },
  "src/core/render/three/aojob.worker.ts": {
   "import(consistent-type-specifier-style)": 2,
@@ -1763,7 +1699,6 @@
   "unicorn(catch-error-name)": 1,
   "unicorn(no-useless-undefined)": 1,
   "unicorn(prefer-add-event-listener)": 3,
-  "unicorn(relative-url-style)": 1,
   "unicorn(require-post-message-target-origin)": 1
  },
  "src/core/render/three/arealoop.test.ts": {
@@ -1800,8 +1735,7 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-string-replace-all)": 1
+  "unicorn(numeric-separators-style)": 2
  },
  "src/core/render/three/baked.test.ts": {
   "eslint(curly)": 1,
@@ -1849,13 +1783,11 @@
   "typescript(no-unsafe-class-instance-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(unbound-method)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(expect-expect)": 1,
   "vitest(prefer-strict-equal)": 1
  },
  "src/core/render/three/boxenv.ts": {
   "eslint(curly)": 1,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 2
  },
  "src/core/render/three/buildframe.test.ts": {
@@ -1890,7 +1822,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 11,
   "eslint(no-use-before-define)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "typescript(no-non-null-assertion)": 17,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(explicit-length-check)": 1,
@@ -1938,7 +1869,6 @@
   "eslint(curly)": 17,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-implicit-coercion)": 2,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 4,
   "typescript(consistent-type-definitions)": 1,
   "typescript(method-signature-style)": 2,
@@ -1949,8 +1879,7 @@
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-number-properties)": 4
+  "unicorn(numeric-separators-style)": 2
  },
  "src/core/render/three/cloth/bake.test.ts": {
   "eslint(curly)": 2,
@@ -2060,7 +1989,6 @@
   "eslint(max-params)": 1,
   "eslint(operator-assignment)": 31,
   "eslint(prefer-destructuring)": 6,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 142,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -2112,8 +2040,7 @@
   "unicorn(explicit-length-check)": 5,
   "unicorn(no-array-callback-reference)": 2,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 1,
-  "unicorn(require-array-join-separator)": 2
+  "unicorn(numeric-separators-style)": 1
  },
  "src/core/render/three/contact.test.ts": {
   "eslint(curly)": 2,
@@ -2159,8 +2086,7 @@
   "eslint(prefer-destructuring)": 3
  },
  "src/core/render/three/eye.ts": {
-  "eslint(curly)": 4,
-  "eslint(prefer-exponentiation-operator)": 1
+  "eslint(curly)": 4
  },
  "src/core/render/three/geometry.test.ts": {
   "eslint(curly)": 1,
@@ -2331,7 +2257,6 @@
   "typescript(promise-function-async)": 5,
   "typescript(strict-boolean-expressions)": 9,
   "typescript(unbound-method)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(no-array-reduce)": 1,
   "unicorn(no-await-expression-member)": 1,
   "unicorn(numeric-separators-style)": 3,
@@ -2397,7 +2322,6 @@
   "eslint(max-params)": 1,
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-use-before-define)": 4,
-  "eslint(prefer-exponentiation-operator)": 2,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 5,
@@ -2446,7 +2370,6 @@
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 2,
   "import(consistent-type-specifier-style)": 5,
-  "typescript(consistent-generic-constructors)": 1,
   "typescript(consistent-type-definitions)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(method-signature-style)": 1,
@@ -2614,9 +2537,7 @@
  "src/core/render/three/powerscale.ts": {
   "eslint(curly)": 2,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-exponentiation-operator)": 2,
   "typescript(no-non-null-assertion)": 5,
-  "unicorn(no-zero-fractions)": 6,
   "unicorn(numeric-separators-style)": 17,
   "unicorn(prefer-at)": 1
  },
@@ -2651,7 +2572,6 @@
   "typescript(no-non-null-assertion)": 20,
   "unicorn(max-nested-calls)": 2,
   "unicorn(prefer-at)": 4,
-  "unicorn(require-array-join-separator)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-strict-equal)": 7,
   "vitest(valid-expect)": 1
@@ -2749,9 +2669,7 @@
   "eslint(curly)": 4,
   "eslint(max-params)": 1,
   "eslint(no-multi-assign)": 1,
-  "eslint(prefer-exponentiation-operator)": 3,
-  "typescript(no-non-null-assertion)": 22,
-  "unicorn(no-zero-fractions)": 1
+  "typescript(no-non-null-assertion)": 22
  },
  "src/core/render/three/stillworld.test.ts": {
   "eslint(curly)": 2,
@@ -2770,8 +2688,7 @@
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(prefer-for-of)": 1,
-  "typescript(unbound-method)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "typescript(unbound-method)": 1
  },
  "src/core/render/three/thermal.test.ts": {
   "eslint(curly)": 2,
@@ -2783,10 +2700,8 @@
  },
  "src/core/render/three/thermal.ts": {
   "eslint(curly)": 1,
-  "eslint(prefer-exponentiation-operator)": 3,
   "typescript(no-non-null-assertion)": 5,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-zero-fractions)": 2,
   "unicorn(numeric-separators-style)": 7,
   "unicorn(prefer-at)": 1
  },
@@ -2933,8 +2848,7 @@
   "typescript(prefer-readonly)": 1
  },
  "src/core/sim/index.ts": {
-  "oxc(no-barrel-file)": 1,
-  "typescript(consistent-type-exports)": 1
+  "oxc(no-barrel-file)": 1
  },
  "src/core/sim/machine.test.ts": {
   "eslint(curly)": 12,
@@ -3014,7 +2928,6 @@
   "unicorn(explicit-length-check)": 2,
   "unicorn(prefer-global-this)": 7,
   "unicorn(prefer-number-coercion)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(prefer-query-selector)": 1
  },
  "src/core/ui/HudPhone.test.ts": {
@@ -3064,7 +2977,6 @@
  "src/core/ui/cssprefix.test.ts": {
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 3,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 1,
@@ -3072,17 +2984,13 @@
   "typescript(no-unsafe-call)": 3,
   "typescript(no-unsafe-member-access)": 3,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
-  "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 2,
   "vitest(prefer-strict-equal)": 1
  },
  "src/core/ui/errortext.test.ts": {
   "eslint(curly)": 13,
   "eslint(prefer-named-capture-group)": 18,
-  "eslint(require-unicode-regexp)": 23,
-  "import(newline-after-import)": 1,
+  "eslint(require-unicode-regexp)": 22,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 18,
@@ -3090,14 +2998,11 @@
   "typescript(no-unsafe-call)": 6,
   "typescript(no-unsafe-member-access)": 6,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-includes)": 1,
   "typescript(prefer-string-starts-ends-with)": 2,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-number-properties)": 1,
-  "unicorn(prefer-string-replace-all)": 6,
   "unicorn(prefer-string-starts-ends-with)": 2,
   "vitest(expect-expect)": 5,
   "vitest(no-conditional-in-test)": 3,
@@ -3141,8 +3046,7 @@
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-callback-reference)": 2,
   "unicorn(prefer-at)": 1,
-  "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2
+  "unicorn(prefer-number-coercion)": 2
  },
  "src/core/ui/kit/Sprite.tsx": {
   "eslint(curly)": 1,
@@ -3169,11 +3073,9 @@
   "eslint(max-params)": 1,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-template)": 4,
   "eslint(require-unicode-regexp)": 14,
   "import(max-dependencies)": 1,
   "import(no-duplicates)": 1,
-  "typescript(array-type)": 1,
   "typescript(no-non-null-assertion)": 25,
   "typescript(no-unsafe-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
@@ -3194,14 +3096,12 @@
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 1,
   "eslint(prefer-named-capture-group)": 6,
-  "eslint(prefer-template)": 4,
   "eslint(require-unicode-regexp)": 7,
   "import(consistent-type-specifier-style)": 4,
-  "typescript(array-type)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 6,
-  "typescript(no-unnecessary-template-expression)": 2,
+  "typescript(no-unnecessary-template-expression)": 1,
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 14,
   "unicorn(explicit-length-check)": 1,
@@ -3220,9 +3120,7 @@
  "src/core/ui/motion.test.ts": {
   "eslint(curly)": 4,
   "eslint(prefer-named-capture-group)": 9,
-  "eslint(require-unicode-regexp)": 15,
-  "import(newline-after-import)": 1,
-  "typescript(array-type)": 1,
+  "eslint(require-unicode-regexp)": 14,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 7,
@@ -3231,12 +3129,9 @@
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-return)": 1,
-  "typescript(prefer-regexp-exec)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-string-raw)": 2,
-  "unicorn(prefer-string-replace-all)": 3,
   "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 6,
   "vitest(prefer-strict-equal)": 3,
@@ -3338,7 +3233,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
   "vitest(prefer-hooks-in-order)": 2,
@@ -3348,7 +3242,6 @@
   "eslint(curly)": 11,
   "eslint(prefer-named-capture-group)": 2,
   "eslint(require-unicode-regexp)": 6,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 2,
   "typescript(no-explicit-any)": 1,
@@ -3357,11 +3250,8 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(consistent-existence-index-check)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "unicorn(switch-case-braces)": 7,
   "vitest(no-conditional-in-test)": 3,
@@ -3380,7 +3270,6 @@
   "jsx-a11y(prefer-tag-over-role)": 7,
   "react(button-has-type)": 7,
   "react(only-export-components)": 3,
-  "typescript(array-type)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 1,
@@ -3428,7 +3317,6 @@
   "typescript(non-nullable-type-assertion-style)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-single-call)": 2
  },
@@ -3476,7 +3364,6 @@
   "eslint(curly)": 15,
   "eslint(prefer-named-capture-group)": 6,
   "eslint(require-unicode-regexp)": 9,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 2,
   "typescript(no-explicit-any)": 1,
@@ -3485,11 +3372,8 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(consistent-existence-index-check)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 4,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "unicorn(switch-case-braces)": 7
  },
@@ -3537,7 +3421,6 @@
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(non-nullable-type-assertion-style)": 1,
   "typescript(strict-boolean-expressions)": 5,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 7,
   "unicorn(no-array-callback-reference)": 1,
@@ -3665,10 +3548,8 @@
   "eslint(no-shadow)": 1,
   "eslint(no-template-curly-in-string)": 1,
   "eslint(prefer-named-capture-group)": 8,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 11,
   "import(first)": 2,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
@@ -3681,7 +3562,6 @@
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-string-replace-all)": 5,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(prefer-each)": 1,
   "vitest(prefer-strict-equal)": 7
@@ -3718,8 +3598,7 @@
  "src/core/ui/tokens.test.ts": {
   "eslint(curly)": 4,
   "eslint(prefer-named-capture-group)": 7,
-  "eslint(require-unicode-regexp)": 24,
-  "import(newline-after-import)": 1,
+  "eslint(require-unicode-regexp)": 23,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 4,
@@ -3730,8 +3609,6 @@
   "typescript(no-unsafe-return)": 2,
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(non-nullable-type-assertion-style)": 4,
-  "typescript(prefer-includes)": 1,
-  "typescript(prefer-regexp-exec)": 3,
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "typescript(strict-boolean-expressions)": 1,
@@ -3779,13 +3656,11 @@
   "eslint(curly)": 23,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 16,
-  "eslint(prefer-template)": 3,
   "import(consistent-type-specifier-style)": 2,
   "typescript(consistent-type-imports)": 1,
   "typescript(explicit-module-boundary-types)": 21,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-fill-with-reference-type)": 32,
-  "unicorn(no-zero-fractions)": 1
+  "unicorn(no-array-fill-with-reference-type)": 32
  },
  "src/features/board/render/cooler.test.ts": {
   "eslint(curly)": 3,
@@ -3832,7 +3707,6 @@
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 3,
   "import(max-dependencies)": 1,
-  "typescript(array-type)": 1,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 5,
@@ -3846,7 +3720,6 @@
   "eslint(no-duplicate-imports)": 2,
   "eslint(no-shadow)": 3,
   "eslint(prefer-destructuring)": 5,
-  "eslint(prefer-template)": 4,
   "import(consistent-type-specifier-style)": 4,
   "import(no-duplicates)": 2,
   "typescript(no-confusing-void-expression)": 4,
@@ -3860,10 +3733,8 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-at)": 15,
   "unicorn(prefer-spread)": 7,
-  "unicorn(require-array-join-separator)": 4,
   "vitest(no-conditional-expect)": 26,
   "vitest(no-conditional-in-test)": 116,
-  "vitest(prefer-comparison-matcher)": 1,
   "vitest(prefer-strict-boolean-matchers)": 1,
   "vitest(prefer-strict-equal)": 1,
   "vitest(prefer-to-have-length)": 20
@@ -3898,7 +3769,6 @@
   "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(explicit-length-check)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-export-from)": 5,
   "unicorn(prefer-math-trunc)": 2
@@ -3956,8 +3826,7 @@
   "vitest(prefer-to-have-length)": 1
  },
  "src/features/board/render/skins.ts": {
-  "typescript(no-non-null-assertion)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "typescript(no-non-null-assertion)": 1
  },
  "src/features/board/render/three/accelbus.test.ts": {
   "vitest(prefer-strict-equal)": 6
@@ -4023,7 +3892,6 @@
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 3,
   "unicorn(prefer-dom-node-append)": 11,
-  "unicorn(prefer-number-properties)": 2,
   "unicorn(prefer-query-selector)": 1
  },
  "src/features/board/render/three/air/build.test.ts": {
@@ -4099,10 +3967,8 @@
   "eslint(no-multi-assign)": 2,
   "eslint(operator-assignment)": 1,
   "eslint(prefer-destructuring)": 12,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 114,
-  "typescript(no-unnecessary-template-expression)": 1,
   "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(restrict-template-expressions)": 2,
   "unicorn(consistent-function-scoping)": 1,
@@ -4198,8 +4064,7 @@
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unsafe-type-assertion)": 5,
   "unicorn(no-lonely-if)": 1,
-  "unicorn(prefer-global-this)": 1,
-  "unicorn(prefer-number-properties)": 2
+  "unicorn(prefer-global-this)": 1
  },
  "src/features/board/render/three/air/water.ts": {
   "eslint(max-params)": 1,
@@ -4209,8 +4074,7 @@
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(no-new-array)": 1,
-  "unicorn(no-zero-fractions)": 1
+  "unicorn(no-new-array)": 1
  },
  "src/features/board/render/three/air/waternet.test.ts": {
   "eslint(curly)": 7,
@@ -4246,7 +4110,6 @@
   "eslint(curly)": 6,
   "eslint(max-params)": 4,
   "import(consistent-type-specifier-style)": 6,
-  "unicorn(consistent-existence-index-check)": 2,
   "unicorn(max-nested-calls)": 1
  },
  "src/features/board/render/three/bake.test.ts": {
@@ -4289,8 +4152,7 @@
   "eslint(no-new-func)": 1,
   "eslint(prefer-destructuring)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(preserve-caught-error)": 1,
-  "eslint(require-unicode-regexp)": 3,
+  "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 1,
@@ -4300,10 +4162,8 @@
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 2,
   "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(prefer-includes)": 2,
   "typescript(prefer-ts-expect-error)": 2,
   "unicorn(catch-error-name)": 1,
-  "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 10,
   "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 1
@@ -4324,8 +4184,6 @@
   "eslint(no-unused-expressions)": 3,
   "eslint(no-use-before-define)": 17,
   "eslint(prefer-destructuring)": 5,
-  "eslint(prefer-exponentiation-operator)": 2,
-  "eslint(prefer-template)": 5,
   "eslint(require-unicode-regexp)": 6,
   "import(consistent-type-specifier-style)": 11,
   "import(max-dependencies)": 1,
@@ -4599,7 +4457,6 @@
   "typescript(no-unsafe-type-assertion)": 4,
   "typescript(promise-function-async)": 6,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(require-array-join-separator)": 1,
   "vitest(prefer-import-in-mock)": 3,
   "vitest(prefer-strict-boolean-matchers)": 4,
   "vitest(prefer-strict-equal)": 4,
@@ -4675,7 +4532,6 @@
   "eslint(no-use-before-define)": 5,
   "eslint(prefer-destructuring)": 6,
   "eslint(prefer-named-capture-group)": 3,
-  "eslint(prefer-template)": 3,
   "eslint(require-unicode-regexp)": 4,
   "import(consistent-type-specifier-style)": 21,
   "import(max-dependencies)": 1,
@@ -4704,7 +4560,6 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-reverse)": 3,
   "unicorn(no-useless-spread)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 9,
   "unicorn(prefer-at)": 2,
   "unicorn(prefer-global-this)": 10
@@ -4734,7 +4589,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-new-array)": 1,
-  "unicorn(no-zero-fractions)": 2,
   "unicorn(prefer-at)": 3
  },
  "src/features/board/render/three/buildpick.test.ts": {
@@ -4790,14 +4644,12 @@
   "eslint(curly)": 4,
   "eslint(max-params)": 3,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 3,
-  "unicorn(prefer-number-properties)": 2
+  "unicorn(numeric-separators-style)": 3
  },
  "src/features/board/render/three/card3d.test.ts": {
   "eslint(curly)": 2,
@@ -4828,7 +4680,6 @@
   "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(numeric-separators-style)": 4
  },
@@ -4862,12 +4713,10 @@
   "typescript(no-non-null-assertion)": 12,
   "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 4,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 49,
   "unicorn(prefer-at)": 1
  },
  "src/features/board/render/three/casedetail3d.ts": {
-  "eslint(arrow-body-style)": 1,
   "eslint(complexity)": 2,
   "eslint(curly)": 34,
   "eslint(max-lines)": 1,
@@ -4898,7 +4747,6 @@
   "eslint(default-case)": 1,
   "eslint(max-params)": 1,
   "typescript(consistent-return)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(switch-case-braces)": 4
  },
  "src/features/board/render/three/casekit3d.test.ts": {
@@ -4918,7 +4766,6 @@
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 1,
   "eslint(no-use-before-define)": 5,
-  "eslint(prefer-template)": 5,
   "import(consistent-type-specifier-style)": 9,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(method-signature-style)": 3,
@@ -4934,8 +4781,7 @@
   "unicorn(no-array-for-each)": 3,
   "unicorn(no-array-reduce)": 1,
   "unicorn(numeric-separators-style)": 34,
-  "unicorn(prefer-at)": 2,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(prefer-at)": 2
  },
  "src/features/board/render/three/casemat.test.ts": {
   "eslint(curly)": 2,
@@ -4955,7 +4801,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(no-useless-undefined)": 3,
   "unicorn(prefer-at)": 3,
-  "unicorn(require-array-join-separator)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-strict-equal)": 2,
   "vitest(prefer-to-have-length)": 4,
@@ -5032,7 +4877,6 @@
   "eslint(no-multi-assign)": 1,
   "eslint(no-nested-ternary)": 10,
   "eslint(prefer-destructuring)": 2,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 11,
   "import(max-dependencies)": 1,
@@ -5105,7 +4949,6 @@
   "eslint(max-params)": 1,
   "eslint(no-implicit-coercion)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(prefer-dom-node-append)": 2
@@ -5121,8 +4964,6 @@
   "typescript(no-unsafe-call)": 2,
   "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(prefer-string-replace-all)": 3,
-  "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 2,
   "vitest(prefer-strict-equal)": 3,
   "vitest(valid-expect)": 1
@@ -5138,7 +4979,6 @@
   "eslint(no-nested-ternary)": 4,
   "eslint(no-use-before-define)": 5,
   "eslint(prefer-named-capture-group)": 2,
-  "eslint(prefer-template)": 4,
   "eslint(require-unicode-regexp)": 6,
   "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 1,
@@ -5164,7 +5004,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 41,
   "unicorn(no-array-for-each)": 7,
-  "unicorn(no-zero-fractions)": 11,
   "unicorn(numeric-separators-style)": 15
  },
  "src/features/board/render/three/drivecage3d.test.ts": {
@@ -5215,7 +5054,6 @@
   "typescript(strict-void-return)": 1,
   "unicorn(max-nested-calls)": 8,
   "unicorn(no-array-for-each)": 3,
-  "unicorn(no-zero-fractions)": 6,
   "unicorn(numeric-separators-style)": 5
  },
  "src/features/board/render/three/fanhub3d.ts": {
@@ -5245,7 +5083,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 7,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 3,
@@ -5335,7 +5172,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-math-trunc)": 1,
-  "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-strict-equal)": 1
  },
@@ -5362,7 +5198,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 2,
   "vitest(no-conditional-in-test)": 9
  },
  "src/features/board/render/three/lowdetail.test.ts": {
@@ -5543,9 +5378,7 @@
   "eslint(no-unused-vars)": 5,
   "eslint(no-use-before-define)": 5,
   "eslint(prefer-destructuring)": 9,
-  "eslint(prefer-exponentiation-operator)": 1,
   "eslint(prefer-named-capture-group)": 5,
-  "eslint(prefer-template)": 6,
   "eslint(require-unicode-regexp)": 7,
   "import(consistent-type-specifier-style)": 36,
   "import(max-dependencies)": 1,
@@ -5566,7 +5399,6 @@
   "typescript(strict-void-return)": 1,
   "typescript(switch-exhaustiveness-check)": 2,
   "typescript(unbound-method)": 1,
-  "unicorn(consistent-existence-index-check)": 4,
   "unicorn(consistent-function-scoping)": 7,
   "unicorn(explicit-length-check)": 4,
   "unicorn(max-nested-calls)": 4,
@@ -5575,7 +5407,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(no-useless-collection-argument)": 1,
   "unicorn(no-useless-spread)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 11,
   "unicorn(prefer-at)": 2,
   "unicorn(switch-case-braces)": 6
@@ -5642,7 +5473,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 2,
   "unicorn(no-array-for-each)": 4,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 27,
   "unicorn(prefer-at)": 2,
   "unicorn(prefer-export-from)": 5,
@@ -5765,7 +5595,6 @@
   "eslint(no-nested-ternary)": 2,
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 2,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 7,
   "import(max-dependencies)": 1,
@@ -5777,7 +5606,6 @@
   "unicorn(consistent-function-scoping)": 3,
   "unicorn(max-nested-calls)": 5,
   "unicorn(no-array-for-each)": 5,
-  "unicorn(no-zero-fractions)": 49,
   "unicorn(numeric-separators-style)": 11,
   "unicorn(prefer-code-point)": 1
  },
@@ -5804,7 +5632,6 @@
   "eslint(curly)": 7,
   "eslint(no-console)": 3,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
@@ -5825,7 +5652,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-sort)": 3,
   "unicorn(numeric-separators-style)": 10,
-  "unicorn(prefer-number-properties)": 1,
   "vitest(no-conditional-in-test)": 7,
   "vitest(prefer-strict-equal)": 2,
   "vitest(valid-expect)": 1
@@ -5958,11 +5784,9 @@
   "eslint(no-nested-ternary)": 1,
   "eslint(operator-assignment)": 1,
   "eslint(prefer-destructuring)": 6,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 10,
   "typescript(method-signature-style)": 5,
   "typescript(no-non-null-assertion)": 40,
-  "typescript(prefer-reduce-type-parameter)": 1,
   "typescript(promise-function-async)": 6,
   "typescript(strict-boolean-expressions)": 15,
   "typescript(unbound-method)": 2,
@@ -6136,7 +5960,6 @@
   "eslint(curly)": 7,
   "eslint(no-empty-function)": 6,
   "eslint(no-nested-ternary)": 2,
-  "eslint(prefer-arrow-callback)": 1,
   "eslint(prefer-destructuring)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(method-signature-style)": 2,
@@ -6165,14 +5988,12 @@
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(prefer-destructuring)": 2,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 8,
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(max-nested-calls)": 4,
   "unicorn(no-array-for-each)": 3,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 18
  },
  "src/features/board/render/three/qsfp3d.test.ts": {
@@ -6237,8 +6058,7 @@
   "unicorn(no-new-array)": 1,
   "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-math-trunc)": 2,
-  "unicorn(prefer-negative-index)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(prefer-negative-index)": 1
  },
  "src/features/board/render/three/rammap3d.test.ts": {
   "unicorn(no-new-array)": 1,
@@ -6325,7 +6145,6 @@
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 2,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 4,
   "import(max-dependencies)": 1,
   "oxc(no-map-spread)": 1,
@@ -6344,7 +6163,6 @@
  },
  "src/features/board/render/three/showcase.test.ts": {
   "eslint(curly)": 6,
-  "eslint(prefer-template)": 2,
   "import(consistent-type-specifier-style)": 1,
   "typescript(method-signature-style)": 1,
   "typescript(no-non-null-assertion)": 7,
@@ -6355,7 +6173,7 @@
   "unicorn(prefer-set-has)": 1,
   "vitest(no-conditional-in-test)": 6,
   "vitest(prefer-strict-equal)": 1,
-  "vitest(valid-expect)": 15
+  "vitest(valid-expect)": 13
  },
  "src/features/board/render/three/showcase.ts": {
   "eslint(complexity)": 1,
@@ -6398,7 +6216,6 @@
  "src/features/board/render/three/slots3d.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 6,
-  "eslint(prefer-template)": 2,
   "import(consistent-type-specifier-style)": 2
  },
  "src/features/board/render/three/solids3d.ts": {
@@ -6414,7 +6231,6 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(max-nested-calls)": 1,
   "unicorn(numeric-separators-style)": 8,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(switch-case-braces)": 4
  },
  "src/features/board/render/three/studiowall3d.test.ts": {
@@ -6477,7 +6293,6 @@
  "src/features/board/render/three/testutil.ts": {
   "eslint(no-empty-function)": 2,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-arrow-callback)": 1,
   "typescript(no-unsafe-type-assertion)": 1
  },
  "src/features/board/render/three/tpm3d.test.ts": {
@@ -6514,8 +6329,7 @@
   "unicorn(no-array-reverse)": 1,
   "unicorn(no-array-sort)": 1,
   "unicorn(no-object-as-default-parameter)": 1,
-  "unicorn(numeric-separators-style)": 14,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(numeric-separators-style)": 14
  },
  "src/features/board/render/thumbart.ts": {
   "eslint(complexity)": 1,
@@ -6536,7 +6350,6 @@
   "eslint(curly)": 19,
   "eslint(no-console)": 1,
   "eslint(no-implicit-coercion)": 1,
-  "eslint(prefer-const)": 1,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 2,
@@ -6548,7 +6361,6 @@
   "unicorn(catch-error-name)": 1,
   "unicorn(explicit-length-check)": 3,
   "unicorn(prefer-add-event-listener)": 2,
-  "unicorn(relative-url-style)": 1,
   "unicorn(require-post-message-target-origin)": 1
  },
  "src/features/board/render/thumbs.worker.ts": {
@@ -6586,7 +6398,6 @@
  "src/features/board/render/wiring/busmap.test.ts": {
   "eslint(curly)": 7,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 6,
   "import(consistent-type-specifier-style)": 5,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 46,
@@ -6605,7 +6416,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
   "eslint(prefer-named-capture-group)": 4,
-  "eslint(prefer-template)": 2,
   "eslint(require-unicode-regexp)": 3,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 2,
@@ -6682,7 +6492,6 @@
   "eslint(no-shadow)": 5,
   "eslint(no-use-before-define)": 6,
   "eslint(prefer-destructuring)": 8,
-  "eslint(prefer-template)": 4,
   "import(consistent-type-specifier-style)": 4,
   "typescript(consistent-type-definitions)": 1,
   "typescript(explicit-module-boundary-types)": 4,
@@ -6806,11 +6615,9 @@
   "typescript(no-unnecessary-type-assertion)": 5,
   "typescript(no-unsafe-type-assertion)": 5,
   "typescript(strict-boolean-expressions)": 7,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 3,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-structured-clone)": 1
  },
  "src/features/board/sim/buildalerts.test.ts": {
@@ -6907,7 +6714,6 @@
  "src/features/board/sim/buildstills.test.ts": {
   "eslint(curly)": 1,
   "eslint(no-await-in-loop)": 1,
-  "eslint(prefer-template)": 1,
   "typescript(ban-ts-comment)": 3,
   "typescript(no-explicit-any)": 2,
   "typescript(no-unsafe-argument)": 1,
@@ -6950,7 +6756,6 @@
   "eslint(curly)": 1,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 2,
   "eslint(require-unicode-regexp)": 6,
   "typescript(no-non-null-assertion)": 7,
   "typescript(no-unnecessary-type-assertion)": 1,
@@ -7007,7 +6812,6 @@
   "unicorn(consistent-function-scoping)": 6,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-sort)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(prefer-strict-boolean-matchers)": 3,
   "vitest(prefer-strict-equal)": 17,
@@ -7186,7 +6990,6 @@
  "src/features/board/sim/specs.ts": {
   "eslint(curly)": 1,
   "eslint(max-lines)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(no-array-sort)": 1,
@@ -7217,14 +7020,13 @@
   "eslint(curly)": 14,
   "eslint(max-params)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 4,
+  "eslint(require-unicode-regexp)": 2,
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 30,
   "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(no-unsafe-assignment)": 3,
   "typescript(no-unsafe-member-access)": 1,
   "typescript(no-unsafe-type-assertion)": 3,
-  "typescript(prefer-includes)": 2,
   "typescript(strict-boolean-expressions)": 6,
   "unicorn(consistent-function-scoping)": 9,
   "unicorn(max-nested-calls)": 2,
@@ -7288,14 +7090,12 @@
   "eslint(prefer-destructuring)": 1,
   "react(button-has-type)": 3,
   "react(immutability)": 1,
-  "react(jsx-curly-brace-presence)": 1,
   "react-hooks(exhaustive-deps)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(strict-void-return)": 1,
-  "unicorn(prefer-number-coercion)": 1,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(prefer-number-coercion)": 1
  },
  "src/features/board/ui/BuildMachine.tsx": {
   "eslint(complexity)": 1,
@@ -7461,7 +7261,6 @@
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 3,
   "typescript(strict-boolean-expressions)": 4,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-sort)": 1
  },
@@ -7478,7 +7277,7 @@
   "eslint(no-empty-function)": 10,
   "eslint(no-implicit-coercion)": 3,
   "eslint(prefer-named-capture-group)": 9,
-  "eslint(require-unicode-regexp)": 19,
+  "eslint(require-unicode-regexp)": 15,
   "oxc(no-map-spread)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 1,
@@ -7493,7 +7292,6 @@
   "typescript(no-unsafe-member-access)": 5,
   "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 15,
-  "typescript(prefer-includes)": 4,
   "typescript(prefer-ts-expect-error)": 2,
   "typescript(strict-boolean-expressions)": 6,
   "unicorn(consistent-function-scoping)": 5,
@@ -7501,7 +7299,6 @@
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-sort)": 4,
   "unicorn(prefer-array-find)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-import-in-mock)": 2,
   "vitest(prefer-strict-equal)": 4
@@ -7515,11 +7312,9 @@
  "src/features/board/ui/vrm.test.ts": {
   "eslint(curly)": 3,
   "eslint(no-nested-ternary)": 1,
-  "eslint(require-unicode-regexp)": 15,
-  "typescript(array-type)": 1,
+  "eslint(require-unicode-regexp)": 9,
   "typescript(no-non-null-assertion)": 43,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(prefer-includes)": 6,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(max-nested-calls)": 6,
   "vitest(no-conditional-in-test)": 3,
@@ -7537,7 +7332,6 @@
   "eslint(no-nested-ternary)": 3,
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 5,
-  "typescript(array-type)": 3,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 4,
@@ -7576,7 +7370,6 @@
  },
  "src/features/cpu/render/core/corestats.ts": {
   "eslint(curly)": 2,
-  "eslint(prefer-template)": 1,
   "unicorn(consistent-function-scoping)": 1
  },
  "src/features/cpu/render/core/coretiles.test.ts": {
@@ -7587,7 +7380,6 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-strict-equal)": 11
  },
@@ -7596,7 +7388,6 @@
   "eslint(max-params)": 1,
   "eslint(no-duplicate-imports)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-template)": 4,
   "import(consistent-type-specifier-style)": 1,
   "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 2,
@@ -7689,7 +7480,6 @@
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 25,
   "typescript(prefer-string-starts-ends-with)": 5,
@@ -7720,7 +7510,6 @@
   "eslint(no-nested-ternary)": 4,
   "eslint(prefer-destructuring)": 2,
   "import(consistent-type-specifier-style)": 1,
-  "import(newline-after-import)": 1,
   "typescript(method-signature-style)": 7,
   "typescript(no-non-null-assertion)": 13,
   "typescript(strict-boolean-expressions)": 5,
@@ -7755,7 +7544,6 @@
   "eslint(max-params)": 5,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 9,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 56,
   "typescript(no-unsafe-assignment)": 5,
@@ -7763,7 +7551,6 @@
   "typescript(prefer-readonly)": 4,
   "typescript(prefer-string-starts-ends-with)": 2,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
@@ -7771,7 +7558,6 @@
   "unicorn(no-array-reverse)": 2,
   "unicorn(no-new-array)": 6,
   "unicorn(no-object-as-default-parameter)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(prefer-at)": 3,
   "unicorn(prefer-single-call)": 1,
   "unicorn(prefer-spread)": 3,
@@ -7799,7 +7585,6 @@
   "eslint(no-nested-ternary)": 2,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 4,
-  "eslint(prefer-template)": 5,
   "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "typescript(explicit-module-boundary-types)": 9,
@@ -7827,8 +7612,7 @@
   "unicorn(no-array-fill-with-reference-type)": 4,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-reduce)": 1,
-  "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-number-properties)": 2
+  "unicorn(no-array-reverse)": 1
  },
  "src/features/cpu/render/die/dietraffic.test.ts": {
   "eslint(curly)": 3,
@@ -7859,7 +7643,6 @@
   "eslint(no-nested-ternary)": 5,
   "eslint(no-use-before-define)": 4,
   "eslint(prefer-destructuring)": 9,
-  "eslint(prefer-template)": 17,
   "import(consistent-type-specifier-style)": 13,
   "import(max-dependencies)": 1,
   "import(no-duplicates)": 1,
@@ -7884,10 +7667,9 @@
   "eslint(max-params)": 1,
   "eslint(no-nested-ternary)": 3,
   "eslint(prefer-named-capture-group)": 2,
-  "eslint(require-unicode-regexp)": 5,
+  "eslint(require-unicode-regexp)": 3,
   "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 8,
-  "typescript(prefer-includes)": 2,
   "typescript(switch-exhaustiveness-check)": 3,
   "unicorn(prefer-at)": 2,
   "unicorn(switch-case-braces)": 13
@@ -7899,7 +7681,6 @@
  },
  "src/features/cpu/render/die/tokentext.ts": {
   "eslint(curly)": 4,
-  "eslint(prefer-template)": 5,
   "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(switch-case-braces)": 8
@@ -8115,8 +7896,7 @@
   "import(consistent-type-specifier-style)": 1,
   "oxc(bad-bitwise-operator)": 1,
   "typescript(no-non-null-assertion)": 92,
-  "typescript(strict-boolean-expressions)": 8,
-  "unicorn(consistent-existence-index-check)": 1
+  "typescript(strict-boolean-expressions)": 8
  },
  "src/features/cpu/sim/engines/memsys.test.ts": {
   "eslint(curly)": 2,
@@ -8166,7 +7946,6 @@
  "src/features/cpu/sim/engines/smp/interrupts.test.ts": {
   "eslint(curly)": 6,
   "eslint(max-params)": 1,
-  "eslint(prefer-template)": 3,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-confusing-void-expression)": 1,
@@ -8205,7 +7984,6 @@
  },
  "src/features/cpu/sim/engines/testgen.ts": {
   "eslint(curly)": 19,
-  "eslint(prefer-template)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(prefer-readonly)": 1,
   "unicorn(numeric-separators-style)": 2
@@ -8214,7 +7992,6 @@
   "eslint(curly)": 14,
   "eslint(max-params)": 2,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 3,
   "import(first)": 2,
   "import(max-dependencies)": 1,
@@ -8231,7 +8008,6 @@
  },
  "src/features/cpu/sim/engines/timing/timing.test.ts": {
   "eslint(curly)": 4,
-  "eslint(prefer-template)": 2,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 5,
   "unicorn(consistent-function-scoping)": 1,
@@ -8303,7 +8079,6 @@
   "eslint(require-unicode-regexp)": 1,
   "typescript(consistent-return)": 1,
   "typescript(strict-boolean-expressions)": 1,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(numeric-separators-style)": 5,
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(switch-case-braces)": 11
@@ -8326,14 +8101,13 @@
  "src/features/cpu/sim/multicore/preempt.test.ts": {
   "eslint(curly)": 9,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(require-unicode-regexp)": 2,
+  "eslint(require-unicode-regexp)": 1,
   "import(no-duplicates)": 1,
   "typescript(consistent-type-definitions)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 16,
   "typescript(no-unsafe-type-assertion)": 1,
-  "typescript(prefer-includes)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 4,
@@ -8415,7 +8189,7 @@
  },
  "src/features/cpu/sim/pipesnap.test.ts": {
   "eslint(curly)": 18,
-  "eslint(require-unicode-regexp)": 3,
+  "eslint(require-unicode-regexp)": 2,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 29,
   "typescript(no-unnecessary-type-assertion)": 1,
@@ -8424,7 +8198,6 @@
   "unicorn(numeric-separators-style)": 4,
   "unicorn(prefer-math-trunc)": 1,
   "unicorn(prefer-spread)": 5,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(no-conditional-in-test)": 14,
   "vitest(prefer-strict-equal)": 7,
@@ -8533,7 +8306,6 @@
   "eslint(default-case)": 1,
   "eslint(max-params)": 1,
   "eslint(no-negated-condition)": 1,
-  "eslint(prefer-template)": 5,
   "typescript(no-non-null-assertion)": 17,
   "typescript(prefer-readonly)": 1,
   "unicorn(switch-case-braces)": 10
@@ -8654,7 +8426,6 @@
   "unicorn(consistent-function-scoping)": 9,
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 5,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(prefer-structured-clone)": 1,
   "vitest(no-conditional-expect)": 5,
   "vitest(no-conditional-in-test)": 17,
@@ -8670,12 +8441,10 @@
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(prefer-named-capture-group)": 2,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 2,
   "typescript(consistent-return)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 5,
-  "unicorn(no-zero-fractions)": 6,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-at)": 1,
   "unicorn(switch-case-braces)": 20
@@ -8783,9 +8552,8 @@
   "unicorn(prefer-global-this)": 2
  },
  "src/features/economy/ui/progress/contractui.test.ts": {
-  "eslint(require-unicode-regexp)": 6,
+  "eslint(require-unicode-regexp)": 4,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(prefer-includes)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "vitest(prefer-strict-equal)": 5
  },
@@ -8823,7 +8591,7 @@
   "eslint(curly)": 24,
   "eslint(no-empty-function)": 3,
   "eslint(no-loop-func)": 1,
-  "eslint(require-unicode-regexp)": 5,
+  "eslint(require-unicode-regexp)": 3,
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-explicit-any)": 3,
   "typescript(no-non-null-assertion)": 14,
@@ -8837,7 +8605,6 @@
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-dom-node-text-content)": 1,
-  "unicorn(prefer-string-replace-all)": 3,
   "vitest(no-conditional-in-test)": 20,
   "vitest(prefer-each)": 1,
   "vitest(prefer-hooks-in-order)": 2,
@@ -8853,7 +8620,7 @@
   "eslint(no-promise-executor-return)": 1,
   "eslint(prefer-destructuring)": 1,
   "eslint(prefer-named-capture-group)": 3,
-  "eslint(require-unicode-regexp)": 7,
+  "eslint(require-unicode-regexp)": 6,
   "promise(param-names)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 1,
@@ -8864,7 +8631,6 @@
   "typescript(no-unsafe-member-access)": 18,
   "typescript(no-unsafe-return)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-includes)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "typescript(promise-function-async)": 1,
   "typescript(strict-boolean-expressions)": 1,
@@ -8873,7 +8639,6 @@
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-useless-undefined)": 1,
   "unicorn(prefer-at)": 2,
-  "unicorn(prefer-number-properties)": 3,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-called-with)": 1,
   "vitest(prefer-import-in-mock)": 3,
@@ -8969,8 +8734,6 @@
   "eslint(curly)": 9,
   "eslint(prefer-named-capture-group)": 7,
   "eslint(require-unicode-regexp)": 10,
-  "import(newline-after-import)": 1,
-  "typescript(array-type)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-definitions)": 2,
   "typescript(no-explicit-any)": 1,
@@ -8980,12 +8743,9 @@
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
   "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(consistent-existence-index-check)": 2,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(max-nested-calls)": 1,
   "unicorn(prefer-number-coercion)": 2,
-  "unicorn(prefer-number-properties)": 4,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "unicorn(switch-case-braces)": 11,
   "vitest(no-conditional-in-test)": 6
@@ -9016,23 +8776,18 @@
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(prefer-global-this)": 4,
   "unicorn(prefer-number-coercion)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(switch-case-braces)": 14
  },
  "src/features/economy/ui/shop/Shop.edge.test.ts": {
   "eslint(prefer-named-capture-group)": 15,
-  "eslint(require-unicode-regexp)": 16,
-  "import(newline-after-import)": 1,
+  "eslint(require-unicode-regexp)": 13,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 5,
   "typescript(no-unsafe-assignment)": 2,
   "typescript(no-unsafe-call)": 3,
   "typescript(no-unsafe-member-access)": 3,
-  "typescript(prefer-includes)": 1,
-  "typescript(prefer-regexp-exec)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-strict-equal)": 4
  },
@@ -9043,7 +8798,6 @@
   "eslint(no-nested-ternary)": 1,
   "import(consistent-type-specifier-style)": 1,
   "import(first)": 4,
-  "import(newline-after-import)": 1,
   "jsx-a11y(click-events-have-key-events)": 1,
   "jsx-a11y(no-static-element-interactions)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
@@ -9056,8 +8810,7 @@
   "typescript(no-unnecessary-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(explicit-length-check)": 1,
-  "unicorn(prefer-global-this)": 2,
-  "unicorn(require-array-join-separator)": 1
+  "unicorn(prefer-global-this)": 2
  },
  "src/features/economy/ui/shop/Showcase.tsx": {
   "eslint(curly)": 4,
@@ -9091,10 +8844,9 @@
  },
  "src/features/economy/ui/shop/picker.test.ts": {
   "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 21,
+  "eslint(require-unicode-regexp)": 16,
   "typescript(no-non-null-assertion)": 80,
   "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(prefer-includes)": 5,
   "unicorn(consistent-function-scoping)": 4,
   "unicorn(numeric-separators-style)": 1,
   "vitest(no-conditional-in-test)": 5,
@@ -9116,10 +8868,9 @@
   "eslint(no-shadow)": 1,
   "eslint(no-use-before-define)": 4,
   "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 8,
+  "eslint(require-unicode-regexp)": 6,
   "import(consistent-type-specifier-style)": 11,
   "import(max-dependencies)": 1,
-  "typescript(array-type)": 1,
   "typescript(consistent-return)": 2,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 16,
@@ -9128,7 +8879,6 @@
   "typescript(strict-boolean-expressions)": 26,
   "unicorn(explicit-length-check)": 4,
   "unicorn(no-array-sort)": 1,
-  "unicorn(prefer-string-replace-all)": 2,
   "unicorn(switch-case-braces)": 25
  },
  "src/features/economy/ui/shop/shopdata.test.ts": {
@@ -9155,7 +8905,6 @@
  },
  "src/features/economy/ui/shop/stills.test.ts": {
   "eslint(curly)": 1,
-  "eslint(prefer-template)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-unsafe-argument)": 1,
@@ -9584,7 +9333,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 4,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 7,
   "typescript(consistent-return)": 3,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(numeric-separators-style)": 4,
@@ -9638,7 +9386,6 @@
  "src/features/gpu/sim/isa/ref.test.ts": {
   "eslint(curly)": 1,
   "eslint(max-params)": 2,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 7,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-confusing-void-expression)": 2,
@@ -9646,7 +9393,6 @@
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(new-for-builtins)": 3,
   "unicorn(numeric-separators-style)": 1,
-  "unicorn(require-array-join-separator)": 2,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-each)": 1,
   "vitest(prefer-strict-equal)": 13,
@@ -9752,7 +9498,6 @@
  "src/features/jobs/sim/gen/build.ts": {
   "eslint(curly)": 7,
   "eslint(no-negated-condition)": 1,
-  "eslint(prefer-template)": 1,
   "typescript(no-non-null-assertion)": 1,
   "unicorn(numeric-separators-style)": 5,
   "unicorn(prefer-code-point)": 1
@@ -9765,7 +9510,6 @@
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 6,
   "typescript(no-unnecessary-type-assertion)": 1,
-  "unicorn(escape-case)": 1,
   "unicorn(no-hex-escape)": 2,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-spread)": 4,
@@ -9803,7 +9547,6 @@
   "typescript(no-non-null-assertion)": 7,
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-string-raw)": 1,
   "vitest(prefer-strict-equal)": 2,
   "vitest(valid-expect)": 3
  },
@@ -9926,7 +9669,6 @@
   "eslint(max-params)": 1,
   "import(consistent-type-specifier-style)": 3,
   "oxc(no-map-spread)": 1,
-  "typescript(array-type)": 1,
   "typescript(strict-boolean-expressions)": 7,
   "unicorn(numeric-separators-style)": 8,
   "unicorn(prefer-at)": 1
@@ -9955,7 +9697,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "oxc(no-map-spread)": 1,
-  "typescript(array-type)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(no-array-reduce)": 2,
@@ -9980,14 +9721,12 @@
  },
  "src/features/jobs/sim/work.ts": {
   "eslint(curly)": 1,
-  "typescript(method-signature-style)": 4,
-  "unicorn(consistent-existence-index-check)": 2
+  "typescript(method-signature-style)": 4
  },
  "src/features/jobs/ui/AlmanacPanel.layout.test.ts": {
   "eslint(curly)": 4,
   "eslint(prefer-named-capture-group)": 7,
   "eslint(require-unicode-regexp)": 13,
-  "import(newline-after-import)": 1,
   "typescript(ban-ts-comment)": 2,
   "typescript(no-explicit-any)": 1,
   "typescript(no-non-null-assertion)": 2,
@@ -9996,8 +9735,6 @@
   "typescript(no-unsafe-member-access)": 2,
   "typescript(prefer-string-starts-ends-with)": 1,
   "typescript(prefer-ts-expect-error)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 3,
   "vitest(prefer-strict-equal)": 3
@@ -10029,8 +9766,7 @@
   "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(prefer-global-this)": 2,
-  "unicorn(prefer-number-properties)": 3
+  "unicorn(prefer-global-this)": 2
  },
  "src/features/jobs/ui/Jobs.tsx": {
   "eslint(curly)": 5,
@@ -10049,7 +9785,6 @@
  },
  "src/features/memory/render/rambubbles.test.ts": {
   "eslint(max-params)": 2,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 10,
   "typescript(require-array-sort-compare)": 1,
@@ -10059,7 +9794,6 @@
  },
  "src/features/memory/render/rambubbles.ts": {
   "eslint(curly)": 5,
-  "eslint(prefer-template)": 2,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-sort)": 1
  },
@@ -10132,7 +9866,6 @@
   "typescript(consistent-type-imports)": 1,
   "typescript(no-non-null-assertion)": 15,
   "typescript(strict-boolean-expressions)": 3,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(no-array-fill-with-reference-type)": 10,
   "unicorn(no-array-for-each)": 6,
   "unicorn(prefer-at)": 1,
@@ -10163,10 +9896,8 @@
  },
  "src/features/memory/sim/fault.test.ts": {
   "eslint(curly)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 2,
-  "typescript(prefer-includes)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-spread)": 1,
@@ -10174,9 +9905,7 @@
  },
  "src/features/memory/sim/flips.test.ts": {
   "eslint(curly)": 3,
-  "eslint(require-unicode-regexp)": 1,
   "typescript(no-non-null-assertion)": 3,
-  "typescript(prefer-includes)": 1,
   "vitest(no-conditional-in-test)": 5
  },
  "src/features/memory/sim/memory.ts": {
@@ -10240,13 +9969,10 @@
  },
  "src/features/memory/sim/paged.test.ts": {
   "eslint(curly)": 7,
-  "eslint(no-implicit-coercion)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 17,
-  "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-assignment)": 1,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-for-each)": 1,
@@ -10325,7 +10051,6 @@
   "typescript(no-non-null-assertion)": 12,
   "typescript(no-unnecessary-type-assertion)": 2,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 1
  },
  "src/features/network/render/lens/shape.test.ts": {
@@ -10768,8 +10493,7 @@
  },
  "src/features/network/sim/source.ts": {
   "eslint(curly)": 2,
-  "eslint(max-params)": 1,
-  "unicorn(consistent-existence-index-check)": 2
+  "eslint(max-params)": 1
  },
  "src/features/network/sim/specs.ts": {
   "eslint(curly)": 4,
@@ -10864,7 +10588,6 @@
   "eslint(no-nested-ternary)": 6,
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 3,
-  "typescript(array-type)": 2,
   "typescript(consistent-return)": 2,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-conversion)": 1,
@@ -10958,10 +10681,8 @@
  },
  "src/features/npu/render/npuglyph.test.ts": {
   "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-non-null-assertion)": 36,
-  "typescript(prefer-includes)": 1,
   "typescript(strict-boolean-expressions)": 9,
   "unicorn(max-nested-calls)": 1,
   "unicorn(no-array-callback-reference)": 1,
@@ -11194,13 +10915,11 @@
   "eslint(max-lines-per-function)": 6,
   "eslint(max-params)": 5,
   "eslint(no-nested-ternary)": 10,
-  "eslint(prefer-template)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "typescript(no-unnecessary-template-expression)": 6,
   "typescript(no-unsafe-type-assertion)": 2,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(numeric-separators-style)": 26
+  "unicorn(numeric-separators-style)": 20
  },
  "src/features/os/sim/nicdriver.test.ts": {
   "vitest(valid-expect)": 1
@@ -11408,18 +11127,15 @@
   "eslint(max-params)": 8,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 5,
-  "eslint(prefer-template)": 2,
   "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 8,
   "typescript(no-non-null-assertion)": 16,
-  "typescript(no-unnecessary-template-expression)": 2,
   "typescript(prefer-readonly)": 3,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(explicit-length-check)": 3,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-fill-with-reference-type)": 25,
   "unicorn(no-array-for-each)": 2,
-  "unicorn(no-zero-fractions)": 2,
   "unicorn(prefer-at)": 2,
   "unicorn(prefer-export-from)": 1,
   "unicorn(switch-case-braces)": 4
@@ -11445,7 +11161,6 @@
   "eslint(curly)": 6,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-unused-vars)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "typescript(explicit-module-boundary-types)": 6,
   "unicorn(no-array-fill-with-reference-type)": 6,
   "unicorn(numeric-separators-style)": 1
@@ -11457,7 +11172,6 @@
   "eslint(max-lines-per-function)": 4,
   "eslint(max-params)": 6,
   "eslint(no-nested-ternary)": 5,
-  "eslint(prefer-template)": 3,
   "import(consistent-type-specifier-style)": 2,
   "typescript(explicit-module-boundary-types)": 12,
   "typescript(no-confusing-void-expression)": 2,
@@ -11504,7 +11218,6 @@
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 4,
   "eslint(prefer-destructuring)": 2,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 1,
@@ -11567,7 +11280,6 @@
   "eslint(max-params)": 3,
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-multi-assign)": 4,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 8,
@@ -11595,7 +11307,6 @@
   "eslint(prefer-destructuring)": 1,
   "eslint(require-unicode-regexp)": 2,
   "import(first)": 5,
-  "import(newline-after-import)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-non-null-assertion)": 11,
   "unicorn(consistent-function-scoping)": 1,
@@ -11606,8 +11317,7 @@
   "vitest(no-conditional-in-test)": 11,
   "vitest(prefer-import-in-mock)": 1,
   "vitest(prefer-strict-boolean-matchers)": 1,
-  "vitest(prefer-strict-equal)": 5,
-  "vitest(valid-title)": 1
+  "vitest(prefer-strict-equal)": 5
  },
  "src/features/room/render/shell/room.ts": {
   "eslint(curly)": 9,
@@ -11615,7 +11325,6 @@
   "eslint(max-params)": 2,
   "eslint(no-negated-condition)": 1,
   "eslint(prefer-destructuring)": 1,
-  "eslint(prefer-exponentiation-operator)": 3,
   "import(consistent-type-specifier-style)": 2,
   "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-non-null-assertion)": 5,
@@ -11656,7 +11365,6 @@
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 5,
   "eslint(no-multi-assign)": 4,
-  "eslint(prefer-exponentiation-operator)": 2,
   "import(consistent-type-specifier-style)": 2,
   "promise(always-return)": 1,
   "promise(prefer-await-to-then)": 1,
@@ -11707,7 +11415,6 @@
   "eslint(no-param-reassign)": 2,
   "eslint(no-shadow)": 6,
   "eslint(no-use-before-define)": 5,
-  "eslint(prefer-exponentiation-operator)": 5,
   "import(consistent-type-specifier-style)": 5,
   "import(max-dependencies)": 1,
   "import(no-cycle)": 1,
@@ -11790,7 +11497,6 @@
   "eslint(no-nested-ternary)": 2,
   "eslint(no-shadow)": 2,
   "import(consistent-type-specifier-style)": 8,
-  "oxc(no-const-enum)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 31,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -11801,14 +11507,12 @@
   "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-new-array)": 2,
-  "unicorn(no-zero-fractions)": 2,
   "unicorn(numeric-separators-style)": 6,
   "unicorn(prefer-single-call)": 4
  },
  "src/features/room/render/three/outside/city.ts": {
   "eslint(curly)": 5,
   "eslint(max-lines-per-function)": 1,
-  "eslint(prefer-exponentiation-operator)": 1,
   "import(consistent-type-specifier-style)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-class-instance-assignment)": 1,
@@ -11864,7 +11568,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 3,
   "unicorn(prefer-math-trunc)": 1,
-  "unicorn(relative-url-style)": 1,
   "vitest(no-conditional-in-test)": 1,
   "vitest(prefer-strict-equal)": 1
  },
@@ -11882,7 +11585,7 @@
   "eslint(curly)": 14,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 6,
+  "eslint(require-unicode-regexp)": 2,
   "import(consistent-type-specifier-style)": 4,
   "typescript(method-signature-style)": 1,
   "typescript(no-non-null-assertion)": 5,
@@ -11891,7 +11594,6 @@
   "typescript(no-unsafe-type-assertion)": 49,
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(numeric-separators-style)": 32,
-  "unicorn(prefer-string-replace-all)": 4,
   "vitest(no-conditional-in-test)": 7,
   "vitest(prefer-strict-equal)": 1,
   "vitest(valid-expect)": 1
@@ -11958,7 +11660,6 @@
   "typescript(no-non-null-assertion)": 5,
   "typescript(prefer-nullish-coalescing)": 1,
   "typescript(strict-boolean-expressions)": 4,
-  "unicorn(no-zero-fractions)": 5,
   "unicorn(numeric-separators-style)": 51,
   "unicorn(prefer-at)": 2
  },
@@ -12038,9 +11739,6 @@
   "eslint(curly)": 2,
   "eslint(max-params)": 1
  },
- "src/features/room/render/three/outside/sunmap.ts": {
-  "unicorn(prefer-number-properties)": 1
- },
  "src/features/room/render/three/outside/sweep.test.ts": {
   "eslint(curly)": 6,
   "eslint(max-params)": 1,
@@ -12054,7 +11752,6 @@
   "unicorn(no-useless-undefined)": 1,
   "unicorn(prefer-at)": 1,
   "vitest(no-conditional-in-test)": 6,
-  "vitest(prefer-mock-return-shorthand)": 1,
   "vitest(prefer-strict-equal)": 8
  },
  "src/features/room/render/three/outside/sweep.ts": {
@@ -12113,7 +11810,6 @@
   "eslint(no-use-before-define)": 1,
   "eslint(prefer-destructuring)": 21,
   "import(consistent-type-specifier-style)": 5,
-  "oxc(no-const-enum)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 26,
   "typescript(prefer-readonly)": 2,
@@ -12121,7 +11817,6 @@
   "unicorn(consistent-function-scoping)": 5,
   "unicorn(no-array-for-each)": 2,
   "unicorn(no-array-sort)": 1,
-  "unicorn(no-zero-fractions)": 1,
   "unicorn(numeric-separators-style)": 56,
   "unicorn(prefer-at)": 3
  },
@@ -12131,11 +11826,9 @@
   "eslint(no-negated-condition)": 1,
   "typescript(no-non-null-assertion)": 14,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(consistent-existence-index-check)": 1,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(no-array-for-each)": 4,
   "unicorn(numeric-separators-style)": 2,
-  "unicorn(require-array-join-separator)": 2,
   "vitest(no-conditional-in-test)": 14,
   "vitest(prefer-strict-equal)": 2
  },
@@ -12172,7 +11865,6 @@
   "eslint(no-nested-ternary)": 4,
   "eslint(prefer-destructuring)": 12,
   "import(consistent-type-specifier-style)": 4,
-  "oxc(no-const-enum)": 1,
   "typescript(no-non-null-assertion)": 16,
   "typescript(no-unnecessary-type-assertion)": 3,
   "typescript(no-unsafe-enum-assignment)": 1,
@@ -12181,8 +11873,7 @@
   "typescript(prefer-readonly)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 1,
-  "unicorn(no-zero-fractions)": 1
+  "unicorn(explicit-length-check)": 1
  },
  "src/features/room/render/three/outside/view.test.ts": {
   "eslint(curly)": 10,
@@ -12246,8 +11937,7 @@
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(consistent-function-scoping)": 3,
   "unicorn(max-nested-calls)": 1,
-  "unicorn(numeric-separators-style)": 15,
-  "unicorn(prefer-number-properties)": 1
+  "unicorn(numeric-separators-style)": 15
  },
  "src/features/room/render/three/plants3d.test.ts": {
   "eslint(curly)": 2,
@@ -12263,19 +11953,16 @@
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-loop-func)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(prefer-exponentiation-operator)": 3,
   "import(consistent-type-specifier-style)": 2,
   "import(no-cycle)": 1,
   "typescript(no-non-null-assertion)": 11,
   "unicorn(max-nested-calls)": 5,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(no-zero-fractions)": 2,
   "unicorn(numeric-separators-style)": 15,
   "unicorn(prefer-spread)": 1
  },
  "src/features/room/render/three/props3d.test.ts": {
   "eslint(no-empty-function)": 1,
-  "eslint(prefer-arrow-callback)": 1,
   "typescript(no-unsafe-type-assertion)": 5,
   "unicorn(consistent-function-scoping)": 1
  },
@@ -12367,8 +12054,6 @@
   "eslint(no-promise-executor-return)": 2,
   "eslint(no-use-before-define)": 1,
   "eslint(prefer-destructuring)": 4,
-  "eslint(prefer-exponentiation-operator)": 1,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 22,
   "import(max-dependencies)": 1,
   "promise(always-return)": 2,
@@ -12503,7 +12188,6 @@
   "unicorn(max-nested-calls)": 2,
   "unicorn(no-array-sort)": 3,
   "unicorn(numeric-separators-style)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(prefer-structured-clone)": 5,
   "vitest(no-conditional-in-test)": 7,
   "vitest(prefer-strict-boolean-matchers)": 5,
@@ -12512,7 +12196,6 @@
  },
  "src/features/sandbox/sim/sandbox.ts": {
   "eslint(curly)": 24,
-  "eslint(prefer-object-has-own)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
@@ -12533,8 +12216,7 @@
   "typescript(no-non-null-assertion)": 2,
   "typescript(promise-function-async)": 1,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(prefer-at)": 1,
-  "unicorn(prefer-number-properties)": 2
+  "unicorn(prefer-at)": 1
  },
  "src/features/sandbox/ui/SandboxJobs.tsx": {
   "eslint(curly)": 3,
@@ -12940,12 +12622,11 @@
  "src/features/tpm/sim/tpm.game.test.ts": {
   "eslint(curly)": 4,
   "eslint(prefer-destructuring)": 1,
-  "eslint(require-unicode-regexp)": 4,
+  "eslint(require-unicode-regexp)": 1,
   "typescript(consistent-type-definitions)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-includes)": 3,
   "unicorn(no-array-for-each)": 1,
   "vitest(no-conditional-in-test)": 8,
   "vitest(prefer-strict-equal)": 1
@@ -13032,7 +12713,6 @@
   "unicorn(prefer-query-selector)": 1
  },
  "src/features/tutorial/ui/dialogue.test.ts": {
-  "eslint(prefer-template)": 4,
   "vitest(prefer-strict-equal)": 5
  },
  "src/features/tutorial/ui/dialogue.ts": {
@@ -13049,11 +12729,9 @@
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-promise-executor-return)": 1,
   "eslint(prefer-named-capture-group)": 9,
-  "eslint(preserve-caught-error)": 1,
-  "eslint(require-unicode-regexp)": 16,
+  "eslint(require-unicode-regexp)": 14,
   "import(consistent-type-specifier-style)": 2,
   "promise(param-names)": 4,
-  "typescript(array-type)": 1,
   "typescript(ban-ts-comment)": 5,
   "typescript(no-confusing-void-expression)": 4,
   "typescript(no-explicit-any)": 4,
@@ -13064,7 +12742,6 @@
   "typescript(no-unsafe-call)": 29,
   "typescript(no-unsafe-member-access)": 27,
   "typescript(no-unsafe-type-assertion)": 4,
-  "typescript(prefer-includes)": 2,
   "typescript(prefer-ts-expect-error)": 5,
   "typescript(promise-function-async)": 7,
   "typescript(restrict-template-expressions)": 1,
@@ -13076,7 +12753,6 @@
   "unicorn(import-style)": 1,
   "unicorn(no-await-expression-member)": 1,
   "unicorn(prefer-spread)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
   "unicorn(prefer-string-starts-ends-with)": 1,
   "vitest(no-conditional-in-test)": 31,
   "vitest(prefer-hooks-in-order)": 2,
@@ -13089,9 +12765,7 @@
   "eslint(eqeqeq)": 1,
   "eslint(no-empty-function)": 1,
   "eslint(no-eq-null)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
-  "typescript(array-type)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-explicit-any)": 3,
   "typescript(no-non-null-assertion)": 3,
@@ -13100,7 +12774,6 @@
   "typescript(no-unsafe-call)": 1,
   "typescript(no-unsafe-member-access)": 1,
   "typescript(no-unsafe-type-assertion)": 2,
-  "typescript(prefer-includes)": 1,
   "unicorn(no-array-callback-reference)": 1,
   "vitest(no-conditional-in-test)": 6,
   "vitest(prefer-import-in-mock)": 2,
@@ -13109,11 +12782,8 @@
  },
  "src/features/tutorial/ui/highlight.test.ts": {
   "eslint(no-duplicate-imports)": 1,
-  "eslint(prefer-template)": 1,
-  "eslint(require-unicode-regexp)": 1,
   "import(no-duplicates)": 1,
   "typescript(no-non-null-assertion)": 1,
-  "unicorn(prefer-string-replace-all)": 1,
   "vitest(no-conditional-in-test)": 2,
   "vitest(prefer-strict-equal)": 11
  },
@@ -13140,9 +12810,7 @@
   "eslint(curly)": 26,
   "eslint(default-case)": 1,
   "eslint(no-duplicate-imports)": 1,
-  "eslint(prefer-const)": 1,
   "import(consistent-type-specifier-style)": 2,
-  "typescript(array-type)": 2,
   "typescript(no-non-null-assertion)": 10,
   "typescript(strict-boolean-expressions)": 5,
   "unicorn(numeric-separators-style)": 6,
@@ -13168,7 +12836,6 @@
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 19,
   "import(consistent-type-specifier-style)": 1,
-  "typescript(array-type)": 1,
   "typescript(no-non-null-assertion)": 31,
   "typescript(no-unsafe-type-assertion)": 9,
   "typescript(strict-boolean-expressions)": 1,
@@ -13191,10 +12858,8 @@
   "eslint(no-use-before-define)": 1,
   "eslint(prefer-destructuring)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(prefer-template)": 7,
   "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 4,
-  "typescript(array-type)": 3,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 5,
   "typescript(strict-boolean-expressions)": 17,
@@ -13219,15 +12884,12 @@
  },
  "src/worker/crash.ts": {
   "eslint(curly)": 11,
-  "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
   "eslint(prefer-destructuring)": 2,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(prefer-template)": 1,
   "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 1,
-  "typescript(array-type)": 3,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unnecessary-type-conversion)": 1,
   "typescript(strict-boolean-expressions)": 2,
@@ -13235,7 +12897,6 @@
   "unicorn(no-array-sort)": 1,
   "unicorn(no-immediate-mutation)": 1,
   "unicorn(no-useless-undefined)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(prefer-single-call)": 7
  },
  "src/worker/game/game.test.ts": {
@@ -13268,7 +12929,6 @@
   "import(consistent-type-specifier-style)": 15,
   "import(max-dependencies)": 1,
   "oxc(no-barrel-file)": 1,
-  "typescript(consistent-type-exports)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-empty-interface)": 1,
@@ -13294,7 +12954,6 @@
   "eslint(max-lines-per-function)": 2,
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-negated-condition)": 3,
-  "eslint(preserve-caught-error)": 1,
   "import(consistent-type-specifier-style)": 10,
   "import(max-dependencies)": 1,
   "typescript(no-non-null-assertion)": 1,
@@ -13305,7 +12964,6 @@
   "unicorn(explicit-length-check)": 14,
   "unicorn(no-array-callback-reference)": 2,
   "unicorn(no-array-sort)": 2,
-  "unicorn(no-useless-fallback-in-spread)": 2,
   "unicorn(prefer-structured-clone)": 8
  },
  "src/worker/game/save.test.ts": {
@@ -13323,7 +12981,6 @@
   "unicorn(no-array-sort)": 3,
   "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-native-coercion-functions)": 1,
-  "unicorn(prefer-number-properties)": 1,
   "unicorn(prefer-structured-clone)": 2,
   "vitest(no-conditional-in-test)": 7,
   "vitest(prefer-strict-equal)": 23
@@ -13337,10 +12994,8 @@
   "eslint(no-use-before-define)": 39,
   "eslint(prefer-destructuring)": 1,
   "eslint(prefer-named-capture-group)": 1,
-  "eslint(preserve-caught-error)": 1,
   "eslint(require-unicode-regexp)": 3,
   "import(consistent-type-specifier-style)": 6,
-  "typescript(array-type)": 1,
   "typescript(consistent-type-imports)": 1,
   "typescript(no-confusing-void-expression)": 4,
   "typescript(no-dynamic-delete)": 1,
@@ -13357,9 +13012,7 @@
   "unicorn(no-array-for-each)": 7,
   "unicorn(no-array-sort)": 1,
   "unicorn(numeric-separators-style)": 4,
-  "unicorn(prefer-set-has)": 2,
-  "unicorn(prefer-string-replace-all)": 1,
-  "unicorn(prefer-type-error)": 7
+  "unicorn(prefer-set-has)": 2
  },
  "src/worker/game/snapshot.ts": {
   "eslint(complexity)": 1,
@@ -13412,7 +13065,6 @@
   "eslint(default-case)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(no-implicit-coercion)": 3,
-  "eslint(prefer-template)": 1,
   "import(consistent-type-specifier-style)": 1,
   "typescript(consistent-return)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
@@ -14509,7 +14161,6 @@
  },
  "vite.config.ts": {
   "import(no-named-as-default)": 1,
-  "typescript(triple-slash-reference)": 1,
-  "unicorn(relative-url-style)": 1
+  "typescript(triple-slash-reference)": 1
  }
 }

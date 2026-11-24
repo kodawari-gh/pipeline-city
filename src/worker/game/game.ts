@@ -81,7 +81,7 @@ import * as snapshot from './snapshot';
 import type { CompletedInfo, GameEvent, GameOptions } from './types';
 import { UsbTray } from '../../features/jobs/sim/work';
 
-export * from './types';
+export type * from './types';
 export type { GameOptions };
 
 /** The feature files' exports, which `Game` has as methods. */

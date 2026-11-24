@@ -375,7 +375,7 @@ export function applyLightmap(root: Object3D, bake: Bake, map: Texture, o: LitOp
   for (const e of bake.manifest.meshes) {
     if (found.has(e.hash)) continue;
     const i = none.findIndex((x) => x.corners === e.corners);
-    if (i < 0) continue;
+    if (i === -1) continue;
     lit.push([none[i]!.m, e, e.hash]);
     found.add(e.hash);
     loose++;

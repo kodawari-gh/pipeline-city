@@ -90,7 +90,8 @@ function inspect(label: string): Inspect | null {
       return s.display !== 'none' && s.visibility === 'visible' && r.width > 0 && r.height > 0;
     })
     .map((e) => ({
-      label: (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 32) || 'button',
+      label:
+        (e.innerText || e.getAttribute('aria-label') || '').trim().replaceAll(/\s+/g, ' ').slice(0, 32) || 'button',
       box: boxOf(e),
     }));
   const clipped: string[] = [];
@@ -200,7 +201,7 @@ describe.skipIf(!GATE)('level-up popup as an edge tab in the browser (ticket #77
           if (s.tabStyles.boxShadow !== 'none') problems.push(`${who}: the tab has a box shadow`);
           if (s.tabStyles.textShadows.some((t) => t !== 'none'))
             problems.push(`${who}: text inside the tab has a text shadow`);
-          if (s.tabStyles.backdrop.replace(/none/g, '').trim() !== '')
+          if (s.tabStyles.backdrop.replaceAll('none', '').trim() !== '')
             problems.push(`${who}: the tab has a backdrop filter (glass)`);
           if (s.tabStyles.image !== 'none') problems.push(`${who}: the tab has a gradient or image behind it`);
 
@@ -215,7 +216,7 @@ describe.skipIf(!GATE)('level-up popup as an edge tab in the browser (ticket #77
             const [r, g, b, a] = s.scrim.fill;
             const neutral = a === 0 || Math.max(r!, g!, b!) - Math.min(r!, g!, b!) <= 6;
             if (!neutral) problems.push(`${who}: the scrim behind the popup is not neutral (rgba ${r},${g},${b},${a})`);
-            if (s.scrim.backdrop.replace(/none/g, '').trim() !== '')
+            if (s.scrim.backdrop.replaceAll('none', '').trim() !== '')
               problems.push(`${who}: the scrim has a backdrop filter (glass)`);
             if (s.scrim.image !== 'none') problems.push(`${who}: the scrim has a gradient behind the popup`);
           }

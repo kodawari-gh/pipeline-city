@@ -55,7 +55,7 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
     cache = new Map();
     routes.set(plan, cache);
   }
-  const key = from + '>' + to;
+  const key = `${from}>${to}`;
   if (cache.has(key)) return cache.get(key) ?? null;
   const by = new Map(plan.blocks.map((b) => [b.id, b]));
   const a = by.get(from),
@@ -392,7 +392,7 @@ export class StoreReplay {
 /** The registers an instruction reads, by its disassembly ("sw a2, 4(s0)" reads a2 and s0; "add a1, a1, a0" reads a1 and a0). */
 export function regsRead(text: string): number[] {
   const sp = text.indexOf(' ');
-  if (sp < 0) return [];
+  if (sp === -1) return [];
   const op = text.slice(0, sp);
   const names = text
     .slice(sp + 1)
@@ -927,7 +927,7 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
       if (has('ic')) {
         if (at(Ev.Fill, Which.I)) {
           chain(['fetch', 'ic', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.1, 'mute', 0.25);
-          chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1.0, 'inst', 0.3);
+          chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1, 'inst', 0.3);
         } else if (hasL2 && at(Ev.Hit, Which.L2)) chain(['l2', 'ic', 'fetch'], 0.2);
         else chain(['ic', 'fetch'], 0.2);
       } else {

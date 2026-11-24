@@ -437,7 +437,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
       // ← → move between the utility buttons, and the chip moves to the utility line.
       const list = utils();
       const i = list.indexOf(active as HTMLElement);
-      if (i < 0) return;
+      if (i === -1) return;
       e.preventDefault();
       setAt(UTIL);
       list[cycleValue(list.length, i, e.key)]!.focus();

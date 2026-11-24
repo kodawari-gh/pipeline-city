@@ -11,7 +11,7 @@ import { drawn } from './sweep';
 import { OutsideView } from './view';
 
 const fs = fsMod as any;
-const GOLDEN: string = urlMod.fileURLToPath(new URL('./highident.expected.json', import.meta.url));
+const GOLDEN: string = urlMod.fileURLToPath(new URL('highident.expected.json', import.meta.url));
 
 /** One group's fingerprint: its meshes, the meshes a camera draws, the triangles those draw (instances counted), its vertices and instances, and a hash of them. */
 interface Row {

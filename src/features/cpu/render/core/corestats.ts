@@ -46,4 +46,4 @@ export class CoreRateTracker {
 }
 
 /** "0.82 IPC": the readout under a core. */
-export const ipcText = (r: CoreRate | undefined): string => (r ? r.ipc.toFixed(2) + ' IPC' : '');
+export const ipcText = (r: CoreRate | undefined): string => (r ? `${r.ipc.toFixed(2)} IPC` : '');

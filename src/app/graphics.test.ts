@@ -506,7 +506,7 @@ describe('stored settings', () => {
   it('fall back to the default on junk', () => {
     expect(parseGraphics(null)).toEqual(DEFAULTS);
     expect(parseGraphics('x')).toEqual(DEFAULTS);
-    expect(parseGraphics({ msaa: 3, shadows: 'High', scale: NaN, auto: 1 })).toEqual(DEFAULTS);
+    expect(parseGraphics({ msaa: 3, shadows: 'High', scale: Number.NaN, auto: 1 })).toEqual(DEFAULTS);
   });
 
   it('keep what is good, and clamp the sliders', () => {

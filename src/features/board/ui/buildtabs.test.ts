@@ -113,7 +113,7 @@ describe('Build lens rail and actions (ticket #41)', () => {
     );
     expect(labels.join(' ')).toMatch(/Power/);
     expect(labels.join(' ')).toMatch(/Airflow/);
-    expect(labels.some((t) => /Graphics/.test(t))).toBe(true);
+    expect(labels.some((t) => t.includes('Graphics'))).toBe(true);
     expect(labels).not.toContain('Settings');
   });
 
@@ -121,9 +121,9 @@ describe('Build lens rail and actions (ticket #41)', () => {
     const footLabels = buttons(
       Foot({ stage: null, hint: '', onOs: () => {}, pane: 'parts', onPane: () => {} }) as unknown as Node,
     ).map((b) => b.text);
-    expect(footLabels.some((t) => /Graphics/.test(t))).toBe(false);
+    expect(footLabels.some((t) => t.includes('Graphics'))).toBe(false);
     const gfx = buttons(ViewOptions({ ready: true, stage: null, onBench: () => {} }) as unknown as Node).find((b) =>
-      /Graphics/.test(b.text),
+      b.text.includes('Graphics'),
     );
     expect(gfx?.el.props['aria-haspopup']).toBe('dialog');
   });
@@ -147,7 +147,7 @@ function avoidList(): string[] {
 
 /** The class each rule of ui.css ends on, for the rules that set `display: contents` and are not desk-only (so they apply on the phone). */
 function contentsOnPhone(): string[] {
-  const css: string = (fs.readFileSync(urlOf('../../../core/ui/ui.css'), 'utf8') as string).replace(
+  const css: string = (fs.readFileSync(urlOf('../../../core/ui/ui.css'), 'utf8') as string).replaceAll(
     /\/\*[\s\S]*?\*\//g,
     '',
   );
@@ -157,7 +157,7 @@ function contentsOnPhone(): string[] {
   while ((m = rule.exec(css))) {
     if (!/display\s*:\s*contents/.test(m[2] ?? '')) continue;
     for (const sel of (m[1] ?? '').split(',')) {
-      if (/data-layout="desk"/.test(sel)) continue;
+      if (sel.includes('data-layout="desk"')) continue;
       out.push(
         sel
           .trim()

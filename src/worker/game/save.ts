@@ -398,7 +398,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
     const caseTier = Math.max(typeof b.caseTier === 'number' ? b.caseTier : 0, smallest);
     let next = Math.max(
       typeof b.nextId === 'number' ? b.nextId : 1,
-      ...b.devices.map((d) => Number(String(d.id).replace(/\D/g, '')) + 1),
+      ...b.devices.map((d) => Number(String(d.id).replaceAll(/\D/g, '')) + 1),
       1,
     );
     const fans: BoardJson['devices'] = [],
@@ -435,7 +435,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
 export function migrate(save: unknown): unknown {
   if (!isObj(save)) throw new Error('save: not an object');
   const ver = save.version;
-  if (typeof ver !== 'number' || !Number.isInteger(ver)) throw new Error('save: missing or invalid version');
+  if (typeof ver !== 'number' || !Number.isInteger(ver)) throw new TypeError('save: missing or invalid version');
   let v: number = ver;
   if (v > SAVE_VERSION) throw new Error(`save: version ${v} is newer than this game supports (${SAVE_VERSION})`);
   if (v < 1) throw new Error(`save: unknown version ${v}`);
@@ -461,7 +461,7 @@ export function parseSave(input: unknown): SaveV5 {
   ) {
     s.progress = {
       ...s.progress,
-      coolerInstalled: (s.board.devices as Array<{ spec?: unknown }>).some(
+      coolerInstalled: (s.board.devices as { spec?: unknown }[]).some(
         (d) => typeof d.spec === 'string' && getSpec(d.spec)?.kind === 'cooler',
       ),
     };
@@ -533,7 +533,7 @@ export function parseSave(input: unknown): SaveV5 {
   };
   const int = (k: string, min = 0): number => {
     const x = num(k, min);
-    if (!Number.isInteger(x)) throw new Error(`save: "${k}" must be an integer`);
+    if (!Number.isInteger(x)) throw new TypeError(`save: "${k}" must be an integer`);
     return x;
   };
   int('seed');
@@ -546,12 +546,12 @@ export function parseSave(input: unknown): SaveV5 {
   int('dropped');
   num('avgTurnaround', 1e-9);
   int('nextInvId', 1);
-  if (typeof s.tripped !== 'boolean') throw new Error('save: "tripped" must be a boolean');
+  if (typeof s.tripped !== 'boolean') throw new TypeError('save: "tripped" must be a boolean');
   if (!isObj(s.board)) throw new Error('save: "board" missing');
   try {
     boardFromJson(s.board as unknown as BoardJson);
   } catch (e) {
-    throw new Error(`save: invalid board (${(e as Error).message})`);
+    throw new Error(`save: invalid board (${(e as Error).message})`, { cause: e });
   }
   if (
     !Array.isArray(s.inventory) ||
@@ -574,7 +574,7 @@ export function parseSave(input: unknown): SaveV5 {
   if (!isObj(s.progress) || PROGRESS_KEYS.some((k) => !flag(s.progress, k))) {
     throw new Error('save: "progress" must be a list of boolean milestones');
   }
-  if (!Array.isArray(s.tray)) throw new Error('save: "tray" must be an array');
+  if (!Array.isArray(s.tray)) throw new TypeError('save: "tray" must be an array');
   s.tray.forEach((r, i) => checkKey(r, `tray[${i}]`));
   if (s.plugged !== null) {
     checkKey(s.plugged, 'plugged');
@@ -620,7 +620,7 @@ export function parseSave(input: unknown): SaveV5 {
     }
   }
   if (s.disks !== undefined) {
-    if (!Array.isArray(s.disks)) throw new Error('save: "disks" must be a list');
+    if (!Array.isArray(s.disks)) throw new TypeError('save: "disks" must be a list');
     const devices = (s.board as unknown as BoardJson).devices;
     s.disks.forEach((d, i) => checkDisk(d, `disks[${i}]`, devices));
   }
@@ -656,7 +656,7 @@ function checkDisk(d: unknown, where: string, devices: readonly { id: string; sp
     throw new Error(`save: ${where}.deviceId must name an installed storage device`);
   if (typeof d.mount !== 'string' || !MOUNTS.includes(d.mount))
     throw new Error(`save: ${where}.mount is not a mount state`);
-  if (!Array.isArray(d.files)) throw new Error(`save: ${where}.files must be a list`);
+  if (!Array.isArray(d.files)) throw new TypeError(`save: ${where}.files must be a list`);
   d.files.forEach((f, i) => {
     const w = `${where}.files[${i}]`;
     if (
@@ -684,7 +684,7 @@ function checkDisk(d: unknown, where: string, devices: readonly { id: string; sp
 function checkTerms(c: Record<string, unknown>, where: string): void {
   if (typeof c.kind !== 'string' || !CONTRACT_KINDS.some((k) => k.id === c.kind))
     throw new Error(`save: ${where}.kind is not a contract kind`);
-  if (typeof c.client !== 'string') throw new Error(`save: ${where}.client must be a string`);
+  if (typeof c.client !== 'string') throw new TypeError(`save: ${where}.client must be a string`);
   for (const k of [
     'seed',
     'blocks',

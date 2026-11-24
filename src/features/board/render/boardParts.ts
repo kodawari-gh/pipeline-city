@@ -74,7 +74,7 @@ export function hole(c: Ctx, x: number, y: number, r = 74) {
     .lineTo(x, y + k)
     .stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
   g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46)
-    .arc(x, y, r * 0.46, 3.6, 5.0)
+    .arc(x, y, r * 0.46, 3.6, 5)
     .stroke({ width: 4, color: '#ffffff', alpha: 0.35 }); // a highlight
 }
 
@@ -275,7 +275,7 @@ export function dimmSocket(c: Ctx, r: Rect, n: number) {
   if (c.solid) {
     // the 3D view builds the housing, the stick stands in it (ram3d.ts): only what is on the board stays, the solder rows
     joints();
-    c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+    c.labels.addChild(label(`DIMM_${n + 1}`, r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
     return;
   }
   const skin = skinOf(c.tier);
@@ -289,7 +289,7 @@ export function dimmSocket(c: Ctx, r: Rect, n: number) {
     box(g, cx - 34, fy, 68, 26, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
     g.rect(cx - 22, fy + 10, 44, 6).fill({ color: P.silk, alpha: 0.4 });
   }
-  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+  c.labels.addChild(label(`DIMM_${n + 1}`, r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
 }
 
 /** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */
@@ -430,7 +430,7 @@ export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
   // the solder tails on the west edge (the three signal lanes land on them; the housing's own pins sit behind)
   for (const dy of [-26, 0, 26]) g.rect(p.x - 12, p.y + p.h / 2 + dy - 8, 30, 16);
   g.fill({ color: P.via, alpha: 0.7 * a });
-  c.labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
+  c.labels.addChild(label(`SATA${i}`, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
 }
 
 /**

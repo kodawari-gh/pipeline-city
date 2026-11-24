@@ -20,7 +20,7 @@ export interface KeyValueStore {
   setItem(key: string, value: string): void;
 }
 
-export const dB = (d: number): number => Math.pow(10, d / 20);
+export const dB = (d: number): number => 10 ** (d / 20);
 
 /** Clamp to 0..100 and snap to the slider step. A value that is not a number takes `fallback`. */
 export function snapPercent(v: unknown, fallback = 100): number {

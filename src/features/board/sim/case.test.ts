@@ -133,7 +133,7 @@ describe('a board needs a case that holds it', () => {
   it('can be bought with the machine on, installs only with it off, keeps every part, and charges its price', () => {
     const g = campaign();
     const money = g.money;
-    const parts = g.snapshot().devices.map((d) => d.spec + '@' + d.slot);
+    const parts = g.snapshot().devices.map((d) => `${d.spec}@${d.slot}`);
     expect(g.snapshot().phase).not.toBe('off');
     const c = g.purchase('case1') as { invId: string };
     expect(c.invId).toBeTruthy();
@@ -141,7 +141,7 @@ describe('a board needs a case that holds it', () => {
     g.powerButton();
     expect(g.money).toBe(money - CASE_TIERS[1]!.price);
     g.install(c.invId);
-    expect(g.snapshot().devices.map((d) => d.spec + '@' + d.slot)).toEqual(parts);
+    expect(g.snapshot().devices.map((d) => `${d.spec}@${d.slot}`)).toEqual(parts);
   });
 
   it('unlocks a case with its board', () => {

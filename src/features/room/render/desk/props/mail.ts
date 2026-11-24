@@ -32,7 +32,7 @@ const sm = (a: number, b: number, u: number) => {
   const t = clamp01((u - a) / (b - a));
   return t * t * (3 - 2 * t);
 };
-const outCubic = (t: number) => 1 - Math.pow(1 - clamp01(t), 3);
+const outCubic = (t: number) => 1 - (1 - clamp01(t)) ** 3;
 
 /** Where the letter comes to rest: on the open wall above the monitor, west of the rack. */
 export const mailStage = () => ({ x: TRAY.x - 1100, y: TRAY.y + 1250 });

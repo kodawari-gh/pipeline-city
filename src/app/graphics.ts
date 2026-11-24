@@ -232,7 +232,7 @@ export function pickTier(d: DeviceInfo): { tier: Tier; reason: string } {
   } else if (/apple m\d/.test(r)) {
     rank = 2;
     why = 'Apple M GPU';
-  } else if (/apple/.test(r)) {
+  } else if (r.includes('apple')) {
     rank = small ? 0 : 1;
     why = small ? 'phone GPU' : 'Apple GPU';
   } else if (/nvidia|geforce|rtx|gtx|radeon (rx|pro)|radeon\(tm\) (rx|pro)/.test(r)) {

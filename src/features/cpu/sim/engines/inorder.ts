@@ -96,7 +96,7 @@ export class InOrderEngine extends EngineBase {
 
   override switchTo(core: Core): boolean {
     const t = this.cores.indexOf(core);
-    if (t < 0) return false;
+    if (t === -1) return false;
     if (t === this.fetchThread && !this.fetchIdle) return true;
     if (this.ready(t)) this.want = t;
     return false;

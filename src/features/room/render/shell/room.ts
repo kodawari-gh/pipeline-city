@@ -279,11 +279,11 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
     out.push({
       body,
       slant: (u - 0.5) * 2 * (0.35 + 1.4 * (1 - el)),
-      strength: k * Math.pow(el, 0.6) * edge,
+      strength: k * el ** 0.6 * edge,
       color: color(el),
     });
   };
-  if (b.sun !== null) one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', Math.pow(el, 0.5)));
+  if (b.sun !== null) one('sun', b.sun, 0.17, (el) => mix('#ffa060', '#fff0c8', el ** 0.5));
   if (b.moon !== null) one('moon', b.moon, 0.05, () => '#aebfff');
   return out;
 }
@@ -310,7 +310,7 @@ export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
         bot = shaftSpan(w, ye - 0.01, L.slant);
       quads.push({
         pts: [top.xl, ya, top.xr, ya, bot.xr, ye + 3, bot.xl, ye + 3],
-        fade: Math.pow(1 - Math.max(0, ya - yb) / (ys - yb), 1.4),
+        fade: (1 - Math.max(0, ya - yb) / (ys - yb)) ** 1.4,
       });
     }
     const hit = shaftSpan(w, ys, L.slant),

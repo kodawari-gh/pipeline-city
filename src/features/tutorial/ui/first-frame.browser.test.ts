@@ -168,7 +168,7 @@ async function firstFrame(w: number, h: number): Promise<Page> {
     await page.click('.pl-menu.newgame .pl-row.hero');
     await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS });
   } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`);
+    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`, { cause: e });
   }
   await page.waitForTimeout(SETTLE_MS);
   return page;
@@ -261,8 +261,8 @@ function playthroughReport(r: E2eRun): string {
     out.push(
       `this test stopped the run: ${r.stopped}; ${id ? `the last step shown was "${id}"; ${waits}` : 'no step had shown yet'}`,
     );
-  else if (/PAGE CRASHED/.test(r.out)) out.push(`the browser tab crashed${id ? ` on step "${id}"` : ''}`);
-  else if (/main menu never came/.test(r.out))
+  else if (r.out.includes('PAGE CRASHED')) out.push(`the browser tab crashed${id ? ` on step "${id}"` : ''}`);
+  else if (r.out.includes('main menu never came'))
     out.push('the page never showed the main menu, so no step had shown yet');
   else
     out.push(
@@ -297,7 +297,7 @@ const hudControls = (page: Page) =>
       const r = el.getBoundingClientRect();
       const st = getComputedStyle(el);
       if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || st.display === 'none') continue;
-      const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const text = (el.textContent ?? '').replaceAll(/\s+/g, ' ').trim();
       const aria = el.getAttribute('aria-label') ?? '';
       if (/^Inventory\b/i.test(aria)) out.push('inventory');
       else if (/^\$/.test(text)) out.push('money');
@@ -356,7 +356,7 @@ const sceneBoxes = (page: Page) =>
   return { caseBox: anchorOf('case'), hud, inset: { ...viewInset.value }, vw: innerWidth, vh: innerHeight, view: window.__board?.view?.() ?? null };
 })()`) as Promise<{
     caseBox: Rect | null;
-    hud: Array<Rect & { name: string }>;
+    hud: (Rect & { name: string })[];
     inset: Record<string, number>;
     vw: number;
     vh: number;

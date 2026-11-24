@@ -58,7 +58,7 @@ describe('traffic', () => {
       for (const c of tr.cars) {
         const p = tr.pose(c),
           n = near.findIndex((b) => p.x >= b.x0 && p.x <= b.x1 && p.z >= b.z0 && p.z <= b.z1);
-        if (n >= 0) counts[n]![tr.routes[c.route]!.dz !== 0 ? 0 : 1]!++;
+        if (n !== -1) counts[n]![tr.routes[c.route]!.dz !== 0 ? 0 : 1]!++;
       }
       counts.forEach(([av, st], n) => {
         if (av && st) clashes.push(`${JSON.stringify(near[n])} at ${tr.t.toFixed(1)}`);
@@ -75,9 +75,9 @@ describe('traffic', () => {
     const tr = new Traffic(),
       lanes = tr.lanes.length;
     for (let k = 0; k < 20; k++) {
-      const was = tr.lanes.map((l) => l.map((c) => c.was).join());
+      const was = tr.lanes.map((l) => l.map((c) => c.was).join(','));
       tr.step(0.1);
-      const stepped = tr.lanes.filter((l, ri) => l.map((c) => c.was).join() !== was[ri]).length;
+      const stepped = tr.lanes.filter((l, ri) => l.map((c) => c.was).join(',') !== was[ri]).length;
       expect(stepped).toBeGreaterThan(0);
       expect(stepped).toBeLessThan(lanes / 2);
     }

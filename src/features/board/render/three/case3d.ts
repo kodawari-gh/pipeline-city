@@ -214,7 +214,7 @@ export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: numbe
               ? Math.floor(wall / 420) % 2
                 ? 1.8
                 : 0.3
-              : 1.0 + Math.sin(wall / 420) * 0.6;
+              : 1 + Math.sin(wall / 420) * 0.6;
 }
 const STRIP_T = builtinTheme();
 

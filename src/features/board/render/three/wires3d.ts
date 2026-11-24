@@ -28,7 +28,7 @@ export interface Look {
   accent: string | null;
 }
 
-const hex = (c: string): number => parseInt(c.slice(1), 16);
+const hex = (c: string): number => Number.parseInt(c.slice(1), 16);
 
 /** A cable along settled points (several: one strand each, one mesh). */
 export function cableMesh(pts: readonly V3[] | readonly V3[][], look: Look): Mesh {

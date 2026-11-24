@@ -105,7 +105,7 @@ export class Builder {
       ...(threads !== undefined ? ['thread_end:'] : []),
       '  ecall',
       '',
-      ...this.kernels.map((k) => k.asm + '\n'),
+      ...this.kernels.map((k) => `${k.asm}\n`),
       ...this.data,
       '',
     ].join('\n');

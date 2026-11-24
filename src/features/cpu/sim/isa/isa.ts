@@ -97,7 +97,7 @@ export const REG_NAMES = [
 /** Parse "a0" / "x3"; returns -1 if not a register. */
 export function parseReg(s: string): number {
   const i = (REG_NAMES as readonly string[]).indexOf(s);
-  if (i >= 0) return i;
+  if (i !== -1) return i;
   const m = /^x(\d+)$/.exec(s);
   if (m) {
     const n = Number(m[1]);

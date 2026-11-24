@@ -84,7 +84,7 @@ const SPRAYS = 3;
 /** Where the detail steps down (m from the window), and the most triangles a tree may have in each ring (docs/3D_STYLE.md "Asset standard", ASR2). */
 export const RINGS = [150, 300, 900] as const,
   TREE_CAPS = [5000, 1450, 430, 170] as const;
-const enum Detail {
+enum Detail {
   Sprayed,
   Round,
   Coarse,
@@ -239,7 +239,7 @@ function crown(
         e = len(q);
       const nrm = unit(add(unit([q[0] / rad[0], q[1] / rad[1], q[2] / rad[2]]), d, 0.55));
       const ao =
-        (0.35 + 0.65 * smooth(0.3, 1.0, e)) *
+        (0.35 + 0.65 * smooth(0.3, 1, e)) *
         (0.7 + 0.3 * clamp01(q[1] * 0.5 + 0.5)) *
         (0.8 + 0.2 * (d[1] * 0.5 + 0.5)) *
         tone *

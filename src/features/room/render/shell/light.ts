@@ -411,7 +411,7 @@ export class LightView {
 
   /** Redraw the shade and the glow if the quantised state changed. Returns whether it did. */
   set(i: LightIn, force = false): boolean {
-    const k = lightKey(i) + '#' + this.rev;
+    const k = `${lightKey(i)}#${this.rev}`;
     if (!force && k === this.key) return false;
     this.key = k;
     const ems = this.emitters(i);

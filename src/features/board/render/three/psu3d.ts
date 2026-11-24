@@ -108,7 +108,7 @@ function ratingLabel(visual: string, watts: number): ReturnType<typeof tex> {
     c.fillStyle = '#17181c';
     c.font = '600 26px "Segoe UI", system-ui, sans-serif';
     c.fillText(`${visual === 'psu-big' ? 'ATX12V' : 'SFX12V'} SWITCHING POWER SUPPLY`, 30, 130);
-    c.fillText('AC INPUT: 100-240V~  50/60Hz  ' + (watts >= 500 ? '12-6A' : '4-2A'), 30, 170);
+    c.fillText(`AC INPUT: 100-240V~  50/60Hz  ${watts >= 500 ? '12-6A' : '4-2A'}`, 30, 170);
     // the DC output's table
     const cols = ['DC OUTPUT', '+3.3V', '+5V', '+12V', '-12V', '+5Vsb'],
       amps = [
@@ -405,7 +405,7 @@ function underFan(g: Group, b: PsuBox, F: PsuForm, M: { body: Material; black: M
   const wire = mat(0x1d1e22, { metalness: 0.55, roughness: 0.38 }),
     wr = 0.55 * MM,
     gy = -(yb + wr);
-  for (const k of [0.24, 0.43, 0.62, 0.81, 1.0]) {
+  for (const k of [0.24, 0.43, 0.62, 0.81, 1]) {
     const ring = new Mesh(guardRing(fr * k, wr), wire);
     ring.position.set(fx, gy, fz);
     g.add(ring);

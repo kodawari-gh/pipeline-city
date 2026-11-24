@@ -173,7 +173,7 @@ export class PartSkin {
 
   /** Ease over about half a second (3D_STYLE.md "State Transitions"). */
   frame(dt: number): void {
-    const t = 1 - Math.pow(0.002, dt);
+    const t = 1 - 0.002 ** dt;
     this.tint += (this.goal.tint - this.tint) * t;
     this.level += (this.goal.glowIntensity - this.level) * t;
     if (this.goal.glowIntensity > 0) this.glow.lerp(this.goalGlow, t);
@@ -187,7 +187,7 @@ export class PartSkin {
     if (k > 0) this.shown.lerp(this.hot.setHex(v.hex(this.heat)), k);
     // (a part with wide faces glows softer in a lens that asks for it: `soft` is how far its `gain` counts there)
     const wide = 1 + (this.gain - 1) * v.soft;
-    const level = this.level * this.gain * (1 - k) + (v.floor + v.gain * wide * Math.pow(this.heat, v.bend)) * k;
+    const level = this.level * this.gain * (1 - k) + (v.floor + v.gain * wide * this.heat ** v.bend) * k;
     this.mats.forEach((m, i) => {
       m.color.copy(this.base[i]!).multiplyScalar(tint);
       m.emissive.copy(this.shown);

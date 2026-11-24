@@ -16,6 +16,7 @@ const ROOT_CLAMP = 'clamp(15px, min(0.85vw, 1.5vmin), 64px)';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 const ROOT: string = urlMod.fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -31,7 +32,7 @@ const isUi = (p: string) => /\/(ui|app)\//.test(p) && !p.includes('/render/') &&
 const names = [
   ...walk(`${ROOT}src`)
     .map((p) => p.slice(ROOT.length))
-    .filter((p) => isUi('/' + p)),
+    .filter((p) => isUi(`/${p}`)),
   'index.html',
 ].sort();
 const raw: Record<string, string> = {};
@@ -40,9 +41,9 @@ const files = Object.keys(raw);
 
 /** Remove comments so prose such as "a 12px icon" cannot trip the scan. */
 function strip(path: string, text: string): string {
-  let t = text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
-  if (!path.endsWith('.css')) t = t.replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
-  if (path.endsWith('.html')) t = t.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+  let t = text.replaceAll(/\/\*[\s\S]*?\*\//g, (m) => m.replaceAll(/[^\n]/g, ' '));
+  if (!path.endsWith('.css')) t = t.replaceAll(/(^|[^:'"`])\/\/.*$/gm, '$1');
+  if (path.endsWith('.html')) t = t.replaceAll(/<!--[\s\S]*?-->/g, (m) => m.replaceAll(/[^\n]/g, ' '));
   return t;
 }
 

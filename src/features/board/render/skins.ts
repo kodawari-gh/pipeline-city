@@ -100,4 +100,4 @@ export const slotArmour = (tier: number, i: number): boolean => {
 };
 
 /** A `#rrggbb` colour as a number (for three.js materials). */
-export const hexNum = (c: string): number => parseInt(c.slice(1, 7), 16);
+export const hexNum = (c: string): number => Number.parseInt(c.slice(1, 7), 16);

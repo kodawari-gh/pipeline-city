@@ -22,7 +22,7 @@ class FakeWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   onerror: (() => void) | null = null;
   terminated = false;
-  sent: Array<{ type: string }> = [];
+  sent: { type: string }[] = [];
   constructor() {
     FakeWorker.made.push(this);
   }

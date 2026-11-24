@@ -388,7 +388,7 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
 
 export function uninstall(board: Board, id: string): Result<object> {
   const k = board.devices.findIndex((d) => d.id === id);
-  if (k < 0) return { ok: false, reason: `no device "${id}"` };
+  if (k === -1) return { ok: false, reason: `no device "${id}"` };
   board.devices.splice(k, 1);
   return { ok: true };
 }
@@ -449,6 +449,6 @@ export function boardFromJson(json: BoardJson): Board {
   const at = new Map(json.devices.map((d, k) => [d.id, k]));
   board.devices.sort((a, b) => at.get(a.id)! - at.get(b.id)!);
   if (json.burnt) board.burnt = true;
-  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replace(/\D/g, '')) + 1), 1);
+  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replaceAll(/\D/g, '')) + 1), 1);
   return board;
 }

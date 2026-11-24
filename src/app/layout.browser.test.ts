@@ -148,7 +148,7 @@ function snapshot(): Snap {
     }
     const text = ((e as HTMLElement).innerText || e.getAttribute('aria-label') || '')
       .trim()
-      .replace(/\s+/g, ' ')
+      .replaceAll(/\s+/g, ' ')
       .slice(0, 32);
     return { id: i, label: text || e.tagName.toLowerCase(), box: box(e), ancestors, clips };
   });
@@ -212,7 +212,9 @@ async function openBooted(
       timeout: BOOT_MS,
     });
   } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`);
+    throw new Error(`${(e as Error).message}\nthe page said: ${errors.slice(-5).join(' | ') || 'nothing'}`, {
+      cause: e,
+    });
   }
   return { page, ctxClose: () => ctx.close() };
 }

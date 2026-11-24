@@ -736,7 +736,7 @@ export function PickerCard() {
     const first = lastId.current === null;
     if (first) el.classList.add('nomove');
     const reposition = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
       const inset = viewInset.peek();
       const vw = window.innerWidth,
         vh = window.innerHeight;

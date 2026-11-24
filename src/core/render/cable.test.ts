@@ -30,7 +30,7 @@ describe('cable physics', () => {
     expect(loose[10]![1]).toBeCloseTo(loose[30]![1], 1);
   });
 
-  it('it runs to the left as well and reaches a higher end', () => {
+  it('runs to the left as well and reaches a higher end', () => {
     const l = catenary([1000, 0], [0, -400], 1300, 40);
     expect(l[40]![0]).toBeCloseTo(0, 3);
     expect(l[40]![1]).toBeCloseTo(-400, 3);

@@ -100,7 +100,7 @@ describe('deviceAt', () => {
     expect(deviceAt(PCH_BASE + PCH_KEY_WINDOW + 4)).toEqual({ kind: 'key' });
     expect(deviceAt(PCH_BASE + PCH_RESULT_WINDOW)).toEqual({ kind: 'key' });
     NPU_PORTS.forEach((_, k) =>
-      expect(deviceAt(NPU_BASE + k * NPU_STRIDE + 8)).toEqual({ kind: 'card', slot: 'pcie' + k }),
+      expect(deviceAt(NPU_BASE + k * NPU_STRIDE + 8)).toEqual({ kind: 'card', slot: `pcie${k}` }),
     );
     expect(deviceAt(PCH_BASE + 0x28)).toEqual({ kind: 'chipset' }); // the chipset's registers
     expect(deviceAt(TPM_BASE + 4)).toEqual({ kind: 'tpm' });
@@ -149,27 +149,27 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
   it('puts a SATA drive on its port and DMI, an M.2 straight on the CPU', () => {
     const { g, map } = setup();
     g.sata.forEach((_, i) => {
-      const legs = resolve(map, driveChain('sata' + i, false));
+      const legs = resolve(map, driveChain(`sata${i}`, false));
       expect(legs.map((l) => l.bus)).toEqual(['sata', 'dmi']);
       expect(legs.map((l) => l.dir)).toEqual([-1, -1]);
       expect(legs[0]!.lanes.length).toBe(3);
       expect(near(first(legs[0]!.lanes[0]!), g.chip)).toBe(true); // the port's lanes start at the chipset
-      expect(resolve(map, driveChain('sata' + i, true)).map((l) => l.bus)).toEqual(['dmi', 'sata']);
+      expect(resolve(map, driveChain(`sata${i}`, true)).map((l) => l.bus)).toEqual(['dmi', 'sata']);
     });
     g.m2.forEach((_, i) => {
-      const legs = resolve(map, driveChain('m2' + i, true));
+      const legs = resolve(map, driveChain(`m2${i}`, true));
       expect(legs.map((l) => l.bus)).toEqual(['nvme']);
       expect(legs[0]!.lanes.length).toBeGreaterThan(0);
       expect(near(first(legs[0]!.lanes[0]!), PKG, 120)).toBe(true);
     });
-    expect(resolve(map, driveChain('sata' + g.sata.length, false)).map((l) => l.bus)).not.toContain('sata'); // a port the board lacks has no lanes to light
+    expect(resolve(map, driveChain(`sata${g.sata.length}`, false)).map((l) => l.bus)).not.toContain('sata'); // a port the board lacks has no lanes to light
     expect(driveChain('cpu', false)).toEqual([]);
   });
 
   it('puts a card in a x8 or wider slot on the CPU, in a x4 slot on the chipset and DMI, on all the pairs of its slot', () => {
     const { g, map } = setup();
     g.pcie.forEach((_, k) => {
-      const legs = resolve(map, slotChain('pcie' + k, false)),
+      const legs = resolve(map, slotChain(`pcie${k}`, false)),
         { pairs, cpu } = g.pcieLinks[k]!;
       expect(legs.map((l) => l.bus)).toEqual(cpu ? ['pcie'] : ['pcie', 'dmi']);
       expect(legs[0]!.lanes.length).toBe(pairs);

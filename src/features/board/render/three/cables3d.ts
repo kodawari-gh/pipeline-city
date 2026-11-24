@@ -16,7 +16,7 @@ import { mat } from '@/core/render/three/materials';
 import type { V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 
-const hex = (c: string): number => parseInt(c.slice(1), 16);
+const hex = (c: string): number => Number.parseInt(c.slice(1), 16);
 const braids = new Map<string, Texture | null>();
 /** Yarn bands across a weave tile (each way), and the tile's size in pixels. */
 const BANDS = 4,
@@ -38,7 +38,7 @@ function braid(base: string, tint: string): Texture | null {
           (c, w, h) => {
             const img = c.createImageData(w, h),
               band = w / BANDS,
-              rgb = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+              rgb = (s: string) => [1, 3, 5].map((i) => Number.parseInt(s.slice(i, i + 2), 16));
             const gap = rgb(mix(base, '#000000', 0.55)),
               yarn = rgb(mix(base, tint, 0.14)),
               accent = rgb(mix(base, tint, 0.62));
@@ -59,7 +59,7 @@ function braid(base: string, tint: string): Texture | null {
                 // round across the yarn, a little sunk where it dives under at the run's ends
                 const across = Math.sin(Math.PI * f),
                   dive = 0.78 + 0.22 * Math.sin(Math.PI * ((along + ((ia + ib) & 1)) / 2));
-                const lit = Math.pow(across, 0.6) * dive,
+                const lit = across ** 0.6 * dive,
                   col = (which & 3) === 0 ? accent : yarn,
                   o = (y * w + x) * 4;
                 for (let k = 0; k < 3; k++)

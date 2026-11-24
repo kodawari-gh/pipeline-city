@@ -8,11 +8,12 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 
 const css: string = fs
   .readFileSync(urlMod.fileURLToPath(new URL('../../../../core/ui/ui.css', import.meta.url)), 'utf8')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
+  .replaceAll(/\/\*[\s\S]*?\*\//gu, '');
 
 /** Every rule as [selectorList, declarations]; an `@media` wrapper is skipped, its inner rules are kept. */
 const rules: [string, string][] = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [m[1]!.trim(), m[2]!]);
@@ -40,7 +41,7 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   });
 
   it('no gradient on any Shop rule (the scrims and ramps in tokens.css are the only gradients)', () => {
-    const grads = shopRules.filter(([, body]) => /gradient\(/.test(body)).map(([sel]) => sel);
+    const grads = shopRules.filter(([, body]) => body.includes('gradient(')).map(([sel]) => sel);
     expect(grads).toEqual([]);
   });
 
@@ -52,7 +53,7 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   it('no radius on a Shop panel, tab or list (radius 4 px is for chips only)', () => {
     const big = decls(/^border-radius$/)
       .filter((d) => {
-        const px = d.match(/:\s*([\d.]+)(?:px)?\s*\}?$/);
+        const px = /:\s*([\d.]+)(?:px)?\s*\}?$/u.exec(d);
         return !px || Number(px[1]) > 4;
       })
       .filter((d) => !/\.shop-rail button\b/.test(d));

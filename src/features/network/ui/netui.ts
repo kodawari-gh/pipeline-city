@@ -150,7 +150,7 @@ export function limiterLadder(s: Snapshot): LimiterLadder {
   const n = s.net;
   const port = portSpeed(s);
   const disk = diskMbps(s);
-  const raw: Array<{ id: LimiterId; label: string; mbps: number | null; detail: string }> = [
+  const raw: { id: LimiterId; label: string; mbps: number | null; detail: string }[] = [
     {
       id: 'port',
       label: 'Port',
@@ -209,7 +209,7 @@ export function limiterLadder(s: Snapshot): LimiterLadder {
 export function uploadLimiter(s: Snapshot): { id: 'port' | 'router' | 'isp'; text: string } | null {
   const n = s.net;
   if (!linkUsable(s) || n.bandwidth.upMbps <= 0) return null;
-  const legs: Array<{ id: 'port' | 'router' | 'isp'; mbps: number }> = [
+  const legs: { id: 'port' | 'router' | 'isp'; mbps: number }[] = [
     { id: 'port', mbps: n.port.mbps },
     { id: 'router', mbps: n.router?.mbps ?? 0 },
     { id: 'isp', mbps: n.isp?.upMbps ?? 0 },

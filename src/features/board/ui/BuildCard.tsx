@@ -39,7 +39,7 @@ export function BuildCard({
   useLayoutEffect(() => {
     const el = shell.current;
     if (!el || !dev) return;
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize),
+    const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
       gap = rem * 0.9;
     const vw = window.innerWidth,
       vh = window.innerHeight;
@@ -110,7 +110,7 @@ export function BuildCard({
             <button
               class="primary"
               disabled={busy}
-              title={`Take it out, with everything in its way (Delete)`}
+              title="Take it out, with everything in its way (Delete)"
               onClick={() => {
                 void stage.remove(devNode(id));
               }}

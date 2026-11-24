@@ -493,10 +493,10 @@ describe('Low city facade bake', () => {
     // High's lines, in Low's names: so a band lights the same rooms at both tiers
     const high = (s: string) =>
       s
-        .replace(/fHash/g, 'lowH')
-        .replace(/fGather/g, 'lowGather')
-        .replace(/vLook/g, 'vLowLook')
-        .replace(/vFuv/g, 'vLowFuv');
+        .replaceAll('fHash', 'lowH')
+        .replaceAll('fGather', 'lowGather')
+        .replaceAll('vLook', 'vLowLook')
+        .replaceAll('vFuv', 'vLowFuv');
     for (const m of buildings(low)) {
       const full = compiled(m.material as Material).fragmentShader;
       const guard = full.indexOf('if (fNight > 0.0) {');

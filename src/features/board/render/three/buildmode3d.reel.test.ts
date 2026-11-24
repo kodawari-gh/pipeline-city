@@ -173,7 +173,7 @@ describe('the cables that go with their part', () => {
     for (const id of plugged)
       expect(fake.calls.indexOf(`pull ${id}`), id).toBeLessThan(fake.calls.indexOf(`stow ${id}`));
     // (and none of them is stowed that goes on without the supply: the monitor's cables stay)
-    expect(fake.calls.join()).not.toMatch(/stow (video|monmains)/);
+    expect(fake.calls.join(',')).not.toMatch(/stow (video|monmains)/);
     for (const id of lost) expect(s.cables[id], id).toBeFalsy();
   });
 

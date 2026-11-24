@@ -310,13 +310,13 @@ export function cushion(w: number, h: number, d: number, puff = 1): BufferGeomet
     const x = p.getX(i),
       y = p.getY(i),
       z = p.getZ(i);
-    const fall = (1 - Math.pow(Math.abs(x), 3)) * (1 - Math.pow(Math.abs(z), 3));
+    const fall = (1 - Math.abs(x) ** 3) * (1 - Math.abs(z) ** 3);
     const r = Math.hypot(x, z) || 1,
       round = Math.max(Math.abs(x), Math.abs(z)) / r;
     p.setXYZ(
       i,
       (x * (0.82 + 0.18 * round) * w) / 2,
-      (y * (0.25 + 0.75 * Math.pow(Math.max(0, fall), 0.6 * puff)) * h) / 2,
+      (y * (0.25 + 0.75 * Math.max(0, fall) ** (0.6 * puff)) * h) / 2,
       (z * (0.82 + 0.18 * round) * d) / 2,
     );
   }
@@ -347,14 +347,14 @@ export function pillow(
       z = Math.sin((p.getZ(i) * Math.PI) / 2);
     // the panel's rise from the seam: steep at first, then flat over the middle
     const fill = (1 - x * x) * (1 - z * z),
-      rise = 1 - Math.pow(1 - fill, 2.2);
+      rise = 1 - (1 - fill) ** 2.2;
     const lump =
       1 +
       lumps *
         (Math.sin(x * 2.3 + s) * Math.sin(z * 1.9 + s * 1.7) + 0.5 * Math.sin(x * 4.1 - z * 3.3 + s * 2.3)) *
         rise;
     const r = Math.max(Math.abs(x), Math.abs(z)),
-      round = r > 0 ? r / Math.pow(x ** 4 + z ** 4, 0.25) : 1;
+      round = r > 0 ? r / (x ** 4 + z ** 4) ** 0.25 : 1;
     const px = x * round * (1 - pinch * (1 - z * z)),
       pz = z * round * (1 - pinch * (1 - x * x));
     p.setXYZ(i, (px * w) / 2, (y * (PILLOW_WELT + (1 - PILLOW_WELT) * rise) * lump * h) / 2, (pz * d) / 2);

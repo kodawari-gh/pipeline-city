@@ -7,6 +7,7 @@ import { planInput } from '../core/cpuplan';
 import { cpuPlan } from '../core/cpuplans';
 import { glyph, glyphArea, type Put } from './blockart';
 import { hasSymbol, isTall } from './glyphgeom';
+
 export { isTall };
 
 // The static art of a CPU die, drawn from a `CpuPlan` (docs/DIE.md): macro blocks with rim lines, dense cell arrays, trace bundles

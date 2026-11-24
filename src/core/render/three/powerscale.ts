@@ -9,11 +9,11 @@
 
 /** The stops of the palette: where on the scale (0 nothing, 1 the most) and the colour there, as sRGB. */
 export const POWER: readonly (readonly [number, number])[] = [
-  [0.0, 0x7a4a10],
+  [0, 0x7a4a10],
   [0.3, 0xd98a14],
   [0.62, 0xffa91a],
   [0.86, 0xffcb3d],
-  [1.0, 0xffe58a],
+  [1, 0xffe58a],
 ];
 /** The warning colour (a missing cable, a supply over its budget), as sRGB. */
 export const WARN = 0xff4a68;
@@ -22,17 +22,17 @@ export const WARN = 0xff4a68;
 export type Role = 'source' | 'hub' | 'use';
 /** A hub's palette: a deep teal for a trickle through it, a pale ice at the most. */
 export const HUB: readonly (readonly [number, number])[] = [
-  [0.0, 0x0b4a5c],
+  [0, 0x0b4a5c],
   [0.3, 0x1596b6],
   [0.62, 0x2fc6ec],
   [0.86, 0x86e6ff],
-  [1.0, 0xe2fbff],
+  [1, 0xe2fbff],
 ];
 /** A source's palette: a warm white, brighter with what it gives. */
 export const SOURCE: readonly (readonly [number, number])[] = [
-  [0.0, 0xb9ae96],
+  [0, 0xb9ae96],
   [0.5, 0xece4d0],
-  [1.0, 0xfffdf4],
+  [1, 0xfffdf4],
 ];
 /** The one colour of each role for a chip or a legend (sRGB). */
 export const ROLE_HEX: Readonly<Record<Role, number>> = { source: 0xfff6e0, hub: 0x2fc6ec, use: 0xffa91a };
@@ -60,7 +60,7 @@ export function levelOf(w: number, ref: number): number {
 }
 
 /** The draw at a place `h` on the scale: the inverse of `levelOf`. */
-export const wattsAt = (h: number, ref: number): number => ref * Math.pow(Math.min(1, Math.max(0, h)) / 1.15, 2);
+export const wattsAt = (h: number, ref: number): number => ref * (Math.min(1, Math.max(0, h)) / 1.15) ** 2;
 
 type Stops = readonly (readonly [number, number])[];
 
@@ -93,7 +93,7 @@ export function powerGradient(dir: 'to top' | 'to right' = 'to right'): string {
   return `linear-gradient(${dir}, ${POWER.map(([t, c]) => `${hex(c)} ${(t * 100).toFixed(0)}%`).join(', ')})`;
 }
 
-const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
 
 const glslColour = (c: number): string =>
   `vec3(${[16, 8, 0].map((s) => lin(((c >> s) & 255) / 255).toFixed(4)).join(', ')})`;

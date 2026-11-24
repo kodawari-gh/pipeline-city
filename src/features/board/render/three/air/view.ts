@@ -60,7 +60,7 @@ export class AirView3D {
   private readonly tags: AirTags3D;
   /** The words as the model made them, and the whole degrees the scale tag shows (it is made again when they change). */
   private words3: AirTag[] = [];
-  private shownHi = NaN;
+  private shownHi = Number.NaN;
   private plan: AirPlan | null = null;
   private sim: AirSim | null = null;
   private particles: AirParticles | null = null;
@@ -213,7 +213,7 @@ export class AirView3D {
       anchor: t.anchor,
       ...(t.tempC !== undefined ? { tempC: t.tempC } : {}),
     }));
-    this.shownHi = NaN;
+    this.shownHi = Number.NaN;
     this.pushTags();
   }
 

@@ -53,7 +53,7 @@ export class Eye {
 
   /** One tick: the eye eases toward its goal over about a second. Returns where it stands. */
   step(dt: number): number {
-    this.seen *= (this.goal / this.seen) ** (1 - Math.pow(0.01, dt));
+    this.seen *= (this.goal / this.seen) ** (1 - 0.01 ** dt);
     return this.seen;
   }
 

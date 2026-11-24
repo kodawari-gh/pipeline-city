@@ -92,12 +92,12 @@ export function ssdBoard(host: DriveHost, x: number, y: number, z: number): Grou
     { ...CTRL_DIE, bake: ctrlBake },
   );
   crystal(g, xtal, pt, m(0.55));
-  dieInPackage(g, die, dram, pt, m(1.0), ['KRD3-1G', '2310'], {}, { ...RAM_DIE, bake: dramBake, turn: true });
+  dieInPackage(g, die, dram, pt, m(1), ['KRD3-1G', '2310'], {}, { ...RAM_DIE, bake: dramBake, turn: true });
   nand.forEach((r, i) =>
     dieInPackage(g, die, r, pt, m(1.25), ['KRN3D-128', `T04${i + 1}2 TLC`], {}, { ...NAND_DIE, bake: nandBake }),
   );
   pkg(g, pmic, pt, m(0.75), ['P9M']);
-  [R(50, 9, 1.6, 2), R(50, 12, 1.6, 2), R(50, 15, 1.6, 2)].forEach((r) => inductor(g, r, pt, m(1.0), 'R47'));
+  [R(50, 9, 1.6, 2), R(50, 12, 1.6, 2), R(50, 15, 1.6, 2)].forEach((r) => inductor(g, r, pt, m(1), 'R47'));
   // decoupling beside each package
   passives(
     g,
@@ -161,12 +161,12 @@ export function hddInside(host: DriveHost, f: HddFit): Group {
   );
   g.add(frame);
   // the clamp ring over the hub, its six screws, the cap
-  g.add(disc(x, z, m(13.4), top, top + m(1.0), dark), disc(x, z, m(4.6), top + m(1.0), top + m(2.4), steel));
+  g.add(disc(x, z, m(13.4), top, top + m(1), dark), disc(x, z, m(4.6), top + m(1), top + m(2.4), steel));
   g.add(
     screws(
       Array.from({ length: 6 }, (_, i) => ({
         x: x + Math.cos((i / 6) * Math.PI * 2) * m(10.2),
-        y: top + m(1.0),
+        y: top + m(1),
         z: z + Math.sin((i / 6) * Math.PI * 2) * m(10.2),
       })),
       'y+',
@@ -198,7 +198,7 @@ export function hddInside(host: DriveHost, f: HddFit): Group {
   // the head: a slider under the arm's tip, over the band
   act.add(bx(m(-0.8), m(0.8), y0 - m(0.55), y0, L - m(0.5), L + m(2.9), dark));
   // the pivot's bearing, the voice coil behind it, the steel yoke over the coil on two posts
-  act.add(disc(0, 0, m(4.6), f.floor + m(1.0), y1 + m(2.5), steel));
+  act.add(disc(0, 0, m(4.6), f.floor + m(1), y1 + m(2.5), steel));
   act.add(
     plate(
       [

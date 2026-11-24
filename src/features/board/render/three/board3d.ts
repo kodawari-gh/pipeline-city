@@ -602,8 +602,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         at: now,
         key: revKey,
         list: loose.flatMap((c) => {
-          const a = anchorsOf('cable.' + c.id)[0];
-          return a ? [{ id: 'cable.' + c.id, x: a.x + a.w / 2, y: a.y + a.h / 2 }] : [];
+          const a = anchorsOf(`cable.${c.id}`)[0];
+          return a ? [{ id: `cable.${c.id}`, x: a.x + a.w / 2, y: a.y + a.h / 2 }] : [];
         }),
       };
       // a seated plug is as small (a fan's header plug is a few pixels): its seat is a handle too, a shorter reach
@@ -614,7 +614,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         const q = new Vector3(...rig.seat.at).project(camera);
         if (q.z < 1 && Math.abs(q.x) < 1 && Math.abs(q.y) < 1)
           plugs.list.push({
-            id: 'cable.' + c.id,
+            id: `cable.${c.id}`,
             x: r.left + ((q.x + 1) / 2) * r.width,
             y: r.top + ((1 - q.y) / 2) * r.height,
             reach: SEATED_PX,
@@ -730,7 +730,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       // socket is the socket to the ray: pulling on the socket pulls its cable
       const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null,
         plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
-      const grab = id.startsWith('cable.') || id.startsWith('key:') ? id : plugged ? 'cable.' + seated : undefined;
+      const grab = id.startsWith('cable.') || id.startsWith('key:') ? id : plugged ? `cable.${seated}` : undefined;
       if (grab)
         return {
           eager: true,
@@ -860,7 +860,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       best: OrbitView | null = null;
     for (let i = 0; i < 8; i++) {
       const t = (lo + hi) / 2,
-        c = stands(Math.pow(k, t));
+        c = stands(k ** t);
       if (c) {
         best = c;
         lo = t;
@@ -1294,7 +1294,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     );
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
     // (a plug the hand still slides in or lets fall keeps it open too)
-    const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
+    const handIn = !!hand.kind && !OUTSIDE.has(`cable.${hand.kind}`);
     if (machine) {
       const m = machine;
       m.setOpen(
@@ -1411,7 +1411,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum)));
       }
     }
-    seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
+    seen *= (metered / seen) ** (1 - 0.01 ** dt);
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room && draw) {
       const key = `${room.lightKey}|${!!s?.powered}`;

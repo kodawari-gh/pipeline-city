@@ -222,7 +222,7 @@ describe('validation', () => {
     expect(() => Game.fromSave({ ...good(), version: 99 })).toThrow(/newer/);
     expect(() => Game.fromSave({ ...good(), version: 0 })).toThrow(/unknown version/);
     expect(() => Game.fromSave({ ...good(), money: 'lots' })).toThrow(/money/);
-    expect(() => Game.fromSave({ ...good(), money: NaN })).toThrow(/money/);
+    expect(() => Game.fromSave({ ...good(), money: Number.NaN })).toThrow(/money/);
     expect(() =>
       Game.fromSave({ ...good(), board: { tier: 0, nextId: 1, devices: [{ id: 'd', spec: 'nope', slot: 'cpu0' }] } }),
     ).toThrow(/board/);

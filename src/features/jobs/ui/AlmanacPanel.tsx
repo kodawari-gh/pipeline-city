@@ -594,9 +594,9 @@ function Preview({ e }: { e: DexEntry }) {
     const img = c.createImageData(m.cols, m.rows);
     m.cells.forEach((v, i) => {
       const hex = frameColor(v);
-      img.data[i * 4] = parseInt(hex.slice(1, 3), 16);
-      img.data[i * 4 + 1] = parseInt(hex.slice(3, 5), 16);
-      img.data[i * 4 + 2] = parseInt(hex.slice(5, 7), 16);
+      img.data[i * 4] = Number.parseInt(hex.slice(1, 3), 16);
+      img.data[i * 4 + 1] = Number.parseInt(hex.slice(3, 5), 16);
+      img.data[i * 4 + 2] = Number.parseInt(hex.slice(5, 7), 16);
       img.data[i * 4 + 3] = 255;
     });
     c.putImageData(img, 0, 0);
