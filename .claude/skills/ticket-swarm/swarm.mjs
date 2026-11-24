@@ -2,7 +2,7 @@
 // Ticket swarm runner. Drives coder + tester -> round merge -> reviewer -> squash for tickets on a
 // GitHub Projects board, escalating model and effort per reviewer FAIL. Prints one event line per stage.
 // Config: <repo>/docs/agents/board.json (see update-gh-board). Run with no args for help.
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -118,9 +118,37 @@ export const tierName = (t) => `${t.model} ${t.effort}`;
 
 // ---------- process helpers ----------
 
+/** Wait for every worker before a stop, so none is cut off mid-commit. */
+async function settleWorkers(jobs, blockers) {
+  const settled = await Promise.allSettled(jobs);
+  const err = settled.find((r) => r.status === 'rejected');
+  if (err) {
+    throw err.reason;
+  }
+  if (blockers.length > 0) {
+    throw new Stop(blockers.join(' | '), 'blocked');
+  }
+}
+
+/** Live child processes. The runner kills them on exit, so no agent outlives it in a worktree. */
+const live = new Set();
+function killTree(p) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true });
+  } else {
+    p.kill('SIGKILL');
+  }
+}
+process.on('exit', () => {
+  for (const p of live) {
+    killTree(p);
+  }
+});
+
 function sh(cmd, args, { cwd, input, timeoutMs, shell = false } = {}) {
   return new Promise((res) => {
     const p = spawn(cmd, args, { cwd, shell, windowsHide: true });
+    live.add(p);
     let out = '',
       err = '',
       timedOut = false;
@@ -129,13 +157,14 @@ function sh(cmd, args, { cwd, input, timeoutMs, shell = false } = {}) {
     const t = timeoutMs
       ? setTimeout(() => {
           timedOut = true;
-          p.kill();
+          killTree(p);
         }, timeoutMs)
       : null;
     p.on('error', (e) => {
       err += String(e);
     });
     p.on('close', (code) => {
+      live.delete(p);
       if (t) {
         clearTimeout(t);
       }
@@ -796,6 +825,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
             .join('\n')}\n`
         : '';
       const tip = git(merge, 'rev-parse', 'HEAD');
+      const blockers = [];
       const jobs = relaunch.map(async (role) => {
         const p = this.wt(n, role);
         this.clean(p);
@@ -811,15 +841,19 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
           this.facts(n, issue, role, tier, findingsText),
           WORK_SCHEMA,
         );
-        if (out.blocker) {
-          throw new Stop(`${role} blocker: ${out.blocker}`, 'blocked');
+        if (out.blocker && role === 'tester') {
+          // A failing test is the coder's work, not a stop: the reviewer sends it back as a finding.
+          this.emit(`#${n} tester note: ${out.blocker.slice(0, 200)}`);
+        } else if (out.blocker) {
+          blockers.push(`${role} blocker: ${out.blocker}`);
+          return;
         }
         const dirty = git(p, 'status', '--porcelain', '--untracked-files=no');
         this.emit(
           `#${n} ${role} ${git(p, 'rev-parse', '--short', 'HEAD')}: ${out.summary.split(/\r?\n/)[0].slice(0, 160)}${out.unmet.length ? ` | unmet: ${out.unmet.length}` : ''}${dirty ? ' | WARNING: uncommitted changes dropped' : ''}`,
         );
       });
-      await Promise.all(jobs);
+      await settleWorkers(jobs, blockers);
 
       // Round merge: base first (keeps the review honest), then coder, then tester.
       this.clean(merge);
@@ -1217,12 +1251,27 @@ const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   run <parent> [--base <branch>] [--from <ref>] [--slots <k>]   swarm every ready child until none is left
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   status [<key>]                                 phase, rounds and tier of each ticket in a run
+  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
 run: base defaults to parent/<parent>, made from --from (default: the current branch) when missing; gc runs at the end.
 ticket: base defaults to the current branch.
 --no-install skips the install command in new worktrees. State and event log: .claude/swarm/<key>.{json,log}.`;
+
+/** Mark a stopped ticket to resume on the next run, from the branches its stop kept. */
+function retry(cfg, key, n) {
+  const f = join(cfg.root, '.claude', 'swarm', `${key}.json`);
+  const s = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null;
+  const T = s?.tickets[n];
+  if (!T || ['done', 'new', 'resume', 'running'].includes(T.phase)) {
+    throw new Error(`retry: #${n} in ${key} is not a stopped ticket`);
+  }
+  T.phase = 'resume';
+  delete T.reason;
+  writeFileSync(f, JSON.stringify(s, null, 2));
+  console.log(`#${n} will resume at round ${T.rounds + 1} on the next run`);
+}
 
 function opt(a, name, def) {
   const i = a.indexOf(name);
@@ -1258,6 +1307,9 @@ async function main(argv) {
       }
     }
     return;
+  }
+  if (cmd === 'retry') {
+    return retry(cfg, a[0], a[1]);
   }
   if (cmd === 'gc') {
     for (const line of gc(cfg)) {

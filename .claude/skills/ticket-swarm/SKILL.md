@@ -45,13 +45,13 @@ State and events live in `.claude/swarm/<key>.{json,log}`. A rerun of the same c
 
 ## Events to act on
 
-| Event line               | Action                                                                                    |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `NEED planned model`     | Set the planned model. The run picks it up within 2 minutes.                              |
-| `NEED permission: ...`   | Ask the user to allow the command. Add the rule to `swarm.allow`, then rerun to resume.   |
-| `STOP blocked: ...`      | The ticket cannot be built as written. Fix the ticket with the user, set it Ready, rerun. |
-| `uncommitted work saved` | Read the ref named in the issue comment before you rerun.                                 |
-| `STOP exhausted`         | Every tier failed. Report the findings (on the issue) to the user.                        |
-| `STOP critical: ...`     | A git or tool failure. Worktrees are kept. Diagnose, fix, rerun to resume.                |
-| `permission denial(s)`   | An agent was refused a tool. If it repeats, report it to the user.                        |
-| `FINISHED`               | Report each ticket's result, rounds and cost.                                             |
+| Event line               | Action                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `NEED planned model`     | Set the planned model. The run picks it up within 2 minutes.                                                            |
+| `NEED permission: ...`   | Ask the user to allow the command. Add the rule to `swarm.allow`, then rerun to resume.                                 |
+| `STOP blocked: ...`      | The coder cannot build the ticket as written. Fix the ticket with the user, then `swarm.mjs retry <key> <n>` and rerun. |
+| `uncommitted work saved` | Read the ref named in the issue comment before you rerun.                                                               |
+| `STOP exhausted`         | Every tier failed. Report the findings (on the issue) to the user.                                                      |
+| `STOP critical: ...`     | A git or tool failure. Worktrees are kept. Diagnose, fix, rerun to resume.                                              |
+| `permission denial(s)`   | An agent was refused a tool. If it repeats, report it to the user.                                                      |
+| `FINISHED`               | Report each ticket's result, rounds and cost.                                                                           |
