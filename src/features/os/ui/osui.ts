@@ -20,7 +20,7 @@ export interface ResRow {
   detail: string;
   level: Level;
   /** What is wrong and what to do about it, for a row that is not `ok`. */
-  advice?: string;
+  advice?: string | undefined;
 }
 
 export interface Bottleneck {

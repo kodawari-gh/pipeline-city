@@ -63,7 +63,7 @@ export interface ThermalSpec {
   /** Passive heat loss to the case, W per degree C above ambient. */
   passive: number;
   /** A card's own fans (graphics, neural): extra W per degree C at full fan speed. The speed follows the card's heat (`cardFan`, thermal.ts). */
-  fanPerC?: number;
+  fanPerC?: number | undefined;
   /** Thermal mass: joules per degree C (one base tick = 1 s). */
   mass: number;
   /** Above this the clock is throttled. */

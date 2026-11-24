@@ -849,8 +849,8 @@ export function typeWidth(text: string, st: TypeStyle): number {
 export interface SetOpts {
   /** The accent for the lit letters and dots (null: they take the ink). */
   acc?: string | null;
-  lit?: readonly number[];
-  litDots?: boolean;
+  lit?: readonly number[] | undefined;
+  litDots?: boolean | undefined;
 }
 
 /** Sets `text` in `st`: its left end at x, its cap height `cap` px and centred on y. Returns the width in px. */

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const rt = vi.hoisted(() => ({
   at: 0,
   slots: [] as unknown[],
-  effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => unknown } | undefined)[],
+  effects: [] as ({ deps: unknown[] | undefined; cleanup?: (() => unknown) | undefined } | undefined)[],
   pending: [] as { k: number; fn: () => unknown; deps: unknown[] | undefined }[],
 }));
 

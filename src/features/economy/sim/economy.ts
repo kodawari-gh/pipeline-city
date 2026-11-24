@@ -80,7 +80,7 @@ export interface EconomyConfig {
    * TEST OVERRIDE: a fixed template mix for generated arrivals. Undefined (the default) means the level-driven job
    * classes of levels.ts (docs/PROGRESSION.md "arrival mix").
    */
-  mix?: MixEntry[];
+  mix?: MixEntry[] | undefined;
   /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
   /**

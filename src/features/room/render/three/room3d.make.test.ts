@@ -4,7 +4,7 @@ import { inlinePool, type AoPool } from '@/core/render/three/aopool';
 import { Room3D } from './room3d';
 
 /** What the room asked `loadModel` for: the file, and the promise its model waits for. */
-const asked = vi.hoisted(() => [] as { url: string; until?: Promise<unknown> }[]);
+const asked = vi.hoisted(() => [] as { url: string; until?: Promise<unknown> | undefined }[]);
 vi.mock('@/core/render/three/gltf', async (orig) => ({
   ...(await orig<typeof import('@/core/render/three/gltf')>()),
   loadModel: (url: string, until?: Promise<unknown>) => {

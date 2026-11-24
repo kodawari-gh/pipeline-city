@@ -38,7 +38,7 @@ export interface CompatIssue {
   value?: number;
   limit?: number;
   /** A change that clears it, when there is one that is only a setting: the CPU clock (in clock units) that is safe. */
-  fix?: { clock: number };
+  fix?: { clock: number } | undefined;
 }
 
 const fmt = (n: number, d = 2) => n.toFixed(d);

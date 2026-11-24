@@ -18,12 +18,12 @@ import type { Progress } from './save';
 export interface GameOptions {
   seed: number;
   /** Overrides for the placeholder economy (tests use this). */
-  economy?: Partial<EconomyConfig>;
+  economy?: Partial<EconomyConfig> | undefined;
   /**
    * Start with the machine fully assembled, cables connected, all tutorial milestones reached and the power on
    * (dev and tests). The real app starts bare: an empty board and the starter crate in the inventory.
    */
-  preassembled?: boolean;
+  preassembled?: boolean | undefined;
   /**
    * Sandbox mode (docs/SANDBOX.md): infinite money, everything purchasable, no tutorial, plus the sandbox tools. The
    * physics still applies. With `preassembled` the machine is assembled but left powered off, ready for the power button.
@@ -41,7 +41,7 @@ export interface GameOptions {
    */
   looseFit?: boolean;
   /** Start at this player level with the client base at its threshold (tests and bots; campaign only, 1 to 18). */
-  startLevel?: number;
+  startLevel?: number | undefined;
 }
 
 export interface CompletedInfo {

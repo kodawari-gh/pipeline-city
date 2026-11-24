@@ -96,7 +96,7 @@ export function drawWord(
   y: number,
   cap: number,
   ink: string,
-  o: { acc?: string | null; text?: string } = {},
+  o: { acc?: string | null; text?: string | undefined } = {},
 ): number {
   const b = BRANDS[id],
     text = o.text ?? b.word,

@@ -282,7 +282,7 @@ function Tile({
   st: Stack<InventorySnap>;
   pulse: boolean;
   queued?: number;
-  queuedId?: string;
+  queuedId?: string | undefined;
   active: boolean;
   onHover: (id: string | null) => void;
 }) {

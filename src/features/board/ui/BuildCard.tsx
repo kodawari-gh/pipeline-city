@@ -26,7 +26,7 @@ export function BuildCard({
   /** The panels that float over the stage: the card stays out from under them. */
   avoid: () => (HTMLElement | null)[];
   /** Phone: the panes fill the screen, so the card is a sheet over them, just above the bottom bar (`foot`). */
-  sheet?: () => HTMLElement | null;
+  sheet?: (() => HTMLElement | null) | undefined;
 }) {
   void stage.viewRev.value; // (the part moves on the screen with the camera: the card follows)
   void stage.status.value.rev;

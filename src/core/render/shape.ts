@@ -11,7 +11,7 @@ export interface Shape {
   /** The smallest box round the silhouette. */
   readonly bounds: Rect;
   /** About how thick the thing is, for the reach a small or thin one is given; unknown (the box tells) for plain geometry. */
-  readonly thickness?: number;
+  readonly thickness?: number | undefined;
   /** World distance from the point to the silhouette: 0 on it, growing outside. */
   dist(x: number, y: number): number;
   /** Closed polygons at distance `e` outside the silhouette (the hover ring), or null when the caller should draw its rounded box round `bounds`. */

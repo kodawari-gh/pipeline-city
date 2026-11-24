@@ -385,7 +385,7 @@ export interface LiveGlyph {
     /** A single line in a small cell (the GPU's memory parts), in the ink colour not the lit one. */ small?: boolean;
     ink?: boolean;
     /** Texts of one group are sized alike, to the longest of them (`small` ones). */ grp?: string;
-    fit?: number;
+    fit?: number | undefined;
   }[];
   lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[];
 }

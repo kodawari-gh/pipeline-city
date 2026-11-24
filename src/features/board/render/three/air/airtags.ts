@@ -26,7 +26,7 @@ export interface AirTag {
   /** A temperature the tag follows: a small arrow shows while it climbs or falls. */
   tempC?: number;
   /** Which side of `at` the pill sits: centred (default), growing to the right, or to the left. */
-  anchor?: 'c' | 'l' | 'r';
+  anchor?: 'c' | 'l' | 'r' | undefined;
   /** A scale in place of words: a bar of the palette with the values at its two ends (foot and top), in °C on the thermal scale, in W on the power scale (`unit`). */
   scale?: readonly [number, number];
   /** What `scale` counts: degrees (default) or watts. */

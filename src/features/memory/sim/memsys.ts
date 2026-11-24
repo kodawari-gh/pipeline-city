@@ -15,7 +15,7 @@ export interface MemSettings {
   l2Lines: number;
   /** Cycles an L1 miss that hits the L2 costs. */
   l2Penalty: number;
-  dram?: DramSettings;
+  dram?: DramSettings | undefined;
 }
 
 /** What the memory system needs of a core to apply the coherence rule: its L1 caches, and where to count and log what happens to them. */

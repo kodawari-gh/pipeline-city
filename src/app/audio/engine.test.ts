@@ -422,7 +422,7 @@ describe('level-up stinger: engine', () => {
 // the context suspends after `hiddenTab.suspendAfterMs`, and a visible tab resumes it and fades back in.
 describe('hidden tab', () => {
   const FADE = (): Gain => ctx().gains[0]!; // openGraph makes the fade node first
-  const lastTarget = (g: Gain): number | undefined => g.gain.log[g.gain.log.length - 1];
+  const lastTarget = (g: Gain): number | undefined => g.gain.log.at(-1);
 
   it('a cue asked for while hidden is refused', async () => {
     const eng = await import('./engine');

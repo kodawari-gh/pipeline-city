@@ -454,7 +454,7 @@ export class Machine3D {
   /** The parts fitted: a heatsink and a radiator show the fans on their spots (`fansOf`). */
   private devs: readonly DeviceSnap[] = [];
   /** Each rig's tagged group, whether it stands seated, and how its card fades it while it is plugged in. */
-  private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
+  private built = new Map<string, { g: Group; seated: boolean; fade?: (() => () => void) | undefined }>();
   /** The cables built (their kinds), and the key in the port. */
   private cableIds = '';
   private videoKey = '';

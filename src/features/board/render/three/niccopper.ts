@@ -67,7 +67,7 @@ export interface Pad {
   face: Face;
   r: Rect;
   c: Pt;
-  edge?: boolean;
+  edge?: boolean | undefined;
 }
 /** A plated through hole (a jack's contact, light pin or shield leg): its ring's and its drill's radii, pin 1 square. */
 export interface Hole {

@@ -70,7 +70,7 @@ export interface GpuStep {
   /** Why it took more than one cycle: a memory bank conflict, else null. */
   stall?: GpuStall | null;
   /** What a vld / vst touched in card memory, for the card's memory view. */
-  mem?: GpuMemTouch;
+  mem?: GpuMemTouch | undefined;
   /** The vector register values the instruction read and wrote, one word per lane of its unit (lane `lane0 + n`): `a` and `b` the source registers as they were, `d` the destination after. */
   vals?: { a?: number[]; b?: number[]; d?: number[] };
   lane0?: number;

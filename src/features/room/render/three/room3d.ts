@@ -713,7 +713,7 @@ export interface RoomFrame {
   mail: boolean;
   t: number;
   /** The lights of the router's jacks, from the link's frames (`network/render/jackleds.ts`): the side jack the lead's cord goes into, and the WAN jack. All out when missing. */
-  net?: LinkLevels;
+  net?: LinkLevels | undefined;
 }
 
 export class Room3D {

@@ -213,7 +213,7 @@ export function swapNow(
 /** Power off once (paying a finished key first), install every part in turn, and power back on once if the machine was on. A part that no longer fits is skipped and noted. */
 export function swapMany(
   this: Game,
-  items: { invId: string; slotId?: string; name: string }[],
+  items: { invId: string; slotId?: string | undefined; name: string }[],
 ): Result<{ fitted: number }> {
   if (this.plugged?.done) this.ejectKey();
   const wasOn = this.powered;

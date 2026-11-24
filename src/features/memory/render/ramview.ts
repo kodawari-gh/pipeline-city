@@ -58,7 +58,7 @@ interface Touch {
   kind: string;
   color: string;
   t: number;
-  core?: number;
+  core?: number | undefined;
 }
 
 interface ChipView {

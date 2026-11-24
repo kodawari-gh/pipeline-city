@@ -123,7 +123,7 @@ interface Lit {
 interface Chain {
   hops: Hop[];
   force?: boolean;
-  drive?: { lane: Lane; before: boolean; dir: 1 | -1 };
+  drive?: { lane: Lane; before: boolean; dir: 1 | -1 } | undefined;
   cable?: boolean;
   /** One stick's bundle after the hops (CPU to stick). */ mem?: number;
   /** The reply: the same legs again, back to front and the other way (a ping). */ pong?: boolean;

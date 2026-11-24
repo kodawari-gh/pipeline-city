@@ -45,9 +45,9 @@ export interface Part {
   /** Text labels, hidden when far out. */
   labels?: Container;
   /** A child that board.ts rotates for fans (kept above the baked far-LOD texture). */
-  fan?: Container;
+  fan?: Container | undefined;
   /** A second fan the PSU spins in the case's rear wall (the PSU's exhaust). */
-  rearFan?: Container;
+  rearFan?: Container | undefined;
   /** Static art that must stay above `fan` (e.g. the PSU grill). */
   over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */

@@ -316,7 +316,7 @@ export class StoreReplay {
   l2?: CacheView;
   pred: { entries: number; bits: number; table: number[]; at: number[] };
   /** The TLB at the snapshot (not rewound: it shows what is in it now). */
-  tlb?: { vpn: number[]; frame: number[] };
+  tlb?: { vpn: number[]; frame: number[] } | undefined;
   readonly events: StoreEvent[] = [];
   private byCycle = new Map<number, StoreEvent[]>();
 
@@ -433,8 +433,8 @@ export interface ChipState {
   from?: string;
   to?: string;
   /** Where the instruction is on the wires between the two blocks (only the die's own traces, never across a block); undefined when no trace joins them. */
-  wx?: number;
-  wy?: number;
+  wx?: number | undefined;
+  wy?: number | undefined;
 }
 
 /** Something that happens at a cycle boundary: the die turns it into packets on the wires. */
@@ -526,7 +526,7 @@ export class Player {
   private hosts: Hosts;
   private lastShown = -1;
   /** The windows already seen, oldest first (the Trace panel's scrubber moves through them while the game is paused). */
-  private history: { seg: TraceSnap; stored?: StoredSnap }[] = [];
+  private history: { seg: TraceSnap; stored?: StoredSnap | undefined }[] = [];
 
   /** `lean`: only the beats and the writes are wanted, not where each instruction is drawn (`dietraffic.ts`): `chips` and `fading` stay empty. */
   constructor(

@@ -245,7 +245,10 @@ export interface LevelLock {
  * The hover text of an item that the player level still gates. The level reason comes first; the money or hardware
  * reasons that will apply once it is open follow, so the player sees the whole picture.
  */
-export function lockTooltip(lock: LevelLock, also: { blocked?: string; priceShort?: number } = {}): string {
+export function lockTooltip(
+  lock: LevelLock,
+  also: { blocked?: string | undefined; priceShort?: number | undefined } = {},
+): string {
   const parts = [`Unlocks at Level ${lock.level}, ${lock.name}. Keep serving clients to grow your client base.`];
   if (also.blocked) parts.push(`Then: ${also.blocked}.`);
   if (also.priceShort && also.priceShort > 0) parts.push('It will also need more money than you have now.');
@@ -476,7 +479,7 @@ export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?
 export interface MoreOffer {
   state: 'ready' | 'poor' | 'blocked' | 'level';
   price: number;
-  free?: boolean;
+  free?: boolean | undefined;
   reason?: string;
   lock?: LevelLock;
 }

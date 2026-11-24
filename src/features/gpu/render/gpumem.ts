@@ -184,7 +184,7 @@ export interface MemCtx {
   banks: number;
   lineWords: number;
   /** The cache this block is, if it is one. */
-  cache?: GpuCacheView;
+  cache?: GpuCacheView | undefined;
   /** Which of its cycles the instruction is in (the banks serve one round a cycle). */
   round: number;
 }

@@ -49,7 +49,7 @@ export interface CableRig {
    *  the plug that socket takes (one of another size or turn: a card's real HDMI, the board's smaller one), built in the rig's seat. */
   alts?: { port: string; at: V3; model?: () => { root: Object3D; strands: RopeEnd[] } }[];
   /** `connectCable`'s port argument for the seat itself. */
-  port?: string;
+  port?: string | undefined;
   /** False when nothing takes it now (a PCIe lead with no card): its seat is only where its model is built. */
   canSeat: boolean;
   /** How far the plug goes in: it pops free past this, it lines up this far out of the mouth. */

@@ -155,14 +155,14 @@ export interface BoardCard {
   /** Sandbox: nothing is paid. */
   free: boolean;
   /** Why it cannot be taken now (blocked, poor, locked, crate), for the tooltip. */
-  reason?: string;
+  reason?: string | undefined;
   /** State `level`: the player level that opens this tier, and whether it is the very next one. */
-  lock?: LevelLock;
+  lock?: LevelLock | undefined;
   soon?: boolean;
   /** Copies of this board in the inventory. */
-  spares?: number;
+  spares?: number | undefined;
   /** Buying another: set on a fitted or spare card. */
-  more?: MoreOffer;
+  more?: MoreOffer | undefined;
   /** The buy (or replace) button is live: the sim offers it, nothing blocks it and it is affordable. */
   canBuy: boolean;
   slots: BoardSlotCount[];

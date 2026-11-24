@@ -58,7 +58,7 @@ const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** The lock and "Level N" of an item the player level still gates. Pressing it opens the milestone screen at that level. */
-function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
+function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string | undefined }) {
   return (
     <button
       class="lockbadge"

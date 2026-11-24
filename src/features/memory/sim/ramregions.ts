@@ -40,9 +40,9 @@ export interface RamRegion {
   /** Exclusive. */
   hi: number;
   /** An application or its working memory: the job's key id (its colour follows its type). */
-  owner?: number;
+  owner?: number | undefined;
   /** An application or its working memory: its job type ("calc", "log"...), which picks the colour so one kind of program always looks the same. */
-  type?: string;
+  type?: string | undefined;
   /** An application: the address where its code ends and its data begins. */
   codeEnd?: number;
 }

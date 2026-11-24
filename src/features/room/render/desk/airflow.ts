@@ -61,10 +61,10 @@ export interface AirZone {
   heat: number;
   tempC: number;
   /** A flat part: the air passes over it (`AirHeat.flat`). */
-  flat?: boolean;
+  flat?: boolean | undefined;
   /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
-  flow?: number;
-  riseC?: number;
+  flow?: number | undefined;
+  riseC?: number | undefined;
 }
 /** A word on the lens. `tempC`: the temperature the tag shows, if it shows one: the view follows it and adds a small arrow when it climbs or falls. */
 export interface AirTag {

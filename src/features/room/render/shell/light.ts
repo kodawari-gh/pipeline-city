@@ -82,13 +82,13 @@ export type LightShape =
 export interface LightLayer {
   shape: LightShape;
   alpha: number;
-  color?: string;
+  color?: string | undefined;
   erase?: boolean;
 }
 /** One source of light (the window, the lamp, the screen, the clock, or a light a scene adds): what it lights and what it tints. `clip` keeps it inside a rectangle (the lamp does not light under the desk). */
 export interface Emitter {
   id: string;
-  clip?: Rect;
+  clip?: Rect | undefined;
   lit: LightLayer[];
   tint: LightLayer[];
 }
@@ -438,7 +438,7 @@ export class LightView {
     y: number,
     w: number,
     h: number,
-    o: { color?: string; alpha?: number; erase?: boolean; rot?: number; anchor?: [number, number] } = {},
+    o: { color?: string | undefined; alpha?: number; erase?: boolean; rot?: number; anchor?: [number, number] } = {},
   ) {
     const s = new Sprite(tex);
     s.anchor.set(...(o.anchor ?? [0.5, 0.5]));

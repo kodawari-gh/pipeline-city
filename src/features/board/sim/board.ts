@@ -43,8 +43,8 @@ export interface Board {
 export interface SlotInfo {
   id: string;
   type: SlotType;
-  width?: number;
-  size?: number;
+  width?: number | undefined;
+  size?: number | undefined;
 }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };

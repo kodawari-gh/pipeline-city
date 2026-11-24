@@ -2,16 +2,8 @@
  "src/app/audio/director.levelup.test.ts": {
   "TS2345": 1
  },
- "src/app/audio/director.musicPauseHidden.test.ts": {
-  "TS2375": 1
- },
  "src/app/audio/director.studio.test.ts": {
-  "TS2375": 1,
   "TS6133": 1
- },
- "src/app/audio/director.ts": {
-  "TS2375": 1,
-  "TS2379": 2
  },
  "src/app/audio/engine.ts": {
   "TS4111": 2
@@ -23,7 +15,6 @@
   "TS6133": 1
  },
  "src/app/audio/music.menuGame.test.ts": {
-  "TS2375": 1,
   "TS6133": 2
  },
  "src/app/audio/music.ts": {
@@ -51,23 +42,8 @@
  "src/app/store.ts": {
   "TS2345": 5
  },
- "src/core/render/brands/brands.test.ts": {
-  "TS2379": 1
- },
- "src/core/render/brands/index.ts": {
-  "TS2379": 2
- },
  "src/core/render/cable.ts": {
   "TS6133": 3
- },
- "src/core/render/ink.ts": {
-  "TS2375": 1
- },
- "src/core/render/live.ts": {
-  "TS2375": 1
- },
- "src/core/render/shape.ts": {
-  "TS2375": 2
  },
  "src/core/render/three/artlod.ts": {
   "TS4111": 5
@@ -210,14 +186,12 @@
   "TS4111": 4
  },
  "src/core/ui/panels/Settings.test.ts": {
-  "TS2375": 1,
   "TS4111": 15
  },
  "src/core/ui/panels/Settings.tsx": {
   "TS4111": 1
  },
  "src/core/ui/panels/Stats.tsx": {
-  "TS2375": 2,
   "TS4111": 5
  },
  "src/core/ui/state.ts": {
@@ -225,9 +199,6 @@
  },
  "src/features/board/render/cooler.ts": {
   "TS6133": 2
- },
- "src/features/board/render/devices.ts": {
-  "TS2375": 1
  },
  "src/features/board/render/layout/ports.ts": {
   "TS6133": 2
@@ -245,7 +216,6 @@
   "TS4111": 6
  },
  "src/features/board/render/three/air/view.ts": {
-  "TS2345": 1,
   "TS6133": 1,
   "TS6138": 1
  },
@@ -309,8 +279,6 @@
   "TS4111": 3
  },
  "src/features/board/render/three/buildmode3d.ts": {
-  "TS2345": 2,
-  "TS2379": 1,
   "TS4111": 7,
   "TS6133": 1
  },
@@ -382,7 +350,6 @@
   "TS4111": 9
  },
  "src/features/board/render/three/machine3d.ts": {
-  "TS2379": 2,
   "TS4111": 17,
   "TS6133": 3,
   "TS6192": 1
@@ -395,9 +362,6 @@
  },
  "src/features/board/render/three/nic3d.ts": {
   "TS2322": 1
- },
- "src/features/board/render/three/niccopper.test.ts": {
-  "TS2379": 1
  },
  "src/features/board/render/three/overview.test.ts": {
   "TS4111": 9
@@ -436,9 +400,6 @@
  "src/features/board/render/three/power/flows.ts": {
   "TS4111": 8
  },
- "src/features/board/render/three/power/net.ts": {
-  "TS2379": 2
- },
  "src/features/board/render/three/ram3d.ts": {
   "TS4111": 1
  },
@@ -457,18 +418,8 @@
  "src/features/board/render/thumbart.ts": {
   "TS6133": 1
  },
- "src/features/board/sim/airflow.test.ts": {
-  "TS2412": 1
- },
- "src/features/board/sim/apply.ts": {
-  "TS2412": 1
- },
  "src/features/board/sim/board.test.ts": {
   "TS4111": 3
- },
- "src/features/board/sim/board.ts": {
-  "TS2322": 1,
-  "TS2379": 1
  },
  "src/features/board/sim/buildnet.test.ts": {
   "TS4111": 5
@@ -485,21 +436,14 @@
  "src/features/board/sim/cables.ts": {
   "TS4111": 4
  },
- "src/features/board/sim/compat.ts": {
-  "TS2379": 2
- },
  "src/features/board/sim/fanparts.test.ts": {
   "TS4111": 2
- },
- "src/features/board/sim/game/hardware.ts": {
-  "TS2379": 1
  },
  "src/features/board/sim/game/machine.ts": {
   "TS4111": 7
  },
  "src/features/board/sim/game/parts.ts": {
   "TS2322": 1,
-  "TS2375": 1,
   "TS4111": 12
  },
  "src/features/board/sim/pch/pch.test.ts": {
@@ -508,40 +452,20 @@
  "src/features/board/sim/radiatorfans.test.ts": {
   "TS4111": 3
  },
- "src/features/board/sim/ramvrm.test.ts": {
-  "TS2379": 1
- },
  "src/features/board/sim/removal.test.ts": {
   "TS4111": 16
  },
  "src/features/board/sim/vrm.test.ts": {
-  "TS2379": 2,
   "TS4111": 8
- },
- "src/features/board/ui/BuildBars.tsx": {
-  "TS2379": 1
  },
  "src/features/board/ui/BuildCard.tsx": {
   "TS4111": 2
- },
- "src/features/board/ui/BuildMode.tsx": {
-  "TS2375": 2,
-  "TS2379": 1
  },
  "src/features/board/ui/builddrag.ts": {
   "TS2345": 1
  },
  "src/features/board/ui/buildtabs.test.ts": {
   "TS4111": 12
- },
- "src/features/board/ui/vrm.ts": {
-  "TS2379": 2
- },
- "src/features/cpu/render/core/cpufloor.ts": {
-  "TS2375": 1
- },
- "src/features/cpu/render/core/cpuplan.ts": {
-  "TS2412": 1
  },
  "src/features/cpu/render/core/cpuplans.ts": {
   "TS2322": 3,
@@ -551,50 +475,11 @@
  "src/features/cpu/render/die/blockart.test.ts": {
   "TS4111": 4
  },
- "src/features/cpu/render/die/diemotion.ts": {
-  "TS2379": 2,
-  "TS2412": 1
- },
  "src/features/cpu/render/die/glyphgeom.ts": {
   "TS4111": 1
  },
- "src/features/cpu/sim/engines/common.ts": {
-  "TS2379": 1,
-  "TS2420": 1
- },
  "src/features/cpu/sim/engines/engines.test.ts": {
-  "TS2379": 2,
   "TS4111": 1
- },
- "src/features/cpu/sim/engines/index.ts": {
-  "TS2375": 4
- },
- "src/features/cpu/sim/engines/memsys.test.ts": {
-  "TS2379": 1
- },
- "src/features/cpu/sim/engines/testutil.ts": {
-  "TS2322": 1,
-  "TS2375": 10
- },
- "src/features/cpu/sim/engines/timing/timing.test.ts": {
-  "TS2379": 21
- },
- "src/features/cpu/sim/engines/timing/wide.golden.test.ts": {
-  "TS2379": 6
- },
- "src/features/cpu/sim/engines/timing/wide.timing.test.ts": {
-  "TS2375": 2,
-  "TS2379": 28
- },
- "src/features/cpu/sim/isa/isa.test.ts": {
-  "TS2379": 6
- },
- "src/features/cpu/sim/multicore/preempt.test.ts": {
-  "TS2379": 1
- },
- "src/features/economy/sim/keys.ts": {
-  "TS2379": 1,
-  "TS2412": 4
  },
  "src/features/economy/sim/levels.test.ts": {
   "TS4111": 6
@@ -602,46 +487,11 @@
  "src/features/economy/sim/patience.test.ts": {
   "TS4111": 3
  },
- "src/features/economy/sim/tradeoff.test.ts": {
-  "TS2375": 1
- },
- "src/features/economy/ui/progress/levelui.ts": {
-  "TS2375": 3,
-  "TS2379": 1
- },
  "src/features/economy/ui/shop/Gallery.acceptance.test.ts": {
   "TS4111": 7
  },
- "src/features/economy/ui/shop/Inventory.tsx": {
-  "TS2375": 1
- },
- "src/features/economy/ui/shop/PartShelf.tsx": {
-  "TS2375": 1
- },
  "src/features/economy/ui/shop/PickerCard.tsx": {
-  "TS2375": 1,
   "TS4111": 1
- },
- "src/features/economy/ui/shop/Shop.tsx": {
-  "TS2375": 1
- },
- "src/features/economy/ui/shop/picker.ts": {
-  "TS2322": 2,
-  "TS2375": 2,
-  "TS2379": 9,
-  "TS2412": 2
- },
- "src/features/gpu/render/gpumem.test.ts": {
-  "TS2379": 1
- },
- "src/features/gpu/render/gpumem.ts": {
-  "TS2412": 1
- },
- "src/features/gpu/render/gpuview.ts": {
-  "TS2379": 1
- },
- "src/features/gpu/render/plan/gpuplans.ts": {
-  "TS2412": 1
  },
  "src/features/gpu/sim/isa/isa.test.ts": {
   "TS7029": 1
@@ -649,23 +499,8 @@
  "src/features/jobs/sim/jobcode.ts": {
   "TS4111": 2
  },
- "src/features/jobs/sim/joblog.test.ts": {
-  "TS2379": 4
- },
  "src/features/jobs/sim/tasks.test.ts": {
   "TS4111": 1
- },
- "src/features/memory/render/ramview.ts": {
-  "TS2375": 1
- },
- "src/features/memory/render/vmnote.test.ts": {
-  "TS2375": 1
- },
- "src/features/memory/sim/paged.test.ts": {
-  "TS2379": 1
- },
- "src/features/memory/sim/ramregions.ts": {
-  "TS2379": 2
  },
  "src/features/network/render/lens/flows.ts": {
   "TS4111": 3
@@ -679,13 +514,6 @@
  "src/features/network/render/router/routerglyph.ts": {
   "TS6133": 2
  },
- "src/features/network/sim/network.ts": {
-  "TS2379": 1,
-  "TS2412": 1
- },
- "src/features/network/sim/nic.test.ts": {
-  "TS2379": 1
- },
  "src/features/network/sim/nic.ts": {
   "TS6138": 1
  },
@@ -697,13 +525,6 @@
  },
  "src/features/network/ui/netui.ts": {
   "TS4111": 1
- },
- "src/features/os/ui/osui.ts": {
-  "TS2322": 1,
-  "TS2375": 6
- },
- "src/features/room/render/desk/airflow.ts": {
-  "TS2379": 1
  },
  "src/features/room/render/desk/peripherals.ts": {
   "TS6133": 3
@@ -717,11 +538,7 @@
  "src/features/room/render/desk/props/mail.ts": {
   "TS6133": 1
  },
- "src/features/room/render/desk/props/props.ts": {
-  "TS2375": 1
- },
  "src/features/room/render/desk/screenmodel.ts": {
-  "TS2379": 1,
   "TS4111": 4
  },
  "src/features/room/render/shell/exterior.ts": {
@@ -729,10 +546,6 @@
  },
  "src/features/room/render/shell/light.test.ts": {
   "TS4111": 10
- },
- "src/features/room/render/shell/light.ts": {
-  "TS2375": 2,
-  "TS2379": 2
  },
  "src/features/room/render/shell/shell.ts": {
   "TS6133": 1
@@ -798,11 +611,9 @@
   "TS4111": 8
  },
  "src/features/room/render/three/room3d.make.test.ts": {
-  "TS2379": 1,
   "TS4111": 2
  },
  "src/features/room/render/three/room3d.test.ts": {
-  "TS2379": 1,
   "TS4111": 4
  },
  "src/features/room/render/three/room3d.ts": {
@@ -810,9 +621,6 @@
  },
  "src/features/sandbox/sim/pcbench.ts": {
   "TS2322": 1
- },
- "src/features/sandbox/sim/sandbox.test.ts": {
-  "TS2379": 1
  },
  "src/features/storage/render/diskplan.ts": {
   "TS4111": 4
@@ -832,14 +640,7 @@
  "src/features/tutorial/ui/first-frame.test.ts": {
   "TS4111": 1
  },
- "src/worker/game/game.test.ts": {
-  "TS2379": 1
- },
- "src/worker/game/game.ts": {
-  "TS2379": 1
- },
  "src/worker/game/persist.ts": {
-  "TS2379": 1,
   "TS4111": 4
  },
  "src/worker/game/save.test.ts": {
@@ -850,8 +651,5 @@
  },
  "src/worker/game/snapshot.ts": {
   "TS4111": 1
- },
- "src/worker/game/testkit.ts": {
-  "TS2379": 2
  }
 }

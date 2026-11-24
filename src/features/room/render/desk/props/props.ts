@@ -51,7 +51,7 @@ export interface PropsArt {
   led: Graphics;
   ledText: Text | null;
   /** The remove cue on a finished key (plugged, `stage` done): animated per frame by `drawKeyCue`. */
-  cue?: KeyCue;
+  cue?: KeyCue | undefined;
 }
 
 /** The remove cue: a glow around the stick and a `TAKE ME` / `REMOVE` tag under it. Lives in the key's node, outside its baked `vec`. */

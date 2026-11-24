@@ -41,7 +41,7 @@ function Fold({
 }: {
   title: string;
   hint?: string;
-  note?: string;
+  note?: string | undefined;
   open?: boolean;
   children: ComponentChildren;
 }) {

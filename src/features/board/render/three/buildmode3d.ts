@@ -192,7 +192,7 @@ const REFUSAL_MS = 6000;
 
 /** What a swap took out, to put back. */
 /** A part that came out (`along`: the fans of a radiator, which came out with it as one assembly). */
-type Gone = { spec: string; slot: string; invId: string; clock?: number };
+type Gone = { spec: string; slot: string; invId: string; clock?: number | undefined };
 type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: Gone[] } & Gone);
 
 /** The eye's key and range, as in the game's board view. */

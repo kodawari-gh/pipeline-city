@@ -67,7 +67,7 @@ export interface JobLogEntry {
   /** The game was loaded while this job was on the machine: `win` counts only since the reload (the counters restart), and there is none if the result was already in. */
   reloaded?: true;
   /** Absent for jobs that never ran, and when the machine rebooted mid-job. */
-  win?: JobWindow;
+  win?: JobWindow | undefined;
   /** Set on a contract entry (outcome `completed`, `lost` or `breached`). The job fields then read: arrival = accepted, finish = the contract end, end = settled. */
   contract?: ContractLogInfo;
 }
@@ -417,7 +417,7 @@ export interface Agg {
   queue: number;
   run: number;
   collect: number;
-  win?: JobWindow;
+  win?: JobWindow | undefined;
   verdict: Verdict;
 }
 

@@ -348,7 +348,7 @@
   "unicorn(consistent-function-scoping)": 5,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-at)": 2,
+  "unicorn(prefer-at)": 1,
   "vitest(no-conditional-in-test)": 4,
   "vitest(prefer-called-once)": 3,
   "vitest(prefer-expect-resolves)": 2,
@@ -5154,7 +5154,6 @@
   "eslint(curly)": 7,
   "eslint(no-console)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 3,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-imports)": 1,
@@ -6548,7 +6547,7 @@
   "unicorn(switch-case-braces)": 4
  },
  "src/features/board/sim/apply.ts": {
-  "eslint(curly)": 12,
+  "eslint(curly)": 11,
   "eslint(prefer-destructuring)": 4,
   "import(consistent-type-specifier-style)": 3,
   "typescript(no-non-null-assertion)": 2,
@@ -11550,7 +11549,6 @@
   "eslint(curly)": 5,
   "eslint(no-console)": 1,
   "eslint(no-nested-ternary)": 1,
-  "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 4,
   "typescript(ban-ts-comment)": 2,
   "typescript(consistent-type-imports)": 1,

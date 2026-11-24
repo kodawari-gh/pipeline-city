@@ -114,7 +114,7 @@ export interface PlanInput {
   forwarding?: boolean;
   /** Fetch / dispatch width of the OoO engine (default 2). */
   width?: number;
-  cacheLines?: number;
+  cacheLines?: number | undefined;
   ways?: number;
   icacheLines?: number;
   l2Lines?: number;

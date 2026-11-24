@@ -131,7 +131,7 @@ describe('High builds the same machine and room', () => {
     console.log(
       `High identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
     );
-    const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
+    const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
     if (env.UPDATE_HIGH_GOLDEN === '1') {
       fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
       return;

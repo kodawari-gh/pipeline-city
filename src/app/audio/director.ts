@@ -48,31 +48,31 @@ export interface UiInput {
   hold: Hold | null;
   crashed: boolean;
   /** The level of the open level-up popup, or null. A new value plays the stinger (once per level). */
-  levelUp?: number | null;
+  levelUp?: number | null | undefined;
 }
 
 export interface DirectorSnap {
   log: GameEvent[];
   level: { level: number };
   /** Sandbox games move the key but play no level-up stinger. */
-  sandbox?: boolean;
+  sandbox?: boolean | undefined;
   /** Queued swaps (a snapshot always has it; optional so a fixture may omit it). */
-  pendingSwaps?: readonly unknown[];
+  pendingSwaps?: readonly unknown[] | undefined;
   /** The fields below feed the state rules. A fixture may omit them: then no state rule plays. */
-  baseTick?: number;
-  phase?: Phase;
+  baseTick?: number | undefined;
+  phase?: Phase | undefined;
   net?: { state: LinkState; transfers?: readonly unknown[] };
   power?: { tripped: boolean; totalW?: number; budgetW?: number };
   /** The last power-on ended in a POST error (phase 'error', a soft failure: no stinger). */
-  postFailed?: boolean;
-  plugged?: unknown | null;
-  keyActivity?: KeyActivity;
+  postFailed?: boolean | undefined;
+  plugged?: unknown | null | undefined;
+  keyActivity?: KeyActivity | undefined;
   /** The machine's power and devices: the hum (a fixture may omit them: then no hum plays). */
-  powered?: boolean;
-  devices?: readonly FanDevice[];
+  powered?: boolean | undefined;
+  devices?: readonly FanDevice[] | undefined;
   /** The board's VRM (the stress and its cue-board terms; `board.vrm` is read when `vrm` is absent) and the power bill (the bed's low-pass while unpaid). */
-  vrm?: StressSnap['vrm'];
-  board?: StressSnap['board'];
+  vrm?: StressSnap['vrm'] | undefined;
+  board?: StressSnap['board'] | undefined;
   /** `cut`: the wall is cut for an unpaid bill (a hard failure, SPEC §6.3). */
   bill?: { unpaid?: number; cut?: boolean } | null;
 }
@@ -105,15 +105,15 @@ const NO_MACHINE: StudioMachine = { powered: false, devices: [] };
 
 /** The state a state rule compares with the one before. */
 interface SeenState {
-  baseTick?: number;
-  phase?: Phase;
-  net?: LinkState;
-  tripped?: boolean;
+  baseTick?: number | undefined;
+  phase?: Phase | undefined;
+  net?: LinkState | undefined;
+  tripped?: boolean | undefined;
   /** The wall is cut for the bill now. */
   cut: boolean;
   postFailed: boolean;
   plugged: boolean;
-  keyActivity?: KeyActivity;
+  keyActivity?: KeyActivity | undefined;
   /** POST ran and the machine has not reached `running` or `idle-os` yet: the next `running` is this boot's `boot_ready`. */
   posted: boolean;
 }
@@ -273,7 +273,7 @@ export function createDirector(
     stingerLevel = lvl;
     if (sandbox) return;
     setKey(keyPcForLevel(lvl));
-    sink.playCue('level_up', { quantise: MIX.levelUp.quantise === 'beat' ? 'beat' : undefined });
+    sink.playCue('level_up', MIX.levelUp.quantise === 'beat' ? { quantise: 'beat' } : {});
     // The level-up chord (ticket #64) is the first step's key, on the same beat, 6 dB under the SFX. Several levels: one chord.
     const first = Math.min(lvl, (level ?? lvl - 1) + 1);
     sink.playStinger?.(`music_levelup_${keyName(keyPcForLevel(first))}`, 'beat', MIX.music.levelupWithSfxDb);

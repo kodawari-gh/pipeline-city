@@ -30,7 +30,7 @@ function ok<T extends { ok: boolean }>(r: T): T {
 function rig(
   tier: number,
   cpu: string,
-  o: { clock?: number; cooler?: string; sink?: string; psu?: string } = {},
+  o: { clock?: number; cooler?: string; sink?: string | undefined; psu?: string } = {},
 ): Board {
   const b = createBoard(tier);
   for (const s of [cpu, 'ram0', 'display0', o.cooler ?? 'cooler1', o.psu ?? (tier >= 2 ? 'psu2' : 'psu1')])

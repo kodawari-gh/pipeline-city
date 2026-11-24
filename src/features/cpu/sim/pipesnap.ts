@@ -155,7 +155,7 @@ export interface RamMap {
   /** The DRAM's banks and the row open in each (-1: closed); a row is a 256-byte page when `rowBytes` is 256. Absent without a CPU engine that models it. */
   dram?: { channels: number; banks: number; rowBytes: number; open: number[] };
   /** The address spaces of the programs that run under a paged OS, read out of their page tables (docs/VM.md "Seen"), and the last page fault. */
-  vm?: VmSnap;
+  vm?: VmSnap | undefined;
 }
 
 /** One address space: its job, the level 1 table's physical address, its mapped pages (flat vpn, frame, flags) and the frames its tables are in. */

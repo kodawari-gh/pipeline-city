@@ -42,9 +42,9 @@ export interface Key extends Job {
   /** The game was loaded while the machine held this job (not saved): the counters restarted at the load, so its window and `ranAt` are re-stamped when it runs and cover only the time since. */
   reloaded?: true;
   /** The engine's counters when the job first ran (not saved): the job log reports the change by the time it finishes. */
-  c0?: number[];
+  c0?: number[] | undefined;
   /** What the counters changed by from the job being taken to its result landing (set when `doneAt` is). */
-  win?: JobWindow;
+  win?: JobWindow | undefined;
   /** The result landed while no OS was installed (not saved): ejecting it under an OS later is not an OS job. */
   doneBeforeOs?: boolean;
   result: string;

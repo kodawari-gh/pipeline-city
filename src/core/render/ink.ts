@@ -88,7 +88,7 @@ export function label(
     fontFamily: o.head ? HEAD : MONO,
     fontSize: size,
     fill: color,
-    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as TextStyleOptions['fontWeight'],
+    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as NonNullable<TextStyleOptions['fontWeight']>,
     align: o.align ?? 'left',
   };
   const t = new Text({ text: str, style, resolution: currentTextResolution() });

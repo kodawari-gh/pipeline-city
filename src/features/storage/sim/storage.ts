@@ -26,13 +26,13 @@ export interface DiskOpts {
   /** Requests the drive queue holds before it stops serving reads in time. */
   queueDepth?: number;
   /** A seek costs time by LBA distance (a spinning disk) instead of a flat latency. */
-  seekByDistance?: boolean;
+  seekByDistance?: boolean | undefined;
   /** Chance per write that the group fails mechanically (a spinning disk). */
-  mechBadRate?: number;
+  mechBadRate?: number | undefined;
   /** Seeds the per-group endurance spread and the mechanical failures. */
   seed?: number;
   /** A mirrored module: a second set of media that every write goes to (docs/OS.md, RAID mirror). */
-  mirror?: boolean;
+  mirror?: boolean | undefined;
 }
 
 /** What is physically in the drive: bytes plus the access statistics. */

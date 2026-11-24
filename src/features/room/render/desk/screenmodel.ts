@@ -14,7 +14,7 @@ export interface DashBar {
   text: string;
   frac: number;
   tone: Tone;
-  mark?: number;
+  mark?: number | undefined;
 }
 export interface DashProc {
   pid: string;

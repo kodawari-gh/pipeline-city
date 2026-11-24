@@ -54,7 +54,7 @@ export type Node<K extends string = BlockKind> = Leaf<K> | Split<K>;
 
 const isSplit = <K extends string>(n: Node<K>): n is Split<K> => 'dir' in n;
 
-type Sized = { f?: number; px?: number };
+type Sized = { f?: number | undefined; px?: number | undefined };
 
 export const leaf = <K extends string = BlockKind>(
   id: string,
