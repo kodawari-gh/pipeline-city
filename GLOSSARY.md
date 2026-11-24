@@ -22,6 +22,10 @@ _Avoid_: event, message, note (alone)
 The popup that opens when a level is reached. It holds the clock until the player closes it.
 _Avoid_: celebration, level-up (alone)
 
+**Part**:
+One piece of hardware the player installs in a slot of the machine: a CPU, a stick of RAM, a card, a drive, a cooler, a fan.
+_Avoid_: device, component
+
 ### Clock
 
 **Pause**:
@@ -37,6 +41,18 @@ _Avoid_: popup pause, menu pause
 **Studio**:
 Build my PC or the Gallery. It opens from the main menu, runs its own machine and has no level.
 _Avoid_: mode, sandbox
+
+**Step**:
+One change the player made in Build my PC that Undo reverses: a part fitted or removed, an OS, router or plan item set, or a swap.
+_Avoid_: action, move, edit
+
+**Swap**:
+A step that replaces the whole machine in Build my PC: a preset, a saved build, reset or clear.
+_Avoid_: load, replace
+
+**In the way**:
+Said of a part that must come out so the player can reach another part or slot. It goes back after the step.
+_Avoid_: blocker, obstacle
 
 ### Audio
 
