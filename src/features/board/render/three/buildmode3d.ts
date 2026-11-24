@@ -1,5 +1,6 @@
 // BUILD MY PC (docs/PC_PARTS.md): the machine alone on a plain stage, away from the room, to build it, swap its parts and watch every part come out and go in.
 // It runs a sandbox `Game` on the main thread (the real rules: `install`, `uninstall`, `connectCable`) and draws its snapshot with the game's own `Machine3D`.
+// The game is the Build session's (`sim/buildsession.ts`): a removal runs there whole first, and the stage plays its script (`playScript`).
 // What has to come out before what is the removal graph (`sim/removal.ts`); how each step looks is `buildmotion.ts`. A swap or a removal takes out
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
@@ -79,7 +80,6 @@ import {
   fanHost,
   fittedRadiator,
   freeSlots,
-  mountFan,
   slotAccepts,
   slotFits,
   upgradeBoard,
@@ -135,6 +135,8 @@ import {
 } from '@/features/board/sim/buildrun';
 import type { BuildLayout, BuildPreset, Shown } from '@/features/board/sim/buildspecs';
 import { OUTSIDE, bareGame, fullGame, layoutGame, presetGame } from '@/features/board/sim/buildpreset';
+import { BuildSession, assemble, isOutStep, railFans } from '@/features/board/sim/buildsession';
+import type { Outcome, ScriptStep, SessionState } from '@/features/board/sim/buildscript';
 import { netKindOf, netName, netState, setNet, type NetKind } from '@/features/board/sim/buildnet';
 import { ISP_SPECS, ROUTER_SPECS } from '@/features/network/sim';
 import { LinkLeds } from '@/features/network/render/jackleds';
@@ -385,19 +387,25 @@ export class BuildStage {
   /** Counts up with every change to the game: what memoizes on the machine as it stands (`alerts`) keys on it, as a running game gives a new snapshot every tick. */
   private editRev = 0;
 
-  /** The sandbox game. Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
+  /** The sandbox game, owned by the Build session (`sim/buildsession.ts`). Change it only through `edit` (or put a new game here): the stage keeps its snapshot until then. */
   get game(): Game {
     return this.alive(this._game);
   }
   set game(g: Game) {
-    this._game = g;
+    this.session = new BuildSession(g);
     this.owed = 0;
     this.editRev++;
     this.snaps.drop();
     this.syncRun();
     this.benchChanged();
   }
-  private _game: Game | null = null;
+  private session: BuildSession | null = null;
+  private get _game(): Game | null {
+    return this.session?.game ?? null;
+  }
+  private set _game(g: Game | null) {
+    this.session = g ? new BuildSession(g) : null;
+  }
   private readonly snaps = new SnapCache();
   private _machine: Machine3D | null = null;
   private get machine(): Machine3D {
@@ -547,22 +555,30 @@ export class BuildStage {
         snapshot: () => this.handSnapshot(),
         toast: (t) => this.refuse(t),
         connect: (id, port) => {
-          if (isPanelId(id)) this.plugPanelLead(id, true);
-          else
+          if (isPanelId(id)) {
+            this.plugPanelLead(id, true);
+          } else if (this.playing) {
+            this.handMoved(id, true);
+          } else {
             this.cableChanged(
               this.edit((g) => g.connectCable(id, port)),
               'plug it in',
               'cable_connect',
             );
+          }
         },
         disconnect: (id) => {
-          if (isPanelId(id)) this.plugPanelLead(id, false);
-          else
+          if (isPanelId(id)) {
+            this.plugPanelLead(id, false);
+          } else if (this.playing) {
+            this.handMoved(id, false);
+          } else {
             this.cableChanged(
               this.edit((g) => g.disconnectCable(id)),
               'pull it out',
               'cable_disconnect',
             );
+          }
         },
       },
       renderer.domElement,
@@ -634,14 +650,19 @@ export class BuildStage {
 
   /** The machine as it stands: one snapshot per change of the game, not one per frame. */
   get snapshot(): Snapshot {
-    return this.snaps.of(this.game);
+    return this.playing?.snapshot ?? this.snaps.of(this.game);
   }
   get board(): Board {
-    return this.game.board;
+    return this.playing?.board ?? this.game.board;
   }
   get cables(): Cables {
-    return this.game.cables;
+    return this.playing?.cables ?? this.game.cables;
   }
+  /**
+   * While a script plays (`playScript`), the machine as the step that plays leaves it: the game holds the end of the job already. `over`: the plugs
+   * the hand moved in this step, as the hand reads them (`handSnapshot`); the step's own state takes their place when it ends.
+   */
+  private playing: (SessionState & { over: Map<string, boolean> }) | null = null;
   /** Every change to the stage's game goes through here (install, uninstall, purchase, a cable): it drops the kept snapshot. */
   private edit<T>(change: (g: Game) => T): T {
     try {
@@ -2359,16 +2380,12 @@ export class BuildStage {
 
   /** The fans on a radiator's mounts. */
   private railFans(): InstalledDevice[] {
-    const rad = fittedRadiator(this.board);
-    return rad ? rad.mounts.map((m) => mountFan(this.board, m)).filter((f): f is InstalledDevice => !!f) : [];
+    return railFans(this.board);
   }
 
   /** Steps with the fans of a radiator dropped when the radiator is in them: it takes them along. */
   private assemble(steps: string[]): string[] {
-    const rad = fittedRadiator(this.board);
-    if (!rad || !steps.includes(devNode(rad.dev.id))) return steps;
-    const fans = new Set(this.railFans().map((f) => devNode(f.id)));
-    return steps.filter((n) => !fans.has(n));
+    return assemble(this.board, steps);
   }
 
   /**
@@ -2601,9 +2618,22 @@ export class BuildStage {
       name: m.rig(id)!.name,
       connected: !this.panelOut.has(id),
     }));
-    const out: Snapshot = { ...s, cables: [...s.cables, ...leads] };
+    // (a script plays: a plug the hand moved in this step is as the hand left it)
+    const over = this.playing?.over ?? new Map<string, boolean>(),
+      own = s.cables.map((cable) => {
+        const plugged = over.get(cable.id);
+        return plugged === undefined ? cable : { ...cable, connected: plugged };
+      });
+    const out: Snapshot = { ...s, cables: [...own, ...leads] };
     this.panelSnap = { src: s, m, rev: this.panelRev, out };
     return out;
+  }
+
+  /** The hand pushed a plug in or pulled it out while a script plays: the game holds the job's end already, so only the hand's reading changes. */
+  private handMoved(id: string, plugged: boolean): void {
+    this.playing?.over.set(id, plugged);
+    this.panelRev++;
+    playCue(plugged ? 'cable_connect' : 'cable_disconnect');
   }
 
   /** The hand pushed a front-panel lead into its header or pulled it out: the stage says so and plays the cable cue, as for the game's cables (the machine's built lead follows the hand: `PlugHand`). */
@@ -2744,36 +2774,296 @@ export class BuildStage {
   }
 
   /** Take a part out with everything in its way, then put the others back. The part goes to the bin (the game's inventory). */
-  remove(node: string): Promise<void> {
-    return this.job(async () => {
-      this.deferring = true;
-      try {
-        await this.removeSteps(node);
-      } finally {
-        this.deferring = false;
+  async remove(node: string): Promise<void> {
+    return this.job(async () => this.removeSteps(node));
+  }
+
+  /** The session does the whole removal on the game first (`BuildSession.remove`); the stage then plays its script. */
+  private async removeSteps(node: string): Promise<void> {
+    const { session } = this;
+    if (session === null) {
+      return;
+    }
+    const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
+    const job = this.edit(() => session.remove(node));
+    if (job.refusal !== null) {
+      this.refuse(job.refusal);
+      return;
+    }
+    const step: PartStep | null = gone === undefined ? null : { t: 'remove', spec: gone.spec, slot: gone.slot };
+    if (step !== null) {
+      this.record(step);
+    }
+    const outs = job.script.filter(isOutStep).length;
+    await this.playScript(job, outs > 2 ? QUICK : 1);
+    // (what could not go back, as the part's removal left it: Undo brings it back after the part)
+    const along = job.script.flatMap((s) => s.along ?? []);
+    if (step !== null && along.length > 0) {
+      step.along = along.map((a) => ({ spec: a.spec, slot: a.slot }));
+    }
+    this.note(`Done: ${outs} step${outs === 1 ? '' : 's'}`);
+  }
+
+  /**
+   * Play a session's script: each step's motion on the machine as it stood before the step, then the step's state takes its place. The hand moves plugs
+   * on the step's state (`handMoved`), never on the game. Parts that come out stay built and hidden; a part that goes back is shown again under its new id
+   * (the step's `ids`). `quick`: the pace of the steps that are not the target.
+   */
+  private async playScript(job: Outcome, quick: number): Promise<void> {
+    this.playing = { ...job.before, over: new Map() };
+    this.snaps.drop();
+    try {
+      for (const s of job.script) {
+        if (this.dead) {
+          return;
+        }
+        this.pace = s.target ? 1 : quick;
+        // oxlint-disable-next-line no-await-in-loop -- one step after the other: each plays on the state the one before left
+        await this.playStep(s);
       }
+      for (const r of job.refusals) {
+        this.refuse(r);
+      }
+    } finally {
+      this.pace = 1;
+      this.playing = null;
+      this.panelRev++;
+      this.snaps.drop();
+    }
+  }
+
+  /** The step's state takes the place of the one before: what the step changed is now the machine as the stage reads it. */
+  private reach(s: ScriptStep): void {
+    this.playing = { snapshot: s.snapshot, board: s.board, cables: s.cables, over: new Map() };
+    this.panelRev++;
+    this.snaps.drop();
+    this.demand.ask();
+  }
+
+  private async playStep(s: ScriptStep): Promise<void> {
+    for (const r of s.refusals) {
+      this.refuse(r);
+    }
+    switch (s.kind) {
+      case 'door-open': {
+        await this.door(true);
+        this.note(this.labelOf(SIDE, 'Take out'));
+        break;
+      }
+      case 'hoses-out': {
+        this.note(this.labelOf(HOSES, 'Take out'));
+        await this.door(true);
+        await this.playHoses('out');
+        break;
+      }
+      case 'hoses-on': {
+        if (this.hosesOff) {
+          this.note(this.labelOf(HOSES, 'Put back'));
+          await this.playHoses('in');
+        }
+        break;
+      }
+      case 'cable-out': {
+        await this.playCableOut(s);
+        return;
+      }
+      case 'cable-in': {
+        await this.playCableIn(s);
+        return;
+      }
+      case 'part-out': {
+        await this.playPartOut(s);
+        return;
+      }
+      case 'put-back': {
+        await this.playPutBack(s);
+        return;
+      }
+      default: {
+        return;
+      }
+    }
+    this.reach(s);
+  }
+
+  /** The plug comes out as a player's hand pulls it: against its latch, free, lifted, then it falls on its cable (the built cable is hidden meanwhile). */
+  private async playCableOut(s: ScriptStep): Promise<void> {
+    const id = s.node.slice(6);
+    this.note(this.labelOf(s.node, 'Take out'));
+    if (!OUTSIDE.has(id)) {
+      await this.door(true);
+    }
+    this.setStep('Pull the plug out of its socket');
+    if (await this.hand.pullOut(id, this.pace > 1 ? CABLE_QUICK : 1)) {
+      this.reach(s);
+      this.bump();
+      return;
+    }
+    await this.play(s.node, 'cable', 'out');
+    this.reach(s);
+    this.rebuild();
+  }
+
+  /** A cable that came with its part runs out of its hole to its socket and is pushed in; the plug of one that lies loose is carried. */
+  private async playCableIn(s: ScriptStep): Promise<void> {
+    const id = s.node.slice(6);
+    this.note(`Plug in ${this.snapshot.cables.find((c) => c.id === id)?.name ?? id}`);
+    if (this.reeled.has(id)) {
+      this.setStep('Run the cable to its socket');
+      if (await this.runOut(id, true)) {
+        this.reach(s);
+        this.bump();
+        return;
+      }
+      if (this.dead) {
+        return;
+      }
+    }
+    this.setStep('Push the plug home');
+    if (await this.hand.plugIn(id, this.pace > 1 ? CABLE_QUICK : 1)) {
+      this.reach(s);
+      this.bump();
+      return;
+    }
+    if (this.dead) {
+      return;
+    }
+    this.reach(s);
+    this.rebuild();
+    await this.play(s.node, 'cable', 'in');
+  }
+
+  /** A part comes out (a radiator with the fans on it, as one piece). It stays built, hidden where its way ends, kept by its id until it goes back. */
+  private async playPartOut(s: ScriptStep): Promise<void> {
+    const { node } = s,
+      d = this.board.devices.find((x) => devNode(x.id) === node);
+    this.note(this.labelOf(node, 'Take out'));
+    if (d === undefined) {
+      this.reach(s);
+      return;
+    }
+    if (s.with !== undefined && (await this.playAssemblyOut(s, d, s.with))) {
+      return;
+    }
+    const { kind } = deviceSpec(d),
+      obj = kind !== 'display' && kind !== 'psu' ? this.objectOf(node) : null;
+    if (obj) {
+      this.keep(obj, d);
+    }
+    // the cables that go with the part (a supply's leads and cord, a monitor's cables) are taken back into their hole first
+    for (const id of cablesLost(this.board, d.id)) {
+      // oxlint-disable-next-line no-await-in-loop -- each cable goes back into its hole in turn
+      await this.reelIn(id);
+    }
+    await this.unseat(node, motionOf(kind, d.slot, this.board));
+    if (this.dead) {
+      return;
+    }
+    this.reach(s);
+    if (obj) {
+      obj.visible = false;
+      this.bump();
+      return;
+    }
+    this.rebuild();
+    await this.coverBack(kind);
+  }
+
+  /** Keep a part that came out built, by `spec@slot` as a fit finds a part it took out; a part that goes back finds its own by the old id (`takeHeld`). */
+  private keep(obj: Object3D, x: InstalledDevice): void {
+    this.held.set(`${x.spec}@${x.slot}`, {
+      obj,
+      id: x.id,
+      p: obj.position.clone(),
+      z: obj.rotation.z,
+      y: obj.rotation.y,
     });
   }
 
-  private async removeSteps(node: string): Promise<void> {
-    {
-      const undo: Undo[] = [],
-        steps = this.assemble(this.plan(node));
-      const gone = isDevNode(node) ? this.board.devices.find((x) => devNode(x.id) === node) : undefined;
-      const step: PartStep | null = gone ? { t: 'remove', spec: gone.spec, slot: gone.slot } : null;
-      if (step) this.record(step);
-      const quick = steps.length > 2 ? QUICK : 1;
-      for (const n of steps) {
-        this.pace = n === node ? 1 : quick;
-        await this.takeOut(n, n === node ? null : undo);
+  /** A radiator comes out with the fans on it as one piece; false when one of them is not built (the part then comes out alone). */
+  private async playAssemblyOut(s: ScriptStep, d: InstalledDevice, fans: string[]): Promise<boolean> {
+    const parts: { x: InstalledDevice; obj: Object3D }[] = [];
+    for (const n of [s.node, ...fans]) {
+      const x = this.board.devices.find((dev) => devNode(dev.id) === n),
+        obj = x === undefined ? null : this.objectOf(n);
+      if (x === undefined || !obj) {
+        return false;
       }
-      this.pace = quick;
-      for (const u of undo.reverse()) await this.putBack(u);
-      this.pace = 1;
-      // (what could not go back, as the part's removal left it: Undo brings it back after the part)
-      if (step && this.stayed.length) step.along = this.stayed.splice(0);
-      this.note(`Done: ${steps.length} step${steps.length === 1 ? '' : 's'}`);
+      parts.push({ x, obj });
     }
+    this.note(`Take out ${deviceSpec(d).name} with its ${fans.length} fan${fans.length === 1 ? '' : 's'}`);
+    for (const p of parts) {
+      this.keep(p.obj, p.x);
+    }
+    const objs = parts.map((p) => p.obj);
+    await this.playAll(objs, 'assembly', 'out');
+    if (this.dead) {
+      return true;
+    }
+    this.reach(s);
+    for (const o of objs) {
+      o.visible = false;
+    }
+    this.bump();
+    return true;
+  }
+
+  /** The part kept built for this old id (a step's id change), taken off the list; null when it is not built. */
+  private takeHeld(id: string): { obj: Object3D; id: string; p: Vector3; z: number; y: number } | null {
+    for (const [key, kept] of this.held) {
+      if (kept.id === id) {
+        this.held.delete(key);
+        return kept;
+      }
+    }
+    return null;
+  }
+
+  /** A part goes back (a radiator with its fans): the object kept for its old id is shown again under the new one, or built again. */
+  private async playPutBack(s: ScriptStep): Promise<void> {
+    const name = getSpec(s.spec ?? '')?.name ?? s.spec ?? s.node;
+    this.reach(s);
+    if (s.with !== undefined && s.with.length > 0) {
+      this.note(`Put back ${name}${s.ids.size > 1 ? ' with its fans' : ''}`);
+      const held = [...this.held.values()];
+      if (![...s.ids.keys()].every((from) => held.some((k) => k.id === from))) {
+        this.builtKey = '';
+        this.rebuild();
+      }
+      const objs: Object3D[] = [];
+      for (const [from, to] of s.ids) {
+        const kept = this.takeHeld(from);
+        if (kept) {
+          this.refit(kept, to);
+          objs.push(kept.obj);
+        } else {
+          const o = this.objectOf(devNode(to));
+          if (o) {
+            objs.push(o);
+          }
+        }
+      }
+      this.snaps.drop();
+      this.bump();
+      await this.playAll(objs, 'assembly', 'in');
+      return;
+    }
+    const [change] = s.ids;
+    if (change === undefined) {
+      return;
+    }
+    const [from, to] = change;
+    this.note(`Put back ${name}`);
+    const kind = motionOf(getSpec(s.spec ?? '')?.kind ?? '', s.slot ?? '', this.board),
+      kept = this.takeHeld(from);
+    if (kept) {
+      // the part that came out is still built: it goes back where it was, under the id the game gave it
+      this.refit(kept, to);
+      this.bump();
+    } else {
+      this.rebuild();
+    }
+    await this.seat(devNode(to), kind);
   }
 
   /** Fit a catalogue part (its id; the shelf is unlimited, there is no inventory here). `drop`: the socket it was dropped on
@@ -3237,7 +3527,7 @@ export class BuildStage {
     disposeTree(scene);
     scene.clear();
     this._machine = null;
-    this._game = null;
+    this.session = null;
     this.snaps.drop();
     this.bakes.drop(''); // (a job's closure holds the art it bakes)
     this.marker = this.floor = null;

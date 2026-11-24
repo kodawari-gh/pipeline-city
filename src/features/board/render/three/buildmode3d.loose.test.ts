@@ -91,19 +91,19 @@ function stage(): BuildStage {
 const of = (s: BuildStage, kind: string) => s.board.devices.filter((d) => deviceSpec(d).kind === kind);
 const ids = (s: BuildStage): string[] => s.alerts.map((a) => a.id);
 
-describe('the stage takes a part that fits, and says what the machine will do', () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
-    vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', () => {});
-  });
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+});
 
+describe('the stage takes a part that fits, and says what the machine will do', () => {
   it('a sound machine has nothing to say', () => {
     expect(ids(stage())).toEqual([]);
   });
@@ -208,5 +208,154 @@ describe('the stage takes a part that fits, and says what the machine will do', 
     expect(one.snapshot.os).toBeNull(); // (no drive to hold it: it waits)
     await one.fit(only.spec, home);
     expect(one.snapshot.os?.slot).toBe(home);
+  });
+});
+
+type Snapshot = BuildStage['snapshot'];
+
+/** What a snapshot shows of the machine: each part as `spec@slot` and each plugged cable. */
+const view = (snap: Snapshot) => ({
+  parts: snap.devices.map((d) => `${d.spec}@${d.slot}`).toSorted(),
+  cables: snap.cables
+    .filter((c) => c.connected)
+    .map((c): string => c.id)
+    .toSorted(),
+});
+
+/** The Build session (ticket #109), loaded by its path: its game and its removal script. */
+interface Session {
+  snapshot: () => Snapshot;
+  remove: (node: string) => unknown;
+}
+async function sessionOn(g: Game): Promise<Session> {
+  const url = new URL('../../sim/buildsession.ts', import.meta.url).href;
+  // oxlint-disable-next-line typescript/no-unsafe-assignment -- a dynamic import is untyped: this is the ticket's interface
+  const mod: { BuildSession: new (game: Game) => Session } = await import(/* @vite-ignore */ url);
+  return new mod.BuildSession(g);
+}
+
+interface HandHost {
+  snapshot: () => Snapshot | null;
+  connect?: (id: string, port?: string) => void;
+  disconnect?: (id: string) => void;
+}
+interface Hand {
+  host: HandHost;
+  pullOut: (kind: string, speed?: number) => Promise<boolean>;
+  plugIn: (kind: string, speed?: number) => Promise<boolean>;
+}
+interface Seen {
+  dir: 'out' | 'in';
+  id: string;
+  plugged: boolean | undefined;
+}
+
+/** Log every game edit (`edit`) and every move of the job (`move`): the door, an animation, the hand. */
+function logEdits(s: BuildStage, log: string[]): void {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the game's methods, wrapped to log each call
+  const g = s.game as unknown as Record<string, (...a: unknown[]) => unknown>;
+  for (const m of ['install', 'uninstall', 'connectCable', 'disconnectCable', 'purchase', 'connectLan']) {
+    const real = g[m];
+    if (real) {
+      g[m] = (...a: unknown[]) => {
+        log.push(`edit ${m}`);
+        return real.apply(s.game, a);
+      };
+    }
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stage's stubbed moves (`stage`), wrapped to log each one
+  const st = s as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
+  for (const m of ['door', 'playAll']) {
+    const real = st[m];
+    if (real) {
+      st[m] = async (...a: unknown[]) => {
+        log.push(`move ${m}`);
+        return real.apply(s, a);
+      };
+    }
+  }
+}
+
+/**
+ * The hand finishes each plug as a real one does: it calls its host's connect or disconnect. What its start check sees before it moves is kept.
+ */
+function fakeHand(s: BuildStage, log: string[], seen: Seen[]): void {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stage's private hand, whose two job moves the test stands in for
+  const { hand } = s as unknown as { hand: Hand };
+  const plugged = (id: string) => hand.host.snapshot()?.cables.find((c) => c.id === id)?.connected;
+  hand.pullOut = async (id) => {
+    const was = plugged(id);
+    log.push(`move pullOut ${id}`);
+    await Promise.resolve();
+    seen.push({ dir: 'out', id, plugged: was });
+    hand.host.disconnect?.(id);
+    return true;
+  };
+  hand.plugIn = async (id) => {
+    const was = plugged(id);
+    log.push(`move plugIn ${id}`);
+    await Promise.resolve();
+    seen.push({ dir: 'in', id, plugged: was });
+    hand.host.connect?.(id);
+    return true;
+  };
+}
+
+/** The cooler of the full rig: the loop's hoses, two fan cables, the VRM heat sink and its fan are in its way. */
+const coolerNode = (s: BuildStage): string => devNode(of(s, 'cooler')[0]?.id ?? 'none');
+
+/** The edits made after the first move of the job. */
+const lateEdits = (log: readonly string[], first: (l: string) => boolean): string[] =>
+  log
+    .slice(
+      Math.max(
+        0,
+        log.findIndex((l) => first(l)),
+      ),
+    )
+    .filter((l) => l.startsWith('edit'));
+
+describe('the stage plays a removal from the Build session script (ticket #109)', () => {
+  it('ends on the machine the session ends on, and is not busy after', async () => {
+    const s = stage(),
+      node = coolerNode(s);
+    await s.remove(node);
+    const ref = await sessionOn(new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true }));
+    await ref.remove(node);
+    expect(view(s.snapshot)).toStrictEqual(view(ref.snapshot()));
+    expect(s.status.peek().busy).toBe(false);
+  });
+
+  it('every game edit comes before the first move: nothing moves and then gets refused', async () => {
+    const s = stage(),
+      log: string[] = [];
+    logEdits(s, log);
+    fakeHand(s, log, []);
+    await s.remove(coolerNode(s));
+    expect(log.some((l) => l.startsWith('move'))).toBe(true);
+    expect(lateEdits(log, (l) => l.startsWith('move'))).toStrictEqual([]);
+  });
+
+  it('the hand pulls and pushes the plugs of the job and makes no game edit', async () => {
+    const s = stage(),
+      log: string[] = [],
+      seen: Seen[] = [];
+    logEdits(s, log);
+    fakeHand(s, log, seen);
+    await s.remove(coolerNode(s));
+    expect(seen.some((x) => x.dir === 'out')).toBe(true);
+    expect(lateEdits(log, (l) => /^move (?:pullOut|plugIn)/u.test(l))).toStrictEqual([]);
+  });
+
+  it("the hand's start check reads the step's snapshot before the step, not the live game", async () => {
+    const s = stage(),
+      seen: Seen[] = [];
+    fakeHand(s, [], seen);
+    await s.remove(coolerNode(s));
+    expect(seen.length).toBeGreaterThan(0);
+    // a plug the hand pulls was in before its step, one it pushes was out (the live game already holds the end of the job)
+    expect(seen.map((x) => `${x.dir} ${x.id} ${String(x.plugged)}`)).toStrictEqual(
+      seen.map((x) => `${x.dir} ${x.id} ${String(x.dir === 'out')}`),
+    );
   });
 });

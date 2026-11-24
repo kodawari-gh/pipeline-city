@@ -81,6 +81,8 @@ buildnet
 buildpick
 buildpreset
 buildrun
+buildscript
+buildsession
 buildshot
 buildspecs
 buildstills
