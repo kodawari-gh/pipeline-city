@@ -42,7 +42,7 @@ const MOUSE_DX = 4000;
 const flat = (pts: Pt[]) => pts.flat();
 
 /** The mat: a rectangle on the desk top, with a lit front edge. */
-export function drawMat(o: Graphics, T: Theme, D: DeskGeo, monitorCx: number) {
+export function drawMat(o: Graphics, _T: Theme, D: DeskGeo, monitorCx: number) {
   const p = placer(D, monitorCx - 50, D.ys + 120, 0),
     w = KEYBOARD.w + 4200,
     d = 4800;
@@ -73,7 +73,7 @@ function contact(o: Graphics, p: ReturnType<typeof placer>, outline: Pt[], a: nu
 }
 
 /** The keyboard: a box turned a few degrees, its front and the side that faces the vanishing point, and a top of five rows of keycaps (the space bar in the front row) with a pair of lamps at the back. */
-export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
+export function drawKeyboard(o: Graphics, _T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = keyboardPlacer(D, monitorCx),
     { w, d, h } = KEYBOARD,
     hw = w / 2,
@@ -234,7 +234,7 @@ const heightAt = (u: number) => {
 };
 
 /** The mouse, from the owner's wireframe: a body turned a few degrees on the mat, made of cross-sections along its length (the plan from a top-down photo, the top line from a side drawing, the dome section from a back photo), lit tile by tile, on a dark skirt, with a scroll wheel in a slot. It has no cord or buttons yet. */
-export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
+export function drawMouse(o: Graphics, _T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx),
     { l, h } = MOUSE;
   const shade = mix(L.plasticLo, '#000000', 0.1),
@@ -302,7 +302,7 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
   const w = wheelGeom(D, monitorCx),
     zNearEnd = w.zNear + 14;
   for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l < zNearEnd) tile(i);
-  drawWheel(o, T, p, w);
+  drawWheel(o, p, w);
   for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l >= zNearEnd) tile(i);
   // the skirt's top edge, on the half toward the viewer only (the far half is behind the body)
   const near = [
@@ -348,7 +348,7 @@ function wheelGeom(D: DeskGeo, monitorCx: number) {
   const [aLo, aHi] = ex(hw);
   return { hw, e, cz, ch, ex, aLo, aHi, zNear: cz(aLo), zFar: cz(aHi) };
 }
-function drawWheel(o: Graphics, T: Theme, p: ReturnType<typeof placer>, g: ReturnType<typeof wheelGeom>) {
+function drawWheel(o: Graphics, p: ReturnType<typeof placer>, g: ReturnType<typeof wheelGeom>) {
   const { hw, e, cz, ch, ex, aLo, aHi, zNear, zFar } = g,
     sw = hw + 14,
     z0 = zFar - 14,

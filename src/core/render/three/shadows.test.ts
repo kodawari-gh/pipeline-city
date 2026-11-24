@@ -562,7 +562,7 @@ describe('ShadowCache removed lights', () => {
     expect(drawn).not.toContain(lights[2]);
   });
   it('keeps a deferred light of another scene: a scan of this scene does not drop it', () => {
-    const { lights, c, frame, scan, r, drawn } = removable();
+    const { c, frame, scan, r, drawn } = removable();
     const other = new Scene(),
       x = new SpotLight();
     x.castShadow = true;

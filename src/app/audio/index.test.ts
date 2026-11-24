@@ -6,8 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 
-const rel = (p: string): string => p.replace(/^\/?audio\//, '');
-
 class Param {
   log: number[] = [];
   private v = 1;

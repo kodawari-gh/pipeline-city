@@ -44,10 +44,8 @@ import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
 import { SettingsScreen } from './panels/Settings';
 import {
-  buildOpen,
   closeControls,
   controlsOpen,
-  galleryOpen,
   gameMenuOpen,
   holdActive,
   netOpen,

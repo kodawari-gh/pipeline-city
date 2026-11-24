@@ -1,5 +1,4 @@
 import type { Graphics } from 'pixi.js';
-import type { Theme } from './theme';
 
 // One look and one physics for every cable in the game (PSU leads, drive cables, fan cords, wall cords, the ISP lead, the ethernet and
 // video cables). A cable is a sleeve with a shadow, a faint tint of its accent and a lit streak. A cable that is not routed along the
@@ -9,7 +8,7 @@ import type { Theme } from './theme';
 export type Pt = [number, number];
 
 /** The sleeve colour. Over the wall (dark theme) it is paler, with a halo, so it stays readable on the dark slats. */
-export const sleeveOf = (T: Theme, wall = false) => (wall ? '#36457a' : '#171d29');
+export const sleeveOf = (wall = false) => (wall ? '#36457a' : '#171d29');
 const HALO = '#8fa3d6';
 
 export interface CableLook {
@@ -45,7 +44,7 @@ function shifted(pts: readonly Pt[], d: number): Pt[] {
 }
 
 /** Paint a cable's body along a dense centre line: shadow, halo, sleeve, accent tint, braid, lit streak and shade streak. */
-export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: CableLook) {
+export function paintCable(g: Graphics, pts: readonly Pt[], look: CableLook) {
   if (pts.length < 2) return;
   const { w, accent } = look,
     wall = !!look.wall;
@@ -60,7 +59,7 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
     g.stroke({ width: w * 1.5, color: HALO, alpha: 0.28, cap: 'round', join: 'round' });
   }
   trace(g, pts);
-  g.stroke({ width: w, color: sleeveOf(T, wall), cap: 'round', join: 'round' });
+  g.stroke({ width: w, color: sleeveOf(wall), cap: 'round', join: 'round' });
   trace(g, pts);
   g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
   if (look.braid) {
@@ -260,7 +259,7 @@ export function stepFall(f: Fall, dt: number, anchor: Pt, len: number, rest: Pt,
 // ---------------------------------------------------------------- management (visual only)
 
 /** A cable tie or a velcro strap round a cable at a point, square to it: a short dark band with a lit edge. */
-export function paintTie(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number, accent: string) {
+export function paintTie(g: Graphics, at: Pt, dir: Pt, w: number, accent: string) {
   const l = Math.hypot(dir[0], dir[1]) || 1,
     tx = dir[0] / l,
     ty = dir[1] / l,

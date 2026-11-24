@@ -499,14 +499,6 @@ const detect = () => (detected ??= pickTier(device()));
 let info: DeviceInfo | null = null;
 const device = () => (info ??= readDeviceInfo());
 
-function readJson(key: string): unknown {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? 'null');
-  } catch {
-    return null;
-  }
-}
-
 /**
  * `resolveStart` on the stored values. A `maxUp` that got its date or device now is saved at once: else an old record is dated "now" on every load
  * and never expires.

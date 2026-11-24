@@ -2,7 +2,6 @@
 // (copy, download, close). It is never a dead end. Written before the coder's changes: the way-forward rules fail until they land.
 // The node run has no DOM, so CrashPanel is called as a plain function and its element tree is walked (the Hud.test.ts pattern).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { crash } from '@/app/store';
 import type { CrashReport } from '@/worker/crash';
 
 const hooks = vi.hoisted(() => ({ effects: [] as (() => unknown)[] }));

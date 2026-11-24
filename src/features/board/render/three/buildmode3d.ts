@@ -198,8 +198,7 @@ type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: G
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04,
   EYE_RANGE = [0.3, 14] as const;
-const FOV = 30,
-  START = BUILD_START;
+const START = BUILD_START;
 /** How far west (units) the start view moves the picture of the case and the wall (the wall's own views, `wallView`). */
 const WALL_SHIFT = 1400;
 /** The z the Wall preset aims at: between the plates' faces and the router's front. */

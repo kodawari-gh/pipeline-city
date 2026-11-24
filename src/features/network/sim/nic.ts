@@ -118,7 +118,7 @@ export class Nic implements Device {
 
   /** `ram`: the machine's memory, which the DMA engine reads and writes. `raise`: a line to the interrupt controller (`Machine.raise`). */
   constructor(
-    private readonly ram: Uint8Array,
+    ram: Uint8Array,
     private readonly raise: (line: number) => void,
   ) {
     this.view32 = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { createDirector, type DirectorSnap } from './director';
 import { keyName, keyPcForLevel } from './keys';
 import { MIX } from './mixTokens';
-import { createMusic, keysInMemory, LAYERS, TIMING, type Music, type MusicFeed, type MusicSink } from './music';
+import { createMusic, keysInMemory, TIMING, type Music, type MusicFeed, type MusicSink } from './music';
 
 /** A sink that records every call by name and arguments, whatever the name (the same shape as the other director and music tests). */
 interface Rec {

@@ -49,13 +49,6 @@ import { BuildStage, binParts } from './buildmode3d';
 import { setLayoutTier } from '../layout/layout';
 import { Game } from '@/worker/game/game';
 
-/** What the tests reach into: the steps that wait for the frame loop and the panel are made instant. */
-interface Inside {
-  playAll(): Promise<void>;
-  door(): Promise<void>;
-}
-const hid = (s: BuildStage): Inside => s as unknown as Inside;
-
 /** A stage with the full rig and no 3D: the machine's drawing is stubbed, the game and the history are the real ones. */
 function stage(): BuildStage {
   const s = new (BuildStage as unknown as new (h: unknown) => Record<string, unknown>)({

@@ -322,7 +322,6 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
       y1 = f.y + f.dy * 74;
     paintCable(
       g,
-      T,
       [
         [f.x, f.y],
         [x1, y1],
@@ -380,7 +379,6 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
     x0 = PSU_FACE_X;
   paintCable(
     g,
-    T,
     [
       [x0 + 6, py],
       [h.x - 20, py],
@@ -742,7 +740,7 @@ export function sataCablePath(i: number): Lane {
 
 const SATA_CABLE_W = 32;
 
-function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, accent: string) {
+function plugBox(g: Graphics, x: number, y: number, w: number, h: number, accent: string) {
   box(g, x + 4, y + 8, w, h, 8, { fill: '#000000', fa: 0.25 });
   box(g, x, y, w, h, 8, { fill: '#1b2230', stroke: accent, lw: 4, sa: 0.85 });
 }
@@ -757,11 +755,11 @@ export function sataLinkArt(T: Theme, i: number): Container {
     pts = lane.pts,
     w = SATA_CABLE_W,
     L = SATA_LINK[i]!;
-  paintCable(g, T, pts, { w, accent: T.mul });
-  for (const t of tiePoints(pts, 1700, 500)) paintTie(g, T, t.at, t.dir, w, T.mul);
-  plugBox(g, T, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
+  paintCable(g, pts, { w, accent: T.mul });
+  for (const t of tiePoints(pts, 1700, 500)) paintTie(g, t.at, t.dir, w, T.mul);
+  plugBox(g, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
   const e = pts[pts.length - 1]!;
-  plugBox(g, T, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
+  plugBox(g, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
   return root;
 }
 
@@ -786,21 +784,20 @@ export function sataPowerArt(T: Theme, cells: number[]): Container {
     [X, top],
   ];
   const path = roundedPath(trunk, 60, 30);
-  paintCable(g, T, path, { w: 38, accent: T.ld });
-  for (const t of tiePoints(path, 1500, 400)) paintTie(g, T, t.at, t.dir, 38, T.ld);
+  paintCable(g, path, { w: 38, accent: T.ld });
+  for (const t of tiePoints(path, 1500, 400)) paintTie(g, t.at, t.dir, 38, T.ld);
   for (const i of cells) {
     const c = BAY_CELLS[i]!,
       y = py(i);
     paintCable(
       g,
-      T,
       [
         [X, y],
         [c.x - 78, y],
       ],
       { w: 30, accent: T.ld },
     );
-    plugBox(g, T, c.x - 86, y - 56, 80, 112, T.ld);
+    plugBox(g, c.x - 86, y - 56, 80, 112, T.ld);
   }
   box(g, x0 - 14, ys - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // socket on the PSU's east face
   return root;

@@ -9,7 +9,6 @@ import { hexNum } from '../skins';
 import { ArtSet } from './artset3d';
 import { boardModel, pcieSlot, rgbStrip } from './boardmodel3d';
 import type { Spin } from './fans3d';
-import { MM } from './pcbkit3d';
 import { quietCanvas } from './testutil';
 
 quietCanvas();

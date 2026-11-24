@@ -1588,7 +1588,7 @@ export class Machine3D {
     const env = this.caseEnv(),
       T = this.T,
       gx = BD.x + BD.w + 420,
-      base = sleeveOf(T),
+      base = sleeveOf(),
       deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     // (a lead's run from the power supply is behind the tray: the power lens draws a stub of it going on into the grommet)

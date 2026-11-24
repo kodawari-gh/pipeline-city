@@ -2,72 +2,11 @@
  "src/app/audio/director.levelup.test.ts": {
   "TS2345": 1
  },
- "src/app/audio/director.studio.test.ts": {
-  "TS6133": 1
- },
- "src/app/audio/index.test.ts": {
-  "TS6133": 1
- },
- "src/app/audio/music.levelKey.test.ts": {
-  "TS6133": 1
- },
- "src/app/audio/music.menuGame.test.ts": {
-  "TS6133": 2
- },
- "src/app/graphics.ts": {
-  "TS6133": 1
- },
- "src/app/layout.shop.browser.test.ts": {
-  "TS6133": 1
- },
  "src/app/store.ts": {
   "TS2345": 5
  },
- "src/core/render/cable.ts": {
-  "TS6133": 2
- },
- "src/core/render/three/powerscale.test.ts": {
-  "TS6133": 1
- },
- "src/core/render/three/shadows.test.ts": {
-  "TS6133": 1
- },
- "src/core/ui/Hud.tsx": {
-  "TS6133": 2
- },
- "src/core/ui/panels/CrashPanel.test.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/air/view.ts": {
-  "TS6133": 1,
-  "TS6138": 1
- },
- "src/features/board/render/three/boardmodel3d.test.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/buildmode3d.bare.test.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/buildmode3d.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/cooler3d.test.ts": {
-  "TS6133": 2
- },
  "src/features/board/render/three/nic3d.ts": {
   "TS2322": 1
- },
- "src/features/board/render/three/phychip3d.test.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/phychip3d.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/three/showcase.ts": {
-  "TS6133": 1
- },
- "src/features/board/render/thumbart.ts": {
-  "TS6133": 1
  },
  "src/features/board/sim/game/parts.ts": {
   "TS2322": 1
@@ -82,18 +21,6 @@
  },
  "src/features/gpu/sim/isa/isa.test.ts": {
   "TS7029": 1
- },
- "src/features/network/sim/nic.ts": {
-  "TS6138": 1
- },
- "src/features/room/render/desk/peripherals.ts": {
-  "TS6133": 3
- },
- "src/features/room/render/desk/props/case.ts": {
-  "TS6133": 1
- },
- "src/features/room/render/shell/shell.ts": {
-  "TS6133": 1
  },
  "src/features/sandbox/sim/pcbench.ts": {
   "TS2322": 1
