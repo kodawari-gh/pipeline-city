@@ -94,3 +94,4 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
 | #94 | 1 | sonnet medium | PASS | npm run check: all 10 gates ok (format, types, lint, css, md, dead, spell, py, pytypes, editor); npm run check:css: ok, 414 baselined; .baseline/stylelint.json diff shows only removals; npx vitest run |
 | #95 | 1 | sonnet medium | PASS | npm run check: all 10 gates ok (format, types, lint, css, md, dead, spell, py, pytypes, editor); npm run check:css: ok (0 baselined); .baseline/stylelint.json is now {} (diff is removals only); npx vi |
+| #97 | 1 | haiku medium | PASS | gh issue view 97 --repo kodawari-gh/pipeline-city --json title,body: read ticket; acceptance = .baseline/cspell.json empty; git diff parent/88...HEAD --stat: 5 files; .baseline/cspell.json now {} (onl |
