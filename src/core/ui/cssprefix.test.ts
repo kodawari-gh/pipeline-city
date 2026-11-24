@@ -26,3 +26,15 @@ describe('ui.css vendor prefixes', () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe('ui.css Build my PC shelf', () => {
+  it('keeps the chamfer off the desk panel, so the parts flyout that hangs outside it is not clipped', () => {
+    // A `clip-path` on `.bld-bin` cut the flyout (it sits at `left: 100%`): the part tiles never showed, in any category.
+    const sel = ".build.bld-tabs[data-layout='desk'] .bld-bin";
+    const body = (s: string): string =>
+      css.slice(css.indexOf('{', css.indexOf(`${s} {`)) + 1, css.indexOf('}', css.indexOf(`${s} {`)));
+    expect(css.indexOf(`${sel} {`)).toBeGreaterThanOrEqual(0);
+    expect(body(sel)).not.toContain('clip-path');
+    expect(body(`${sel}::before`)).toContain('clip-path');
+  });
+});

@@ -12415,10 +12415,19 @@ button.decline.armed {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--c-shade-86);
+  background: none;
   box-shadow: none;
   backdrop-filter: none;
   overflow: visible;
+}
+
+/* (the chamfer is on the backing, not on the panel: a clip-path on the panel would also cut the parts flyout, which hangs outside its box) */
+.build.bld-tabs[data-layout='desk'] .bld-bin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--c-shade-86);
   clip-path: polygon(
     0 0,
     calc(100% - 0.9rem) 0,
