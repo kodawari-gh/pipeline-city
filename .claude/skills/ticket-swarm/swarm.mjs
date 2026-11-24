@@ -837,6 +837,20 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
 
   // ---------- one ticket ----------
 
+  /**
+   * True when a stop cut a round after its workers finished: a role commit is not merged yet, or the merge
+   * stopped in the gates (`gateHead`) or in the review (`reviewHead`). The round then resumes at the merge.
+   */
+  resumesAtMerge(n, merge, workers) {
+    const head = git(merge, 'rev-parse', 'HEAD');
+    const t = this.t(n);
+    return (
+      t.reviewHead === head ||
+      t.gateHead === head ||
+      workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'))
+    );
+  }
+
   async runTicket(n) {
     const T = this.t(n);
     const issue = getIssue(this.cfg, n);
@@ -860,10 +874,7 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
     this.clean(merge);
     // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
     // A review cut off by a stop resumes at the review: the same merge, no new round.
-    let pending =
-      T.rounds > 0 &&
-      (T.reviewHead === git(merge, 'rev-parse', 'HEAD') ||
-        workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD')));
+    let pending = T.rounds > 0 && this.resumesAtMerge(n, merge, workers);
     for (;;) {
       const tier = tierAt(planned, T.failures);
       if (!tier) {
@@ -930,7 +941,10 @@ Keep the parent's changes and every change ${ref} made: when ${this.base} moved 
       await this.relinkDeps(n, merge);
 
       // Repo gates run here, by the runner: a failure goes back to the workers without a reviewer run.
+      T.gateHead = git(merge, 'rev-parse', 'HEAD');
+      this.save();
       const failed = await this.runChecks(n, merge);
+      delete T.gateHead;
       if (failed) {
         this.gateFail(n, tier, failed);
         relaunch = workers;
