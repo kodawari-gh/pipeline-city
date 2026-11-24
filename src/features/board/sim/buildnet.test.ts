@@ -40,11 +40,11 @@ describe('setNet', () => {
     const g = rig();
     expect(setNet(g, 'router', 'router2')).toEqual({ ok: true });
     expect(netState(g).router).toBe('router2');
-    expect(g.cables.lan).toBe(true);
+    expect(g.cables['lan']).toBe(true);
     expect(g.lan).not.toBeNull();
     expect(setNet(g, 'router', null)).toEqual({ ok: true });
     expect(netState(g).router).toBeNull();
-    expect(g.cables.lan).toBe(false);
+    expect(g.cables['lan']).toBe(false);
     expect(g.lan).toBeNull();
   });
 
@@ -53,17 +53,17 @@ describe('setNet', () => {
     setNet(g, 'router', 'router1');
     expect(setNet(g, 'router', 'router3')).toEqual({ ok: true });
     expect(netState(g).router).toBe('router3');
-    expect(g.cables.lan).toBe(true);
+    expect(g.cables['lan']).toBe(true);
   });
 
   it('does not cable a router again when the player pulled the cable out (only a router that comes in is cabled)', () => {
     const g = rig();
     setNet(g, 'router', 'router1');
     g.disconnectCable('lan');
-    expect(g.cables.lan).toBe(false);
+    expect(g.cables['lan']).toBe(false);
     // (the same router refused by the game: nothing changes)
     expect(setNet(g, 'router', 'router1').ok).toBe(false);
-    expect(g.cables.lan).toBe(false);
+    expect(g.cables['lan']).toBe(false);
   });
 
   it('puts an internet plan in, swaps it, and takes it away; there is nothing to take when none is in place', () => {

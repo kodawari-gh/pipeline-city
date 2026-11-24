@@ -249,7 +249,7 @@ describe('validation', () => {
       expect(() => parseSave(x)).toThrow(msg);
     };
     bad((x) => {
-      (x as unknown as Record<string, unknown>).disks = 'no';
+      (x as unknown as Record<string, unknown>)['disks'] = 'no';
     }, /disks/);
     bad((x) => {
       x.disks = [{ deviceId: 'nope', mount: 'clean', files: [], media: { wear: [], bad: [], rng: 1 } }];

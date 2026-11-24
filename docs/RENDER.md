@@ -38,7 +38,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 
 ## World layout
 
-```
+```text
  monitor ---- video cable ---- [ motherboard ] | cable gutter
  (16:9, stand)   (HDMI)        rear I/O west   |  PSU cables rise to the east-edge connectors
  key tray, power plate below the monitor

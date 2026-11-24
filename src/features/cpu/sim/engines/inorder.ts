@@ -32,9 +32,9 @@ export interface InOrderSettings extends EngineSettings {
 
 const F_CTRL = F.Branch | F.Jal | F.Jalr;
 /** Threads a core can hold. */
-export const MAX_THREADS = 4;
+const MAX_THREADS = 4;
 /** Cycles a thread may keep the pipeline while another could run: a thread that waits for a lock never misses, so without a limit the one that holds it would never run again. */
-export const THREAD_TIMEOUT = 24;
+const THREAD_TIMEOUT = 24;
 
 export class InOrderEngine extends EngineBase {
   /** Live options; may be toggled between steps. */
@@ -96,7 +96,7 @@ export class InOrderEngine extends EngineBase {
 
   override switchTo(core: Core): boolean {
     const t = this.cores.indexOf(core);
-    if (t < 0) return false;
+    if (t === -1) return false;
     if (t === this.fetchThread && !this.fetchIdle) return true;
     if (this.ready(t)) this.want = t;
     return false;

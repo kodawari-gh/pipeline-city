@@ -29,10 +29,10 @@ export const ROUTER_KIND_COLOR: Record<RouterBlockKind, Key> = {
   sw: 'st',
   stat: 'st',
 };
-export const ROUTER_LINK_COLOR: Record<RouterLinkKind, Key> = { data: 'st', control: 'mute', memory: 'ld' };
+const ROUTER_LINK_COLOR: Record<RouterLinkKind, Key> = { data: 'st', control: 'mute', memory: 'ld' };
 
 /** The legend of the colours. */
-export const ROUTER_LEGEND: { text: string; key: Key }[] = [
+const ROUTER_LEGEND: { text: string; key: Key }[] = [
   { text: 'LINE', key: 'alu' },
   { text: 'FORWARD', key: 'st' },
   { text: 'CPU', key: 'mul' },
@@ -40,13 +40,13 @@ export const ROUTER_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** The line under the plan: what the router is. */
-export const routerTitle = (plan: RouterPlan): string => {
+const routerTitle = (plan: RouterPlan): string => {
   const i = plan.input;
   return `${i.soc} · ${i.std} · ${i.cores} core${i.cores === 1 ? '' : 's'} ${i.mhz} MHz · ${fmtSize(i.dram.mb)}`;
 };
 
 /** How the die is drawn: the CPU die's art (`planFar`, `planNear`) with the router's colours and symbols. */
-export function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink> {
+function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink> {
   return {
     color: (T, b) => T[ROUTER_KIND_COLOR[b.kind]],
     linkColor: (T, l) => T[ROUTER_LINK_COLOR[l.kind]],
@@ -58,7 +58,7 @@ export function routerStyle(plan: RouterPlan): PlanStyle<RouterBlock, RouterLink
 }
 
 /** The die's floor, the blocks and the SoC's frame: the far view. */
-export function routerFar(g: Graphics, T: Theme, plan: RouterPlan): void {
+function routerFar(g: Graphics, T: Theme, plan: RouterPlan): void {
   const D = plan.die;
   g.roundRect(D.x, D.y, D.w, D.h, 8)
     .fill({ color: mix(T.die, '#000000', 0.3) })
@@ -67,7 +67,7 @@ export function routerFar(g: Graphics, T: Theme, plan: RouterPlan): void {
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-export function routerNear(T: Theme, plan: RouterPlan): DieArt {
+function routerNear(T: Theme, plan: RouterPlan): DieArt {
   const art = planNear(T, plan, routerStyle(plan)),
     D = plan.die,
     sy = D.y + D.h - 30 + 15,

@@ -70,7 +70,7 @@ const HABIT: Record<TreeKind, Habit> = {
 /** A unit ball whose vertices are shared, so its lumps shade smooth: finer near the window. */
 const BALLS = [SEG.ballDetail, SEG.ballDetailMid, SEG.ballDetailFine].map((d) => {
   const g = mergeVertices(new IcosahedronGeometry(1, d).deleteAttribute('normal').deleteAttribute('uv'));
-  return { pos: g.attributes.position!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
+  return { pos: g.attributes['position']!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
 });
 
 /** How many sprays of leaves stand on each lump of a near crown. */
@@ -84,7 +84,7 @@ const SPRAYS = 3;
 /** Where the detail steps down (m from the window), and the most triangles a tree may have in each ring (docs/3D_STYLE.md "Asset standard", ASR2). */
 export const RINGS = [150, 300, 900] as const,
   TREE_CAPS = [5000, 1450, 430, 170] as const;
-const enum Detail {
+enum Detail {
   Sprayed,
   Round,
   Coarse,
@@ -194,7 +194,7 @@ class Lumps {
 /** A limb (or a trunk): a tapered tube, its uvs in metres along it and round it, as the bark's repeat is. */
 function limb(pts: V3[], r0: number, r1: number, sides: number, segs: number): BufferGeometry {
   const g = taperTube(pts, r0, r1, sides, segs),
-    uv = g.attributes.uv!;
+    uv = g.attributes['uv']!;
   let l = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i]!,
@@ -239,7 +239,7 @@ function crown(
         e = len(q);
       const nrm = unit(add(unit([q[0] / rad[0], q[1] / rad[1], q[2] / rad[2]]), d, 0.55));
       const ao =
-        (0.35 + 0.65 * smooth(0.3, 1.0, e)) *
+        (0.35 + 0.65 * smooth(0.3, 1, e)) *
         (0.7 + 0.3 * clamp01(q[1] * 0.5 + 0.5)) *
         (0.8 + 0.2 * (d[1] * 0.5 + 0.5)) *
         tone *
@@ -393,7 +393,7 @@ export interface LeafUniforms {
  * the eye. Each scale fades to its average where a pixel covers it, so a far tree stays clean. At night the street's lamps light a crown from
  * under and the city's glow its top, so it stays a soft mass and not a black hole in the view.
  */
-export function leafShader(m: MeshStandardMaterial): LeafUniforms {
+function leafShader(m: MeshStandardMaterial): LeafUniforms {
   const u: LeafUniforms = {
     time: { value: 0 },
     sunView: { value: new Vector3(0, 1, 0) },
@@ -401,10 +401,10 @@ export function leafShader(m: MeshStandardMaterial): LeafUniforms {
     night: { value: 0 },
   };
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.leafTime = u.time;
-    sh.uniforms.leafSun = u.sunView;
-    sh.uniforms.leafGlow = u.glow;
-    sh.uniforms.leafNight = u.night;
+    sh.uniforms['leafTime'] = u.time;
+    sh.uniforms['leafSun'] = u.sunView;
+    sh.uniforms['leafGlow'] = u.glow;
+    sh.uniforms['leafNight'] = u.night;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
@@ -515,7 +515,7 @@ export function plantTrees(
       grow(t, cards, wood, own(t));
       const ball = ballOf(cards.positions, v, cards.vertices);
       for (const g of wood.slice(w)) {
-        ball.union(ballOf(g.attributes.position!.array, 0, g.attributes.position!.count));
+        ball.union(ballOf(g.attributes['position']!.array, 0, g.attributes['position']!.count));
         bark += drawn(g);
       }
       balls.push(ball);

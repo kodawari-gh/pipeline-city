@@ -13,7 +13,7 @@ function ok<T extends { ok: boolean }>(r: T): T {
 }
 
 /** A board of `tier` with a CPU, `sticks` RAM sticks of `ram`, a monitor, a tower cooler and a big enough PSU. */
-function rig(tier: number, sticks: number, ram: string, o: { clock?: number; sink?: string } = {}): Board {
+function rig(tier: number, sticks: number, ram: string, o: { clock?: number; sink?: string | undefined } = {}): Board {
   const b = createBoard(tier);
   for (const s of ['cpu1', 'display0', 'cooler1', 'psu2'.replace('psu2', tier >= 2 ? 'psu2' : 'psu1')])
     ok(install(b, s));

@@ -39,7 +39,7 @@ describe('the game fails to start', () => {
 // forward, not a dead end. It listens for the browser's `offline` event on `window`. Written before the coder's change: it fails until the
 // offline notice lands (the exact wording is the coder's; the test checks plain words and a way forward).
 describe('the browser goes offline', () => {
-  let offlineListeners: Array<() => void>;
+  let offlineListeners: (() => void)[];
 
   beforeEach(() => {
     vi.resetModules();

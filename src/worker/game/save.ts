@@ -55,7 +55,7 @@ export interface SavedPlugged extends SavedKey {
   result: string;
 }
 
-export interface SavedCompleted {
+interface SavedCompleted {
   id: number;
   template: string;
   payout: number;
@@ -141,30 +141,30 @@ const NEW_FLAGS: readonly (keyof Progress)[] = [
 export const newProgress = (all = false): Progress =>
   Object.fromEntries(PROGRESS_KEYS.map((k) => [k, all && !NEW_FLAGS.includes(k)])) as unknown as Progress;
 
-export interface SavedInventoryItem {
+interface SavedInventoryItem {
   id: string;
   spec: string;
 }
 
 /** The OS installed on a storage device (identified by the installed device's id). */
-export interface SavedOs {
+interface SavedOs {
   /** Item id, `os1`... */
   spec: string;
   deviceId: string;
 }
 
 /** The shape before storage and the OS (v2). Only the migration reads it. */
-export interface SaveV2 extends Omit<SaveV3, 'version' | 'os'> {
+interface SaveV2 extends Omit<SaveV3, 'version' | 'os'> {
   version: 2;
 }
 
 /** The shape before the board tier ladder and the VRM (v3). Only the migration reads it. */
-export interface SaveV3 extends Omit<SaveV4, 'version'> {
+interface SaveV3 extends Omit<SaveV4, 'version'> {
   version: 3;
 }
 
 /** The shape before fans were parts of their own (v4): the same fields. Only the migration reads it. */
-export interface SaveV4 extends Omit<SaveV5, 'version'> {
+interface SaveV4 extends Omit<SaveV5, 'version'> {
   version: 4;
 }
 
@@ -259,7 +259,7 @@ export interface SavedDisk {
   twin?: DiskMediaState;
 }
 
-export interface SavedContracts {
+interface SavedContracts {
   nextId: number;
   /** The offers' PRNG state. */
   rng: number;
@@ -268,7 +268,7 @@ export interface SavedContracts {
 }
 
 /** The meter (Wh, all time) and the bill's state; `nextTick` and `unpaidSince` are base ticks. */
-export interface SavedBill {
+interface SavedBill {
   wh: number;
   billedWh: number;
   nextTick: number | null;
@@ -297,7 +297,7 @@ export interface SavedNet {
 export type Save = SaveV5;
 
 /** The shape before the USB keys (v1). Only the migration reads it. */
-export interface SaveV1 {
+interface SaveV1 {
   version: 1;
   seed: number;
   prngState: number;
@@ -398,7 +398,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
     const caseTier = Math.max(typeof b.caseTier === 'number' ? b.caseTier : 0, smallest);
     let next = Math.max(
       typeof b.nextId === 'number' ? b.nextId : 1,
-      ...b.devices.map((d) => Number(String(d.id).replace(/\D/g, '')) + 1),
+      ...b.devices.map((d) => Number(String(d.id).replaceAll(/\D/g, '')) + 1),
       1,
     );
     const fans: BoardJson['devices'] = [],
@@ -434,8 +434,8 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
 /** Bring any known older save up to the current version. Identity for current-version saves. */
 export function migrate(save: unknown): unknown {
   if (!isObj(save)) throw new Error('save: not an object');
-  const ver = save.version;
-  if (typeof ver !== 'number' || !Number.isInteger(ver)) throw new Error('save: missing or invalid version');
+  const ver = save['version'];
+  if (typeof ver !== 'number' || !Number.isInteger(ver)) throw new TypeError('save: missing or invalid version');
   let v: number = ver;
   if (v > SAVE_VERSION) throw new Error(`save: version ${v} is newer than this game supports (${SAVE_VERSION})`);
   if (v < 1) throw new Error(`save: unknown version ${v}`);
@@ -454,58 +454,63 @@ export function parseSave(input: unknown): SaveV5 {
   const s = migrate(input) as Record<string, unknown>;
   // Saves from before the cooler became an install step have no `coolerInstalled`: it was pre-mounted, so derive it.
   if (
-    isObj(s.progress) &&
-    typeof s.progress.coolerInstalled !== 'boolean' &&
-    isObj(s.board) &&
-    Array.isArray(s.board.devices)
+    isObj(s['progress']) &&
+    typeof s['progress']['coolerInstalled'] !== 'boolean' &&
+    isObj(s['board']) &&
+    Array.isArray(s['board']['devices'])
   ) {
-    s.progress = {
-      ...s.progress,
-      coolerInstalled: (s.board.devices as Array<{ spec?: unknown }>).some(
+    s['progress'] = {
+      ...s['progress'],
+      coolerInstalled: (s['board']['devices'] as { spec?: unknown }[]).some(
         (d) => typeof d.spec === 'string' && getSpec(d.spec)?.kind === 'cooler',
       ),
     };
   }
   // Saves from before the manual boot loop have no `firstManualCycle`: whoever handed back a key had cycled the machine.
-  if (isObj(s.progress) && typeof s.progress.firstManualCycle !== 'boolean') {
-    s.progress = { ...s.progress, firstManualCycle: s.progress.firstKeyEjected === true };
+  if (isObj(s['progress']) && typeof s['progress']['firstManualCycle'] !== 'boolean') {
+    s['progress'] = { ...s['progress'], firstManualCycle: s['progress']['firstKeyEjected'] === true };
   }
   // Saves from before the network: the ethernet cable is unplugged and the network milestones are not reached.
-  if (isObj(s.cables) && typeof (s.cables as Record<string, unknown>).lan !== 'boolean')
-    s.cables = { ...s.cables, lan: false };
+  if (isObj(s['cables']) && typeof (s['cables'] as Record<string, unknown>)['lan'] !== 'boolean')
+    s['cables'] = { ...s['cables'], lan: false };
   // Saves from before the accelerators have no PCIe power lead: it is unplugged (additive, no version bump, like the ethernet cable).
   // the PCIe leads came later (pcie first, pcie2..4 with the lead model): a save without them has them unplugged
-  if (isObj(s.cables)) {
-    const cables = s.cables as Record<string, unknown>;
-    for (const id of PCIE_LEADS) if (cables[id] === undefined) s.cables = { ...(s.cables as object), [id]: false };
+  if (isObj(s['cables'])) {
+    const cables = s['cables'] as Record<string, unknown>;
+    for (const id of PCIE_LEADS)
+      if (cables[id] === undefined) s['cables'] = { ...(s['cables'] as object), [id]: false };
   }
-  if (isObj(s.progress)) {
-    const p = { ...s.progress } as Record<string, unknown>;
+  if (isObj(s['progress'])) {
+    const p = { ...s['progress'] } as Record<string, unknown>;
     for (const k of PROGRESS_KEYS) if (typeof p[k] !== 'boolean' && NEW_FLAGS.includes(k)) p[k] = false;
-    s.progress = p;
+    s['progress'] = p;
   }
-  if (s.video !== undefined && typeof s.video !== 'string') throw new Error('save: "video" must be a string');
-  if (s.net !== undefined) {
-    const n = s.net;
+  if (s['video'] !== undefined && typeof s['video'] !== 'string') throw new Error('save: "video" must be a string');
+  if (s['net'] !== undefined) {
+    const n = s['net'];
     if (
       !isObj(n) ||
-      !isNat(n.ispTier) ||
-      !isNat(n.routerTier) ||
-      !isNat(n.deadTicks) ||
-      typeof n.networkLinked !== 'boolean' ||
-      !(n.lan === null || typeof n.lan === 'string') ||
-      !Array.isArray(n.offers) ||
-      !Array.isArray(n.spool)
+      !isNat(n['ispTier']) ||
+      !isNat(n['routerTier']) ||
+      !isNat(n['deadTicks']) ||
+      typeof n['networkLinked'] !== 'boolean' ||
+      !(n['lan'] === null || typeof n['lan'] === 'string') ||
+      !Array.isArray(n['offers']) ||
+      !Array.isArray(n['spool'])
     ) {
       throw new Error('save: "net" is not a valid network block');
     }
-    (n.offers as unknown[]).forEach((r, i) => checkKey(r, `net.offers[${i}]`));
-    (n.spool as unknown[]).forEach((r, i) => checkKey(r, `net.spool[${i}]`));
+    (n['offers'] as unknown[]).forEach((r, i) => checkKey(r, `net.offers[${i}]`));
+    (n['spool'] as unknown[]).forEach((r, i) => checkKey(r, `net.spool[${i}]`));
   }
-  if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick))
+  if (s['firstBootTick'] !== undefined && s['firstBootTick'] !== null && !isNat(s['firstBootTick']))
     throw new Error('save: "firstBootTick" must be a non-negative integer or null');
-  if (s.sandbox !== undefined && typeof s.sandbox !== 'boolean') throw new Error('save: "sandbox" must be a boolean');
-  if (s.sandboxLevel !== undefined && (!isNat(s.sandboxLevel) || s.sandboxLevel < 1 || s.sandboxLevel > MAX_LEVEL))
+  if (s['sandbox'] !== undefined && typeof s['sandbox'] !== 'boolean')
+    throw new Error('save: "sandbox" must be a boolean');
+  if (
+    s['sandboxLevel'] !== undefined &&
+    (!isNat(s['sandboxLevel']) || s['sandboxLevel'] < 1 || s['sandboxLevel'] > MAX_LEVEL)
+  )
     throw new Error(`save: "sandboxLevel" must be a whole number from 1 to ${MAX_LEVEL}`);
   for (const k of ['sandboxOff', 'sandboxKindsOff'] as const) {
     if (s[k] !== undefined && (!Array.isArray(s[k]) || (s[k] as unknown[]).some((x) => typeof x !== 'string')))
@@ -518,10 +523,10 @@ export function parseSave(input: unknown): SaveV5 {
   for (const k of ['level', 'declined', 'expired'] as const) {
     if (s[k] !== undefined && !isNat(s[k])) throw new Error(`save: "${k}" must be a non-negative integer`);
   }
-  if (s.level !== undefined && (s.level as number) > MAX_LEVEL)
+  if (s['level'] !== undefined && (s['level'] as number) > MAX_LEVEL)
     throw new Error(`save: "level" must be at most ${MAX_LEVEL}`);
-  if (s.levelTicks !== undefined) {
-    const lt = s.levelTicks;
+  if (s['levelTicks'] !== undefined) {
+    const lt = s['levelTicks'];
     if (!isObj(lt) || Object.entries(lt).some(([k, v]) => !/^[0-9]+$/.test(k) || !isNat(v)))
       throw new Error('save: "levelTicks" must map level numbers to ticks');
   }
@@ -533,7 +538,7 @@ export function parseSave(input: unknown): SaveV5 {
   };
   const int = (k: string, min = 0): number => {
     const x = num(k, min);
-    if (!Number.isInteger(x)) throw new Error(`save: "${k}" must be an integer`);
+    if (!Number.isInteger(x)) throw new TypeError(`save: "${k}" must be an integer`);
     return x;
   };
   int('seed');
@@ -546,17 +551,21 @@ export function parseSave(input: unknown): SaveV5 {
   int('dropped');
   num('avgTurnaround', 1e-9);
   int('nextInvId', 1);
-  if (typeof s.tripped !== 'boolean') throw new Error('save: "tripped" must be a boolean');
-  if (!isObj(s.board)) throw new Error('save: "board" missing');
+  if (typeof s['tripped'] !== 'boolean') throw new TypeError('save: "tripped" must be a boolean');
+  if (!isObj(s['board'])) throw new Error('save: "board" missing');
   try {
-    boardFromJson(s.board as unknown as BoardJson);
+    boardFromJson(s['board'] as unknown as BoardJson);
   } catch (e) {
-    throw new Error(`save: invalid board (${(e as Error).message})`);
+    throw new Error(`save: invalid board (${(e as Error).message})`, { cause: e });
   }
   if (
-    !Array.isArray(s.inventory) ||
-    s.inventory.some(
-      (p) => !isObj(p) || typeof p.id !== 'string' || typeof p.spec !== 'string' || offerPrice(p.spec) === undefined,
+    !Array.isArray(s['inventory']) ||
+    s['inventory'].some(
+      (p) =>
+        !isObj(p) ||
+        typeof p['id'] !== 'string' ||
+        typeof p['spec'] !== 'string' ||
+        offerPrice(p['spec']) === undefined,
     )
   ) {
     throw new Error('save: "inventory" must be a list of {id, spec} with known item ids');
@@ -568,64 +577,65 @@ export function parseSave(input: unknown): SaveV5 {
     const v = (o as Record<string, unknown>)[k];
     return typeof v === 'boolean' || (optional(k) && v === undefined);
   };
-  if (!isObj(s.cables) || CABLE_IDS.some((c) => !flag(s.cables, c))) {
+  if (!isObj(s['cables']) || CABLE_IDS.some((c) => !flag(s['cables'], c))) {
     throw new Error('save: "cables" must say whether each cable is connected');
   }
-  if (!isObj(s.progress) || PROGRESS_KEYS.some((k) => !flag(s.progress, k))) {
+  if (!isObj(s['progress']) || PROGRESS_KEYS.some((k) => !flag(s['progress'], k))) {
     throw new Error('save: "progress" must be a list of boolean milestones');
   }
-  if (!Array.isArray(s.tray)) throw new Error('save: "tray" must be an array');
-  s.tray.forEach((r, i) => checkKey(r, `tray[${i}]`));
-  if (s.plugged !== null) {
-    checkKey(s.plugged, 'plugged');
-    const c = s.plugged as Record<string, unknown>;
+  if (!Array.isArray(s['tray'])) throw new TypeError('save: "tray" must be an array');
+  s['tray'].forEach((r, i) => checkKey(r, `tray[${i}]`));
+  if (s['plugged'] !== null) {
+    checkKey(s['plugged'], 'plugged');
+    const c = s['plugged'] as Record<string, unknown>;
     if (
-      !isNat(c.attempts) ||
-      !isNat(c.pluggedAt) ||
-      !isNat(c.doneAt) ||
-      typeof c.done !== 'boolean' ||
-      typeof c.result !== 'string'
+      !isNat(c['attempts']) ||
+      !isNat(c['pluggedAt']) ||
+      !isNat(c['doneAt']) ||
+      typeof c['done'] !== 'boolean' ||
+      typeof c['result'] !== 'string'
     ) {
       throw new Error('save: "plugged" needs attempts, pluggedAt, doneAt, done and result');
     }
-    if (c.ranAt !== undefined && !isNat(c.ranAt)) throw new Error('save: "plugged" ranAt must be a tick');
+    if (c['ranAt'] !== undefined && !isNat(c['ranAt'])) throw new Error('save: "plugged" ranAt must be a tick');
   }
-  if (s.os !== null) {
-    const o = s.os;
-    if (!isObj(o) || typeof o.spec !== 'string' || typeof o.deviceId !== 'string')
+  if (s['os'] !== null) {
+    const o = s['os'];
+    if (!isObj(o) || typeof o['spec'] !== 'string' || typeof o['deviceId'] !== 'string')
       throw new Error('save: "os" must be {spec, deviceId} or null');
-    const os = getOsSpec(o.spec);
-    if (!os || os.later) throw new Error(`save: unknown OS "${String(o.spec)}"`);
-    const dev = (s.board as unknown as BoardJson).devices.find((d) => d.id === o.deviceId);
+    const os = getOsSpec(o['spec']);
+    if (!os || os.later) throw new Error(`save: unknown OS "${String(o['spec'])}"`);
+    const dev = (s['board'] as unknown as BoardJson).devices.find((d) => d.id === o['deviceId']);
     if (!dev || getSpec(dev.spec)?.kind !== 'storage')
       throw new Error('save: "os" must name an installed storage device');
   }
-  if (s.bill !== undefined) {
-    const b = s.bill;
+  if (s['bill'] !== undefined) {
+    const b = s['bill'];
     const money = (x: unknown) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
     const tickOrNull = (x: unknown) => x === null || isNat(x);
     if (
       !isObj(b) ||
-      !money(b.wh) ||
-      !money(b.billedWh) ||
-      !tickOrNull(b.nextTick) ||
-      !isNat(b.unpaid) ||
-      !tickOrNull(b.unpaidSince) ||
-      typeof b.powerCut !== 'boolean' ||
-      !isNat(b.paid) ||
-      ((b.unpaid as number) > 0 && b.unpaidSince === null) ||
-      (b.last !== null && (!isObj(b.last) || !isNat(b.last.tick) || !money(b.last.wh) || !isNat(b.last.amount)))
+      !money(b['wh']) ||
+      !money(b['billedWh']) ||
+      !tickOrNull(b['nextTick']) ||
+      !isNat(b['unpaid']) ||
+      !tickOrNull(b['unpaidSince']) ||
+      typeof b['powerCut'] !== 'boolean' ||
+      !isNat(b['paid']) ||
+      ((b['unpaid'] as number) > 0 && b['unpaidSince'] === null) ||
+      (b['last'] !== null &&
+        (!isObj(b['last']) || !isNat(b['last']['tick']) || !money(b['last']['wh']) || !isNat(b['last']['amount'])))
     ) {
       throw new Error('save: "bill" must be the meter and the bill\'s state');
     }
   }
-  if (s.disks !== undefined) {
-    if (!Array.isArray(s.disks)) throw new Error('save: "disks" must be a list');
-    const devices = (s.board as unknown as BoardJson).devices;
-    s.disks.forEach((d, i) => checkDisk(d, `disks[${i}]`, devices));
+  if (s['disks'] !== undefined) {
+    if (!Array.isArray(s['disks'])) throw new TypeError('save: "disks" must be a list');
+    const devices = (s['board'] as unknown as BoardJson).devices;
+    s['disks'].forEach((d, i) => checkDisk(d, `disks[${i}]`, devices));
   }
-  if (s.contracts !== undefined) checkContracts(s.contracts);
-  if (s.lastCompleted !== null && !isObj(s.lastCompleted))
+  if (s['contracts'] !== undefined) checkContracts(s['contracts']);
+  if (s['lastCompleted'] !== null && !isObj(s['lastCompleted']))
     throw new Error('save: "lastCompleted" must be an object or null');
   return s as unknown as SaveV5;
 }
@@ -640,51 +650,51 @@ const isPairList = (x: unknown): x is [number, number][] =>
 function checkMedia(m: unknown, where: string): void {
   if (
     !isObj(m) ||
-    !isPairList(m.wear) ||
-    !Array.isArray(m.bad) ||
-    !m.bad.every(isNat) ||
-    !isNat(m.rng) ||
-    m.rng > 0xffffffff
+    !isPairList(m['wear']) ||
+    !Array.isArray(m['bad']) ||
+    !m['bad'].every(isNat) ||
+    !isNat(m['rng']) ||
+    m['rng'] > 0xffffffff
   )
     throw new Error(`save: ${where} must be {wear, bad, rng}`);
 }
 
 function checkDisk(d: unknown, where: string, devices: readonly { id: string; spec: string }[]): void {
   if (!isObj(d)) throw new Error(`save: ${where} must be an object`);
-  const dev = devices.find((x) => x.id === d.deviceId);
+  const dev = devices.find((x) => x.id === d['deviceId']);
   if (!dev || getSpec(dev.spec)?.kind !== 'storage')
     throw new Error(`save: ${where}.deviceId must name an installed storage device`);
-  if (typeof d.mount !== 'string' || !MOUNTS.includes(d.mount))
+  if (typeof d['mount'] !== 'string' || !MOUNTS.includes(d['mount']))
     throw new Error(`save: ${where}.mount is not a mount state`);
-  if (!Array.isArray(d.files)) throw new Error(`save: ${where}.files must be a list`);
-  d.files.forEach((f, i) => {
+  if (!Array.isArray(d['files'])) throw new TypeError(`save: ${where}.files must be a list`);
+  d['files'].forEach((f, i) => {
     const w = `${where}.files[${i}]`;
     if (
       !isObj(f) ||
-      !isNat(f.id) ||
-      f.id < 1 ||
-      typeof f.owner !== 'string' ||
-      typeof f.kind !== 'string' ||
-      !(FILE_KINDS as readonly string[]).includes(f.kind) ||
-      !isPairList(f.extents) ||
-      f.extents.length === 0
+      !isNat(f['id']) ||
+      f['id'] < 1 ||
+      typeof f['owner'] !== 'string' ||
+      typeof f['kind'] !== 'string' ||
+      !(FILE_KINDS as readonly string[]).includes(f['kind']) ||
+      !isPairList(f['extents']) ||
+      f['extents'].length === 0
     ) {
       throw new Error(`save: ${w} must be {id, owner, kind, extents}`);
     }
     for (const k of ['soft', 'lost'] as const)
       if (f[k] !== undefined && f[k] !== true) throw new Error(`save: ${w}.${k} must be true when present`);
-    if (f.seed !== undefined && !isNat(f.seed)) throw new Error(`save: ${w}.seed must be a non-negative integer`);
+    if (f['seed'] !== undefined && !isNat(f['seed'])) throw new Error(`save: ${w}.seed must be a non-negative integer`);
   });
-  if (d.written !== undefined && !isPairList(d.written))
+  if (d['written'] !== undefined && !isPairList(d['written']))
     throw new Error(`save: ${where}.written must be a list of [first, len]`);
-  checkMedia(d.media, `${where}.media`);
-  if (d.twin !== undefined) checkMedia(d.twin, `${where}.twin`);
+  checkMedia(d['media'], `${where}.media`);
+  if (d['twin'] !== undefined) checkMedia(d['twin'], `${where}.twin`);
 }
 
 function checkTerms(c: Record<string, unknown>, where: string): void {
-  if (typeof c.kind !== 'string' || !CONTRACT_KINDS.some((k) => k.id === c.kind))
+  if (typeof c['kind'] !== 'string' || !CONTRACT_KINDS.some((k) => k.id === c['kind']))
     throw new Error(`save: ${where}.kind is not a contract kind`);
-  if (typeof c.client !== 'string') throw new Error(`save: ${where}.client must be a string`);
+  if (typeof c['client'] !== 'string') throw new TypeError(`save: ${where}.client must be a string`);
   for (const k of [
     'seed',
     'blocks',
@@ -697,53 +707,53 @@ function checkTerms(c: Record<string, unknown>, where: string): void {
   ]) {
     if (!isNat(c[k])) throw new Error(`save: ${where}.${k} must be a non-negative integer`);
   }
-  if ((c.blocks as number) < 1 || (c.duration as number) < 1 || (c.readEvery as number) < 1)
+  if ((c['blocks'] as number) < 1 || (c['duration'] as number) < 1 || (c['readEvery'] as number) < 1)
     throw new Error(`save: ${where} has empty terms`);
-  if (typeof c.levelPay !== 'number' || !Number.isFinite(c.levelPay) || c.levelPay <= 0)
+  if (typeof c['levelPay'] !== 'number' || !Number.isFinite(c['levelPay']) || c['levelPay'] <= 0)
     throw new Error(`save: ${where}.levelPay must be a positive number`);
 }
 
 function checkContracts(c: unknown): void {
   if (
     !isObj(c) ||
-    !isNat(c.nextId) ||
-    c.nextId < 1 ||
-    !isNat(c.rng) ||
-    c.rng > 0xffffffff ||
-    !Array.isArray(c.offers) ||
-    !Array.isArray(c.active)
+    !isNat(c['nextId']) ||
+    c['nextId'] < 1 ||
+    !isNat(c['rng']) ||
+    c['rng'] > 0xffffffff ||
+    !Array.isArray(c['offers']) ||
+    !Array.isArray(c['active'])
   )
     throw new Error('save: "contracts" must be {nextId, rng, offers, active}');
-  c.offers.forEach((o, i) => {
-    if (!isObj(o) || !isNat(o.id) || !isNat(o.offeredAt) || !isNat(o.expiresAt))
+  c['offers'].forEach((o, i) => {
+    if (!isObj(o) || !isNat(o['id']) || !isNat(o['offeredAt']) || !isNat(o['expiresAt']))
       throw new Error(`save: contracts.offers[${i}] must be an offer`);
     checkTerms(o, `contracts.offers[${i}]`);
   });
-  c.active.forEach((a, i) => {
+  c['active'].forEach((a, i) => {
     const w = `contracts.active[${i}]`;
     if (
       !isObj(a) ||
-      !isNat(a.id) ||
-      typeof a.deviceId !== 'string' ||
-      typeof a.drive !== 'string' ||
-      !isNat(a.fileId) ||
-      !isNat(a.startedAt) ||
-      !isNat(a.endsAt) ||
-      typeof a.mirrored !== 'boolean' ||
-      typeof a.rate !== 'number' ||
-      !Number.isFinite(a.rate) ||
-      a.rate < 0 ||
-      typeof a.owed !== 'number' ||
-      !Number.isFinite(a.owed) ||
-      !isNat(a.rng) ||
-      a.rng > 0xffffffff ||
-      !isNat(a.nextRead) ||
-      !isNat(a.served) ||
-      !isNat(a.missed) ||
-      !isNat(a.earned) ||
-      !isNat(a.fees) ||
-      !Array.isArray(a.pending) ||
-      a.pending.some((p) => !isObj(p) || !isNat(p.due) || !isNat(p.left))
+      !isNat(a['id']) ||
+      typeof a['deviceId'] !== 'string' ||
+      typeof a['drive'] !== 'string' ||
+      !isNat(a['fileId']) ||
+      !isNat(a['startedAt']) ||
+      !isNat(a['endsAt']) ||
+      typeof a['mirrored'] !== 'boolean' ||
+      typeof a['rate'] !== 'number' ||
+      !Number.isFinite(a['rate']) ||
+      a['rate'] < 0 ||
+      typeof a['owed'] !== 'number' ||
+      !Number.isFinite(a['owed']) ||
+      !isNat(a['rng']) ||
+      a['rng'] > 0xffffffff ||
+      !isNat(a['nextRead']) ||
+      !isNat(a['served']) ||
+      !isNat(a['missed']) ||
+      !isNat(a['earned']) ||
+      !isNat(a['fees']) ||
+      !Array.isArray(a['pending']) ||
+      a['pending'].some((p) => !isObj(p) || !isNat(p['due']) || !isNat(p['left']))
     ) {
       throw new Error(`save: ${w} must be a running contract`);
     }
@@ -753,12 +763,12 @@ function checkContracts(c: unknown): void {
 
 function checkKey(r: unknown, where: string): void {
   if (!isObj(r)) throw new Error(`save: ${where} must be an object`);
-  if (typeof r.template !== 'string' || !(r.template in TEMPLATES))
-    throw new Error(`save: ${where} has unknown template "${String(r.template)}"`);
+  if (typeof r['template'] !== 'string' || !(r['template'] in TEMPLATES))
+    throw new Error(`save: ${where} has unknown template "${String(r['template'])}"`);
   for (const k of ['id', 'seed', 'scale', 'arrival', 'deadline']) {
     if (!isNat(r[k])) throw new Error(`save: ${where}.${k} must be a non-negative integer`);
   }
-  if ((r.scale as number) < 1 || (r.scale as number) > 16) throw new Error(`save: ${where}.scale out of range`);
-  if (r.cls !== undefined && (typeof r.cls !== 'string' || !jobClass(r.cls)))
+  if ((r['scale'] as number) < 1 || (r['scale'] as number) > 16) throw new Error(`save: ${where}.scale out of range`);
+  if (r['cls'] !== undefined && (typeof r['cls'] !== 'string' || !jobClass(r['cls'])))
     throw new Error(`save: ${where}.cls is not a known job class`);
 }

@@ -2,7 +2,7 @@
 import { Raycaster, Vector2, type Camera, type Object3D, type Vector3 } from 'three';
 
 export const tag = <T extends Object3D>(o: T, id: string): T => {
-  o.userData.id = id;
+  o.userData['id'] = id;
   return o;
 };
 
@@ -16,20 +16,20 @@ export const seeThrough = <T extends Object3D>(o: T): T => {
 };
 
 export function idOf(o: Object3D | null): string | null {
-  for (let p = o; p; p = p.parent) if (typeof p.userData.id === 'string') return p.userData.id;
+  for (let p = o; p; p = p.parent) if (typeof p.userData['id'] === 'string') return p.userData['id'];
   return null;
 }
 
 /** The object that carries the id (what the outline draws round). */
 export function ownerOf(o: Object3D | null): Object3D | null {
-  for (let p = o; p; p = p.parent) if (typeof p.userData.id === 'string') return p;
+  for (let p = o; p; p = p.parent) if (typeof p.userData['id'] === 'string') return p;
   return null;
 }
 
 export function findById(root: Object3D, id: string): Object3D | null {
   let hit: Object3D | null = null;
   root.traverse((o) => {
-    if (!hit && o.userData.id === id) hit = o;
+    if (!hit && o.userData['id'] === id) hit = o;
   });
   return hit;
 }

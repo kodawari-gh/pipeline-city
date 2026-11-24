@@ -94,8 +94,8 @@ const warnedLength = new Set<string>();
 // this module ran (the check's init script does). A normal game sets nothing here.
 const probe = (globalThis as { __audioProbe?: Record<string, () => number> }).__audioProbe;
 if (probe) {
-  probe.voices = () => pool.list.length;
-  probe.stemKeys = () =>
+  probe['voices'] = () => pool.list.length;
+  probe['stemKeys'] = () =>
     new Set(
       [...ready.keys()]
         .filter((p) => p.includes('/music/stems/') && !p.includes(MENU_ID))

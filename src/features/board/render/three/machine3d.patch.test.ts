@@ -20,13 +20,13 @@ function shape(m: Machine3D): { parts: Record<string, string>; tagged: string[] 
   const parts = new Map<string, { draws: number; verts: number }>(),
     tagged = new Set<string>();
   m.root.traverseVisible((o: Object3D) => {
-    if (typeof o.userData.id === 'string') tagged.add(o.userData.id);
+    if (typeof o.userData['id'] === 'string') tagged.add(o.userData['id']);
     const mesh = o as Mesh;
     if (!mesh.isMesh || !(mesh.layers.mask & 1)) return;
     const k = idOf(o) ?? 'case',
       p = parts.get(k) ?? { draws: 0, verts: 0 };
     p.draws++;
-    p.verts += mesh.geometry.attributes.position?.count ?? 0;
+    p.verts += mesh.geometry.attributes['position']?.count ?? 0;
     parts.set(k, p);
   });
   // (the cables hang again and merge in their own order: their totals count)
@@ -111,8 +111,8 @@ describe('a patched machine stands as a built one', () => {
       const { cpu0: _a, ...a } = got.parts,
         { cpu0: _b, ...b } = want.parts;
       if (what === 'cpu out') {
-        delete a.case;
-        delete b.case;
+        delete a['case'];
+        delete b['case'];
       }
       expect(a, what).toEqual(b);
     };
@@ -168,7 +168,7 @@ describe('a patched machine stands as a built one', () => {
     for (const d of g.snapshot().devices.filter((x) => x.slot.startsWith('vrm-sink0'))) {
       let n = 0;
       m.root.traverse((o) => {
-        if (o.userData.id === d.id) n++;
+        if (o.userData['id'] === d.id) n++;
       });
       expect(n, `${d.kind} ${d.id}: one object`).toBe(1);
       expect(shown(findById(m.root, d.id)), `${d.kind} ${d.id}: shown`).toBe(true);

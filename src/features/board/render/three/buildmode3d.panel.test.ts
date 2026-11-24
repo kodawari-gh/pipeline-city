@@ -86,7 +86,7 @@ function stage(): { s: BuildStage; fake: Fake } {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -108,8 +108,8 @@ function stage(): { s: BuildStage; fake: Fake } {
       fake.synced.push(out.size);
     },
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = s['rebuildAll'] = function (this: {
     snaps: { drop(): void };
     board: { tier: number; caseTier: number };
     holdReeled(): void;
@@ -118,12 +118,12 @@ function stage(): { s: BuildStage; fake: Fake } {
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
     this.holdReeled(); // (what a build of the machine does: the cables the job holds back stay out of sight)
   };
-  s.playAll = () => Promise.resolve();
-  s.door = () => Promise.resolve();
+  s['playAll'] = () => Promise.resolve();
+  s['door'] = () => Promise.resolve();
   // the hand: a front-panel lead it pulls or runs goes out of or into its header as the real hand's host would say (`plugPanelLead`); no other cable has a rig
   const t = s as unknown as Inside;
   fake.host = (t.hand as { host: PlugHost }).host;
-  s.hand = {
+  s['hand'] = {
     root: new Group(),
     kind: null,
     cancel() {},

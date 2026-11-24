@@ -28,7 +28,7 @@ export function syncWorld(o: Object3D, force = false): void {
     let k = kept._trs;
     if (!k) {
       k = kept._trs = new Float64Array(26);
-      k[0] = NaN;
+      k[0] = Number.NaN;
     }
     // the place it was composed from, and the matrix that came of it: three's own update may have composed another pose between two calls
     // (a part moved, measured and moved back)

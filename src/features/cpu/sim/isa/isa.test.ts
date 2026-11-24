@@ -3,7 +3,7 @@ import { decode, disassemble, encode, instr, OPS, parseReg, REG_NAMES, type Inst
 
 /** Sample operands per format, including extremes. */
 function samples(fmt: string, name: string): Instr[] {
-  const regs = [
+  const regs: [number, number, number][] = [
     [0, 0, 0],
     [1, 2, 3],
     [15, 14, 13],

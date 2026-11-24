@@ -8,7 +8,7 @@ import { BufferAttribute, BufferGeometry } from 'three';
 import type { V3 } from './rope';
 
 /** Weave tiles round a sleeve; a tile runs `2π / WRAP` radii along it, so it is square on the surface. */
-export const WRAP = 4;
+const WRAP = 4;
 const WEAVE = (2 * Math.PI) / WRAP;
 /** Catmull-Rom points between two settled points, before the strand is resampled evenly along its length. */
 const SUB = 4;

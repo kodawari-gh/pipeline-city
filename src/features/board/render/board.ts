@@ -21,7 +21,7 @@ export function setWorldAnchors(w: WorldAnchors | null): void {
 }
 
 /** Every screen rectangle of a world id: for a loose cable its plug, then the sockets that take it. */
-export function anchorsOf(id: string): Anchor[] {
+function anchorsOf(id: string): Anchor[] {
   return world3d ? world3d.anchorsOf(id) : [];
 }
 

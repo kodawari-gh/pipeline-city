@@ -78,9 +78,9 @@ describe('VRM zones and readout', () => {
     expect(burnt[0]!.level).toBe('bad');
     expect(burnt[0]!.text).toMatch(/board is dead/);
     const hot = vrmLines(vrmReadout(snap({ board: boardSnap({ vrm: { unstable: true, throttle: 0.9 } }) }))!);
-    expect(hot.some((l) => l.level === 'bad' && /crash/.test(l.text))).toBe(true);
-    expect(hot.some((l) => /Throttling/.test(l.text))).toBe(true);
-    expect(hot.some((l) => /No VRM heatsink/.test(l.text))).toBe(true);
+    expect(hot.some((l) => l.level === 'bad' && l.text.includes('crash'))).toBe(true);
+    expect(hot.some((l) => l.text.includes('Throttling'))).toBe(true);
+    expect(hot.some((l) => l.text.includes('No VRM heatsink'))).toBe(true);
   });
 });
 
@@ -133,7 +133,7 @@ describe('motherboard tier cards', () => {
     expect(cards.map((c) => c.ethernetMbps)).toEqual([0, 100, 100, 1000]);
     expect(cards.map((c) => c.usbPorts)).toEqual([1, 2, 3, 4]);
     expect(cards.map((c) => c.displayPorts)).toEqual([1, 1, 2, 2]);
-    const slotsOf = (c: { slots: Array<{ key: string; count: number }> }, key: string) =>
+    const slotsOf = (c: { slots: { key: string; count: number }[] }, key: string) =>
       c.slots.find((x) => x.key === key)?.count ?? 0;
     expect(slotsOf(cards[0]!, 'dimm')).toBe(1);
     expect(slotsOf(cards[0]!, 'pcie')).toBe(1);
@@ -193,7 +193,7 @@ describe('motherboard tier cards', () => {
         purchases: [buy('board0', 40, { affordable: true })],
       }),
     )!;
-    expect(dm.lines.some((l) => l.level === 'bad' && /board is dead/.test(l.text))).toBe(true);
+    expect(dm.lines.some((l) => l.level === 'bad' && l.text.includes('board is dead'))).toBe(true);
   });
 
   it('the planned tier counts a bigger board in the inventory', () => {
@@ -244,7 +244,7 @@ describe('VRM heatsink rows and slot', () => {
     expect(m.kind).toBe('vrm-sink');
     expect(m.ladder.map((r) => r.specId)).toEqual(['vsink0', 'vsink1', 'vsink2']);
     expect(m.ladder.map((r) => r.state)).toEqual(['poor', 'poor', 'poor']);
-    expect(m.lines.some((l) => /Drop a VRM heatsink here/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.text.includes('Drop a VRM heatsink here'))).toBe(true);
     expect(describeId('vrm-sink0', sinkSnap())).toMatchObject({ title: 'Empty socket' });
     expect(describeId('vrm-sink0', sinkSnap())!.plain).toMatch(/VRM heatsink slot/);
   });
@@ -294,7 +294,7 @@ describe('the VRM picker card and the CPU card', () => {
     const m = pickerFor('vrm', snap())!;
     expect(m.kind).toBe('info');
     expect(m.vrm).not.toBeNull();
-    expect(m.lines.some((l) => /No VRM heatsink/.test(l.text))).toBe(true);
+    expect(m.lines.some((l) => l.text.includes('No VRM heatsink'))).toBe(true);
   });
 
   it('a fitted CPU carries the VRM readout, an empty socket does not', () => {

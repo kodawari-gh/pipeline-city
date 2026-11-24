@@ -11,7 +11,7 @@ export interface Shape {
   /** The smallest box round the silhouette. */
   readonly bounds: Rect;
   /** About how thick the thing is, for the reach a small or thin one is given; unknown (the box tells) for plain geometry. */
-  readonly thickness?: number;
+  readonly thickness?: number | undefined;
   /** World distance from the point to the silhouette: 0 on it, growing outside. */
   dist(x: number, y: number): number;
   /** Closed polygons at distance `e` outside the silhouette (the hover ring), or null when the caller should draw its rounded box round `bounds`. */
@@ -21,10 +21,10 @@ export interface Shape {
 /** How far the margin of a field shape reaches (world units): the largest growth a hit test or a ring will ask for. */
 export const SHAPE_PAD = 280;
 
-export const rectDist = (r: Rect, x: number, y: number) =>
+const rectDist = (r: Rect, x: number, y: number) =>
   Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
 /** The smallest rectangle round all of them. */
-export const unionRect = (rs: Rect[]): Rect => {
+const unionRect = (rs: Rect[]): Rect => {
   const x0 = Math.min(...rs.map((r) => r.x)),
     y0 = Math.min(...rs.map((r) => r.y)),
     x1 = Math.max(...rs.map((r) => r.x + r.w)),
@@ -75,7 +75,7 @@ export function discShape(cx: number, cy: number, r: number): Shape {
  * A cable: a polyline `pts` swept by a half width `hw[i]` at each point (the cord is thin, the plug at its end is wider). The ring is the swept band grown by `e`
  * (offset along each point's normal, with a round cap at both ends), so it runs along the cable's own edge round the bends.
  */
-export function pathShape(pts: readonly Pt[], hw: readonly number[]): Shape {
+function pathShape(pts: readonly Pt[], hw: readonly number[]): Shape {
   const n = pts.length;
   let field: Shape | null = null;
   const w = (i: number) => hw[Math.min(i, hw.length - 1)] ?? 0;
@@ -208,10 +208,10 @@ export interface Pickable {
 }
 
 /** A target smaller than this on screen (px, its shorter side) is grown to it for the pointer, by at most `MAX_GROW_PX` on each side. */
-export const MIN_TARGET_PX = 30;
-export const MAX_GROW_PX = 16;
+const MIN_TARGET_PX = 30;
+const MAX_GROW_PX = 16;
 
-export function pickDist(h: Pickable, x: number, y: number): number {
+function pickDist(h: Pickable, x: number, y: number): number {
   if (h.shape) return h.shape.dist(x, y);
   let d = rectDist(h.rect, x, y);
   if (h.more) for (const r of h.more) d = Math.min(d, rectDist(r, x, y));
@@ -333,7 +333,7 @@ function buildField(alpha: Uint8Array, w: number, h: number, frame: Rect, cell: 
   // the edge cells: a partly covered cell with a 4-neighbour on the other side of the edge is placed from its own alpha (it says where in it the edge runs); a clear
   // or solid cell is an edge cell only where the edge between it and its neighbour is hard (the neighbour is clear or solid too), half a cell off; otherwise it is
   // reached from the partly covered cell beside it
-  const seed = new Float32Array(n).fill(NaN);
+  const seed = new Float32Array(n).fill(Number.NaN);
   const hard = (j: number) => a[j] === 0 || a[j] === 255;
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < cols; x++) {

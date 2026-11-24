@@ -42,7 +42,7 @@ export function regionOf(addr: number, regions: readonly RamRegion[]): RamRegion
 }
 
 /** "C2" or "C2+C3": the cores on a bubble. */
-export const coresText = (cores: readonly BubbleCore[]): string => cores.map((c) => 'C' + c.core).join('+');
+export const coresText = (cores: readonly BubbleCore[]): string => cores.map((c) => `C${c.core}`).join('+');
 
 /** The bubbles of a set of touches, newest first; resources past `max` fold into one "+n" bubble. */
 export function bubblesOf(touches: readonly BubbleTouch[], regions: readonly RamRegion[], max = 6): Bubble[] {
@@ -73,7 +73,7 @@ export function bubblesOf(touches: readonly BubbleTouch[], regions: readonly Ram
     rest = all.slice(keep.length);
   const folded: Bubble = {
     id: '+',
-    label: '+' + rest.length,
+    label: `+${rest.length}`,
     addr: rest[0]!.addr,
     cores: [],
     writes: 0,

@@ -93,7 +93,7 @@ describe('sweep', () => {
     const [sw] = sweptMerge(root, [paint]);
     expect(root.children.map((o) => (o as Mesh).material)).toEqual([stone, paint]);
     const merged = root.children[1] as Mesh,
-      pos = merged.geometry.attributes.position!;
+      pos = merged.geometry.attributes['position']!;
     expect(pos.count).toBe(3 * 36);
     // west to east: the pieces at -100, 0 and +100 m
     expect([0, 36, 72].map((v) => Math.round((pos.getX(v) - GRID.av0) / 100) + 0)).toEqual([-1, 0, 1]);
@@ -114,7 +114,7 @@ describe('sweep', () => {
       return { root, mat };
     };
     const cells = (s: Sweep): number => (s as unknown as { balls: unknown[] }).balls.length;
-    const total = (root: Group): number => (root.children[0] as Mesh).geometry.attributes.position!.count;
+    const total = (root: Group): number => (root.children[0] as Mesh).geometry.attributes['position']!.count;
     /** `sweptMerge` as the Low cut will call it (the third parameter does not exist yet). */
     const merge = sweptMerge as (root: Group, mats: MeshBasicMaterial[], cell?: number) => Sweep[];
 
@@ -151,7 +151,7 @@ describe('sweptMerge against the plain way', () => {
 
   /** A two-number `_ao` a vertex, from the vertex number. */
   const withAo = (g: BufferGeometry): BufferGeometry => {
-    const n = g.attributes.position!.count,
+    const n = g.attributes['position']!.count,
       ao = new Float32Array(2 * n);
     for (let i = 0; i < n; i++) {
       ao[2 * i] = (i % 7) / 7;
@@ -272,14 +272,14 @@ describe('sweptMerge against the plain way', () => {
     sweptMerge(a.root, a.mats);
     sweptMergeReference(b.root, b.mats);
     const first = (r: Group): BufferGeometry => (r.children[r.children.length - 1] as Mesh).geometry;
-    const nrm = first(a.root).attributes.normal!.array as Float32Array;
-    expect(nrm).toEqual(first(b.root).attributes.normal!.array);
+    const nrm = first(a.root).attributes['normal']!.array as Float32Array;
+    expect(nrm).toEqual(first(b.root).attributes['normal']!.array);
     expect(nrm.every((v) => Number.isFinite(v))).toBe(true);
-    expect(first(a.root).attributes.uv!.array).toEqual(first(b.root).attributes.uv!.array);
+    expect(first(a.root).attributes['uv']!.array).toEqual(first(b.root).attributes['uv']!.array);
   });
 
   it('leaves the meshes alone when their attributes differ (as the plain way does), and says why', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const err = vi.spyOn(console, 'error').mockReturnValue(undefined);
     try {
       const a = street(true),
         b = street(true);

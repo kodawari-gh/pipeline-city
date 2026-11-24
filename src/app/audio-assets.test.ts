@@ -8,6 +8,7 @@ import { MIX } from './audio/mixTokens';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 const ROOT: string = urlMod.fileURLToPath(new URL('../../', import.meta.url));
 const AUDIO_DIR = `${ROOT}public/audio`;
@@ -17,7 +18,7 @@ const MUSIC_SPEC = `${AUDIO_DIR}/music/music-spec.json`;
 const PITCH = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
 
 function midi(name: string): number {
-  const m = name.match(/^([A-G]s?)(-?\d+)$/);
+  const m = /^([A-G]s?)(-?\d+)$/.exec(name);
   if (!m) throw new Error(`note not understood: ${name}`);
   const [, pitch = '', octave = '0'] = m;
   return 12 * (Number(octave) + 1) + PITCH.indexOf(pitch);
@@ -25,7 +26,7 @@ function midi(name: string): number {
 
 /** Every chromatic note token in a spec range such as "C3..C6 chromatic (37)". */
 function noteTokens(range: string): string[] {
-  const m = range.match(/^(\S+)\.\.(\S+) chromatic/);
+  const m = /^(\S+)\.\.(\S+) chromatic/.exec(range);
   if (!m) throw new Error(`range not understood: ${range}`);
   const [, low = '', high = ''] = m;
   const out: string[] = [];
@@ -35,7 +36,7 @@ function noteTokens(range: string): string[] {
 
 /** Expands {KEY}, {NEW_KEY} and {NOTE} placeholders in a spec file name. */
 function expand(template: string, values: Record<string, string[]>): string[] {
-  const m = template.match(/\{([A-Z_]+)\}/);
+  const m = /\{([A-Z_]+)\}/.exec(template);
   if (!m) return [template];
   const [placeholder = '', name = ''] = m;
   const choices = values[name];

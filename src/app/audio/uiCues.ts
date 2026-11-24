@@ -44,7 +44,7 @@ export function sliderStep(min: number, max: number, value: number): number {
 }
 
 /** Tutorial typing: a tick on every third character typed (`typed` is the count so far). */
-export const TYPE_EVERY = 3;
+const TYPE_EVERY = 3;
 export const typeTickDue = (typed: number): boolean => typed > 0 && typed % TYPE_EVERY === 0;
 
 export interface CueStep {

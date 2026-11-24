@@ -118,7 +118,7 @@ async function openMenu(
     await page.goto(dev!.url, { timeout: LOAD_MS });
     await page.waitForSelector(until, { timeout: LOAD_MS });
   } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`);
+    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`, { cause: e });
   }
   return { page, ctx };
 }
@@ -137,21 +137,21 @@ async function runningGame(w = 1920, h = 1080): Promise<Page> {
     await pressStart(page);
     await page.waitForSelector('[data-step="welcome"]', { timeout: BOOT_MS });
   } catch (e) {
-    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`);
+    throw new Error(`${(e as Error).message}\nthe page said: ${seen.slice(-5).join(' | ') || 'nothing'}`, { cause: e });
   }
   return page;
 }
 
 /** The visible text of the first element that matches, normalised. */
 const textOf = async (page: Page, sel: string): Promise<string> =>
-  (await page.locator(sel).first().innerText()).replace(/\s+/g, ' ').trim();
+  (await page.locator(sel).first().innerText()).replaceAll(/\s+/g, ' ').trim();
 
 /** Soft check: the element's computed font size is at least the root's (1 rem). */
 async function expectOneRem(page: Page, sel: string, what: string): Promise<void> {
   const { px, root } = await page.evaluate(
     (s) => ({
-      px: parseFloat(getComputedStyle(document.querySelector(s)!).fontSize),
-      root: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      px: Number.parseFloat(getComputedStyle(document.querySelector(s)!).fontSize),
+      root: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
     }),
     sel,
   );
@@ -334,7 +334,7 @@ describe.skipIf(!GATE)('error and offline states in the browser (ticket #45)', (
     '5. a corrupt save file: a notice with a next step, the menu stays, and no Load confirm screen opens',
     async () => {
       const { page } = await openMenu(1280, 720);
-      const cases: Array<{ name: string; body: string; says: RegExp }> = [
+      const cases: { name: string; body: string; says: RegExp }[] = [
         { name: 'not-json.json', body: 'this is not json {', says: /not a pipeline city save/i },
         { name: 'wrong-shape.json', body: '{"hello":"world"}', says: /cannot be loaded.*(another version|damaged)/i },
       ];

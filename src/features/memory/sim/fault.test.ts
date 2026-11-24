@@ -48,7 +48,7 @@ describe('a job that writes to OS memory', () => {
       () =>
         g.snapshot().plugged?.stage === 'flashing' || g.snapshot().plugged?.stage === 'done' || g.pluggedKey() === null,
     );
-    expect(g.snapshot().log.some((l) => l.kind === 'fault' && /protected memory/.test(l.text))).toBe(true);
+    expect(g.snapshot().log.some((l) => l.kind === 'fault' && l.text.includes('protected memory'))).toBe(true);
     expect(g.currentPhase()).not.toBe('error');
   });
 

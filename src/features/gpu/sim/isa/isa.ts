@@ -15,7 +15,7 @@
 // (`mpush`, a mask set, the then-side, `melse`, the else-side, `mpop`). `bany` branches when any lane is still active,
 // which is how a loop runs until its last lane is done.
 
-export type GpuFormat = 'R' | 'I' | 'D' | 'S' | 'M' | 'O' | 'N';
+type GpuFormat = 'R' | 'I' | 'D' | 'S' | 'M' | 'O' | 'N';
 
 export interface GpuOpSpec {
   name: string;

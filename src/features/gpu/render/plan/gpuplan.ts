@@ -41,7 +41,7 @@ export interface GpuBlock {
   /** The SM frame this block sits in. */
   parent?: string;
   /** The SM it belongs to (0 on a card with one). */
-  sm?: number;
+  sm?: number | undefined;
   /** The card memory's size in bytes (on the `dram` block). */
   bytes?: number;
 }

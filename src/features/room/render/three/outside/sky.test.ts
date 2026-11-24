@@ -44,7 +44,7 @@ describe("the sky's clouds and moon seas: live at High, baked at Low", () => {
     for (const keep of ['sunDir', 'moonDir', 'for (int k = 0; k < 3', 'float hash3(vec3 p)', 'float noise(vec2 p)'])
       expect(src).toContain(keep);
     const u = skyMaterial(true).uniforms;
-    expect(u.tNoise!.value).toBeInstanceOf(DataTexture);
+    expect(u['tNoise']!.value).toBeInstanceOf(DataTexture);
   });
 
   it('Low has the same uniforms as High, plus the map', () => {

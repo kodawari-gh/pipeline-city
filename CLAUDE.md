@@ -36,7 +36,7 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 - Cross-layer work only: `docs/ARCHITECTURE.md`.
 - Feature docs sit in the feature folder: `src/features/<f>/*.md` (`ls` it). Cross-cutting: `docs/RENDER.md` (hub with a topic table to `docs/render/{interact,live,board,case,net}.md` and `src/features/room/{room,shell,light}.md`), `docs/UI.md`. Saves: `src/worker/SAVE.md`.
-- Docs over ~20 KB (`render/interact`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^## ` for the headings, then Read only that section. Never read them whole.
+- Docs over ~20 KB (`render/interact`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^##` followed by a space for the headings, then Read only that section. Never read them whole.
 
 ## Rules
 

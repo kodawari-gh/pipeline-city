@@ -23,7 +23,7 @@ export type TipPart =
   | 'none';
 
 /** One way to do a job better: a part, a few words for the chip, and the full sentence behind it. `none` marks a part that does NOT help (worth knowing before buying it). */
-export interface Tip {
+interface Tip {
   part: TipPart;
   short: string;
   text: string;
@@ -1727,6 +1727,6 @@ export function dexNeeds(e: DexEntry): { needs: string[]; firstLevel: number } {
 }
 
 /** What the class needs as chips: the kind (for an icon), the short label and the long phrase. */
-export function needChips(e: DexEntry): Array<{ kind: string; short: string; long: string }> {
+export function needChips(e: DexEntry): { kind: string; short: string; long: string }[] {
   return taskNeeds(e).map((n) => ({ kind: n.kind, ...describeNeed(n) }));
 }

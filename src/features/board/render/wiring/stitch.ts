@@ -6,10 +6,10 @@ import { pointAt, type Lane, type Pt } from './routes';
 // every layer, so it keeps off a lane on an inner layer too, off the parts and off the mounting holes. Pure geometry.
 
 /** The grid's pitch, how far a via keeps from a lane, from a part and from a mounting hole's centre. */
-export const STITCH_PITCH = 110,
-  STITCH_LANE = 44,
-  STITCH_PART = 24,
-  STITCH_HOLE = 130;
+const STITCH_PITCH = 110;
+export const STITCH_LANE = 44;
+const STITCH_PART = 24;
+export const STITCH_HOLE = 130;
 /** The grid starts this far inside the board's edge. */
 const EDGE = 130;
 

@@ -275,7 +275,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       const b = by('pcie')!;
       g.pcie.forEach((r, k) => {
         const { pairs, cpu } = g.pcieLinks[k]!,
-          lanes = b.heads!.find((h) => h.name === 'pcie' + k)!.lanes;
+          lanes = b.heads!.find((h) => h.name === `pcie${k}`)!.lanes;
         expect(pairs, 'two pairs a lane').toBe(2 * Math.min(spec.pcieWidths[k]!, 16));
         expect(lanes.length, `slot ${k} has all its pairs`).toBe(pairs);
         for (const l of lanes)
@@ -387,7 +387,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     }
     g.pcie.forEach((r, k) => {
       const n = g.pcieLinks[k]!.pairs / 2,
-        lanes = by('pcie')!.heads!.find((h) => h.name === 'pcie' + k)!.lanes,
+        lanes = by('pcie')!.heads!.find((h) => h.name === `pcie${k}`)!.lanes,
         north = pciePads(r, n, 'n'),
         south = pciePads(r, n, 's');
       for (const l of lanes) hit(end(l), [...north, ...south], 'pcie lane ends on a slot pad');
@@ -407,7 +407,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         hit(a, hubW, 'usb lane starts on a hub leg');
         hit(
           b,
-          g.usb ? Array.from({ length: g.usb }, (_, p) => ioPads(ioPort('usb' + p), 2)).flat() : [],
+          g.usb ? Array.from({ length: g.usb }, (_, p) => ioPads(ioPort(`usb${p}`), 2)).flat() : [],
           'usb lane ends on a port',
         );
       } else hit(b, hubE, 'usb uplink ends on a hub leg');
@@ -456,25 +456,25 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         for (const t of b.taps!)
           for (const l of t.lanes) {
             expect(onPin(l.pts[0]!), 'mem lane on a pin').toBe(true);
-            starts.push(l.pts[0]!.join());
+            starts.push(l.pts[0]!.join(','));
           }
       else if (b.id === 'nvme' || b.id === 'dmi' || b.id === 'video' || b.id === 'dp' || b.id === 'svid')
         for (const l of b.lanes) {
           expect(onPin(b.id === 'svid' ? l.pts[l.pts.length - 1]! : l.pts[0]!), `${b.id} lane on a pin`).toBe(true);
-          starts.push(l.pts[b.id === 'svid' ? l.pts.length - 1 : 0]!.join());
+          starts.push(l.pts[b.id === 'svid' ? l.pts.length - 1 : 0]!.join(','));
         }
       else if (b.id === 'pcie')
         g.pcieLinks.forEach((c, k) => {
           if (c.cpu)
-            for (const l of b.heads!.find((h) => h.name === 'pcie' + k)!.lanes) {
+            for (const l of b.heads!.find((h) => h.name === `pcie${k}`)!.lanes) {
               expect(onPin(l.pts[0]!), 'pcie lane on a pin').toBe(true);
-              starts.push(l.pts[0]!.join());
+              starts.push(l.pts[0]!.join(','));
             }
         });
       else if (b.id === 'usb')
         for (const l of b.lanes.slice(0, 4)) {
           expect(onPin(l.pts[0]!), 'usb uplink on a pin').toBe(true);
-          starts.push(l.pts[0]!.join());
+          starts.push(l.pts[0]!.join(','));
         }
     }
     expect(new Set(starts).size, 'no two lanes on one pin').toBe(starts.length);
@@ -995,7 +995,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
         'stub inside the case',
       ).toBe(true);
     const sysFan = GEO.hdrs.find((h) => h.name === 'SYS_FAN')!;
-    expect(sysFan.y + 100 < BD.y + BD.h, 'the board has the header the hub is cabled to').toBe(true);
+    expect(sysFan.y + 100, 'the board has the header the hub is cabled to').toBeLessThan(BD.y + BD.h);
   });
 
   it('ties every slot and M.2 into the plane clear of everything: the patch is on the board and no lane comes near it', () => {

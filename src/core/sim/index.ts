@@ -4,7 +4,7 @@ export * from './hw/device';
 export * from './hw/display';
 export * from './hw/bus';
 export * from './hw/intc';
-export * from './engine';
+export type * from './engine';
 export * from '../../features/cpu/sim/refEngine';
 export * from '../../features/cpu/sim/core';
 export * from './machine';

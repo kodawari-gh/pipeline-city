@@ -24,7 +24,7 @@ export interface Footprint {
 export type Shape = { r: number } | { hw: number; hh: number };
 
 /** Cells in a grid, about: the finer the better the field, the dearer the solve. */
-export const GRID_CELLS = 14000;
+const GRID_CELLS = 14000;
 /** The share of a cell's open area below which the cell counts as a wall. */
 const SOLID = 0.02;
 
@@ -127,7 +127,7 @@ export class AirGrid {
 
   /** Cut the boxes into the cells: the open share of each, and each cell's list of boxes. */
   private fill(): Int32Array {
-    const [nx, ny, nz] = this.n,
+    const [nx, ny] = this.n,
       [hx, hy, hz] = this.h,
       N = this.cells,
       counts = new Int32Array(N + 1);

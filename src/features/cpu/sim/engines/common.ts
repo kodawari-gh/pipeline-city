@@ -335,7 +335,7 @@ export class EventLog {
   }
 }
 
-export interface CacheState {
+interface CacheState {
   lines: number;
   ways: number;
   lineBytes: number;
@@ -393,7 +393,7 @@ export class Predictor {
 }
 
 /** Dynamic instruction fields for the (few) instructions in flight. Slot = id & (POOL - 1). */
-export const POOL = 8;
+const POOL = 8;
 export const POOL_MASK = POOL - 1;
 /** InstrPool.state bits. */
 export const St = { ExDone: 1, Started: 2, Missing: 4 } as const;
@@ -535,7 +535,7 @@ export interface EngineSettings {
    * The DRAM behind the caches (docs/RAM.md): banks with an open row each; a miss that reaches RAM costs a row hit, an empty bank's activate, or a
    * conflict instead of the flat `missPenalty`. Default: none (the flat penalty), so the engine tests are unchanged.
    */
-  dram?: DramSettings;
+  dram?: DramSettings | undefined;
   /** Timeline ring: instructions kept (>= 8, default 32) and cycles kept (default 64). */
   timelineRows?: number;
   timelineCols?: number;

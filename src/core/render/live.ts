@@ -123,7 +123,7 @@ interface Lit {
 interface Chain {
   hops: Hop[];
   force?: boolean;
-  drive?: { lane: Lane; before: boolean; dir: 1 | -1 };
+  drive?: { lane: Lane; before: boolean; dir: 1 | -1 } | undefined;
   cable?: boolean;
   /** One stick's bundle after the hops (CPU to stick). */ mem?: number;
   /** The reply: the same legs again, back to front and the other way (a ping). */ pong?: boolean;
@@ -768,7 +768,7 @@ export class Live {
   /** A drive moves data: its slot's chain streams, with the drive's own cable lane (SATA, which runs drive -> board) before a read or after a write. */
   private armDrive(slot: string, toDrive: boolean) {
     this.lastDrive = slot;
-    this.arm('drive:' + slot, this.driveMsg(slot, toDrive));
+    this.arm(`drive:${slot}`, this.driveMsg(slot, toDrive));
   }
 
   private driveMsg(slot: string, toDrive: boolean): Chain {
@@ -910,7 +910,7 @@ export class Live {
     const npu = hit.kind === 'card' ? npuAccess(addr) : null;
     if (npu) this.npu.touch(npu.slot, write, npu.off); // inside the card too: the word goes to its memory or its registers
     this.fire(
-      'dev:' + hit.slot,
+      `dev:${hit.slot}`,
       hit.kind === 'drive' ? this.driveMsg(hit.slot, write) : { hops: slotChain(hit.slot, write) },
       now,
       MIN_GAP,
@@ -982,7 +982,7 @@ export class Live {
         // the phase is the same for a stick in the port and for a job from the network (the kernel's NIC driver takes it from the receive ring): only a real key uses the USB lanes
         else if (s.plugged) this.arm('key', { hops: keyChain(s.phase === 'flashing') });
         else
-          this.arm('net:' + (s.phase === 'flashing' ? 'up' : 'down'), {
+          this.arm(`net:${s.phase === 'flashing' ? 'up' : 'down'}`, {
             hops: this.netHops(s, s.phase === 'flashing' ? 'up' : 'down'),
           });
       }
@@ -1025,7 +1025,7 @@ export class Live {
     // cards on the PCIe slots: the host copies in (phase "in"), the card computes inside (no traffic on the slot), the result is copied out ("out")
     for (const g of s.gpus ?? []) {
       if (g.phase === 'in' || g.phase === 'out')
-        this.arm('gpu:' + g.slot, { hops: slotChain(g.slot, g.phase === 'in') });
+        this.arm(`gpu:${g.slot}`, { hops: slotChain(g.slot, g.phase === 'in') });
       if (g.phase === 'run' && g.slot === s.videoPort) this.arm('gpuvideo', { hops: [], cable: true }); // the card is drawing the picture the cable carries
     }
     // the network: transfers run over the board's jack (PHY, hub, uplink) or the NIC card's slot, toward the CPU for a download
@@ -1037,7 +1037,7 @@ export class Live {
         ['down', down],
         ['up', up],
       ] as const)
-        if (on) this.arm('net:' + dir, { hops: this.netHops(s, dir) });
+        if (on) this.arm(`net:${dir}`, { hops: this.netHops(s, dir) });
     }
     // power-on: the switch is read and the CPU asks for its voltage; a change of clock or throttle asks again
     if (this.wasPowered === false && s.powered) {
@@ -1116,7 +1116,7 @@ export class Live {
     const hubOn = plugged('sysfan');
     for (const f of this.fans)
       if (f.kind.startsWith('case:'))
-        f.target = !this.liveOn || !hubOn || !plugged('fan:' + f.kind.slice(5)) ? 0 : 1.6 + 6 * this.cpuHeat;
+        f.target = !this.liveOn || !hubOn || !plugged(`fan:${f.kind.slice(5)}`) ? 0 : 1.6 + 6 * this.cpuHeat;
     for (const d of s.devices) {
       const gl = this.glows.get(d.id);
       if (d.kind === 'cooler') {
@@ -1126,7 +1126,7 @@ export class Live {
             f.kind === 'cooler'
               ? plugged('cpufan')
               : f.kind.startsWith('radiator:')
-                ? hubOn && plugged('fan:' + f.kind.slice(9))
+                ? hubOn && plugged(`fan:${f.kind.slice(9)}`)
                 : null;
           if (on !== null) f.target = d.burnt || !this.liveOn || !on ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
         }
@@ -1669,7 +1669,7 @@ export class Live {
     if (this.hasPsu && inner) {
       this.panelFan.rotation += (psuFan?.speed ?? 0) * dt;
       // fan rpm readout, and a first-order PSU temperature that follows load (estimated; the sim does not model PSU heat)
-      const target = this.psuOff ? 25 : 25 + 34 * Math.pow(clamp(this.psuRatio, 0, 1.4), 1.5);
+      const target = this.psuOff ? 25 : 25 + 34 * clamp(this.psuRatio, 0, 1.4) ** 1.5;
       this.psuTemp += (target - this.psuTemp) * Math.min(1, dt * 0.25);
       const rpm = psuFan && psuFan.speed > 0.05 ? Math.round((500 + (psuFan.speed / 9) * 2300) / 10) * 10 : 0;
       const txt = !psuFan ? 'NO FAN' : rpm === 0 ? 'STOPPED' : `${rpm} rpm`;
@@ -1713,7 +1713,7 @@ export class Live {
     for (const [key, c] of this.streams) this.fire(key, c, now, STREAM_GAP);
     if (this.probes.length) {
       const i = Math.floor(now / PROBE_MS) % this.probes.length;
-      this.fire('probe:' + i, this.probes[i]!, now, PROBE_MS);
+      this.fire(`probe:${i}`, this.probes[i]!, now, PROBE_MS);
     }
     for (const lc of this.cables) {
       if (!inner) continue;

@@ -6,8 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIX } from './mixTokens';
 
-const rel = (p: string): string => p.replace(/^\/?audio\//, '');
-
 class Param {
   log: number[] = [];
   private v = 1;
@@ -227,7 +225,7 @@ describe('payout note plays its cue in the current level key', () => {
     await flush(); // the new key's roots load on the level change
     store.snapshot.value = snap(2, 3, [note(3, 'key 1 (C): $200')]);
     expect(sfxSources().map((s) => s.buffer?.path)).toEqual(['sfx/payout__B.ogg']);
-    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(Math.pow(2, 1 / 12), 6);
+    expect(sfxSources()[0]!.playbackRate.value).toBeCloseTo(2 ** (1 / 12), 6);
   });
 
   it('level 13 wraps to key F: the payout plays payout__F at rate 1', async () => {

@@ -18,11 +18,11 @@ function census(m: Machine3D): Record<string, number> {
     objects = 0;
   m.root.traverse((o) => {
     objects++;
-    if (typeof o.userData.id === 'string') tagged++;
+    if (typeof o.userData['id'] === 'string') tagged++;
     const mesh = o as Mesh;
     if (mesh.isMesh) {
       meshes++;
-      verts += mesh.geometry.attributes.position?.count ?? 0;
+      verts += mesh.geometry.attributes['position']?.count ?? 0;
     }
   });
   return {
@@ -114,8 +114,8 @@ describe('Machine3D.make', () => {
     expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
     expect(whole.caseRoots.length).toBeGreaterThan(0);
     // (far less than the maxed machine: no board, no part, no cable)
-    expect(census(whole).meshes).toBeLessThan(
-      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false)).meshes!,
+    expect(census(whole)['meshes']).toBeLessThan(
+      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false))['meshes']!,
     );
   });
 
@@ -129,8 +129,8 @@ describe('Machine3D.make', () => {
     expect(census(made!)).toEqual(census(whole));
     expect(whole.caseRoots).toHaveLength(0);
     expect(whole.boardRoots().filter((o) => o.name !== 'standin')).toHaveLength(0);
-    expect(census(whole).meshes).toBeLessThan(
-      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, 'case')).meshes!,
+    expect(census(whole)['meshes']).toBeLessThan(
+      census(new Machine3D(snap, roomGeo(), new BakeQueue(), null, false, true, true, false, 'case'))['meshes']!,
     );
     // (the calls a stage makes on any machine are no-ops with no case: there is no door)
     expect(() => {
@@ -154,6 +154,6 @@ describe('Machine3D.make', () => {
       slice: async () => {},
     });
     expect(census(made!)).toEqual(census(whole));
-    expect(census(made!).lod).toBe(0);
+    expect(census(made!)['lod']).toBe(0);
   });
 });

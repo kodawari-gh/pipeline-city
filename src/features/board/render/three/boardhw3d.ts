@@ -163,7 +163,7 @@ export function ioStacks(shells: IoShell[]): IoStack[] {
 }
 
 /** The depths the connectors span: from the shield's back (the rear wall's outer face) through the wall to their back on the board. */
-export const IO_X0 = () => CASE.x + 1,
+const IO_X0 = () => CASE.x + 1,
   IO_XB = () => CASE.x + 340;
 
 /** A barrel along x from x0 to x1 round the layout point (y, z). */
@@ -378,7 +378,7 @@ export function slotHardware(cpuIn = true): Group {
   // (the lever turns on its own long side, the hinge at the north end: Build my PC lifts it for a CPU on its way out, `userData.leverOf`)
   const lever = new Group();
   lever.position.set(lx, 0, zl);
-  lever.userData.leverOf = 'cpu0';
+  lever.userData['leverOf'] = 'cpu0';
   if (!cpuIn) lever.rotation.y = LEVER_OPEN;
   const arm = tube(
     rounded(

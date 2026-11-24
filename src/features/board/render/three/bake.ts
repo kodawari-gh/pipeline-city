@@ -53,7 +53,7 @@ function sharpen(node: Container, res: number): void {
 }
 
 /** A live drawing's canvas sizes go up in steps of this (pixels), so a zoom does not reallocate it every frame. */
-export const LIVE_STEP = 256;
+const LIVE_STEP = 256;
 const LIVE_AT = new Matrix(),
   BAKE_AT = new Matrix();
 

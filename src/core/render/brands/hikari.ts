@@ -7,7 +7,7 @@ export const hikari: Brand = {
   makes: 'monitors',
   idea: 'first light: a sun rising over the horizon, read in scan lines, its rim lit',
   colors: { accent: '#3be3ff', light: '#e2eaff', dark: '#131518', plate: '#04060f', body: '#131518', trim: '#4e5360' },
-  type: { s: 0.1, round: 1, wide: 1.0, slant: 0, track: 0.11, ends: 'soft', xh: 0.66, litDots: true },
+  type: { s: 0.1, round: 1, wide: 1, slant: 0, track: 0.11, ends: 'soft', xh: 0.66, litDots: true },
   aspect: 1.36,
   lockup: { cap: 0.58, gap: 0.28 },
   mark: (c, ink, acc) => {

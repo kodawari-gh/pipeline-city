@@ -26,7 +26,7 @@ const MARK: Record<string, readonly string[]> = {
   'npu-2': ['SYNAPTA', 'SN8x8', 'MAC'],
 };
 
-export interface AccelDie {
+interface AccelDie {
   part: AccelPart;
   /** The chip as `nicChip` built it (its rectangle in the mirrored frame). */
   chip: NicChip;

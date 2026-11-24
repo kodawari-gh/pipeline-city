@@ -48,7 +48,7 @@ describe('pcie power lead', () => {
   it('plugs into a PSU that has one', () => {
     const cables = noCables();
     ok(connectCable(rig('psu2'), cables, 'pcie'));
-    expect(cables.pcie).toBe(true);
+    expect(cables['pcie']).toBe(true);
     expect(connectCable(rig('psu3'), { ...noCables(), pcie: true }, 'pcie').ok).toBe(false); // already connected
   });
 
@@ -64,7 +64,7 @@ describe('pcie power lead', () => {
     ok(uninstall(b, b.devices.find((d) => d.spec === 'psu3')!.id));
     ok(install(b, 'psu1'));
     expect(pruneCables(b, cables)).toEqual(['pcie']);
-    expect(cables.pcie).toBe(false);
+    expect(cables['pcie']).toBe(false);
   });
 
   it('is needed only by a card that draws more than its slot gives, one lead per 75 W', () => {
@@ -126,7 +126,7 @@ describe('fan cables', () => {
     expect(bootCheck(loop, cables).post).toMatchObject({ short: 'NO CPU FAN' });
     ok(connectCable(loop, cables, 'cpufan'));
     expect(bootCheck(loop, cables).post).toBeNull();
-    expect(cables.sysfan).toBeFalsy();
+    expect(cables['sysfan']).toBeFalsy();
     expect(cables['fan:rear']).toBeFalsy();
   });
 
@@ -174,8 +174,8 @@ describe('fan cables', () => {
     const b = rig('psu2', ['vsink2', 'fan40', 'fan92', 'fan140']);
     expect(b.devices.find((d) => d.spec === 'fan140')!.slot).toBe('front0');
     const c = allCables(b);
-    expect(c.cpufan && c.sysfan && c.vrmfan && c['fan:front0']).toBe(true);
-    expect(c.ramfan).toBe(false); // no RAM VRM heatsink with a fan
+    expect(c['cpufan'] && c['sysfan'] && c['vrmfan'] && c['fan:front0']).toBe(true);
+    expect(c['ramfan']).toBe(false); // no RAM VRM heatsink with a fan
     expect(c['fan:rear']).toBe(false); // an empty mount
   });
 

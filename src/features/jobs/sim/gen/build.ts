@@ -19,9 +19,9 @@ export interface GenParams {
    */
   hosted?: boolean;
   /** A working GPU the job may use (`gpu.render` offloads its kernel to it; without one it runs the same work on the CPU). */
-  gpu?: GpuTarget;
+  gpu?: GpuTarget | undefined;
   /** A working NPU the job may use (`npu.infer` runs its network on it; without one it falls back to the GPU, then the CPU). */
-  npu?: NpuTarget;
+  npu?: NpuTarget | undefined;
 }
 
 /** Where an NPU sits on the bus and what it has. */
@@ -48,8 +48,8 @@ export interface ResolvedParams {
   scale: number;
   row: number;
   jobId: number;
-  gpu?: GpuTarget;
-  npu?: NpuTarget;
+  gpu?: GpuTarget | undefined;
+  npu?: NpuTarget | undefined;
 }
 
 /** What a template returns. */
@@ -105,7 +105,7 @@ export class Builder {
       ...(threads !== undefined ? ['thread_end:'] : []),
       '  ecall',
       '',
-      ...this.kernels.map((k) => k.asm + '\n'),
+      ...this.kernels.map((k) => `${k.asm}\n`),
       ...this.data,
       '',
     ].join('\n');

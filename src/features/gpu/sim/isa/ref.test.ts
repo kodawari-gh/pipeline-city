@@ -77,7 +77,7 @@ describe('GPU reference interpreter: kernels', () => {
 
   it('mandel draws an image: every row has its own imaginary part', () => {
     const { out } = runKernel('mandel', 16, PICTURE_LEN, 1, 16, 0, 6);
-    const rows = [...Array(40).keys()].map((r) => out.slice(r * 64, r * 64 + 64).join());
+    const rows = [...Array(40).keys()].map((r) => out.slice(r * 64, r * 64 + 64).join(','));
     expect(new Set(rows).size).toBeGreaterThan(15);
   });
 
@@ -87,7 +87,7 @@ describe('GPU reference interpreter: kernels', () => {
     expect(out[0]).toBe(0); // the corner is off the ball
     expect(out.filter((v) => v > 0).length).toBeGreaterThan(1000);
     expect(new Set(out).size).toBeGreaterThan(30); // shading, not flat colour
-    const band = (b: number) => out.slice(b * 20 * 64, (b + 1) * 20 * 64).join();
+    const band = (b: number) => out.slice(b * 20 * 64, (b + 1) * 20 * 64).join(',');
     expect(band(0)).not.toBe(band(1)); // the lower balls are turned differently
     expect(ballPixel((20 * 64) / 2 + 8, 0)).not.toBe(ballPixel((20 * 64) / 2 + 8, 8)); // the checker slides when the phase moves
   });
@@ -247,7 +247,7 @@ describe('GPU reference interpreter: faults', () => {
   it('faults on a mask stack underflow, overflow and a stray melse', () => {
     expect(() => runAsm('mpop\nhalt')).toThrow(/empty mask stack/);
     expect(() => runAsm('melse\nhalt')).toThrow(/empty mask stack/);
-    expect(() => runAsm('mpush\n'.repeat(9) + 'halt')).toThrow(/overflow/);
+    expect(() => runAsm(`${'mpush\n'.repeat(9)}halt`)).toThrow(/overflow/);
   });
 
   it('faults on an illegal instruction, a runaway fetch and a kernel that never halts', () => {

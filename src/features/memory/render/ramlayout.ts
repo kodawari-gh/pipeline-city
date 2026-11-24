@@ -186,7 +186,7 @@ const ascii = (w: number): string =>
     })
     .join('');
 
-export function regionAt(regions: RamRegion[], addr: number): RamRegion | null {
+function regionAt(regions: RamRegion[], addr: number): RamRegion | null {
   let hit: RamRegion | null = null;
   for (const r of regions) if (addr >= r.lo && addr < r.hi) hit = r;
   return hit;

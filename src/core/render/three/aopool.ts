@@ -105,7 +105,7 @@ export function poolOf(spawn: (on: AoEvents) => AoWorker, size: number): AoPool 
 
 /** A real worker (`aojob.worker.ts`) for the pool. */
 function spawnWorker(on: AoEvents): AoWorker {
-  const w = new Worker(new URL('./aojob.worker.ts', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('aojob.worker.ts', import.meta.url), { type: 'module' });
   w.onmessage = (e: MessageEvent<AoAnswer>) => on.answer(e.data);
   w.onerror = () => on.fail();
   w.onmessageerror = () => on.fail();

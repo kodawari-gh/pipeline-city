@@ -37,7 +37,7 @@ export function ballOf(pos: ArrayLike<number>, from: number, to: number): Sphere
 }
 
 /** Where a geometry's draw counts: its index, or its vertices when it has none. */
-export const drawn = (g: BufferGeometry): number => (g.index ? g.index.count : g.attributes.position!.count);
+export const drawn = (g: BufferGeometry): number => (g.index ? g.index.count : g.attributes['position']!.count);
 
 /** The pieces of one or more meshes in bearing order: each piece's ball, and for each mesh where each piece starts in it (then its end). */
 export class Sweep {
@@ -99,9 +99,9 @@ export function sweptMergeReference(
       let g = m.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(toRoot, m.matrixWorld));
       if (g.index) g = g.toNonIndexed();
       for (const k of Object.keys(g.attributes)) if (!KEEP.has(k) && !keep.includes(k)) g.deleteAttribute(k);
-      if (!g.attributes.normal) g.computeVertexNormals();
-      if (!g.attributes.uv)
-        g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
+      if (!g.attributes['normal']) g.computeVertexNormals();
+      if (!g.attributes['uv'])
+        g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes['position']!.count * 2), 2));
       g.clearGroups();
       g.computeBoundingSphere();
       const c = g.boundingSphere!.center,
@@ -121,10 +121,11 @@ export function sweptMergeReference(
       g = gs.length > 1 ? mergeGeometries(gs, false) : null;
     if (!g) continue;
     const at = [0],
-      pos = g.attributes.position!.array,
+      pos = g.attributes['position']!.array,
       mesh = new Mesh(g, mat),
       first = pieces[0]!.ms[0]!;
-    for (const p of pieces) at.push(at[at.length - 1]! + p.gs.reduce((n, pg) => n + pg.attributes.position!.count, 0));
+    for (const p of pieces)
+      at.push(at[at.length - 1]! + p.gs.reduce((n, pg) => n + pg.attributes['position']!.count, 0));
     for (const p of pieces) for (const m of p.ms) m.parent?.remove(m);
     mesh.castShadow = first.castShadow;
     mesh.receiveShadow = first.receiveShadow;
@@ -203,7 +204,7 @@ export function sweptMerge(
       continue;
     }
     const counts = meshes.map((m) =>
-      m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position!.count,
+      m.geometry.index ? m.geometry.index.count : m.geometry.attributes['position']!.count,
     );
     const total = counts.reduce((a, b) => a + b, 0),
       apart = new Map<string, Float32Array>([...sizes].map(([k, s]) => [k, new Float32Array(total * s)] as const));
@@ -215,8 +216,8 @@ export function sweptMerge(
       const g = m.geometry,
         idx = g.index?.array,
         n = counts[i]!,
-        own = g.attributes.normal?.array as Float32Array | undefined,
-        src = g.attributes.position!.array as Float32Array;
+        own = g.attributes['normal']?.array as Float32Array | undefined,
+        src = g.attributes['position']!.array as Float32Array;
       n3.getNormalMatrix(m4.multiplyMatrices(toRoot, m.matrixWorld));
       for (let j = 0; j < n; j++) {
         const s = 3 * (idx ? idx[j]! : j),
@@ -239,7 +240,7 @@ export function sweptMerge(
           new BufferAttribute(pos.subarray(3 * at, 3 * (at + n)), 3),
         );
         flat.computeVertexNormals();
-        nrm.set(flat.attributes.normal!.array as Float32Array, 3 * at);
+        nrm.set(flat.attributes['normal']!.array as Float32Array, 3 * at);
       }
       // (a mesh with no uv leaves its place in the array at 0, as the reference's zeros)
       for (const [k, size] of sizes) {
@@ -306,7 +307,7 @@ export function sweptMerge(
     for (const p of pieces) at2.push(at2[at2.length - 1]! + p.ps.reduce((n, q) => n + q.to - q.from, 0));
     for (const p of pieces) for (const q of p.ps) q.mesh.parent?.remove(q.mesh);
     const mesh = new Mesh(g, mat),
-      merged = g.attributes.position!.array;
+      merged = g.attributes['position']!.array;
     mesh.castShadow = first0.mesh.castShadow;
     mesh.receiveShadow = first0.mesh.receiveShadow;
     root.add(mesh);

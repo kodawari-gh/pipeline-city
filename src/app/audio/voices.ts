@@ -63,6 +63,6 @@ export class VoicePool {
 
   remove(v: VoiceRec): void {
     const i = this.list.indexOf(v);
-    if (i >= 0) this.list.splice(i, 1);
+    if (i !== -1) this.list.splice(i, 1);
   }
 }

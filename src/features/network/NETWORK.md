@@ -103,7 +103,7 @@ The plan's line loses segments too (`IspSpec.loss`, placeholders): `isp1` 2%, `i
 
 ### Effective bandwidth and clients
 
-```
+```text
 downMbps  = min(portMbps, routerMbps, ispDown, diskSinkMbps)
 upMbps    = min(portMbps, routerMbps, ispUp)
 clients   = min(routerClients, ispClients)

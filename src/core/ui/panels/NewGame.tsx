@@ -84,7 +84,7 @@ export function NewGameScreen() {
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
     lastKey.current = Date.now();
-    const g = Number((document.activeElement as HTMLElement | null)?.dataset.group);
+    const g = Number((document.activeElement as HTMLElement | null)?.dataset['group']);
     if ((g === 0 || g === 1) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       const i = cycleValue(optionsOf(g).length, selected(g), e.key);
       pick(g, i);
@@ -183,6 +183,3 @@ export function NewGameScreen() {
     </div>
   );
 }
-
-/** The same screen under the name the tests use (`NewGame.test.ts`). */
-export const NewGameDialog = NewGameScreen;

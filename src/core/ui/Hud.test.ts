@@ -30,7 +30,7 @@ const elements = (v: Node): VEl[] => {
   if (v && typeof v === 'object' && 'props' in v) return [v];
   return [];
 };
-const childrenOf = (el: VEl): Node => el.props.children as Node;
+const childrenOf = (el: VEl): Node => el.props['children'] as Node;
 function all(v: Node): VEl[] {
   return elements(v).flatMap((el) => [el, ...all(childrenOf(el))]);
 }

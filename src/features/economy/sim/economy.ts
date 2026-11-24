@@ -30,7 +30,7 @@ export interface MixEntry {
 }
 
 /** POST (cold boot) time as a function of the machine (docs/PROGRESSION.md "POST time"). PLACEHOLDER BALANCE. */
-export interface ColdBootConfig {
+interface ColdBootConfig {
   base: number;
   /** Ticks per KiB of installed RAM, capped at `kiBCap` ticks in total. */
   perKiB: number;
@@ -80,7 +80,7 @@ export interface EconomyConfig {
    * TEST OVERRIDE: a fixed template mix for generated arrivals. Undefined (the default) means the level-driven job
    * classes of levels.ts (docs/PROGRESSION.md "arrival mix").
    */
-  mix?: MixEntry[];
+  mix?: MixEntry[] | undefined;
   /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
   /**
@@ -226,7 +226,7 @@ export const ECONOMY: EconomyConfig = {
 };
 
 /** The money side of cloud-storage contracts, in dollars at level 1 (the level's pay multiplier scales it). */
-export interface ContractEconomy {
+interface ContractEconomy {
   /** Base ticks between rolls for a new offer, the open offers kept at most, and how long an unanswered offer stays (it then goes away, never a penalty). */
   offerEvery: number;
   offerCap: number;

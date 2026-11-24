@@ -178,8 +178,7 @@ export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<V
   };
 }
 
-export const NO_PROGRESS = newProgress(false);
-export const ALL_PROGRESS = newProgress(true);
+const NO_PROGRESS = newProgress(false);
 
 export const STOCK_COOLER: DeviceSnap = {
   id: 'dev-cooler',

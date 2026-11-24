@@ -34,20 +34,20 @@ const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
 const OUTLINE = {
   /** the fiddle-leaf fig: a wedge at the base, widest past the middle, a waist below that, a broad round tip */
   fig: (u: number) =>
-    Math.pow(Math.max(0, Math.sin(Math.PI * u * u)), 0.55) * (1 - 0.12 * Math.exp(-(((u - 0.42) / 0.1) ** 2))),
+    Math.max(0, Math.sin(Math.PI * u * u)) ** 0.55 * (1 - 0.12 * Math.exp(-(((u - 0.42) / 0.1) ** 2))),
   /** pothos: a heart, wide at its lobes, to a pointed tip */
-  heart: (u: number) => Math.pow(Math.sin(Math.PI * (0.22 + 0.78 * u)), 0.9),
+  heart: (u: number) => Math.sin(Math.PI * (0.22 + 0.78 * u)) ** 0.9,
   /** a succulent's or an aloe's fleshy blade: wide at its base, to a point */
-  lance: (u: number) => Math.pow(1 - u, 0.9) * Math.min(1, 0.55 + u * 3),
+  lance: (u: number) => (1 - u) ** 0.9 * Math.min(1, 0.55 + u * 3),
 } as const;
-export type LeafShape = keyof typeof OUTLINE;
+type LeafShape = keyof typeof OUTLINE;
 
 /**
  * A leaf blade `len` long (+y from its base at the origin) and `wid` across (x), its face to +z: the halves rise off the midrib by `fold` (a
  * share of the half width), the blade curls toward its face by `curl` (a share of its length) and its edge waves by `wave`. A heart's lobes
  * sweep back past its base. u runs across the blade, v from its base to its tip (the texture's veins follow).
  */
-export function leafBlade(
+function leafBlade(
   len: number,
   wid: number,
   shape: LeafShape,
@@ -202,7 +202,7 @@ function lathePot(
       ribs ? ribs * 4 : SEG.lathe,
     );
   if (ribs) {
-    const p = g.attributes.position!;
+    const p = g.attributes['position']!;
     for (let i = 0; i < p.count; i++) {
       const h = p.getY(i);
       if (h < (o.from ?? 0) || h > (o.to ?? Infinity)) continue;
@@ -292,7 +292,7 @@ export function floorPlant(x: number, z: number): Group {
     fl = FLOOR_Y,
     ware = stoneware();
   // (its baked occlusion, 8 cm out: the inner leaves under the outer ones, the stems among them; `vertexao.ts`)
-  g.userData.ao = 1500;
+  g.userData['ao'] = 1500;
   // the pot: a foot, a ribbed body swelling to a rolled rim, the rim's lip turned in
   const potH = 4500,
     profile = [
@@ -443,7 +443,7 @@ export function pothos(
     leaves = pothosLeaves(),
     stem = mat(STEM, { roughness: 0.6 });
   // (its baked occlusion, 6 cm out: the tuft's inner leaves, the vines against the shelf's edge)
-  g.userData.ao = 1120;
+  g.userData['ao'] = 1120;
   g.add(
     lathePot(
       x,
@@ -527,7 +527,7 @@ export function pothos(
 export function succulent(x: number, y: number, z: number, r: number): Group {
   const g = new Group();
   // (its baked occlusion: the rosette's heart under its outer rings)
-  g.userData.ao = r * 0.6;
+  g.userData['ao'] = r * 0.6;
   g.add(
     lathePot(
       x,
@@ -537,9 +537,9 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
         [0, 0],
         [r * 0.82, 0],
         [r * 0.9, r * 0.08],
-        [r * 1.0, r * 1.1],
+        [r * 1, r * 1.1],
         [r * 1.08, r * 1.2],
-        [r * 1.0, r * 1.22],
+        [r * 1, r * 1.22],
         [r * 0.95, r * 1.12],
       ],
       stoneware(),
@@ -584,7 +584,7 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
 export function aloe(x: number, y: number, z: number): Group {
   const g = new Group();
   // (its baked occlusion, 6 cm out: the blades' bases in the fan)
-  g.userData.ao = 1120;
+  g.userData['ao'] = 1120;
   // the pot: a plain cylinder a little tapered to its foot, its rim rounded over
   g.add(
     lathePot(
@@ -634,7 +634,7 @@ export function aloe(x: number, y: number, z: number): Group {
 }
 
 /** A few pebbles of bark on the soil (flat-shaded chips), round (x, top, z) within r. */
-export function mulch(x: number, top: number, z: number, r: number, n: number): Group {
+function mulch(x: number, top: number, z: number, r: number, n: number): Group {
   const g = new Group(),
     m = mat(SOIL, { roughness: 0.9, flatShading: true }),
     geo = new IcosahedronGeometry(1, SEG.chipDetail);

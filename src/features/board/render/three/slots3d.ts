@@ -57,8 +57,8 @@ export function slotRects(s: Snapshot): Map<string, Rect> {
     const bay = radiatorBay(side);
     if (bay) m.set(`rad-${side}`, bay);
   }
-  add('sata', slots.sata ?? 0, (i) => bayRect(i) ?? storageSlotRect('sata' + i));
-  add('m2', slots.m2 ?? 0, (i) => storageSlotRect('m2' + i));
+  add('sata', slots.sata ?? 0, (i) => bayRect(i) ?? storageSlotRect(`sata${i}`));
+  add('m2', slots.m2 ?? 0, (i) => storageSlotRect(`m2${i}`));
   // the fan spots: the case's mounts, and those of the heatsinks fitted
   for (const f of fanMounts()) m.set(f.id, f.rect);
   for (const d of s.devices) {

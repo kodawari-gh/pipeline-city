@@ -52,7 +52,7 @@ export function readTheme(): Theme {
   const cs = getComputedStyle(document.documentElement);
   const out = {} as Theme;
   for (const k of Object.keys(DARK) as (keyof typeof DARK)[]) {
-    const v = cs.getPropertyValue('--' + k).trim();
+    const v = cs.getPropertyValue(`--${k}`).trim();
     out[k] = v || DARK[k];
   }
   return out;
@@ -126,16 +126,13 @@ function mixHex(a: string, b: string, t: number): string {
     pb = rgb(b);
   if (!pa || !pb) return a;
   const k = Math.max(0, Math.min(1, t));
-  return (
-    '#' +
-    pa
-      .map((v, i) =>
-        Math.round(v + (pb[i]! - v) * k)
-          .toString(16)
-          .padStart(2, '0'),
-      )
-      .join('')
-  );
+  return `#${pa
+    .map((v, i) =>
+      Math.round(v + (pb[i]! - v) * k)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 }
 function rgb(s: string): number[] | null {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim());
@@ -146,6 +143,6 @@ function rgb(s: string): number[] | null {
       .split('')
       .map((c) => c + c)
       .join('');
-  const n = parseInt(h, 16);
+  const n = Number.parseInt(h, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }

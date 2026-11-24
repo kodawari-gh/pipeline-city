@@ -152,8 +152,8 @@ export class Ribbons {
   /** A box (in the machine's space) the air in is drawn over the parts, not behind them: the supply's unit, whose casing would hide it. Null: none. */
   xray(min: V3 | null, max: V3 | null): void {
     for (const m of this.mats) {
-      m.uniforms.uXMin!.value = min ? [...min] : [...NO_BOX];
-      m.uniforms.uXMax!.value = max ? [...max] : [...NO_BOX].map((v) => -v);
+      m.uniforms['uXMin']!.value = min ? [...min] : [...NO_BOX];
+      m.uniforms['uXMax']!.value = max ? [...max] : [...NO_BOX].map((v) => -v);
     }
   }
 
@@ -175,10 +175,10 @@ export class Ribbons {
     // the world size of a pixel at one unit of depth: a ribbon is never finer than it
     const pixel = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
     for (const m of this.mats) {
-      m.uniforms.uLo!.value = lo;
-      m.uniforms.uHi!.value = hi;
-      m.uniforms.uStrength!.value = STRENGTH * strength;
-      m.uniforms.uPixel!.value = pixel;
+      m.uniforms['uLo']!.value = lo;
+      m.uniforms['uHi']!.value = hi;
+      m.uniforms['uStrength']!.value = STRENGTH * strength;
+      m.uniforms['uPixel']!.value = pixel;
     }
   }
 

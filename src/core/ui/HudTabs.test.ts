@@ -23,12 +23,12 @@ const elements = (v: Node): VEl[] => {
   return [];
 };
 function all(v: Node): VEl[] {
-  return elements(v).flatMap((el) => [el, ...all(el.props.children as Node)]);
+  return elements(v).flatMap((el) => [el, ...all(el.props['children'] as Node)]);
 }
 /** Text content of a node, for reading what the player sees. */
 function text(v: Node): string {
   if (Array.isArray(v)) return v.map(text).join('');
-  if (v && typeof v === 'object' && 'props' in v) return text(v.props.children as Node);
+  if (v && typeof v === 'object' && 'props' in v) return text(v.props['children'] as Node);
   if (typeof v === 'string' || typeof v === 'number') return String(v);
   return '';
 }
@@ -88,51 +88,51 @@ function mount(name: string): VEl {
 
 const rail = (): VEl => mount('SpeedControl');
 const button = (root: VEl, pred: (p: Record<string, any>) => boolean): VEl => {
-  const b = all(root.props.children as Node).find((e) => e.type === 'button' && pred(e.props));
+  const b = all(root.props['children'] as Node).find((e) => e.type === 'button' && pred(e.props));
   expect(b, 'the control is on the rail').toBeDefined();
   return b!;
 };
 
 describe('HUD speed rail keeps its controls', () => {
   it('offers the campaign speeds 0.25x, 0.5x, 1x, 2x, 3x (no 0 step)', () => {
-    const labels = all(rail().props.children as Node)
-      .filter((e) => e.type === 'button' && String(e.props.title ?? '').startsWith('Run at '))
-      .map((e) => text(e.props.children as Node).trim());
+    const labels = all(rail().props['children'] as Node)
+      .filter((e) => e.type === 'button' && String(e.props['title'] ?? '').startsWith('Run at '))
+      .map((e) => text(e.props['children'] as Node).trim());
     expect(labels).toEqual(['0.25x', '0.5x', '1x', '2x', '3x']);
   });
 
   it('a speed step runs the game at that speed', () => {
     store.setSpeed(4);
     const r = rail();
-    button(r, (p) => p.title === 'Run at 2x').props.onClick();
+    button(r, (p) => p['title'] === 'Run at 2x').props['onClick']();
     expect(store.speed.value).toBe(8);
   });
 
   it('the pause button pauses a running game and resumes a paused one', () => {
     store.setSpeed(4);
-    button(rail(), (p) => p.title === 'Pause (Space)').props.onClick();
+    button(rail(), (p) => p['title'] === 'Pause (Space)').props['onClick']();
     expect(store.speed.value).toBe(0);
-    button(rail(), (p) => p.title === 'Resume (Space)').props.onClick();
+    button(rail(), (p) => p['title'] === 'Resume (Space)').props['onClick']();
     expect(store.speed.value).toBeGreaterThan(0);
   });
 
   it('the rail says "Paused" while paused by the player', () => {
     store.setSpeed(0);
     st.holdActive.value = false;
-    expect(text(rail().props.children as Node)).toContain('Paused');
+    expect(text(rail().props['children'] as Node)).toContain('Paused');
   });
 
   it('the rail says "Held" while a popup or the menu holds the clock, and the pause button does nothing', () => {
     store.setSpeed(0);
     st.setHold('menu', true);
-    expect(text(rail().props.children as Node)).toContain('Held');
-    button(rail(), (p) => p.title?.startsWith('Held')).props.onClick();
+    expect(text(rail().props['children'] as Node)).toContain('Held');
+    button(rail(), (p) => p['title']?.startsWith('Held')).props['onClick']();
     expect(store.speed.value, 'a held clock is not lifted from the rail').toBe(0);
   });
 
   it('slow motion switch toggles zoomSlowOn', () => {
     const before = store.zoomSlowOn.value;
-    button(rail(), (p) => p.title?.startsWith('Slow motion when zoomed in')).props.onClick();
+    button(rail(), (p) => p['title']?.startsWith('Slow motion when zoomed in')).props['onClick']();
     expect(store.zoomSlowOn.value).toBe(!before);
   });
 });

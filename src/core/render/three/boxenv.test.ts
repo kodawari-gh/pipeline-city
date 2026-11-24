@@ -13,7 +13,7 @@ import { boxEnv, boxProjected } from './boxenv';
 const box = boxEnv([0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5]);
 // three's shader with every chunk in place, as the GPU gets it
 const expand = (s: string): string =>
-  s.replace(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
+  s.replaceAll(/^[ \t]*#include +<(\w+)>/gm, (_, n: string) =>
     expand((ShaderChunk as unknown as Record<string, string>)[n] ?? ''),
   );
 const compiled = (m: Material) => {
@@ -54,7 +54,7 @@ describe('box-projected reflections', () => {
     boxProjected(m, boxEnv([0, 0, 0], [2, 2, 2], [1, 1, 1]));
     expect(m.customProgramCacheKey()).toBe(key);
     once(m);
-    expect(compiled(m).uniforms.boxMax).toBe(box.max);
+    expect(compiled(m).uniforms['boxMax']).toBe(box.max);
   });
 
   it('a copy that took the hooks stays as it is; a plain clone takes its own patch', () => {

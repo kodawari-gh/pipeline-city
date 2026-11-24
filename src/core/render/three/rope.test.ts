@@ -198,7 +198,7 @@ describe('a held cable (a live rope)', () => {
     for (const q of p)
       expect(
         [0, 1, 2].every((j) => q[j]! > shelf.min[j]! - 5 && q[j]! < shelf.max[j]! + 5),
-        q.join(),
+        q.join(','),
       ).toBe(false);
   });
 

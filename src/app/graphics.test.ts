@@ -353,8 +353,8 @@ describe('tier persistence', () => {
       string,
       unknown
     >;
-    delete old.lights;
-    delete old.lightShadows;
+    delete old['lights'];
+    delete old['lightShadows'];
     it('reads as Low, auto, with 4 lamps', () => {
       const s = resolveStart(old, null, '', detect('high'));
       expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });
@@ -506,7 +506,7 @@ describe('stored settings', () => {
   it('fall back to the default on junk', () => {
     expect(parseGraphics(null)).toEqual(DEFAULTS);
     expect(parseGraphics('x')).toEqual(DEFAULTS);
-    expect(parseGraphics({ msaa: 3, shadows: 'High', scale: NaN, auto: 1 })).toEqual(DEFAULTS);
+    expect(parseGraphics({ msaa: 3, shadows: 'High', scale: Number.NaN, auto: 1 })).toEqual(DEFAULTS);
   });
 
   it('keep what is good, and clamp the sliders', () => {

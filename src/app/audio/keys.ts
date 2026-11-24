@@ -31,7 +31,7 @@ export function pickFile(c: Cue, keyPc: number, rr: Map<string, number>): FilePi
       const d = ((((keyPc - pc + 6) % 12) + 12) % 12) - 6;
       if (Math.abs(d) < Math.abs(best.d)) best = { root, d };
     }
-    return { path: `audio/sfx/${c.id}__${best.root}.ogg`, rate: Math.pow(2, best.d / 12) };
+    return { path: `audio/sfx/${c.id}__${best.root}.ogg`, rate: 2 ** (best.d / 12) };
   }
   const i = rr.get(c.id) ?? 0;
   rr.set(c.id, i + 1);

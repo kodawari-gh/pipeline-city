@@ -61,7 +61,7 @@ describe('every generated program', () => {
           const r = runReference(g, t.startsWith('gpu.') ? 3_000_000 : 30_000); // RefFault on unmapped access or step overrun
           expect(r.cpu.halted).toBe(true);
           expect(r.text.length).toBeGreaterThan(0);
-          expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
+          expect(r.text).toMatch(/^[\n\x20-\x7E]+$/);
           expect(r.text).toBe(g.meta.expectedText);
           for (const line of r.text.split('\n')) expect(line.length).toBeLessThanOrEqual(DISPLAY_COLS);
           expect(g.meta.kernels.length).toBeGreaterThan(0);

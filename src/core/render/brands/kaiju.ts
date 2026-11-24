@@ -24,14 +24,14 @@ export const kaiju: Brand = {
   makes: 'memory',
   idea: 'three claw marks torn through the metal, the middle one still glowing',
   colors: { accent: '#ff5a78', light: '#e2eaff', dark: '#131518', plate: '#1d1e22', body: '#2a2d32', trim: '#4e5360' },
-  type: { s: 0.23, round: 0.12, wide: 1.0, slant: 0.24, track: 0.03 },
-  aspect: 1.0,
+  type: { s: 0.23, round: 0.12, wide: 1, slant: 0.24, track: 0.03 },
+  aspect: 1,
   lockup: { cap: 0.52, gap: 0.26 },
   mark: (c, ink, acc) => {
     slash(c, 0.4, 0.06, 0.04, 0.9, 0.17, -0.05);
     slash(c, 0.97, 0.12, 0.6, 0.98, 0.17, -0.05);
     fill(c, ink);
-    slash(c, 0.71, 0.0, 0.31, 1.0, 0.2, -0.06);
+    slash(c, 0.71, 0, 0.31, 1, 0.2, -0.06);
     fill(c, acc);
   },
 };

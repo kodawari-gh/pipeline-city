@@ -56,7 +56,7 @@ export function LevelBar({ s }: { s: Snapshot }) {
 }
 
 /** One unlocked (or coming) item: its illustration, or its kind's icon when it has no art yet, and its name. */
-export function UnlockChip({ u, small }: { u: MilestoneUnlock; small?: boolean }) {
+function UnlockChip({ u, small }: { u: MilestoneUnlock; small?: boolean }) {
   const art = hasArt(u.id, u.kind, u.planned);
   return (
     <span

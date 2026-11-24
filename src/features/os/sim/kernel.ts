@@ -82,8 +82,8 @@ const PFS = TABLE_END + 28; // OS 2: the registers the page-fault handler borrow
 /** Jobs the kernel has killed for touching memory they may not (the game reads it as the fault statistic). */
 export const KFAULTS = TABLE_END + 48;
 /** OS 2 and 3: the number of 256-byte frames the machine has (up to MAX_FRAMES), read from the PCH at boot. */
-export const NFRAMES = TABLE_END + 52;
-export const KDATA_END = TABLE_END + 56;
+const NFRAMES = TABLE_END + 52;
+const KDATA_END = TABLE_END + 56;
 // OS 2 on a multicore CPU (docs/MULTICORE.md section 6): core 0 is the kernel core (ingest, flash, queue) and hands a job to core 1 when that is free, else runs it itself.
 // Core 1 has its own arena of RAM (tables, image, heap frames), its own page-fault handler and its own display row; the shared words below are the mailbox,
 // the "core 1 is busy" flag and the big kernel lock, which guards every update of the job table made by either core.
@@ -96,18 +96,18 @@ const BUMP1 = LOCK + 20; // core 1's next free frame
 const PFS1 = LOCK + 24; // core 1's page-fault scratch (five words)
 const SMPON = LOCK + 44; // 1 when the machine has a second core and RAM for its arena
 /** The end of the kernel's data for the multicore os2 image. */
-export const KDATA_END_SMP = LOCK + 48;
+const KDATA_END_SMP = LOCK + 48;
 /** Core 1's arena: its page tables at the start, its kernel stack below the image, the image at virtual + `ARENA1_SHIFT`, heap frames from `ARENA1_HEAP` up to `ARENA1_END`. Needs 128K of RAM. */
 export const ARENA1 = 0x10000;
-export const ARENA1_SHIFT = 0x10000;
-export const ARENA1_HEAP = 0x120;
-export const ARENA1_END = 0x180;
+const ARENA1_SHIFT = 0x10000;
+const ARENA1_HEAP = 0x120;
+const ARENA1_END = 0x180;
 /** RAM frames the multicore os2 needs before it hands jobs to core 1 (128K). */
-export const SMP_MIN_FRAMES = 0x200;
+const SMP_MIN_FRAMES = 0x200;
 /** The kernel stack of core 1 (below its image, above its tables). */
 const KSTK1 = ARENA1 + 0x1000;
 /** The frames a paged OS manages: the virtual space is 20 bits, so RAM above 1 MiB is not used. */
-export const MAX_FRAMES = 4096;
+const MAX_FRAMES = 4096;
 // The preemptive kernel (OS 3) keeps more: a process control block per slot (plus one for the kernel itself), the map of RAM frames, and scratch words.
 /** A process control block: the 15 registers (ra, sp, a0..a3, t0..t4, s0..s3), the pc, its page table (physical), the frames of its three second-level tables, its job slot and a copy of its output row. */
 export const PCB = {
@@ -137,12 +137,12 @@ const KERNEL_NAP = 3;
 const NIC_EV = NICA + NICK.EV;
 const PFSB = PCBS + 9 * PCB.BYTES; // OS 3: registers the page-fault handler borrows (seven saved, then the slot, the page, the level 1 entry and the PTE)
 const KSCR = PFSB + 48; // OS 3: kstart's scratch: ra, slot, image pages, owner, the four table frames
-export const KDATA_END_PRE = KSCR + 32;
+const KDATA_END_PRE = KSCR + 32;
 // The multicore OS 3 (docs/MULTICORE.md section 7, docs/OS.md "Preemption on every core") keeps more: an idle PCB per logical core (where an interrupt on an idle core saves its registers),
 // a block of scratch words per core (the page-fault handler's borrowed registers, the PCB of the context running there), and the big kernel lock. `PCB.CORE` of a context is the
 // number of the core running it plus one, 0 when none does.
 /** Logical cores the multicore OS 3 manages. */
-export const MAX_LCORES = 8;
+const MAX_LCORES = 8;
 const IDLEP = PCBS + 9 * PCB.BYTES;
 const PCORE = IDLEP + MAX_LCORES * PCB.BYTES;
 const PCORE_BYTES = 64;
@@ -153,8 +153,8 @@ const PC_S3 = 44,
 const KSCR_SMP = PCORE + MAX_LCORES * PCORE_BYTES;
 const LOCK3 = KSCR_SMP + 64;
 /** OS 4: how many times a core took a context that another core had run last (the affinity pass found none of its own). */
-export const KMIGR = LOCK3 + 4;
-export const KDATA_END_PRE_SMP = KMIGR + 4;
+const KMIGR = LOCK3 + 4;
+const KDATA_END_PRE_SMP = KMIGR + 4;
 /**
  * Frame map (OS 3): one word per physical frame, 0 = free, else (kind << 8) | (job slot + 1): kind 0 a program's image, 1 its own memory, 2 its page tables;
  * `RESERVED_FRAME` is the OS's own (the tables, the map itself, frames beyond the installed RAM). It sits above 64K, so OS 3 needs RAM that reaches `OS3_MIN_BYTES`.
@@ -173,18 +173,18 @@ export const KTBL_BYTES = 0x100 + 0x100 * 64;
 export const JT_BASE = KTBL + KTBL_BYTES;
 export const JT_SLOTS = 56;
 /** Frames 0xb0 up to here belong to the OS (its tables, the frame map, the kernel table and the job table). */
-export const OS_FRAMES_END = (JT_BASE + JT_SLOTS * KSLOT_BYTES + 255) >> 8;
+const OS_FRAMES_END = (JT_BASE + JT_SLOTS * KSLOT_BYTES + 255) >> 8;
 /** Where the job table is and how many slots it has, by OS tier. */
 export const jobTableFor = (tier: number): { base: number; slots: number } =>
   tier >= 3 ? { base: JT_BASE, slots: JT_SLOTS } : { base: KDATA_BASE, slots: KDATA_SLOTS };
 /** The RAM OS 3 needs so that its tables fit and programs have room. */
-export const OS3_MIN_BYTES = 256 * 1024;
+
 /** Interrupt-free stack of the code that ends a job. */
 const KSTK = 0xfc00;
 /** CPU cycles one program runs before the scheduler looks again. */
-export const SLICE_CYCLES = 5000;
+const SLICE_CYCLES = 5000;
 /** The threaded kernel's slice: with up to eight cores asking for the one big lock every slice, 5000 cycles keeps the lock busy most of the time. */
-export const SLICE_CYCLES_THR = 20000;
+const SLICE_CYCLES_THR = 20000;
 /** Where the end of the kernel's data is, by OS tier. */
 export const kdataEndFor = (tier: number, smp = false): number =>
   tier >= 3 ? (smp ? KDATA_END_PRE_SMP : KDATA_END_PRE) : smp && tier === 2 ? KDATA_END_SMP : KDATA_END;
@@ -514,9 +514,9 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
         ]
       : []),
     `  addi t1, a0, ${KSLOT.RESULT}`,
-    `  li t3, ${0x46474553}`, // "SEGF"
+    `  li t3, 1179075923`, // "SEGF"
     '  sw t3, 0(t1)',
-    `  li t3, ${0x544c5541}`, // "AULT"
+    `  li t3, 1414288705`, // "AULT"
     '  sw t3, 4(t1)',
     `  addi t2, t1, ${4 * PCH_RESULT_WORDS}`,
     '  addi t1, t1, 8',
@@ -1479,9 +1479,9 @@ function secondary(kendPage: number): string[] {
     '  amoadd t2, t1, (t0)',
     `  lw a0, ${CUR1}(zero)`,
     `  addi t1, a0, ${KSLOT.RESULT}`,
-    `  li t3, ${0x46474553}`, // "SEGF"
+    `  li t3, 1179075923`, // "SEGF"
     '  sw t3, 0(t1)',
-    `  li t3, ${0x544c5541}`, // "AULT"
+    `  li t3, 1414288705`, // "AULT"
     '  sw t3, 4(t1)',
     `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
     '  addi t1, t1, 8',
@@ -1501,7 +1501,7 @@ function secondary(kendPage: number): string[] {
 }
 
 /** The kernel's source: `paged` is OS 2, which gives each program an address space (docs/VM.md) instead of guarding the OS with the memory protection unit. */
-export function kernelSource(paged: boolean, pre = false, smp = false, thr = false): string {
+function kernelSource(paged: boolean, pre = false, smp = false, thr = false): string {
   const jt = jobTableFor(pre ? 3 : 1);
   KD = jt.base;
   JT_END = jt.base + jt.slots * KSLOT_BYTES;
@@ -1696,7 +1696,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
     `  lw t0, ${PCH_REG.PHASE}(s0)`,
     `  li t1, ${PchPhase.OsIdle}`,
     '  beq t0, t1, kpoll',
-    ...(pre ? ['  call kcnt', '  li t1, ' + PchPhase.OsIdle, '  bne a0, zero, kpoll'] : []), // programs still running: the phase stays "running"
+    ...(pre ? ['  call kcnt', `  li t1, ${PchPhase.OsIdle}`, '  bne a0, zero, kpoll'] : []), // programs still running: the phase stays "running"
     ...(smp2 ? [`  lw t2, ${C1BUSY}(zero)`, '  bne t2, zero, kpoll'] : []), // core 1 still runs a job
     `  sw t1, ${PCH_REG.PHASE}(s0)`,
     `  li a3, ${DISPLAY_BASE}`,
@@ -1851,9 +1851,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
           `  li t0, ${CUR}`,
           '  lw a0, 0(t0)',
           `  addi t1, a0, ${KSLOT.RESULT}`,
-          `  li t3, ${0x46474553}`, // "SEGF"
+          `  li t3, 1179075923`, // "SEGF"
           '  sw t3, 0(t1)',
-          `  li t3, ${0x544c5541}`, // "AULT"
+          `  li t3, 1414288705`, // "AULT"
           '  sw t3, 4(t1)',
           `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
           '  addi t1, t1, 8',
@@ -2040,12 +2040,12 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   ].join('\n');
 }
 
-export const KERNEL_SOURCE = kernelSource(false);
-export const KERNEL_SOURCE_PAGED = kernelSource(true);
-export const KERNEL_SOURCE_PRE = kernelSource(true, true);
-export const KERNEL_SOURCE_SMP = kernelSource(true, false, true);
-export const KERNEL_SOURCE_PRE_SMP = kernelSource(true, true, true);
-export const KERNEL_SOURCE_THR = kernelSource(true, true, true, true);
+const KERNEL_SOURCE = kernelSource(false);
+const KERNEL_SOURCE_PAGED = kernelSource(true);
+const KERNEL_SOURCE_PRE = kernelSource(true, true);
+const KERNEL_SOURCE_SMP = kernelSource(true, false, true);
+const KERNEL_SOURCE_PRE_SMP = kernelSource(true, true, true);
+const KERNEL_SOURCE_THR = kernelSource(true, true, true, true);
 const assembled = assemble(KERNEL_SOURCE);
 const assembledPaged = assemble(KERNEL_SOURCE_PAGED);
 const assembledPre = assemble(KERNEL_SOURCE_PRE);

@@ -21,7 +21,7 @@ export interface Mouth {
 }
 
 /** The mouth's outline (`wallPt` points), grown by `e`: the opening, the latch slot on its latch side. */
-export function mouthPts(m: Mouth, e = 0): Vector2[] {
+function mouthPts(m: Mouth, e = 0): Vector2[] {
   const c = m.y - m.dir * (m.h / 2 + e),
     l = m.y + m.dir * (m.h / 2 + e),
     s = m.y + m.dir * (m.h / 2 + m.slot + e);
@@ -132,7 +132,7 @@ export function jackFace(g: Group, x: number, s: Span, deep: number, M: JackLook
  * its back; the eight contact springs at the 1.02 mm pitch (`k` units a mm), each from the contact side's lip sloping back in toward the latch
  * side; the comb's ribs between them. The plug's blades meet the springs; its latch rides in the slot.
  */
-export function jackInside(
+function jackInside(
   g: Group,
   x: number,
   deep: number,

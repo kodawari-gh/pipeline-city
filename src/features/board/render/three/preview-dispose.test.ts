@@ -8,7 +8,7 @@ import { setLayoutTier } from '@/features/board/render/layout/layout';
 
 // Canvases that draw nothing, so `paint` makes real CanvasTextures in Node.
 // Any call returns another such proxy (gradients need `addColorStop`); the few reads the art makes are answered.
-const nothing: unknown = new Proxy(function () {}, {
+const nothing: unknown = new Proxy(() => {}, {
   get: (_t, k) => (k === Symbol.toPrimitive ? () => 0 : nothing),
   apply: () => nothing,
   set: () => true,

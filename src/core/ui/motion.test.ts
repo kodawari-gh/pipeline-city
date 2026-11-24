@@ -8,16 +8,17 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 
 const read = (name: string): string =>
   fs.readFileSync(urlMod.fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
-const strip = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, '');
+const strip = (s: string): string => s.replaceAll(/\/\*[\s\S]*?\*\//g, '');
 const tokens = strip(read('tokens.css'));
 const ui = strip(read('ui.css'));
 const sheet = `${tokens}\n${ui}`;
 // The boot screen's sheet (index.html) and the 3D cues' CSS (a template string in cues3d.ts) are motion too.
-const html = strip(read('../../../index.html').replace(/<!--[\s\S]*?-->/g, ''));
+const html = strip(read('../../../index.html').replaceAll(/<!--[\s\S]*?-->/g, ''));
 const cues = strip(read('../../features/board/render/three/cues3d.ts'));
 
 /** The text of the `{ ... }` block that opens at `open` (the index of the `{`), braces matched. */
@@ -52,10 +53,10 @@ const withoutReduced = (text: string): string => {
 };
 
 /** The motion declarations: `transition` and `animation`, with their `-duration` and `-delay` (value without `!important`). */
-function motionDecls(text: string): Array<{ prop: string; value: string }> {
+function motionDecls(text: string): { prop: string; value: string }[] {
   return [...text.matchAll(/(?<![-\w])((?:transition|animation)(?:-duration|-delay)?)\s*:\s*([^;}]*)/g)].map((m) => ({
     prop: m[1]!,
-    value: m[2]!.replace(/!important/g, '').trim(),
+    value: m[2]!.replaceAll('!important', '').trim(),
   }));
 }
 
@@ -116,7 +117,7 @@ describe('UI motion: reduced motion shortens or stops motion (ticket #46, criter
     expect(names.size, 'the duration tokens exist').toBeGreaterThan(0);
     const reduced = reducedBlocks(sheet).join('\n');
     const missing = [...names].filter((n) => {
-      const hit = reduced.match(new RegExp(`${n}\\s*:\\s*([^;}]+)`));
+      const hit = new RegExp(`${n}\\s*:\\s*([^;}]+)`).exec(reduced);
       return !hit || !/^0(ms|s)?$/.test(hit[1]!.trim());
     });
     expect(missing, 'duration tokens not set to 0 under reduced motion').toEqual([]);
@@ -134,7 +135,7 @@ describe('UI motion: reduced motion shortens or stops motion (ticket #46, criter
   it('the praise pill and the level ring stop their fade under reduced motion, so they rest visible', () => {
     const stopsAnimation = (selector: string) =>
       reducedBlocks(ui).some((b) => new RegExp(`${selector}\\s*\\{[^}]*animation\\s*:\\s*none`).test(b));
-    expect(stopsAnimation('\\.tut-praise'), '.tut-praise').toBe(true);
-    expect(stopsAnimation('\\.lvl-hero \\.ring'), '.lvl-hero .ring').toBe(true);
+    expect(stopsAnimation(String.raw`\.tut-praise`), '.tut-praise').toBe(true);
+    expect(stopsAnimation(String.raw`\.lvl-hero \.ring`), '.lvl-hero .ring').toBe(true);
   });
 });

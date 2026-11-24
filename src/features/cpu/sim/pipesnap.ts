@@ -9,7 +9,7 @@ import type { StageSnap } from '@/worker/game/game';
 import type { RamRegion } from '../../memory/sim/ramregions';
 
 /** One slot of an out-of-order structure: the mnemonic ("" when empty) and a state code (see each field). */
-export interface OooSlot {
+interface OooSlot {
   op: string;
   state: number;
 }
@@ -129,7 +129,7 @@ function cacheSnap(c: { lines: number; ways: number; lineBytes: number; tags: nu
 }
 
 /** The stored state of an engine and the writes since cycle `from`. */
-export function storedOf(eng: PipelineEngine, ram: Uint8Array, from: number): StoredSnap {
+function storedOf(eng: PipelineEngine, ram: Uint8Array, from: number): StoredSnap {
   const st = eng.storedState();
   return {
     regs: st.regs,
@@ -155,7 +155,7 @@ export interface RamMap {
   /** The DRAM's banks and the row open in each (-1: closed); a row is a 256-byte page when `rowBytes` is 256. Absent without a CPU engine that models it. */
   dram?: { channels: number; banks: number; rowBytes: number; open: number[] };
   /** The address spaces of the programs that run under a paged OS, read out of their page tables (docs/VM.md "Seen"), and the last page fault. */
-  vm?: VmSnap;
+  vm?: VmSnap | undefined;
 }
 
 /** One address space: its job, the level 1 table's physical address, its mapped pages (flat vpn, frame, flags) and the frames its tables are in. */

@@ -7,11 +7,11 @@ describe('dialogue pages', () => {
   });
 
   it('packs whole sentences up to the page size and never cuts one', () => {
-    const a = 'A'.repeat(70) + '.',
-      b = 'B'.repeat(70) + '.',
-      c = 'C'.repeat(10) + '.';
+    const a = `${'A'.repeat(70)}.`,
+      b = `${'B'.repeat(70)}.`,
+      c = `${'C'.repeat(10)}.`;
     expect(pagesOf(`${a} ${b} ${c}`)).toEqual([a, `${b} ${c}`]);
-    const long = 'L'.repeat(300) + '.';
+    const long = `${'L'.repeat(300)}.`;
     expect(pagesOf(long)).toEqual([long]);
   });
 

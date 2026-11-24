@@ -200,7 +200,39 @@ export function sync(cfg, parent, { dry = false } = {}) {
       if (!dry) setStatus(cfg, is.n, want);
     }
   }
+  moveParent(cfg, p, { report, dry });
   return report;
+}
+
+function moveParent(cfg, p, { report, dry }) {
+  const want = parentStatus(p, report);
+  const cur = p.item?.status ?? null;
+  if (want && cur !== want) {
+    report.moves.push(`#${p.n} ${cur ?? '(none)'} -> ${want} (parent)`);
+    if (!dry) {
+      setStatus(cfg, p.n, want);
+    }
+  }
+}
+
+/**
+ * The parent follows its children: Done once closed, In review once every child is Done (its PR waits on the user),
+ * In progress once any child started or finished, else Ready or Backlog by its own blockers.
+ */
+function parentStatus(p, report) {
+  if (p.children.length === 0) {
+    return null;
+  }
+  if (p.state !== 'OPEN') {
+    return 'Done';
+  }
+  if (report.done.length === p.children.length) {
+    return 'In review';
+  }
+  if (report.done.length + report.inFlight.length > 0) {
+    return 'In progress';
+  }
+  return p.openBlockers.length > 0 ? 'Backlog' : 'Ready';
 }
 
 /** Discover ids for a project and write docs/agents/board.json. Creates missing Planned model and Rounds fields. */

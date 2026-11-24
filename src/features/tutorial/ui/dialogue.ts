@@ -1,5 +1,5 @@
 /** Characters per page: about two lines of the dialogue box. */
-export const PAGE_CHARS = 120;
+const PAGE_CHARS = 120;
 
 /** Typewriter speed, ms per character. */
 export const CHAR_MS = 24;

@@ -188,7 +188,7 @@ describe.skipIf(!GATE)('the Almanac edge tab in the browser (ticket #74)', () =>
             shadow: cs.boxShadow,
             text: cs.textShadow,
             image: cs.backgroundImage,
-            border: cs.borderTopWidth + ' ' + cs.borderTopStyle,
+            border: `${cs.borderTopWidth} ${cs.borderTopStyle}`,
             radius: cs.borderTopLeftRadius,
             panelBg: cs.backgroundColor,
             shade,

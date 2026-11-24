@@ -23,7 +23,7 @@ function buildings(v: OutsideView): Mesh[] {
   const out: Mesh[] = [];
   inner(v).scene.traverse((o) => {
     const m = o as Mesh;
-    if (m.isMesh && m.geometry.attributes.fuv) out.push(m);
+    if (m.isMesh && m.geometry.attributes['fuv']) out.push(m);
   });
   return out;
 }
@@ -232,8 +232,8 @@ describe('Low city facade bake', () => {
       flooded = 0;
     for (const m of buildings(low)) {
       const a = m.geometry.attributes,
-        aux = a.aux,
-        wy = a.washY;
+        aux = a['aux'],
+        wy = a['washY'];
       if (!aux || !wy) continue;
       for (let i = 0; i < aux.count; i++) {
         if (Math.round(aux.getY(i)) === 1) roofs++;
@@ -493,10 +493,10 @@ describe('Low city facade bake', () => {
     // High's lines, in Low's names: so a band lights the same rooms at both tiers
     const high = (s: string) =>
       s
-        .replace(/fHash/g, 'lowH')
-        .replace(/fGather/g, 'lowGather')
-        .replace(/vLook/g, 'vLowLook')
-        .replace(/vFuv/g, 'vLowFuv');
+        .replaceAll('fHash', 'lowH')
+        .replaceAll('fGather', 'lowGather')
+        .replaceAll('vLook', 'vLowLook')
+        .replaceAll('vFuv', 'vLowFuv');
     for (const m of buildings(low)) {
       const full = compiled(m.material as Material).fragmentShader;
       const guard = full.indexOf('if (fNight > 0.0) {');

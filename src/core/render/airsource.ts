@@ -4,7 +4,7 @@ import type { Snapshot } from '@/worker/protocol';
 // exports one `AirSource` from its own `render/air.ts`, and the list is `AIR_SOURCES` (room/render/desk/airsources.ts). A new part with thermals
 // adds its source there; `airsources.test.ts` fails while a part kind with thermals has none.
 
-export interface Box {
+interface Box {
   x: number;
   y: number;
   w: number;
@@ -63,7 +63,7 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 export const clampHeat = clamp01;
 
 /** How hot a part is, 0 (cool) to 1 (at the point where it throttles). */
-export const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
+const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
 
 /** The usual source of heat: the devices of some kinds (in the slots `only` takes), grouped as one zone (all the RAM sticks together), hot at the hottest. */
 export function deviceHeat(

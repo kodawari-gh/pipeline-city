@@ -28,7 +28,7 @@ export function cuesOf(s: Snapshot | null): Cue[] {
   if (s.phase === 'done-remove-key' && s.plugged) keys.push(s.plugged);
   if (s.plugged && s.keyActivity === 'done' && s.plugged.stage !== 'done') keys.push(s.plugged);
   for (const k of keys)
-    if (!out.some((c) => c.id === 'key:' + k.id)) out.push({ id: 'key:' + k.id, kind: 'key', veil: false });
+    if (!out.some((c) => c.id === `key:${k.id}`)) out.push({ id: `key:${k.id}`, kind: 'key', veil: false });
   for (const p of s.pendingSwaps) out.push({ id: p.replacesId ?? p.target, kind: 'swap', veil: !!p.replacesId });
   return out;
 }

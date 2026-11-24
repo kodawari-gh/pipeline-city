@@ -3,9 +3,9 @@
 // again. A reading that differs a little (a baked tile, the last bits of a float) must not start the eye again: the view would never rest.
 
 /** A reading moves the goal only when it asks for an exposure this far (in log, about 3 %) from the goal: less is not seen. */
-export const EYE_DEAD = 0.03;
+const EYE_DEAD = 0.03;
 /** The eye is at its goal within this (in log): the view draws no more frames for it. */
-export const EYE_DONE = 1e-3;
+const EYE_DONE = 1e-3;
 /**
  * The readings that come after a hold ends and are dropped: the meter answers a frame or more after its draw, so the first ones are of the picture the hold was
  * for (a lens that darkened it on purpose), not of the one now on the screen.
@@ -53,7 +53,7 @@ export class Eye {
 
   /** One tick: the eye eases toward its goal over about a second. Returns where it stands. */
   step(dt: number): number {
-    this.seen *= (this.goal / this.seen) ** (1 - Math.pow(0.01, dt));
+    this.seen *= (this.goal / this.seen) ** (1 - 0.01 ** dt);
     return this.seen;
   }
 

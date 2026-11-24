@@ -24,7 +24,7 @@ export const CONFIGS: Config[] = [
   { name: 'inorder nofwd shared=on', make: (x) => new InOrderEngine({ forwarding: false, sharedPort: true, ...x }) },
 ];
 
-export const COMPARE_BYTES = DATA_BASE + DATA_SIZE;
+const COMPARE_BYTES = DATA_BASE + DATA_SIZE;
 
 export interface Outcome {
   regs: number[];
@@ -122,7 +122,7 @@ export function chart(engine: PipelineEngine, src: string, summary?: (counters: 
     lines.push(
       `cycles=${c[0]} retired=${c[1]} load=${c[2]} data=${c[3]} flush=${c[4]} struct=${c[5]} cache=${c[6]} flushes=${c[7]} hits=${c[11]} misses=${c[12]}`,
     );
-  return '\n' + lines.join('\n') + '\n';
+  return `\n${lines.join('\n')}\n`;
 }
 
 // ---- Wide engines (inorder2, ooo) ----
@@ -135,7 +135,7 @@ export interface WideConfig {
   make: (extra?: EngineSettings) => PipelineEngine;
 }
 
-export const OOO_SIZES: Record<string, OooSettings> = {
+const OOO_SIZES: Record<string, OooSettings> = {
   default: {},
   tiny: { robSize: 2, schedSize: 1, fetchQueue: 2 },
   small: { robSize: 4, schedSize: 3, fetchQueue: 2 },

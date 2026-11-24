@@ -64,6 +64,7 @@ import {
   skyAt,
 } from './room';
 import type { Rect } from '@/features/board/render/layout/layout';
+
 const inside = (r: Rect, o: Rect) => r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
 
 describe('the desk follows the case', () => {
@@ -196,7 +197,7 @@ describe('time of day', () => {
     expect(hourAt(-1)).toBeGreaterThan(0);
   });
 
-  it('it is dark at midnight, bright at noon, and the dusk is in between', () => {
+  it('is dark at midnight, bright at noon, and the dusk is in between', () => {
     expect(nightAt(0)).toBe(1);
     expect(nightAt(12)).toBe(0);
     expect(nightAt(23)).toBe(1);

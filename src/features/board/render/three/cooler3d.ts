@@ -120,8 +120,6 @@ const brushed = () =>
         }
       }),
   ));
-/** The pump cap's map, for the texture bake (`tools/bake/textures.mjs`). */
-export const capBrushed = (): Texture | null => brushed();
 /** The maker's mark under the pump cap's glass (`brands/fujin.ts`): the cooling maker's crest over its name, pale silver on clear. */
 const capMark = () =>
   tex('pump-cap-mark', 512, 512, (c, w, h) => {
@@ -597,7 +595,7 @@ export function hose(a: RopeEnd, b: RopeEnd, env: Env): Group {
 }
 
 /** How far a hose's end slides along its fitting to come off it: past the collar's tip and its ridges, with room. */
-export const HOSE_PULL = 300;
+const HOSE_PULL = 300;
 const UP = new Vector3(0, 1, 0);
 /** The ids the loop's two hoses wear in the thermal view (`Machine3D.thermal`): the airflow lens gives each the temperature of its water. */
 export const HOSE_HOT = 'hose.hot',

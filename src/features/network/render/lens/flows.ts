@@ -17,7 +17,7 @@ import { seedOf } from '@/features/board/render/three/power/flows';
 import type { NetDraw, NetShape } from './shape';
 
 /** The brightness of the lines over the picture. */
-const STRENGTH = 1.0;
+const STRENGTH = 1;
 /** Speed (units a second) and gap between comets (units) at the foot and the top of the speed scale. */
 const SPEED_LO = 1400,
   SPEED_HI = 5600,
@@ -33,7 +33,7 @@ export interface NetStrips {
   first: Int32Array;
   count: Int32Array;
 }
-export function netStrips(shape: NetShape): NetStrips {
+function netStrips(shape: NetShape): NetStrips {
   const lines = shape.lines;
   let cap = 0;
   for (const l of lines) cap += Math.max(0, l.pts.length - 1);
@@ -197,9 +197,9 @@ export class NetFlows {
   frame(cam: PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
     this.t = (this.t + dt) % 10000;
     const u = this.mat.uniforms;
-    u.uPixel!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
-    u.uT!.value = this.t;
-    u.uClock!.value = clock % 1000;
+    u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
+    u['uT']!.value = this.t;
+    u['uClock']!.value = clock % 1000;
   }
 
   /** How many strips are drawn, for the check tool. */

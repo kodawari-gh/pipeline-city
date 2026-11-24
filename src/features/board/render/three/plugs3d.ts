@@ -192,7 +192,7 @@ function loft(sh: Shape, sx: number, sy: number, z0: number, z1: number, bev: nu
       bevelSegments: SEG.plug,
       curveSegments: SEG.caseCurve,
     }),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   for (let i = 0; i < p.count; i++) {
     const t = (p.getZ(i) + bev) / (d + 2 * bev);
     p.setXYZ(i, p.getX(i) * (1 + (sx - 1) * t), p.getY(i) * (1 + (sy - 1) * t), z0 + bev + p.getZ(i));
@@ -414,7 +414,7 @@ export function rj45Plug(f: Rj45Fit): { body: Group; l: number } {
   const r1 = cable + 0.3 * b,
     r0 = Math.max(r1 + 0.3 * b, Math.min(3.9 * b, cable + 1.2 * b));
   g.add(relief(z2 - 0.5 * b, 0, r0, r1, 1.5 * b, 0.22 * b, boot));
-  g.userData.plug = 'rj45';
+  g.userData['plug'] = 'rj45';
   return { body: g, l };
 }
 
@@ -521,7 +521,7 @@ export function qsfpPlug(f: QsfpFit): { body: Group; l: number } {
     zr = -l + A.root * k;
   g.add(pullTab(tw, zr, zr + A.l * k, A.ring * k, A.t * k, top, tabM));
   g.add(box(-tw / 2, tw / 2, top - A.t * k, -hy + 0.3 * k, zr, zr + 2.2 * k, tabM));
-  g.userData.plug = 'qsfp';
+  g.userData['plug'] = 'qsfp';
   return { body: g, l };
 }
 
@@ -586,7 +586,7 @@ export function adapterPlug(f: QsfpFit): { body: Group; l: number } {
   g.add(box(-tw / 2, tw / 2, top - T.t * k, -hy + 0.3 * k, zr, zr + 2.2 * k, tabM));
   // (the lead's own plug stands where its socket's mouth is the module's, 0.85 behind the face: its frame is the adapter's)
   g.add(rj.body);
-  g.userData.plug = 'adapter';
+  g.userData['plug'] = 'adapter';
   return { body: g, l };
 }
 
@@ -688,7 +688,7 @@ export const swissLength = (f: SwissFit): number => SWISS.l * bootScale(f.k, f.c
 export const swissEngage = (k: number): number => Math.ceil((SWISS.head.l + SWISS.pin.l + 1) * k);
 
 /** The recess's outline `inset` mm in, as a shape of `k` units a mm (a plug's head, a socket's mouth). */
-export function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
+function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
   const s = new Shape(),
     p = lozenge(inset, seg);
   s.moveTo(p[0]![0] * k, p[0]![1] * k);

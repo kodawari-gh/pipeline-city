@@ -18,12 +18,12 @@ import type { Progress } from './save';
 export interface GameOptions {
   seed: number;
   /** Overrides for the placeholder economy (tests use this). */
-  economy?: Partial<EconomyConfig>;
+  economy?: Partial<EconomyConfig> | undefined;
   /**
    * Start with the machine fully assembled, cables connected, all tutorial milestones reached and the power on
    * (dev and tests). The real app starts bare: an empty board and the starter crate in the inventory.
    */
-  preassembled?: boolean;
+  preassembled?: boolean | undefined;
   /**
    * Sandbox mode (docs/SANDBOX.md): infinite money, everything purchasable, no tutorial, plus the sandbox tools. The
    * physics still applies. With `preassembled` the machine is assembled but left powered off, ready for the power button.
@@ -41,7 +41,7 @@ export interface GameOptions {
    */
   looseFit?: boolean;
   /** Start at this player level with the client base at its threshold (tests and bots; campaign only, 1 to 18). */
-  startLevel?: number;
+  startLevel?: number | undefined;
 }
 
 export interface CompletedInfo {
@@ -103,7 +103,7 @@ export interface VrmSnap {
 }
 
 /** The air of one area of the case (board/sim/airflow.ts): `north` (processor, memory, regulators), `cards` (the PCIe cards), `bay` (the drives). */
-export interface AirZoneSnap {
+interface AirZoneSnap {
   id: 'north' | 'cards' | 'bay';
   /** 0 to 1: how well the area is ventilated against the case with every fan turning (1 = as designed; 0 = no air moves). */
   flow: number;
@@ -733,7 +733,7 @@ export interface NetStackSnap {
   nic: NicStackSnap;
 }
 
-export interface NicStackSnap {
+interface NicStackSnap {
   /** The kernel has set the NIC up (it is on). */
   enabled: boolean;
   /** Segments waiting in the chip's input FIFO, and its depth. */

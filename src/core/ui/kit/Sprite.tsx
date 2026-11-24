@@ -7,7 +7,7 @@ import type { IconName } from '@/features/economy/ui/shop/picker';
 const cache = new Map<string, Sprite | null>();
 
 /** The sprite of an almanac entry at its first scale, or null for one that has no program yet. */
-export function spriteFor(id: string): Sprite | null {
+function spriteFor(id: string): Sprite | null {
   if (cache.has(id)) return cache.get(id)!;
   const src = CODE_SOURCE[id];
   const sp = src ? spriteOf(profileOf(src.template, src.scales[0]!)) : null;

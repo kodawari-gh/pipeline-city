@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { drum, post, rod, softBox, tube } from './geometry';
 import { lowOf } from './merge';
 
-const tris = (g: BufferGeometry): number => (g.index ? g.index.count : g.attributes.position!.count) / 3;
+const tris = (g: BufferGeometry): number => (g.index ? g.index.count : g.attributes['position']!.count) / 3;
 const m = new MeshStandardMaterial();
 
 describe('the lower detail level of the shared builders', () => {
@@ -48,7 +48,7 @@ describe('the lower detail level of the shared builders', () => {
     const baked = softBox({ x: 0, y: 0, w: 400, h: 300 }, 0, 200, m);
     baked.geometry.setAttribute(
       '_ao',
-      new BufferAttribute(new Float32Array(baked.geometry.attributes.position!.count), 1),
+      new BufferAttribute(new Float32Array(baked.geometry.attributes['position']!.count), 1),
     );
     expect(lowOf(baked.geometry)).toBeUndefined();
   });

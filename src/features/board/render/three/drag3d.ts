@@ -162,7 +162,7 @@ export class Drag3D {
     const live = !!this.hand?.grab(kind, e.clientX, e.clientY);
     if (!live && s.cables.find((c) => c.id === kind)?.connected) disconnectCable(kind);
     this.cur = { cable: kind, name: `cable ${kind}`, live, over: null };
-    dragging.value = { kind: 'cable', id: 'cable.' + kind };
+    dragging.value = { kind: 'cable', id: `cable.${kind}` };
     this.run(e.pointerId, e.clientX, e.clientY, null);
     return true;
   }
@@ -191,7 +191,7 @@ export class Drag3D {
       name: 'USB key',
       over: null,
     };
-    dragging.value = { kind: 'key', id: 'key:' + keyId };
+    dragging.value = { kind: 'key', id: `key:${keyId}` };
     this.run(e.pointerId, e.clientX, e.clientY, null);
     return true;
   }
@@ -289,7 +289,7 @@ export class Drag3D {
     }
     // (the port is behind the case's side panel: a drop near it on the screen counts)
     if (c.key !== undefined) {
-      c.over = id === 'usb' || id === 'key:' + c.key || (this.inside(cx, cy) && this.onPort(cx, cy)) ? 'usb' : null;
+      c.over = id === 'usb' || id === `key:${c.key}` || (this.inside(cx, cy) && this.onPort(cx, cy)) ? 'usb' : null;
       this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why);
       return;
     }
@@ -359,7 +359,7 @@ export class Drag3D {
       if (!c.plugged && onPort) {
         if (c.why) this.toast(c.why, cx, cy);
         else plugKey(c.key);
-      } else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== 'key:' + c.key)
+      } else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== `key:${c.key}`)
         ejectKey();
       return;
     }

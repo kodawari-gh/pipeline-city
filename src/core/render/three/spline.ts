@@ -29,10 +29,10 @@ function piece(pts: readonly Vector3[], at: number): Float64Array {
     p2 = pts[at + 1]!;
   const p0 = at > 0 ? pts[at - 1]! : new Vector3().subVectors(pts[0]!, pts[1]!).add(pts[0]!);
   const p3 = at + 2 < l ? pts[at + 2]! : new Vector3().subVectors(pts[l - 1]!, pts[l - 2]!).add(pts[l - 1]!);
-  let dt0 = Math.pow(p0.distanceToSquared(p1), 0.25),
-    dt1 = Math.pow(p1.distanceToSquared(p2), 0.25),
-    dt2 = Math.pow(p2.distanceToSquared(p3), 0.25);
-  if (dt1 < 1e-4) dt1 = 1.0; // (repeated points, as three does)
+  let dt0 = p0.distanceToSquared(p1) ** 0.25,
+    dt1 = p1.distanceToSquared(p2) ** 0.25,
+    dt2 = p2.distanceToSquared(p3) ** 0.25;
+  if (dt1 < 1e-4) dt1 = 1; // (repeated points, as three does)
   if (dt0 < 1e-4) dt0 = dt1;
   if (dt2 < 1e-4) dt2 = dt1;
   const c = new Float64Array(12);

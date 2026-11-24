@@ -16,7 +16,7 @@ The CPU has five microarchitectures, each its own engine, floorplan, goldens and
 
 ## 1. How the card is driven
 
-```
+```text
 Game.advanceBaseTick()
   -> Machine.advanceBaseTick()                 1000 sub-ticks
        -> domain "pcie<k>" fires N times       N = the card's clock (spec, scaled by throttling)

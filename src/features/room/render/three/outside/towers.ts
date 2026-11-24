@@ -29,7 +29,7 @@ import type { SignWash } from './signlight';
 import { ballOf, bearing } from './sweep';
 
 /** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel, a sign, a spire in its floodlights. */
-const enum Kind {
+enum Kind {
   Facade = 0,
   Roof = 1,
   Plain = 2,
@@ -42,7 +42,7 @@ const enum Kind {
   Flood = 9,
 }
 /** How a thin thing (a plain mast, a beacon, a line of LEDs) holds a pixel's width far off: `look` is its middle and this, the axes it grows on. */
-const enum Wide {
+enum Wide {
   Across = 1,
   Up = 2,
   All = 3,
@@ -260,8 +260,8 @@ class Mass {
 
   /** A geometry with no index (a cylinder, a cone) at (x, y, z), every vertex as `set` gave. */
   shape(g: BufferGeometry, x: number, y: number, z: number): void {
-    const p = g.attributes.position!,
-      n = g.attributes.normal!;
+    const p = g.attributes['position']!,
+      n = g.attributes['normal']!;
     for (let i = 0; i < p.count; i++)
       this.vert([p.getX(i) + x, p.getY(i) + y, p.getZ(i) + z], [n.getX(i), n.getY(i), n.getZ(i)], 0, 0);
   }
@@ -495,7 +495,7 @@ function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, f
     // the outdoor units in a row, pale grey boxes on a dark rail
     const n = 3 + Math.floor(rand() * 5),
       run = Math.min(n * 1.25, w - 6),
-      q = place(run + 0.4, 1.0);
+      q = place(run + 0.4, 1);
     if (q) {
       const x = (q.x0 + q.x1) / 2,
         z = (q.z0 + q.z1) / 2;
@@ -1131,12 +1131,12 @@ export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms
   };
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.fNight = u.night;
-    sh.uniforms.fTime = u.time;
-    sh.uniforms.fSun = u.sun;
-    sh.uniforms.fSunCol = u.sunCol;
-    sh.uniforms.fHor = u.hor;
-    sh.uniforms.fPixel = u.pixel;
+    sh.uniforms['fNight'] = u.night;
+    sh.uniforms['fTime'] = u.time;
+    sh.uniforms['fSun'] = u.sun;
+    sh.uniforms['fSunCol'] = u.sunCol;
+    sh.uniforms['fHor'] = u.hor;
+    sh.uniforms['fPixel'] = u.pixel;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',

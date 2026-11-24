@@ -42,7 +42,7 @@ import {
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
-export const OMEGA = 25;
+const OMEGA = 25;
 /** Screen distances (px) from the point in front of the socket: the plug squares up from FAR_PX in, and snaps inside SNAP_PX. */
 export const SNAP_PX = 70,
   FAR_PX = 260;
@@ -399,7 +399,7 @@ export class PlugHand {
       const len = path.reduce((s, p) => s + lengthOf(p), 0) / Math.max(1, path.length);
       const sleeve = new Sleeve(path.length, rig.look.r, samplesFor(rig.n), rig.look.accent ? 14 : 10);
       const mesh = seeThrough(place(new Mesh(sleeve.geometry, sleeveMat(rig.look.base, rig.look.accent))));
-      mesh.userData.live = true;
+      mesh.userData['live'] = true;
       const pivot = pivotOf(rig.seat, model.root, end);
       this.root.add(pivot, mesh);
       this.reel = {
@@ -481,7 +481,7 @@ export class PlugHand {
     );
     const sleeve = new Sleeve(ropes.length, rig.look.r, samplesFor(rig.n), rig.look.accent ? 14 : 10);
     const mesh = seeThrough(place(new Mesh(sleeve.geometry, sleeveMat(rig.look.base, rig.look.accent))));
-    mesh.userData.live = true;
+    mesh.userData['live'] = true;
     sleeve.update(ropes.map((r) => r.points()));
     const pivot = pivotOf(rig.seat, model.root, pose);
     this.root.add(pivot, mesh);
@@ -920,9 +920,9 @@ export class PlugHand {
       pts = l.ropes.map((r) => r.points()),
       n = rig.n;
     const mean = Array.from({ length: n }, (_, j) =>
-      pts.reduce(
+      pts.reduce<V3>(
         (s, p) => [s[0] + p[j]![0] / pts.length, s[1] + p[j]![1] / pts.length, s[2] + p[j]![2] / pts.length] as V3,
-        [0, 0, 0] as V3,
+        [0, 0, 0],
       ),
     );
     l.spine = new Rope(
@@ -993,7 +993,7 @@ export class PlugHand {
         under = true;
         break;
       }
-    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, 'cable.' + id);
-    for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide && !m.isHeldBack(id);
+    if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, `cable.${id}`);
+    for (const c of this.hidden?.children ?? []) if (c.userData['rig']) c.visible = !hide && !m.isHeldBack(id);
   }
 }

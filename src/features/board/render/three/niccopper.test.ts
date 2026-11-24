@@ -24,7 +24,7 @@ interface Item {
   s: Shape;
   box: Rect;
   trace?: number;
-  edge?: boolean;
+  edge?: boolean | undefined;
   term?: boolean;
 }
 

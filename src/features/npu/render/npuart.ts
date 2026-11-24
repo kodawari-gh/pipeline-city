@@ -22,14 +22,14 @@ export const NPU_KIND_COLOR: Record<NpuBlockKind, Key> = {
   post: 'mul',
   cardmem: 'ld',
 };
-export const NPU_LINK_COLOR: Record<NpuLinkKind, Key> = { host: 'alu', control: 'mute', data: 'mul', mem: 'ld' };
+const NPU_LINK_COLOR: Record<NpuLinkKind, Key> = { host: 'alu', control: 'mute', data: 'mul', mem: 'ld' };
 
 /** The line under the die's name: what the card is made of. */
-export const npuTitle = (plan: NpuPlan): string =>
+const npuTitle = (plan: NpuPlan): string =>
   `AI CARD · ${plan.input.grid} x ${plan.input.grid} MAC array · ${Math.round(plan.input.memBytes / 1024)}K memory`;
 
 /** The legend of the colours. */
-export const NPU_LEGEND: { text: string; key: Key }[] = [
+const NPU_LEGEND: { text: string; key: Key }[] = [
   { text: 'HOST', key: 'alu' },
   { text: 'REGISTERS', key: 'st' },
   { text: 'CONTROL', key: 'br' },
@@ -38,7 +38,7 @@ export const NPU_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** How the card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-export function npuStyle(plan: NpuPlan): PlanStyle<NpuBlock, NpuLink> {
+function npuStyle(plan: NpuPlan): PlanStyle<NpuBlock, NpuLink> {
   const opt = { grid: plan.input.grid, memBytes: plan.input.memBytes };
   return {
     color: (T, b) => T[NPU_KIND_COLOR[b.kind]],

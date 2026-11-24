@@ -101,7 +101,7 @@ export function passiveRow(
 
 // ------------------------------------------------------------------ packages
 /** A package's corner, as its marking reads upright. */
-export type Corner = 'nw' | 'ne' | 'sw' | 'se';
+type Corner = 'nw' | 'ne' | 'sw' | 'se';
 const CORNER: Record<Corner, [number, number]> = {
   nw: [0.12, 0.12],
   ne: [0.88, 0.12],
@@ -557,7 +557,7 @@ export function drape(r: RectLike, base: number, bumps: readonly Bump[], m: Mate
     const nx = flat ? 1 : Math.max(2, Math.round(r.w / grain)),
       ny = flat ? 1 : Math.max(2, Math.round(r.h / grain)),
       geo = new PlaneGeometry(r.w, r.h, nx, ny);
-    const p = geo.attributes.position!,
+    const p = geo.attributes['position']!,
       top = Math.max(base + lift, ...bumps.map((b) => b.top + lift));
     // (every corner of a quad that touches a part rides at the part's top: a part smaller than the grain would else poke through the label
     // between two vertices, or lift one vertex into a spike; the way down takes one quad at least)

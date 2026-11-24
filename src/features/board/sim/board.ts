@@ -43,8 +43,8 @@ export interface Board {
 export interface SlotInfo {
   id: string;
   type: SlotType;
-  width?: number;
-  size?: number;
+  width?: number | undefined;
+  size?: number | undefined;
 }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };
@@ -148,14 +148,14 @@ export function strayFans(board: Board): InstalledDevice[] {
 }
 
 /** The sides of the case a radiator can bolt onto (the rear has one fan and the tubes cannot reach it). */
-export const RADIATOR_SIDES = ['front', 'top'] as const;
+const RADIATOR_SIDES = ['front', 'top'] as const;
 export type RadiatorSide = (typeof RADIATOR_SIDES)[number];
 
 /** The slot id of the radiator on a side of the case (`rad-front`, `rad-top`). */
 export const radiatorSlot = (side: RadiatorSide): string => `rad-${side}`;
 
 /** The side a radiator slot sits on, or null for any other slot. */
-export const radiatorSide = (slotId: string): RadiatorSide | null =>
+const radiatorSide = (slotId: string): RadiatorSide | null =>
   slotId === 'rad-front' ? 'front' : slotId === 'rad-top' ? 'top' : null;
 
 /** The fan mounts of one side of the case (`front0..`, `top0..`): the ones a radiator on that side spans. */
@@ -388,7 +388,7 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
 
 export function uninstall(board: Board, id: string): Result<object> {
   const k = board.devices.findIndex((d) => d.id === id);
-  if (k < 0) return { ok: false, reason: `no device "${id}"` };
+  if (k === -1) return { ok: false, reason: `no device "${id}"` };
   board.devices.splice(k, 1);
   return { ok: true };
 }
@@ -449,6 +449,6 @@ export function boardFromJson(json: BoardJson): Board {
   const at = new Map(json.devices.map((d, k) => [d.id, k]));
   board.devices.sort((a, b) => at.get(a.id)! - at.get(b.id)!);
   if (json.burnt) board.burnt = true;
-  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replace(/\D/g, '')) + 1), 1);
+  board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replaceAll(/\D/g, '')) + 1), 1);
   return board;
 }

@@ -20,7 +20,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const right = (r: Rect) => r.x + r.w;
 const bottom = (r: Rect) => r.y + r.h;
 
-export const intersect = (a: Rect, b: Rect): Rect | null => {
+const intersect = (a: Rect, b: Rect): Rect | null => {
   const x = Math.max(a.x, b.x),
     y = Math.max(a.y, b.y);
   const w = Math.min(right(a), right(b)) - x,

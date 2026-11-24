@@ -36,7 +36,7 @@ export interface ShellLook {
   trimHi: string;
 }
 
-export const shellLook = (T: Theme): ShellLook => ({
+export const shellLook = (_T: Theme): ShellLook => ({
   ceilNear: '#0c1122',
   ceilFar: '#04060e',
   floorNear: '#2a1f22',

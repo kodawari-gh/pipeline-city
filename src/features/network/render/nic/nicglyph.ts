@@ -338,12 +338,12 @@ export function nicGlyph(g: Graphics, T: Theme, b: NicBlock, c: string, put: Put
 // ---------------------------------------------------------------- the live symbols
 
 export type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad';
-export interface NicLiveItem {
+interface NicLiveItem {
   rect: Rect;
   color: LiveKey;
   a: number;
 }
-export interface NicLiveText {
+interface NicLiveText {
   rect: Rect;
   top: string;
   ink?: boolean;

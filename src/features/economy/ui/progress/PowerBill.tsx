@@ -9,8 +9,6 @@ import { billChip, fmtNum, fmtTicks } from '@/core/ui/logic';
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
 // On a phone the chip is hidden and the menu opens the card through `billOpen`.
 
-export { billOpen };
-
 export function PowerBill({ s }: { s: Snapshot }) {
   const open = billOpen.value;
   const setOpen = (v: boolean) => {

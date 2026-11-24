@@ -393,7 +393,6 @@ const memHashtab: TemplateFn = (rng, p) => {
 };
 
 /** The bytes the hash table job keeps in the heap (for the RAM it needs). */
-export const HASH_BYTES = 4 * TABLE_WORDS;
 
 export const MEMORY_TEMPLATES: Record<string, TemplateFn> = {
   'mem.chase': memChase,

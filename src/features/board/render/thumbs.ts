@@ -18,7 +18,7 @@ import { readTheme } from '@/core/render/theme';
 let renderer: Renderer | null = null;
 let worker: Worker | null = null;
 /** Sent with each job and echoed back: a picture that arrives for another epoch is dropped. */
-let epoch = 0;
+const epoch = 0;
 const cache = new Map<string, string>();
 const failed = new Set<string>();
 /** Jobs asked of the worker and not answered yet, by key (moved to `queue` if the worker dies). */
@@ -48,7 +48,7 @@ function prefetchStills(): void {
 }
 
 /** Load the list of the baked stills (once). */
-export function loadStills(): void {
+function loadStills(): void {
   if (stillsAsked || typeof document === 'undefined') return;
   stillsAsked = true;
   void fetch(`${STILLS}manifest.json`)
@@ -77,7 +77,7 @@ function startWorker(): void {
   workerTried = true;
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return;
   try {
-    worker = new Worker(new URL('./thumbs.worker.ts', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('thumbs.worker.ts', import.meta.url), { type: 'module' });
   } catch {
     return;
   }
@@ -106,7 +106,7 @@ function fallBack() {
 }
 
 /** Can a picture be made for this id at all? (a part, a board, a case, a router, a plan; not an OS) */
-export function hasThumb(id: string): boolean {
+function hasThumb(id: string): boolean {
   if (/^(board|case)\d+$/.test(id)) return true;
   if (getRouterSpec(id) || getIspSpec(id)) return true;
   const k = getSpec(id)?.kind;

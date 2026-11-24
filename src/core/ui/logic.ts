@@ -22,7 +22,7 @@ import { JOB_TYPES, REGIONS, type Description } from './regions';
 /** A card's PCIe power in a spec line: slot power only, or its lead count. */
 const leadText = (n: number): string => (n === 0 ? 'slot power only' : `${n} PCIe power lead${n === 1 ? '' : 's'}`);
 
-export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
+export const fmtMoney = (n: number) => `$${Math.floor(n).toLocaleString('en-US')}`;
 
 export function fmtNum(n: number, digits = 1): string {
   return Number.isFinite(n) ? n.toFixed(digits) : '-';
@@ -63,7 +63,7 @@ export type Level = 'ok' | 'warn' | 'bad';
 
 // ---- stats ----
 
-export const STALL_CAUSES: Array<{ key: string; label: string; hint: string }> = [
+const STALL_CAUSES: { key: string; label: string; hint: string }[] = [
   { key: 'stallData', label: 'Waiting on data', hint: 'An instruction waited for an earlier result.' },
   { key: 'stallLoad', label: 'Load-use', hint: 'An instruction needed a value that was still being loaded.' },
   { key: 'stallFlush', label: 'Flush', hint: 'Wrong-path instructions thrown away after a mispredicted branch.' },
@@ -79,15 +79,15 @@ export const totalStalls = (counters: Record<string, number>) =>
   STALL_CAUSES.reduce((a, c) => a + (counters[c.key] ?? 0), 0);
 
 export function cpiIpc(counters: Record<string, number>): { cpi: number; ipc: number } | null {
-  const cyc = counters.cycles ?? 0;
-  const ret = counters.retired ?? 0;
+  const cyc = counters['cycles'] ?? 0;
+  const ret = counters['retired'] ?? 0;
   if (cyc <= 0 || ret <= 0) return null;
   return { cpi: cyc / ret, ipc: ret / cyc };
 }
 
 export function cacheHitRate(counters: Record<string, number>): number | null {
-  const h = counters.cacheHits ?? 0;
-  const m = counters.cacheMisses ?? 0;
+  const h = counters['cacheHits'] ?? 0;
+  const m = counters['cacheMisses'] ?? 0;
   return h + m > 0 ? h / (h + m) : null;
 }
 
@@ -196,7 +196,7 @@ export function triggeredHints(s: Snapshot): string[] {
 }
 
 /** Hints shown at once. */
-export const MAX_TOASTS = 1;
+const MAX_TOASTS = 1;
 
 /** Move queued hints into the visible list until `max` are visible. Pure. */
 export function fillToasts(visible: Hint[], queue: Hint[], max = MAX_TOASTS): { visible: Hint[]; queue: Hint[] } {
@@ -448,7 +448,7 @@ function describeVrmId(id: string, s?: Snapshot | null): Description | null {
         title: 'Ethernet port',
         plain:
           'The onboard network port. The speed is what a network card or router could use later; nothing uses it yet.',
-        nerd: `${tier.features.ethernetMbps ? `${tier.features.ethernetMbps} Mbit/s` : 'none on this board'}`,
+        nerd: tier.features.ethernetMbps ? `${tier.features.ethernetMbps} Mbit/s` : 'none on this board',
       };
     case 'feature.usb':
       return {
@@ -564,7 +564,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
         return SLOT_PLAIN[slot.type]
           ? {
               title: 'Empty socket',
-              plain: 'An empty ' + SLOT_PLAIN[slot.type] + '.',
+              plain: `An empty ${SLOT_PLAIN[slot.type]}.`,
               nerd: `slot ${slot.id} | type ${slot.type}`,
             }
           : null;
@@ -587,14 +587,14 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
               : it?.kind === 'case'
                 ? 'drag it onto the case'
                 : 'drag it into a socket';
-      return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
+      return d && { ...d, plain: `${d.plain} In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
       const k = [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
       if (k) {
         return {
           title: `Client key ${k.label}`,
-          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`,
+          plain: `${JOB_TYPES[k.type] ?? 'A client job.'} Pays about ${fmtMoney(k.payoutEstimate)}.`,
           nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts} | stage ${k.stage}`,
         };
       }

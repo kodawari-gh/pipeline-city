@@ -37,12 +37,12 @@ function flatProblems(maxRadius: number): string[] {
       .join('.')}`;
     for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
       const style = cs.getPropertyValue(`border-${side.toLowerCase()}-style`);
-      const width = parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`));
+      const width = Number.parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`));
       if (style !== 'none' && width > 0) out.push(`${name}: border-${side.toLowerCase()} ${style} ${width}px`);
     }
     for (const corner of ['top-left', 'top-right', 'bottom-right', 'bottom-left']) {
       const v = cs.getPropertyValue(`border-${corner}-radius`).trim();
-      const px = parseFloat(v);
+      const px = Number.parseFloat(v);
       if (v.endsWith('%') ? px > 0 : px > maxRadius) out.push(`${name}: border-${corner}-radius ${v}`);
     }
     if (cs.boxShadow !== 'none') out.push(`${name}: box-shadow ${cs.boxShadow}`);

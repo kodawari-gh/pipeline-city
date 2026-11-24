@@ -36,7 +36,7 @@ function render(v: Node, depth = 0): Kid[] {
     }
     return render(out as Node, depth + 1);
   }
-  return [{ tag: String(el.type), props: el.props, kids: render(el.props.children as Node, depth + 1) }];
+  return [{ tag: String(el.type), props: el.props, kids: render(el.props['children'] as Node, depth + 1) }];
 }
 
 const hostsIn = (b: Box): Box[] => [b, ...b.kids.flatMap((k) => (typeof k === 'string' ? [] : hostsIn(k)))];
@@ -132,18 +132,18 @@ function hud() {
 
 /** A tap on the control in `box` that reads `label` exactly (a speed step). */
 function tapText(box: Box, label: string): void {
-  const path = pathTo([box], (x) => typeof x.props.onClick === 'function' && textOf(x).trim() === label);
+  const path = pathTo([box], (x) => typeof x.props['onClick'] === 'function' && textOf(x).trim() === label);
   expect(path, `a tap target reads "${label}" in the top tab`).not.toBeNull();
   // A real click bubbles: the target first, then each parent up to the top. The speed group handles it on a phone.
   const ev = { target: { closest: () => null } };
-  for (const b of [...path!].reverse()) (b.props.onClick as ((e: unknown) => void) | undefined)?.(ev);
+  for (const b of [...path!].reverse()) (b.props['onClick'] as ((e: unknown) => void) | undefined)?.(ev);
 }
 
 /** A press on the control in `box` whose accessible name matches `name`. */
 function pressNamed(box: Box, name: RegExp): void {
-  const b = find(box, (x) => typeof x.props.onClick === 'function' && name.test(labelOf(x)));
+  const b = find(box, (x) => typeof x.props['onClick'] === 'function' && name.test(labelOf(x)));
   expect(b, `a control named ${name} is in the top tab`).toBeDefined();
-  (b!.props.onClick as () => void)();
+  (b!.props['onClick'] as () => void)();
 }
 
 describe('HUD on a phone: the top tab, the dock and the taps', () => {

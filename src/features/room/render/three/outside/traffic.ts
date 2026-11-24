@@ -27,11 +27,11 @@ export function lightAt(i: number, j: number, t: number, av: boolean): Light {
 }
 
 /** A crossing's box: from one road's kerb line to the other's, out over the pavements, so the zebras are in it. */
-export const avenueSpan = (i: number): [number, number] => [avenueX(i) - GRID.avenue / 2, avenueX(i) + GRID.avenue / 2];
-export const streetSpan = (j: number): [number, number] => [streetZ(j) - GRID.street / 2, streetZ(j) + GRID.street / 2];
+const avenueSpan = (i: number): [number, number] => [avenueX(i) - GRID.avenue / 2, avenueX(i) + GRID.avenue / 2];
+const streetSpan = (j: number): [number, number] => [streetZ(j) - GRID.street / 2, streetZ(j) + GRID.street / 2];
 
 /** A stop line along a route: its distance from the start, its crossing, and whether the route is the avenue there. */
-export interface Stop {
+interface Stop {
   s: number;
   i: number;
   j: number;
@@ -60,7 +60,7 @@ const AVENUES = 4,
 const STOP = 0.6;
 
 /** Every lane's route. */
-export function routes(): Route[] {
+function routes(): Route[] {
   const out: Route[] = [];
   for (let i = -AVENUES; i <= AVENUES; i++)
     for (const off of LANES.avenue.travel)

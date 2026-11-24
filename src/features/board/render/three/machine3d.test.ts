@@ -104,9 +104,9 @@ function fields(m: Material): string {
 /** `look` for one drawn mesh: its triangles by look (material fields, glow, opacity, shadow flags, colour), without its id; a copy at a time if instanced. */
 function drawnLook(mesh: Mesh, out: Map<string, number[]>): void {
   const g = mesh.geometry,
-    pos = g.attributes.position as BufferAttribute,
-    pc = g.attributes._pc as BufferAttribute | undefined,
-    prm = g.attributes._prm as BufferAttribute | undefined;
+    pos = g.attributes['position'] as BufferAttribute,
+    pc = g.attributes['_pc'] as BufferAttribute | undefined,
+    prm = g.attributes['_prm'] as BufferAttribute | undefined;
   const ms = [mesh.material].flat() as MeshStandardMaterial[],
     idx = g.index,
     n = idx ? idx.count : pos.count,
@@ -192,9 +192,9 @@ function look(root: Object3D, drawn = false): Map<string, number[]> {
       return;
     }
     const g = mesh.geometry,
-      pos = g.attributes.position as BufferAttribute,
-      pc = g.attributes._pc as BufferAttribute | undefined,
-      prm = g.attributes._prm as BufferAttribute | undefined;
+      pos = g.attributes['position'] as BufferAttribute,
+      pc = g.attributes['_pc'] as BufferAttribute | undefined,
+      prm = g.attributes['_prm'] as BufferAttribute | undefined;
     const ms = [mesh.material].flat() as MeshStandardMaterial[],
       idx = g.index,
       n = idx ? idx.count : pos.count;
@@ -268,7 +268,7 @@ function opacityOf(g: Object3D): number {
   g.traverse((o) => {
     const m = (o as Mesh).material as Material | undefined;
     if (m && a === 1 && !Array.isArray(m))
-      a = m.opacity / ((m.userData.base as { opacity: number } | undefined)?.opacity ?? m.opacity);
+      a = m.opacity / ((m.userData['base'] as { opacity: number } | undefined)?.opacity ?? m.opacity);
   });
   return a;
 }
@@ -544,7 +544,8 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       const id = ids.find((x) => x !== null)!;
       expect(findById(now.root, id)).not.toBeNull();
       for (let y = -0.9; y <= 0.9; y += 0.3)
-        for (let x = -0.9; x <= 0.9; x += 0.3) expect(pick(now.boardRoots(), far, x, y)?.userData.standIn).toBeFalsy();
+        for (let x = -0.9; x <= 0.9; x += 0.3)
+          expect(pick(now.boardRoots(), far, x, y)?.userData['standIn']).toBeFalsy();
       now.dispose();
     },
   );
@@ -629,7 +630,7 @@ describe('Machine3D distance stand-ins (PERF6)', () => {
       // (an unseen click box is never drawn: `unseen`, pick.ts)
       hot.traverse((o) => {
         const x = o as Mesh;
-        if (x.isMesh && !x.userData.standIn && (x.material as Material).opacity !== 0)
+        if (x.isMesh && !x.userData['standIn'] && (x.material as Material).opacity !== 0)
           expect(x.layers.mask & 1, 'held subtree').toBe(1);
       });
       expect(lod.standIns.some((x) => lod.draws(x))).toBe(true); // (the rest stays merged)

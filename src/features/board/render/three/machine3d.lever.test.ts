@@ -15,7 +15,7 @@ const stage = (s: Snapshot): Machine3D => new Machine3D(s, roomGeo(), new BakeQu
 const lever = (m: Machine3D): number[] => {
   const r: number[] = [];
   m.root.traverse((o) => {
-    if (o.userData.leverOf === 'cpu0') r.push(o.rotation.y);
+    if (o.userData['leverOf'] === 'cpu0') r.push(o.rotation.y);
   });
   return r;
 };

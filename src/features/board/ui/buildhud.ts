@@ -29,7 +29,7 @@ export function readiness(board: Board, cables: Cables, shown: Shown = 'machine'
 }
 
 // (what is wrong with the machine, as a list, is the sim's: `sim/buildalerts.ts`, worked out once per change by the stage: `BuildStage.alerts`)
-export type { Alert, AlertLevel } from '@/features/board/sim/buildalerts';
+export type { Alert } from '@/features/board/sim/buildalerts';
 
 export type Tone = 'none' | 'ok' | 'warn' | 'bad';
 
@@ -86,7 +86,7 @@ export function groupByKind<D extends { spec: string }>(
   }
   const rank = (k: string): number => {
     const i = order.indexOf(k);
-    return i < 0 ? order.length : i;
+    return i === -1 ? order.length : i;
   };
   return [...by].map(([kind, items]) => ({ kind, items })).sort((a, b) => rank(a.kind) - rank(b.kind));
 }
@@ -163,7 +163,7 @@ export interface HintState {
   /** What stands on the stage: with a bare case only a board (or another case) can go in; with nothing, only a case. */
   shown?: Shown;
   /** For a part dragged off the shelf: it is a case or a board (the things a bare case or an empty stage takes), or `net`: an OS, a router or an internet plan (they fit the room, whatever stands on the stage). */
-  shell?: 'case' | 'board' | 'net';
+  shell?: 'case' | 'board' | 'net' | undefined;
   /** The machine is on (it runs on the stage). */
   on?: boolean;
   /** A cable's plug is in the player's hand. */

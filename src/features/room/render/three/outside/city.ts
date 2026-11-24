@@ -27,7 +27,7 @@ function skyIn(scene: Object3D): SkyUniforms | null {
   let u: SkyUniforms | null = null;
   scene.traverse((o) => {
     const m = (o as Mesh).material as ShaderMaterial | undefined;
-    if (!u && m?.uniforms?.top && m.uniforms.duskK) u = m.uniforms as unknown as SkyUniforms;
+    if (!u && m?.uniforms?.['top'] && m.uniforms['duskK']) u = m.uniforms as unknown as SkyUniforms;
   });
   return u;
 }
@@ -63,7 +63,7 @@ export function land(k: Kit): Mesh {
     wood = new Color(0x3d5636),
     high = new Color(0x56664f);
   for (let j = 0; j <= R; j++) {
-    const rad = 3000 * Math.pow(12000 / 3000, j / R);
+    const rad = 3000 * (12000 / 3000) ** (j / R);
     for (let i = 0; i <= A; i++) {
       const a = Math.PI - spread + (2 * spread * i) / A,
         x = Math.sin(a) * rad,

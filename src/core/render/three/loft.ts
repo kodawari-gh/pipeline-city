@@ -83,7 +83,7 @@ export function taperTube(
 ): BufferGeometry {
   const curve = new Spline(points.map((p) => new Vector3(...p)));
   const g = new TubeGeometry(curve, segs, 1, sides, false),
-    p = g.attributes.position!,
+    p = g.attributes['position']!,
     c = new Vector3(),
     q = new Vector3();
   // the tube's rings in order: ring i (sides + 1 points) sits round the curve's point at i / segs; each moves out to its own radius

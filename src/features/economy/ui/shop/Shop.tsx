@@ -4,6 +4,7 @@ import { fmtMoney } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Rung } from './PickerCard';
 import { Showcase } from './Showcase';
+
 export { Gallery } from './Gallery';
 export { BuildMode } from '@/features/board/ui/BuildMode';
 import { StatCard } from './StatCard';
@@ -53,7 +54,7 @@ export function Shop({ s }: { s: Snapshot }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, view3d, shown, flat.join()]);
+  }, [open, view3d, shown, flat.join(',')]);
   if (!open) return null;
   const pickKind = (k: ShopKind | null) => {
     setKind(k);

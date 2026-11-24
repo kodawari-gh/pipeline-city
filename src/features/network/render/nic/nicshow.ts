@@ -10,7 +10,7 @@ import { busy, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
 import { BOARD_NIC } from './nicplan';
 
 /** A transfer in flight on the card: its job's name and how far it is. */
-export interface NicFlow {
+interface NicFlow {
   label: string;
   percent: number;
 }

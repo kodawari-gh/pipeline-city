@@ -14,7 +14,7 @@ What the owner wants to work towards: a stack where the packet path through the 
 
 ## 2. The path of a received job
 
-```
+```text
 remote server ──wire──▶ ISP ──▶ router ──▶ cable ──▶ NIC ──▶ RX ring (RAM) ──▶ interrupt ──▶ CPU handler ──▶ kernel ──▶ spool ──▶ queue
    (segments, loss, ACKs: the transport)        (bandwidth, loss)   (DMA or CPU copy)   (CPU.md)          (top half)     (bottom half)   (as today)
 ```

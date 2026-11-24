@@ -245,7 +245,7 @@ function soic8(g: Group, r: RectLike, z: number, lines: string[], tin: Material)
       // out of the body at half height, down, and the foot on its pad
       legs.push({ x: edge + s * 0.35 * MM, y: ly, z: z + 0.75 * MM, sx: 0.7 * MM, sy: 0.42 * MM, sz: 0.2 * MM });
       legs.push({ x: edge + s * 0.7 * MM, y: ly, z: z + 0.45 * MM, sx: 0.2 * MM, sy: 0.42 * MM, sz: 0.62 * MM });
-      legs.push({ x: edge + s * 1.0 * MM, y: ly, z: z + 0.1 * MM, sx: 0.7 * MM, sy: 0.42 * MM, sz: 0.2 * MM });
+      legs.push({ x: edge + s * 1 * MM, y: ly, z: z + 0.1 * MM, sx: 0.7 * MM, sy: 0.42 * MM, sz: 0.2 * MM });
     }
   }
   g.add(instanced(new BoxGeometry(1, 1, 1), tin, legs));
@@ -345,7 +345,7 @@ export function pinCoil(px: number, py: number, b1: number, m: Material, rise = 
 }
 
 /** A body of the card the player can point at (`NicOut.bodies`): its id (`pcie2.nic-xtal`), its footprint (layout, as the card is built and lies flat) and how tall it stands off the PCB's top face. */
-export interface NicBody {
+interface NicBody {
   id: string;
   rect: RectLike;
   h: number;

@@ -21,7 +21,7 @@ export function StatCard({
   s: Snapshot;
   specId: string;
   fit?: { ok: boolean; text: string };
-  onPreview?: () => void;
+  onPreview?: (() => void) | undefined;
 }) {
   const kind = kindOf(specId, s);
   const current = kind ? currentSpecFor(s, kind) : null;

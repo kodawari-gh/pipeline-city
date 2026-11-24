@@ -191,7 +191,7 @@ function OsButton({ s }: { s: Snapshot }) {
 }
 
 /** Whether the phone's lens branch is open (its "Lens" button on the dock). */
-export const lensBranchOpen = signal(false);
+const lensBranchOpen = signal(false);
 
 /**
  * The three lens switches. On a wider screen they sit in the dock; on a phone they fold into one "Lens" button that opens them as an upward
@@ -282,7 +282,7 @@ function Tile({
   st: Stack<InventorySnap>;
   pulse: boolean;
   queued?: number;
-  queuedId?: string;
+  queuedId?: string | undefined;
   active: boolean;
   onHover: (id: string | null) => void;
 }) {

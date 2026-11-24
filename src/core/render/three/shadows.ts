@@ -98,7 +98,7 @@ function boundsOf(m: Mesh, out: Sphere): Sphere {
     }
   } else out.copy(b);
   out.applyMatrix4(m.matrixWorld);
-  if (m.userData.live || !m.frustumCulled || !Number.isFinite(b.radius)) out.radius = Infinity;
+  if (m.userData['live'] || !m.frustumCulled || !Number.isFinite(b.radius)) out.radius = Infinity;
   return out;
 }
 
@@ -216,7 +216,7 @@ export class ShadowCache {
     this.ranged = false;
     const walk = (o: Object3D) => {
       if (!o.visible) return;
-      if (o.userData.spin) {
+      if (o.userData['spin']) {
         const h = printOf(o);
         if (spins.get(o) !== h) {
           _bounds.makeEmpty();
@@ -230,7 +230,7 @@ export class ShadowCache {
           was = seen.get(o);
         next.set(o, h);
         if (was === undefined) added++;
-        if (was !== h || o.userData.live) {
+        if (was !== h || o.userData['live']) {
           fresh.push(o);
           this.touch(o, boundsOf(o as Mesh, _bounds), o.layers.mask);
         }

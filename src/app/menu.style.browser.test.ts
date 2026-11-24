@@ -32,7 +32,7 @@ function styleBreaches(): string[] {
     const cs = getComputedStyle(e);
     if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) continue;
     const cls = e.getAttribute('class') ?? '';
-    const name = `${e.tagName.toLowerCase()}${cls ? '.' + cls.trim().split(/\s+/).join('.') : ''}`.slice(0, 120);
+    const name = `${e.tagName.toLowerCase()}${cls ? `.${cls.trim().split(/\s+/).join('.')}` : ''}`.slice(0, 120);
     const isChip = /\bchip\b/.test(cls);
     const isFrame = /\b(orn|ornament|k[1-7])\b/.test(cls);
     const isWash = /scrim|ramp/.test(cls);
@@ -41,14 +41,14 @@ function styleBreaches(): string[] {
       !isFrame &&
       sides.some(
         (s) =>
-          parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 &&
+          Number.parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 &&
           cs.getPropertyValue(`border-${s}-style`) !== 'none',
       )
     ) {
       out.add(`rule 5 border: ${name}`);
     }
     // rule 5: radius
-    const radius = Math.max(...corners.map((c) => parseFloat(cs.getPropertyValue(`border-${c}-radius`)) || 0));
+    const radius = Math.max(...corners.map((c) => Number.parseFloat(cs.getPropertyValue(`border-${c}-radius`)) || 0));
     const filled =
       cs.backgroundImage !== 'none' ||
       (/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*(0?\.\d+|1)\)/.test(cs.backgroundColor) &&
@@ -59,7 +59,7 @@ function styleBreaches(): string[] {
     if (cs.backdropFilter !== 'none') out.add(`rule 6 backdrop-filter: ${name}`);
     if (cs.boxShadow !== 'none') out.add(`rule 6 box-shadow: ${name}`);
     if (cs.textShadow !== 'none') out.add(`rule 6 text-shadow: ${name}`);
-    if (!isWash && /gradient\(/.test(cs.backgroundImage)) out.add(`rule 6 gradient: ${name}`);
+    if (!isWash && cs.backgroundImage.includes('gradient(')) out.add(`rule 6 gradient: ${name}`);
   }
   return [...out];
 }

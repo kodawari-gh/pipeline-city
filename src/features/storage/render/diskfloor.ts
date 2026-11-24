@@ -7,8 +7,8 @@ import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 import { ARCH, dieSlices, platterOf, type DieSlice } from './diskplan';
 import type { DriveKind } from './drives';
 
-export type DiskBlockKind = 'iface' | 'ctrl' | 'cache' | 'nand' | 'queue' | 'pre';
-export type DiskLinkKind = 'host' | 'data' | 'channel' | 'ctl';
+type DiskBlockKind = 'iface' | 'ctrl' | 'cache' | 'nand' | 'queue' | 'pre';
+type DiskLinkKind = 'host' | 'data' | 'channel' | 'ctl';
 
 export interface DiskBlock {
   id: string;

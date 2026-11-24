@@ -43,7 +43,7 @@ export function caseMaterials(tier: number): { objects: number; looks: number; m
     }
   });
   // CASEMAT_DUMP=1 lists each look (to find the ones to fold)
-  if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.CASEMAT_DUMP === '1')
+  if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env['CASEMAT_DUMP'] === '1')
     console.log([...looks].sort().join('\n'));
   return { objects: objects.size, looks: looks.size, meshes };
 }

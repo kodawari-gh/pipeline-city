@@ -200,12 +200,11 @@ export function describeNeed(n: Need): { short: string; long: string } {
     case 'fs':
       return {
         short: 'FS',
-        long:
-          (n.min >= 4
+        long: `${
+          n.min >= 4
             ? 'an OS with mirrored volumes (Multicore OS 4.0)'
-            : 'an OS that allocates files (Paged OS 2.0 or better)') +
-          ' up with a mounted, formatted drive' +
-          (n.freeBytes ? ` with ${Math.ceil(n.freeBytes / 1024)}K free` : ''),
+            : 'an OS that allocates files (Paged OS 2.0 or better)'
+        } up with a mounted, formatted drive${n.freeBytes ? ` with ${Math.ceil(n.freeBytes / 1024)}K free` : ''}`,
       };
   }
 }
@@ -272,11 +271,11 @@ const row = (
 ): LevelDef => ({ level, name, threshold, patienceMul, payMul, demandMul, mix, unlocks });
 
 export const LEVELS: readonly LevelDef[] = [
-  row(1, 'Garage Bench', 0, 4.0, 1.0, 1.0, { cli: 100 }, ['cpu1', 'ram1', 'cooler1', 'fan120', 'psu1', 'vsink0']),
-  row(2, 'Hobby Shop', 3, 4.0, 1.11, 1.12, { cli: 100 }, ['vsink1', 'rsink0', 'hdd0', 'case1', 'board1']),
-  row(3, 'Local Gigs', 6, 3.0, 1.23, 1.24, { cli: 100 }, ['ssd1', 'os1', 'ram1b']),
+  row(1, 'Garage Bench', 0, 4, 1, 1, { cli: 100 }, ['cpu1', 'ram1', 'cooler1', 'fan120', 'psu1', 'vsink0']),
+  row(2, 'Hobby Shop', 3, 4, 1.11, 1.12, { cli: 100 }, ['vsink1', 'rsink0', 'hdd0', 'case1', 'board1']),
+  row(3, 'Local Gigs', 6, 3, 1.23, 1.24, { cli: 100 }, ['ssd1', 'os1', 'ram1b']),
   row(4, 'Small Office', 9, 2.4, 1.37, 1.36, { cli: 85, web: 15 }, ['router1', 'isp1']),
-  row(5, 'Storefront', 40, 2.0, 1.52, 1.48, { cli: 40, scan: 25, db: 20, web: 15 }, [
+  row(5, 'Storefront', 40, 2, 1.52, 1.48, { cli: 40, scan: 25, db: 20, web: 15 }, [
     'psu2',
     'ram2',
     'rsink1',
@@ -396,7 +395,7 @@ export const MAX_LEVEL = LEVELS.length;
 export const START_CRATE: readonly string[] = ['cpu0', 'ram0', 'psu0', 'cooler0', 'fan92', 'display0', 'board0'];
 
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
-export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = {
+const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = {
   board4: { name: 'Server board', kind: 'board' },
 };
 

@@ -5,7 +5,6 @@ import { BOARD_NIC, boardLook } from '@/features/network/render/nic/nicplan';
 import { BOARD_BAND, nicGeo } from '@/features/network/render/nic/niclayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { GEO, setLayoutTier } from '../layout/layout';
-import { MM } from './pcbkit3d';
 import { PHY_MARK, phyChip } from './phychip3d';
 import { CHIP_H } from './solids3d';
 
@@ -37,7 +36,7 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
       expect(b.max.z - BOARD_Z, look).toBeGreaterThanOrEqual(CHIP_H);
       expect(b.max.z - BOARD_Z, look).toBeLessThan(CHIP_H + 1);
       expect(c.top, look).toBe(CHIP_H);
-      expect(c.root.userData.id, look).toBe(ID);
+      expect(c.root.userData['id'], look).toBe(ID);
       expect(findById(c.root, ID), look).toBe(c.root);
     }
   });

@@ -16,7 +16,7 @@ export interface HostState {
 }
 
 /** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
-export const MAX_TICKS_PER_FRAME = 128;
+const MAX_TICKS_PER_FRAME = 128;
 
 export function newHost(): HostState {
   return { game: null, speed: 1, owed: 0, crash: null };
@@ -97,7 +97,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'setJobKinds':
         return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
       case 'purchase':
-        return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
+        return refusable(g, `purchase ${msg.id}`, g.purchase(msg.id));
       case 'sell':
         return refusable(g, 'sell', g.sell(msg.invId));
       case 'cancelSwap':

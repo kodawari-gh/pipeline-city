@@ -7,7 +7,7 @@
 // (no conflicts, never a hit), `adaptive` closes a bank's row after an access that was a conflict (random access) and keeps it otherwise.
 // Times are CPU cycles; everything is deterministic and off unless an engine is given a `dram` setting (the game derives it, apply.ts).
 
-export type PagePolicy = 'open' | 'closed' | 'adaptive';
+type PagePolicy = 'open' | 'closed' | 'adaptive';
 
 export interface DramSettings {
   /** Channels (power of two): pages alternate between them, each has its own data bus and banks. */
@@ -32,7 +32,7 @@ export interface DramSettings {
 }
 
 export const RowOutcome = { Hit: 0, Empty: 1, Conflict: 2, Refresh: 3 } as const;
-export type RowOutcomeKind = (typeof RowOutcome)[keyof typeof RowOutcome];
+type RowOutcomeKind = (typeof RowOutcome)[keyof typeof RowOutcome];
 
 export interface DramAccess {
   /** Cycles from the request to the line being in the CPU. */

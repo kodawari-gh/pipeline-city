@@ -2,7 +2,7 @@
 // Ticket swarm runner. Drives coder + tester -> round merge -> reviewer -> squash for tickets on a
 // GitHub Projects board, escalating model and effort per reviewer FAIL. Prints one event line per stage.
 // Config: <repo>/docs/agents/board.json (see update-gh-board). Run with no args for help.
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -118,9 +118,37 @@ export const tierName = (t) => `${t.model} ${t.effort}`;
 
 // ---------- process helpers ----------
 
+/** Wait for every worker before a stop, so none is cut off mid-commit. */
+async function settleWorkers(jobs, blockers) {
+  const settled = await Promise.allSettled(jobs);
+  const err = settled.find((r) => r.status === 'rejected');
+  if (err) {
+    throw err.reason;
+  }
+  if (blockers.length > 0) {
+    throw new Stop(blockers.join(' | '), 'blocked');
+  }
+}
+
+/** Live child processes. The runner kills them on exit, so no agent outlives it in a worktree. */
+const live = new Set();
+function killTree(p) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true });
+  } else {
+    p.kill('SIGKILL');
+  }
+}
+process.on('exit', () => {
+  for (const p of live) {
+    killTree(p);
+  }
+});
+
 function sh(cmd, args, { cwd, input, timeoutMs, shell = false } = {}) {
   return new Promise((res) => {
     const p = spawn(cmd, args, { cwd, shell, windowsHide: true });
+    live.add(p);
     let out = '',
       err = '',
       timedOut = false;
@@ -129,13 +157,14 @@ function sh(cmd, args, { cwd, input, timeoutMs, shell = false } = {}) {
     const t = timeoutMs
       ? setTimeout(() => {
           timedOut = true;
-          p.kill();
+          killTree(p);
         }, timeoutMs)
       : null;
     p.on('error', (e) => {
       err += String(e);
     });
     p.on('close', (code) => {
+      live.delete(p);
       if (t) {
         clearTimeout(t);
       }
@@ -455,6 +484,8 @@ class Swarm {
 ${(issue.body ?? '').trim()}
 </ticket>
 Your worktree (cwd): ${this.wt(n, at)}
+Commands already run in this worktree. Run each one bare, with no "cd ... &&" prefix and no "&&" chain: allow rules match only a bare command, and a chained one is refused.
+Commit hooks always run. When a hook fails, fix the cause (a hook that says to update a baseline means run that update) and commit again.
 Your branch: ${this.br(n, at)}
 Base branch: ${this.base}
 Round ${this.t(n).rounds}, tier ${tierName(tier)}.
@@ -654,6 +685,60 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     throw new Critical(`merge of ${ref} ${why.split('\n')[0]}: ${out.summary}`);
   }
 
+  // ---------- parent catch-up ----------
+
+  /**
+   * Merge `ref` into the base in a worktree of its own, then run the repo gates. A merger agent settles
+   * conflicts. Run once every child is done, before the parent's PR. A rerun resumes in the kept worktree.
+   */
+  async catchUp(parent, ref, tier) {
+    const p = join(this.root, '.claude', 'worktrees', `p${parent}-catchup`);
+    if (!existsSync(join(p, '.git'))) {
+      gitOk(this.root, 'worktree', 'prune');
+      git(this.root, 'worktree', 'add', p, this.base);
+    }
+    if (this.sw.shareDeps) {
+      await this.ensureDeps(parent, p);
+    } else if (this.sw.install) {
+      await sh(this.sw.install, [], { cwd: p, shell: true, timeoutMs: 20 * 60e3 });
+    }
+    this.emit(`#${parent} catch-up: merge ${ref} into ${this.base}`);
+    if (!gitOk(p, 'merge', '--no-ff', '--no-edit', ref)) {
+      await this.settleCatchUp({ parent, p, ref, tier });
+    }
+    const failed = await this.runChecks(parent, p);
+    if (failed) {
+      throw new Critical(`catch-up gate failed: ${failed.cmd}\n${failed.tail.slice(-800)}`);
+    }
+    removeWorktree(this.root, this.sw.shareDeps, p);
+    gitOk(this.root, 'worktree', 'prune');
+    this.emit(`#${parent} catch-up DONE: ${this.base} at ${git(this.root, 'rev-parse', '--short', this.base)}`);
+  }
+
+  async settleCatchUp({ parent, p, ref, tier }) {
+    if (!gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
+      throw new Critical(`catch-up merge of ${ref} did not start`);
+    }
+    const files = git(p, 'diff', '--name-only', '--diff-filter=U').split(/\r?\n/u).filter(Boolean);
+    this.emit(`#${parent} catch-up conflicts: ${files.join(', ')}`);
+    const issue = getIssue(this.cfg, parent);
+    const prompt = `Parent #${parent} in ${this.cfg.repo}: "${issue.title}". Branch ${this.base} holds its finished children.
+<parent>
+${(issue.body ?? '').trim()}
+</parent>
+Your worktree (cwd): ${p}
+Commands already run in this worktree. Run each one bare, with no "cd ... &&" prefix and no "&&" chain.
+Commit hooks always run. When a hook fails, fix the cause (a hook that says to update a baseline means run that update) and commit again.
+Co-author line for commits: ${this.coAuthor(tier.model)}
+Task: the merge of ${ref} into ${this.base} stopped on conflicts in: ${files.join(', ')}.
+Keep the parent's changes and every change ${ref} made: when ${this.base} moved or rewrote code that ${ref} edited, apply the ${ref} edit to the new code. Stage the paths, and commit with git commit --no-edit. If you cannot, run git merge --abort and report resolved=false.`;
+    const out = await this.agent('swarm-merger', parent, p, tier, prompt, MERGE_SCHEMA);
+    if (!out.resolved || gitOk(p, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')) {
+      throw new Critical(`catch-up merge of ${ref} not settled: ${out.summary}`);
+    }
+    this.emit(`#${parent} catch-up merger: ${out.summary.split(/\r?\n/u)[0].slice(0, 200)}`);
+  }
+
   /** Settle one conflicted file by the role rule. False when git cannot. */
   takeSide(p, f, side) {
     const theirs = this.testRe.test(f) ? side === 'tester' : side === 'coder';
@@ -702,7 +787,13 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       const shared = this.sw.locked.some((l) => cmd.startsWith(l));
       const line = shared ? `node "${SELF}" lock -- ${cmd}` : cmd;
       const t0 = Date.now();
-      const r = await sh(line, [], { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 });
+      const opts = { cwd: p, shell: true, timeoutMs: this.sw.agentTimeoutMin * 60e3 };
+      let r = await sh(line, [], opts);
+      if (r.code !== 0 && !shared) {
+        // Parallel tickets load the machine and time tests out: rerun once alone before a round is spent.
+        this.emit(`#${n} check failed, rerun alone: ${cmd}`);
+        r = await sh(`node "${SELF}" lock --name gates -- ${cmd}`, [], opts);
+      }
       const secs = Math.round((Date.now() - t0) / 1000);
       if (r.code !== 0) {
         this.emit(`#${n} check failed (${secs}s): ${cmd}`);
@@ -768,8 +859,11 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
     const merge = this.wt(n, int);
     this.clean(merge);
     // Resume after an interrupted round merge: review the role commits already made before any agent reruns.
+    // A review cut off by a stop resumes at the review: the same merge, no new round.
     let pending =
-      T.rounds > 0 && workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD'));
+      T.rounds > 0 &&
+      (T.reviewHead === git(merge, 'rev-parse', 'HEAD') ||
+        workers.some((r) => !gitOk(merge, 'merge-base', '--is-ancestor', this.br(n, r), 'HEAD')));
     for (;;) {
       const tier = tierAt(planned, T.failures);
       if (!tier) {
@@ -794,6 +888,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
             .join('\n')}\n`
         : '';
       const tip = git(merge, 'rev-parse', 'HEAD');
+      const blockers = [];
       const jobs = relaunch.map(async (role) => {
         const p = this.wt(n, role);
         this.clean(p);
@@ -809,15 +904,19 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
           this.facts(n, issue, role, tier, findingsText),
           WORK_SCHEMA,
         );
-        if (out.blocker) {
-          throw new Stop(`${role} blocker: ${out.blocker}`, 'blocked');
+        if (out.blocker && role === 'tester') {
+          // A failing test is the coder's work, not a stop: the reviewer sends it back as a finding.
+          this.emit(`#${n} tester note: ${out.blocker.slice(0, 200)}`);
+        } else if (out.blocker) {
+          blockers.push(`${role} blocker: ${out.blocker}`);
+          return;
         }
         const dirty = git(p, 'status', '--porcelain', '--untracked-files=no');
         this.emit(
           `#${n} ${role} ${git(p, 'rev-parse', '--short', 'HEAD')}: ${out.summary.split(/\r?\n/)[0].slice(0, 160)}${out.unmet.length ? ` | unmet: ${out.unmet.length}` : ''}${dirty ? ' | WARNING: uncommitted changes dropped' : ''}`,
         );
       });
-      await Promise.all(jobs);
+      await settleWorkers(jobs, blockers);
 
       // Round merge: base first (keeps the review honest), then coder, then tester.
       this.clean(merge);
@@ -839,6 +938,8 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
       }
 
       const head = git(merge, 'rev-parse', 'HEAD');
+      T.reviewHead = head;
+      this.save();
       const rv = await this.agent(
         'swarm-reviewer',
         n,
@@ -847,6 +948,7 @@ Finish it: keep the ticket's intent and the other side's changes, make the repo'
         this.facts(n, issue, 'reviewer', tier, this.reviewTask(n)),
         REVIEW_SCHEMA,
       );
+      delete T.reviewHead;
       if (git(merge, 'rev-parse', 'HEAD') !== head || git(merge, 'status', '--porcelain', '--untracked-files=no')) {
         this.emit(`#${n} reviewer changed the worktree; reset`);
         git(merge, 'reset', '--hard', head);
@@ -1214,13 +1316,29 @@ async function lock(name, cmd) {
 const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
   run <parent> [--base <branch>] [--from <ref>] [--slots <k>]   swarm every ready child until none is left
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
+  catchup <parent> [--from <ref>] [--model <m>] [--effort <e>]   merge <ref> (default: current branch) into parent/<parent>; a merger agent settles conflicts; then the gates
   status [<key>]                                 phase, rounds and tier of each ticket in a run
+  retry <key> <n>                                mark a stopped ticket to resume from its kept branches on the next run
   gc                                             remove worktrees and branches of closed tickets, and unused shared installs
   deps                                           in a swarm worktree: replace shared dependency links with a private install
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
 run: base defaults to parent/<parent>, made from --from (default: the current branch) when missing; gc runs at the end.
 ticket: base defaults to the current branch.
 --no-install skips the install command in new worktrees. State and event log: .claude/swarm/<key>.{json,log}.`;
+
+/** Mark a stopped ticket to resume on the next run, from the branches its stop kept. */
+function retry(cfg, key, n) {
+  const f = join(cfg.root, '.claude', 'swarm', `${key}.json`);
+  const s = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null;
+  const T = s?.tickets[n];
+  if (!T || ['done', 'new', 'resume', 'running'].includes(T.phase)) {
+    throw new Error(`retry: #${n} in ${key} is not a stopped ticket`);
+  }
+  T.phase = 'resume';
+  delete T.reason;
+  writeFileSync(f, JSON.stringify(s, null, 2));
+  console.log(`#${n} will resume at round ${T.rounds + 1} on the next run`);
+}
 
 function opt(a, name, def) {
   const i = a.indexOf(name);
@@ -1257,6 +1375,9 @@ async function main(argv) {
     }
     return;
   }
+  if (cmd === 'retry') {
+    return retry(cfg, a[0], a[1]);
+  }
   if (cmd === 'gc') {
     for (const line of gc(cfg)) {
       console.log(line);
@@ -1286,6 +1407,15 @@ async function main(argv) {
     }
     s.emit(`START parent #${parent} base ${s.base} slots ${s.sw.slots}`);
     return s.loop({ parent });
+  }
+  if (cmd === 'catchup') {
+    const parent = Number(a[0]);
+    if (!parent) {
+      throw new Error('catchup needs a parent issue number');
+    }
+    const s = new Swarm(cfg, `p${parent}-catchup`, `parent/${parent}`);
+    const tier = { model: opt(a, '--model', 'opus'), effort: opt(a, '--effort', 'high') };
+    return s.catchUp(parent, opt(a, '--from', current === '' ? 'HEAD' : current), tier);
   }
   if (cmd === 'ticket') {
     const base = opt(a, '--base', current);

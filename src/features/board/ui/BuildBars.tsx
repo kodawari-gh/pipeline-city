@@ -271,9 +271,9 @@ export function Foot({
   stage: Stage | null;
   hint: string;
   /** Set while the hint says what a start just did: puts the old machine back. */
-  undo?: () => void;
+  undo?: (() => void) | undefined;
   /** Set while the hint is a refusal (it shows amber): lets it go. */
-  warn?: () => void;
+  warn?: (() => void) | undefined;
   /** Opens the OS sheet. */
   onOs: () => void;
   /** Phone only: the pane that shows. */

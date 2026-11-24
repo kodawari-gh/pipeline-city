@@ -24,7 +24,7 @@ export type PcieLeadId = 'pcie' | 'pcie2' | 'pcie3' | 'pcie4';
 /** The PCIe lead cables in the order they are used (the first is `pcie`, as in older saves). */
 export const PCIE_LEADS: readonly PcieLeadId[] = ['pcie', 'pcie2', 'pcie3', 'pcie4'];
 /** Which lead (1-based) a cable id is, or 0 if it is no PCIe lead. */
-export const pcieLeadNo = (id: string): number => PCIE_LEADS.indexOf(id as PcieLeadId) + 1;
+const pcieLeadNo = (id: string): number => PCIE_LEADS.indexOf(id as PcieLeadId) + 1;
 export type CableId = StaticCableId | `fan:${string}`;
 
 export interface CableSpec {
@@ -39,7 +39,7 @@ export interface CableSpec {
 const PCIE_PLAIN =
   'Extra 75 W from the PSU to a graphics or AI card. A card that draws more than its slot gives asks for one lead per 75 W; the PSU has a fixed number of leads. Power the machine off before you touch it.';
 
-export const CABLES: readonly CableSpec[] = [
+const CABLES: readonly CableSpec[] = [
   {
     id: 'atx',
     name: '24-pin ATX power',
@@ -245,9 +245,6 @@ export function cableNeeded(board: Board, id: CableId): boolean {
   return true;
 }
 
-/** How many PCIe power leads are plugged. */
-export const pcieLeadsPlugged = (cables: Cables): number => PCIE_LEADS.filter((id) => cables[id]).length;
-
 /** One PCIe lead and the card socket it plugs into: the card's slot and which of its sockets (0 = the first). */
 export interface LeadPlug {
   lead: PcieLeadId;
@@ -341,8 +338,8 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   if (board.burnt) noPower = 'board dead: replace the board';
   else if (!psu) noPower = 'no PSU installed';
   else if (psu.dev.burnt) noPower = 'the PSU is burnt out';
-  else if (!cables.atx) noPower = 'the 24-pin ATX cable is not connected';
-  else if (!cables.pcmains) noPower = 'the PC power cord is not plugged into the wall';
+  else if (!cables['atx']) noPower = 'the 24-pin ATX cable is not connected';
+  else if (!cables['pcmains']) noPower = 'the PC power cord is not plugged into the wall';
   let post: BootCheck['post'] = null;
   const cpu = findDevices(board, 'cpu')[0];
   const ram = findDevices(board, 'ram').filter((d) => !d.burnt);
@@ -351,9 +348,9 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   else if (!findDevices(board, 'cooler').some((d) => !d.burnt))
     post = { reason: 'no CPU cooler installed: it mounts on the CPU', short: 'NO CPU COOLER' };
   // an air heatsink still cools without its fans (the CPU runs hot); a liquid loop's pump must run
-  else if (!cables.cpufan && findDevices(board, 'cooler').some((d) => (deviceSpec(d) as CoolerSpec).loop))
+  else if (!cables['cpufan'] && findDevices(board, 'cooler').some((d) => (deviceSpec(d) as CoolerSpec).loop))
     post = { reason: 'the pump cable is not connected: plug it into the CPU_FAN header', short: 'NO CPU FAN' };
-  else if (!cables.cpu) post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
+  else if (!cables['cpu']) post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
   else if (ram.length === 0) post = { reason: 'no working RAM installed', short: 'NO RAM' };
   else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {
     const missing = PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).filter((id) => !cables[id]).length;

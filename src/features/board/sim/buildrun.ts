@@ -4,7 +4,7 @@
 import type { Phase } from '@/worker/game/types';
 
 /** How the chip reads: off, working (a boot, a job), settled (idle, waiting) or stopped (an error). */
-export type RunTone = 'off' | 'busy' | 'ok' | 'bad';
+type RunTone = 'off' | 'busy' | 'ok' | 'bad';
 
 /** What the machine is doing: on or off, the phase (`Game.currentPhase`), the words for it and, for a stop, why. */
 export interface RunState {

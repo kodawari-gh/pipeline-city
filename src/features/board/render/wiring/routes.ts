@@ -12,11 +12,9 @@ import {
   VIDEO_SOCKET,
   VIDEO_TRUNK_X,
   VIDEO_Y,
-  type Rect,
 } from '../layout/layout';
 import {
   LEG_PITCH,
-  MEM_SPACING,
   SATA_LANES,
   atx12v,
   xtalPads,
@@ -43,7 +41,6 @@ import {
   slotLanding,
 } from '../layout/pins';
 
-export { MEM_SPACING, SATA_LANES };
 /** x (from a phase block's left edge) of its output stub, where the core-voltage run starts (CPU VRM, see `vrmPhaseArt`), and the memory regulator's output and input stubs (`dramPhaseArt`). */
 export const VRM_OUT_X = 265,
   DRAM_OUT_X = 124,
@@ -120,7 +117,7 @@ export function crossings(a: Lane, b: Lane): { s: number; t: number }[] {
 }
 
 /** The points of the lane between arc lengths s0 and s1. */
-export function sliceLane(l: Lane, s0: number, s1: number): Pt[] {
+function sliceLane(l: Lane, s0: number, s1: number): Pt[] {
   const out: Pt[] = [pointAt(l, Math.min(l.len - 1e-9, s0))];
   let c = 0;
   for (let i = 1; i < l.pts.length - 1; i++) {
@@ -145,7 +142,7 @@ export function visibleParts(l: Lane): Pt[][] {
 }
 
 /** Replace every interior corner of a rectilinear polyline with a 45 degree chamfer of leg length c. */
-export function chamfer(pts: Pt[], c: number): Pt[] {
+function chamfer(pts: Pt[], c: number): Pt[] {
   if (c <= 0) return pts.slice();
   const out: Pt[] = [pts[0]!];
   for (let i = 1; i < pts.length - 1; i++) {
@@ -187,7 +184,7 @@ export function offsetLine(pts: Pt[], d: number): Pt[] {
 }
 
 /** n parallel lanes centred on the route, `spacing` apart. */
-export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][] {
+function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][] {
   const line = chamfer(centre, c);
   const out: Pt[][] = [];
   for (let i = 0; i < n; i++) out.push(offsetLine(line, (i - (n - 1) / 2) * spacing));
@@ -311,7 +308,7 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
  * slot, on the inner rows for the others the CPU feeds), DMI (steps east onto the chipset's north legs), then one NVMe column per M.2 (the lowest M.2 in the
  * westmost column, so none crosses another). Every PCIe slot ends before the DMI column.
  */
-export const PCIE_X = -210,
+const PCIE_X = -210,
   DMI_X = 240,
   NVME_DX = 90;
 /** The y where the first slot's lanes step west toward its pads, and the first of the lanes that dive for a slot further down; how far short of a slot a lane comes up (a second row is `PCIE_STAGGER` further). */
@@ -324,13 +321,13 @@ const SLOT_DIVE = 36,
   SLOT_PAST = 40;
 /** The package's west edge, north to south: the SVID lanes (from the regulator's controller), the display lanes (their run, and the x where
  * they climb to the rear I/O), the USB lanes (on the CPU's centre line, to the hub). */
-export const SVID_Y = -420,
+const SVID_Y = -420,
   VIDEO_Y0 = -300,
   VIDEO_RAMP_X = -1500;
 /** How far in from the package's corners the core-voltage runs land on its north edge. */
 const VCORE_IN = 90;
 /** x of NVMe column `j` (0 the westmost), on its own pads of the package's south edge. */
-export const nvmeX = (j: number) => 340 + NVME_DX * j;
+const nvmeX = (j: number) => 340 + NVME_DX * j;
 /** x where the memory rail ends: past the bank's last socket and past the last phase's output, so every output lands on the rail. */
 export const vdimmEnd = (g: TierGeo) => {
   const last = g.dimm[g.dimm.length - 1]!;
@@ -339,8 +336,8 @@ export const vdimmEnd = (g: TierGeo) => {
 /** x where the memory rail starts: at the first socket's drop (and no later than the first phase's output). */
 export const vdimmStart = (g: TierGeo) => Math.min(dimmPowerPad(g.dimm[0]!.rect)[0], g.dPhases[0]!.x + DRAM_OUT_X) - 8;
 /** Lanes in an NVMe bundle (and their spacing) and in the DMI link. */
-export const NVME_LANES = 3,
-  NVME_SPACING = 22,
+export const NVME_LANES = 3;
+const NVME_SPACING = 22,
   DMI_LANES = 6;
 
 /** Mark the stretches where a lane of a `HOP_BUSES` bus crosses another lane: it dives under (a via at each end, `hop` clear of the crossed trace). */
@@ -428,7 +425,7 @@ function memBus(g: TierGeo, qx: number): Bus {
     w: 9,
     pad: 13,
     lanes: [],
-    taps: g.dimm.map((_, i) => ({ key: 'dimm' + i, lanes: [] })),
+    taps: g.dimm.map((_, i) => ({ key: `dimm${i}`, lanes: [] })),
   };
   byY.forEach((q, k) => {
     const pts: Pt[] = [q.pad, [q.xs, q.y0]];
@@ -547,7 +544,7 @@ function pcieBus(g: TierGeo): Bus {
       own.filter((l) => !far.includes(l)),
       far,
     );
-    heads.push({ name: 'pcie' + k, lanes: own });
+    heads.push({ name: `pcie${k}`, lanes: own });
   });
   return { id: 'pcie', w: 9, pad: 12, lanes, groups, heads };
 }
@@ -645,7 +642,7 @@ export function buildBuses(): Bus[] {
     for (let p = 0; p < g.usb; p++) {
       const own = legs.slice(2 * p, 2 * p + 2),
         yc = mean(own, 1),
-        port = ioPort('usb' + p),
+        port = ioPort(`usb${p}`),
         pads = ioPads(port, 2);
       for (const pts of bundleOn(
         [
@@ -1129,7 +1126,7 @@ export function buildBuses(): Bus[] {
     g.dimm.forEach((d, i) => {
       const [cx, ey] = dimmPowerPad(d.rect);
       bus.taps!.push({
-        key: 'dimm' + i,
+        key: `dimm${i}`,
         lanes: [
           mkLane(
             [
@@ -1230,7 +1227,7 @@ export function buildBuses(): Bus[] {
 /** The PSU's PCIe leads are the cables `pcie`, `pcie2`, `pcie3` and `pcie4` (the sim's `PCIE_LEADS`): each plugs into one power socket of a card. */
 export type PcieKind = 'pcie' | 'pcie2' | 'pcie3' | 'pcie4';
 export type CableKind = 'atx' | 'cpu' | PcieKind | 'video';
-export const PCIE_KINDS: readonly PcieKind[] = ['pcie', 'pcie2', 'pcie3', 'pcie4'];
+const PCIE_KINDS: readonly PcieKind[] = ['pcie', 'pcie2', 'pcie3', 'pcie4'];
 export const isPcieKind = (k: string): k is PcieKind => (PCIE_KINDS as readonly string[]).includes(k);
 
 /** Where a PCIe lead plugs in: the card's power socket (`x` its centre), the card's north edge (`top`), and which socket of the card it is (`plug`, 0 = the first). */
@@ -1242,7 +1239,7 @@ export interface PcieTarget {
 }
 
 /** The heights of the wall clips along a vertical run from `y0` to `y1` (world y): one about every 1500 units, clear of the bends at both ends. */
-export const runClipYs = (y0: number, y1: number, every = 1500, margin = 650) => {
+const runClipYs = (y0: number, y1: number, every = 1500, margin = 650) => {
   const a = Math.min(y0, y1) + margin,
     b = Math.max(y0, y1) - margin;
   if (b <= a) return [];
@@ -1380,7 +1377,7 @@ export function buildCables(pcie: readonly PcieTarget[] = []): Cable[] {
  * It runs from there west into the gap, down it, under the monitor and up behind its bezel: the cable is built into the monitor (no socket, no plug on
  * that end), so it simply comes out from behind the bezel's bottom edge.
  */
-export function videoCableAt(y: number): Cable {
+function videoCableAt(y: number): Cable {
   const x0 = BR.io.x,
     sx = VIDEO_SOCKET.x,
     sy = VIDEO_SOCKET.y,
@@ -1411,22 +1408,10 @@ export function videoCableAt(y: number): Cable {
   };
 }
 
-/** Thin rects along a lane for hit testing (pad on both sides). */
-export function laneRects(l: Lane, pad: number): Rect[] {
-  const rs: Rect[] = [];
-  let s = 0;
-  while (s < l.len) {
-    const [x, y] = pointAt(l, s);
-    rs.push({ x: x - pad, y: y - pad, w: pad * 2, h: pad * 2 });
-    s += pad * 1.4;
-  }
-  return rs;
-}
-
 // ---------------------------------------------------------------- loose (unplugged) cables
 
 /** How far below the bezel's edge the video cable starts, so that its round end tucks up under the edge (nothing of the monitor's end shows). */
-export const CABLE_HIDE = 40;
+const CABLE_HIDE = 40;
 
 /** The end of each cable the player moves: the board end of the PSU cables, the board (HDMI) end of the video cable. */
 export const movablePlug = (c: Cable): Plug => (c.kind === 'video' ? c.a : c.b);
@@ -1442,7 +1427,7 @@ export interface Loose {
 }
 
 /** Scale of a loose plug relative to the fully seated one (the 24-pin plug is huge next to the PSU). */
-export const LOOSE_SCALE = 0.54;
+const LOOSE_SCALE = 0.54;
 
 /** Where an unplugged cable's loose plug rests: the PSU cables in the gutter by the PSU, the HDMI cable near the monitor. */
 export function looseCable(c: Cable): Loose {
@@ -1498,9 +1483,4 @@ const looseWidth = (_k: CableKind, seated: number) => Math.round(seated * LOOSE_
 
 /** The roof of the PSU is where a loose lead lies: its plug's clearance above it, and the left to right order of the plugs on it (nearest the sockets first). */
 const LOOSE_FLOOR = 6;
-export const LOOSE_ORDER: readonly CableKind[] = ['cpu', 'atx', 'pcie', 'pcie2', 'pcie3', 'pcie4'];
-
-/** The cable from its fixed end to a plug at `tip`, hanging under gravity (`hangCable`: a stub, then a catenary); the cable the player stretches while dragging a plug. */
-export function rubberBand(anchor: Pt, anchorDir: Pt, tip: Pt, steps = 28, len?: number): Pt[] {
-  return hangCable(anchor, anchorDir, tip, { n: steps, ...(len ? { len } : {}) });
-}
+const LOOSE_ORDER: readonly CableKind[] = ['cpu', 'atx', 'pcie', 'pcie2', 'pcie3', 'pcie4'];

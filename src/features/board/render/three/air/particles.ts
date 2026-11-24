@@ -8,7 +8,7 @@ import { UNITS_PER_M, type AirPart } from './plan';
 import type { V3 } from './grid';
 
 /** What the air does in game time is shown this much slower: the real air crosses a case in a second, too fast to follow. */
-export const TIME_SCALE = 0.5;
+const TIME_SCALE = 0.5;
 /**
  * Points of a particle's trail (the head and its past). The past moves on when the head has gone a stretch from the last point: as long as the air is
  * fast (`STRETCH_S` seconds of its travel, between the two limits, units), so a streak shows the speed, and never so short that a slow one is a dot. Still
@@ -208,7 +208,7 @@ export class AirParticles {
         ua: p.ua,
         powerW: p.powerW,
         porous: p.porous,
-        key: `${p.id}`,
+        key: p.id,
       };
     });
     if (key !== this.partKey) {
@@ -700,7 +700,7 @@ export class AirParticles {
       if (!p || x < p.lo[0] || x > p.hi[0] || y < p.lo[1] || y > p.hi[1] || z < p.lo[2] || z > p.hi[2] || p.rate <= 0)
         continue;
       // forced convection: more air over the surface carries more heat. In still air a part still gives its natural share.
-      const f = Math.max(0.35, Math.min(2.2, Math.pow(speed / U_REF, 0.6)));
+      const f = Math.max(0.35, Math.min(2.2, (speed / U_REF) ** 0.6));
       this.T[i] = this.T[i]! + (p.tempC - this.T[i]!) * (1 - Math.exp(-p.rate * f * dtp));
     }
   }

@@ -28,7 +28,7 @@ export interface Look {
   accent: string | null;
 }
 
-const hex = (c: string): number => parseInt(c.slice(1), 16);
+const hex = (c: string): number => Number.parseInt(c.slice(1), 16);
 
 /** A cable along settled points (several: one strand each, one mesh). */
 export function cableMesh(pts: readonly V3[] | readonly V3[][], look: Look): Mesh {
@@ -100,10 +100,6 @@ export function hangPts(a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpt
 /** One cable hung between two ends (`HangOpts`). */
 export const hung = (a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts = {}): Mesh =>
   cableMesh(hangPts(a, b, look, env, o), look);
-
-/** A plug body round its own z axis (`straightPlug`, cablerig3d.ts): `w` by `h` across, `l` long, the cable leaving at +z. */
-export const loosePlug = (w: number, h: number, l: number, accent: string): Group =>
-  plugBody({ x: -w / 2, y: -h / 2, w, h }, -l, 0, accent);
 
 /** How a case finishes a cable hole in its tray: the ring's tone (`metal`: a machined ring), the rubber flaps' tone (null: a bare hole in a rolled lip). */
 export interface GrommetStyle {
@@ -367,7 +363,7 @@ export function fanPlug(r: RectLike, accent: string, z0 = BOARD_Z + 150, h = 140
 }
 
 /** Spread `n` points along a layout segment from `a` to `b` (both included when n > 1). */
-export const spread = (a: [number, number], b: [number, number], n: number): [number, number][] =>
+const spread = (a: [number, number], b: [number, number], n: number): [number, number][] =>
   Array.from({ length: n }, (_, i) => {
     const t = n > 1 ? i / (n - 1) : 0.5;
     return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];

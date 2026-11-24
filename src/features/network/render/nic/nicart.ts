@@ -24,10 +24,10 @@ export const NIC_KIND_COLOR: Record<NicBlockKind, Key> = {
   pcie: 'mul',
   temp: 'bad',
 };
-export const NIC_LINK_COLOR: Record<NicLinkKind, Key> = { line: 'alu', data: 'st', host: 'mul', control: 'mute' };
+const NIC_LINK_COLOR: Record<NicLinkKind, Key> = { line: 'alu', data: 'st', host: 'mul', control: 'mute' };
 
 /** The legend of the colours. */
-export const NIC_LEGEND: { text: string; key: Key }[] = [
+const NIC_LEGEND: { text: string; key: Key }[] = [
   { text: 'LINE', key: 'alu' },
   { text: 'MAC', key: 'st' },
   { text: 'QUEUES', key: 'ld' },
@@ -36,13 +36,13 @@ export const NIC_LEGEND: { text: string; key: Key }[] = [
 ];
 
 /** The line under the plan: what the card is. */
-export const nicTitle = (plan: NicPlan): string => {
+const nicTitle = (plan: NicPlan): string => {
   const i = plan.input;
   return `${i.chip} · ${i.std} · PCIe x${i.lanes}`;
 };
 
 /** How the die is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-export function nicStyle(plan: NicPlan): PlanStyle<NicBlock, NicLink> {
+function nicStyle(plan: NicPlan): PlanStyle<NicBlock, NicLink> {
   return {
     color: (T, b) => T[NIC_KIND_COLOR[b.kind]],
     linkColor: (T, l) => T[NIC_LINK_COLOR[l.kind]],
@@ -54,7 +54,7 @@ export function nicStyle(plan: NicPlan): PlanStyle<NicBlock, NicLink> {
 }
 
 /** The die's floor, the blocks and the controller's frame: the far view. */
-export function nicFar(g: Graphics, T: Theme, plan: NicPlan): void {
+function nicFar(g: Graphics, T: Theme, plan: NicPlan): void {
   const D = plan.die;
   g.roundRect(D.x, D.y, D.w, D.h, 8)
     .fill({ color: mix(T.die, '#000000', 0.3) })
@@ -63,7 +63,7 @@ export function nicFar(g: Graphics, T: Theme, plan: NicPlan): void {
 }
 
 /** Traces, symbols and names of a plan, and the strip under the blocks. */
-export function nicNear(T: Theme, plan: NicPlan): DieArt {
+function nicNear(T: Theme, plan: NicPlan): DieArt {
   const art = planNear(T, plan, nicStyle(plan)),
     D = plan.die,
     sy = D.y + D.h - 30 + 15,

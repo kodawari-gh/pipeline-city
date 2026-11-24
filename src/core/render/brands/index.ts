@@ -21,9 +21,7 @@ import { hako } from './hako';
 import { hikari } from './hikari';
 import { pipeline } from './pipeline';
 
-export type { Brand, BrandColors, BrandId, Ctx } from './kit';
-export type { TypeStyle } from './type';
-
+export type { Brand, BrandId, Ctx } from './kit';
 export const BRANDS: Record<BrandId, Brand> = {
   axiom,
   ocula,
@@ -64,7 +62,7 @@ export const MAKER = {
 export const BRAND_FONT = 'Bahnschrift, "DIN Alternate", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
 /** The fallback font at `cap` px of cap height, its weight near the brand's. */
-export function brandFont(id: BrandId, cap: number): string {
+function brandFont(id: BrandId, cap: number): string {
   const s = BRANDS[id].type.s,
     weight = s < 0.08 ? 300 : s < 0.11 ? 400 : s < 0.14 ? 500 : s < 0.18 ? 600 : s < 0.21 ? 700 : 800;
   return `${weight} ${Math.round(cap / 0.7)}px ${BRAND_FONT}`;
@@ -96,7 +94,7 @@ export function drawWord(
   y: number,
   cap: number,
   ink: string,
-  o: { acc?: string | null; text?: string } = {},
+  o: { acc?: string | null; text?: string | undefined } = {},
 ): number {
   const b = BRANDS[id],
     text = o.text ?? b.word,

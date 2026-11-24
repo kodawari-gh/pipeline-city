@@ -96,7 +96,7 @@ export function flat(pts: Vector2[], y0: number, y1: number, mt: Material, bevel
 }
 
 /** A rounded (x, z) rectangle w by l with a pocket cut into its z = 0 end from x0 to x1, d deep (where the receptacles sit). */
-export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: number; d: number }): Vector2[] {
+function pocketed(w: number, l: number, r: number, p: { x0: number; x1: number; d: number }): Vector2[] {
   const out: Vector2[] = [];
   const arc = (cx: number, cz: number, a0: number, a1: number) => {
     for (let i = 0; i <= 6; i++) {
@@ -113,7 +113,7 @@ export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: n
 }
 
 /** Threaded holes in a face (looking along `f`): a dark bore in a lighter chamfer. */
-export function bores(spots: readonly Spot[], f: Facing, r: number): Group {
+function bores(spots: readonly Spot[], f: Facing, r: number): Group {
   const g = new Group();
   if (!spots.length) return g;
   g.add(
@@ -167,7 +167,7 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
   ].map(([u, v]) => new Vector2(u! < 0 ? x0 + w + m(u!) : x0 + m(u!), y0 + m(v!)));
   g.add(slab(shapeOf(xy(x0, y0, x0 + w, y0 + h, m(0.4)), [mouth]), z0, d, s.body, m(0.12)));
   g.add(box(x0 + m(0.9), x0 + w - m(0.9), y0 + m(0.9), y0 + m(4.2), d - m(1.2), d - m(0.4), s.dark));
-  g.add(box(x0 + m(1.3), x0 + w - m(1.3), y0 + m(2.0), y0 + m(2.7), z0 + m(0.8), d - m(1.2), s.body));
+  g.add(box(x0 + m(1.3), x0 + w - m(1.3), y0 + m(2), y0 + m(2.7), z0 + m(0.8), d - m(1.2), s.body));
   const pitch = m(1.27),
     first = x0 + (w - (pins - 1) * pitch) / 2,
     len = d - m(2.4);
@@ -186,7 +186,7 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
  * The 3.5 in. hard disk (see the header). `host`: the casting is a frame round an open cavity, and the cover, the label and the screws on it are a lid that fades as the camera
  * comes in, so the platters and the actuator show (`driveinner3d.ts`); without it the casting is solid.
  */
-export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
+function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(),
     W = m(HDD_MM.w),
     T = m(HDD_MM.t),
@@ -236,12 +236,12 @@ export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
     ),
   );
   const rim: Spot[] = [
-    [m(4.0), m(4.6)],
-    [W - m(4.0), m(4.6)],
-    [m(4.0), L - m(4.2)],
-    [W - m(4.0), L - m(4.2)],
-    [m(4.0), L * 0.47],
-    [W - m(4.0), L * 0.53],
+    [m(4), m(4.6)],
+    [W - m(4), m(4.6)],
+    [m(4), L - m(4.2)],
+    [W - m(4), L - m(4.2)],
+    [m(4), L * 0.47],
+    [W - m(4), L * 0.53],
     [W / 2, L - m(4.2)],
   ].map(([x, z]) => ({ x: x!, y: T, z: z! }));
   lid.add(
@@ -275,7 +275,7 @@ export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   // its board on the underside, screwed into the casting, the spindle motor's boss beside it
   g.add(
     flat(
-      xz(m(5.2), m(1.0), W - m(5.2), m(81), m(1.6)),
+      xz(m(5.2), m(1), W - m(5.2), m(81), m(1.6)),
       m(0.5),
       foot,
       mat(0x173d29, { roughness: 0.55, metalness: 0.1 }),
@@ -310,12 +310,12 @@ export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
     dx = m(8.2) + socketW(15) + m(1.9),
     data = receptacle(g, 7, dx, y0, s);
   const jx = dx + socketW(7) + m(1.6);
-  g.add(box(jx, jx + m(5.1), y0 + m(0.6), y0 + m(4.4), m(5.0), m(6.6), s.body));
+  g.add(box(jx, jx + m(5.1), y0 + m(0.6), y0 + m(4.4), m(5), m(6.6), s.body));
   g.add(
     instanced(
       new BoxGeometry(m(0.64), m(0.64), m(4)),
       s.gold,
-      [0, 1].flatMap((i) => [0, 1].map((j) => ({ x: jx + m(1.27 + i * 2.54), y: y0 + m(1.3 + j * 2.0), z: m(3.2) }))),
+      [0, 1].flatMap((i) => [0, 1].map((j) => ({ x: jx + m(1.27 + i * 2.54), y: y0 + m(1.3 + j * 2), z: m(3.2) }))),
     ),
   );
   g.add(box(pocket.x0, pocket.x1, foot, pocketTop, pocket.d - 1, pocket.d, s.dark));
@@ -331,7 +331,7 @@ export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
 
 // ------------------------------------------------------------------ the SSD
 /** The 2.5 in. SSD (see the header). `host`: its top shell and label are a lid that fades as the camera comes in, so its board shows (`driveinner3d.ts`); the side walls stay. */
-export function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
+function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(),
     W = m(SSD_MM.w),
     T = m(SSD_MM.t),
@@ -506,7 +506,7 @@ function marks(c: CanvasRenderingContext2D, x: number, y: number, s: number, ink
   c.fillText('e4', x + s * 1.9, y + s * 0.57);
   for (const [i, t] of ['RoHS', 'ICES-003'].entries()) {
     const bx = x + s * (2.8 + i * 2.2),
-      bw = s * (i ? 2.0 : 1.7);
+      bw = s * (i ? 2 : 1.7);
     c.strokeRect(bx, y + s * 0.1, bw, s * 0.9);
     c.font = `700 ${s * 0.36}px ${FONT}`;
     c.fillText(t, bx + bw / 2, y + s * 0.57);

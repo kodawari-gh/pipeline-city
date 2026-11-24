@@ -3,7 +3,7 @@
 import { occlusion } from './cloth/occlusion';
 
 /** The rays cast a side from each point. */
-export const AO_RAYS = 24;
+const AO_RAYS = 24;
 
 /** One group's cast: the arrays `occlusion` takes, how far the rays reach (world units) and how many points are cast (the rest only block). */
 export interface AoJob {

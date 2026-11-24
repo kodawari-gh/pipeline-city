@@ -9,7 +9,7 @@
 //   J: rd[10:7] imm[31:11]              (21-bit signed byte offset, multiple of 4)
 //   N: no operands (ecall, iret)
 
-export type Format = 'R' | 'I' | 'S' | 'B' | 'U' | 'J' | 'N';
+type Format = 'R' | 'I' | 'S' | 'B' | 'U' | 'J' | 'N';
 
 export interface OpSpec {
   name: string;
@@ -97,7 +97,7 @@ export const REG_NAMES = [
 /** Parse "a0" / "x3"; returns -1 if not a register. */
 export function parseReg(s: string): number {
   const i = (REG_NAMES as readonly string[]).indexOf(s);
-  if (i >= 0) return i;
+  if (i !== -1) return i;
   const m = /^x(\d+)$/.exec(s);
   if (m) {
     const n = Number(m[1]);

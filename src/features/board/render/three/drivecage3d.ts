@@ -130,7 +130,7 @@ function ssdScrews(): { x: number; z: number }[] {
  * A tray in its own frame (x across, y up from its floor's bottom, z from its back to its handle), in its case's finish. `fitted` adds the
  * fixings its drive takes: the SSD's four screws under the floor.
  */
-export function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): Group {
+function trayModel(kind: CaseKind, fitted: 'hdd' | 'ssd' | null = null): Group {
   const g = new Group(),
     steel = mat(TRAY_TONE[kind], sheet(kind)),
     rubber = mat(0x131518, { roughness: 0.9 });

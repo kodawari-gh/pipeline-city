@@ -192,26 +192,26 @@ describe('network panel: packets (the transport and the card)', () => {
 
   it("says the round trip the senders measured, and the timeout it gives, in the game's time", () => {
     const r = rows();
-    expect(r.rtt).toMatchObject({ label: 'Round trip', text: '12s', level: 'info' });
-    expect(r.rtt!.title).toMatch(/waits 25s for an answer/);
-    expect(rows({ rtt: null }).rtt).toMatchObject({ text: '-' });
+    expect(r['rtt']).toMatchObject({ label: 'Round trip', text: '12s', level: 'info' });
+    expect(r['rtt']!.title).toMatch(/waits 25s for an answer/);
+    expect(rows({ rtt: null })['rtt']).toMatchObject({ text: '-' });
   });
   it('shows the chance the line loses a segment, and warns when the line is poor', () => {
-    expect(rows().loss).toMatchObject({ text: '4.0%', level: 'warn' });
-    expect(rows({ loss: 0.005 }).loss).toMatchObject({ text: '0.50%', level: 'info' });
-    expect(rows({ loss: 0 }).loss!.text).toBe('0%');
-    expect(rows({ loss: 0.2 }).loss!.text).toBe('20%');
+    expect(rows()['loss']).toMatchObject({ text: '4.0%', level: 'warn' });
+    expect(rows({ loss: 0.005 })['loss']).toMatchObject({ text: '0.50%', level: 'info' });
+    expect(rows({ loss: 0 })['loss']!.text).toBe('0%');
+    expect(rows({ loss: 0.2 })['loss']!.text).toBe('20%');
   });
   it('counts the segments sent, and the ones sent again, and warns when a tenth of them go twice', () => {
-    expect(rows().segments).toMatchObject({ text: '120 sent · 3 again', level: 'info' });
-    expect(rows({ resent: 0 }).segments!.text).toBe('120 sent');
-    expect(rows({ sent: 100, resent: 10 }).segments!.level).toBe('warn');
-    expect(rows().segments!.title).toMatch(/3 timers fired.*2 lost by the line itself/);
+    expect(rows()['segments']).toMatchObject({ text: '120 sent · 3 again', level: 'info' });
+    expect(rows({ resent: 0 })['segments']!.text).toBe('120 sent');
+    expect(rows({ sent: 100, resent: 10 })['segments']!.level).toBe('warn');
+    expect(rows()['segments']!.title).toMatch(/3 timers fired.*2 lost by the line itself/);
   });
   it("shows the card's buffer and ring, and warns when it has dropped a segment", () => {
-    expect(rows().nic).toMatchObject({ text: '1/4 waiting · ring 2/4', level: 'info' });
-    expect(rows({}, { drops: 5 }).nic).toMatchObject({ text: '1/4 waiting · ring 2/4 · 5 dropped', level: 'warn' });
-    expect(rows({}, { enabled: false }).nic!.text).toBe('card off');
+    expect(rows()['nic']).toMatchObject({ text: '1/4 waiting · ring 2/4', level: 'info' });
+    expect(rows({}, { drops: 5 })['nic']).toMatchObject({ text: '1/4 waiting · ring 2/4 · 5 dropped', level: 'warn' });
+    expect(rows({}, { enabled: false })['nic']!.text).toBe('card off');
   });
   it('has no lines with no link and nothing sent, and lines once the link is up', () => {
     expect(netPanel(withNet({ state: 'no-cable', stack: stack({ sent: 0 }) }))!.stack).toBeNull();

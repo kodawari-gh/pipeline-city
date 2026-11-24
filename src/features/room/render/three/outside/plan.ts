@@ -81,9 +81,9 @@ export function downtown(x: number, z: number): number {
 export type Style = 'glass' | 'grid' | 'tile' | 'band';
 export const STYLES: Record<Style, { bay: number; storey: number; win: readonly [number, number]; refl: number }> = {
   glass: { bay: 1.5, storey: 3.9, win: [0.94, 0.84], refl: 0.85 },
-  grid: { bay: 3.0, storey: 3.8, win: [0.62, 0.62], refl: 0.35 },
-  tile: { bay: 3.0, storey: 3.2, win: [0.5, 0.55], refl: 0.15 },
-  band: { bay: 6.0, storey: 3.2, win: [0.97, 0.5], refl: 0.45 },
+  grid: { bay: 3, storey: 3.8, win: [0.62, 0.62], refl: 0.35 },
+  tile: { bay: 3, storey: 3.2, win: [0.5, 0.55], refl: 0.15 },
+  band: { bay: 6, storey: 3.2, win: [0.97, 0.5], refl: 0.45 },
 };
 
 /** One stage of a building: its footprint, from y0 up to y1. A tower is a podium, its shaft set back, a top set back again. */
@@ -370,8 +370,8 @@ export function onCrossing(x: number, z: number): boolean {
  * away from us (-z) on an avenue's east side, east (+x) on a street's side toward us.
  */
 export const LANES = {
-  avenue: { travel: [2.0, 5.6], dash: 3.8, edge: 7.5, park: 9.7 },
-  street: { travel: [2.0], park: 5.8 },
+  avenue: { travel: [2, 5.6], dash: 3.8, edge: 7.5, park: 9.7 },
+  street: { travel: [2], park: 5.8 },
 } as const;
 
 /** A car's turn about y (its front at +x in its own frame) as it heads along (dx, dz). */

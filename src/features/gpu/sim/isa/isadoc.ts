@@ -1,8 +1,6 @@
 // The GPU's instruction set in words, for the almanac and the Trace panel (docs/GPU.md "The kernel"): what each instruction does, in the order the
 // reference card (src/sim/ref/gpuref.ts) does it. Every instruction acts on the lanes the execution mask has on; the others keep their registers.
 
-import { GPU_OPS } from './isa';
-
 export type GpuOpGroup = 'arith' | 'logic' | 'shift' | 'compare' | 'memory' | 'mask' | 'control';
 
 export const GPU_GROUP_NAME: Record<GpuOpGroup, string> = {
@@ -94,6 +92,3 @@ export const GPU_GROUP_ORDER: readonly GpuOpGroup[] = [
   'mask',
   'control',
 ];
-
-/** Every instruction of the ISA, in the order of its opcode table, for the reference. */
-export const gpuOpNames = (): string[] => GPU_OPS.map((o) => o.name);

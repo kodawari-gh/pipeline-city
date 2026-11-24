@@ -69,7 +69,7 @@ describe('the case shades its inside from the spot lights (Low, no shadow map)',
       expect(sh.fragmentShader).toContain('directLight.color *= caseShade( geometryPosition, directLight.direction );');
       expect(sh.fragmentShader).toContain('float caseShade(');
       expect(sh.fragmentShader).not.toContain('#include <lights_fragment_begin>');
-      expect(sh.uniforms.uCaseInv).toBe(CASE_SHADE.inv);
+      expect(sh.uniforms['uCaseInv']).toBe(CASE_SHADE.inv);
       expect(caseShadePatch(sh)).toBe(false); // (its loop is replaced already)
     }
   });

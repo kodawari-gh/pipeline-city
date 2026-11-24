@@ -31,7 +31,7 @@ export interface LodRect {
  * names and the counters start (each fades in over `TEXT_BAND`), `hover` is where the insides start to take hits. A device reads it through
  * `seenZoom`, so the only things that move a device along it are the camera zoom and its distance from the view centre, never its size.
  */
-export const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
+const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
 
 /**
  * The one rule for a chip's lid: the CPU's, a graphics or AI card's, a network card's, a RAM chip's, the TPM's, the router's and a drive's chips all fade their lid, cap or mould away over the same band,
@@ -85,7 +85,7 @@ export const DEVICE_LOD = {
 } as const;
 
 /** How wide, as a ratio of the threshold, a text or detail layer takes to fade in. */
-export const TEXT_BAND = 1.15;
+const TEXT_BAND = 1.15;
 
 /** The band over which a layer that turns on at `z0` fades in. */
 export const onBand = (z0: number): readonly [number, number] => [z0, z0 * TEXT_BAND];
@@ -166,10 +166,10 @@ export class TierBudget {
 }
 
 /** Zoom where the replay starts to slow (the die starts to read as a machine, well before the names), and from where it is slowest. */
-export const SLOW_FROM = 0.3,
+const SLOW_FROM = 0.3,
   SLOW_TO = 1;
 /** The slowest the replay crawls, in seconds per cycle, from `SLOW_TO` up: at any game speed. */
-export const DEEP_CYCLE_S = 1;
+const DEEP_CYCLE_S = 1;
 
 /** What the game speed gives the visual clock (`zoomSlow`'s `scale`): 0 paused, then 1, 2 or 3 (the fast speeds would only blur the replay). */
 export const worldPace = (speed: number): number => (speed <= 0 ? 0 : speed >= 16 ? 3 : speed >= 4 ? 2 : 1);

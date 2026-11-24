@@ -1,4 +1,4 @@
-import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 
 import { currentTextResolution, registerLabel } from './camera';
 
@@ -88,7 +88,7 @@ export function label(
     fontFamily: o.head ? HEAD : MONO,
     fontSize: size,
     fill: color,
-    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as TextStyleOptions['fontWeight'],
+    fontWeight: (o.weight ?? (o.head ? '700' : '500')) as NonNullable<TextStyleOptions['fontWeight']>,
     align: o.align ?? 'left',
   };
   const t = new Text({ text: str, style, resolution: currentTextResolution() });
@@ -131,10 +131,6 @@ export const rgrad = (inner: string, outer: string, centre: [number, number] = [
     }),
   );
 
-export function clear(c: Container): void {
-  for (const ch of c.removeChildren()) ch.destroy({ children: true });
-}
-
 /** Linear blend of two #rrggbb colours (other CSS colour forms fall back to `a`). */
 export function mix(a: string, b: string, t: number): string {
   const pa = hex(a),
@@ -142,7 +138,7 @@ export function mix(a: string, b: string, t: number): string {
   if (!pa || !pb) return a;
   const k = Math.max(0, Math.min(1, t));
   const c = pa.map((v, i) => Math.round(v + (pb[i]! - v) * k));
-  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function hex(s: string): number[] | null {
@@ -154,6 +150,6 @@ function hex(s: string): number[] | null {
       .split('')
       .map((c) => c + c)
       .join('');
-  const n = parseInt(h, 16);
+  const n = Number.parseInt(h, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }

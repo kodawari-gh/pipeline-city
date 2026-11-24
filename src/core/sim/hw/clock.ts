@@ -3,7 +3,7 @@
 // each sub-tick adds `mul`, and a domain tick fires whenever phase reaches div * subticksPerBase.
 // No floats, so runs are exactly reproducible. Domains fire in registration order within a sub-tick.
 
-export const SUBTICKS_PER_BASE = 1000;
+const SUBTICKS_PER_BASE = 1000;
 
 export interface Rate {
   /** Domain ticks per base tick = mul / div (non-negative mul, positive div, both integers). */

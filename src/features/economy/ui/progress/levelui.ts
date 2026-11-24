@@ -62,7 +62,7 @@ export function levelBar(s: Snapshot): LevelBarModel {
 
 // ---------- milestone screen ----------
 
-export type IconKey =
+type IconKey =
   | 'bolt'
   | 'flame'
   | 'clock'
@@ -86,7 +86,7 @@ export type IconKey =
   | 'grid';
 
 /** Icon for an unlock-table kind, for items that have no illustration yet (planned devices). */
-export function kindIcon(kind: string): IconKey {
+function kindIcon(kind: string): IconKey {
   switch (kind) {
     case 'cpu':
     case 'os':
@@ -125,7 +125,7 @@ export function kindIcon(kind: string): IconKey {
 }
 
 /** Plain name and icon of a job class, for "new jobs at this level". */
-export const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hint: string }> = {
+const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hint: string }> = {
   cli: { label: 'Plain jobs', icon: 'clock', hint: 'Small jobs any machine can run.' },
   scan: { label: 'Scans', icon: 'memory', hint: 'Memory-heavy scans: more work, better pay.' },
   db: { label: 'Database', icon: 'disk', hint: 'Needs an operating system and a SATA SSD or better.' },
@@ -159,7 +159,7 @@ const GROUP_ICON: Record<string, IconKey> = {
 };
 
 /** The kinds of job that first arrive at a level, apart from the ones that come with their class (the class has its own chip). */
-export function newKindsAt(level: number): { id: string; label: string; icon: IconKey; hint: string }[] {
+function newKindsAt(level: number): { id: string; label: string; icon: IconKey; hint: string }[] {
   return JOB_DEX.filter(
     (e) => !e.planned && taskLevel(e) === level && taskLevel(e) > (jobClass(e.cls)?.firstLevel ?? 1),
   ).map((e) => {
@@ -173,7 +173,7 @@ export function newKindsAt(level: number): { id: string; label: string; icon: Ic
   });
 }
 
-export type MilestoneStatus = 'passed' | 'current' | 'upcoming';
+type MilestoneStatus = 'passed' | 'current' | 'upcoming';
 
 export interface MilestoneUnlock {
   id: string;
@@ -245,7 +245,10 @@ export interface LevelLock {
  * The hover text of an item that the player level still gates. The level reason comes first; the money or hardware
  * reasons that will apply once it is open follow, so the player sees the whole picture.
  */
-export function lockTooltip(lock: LevelLock, also: { blocked?: string; priceShort?: number } = {}): string {
+export function lockTooltip(
+  lock: LevelLock,
+  also: { blocked?: string | undefined; priceShort?: number | undefined } = {},
+): string {
   const parts = [`Unlocks at Level ${lock.level}, ${lock.name}. Keep serving clients to grow your client base.`];
   if (also.blocked) parts.push(`Then: ${also.blocked}.`);
   if (also.priceShort && also.priceShort > 0) parts.push('It will also need more money than you have now.');
@@ -357,7 +360,7 @@ export function needChips(j: Pick<JobView, 'needs' | 'missing'>): NeedChip[] {
   });
 }
 
-export type Urgency = 'ok' | 'warn' | 'bad';
+type Urgency = 'ok' | 'warn' | 'bad';
 
 export interface DeadlineInfo {
   /** Ticks (seconds at 1x) until the client takes the job back. */
@@ -476,7 +479,7 @@ export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?
 export interface MoreOffer {
   state: 'ready' | 'poor' | 'blocked' | 'level';
   price: number;
-  free?: boolean;
+  free?: boolean | undefined;
   reason?: string;
   lock?: LevelLock;
 }

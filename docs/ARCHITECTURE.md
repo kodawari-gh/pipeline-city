@@ -18,7 +18,7 @@ Status: POC. Decisions below are current, not final. The old prototype was `lega
 
 ## Layers
 
-```
+```text
 src/features/<f>/sim     pure TS, runs in the worker. No DOM, no Pixi, no Preact imports.
 src/features/<f>/render  Three.js views (Pixi only bakes 2D art); read snapshots, never touch sim internals
 src/features/<f>/ui      Preact panels; read signals from src/app
@@ -177,7 +177,7 @@ Desktop first. Pointer events stay generic so touch pan/pinch works on the board
 
 ## Commands
 
-```
+```text
 npm run dev        # dev server
 npm run build      # typecheck + production build into dist/
 npm test           # vitest

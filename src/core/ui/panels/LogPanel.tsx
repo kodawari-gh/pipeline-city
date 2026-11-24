@@ -32,7 +32,7 @@ export const logOpen = signal(false);
 export const toggleLog = () => {
   logOpen.value = !logOpen.value;
 };
-export const closeLog = () => {
+const closeLog = () => {
   logOpen.value = false;
 };
 const picked = signal<number | null>(null);
@@ -56,7 +56,7 @@ const PHASES = [
   ],
   ['run', 'Running', 'bolt', 'The time from the job first running until its result was written'],
   ['collect', 'Collecting', 'box', 'The time from the result being written until the client had it'],
-] as const satisfies ReadonlyArray<readonly [keyof Phases, string, IconName, string]>;
+] as const satisfies readonly (readonly [keyof Phases, string, IconName, string])[];
 
 /** The icon of each thing that can hold a job up. */
 const KIND_ICON: Record<VerdictKind, IconName> = {

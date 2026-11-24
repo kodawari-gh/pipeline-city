@@ -85,7 +85,7 @@ describe('what the array shows in a product', () => {
     const text = (k: number) => l.texts.find((t) => eq(t.rect, q.cells[k]!))?.top;
     expect(text(15)).toBe('7');
     expect(text(0)).toBe('0');
-    expect(l.texts.some((t) => eq(t.rect, q.cap) && /t0 x t1/.test(t.top))).toBe(true);
+    expect(l.texts.some((t) => eq(t.rect, q.cap) && t.top.includes('t0 x t1'))).toBe(true);
   });
   it('relu flashes the negative sums, a store sweeps the rows out, an idle array just holds its sums', () => {
     const K = 4,

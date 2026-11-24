@@ -423,7 +423,7 @@ effect(() => {
     lastSample = null;
     return;
   }
-  const retired = s.counters.retired ?? 0;
+  const retired = s.counters['retired'] ?? 0;
   const stalls = totalStalls(s.counters);
   if (lastSample && s.baseTick === lastSample.tick) return;
   // Counters restart with each attempt: a drop means a new engine, so count from zero.

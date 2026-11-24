@@ -38,7 +38,7 @@ export function PartShelf({
   onActivate,
   children,
 }: {
-  shelf?: RefObject<HTMLElement | null>;
+  shelf?: RefObject<HTMLElement | null> | undefined;
   /** More classes for the panel (Build my PC's drop zone marks). */
   class?: string;
   eyebrow: string;
@@ -182,7 +182,7 @@ export function PartShelf({
   };
 
   return (
-    <aside class={`bld-bin mode-panel ${cls}`} ref={shelf} style={`--sel: ${sel}`}>
+    <aside class={`bld-bin mode-panel ${cls}`} ref={shelf ?? null} style={`--sel: ${sel}`}>
       <header class="mode-head">
         <span class="mode-eyebrow">{eyebrow}</span>
         <b>{title}</b>

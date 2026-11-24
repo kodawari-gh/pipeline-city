@@ -50,7 +50,7 @@ export const nvmeLook = (s: { name: string; tier: number; capacityBytes: number 
 });
 
 /** The stick's depths: its board's underside and top (0.8 mm on a 1.8 mm standoff), the top of its heat sink (9 mm over the motherboard). */
-export const NVME_Z = { pcb: BOARD_Z + 42, top: BOARD_Z + 60, sink: BOARD_Z + 208 } as const;
+const NVME_Z = { pcb: BOARD_Z + 42, top: BOARD_Z + 60, sink: BOARD_Z + 208 } as const;
 
 /** The mask's colours: a black board, the copper under it a shade lighter. */
 const MASK = 0x121519,
@@ -107,13 +107,13 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
 
   // the parts (mm from the finger edge and the north edge)
   const pmic = R(3.7, 9.75, 2.5, 2.5),
-    ind = [R(3.75, 1.4, 1.6, 2.0), R(3.75, 4.0, 1.6, 2.0), R(3.75, 16.0, 1.6, 2.0), R(3.75, 18.6, 1.6, 2.0)];
-  const ctrl = R(7.0, 4.5, 13, 13),
-    xtal = R(8.6, 1.3, 2.0, 1.6),
-    dram = R(21.5, 4.5, 8.0, 10.35),
-    nand = [R(31.0, 5.0, 18.0, 12.0), R(51.5, 5.0, 18.0, 12.0)];
+    ind = [R(3.75, 1.4, 1.6, 2), R(3.75, 4, 1.6, 2), R(3.75, 16, 1.6, 2), R(3.75, 18.6, 1.6, 2)];
+  const ctrl = R(7, 4.5, 13, 13),
+    xtal = R(8.6, 1.3, 2, 1.6),
+    dram = R(21.5, 4.5, 8, 10.35),
+    nand = [R(31, 5, 18, 12), R(51.5, 5, 18, 12)];
   pkg(g, pmic, z1, 0.75 * MM, ['P9M', '21A']);
-  ind.forEach((r, i) => inductor(g, r, z1, 1.0 * MM, ['1R0', 'R47', 'R68', '1R0'][i]));
+  ind.forEach((r, i) => inductor(g, r, z1, 1 * MM, ['1R0', 'R47', 'R68', '1R0'][i]));
   // (a package under the label or the heat sink keeps its marking to itself)
   const marks = look.heatsink ? [] : ['PC5016-E4', '2304 TW', 'B47Q2.1'];
   if (dies) {
@@ -123,12 +123,12 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
       dramBake = dies.art.baker(() => ramDieArt(dies.T, ramDiePlan({ banks: 8, bankGroups: 2 })));
     dieInPackage(g, dies, ctrl, z1, 1.4 * MM, marks, { lid: true }, { ...CTRL_DIE, bake: ctrlBake });
     crystal(g, xtal, z1, 0.55 * MM);
-    dieInPackage(g, dies, dram, z1, 1.0 * MM, [], {}, { ...RAM_DIE, bake: dramBake, turn: true });
+    dieInPackage(g, dies, dram, z1, 1 * MM, [], {}, { ...RAM_DIE, bake: dramBake, turn: true });
     for (const r of nand) dieInPackage(g, dies, r, z1, 1.25 * MM, [], {}, { ...NAND_DIE, bake: nandBake });
   } else {
     pkg(g, ctrl, z1, 1.4 * MM, marks, { lid: true });
     crystal(g, xtal, z1, 0.55 * MM);
-    pkg(g, dram, z1, 1.0 * MM, []);
+    pkg(g, dram, z1, 1 * MM, []);
     nand.forEach((r) => pkg(g, r, z1, 1.25 * MM, []));
   }
 
@@ -146,23 +146,23 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
       kind: 'cap' as const,
     })),
     ...col(6.15, 6.4, 10, 0.95, '0201'),
-    ...row(11.9, 3.5, 8, 1.0, '0402'),
+    ...row(11.9, 3.5, 8, 1, '0402'),
     ...row(7.6, 18.5, 13, 0.98, '0402'),
-    { x: at(8.0, 3.5)[0], y: at(8.0, 3.5)[1], pkg: '0201', kind: 'cap' },
+    { x: at(8, 3.5)[0], y: at(8, 3.5)[1], pkg: '0201', kind: 'cap' },
     { x: at(11.2, 2.1)[0], y: at(11.2, 2.1)[1], pkg: '0201', kind: 'cap', turn: true },
     ...col(20.75, 5.2, 13, 0.95, '0201'),
-    ...row(22.0, 3.6, 8, 0.95, '0201'),
-    ...row(22.0, 18.4, 8, 0.95, '0201'),
+    ...row(22, 3.6, 8, 0.95, '0201'),
+    ...row(22, 18.4, 8, 0.95, '0201'),
     ...col(30.25, 5.6, 9, 1.35, '0402'),
-    ...row(32.0, 3.9, 9, 2.0, '0402'),
-    ...row(32.0, 18.1, 9, 2.0, '0402'),
-    ...row(52.5, 3.9, 9, 2.0, '0402'),
-    ...row(52.5, 18.1, 9, 2.0, '0402'),
-    ...col(50.25, 6.0, 9, 1.25, '0402'),
-    ...col(71.0, 6.0, 6, 2.0, '0603'),
-    ...col(73.2, 3.0, 9, 2.0, '0402', 'res'),
-    { x: at(76.7, 4.0)[0], y: at(76.7, 4.0)[1], pkg: '0402', kind: 'cap' },
-    { x: at(76.7, 18.0)[0], y: at(76.7, 18.0)[1], pkg: '0402', kind: 'cap' },
+    ...row(32, 3.9, 9, 2, '0402'),
+    ...row(32, 18.1, 9, 2, '0402'),
+    ...row(52.5, 3.9, 9, 2, '0402'),
+    ...row(52.5, 18.1, 9, 2, '0402'),
+    ...col(50.25, 6, 9, 1.25, '0402'),
+    ...col(71, 6, 6, 2, '0603'),
+    ...col(73.2, 3, 9, 2, '0402', 'res'),
+    { x: at(76.7, 4)[0], y: at(76.7, 4)[1], pkg: '0402', kind: 'cap' },
+    { x: at(76.7, 18)[0], y: at(76.7, 18)[1], pkg: '0402', kind: 'cap' },
   ];
   passives(g, parts, z1);
   // the land-side caps on the controller's substrate, round its lid
@@ -240,8 +240,8 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
         cuts,
         pads: tp,
         text: [
-          { x: X0 + 70.5 * MM, y: Y0 + 3.0 * MM, s: 'M.2 2280-S2-M', mm: 1.0 },
-          { x: X0 + 70.5 * MM, y: Y0 + 19.2 * MM, s: 'PCIe 4.0 x4', mm: 1.0 },
+          { x: X0 + 70.5 * MM, y: Y0 + 3 * MM, s: 'M.2 2280-S2-M', mm: 1 },
+          { x: X0 + 70.5 * MM, y: Y0 + 19.2 * MM, s: 'PCIe 4.0 x4', mm: 1 },
         ],
       },
       { under: true },
@@ -263,7 +263,7 @@ export function nvmeStick(g: Group, b: RectLike, look: NvmeLook, dies?: DieHost)
   if (look.heatsink) return heatsink(cover, X0, X1, Y0, Y1, z1 + 1.4 * MM, look);
   // the label, over the DRAM and the NAND to short of the notch, draped over them
   const bumps: Bump[] = [
-    { r: dram, top: z1 + 1.0 * MM, fall: 2.2 * MM },
+    { r: dram, top: z1 + 1 * MM, fall: 2.2 * MM },
     ...nand.map((r) => ({ r, top: z1 + 1.25 * MM, fall: 2.2 * MM })),
     ...parts
       .filter((p) => p.x > L.x - 20 && p.x < L.x + L.w + 20)
@@ -465,7 +465,7 @@ function labelTex(look: NvmeLook): Texture | null {
     c.fillStyle = '#e9ebee';
     roundRect(c, u(35.6), u(4.6), u(17.4), u(5.6), u(0.35));
     c.fill();
-    barcode(c, u(36), u(5.0), u(16.6), u(3.4), seed, '#111317', `0 84512 ${String(seed % 100000).padStart(5, '0')} 6`);
+    barcode(c, u(36), u(5), u(16.6), u(3.4), seed, '#111317', `0 84512 ${String(seed % 100000).padStart(5, '0')} 6`);
     c.fillStyle = '#e9ebee';
     c.fillRect(u(35.6), u(10.9), u(5.4), u(5.4));
     matrix(c, u(35.9), u(11.2), u(4.8), seed + 9, '#111317');
@@ -528,7 +528,7 @@ function insertTex(look: NvmeLook, wm: number, hm: number): Texture | null {
         look.name.replace(/\s*\d+K$/, ''),
         w / 2,
         h * 0.52,
-        `700 ${Math.min(u(2.0), (w * 0.9) / Math.max(6, look.name.length * 0.58))}px ${FONT}`,
+        `700 ${Math.min(u(2), (w * 0.9) / Math.max(6, look.name.length * 0.58))}px ${FONT}`,
       );
       engrave(cap, w / 2, h * 0.78, `800 ${u(3.2)}px ${FONT}`);
       c.restore();
@@ -543,15 +543,15 @@ function stickerTex(look: NvmeLook): Texture | null {
     hm = 17.2;
   return tex(`nvme-sticker:${look.name}:${cap}`, Math.round(wm * PX), Math.round(hm * PX), (c, w, h) => {
     const u = (mm: number) => mm * PX,
-      seed = hash(look.name + cap + 'u');
+      seed = hash(`${look.name + cap}u`);
     c.clearRect(0, 0, w, h);
     roundRect(c, 0, 0, w, h, u(0.6));
     c.fillStyle = '#c9cdd3';
     c.fill();
-    drawLockup(c, 'kura', u(1.6), u(2.3), u(2.0), '#111317');
+    drawLockup(c, 'kura', u(1.6), u(2.3), u(2), '#111317');
     c.fillStyle = '#111317';
     c.textBaseline = 'alphabetic';
-    c.font = `600 ${u(1.0)}px ${FONT}`;
+    c.font = `600 ${u(1)}px ${FONT}`;
     c.fillText(`${look.name} · M.2 2280 · PCIe 4.0 x4 NVMe`, u(1.6), u(4.7));
     barcode(c, u(1.4), u(5.8), u(20), u(3.6), seed, '#111317', `KR-N2-${cap}`);
     barcode(c, u(23), u(5.8), u(19.4), u(3.6), seed + 1, '#111317', `S/N KR2N${String(seed % 1e7).padStart(7, '0')}A`);
@@ -563,7 +563,7 @@ function stickerTex(look: NvmeLook): Texture | null {
     c.fillStyle = '#111317';
     c.fillRect(u(22.5), u(11.2), u(20), u(4.6));
     c.fillStyle = '#c9cdd3';
-    c.font = `700 ${u(1.0)}px ${FONT}`;
+    c.font = `700 ${u(1)}px ${FONT}`;
     c.textAlign = 'center';
     c.fillText('WARRANTY VOID IF REMOVED', u(32.5), u(13.9));
     c.textAlign = 'left';

@@ -58,7 +58,7 @@ const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** The lock and "Level N" of an item the player level still gates. Pressing it opens the milestone screen at that level. */
-function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
+function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string | undefined }) {
   return (
     <button
       class="lockbadge"
@@ -75,7 +75,7 @@ function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
 }
 
 /** The small "+ price" on a fitted or spare tile (or board card): buy another copy, which goes into the inventory. */
-export function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
+function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
   if (!more || (more.state !== 'ready' && more.state !== 'poor')) return null;
   const cost = more.free ? 'free' : fmtMoney(more.price);
   if (more.state === 'poor')
@@ -736,7 +736,7 @@ export function PickerCard() {
     const first = lastId.current === null;
     if (first) el.classList.add('nomove');
     const reposition = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
       const inset = viewInset.peek();
       const vw = window.innerWidth,
         vh = window.innerHeight;
@@ -769,7 +769,7 @@ export function PickerCard() {
       const pl = anchor
         ? placePopup(anchor, { w: width, h }, free, rem * GAP_REM, order)
         : dockPlacement({ w: width, h }, free);
-      el.dataset.side = pl.side;
+      el.dataset['side'] = pl.side;
       el.style.setProperty('--tail', `${pl.tail}px`);
       el.style.transform = `translate(${Math.round(pl.x)}px, ${Math.round(pl.y)}px)`;
     };

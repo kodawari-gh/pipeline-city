@@ -12,8 +12,7 @@ import { gpuListing } from '../../gpu/sim/gpucode';
 import { Icon } from '@/core/ui/kit/Icons';
 import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
 
-export { traceOpen };
-export const toggleTrace = () => {
+const toggleTrace = () => {
   traceOpen.value = !traceOpen.value;
 };
 

@@ -39,7 +39,7 @@ export { ROUTER_SIZE, routerTier } from './router3d';
 /** Units a mm. */
 export const MM = 23;
 /** The wall's face: its z (the case's back is at 2200, so a plug on the wall reaches out toward it). */
-export const WALL_Z = 700;
+const WALL_Z = 700;
 /** The mains plate (a Swiss triple socket, a 91 mm square frame) and how far it stands off the wall: 18 mm, a recess in it 13 deep. */
 export const MAINS = { w: TRIPLE.frame * MM, h: TRIPLE.frame * MM, d: 18 * MM } as const;
 /** The ISP's plate (80 x 80 mm) and its jack, a compact RJ45 jack at real size (or a QSFP+ cage, for the plan that copper cannot carry: `ispPort`). */
@@ -54,11 +54,11 @@ const JACK = RJ;
 /** How far west of the case's west face the plates start (the case, seen from the start view, hides the wall's points less than this far out when they are under the case's top). */
 const PLATE_OFF = 7000;
 /** The router's depth from the wall (every tier: its jacks stand in the same place): its body (`router3d.ts`) stands 160 off the wall. The size of each tier is `ROUTER_SIZE`, the model's. */
-export const ROUTER_DEPTH = ROUTER_BODY + 160;
+const ROUTER_DEPTH = ROUTER_BODY + 160;
 const TIERS = [1, 2, 3, 4] as const;
 
 /** A box of the world: x and y, y up. */
-export interface Box {
+interface Box {
   x0: number;
   x1: number;
   y0: number;
@@ -74,7 +74,7 @@ export interface WallIn {
 }
 
 /** One socket of the mains plate: its recess's middle on the plate's face (a plug goes in along -z), and the turn of a plug in it (radians round z). */
-export interface WallSocket {
+interface WallSocket {
   at: V3;
   roll: number;
 }

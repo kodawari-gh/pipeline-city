@@ -420,7 +420,7 @@ export function leadCoil(): Group {
     hole = leadHole(),
     cx = hole.x + hole.w / 2,
     cy = hole.y - 340,
-    all = [...LEADS.F_PANEL!.looks, ...LEADS.USB_2!.looks, ...LEADS.USB_3!.looks],
+    all = [...LEADS['F_PANEL']!.looks, ...LEADS['USB_2']!.looks, ...LEADS['USB_3']!.looks],
     from = fromSlot(hole, all.length);
   all.forEach((look, i) => {
     const pts: V3[] = [from[i]!.at, [from[i]!.at[0], from[i]!.at[1], TRAY_Z + 60]],

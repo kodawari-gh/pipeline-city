@@ -85,7 +85,9 @@ export function engineConfigFor(board: Board): EngineConfig | null {
   if (!cpuDev) return null;
   const cpu = deviceSpec(cpuDev) as CpuSpec;
   const cfg: EngineConfig = { ...cpu.engine };
-  if (cfg.kind === 'ooo' && (cpu.threads ?? 1) > 1) cfg.threads = cpu.threads; // the out-of-order core holds its threads in the pipeline together
+  if (cfg.kind === 'ooo' && (cpu.threads ?? 1) > 1) {
+    cfg.threads = cpu.threads ?? 1;
+  } // the out-of-order core holds its threads in the pipeline together
   // Several sticks run at the speed of the slowest one: the miss penalty comes from the stick that costs most cycles.
   const cpuClock = cpuDev.clock ?? cpu.clock.base;
   const sticks = working(board, 'ram').map((d) => {

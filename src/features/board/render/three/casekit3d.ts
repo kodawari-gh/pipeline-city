@@ -42,7 +42,7 @@ export { CASE_FRONT as FRONT } from '@/features/room/render/three/roomplan';
 /** The outer side panel's thickness: it closes the body's open side, its face at `FRONT`. */
 export const SIDE_T = 36;
 export const NONE: Cuts = [0, 0, 0, 0];
-export const hex = (s: string) => parseInt(s.slice(1, 7), 16);
+export const hex = (s: string) => Number.parseInt(s.slice(1, 7), 16);
 
 /** The outline of a layout rect as world points (y up), clockwise in the layout: a corner with a cut is chamfered at 45 degrees, the others rounded by `r`. */
 export function outlinePts(rc: RectLike, r: number, cuts: Cuts = NONE, seg: number = SEG.corner): Vector2[] {
@@ -96,7 +96,7 @@ export function clipY(pts: Vector2[], y: number, keep: 1 | -1): Vector2[] {
 }
 
 /** The part of a convex outline (world points) east (`keep` +1) or west (-1) of `x`: the pieces beside an opening in the top or the floor. */
-export function clipX(pts: Vector2[], x: number, keep: 1 | -1): Vector2[] {
+function clipX(pts: Vector2[], x: number, keep: 1 | -1): Vector2[] {
   const out: Vector2[] = [],
     inside = (p: Vector2) => (p.x - x) * keep >= 0;
   pts.forEach((p, i) => {
@@ -133,7 +133,7 @@ export const wallCircle = (y: number, z: number, r: number, n = 48): Vector2[] =
   );
 
 export const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-export const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
+const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
 export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
   const s = new Shape(pts);
   for (const h of holes) s.holes.push(new Path(h));
@@ -379,7 +379,7 @@ export interface Spot {
 
 /** Turn a part modelled round +z to look along `f`. Its lower detail level (`userData.low`) turns with it. */
 export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
-  const low = g.userData.low as BufferGeometry | undefined;
+  const low = g.userData['low'] as BufferGeometry | undefined;
   if (low) turned(low, f);
   if (f === 'z-') g.rotateX(Math.PI);
   else if (f === 'x+') g.rotateY(Math.PI / 2);
@@ -529,34 +529,6 @@ export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: n
   return g;
 }
 
-/** Hex-socket cap screws: a tall polished head with a dark socket (what holds a tempered glass panel off its frame). */
-export function capScrews(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
-  const g = new Group(),
-    h = r * 0.6;
-  if (!spots.length) return g;
-  g.add(
-    instanced(
-      turned(
-        lathe([
-          [r, 0],
-          [r, h * 0.82],
-          [r * 0.9, h],
-          [r * 0.56, h],
-          [r * 0.5, h * 0.5],
-          [0, h * 0.5],
-        ]),
-        f,
-      ),
-      m,
-      spots,
-    ),
-  );
-  g.add(
-    instanced(turned(new CircleGeometry(r * 0.52, SEG.capSocket).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots),
-  );
-  return g;
-}
-
 /** Soft rubber pads: a flat-topped button (the bumpers a side panel closes on). */
 export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
   const g = new Group();
@@ -592,10 +564,10 @@ export function tex(
 ): Texture | null {
   // (a big sheet is half size at Low and has its own cache entry: a switch back to High paints the full one)
   const cut = sheetCut(w, h),
-    id = cut < 1 ? key + '@low' : key;
+    id = cut < 1 ? `${key}@low` : key;
   if (TEX.has(id)) return TEX.get(id)!;
   // (a baked sheet, `part-<key>` in `public/tex/`, stands for the canvas: `brushed` and `grain`)
-  let t: Texture | null = bakedTex('part-' + key);
+  let t: Texture | null = bakedTex(`part-${key}`);
   if (t) t.wrapS = t.wrapT = RepeatWrapping;
   else t = paintLow(w, h, draw, [1, 1]);
   TEX.set(id, shareTex(t));
@@ -614,7 +586,7 @@ export function tiled(t: Texture | null, rx: number, ry: number): Texture | null
 export type Perf = 'round' | 'hex' | 'mesh' | 'slot';
 /** A sheet with holes cut through it (white, so the material tints it): round holes in staggered rows, a honeycomb, a diamond mesh or long slots. */
 export function perforation(kind: Perf): Texture | null {
-  return tex('perf-' + kind, 128, kind === 'mesh' || kind === 'slot' ? 128 : 222, (c, w, h) => {
+  return tex(`perf-${kind}`, 128, kind === 'mesh' || kind === 'slot' ? 128 : 222, (c, w, h) => {
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, w, h);
     c.globalCompositeOperation = 'destination-out';
@@ -724,21 +696,6 @@ export function perforated(
   g.add(decal(r, z + 5, perfMat(kind, r.w, r.h, pitch, tone, o)));
 }
 
-/** The same perforated sheet, lying flat at world height `top` over x `x0`–`x1` and z `z0`–`z1` (the holes show a dark backing). */
-export function perforatedFlat(
-  top: number,
-  x0: number,
-  x1: number,
-  z0: number,
-  z1: number,
-  kind: Perf,
-  pitch: number,
-  tone: number,
-  o: { metal?: number; rough?: number } = {},
-): Group {
-  return perforatedFlatRun(top, [[x0, x1, z0, z1]], kind, pitch, tone, o);
-}
-
 /**
  * Many flat windows (`[x0, x1, z0, z1, top?]`, any sizes, each at world height `top` unless it gives its own): one backing mesh and one
  * perforated mesh for the whole run (merged geometry, one material; each window's UVs keep the hole pitch), so a run costs two draws.
@@ -824,7 +781,7 @@ export function badgeTex(
   bg: string | null,
   o: LockupOpts & { h?: number } = {},
 ): Texture | null {
-  return tex('badge-' + key, w, h, (c) => {
+  return tex(`badge-${key}`, w, h, (c) => {
     if (bg) {
       c.fillStyle = bg;
       c.fillRect(0, 0, w, h);
@@ -845,7 +802,7 @@ export function debossMat(
   ink = '#050608',
   lip = '#2a2d32',
 ): Material {
-  const t = tex('deboss-' + key, w, h, (c) => {
+  const t = tex(`deboss-${key}`, w, h, (c) => {
     c.clearRect(0, 0, w, h);
     const o = { acc: null, align: 'center' as const },
       mh = h * 0.8,

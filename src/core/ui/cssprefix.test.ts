@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest';
 import * as fsMod from 'node:fs';
 // @ts-ignore
 import * as urlMod from 'node:url';
+
 const fs = fsMod as any;
 
 const css: string = fs
-  .readFileSync(urlMod.fileURLToPath(new URL('./ui.css', import.meta.url)), 'utf8')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
+  .readFileSync(urlMod.fileURLToPath(new URL('ui.css', import.meta.url)), 'utf8')
+  .replaceAll(/\/\*[\s\S]*?\*\//g, '');
 /** The declaration blocks of the sheet (the inner ones of an `@media` too). */
 const blocks = [...css.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]!);
 
@@ -20,8 +21,20 @@ describe('ui.css vendor prefixes', () => {
     const bad = blocks.filter((b) => {
       const plain = b.search(/(?<![-\w])backdrop-filter\s*:/),
         prefixed = b.indexOf('-webkit-backdrop-filter');
-      return plain >= 0 && prefixed >= 0 && plain < prefixed;
+      return plain >= 0 && prefixed !== -1 && plain < prefixed;
     });
     expect(bad).toEqual([]);
+  });
+});
+
+describe('ui.css Build my PC shelf', () => {
+  it('keeps the chamfer off the desk panel, so the parts flyout that hangs outside it is not clipped', () => {
+    // A `clip-path` on `.bld-bin` cut the flyout (it sits at `left: 100%`): the part tiles never showed, in any category.
+    const sel = ".build.bld-tabs[data-layout='desk'] .bld-bin";
+    const body = (s: string): string =>
+      css.slice(css.indexOf('{', css.indexOf(`${s} {`)) + 1, css.indexOf('}', css.indexOf(`${s} {`)));
+    expect(css.indexOf(`${sel} {`)).toBeGreaterThanOrEqual(0);
+    expect(body(sel)).not.toContain('clip-path');
+    expect(body(`${sel}::before`)).toContain('clip-path');
   });
 });

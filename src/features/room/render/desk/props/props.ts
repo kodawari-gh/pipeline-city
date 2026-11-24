@@ -1,16 +1,12 @@
 import { Container, FillGradient, Graphics, Text } from 'pixi.js';
 import type { KeySnap } from '@/worker/game/game';
-import { getSpec } from '@/features/board/sim/specs';
-import { box, disc, HEAD, label, mix, MONO } from '@/core/render/ink';
-import { wallTone } from './case';
+import { box, HEAD, label, mix } from '@/core/render/ink';
 import { usbPlug } from '@/features/board/render/layout/ports';
-import { discShape, type Shape } from '@/core/render/shape';
+import type { Shape } from '@/core/render/shape';
 import {
-  CASE_LEDS,
   HOOK_PITCH,
   HOOK_Y,
   LANYARD,
-  POWER_BTN,
   ROW_DROP,
   TRAY,
   TRAY_COLS,
@@ -23,7 +19,7 @@ import type { Theme } from '@/core/render/theme';
 // Each prop that can be clicked or dragged is a Container centred on its own origin, so board.ts / interact.ts can
 // lift and scale it about its middle on hover.
 
-export interface PropObj {
+interface PropObj {
   id: string;
   /** World rect of the whole object (hit test, outline, highlight ring). */
   rect: Rect;
@@ -51,180 +47,41 @@ export interface PropsArt {
   led: Graphics;
   ledText: Text | null;
   /** The remove cue on a finished key (plugged, `stage` done): animated per frame by `drawKeyCue`. */
-  cue?: KeyCue;
+  cue?: KeyCue | undefined;
 }
 
 /** The remove cue: a glow around the stick and a `TAKE ME` / `REMOVE` tag under it. Lives in the key's node, outside its baked `vec`. */
-export interface KeyCue {
+interface KeyCue {
   glow: Graphics;
   tag: Container;
   pill: Graphics;
 }
 
-const centre = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 // ---------------------------------------------------------------- icons for parts (nominal 480 x 480, centred)
-
-export const ICON = 480;
-
-function accentOf(T: Theme, kind: string): string {
-  switch (kind) {
-    case 'cpu':
-      return T.alu;
-    case 'psu':
-      return T.ld;
-    case 'ram':
-      return T.mul;
-    case 'display':
-      return T.st;
-    case 'cooler':
-      return T.alu;
-    case 'board':
-      return T.br;
-    case 'storage':
-      return T.mul;
-    case 'os':
-      return T.st;
-    case 'nic':
-    case 'router':
-      return T.alu;
-    default:
-      return T.mute;
-  }
-}
-
-/** A small recognisable icon for a part kind, centred on (0,0), about ICON units across. */
-export function partIcon(T: Theme, kind: string, _spec = ''): Container {
-  const c = new Container();
-  const g = new Graphics();
-  c.addChild(g);
-  const a = accentOf(T, kind);
-  const body = mix(T.sub, T.tile, 0.5);
-  const edge = (w = 8) => ({ stroke: a, lw: w });
-  g.roundRect(-210, 190, 420, 24, 12).fill({ color: '#000000', alpha: 0.2 }); // contact shadow
-  if (kind === 'cpu') {
-    box(g, -170, -170, 340, 340, 28, { fill: body, ...edge() });
-    for (let i = 0; i < 9; i++)
-      for (const o of [-150, 138]) {
-        g.rect(-130 + i * 30, o, 12, 12);
-        g.rect(o, -130 + i * 30, 12, 12);
-      }
-    g.fill({ color: T.pin, alpha: 0.9 });
-    box(g, -86, -86, 172, 172, 12, { fill: T.die, stroke: a, lw: 6 });
-    for (let i = 0; i < 4; i++) {
-      g.moveTo(-60, -50 + i * 34).lineTo(60, -50 + i * 34);
-    }
-    g.stroke({ width: 5, color: a, alpha: 0.7 });
-    g.poly([-165, -165, -118, -165, -165, -118]).fill({ color: T.pin });
-  } else if (kind === 'psu') {
-    box(g, -230, -140, 460, 280, 26, { fill: body, ...edge() });
-    disc(g, -110, 0, 98, { fill: T.die, stroke: T.line, lw: 6 });
-    for (let k = 0; k < 5; k++) {
-      const th = (k / 5) * Math.PI * 2;
-      g.moveTo(-110, 0).lineTo(-110 + Math.cos(th) * 84, Math.sin(th) * 84);
-    }
-    g.stroke({ width: 18, color: a, alpha: 0.8, cap: 'round' });
-    for (let y = -90; y <= 90; y += 36) g.moveTo(60, y).lineTo(205, y);
-    g.stroke({ width: 10, color: T.line, alpha: 0.8, cap: 'round' });
-  } else if (kind === 'ram') {
-    box(g, -236, -76, 472, 152, 14, { fill: body, ...edge() });
-    for (let i = 0; i < 6; i++) box(g, -206 + i * 70, -52, 56, 78, 8, { fill: T.die, stroke: T.line, lw: 4 });
-    for (let i = 0; i < 26; i++) g.rect(-224 + i * 17, 48, 10, 20);
-    g.fill({ color: T.pin });
-    g.rect(-20, 56, 18, 14).fill({ color: body });
-  } else if (kind === 'display') {
-    box(g, -210, -170, 420, 270, 20, { fill: mix(body, '#000000', 0.2), ...edge() });
-    box(g, -188, -148, 376, 226, 8, { fill: '#050a0c' });
-    for (let i = 0; i < 4; i++) g.rect(-164, -122 + i * 32, 100 + ((i * 53) % 150), 12);
-    g.fill({ color: a, alpha: 0.85 });
-    g.poly([-40, 100, 40, 100, 70, 160, -70, 160]).fill({ color: body });
-    box(g, -120, 160, 240, 24, 12, { fill: body, stroke: a, lw: 5 });
-  } else if (kind === 'cooler') {
-    box(g, -180, -180, 360, 360, 24, { fill: body, ...edge() });
-    for (let k = 0; k < 24; k++) {
-      const th = (k / 24) * Math.PI * 2;
-      g.moveTo(Math.cos(th) * 90, Math.sin(th) * 90).lineTo(Math.cos(th) * 150, Math.sin(th) * 150);
-    }
-    g.stroke({ width: 7, color: T.line });
-    disc(g, 0, 0, 120, { fill: T.die, stroke: a, lw: 6 });
-    for (let k = 0; k < 6; k++) {
-      const th = (k / 6) * Math.PI * 2;
-      g.moveTo(0, 0).lineTo(Math.cos(th) * 105, Math.sin(th) * 105);
-    }
-    g.stroke({ width: 16, color: a, alpha: 0.7, cap: 'round' });
-  } else if (kind === 'board') {
-    box(g, -220, -200, 440, 400, 20, { fill: mix(T.board, a, 0.12), ...edge() });
-    box(g, -110, -110, 120, 120, 8, { fill: T.die, stroke: T.line, lw: 4 });
-    for (let i = 0; i < 4; i++) g.rect(50 + i * 34, -160, 18, 240);
-    g.fill({ color: T.line });
-    for (let i = 0; i < 5; i++) g.rect(-180 + i * 56, 130, 38, 28);
-    g.fill({ color: T.pin, alpha: 0.8 });
-  } else if (kind === 'storage') {
-    const v = getSpec(_spec)?.visual ?? 'hdd';
-    if (v === 'ssd-nvme') {
-      box(g, -60, -200, 120, 400, 10, { fill: mix(body, '#10333a', 0.5), ...edge() });
-      box(g, -66, -190, 132, 120, 8, { fill: mix(body, '#ffffff', 0.2), stroke: T.alu, lw: 5 });
-      for (let i = 0; i < 8; i++) g.rect(-50 + i * 13, 150, 9, 40);
-      g.fill({ color: T.pin });
-      box(g, -42, -30, 84, 70, 6, { fill: T.die, stroke: T.line, lw: 4 });
-    } else if (v === 'ssd-sata') {
-      box(g, -190, -120, 380, 240, 22, { fill: mix(body, '#ffffff', 0.12), ...edge() });
-      box(g, -150, -80, 200, 130, 8, { fill: T.die, stroke: T.line, lw: 4 });
-      box(g, -120, -60, 60, 60, 6, { fill: T.tile, stroke: a, lw: 5 });
-      disc(g, 130, 70, 12, { fill: a });
-    } else {
-      box(g, -200, -150, 400, 300, 22, { fill: mix(body, '#ffffff', 0.12), ...edge() });
-      disc(g, -50, -10, 100, { fill: T.die, stroke: a, lw: 6 });
-      disc(g, -50, -10, 22, { fill: a });
-      g.moveTo(40, 100).lineTo(110, -70).stroke({ width: 14, color: a, alpha: 0.8, cap: 'round' });
-      box(g, 100, -110, 70, 220, 8, { fill: T.tile, stroke: T.line, lw: 4 });
-    }
-  } else if (kind === 'nic') {
-    box(g, -190, -110, 380, 220, 14, { fill: mix(body, '#0e6a7a', 0.25), ...edge() });
-    box(g, -120, -56, 110, 90, 8, { fill: T.die, stroke: T.line, lw: 4 });
-    box(g, -20, -60, 130, 100, 6, { fill: mix(body, '#ffffff', 0.3), stroke: T.line, lw: 4 });
-    for (let x = 0; x < 120; x += 22) g.moveTo(-10 + x, -50).lineTo(-10 + x, 30);
-    g.stroke({ width: 5, color: T.line, alpha: 0.8 });
-    box(g, -230, -90, 70, 150, 8, { fill: mix(body, '#ffffff', 0.4), stroke: a, lw: 5 });
-    for (let i = 0; i < 12; i++) g.rect(-120 + i * 24, 96, 12, 24);
-    g.fill({ color: T.pin });
-  } else if (kind === 'router') {
-    box(g, -220, -90, 440, 190, 24, { fill: mix(body, '#ffffff', 0.15), ...edge() });
-    for (let i = 0; i < 4; i++) disc(g, -170 + i * 38, -50, 9, { fill: i === 0 ? T.st : a, fa: 0.9 });
-    for (let i = 0; i < 4; i++) box(g, -170 + i * 90, 36, 64, 60, 6, { fill: '#05070c', stroke: a, lw: 3 });
-  } else if (kind === 'os') {
-    box(g, -190, -150, 380, 300, 22, { fill: '#050a0c', ...edge() });
-    c.addChild(label('>_', -140, -20, 150, a, { head: true }));
-    g.rect(-140, 70, 220, 14).fill({ color: a, alpha: 0.6 });
-  } else {
-    box(g, -160, -160, 320, 320, 24, { fill: body, ...edge() });
-    c.addChild(label('?', 0, 0, 200, a, { head: true, anchor: [0.5, 0.5] }));
-  }
-  return c;
-}
 
 // ---------------------------------------------------------------- USB keys and the tray
 
 /** Full-size key in the tray: plug end 220 + body 740, 230 tall (a stubby stick, about 3:1 like a real one). */
 export const KEY_LEN = 960;
-export const KEY_H = 230;
+const KEY_H = 230;
 /** Compact key drawn in the USB port: 190 of plug + 560 of body. */
 export const KEY_LEN_PLUGGED = 750;
 /** The metal plug's height: it must slip into the USB port (108 tall, see `USB_PORT`). */
-export const KEY_PLUG_H = 88;
+const KEY_PLUG_H = 88;
 /** How far a seated key's plug is inside the port (the rest of the plug shows between the stick and the port's mouth). */
-export const KEY_INSERT = 100;
+const KEY_INSERT = 100;
 export type Urgency = 'ok' | 'soon' | 'late';
 
-export function urgencyOf(k: KeySnap): Urgency {
+function urgencyOf(k: KeySnap): Urgency {
   if (k.late) return 'late';
   const span = Math.max(1, k.deadlineTick - k.arrivalTick);
   return k.age / span > 0.65 ? 'soon' : 'ok';
 }
 
 /** What an OS-ingested key is doing, as a short label and a colour (null for keys in the tray or without an OS). */
-export function stageInfo(T: Theme, k: KeySnap): { text: string; color: string } | null {
+function stageInfo(T: Theme, k: KeySnap): { text: string; color: string } | null {
   switch (k.stage) {
     case 'ingesting':
       return { text: 'INGESTING', color: T.mul };
@@ -243,12 +100,12 @@ export function stageInfo(T: Theme, k: KeySnap): { text: string; color: string }
   }
 }
 
-export const urgencyColor = (T: Theme, u: Urgency) => (u === 'late' ? T.bad : u === 'soon' ? T.ld : T.st);
+const urgencyColor = (T: Theme, u: Urgency) => (u === 'late' ? T.bad : u === 'soon' ? T.ld : T.st);
 
 /** Shorten with an ellipsis only when the text would overflow `w` world units at font size `size`. */
 function fit(str: string, size: number, w: number, em = 0.62): string {
   const n = Math.max(3, Math.floor(w / (size * em)));
-  return str.length <= n ? str : str.slice(0, n - 1) + '…';
+  return str.length <= n ? str : `${str.slice(0, n - 1)}…`;
 }
 
 /** The colour of a workload kind: the lanyard of its keys (the sticks themselves stay plain). The kinds are the sim's key types: the cli jobs and the job classes. */
@@ -311,7 +168,7 @@ export function drawKeyTimer(g: Graphics, T: Theme, k: KeySnap, compact: boolean
  * A USB stick centred on (0,0), the connector pointing east (towards the port): a plain dark body (the workload is its lanyard's colour, the
  * timer a dial on `retime`). Full size (KEY_LEN x KEY_H): job id and type, template. Compact (KEY_LEN_PLUGGED): job id and what it is doing, or DONE.
  */
-export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false): Container {
+function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false): Container {
   const c = new Container();
   const g = new Graphics();
   c.addChild(g);
@@ -377,7 +234,7 @@ export const trayKeyCentre = (i: number) => {
 };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
-export const pluggedKeyCentre = () => ({
+const pluggedKeyCentre = () => ({
   x: USB_PORT.x + KEY_INSERT - KEY_LEN_PLUGGED / 2,
   y: USB_PORT.y + USB_PORT.h / 2,
 });
@@ -395,104 +252,11 @@ function vgradFill(top: string, bot: string) {
   });
 }
 
-export type TrayMode = 'off' | 'retired' | 'waiting' | 'fallback';
-
 /** How far the hook is above a hanging stick's centre: the lanyard's length and half the stick. */
 export const HANG_Y = LANYARD + KEY_LEN / 2;
 
-/**
- * A key on its lanyard, centred on the stick: upright (the plug at the bottom, the lettering reading down it) with a flat two-strand cord
- * going up to the hook, which is `HANG_Y` above the centre. Everything but the node's position lives in `swing`, which pivots at the hook
- * (`swing.rotation` is the sway); `lan.scale.y` uncoils the cord (0 = no cord, 1 = hanging), about the stick's end.
- */
-export function hangingKey(T: Theme, k: KeySnap) {
-  const vec = keyStick(T, k),
-    node = new Container(),
-    swing = new Container(),
-    lan = new Graphics();
-  vec.rotation = Math.PI / 2; // hanging: the plug (the stick's east end) points at the ground and the lettering reads down the stick
-  // the lanyard goes with the stick: a flat cord from the hook, two strands through a small ring on the stick's end
-  const top = -HANG_Y,
-    end = -KEY_LEN / 2;
-  for (const dx of [-14, 14])
-    lan.moveTo(dx * 0.4, top + 20).quadraticCurveTo(dx * 1.6, (top + end) / 2, dx * 0.5, end + 6);
-  lan.stroke({ width: 16, color: lanyardColour(k), cap: 'round' });
-  lan.circle(0, end + 4, 30).stroke({ width: 9, color: '#aab6dc' });
-  lan.pivot.set(0, end);
-  lan.position.set(0, end);
-  swing.pivot.set(0, top);
-  swing.position.set(0, top);
-  const timer = new Graphics();
-  timer.rotation = Math.PI / 2; // the dial turns with the stick
-  const retime = (q: KeySnap) => drawKeyTimer(timer, T, q, false);
-  retime(k);
-  swing.addChild(lan, vec, timer);
-  node.addChild(swing);
-  return { node, swing, lan, vec, retime };
-}
-
-export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): PropsArt {
-  const root = new Container(),
-    chrome = new Container();
-  const g = new Graphics();
-  root.addChild(chrome);
-  chrome.addChild(g);
-  const r = TRAY;
-  // the rack's own look is the two rails on the wall (room.ts draws them, with a hook each): here the lettering on the upper rail, and the sticks on their lanyards
-  const ink = '#e6d5c4';
-  chrome.addChild(label('KEYS', r.x + 70, r.y + 100, 70, ink, { head: true, a: 0.85 }));
-  const empty = keys.length === 0;
-  // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
-  if (mode === 'retired') g.alpha = 0.55;
-  const note =
-    mode === 'retired'
-      ? empty
-        ? 'LINK UP: KEYS RETIRED'
-        : `LINK UP: ${keys.length} LEFTOVER`
-      : mode === 'waiting'
-        ? 'NET DOWN'
-        : mode === 'fallback'
-          ? 'NET DOWN: STICKS BACK AT 1/3 RATE'
-          : empty
-            ? 'NO WORK WAITING'
-            : `${keys.length} waiting`;
-  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : ink;
-  chrome.addChild(
-    label(note, r.x + 470, r.y + 104, mode === 'fallback' ? 34 : 40, noteCol, { a: mode === 'off' && empty ? 0.8 : 1 }),
-  );
-  const objs: PropObj[] = [];
-  keys.forEach((k, i) => {
-    const p = trayKeyCentre(i);
-    const { node, swing, lan, vec, retime } = hangingKey(T, k);
-    node.position.set(p.x, p.y);
-    root.addChild(node);
-    const sil = {
-      key: 'hang',
-      make: () => {
-        const v = keyStick(T, k);
-        v.rotation = Math.PI / 2;
-        const c = new Container();
-        c.addChild(v);
-        return c;
-      },
-    };
-    objs.push({
-      id: 'key:' + k.id,
-      rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN },
-      sil,
-      node,
-      vec,
-      swing,
-      lan,
-      retime,
-      base: { x: p.x, y: p.y, s: 1 },
-    });
-  });
-  return { root, chrome, objs, led: new Graphics(), ledText: null };
-}
-
 /** The compact stick's outline (centred on the key) and the tag under its body (the body spans x -375..185). */
-const CUE_STICK = { x: -KEY_LEN_PLUGGED / 2, y: -KEY_H / 2, w: KEY_LEN_PLUGGED, h: KEY_H };
+
 const CUE_TAG = { x: -95, y: 265, w: 800, h: 230 };
 
 /**
@@ -548,7 +312,7 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
     root,
     objs: [
       {
-        id: 'key:' + k.id,
+        id: `key:${k.id}`,
         rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 },
         sil,
         node,
@@ -563,112 +327,4 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
   };
 }
 
-/**
- * Per-frame remove cue. `now` is game time (a pause freezes the breath). `k` scales the tag and the glow width so both stay readable
- * at the exterior (far) view: 1 at the overview, up to 2.6 further out. Calm: one slow sine, no flashing.
- */
-export function drawKeyCue(c: KeyCue, T: Theme, now: number, k: number) {
-  const beat = 0.5 + 0.5 * Math.sin(now * 0.0035); // about a 1.8 s breath
-  const s = CUE_STICK,
-    e = (12 + 10 * beat) * k;
-  c.glow.clear();
-  box(c.glow, s.x - e, s.y - e, s.w + 2 * e, s.h + 2 * e, 50 * k, { fill: T.st, fa: 0.05 + 0.08 * beat });
-  box(c.glow, s.x - e, s.y - e, s.w + 2 * e, s.h + 2 * e, 50 * k, { stroke: T.st, lw: 12 * k, sa: 0.35 + 0.45 * beat });
-  c.tag.scale.set(k);
-  const t = CUE_TAG;
-  c.pill.clear();
-  box(c.pill, -t.w / 2, -t.h / 2, t.w, t.h, t.h / 2, {
-    fill: '#0b1226',
-    fa: 0.94,
-    stroke: T.st,
-    lw: 9,
-    sa: 0.85 + 0.15 * beat,
-  });
-}
-
 // ---------------------------------------------------------------- power button
-
-/**
- * powered: the machine is switched on (any phase, including halted and error). down: the power path is gone (PSU tripped or
- * board dead): the ON light goes dark. error: the phase is `error` or the machine is down (the red ERR light blinks).
- * blocked: there is no power at all (no PSU, burnt PSU, ATX unplugged, dead board): the OFF standby light is dark.
- */
-export interface PowerState {
-  powered: boolean;
-  down: boolean;
-  error: boolean;
-  blocked: boolean;
-}
-
-/** The power button on the case's top panel (the status lights are drawn per frame by `drawPowerLeds`). */
-export function powerArt(T: Theme, st: PowerState): PropsArt {
-  const root = new Container();
-  const b = POWER_BTN;
-  const shell = wallTone(T);
-  const node = new Container(),
-    vec = new Container();
-  const bg = new Graphics();
-  node.addChild(vec);
-  vec.addChild(bg);
-  // the button reads 'on' whenever the machine is powered (any phase); off is the muted ring
-  const ring = st.powered ? T.st : T.mute;
-  disc(bg, 0, 12, b.r + 14, { fill: '#000000', fa: 0.3 });
-  disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered ? 1 : 0.7 });
-  disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', 0.1), stroke: T.line, lw: 5 });
-  const k = b.r / 175;
-  // the power symbol: a ring open at the top (clockwise from just right of the top, the long way round), the bar in the gap
-  // The arc gets its own moveTo so no stray segment joins it to the previous shape, and the gap is wide enough for the
-  // bar plus both round caps (stroke widths scale with the button).
-  const gap = Math.PI * 0.2,
-    R = 78 * k,
-    w = 15 * k;
-  bg.moveTo(R * Math.cos(-Math.PI / 2 + gap), 8 * k + R * Math.sin(-Math.PI / 2 + gap));
-  bg.arc(0, 8 * k, R, -Math.PI / 2 + gap, Math.PI * 1.5 - gap, false).stroke({ width: w, color: ring, cap: 'round' });
-  bg.moveTo(0, -62 * k)
-    .lineTo(0, -4 * k)
-    .stroke({ width: w, color: ring, cap: 'round' });
-  node.position.set(b.x, b.y);
-  root.addChild(node);
-  const led = new Graphics();
-  root.addChild(led);
-  return {
-    root,
-    objs: [
-      {
-        id: 'power',
-        rect: { x: b.x - b.r - 20, y: b.y - b.r - 20, w: (b.r + 20) * 2, h: (b.r + 20) * 2 },
-        shape: discShape(b.x, b.y, b.r + 14),
-        node,
-        vec,
-        base: { x: b.x, y: b.y, s: 1 },
-      },
-    ],
-    led,
-    ledText: null,
-  };
-}
-
-/** Redraw the status lights on the case panel: on / off / error and the disk activity LED (every frame; cheap). `now` is game time. */
-export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: number, disk = 0) {
-  led.clear();
-  const ly = CASE_LEDS.y;
-  const blink = 0.55 + 0.45 * Math.sin(now * 0.008);
-  // ON: powered in any phase (halted and POST error included) unless the power path is down; ERR: red, blinking
-  const on = st.powered && !st.down;
-  const lights: [number, string, boolean, number][] = [
-    // OFF is the standby light: it needs a working PSU on the wall (blocked = no PSU / burnt PSU / ATX unplugged / dead board)
-    [CASE_LEDS.on, T.st, on, 1],
-    [CASE_LEDS.off, T.ld, !st.powered && !st.error && !st.blocked, 1],
-    [CASE_LEDS.err, T.bad, st.error, st.error ? blink : 1],
-    [CASE_LEDS.disk, T.ld, disk > 0.02, disk],
-  ];
-  for (const [x, c, lit, a] of lights) {
-    if (lit) led.circle(x, ly, 40).fill({ color: c, alpha: 0.22 * a });
-    led
-      .circle(x, ly, 22)
-      .fill({ color: lit ? c : mix(c, T.bg, 0.8), alpha: lit ? 0.4 + 0.6 * a : 0.55 })
-      .stroke({ width: 4, color: T.line, alpha: 0.8 });
-  }
-}
-
-export { clamp01, centre, MONO, HEAD };

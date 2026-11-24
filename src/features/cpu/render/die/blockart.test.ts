@@ -124,9 +124,9 @@ describe('block symbols', () => {
     const npc = plan.blocks.find((b) => b.kind === 'nextpc')!,
       pins = glyphPins(npc)!;
     expect(inPinFor(npc, 'pcadd-npc', pins)).toEqual(pins.ins['+4']);
-    expect(inPinFor(npc, 'br-npc', pins)).toEqual(pins.ins.br);
-    expect(inPinFor(npc, 'irq-pc', pins)).toEqual(pins.ins.irq);
-    expect(new Set([pins.ins['+4']![1], pins.ins.br![1], pins.ins.irq![1]]).size).toBe(3);
+    expect(inPinFor(npc, 'br-npc', pins)).toEqual(pins.ins['br']);
+    expect(inPinFor(npc, 'irq-pc', pins)).toEqual(pins.ins['irq']);
+    expect(new Set([pins.ins['+4']![1], pins.ins['br']![1], pins.ins['irq']![1]]).size).toBe(3);
     // a link docks: it runs on from the block's edge to the pin without a diagonal
     const d = dockLink(npc, npc, 'br-npc', [
       [npc.rect.x, npc.rect.y + 20],

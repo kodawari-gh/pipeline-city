@@ -95,6 +95,6 @@ describe('the loader on the real engine', () => {
     const ram = new Uint32Array(g.machine.ram.buffer, USER_BASE, want.length);
     expect(Array.from(ram)).toEqual(Array.from(want));
     // the engine really executed the copy: far more retired instructions than the program has
-    expect(g.snapshot().counters.retired).toBeGreaterThan(want.length * 4);
+    expect(g.snapshot().counters['retired']).toBeGreaterThan(want.length * 4);
   });
 });

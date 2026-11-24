@@ -25,7 +25,7 @@ export const pipeline: Brand = {
     c.lineTo(vx, vy);
     stroke(c, ink, w, 'butt', 'miter');
     // the pad at the foot
-    poly(c, [0.04, 0.84, 0.28, 0.84, 0.28, 1.0, 0.04, 1.0]);
+    poly(c, [0.04, 0.84, 0.28, 0.84, 0.28, 1, 0.04, 1]);
     fill(c, ink);
     // the via: a gap round it, a lit ring, a drilled hole
     knock(c, () => {

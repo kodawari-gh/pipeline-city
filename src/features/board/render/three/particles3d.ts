@@ -127,8 +127,8 @@ export class Particles3D {
     }
     this.alive = alive;
     this.pts.visible = alive > 0;
-    this.geo.attributes.position!.needsUpdate = true;
-    this.geo.attributes.color!.needsUpdate = true;
+    this.geo.attributes['position']!.needsUpdate = true;
+    this.geo.attributes['color']!.needsUpdate = true;
   }
 
   /** `n` puffs' worth of emission this frame (the fraction carries to the next), spread over the rect. */

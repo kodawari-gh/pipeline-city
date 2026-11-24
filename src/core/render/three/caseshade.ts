@@ -43,7 +43,7 @@ export function setCaseShade(box: Box3, world: Matrix4, pass: CasePass): void {
   CASE_SHADE.minus.value.fromArray(pass.minus);
 }
 
-export const CASE_PARS = `
+const CASE_PARS = `
 uniform mat4 uCaseInv;
 uniform vec3 uCasePlus;
 uniform vec3 uCaseMinus;

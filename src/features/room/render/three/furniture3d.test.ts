@@ -59,7 +59,7 @@ function vertices(o: Object3D, step = 1): Vector3[] {
   o.traverse((c) => {
     const mesh = c as Mesh;
     if (!mesh.isMesh || decal(mesh)) return;
-    const p = mesh.geometry.attributes.position!,
+    const p = mesh.geometry.attributes['position']!,
       inst = (c as InstancedMesh).isInstancedMesh ? (c as InstancedMesh) : null;
     for (let k = 0; k < (inst ? inst.count : 1); k++) {
       if (inst) inst.getMatrixAt(k, m);
@@ -208,7 +208,7 @@ describe('3D furniture', () => {
     const w = 14000,
       h = 3000,
       d = 7200,
-      p = pillow(w, h, d).attributes.position!;
+      p = pillow(w, h, d).attributes['position']!;
     let corner = 0;
     for (let i = 0; i < p.count; i++) {
       const x = Math.abs(p.getX(i)) / (w / 2),
@@ -291,7 +291,7 @@ describe('3D furniture', () => {
     });
 
     it('rounds each spine across the book: from the boards to its middle, an even arc', () => {
-      const p = covers()[0]!.geometry.attributes.position!,
+      const p = covers()[0]!.geometry.attributes['position']!,
         arc = new Map<number, number>();
       for (let i = 0; i < p.count; i++)
         if (p.getX(i) > 0.49) arc.set(Math.round(p.getZ(i) * 1e4) / 1e4, p.getX(i) - 0.5);
@@ -329,8 +329,8 @@ describe('3D furniture', () => {
     // normals turn it (each a step of the round)
     const round = (m: Mesh) => {
       const g = m.geometry,
-        p = g.attributes.position!,
-        n = g.attributes.normal!,
+        p = g.attributes['position']!,
+        n = g.attributes['normal']!,
         steps = new Set<number>();
       g.computeBoundingBox();
       const c = g.boundingBox!.getCenter(new Vector3()),
@@ -351,7 +351,7 @@ describe('3D furniture', () => {
         if ((c as Mesh).isMesh && !(c as InstancedMesh).isInstancedMesh) ms.push(c as Mesh);
       });
       const vol = (m: Mesh) => {
-        const s = new Box3().setFromBufferAttribute(m.geometry.attributes.position as never).getSize(new Vector3());
+        const s = new Box3().setFromBufferAttribute(m.geometry.attributes['position'] as never).getSize(new Vector3());
         return s.x * s.y * s.z;
       };
       return ms.sort((p, q) => vol(q) - vol(p))[0]!;

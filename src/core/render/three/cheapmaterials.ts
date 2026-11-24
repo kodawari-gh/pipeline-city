@@ -44,7 +44,7 @@ const HSL = { h: 0, s: 0, l: 0 };
  * Is `c` a warm, saturated metal (copper, brass, gold)? Its colour is the metal's own, as seen in its reflections: a Lambert keeps it, where it
  * would turn a grey metal dark.
  */
-export const warmMetal = (c: Color): boolean => {
+const warmMetal = (c: Color): boolean => {
   c.getHSL(HSL);
   return HSL.s > 0.35 && (HSL.h < 0.18 || HSL.h > 0.97);
 };
@@ -53,11 +53,11 @@ export const warmMetal = (c: Color): boolean => {
  * What a Lambert of a metal reads as its colour: `src` mixed toward the dark metal range by `metalness`, as a metal has no diffuse of its own and
  * its look is the reflection that a Lambert cannot draw. The source's colour is not changed (High draws with it). Copper and gold keep theirs.
  */
-export function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
+function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
   const k = Math.min(1, Math.max(0, metalness));
   out.copy(src);
   if (k <= 0 || warmMetal(src)) return out;
-  const t = Math.min(1, Math.pow(0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b, 1 / 2.2));
+  const t = Math.min(1, (0.2126 * src.r + 0.7152 * src.g + 0.0722 * src.b) ** (1 / 2.2));
   return out.lerp(new Color().copy(DARK_METAL[0]).lerp(DARK_METAL[1], t), k);
 }
 
@@ -67,7 +67,7 @@ export function metalColor(src: Color, metalness: number, out: Color = new Color
  */
 function metalLive(m: Std): Color {
   const c = new Color(),
-    seen = [NaN, NaN, NaN, NaN],
+    seen = [Number.NaN, Number.NaN, Number.NaN, Number.NaN],
     mix = new Color();
   const fresh = (): Color => {
     const s = m.color,
@@ -182,7 +182,7 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   const swapAll = () =>
     root.traverse((o) => {
       const mesh = o as Mesh;
-      if (!mesh.isMesh || mesh.userData.standIn) return;
+      if (!mesh.isMesh || mesh.userData['standIn']) return;
       if (Array.isArray(mesh.material)) {
         const list = mesh.material;
         list.forEach((m, i) => {

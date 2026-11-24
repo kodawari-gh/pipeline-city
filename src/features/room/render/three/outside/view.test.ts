@@ -111,19 +111,19 @@ describe('debugLayer and debugStats (city-layers.ts)', () => {
 
   it('glow and mirror go to 0 at night, and on again give them back', () => {
     v.frame(23, 1);
-    const glow = p.quad.uniforms.glowK!.value as number,
+    const glow = p.quad.uniforms['glowK']!.value as number,
       mirror = p.mirrorAt;
     expect(glow).toBeGreaterThan(0);
     expect(mirror).toBeGreaterThan(0);
     debugLayer(v, 'glow', true);
     debugLayer(v, 'mirror', true);
     v.frame(23, 1);
-    expect(p.quad.uniforms.glowK!.value).toBe(0);
+    expect(p.quad.uniforms['glowK']!.value).toBe(0);
     expect(p.mirrorAt).toBe(0);
     debugLayer(v, 'glow', false);
     debugLayer(v, 'mirror', false);
     v.frame(23, 1);
-    expect(p.quad.uniforms.glowK!.value).toBe(glow);
+    expect(p.quad.uniforms['glowK']!.value).toBe(glow);
     expect(p.mirrorAt).toBe(mirror);
   });
 
@@ -197,10 +197,10 @@ describe('OutsideView.draw, flat (City 1x)', () => {
     draw();
     const w2 = p.target!.width,
       h2 = p.target!.height;
-    expect([p.quad.uniforms.ss!.value, p.target!.samples]).toEqual([2, 2]);
+    expect([p.quad.uniforms['ss']!.value, p.target!.samples]).toEqual([2, 2]);
     debugLayer(v, 'flat', true);
     draw();
-    expect([p.quad.uniforms.ss!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([
+    expect([p.quad.uniforms['ss']!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([
       1,
       w2 / 2,
       h2 / 2,
@@ -208,7 +208,12 @@ describe('OutsideView.draw, flat (City 1x)', () => {
     ]);
     debugLayer(v, 'flat', false);
     draw();
-    expect([p.quad.uniforms.ss!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([2, w2, h2, 2]);
+    expect([p.quad.uniforms['ss']!.value, p.target!.width, p.target!.height, p.target!.samples]).toEqual([
+      2,
+      w2,
+      h2,
+      2,
+    ]);
   });
 });
 
@@ -253,7 +258,7 @@ function fingerprint(v: OutsideView): { meshes: number; drawn: number; sum: numb
   const ms = everyMesh(v);
   for (const m of ms) {
     drawnN += drawn(m.geometry);
-    const p = m.geometry.attributes.position!.array;
+    const p = m.geometry.attributes['position']!.array;
     for (let i = 0; i < p.length; i++) sum += p[i]! * ((i % 7) + 1);
   }
   return { meshes: ms.length, drawn: drawnN, sum: Math.round(sum) };

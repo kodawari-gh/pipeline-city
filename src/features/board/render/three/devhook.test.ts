@@ -6,14 +6,14 @@ import * as urlMod from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const fs = fsMod as any;
-const FILE: string = urlMod.fileURLToPath(new URL('./board3d.ts', import.meta.url));
+const FILE: string = urlMod.fileURLToPath(new URL('board3d.ts', import.meta.url));
 const text: string = fs.readFileSync(FILE, 'utf8');
 
 // The code as statements: comments dropped, whitespace collapsed, cut at `;`, `{` and `}`. The formatter may wrap a line anywhere; a statement stays whole.
 const statements: string[] = text
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .replace(/\/\/.*$/gm, '')
-  .replace(/\s+/g, ' ')
+  .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+  .replaceAll(/\/\/.*$/gm, '')
+  .replaceAll(/\s+/g, ' ')
   .split(/[;{}]/)
   .map((s) => s.trim());
 

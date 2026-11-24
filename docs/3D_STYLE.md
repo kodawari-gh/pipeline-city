@@ -131,7 +131,7 @@ Saturated colour belongs to a PCB, the die art, or one small accent per part (a 
 
 **All parts use PBR** (`MeshStandardMaterial`):
 
-```
+```text
 Default (materials.ts `mat`): metalness 0.05, roughness 0.65
 Range in use on parts: metalness 0.0–1.0, roughness 0.03–1.0
   e.g. gold contacts 1.0 / 0.24 (pcbkit3d.ts:310), polished cap 0.95 / 0.14 (cooler3d.ts:343),

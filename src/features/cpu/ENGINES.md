@@ -91,7 +91,7 @@ Same `counters` and `timeline` as above; the inherited `stage*` arrays are unuse
 
 Timeline lifecycle of an instruction: `F` in the fetch queue, `D` in decode, `S` waiting in the scheduler, `X` in a unit (one letter per cycle of latency), `R` result ready waiting for commit, `C` the commit cycle, `x` the cycle it was squashed. Example (the load misses; dependents wait, the ecall is already done):
 
-```
+```text
 li s3, 4096    |FDSXRC.........
 lw t0, 0(s3)   |FDSSXXXXXXRC...
 add t1, t0, t0 |.FDSSSSSSSXRC..

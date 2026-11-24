@@ -38,11 +38,11 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
-export const CELL = 32,
+const CELL = 32,
   DOWN = 4;
 /** The grid's bins: one a stop, from `LO` (2^-18, a black) to `LO + BINS - 1` (2^5, a bulb). */
-export const LO = -18,
-  BINS = 24;
+const LO = -18;
+export const BINS = 24;
 /**
  * The base's distance from middle grey keeps this share below it (the dark is lifted) and above it (the bright is held back). Above it by
  * day: the bright glass held back; at night the eye keeps more of it (`LocalEye.high`).
@@ -53,7 +53,7 @@ export const SHADOW_C = 0.18,
 export const MAX_UP = 9,
   MAX_DOWN = 3;
 /** The share of its colour a pixel loses when the eye lifts it by `CALM_STOPS` stops or more (less below, in proportion). */
-export const CALM = 0.4,
+const CALM = 0.4,
   CALM_STOPS = 4;
 /** The scene's luminance that shows as middle grey at an exposure of 1 (ACES: 0.18 out at 0.22 in, after its own 1 / 0.6). */
 export const MID = 0.13;
@@ -282,8 +282,8 @@ export class LocalEye {
     this.outputKey = key;
     const d: Record<string, string> = {},
       tone = TONE[r.toneMapping];
-    if (tone) d.TONE = tone;
-    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d.SRGB_TRANSFER = '';
+    if (tone) d['TONE'] = tone;
+    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d['SRGB_TRANSFER'] = '';
     this.finish.defines = d;
     this.finish.needsUpdate = true;
   }
@@ -295,12 +295,12 @@ export class LocalEye {
     this.lum.setSize(lw, lh);
     this.grid.setSize(gx * BINS, gy);
     this.blur.setSize(gx * BINS, gy);
-    this.down.uniforms.px!.value = [1 / w, 1 / h];
-    this.build.uniforms.lumSize!.value = [lw, lh];
-    this.build.uniforms.gx!.value = gx;
-    this.smooth.uniforms.grid!.value = [gx, gy];
-    this.finish.uniforms.size!.value = [w, h];
-    this.finish.uniforms.grid!.value = [gx, gy];
+    this.down.uniforms['px']!.value = [1 / w, 1 / h];
+    this.build.uniforms['lumSize']!.value = [lw, lh];
+    this.build.uniforms['gx']!.value = gx;
+    this.smooth.uniforms['grid']!.value = [gx, gy];
+    this.finish.uniforms['size']!.value = [w, h];
+    this.finish.uniforms['grid']!.value = [gx, gy];
   }
 
   /** Is the eye on? Then `adapt` must run before each `draw`. */
@@ -316,7 +316,7 @@ export class LocalEye {
 
   /** The grid of `picture` (the scene's light), in three small passes: a quarter of the picture, the grid, its blur. */
   adapt(renderer: WebGLRenderer, picture: Texture): void {
-    this.down.uniforms.tDiffuse!.value = picture;
+    this.down.uniforms['tDiffuse']!.value = picture;
     this.step(renderer, this.down, this.lum);
     this.step(renderer, this.build, this.grid);
     this.step(renderer, this.smooth, this.blur);
@@ -335,11 +335,11 @@ export class LocalEye {
     f.blendDst = OneMinusConstantAlphaFactor;
     f.blendAlpha = weight;
     const a = this.finish.uniforms;
-    a.tDiffuse!.value = picture;
-    a.midLog!.value = Math.log2(this.key / this.exposure);
-    (a.keep!.value as number[])[1] = this.high;
-    a.strength!.value = this.on ? this.strength : 0;
-    a.toneMappingExposure!.value = renderer.toneMappingExposure;
+    a['tDiffuse']!.value = picture;
+    a['midLog']!.value = Math.log2(this.key / this.exposure);
+    (a['keep']!.value as number[])[1] = this.high;
+    a['strength']!.value = this.on ? this.strength : 0;
+    a['toneMappingExposure']!.value = renderer.toneMappingExposure;
     this.step(renderer, this.finish, to);
   }
 

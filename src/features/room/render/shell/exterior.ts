@@ -4,7 +4,6 @@ import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, label, lgrad, mix } from '@/core/render/ink';
 import {
-  BAY_CELLS,
   BR,
   CASE,
   CASE_GLASS,
@@ -70,10 +69,7 @@ export interface ExteriorOpts {
   gpus?: number[];
 }
 
-/** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
-export const frontLed = (cell: number) => ({ x: stripRect().x + 10, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h / 2 });
-
-export function exteriorTones(T: Theme) {
+function exteriorTones(_T: Theme) {
   return {
     hi: '#3b4663',
     mid: '#29324b',
@@ -530,66 +526,6 @@ export function stripModeOf(s: Snapshot | null): StripMode {
     ph === 'flashing'
     ? 'work'
     : 'idle';
-}
-
-/**
- * The accent strip and the drive-front LEDs. `t` is game time in ms (frozen while paused); `wall` is wall time in ms. Off: unlit;
- * idle: a dim steady glow; halted: a steady amber glow (on, but finished or waiting for a boot key); working: a bright pulse that
- * travels down the strip; error blinks red on wall time (an alarm: a pause must not leave it stuck bright); dead is a steady dim red.
- */
-export function drawStrip(
-  g: Graphics,
-  T: Theme,
-  mode: StripMode,
-  t: number,
-  disk: number,
-  drives: { slot: string }[],
-  wall = t,
-) {
-  g.clear();
-  const { x, y0, y1, w } = stripRect(),
-    len = y1 - y0,
-    c = tones(T);
-  const col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
-  if (mode === 'off') {
-    box(g, x, y0, w, len, 10, { fill: mix(c.shade, T.bg, 0.3), fa: 0.9 });
-  } else {
-    const base =
-      mode === 'idle'
-        ? 0.34
-        : mode === 'halt'
-          ? 0.5
-          : mode === 'work'
-            ? 0.5
-            : mode === 'dead'
-              ? 0.4
-              : 0.35 + 0.65 * (Math.floor(wall / 420) % 2);
-    box(g, x - 22, y0 - 10, w + 44, len + 20, 22, { fill: col, fa: 0.05 * (base + 0.3) });
-    box(g, x, y0, w, len, 10, { fill: col, fa: base });
-    if (mode === 'work') {
-      const seg = 1000,
-        u = (t / 2600) % 1,
-        y = y0 - seg + (len + seg) * u,
-        a = Math.max(y0, y),
-        b = Math.min(y1, y + seg);
-      if (b > a) {
-        box(g, x - 24, a, w + 48, b - a, 24, { fill: col, fa: 0.16 });
-        box(g, x - 4, a, w + 8, b - a, 12, { fill: '#ffffff', fa: 0.55 });
-      }
-    }
-  }
-  // drive-front activity LEDs (lit only while a drive is busy)
-  for (const d of drives) {
-    if (!d.slot.startsWith('sata')) continue; // an M.2 stick has no front LED
-    const cell = Number(d.slot.slice(4));
-    if (!BAY_CELLS[cell]) continue;
-    const l = frontLed(cell),
-      a = disk;
-    if (a > 0.02) g.circle(l.x, l.y, 30).fill({ color: T.ld, alpha: 0.3 * a });
-    g.circle(l.x, l.y, 14)
-      .fill({ color: a > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: a > 0.02 ? 0.4 + 0.6 * a : 0.7 })
-      .stroke({ width: 3, color: c.edge, alpha: 0.8 });
-  }
 }
 
 /** Rect the exterior covers (for the bake frame), a little beyond `CASE` for the feet and the shadow. */

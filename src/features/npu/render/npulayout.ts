@@ -73,7 +73,7 @@ export function npuGeo(visual: string): NpuGeo {
 }
 
 /** A rectangle of the die moved to card-local units. */
-export const onCard = (g: Pick<NpuGeo, 'origin'>, r: Rect): Rect => ({
+const onCard = (g: Pick<NpuGeo, 'origin'>, r: Rect): Rect => ({
   x: r.x + g.origin.x,
   y: r.y + g.origin.y,
   w: r.w,

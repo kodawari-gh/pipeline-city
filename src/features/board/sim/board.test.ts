@@ -385,11 +385,11 @@ describe('accelerator slots', () => {
     idleW: 1,
     heatFactor: 1,
     visual: 'x',
-    thermal: DEVICE_SPECS.nic1!.thermal,
+    thermal: DEVICE_SPECS['nic1']!.thermal,
   } as const;
   const fake = (spec: Record<string, unknown>) => {
-    (DEVICE_SPECS as Record<string, DeviceSpec>)[spec.id as string] = spec as unknown as DeviceSpec;
-    added.push(spec.id as string);
+    (DEVICE_SPECS as Record<string, DeviceSpec>)[spec['id'] as string] = spec as unknown as DeviceSpec;
+    added.push(spec['id'] as string);
   };
   afterEach(() => {
     for (const id of added.splice(0)) delete (DEVICE_SPECS as Record<string, DeviceSpec>)[id];

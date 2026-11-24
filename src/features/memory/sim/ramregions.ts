@@ -22,12 +22,12 @@ import {
   kernelImageFor,
   KTBL,
   KTBL_BYTES,
-  MAX_FRAMES,
+  FRAME_END,
   RESERVED_FRAME,
 } from '../../os/sim/kernel';
 
 /** What a region is: the boot ROM, the OS (code or tables), an application (its loaded code and data), or the working memory it has claimed since (`work`). */
-export type RamKind = 'rom' | 'os' | 'osdata' | 'app' | 'work';
+type RamKind = 'rom' | 'os' | 'osdata' | 'app' | 'work';
 
 export interface RamRegion {
   id: string;
@@ -40,9 +40,9 @@ export interface RamRegion {
   /** Exclusive. */
   hi: number;
   /** An application or its working memory: the job's key id (its colour follows its type). */
-  owner?: number;
+  owner?: number | undefined;
   /** An application or its working memory: its job type ("calc", "log"...), which picks the colour so one kind of program always looks the same. */
-  type?: string;
+  type?: string | undefined;
   /** An application: the address where its code ends and its data begins. */
   codeEnd?: number;
 }
@@ -149,7 +149,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
         name: 'Frame map',
         note: "One word per 256-byte frame of RAM: free, or whose it is (a program's image, its memory or its page tables).",
         lo: FMAP,
-        hi: FMAP + 4 * MAX_FRAMES,
+        hi: FMAP + 4 * FRAME_END,
       });
   }
   if (ctx.os && ctx.frames) {

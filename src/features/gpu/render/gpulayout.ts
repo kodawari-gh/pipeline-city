@@ -38,10 +38,10 @@ export const GPU_H: Record<string, number> = Object.fromEntries(
 );
 
 /** A fan module seen edge-on, like the case fans (card-local rectangle, long side along x). */
-export type GpuFan = Rect;
+type GpuFan = Rect;
 
 /** One SM's vector registers on the card: `rows[r]` is register r's strip, `cols` lanes wide, the first lane `lane0`. */
-export interface RegSet {
+interface RegSet {
   lane0: number;
   cols: number;
   rows: Rect[];
@@ -109,15 +109,9 @@ const FALLBACK: GpuPlanInput = {
 };
 
 /** The plan input of a card, from its spec (so a new tier needs no change here). */
-export function gpuInputOf(visual: string): GpuPlanInput {
+function gpuInputOf(visual: string): GpuPlanInput {
   const s = specsOfKind('gpu').find((x) => x.visual === visual);
   return s?.gpu ? gpuPlanInput(s.gpu) : FALLBACK;
-}
-
-/** The lane count, bank count and card memory of a card, from its spec. */
-export function gpuShape(visual: string): { lanes: number; banks: number; memBytes: number } {
-  const i = gpuInputOf(visual);
-  return { lanes: i.lanes, banks: i.banks, memBytes: i.memBytes };
 }
 
 /** Cooling fans a GPU shows along its top edge: one, two, three by tier. */

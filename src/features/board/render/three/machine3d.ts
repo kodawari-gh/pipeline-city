@@ -39,7 +39,6 @@ import { mergeSiblings, mergeSiblingsSteps } from '@/core/render/three/merge';
 import { hexNum } from '../skins';
 import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
-import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
 import { nicInput } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
@@ -243,7 +242,7 @@ export function machineKey(s: Snapshot | null, shown: Shown = 'machine'): string
 }
 
 /** A device's state for its look: its power and a burn (a part that runs, runs hot or throttles looks as ever; the lenses show those). */
-export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
+function stateOf(s: Snapshot, d: DeviceSnap): PartState {
   return { powered: s.powered && !s.power.tripped, burnt: d.burnt };
 }
 
@@ -288,9 +287,9 @@ const patchable = (d: DeviceSnap): boolean => {
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
 /** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
-export const untag = (root: Object3D): void =>
+const untag = (root: Object3D): void =>
   root.traverse((o) => {
-    if (typeof o.userData.id === 'string') delete o.userData.id;
+    if (typeof o.userData['id'] === 'string') delete o.userData['id'];
   });
 
 /** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
@@ -306,7 +305,7 @@ const netVisible = (s: Snapshot) =>
  * The cables that stand: the sim lists a cable with the part it runs from fitted (or while it is plugged); `blocked` says that part is missing. A
  * cable never stands without its part: no PSU, no leads and no PC cord; no monitor, no video cable and no monitor cord.
  */
-export const standing = (s: Snapshot): Snapshot['cables'] => s.cables.filter((c) => c.connected || !c.blocked);
+const standing = (s: Snapshot): Snapshot['cables'] => s.cables.filter((c) => c.connected || !c.blocked);
 /** What the cables are built from: the net's lens, the router's tier (another tier has other ports, so the LAN lead's router end is another plug, in the room as on the stage, where its body is also a box the cords keep off), the ports the leads are in, the cards and display that offer them. */
 const videoKey = (s: Snapshot) =>
   `${netVisible(s)}|${routerTier(s.net?.router?.id) ?? ''}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices
@@ -421,7 +420,7 @@ export class Machine3D {
   /** The parts fitted: a heatsink and a radiator show the fans on their spots (`fansOf`). */
   private devs: readonly DeviceSnap[] = [];
   /** Each rig's tagged group, whether it stands seated, and how its card fades it while it is plugged in. */
-  private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
+  private built = new Map<string, { g: Group; seated: boolean; fade?: (() => () => void) | undefined }>();
   /** The cables built (their kinds), and the key in the port. */
   private cableIds = '';
   private videoKey = '';
@@ -458,7 +457,7 @@ export class Machine3D {
     this.heldSet.clear();
     for (const [id, b] of this.built)
       for (const c of b.g.children)
-        if (c.userData.rig && !c.visible) {
+        if (c.userData['rig'] && !c.visible) {
           this.heldSet.add(id);
           break;
         }
@@ -635,7 +634,7 @@ export class Machine3D {
       if (this.pump && this.rad) {
         const h = new LoopHoses(
           hoseEnds(this.rad.fit),
-          this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator)),
+          this.caseEnv(this.obstacles.filter((o) => o.userData['cooler'] || o.userData['radiator'])),
         );
         this.hosePaths = h.paths();
         // (each hose's sleeve glows by its own water in the thermal view: the hot one first)
@@ -1300,7 +1299,7 @@ export class Machine3D {
     const env = this.caseEnv(),
       T = this.T,
       gx = BD.x + BD.w + 420,
-      base = sleeveOf(T),
+      base = sleeveOf(),
       deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     // (a lead's run from the power supply is behind the tray: the power lens draws a stub of it going on into the grommet)
@@ -1392,7 +1391,7 @@ export class Machine3D {
       // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260,
         slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
-      const g = tag(new Group(), 'cable.' + c.id),
+      const g = tag(new Group(), `cable.${c.id}`),
         accent = ACCENT(T, c.id as 'pcie'),
         look = lead(c.id),
         fixed = fromSlot(slot, 4);
@@ -1505,7 +1504,7 @@ export class Machine3D {
     const hubEnds = fromSlot(FAN_SLOT, hubHeaders().length + 1);
     for (const p of fanCordPlans()) {
       if (!has(p.id)) continue;
-      const g = tag(new Group(), 'cable.' + p.id),
+      const g = tag(new Group(), `cable.${p.id}`),
         plugged = on(p.id);
       // (the power goes from the header, out to the fan)
       const cord = (
@@ -1579,8 +1578,8 @@ export class Machine3D {
               : { at: at(p.anchor[0], p.anchor[1], SINK_FAN_MID), dir: [p.anchorDir[0], -p.anchorDir[1], 0] }; // (out of a sink fan's frame)
         const skip =
           p.id === 'cpufan'
-            ? this.obstacles.filter((o) => o.userData.cooler)
-            : this.obstacles.filter((o) => o.userData.sink);
+            ? this.obstacles.filter((o) => o.userData['cooler'])
+            : this.obstacles.filter((o) => o.userData['sink']);
         const fenv = this.caseEnv(skip);
         if (p.id === 'sysfan') {
           // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
@@ -1610,7 +1609,7 @@ export class Machine3D {
     }
     // ---- the case's own front-panel leads, out of their hole under the board's south edge to the board's headers: rigs the stage's hand can run (not the game's cables)
     for (const rig of panelRigs(env)) {
-      const g = tag(new Group(), 'cable.' + rig.id);
+      const g = tag(new Group(), `cable.${rig.id}`);
       this.addRig(g, rig, !this.panelOut.has(rig.id));
       this.wires.add(g);
     }
@@ -1754,7 +1753,7 @@ export class Machine3D {
       if (!has(id)) return;
       // the cord runs from its device through the desk's grommet for good; what the player moves is the plug under the desk. It lies loose on the
       // floor by the wall socket (nothing to weave through the desk) and goes into its outlet, out of the wall
-      const g = tag(new Group(), 'cable.' + id),
+      const g = tag(new Group(), `cable.${id}`),
         hole: V3 = [dg.x + dx, deskTop + 10, dg.z],
         low: RopeEnd = { at: [dg.x + dx, under - 10, dg.z], dir: [0, -1, 0] };
       // (the room's plate is drawn small, swisssocket3d.ts `ROOM_SOCKET`: its Swiss plug is built at the same scale, upright, its earth pin down)
@@ -1809,7 +1808,7 @@ export class Machine3D {
     // socket of the pinwheel it goes into: the power runs out of the plug)
     const wallMains = (id: string, from: RopeEnd) => {
       if (!has(id) || !w || !stage) return;
-      const g = tag(new Group(), 'cable.' + id),
+      const g = tag(new Group(), `cable.${id}`),
         at = w.plan.mains.outlet[id as 'pcmains' | 'monmains'],
         roll = w.plan.mains.turn[id as 'pcmains' | 'monmains'];
       if (!at) return;
@@ -1944,7 +1943,7 @@ export class Machine3D {
       this.key = null;
     }
     if (id === null) return;
-    const g = tag(new Group(), 'key:' + id),
+    const g = tag(new Group(), `key:${id}`),
       y = USB_PORT.y + USB_PORT.h / 2,
       z = BOARD_Z + 600;
     g.add(
@@ -2019,7 +2018,7 @@ export class Machine3D {
 
   private showRig(id: string): void {
     const b = this.built.get(id);
-    if (b) for (const c of b.g.children) if (c.userData.rig) c.visible = !this.unrun.has(id);
+    if (b) for (const c of b.g.children) if (c.userData['rig']) c.visible = !this.unrun.has(id);
   }
 
   /** Build one draggable cable again as it stands (`seated`, default as it was; a dropped plug at its rest pose): the others stay as they are. */
@@ -2035,7 +2034,7 @@ export class Machine3D {
     if (!rig || !b) return false;
     if (seated !== undefined) b.seated = seated;
     for (const c of [...b.g.children])
-      if (c.userData.rig) {
+      if (c.userData['rig']) {
         b.g.remove(c);
         disposeTree(c);
       }
@@ -2214,7 +2213,7 @@ export class Machine3D {
     if (slot === 'cpu0') {
       // the load lever is down on a CPU and lifted on a bare socket (as a memory socket's latches close on a stick and open without one)
       this.root.traverse((o) => {
-        if (o.userData.leverOf === slot) o.rotation.y = filled ? 0 : LEVER_OPEN;
+        if (o.userData['leverOf'] === slot) o.rotation.y = filled ? 0 : LEVER_OPEN;
       });
       // the socket is merged into the board by now, so a bare one is picked by an unseen box over it; its gold contacts show
       const pick = this.picks.get(slot);
@@ -2260,7 +2259,7 @@ export class Machine3D {
       sock = this.sockets.get(slot),
       pick = this.picks.get(slot);
     if (sock) {
-      if (filled) delete sock.userData.id;
+      if (filled) delete sock.userData['id'];
       else tag(sock, slot);
     }
     if (m[1] === 'pcie') {
@@ -2279,9 +2278,9 @@ export class Machine3D {
     }
     if (m[1] === 'dimm')
       this.root.traverse((o) => {
-        if (o.userData.dimm === slot)
+        if (o.userData['dimm'] === slot)
           for (const p of o.children)
-            p.rotation.x = ((p.userData.latchEnd as number | undefined) ?? 0) * (filled ? 0 : 0.5);
+            p.rotation.x = ((p.userData['latchEnd'] as number | undefined) ?? 0) * (filled ? 0 : 0.5);
       });
     if (filled && pick) {
       freeBox(pick);
@@ -2310,13 +2309,13 @@ export class Machine3D {
     const turning = new Map<string, number>();
     for (const f of this.fans) {
       const want = live && (!f.needs || !!s?.cables.some((c) => c.id === f.needs && c.connected)) ? 1 : 0;
-      f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
+      f.speed += (want - f.speed) * (1 - (want ? 0.3 : 0.6) ** dt); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
       if (f.ring) {
         if (f.fixed === undefined) f.ring.emissive.copy(rgb);
         else f.ring.emissive.setHex(f.fixed);
-        f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2.0)) * f.speed * this.ringK;
+        f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 1.6 : 2)) * f.speed * this.ringK;
       }
       const bank = f.needs ? this.bankOf(f.needs) : null;
       if (bank) turning.set(bank, Math.max(turning.get(bank) ?? 0, f.speed));

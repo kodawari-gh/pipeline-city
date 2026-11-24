@@ -3,7 +3,6 @@
 // Numbers come from MIX (mix tokens). The phase table is music-spec.json `states`; the fade times are the ticket's.
 import { MIX } from './mixTokens';
 import { keyName } from './keys';
-import { dB } from './volume';
 import type { Scene } from './director';
 
 /** The stress amount lives in stress.ts; re-exported here with the music that plays it. */
@@ -12,7 +11,7 @@ export { stressAmount } from './stress';
 export type Quant = 'bar' | 'beat' | 'now';
 export type Layer = 'bed' | 'pluck' | 'bass' | 'pausebed';
 /** The data layers (ticket #62): shimmer while data flows, stress under load. Each decodes on its first use. */
-export type DataLayer = 'shimmer' | 'stress';
+type DataLayer = 'shimmer' | 'stress';
 
 /** The sink the director drives (`engine.ts` is the real one). Ids: `music_menu_F`, `music_<layer>_<KEY>` or `music_fault_<KEY>`. */
 export interface MusicSink {
@@ -97,9 +96,9 @@ export const EVENT_NOTES_PER_BEAT = 4;
 /** A cutoff with no filter (Hz): the Nyquist frequency of the file rate. */
 export const OPEN_HZ = MIX.sampleRate / 2;
 /** The low-pass cutoffs: the bed while a bill is unpaid, the shimmer while saturated (ticket #62). */
-export const FILTER = { debt: 3000, saturated: 4000 } as const;
+const FILTER = { debt: 3000, saturated: 4000 } as const;
 /** The shimmer's extra gain while the link is saturated (dB). */
-export const SATURATED_DB = 2;
+const SATURATED_DB = 2;
 
 /** The game speed's mix (music-spec.json `speed.map`): bass on or off, bass and shimmer offsets (dB), and the event density. */
 export interface SpeedMix {
@@ -168,7 +167,7 @@ const ERROR_TARGETS: Readonly<Record<Layer, number>> = { bed: 0, pluck: 0, bass:
  * The layer targets of a phase. While the clock is stopped (`stopped`: Pause or Hold) the bed gives way to the pausebed,
  * and bass stays quiet; the pluck keeps its state target (it is dimmed in the mix, see `setLayers`).
  */
-export function layerTargets(phase: string | undefined, stopped = false): Readonly<Record<Layer, number>> {
+function layerTargets(phase: string | undefined, stopped = false): Readonly<Record<Layer, number>> {
   if (phase === 'error') return ERROR_TARGETS;
   const s = phase === undefined ? undefined : PHASE_STATE[phase];
   if (s === undefined) return SILENT;
@@ -183,7 +182,7 @@ export function keysInMemory(pc: number): string[] {
 }
 
 /** The number of fifths up (+7 semitones each) from one key to another, 0..11: the steps a level change walks. */
-export const fifthsBetween = (from: number, to: number): number => ((((to - from) * 7) % 12) + 12) % 12;
+const fifthsBetween = (from: number, to: number): number => ((((to - from) * 7) % 12) + 12) % 12;
 
 export function createMusic(sink: MusicSink): Music {
   let unlocked = false;
@@ -499,16 +498,16 @@ export function createMusic(sink: MusicSink): Music {
 }
 
 /** Grid: one beat is the stem's length over 16 (4 beats a bar, 4 bars a loop). Derived from the file, so the tempo never drifts. */
-export const LOOP_S = MIX.music.loopSamples / MIX.sampleRate;
+const LOOP_S = MIX.music.loopSamples / MIX.sampleRate;
 export const BAR_S = LOOP_S / 4;
 export const BEAT_S = LOOP_S / 16;
 /** One bar in ms. The data layers start, stop and fade over one bar (ticket #62). */
-export const BAR_MS = BAR_S * 1000;
+const BAR_MS = BAR_S * 1000;
 
 const round1 = (x: number): number => Math.round(x * 10) / 10;
 
 /** A linear gain as dB (20 log10). Layer targets are linear multipliers on their token (music-spec.json §8). */
-export const linearDb = (x: number): number => 20 * Math.log10(x);
+const linearDb = (x: number): number => 20 * Math.log10(x);
 
 /** The first grid point `step` apart from `t0` at or after `t`. */
 export function nextOnGrid(t: number, t0: number, step: number): number {
@@ -517,12 +516,6 @@ export function nextOnGrid(t: number, t0: number, step: number): number {
 
 /** Stems carry this many samples of wrap-around padding before and after the loop (music-spec.json loop_padding). */
 export const PAD = MIX.music.loopPadSamples;
-
-/** The loop region of a stem with `loopSamples` of loop: [start, end) in samples inside the decoded buffer. */
-export const loopRegion = (loopSamples: number): { start: number; end: number } => ({
-  start: PAD,
-  end: PAD + loopSamples,
-});
 
 /**
  * Stitch a decoded stem once, in place (IMPLEMENTATION §7.3): the last `n` samples before loopEnd fade into the pre-roll copy,

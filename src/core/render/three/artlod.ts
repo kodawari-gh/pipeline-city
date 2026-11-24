@@ -131,7 +131,7 @@ export function fadeTree(o: Object3D, a: number): void {
     const m = (x as Mesh).material as Material | Material[] | undefined;
     if (!m) return;
     for (const mm of Array.isArray(m) ? m : [m]) {
-      const base = (mm.userData.base ??= {
+      const base = (mm.userData['base'] ??= {
         opacity: mm.opacity,
         transparent: mm.transparent,
         depthWrite: mm.depthWrite,
@@ -233,7 +233,7 @@ export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMIS
  * The material of a sheet of art: `map` is the art (`rawSrgb`), the finish comes from its colours (see `Finish`). It reflects the scene's
  * environment (the room's probe), as the rest of the machine does.
  */
-export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
+function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
     map,
     bumpMap: map,
@@ -252,12 +252,12 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
   });
   m.defines = { ...DECODE_SRGB };
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.artGloss = { value: f.gloss };
-    sh.uniforms.artMetal = { value: f.metal };
+    sh.uniforms['artGloss'] = { value: f.gloss };
+    sh.uniforms['artMetal'] = { value: f.metal };
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <bumpmap_pars_fragment>', `${ART_GLSL}\n#include <bumpmap_pars_fragment>`)
       // the height is the brightness, not the red channel
-      .replace(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
+      .replaceAll(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
       // far out a screen pixel covers many texels: the relief fades out there (it would only shimmer), and is whole from one texel per pixel in
       .replace(
         'return vec2( dBx, dBy );',
@@ -292,8 +292,8 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
         '#include <lights_fragment_end>',
         '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);\nreflectedLight.directDiffuse *= artLit;\nreflectedLight.indirectDiffuse *= artLit;',
       );
-    sh.uniforms.artShine = { value: f.shine };
-    sh.uniforms.artLit = { value: f.lit };
+    sh.uniforms['artShine'] = { value: f.shine };
+    sh.uniforms['artLit'] = { value: f.lit };
   };
   m.customProgramCacheKey = () => 'art-finish';
   return m;

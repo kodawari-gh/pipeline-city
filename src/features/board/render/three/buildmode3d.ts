@@ -192,14 +192,13 @@ const REFUSAL_MS = 6000;
 
 /** What a swap took out, to put back. */
 /** A part that came out (`along`: the fans of a radiator, which came out with it as one assembly). */
-type Gone = { spec: string; slot: string; invId: string; clock?: number };
+type Gone = { spec: string; slot: string; invId: string; clock?: number | undefined };
 type Undo = { t: 'cable'; id: string } | { t: 'hoses' } | ({ t: 'dev'; along?: Gone[] } & Gone);
 
 /** The eye's key and range, as in the game's board view. */
 const EYE_KEY = 0.04,
   EYE_RANGE = [0.3, 14] as const;
-const FOV = 30,
-  START = BUILD_START;
+const START = BUILD_START;
 /** How far west (units) the start view moves the picture of the case and the wall (the wall's own views, `wallView`). */
 const WALL_SHIFT = 1400;
 /** The z the Wall preset aims at: between the plates' faces and the router's front. */
@@ -525,7 +524,7 @@ export class BuildStage {
     key.position.set(-6000, 9000, 14000);
     const rim = new DirectionalLight(0x8fb0ff, 0.45);
     rim.position.set(9000, 3000, -4000);
-    const lamp = new PointLight(0xfff1dd, 1.0, 0, 0);
+    const lamp = new PointLight(0xfff1dd, 1, 0, 0);
     lamp.position.set(0, 4000, 9000);
     scene.add(key, rim, lamp);
     // the frame's cuts (docs/render/case.md "Build my PC's frame"): the still parts' matrices stay (`syncWorld` in `frame`), and the opaque
@@ -1170,9 +1169,9 @@ export class BuildStage {
     this.setStep(p.label);
     const open = latchOpen(m, a.t, a.dir);
     for (const l of a.latches) {
-      if (l.userData.leverOf)
+      if (l.userData['leverOf'])
         l.rotation.y = LEVER_OPEN * open; // (the load lever lifts about its long side)
-      else l.rotation.x = (l.userData.latchEnd ?? 0) * 0.5 * open;
+      else l.rotation.x = (l.userData['latchEnd'] ?? 0) * 0.5 * open;
     }
     if (a.t >= motionSeconds(m)) {
       // a part going in settles: it dips a little past its seat along the way it came, then comes back (a damped spring, 0.3 s)
@@ -1810,7 +1809,7 @@ export class BuildStage {
           const g = m.cableGroup(c.id);
           let plug: Object3D | null = null;
           g?.traverse((o) => {
-            if (!plug && o.userData.plug) plug = o;
+            if (!plug && o.userData['plug']) plug = o;
           });
           const o: Object3D | null = plug ?? g;
           if (o) {
@@ -2099,7 +2098,7 @@ export class BuildStage {
   /** The scene object that stands for a node, or null (the monitor stands in the room, not in the machine). */
   private objectOf(node: string): Object3D | null {
     const root = this.machine.root;
-    if (isCableNode(node)) return findById(root, 'cable.' + node.slice(6));
+    if (isCableNode(node)) return findById(root, `cable.${node.slice(6)}`);
     if (isDevNode(node)) {
       const d = this.board.devices.find((x) => devNode(x.id) === node);
       if (!d) return null;
@@ -2150,8 +2149,8 @@ export class BuildStage {
     const latches: Object3D[] = [];
     if (slot)
       this.machine.root.traverse((o) => {
-        if (kind === 'ram' && o.userData.dimm === slot) latches.push(...o.children);
-        else if (kind === 'cpu' && o.userData.leverOf === slot) latches.push(o);
+        if (kind === 'ram' && o.userData['dimm'] === slot) latches.push(...o.children);
+        else if (kind === 'cpu' && o.userData['leverOf'] === slot) latches.push(o);
       });
     // (the parts turn about their common middle: they are built at the machine's origin, so their own origin is far off; only a motion that turns needs it)
     const box = new Box3();
@@ -2444,9 +2443,9 @@ export class BuildStage {
   /** A held part goes back under the id the game gave it, at its place, shown. */
   private refit(kept: { obj: Object3D; id: string; p: Vector3; z: number; y: number }, id: string): void {
     kept.obj.traverse((o) => {
-      const i = o.userData.id;
-      if (typeof i === 'string' && (i === kept.id || i.startsWith(kept.id + '.')))
-        o.userData.id = id + i.slice(kept.id.length);
+      const i = o.userData['id'];
+      if (typeof i === 'string' && (i === kept.id || i.startsWith(`${kept.id}.`)))
+        o.userData['id'] = id + i.slice(kept.id.length);
     });
     kept.obj.position.copy(kept.p);
     kept.obj.rotation.z = kept.z;
@@ -3084,7 +3083,7 @@ export class BuildStage {
         });
       // (a case set down bare has no board to lower)
       if (!this.bare.peek()) {
-        this.note(`Lower the ${isCase ? 'board' : BOARD_TIERS[tier]!.name + ' board'} onto its standoffs`);
+        this.note(`Lower the ${isCase ? 'board' : `${BOARD_TIERS[tier]!.name} board`} onto its standoffs`);
         await this.playAll(board, 'board', 'in');
         // the case's front-panel leads run out of their hole to the board's headers and go in
         await this.plugPanel();

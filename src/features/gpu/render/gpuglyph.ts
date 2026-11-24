@@ -222,7 +222,7 @@ export function decodeGeom(a: Rect): {
 }
 
 /** The registers of the launch block, in the order of its rows. */
-export const LAUNCH_REGS = ['kernel', 'arg0', 'arg1', 'lanes', 'status'] as const;
+const LAUNCH_REGS = ['kernel', 'arg0', 'arg1', 'lanes', 'status'] as const;
 
 /** The host link: a receive and a transmit cell per lane, the bus into the DMA engine, and its credit counters. */
 export function pcieGeom(a: Rect) {

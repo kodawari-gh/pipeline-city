@@ -9,14 +9,14 @@ import { memoryTable, sizeText } from '@/features/memory/render/ramlayout';
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'dim';
 
-export interface DashBar {
+interface DashBar {
   label: string;
   text: string;
   frac: number;
   tone: Tone;
-  mark?: number;
+  mark?: number | undefined;
 }
-export interface DashProc {
+interface DashProc {
   pid: string;
   name: string;
   state: string;
@@ -25,7 +25,7 @@ export interface DashProc {
   tone: 'run' | 'wait' | 'done';
 }
 /** A stacked bar: the parts in order, each a fraction of the whole. */
-export interface DashStack {
+interface DashStack {
   label: string;
   text: string;
   parts: { frac: number; tone: 'sys' | 'proc' | 'free' }[];
@@ -63,8 +63,8 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 /** Instructions per cycle between two counter readings (null when no cycles passed or the counters restarted). */
 export function ipcBetween(prev: Record<string, number> | null, cur: Record<string, number>): number | null {
   if (!prev) return null;
-  const dc = (cur.cycles ?? 0) - (prev.cycles ?? 0),
-    dr = (cur.retired ?? 0) - (prev.retired ?? 0);
+  const dc = (cur['cycles'] ?? 0) - (prev['cycles'] ?? 0),
+    dr = (cur['retired'] ?? 0) - (prev['retired'] ?? 0);
   return dc > 0 && dr >= 0 ? dr / dc : null;
 }
 

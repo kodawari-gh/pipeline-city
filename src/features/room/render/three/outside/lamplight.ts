@@ -45,7 +45,7 @@ export function withLampLight(m: Material, u: LampUniforms): void {
     key = `${m.customProgramCacheKey()}|lamps`;
   m.onBeforeCompile = (sh, r) => {
     prev.call(m, sh, r);
-    sh.uniforms.lampNight = u.lampNight;
+    sh.uniforms['lampNight'] = u.lampNight;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLampW;')
       .replace(

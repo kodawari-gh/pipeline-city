@@ -70,14 +70,14 @@ export interface GpuStep {
   /** Why it took more than one cycle: a memory bank conflict, else null. */
   stall?: GpuStall | null;
   /** What a vld / vst touched in card memory, for the card's memory view. */
-  mem?: GpuMemTouch;
+  mem?: GpuMemTouch | undefined;
   /** The vector register values the instruction read and wrote, one word per lane of its unit (lane `lane0 + n`): `a` and `b` the source registers as they were, `d` the destination after. */
   vals?: { a?: number[]; b?: number[]; d?: number[] };
   lane0?: number;
 }
 
 /** The words a vld / vst moved, as the card memory held them when it ran. */
-export interface GpuMemTouch {
+interface GpuMemTouch {
   /** Byte address and word moved for each active lane (same order). */
   addrs: number[];
   data: number[];
@@ -87,10 +87,10 @@ export interface GpuMemTouch {
 }
 
 /** Words of card memory a popup shows around the address an instruction touched. */
-export const GPU_AROUND = 9;
+const GPU_AROUND = 9;
 
 /** Why an instruction (or a warp) lost cycles: memory bank conflicts, a pending load, a barrier. */
-export type GpuStall = 'bank' | 'mem' | 'barrier';
+type GpuStall = 'bank' | 'mem' | 'barrier';
 
 const MASK_OPS = new Set(['mseteq', 'msetne', 'msetlt', 'msetge', 'mpush', 'melse', 'mpop']);
 const stepKind = (name: string): GpuStepKind =>

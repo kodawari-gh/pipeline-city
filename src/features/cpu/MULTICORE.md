@@ -20,7 +20,7 @@ Status: **design, not built** (T85). It is the plan for T53 (multicore) and T50 
 
 ## 1. The model
 
-```
+```text
  core 0                                core 1                    a core: engine, L1 I and D, TLB, MMU
  [engine][L1I/D][TLB]                  [engine][L1I/D][TLB]      a logical core (hardware thread): registers, pc,
    thread 0a [regs][pc]  thread 0b       thread 1a  thread 1b      interrupt state, timer, its own interrupt line
