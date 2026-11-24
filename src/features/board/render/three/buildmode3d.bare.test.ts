@@ -62,7 +62,7 @@ function stage(): BuildStage {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -80,13 +80,16 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = s['rebuildAll'] = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
   };
-  s.playAll = () => Promise.resolve();
-  s.door = () => Promise.resolve();
+  s['playAll'] = () => Promise.resolve();
+  s['door'] = () => Promise.resolve();
   return s as unknown as BuildStage;
 }
 

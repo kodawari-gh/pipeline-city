@@ -305,7 +305,7 @@ export function board(r: RectLike, z0: number, z1: number, m: Material, radius =
 /** A cushion or pillow: a box whose faces puff out, thick in the middle and thin at the seams. */
 export function cushion(w: number, h: number, d: number, puff = 1): BufferGeometry {
   const g = new BoxGeometry(2, 2, 2, 10, 4, 10),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i),
       y = p.getY(i),
@@ -337,7 +337,7 @@ export function pillow(
   o: { pinch?: number; lumps?: number; seed?: number } = {},
 ): BufferGeometry {
   const g = new BoxGeometry(2, 2, 2, 24, 2, 18),
-    p = g.attributes.position!;
+    p = g.attributes['position']!;
   const pinch = o.pinch ?? 0.06,
     lumps = o.lumps ?? 0.06,
     s = o.seed ?? 0;
@@ -709,7 +709,7 @@ export function nightstand(): Bedside {
     prof = kept.map((i) => full[i]!),
     y0 = -top + legH;
   const lanternGeo = new LatheGeometry(prof, SEG.lathe),
-    luv = lanternGeo.attributes.uv!;
+    luv = lanternGeo.attributes['uv']!;
   for (let k = 0; k < luv.count; k++) luv.setY(k, kept[k % kept.length]! / (full.length - 1));
   const lantern = place(new Mesh(lanternGeo, shade));
   lantern.position.set(lx, y0, lz);
@@ -925,7 +925,7 @@ function stripLit<T extends MeshStandardMaterial>(m: T): T {
     gap = (FLOOR_Y - top - 1400) / n;
   const f = (v: number) => v.toFixed(1);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uStripColour = STRIP_STAND_IN.colour;
+    sh.uniforms['uStripColour'] = STRIP_STAND_IN.colour;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStripPos;\nvarying vec3 vStripN;')
       .replace(
@@ -978,7 +978,7 @@ function shelvedBooks(books: readonly Book[]): Group {
     col = new Color();
   // the cover: its spine (+x) rounded across the book's thickness, as a bound book's back is, steepest where it meets the boards
   const cover = new BoxGeometry(1, 1, 1, 1, 1, 12),
-    cp = cover.attributes.position!;
+    cp = cover.attributes['position']!;
   for (let i = 0; i < cp.count; i++)
     if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();

@@ -240,7 +240,7 @@ describe('the key: lanyard for the workload, a dial for the time', () => {
     expect(new Set(cols).size).toBe(cols.length);
     for (const t of ['log', 'calc', 'checksum', 'scan', 'db', 'web', 'secure', 'gpu', 'npu', 'hpc'])
       expect(WORKLOAD_COLOURS[t], t).toBeTruthy();
-    expect(lanyardColour(key({ type: 'db' }))).toBe(WORKLOAD_COLOURS.db);
+    expect(lanyardColour(key({ type: 'db' }))).toBe(WORKLOAD_COLOURS['db']);
     expect(lanyardColour(key({ type: 'zzz' }))).toMatch(/^#/);
   });
 

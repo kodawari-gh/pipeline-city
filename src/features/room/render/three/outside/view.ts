@@ -337,7 +337,7 @@ export class OutsideView {
     this.mesh.renderOrder = 1;
     this.mesh.onBeforeRender = (r, _s, camera) => {
       const live = camera === this.live && this.target;
-      this.quad.uniforms.live!.value = live ? 1 : 0;
+      this.quad.uniforms['live']!.value = live ? 1 : 0;
       if (live) this.sight.begin(r.getContext() as QueryGL);
     };
     this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
@@ -436,13 +436,13 @@ export class OutsideView {
       : new Fleet(this.traffic, parked(), this.carLight, this.haze);
     this.signals = new Signals(st.signals);
     this.scene.add(this.fleet.group, this.signals.mesh);
-    this.parts.cars = [this.fleet.group, this.signals.mesh];
+    this.parts['cars'] = [this.fleet.group, this.signals.mesh];
 
     // the sky round the camera, and its small copy the environment sees
     this.sky = skyMaterial(cuts.sky);
     this.dome = skyDome(this.sky, 15000);
     this.scene.add(this.dome);
-    this.parts.sky = [this.dome];
+    this.parts['sky'] = [this.dome];
     this.envScene.add(skyDome(this.sky, 100));
     this.disposables.push(facade.mat, signLight.material as Material);
     if (steam) this.disposables.push(steam.mesh.material as Material);
@@ -612,7 +612,7 @@ export class OutsideView {
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
-    this.quad.uniforms.glowK!.value = this.off.has('glow') ? 0 : GLOW * lights * lights;
+    this.quad.uniforms['glowK']!.value = this.off.has('glow') ? 0 : GLOW * lights * lights;
     this.mirrorAt = this.off.has('mirror') ? 0 : MIRROR * smooth(MIRROR_FROM, 1, gone);
     this.sunMap.frame(hour);
   }
@@ -730,7 +730,7 @@ export class OutsideView {
       t?.dispose();
       t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: ms });
       this.targetSS = ss;
-      this.quad.uniforms.tOut!.value = t.texture;
+      this.quad.uniforms['tOut']!.value = t.texture;
     }
     // the camera outside: the room camera's place in metres, its turn, its lens, cropped to the box
     const c = this.cam,
@@ -796,33 +796,33 @@ export class OutsideView {
     renderer.setRenderTarget(t);
     renderer.clear();
     renderer.render(this.scene, c);
-    if (this.quad.uniforms.glowK!.value > 0) {
+    if (this.quad.uniforms['glowK']!.value > 0) {
       this.glow.run(renderer, t, rw, rh);
-      this.quad.uniforms.tGlow!.value = this.glow.texture;
+      this.quad.uniforms['tGlow']!.value = this.glow.texture;
     }
     // the room in the glass (it does not see the window's own quad, whose back is to it); the eye still, only each few frames: it is a faint ghost
     const qu = this.quad.uniforms;
     if (this.mirrorAt <= 0) this.mirrorShown = false;
     else if (moved || !this.mirrorShown || ++this.mirrorAge >= MIRROR_EVERY) {
       this.mirrorAge = 0;
-      const n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
+      const n = (qu['glassN']!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
       // the window itself out of that picture: it samples the picture, and the glass does not mirror what lies past it
       this.mesh.visible = false;
       this.mirrorShown = this.mirror.draw(renderer, room, camera, this.mesh.getWorldPosition(v), n, fw, fh);
       this.mesh.visible = true;
       if (this.mirrorShown) {
-        qu.tMirror!.value = this.mirror.target!.texture;
-        (qu.mirrorOf!.value as Matrix4).copy(this.mirror.uvOf);
-        (qu.mirrorPx!.value as Vector2).set(1 / this.mirror.target!.width, 1 / this.mirror.target!.height);
+        qu['tMirror']!.value = this.mirror.target!.texture;
+        (qu['mirrorOf']!.value as Matrix4).copy(this.mirror.uvOf);
+        (qu['mirrorPx']!.value as Vector2).set(1 / this.mirror.target!.width, 1 / this.mirror.target!.height);
       }
     }
-    qu.mirrorK!.value = this.mirrorShown ? this.mirrorAt : 0;
+    qu['mirrorK']!.value = this.mirrorShown ? this.mirrorAt : 0;
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
     if (shadowNow) this.sunMap.drawn();
-    this.quad.uniforms.off!.value.set(rx, fh - rb);
-    this.quad.uniforms.ss!.value = ss;
-    this.quad.uniforms.inv!.value.set(1 / t.width, 1 / t.height);
+    this.quad.uniforms['off']!.value.set(rx, fh - rb);
+    this.quad.uniforms['ss']!.value = ss;
+    this.quad.uniforms['inv']!.value.set(1 / t.width, 1 / t.height);
     this.live = camera;
   }
 

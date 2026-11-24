@@ -37,7 +37,7 @@ describe('the Ethernet chip on the motherboard, in 3D', () => {
       expect(b.max.z - BOARD_Z, look).toBeGreaterThanOrEqual(CHIP_H);
       expect(b.max.z - BOARD_Z, look).toBeLessThan(CHIP_H + 1);
       expect(c.top, look).toBe(CHIP_H);
-      expect(c.root.userData.id, look).toBe(ID);
+      expect(c.root.userData['id'], look).toBe(ID);
       expect(findById(c.root, ID), look).toBe(c.root);
     }
   });

@@ -142,7 +142,7 @@ describe('the network jobs travel over the link, each with its own sizes and the
       for (const x of g.snapshot().net.transfers) if (x.dir === 'up') up.add(x.totalMB);
     }
     expect(g.completed).toBe(1);
-    expect([...up]).toEqual([WEB_SIZES.page!.upMB]);
+    expect([...up]).toEqual([WEB_SIZES['page']!.upMB]);
     expect(g.snapshot().jobLog![0]).toMatchObject({ type: 'page', outcome: 'done' });
   });
 

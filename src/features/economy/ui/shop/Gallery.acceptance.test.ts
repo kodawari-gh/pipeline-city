@@ -111,7 +111,7 @@ function tree(v: any): Out[] {
 const text = (outs: Out[]): string => outs.map((o) => (typeof o === 'string' ? o : text(o.kids))).join('');
 const every = (outs: Out[]): Host[] => outs.flatMap((o) => (typeof o === 'string' ? [] : [o, ...every(o.kids)]));
 const named = (outs: Out[], tag: string, label: string): Host => {
-  const hit = every(outs).find((h) => h.tag === tag && (h.props['aria-label'] === label || h.props.title === label));
+  const hit = every(outs).find((h) => h.tag === tag && (h.props['aria-label'] === label || h.props['title'] === label));
   if (!hit) throw new Error(`no ${tag} "${label}"`);
   return hit;
 };
@@ -166,26 +166,26 @@ describe('Gallery acceptance (#42)', () => {
     let out = await render();
     const n = galleryGroups()[0]!.items.length;
     expect(n).toBeGreaterThan(1);
-    const pos = (o: Out[]) => text([every(o).find((h) => String(h.props.class ?? '').includes('gal-pos'))!]);
+    const pos = (o: Out[]) => text([every(o).find((h) => String(h.props['class'] ?? '').includes('gal-pos'))!]);
     expect(pos(out)).toBe(`1 of ${n}`);
 
-    named(out, 'button', 'Next part').props.onClick();
+    named(out, 'button', 'Next part').props['onClick']();
     out = await render();
     expect(pos(out)).toBe(`2 of ${n}`);
-    named(out, 'button', 'Previous part').props.onClick();
+    named(out, 'button', 'Previous part').props['onClick']();
     out = await render();
     expect(pos(out)).toBe(`1 of ${n}`);
 
     expect(named(out, 'button', 'Turn by itself').props['aria-pressed']).toBe(true);
-    named(out, 'button', 'Turn by itself').props.onClick();
+    named(out, 'button', 'Turn by itself').props['onClick']();
     out = await render();
     expect(named(out, 'button', 'Turn by itself').props['aria-pressed']).toBe(false);
     expect(rig.viewer!.setAutoTurn).toHaveBeenLastCalledWith(false);
 
-    named(out, 'button', 'Reset the view (double-click)').props.onClick();
+    named(out, 'button', 'Reset the view (double-click)').props['onClick']();
     expect(rig.viewer!.reset).toHaveBeenCalled();
 
-    named(out, 'button', 'Picture, light and detail settings').props.onClick();
+    named(out, 'button', 'Picture, light and detail settings').props['onClick']();
     expect(settingsOpen.value).toBe(true);
   });
 

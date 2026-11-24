@@ -90,7 +90,9 @@ describe('first frame: the tutorial card (ticket #44, SPEC §5.11)', () => {
   it('6. step 1 is an instruction card with a Next button, not a modal with Start', () => {
     const { outs } = cardFor(STEPS[0]!);
     const els = elements(outs);
-    const modal = els.some((e) => e.props['aria-modal'] === true || String(e.props.class ?? '').includes('modal-back'));
+    const modal = els.some(
+      (e) => e.props['aria-modal'] === true || String(e.props['class'] ?? '').includes('modal-back'),
+    );
     expect(modal, 'a modal is shown on step 1').toBe(false);
     const next = els.some((e) => e.tag === 'button' && textOf(e.kids).trim() === 'Next');
     expect(next, 'a Next button on step 1').toBe(true);

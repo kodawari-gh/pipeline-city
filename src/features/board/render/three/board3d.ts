@@ -946,7 +946,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const plugOf = (o: Object3D): Object3D => {
     let p: Object3D | null = null;
     o.traverse((c) => {
-      if (!p && c.userData.plug) p = c;
+      if (!p && c.userData['plug']) p = c;
     });
     return p ?? o;
   };
@@ -1496,7 +1496,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       jumpRaw(v);
       return v;
     };
-    (window as unknown as Record<string, unknown>).__board = {
+    (window as unknown as { __board?: unknown }).__board = {
       three: true,
       scene,
       renderer,
@@ -1589,7 +1589,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         const s = new Set<string>();
         for (const r of roots())
           r.traverse((o) => {
-            if (typeof o.userData.id === 'string') s.add(o.userData.id);
+            if (typeof o.userData['id'] === 'string') s.add(o.userData['id']);
           });
         return [...s].sort();
       },

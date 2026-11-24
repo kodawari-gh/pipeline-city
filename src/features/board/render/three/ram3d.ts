@@ -248,7 +248,7 @@ export function dimmSlot(
       hy = end < 0 ? r.y : r.y + r.h;
     pivot.position.set(cx, -hy, BOARD_Z);
     pivot.rotation.x = end * open;
-    pivot.userData.latchEnd = end; // (Build my PC swings it open for a stick on its way out: `buildmode3d.ts`)
+    pivot.userData['latchEnd'] = end; // (Build my PC swings it open for a stick on its way out: `buildmode3d.ts`)
     const arm = softBox(
       { x: -SLOT_W / 2 + 4, y: end < 0 ? -34 : 0, w: SLOT_W - 8, h: 34 },
       0,

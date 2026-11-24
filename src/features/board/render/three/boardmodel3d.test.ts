@@ -32,8 +32,8 @@ describe('the RGB strip', () => {
       px = map.image.data as Uint8Array;
     expect(map.image.width).toBe(44);
     const g = lit[0]!.geometry,
-      pos = g.attributes.position!,
-      uv = g.attributes.uv!;
+      pos = g.attributes['position']!,
+      uv = g.attributes['uv']!;
     expect(pos.count).toBe(44 * 24);
     for (const k of [0, 13, 43]) {
       // the LED's box stands at its place along the strip, and all its uvs read its texel
@@ -87,7 +87,7 @@ describe("the board model's Ethernet chip", () => {
         g = GEO.phy!;
       expect(b.phy, `tier ${tier}`).not.toBeNull();
       expect(b.phy!.root.parent, `tier ${tier}`).toBe(b.small);
-      expect(b.phy!.root.userData.id, `tier ${tier}`).toBe('board.nic-ctl');
+      expect(b.phy!.root.userData['id'], `tier ${tier}`).toBe('board.nic-ctl');
       expect(b.phy!.rect.w / g.w, `tier ${tier}`).toBeGreaterThan(0.97);
       expect(b.phy!.rect.x + b.phy!.rect.w / 2, `tier ${tier}`).toBeCloseTo(g.x + g.w / 2, 6);
       expect(b.phy!.rect.y + b.phy!.rect.h / 2, `tier ${tier}`).toBeCloseTo(g.y + g.h / 2, 6);

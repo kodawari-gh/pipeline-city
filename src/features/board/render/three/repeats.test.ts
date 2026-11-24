@@ -31,7 +31,7 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
     if ((mesh.layers.mask & 1) === 0 || !mesh.material.visible) return;
     const g = mesh.geometry,
       m = mesh.material as MeshStandardMaterial,
-      verts = g.attributes.position?.count ?? 0;
+      verts = g.attributes['position']?.count ?? 0;
     if (!g.boundingBox) g.computeBoundingBox();
     box.copy(g.boundingBox!).getSize(size);
     const key = `${verts}|${size.x.toFixed(0)},${size.y.toFixed(0)},${size.z.toFixed(0)}|${m.color?.getHexString()},${m.metalness},${m.roughness},${m.map?.uuid ?? ''},${m.transparent}`;
@@ -40,7 +40,7 @@ export function repeats(root: Object3D, min = 4): { key: string; n: number; vert
     else {
       const path: string[] = [];
       for (let x: Object3D | null = o; x && path.length < 4; x = x.parent)
-        if (x.name || typeof x.userData.id === 'string') path.push(x.name || (x.userData.id as string));
+        if (x.name || typeof x.userData['id'] === 'string') path.push(x.name || (x.userData['id'] as string));
       sets.set(key, { n: 1, verts, at: path.reverse().join('/'), ups: [new Set(), new Set()] });
     }
     const ups = sets.get(key)!.ups;
@@ -67,7 +67,7 @@ describe('the repeated meshes', () => {
       const sets = repeats(root),
         save = sets.reduce((a, s) => a + s.n - 1, 0);
       console.log(`${name}: ${sets.length} sets of more than 4 equal meshes, ${save} draws to save`);
-      if (env.REPEATS_DUMP === '1')
+      if (env['REPEATS_DUMP'] === '1')
         console.log(sets.map((s) => `${s.n} x ${s.verts} verts  ${s.at}  ${s.key}  ${s.up}`).join('\n'));
       expect(save, name).toBeLessThanOrEqual(CEILING[name]);
     }

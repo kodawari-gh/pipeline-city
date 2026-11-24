@@ -23,7 +23,7 @@ function buildings(v: OutsideView): Mesh[] {
   const out: Mesh[] = [];
   inner(v).scene.traverse((o) => {
     const m = o as Mesh;
-    if (m.isMesh && m.geometry.attributes.fuv) out.push(m);
+    if (m.isMesh && m.geometry.attributes['fuv']) out.push(m);
   });
   return out;
 }
@@ -232,8 +232,8 @@ describe('Low city facade bake', () => {
       flooded = 0;
     for (const m of buildings(low)) {
       const a = m.geometry.attributes,
-        aux = a.aux,
-        wy = a.washY;
+        aux = a['aux'],
+        wy = a['washY'];
       if (!aux || !wy) continue;
       for (let i = 0; i < aux.count; i++) {
         if (Math.round(aux.getY(i)) === 1) roofs++;

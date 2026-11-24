@@ -3,9 +3,9 @@ import { BoxGeometry, Mesh, type BufferGeometry, type Material } from 'three';
 
 /** Each face's uvs from its own plane, in metres. */
 function metreUV(g: BufferGeometry): BufferGeometry {
-  const p = g.attributes.position!,
-    n = g.attributes.normal!,
-    uv = g.attributes.uv!;
+  const p = g.attributes['position']!,
+    n = g.attributes['normal']!,
+    uv = g.attributes['uv']!;
   for (let i = 0; i < p.count; i++) {
     const ax = Math.abs(n.getX(i)),
       ay = Math.abs(n.getY(i)),

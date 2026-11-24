@@ -30,9 +30,9 @@ function model() {
     fade = new Group(),
     rotor = new Group(),
     skin = own(mat(0x204060));
-  a.userData.id = 'a';
-  b.userData.id = 'b';
-  rotor.userData.spin = true;
+  a.userData['id'] = 'a';
+  b.userData['id'] = 'b';
+  rotor.userData['spin'] = true;
   a.add(box(10, mat(0xff0000), 0), box(10, mat(0x00ff00), 40), box(12, skin, 80), box(12, skin, 120));
   b.add(box(10, mat(0x0000ff), 200), box(60, mat(0x333333), 300), box(60, mat(0x444444), 400));
   fade.add(box(10, mat(0x111111), 500), box(10, mat(0x222222), 540));
@@ -142,7 +142,7 @@ describe('the distance LOD rule (PERF6)', () => {
     expect(lod.standIns.length).toBe(0);
     let left = 0;
     root.traverse((o) => {
-      if (o.userData.standIn) left++;
+      if (o.userData['standIn']) left++;
     });
     expect(left).toBe(0);
   });
@@ -166,8 +166,8 @@ describe('the distance LOD rule (PERF6)', () => {
       x = box(10, mat(0x00ff00), 40),
       y = box(10, skin, 80);
     const lone = two(own(mat(0x101010)), own(mat(0x202020)), 120);
-    c.userData.id = 'c';
-    d.userData.id = 'd';
+    c.userData['id'] = 'c';
+    d.userData['id'] = 'd';
     c.add(m, x, lone);
     d.add(y);
     root.add(c, d);
@@ -180,7 +180,7 @@ describe('the distance LOD rule (PERF6)', () => {
     expect(of(m).length).toBe(2);
     expect(
       of(m)
-        .map((s) => s.geometry.attributes.position!.count)
+        .map((s) => s.geometry.attributes['position']!.count)
         .sort((p, q) => p - q),
     ).toEqual([36 + 12, 36 + 24]);
     expect(of(m).find((s) => s.material === skin)).toBeDefined();

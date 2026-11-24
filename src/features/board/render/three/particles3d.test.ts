@@ -17,7 +17,7 @@ function stage(): { scene: Scene; fx: Particles3D; points: Points } {
   return { scene, fx, points: scene.children[0] as Points };
 }
 const inAir = (p: Points): number => {
-  const a = p.geometry.attributes.position!.array as Float32Array;
+  const a = p.geometry.attributes['position']!.array as Float32Array;
   let n = 0;
   for (let i = 0; i < a.length; i += 3) if (a[i]! < 1e6) n++;
   return n;
@@ -49,10 +49,10 @@ describe('particles over the machine', () => {
     const { fx, points } = stage();
     run(fx, burnt, 2);
     const before = inAir(points),
-      pos = Array.from(points.geometry.attributes.position!.array as Float32Array);
+      pos = Array.from(points.geometry.attributes['position']!.array as Float32Array);
     for (let i = 0; i < 90; i++) fx.frame(burnt, 0);
     expect(inAir(points)).toBe(before);
-    expect(Array.from(points.geometry.attributes.position!.array as Float32Array)).toEqual(pos);
+    expect(Array.from(points.geometry.attributes['position']!.array as Float32Array)).toEqual(pos);
     expect(points.visible).toBe(true);
   });
 
@@ -63,7 +63,7 @@ describe('particles over the machine', () => {
     expect(inAir(points)).toBe(0);
     expect(points.visible).toBe(false);
     fx.density = 1;
-    const pos = points.geometry.attributes.position as BufferAttribute;
+    const pos = points.geometry.attributes['position'] as BufferAttribute;
     run(fx, running, 2);
     // (nothing to move: the buffer is not marked for upload)
     expect(pos.version).toBe(0);

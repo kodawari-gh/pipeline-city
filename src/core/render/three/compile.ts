@@ -168,7 +168,7 @@ export function startShadowPrograms(r: WebGLRenderer, scene: Object3D, cam: Came
       im.isInstancedMesh === true,
       !!im.instanceColor,
       sk.isSkinnedMesh === true,
-      !!g.attributes.normal,
+      !!g.attributes['normal'],
       !!mp.position,
       !!mp.normal,
       !!mp.color,

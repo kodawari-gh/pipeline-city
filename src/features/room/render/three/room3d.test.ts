@@ -136,8 +136,8 @@ function cityChecksum(room: Room3D): string {
     const m = o as Mesh;
     if (!m.isMesh) return;
     meshes++;
-    vertices += m.geometry.attributes.position?.count ?? 0;
-    for (const v of m.geometry.attributes.position?.array ?? []) sum += v;
+    vertices += m.geometry.attributes['position']?.count ?? 0;
+    for (const v of m.geometry.attributes['position']?.array ?? []) sum += v;
   });
   return `${meshes}/${vertices}/${sum.toFixed(3)}`;
 }
@@ -210,8 +210,8 @@ it('takes the baked bounce and then shares equal materials again, the replaced o
   };
   priv.takeBake(bake);
   // both took the light map, and the two equal materials are one again
-  expect(a.geometry.attributes.uv1).toBeDefined();
-  expect(b.geometry.attributes.uv1).toBeDefined();
+  expect(a.geometry.attributes['uv1']).toBeDefined();
+  expect(b.geometry.attributes['uv1']).toBeDefined();
   expect(b.material).toBe(a.material);
   expect((a.material as MeshStandardMaterial).lightMap).not.toBeNull();
   expect(priv.envs.mats.has(dropped)).toBe(false);

@@ -96,7 +96,7 @@ describe('the base colours', () => {
       const list = [...set.keys()].sort((a, b) => a - b),
         pairs = nearPairs(list, 12);
       console.log(`${name}: ${list.length} base colours, ${pairs.length} pairs nearer than 12`);
-      if (env.PALETTE_DUMP === '1') {
+      if (env['PALETTE_DUMP'] === '1') {
         console.log(list.map((c) => `${hex(c)} x${set.get(c)}`).join('\n'));
         console.log(pairs.map(([a, b, k]) => `${hex(a)} ${hex(b)} ${k}`).join('\n'));
       }

@@ -113,12 +113,12 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     expect(button('Auto').style.cssText).toContain(lit);
 
     // a scale tap is a toggle on top of the picture: Auto is no longer lit
-    button('0.5').handlers.click!();
+    button('0.5').handlers['click']!();
     expect(tierRecord.value.mode).toBe('auto');
     frame!(1000);
     expect(button('Auto').style.cssText).not.toContain(lit);
 
-    button('Auto').handlers.click!();
+    button('Auto').handlers['click']!();
     expect(tierRecord.value.mode).toBe('auto');
     expect(button('Auto').style.cssText).toContain(lit);
   });
@@ -145,11 +145,11 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     mountDebug({ renderer: rig(), canvas: cvs() });
     frame!(0);
     expect(button('Shadows on')).toBeDefined();
-    button('Shadows on').handlers.click!();
+    button('Shadows on').handlers['click']!();
     expect(effective.value.shadows).toBe(0);
     expect(graphics.value.shadows).toBe(3);
     frame!(1000);
-    button('Shadows off').handlers.click!();
+    button('Shadows off').handlers['click']!();
     expect(effective.value.shadows).toBe(3);
   });
 
@@ -158,20 +158,20 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     debugOverride.value = {};
     mountDebug({ renderer: rig(), canvas: cvs() });
     frame!(0);
-    button('Lights All').handlers.click!();
+    button('Lights All').handlers['click']!();
     expect(effective.value.lights).toBe(4);
     frame!(1000);
-    button('Lights 4').handlers.click!();
+    button('Lights 4').handlers['click']!();
     expect(effective.value.lights).toBe(1);
     expect(graphics.value.lights).toBe(PRESETS.high.lights);
     frame!(2000);
-    button('Lights 1').handlers.click!();
+    button('Lights 1').handlers['click']!();
     expect(effective.value.lights).toBe(0);
-    button('Lights All').handlers.click!();
-    button('Lights 4').handlers.click!();
+    button('Lights All').handlers['click']!();
+    button('Lights 4').handlers['click']!();
     expect(effective.value.lights).toBe(1);
     frame!(3000);
-    button('Auto').handlers.click!();
+    button('Auto').handlers['click']!();
     expect(debugOverride.value).toEqual({});
     expect(tierRecord.value.mode).toBe('auto');
   });
@@ -181,10 +181,10 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
       machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
     frame!(0);
-    button('Hide city').handlers.click!();
-    button('Hide machine').handlers.click!();
+    button('Hide city').handlers['click']!();
+    button('Hide machine').handlers['click']!();
     expect([city.visible, machine.visible]).toEqual([false, false]);
-    button('Auto').handlers.click!();
+    button('Auto').handlers['click']!();
     expect([city.visible, machine.visible]).toEqual([true, true]);
     // and they stay shown: the per-frame sync does not hide them again
     frame!(1000);
@@ -193,7 +193,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     expect(button('Hide city').style.cssText).not.toContain('#3a7d44');
     expect(button('Hide machine').style.cssText).not.toContain('#3a7d44');
     // a new tap hides again (the hide flags were reset, not stuck)
-    button('Hide city').handlers.click!();
+    button('Hide city').handlers['click']!();
     expect(city.visible).toBe(false);
   });
 
@@ -204,13 +204,13 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine }) });
     frame!(0);
     const before = graphics.value;
-    button('Hide city').handlers.click!();
+    button('Hide city').handlers['click']!();
     expect([city.visible, machine.visible]).toEqual([false, true]);
-    button('Hide machine').handlers.click!();
+    button('Hide machine').handlers['click']!();
     expect([city.visible, machine.visible]).toEqual([false, false]);
     expect(graphics.value).toBe(before);
-    button('Hide city').handlers.click!();
-    button('Hide machine').handlers.click!();
+    button('Hide city').handlers['click']!();
+    button('Hide machine').handlers['click']!();
     expect([city.visible, machine.visible]).toEqual([true, true]);
   });
 
@@ -218,7 +218,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     let machine = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine }) });
     frame!(0);
-    button('Hide machine').handlers.click!();
+    button('Hide machine').handlers['click']!();
     const next = { visible: true };
     machine = next;
     frame!(1000);
@@ -246,18 +246,18 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
     frame!(0);
     const lit = '#3a7d44';
-    button(label).handlers.click!();
+    button(label).handlers['click']!();
     expect([...layers.off]).toEqual([key]);
     expect(city.visible).toBe(true);
     frame!(1000);
     expect(button(label).style.cssText).toContain(lit);
-    button('Auto').handlers.click!();
+    button('Auto').handlers['click']!();
     expect(layers.off.size).toBe(0);
     frame!(2000);
     expect(button(label).style.cssText).not.toContain(lit);
     // a second tap on a layer turns it off again, a third on
-    button(label).handlers.click!();
-    button(label).handlers.click!();
+    button(label).handlers['click']!();
+    button(label).handlers['click']!();
     expect(layers.off.size).toBe(0);
   });
 
@@ -266,7 +266,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
       city = { visible: true };
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city, machine: null, layers }) });
     frame!(0);
-    button('Hide city').handlers.click!();
+    button('Hide city').handlers['click']!();
     expect(city.visible).toBe(false);
     expect(layers.off.size).toBe(0);
   });
@@ -275,7 +275,7 @@ describe('mountDebug (stub DOM, 120 Hz rAFs)', () => {
     let layers: ReturnType<typeof cityStub> | null = null;
     mountDebug({ renderer: rig(), canvas: cvs(), roots: () => ({ city: null, machine: null, layers }) });
     frame!(0);
-    button('No cars').handlers.click!();
+    button('No cars').handlers['click']!();
     layers = cityStub();
     frame!(1000);
     expect([...layers.off]).toEqual(['cars']);

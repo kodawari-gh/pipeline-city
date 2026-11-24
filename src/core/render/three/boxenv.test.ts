@@ -54,7 +54,7 @@ describe('box-projected reflections', () => {
     boxProjected(m, boxEnv([0, 0, 0], [2, 2, 2], [1, 1, 1]));
     expect(m.customProgramCacheKey()).toBe(key);
     once(m);
-    expect(compiled(m).uniforms.boxMax).toBe(box.max);
+    expect(compiled(m).uniforms['boxMax']).toBe(box.max);
   });
 
   it('a copy that took the hooks stays as it is; a plain clone takes its own patch', () => {

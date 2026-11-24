@@ -19,7 +19,7 @@ const elements = (v: Node): VEl[] => {
   if (v && typeof v === 'object' && 'props' in v) return [v];
   return [];
 };
-const childrenOf = (el: VEl): Node => el.props.children as Node;
+const childrenOf = (el: VEl): Node => el.props['children'] as Node;
 
 /** Every element in the tree, depth first. */
 function all(v: Node): VEl[] {
@@ -70,7 +70,7 @@ function render(ready = true) {
   const tree = MainMenu({ ready }) as unknown as Node;
   const nav = all(tree).find((el) => el.props['aria-label'] === 'Main menu');
   if (!nav) throw new Error('no Main menu nav');
-  const rows = elements(childrenOf(nav)).filter((el) => String(el.props.class ?? '').includes('mm-btn'));
+  const rows = elements(childrenOf(nav)).filter((el) => String(el.props['class'] ?? '').includes('mm-btn'));
   return { nav, rows };
 }
 
@@ -125,7 +125,7 @@ describe('the loading screen rows', () => {
     for (const name of ['Build my PC', 'Gallery']) {
       const row = rows.find((r) => titleOf(r).startsWith(name));
       expect(row, name).toBeDefined();
-      expect(row!.props.disabled, name).toBe(true);
+      expect(row!.props['disabled'], name).toBe(true);
       expect(titleOf(row!), name).toContain('after loading');
     }
   });
@@ -134,7 +134,7 @@ describe('the loading screen rows', () => {
     const { rows } = render(true);
     for (const name of ['Build my PC', 'Gallery']) {
       const row = rows.find((r) => titleOf(r).startsWith(name));
-      expect(row!.props.disabled, name).toBeFalsy();
+      expect(row!.props['disabled'], name).toBeFalsy();
     }
   });
 });
@@ -142,12 +142,12 @@ describe('the loading screen rows', () => {
 describe('left and right on the main menu', () => {
   it('do nothing on a row: the main menu has no value rows, so the key is not taken', () => {
     const tree = MainMenu({ ready: true }) as unknown as Node;
-    const menu = all(tree).find((el) => typeof el.props.onKeyDown === 'function')!;
+    const menu = all(tree).find((el) => typeof el.props['onKeyDown'] === 'function')!;
     const row = { dataset: { group: '0' }, classList: { contains: () => false } };
     vi.stubGlobal('document', { activeElement: row, getElementById: () => null });
     for (const key of ['ArrowLeft', 'ArrowRight']) {
       const preventDefault = vi.fn();
-      menu.props.onKeyDown({ key, preventDefault });
+      menu.props['onKeyDown']({ key, preventDefault });
       expect(preventDefault, key).not.toHaveBeenCalled();
     }
   });

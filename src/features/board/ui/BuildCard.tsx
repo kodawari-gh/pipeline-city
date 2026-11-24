@@ -45,7 +45,7 @@ export function BuildCard({
       vh = window.innerHeight;
     if (sheet) {
       const f = sheet()?.getBoundingClientRect();
-      el.dataset.side = 'dock';
+      el.dataset['side'] = 'dock';
       el.style.transform = 'none';
       el.style.left = '0.5rem';
       el.style.right = '0.5rem';
@@ -66,7 +66,7 @@ export function BuildCard({
     // (whatever the free strip was, the card never leaves the screen)
     p.x = Math.min(Math.max(0, p.x), Math.max(0, vw - size.w));
     p.y = Math.min(Math.max(0, p.y), Math.max(0, vh - size.h));
-    el.dataset.side = p.side;
+    el.dataset['side'] = p.side;
     el.style.setProperty('--tail', `${p.tail}px`);
     el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
   });

@@ -334,7 +334,7 @@ const GRAVE_MAX = 10;
 /** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
 export const untag = (root: Object3D): void =>
   root.traverse((o) => {
-    if (typeof o.userData.id === 'string') delete o.userData.id;
+    if (typeof o.userData['id'] === 'string') delete o.userData['id'];
   });
 
 /** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
@@ -491,7 +491,7 @@ export class Machine3D {
     this.heldSet.clear();
     for (const [id, b] of this.built)
       for (const c of b.g.children)
-        if (c.userData.rig && !c.visible) {
+        if (c.userData['rig'] && !c.visible) {
           this.heldSet.add(id);
           break;
         }
@@ -665,7 +665,7 @@ export class Machine3D {
       if (this.pump && this.rad) {
         const h = new LoopHoses(
           hoseEnds(this.rad.fit),
-          this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator)),
+          this.caseEnv(this.obstacles.filter((o) => o.userData['cooler'] || o.userData['radiator'])),
         );
         this.hosePaths = h.paths();
         // (each hose's sleeve glows by its own water in the thermal view: the hot one first)
@@ -828,7 +828,7 @@ export class Machine3D {
 
   /** Let the live frame drive a fan or a light. */
   private spin(s: Spin) {
-    s.rotor.userData.spin = true;
+    s.rotor.userData['spin'] = true;
     if (s.ring) own(s.ring);
     this.fans.push({ ...s, speed: 0 });
   }
@@ -1364,7 +1364,7 @@ export class Machine3D {
         );
         this.softSkin(d.id, ...m.skin);
         this.obstacles.push(m.root);
-        m.root.userData.cooler = true;
+        m.root.userData['cooler'] = true;
         break;
       }
       case 'ram': {
@@ -1489,7 +1489,7 @@ export class Machine3D {
       case 'vrm-sink':
       case 'ram-sink': {
         // as a real regulator sink (sink3d.ts); its fan sits in the housing over the fins, blowing down into them
-        g.userData.sink = true;
+        g.userData['sink'] = true;
         this.obstacles.push(g);
         const { spot, foot, skin } = sinkBody(g, T, spec.kind, visual);
         this.thermalSkin(d.id, ...skin);
@@ -1509,7 +1509,7 @@ export class Machine3D {
         if (this.rad) {
           const { fit, span } = this.rad,
             m = this.model(g, radiatorModel(fit, radiatorGrade(visual), span.ids));
-          m.root.userData.radiator = true;
+          m.root.userData['radiator'] = true;
           this.obstacles.push(m.root);
           this.thermalSkin(d.id, ...m.skin);
         }
@@ -1869,8 +1869,8 @@ export class Machine3D {
               : { at: at(p.anchor[0], p.anchor[1], SINK_FAN_MID), dir: [p.anchorDir[0], -p.anchorDir[1], 0] }; // (out of a sink fan's frame)
         const skip =
           p.id === 'cpufan'
-            ? this.obstacles.filter((o) => o.userData.cooler)
-            : this.obstacles.filter((o) => o.userData.sink);
+            ? this.obstacles.filter((o) => o.userData['cooler'])
+            : this.obstacles.filter((o) => o.userData['sink']);
         const fenv = this.caseEnv(skip);
         if (p.id === 'sysfan') {
           // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
@@ -2309,7 +2309,7 @@ export class Machine3D {
 
   private showRig(id: string): void {
     const b = this.built.get(id);
-    if (b) for (const c of b.g.children) if (c.userData.rig) c.visible = !this.unrun.has(id);
+    if (b) for (const c of b.g.children) if (c.userData['rig']) c.visible = !this.unrun.has(id);
   }
 
   /** Build one draggable cable again as it stands (`seated`, default as it was; a dropped plug at its rest pose): the others stay as they are. */
@@ -2325,7 +2325,7 @@ export class Machine3D {
     if (!rig || !b) return false;
     if (seated !== undefined) b.seated = seated;
     for (const c of [...b.g.children])
-      if (c.userData.rig) {
+      if (c.userData['rig']) {
         b.g.remove(c);
         disposeTree(c);
       }
@@ -2547,7 +2547,7 @@ export class Machine3D {
     if (slot === 'cpu0') {
       // the load lever is down on a CPU and lifted on a bare socket (as a memory socket's latches close on a stick and open without one)
       this.root.traverse((o) => {
-        if (o.userData.leverOf === slot) o.rotation.y = filled ? 0 : LEVER_OPEN;
+        if (o.userData['leverOf'] === slot) o.rotation.y = filled ? 0 : LEVER_OPEN;
       });
       // the socket is merged into the board by now, so a bare one is picked by an unseen box over it; its gold contacts show
       const pick = this.picks.get(slot);
@@ -2580,7 +2580,7 @@ export class Machine3D {
       sock = this.sockets.get(slot),
       pick = this.picks.get(slot);
     if (sock) {
-      if (filled) delete sock.userData.id;
+      if (filled) delete sock.userData['id'];
       else tag(sock, slot);
     }
     if (m[1] === 'pcie') {
@@ -2598,9 +2598,9 @@ export class Machine3D {
     }
     if (m[1] === 'dimm')
       this.root.traverse((o) => {
-        if (o.userData.dimm === slot)
+        if (o.userData['dimm'] === slot)
           for (const p of o.children)
-            p.rotation.x = ((p.userData.latchEnd as number | undefined) ?? 0) * (filled ? 0 : 0.5);
+            p.rotation.x = ((p.userData['latchEnd'] as number | undefined) ?? 0) * (filled ? 0 : 0.5);
       });
     if (filled && pick) {
       freeBox(pick);

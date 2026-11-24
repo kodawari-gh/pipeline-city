@@ -156,18 +156,18 @@ export class Water {
       mean = (hotC + coldC) / 2,
       f = Math.max(0, Math.min(1, flow));
     this.phase = (this.phase + dt * SPEED * f) % 1000;
-    const k = u.uK!.value as number[];
+    const k = u['uK']!.value as number[];
     for (let i = 0; i < KNOTS; i++) {
       const level = this.net.level[Math.min(i, this.net.level.length - 1)] ?? 0;
       k[i] = mean + SPREAD * (coldC + level * (hotC - coldC) - mean);
     }
-    u.uLo!.value = lo;
-    u.uHi!.value = hi;
-    u.uPhase!.value = this.phase;
-    u.uMove!.value = Math.min(1, f * 3);
+    u['uLo']!.value = lo;
+    u['uHi']!.value = hi;
+    u['uPhase']!.value = this.phase;
+    u['uMove']!.value = Math.min(1, f * 3);
     // still water is dimmer: the pump has stopped
-    u.uStrength!.value = STRENGTH * (0.45 + 0.55 * Math.min(1, f * 3));
-    u.uPixel!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
+    u['uStrength']!.value = STRENGTH * (0.45 + 0.55 * Math.min(1, f * 3));
+    u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
   }
 
   dispose(): void {

@@ -304,13 +304,22 @@ export const fingerprint = (d: DeviceInfo): string => `${d.renderer}|${d.width}x
 /** A stored tier record made safe, or null. */
 export function parseTierRecord(raw: unknown): TierRecord | null {
   const o = raw as Record<string, unknown> | null;
-  if (!o || typeof o !== 'object' || (o.mode !== 'auto' && o.mode !== 'manual') || !TIERS.includes(o.tier as Tier))
+  if (
+    !o ||
+    typeof o !== 'object' ||
+    (o['mode'] !== 'auto' && o['mode'] !== 'manual') ||
+    !TIERS.includes(o['tier'] as Tier)
+  )
     return null;
-  const rec: TierRecord = { mode: o.mode, tier: o.tier as Tier, reason: typeof o.reason === 'string' ? o.reason : '' };
-  if (TIERS.includes(o.maxUp as Tier)) {
-    rec.maxUp = o.maxUp as Tier;
-    if (typeof o.maxUpAt === 'number' && Number.isFinite(o.maxUpAt)) rec.maxUpAt = o.maxUpAt;
-    if (typeof o.maxUpFp === 'string') rec.maxUpFp = o.maxUpFp;
+  const rec: TierRecord = {
+    mode: o['mode'],
+    tier: o['tier'] as Tier,
+    reason: typeof o['reason'] === 'string' ? o['reason'] : '',
+  };
+  if (TIERS.includes(o['maxUp'] as Tier)) {
+    rec.maxUp = o['maxUp'] as Tier;
+    if (typeof o['maxUpAt'] === 'number' && Number.isFinite(o['maxUpAt'])) rec.maxUpAt = o['maxUpAt'];
+    if (typeof o['maxUpFp'] === 'string') rec.maxUpFp = o['maxUpFp'];
   }
   return rec;
 }
@@ -341,8 +350,8 @@ const OLD_LOW = { scale: 0.6, shadows: 1 } as const;
 function movedOldLow(saved: unknown): unknown {
   if (!saved || typeof saved !== 'object') return saved;
   const o = saved as Record<string, unknown>;
-  if (typeof o.v === 'number' && o.v >= 4) return saved;
-  if (o.scale !== OLD_LOW.scale || o.shadows !== OLD_LOW.shadows) return saved;
+  if (typeof o['v'] === 'number' && o['v'] >= 4) return saved;
+  if (o['scale'] !== OLD_LOW.scale || o['shadows'] !== OLD_LOW.shadows) return saved;
   const same = (k: keyof PresetOptions) =>
     o[k] === PRESETS.low[k] || (o[k] === undefined && (k === 'lights' || k === 'lightShadows'));
   if (!presetKeys.every((k) => k === 'scale' || k === 'shadows' || same(k))) return saved;
@@ -352,10 +361,10 @@ function movedOldLow(saved: unknown): unknown {
 // the touch default from before tiers: Low's values (scale 0.75, shadows 0), 30 fps, and no lamp keys
 function isOldTouchDefault(raw: unknown): boolean {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  if (o.lights !== undefined || o.lightShadows !== undefined) return false;
+  if (o['lights'] !== undefined || o['lightShadows'] !== undefined) return false;
   const want: Record<string, number> = { ...PRESETS.low, fps: 30, brightness: 1 };
-  delete want.lights;
-  delete want.lightShadows;
+  delete want['lights'];
+  delete want['lightShadows'];
   return Object.keys(want).every((k) => o[k] === want[k]);
 }
 
@@ -425,9 +434,10 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>,
     out = { ...base };
   for (const k of Object.keys(CHOICES) as Choice[]) if (CHOICES[k].some(([v]) => v === o[k])) out[k] = o[k] as number;
-  if (typeof o.scale === 'number' && Number.isFinite(o.scale)) out.scale = clamp(o.scale, SCALE_MIN, SCALE_MAX);
+  if (typeof o['scale'] === 'number' && Number.isFinite(o['scale']))
+    out.scale = clamp(o['scale'], SCALE_MIN, SCALE_MAX);
   // an old save has no lamp keys: take them from the preset its other keys match, so low stays low and medium stays medium
-  if (o.lights === undefined && o.lightShadows === undefined) {
+  if (o['lights'] === undefined && o['lightShadows'] === undefined) {
     const p = isOldTouchDefault(raw)
       ? PRESET_NAMES[0]
       : PRESET_NAMES.find(([id]) =>
@@ -438,9 +448,9 @@ export function parseGraphics(raw: unknown, base: Graphics = DEFAULTS): Graphics
       out.lightShadows = PRESETS[p[0]].lightShadows;
     }
   }
-  if (typeof o.brightness === 'number' && Number.isFinite(o.brightness))
-    out.brightness = clamp(o.brightness, BRIGHT_MIN, BRIGHT_MAX);
-  if (typeof o.auto === 'boolean') out.auto = o.auto;
+  if (typeof o['brightness'] === 'number' && Number.isFinite(o['brightness']))
+    out.brightness = clamp(o['brightness'], BRIGHT_MIN, BRIGHT_MAX);
+  if (typeof o['auto'] === 'boolean') out.auto = o['auto'];
   return out;
 }
 

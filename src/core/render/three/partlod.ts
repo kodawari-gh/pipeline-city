@@ -98,7 +98,7 @@ export function lodSources(root: Object3D, o: LodScope = {}): Source[] {
     out: Source[] = [];
   const walk = (x: Object3D, anchor: Object3D, off: boolean): void => {
     const u = x.userData;
-    if (!x.visible || u.spin || u.live || u.standIn) return;
+    if (!x.visible || u['spin'] || u['live'] || u['standIn']) return;
     const own = x !== root && anchors.has(x),
       a = own ? x : anchor,
       left = own ? false : off || skip.has(x),
@@ -260,7 +260,7 @@ export class PartLod {
       if (only && b.anchor !== only) return true;
       this.swap(b, false);
       b.mesh.removeFromParent();
-      b.mesh.userData.standIn = false;
+      b.mesh.userData['standIn'] = false;
       b.mesh.geometry.dispose();
       return false;
     });

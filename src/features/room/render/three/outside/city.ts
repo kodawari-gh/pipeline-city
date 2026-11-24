@@ -27,7 +27,7 @@ function skyIn(scene: Object3D): SkyUniforms | null {
   let u: SkyUniforms | null = null;
   scene.traverse((o) => {
     const m = (o as Mesh).material as ShaderMaterial | undefined;
-    if (!u && m?.uniforms?.top && m.uniforms.duskK) u = m.uniforms as unknown as SkyUniforms;
+    if (!u && m?.uniforms?.['top'] && m.uniforms['duskK']) u = m.uniforms as unknown as SkyUniforms;
   });
   return u;
 }

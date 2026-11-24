@@ -85,7 +85,7 @@ describe('BuildStage.frame when idle', () => {
       clientWidth: 400,
       clientHeight: 800,
     });
-    s._machine = {
+    s['_machine'] = {
       moving: false,
       doorOpen: false,
       frame() {},
@@ -94,8 +94,8 @@ describe('BuildStage.frame when idle', () => {
       lod() {},
       root: new Group(),
     };
-    s._game = {}; // (the snapshot getter wants a game; the stub below gives the snapshot)
-    s.snaps = { of: () => ({}), drop() {} };
+    s['_game'] = {}; // (the snapshot getter wants a game; the stub below gives the snapshot)
+    s['snaps'] = { of: () => ({}), drop() {} };
     stage = s as unknown as { frame: (now: number) => void };
     now = 1000;
     rig.lum = HOLD;
@@ -154,7 +154,7 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
       clientHeight: 800,
     });
     machineRoot = new Group();
-    s._machine = {
+    s['_machine'] = {
       moving: false,
       doorOpen: false,
       frame() {},
@@ -163,8 +163,8 @@ describe('BuildStage.frame and the distance stand-ins (PHONE-01)', () => {
       lod() {},
       root: machineRoot,
     };
-    s._game = {};
-    s.snaps = { of: () => ({}), drop() {} };
+    s['_game'] = {};
+    s['snaps'] = { of: () => ({}), drop() {} };
     stage = s as unknown as typeof stage;
     now = 1000;
   });
@@ -219,9 +219,17 @@ describe('BuildStage.frame and the shut side panel', () => {
       clientWidth: 400,
       clientHeight: 800,
     });
-    s._machine = { moving: false, doorOpen: false, frame() {}, setOpen, holdDetail() {}, lod() {}, root: new Group() };
-    s._game = {};
-    s.snaps = { of: () => ({}), drop() {} };
+    s['_machine'] = {
+      moving: false,
+      doorOpen: false,
+      frame() {},
+      setOpen,
+      holdDetail() {},
+      lod() {},
+      root: new Group(),
+    };
+    s['_game'] = {};
+    s['snaps'] = { of: () => ({}), drop() {} };
     const stage = s as unknown as {
       frame: (now: number) => void;
       status: { value: { busy: boolean; step: string; log: string[]; rev: number } };

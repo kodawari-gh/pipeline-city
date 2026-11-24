@@ -341,8 +341,8 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   if (board.burnt) noPower = 'board dead: replace the board';
   else if (!psu) noPower = 'no PSU installed';
   else if (psu.dev.burnt) noPower = 'the PSU is burnt out';
-  else if (!cables.atx) noPower = 'the 24-pin ATX cable is not connected';
-  else if (!cables.pcmains) noPower = 'the PC power cord is not plugged into the wall';
+  else if (!cables['atx']) noPower = 'the 24-pin ATX cable is not connected';
+  else if (!cables['pcmains']) noPower = 'the PC power cord is not plugged into the wall';
   let post: BootCheck['post'] = null;
   const cpu = findDevices(board, 'cpu')[0];
   const ram = findDevices(board, 'ram').filter((d) => !d.burnt);
@@ -351,9 +351,9 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   else if (!findDevices(board, 'cooler').some((d) => !d.burnt))
     post = { reason: 'no CPU cooler installed: it mounts on the CPU', short: 'NO CPU COOLER' };
   // an air heatsink still cools without its fans (the CPU runs hot); a liquid loop's pump must run
-  else if (!cables.cpufan && findDevices(board, 'cooler').some((d) => (deviceSpec(d) as CoolerSpec).loop))
+  else if (!cables['cpufan'] && findDevices(board, 'cooler').some((d) => (deviceSpec(d) as CoolerSpec).loop))
     post = { reason: 'the pump cable is not connected: plug it into the CPU_FAN header', short: 'NO CPU FAN' };
-  else if (!cables.cpu) post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
+  else if (!cables['cpu']) post = { reason: 'the 8-pin CPU power cable is not connected', short: 'NO CPU POWER' };
   else if (ram.length === 0) post = { reason: 'no working RAM installed', short: 'NO RAM' };
   else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {
     const missing = PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).filter((id) => !cables[id]).length;

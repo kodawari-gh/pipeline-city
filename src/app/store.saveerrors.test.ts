@@ -147,10 +147,10 @@ describe('offline', () => {
     online.value = false;
     watchConnection();
     expect(shown()).toMatch(/offline/i);
-    listeners.online!();
+    listeners['online']!();
     expect(online.value).toBe(true);
     expect(lastError.value).toBeNull();
-    listeners.offline!();
+    listeners['offline']!();
     expect(online.value).toBe(false);
   });
 });

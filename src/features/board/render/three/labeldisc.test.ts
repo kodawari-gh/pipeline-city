@@ -12,14 +12,14 @@ describe('labelDisc', () => {
     const [rim, top] = labelDisc(r, t, z, sides, new MeshStandardMaterial(), new MeshStandardMaterial());
     // the old part: a full cylinder, its +y cap turned to +z
     const old = new CylinderGeometry(r, r, t, sides).rotateX(Math.PI / 2),
-      op = old.attributes.position!,
-      ou = old.attributes.uv!,
-      on = old.attributes.normal!;
+      op = old.attributes['position']!,
+      ou = old.attributes['uv']!,
+      on = old.attributes['normal']!;
     const cap: { x: number; y: number; u: number; v: number }[] = [];
     for (let i = 0; i < op.count; i++)
       if (on.getZ(i) > 0.9) cap.push({ x: op.getX(i), y: op.getY(i), u: ou.getX(i), v: ou.getY(i) });
-    const p = top!.geometry.attributes.position!,
-      uv = top!.geometry.attributes.uv!;
+    const p = top!.geometry.attributes['position']!,
+      uv = top!.geometry.attributes['uv']!;
     expect(cap.length).toBeGreaterThan(sides);
     for (let i = 0; i < p.count; i++) {
       expect(p.getZ(i)).toBeCloseTo(z + t / 2, 6);
@@ -28,6 +28,6 @@ describe('labelDisc', () => {
       expect(uv.getX(i)).toBeCloseTo(same!.u, 5);
       expect(uv.getY(i)).toBeCloseTo(same!.v, 5);
     }
-    expect(rim!.geometry.attributes.uv).toBeUndefined();
+    expect(rim!.geometry.attributes['uv']).toBeUndefined();
   });
 });

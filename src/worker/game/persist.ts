@@ -245,7 +245,7 @@ export function restoreSave(this: Game, s: SaveV5): void {
   this.lastCompleted = s.lastCompleted && { ...s.lastCompleted };
   this.inventory = s.inventory.map((i) => ({ ...i }));
   this.nextInvId = s.nextInvId;
-  this.cables = { ...s.cables, pcmains: s.cables.pcmains ?? true, monmains: s.cables.monmains ?? true }; // a save from before the wall cords had them plugged
+  this.cables = { ...s.cables, pcmains: s.cables['pcmains'] ?? true, monmains: s.cables['monmains'] ?? true }; // a save from before the wall cords had them plugged
   pruneCables(this.board, this.cables); // (a cord belongs to its PSU or monitor: one that has none comes off)
   // a save from before the fan cables had the machine running: every fan it has is plugged (a machine that used to run is not locked out of POST)
   for (const [k, v] of Object.entries(allCables(this.board)))
@@ -295,12 +295,12 @@ export function restoreSave(this: Game, s: SaveV5): void {
   }
   if (this.lan && this.lan !== 'board' && !this.board.devices.some((d) => d.id === this.lan)) this.lan = null;
   if (!this.routerTier) this.lan = null;
-  this.cables.lan = this.lan !== null;
+  this.cables['lan'] = this.lan !== null;
   // the video cable's port (absent: the board's); a card that is not there any more puts it back
   this.video = typeof s.video === 'string' ? s.video : 'board';
   if (this.video !== 'board' && !this.videoCard()) {
     this.video = 'board';
-    this.cables.video = false;
+    this.cables['video'] = false;
   }
   this.log = [];
   this.osCfg = {

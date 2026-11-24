@@ -38,17 +38,17 @@ function expectKept(root: Object3D, what: string): number {
     if (!parts.length) return;
     const out = o as Mesh,
       g = out.geometry,
-      pc = g.attributes._pc as BufferAttribute,
-      prm = g.attributes._prm as BufferAttribute,
-      uv = g.attributes.uv as BufferAttribute;
+      pc = g.attributes['_pc'] as BufferAttribute,
+      prm = g.attributes['_prm'] as BufferAttribute,
+      uv = g.attributes['uv'] as BufferAttribute;
     const pal = out.material as MeshStandardMaterial;
     let at = 0;
     for (const { mesh } of parts) {
       const src = mesh.material as MeshStandardMaterial,
         sg = mesh.geometry,
         sidx = sg.index,
-        suv = sg.attributes.uv as BufferAttribute | undefined;
-      const n = sidx ? sidx.count : sg.attributes.position!.count;
+        suv = sg.attributes['uv'] as BufferAttribute | undefined;
+      const n = sidx ? sidx.count : sg.attributes['position']!.count;
       expect(pal.map, `${what}: map of ${src.color.getHexString()}`).toBe(src.map);
       expect(pal.side, `${what}: side`).toBe(src.side);
       expect(pal.alphaTest, `${what}: alphaTest`).toBe(src.alphaTest);
@@ -69,7 +69,7 @@ function expectKept(root: Object3D, what: string): number {
       at += n;
       checked++;
     }
-    expect(at, `${what}: vertices`).toBe(g.attributes.position!.count);
+    expect(at, `${what}: vertices`).toBe(g.attributes['position']!.count);
   });
   return checked;
 }
@@ -103,7 +103,7 @@ describe("a palette merge keeps every source mesh's look", () => {
     expect(parts).toContain(s.cu);
     expect(parts).toContain(s.grey);
     const labelMesh = merged.find((m) => (m.material as MeshStandardMaterial).map === s.map)!;
-    const uv = labelMesh.geometry.attributes.uv as BufferAttribute,
+    const uv = labelMesh.geometry.attributes['uv'] as BufferAttribute,
       us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)),
       vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);
@@ -125,12 +125,12 @@ describe("a palette merge keeps every source mesh's look", () => {
     const made = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2]);
     expect(made.length).toBeGreaterThan(0);
     for (const { mesh, sources } of made) {
-      const pc = mesh.geometry.attributes._pc as BufferAttribute | undefined;
+      const pc = mesh.geometry.attributes['_pc'] as BufferAttribute | undefined;
       if (!pc) continue; // (a set that keeps its own material: it draws with it)
       let at = 0;
       for (const src of sources) {
         const m = src.material as MeshStandardMaterial,
-          n = src.geometry.index ? src.geometry.index.count : src.geometry.attributes.position!.count;
+          n = src.geometry.index ? src.geometry.index.count : src.geometry.attributes['position']!.count;
         near(pc.getX(at), m.color.r, 'stand-in r');
         near(pc.getY(at), m.color.g, 'stand-in g');
         near(pc.getZ(at), m.color.b, 'stand-in b');
@@ -146,7 +146,7 @@ describe("a palette merge keeps every source mesh's look", () => {
       const s = scene();
       s.root.updateMatrixWorld(true);
       const pals = standIns(s.root, [s.cu, s.grey, s.black, s.label, s.label2])
-        .filter((x) => x.mesh.geometry.attributes._pc)
+        .filter((x) => x.mesh.geometry.attributes['_pc'])
         .map((x) => x.mesh.material as MeshStandardMaterial);
       expect(pals.length, `Low ${low}`).toBeGreaterThan(0);
       for (const m of pals) expect(m.customProgramCacheKey().endsWith('|keep'), `Low ${low}`).toBe(low);

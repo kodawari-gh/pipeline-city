@@ -440,8 +440,8 @@ describe('attachPad', () => {
       { el, on, style } = element(w),
       log: string[] = [],
       pad = attachPad(el, host(log));
-    expect(style.touchAction).toBe('none');
-    expect(style.userSelect).toBe('none');
+    expect(style['touchAction']).toBe('none');
+    expect(style['userSelect']).toBe('none');
     expect([...on.keys()].sort()).toEqual(['contextmenu', 'pointerdown', 'pointermove', 'wheel']);
     expect([...w.on.keys()].sort()).toEqual(['blur', 'pointercancel', 'pointerup']);
     let stopped = 0;

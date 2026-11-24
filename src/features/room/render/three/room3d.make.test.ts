@@ -21,7 +21,7 @@ const census = (room: Room3D): { meshes: number; vertices: number } => {
     const m = o as Mesh;
     if (!m.isMesh) return;
     meshes++;
-    vertices += m.geometry.attributes.position?.count ?? 0;
+    vertices += m.geometry.attributes['position']?.count ?? 0;
   });
   return { meshes, vertices };
 };
@@ -102,7 +102,7 @@ it('Room3D.make casts the baked occlusion on the pool it is given, the largest g
   // (the meshes the groups hold carry their open shares, from 0 to 1, through the merge)
   let baked = 0;
   made.root.traverse((o) => {
-    const a = (o as Mesh).geometry?.attributes._ao;
+    const a = (o as Mesh).geometry?.attributes['_ao'];
     if (!a) return;
     baked++;
     expect(Array.from(a.array).every((v) => v >= 0 && v <= 1)).toBe(true);

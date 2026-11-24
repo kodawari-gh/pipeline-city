@@ -22,7 +22,7 @@ const elements = (v: Node): VEl[] => {
   if (v && typeof v === 'object' && 'props' in v) return [v];
   return [];
 };
-const childrenOf = (el: VEl): Node => el.props.children as Node;
+const childrenOf = (el: VEl): Node => el.props['children'] as Node;
 function all(v: Node): VEl[] {
   return elements(v).flatMap((el) => [el, ...all(childrenOf(el))]);
 }
@@ -75,7 +75,7 @@ function menuRows() {
   const tree = MainMenu({ ready: true }) as unknown as Node;
   const nav = all(tree).find((el) => el.props['aria-label'] === 'Main menu');
   if (!nav) throw new Error('no Main menu nav');
-  return elements(childrenOf(nav)).filter((el) => String(el.props.class ?? '').includes('mm-btn'));
+  return elements(childrenOf(nav)).filter((el) => String(el.props['class'] ?? '').includes('mm-btn'));
 }
 
 /** The New game screen's buttons, as rendered with the current signals. */
@@ -94,16 +94,16 @@ const allText = (v: Node): string => text(v);
 const openFromMenu = () =>
   menuRows()
     .find((r) => titleOf(r).startsWith('New game'))!
-    .props.onClick();
+    .props['onClick']();
 
 describe('New game reaches the game in two clicks', () => {
   it('no save: New game, then Start starts the game once, with no second confirm', () => {
     const rows = menuRows();
     const newGame = rows.find((r) => titleOf(r).startsWith('New game'))!;
-    newGame.props.onClick(); // click 1: opens the screen
+    newGame.props['onClick'](); // click 1: opens the screen
     const buttons = screenButtons();
     expect(buttons.map((b) => text(childrenOf(b)).trim())).not.toContain('Replace and start');
-    buttonNamed(buttons, /^Start$/).props.onClick(); // click 2: starts
+    buttonNamed(buttons, /^Start$/).props['onClick'](); // click 2: starts
     expect(vi.mocked(store.startNewGame)).toHaveBeenCalledTimes(1); // one call: no confirm step in between
   });
 
@@ -111,10 +111,10 @@ describe('New game reaches the game in two clicks', () => {
     store.autosaveOffer.value = save();
     const rows = menuRows();
     const newGame = rows.find((r) => titleOf(r).startsWith('New game'))!;
-    newGame.props.onClick(); // click 1
+    newGame.props['onClick'](); // click 1
     const buttons = screenButtons();
     expect(buttons.map((b) => text(childrenOf(b)).trim())).not.toContain('Replace and start');
-    buttonNamed(buttons, /^Replace save and start$/).props.onClick(); // click 2
+    buttonNamed(buttons, /^Replace save and start$/).props['onClick'](); // click 2
     expect(vi.mocked(store.startNewGame)).toHaveBeenCalledTimes(1); // one call: no confirm step in between
   });
 });
@@ -139,7 +139,7 @@ describe('the hero label names what is replaced', () => {
 describe('Back returns to the opener', () => {
   it('Back closes the screen and the main menu shows its New game row again', () => {
     openFromMenu();
-    buttonNamed(screenButtons(), /^← Back/).props.onClick();
+    buttonNamed(screenButtons(), /^← Back/).props['onClick']();
     expect(() => screenButtons()).toThrow(/New game screen did not open/);
     expect(menuRows().some((r) => titleOf(r).startsWith('New game'))).toBe(true);
   });

@@ -22,7 +22,7 @@ export class PartFade {
         c.customProgramCacheKey = m.customProgramCacheKey;
         copy.set(m, c);
         // (the fade's start: a material another fade left half-way is not one this sees; `fadeTree` keeps the true start in `userData.base`)
-        const base = m.userData.base as { opacity: number; transparent: boolean; depthWrite: boolean } | undefined;
+        const base = m.userData['base'] as { opacity: number; transparent: boolean; depthWrite: boolean } | undefined;
         this.copies.push({
           m: c,
           opacity: base?.opacity ?? m.opacity,

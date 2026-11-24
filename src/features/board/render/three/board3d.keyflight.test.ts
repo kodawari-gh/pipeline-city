@@ -42,7 +42,7 @@ function keyShift(): Shift {
   const statement = text[after] === '{' ? braced(text, after) : text.slice(after, text.indexOf(';', after) + 1);
   if (!statement.includes('viewInset.peek()') || !/(panBy|lowerInBand)\(/.test(statement))
     throw new Error(`the key flight statement must read viewInset and pan the view: ${statement}`);
-  const lowerInBand = (camera as unknown as Record<string, unknown>).lowerInBand;
+  const lowerInBand = (camera as unknown as Record<string, unknown>)['lowerInBand'];
   if (statement.includes('lowerInBand(') && typeof lowerInBand !== 'function')
     throw new Error('the key flight calls lowerInBand, which camera.ts does not export');
   const run = new Function(

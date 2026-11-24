@@ -30,13 +30,13 @@ export function debugLayer(v: OutsideView, layer: string, off: boolean): void {
     );
   if (layer === 'lights') {
     for (const l of v.lamps) l.visible = !off;
-    hide(v.parts.signs);
-  } else if (layer === 'buildings') hide(v.parts.buildings);
-  else if (layer === 'trees') hide(v.parts.trees);
-  else if (layer === 'streets') hide(v.parts.streets);
-  else if (layer === 'cars') hide(v.parts.cars);
-  else if (layer === 'sky') hide(v.parts.sky);
-  else if (layer === 'steam') hide(v.parts.steam);
+    hide(v.parts['signs']);
+  } else if (layer === 'buildings') hide(v.parts['buildings']);
+  else if (layer === 'trees') hide(v.parts['trees']);
+  else if (layer === 'streets') hide(v.parts['streets']);
+  else if (layer === 'cars') hide(v.parts['cars']);
+  else if (layer === 'sky') hide(v.parts['sky']);
+  else if (layer === 'steam') hide(v.parts['steam']);
   v.age = EVERY;
 }
 

@@ -75,7 +75,7 @@ function fingerprint(scene: Scene): Record<string, Row> {
       g.tris += (indices / 3) * copies;
     }
     g.h.add(drawnHere ? 1 : 0);
-    const attr = mesh.geometry.attributes.position as BufferAttribute | undefined;
+    const attr = mesh.geometry.attributes['position'] as BufferAttribute | undefined;
     if (attr) {
       g.verts += attr.count;
       const e = pos.copy(mesh.matrixWorld).elements;
@@ -136,7 +136,7 @@ describe('High builds the same city', () => {
       `High city identity: ${rows.length} groups, ${sum((r) => r.meshes)} meshes, ${sum((r) => r.draws)} draws, ${sum((r) => r.tris)} tris, ${sum((r) => r.verts)} verts, ${sum((r) => r.instances)} instances`,
     );
     const { env } = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process;
-    if (env.UPDATE_HIGH_GOLDEN === '1') {
+    if (env['UPDATE_HIGH_GOLDEN'] === '1') {
       fs.writeFileSync(GOLDEN, `${JSON.stringify(got, null, 2)}\n`);
       return;
     }

@@ -84,10 +84,13 @@ function stage(): Stage {
     boardRoots: () => [],
     caseRoots: [],
   };
-  s._machine = machine;
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['_machine'] = machine;
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
   // (the real build sets the layout's tiers, which say what kind of case the stage shows)
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
+  s['rebuild'] = s['rebuildAll'] = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
   };

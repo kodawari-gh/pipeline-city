@@ -353,8 +353,8 @@ describe('tier persistence', () => {
       string,
       unknown
     >;
-    delete old.lights;
-    delete old.lightShadows;
+    delete old['lights'];
+    delete old['lightShadows'];
     it('reads as Low, auto, with 4 lamps', () => {
       const s = resolveStart(old, null, '', detect('high'));
       expect(s.rec).toMatchObject({ mode: 'auto', tier: 'low' });

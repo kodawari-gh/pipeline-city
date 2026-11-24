@@ -399,7 +399,7 @@ export class PlugHand {
       const len = path.reduce((s, p) => s + lengthOf(p), 0) / Math.max(1, path.length);
       const sleeve = new Sleeve(path.length, rig.look.r, samplesFor(rig.n), rig.look.accent ? 14 : 10);
       const mesh = seeThrough(place(new Mesh(sleeve.geometry, sleeveMat(rig.look.base, rig.look.accent))));
-      mesh.userData.live = true;
+      mesh.userData['live'] = true;
       const pivot = pivotOf(rig.seat, model.root, end);
       this.root.add(pivot, mesh);
       this.reel = {
@@ -481,7 +481,7 @@ export class PlugHand {
     );
     const sleeve = new Sleeve(ropes.length, rig.look.r, samplesFor(rig.n), rig.look.accent ? 14 : 10);
     const mesh = seeThrough(place(new Mesh(sleeve.geometry, sleeveMat(rig.look.base, rig.look.accent))));
-    mesh.userData.live = true;
+    mesh.userData['live'] = true;
     sleeve.update(ropes.map((r) => r.points()));
     const pivot = pivotOf(rig.seat, model.root, pose);
     this.root.add(pivot, mesh);
@@ -994,6 +994,6 @@ export class PlugHand {
         break;
       }
     if (!under) this.hidden = m.cableGroup(id) ?? findById(m.root, `cable.${id}`);
-    for (const c of this.hidden?.children ?? []) if (c.userData.rig) c.visible = !hide && !m.isHeldBack(id);
+    for (const c of this.hidden?.children ?? []) if (c.userData['rig']) c.visible = !hide && !m.isHeldBack(id);
   }
 }

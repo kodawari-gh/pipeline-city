@@ -294,9 +294,9 @@ export function rigBuild(
 ): { group: Group; strands: V3[][]; seated: boolean } {
   const g = new Group(),
     m = rig.model();
-  g.userData.rig = true;
+  g.userData['rig'] = true;
   if (seated && rig.canSeat) {
-    m.root.userData.plug = true;
+    m.root.userData['plug'] = true;
     const strands = rig.seated(m.strands);
     g.add(m.root, ...skins(rig, strands));
     if (rig.extra) g.add(rig.extra());
@@ -304,7 +304,7 @@ export function rigBuild(
   }
   const l = looseState(rig, m.strands, rest);
   const pivot = pivotOf(rig.seat, m.root, l.rest.pose);
-  pivot.userData.plug = true;
+  pivot.userData['plug'] = true;
   g.add(pivot, ...skins(rig, l.strands));
   return { group: merged(g), strands: l.strands, seated: false };
 }

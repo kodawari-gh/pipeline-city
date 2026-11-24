@@ -379,7 +379,7 @@ export interface Spot {
 
 /** Turn a part modelled round +z to look along `f`. Its lower detail level (`userData.low`) turns with it. */
 export function turned<T extends BufferGeometry>(g: T, f: Facing): T {
-  const low = g.userData.low as BufferGeometry | undefined;
+  const low = g.userData['low'] as BufferGeometry | undefined;
   if (low) turned(low, f);
   if (f === 'z-') g.rotateX(Math.PI);
   else if (f === 'x+') g.rotateY(Math.PI / 2);

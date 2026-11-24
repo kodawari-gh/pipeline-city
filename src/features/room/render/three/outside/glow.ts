@@ -119,9 +119,9 @@ export class CityGlow {
     tw: number,
     th: number,
   ): void {
-    mat.uniforms.src!.value = from.texture;
-    (mat.uniforms.fr!.value as Vector2).set(fw / from.width, fh / from.height);
-    (mat.uniforms.px!.value as Vector2).set(1 / from.width, 1 / from.height);
+    mat.uniforms['src']!.value = from.texture;
+    (mat.uniforms['fr']!.value as Vector2).set(fw / from.width, fh / from.height);
+    (mat.uniforms['px']!.value as Vector2).set(1 / from.width, 1 / from.height);
     to.viewport.set(0, 0, tw, th);
     to.scissor.set(0, 0, tw, th);
     to.scissorTest = true;

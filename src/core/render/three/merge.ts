@@ -44,7 +44,12 @@ function still(o: Object3D, root: Object3D, own = false): o is Mesh {
     return false;
   if (Object.keys(m.geometry.morphAttributes).length || m.matrixWorld.determinant() < 0) return false;
   for (let p: Object3D | null = o; p; p = p === root ? null : p.parent) {
-    if (!p.visible || (typeof p.userData.id === 'string' && !(own && p === root)) || p.userData.spin || p.userData.live)
+    if (
+      !p.visible ||
+      (typeof p.userData['id'] === 'string' && !(own && p === root)) ||
+      p.userData['spin'] ||
+      p.userData['live']
+    )
       return false;
   }
   return true;
@@ -71,9 +76,9 @@ function prepared(m: Mesh, toRoot: Matrix4, ao: boolean): BufferGeometry {
   let g = m.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(toRoot, m.matrixWorld));
   if (g.index) g = g.toNonIndexed();
   for (const k of Object.keys(g.attributes)) if (!KEEP.has(k) && !(ao && k === '_ao')) g.deleteAttribute(k);
-  if (!g.attributes.normal) g.computeVertexNormals();
-  if (!g.attributes.uv)
-    g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
+  if (!g.attributes['normal']) g.computeVertexNormals();
+  if (!g.attributes['uv'])
+    g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes['position']!.count * 2), 2));
   g.clearGroups();
   return g;
 }
@@ -97,7 +102,7 @@ export function mergeStatic(root: Object3D, opt: StaticOptions = {}): number {
   let n = 0;
   for (const s of sets.values()) {
     if (s.meshes.length < 2) continue;
-    const ao = s.meshes.every((m) => !!m.geometry.attributes._ao);
+    const ao = s.meshes.every((m) => !!m.geometry.attributes['_ao']);
     const g = mergeGeometries(
       s.meshes.map((m) => prepared(m, toRoot, ao)),
       false,
@@ -333,7 +338,7 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
   const low = g && meshes.some((m) => lowOf(m.geometry)) ? join((m) => lowOf(m.geometry) ?? m.geometry) : null;
   for (const t of temps) t.dispose();
   if (!g) return null;
-  if (low) g.userData.low = low;
+  if (low) g.userData['low'] = low;
   const first = meshes[0]!,
     out = new Mesh(g, material);
   out.castShadow = first.castShadow;
@@ -355,7 +360,7 @@ function paletteMesh(meshes: readonly Mesh[], toFrame: Matrix4, material: MeshSt
  * merge needs them, and baked occlusion or a second UV set has no copy on it) and the same bounds, within 2 % of the size.
  */
 export function lowOf(g: BufferGeometry): BufferGeometry | undefined {
-  const low = g.userData.low as BufferGeometry | undefined;
+  const low = g.userData['low'] as BufferGeometry | undefined;
   if (!low) return undefined;
   const names = Object.keys(g.attributes);
   if (names.length !== Object.keys(low.attributes).length || names.some((k) => !low.attributes[k])) return undefined;
@@ -371,7 +376,7 @@ export function lowOf(g: BufferGeometry): BufferGeometry | undefined {
 function painted(x: BufferGeometry, m: MeshStandardMaterial): BufferGeometry {
   const c = m.color,
     { roughness, metalness } = m;
-  const count = x.attributes.position!.count,
+  const count = x.attributes['position']!.count,
     pc = new Float32Array(3 * count),
     prm = new Float32Array(2 * count);
   for (let i = 0; i < count; i++) {
@@ -473,7 +478,7 @@ export function* mergeSiblingsSteps(root: Object3D, o: SiblingOptions = {}): Gen
   const sets = new Map<string, { scope: Object3D; prog: string; meshes: Mesh[] }>();
   const walk = (x: Object3D, scope: Object3D): void => {
     if (skip.has(x)) return;
-    const s = typeof x.userData.id === 'string' || apart.has(x) ? x : scope,
+    const s = typeof x.userData['id'] === 'string' || apart.has(x) ? x : scope,
       m = x as Mesh;
     if (x.parent && x.parent !== root && loose(m)) {
       const key = materialKey(m.material as Material, ON_VERTEX),
@@ -621,7 +626,7 @@ export const standInKey = (m: Mesh): string | null =>
 /** The vertices of the groups that draw with `mat` (an unindexed geometry with the groups of a list of materials). */
 function groupsOf(g: BufferGeometry, mats: readonly Material[], mat: Material): BufferGeometry {
   const runs = g.groups.filter((r) => mats[r.materialIndex ?? 0] === mat),
-    n = g.attributes.position!.count;
+    n = g.attributes['position']!.count;
   const out = g.clone();
   for (const [name, a] of Object.entries(g.attributes)) {
     const it = a.itemSize,
@@ -652,7 +657,7 @@ function copiesOf(m: Mesh, toFrame: Matrix4, palette: boolean, j: Join): BufferG
     all.dispose();
   }
   base.clearGroups();
-  if (palette && !base.attributes._pc) painted(base, j.mat);
+  if (palette && !base.attributes['_pc']) painted(base, j.mat);
   const inFrame = new Matrix4().multiplyMatrices(toFrame, m.matrixWorld),
     x = m as Copies;
   if (!x.isInstancedMesh) return [base.applyMatrix4(inFrame)];
@@ -731,7 +736,7 @@ export function standIns(
     mesh.layers.mask = first.layers.mask;
     mesh.raycast = NO_RAY;
     mesh.name = 'standin';
-    mesh.userData.standIn = true;
+    mesh.userData['standIn'] = true;
     frame.add(mesh);
     mesh.updateMatrixWorld();
     out.push({ mesh, sources });

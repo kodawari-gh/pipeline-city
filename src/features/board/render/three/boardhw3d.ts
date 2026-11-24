@@ -378,7 +378,7 @@ export function slotHardware(cpuIn = true): Group {
   // (the lever turns on its own long side, the hinge at the north end: Build my PC lifts it for a CPU on its way out, `userData.leverOf`)
   const lever = new Group();
   lever.position.set(lx, 0, zl);
-  lever.userData.leverOf = 'cpu0';
+  lever.userData['leverOf'] = 'cpu0';
   if (!cpuIn) lever.rotation.y = LEVER_OPEN;
   const arm = tube(
     rounded(

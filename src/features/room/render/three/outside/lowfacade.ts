@@ -201,15 +201,15 @@ export function lowFacadeMaterial(lampAt: Vector3[] = []): {
   };
   const mat = new MeshLambertMaterial({ vertexColors: true, map: day, emissive: new Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.fNight = u.night;
-    sh.uniforms.fTime = u.time;
-    sh.uniforms.fHor = u.hor;
-    sh.uniforms.fSun = u.sun;
-    sh.uniforms.fSunCol = u.sunCol;
-    sh.uniforms.fPixel = u.pixel;
-    sh.uniforms.fLampK = lamps.k;
-    sh.uniforms.fLampCol = lamps.col;
-    sh.uniforms.fLampPos = lamps.pos;
+    sh.uniforms['fNight'] = u.night;
+    sh.uniforms['fTime'] = u.time;
+    sh.uniforms['fHor'] = u.hor;
+    sh.uniforms['fSun'] = u.sun;
+    sh.uniforms['fSunCol'] = u.sunCol;
+    sh.uniforms['fPixel'] = u.pixel;
+    sh.uniforms['fLampK'] = lamps.k;
+    sh.uniforms['fLampCol'] = lamps.col;
+    sh.uniforms['fLampPos'] = lamps.pos;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',

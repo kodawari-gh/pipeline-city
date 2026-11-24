@@ -54,7 +54,7 @@ function stage(): BuildStage {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -72,13 +72,16 @@ function stage(): BuildStage {
     panelIds: () => [],
     syncPanel() {},
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: { snaps: { drop(): void }; board: { tier: number; caseTier: number } }) {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = s['rebuildAll'] = function (this: {
+    snaps: { drop(): void };
+    board: { tier: number; caseTier: number };
+  }) {
     this.snaps.drop();
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
   };
-  s.playAll = () => Promise.resolve();
-  s.door = () => Promise.resolve();
+  s['playAll'] = () => Promise.resolve();
+  s['door'] = () => Promise.resolve();
   return s as unknown as BuildStage;
 }
 
@@ -158,11 +161,11 @@ describe('the stage fits the network', () => {
   it('cables a router that comes in, and a router that leaves takes the cable with it', async () => {
     const s = stage();
     await s.removeNet('router');
-    expect(s.cables.lan).toBe(false);
+    expect(s.cables['lan']).toBe(false);
     await s.fit('router2');
-    expect(s.cables.lan).toBe(true);
+    expect(s.cables['lan']).toBe(true);
     await s.removeNet('router');
-    expect(s.cables.lan).toBe(false);
+    expect(s.cables['lan']).toBe(false);
   });
 
   it('says why an OS does not go in (no drive), and leaves the stage as it was', async () => {

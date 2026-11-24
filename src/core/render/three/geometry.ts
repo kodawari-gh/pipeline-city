@@ -69,7 +69,7 @@ export function place<T extends Object3D>(o: T, shadow = true): T {
  * surface gets a zero normal there, and a zero normal turns the whole frame black (it is NaN in the shader, and the post passes spread it).
  */
 export function healNormals<T extends BufferGeometry>(g: T, cols: number): T {
-  const n = g.attributes.normal!,
+  const n = g.attributes['normal']!,
     ok = (i: number) => i >= 0 && i < n.count && Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) > 0.5;
   for (let i = 0; i < n.count; i++) {
     if (ok(i)) continue;
@@ -285,7 +285,7 @@ export const fanSides = (mm: number): number => {
 export const lowSides = (sides: number): number => Math.max(8, 4 * Math.round(sides / 8));
 /** Sets `g`'s lower detail level (`userData.low`) to `low()`, when `has`. Returns `g`. */
 export const withLow = <T extends BufferGeometry>(g: T, low: () => BufferGeometry, has = true): T => {
-  if (has) g.userData.low = low();
+  if (has) g.userData['low'] = low();
   return g;
 };
 const lowCylinder = (rTop: number, r: number, h: number, sides: number): CylinderGeometry =>
@@ -332,7 +332,7 @@ export function fitLow<T extends BufferGeometry>(g: T, tries: readonly (() => Bu
   for (const t of tries) {
     const low = t();
     if (outlineOff(g, low) <= LOW_TOL) {
-      g.userData.low = low;
+      g.userData['low'] = low;
       break;
     }
     low.dispose();
@@ -711,7 +711,7 @@ export function shadowBlob(): Texture | null {
  * belongs to its owner (a room probe is still the envMap of the scene that rebuilds), so the owner frees it.
  */
 export function disposeTree(root: Object3D, textures = false): void {
-  root.userData.disposed = true; // (a late load of a part under it finds it thrown away, see `tornDown`)
+  root.userData['disposed'] = true; // (a late load of a part under it finds it thrown away, see `tornDown`)
   root.traverse((o) => {
     const m = o as Mesh;
     // (an instanced mesh frees its instance buffers on its own 'dispose' event; the geometry's dispose leaves them)
@@ -736,5 +736,5 @@ export function disposeTree(root: Object3D, textures = false): void {
 export function tornDown(o: Object3D): boolean {
   let top = o;
   while (top.parent) top = top.parent;
-  return !!top.userData.disposed;
+  return !!top.userData['disposed'];
 }

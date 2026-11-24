@@ -77,7 +77,7 @@ function stage(): { s: BuildStage; fake: Fake } {
     clientWidth: 400,
     clientHeight: 800,
   });
-  s._machine = {
+  s['_machine'] = {
     moving: false,
     doorOpen: false,
     frame() {},
@@ -101,8 +101,8 @@ function stage(): { s: BuildStage; fake: Fake } {
     panelIds: () => [],
     syncPanel() {},
   };
-  s._game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
-  s.rebuild = s.rebuildAll = function (this: {
+  s['_game'] = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true, looseFit: true });
+  s['rebuild'] = s['rebuildAll'] = function (this: {
     snaps: { drop(): void };
     board: { tier: number; caseTier: number };
     holdReeled(): void;
@@ -111,10 +111,10 @@ function stage(): { s: BuildStage; fake: Fake } {
     setLayoutTier(this.board.tier, Math.max(this.board.tier, this.board.caseTier));
     this.holdReeled();
   };
-  s.playAll = () => Promise.resolve();
-  s.door = () => Promise.resolve();
+  s['playAll'] = () => Promise.resolve();
+  s['door'] = () => Promise.resolve();
   const t = s as unknown as Inside;
-  s.hand = {
+  s['hand'] = {
     root: new Group(),
     kind: null,
     cancel() {},
@@ -209,14 +209,14 @@ describe('the cables that go with their part', () => {
     expect(lost).toEqual(expect.arrayContaining(['video', 'monmains']));
     await s.remove(devNode(mon.id));
     for (const id of lost) expect(fake.calls, id).toContain(`stow ${id}`);
-    expect(s.cables.video).toBeFalsy();
-    expect(s.cables.monmains).toBeFalsy();
+    expect(s.cables['video']).toBeFalsy();
+    expect(s.cables['monmains']).toBeFalsy();
     fake.calls.length = 0;
     await s.fit(mon.spec);
     // the cord goes to the wall socket and is pushed in; the video cable lies where it falls (the player plugs it)
     expect(fake.calls).toContain('feed monmains in');
     expect(fake.calls).toContain('feed video loose');
-    expect(s.cables.monmains).toBe(true);
-    expect(s.cables.video).toBeFalsy();
+    expect(s.cables['monmains']).toBe(true);
+    expect(s.cables['video']).toBeFalsy();
   });
 });

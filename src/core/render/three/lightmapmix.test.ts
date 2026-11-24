@@ -139,7 +139,7 @@ describe('the baked bounce', () => {
     expect(lit.missing[0]).toMatch(/^mesh 4-/);
     // the wall lost its index (its UVs split at the seams) and reads its own run of the UVs
     expect(wall.geometry.index).toBeNull();
-    const uv1 = wall.geometry.attributes.uv1!;
+    const uv1 = wall.geometry.attributes['uv1']!;
     expect(uv1.count).toBe(corners);
     expect(uv1.normalized).toBe(true);
     expect([uv1.getX(1), uv1.getY(1)]).toEqual([100 / 65535, 1]);
@@ -188,8 +188,8 @@ describe('the baked bounce', () => {
     const lit = applyLightmap(root, bake, new Texture(), { metre: 18700 });
     expect(lit).toMatchObject({ stale: 0, missing: [], loose: 3 });
     expect(lit.meshes).toEqual([top, matA, matB]);
-    expect(matA.userData.bakeHash).toBe(entries[1]!.hash);
-    expect(matB.userData.bakeHash).toBe(entries[2]!.hash);
+    expect(matA.userData['bakeHash']).toBe(entries[1]!.hash);
+    expect(matB.userData['bakeHash']).toBe(entries[2]!.hash);
   });
 
   it("starts the programs of both its materials, each once, and leaves the quad with the sum's", () => {
@@ -273,9 +273,9 @@ describe('the baked bounce', () => {
       render(scene: Scene) {
         const u = ((scene.children[0] as Mesh).material as ShaderMaterial).uniforms;
         draws.push({
-          map: u.map!.value,
-          k: (u.k!.value as Vector3).toArray(),
-          ...(u.sel ? { sel: (u.sel.value as Vector3).toArray() } : {}),
+          map: u['map']!.value,
+          k: (u['k']!.value as Vector3).toArray(),
+          ...(u['sel'] ? { sel: (u['sel'].value as Vector3).toArray() } : {}),
         });
       },
     } as unknown as WebGLRenderer;

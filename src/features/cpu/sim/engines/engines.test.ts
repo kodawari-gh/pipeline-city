@@ -167,7 +167,7 @@ describe('determinism', () => {
 });
 
 describe('engine selector and machine integration', () => {
-  const prog = assemble(HAND.sum!).program;
+  const prog = assemble(HAND['sum']!).program;
   const configs: EngineConfig[] = [
     { kind: 'ref' },
     { kind: 'unpipelined' },

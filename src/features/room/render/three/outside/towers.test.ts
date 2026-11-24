@@ -8,7 +8,7 @@ import { LOW_WHOLE, massGeometries, massSteps, type MassRing } from './towers';
 /** `massGeometries` as the Low cut will call it (the third parameter does not exist yet). */
 const withDetail = massGeometries as (bs: readonly Building[], washes: [], detail?: CityDetail) => MassRing[];
 
-const sum = (g: BufferGeometry): number => Array.from(g.attributes.position!.array).reduce((s, v) => s + v, 0);
+const sum = (g: BufferGeometry): number => Array.from(g.attributes['position']!.array).reduce((s, v) => s + v, 0);
 const total = (rs: MassRing[]): number => rs.reduce((n, r) => n + drawn(r.geometry), 0);
 const away = (b: Building): number => Math.hypot((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0, b.tiers[0]!.z1);
 
@@ -41,7 +41,7 @@ describe('massGeometries detail', () => {
     expect(near.map((r) => sum(r.geometry))).toEqual(hi.map((r) => sum(r.geometry)));
     let solar = 0;
     for (const r of near) {
-      const aux = r.geometry.attributes.aux!;
+      const aux = r.geometry.attributes['aux']!;
       for (let v = 0; v < aux.count; v++) if (Math.round(aux.getY(v)) === 7) solar++;
     }
     expect(solar, 'solar panel vertices in the near rings').toBeGreaterThan(0);
@@ -63,8 +63,8 @@ describe('massGeometries detail', () => {
     const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
     // (`LOW_WHOLE` is the edge of High's ring after the near ones, so that ring is the whole buildings, in the same order)
     expect(farBs.filter((b) => away(b) < LOW_WHOLE).length).toBe(ring.balls.length);
-    const lp = far.geometry.attributes.position!.array,
-      hp = ring.geometry.attributes.position!.array;
+    const lp = far.geometry.attributes['position']!.array,
+      hp = ring.geometry.attributes['position']!.array;
     let j = 0;
     for (let i = 0; i < farBs.length; i++) {
       if (away(farBs[i]!) >= LOW_WHOLE) continue;
@@ -85,8 +85,8 @@ describe('massGeometries detail', () => {
     const farBs = bs.filter((b) => away(b) >= 300).sort((p, q) => mid(p) - mid(q));
     // a building's vertices of one kind: their places, and their seeds
     const of = (r: MassRing, i: number, kind: number): { at: number[]; seeds: number[] } => {
-      const pos = r.geometry.attributes.position!,
-        aux = r.geometry.attributes.aux!,
+      const pos = r.geometry.attributes['position']!,
+        aux = r.geometry.attributes['aux']!,
         at: number[] = [],
         seeds: number[] = [];
       for (let v = r.at[i]!; v < r.at[i + 1]!; v++)
@@ -131,14 +131,14 @@ describe('massGeometries detail', () => {
     expect(far.balls.length).toBe(bs.filter((b) => away(b) >= 300).length);
     // each far building is a block, plus optional night pieces (flood, LED, signs, crowns, beacons)
     for (let i = 0; i < far.balls.length; i++) expect(far.at[i + 1]! - far.at[i]!).toBeGreaterThan(0);
-    const aux = far.geometry.attributes.aux!;
+    const aux = far.geometry.attributes['aux']!;
     const lights = new Set<number>();
     for (let i = 0; i < aux.count; i++) lights.add(Math.round(aux.getY(i)));
     expect(
       [3, 4, 5, 8, 9].some((k) => lights.has(k)),
       'far blocks keep live night-light kinds',
     ).toBe(true);
-    const pos = far.geometry.attributes.position!,
+    const pos = far.geometry.attributes['position']!,
       tops = new Set<number>();
     for (let i = 0; i < far.balls.length; i++) {
       let top = -Infinity;
@@ -150,8 +150,8 @@ describe('massGeometries detail', () => {
 
   it('Low: a far mast or spire keeps its own pieces under its tip beacon (no floating beacon), and no roof clutter round a mast', () => {
     const far = withDetail(bs, [], 'low').at(-1)!;
-    const pos = far.geometry.attributes.position!,
-      aux = far.geometry.attributes.aux!;
+    const pos = far.geometry.attributes['position']!,
+      aux = far.geometry.attributes['aux']!;
     const kind = (v: number): number => Math.round(aux.getY(v));
     // the far balls are in the order `massGeometries` sorts them: by bearing of the first tier's middle
     const mid = (b: Building): number =>
@@ -218,9 +218,9 @@ describe('massGeometries detail', () => {
 
   it('Low: far blocks keep live Led corner strips (vertical, not only the top band)', () => {
     const far = withDetail(bs, [], 'low').at(-1)!;
-    const pos = far.geometry.attributes.position!,
-      aux = far.geometry.attributes.aux!,
-      look = far.geometry.attributes.look!;
+    const pos = far.geometry.attributes['position']!,
+      aux = far.geometry.attributes['aux']!,
+      look = far.geometry.attributes['look']!;
     // a corner strip is Led, grows across (look.w = Wide.Across = 1) and runs up a tier; the band is Led, Wide.Up, and flat
     let strips = 0,
       tallest = 0;

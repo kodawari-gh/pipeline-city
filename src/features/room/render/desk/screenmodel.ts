@@ -63,8 +63,8 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 /** Instructions per cycle between two counter readings (null when no cycles passed or the counters restarted). */
 export function ipcBetween(prev: Record<string, number> | null, cur: Record<string, number>): number | null {
   if (!prev) return null;
-  const dc = (cur.cycles ?? 0) - (prev.cycles ?? 0),
-    dr = (cur.retired ?? 0) - (prev.retired ?? 0);
+  const dc = (cur['cycles'] ?? 0) - (prev['cycles'] ?? 0),
+    dr = (cur['retired'] ?? 0) - (prev['retired'] ?? 0);
   return dc > 0 && dr >= 0 ? dr / dc : null;
 }
 

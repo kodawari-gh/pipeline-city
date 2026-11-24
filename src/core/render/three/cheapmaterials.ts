@@ -182,7 +182,7 @@ export function cheapMaterials(root: Object3D): { sync(): void; undo(): void } {
   const swapAll = () =>
     root.traverse((o) => {
       const mesh = o as Mesh;
-      if (!mesh.isMesh || mesh.userData.standIn) return;
+      if (!mesh.isMesh || mesh.userData['standIn']) return;
       if (Array.isArray(mesh.material)) {
         const list = mesh.material;
         list.forEach((m, i) => {

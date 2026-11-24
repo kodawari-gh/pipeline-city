@@ -58,7 +58,7 @@ describe('glb writer', () => {
       accessors: { bufferView: number; count: number; type: string }[];
       bufferViews: { byteOffset: number }[];
     };
-    const acc = json.accessors[json.meshes[0]!.primitives[0]!.attributes._AO!]!,
+    const acc = json.accessors[json.meshes[0]!.primitives[0]!.attributes['_AO']!]!,
       at = 28 + jl + json.bufferViews[acc.bufferView]!.byteOffset;
     expect(acc).toMatchObject({ count: 3, type: 'VEC2' });
     expect(Array.from(new Float32Array(bytes.slice(at, at + 24).buffer))).toEqual([1, 0.5, 0.25, 1, 1, 1]);

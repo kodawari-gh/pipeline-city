@@ -817,7 +817,7 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
     })),
     transfers: n.transfers.map(row),
     spooled: n.spooled.map((k) => {
-      const st = SPOOL_STATE[k.stage] ?? SPOOL_STATE.spooled!;
+      const st = SPOOL_STATE[k.stage] ?? SPOOL_STATE['spooled']!;
       return { key: k, label: k.label, state: st.text, level: st.level };
     }),
     spool: s.os?.spool

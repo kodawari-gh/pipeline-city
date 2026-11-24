@@ -82,7 +82,7 @@ describe("the case's front-panel leads", () => {
       expect(off.seated, r.id).toBe(false);
       expect(on.strands.length).toBe(r.fixed.length);
       expect(off.strands.length).toBe(r.fixed.length);
-      expect(on.group.userData.rig).toBe(true);
+      expect(on.group.userData['rig']).toBe(true);
     }
   });
 

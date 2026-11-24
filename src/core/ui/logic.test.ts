@@ -101,7 +101,7 @@ describe('HUD status text', () => {
   it('a key plugged into a running no-OS machine raises the hint', () => {
     expect(triggeredHints(snap({ phase: 'halted', powered: true, keyIgnored: true }))).toContain('keyIgnored');
     expect(triggeredHints(snap({ phase: 'halted', powered: true }))).not.toContain('keyIgnored');
-    expect(HINTS.keyIgnored!.text).toMatch(/only looks for a program at boot/);
+    expect(HINTS['keyIgnored']!.text).toMatch(/only looks for a program at boot/);
   });
   it.each(phaseText)('phase %s reads "%s"', (phase, text) => {
     expect(statusChip(snap({ phase, powered: phase !== 'off' })).text).toBe(text);

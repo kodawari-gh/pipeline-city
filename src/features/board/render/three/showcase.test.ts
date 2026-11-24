@@ -78,7 +78,7 @@ describe('the showcase models', () => {
     cam.updateMatrixWorld(true);
     o.updateMatrixWorld(true);
     o.traverse((n) => {
-      const f = n.userData.frame as ((c: PerspectiveCamera, h: number) => void) | undefined;
+      const f = n.userData['frame'] as ((c: PerspectiveCamera, h: number) => void) | undefined;
       if (f) f(cam, 900);
     });
   };
@@ -89,7 +89,7 @@ describe('the showcase models', () => {
       const board = (): boolean => {
         let v = false;
         m.traverse((o) => {
-          if (o.userData.id === 'router') v = o.visible;
+          if (o.userData['id'] === 'router') v = o.visible;
         });
         return v;
       };

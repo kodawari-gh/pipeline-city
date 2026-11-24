@@ -85,7 +85,7 @@ describe('a closed BuildStage', () => {
       clientWidth: 400,
       clientHeight: 800,
     });
-    s._machine = {
+    s['_machine'] = {
       moving: false,
       doorOpen: true,
       frame() {},
@@ -96,8 +96,8 @@ describe('a closed BuildStage', () => {
       boardRoots: () => [],
       dispose() {},
     };
-    s._game = {};
-    s.snaps = { of: () => ({}), drop() {} };
+    s['_game'] = {};
+    s['snaps'] = { of: () => ({}), drop() {} };
     stage = s as unknown as Closed;
   });
   afterEach(() => {

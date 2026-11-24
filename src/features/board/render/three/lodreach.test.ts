@@ -40,7 +40,7 @@ describe('the levels of the maxed machine', () => {
     const bad: string[] = [],
       path = (o: Object3D | null): string => {
         const s: string[] = [];
-        for (; o; o = o.parent) if (o.userData.id || o.name) s.push(String(o.userData.id ?? o.name));
+        for (; o; o = o.parent) if (o.userData['id'] || o.name) s.push(String(o.userData['id'] ?? o.name));
         return s.slice(0, 3).join(' < ');
       };
     machine.root.traverse((o) => {

@@ -251,7 +251,7 @@ export function fanPart(
   const frame = mat(0x1d1e22, { roughness: 0.62 });
   if (level === 0) {
     const body = place(new Mesh(housing(d, depth, sides, small), frame));
-    body.geometry.userData.low = housing(
+    body.geometry.userData['low'] = housing(
       d,
       depth,
       fanLodSides(full, 1),

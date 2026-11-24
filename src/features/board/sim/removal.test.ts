@@ -40,25 +40,25 @@ function rig(): { b: Board; c: Cables; id: Record<string, string> } {
 describe('removal graph', () => {
   it('takes the side panel off before anything inside', () => {
     const { b, c, id } = rig();
-    const plan = removalPlan(buildGraph(b, c), devNode(id.ram!));
-    expect(plan).toEqual([SIDE, devNode(id.ram!)]);
+    const plan = removalPlan(buildGraph(b, c), devNode(id['ram']!));
+    expect(plan).toEqual([SIDE, devNode(id['ram']!)]);
   });
 
   it('takes the cooler off before the CPU', () => {
     const { b, c, id } = rig();
-    const plan = removalPlan(buildGraph(b, c), devNode(id.cpu!));
-    expect(plan.indexOf(devNode(id.cooler!))).toBeLessThan(plan.indexOf(devNode(id.cpu!)));
-    expect(plan.indexOf(cableNode('cpufan'))).toBeLessThan(plan.indexOf(devNode(id.cooler!)));
-    expect(plan.at(-1)).toBe(devNode(id.cpu!));
+    const plan = removalPlan(buildGraph(b, c), devNode(id['cpu']!));
+    expect(plan.indexOf(devNode(id['cooler']!))).toBeLessThan(plan.indexOf(devNode(id['cpu']!)));
+    expect(plan.indexOf(cableNode('cpufan'))).toBeLessThan(plan.indexOf(devNode(id['cooler']!)));
+    expect(plan.at(-1)).toBe(devNode(id['cpu']!));
   });
 
   it("unplugs the PSU's cables first, the card's leads before the card", () => {
     const { b, c, id } = rig();
     const g = buildGraph(b, c),
-      psu = removalPlan(g, devNode(id.psu!)),
-      gpu = removalPlan(g, devNode(id.gpu!));
+      psu = removalPlan(g, devNode(id['psu']!)),
+      gpu = removalPlan(g, devNode(id['gpu']!));
     for (const k of ['atx', 'cpu', 'pcmains', 'pcie', 'pcie2'])
-      expect(psu.indexOf(cableNode(k))).toBeLessThan(psu.indexOf(devNode(id.psu!)));
+      expect(psu.indexOf(cableNode(k))).toBeLessThan(psu.indexOf(devNode(id['psu']!)));
     expect(gpu).toContain(cableNode('pcie'));
     expect(gpu).toContain(cableNode('video'));
   });
@@ -142,10 +142,10 @@ describe('removal graph', () => {
     const g = buildGraph(b, c),
       plan = removalPlan(g, BOARD);
     for (const k of ['cpu', 'cooler', 'ram', 'gpu', 'nic', 'nvme']) expect(plan).toContain(devNode(id[k]!));
-    expect(plan).not.toContain(devNode(id.psu!));
+    expect(plan).not.toContain(devNode(id['psu']!));
     const all = removalPlan(g, CASE);
     expect(all.at(-1)).toBe(CASE);
-    expect(all).toContain(devNode(id.psu!));
+    expect(all).toContain(devNode(id['psu']!));
     expect(all.indexOf(BOARD)).toBeLessThan(all.indexOf(CASE));
   });
 
@@ -163,9 +163,9 @@ describe('removal graph', () => {
   it('many targets share their blocks; a restore plan puts the blocks back in reverse', () => {
     const { b, c, id } = rig();
     const g = buildGraph(b, c),
-      both = removalPlanAll(g, [devNode(id.cpu!), devNode(id.ram!)]);
+      both = removalPlanAll(g, [devNode(id['cpu']!), devNode(id['ram']!)]);
     expect(both.filter((n) => n === SIDE)).toHaveLength(1);
-    const plan = removalPlan(g, devNode(id.cpu!)),
+    const plan = removalPlan(g, devNode(id['cpu']!)),
       back = restorePlan(plan);
     expect(back[0]).toBe(plan.at(-2));
     expect(back.at(-1)).toBe(SIDE);
@@ -173,7 +173,7 @@ describe('removal graph', () => {
 
   it('knows what a node is', () => {
     const { b, id } = rig();
-    expect(nodeKind(b, devNode(id.gpu!))).toBe('gpu');
+    expect(nodeKind(b, devNode(id['gpu']!))).toBe('gpu');
     expect(nodeKind(b, cableNode('atx'))).toBe('cable');
     expect(nodeKind(b, SIDE)).toBe('side');
   });

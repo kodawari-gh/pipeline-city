@@ -260,8 +260,8 @@ class Mass {
 
   /** A geometry with no index (a cylinder, a cone) at (x, y, z), every vertex as `set` gave. */
   shape(g: BufferGeometry, x: number, y: number, z: number): void {
-    const p = g.attributes.position!,
-      n = g.attributes.normal!;
+    const p = g.attributes['position']!,
+      n = g.attributes['normal']!;
     for (let i = 0; i < p.count; i++)
       this.vert([p.getX(i) + x, p.getY(i) + y, p.getZ(i) + z], [n.getX(i), n.getY(i), n.getZ(i)], 0, 0);
   }
@@ -1131,12 +1131,12 @@ export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms
   };
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.fNight = u.night;
-    sh.uniforms.fTime = u.time;
-    sh.uniforms.fSun = u.sun;
-    sh.uniforms.fSunCol = u.sunCol;
-    sh.uniforms.fHor = u.hor;
-    sh.uniforms.fPixel = u.pixel;
+    sh.uniforms['fNight'] = u.night;
+    sh.uniforms['fTime'] = u.time;
+    sh.uniforms['fSun'] = u.sun;
+    sh.uniforms['fSunCol'] = u.sunCol;
+    sh.uniforms['fHor'] = u.hor;
+    sh.uniforms['fPixel'] = u.pixel;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',

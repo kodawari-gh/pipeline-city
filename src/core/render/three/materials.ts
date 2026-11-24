@@ -400,7 +400,7 @@ export function shareMaterials(root: Object3D, o: ShareOptions = {}): Shared {
   const walk = (x: Object3D, scope: Object3D, fixed: boolean, fade: boolean): void => {
     const f = fixed || skip.has(x),
       fd = fade || apart.has(x),
-      s = typeof x.userData.id === 'string' || apart.has(x) ? x : scope,
+      s = typeof x.userData['id'] === 'string' || apart.has(x) ? x : scope,
       mesh = x as Mesh;
     const m = (x as { material?: Material | Material[] }).material;
     if (m) {

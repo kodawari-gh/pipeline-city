@@ -282,8 +282,8 @@ export class LocalEye {
     this.outputKey = key;
     const d: Record<string, string> = {},
       tone = TONE[r.toneMapping];
-    if (tone) d.TONE = tone;
-    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d.SRGB_TRANSFER = '';
+    if (tone) d['TONE'] = tone;
+    if (ColorManagement.getTransfer(r.outputColorSpace) === SRGBTransfer) d['SRGB_TRANSFER'] = '';
     this.finish.defines = d;
     this.finish.needsUpdate = true;
   }
@@ -295,12 +295,12 @@ export class LocalEye {
     this.lum.setSize(lw, lh);
     this.grid.setSize(gx * BINS, gy);
     this.blur.setSize(gx * BINS, gy);
-    this.down.uniforms.px!.value = [1 / w, 1 / h];
-    this.build.uniforms.lumSize!.value = [lw, lh];
-    this.build.uniforms.gx!.value = gx;
-    this.smooth.uniforms.grid!.value = [gx, gy];
-    this.finish.uniforms.size!.value = [w, h];
-    this.finish.uniforms.grid!.value = [gx, gy];
+    this.down.uniforms['px']!.value = [1 / w, 1 / h];
+    this.build.uniforms['lumSize']!.value = [lw, lh];
+    this.build.uniforms['gx']!.value = gx;
+    this.smooth.uniforms['grid']!.value = [gx, gy];
+    this.finish.uniforms['size']!.value = [w, h];
+    this.finish.uniforms['grid']!.value = [gx, gy];
   }
 
   /** Is the eye on? Then `adapt` must run before each `draw`. */
@@ -316,7 +316,7 @@ export class LocalEye {
 
   /** The grid of `picture` (the scene's light), in three small passes: a quarter of the picture, the grid, its blur. */
   adapt(renderer: WebGLRenderer, picture: Texture): void {
-    this.down.uniforms.tDiffuse!.value = picture;
+    this.down.uniforms['tDiffuse']!.value = picture;
     this.step(renderer, this.down, this.lum);
     this.step(renderer, this.build, this.grid);
     this.step(renderer, this.smooth, this.blur);
@@ -335,11 +335,11 @@ export class LocalEye {
     f.blendDst = OneMinusConstantAlphaFactor;
     f.blendAlpha = weight;
     const a = this.finish.uniforms;
-    a.tDiffuse!.value = picture;
-    a.midLog!.value = Math.log2(this.key / this.exposure);
-    (a.keep!.value as number[])[1] = this.high;
-    a.strength!.value = this.on ? this.strength : 0;
-    a.toneMappingExposure!.value = renderer.toneMappingExposure;
+    a['tDiffuse']!.value = picture;
+    a['midLog']!.value = Math.log2(this.key / this.exposure);
+    (a['keep']!.value as number[])[1] = this.high;
+    a['strength']!.value = this.on ? this.strength : 0;
+    a['toneMappingExposure']!.value = renderer.toneMappingExposure;
     this.step(renderer, this.finish, to);
   }
 

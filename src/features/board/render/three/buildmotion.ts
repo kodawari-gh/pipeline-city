@@ -287,7 +287,7 @@ for (const [kind, m] of Object.entries(MOTIONS)) {
 
 /** The motion for a kind of part (every kind has one; an unknown kind gets the plain lift). */
 export function motionFor(kind: NodeKind | string): Motion {
-  return MOTIONS[kind] ?? MOTIONS.tpm!;
+  return MOTIONS[kind] ?? MOTIONS['tpm']!;
 }
 
 export const motionKinds = (): string[] => Object.keys(MOTIONS);

@@ -1203,7 +1203,7 @@ def worker(x, k, T, barrier):
   },
 };
 // The web class runs the calculation program for now, so it reads as the calculation does.
-HIGH_LEVEL.web = HIGH_LEVEL.calc!;
+HIGH_LEVEL['web'] = HIGH_LEVEL['calc']!;
 
 /** One cell of a job's picture: the kind of instruction it is and how often it ran (0 = never, 1 = the busiest word). */
 export interface SpriteCell {

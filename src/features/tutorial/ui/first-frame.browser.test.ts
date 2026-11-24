@@ -594,10 +594,10 @@ describe.skipIf(!GATE)('first frame in the browser (ticket #44)', () => {
     const still = await cameraStill(page);
     const t = await stepTarget(page);
     const free = {
-      x: t.inset.left!,
-      y: t.inset.top!,
-      w: t.vw - t.inset.left! - t.inset.right!,
-      h: t.vh - t.inset.top! - t.inset.bottom!,
+      x: t.inset['left']!,
+      y: t.inset['top']!,
+      w: t.vw - t.inset['left']! - t.inset['right']!,
+      h: t.vh - t.inset['top']! - t.inset['bottom']!,
     };
     const seen = `target ${t.world} ${JSON.stringify(t.anchor)}; free area ${JSON.stringify(free)}; trace end ${JSON.stringify(t.trace)} (shown ${t.traceShown}); card ${JSON.stringify(t.card)}; shelf ${JSON.stringify(t.shelf)}; Show me ${t.showMe}; camera still after ${still ?? 'never (45 s)'} ms`;
     expect(t.world, `step 2 has a target in the scene (${seen})`).not.toBeNull();

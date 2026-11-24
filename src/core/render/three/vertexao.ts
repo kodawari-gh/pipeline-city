@@ -52,9 +52,9 @@ interface Soup {
 
 function soup(m: Mesh): Soup {
   const g = m.geometry;
-  if (!g.attributes.normal) g.computeVertexNormals();
-  const p = g.attributes.position!,
-    n = g.attributes.normal!,
+  if (!g.attributes['normal']) g.computeVertexNormals();
+  const p = g.attributes['position']!,
+    n = g.attributes['normal']!,
     k = p.count,
     nm = new Matrix3().getNormalMatrix(m.matrixWorld),
     v = new Vector3();
@@ -151,7 +151,7 @@ function startAo(root: Object3D): Ao | null {
   root.updateMatrixWorld(true);
   const groups: Object3D[] = [];
   const find = (o: Object3D): void => {
-    if (typeof o.userData.ao === 'number') groups.push(o);
+    if (typeof o.userData['ao'] === 'number') groups.push(o);
     else for (const c of o.children) find(c);
   };
   find(root);
@@ -173,7 +173,7 @@ function startAo(root: Object3D): Ao | null {
 /** The groups' casts, one for each group with a mesh to take it, each made when asked for (its arrays take 1 to 10 ms). */
 function* casts({ groups, blockers, soupOf }: Ao): Generator<Cast> {
   for (const grp of groups) {
-    const reach = grp.userData.ao as number,
+    const reach = grp.userData['ao'] as number,
       targets: Mesh[] = [];
     grp.traverse((o) => {
       if (takes(o)) targets.push(o);
@@ -204,11 +204,11 @@ function* casts({ groups, blockers, soupOf }: Ao): Generator<Cast> {
     // points on one another with one normal are one point (a smooth mesh's seam); a hard edge's points stay apart, each with its face's side
     const weld = weldIds(keys);
     // a one-sided material shows only its normal's side: the other is not cast
-    const n = targets.reduce((s, t) => s + t.geometry.attributes.position!.count, 0),
+    const n = targets.reduce((s, t) => s + t.geometry.attributes['position']!.count, 0),
       one = new Uint8Array(n);
     at = 0;
     for (const t of targets) {
-      const k = t.geometry.attributes.position!.count;
+      const k = t.geometry.attributes['position']!.count;
       if ((t.material as Material).side === FrontSide) one.fill(1, at, at + k);
       at += k;
     }
@@ -220,7 +220,7 @@ function* casts({ groups, blockers, soupOf }: Ao): Generator<Cast> {
 function apply(a: Ao, { targets, job }: Cast, ao: Float32Array): void {
   let at = 0;
   for (const t of targets) {
-    const k = t.geometry.attributes.position!.count;
+    const k = t.geometry.attributes['position']!.count;
     // a geometry another baked mesh already holds gets a copy of its own
     if (a.owned.has(t.geometry)) t.geometry = t.geometry.clone();
     a.owned.add(t.geometry);
@@ -238,13 +238,13 @@ function finish({ root, patched, cast }: Ao): number {
     const m = o as Mesh;
     if (
       !m.isMesh ||
-      m.geometry.attributes._ao ||
+      m.geometry.attributes['_ao'] ||
       !(Array.isArray(m.material) ? m.material : [m.material]).some((x) => patched.has(x))
     )
       return;
     m.geometry.setAttribute(
       '_ao',
-      new Float32BufferAttribute(new Float32Array(2 * m.geometry.attributes.position!.count).fill(1), 2),
+      new Float32BufferAttribute(new Float32Array(2 * m.geometry.attributes['position']!.count).fill(1), 2),
     );
   });
   return cast;
@@ -275,7 +275,7 @@ export async function vertexAoPooled(root: Object3D, pool: AoPool, slice: () => 
   const size = (g: Object3D): number => {
     let n = 0;
     g.traverse((o) => {
-      if (takes(o)) n += o.geometry.attributes.position!.count;
+      if (takes(o)) n += o.geometry.attributes['position']!.count;
     });
     return n;
   };

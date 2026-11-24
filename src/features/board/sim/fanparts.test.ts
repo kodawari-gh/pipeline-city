@@ -140,7 +140,7 @@ describe('the game sends stray fans to the inventory', () => {
     expect(g.uninstall(cooler.id).ok).toBe(true);
     expect(g.board.devices.some((d) => d.slot.startsWith('cooler0'))).toBe(false);
     expect(spare(g, 'fan92')).toBe(1);
-    expect(g.cables.cpufan).toBeFalsy();
+    expect(g.cables['cpufan']).toBeFalsy();
   });
 });
 
@@ -218,7 +218,7 @@ describe('saves from before the fan parts', () => {
   /** A version 4 save: the same machine with its built-in fans (no fan devices), all its cables as they were. */
   const v4 = (g: Game): Record<string, unknown> => {
     const s = json(g.toSave()) as unknown as Record<string, unknown>;
-    const b = s.board as { devices: { spec: string }[] };
+    const b = s['board'] as { devices: { spec: string }[] };
     return { ...s, version: 4, board: { ...b, devices: b.devices.filter((d) => !d.spec.startsWith('fan')) } };
   };
 

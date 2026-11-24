@@ -73,8 +73,8 @@ describe('Low builds coarser machine parts', () => {
       low = (lowMesh.geometry as PlaneGeometry).parameters;
     expect([low.widthSegments, low.heightSegments, low.width, low.height]).toEqual([1, 1, high.width, high.height]);
     // its picture keeps the whole rect (uv 0 to 1), and the quad lies at one depth, over the packages
-    const uv = lowMesh.geometry.attributes.uv!,
-      z = lowMesh.geometry.attributes.position!;
+    const uv = lowMesh.geometry.attributes['uv']!,
+      z = lowMesh.geometry.attributes['position']!;
     const us = Array.from({ length: uv.count }, (_, i) => uv.getX(i)),
       vs = Array.from({ length: uv.count }, (_, i) => uv.getY(i));
     expect([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]).toEqual([0, 1, 0, 1]);

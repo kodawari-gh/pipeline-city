@@ -155,7 +155,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
   const groups = () => [
     ...new Set(
       [...(root.current?.querySelectorAll<HTMLElement>('[data-group]:not(:disabled)') ?? [])].map((el) =>
-        Number(el.dataset.group),
+        Number(el.dataset['group']),
       ),
     ),
   ];
@@ -387,7 +387,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
     const list = [...(root.current?.querySelectorAll<HTMLElement>('.pl-row') ?? [])];
     const first = list.find((el) => want !== null && el.textContent?.includes(want)) ?? list[0];
     first?.focus();
-    if (first?.dataset.group !== undefined) setAt(Number(first.dataset.group));
+    if (first?.dataset['group'] !== undefined) setAt(Number(first.dataset['group']));
     // A press outside the screen closes it; a press on the HUD speed rail is left to its click (runAt closes the menu in one step).
     const outside = (e: PointerEvent) => {
       if (root.current && !root.current.contains(e.target as Node) && !(e.target as Element).closest?.('.speeds'))
@@ -444,7 +444,7 @@ export function Paused({ features = NO_FEATURES }: { features?: PausedFeatures }
       return;
     }
     const gs = groups();
-    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset.group)), e.key);
+    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset['group'])), e.key);
     if (next < 0) return;
     e.preventDefault();
     const g = gs[next]!;

@@ -769,7 +769,7 @@ export function PickerCard() {
       const pl = anchor
         ? placePopup(anchor, { w: width, h }, free, rem * GAP_REM, order)
         : dockPlacement({ w: width, h }, free);
-      el.dataset.side = pl.side;
+      el.dataset['side'] = pl.side;
       el.style.setProperty('--tail', `${pl.tail}px`);
       el.style.transform = `translate(${Math.round(pl.x)}px, ${Math.round(pl.y)}px)`;
     };

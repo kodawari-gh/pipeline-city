@@ -14,7 +14,7 @@ function scene() {
     other = new Mesh(new BoxGeometry(100, 100, 100), capM);
   cap.position.y = 50;
   other.position.set(5000, 50, 0);
-  keys.userData.ao = 200;
+  keys.userData['ao'] = 200;
   keys.add(cap);
   root.add(plate, keys, other);
   return { root, cap, other, capM, plate };
@@ -26,7 +26,7 @@ function two() {
     more = new Mesh(new BoxGeometry(100, 100, 100), new MeshStandardMaterial()),
     group = new Group();
   more.position.set(-300, 50, 0);
-  group.userData.ao = 200;
+  group.userData['ao'] = 200;
   group.add(more);
   s.root.add(group);
   return { ...s, more };
@@ -36,7 +36,7 @@ function two() {
 const shares = (root: Group): number[][] => {
   const out: number[][] = [];
   root.traverse((o) => {
-    const a = (o as Mesh).geometry?.attributes._ao as BufferAttribute | undefined;
+    const a = (o as Mesh).geometry?.attributes['_ao'] as BufferAttribute | undefined;
     if (a) out.push(Array.from(a.array));
   });
   return out;
@@ -44,9 +44,9 @@ const shares = (root: Group): number[][] => {
 
 /** The open share on the front of the cap's point at (x, y, z) whose normal is `n` (BoxGeometry keeps each face's corners apart). */
 function aoAt(m: Mesh, x: number, y: number, z: number, n: [number, number, number]): number {
-  const p = m.geometry.attributes.position!,
-    nr = m.geometry.attributes.normal!,
-    ao = m.geometry.attributes._ao as BufferAttribute;
+  const p = m.geometry.attributes['position']!,
+    nr = m.geometry.attributes['normal']!,
+    ao = m.geometry.attributes['_ao'] as BufferAttribute;
   for (let i = 0; i < p.count; i++) {
     if (
       Math.hypot(p.getX(i) - x, p.getY(i) - y, p.getZ(i) - z) < 1 &&
@@ -75,15 +75,15 @@ describe('vertexAo', () => {
     const { root, other, capM, plate } = scene();
     vertexAo(root);
     expect(capM.customProgramCacheKey()).toContain('|ao');
-    expect(Array.from((other.geometry.attributes._ao as BufferAttribute).array).every((v) => v === 1)).toBe(true);
-    expect(plate.geometry.attributes._ao).toBeUndefined();
+    expect(Array.from((other.geometry.attributes['_ao'] as BufferAttribute).array).every((v) => v === 1)).toBe(true);
+    expect(plate.geometry.attributes['_ao']).toBeUndefined();
   });
 
   it('leaves a glow alone', () => {
     const { root, cap } = scene();
     (cap.material as MeshStandardMaterial).emissive = new Color(0xffffff);
     expect(vertexAo(root)).toBe(0);
-    expect(cap.geometry.attributes._ao).toBeUndefined();
+    expect(cap.geometry.attributes['_ao']).toBeUndefined();
   });
 });
 
@@ -104,8 +104,8 @@ describe('vertexAoSteps', () => {
     expect(yields).toBe(2);
     expect(step.value).toBe(cast);
     expect(steps.capM.customProgramCacheKey()).toContain('|ao');
-    expect(Array.from((steps.cap.geometry.attributes._ao as BufferAttribute).array)).toEqual(
-      Array.from((whole.cap.geometry.attributes._ao as BufferAttribute).array),
+    expect(Array.from((steps.cap.geometry.attributes['_ao'] as BufferAttribute).array)).toEqual(
+      Array.from((whole.cap.geometry.attributes['_ao'] as BufferAttribute).array),
     );
   });
 
@@ -125,7 +125,7 @@ describe('vertexAoPooled', () => {
       big = new Mesh(new BoxGeometry(100, 100, 100, 3, 3, 3), new MeshStandardMaterial()),
       group = new Group();
     big.position.set(300, 50, 0);
-    group.userData.ao = 200;
+    group.userData['ao'] = 200;
     group.add(big);
     s.root.add(group);
     return { ...s, big };
@@ -165,7 +165,7 @@ describe('vertexAoPooled', () => {
     expect(cast).toBe(24 + 24 + 96);
     expect(shares(pooled.root)).toEqual(shares(whole.root));
     expect(pooled.capM.customProgramCacheKey()).toContain('|ao');
-    expect(Array.from((pooled.other.geometry.attributes._ao as BufferAttribute).array).every((v) => v === 1)).toBe(
+    expect(Array.from((pooled.other.geometry.attributes['_ao'] as BufferAttribute).array).every((v) => v === 1)).toBe(
       true,
     );
     // (the page gets a turn after each group)

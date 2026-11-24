@@ -34,7 +34,7 @@ const elements = (v: Node): VEl[] => {
   if (v && typeof v === 'object' && 'props' in v) return [v];
   return [];
 };
-const childrenOf = (el: VEl): Node => el.props.children as Node;
+const childrenOf = (el: VEl): Node => el.props['children'] as Node;
 
 /** Every element in the tree, depth first. */
 function all(v: Node): VEl[] {
@@ -53,7 +53,7 @@ function text(v: Node): string {
 function buttons(v: Node): { text: string; cls: string; el: VEl }[] {
   return all(v)
     .filter((el) => el.type === 'button')
-    .map((el) => ({ text: text(childrenOf(el)).trim(), cls: String(el.props.class ?? ''), el }));
+    .map((el) => ({ text: text(childrenOf(el)).trim(), cls: String(el.props['class'] ?? ''), el }));
 }
 
 let BuildMode: typeof import('./BuildMode').BuildMode;
@@ -88,20 +88,20 @@ describe('Build rail: every part kind is reachable (ticket #41)', () => {
 
   it('the shelf rail offers every kind the current Build rail offers, and no more', () => {
     const tree = BuildMode() as unknown as Node;
-    const kinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf').kinds;
+    const kinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf')['kinds'];
     expect([...kinds].sort()).toEqual([...current()].sort());
   });
 
   it('includes the kinds the spec names in the rail: VRM, RSK, NET, AI and SEC (vrm-sink, ram-sink, nic, npu, tpm)', () => {
     const tree = BuildMode() as unknown as Node;
-    const kinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf').kinds;
+    const kinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf')['kinds'];
     for (const k of ['vrm-sink', 'ram-sink', 'nic', 'npu', 'tpm']) expect(kinds).toContain(k);
   });
 
   it('the machine list gets the same kinds as the rail', () => {
     const tree = BuildMode() as unknown as Node;
-    const shelfKinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf').kinds;
-    const machineKinds: string[] = propsOf(tree, BuildMachine, 'BuildMachine').kinds;
+    const shelfKinds: string[] = propsOf(tree, BuildShelf, 'BuildShelf')['kinds'];
+    const machineKinds: string[] = propsOf(tree, BuildMachine, 'BuildMachine')['kinds'];
     expect([...machineKinds].sort()).toEqual([...shelfKinds].sort());
   });
 });
@@ -242,18 +242,18 @@ describe('Power on agrees with the click path (ticket #41)', () => {
   it('while a step plays and the machine is off, Power on stays enabled, solid, and a click skips the step', () => {
     const calls: string[] = [];
     const b = powerBtn(true, false, calls);
-    expect(!!b.el.props.disabled).toBe(false);
+    expect(!!b.el.props['disabled']).toBe(false);
     expect(b.cls).toContain('primary');
-    b.el.props.onClick();
+    b.el.props['onClick']();
     expect(calls).toEqual(['skip']);
   });
 
   it('while a step plays and the machine is on, Power off is disabled (power() ignores it)', () => {
-    expect(!!powerBtn(true, true).el.props.disabled).toBe(true);
+    expect(!!powerBtn(true, true).el.props['disabled']).toBe(true);
   });
 
   it('when no step plays, the button is enabled (a click is accepted)', () => {
-    for (const on of [false, true]) expect(!!powerBtn(false, on).el.props.disabled).toBe(false);
+    for (const on of [false, true]) expect(!!powerBtn(false, on).el.props['disabled']).toBe(false);
   });
 });
 
@@ -269,9 +269,10 @@ describe('the Build screen has one way out (ticket #41)', () => {
         return null;
       }
     }
-    return { ...v, props: { ...v.props, children: expand(v.props.children as Node) } };
+    return { ...v, props: { ...v.props, children: expand(v.props['children'] as Node) } };
   };
-  const leaves = (el: VEl): string => `${el.props['aria-label'] ?? ''} ${el.props.title ?? ''} ${text(childrenOf(el))}`;
+  const leaves = (el: VEl): string =>
+    `${el.props['aria-label'] ?? ''} ${el.props['title'] ?? ''} ${text(childrenOf(el))}`;
 
   it('shows exactly one visible Back or Close control for the screen itself', () => {
     const tree = expand(BuildMode() as unknown as Node);

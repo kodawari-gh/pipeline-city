@@ -101,7 +101,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
   const stage = (i: number) => STAGES[Math.min(i, STAGES.length - 1)]!;
   // The enabled groups in order: a row is its own group, the utility line is one group of its buttons.
   const focusable = () => [...(root.current?.querySelectorAll<HTMLElement>('[data-group]:not(:disabled)') ?? [])];
-  const groups = () => [...new Set(focusable().map((el) => Number(el.dataset.group)))];
+  const groups = () => [...new Set(focusable().map((el) => Number(el.dataset['group'])))];
   const utils = () => [...(root.current?.querySelectorAll<HTMLElement>('.pl-util:not(:disabled)') ?? [])];
 
   const focusGroup = (g: number) => {
@@ -140,7 +140,7 @@ export function MainMenu({ ready = true }: { ready?: boolean }) {
       return;
     }
     const gs = groups();
-    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset.group)), e.key);
+    const next = moveFocus(gs.length, gs.indexOf(Number(active?.dataset['group'])), e.key);
     if (next < 0) return;
     e.preventDefault();
     const g = gs[next]!;

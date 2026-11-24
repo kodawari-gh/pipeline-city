@@ -70,7 +70,7 @@ const HABIT: Record<TreeKind, Habit> = {
 /** A unit ball whose vertices are shared, so its lumps shade smooth: finer near the window. */
 const BALLS = [SEG.ballDetail, SEG.ballDetailMid, SEG.ballDetailFine].map((d) => {
   const g = mergeVertices(new IcosahedronGeometry(1, d).deleteAttribute('normal').deleteAttribute('uv'));
-  return { pos: g.attributes.position!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
+  return { pos: g.attributes['position']!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
 });
 
 /** How many sprays of leaves stand on each lump of a near crown. */
@@ -194,7 +194,7 @@ class Lumps {
 /** A limb (or a trunk): a tapered tube, its uvs in metres along it and round it, as the bark's repeat is. */
 function limb(pts: V3[], r0: number, r1: number, sides: number, segs: number): BufferGeometry {
   const g = taperTube(pts, r0, r1, sides, segs),
-    uv = g.attributes.uv!;
+    uv = g.attributes['uv']!;
   let l = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i]!,
@@ -401,10 +401,10 @@ export function leafShader(m: MeshStandardMaterial): LeafUniforms {
     night: { value: 0 },
   };
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.leafTime = u.time;
-    sh.uniforms.leafSun = u.sunView;
-    sh.uniforms.leafGlow = u.glow;
-    sh.uniforms.leafNight = u.night;
+    sh.uniforms['leafTime'] = u.time;
+    sh.uniforms['leafSun'] = u.sunView;
+    sh.uniforms['leafGlow'] = u.glow;
+    sh.uniforms['leafNight'] = u.night;
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
@@ -515,7 +515,7 @@ export function plantTrees(
       grow(t, cards, wood, own(t));
       const ball = ballOf(cards.positions, v, cards.vertices);
       for (const g of wood.slice(w)) {
-        ball.union(ballOf(g.attributes.position!.array, 0, g.attributes.position!.count));
+        ball.union(ballOf(g.attributes['position']!.array, 0, g.attributes['position']!.count));
         bark += drawn(g);
       }
       balls.push(ball);

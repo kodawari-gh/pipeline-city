@@ -53,7 +53,7 @@ const elements = (v: Node): VEl[] => {
   if (v && typeof v === 'object' && 'props' in v) return [v];
   return [];
 };
-const childrenOf = (el: VEl): Node => el.props.children as Node;
+const childrenOf = (el: VEl): Node => el.props['children'] as Node;
 function all(v: Node): VEl[] {
   return elements(v).flatMap((el) => [el, ...all(childrenOf(el))]);
 }
@@ -191,10 +191,10 @@ describe('the Save now row while a save is in flight (SPEC 5.10)', () => {
     const P = await importPaused();
     st.gameMenuOpen.value = true;
     const row = all(P.Paused() as Node).find(
-      (el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Save now'),
+      (el) => el.props['role'] === 'menuitem' && textOf(el.props['children'] as Node).includes('Save now'),
     );
     expect(row, 'a Save now row').toBeDefined();
-    return textOf(row!.props.children as Node);
+    return textOf(row!.props['children'] as Node);
   };
   const pending = () => store.saving;
 
@@ -214,9 +214,9 @@ describe('Enter activates and Space does nothing on the open menu', () => {
     const P = await importPaused();
     st.gameMenuOpen.value = true;
     const tree = P.Paused() as Node;
-    const layer = all(tree).find((el) => typeof el.props.onKeyDown === 'function');
+    const layer = all(tree).find((el) => typeof el.props['onKeyDown'] === 'function');
     let prevented = false;
-    layer?.props.onKeyDown({
+    layer?.props['onKeyDown']({
       key: ' ',
       code: 'Space',
       target: null,
@@ -227,10 +227,10 @@ describe('Enter activates and Space does nothing on the open menu', () => {
     expect(prevented, 'the menu does not act on Space').toBe(false);
     expect(st.gameMenuOpen.value).toBe(true);
     const resume = all(tree).find(
-      (el) => el.props.role === 'menuitem' && textOf(el.props.children as Node).includes('Resume'),
+      (el) => el.props['role'] === 'menuitem' && textOf(el.props['children'] as Node).includes('Resume'),
     );
-    expect(typeof resume?.props.onClick, 'Resume is a button, so Enter clicks it').toBe('function');
-    resume!.props.onClick();
+    expect(typeof resume?.props['onClick'], 'Resume is a button, so Enter clicks it').toBe('function');
+    resume!.props['onClick']();
     expect(st.gameMenuOpen.value).toBe(false);
   });
 });
@@ -262,18 +262,18 @@ describe('the Paused screen', () => {
   it('the first menu row rendered is Resume', async () => {
     const P = await importPaused();
     st.gameMenuOpen.value = true;
-    const rows = all(P.Paused() as Node).filter((el) => el.props.role === 'menuitem');
+    const rows = all(P.Paused() as Node).filter((el) => el.props['role'] === 'menuitem');
     expect(rows.length).toBeGreaterThan(0);
-    expect(textOf(rows[0]!.props.children as Node)).toContain('Resume');
+    expect(textOf(rows[0]!.props['children'] as Node)).toContain('Resume');
   });
 
   it('opening it announces "Paused. Clock stopped." as a status', async () => {
     const P = await importPaused();
     expect(P.PAUSED_ANNOUNCE).toBe('Paused. Clock stopped.');
     st.gameMenuOpen.value = true;
-    const status = all(P.Paused() as Node).find((el) => el.props.role === 'status');
+    const status = all(P.Paused() as Node).find((el) => el.props['role'] === 'status');
     expect(status, 'a role="status" element on open').toBeDefined();
-    expect(textOf(status!.props.children as Node)).toBe('Paused. Clock stopped.');
+    expect(textOf(status!.props['children'] as Node)).toBe('Paused. Clock stopped.');
   });
 });
 

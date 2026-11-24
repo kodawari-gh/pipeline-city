@@ -112,9 +112,9 @@ export class ArtSet {
 
   /** Hand the set to the viewer on the part's root. */
   attach(o: Object3D): void {
-    o.userData.frame = this.frame;
-    o.userData.dispose = this.dispose;
-    o.userData.open = this.open;
+    o.userData['frame'] = this.frame;
+    o.userData['dispose'] = this.dispose;
+    o.userData['open'] = this.open;
   }
 
   /** Per frame under a host that runs the queue (the Build stage's wall, with the stage's own queue): the reveals, then the faces' tiles. */

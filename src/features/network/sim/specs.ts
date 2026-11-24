@@ -75,7 +75,7 @@ export const ISP_SPECS: readonly IspSpec[] = [
 export const NIC_FIFO: Readonly<Record<string, number>> = { board: 2, nic1: 4, nic2: 8, nic3: 16 };
 
 /** The FIFO depth of the port the cable is in: a card by its spec id, the motherboard's jack for `null`. */
-export const fifoSegsOf = (spec: string | null): number => NIC_FIFO[spec ?? 'board'] ?? NIC_FIFO.board!;
+export const fifoSegsOf = (spec: string | null): number => NIC_FIFO[spec ?? 'board'] ?? NIC_FIFO['board']!;
 
 export const getRouterSpec = (id: string): RouterSpec | undefined => ROUTER_SPECS.find((r) => r.id === id);
 export const getIspSpec = (id: string): IspSpec | undefined => ISP_SPECS.find((r) => r.id === id);

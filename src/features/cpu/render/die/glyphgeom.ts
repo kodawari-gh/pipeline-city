@@ -207,7 +207,7 @@ export function glyphPins(b: Block): Pins | null {
 export function inPinFor(b: Block, linkId: string, pins: Pins): Pt | undefined {
   if (b.kind === 'nextpc') return pins.ins[linkId.includes('pcadd') ? '+4' : linkId.includes('irq') ? 'irq' : 'br'];
   if (b.kind === 'wb') return pins.ins[/lsu|l3|mem/.test(linkId) ? 'mem' : 'alu'];
-  return pins.ins.in ?? Object.values(pins.ins)[0];
+  return pins.ins['in'] ?? Object.values(pins.ins)[0];
 }
 
 const sideOf = (p: Pt, r: Rect): 'W' | 'E' | 'N' | 'S' =>

@@ -349,7 +349,7 @@ export function Settings() {
     }
     const host = t.closest<HTMLElement>('[data-row]');
     if (!host) return;
-    const i = Number(host.dataset.row);
+    const i = Number(host.dataset['row']);
     if (k === 'ArrowUp' && i === 0) {
       e.preventDefault();
       focusTab(tab);

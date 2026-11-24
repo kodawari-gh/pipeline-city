@@ -197,9 +197,9 @@ export class NetFlows {
   frame(cam: PerspectiveCamera, pxHeight: number, dt: number, clock: number): void {
     this.t = (this.t + dt) % 10000;
     const u = this.mat.uniforms;
-    u.uPixel!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
-    u.uT!.value = this.t;
-    u.uClock!.value = clock % 1000;
+    u['uPixel']!.value = 2 / (cam.projectionMatrix.elements[5]! * Math.max(1, pxHeight));
+    u['uT']!.value = this.t;
+    u['uClock']!.value = clock % 1000;
   }
 
   /** How many strips are drawn, for the check tool. */

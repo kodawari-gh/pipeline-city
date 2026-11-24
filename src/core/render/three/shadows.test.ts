@@ -31,7 +31,7 @@ function setup() {
     still = caster(),
     blade = caster();
   panel.add(a, b);
-  rotor.userData.spin = true;
+  rotor.userData['spin'] = true;
   rotor.add(blade);
   scene.add(panel, still, rotor);
   const cache = new ShadowCache({ shadowMap: { render: () => {} } } as unknown as WebGLRenderer);
@@ -98,7 +98,7 @@ describe('ShadowCache.scan', () => {
   });
   it('moves a live mesh (its vertices change, its matrix does not) on every scan', () => {
     const { still, at, movers } = setup();
-    still.userData.live = true;
+    still.userData['live'] = true;
     expect(at(6000)).toBe(true);
     expect(at(6016)).toBe(true);
     expect(movers()).toEqual([still]);
@@ -144,7 +144,7 @@ function lit() {
     rotor = new Group(),
     blade = new Mesh(new BoxGeometry());
   caster.castShadow = blade.castShadow = true;
-  rotor.userData.spin = true;
+  rotor.userData['spin'] = true;
   rotor.add(blade);
   const lamp = new SpotLight(),
     bulb = new PointLight();
@@ -182,7 +182,7 @@ function ranged() {
     rotor = new Group(),
     blade = new Mesh(new BoxGeometry());
   caster.castShadow = blade.castShadow = true;
-  rotor.userData.spin = true;
+  rotor.userData['spin'] = true;
   rotor.add(blade);
   caster.position.x = rotor.position.x = 100;
   const bulb = new PointLight(0xffffff, 1, 10),
@@ -296,7 +296,7 @@ describe('ShadowCache layers', () => {
       rotor = new Group(),
       blade = caster();
     on.layers.enable(LAYER);
-    rotor.userData.spin = true;
+    rotor.userData['spin'] = true;
     rotor.add(blade);
     const layered = new PointLight(0xffffff, 1, 1000),
       dflt = new PointLight(0xffffff, 1, 1000);

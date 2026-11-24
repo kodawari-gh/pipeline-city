@@ -145,7 +145,7 @@ export function rgbStrip(r: RectLike, T: Theme, lamps: Spin[]): Group {
   for (let k = 0; k < n; k++) {
     const c = lerpHex(a, b, k / (n - 1)),
       box = new BoxGeometry(24, 24, 8).translate(r.x + (k * r.w) / (n - 1), -y, z),
-      uv = box.attributes.uv!;
+      uv = box.attributes['uv']!;
     px.set([(c >> 16) & 255, (c >> 8) & 255, c & 255, 255], 4 * k);
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (k + 0.5) / n, 0.5);
     leds.push(box);
@@ -238,7 +238,7 @@ export function boardModel(
   sockets.set('cpu0', up(g, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket));
   GEO.dimm.forEach((d, i) => {
     const s = dimmSlot(d.rect, !filled.has(`dimm${i}`), hexNum(sk.slot), hexNum(sk.latch));
-    s.latches.userData.dimm = `dimm${i}`;
+    s.latches.userData['dimm'] = `dimm${i}`;
     g.add(s.housing, s.latches);
     sockets.set(`dimm${i}`, s.housing);
   });

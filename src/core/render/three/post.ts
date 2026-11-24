@@ -51,7 +51,7 @@ class ScenePass extends RenderPass {
       samples: 4,
       depthTexture: new DepthTexture(w, h),
     });
-    this.copy.uniforms.tDiffuse!.value = this.target.texture;
+    this.copy.uniforms['tDiffuse']!.value = this.target.texture;
   }
 
   override setSize(w: number, h: number): void {
@@ -103,7 +103,7 @@ class PickOutline extends OutlinePass {
   constructor(size: Vector2, camera: PerspectiveCamera, depth: DepthTexture) {
     super(size, new Scene(), camera);
     const mask = this.prepareMaskMaterial;
-    mask.uniforms.sceneDepth = { value: depth };
+    mask.uniforms['sceneDepth'] = { value: depth };
     // the picked part is in this depth too: the small margin keeps its own surface from reading as hidden behind itself
     mask.fragmentShader = `#include <packing>
       varying vec4 vPosition;
@@ -333,9 +333,9 @@ export class Post {
     this.ao.blendIntensity = 0.85;
     const blend = this.ao.blendMaterial;
     blend.fragmentShader = AO_UPSAMPLE;
-    blend.uniforms.tDepth = { value: depth };
-    blend.uniforms.aoSize = { value: new Vector2(1, 1) };
-    this.nearFar = blend.uniforms.cameraNearFar = { value: new Vector2(camera.near, camera.far) };
+    blend.uniforms['tDepth'] = { value: depth };
+    blend.uniforms['aoSize'] = { value: new Vector2(1, 1) };
+    this.nearFar = blend.uniforms['cameraNearFar'] = { value: new Vector2(camera.near, camera.far) };
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
     // the information colour (docs/art-style.md): a thin cyan edge, a dim one where the part is hidden, no glow and no pulse
     this.outline.visibleEdgeColor.set(0x3be3ff);
@@ -397,7 +397,7 @@ export class Post {
   setReach(height: number): void {
     const k = roomness(height),
       r = Math.round(900 + k * 3100);
-    this.look.uniforms.k!.value = k;
+    this.look.uniforms['k']!.value = k;
     this.local.strength = this.dark ? 0 : BOARD_EYE + (1 - BOARD_EYE) * k;
     if (this.reach === r) return;
     this.reach = r;
@@ -406,7 +406,7 @@ export class Post {
     // Uniforms only: the pass rebuilds its shader for a new fall-off (set here straight on the uniform) or a new ring count, and a flight would
     // rebuild it every frame, slow enough for auto-adjust to drop the AO.
     this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4 });
-    this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
+    this.ao.gtaoMaterial.uniforms['distanceFallOff']!.value = 1 - k * 0.6;
     this.ao.updatePdMaterial({ radius: (4 + k * 16) * AO_SCALE });
   }
 
@@ -439,7 +439,7 @@ export class Post {
     const r = this.renderer;
     if (!(++this.meterFrame % 4) && !this.metering && !this.gone && r.extensions.has('EXT_color_buffer_float')) {
       const was = r.getRenderTarget();
-      (this.meterQuad.material as ShaderMaterial).uniforms.tDiffuse!.value = this.scene.target.texture;
+      (this.meterQuad.material as ShaderMaterial).uniforms['tDiffuse']!.value = this.scene.target.texture;
       r.setRenderTarget(this.meterTarget);
       this.meterQuad.render(r);
       r.setRenderTarget(was);
@@ -482,7 +482,7 @@ export class Post {
     const aw = Math.ceil(pw * AO_SCALE),
       ah = Math.ceil(ph * AO_SCALE);
     this.ao.setSize(aw, ah);
-    (this.ao.blendMaterial.uniforms.aoSize!.value as Vector2).set(aw, ah);
+    (this.ao.blendMaterial.uniforms['aoSize']!.value as Vector2).set(aw, ah);
     // the outline's edge is found at half size (the pass's default), so 0.5 texel there is about 1 pixel of the screen
     this.outline.edgeThickness = 0.5 * ratio;
     this.outline.setSize(pw, ph);
@@ -524,7 +524,7 @@ export class Post {
     cam.setViewOffset(s.width, s.height, jx, jy, s.width, s.height);
     this.draw(this.mean, 1 / (n + 1));
     cam.clearViewOffset();
-    (this.meanQuad!.material as ShaderMaterial).uniforms.tDiffuse!.value = this.mean.texture;
+    (this.meanQuad!.material as ShaderMaterial).uniforms['tDiffuse']!.value = this.mean.texture;
     r.setRenderTarget(null);
     this.meanQuad!.render(r);
     r.setRenderTarget(was);

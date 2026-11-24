@@ -79,15 +79,15 @@ export const totalStalls = (counters: Record<string, number>) =>
   STALL_CAUSES.reduce((a, c) => a + (counters[c.key] ?? 0), 0);
 
 export function cpiIpc(counters: Record<string, number>): { cpi: number; ipc: number } | null {
-  const cyc = counters.cycles ?? 0;
-  const ret = counters.retired ?? 0;
+  const cyc = counters['cycles'] ?? 0;
+  const ret = counters['retired'] ?? 0;
   if (cyc <= 0 || ret <= 0) return null;
   return { cpi: cyc / ret, ipc: ret / cyc };
 }
 
 export function cacheHitRate(counters: Record<string, number>): number | null {
-  const h = counters.cacheHits ?? 0;
-  const m = counters.cacheMisses ?? 0;
+  const h = counters['cacheHits'] ?? 0;
+  const m = counters['cacheMisses'] ?? 0;
   return h + m > 0 ? h / (h + m) : null;
 }
 
