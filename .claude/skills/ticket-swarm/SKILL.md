@@ -9,11 +9,11 @@ description: Build tracker tickets with a swarm of headless subagents (coder and
 
 ```
 node .claude/skills/ticket-swarm/swarm.mjs ticket <n>[,<n>...] [--base <branch>]
-node .claude/skills/ticket-swarm/swarm.mjs run <parent> [--base <branch>] [--slots <k>]
+node .claude/skills/ticket-swarm/swarm.mjs run <parent> [--base <branch>] [--from <ref>] [--slots <k>]
 node .claude/skills/ticket-swarm/swarm.mjs status | gc | lock -- <cmd>
 ```
 
-Base defaults to the current branch. Confirm it with the user before the first run.
+`run` base defaults to `parent/<parent>`, which the script makes from `--from` (default: the current branch) when missing. At the end of a run it removes the worktrees and branches of closed tickets. `ticket` base defaults to the current branch: confirm it with the user before the first run.
 
 ## Before a run
 

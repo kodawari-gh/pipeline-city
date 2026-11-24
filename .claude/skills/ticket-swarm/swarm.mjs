@@ -591,7 +591,47 @@ Resolve them keeping both the ticket's intent and the base's changes, stage the 
       `FINISHED: ${ts.map(([n, T]) => `#${n} ${T.phase}${T.phase === 'done' ? ` ${T.commit?.slice(0, 8)} r${T.rounds}` : ''}`).join(', ') || 'nothing to run'}`,
     );
     if (warned.size) this.emit(`waiting on planned model: ${[...warned].map((n) => '#' + n).join(' ')}`);
+    for (const line of gc(this.cfg)) {
+      this.emit(`gc: ${line}`);
+    }
   }
+}
+
+/** Remove the worktrees and branches of closed tickets; keep those of open ones. */
+function gc(cfg) {
+  const root = cfg.root;
+  const out = [];
+  const branches = git(root, 'branch', '--format=%(refname:short)')
+    .split(/\r?\n/)
+    .filter((b) => /^ticket\/\d+/.test(b));
+  const nums = [...new Set(branches.map((b) => Number(b.match(/^ticket\/(\d+)/)[1])))];
+  for (const n of nums) {
+    if (getIssue(cfg, n).state === 'OPEN') {
+      out.push(`keep #${n} (open)`);
+      continue;
+    }
+    for (const role of ['coder', 'tester', 'merge']) {
+      const p = join(root, '.claude', 'worktrees', `t${n}-${role}`);
+      if (existsSync(p) && !gitOk(root, 'worktree', 'remove', '--force', p)) {
+        rmSync(p, { recursive: true, force: true });
+      }
+    }
+    for (const br of branches.filter((b) => b === `ticket/${n}` || b.startsWith(`ticket/${n}-`))) {
+      gitOk(root, 'branch', '-D', br);
+    }
+    out.push(`removed #${n} worktrees and branches`);
+  }
+  gitOk(root, 'worktree', 'prune');
+  return out;
+}
+
+/** The parent's base branch parent/<n>, made from `from` when missing. Never checked out. */
+function parentBranch(root, parent, from) {
+  const b = `parent/${parent}`;
+  if (!gitOk(root, 'rev-parse', '--verify', `refs/heads/${b}`)) {
+    git(root, 'branch', b, from);
+  }
+  return b;
 }
 class Critical extends Error {}
 class Stop extends Error {
@@ -647,12 +687,14 @@ async function lock(name, cmd) {
 // ---------- CLI ----------
 
 const HELP = `swarm.mjs: ticket swarm runner (config docs/agents/board.json)
-  run <parent> [--base <branch>] [--slots <k>]   swarm every ready child until none is left
+  run <parent> [--base <branch>] [--from <ref>] [--slots <k>]   swarm every ready child until none is left
   ticket <n>[,<n>...] [--base <branch>]          swarm the named tickets only
   status [<key>]                                 phase, rounds and tier of each ticket in a run
   gc                                             remove worktrees and branches of closed tickets
   lock [--name <name>] -- <command...>           run a command under a machine-wide mutex (default name: browser)
---no-install skips the install command in new worktrees. Base defaults to the current branch. State and event log: .claude/swarm/<key>.{json,log}.`;
+run: base defaults to parent/<parent>, made from --from (default: the current branch) when missing; gc runs at the end.
+ticket: base defaults to the current branch.
+--no-install skips the install command in new worktrees. State and event log: .claude/swarm/<key>.{json,log}.`;
 
 function opt(a, name, def) {
   const i = a.indexOf(name);
@@ -667,7 +709,8 @@ async function main(argv) {
     if (i < 0) throw new Error('lock needs -- <command>');
     return lock(opt(a.slice(0, i), '--name', 'browser'), a.slice(i + 1).join(' '));
   }
-  const cfg = loadConfig(repoRoot());
+  const root = repoRoot();
+  const cfg = loadConfig(root);
   if (cmd === 'status') {
     const dir = join(cfg.root, '.claude', 'swarm');
     const files = existsSync(dir)
@@ -684,40 +727,27 @@ async function main(argv) {
     return;
   }
   if (cmd === 'gc') {
-    const root = cfg.root;
-    const branches = git(root, 'branch', '--format=%(refname:short)')
-      .split(/\r?\n/)
-      .filter((b) => /^ticket\/\d+/.test(b));
-    const nums = [...new Set(branches.map((b) => Number(b.match(/^ticket\/(\d+)/)[1])))];
-    for (const n of nums) {
-      if (getIssue(cfg, n).state === 'OPEN') {
-        console.log(`keep #${n} (open)`);
-        continue;
-      }
-      for (const role of ['coder', 'tester', 'merge']) {
-        const p = join(root, '.claude', 'worktrees', `t${n}-${role}`);
-        if (existsSync(p))
-          gitOk(root, 'worktree', 'remove', '--force', p) || rmSync(p, { recursive: true, force: true });
-      }
-      for (const b of branches.filter((b) => b === `ticket/${n}` || b.startsWith(`ticket/${n}-`)))
-        gitOk(root, 'branch', '-D', b);
-      console.log(`removed #${n} worktrees and branches`);
-    }
-    gitOk(root, 'worktree', 'prune');
+    for (const line of gc(cfg)) console.log(line);
     return;
   }
   if (a.includes('--no-install')) cfg.swarm = { ...cfg.swarm, install: '' };
-  const base = opt(a, '--base', git(cfg.root, 'branch', '--show-current'));
-  if (!base) throw new Error('No base branch: pass --base');
+  /** @type {string} */
+  const current = git(root, 'branch', '--show-current');
   if (cmd === 'run') {
     const parent = Number(a[0]);
     if (!parent) throw new Error('run needs a parent issue number');
-    const s = new Swarm(cfg, `p${parent}`, base);
+    const s = new Swarm(
+      cfg,
+      `p${parent}`,
+      opt(a, '--base') ?? parentBranch(root, parent, opt(a, '--from', current === '' ? 'HEAD' : current)),
+    );
     if (a.includes('--slots')) s.sw.slots = Number(opt(a, '--slots'));
     s.emit(`START parent #${parent} base ${s.base} slots ${s.sw.slots}`);
     return s.loop({ parent });
   }
   if (cmd === 'ticket') {
+    const base = opt(a, '--base', current);
+    if (!base) throw new Error('No base branch: pass --base');
     const only = String(a[0]).split(',').map(Number).filter(Boolean);
     const s = new Swarm(cfg, `t${only.join('-')}`, base);
     s.sw.slots = Math.max(s.sw.slots, only.length);
