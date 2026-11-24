@@ -19,7 +19,7 @@ export function run(cmd, args, opts = {}) {
     ...opts,
   }).trim();
 }
-const TRANSIENT = /Bad credentials|HTTP 401|HTTP 5\d\d|ECONNRESET|ETIMEDOUT|timed out/iu;
+const TRANSIENT = /Bad credentials|HTTP 401|HTTP 5\d\d|ECONNRESET|ETIMEDOUT|timed out|Something went wrong/iu;
 /** gh call; a transient auth or network failure retries up to 5 times with a growing pause. */
 export function gh(args) {
   for (let i = 0; ; i++) {
