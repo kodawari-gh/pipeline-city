@@ -92,3 +92,4 @@ Escalation table: see `.claude/skills/ticket-swarm/SKILL.md`.
 
 #33 is not recorded: no spawn records found in the transcript.
 "(inferred)" means the round and tier come from transcript spawn records and the PASS verdict is inferred from the squash.
+| #94 | 1 | sonnet medium | PASS | npm run check: all 10 gates ok (format, types, lint, css, md, dead, spell, py, pytypes, editor); npm run check:css: ok, 414 baselined; .baseline/stylelint.json diff shows only removals; npx vitest run |

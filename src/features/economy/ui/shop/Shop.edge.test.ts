@@ -52,7 +52,7 @@ describe('Shop look: Edge tabs, no glass (ticket #73, SPEC §1 rules 5 to 7)', (
   it('no radius on a Shop panel, tab or list (radius 4 px is for chips only)', () => {
     const big = decls(/^border-radius$/)
       .filter((d) => {
-        const px = d.match(/:\s*([\d.]+)px/);
+        const px = d.match(/:\s*([\d.]+)(?:px)?\s*\}?$/);
         return !px || Number(px[1]) > 4;
       })
       .filter((d) => !/\.shop-rail button\b/.test(d));

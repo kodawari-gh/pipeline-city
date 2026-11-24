@@ -79,7 +79,12 @@ const RULES = rulesOf(css);
 
 /** Whether one feature of a media query holds at `c`. Features the test does not know do not hold. */
 function featureHolds(feature: string, c: Ctx): boolean {
-  const m = /^\(\s*([\w-]+)\s*:\s*([^)]+?)\s*\)$/.exec(feature.trim());
+  // Range notation `(width <= 48em)` reads as `(max-width: 48em)`.
+  const old = feature
+    .trim()
+    .replace(/^\(\s*(?<n>width|height|aspect-ratio)\s*<=\s*/u, '(max-$<n>: ')
+    .replace(/^\(\s*(?<n>width|height|aspect-ratio)\s*>=\s*/u, '(min-$<n>: ');
+  const m = /^\(\s*([\w-]+)\s*:\s*([^)]+?)\s*\)$/.exec(old);
   if (!m) return false;
   const name = m[1] ?? '';
   const value = m[2] ?? '';
@@ -96,6 +101,10 @@ function featureHolds(feature: string, c: Ctx): boolean {
     case 'max-aspect-ratio': {
       const [a, b] = value.split('/').map(Number);
       return c.w / c.h <= (a ?? NaN) / (b ?? 1);
+    }
+    case 'min-aspect-ratio': {
+      const [a, b] = value.split('/').map(Number);
+      return c.w / c.h >= (a ?? Number.NaN) / (b ?? 1);
     }
     case 'orientation':
       return value === (c.w > c.h ? 'landscape' : 'portrait');
