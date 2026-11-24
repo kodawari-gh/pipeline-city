@@ -96,7 +96,7 @@ export function gpuFar(g: Graphics, T: Theme, plan: GpuPlan): void {
 }
 
 /** How the GPU card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
-export const GPU_STYLE: PlanStyle<GpuBlock, GpuLink> = {
+const GPU_STYLE: PlanStyle<GpuBlock, GpuLink> = {
   color: (T, b) => T[GPU_KIND_COLOR[b.kind]],
   linkColor: (T, l) => T[GPU_LINK_COLOR[l.kind]],
   frame: (b) => b.kind === 'sm',

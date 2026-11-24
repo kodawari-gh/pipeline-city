@@ -106,7 +106,7 @@ export interface Link {
   both?: boolean;
 }
 
-export type Arch = 'unpipelined' | 'inorder' | 'inorder2' | 'ooo';
+type Arch = 'unpipelined' | 'inorder' | 'inorder2' | 'ooo';
 
 export interface PlanInput {
   arch: Arch;

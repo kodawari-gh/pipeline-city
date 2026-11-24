@@ -8,7 +8,7 @@ import type { Theme } from '@/core/render/theme';
 // (`persp.ts`: its sides run to the vanishing point) and lifted by its height. Plan depth is squashed to the screen by `MUG.e`, the same squash as the mug's rim.
 
 /** The coffee mug on the desk: height, radius at the rim and at the base, and the squash of a circle (the ratio of an ellipse's height to its width). */
-export const MUG = { h: 1300, r: 560, rb: 450, e: 0.12 };
+const MUG = { h: 1300, r: 560, rb: 450, e: 0.12 };
 
 type Pt = [number, number];
 export interface PeriphLook {

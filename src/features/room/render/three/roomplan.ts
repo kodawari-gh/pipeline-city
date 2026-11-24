@@ -9,7 +9,7 @@ export const DESK_D = 12000,
 export const CASE_Z = 2200,
   BOARD_Z = CASE_Z + 260;
 /** How deep each case tier is (mini, micro, mid, full tower): the rear fan stands beside the I/O plate, so the bigger fans need a deeper case. */
-export const CASE_DEPTHS = [4200, 4200, 4500, 4900];
+const CASE_DEPTHS = [4200, 4200, 4500, 4900];
 /**
  * The current case's depth and its face toward the viewer; the case fans and a radiator sit centred in that depth, a fan is at most `FAN_MAX` wide.
  * The rear fan's centre `REAR_ZC`: toward the glass, just clear of the I/O plate. Live bindings, as in `layout.ts`: `setCaseDepth` moves them.
@@ -28,7 +28,6 @@ export function setCaseDepth(tier: number, fanLen: number): void {
   REAR_ZC = BOARD_Z + 1260 + fanLen / 2;
 }
 export const MONITOR_Z = 3200;
-export const ROOM_D = 26000;
 
 /** The 3D room's clock starts in the early afternoon. */
 export const START_HOUR_3D = 14.2;
@@ -110,7 +109,7 @@ export const PED = { in: 7800, w: 7500 };
 /** The floating shelf on the east wall past the bed's foot: its ends (z), its top (2D y) and its depth. */
 export const SHELF = { z0: 40000, z1: 55000, y: -3000, d: 4000 };
 /** The world box (y up) the camera's eye keeps to: the room less a margin that keeps the near plane off the walls. */
-export const EYE_MARGIN = 3600;
+const EYE_MARGIN = 3600;
 export function eyeRoom(): Room {
   const m = EYE_MARGIN;
   return { x0: WEST_X + m, x1: EAST_X - m, y0: -FLOOR_Y + m, y1: -CEIL_Y - m, z0: m, z1: FRONT_Z - m };

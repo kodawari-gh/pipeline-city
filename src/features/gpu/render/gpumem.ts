@@ -23,8 +23,7 @@ const SLOTS = 9;
 type Colored = LiveGlyph['lit'][number]['color'];
 
 /** A value as a cell can hold it: a small number as it is, a big one in hex. */
-export const compact = (v: number): string =>
-  Math.abs(v | 0) < 100000 ? String(v | 0) : `0x${(v >>> 0).toString(16)}`;
+const compact = (v: number): string => (Math.abs(v | 0) < 100000 ? String(v | 0) : `0x${(v >>> 0).toString(16)}`);
 const h4 = (n: number): string => (n >>> 0).toString(16).padStart(4, '0');
 
 /** The card memory's drawing: the map of cells (a square of `cw` per cell), the row buffer's slots under it and the controller. */
@@ -93,7 +92,7 @@ export function dramCellRect(a: Rect, bytes: number, addr: number): Rect {
 /** Words the card memory's magnifier shows. */
 export const LENS_ROWS = 9;
 
-export interface GpuLensRow {
+interface GpuLensRow {
   addr: number;
   hex: string;
   text: string;

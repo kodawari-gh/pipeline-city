@@ -13,10 +13,10 @@ export const CORD_KINDS: readonly CordKind[] = ['pcmains', 'monmains'];
 export type Pt = [number, number];
 
 /** The plug's body, seen from its back as it sits in the wall: 540 wide, 560 tall, the cord's boot above it. */
-export const PLUG_W = 540,
+const PLUG_W = 540,
   PLUG_H = 560,
-  BOOT_UP = 330,
-  CORD_END = 310;
+  BOOT_UP = 330;
+export const CORD_END = 310;
 /** How close (world units) the plug's centre must be to its outlet for the drop to seat it. */
 export const SEAT_R = 300;
 
@@ -99,7 +99,7 @@ const runClips = (route: Pt[], min = 1500): Pt[] =>
   });
 
 /** The cord as `cordPath` draws it, and the wall clips that hold it: every corner is a round bend, a long run is clipped and sags a little between clips. */
-export function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips: Clip[] } {
+function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips: Clip[] } {
   if (seated) {
     const r = cordRoute(plan, at);
     return drape(r, { radius: 450, sag: 0.04, clips: runClips(r) });

@@ -13,7 +13,7 @@ const COUNTER_INDEX = new Map<string, number>(COUNTER_NAMES.map((n, i) => [n, i]
 export type JobOutcome = 'done' | 'expired' | 'declined' | 'lost' | 'breached' | 'completed';
 
 /** What a contract log entry adds: who, where, how it went. `type` is the contract kind (`cloud.archive`, `cloud.hot`), `payout` the net money. */
-export interface ContractLogInfo {
+interface ContractLogInfo {
   client: string;
   /** Name of the drive that held the data. */
   drive: string;
@@ -76,7 +76,7 @@ export interface JobLogEntry {
 export const JOB_LOG_CAP = 60;
 
 /** The counter names a window is made of, in the order `windowOf` reads them. */
-export const WINDOW_COUNTERS = [
+const WINDOW_COUNTERS = [
   'cycles',
   'retired',
   'stallLoad',

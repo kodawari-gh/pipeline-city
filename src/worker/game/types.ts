@@ -103,7 +103,7 @@ export interface VrmSnap {
 }
 
 /** The air of one area of the case (board/sim/airflow.ts): `north` (processor, memory, regulators), `cards` (the PCIe cards), `bay` (the drives). */
-export interface AirZoneSnap {
+interface AirZoneSnap {
   id: 'north' | 'cards' | 'bay';
   /** 0 to 1: how well the area is ventilated against the case with every fan turning (1 = as designed; 0 = no air moves). */
   flow: number;
@@ -733,7 +733,7 @@ export interface NetStackSnap {
   nic: NicStackSnap;
 }
 
-export interface NicStackSnap {
+interface NicStackSnap {
   /** The kernel has set the NIC up (it is on). */
   enabled: boolean;
   /** Segments waiting in the chip's input FIFO, and its depth. */

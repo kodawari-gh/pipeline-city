@@ -9,7 +9,7 @@ import { mix } from '@/core/render/ink';
 import type { Lane, Pt } from './routes';
 
 /** How fast a signal runs along a trace (world units per game ms), and the shortest and longest time one trip takes (ms). */
-export const SIGNAL_SPEED = 9;
+const SIGNAL_SPEED = 9;
 export const MIN_MS = 170;
 export const MAX_MS = 340;
 /** How long a trace stays lit after the packet has arrived (ms). */
@@ -60,7 +60,7 @@ export function slice(lane: Lane, a: number, b: number): Pt[] {
 }
 
 /** The parts of arc lengths `a..b` on the surface: where a lane dives (`Lane.hops`) nothing shows. */
-export function surfaced(lane: Lane, a: number, b: number): [number, number][] {
+function surfaced(lane: Lane, a: number, b: number): [number, number][] {
   const out: [number, number][] = [];
   let at = a;
   for (const [h0, h1] of lane.hops ?? []) {

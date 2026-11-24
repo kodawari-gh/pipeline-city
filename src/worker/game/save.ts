@@ -55,7 +55,7 @@ export interface SavedPlugged extends SavedKey {
   result: string;
 }
 
-export interface SavedCompleted {
+interface SavedCompleted {
   id: number;
   template: string;
   payout: number;
@@ -141,30 +141,30 @@ const NEW_FLAGS: readonly (keyof Progress)[] = [
 export const newProgress = (all = false): Progress =>
   Object.fromEntries(PROGRESS_KEYS.map((k) => [k, all && !NEW_FLAGS.includes(k)])) as unknown as Progress;
 
-export interface SavedInventoryItem {
+interface SavedInventoryItem {
   id: string;
   spec: string;
 }
 
 /** The OS installed on a storage device (identified by the installed device's id). */
-export interface SavedOs {
+interface SavedOs {
   /** Item id, `os1`... */
   spec: string;
   deviceId: string;
 }
 
 /** The shape before storage and the OS (v2). Only the migration reads it. */
-export interface SaveV2 extends Omit<SaveV3, 'version' | 'os'> {
+interface SaveV2 extends Omit<SaveV3, 'version' | 'os'> {
   version: 2;
 }
 
 /** The shape before the board tier ladder and the VRM (v3). Only the migration reads it. */
-export interface SaveV3 extends Omit<SaveV4, 'version'> {
+interface SaveV3 extends Omit<SaveV4, 'version'> {
   version: 3;
 }
 
 /** The shape before fans were parts of their own (v4): the same fields. Only the migration reads it. */
-export interface SaveV4 extends Omit<SaveV5, 'version'> {
+interface SaveV4 extends Omit<SaveV5, 'version'> {
   version: 4;
 }
 
@@ -259,7 +259,7 @@ export interface SavedDisk {
   twin?: DiskMediaState;
 }
 
-export interface SavedContracts {
+interface SavedContracts {
   nextId: number;
   /** The offers' PRNG state. */
   rng: number;
@@ -268,7 +268,7 @@ export interface SavedContracts {
 }
 
 /** The meter (Wh, all time) and the bill's state; `nextTick` and `unpaidSince` are base ticks. */
-export interface SavedBill {
+interface SavedBill {
   wh: number;
   billedWh: number;
   nextTick: number | null;
@@ -297,7 +297,7 @@ export interface SavedNet {
 export type Save = SaveV5;
 
 /** The shape before the USB keys (v1). Only the migration reads it. */
-export interface SaveV1 {
+interface SaveV1 {
   version: 1;
   seed: number;
   prngState: number;

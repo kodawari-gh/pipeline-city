@@ -7,8 +7,8 @@ export type Pt = [number, number];
 export type Side = 'n' | 's' | 'e' | 'w';
 
 // ---- the CPU package's pins: three rows round its edge (see `cpuArt` in devices.ts), 20 apart, the outer row 24 inside the edge ----
-export const PKG_PIN = 20,
-  PKG_ROW = 24;
+export const PKG_PIN = 20;
+export const PKG_ROW = 24;
 /** `n` pads of one of the package's pin rows (`row` 0 the outer one) on one side, `step` pins apart, centred on `at` (a y for the east and west sides, an x for north and south). */
 export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1, row = 0): Pt[] {
   const across = side === 'n' || side === 's',
@@ -37,9 +37,9 @@ export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1, 
 // ---- QFP-style chips: legs along the sides, centred, 26 apart ----
 export const LEG_PITCH = 26;
 /** How far a leg's tip lies outside the chip body (the lane ends on the middle of the leg). */
-export const LEG_OUT = 8;
+const LEG_OUT = 8;
 /** Legs that fit along a side of this length. */
-export const legCount = (len: number, pitch = LEG_PITCH) => Math.max(1, Math.floor((len - 60) / pitch) + 1);
+const legCount = (len: number, pitch = LEG_PITCH) => Math.max(1, Math.floor((len - 60) / pitch) + 1);
 /** Leg i of n on one side: centred along the side. */
 export function legAt(r: Rect, side: Side, i: number, n: number, pitch = LEG_PITCH): Pt {
   const t = (i - (n - 1) / 2) * pitch;
@@ -75,7 +75,7 @@ export function legRun(r: Rect, side: Side, k: number, shift = 0, pitch = LEG_PI
 
 // ---- DIMM sockets: the pins run the socket's length, in a column down its west side (toward the CPU) ----
 /** The memory lanes leave the package on its 20 grid. Lanes per stick (one in each row along the bank): six, four on the eight-slot board (its bank fills the edge). */
-export const MEM_SPACING = PKG_PIN;
+
 export const memLanes = (dimms: number): number => (dimms > 4 ? 4 : 6);
 /** The x of a socket's pin column, just west of its housing (the lanes come in from the CPU's side and land on it). */
 export const dimmPinX = (r: Rect): number => r.x + r.w / 2 - 45;
@@ -85,7 +85,7 @@ export const dimmPads = (r: Rect, ys: number[]): Pt[] => ys.map((y) => [dimmPinX
 export const dimmPowerPad = (r: Rect): Pt => [r.x + 36, r.y + 30];
 
 // ---- PCIe slots: staggered SMT pads along both long edges, 40 apart (every second pin on each side) ----
-export const PCIE_PAD = 40;
+const PCIE_PAD = 40;
 /** x of pad k along a slot. */
 export const pciePadX = (r: Rect, k: number) => r.x + 20 + PCIE_PAD * k;
 /** The last pad index that clears the retention latch. */
@@ -119,7 +119,7 @@ export function slotLanding(r: Rect, n: number, near: 'n' | 's'): { x: number; p
 // socket to its notch over the 80 mm standoff; threaded holes for 42 and 60 mm sticks on the way. Nine contacts in the socket, 22 apart,
 // centred; the three signal lanes use the middle ones ----
 /** The stick's length and width (80 x 22 mm), and where its fingers start, from the slot's west edge. */
-export const M2_STICK = { len: 80 * 23, w: 22 * 23, at: 118 } as const;
+const M2_STICK = { len: 80 * 23, w: 22 * 23, at: 118 } as const;
 /** A slot's size: the tie, the socket and the stick, and the standoff's head past its end. */
 export const M2_W = M2_STICK.at + M2_STICK.len + 40,
   M2_H = 560;
@@ -135,7 +135,7 @@ export const m2Stick = (m: Rect): Rect => ({
 /** The standoff positions for 42, 60 and 80 mm sticks; the last is the one fitted (a 2280 stick screws to it through its notch). */
 export const m2Standoffs = (m: Rect): Pt[] =>
   [42, 60, 80].map((mm) => [m.x + M2_STICK.at + mm * 23, m.y + m.h / 2] as Pt);
-export const M2_PITCH = 22,
+const M2_PITCH = 22,
   M2_CONTACTS = 9;
 /** All nine contacts of a socket (x is where the pad sits, just inside the housing's west edge). */
 export function m2Contacts(m: Rect): Pt[] {
@@ -147,8 +147,8 @@ export function m2Contacts(m: Rect): Pt[] {
 export const m2Pads = (m: Rect): Pt[] => m2Contacts(m).slice(3, 6);
 
 // ---- SATA ports: three signal pads on the west edge, 26 apart ----
-export const SATA_LANES = 3,
-  SATA_PAD = 26;
+export const SATA_LANES = 3;
+const SATA_PAD = 26;
 export const sataPads = (p: Rect): Pt[] =>
   Array.from({ length: SATA_LANES }, (_, k) => [p.x + 8, p.y + p.h / 2 + (k - 1) * SATA_PAD] as Pt);
 
@@ -212,7 +212,7 @@ export const ioPads = (p: IoPort, n: number): Pt[] =>
 
 // ---- VRM power stages: seven legs down the west side (see `powerStage` in boardParts.ts) ----
 /** The tip of west leg i of a power stage at (x, y), size s. */
-export const stageLeg = (x: number, y: number, s: number, i: number): Pt => [x - 8, y + (i + 0.7) * (s / 7.4) + 5.5];
+const stageLeg = (x: number, y: number, s: number, i: number): Pt => [x - 8, y + (i + 0.7) * (s / 7.4) + 5.5];
 /** The control leg of a CPU VRM phase block / a memory VRM phase block (the controller's lane lands here). */
 export const cpuStageCtl = (r: Rect): Pt => stageLeg(r.x + 24, r.y + 40, 130, 3);
 export const dramStageCtl = (r: Rect): Pt => stageLeg(r.x + 14, r.y + 30, 90, 3);

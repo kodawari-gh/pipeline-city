@@ -135,15 +135,15 @@ export function vrmLines(v: VrmReadout): { level: Level | 'info'; text: string }
 }
 
 /** Slot counts shown on a board card, with the icon that stands for each. */
-export type BoardSlotIcon = 'cpu' | 'memory' | 'slot' | 'disk' | 'fan' | 'bolt';
-export interface BoardSlotCount {
+type BoardSlotIcon = 'cpu' | 'memory' | 'slot' | 'disk' | 'fan' | 'bolt';
+interface BoardSlotCount {
   key: string;
   label: string;
   count: number;
   icon: BoardSlotIcon;
 }
 
-export type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 
 /** One motherboard tier as a card: slots, features, VRM strength with before/after bars, price and the state. */
 export interface BoardCard {

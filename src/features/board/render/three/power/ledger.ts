@@ -9,7 +9,7 @@ import { getSpec } from '@/features/board/sim/specs';
 export type FlowState = 'on' | 'idle' | 'missing';
 
 /** A group of parts drawing together (all the RAM sticks, all the case fans). */
-export interface KindDraw {
+interface KindDraw {
   w: number;
   ids: string[];
 }

@@ -13,7 +13,6 @@ import {
   Mesh,
   Object3D,
   Path,
-  PlaneGeometry,
   RepeatWrapping,
   SRGBColorSpace,
   Shape,
@@ -321,7 +320,7 @@ function reachOf(g: BufferGeometry): number[] {
 }
 
 /** How far `low`'s outline stands off `g`'s: the most their reach differs along the 26 directions of `REACH`. */
-export function outlineOff(g: BufferGeometry, low: BufferGeometry): number {
+function outlineOff(g: BufferGeometry, low: BufferGeometry): number {
   const a = reachOf(g),
     b = reachOf(low);
   return Math.max(...a.map((r, k) => Math.abs(r - b[k]!)));
@@ -387,13 +386,6 @@ export function drum(
   o.rotation.x = Math.PI / 2;
   o.position.set(x, -y, (z0 + z1) / 2);
   return place(o);
-}
-
-/** A flat quad facing the viewer over a layout rect, at depth z. */
-export function face(r: RectLike, z: number, m: Material): Mesh {
-  const o = new Mesh(new PlaneGeometry(r.w, r.h), m);
-  o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z);
-  return o;
 }
 
 /** A straight rod from world point a to b (a lamp arm, a pipe run). */
@@ -468,13 +460,6 @@ export function rounded(
   return out;
 }
 
-/** Keep every `step`-th point of a long path, always with its two ends: a dense 2D lane becomes a cheap tube. */
-export function thin<T>(pts: readonly T[], step: number): T[] {
-  const out = pts.filter((_, i) => i % step === 0);
-  if (pts.length && out[out.length - 1] !== pts[pts.length - 1]) out.push(pts[pts.length - 1]!);
-  return out;
-}
-
 /** Many copies of one geometry in one draw call. Each item gives its copy's position, and optionally its scale and its turn round z (`rz`). */
 export function instanced(
   g: BufferGeometry,
@@ -499,7 +484,7 @@ export function instanced(
  * One fan blade round the z axis, from radius `r0` to `r1`: a thin plate whose chord runs along the turn, tilted out of the plane by its pitch
  * (steep at the root, flatter at the tip), swept forward toward a rounded tip and cupped across the chord. One surface: draw it double-sided.
  */
-export function fanBlade(
+function fanBlade(
   r0: number,
   r1: number,
   chord: number,

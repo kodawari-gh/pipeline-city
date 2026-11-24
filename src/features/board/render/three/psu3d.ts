@@ -64,7 +64,7 @@ export function psuBox(u: BasementPlan['psu'], visual: string): PsuBox {
 }
 
 /** The C14 inlet's middle on the unit's rear (layout y, depth z): halfway up, toward the glass side. */
-export const inletOf = (b: PsuBox): { y: number; z: number } => ({ y: b.y + b.h / 2, z: b.z1 - 24 * MM });
+const inletOf = (b: PsuBox): { y: number; z: number } => ({ y: b.y + b.h / 2, z: b.z1 - 24 * MM });
 /** The inlet's flange stands this far proud of the rear (the plug's face meets it); the C13 plug reaches this far back from the rear's face. */
 const FLANGE = 2 * MM;
 export const PLUG_TAIL = FLANGE + 46.4 * MM;

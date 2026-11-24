@@ -1,12 +1,9 @@
 import { mix } from '@/core/render/ink';
-import type { Beam, LightGeo } from './light';
+import type { Beam } from './light';
 import { FADE } from './shell';
-import { KEYBOARD, keyboardPlacer } from '../desk/peripherals';
-import { deskGeo, roomPersp, type Persp } from './persp';
+import { roomPersp, type Persp } from './persp';
 import {
   CASE,
-  CASE_IN,
-  SCREEN,
   DESK_SLAB,
   DESK_UNDER,
   DESK_Y,
@@ -195,7 +192,7 @@ export function roomClick(id: string): boolean {
   save();
   return true;
 }
-export const ROOM_IDS = ['lamp', 'blind', 'clock'] as const;
+const ROOM_IDS = ['lamp', 'blind', 'clock'] as const;
 export const isRoomId = (id: string) => (ROOM_IDS as readonly string[]).includes(id);
 
 // ---- time of day: one day is `DAY_S` seconds of game time, and the first view is the evening ----
@@ -231,30 +228,6 @@ export function skyAt(h: number): { top: string; hor: string } {
     b = SKY[i + 1]!,
     t = (h - a.h) / (b.h - a.h);
   return { top: mix(a.top, b.top, t), hor: mix(a.hor, b.hor, t) };
-}
-
-/** The places the room's light is cut around, from the layout of the moment (the case follows the tier). The keyboard is its sloped top: `y` its front edge, `h` how far it runs back. */
-export function lightGeo(geo: RoomGeo): LightGeo {
-  const dk = deskGeo(geo.persp, geo.ys, geo.floor),
-    kp = keyboardPlacer(dk, MONITOR.x + MONITOR.w / 2),
-    kf = kp(-KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h),
-    kg = kp(KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h);
-  return {
-    window: geo.window,
-    region: roomBakeRect(geo),
-    case: CASE,
-    inner: CASE_IN,
-    monitor: MONITOR,
-    screen: SCREEN,
-    router: ROUTER_SPOT,
-    clock: geo.clock,
-    mouth: geo.lamp.mouth,
-    dir: LAMP_D,
-    ys: geo.ys,
-    keyboard: { x: Math.min(kf[0], kg[0]), y: Math.max(kf[1], kg[1]), w: Math.abs(kg[0] - kf[0]), h: 330 },
-    deskTop: dk.yFront,
-    deskBack: dk.yBack,
-  };
 }
 
 /** Where the sun and the moon are at an hour: how far through their arc across the sky (0 rising, 1 setting), or null while below the horizon. */

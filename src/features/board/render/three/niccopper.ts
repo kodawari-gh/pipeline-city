@@ -33,7 +33,7 @@ export const CAGE = { w: 18.95 * MM, h: 12.4 * MM, d: 22 * MM };
 /** A card's port: its box on the PCB (across the bracket, off the PCB's top face, deep): the RJ45 jack's, or the 40G card's QSFP+ cage. */
 export const jackOf = (visual: string): { w: number; h: number; d: number } => (visual === 'nic-40g' ? CAGE : JACK);
 /** How far a port's pin frame stands in from the port's edge (layout units): the RJ45 jack's pins are 16 mm across, a wider cage centres them. */
-export const pinShift = (visual: string): number => (jackOf(visual).w - JACK.w) / 2;
+const pinShift = (visual: string): number => (jackOf(visual).w - JACK.w) / 2;
 /** The jacks' front: past the bracket's face, through the case's rear wall, the mouths just in from its outer face (where the LAN plug goes in). */
 export const JACK_X = NIC_BRACKET_X - 150;
 /**
@@ -55,13 +55,13 @@ export interface Trace {
   pts: Pt[];
 }
 /** A via, through every layer (a plane's net meets its plane). */
-export interface Via {
+interface Via {
   net: string;
   x: number;
   y: number;
 }
 /** An SMD pad on a face (`edge`: a gold finger of the PCIe edge): its part's pin (`U1.N4`, `C3.2`, `B14`), net, rect and centre. */
-export interface Pad {
+interface Pad {
   id: string;
   net: string;
   face: Face;
@@ -70,7 +70,7 @@ export interface Pad {
   edge?: boolean | undefined;
 }
 /** A plated through hole (a jack's contact, light pin or shield leg): its ring's and its drill's radii, pin 1 square. */
-export interface Hole {
+interface Hole {
   id: string;
   net: string;
   x: number;
@@ -80,13 +80,13 @@ export interface Hole {
   square?: boolean;
 }
 /** An unplated hole: a jack's plastic peg, a heatsink's push pin. */
-export interface Npth {
+interface Npth {
   x: number;
   y: number;
   r: number;
 }
 /** A passive on a face: designator, package, kind, centre, turned along y, the nets of its two ends (west or north first). */
-export interface Part {
+interface Part {
   ref: string;
   pkg: '0402' | '0603';
   kind: 'cap' | 'res';
@@ -97,14 +97,14 @@ export interface Part {
   nets: [string, string];
 }
 /** A polymer capacitor's can: its centre and radius. */
-export interface Can {
+interface Can {
   ref: string;
   x: number;
   y: number;
   r: number;
 }
 /** Where the packages sit (layout rects): the controller (a QFN, or a BGA under its sink), the crystal, the flash, the regulator, the inductors. */
-export interface NicPlaces {
+interface NicPlaces {
   chip: Rect;
   qfn: boolean;
   sink: Rect | null;

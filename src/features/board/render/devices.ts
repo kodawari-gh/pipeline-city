@@ -8,37 +8,25 @@ import {
   MONITOR,
   MONITOR_K,
   PKG,
-  PORT_Y,
-  PSU,
   PSU_FAN,
-  PSU_LABEL,
-  PSU_PANEL,
-  PSU_PORTS,
   PSU_UNIT,
   SCREEN_D,
-  VENTS,
   VRM_SINK,
-  gutterTieYs,
-  LAYOUT_CASE,
-  PSU_REAR_FAN,
   RAM_FAN,
   VRM_FAN,
   type Rect,
 } from './layout/layout';
 import { SINK_FAN, SINK_FAN_RIM } from './layout/boardlayout';
-import { CASE_KIND, brandLockup, hexes, slots } from '../../room/render/shell/casedecor';
-import { EdgeFan } from '../../room/render/desk/props/case';
+import { brandLockup } from '../../room/render/shell/casedecor';
 import { box, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
-import { hdmiPlug, rj45Plug } from './layout/ports';
-import { isPcieKind, looseCable, movablePlug, type Cable, type Plug } from './wiring/routes';
-import { paintCable, paintClip, paintTie, tiePoints } from '@/core/render/cable';
+import { isPcieKind, type Cable, type Plug } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
 // Live effects (glow, fan spin, chips) are added by board.ts on top.
 
-export const SCREEN_BG = '#050a0c';
+const SCREEN_BG = '#050a0c';
 
 export interface Part {
   root: Container;
@@ -157,7 +145,7 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
  * A stick's trim by its `visual` (the 2D stripes): no tier colours, the tiers read by how premium they look. Plain on the bare sticks (SDR, the
  * server ECC sticks), stamped steel (DDR2), dark anodised fins (DDR3), polished silver on the light-bar sticks (DDR4, brightest on DDR5).
  */
-export const ramAccent = (T: Theme, visual: string): string =>
+const ramAccent = (T: Theme, visual: string): string =>
   (
     ({ 'dimm-fast': '#8d939c', 'dimm-ddr3': '#5b616c', 'dimm-lowlat': '#aeb4bd', 'dimm-ddr5': '#d6dbe2' }) as Record<
       string,
@@ -181,7 +169,7 @@ export const ramNotch = (visual: string): number =>
 
 /** The DRAM chips of a stick, in its local frame (the 2D lays it flat, its pins down its west edge): two groups of four along it, the gap
  * between them for the ECC chip and the DDR5 power chip. The live memory map lands on these (memory/render/ramlayout.ts), the 3D's too. */
-export const RAM_CHIP_W = 116,
+const RAM_CHIP_W = 116,
   RAM_CHIP_H = 230,
   RAM_CHIP_PITCH = 262;
 export const ramChips = (): Rect[] =>
@@ -358,156 +346,6 @@ export const psuFanRect = (): Rect => ({
 });
 
 /**
- * The power supply as the case holds it: the PSU unit at the east end (fan grill, label with the rated watts, the output sockets on its
- * top edge, the power switch), and beside it, along the rest of the bottom, the shroud that hides the cables: vents, a brand stripe
- * and the live readout panel. `PSU` is the whole strip (the drop target), `PSU_UNIT` the unit.
- */
-export function psuArt(T: Theme, spec: PsuSpec): Part {
-  const root = new Container(),
-    labels = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const r = PSU,
-    u = PSU_UNIT;
-  const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
-  const body = mix(T.sub, T.tile, 0.45);
-  const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer';
-  // the shroud is part of the case: charcoal pressed steel in the OEM tower, black in the matte case, charcoal with an RGB strip in the
-  // gaming case, a dark plate with a silver rim and a honeycomb in the showcase
-  const shroud = {
-    oem: mix(T.sub, '#1d1e22', 0.8),
-    matte: mix(T.sub, '#07080b', 0.85),
-    gamer: mix(T.sub, '#171c2a', 0.75),
-    show: mix(T.sub, '#06080c', 0.85),
-  }[kind];
-  const rim =
-    kind === 'oem'
-      ? mix('#4e5360', shroud, 0.2)
-      : kind === 'show'
-        ? '#c9d1de'
-        : kind === 'gamer'
-          ? T.mul
-          : mix(shroud, '#ffffff', 0.12);
-  const sh = { x: r.x, y: r.y + 24, w: u.x - 70 - r.x, h: r.h - 48 };
-
-  // the shroud: a long plate over the cables, a lit top edge, a perforated vent field, the readout panel on it
-  box(g, sh.x + 8, sh.y + 14, sh.w, sh.h, 50, { fill: '#000000', fa: kind === 'oem' ? 0.12 : 0.22 });
-  if (kind === 'gamer')
-    g.poly([sh.x + 160, sh.y, sh.x + sh.w, sh.y, sh.x + sh.w, sh.y + sh.h, sh.x, sh.y + sh.h, sh.x, sh.y + 160])
-      .fill(shroud)
-      .stroke({ width: 8, color: rim, alpha: 0.9 });
-  else
-    box(g, sh.x, sh.y, sh.w, sh.h, kind === 'oem' ? 20 : 50, {
-      fill: shroud,
-      stroke: rim,
-      lw: kind === 'show' ? 12 : 8,
-      sa: 0.9,
-    });
-  if (kind !== 'oem') g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: 0.06 });
-  if (kind === 'gamer')
-    for (const [k, col] of ['#ff4d6d', '#ffb84d', '#7dff4d', '#4dd2ff', '#6a4dff', '#ff4dd2'].entries())
-      g.rect(sh.x + 200 + (k * (sh.w - 400)) / 6, sh.y + sh.h - 30, (sh.w - 400) / 6 + 1, 8).fill(col);
-  else if (kind === 'show') g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
-  for (const sx of [sh.x + 60, sh.x + sh.w - 60])
-    for (const sy of [sh.y + 60, sh.y + sh.h - 60])
-      disc(g, sx, sy, 18, {
-        fill: kind === 'show' ? '#c9d1de' : kind === 'oem' ? '#959aa3' : T.line,
-        stroke: T.mute,
-        lw: 4,
-        sa: 0.4,
-      });
-  {
-    const v = VENTS;
-    if (v.w >= 300) {
-      const dark = kind === 'oem' ? mix(shroud, '#000000', 0.35) : '#02040a';
-      box(g, v.x, v.y, v.w, v.h, 24, { fill: dark, fa: kind === 'oem' ? 0.5 : 0.55, stroke: rim, lw: 4, sa: 0.5 });
-      if (kind === 'show') hexes(g, { x: v.x + 30, y: v.y + 30, w: v.w - 60, h: v.h - 60 }, 36, 8);
-      else if (kind === 'gamer')
-        slots(g, { x: v.x + 40, y: v.y + 50, w: v.w - 100, h: v.h - 100 }, Math.max(4, Math.floor(v.w / 110)), 60);
-      else if (kind === 'matte')
-        for (let y = v.y + 70; y < v.y + v.h - 50; y += 90) g.roundRect(v.x + 60, y, v.w - 120, 26, 13);
-      else
-        for (let y = v.y + 50; y < v.y + v.h - 30; y += 56)
-          for (let x = v.x + 50 + (Math.round((y - v.y) / 56) % 2) * 28; x < v.x + v.w - 30; x += 56)
-            g.circle(x, y, 13);
-      g.fill({ color: '#000000', alpha: 0.8 });
-    }
-  }
-  // readout panel frame (live content is drawn by Live)
-  {
-    const p = PSU_PANEL;
-    box(g, p.x, p.y, p.w, p.h, 24, { fill: SCREEN_BG, stroke: accent, lw: 7, sa: 0.8 });
-    box(g, p.x + 10, p.y + 10, p.w - 20, p.h - 20, 16, { stroke: T.line, lw: 3, sa: 0.5 });
-    g.moveTo(p.x + 1150, p.y + 40)
-      .lineTo(p.x + 1150, p.y + p.h - 40)
-      .moveTo(p.x + 1620, p.y + 40)
-      .lineTo(p.x + 1620, p.y + p.h - 40);
-    g.stroke({ width: 3, color: T.line, alpha: 0.7 });
-    labels.addChild(label('LOAD', p.x + 50, p.y + 62, 46, '#8d9bc4', { head: true }));
-    labels.addChild(label('TEMP', p.x + 1190, p.y + 62, 46, '#8d9bc4', { head: true }));
-    labels.addChild(label('FAN', p.x + 1660, p.y + 62, 46, '#8d9bc4', { head: true }));
-  }
-
-  // the PSU unit: its own box, bolted to the case, with a seam between it and the shroud
-  box(g, u.x + 10, u.y + 18, u.w, u.h, 40, { fill: '#000000', fa: 0.25 });
-  box(g, u.x, u.y, u.w, u.h, 40, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
-  g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: 0.07 });
-  for (const sx of [u.x + 56, u.x + u.w - 56])
-    for (const sy of [u.y + 56, u.y + u.h - 56]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.5 });
-  // the intake fan: it sits in the unit's bottom face, so this side view shows it edge-on (a housing along the floor); the blades slide along it.
-  // The two cheapest PSUs are passive: a plain vent slit there instead.
-  const slab = psuFanRect();
-  let fan: EdgeFan | undefined, rearFan: EdgeFan | undefined;
-  if (spec.fan) {
-    box(g, slab.x - 20, slab.y - 20, slab.w + 40, slab.h + 40, 24, { fill: T.die, stroke: T.line, lw: 8 });
-    box(g, slab.x, slab.y, slab.w, slab.h, 16, { fill: T.dot, stroke: accent, lw: 5, sa: 0.7 });
-    fan = new EdgeFan(slab, T);
-    root.addChild(fan);
-    // the exhaust fan in the rear wall (the cases above the Mini)
-    if (PSU_REAR_FAN) {
-      rearFan = new EdgeFan(PSU_REAR_FAN, T);
-      root.addChild(rearFan);
-    }
-  } else {
-    for (let k = 0; k < 6; k++) g.moveTo(slab.x + 60, slab.y + k * 18).lineTo(slab.x + slab.w - 60, slab.y + k * 18);
-    g.stroke({ width: 8, color: '#02040a', cap: 'round', alpha: 0.7 });
-  }
-  // the rest of the unit above it is closed metal: a few slits on its upper half, and the intake arrows below
-  for (let k = 0; k < 5; k++) g.moveTo(u.x + 330, u.y + 110 + k * 60).lineTo(u.x + 1130, u.y + 110 + k * 60);
-  g.stroke({ width: 14, color: '#02040a', cap: 'round', alpha: 0.6 });
-  // label plate: model and rated capacity, and the efficiency badge
-  {
-    const l = PSU_LABEL;
-    box(g, l.x, l.y, l.w, l.h, 22, { fill: T.die, stroke: T.line, lw: 5 });
-    g.rect(l.x + 36, l.y + 128, l.w - 72, 6).fill({ color: accent, alpha: 0.8 });
-    labels.addChild(label(spec.name.replace(/ \(.*$/, ''), l.x + 40, l.y + 176, 36, T.mute));
-    labels.addChild(label(`${spec.watts}`, l.x + 40, l.y + 380, 240, accent, { head: true, anchor: [0, 0.5] }));
-    labels.addChild(label('WATTS', l.x + l.w - 44, l.y + 470, 62, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
-    labels.addChild(label('12V', l.x + 40, l.y + 620, 38, T.mute, { a: 0.7 }));
-    disc(g, l.x + l.w - 110, l.y + 640, 62, { stroke: accent, lw: 6, sa: 0.8 });
-    labels.addChild(label('80+', l.x + l.w - 110, l.y + 640, 40, accent, { head: true, anchor: [0.5, 0.5] }));
-  }
-  // output sockets on the top edge: where the cables plug in
-  const sockets: (readonly [number, number, string])[] = [
-    ...PSU_PORTS.pcie.slice(0, spec.pcieLeads).map((x, k) => [x, 76, `P${k + 1}`] as const),
-    [PSU_PORTS.atx, 170, 'ATX 24'],
-    [PSU_PORTS.cpu, 130, 'CPU 8'],
-  ];
-  for (const [x, w, name] of sockets) {
-    box(g, x - w / 2, PORT_Y - 4, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
-    for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x - w / 2 + 24 + k * 26, PORT_Y + 18, 14, 38);
-    g.fill({ color: T.pin, alpha: 0.7 });
-    labels.addChild(label(name, x, PORT_Y + 140, 38, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
-  }
-  // power switch
-  box(g, u.x + 130, u.y + u.h - 240, 110, 150, 16, { fill: '#05070b', stroke: T.line, lw: 5 });
-  g.rect(u.x + 148, u.y + u.h - 222, 74, 74).fill({ color: T.mute, alpha: 0.6 });
-  labels.addChild(label('I/O', u.x + 185, u.y + u.h - 66, 32, T.mute, { anchor: [0.5, 0.5] }));
-  root.addChild(labels);
-  return { root, fan, rearFan };
-}
-
-/**
  * A power supply as a box on its own (for the shop and the inventory): the fan grill, the label with the rated watts, the vents and the
  * output sockets. The one in the machine is the long shroud with the readout (`psuArt`); this is the same unit, small.
  */
@@ -643,109 +481,4 @@ export function plugRect(p: Plug): Rect {
   return p.dx !== 0
     ? { x: p.dx > 0 ? p.x : p.x - p.l, y: p.y - p.w / 2, w: p.l, h: p.w }
     : { x: p.x - p.w / 2, y: p.dy > 0 ? p.y : p.y - p.l, w: p.w, h: p.l };
-}
-
-export function drawPlug(
-  g: Graphics,
-  T: Theme,
-  p: Plug,
-  accent: string,
-  host: boolean,
-  shape: 'power' | 'hdmi' | 'rj45' = 'power',
-) {
-  // the signal plugs are drawn in side profile (ports.ts), the power plugs seen from above
-  if (shape === 'hdmi') return hdmiPlug(g, T, p, accent);
-  if (shape === 'rj45') return rj45Plug(g, T, p, accent);
-  const r = plugRect(p);
-  const body = '#1b2230';
-  box(g, r.x + 6, r.y + 10, r.w, r.h, 16, { fill: '#000000', fa: 0.25 });
-  box(g, r.x, r.y, r.w, r.h, 16, { fill: body, stroke: accent, lw: 6, sa: 0.9 });
-  const horiz = p.dx !== 0;
-  // grip ridges toward the cable end
-  for (let i = 0; i < 5; i++) {
-    const t = 0.52 + i * 0.09;
-    if (horiz) {
-      const x = p.dx > 0 ? r.x + r.w * t : r.x + r.w * (1 - t);
-      g.moveTo(x, r.y + 12).lineTo(x, r.y + r.h - 12);
-    } else {
-      const y = p.dy > 0 ? r.y + r.h * t : r.y + r.h * (1 - t);
-      g.moveTo(r.x + 12, y).lineTo(r.x + r.w - 12, y);
-    }
-  }
-  g.stroke({ width: 5, color: '#ffffff', alpha: 0.16 });
-  const [cols, rows] = p.pins;
-  if (host && cols * rows > 1) {
-    // pin holes on the socket-side part, laid out along the long axis
-    const long = horiz ? r.h : r.w,
-      step = long / (cols + 0.6);
-    for (let c = 0; c < cols; c++)
-      for (let k = 0; k < rows; k++) {
-        const along = (c + 0.8) * step,
-          across = (k + 0.5) / rows;
-        const x = horiz
-          ? (p.dx > 0 ? r.x + r.w * (0.1 + across * 0.3) : r.x + r.w * (0.9 - across * 0.3)) - 9
-          : r.x + along - 9;
-        const y = horiz
-          ? r.y + along - 9
-          : (p.dy > 0 ? r.y + r.h * (0.1 + across * 0.3) : r.y + r.h * (0.9 - across * 0.3)) - 9;
-        g.rect(x, y, 18, 18);
-      }
-    g.fill({ color: '#000000', alpha: 0.55 });
-  }
-  if (host && cols * rows <= 1) {
-    // HDMI shell: metal face
-    const sx = horiz ? (p.dx > 0 ? r.x + 6 : r.x + r.w * 0.55) : r.x + 6,
-      sw = horiz ? r.w * 0.45 : r.w - 12;
-    g.rect(sx, r.y + 10, sw, r.h - 20).fill({ color: '#aeb8c8', alpha: 0.5 });
-  }
-  // coloured sleeve band where the cable leaves the plug
-  const bx = horiz ? (p.dx > 0 ? r.x + r.w - 26 : r.x) : r.x,
-    by = horiz ? r.y : p.dy > 0 ? r.y + r.h - 26 : r.y;
-  g.rect(bx, by, horiz ? 26 : r.w, horiz ? r.h : 26).fill({ color: accent, alpha: 0.85 });
-}
-
-/** A fat sleeved cable with plugs at both ends, tied along its run. Static; the glow lives in Live. */
-export function cableArt(T: Theme, c: Cable): Part {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const pts = c.path.pts,
-    w = c.w,
-    accent = ACCENT(T, c.kind),
-    wall = c.kind === 'video';
-  paintCable(g, T, pts, { w, accent, wall, braid: !wall });
-  if (!wall) {
-    // the ties: one round every lead at the same heights in the gutter, one at the turn along the top, one on a long run
-    const x = c.a.x,
-      top = Math.min(...pts.map((p) => p[1]));
-    for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) paintTie(g, T, [x, y], [0, 1], w, accent);
-    for (const t of tiePoints(
-      pts.filter((p) => p[1] <= top + 1),
-      1800,
-      500,
-    ))
-      paintTie(g, T, t.at, t.dir, w, accent);
-  }
-  for (const k of c.clips ?? []) paintClip(g, T, k.at, k.dir, w);
-  const shape = wall ? 'hdmi' : 'power';
-  drawPlug(g, T, c.a, accent, wall, shape);
-  if (!wall) drawPlug(g, T, c.b, accent, true, shape); // (the video cable's other end is inside the monitor)
-  return { root };
-}
-
-/** An unplugged cable: the lead hanging from its socket (or the monitor's cable) and its plug lying loose, on the roof of the PSU. */
-export function looseCableArt(T: Theme, c: Cable): Part {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const lo = looseCable(c),
-    wall = c.kind === 'video',
-    w = c.w * (wall ? 1 : 0.62),
-    accent = ACCENT(T, c.kind);
-  paintCable(g, T, lo.path.pts, { w, accent, wall, braid: !wall });
-  const shape = wall ? 'hdmi' : 'power';
-  if (!wall) drawPlug(g, T, c.a, accent, false, shape); // (a video cable comes out of the monitor: no plug there)
-  drawPlug(g, T, lo.plug, accent, true, shape);
-  void movablePlug;
-  return { root };
 }

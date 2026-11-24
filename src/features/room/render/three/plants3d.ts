@@ -40,14 +40,14 @@ const OUTLINE = {
   /** a succulent's or an aloe's fleshy blade: wide at its base, to a point */
   lance: (u: number) => (1 - u) ** 0.9 * Math.min(1, 0.55 + u * 3),
 } as const;
-export type LeafShape = keyof typeof OUTLINE;
+type LeafShape = keyof typeof OUTLINE;
 
 /**
  * A leaf blade `len` long (+y from its base at the origin) and `wid` across (x), its face to +z: the halves rise off the midrib by `fold` (a
  * share of the half width), the blade curls toward its face by `curl` (a share of its length) and its edge waves by `wave`. A heart's lobes
  * sweep back past its base. u runs across the blade, v from its base to its tip (the texture's veins follow).
  */
-export function leafBlade(
+function leafBlade(
   len: number,
   wid: number,
   shape: LeafShape,
@@ -634,7 +634,7 @@ export function aloe(x: number, y: number, z: number): Group {
 }
 
 /** A few pebbles of bark on the soil (flat-shaded chips), round (x, top, z) within r. */
-export function mulch(x: number, top: number, z: number, r: number, n: number): Group {
+function mulch(x: number, top: number, z: number, r: number, n: number): Group {
   const g = new Group(),
     m = mat(SOIL, { roughness: 0.9, flatShading: true }),
     geo = new IcosahedronGeometry(1, SEG.chipDetail);

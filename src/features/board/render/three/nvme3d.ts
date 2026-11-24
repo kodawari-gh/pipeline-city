@@ -50,7 +50,7 @@ export const nvmeLook = (s: { name: string; tier: number; capacityBytes: number 
 });
 
 /** The stick's depths: its board's underside and top (0.8 mm on a 1.8 mm standoff), the top of its heat sink (9 mm over the motherboard). */
-export const NVME_Z = { pcb: BOARD_Z + 42, top: BOARD_Z + 60, sink: BOARD_Z + 208 } as const;
+const NVME_Z = { pcb: BOARD_Z + 42, top: BOARD_Z + 60, sink: BOARD_Z + 208 } as const;
 
 /** The mask's colours: a black board, the copper under it a shade lighter. */
 const MASK = 0x121519,

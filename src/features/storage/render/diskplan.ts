@@ -9,7 +9,7 @@ import type { DriveKind } from './drives';
 /** Blocks in one cell (the media's wear group, `GROUP_BLOCKS` in sim/machine/storage.ts). */
 export const CELL_BLOCKS = 8;
 
-export type CellKind = 'os' | 'spool' | 'program' | 'dataset' | 'meta' | 'free' | 'bad' | 'lost';
+type CellKind = 'os' | 'spool' | 'program' | 'dataset' | 'meta' | 'free' | 'bad' | 'lost';
 
 /** What wins when a cell holds blocks of several kinds: the worst news first, then what the system owns, then data, then free space. */
 const RANK: Record<CellKind, number> = { bad: 7, lost: 6, os: 5, spool: 4, program: 3, dataset: 2, meta: 1, free: 0 };
@@ -61,7 +61,7 @@ export function cellsOf(runs: readonly FsRun[], totalBlocks: number, wear: reado
 }
 
 /** Number of owner colours the art has for datasets (more owners share them). */
-export const OWNER_COLORS = 4;
+const OWNER_COLORS = 4;
 
 /** A stable colour slot for an owner id ("c12" and "c13" differ; the same owner is always the same). */
 export function ownerSlot(owner: string): number {

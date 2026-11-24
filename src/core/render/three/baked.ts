@@ -7,7 +7,7 @@ import { anisotropy } from './geometry';
 import { BASIS_PATH } from './gltf';
 
 /** Where the set is served from. */
-export const BAKED_URL = `${import.meta.env.BASE_URL}tex/`;
+const BAKED_URL = `${import.meta.env.BASE_URL}tex/`;
 /** `manifest.json`: the keys of the set; `<key>.ktx2` is the file of each. */
 export interface BakedManifest {
   keys: string[];
@@ -22,9 +22,6 @@ export function bakedTex(key: string): Texture | null {
   if (t) t.anisotropy = anisotropy;
   return t;
 }
-
-/** The keys that are loaded (the debug overlay and the tests). */
-export const bakedKeys = (): string[] => [...BAKED.keys()];
 
 /** A KTX2 loader for this renderer's GPU (the formats it can take). The caller disposes it when its files are in: that ends its transcoder threads. */
 export async function ktx2Loader(renderer: WebGLRenderer) {

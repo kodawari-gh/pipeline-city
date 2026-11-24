@@ -84,7 +84,7 @@ function cutHoles(into: Group, rs: readonly Recess[], k: number, floor: number, 
 }
 
 /** What the socket is made of: the frame and the insert (one colour), the black of a hole and of the screw's slot, the screw's steel. */
-export interface TripleLook {
+interface TripleLook {
   plate: Material;
   black: Material;
   steel: Material;

@@ -26,7 +26,7 @@ export interface AirBody {
 /** Units to the metre: a millimetre is 23 units. */
 export const UNITS_PER_M = 23000;
 /** The speed of the air at a basic fan's face at full speed, metres per second. A fan's `airflow` rating scales it. */
-export const FAN_FACE_MS = 1.5;
+const FAN_FACE_MS = 1.5;
 /** The tray's face: the air's floor. The case's air is its inside, from the tray to the glass. */
 const TRAY_Z = CASE_Z + 70;
 

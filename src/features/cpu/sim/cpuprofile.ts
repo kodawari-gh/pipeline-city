@@ -80,7 +80,7 @@ const MAX_CYCLES = 3_000_000;
 const memo = new Map<string, CpuProfile>();
 
 /** Instructions per cycle of one engine config on one benchmark. */
-export function ipcOf(cfg: EngineConfig, kind: keyof CpuProfile): number {
+function ipcOf(cfg: EngineConfig, kind: keyof CpuProfile): number {
   const engine = createEngine(cfg.kind === 'ref' ? cfg : { ...cfg, missPenalty: MISS_PENALTY }) as PipelineEngine;
   const m = new Machine();
   m.attach(engine, PROGRAMS[kind]);

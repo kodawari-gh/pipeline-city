@@ -6,7 +6,7 @@ import type { GameEvent } from '../../worker/game/types';
 
 export type Family = 'pluck' | 'glint' | 'low';
 export type Register = 'build' | 'flow' | 'glint' | 'failure';
-export type DuckClass = 'standard' | 'key' | 'failure' | 'milestone';
+type DuckClass = 'standard' | 'key' | 'failure' | 'milestone';
 
 /** One note of an event: a scale degree (0 = root, 7 = octave) in a register, `beat` beats after the event. */
 export interface NoteStep {
@@ -23,7 +23,7 @@ export interface NoteSpec {
 }
 
 /** The most note voices at once. A ninth steals the oldest (music-spec.json `voices.cue_max`, the music bus's cap in MIX.voices). */
-export const NOTE_VOICE_MAX = MIX.voices.music;
+const NOTE_VOICE_MAX = MIX.voices.music;
 
 /** A note's length in seconds, for the voice cap (music-spec.json `notes`). */
 export const NOTE_DUR_S: Readonly<Record<Family, number>> = { pluck: 1.2, glint: 0.6, low: 1.8 };
@@ -58,7 +58,7 @@ export function noteMidi(keyPc: number, reg: Register, degree: number): number {
 }
 
 /** A MIDI note as the file token (`Cs4`: MIDI 60 = C4). */
-export const noteToken = (midi: number): string => `${PC_NAME[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
+const noteToken = (midi: number): string => `${PC_NAME[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
 
 /** The sound file id of one note (`music_note_glint_F5`). The engine loads `music/notes/<id>.ogg`. */
 export const noteId = (family: Family, midi: number): string => `music_note_${family}_${noteToken(midi)}`;

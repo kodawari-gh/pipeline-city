@@ -96,7 +96,7 @@ export function flat(pts: Vector2[], y0: number, y1: number, mt: Material, bevel
 }
 
 /** A rounded (x, z) rectangle w by l with a pocket cut into its z = 0 end from x0 to x1, d deep (where the receptacles sit). */
-export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: number; d: number }): Vector2[] {
+function pocketed(w: number, l: number, r: number, p: { x0: number; x1: number; d: number }): Vector2[] {
   const out: Vector2[] = [];
   const arc = (cx: number, cz: number, a0: number, a1: number) => {
     for (let i = 0; i <= 6; i++) {
@@ -113,7 +113,7 @@ export function pocketed(w: number, l: number, r: number, p: { x0: number; x1: n
 }
 
 /** Threaded holes in a face (looking along `f`): a dark bore in a lighter chamfer. */
-export function bores(spots: readonly Spot[], f: Facing, r: number): Group {
+function bores(spots: readonly Spot[], f: Facing, r: number): Group {
   const g = new Group();
   if (!spots.length) return g;
   g.add(
@@ -186,7 +186,7 @@ function receptacle(g: Group, pins: 7 | 15, x0: number, y0: number, s: SocketMat
  * The 3.5 in. hard disk (see the header). `host`: the casting is a frame round an open cavity, and the cover, the label and the screws on it are a lid that fades as the camera
  * comes in, so the platters and the actuator show (`driveinner3d.ts`); without it the casting is solid.
  */
-export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
+function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(),
     W = m(HDD_MM.w),
     T = m(HDD_MM.t),
@@ -331,7 +331,7 @@ export function hddModel(look: DriveLook, host?: DriveHost): DriveModel {
 
 // ------------------------------------------------------------------ the SSD
 /** The 2.5 in. SSD (see the header). `host`: its top shell and label are a lid that fades as the camera comes in, so its board shows (`driveinner3d.ts`); the side walls stay. */
-export function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
+function ssdModel(look: DriveLook, host?: DriveHost): DriveModel {
   const g = new Group(),
     W = m(SSD_MM.w),
     T = m(SSD_MM.t),

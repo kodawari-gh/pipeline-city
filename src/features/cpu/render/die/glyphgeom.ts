@@ -5,7 +5,7 @@ import type { Block, BlockKind, Pt, Rect } from '../core/cpuplan';
 // (docs/DIE.md "Pins"). Pure, no drawing. blockart.ts draws the symbols with the same numbers: change them together (blockart.test.ts checks it).
 
 /** The kinds drawn as symbols (the others keep their cell arrays). */
-export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>([
+const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>([
   'pc',
   'pcadd',
   'nextpc',
@@ -25,7 +25,7 @@ export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>([
 ]);
 
 /** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
-export const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
+const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
 /** The lanes a dispatch stage passes at once ("4 a cycle"). */
 export const laneCount = (b: Pick<Block, 'sub'>): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
 /** The number of words a fetch block reads at once ("FETCH × 4"). */

@@ -2489,4 +2489,3 @@ export const MIX = {
 
 export type CueId = (typeof MIX.cues)[number]['id'];
 export type BusId = keyof typeof MIX.buses;
-export type KeyName = (typeof MIX.transpose.keyNames)[number];

@@ -19,11 +19,6 @@ export const BANDWIDTH_NERD =
 /** The jack ids: `eth0` is the board's, `eth1`.. are network cards in PCIe slot order. */
 export const isJackId = (id: string): boolean => /^eth\d+$/.test(id);
 
-/** The ids of the jacks the machine has now: `eth0` when the board has one, then `eth1`.. for each card (the renderer's ids). */
-export function jackIds(s: Snapshot): string[] {
-  return [...(s.board.features.ethernetMbps > 0 ? ['eth0'] : []), ...nicsInOrder(s).map((_, i) => `eth${i + 1}`)];
-}
-
 /** The network cards in PCIe slot order (the lowest slot is `eth1`). */
 export function nicsInOrder(s: Snapshot) {
   const num = (slot: string) => Number(/(\d+)$/.exec(slot)?.[1] ?? 0);

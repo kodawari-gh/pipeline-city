@@ -1,4 +1,4 @@
-// The New game screen (ticket #37; SPEC §5.1 and §5.4). The node test run has no DOM, so MainMenu and NewGameDialog are called as plain
+// The New game screen (ticket #37; SPEC §5.1 and §5.4). The node test run has no DOM, so MainMenu and NewGameScreen are called as plain
 // functions and their returned trees are walked. Hooks are stubbed. Written before the coder's changes: the two-click and red-label rules
 // fail until they land. Copy is the SPEC text the player sees, not class names.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,7 +35,7 @@ function text(v: Node): string {
 const titleOf = (row: VEl) => text(childrenOf(row)).trim();
 
 let MainMenu: typeof import('@/core/ui/panels/MainMenu').MainMenu;
-let NewGameDialog: typeof import('@/core/ui/panels/NewGame').NewGameDialog;
+let NewGameScreen: typeof import('@/core/ui/panels/NewGame').NewGameScreen;
 let store: typeof import('@/app/store');
 
 beforeEach(async () => {
@@ -62,7 +62,7 @@ beforeEach(async () => {
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   ({ MainMenu } = await import('@/core/ui/panels/MainMenu'));
-  ({ NewGameDialog } = await import('@/core/ui/panels/NewGame'));
+  ({ NewGameScreen } = await import('@/core/ui/panels/NewGame'));
   store = await import('@/app/store');
   store.autosaveOffer.value = null;
   store.previousOffer.value = null;
@@ -80,7 +80,7 @@ function menuRows() {
 
 /** The New game screen's buttons, as rendered with the current signals. */
 function screenButtons(): VEl[] {
-  const tree = NewGameDialog() as unknown as Node;
+  const tree = NewGameScreen() as unknown as Node;
   if (!tree) throw new Error('New game screen did not open');
   return all(tree).filter((el) => el.type === 'button');
 }
@@ -125,14 +125,14 @@ describe('the hero label names what is replaced', () => {
     openFromMenu();
     const buttons = screenButtons();
     buttonNamed(buttons, /^Replace save and start$/);
-    expect(allText(NewGameDialog() as unknown as Node)).toMatch(/Overwrites your autosave: Level \d+ · \$[\d,]+/);
+    expect(allText(NewGameScreen() as unknown as Node)).toMatch(/Overwrites your autosave: Level \d+ · \$[\d,]+/);
   });
 
   it('with no save: the hero reads Start and there is no warning', () => {
     openFromMenu();
     const buttons = screenButtons();
     buttonNamed(buttons, /^Start$/);
-    expect(allText(NewGameDialog() as unknown as Node)).not.toContain('Overwrites your autosave');
+    expect(allText(NewGameScreen() as unknown as Node)).not.toContain('Overwrites your autosave');
   });
 });
 

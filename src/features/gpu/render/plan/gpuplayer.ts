@@ -12,10 +12,10 @@ import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 /** Seconds to hold the last instruction of a window before the next window replaces it. */
 const HOLD_S = 0.5;
 /** Windows kept to seek back into. */
-export const HISTORY = 120;
+const HISTORY = 120;
 
 /** What one SM shows: the newest instruction it issued by now, and how far through its cycles it is. */
-export interface SmTick {
+interface SmTick {
   sm: number;
   step: GpuStep | null;
   index: number;
@@ -23,7 +23,7 @@ export interface SmTick {
   round: number;
 }
 /** A warp's state at the cycle on show: the mask of its newest instruction (after it, when the engine says), and the SM it is on. */
-export interface WarpTick {
+interface WarpTick {
   sm: number;
   warp: number;
   mask: number;

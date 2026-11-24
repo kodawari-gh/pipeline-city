@@ -14,7 +14,7 @@ import type { CacheSnap, StoredSnap, TraceSnap } from '../../sim/pipesnap';
 /** How fast the replay runs, in engine cycles per second of game time. */
 export const CYCLES_PER_SEC = 4.5;
 /** Seconds the old window takes to fade while the next one starts. */
-export const FADE_S = 0.5;
+const FADE_S = 0.5;
 /** Cycles to hold the last frame of a window before the next window replaces it. */
 const HOLD = 0.4;
 /** Windows kept for the scrubber. */
@@ -120,7 +120,7 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
 }
 
 /** The way one step of an instruction goes: along the wires if they join the two blocks in a few hops, else a straight glide (the unpipelined die has no wires between its stages). */
-export function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route | null {
+function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3): Route | null {
   const rt = routeBetween(plan, from, to);
   if (!rt) return null;
   if (rt.links.length > 0 && rt.links.length <= maxHops) return rt;
@@ -133,7 +133,7 @@ export function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3):
  * The point a fraction `u` (0..1) of the way along the traces of a route: the links' own polylines one after another by length. The gaps inside
  * the blocks between two links are not travelled (the pulse is always on a trace and passes into the next one at the block's edge).
  */
-export function wirePoint(rt: Route, u: number): Pt | null {
+function wirePoint(rt: Route, u: number): Pt | null {
   const lens = rt.links.map((h) => h.link.pts.reduce((n, p, i) => (i ? n + dist(p, h.link.pts[i - 1]!) : 0), 0));
   const total = lens.reduce((n, x) => n + x, 0);
   if (rt.links.length === 0 || total <= 0) return null;
@@ -168,7 +168,7 @@ export function pointAt(pts: Pt[], u: number): Pt {
 }
 
 /** The link joining two blocks, and whether it is walked backwards. */
-export function linkBetween(
+function linkBetween(
   plan: CpuPlan,
   from: string,
   to: string,

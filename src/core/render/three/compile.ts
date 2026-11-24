@@ -255,7 +255,7 @@ export function prime(left: Program[], ms: number): boolean {
 /** The longest a first picture waits for its programs to link; then it draws, and the driver finishes the link in that draw. */
 export const LINK_MAX_MS = 15000;
 /** The time a tick spends on the first use of linked programs (`prime`): the page stays alive between the ticks. */
-export const PRIME_MS = 4;
+const PRIME_MS = 4;
 
 /**
  * The wait for a scene's programs before it is drawn (docs/render/load.md). Call `ready` in each tick that would draw, and draw when it says so.
@@ -292,7 +292,7 @@ export class ProgramGate {
 }
 
 /** The programs the materials under `root` have made so far (none is made here). */
-export function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
+function programsOf(r: WebGLRenderer, root: Object3D): Program[] {
   const out = new Set<Program>();
   root.traverse((x) => {
     const m = (x as Mesh).material as Material | Material[] | undefined;

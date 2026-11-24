@@ -156,7 +156,7 @@ export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'br
  * exposure the frame's bright edge sets the meter, and the board and its parts fall to black shapes. A person's eye at that distance adapts
  * to the inside. Half the room's lift keeps the parts' own contrast (a heatsink still has a dark side) and shows them.
  */
-export const BOARD_EYE = 0.5;
+const BOARD_EYE = 0.5;
 
 /** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
 export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));

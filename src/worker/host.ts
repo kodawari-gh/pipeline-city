@@ -16,7 +16,7 @@ export interface HostState {
 }
 
 /** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
-export const MAX_TICKS_PER_FRAME = 128;
+const MAX_TICKS_PER_FRAME = 128;
 
 export function newHost(): HostState {
   return { game: null, speed: 1, owed: 0, crash: null };

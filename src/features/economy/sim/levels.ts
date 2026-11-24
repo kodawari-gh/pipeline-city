@@ -395,7 +395,7 @@ export const MAX_LEVEL = LEVELS.length;
 export const START_CRATE: readonly string[] = ['cpu0', 'ram0', 'psu0', 'cooler0', 'fan92', 'display0', 'board0'];
 
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
-export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = {
+const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = {
   board4: { name: 'Server board', kind: 'board' },
 };
 

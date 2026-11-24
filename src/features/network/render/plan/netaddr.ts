@@ -12,7 +12,7 @@ import { linkOf } from '../jackleds';
 import { macOf } from '../nic/nicmac';
 
 /** An address and a port: one end of a connection. */
-export interface Endpoint {
+interface Endpoint {
   ip: string;
   port: number;
 }
@@ -25,7 +25,7 @@ export interface Service {
 }
 
 /** An entry of an ARP table: an IP address, the MAC address it was answered with, and whose it is in words. */
-export interface Neighbour {
+interface Neighbour {
   ip: string;
   mac: string;
   what: string;
@@ -42,7 +42,7 @@ export interface Iface {
 }
 
 /** What the router's DHCP gives the PC while its link is up. */
-export interface Host {
+interface Host {
   iface: string;
   mac: string;
   ip: string;
@@ -54,7 +54,7 @@ export interface Host {
 }
 
 /** The router's LAN side: its address (the PC's gateway), the network it makes, the pool it hands out and its MAC. */
-export interface Lan {
+interface Lan {
   ip: string;
   prefix: number;
   mask: string;
@@ -66,7 +66,7 @@ export interface Lan {
 }
 
 /** The router's WAN side: the public address the plan gives, the ISP's gateway beyond it, and the ISP's name servers. */
-export interface Wan {
+interface Wan {
   ip: string;
   prefix: number;
   mask: string;
@@ -122,7 +122,7 @@ export function hash32(s: string): number {
 
 const hex2 = (n: number): string => (n & 255).toString(16).toUpperCase().padStart(2, '0');
 /** A MAC address from its six bytes. */
-export const macOfBytes = (b: readonly number[]): string => b.map(hex2).join(':');
+const macOfBytes = (b: readonly number[]): string => b.map(hex2).join(':');
 /** An IPv4 address from the four bytes (a 32 bit number is split in four). */
 export const ipv4 = (a: number, b: number, c: number, d: number): number => (((a * 256 + b) * 256 + c) * 256 + d) >>> 0;
 export const ipStr = (n: number): string => [24, 16, 8, 0].map((s) => (n >>> s) & 255).join('.');
@@ -151,7 +151,7 @@ const LAN: Record<number, { base: number; prefix: number }> = {
   4: { base: ipv4(10, 0, 0, 0), prefix: 16 },
 };
 /** The lease the router's DHCP gives, in words. */
-export const LEASE = '24 h';
+const LEASE = '24 h';
 /** The ISP's side of the line: one documentation block (RFC 5737 TEST-NET-3): the gateway at 1, the name servers at 53 and 54, the plans' customers above 100. */
 const ISP_NET = ipv4(203, 0, 113, 0);
 /** The job servers: another documentation block (TEST-NET-2). */

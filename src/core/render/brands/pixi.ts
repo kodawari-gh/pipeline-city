@@ -7,7 +7,7 @@ import { layer, type BrandId } from './kit';
 const cache = new Map<string, Texture>();
 
 /** The texture's mark height in pixels for a lockup `h` units tall: about two pixels a unit, so a close camera still reads it sharp. */
-export const brandPx = (h: number): number => Math.round(Math.min(512, Math.max(96, h * 2)));
+const brandPx = (h: number): number => Math.round(Math.min(512, Math.max(96, h * 2)));
 
 export interface BrandSpriteOpts extends LockupOpts {
   /** The sprite's opacity (default 1). */

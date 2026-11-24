@@ -8,11 +8,9 @@ import {
   glyphArea,
   hasSymbol,
   hazardGeom,
-  isGlyph,
   isVertical,
   laneCount,
   latchSlots,
-  GLYPH_KINDS,
 } from './glyphgeom';
 import { mix } from '@/core/render/ink';
 import { regName, slotValues, writesOf } from './tokentext';
@@ -23,7 +21,7 @@ import type { Theme } from '@/core/render/theme';
 // trapezoid, a multiplier a triangle of partial products, the decoder the instruction's fields and the control lines it raises.
 // Pure drawing into a Graphics (and a callback for the few labels), so it is testable and the far view never pays for it.
 
-export { fetchWidth, glyphArea, hasSymbol, isGlyph, isVertical, laneCount, GLYPH_KINDS };
+export { glyphArea, hasSymbol };
 
 /** Where a text goes: its centre, in die units, and its size. */
 export type Put = (text: string, x: number, y: number, size: number) => void;

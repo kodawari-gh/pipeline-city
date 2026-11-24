@@ -38,11 +38,11 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** A grid cell's side (pixels), the picture's step down before the grid (each grid cell reads `CELL / DOWN` squared of its pixels). */
-export const CELL = 32,
+const CELL = 32,
   DOWN = 4;
 /** The grid's bins: one a stop, from `LO` (2^-18, a black) to `LO + BINS - 1` (2^5, a bulb). */
-export const LO = -18,
-  BINS = 24;
+const LO = -18;
+export const BINS = 24;
 /**
  * The base's distance from middle grey keeps this share below it (the dark is lifted) and above it (the bright is held back). Above it by
  * day: the bright glass held back; at night the eye keeps more of it (`LocalEye.high`).
@@ -53,7 +53,7 @@ export const SHADOW_C = 0.18,
 export const MAX_UP = 9,
   MAX_DOWN = 3;
 /** The share of its colour a pixel loses when the eye lifts it by `CALM_STOPS` stops or more (less below, in proportion). */
-export const CALM = 0.4,
+const CALM = 0.4,
   CALM_STOPS = 4;
 /** The scene's luminance that shows as middle grey at an exposure of 1 (ACES: 0.18 out at 0.22 in, after its own 1 / 0.6). */
 export const MID = 0.13;

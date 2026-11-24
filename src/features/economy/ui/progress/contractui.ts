@@ -5,14 +5,14 @@ import type { JobLogEntry } from '@/features/jobs/sim/joblog';
 import { fmtMoney, fmtTicks } from '@/core/ui/logic';
 
 /** The colour family of a card (the log's `k-*` classes): green is fine, amber is at risk, grey is gone. */
-export type Tone = 'compute' | 'queue' | 'lost' | 'none';
+type Tone = 'compute' | 'queue' | 'lost' | 'none';
 
 export const fmtSize = (bytes: number): string => `${Math.round((bytes / 1024) * 10) / 10}K`;
 
 /** Dollars per tick, as small amounts read: `$0.3/s` (a tick is a game second). */
 export const fmtRate = (r: number): string => `$${r >= 10 ? r.toFixed(0) : r.toFixed(2).replace(/0$/, '')}/s`;
 
-export interface Fact {
+interface Fact {
   icon: 'disk' | 'clock' | 'dollar' | 'warn' | 'lock';
   text: string;
   title: string;
@@ -107,7 +107,7 @@ export function activeView(c: ContractSnap): ActiveView {
   };
 }
 
-export const isContract = (e: JobLogEntry): boolean => e.contract !== undefined;
+const isContract = (e: JobLogEntry): boolean => e.contract !== undefined;
 
 /** The log split into jobs (the log panel's overview and list) and finished contracts (newest first). */
 export function splitLog(log: readonly JobLogEntry[]): { jobs: JobLogEntry[]; contracts: JobLogEntry[] } {

@@ -146,7 +146,7 @@ const DIFFUSE = 'vec4 diffuseColor = vec4( diffuse, opacity );';
  * its metalness is 0. The vertices still hold the source's own values; this reads them.
  */
 const dark = (c: Color): string => `vec3( ${c.r.toFixed(6)}, ${c.g.toFixed(6)}, ${c.b.toFixed(6)} )`;
-export const LOW_FRAG = `
+const LOW_FRAG = `
 vec3 lowMetal( vec3 c, float k ) {
   if ( k <= ${NON_METAL.toFixed(3)} ) return c;
   float mx = max( c.r, max( c.g, c.b ) ), mn = min( c.r, min( c.g, c.b ) ), d = mx - mn, l = 0.5 * ( mx + mn ), h = 0.0;

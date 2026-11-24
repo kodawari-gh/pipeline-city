@@ -32,7 +32,7 @@ export const logOpen = signal(false);
 export const toggleLog = () => {
   logOpen.value = !logOpen.value;
 };
-export const closeLog = () => {
+const closeLog = () => {
   logOpen.value = false;
 };
 const picked = signal<number | null>(null);

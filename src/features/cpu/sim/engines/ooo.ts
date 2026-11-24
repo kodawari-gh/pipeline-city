@@ -70,7 +70,7 @@ export interface OooSettings extends EngineSettings {
 }
 
 /** Threads one out-of-order core can hold. */
-export const MAX_SMT_THREADS = 2;
+const MAX_SMT_THREADS = 2;
 
 /** Per-slot lifecycle. */
 const Os = { Free: 0, Fetched: 1, Decoded: 2, Wait: 3, Issued: 4, Done: 5, Committed: 6 } as const;

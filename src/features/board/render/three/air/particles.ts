@@ -8,7 +8,7 @@ import { UNITS_PER_M, type AirPart } from './plan';
 import type { V3 } from './grid';
 
 /** What the air does in game time is shown this much slower: the real air crosses a case in a second, too fast to follow. */
-export const TIME_SCALE = 0.5;
+const TIME_SCALE = 0.5;
 /**
  * Points of a particle's trail (the head and its past). The past moves on when the head has gone a stretch from the last point: as long as the air is
  * fast (`STRETCH_S` seconds of its travel, between the two limits, units), so a streak shows the speed, and never so short that a slow one is a dot. Still

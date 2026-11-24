@@ -6,7 +6,7 @@ import { fmtMbit, netPanel, netPanelShown, offerPay, type AddrRow, type NatRow, 
 import { netOpen, toggleNet } from '@/core/ui/state';
 
 /** The network panel body: link state, bandwidth ladder, flow stages, offers, transfers, spool, USB fallback. */
-export function NetPanel() {
+function NetPanel() {
   const s = snapshot.value;
   const m = s ? netPanel(s) : null;
   if (!m) return null;

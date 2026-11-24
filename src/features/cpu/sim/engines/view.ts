@@ -1,6 +1,6 @@
 // Observability for the timed engines: typed-array views only (no per-instruction objects). See docs/ENGINES.md.
 
-export const STAGE_NAMES = ['IF', 'ID', 'EX', 'MEM', 'WB'] as const;
+const STAGE_NAMES = ['IF', 'ID', 'EX', 'MEM', 'WB'] as const;
 export const Stage = { IF: 0, ID: 1, EX: 2, MEM: 3, WB: 4 } as const;
 
 /** What occupies a stage this cycle. */
@@ -299,7 +299,7 @@ export class ViewState implements EngineView {
 
 /** Execution units of the ooo engine (index into the unit* arrays). */
 export const Unit = { ALU0: 0, ALU1: 1, MUL: 2, LSU: 3 } as const;
-export const UNIT_NAMES = ['ALU0', 'ALU1', 'MUL', 'LSU'] as const;
+
 export const UNIT_COUNT = 4;
 
 /** State of a reorder buffer entry. */

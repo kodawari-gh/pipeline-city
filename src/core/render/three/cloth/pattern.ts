@@ -16,7 +16,7 @@ export interface Piece {
 }
 
 /** Two edges sewn point to point, `[piece, edge]` each, start to start; `flip` when they run opposite ways (start to end). */
-export interface Seam {
+interface Seam {
   a: readonly [string, string];
   b: readonly [string, string];
   flip?: boolean;
@@ -123,7 +123,7 @@ export function curve3(a: P2, c1: P2, c2: P2, b: P2, n = 24): P2[] {
   return out;
 }
 
-export function inside(poly: readonly P2[], x: number, y: number): boolean {
+function inside(poly: readonly P2[], x: number, y: number): boolean {
   let hit = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [xi, yi] = poly[i]!,
@@ -148,7 +148,7 @@ function edgeDist(poly: readonly P2[], x: number, y: number): number {
 }
 
 /** Delaunay triangles of the points (Bowyer-Watson), each wound counter-clockwise. */
-export function delaunay(pts: readonly P2[]): number[] {
+function delaunay(pts: readonly P2[]): number[] {
   let x0 = Infinity,
     y0 = Infinity,
     x1 = -Infinity,
@@ -257,7 +257,7 @@ function root(up: Int32Array, i: number): number {
  * Turn the triangles so that each side two of them share (over the welded points) runs one way in one and the other way in the other, then
  * the whole so that the faces look away from the garment's middle. Changes `tris` in place.
  */
-export function orient(tris: Uint32Array, weld: Int32Array, pos: Float64Array): void {
+function orient(tris: Uint32Array, weld: Int32Array, pos: Float64Array): void {
   const m = tris.length / 3,
     sides = new Map<string, number[]>();
   const key = (u: number, v: number) => (u < v ? `${u},${v}` : `${v},${u}`);

@@ -335,7 +335,7 @@ export class EventLog {
   }
 }
 
-export interface CacheState {
+interface CacheState {
   lines: number;
   ways: number;
   lineBytes: number;
@@ -393,7 +393,7 @@ export class Predictor {
 }
 
 /** Dynamic instruction fields for the (few) instructions in flight. Slot = id & (POOL - 1). */
-export const POOL = 8;
+const POOL = 8;
 export const POOL_MASK = POOL - 1;
 /** InstrPool.state bits. */
 export const St = { ExDone: 1, Started: 2, Missing: 4 } as const;

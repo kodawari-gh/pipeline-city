@@ -23,7 +23,7 @@ export type TipPart =
   | 'none';
 
 /** One way to do a job better: a part, a few words for the chip, and the full sentence behind it. `none` marks a part that does NOT help (worth knowing before buying it). */
-export interface Tip {
+interface Tip {
   part: TipPart;
   short: string;
   text: string;

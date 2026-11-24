@@ -41,7 +41,7 @@ export const almanacOpen = signal(false);
 export const toggleAlmanac = () => {
   almanacOpen.value = !almanacOpen.value;
 };
-export const closeAlmanac = () => {
+const closeAlmanac = () => {
   almanacOpen.value = false;
 };
 const picked = signal<string | null>(null);

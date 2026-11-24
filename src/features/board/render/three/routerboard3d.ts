@@ -24,7 +24,7 @@ const mm = (v: number): number => v * MM;
 const THICK = mm(1.6),
   STAND = mm(4);
 /** Where the board lies in the router's frame: the height of its component side over the shelf (the plinth's top, the standoffs, the PCB) and the depth of its jack side (just behind the jacks' backs, which end `RJ.deep` behind their faces). */
-export const BED = { y: ROUTER_FLOOR + STAND + THICK, z: routerJack(0)[2] - RJ.deep - 3 } as const;
+const BED = { y: ROUTER_FLOOR + STAND + THICK, z: routerJack(0)[2] - RJ.deep - 3 } as const;
 /** The board's margin to the shell's ends, the room behind it to the shell's back wall, and the width of the jacks' strip on its front edge: its parts stand behind that. */
 const SIDE = 100,
   REAR = 140,
@@ -133,7 +133,7 @@ const SPEC: Readonly<Record<number, Spec>> = {
 };
 
 /** The board of a tier laid out for a body `depth` deep: every part's rectangle in the plate frame (units), and the board's own. Pure. */
-export interface BoardFit {
+interface BoardFit {
   board: RectLike;
   soc: RectLike;
   die: RectLike;
@@ -162,7 +162,7 @@ export interface Lying {
   y: number;
 }
 
-export function routerBoardFit(tier: number, depth: number): BoardFit {
+function routerBoardFit(tier: number, depth: number): BoardFit {
   const t = SPEC[tier] ? tier : 1,
     S = SPEC[t]!,
     W = (ROUTER_SIZE[t] ?? ROUTER_SIZE[1]!).w - 2 * SIDE,
@@ -208,19 +208,9 @@ export function routerBoardFit(tier: number, depth: number): BoardFit {
 }
 
 /** The ids of the parts that are bodies on the board (the SoC's lid answers to `router.soc` too). */
-export const BOARD_IDS = [
-  'router.dram',
-  'router.flash',
-  'router.wanphy',
-  'router.lanphy',
-  'router.radio',
-  'router.power',
-  'router.label',
-  'router.soc',
-] as const;
 
 /** One body of the board as it lies: its id and where it is in the room (the rails of the detailed view). */
-export interface RouterBody extends Lying {
+interface RouterBody extends Lying {
   id: string;
 }
 

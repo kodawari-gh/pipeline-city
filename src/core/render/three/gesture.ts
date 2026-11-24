@@ -27,7 +27,7 @@ export function wheelZoom(e: { deltaY: number; deltaMode: number; ctrlKey: boole
 export const LOCK_PX = 10;
 
 /** `pinch`: the fingers spread, close or twist (zoom, with the view dragged along and turned by the twist); `swipe`: they move together (turn). */
-export type TwoKind = 'pinch' | 'swipe';
+type TwoKind = 'pinch' | 'swipe';
 
 /**
  * Two fingers down: where they started, what the gesture has been decided to be (null: not yet), where they stood at the last move, and how many

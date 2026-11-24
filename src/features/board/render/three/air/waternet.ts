@@ -6,7 +6,7 @@
 import type { V3 } from './grid';
 
 /** One straight run of the water: its two ends, the loop coordinate at each, its radius, and a phase that keeps parallel lanes from pulsing in step. */
-export interface WaterRun {
+interface WaterRun {
   a: V3;
   b: V3;
   sa: number;

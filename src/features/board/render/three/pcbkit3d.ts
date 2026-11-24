@@ -101,7 +101,7 @@ export function passiveRow(
 
 // ------------------------------------------------------------------ packages
 /** A package's corner, as its marking reads upright. */
-export type Corner = 'nw' | 'ne' | 'sw' | 'se';
+type Corner = 'nw' | 'ne' | 'sw' | 'se';
 const CORNER: Record<Corner, [number, number]> = {
   nw: [0.12, 0.12],
   ne: [0.88, 0.12],

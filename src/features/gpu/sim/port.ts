@@ -26,9 +26,7 @@ import type { Device } from '@/core/sim/hw/device';
 type Phase = 'idle' | 'in' | 'run' | 'out';
 
 /** Instructions of the last launch a card remembers for its view (the die view replays them at its own pace). */
-export const GPU_TRACE_STEPS = 64;
-
-export type { GpuCacheView, GpuSmView, GpuWarpView } from '.';
+const GPU_TRACE_STEPS = 64;
 
 /** What a card shows from the outside: its shape, where the launch is, and the last instructions it ran (docs/ACCEL.md "Art as built"). */
 export interface GpuView {
@@ -63,7 +61,7 @@ export interface GpuView {
 }
 
 /** Words of card memory one entry of `GpuView.fill` covers. */
-export const GPU_FILL_WORDS = 4;
+const GPU_FILL_WORDS = 4;
 
 /** How full card memory is, block by block: the words that are not zero in each `GPU_FILL_WORDS`. */
 function fillMap(mem: Uint32Array): number[] {

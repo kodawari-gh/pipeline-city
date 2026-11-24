@@ -7,7 +7,7 @@ import { KERNEL_BASE, KSLOT_BYTES } from '../core/sim/memmap';
 import { jobTableFor } from '../features/os/sim/kernel';
 import type { SaveV1 } from './protocol';
 
-export interface CrashCore {
+interface CrashCore {
   core: number;
   /** The next instruction the engine fetches, or null when the engine has none. */
   pc: number | null;
@@ -25,7 +25,7 @@ export interface CrashCore {
   mmuTable: number;
 }
 
-export interface CrashWindow {
+interface CrashWindow {
   label: string;
   base: number;
   /** Hex words, eight to a line, each line starting with its address. */
@@ -126,7 +126,7 @@ export function describePc(
 const REG_ROWS = 4;
 
 /** Appended to the text so a pasted report carries its own instructions. */
-export const DEBUG_PROMPT = [
+const DEBUG_PROMPT = [
   '--- for Claude ---',
   'Debug this crash: find the root cause from the stack and the state above (check the "machine" line for stale core indexes, the "recent events" for what changed just before, ',
   'and the parts list for the CPU/OS combination). Fix the cause, not the symptom. Then add a regression test next to the code you fixed that reproduces this exact case ',
@@ -148,7 +148,7 @@ function coreText(c: CrashCore): string[] {
 }
 
 /** The whole report as text: what to paste into a bug report. */
-export function crashText(r: Omit<CrashReport, 'text'>): string {
+function crashText(r: Omit<CrashReport, 'text'>): string {
   const L: string[] = [];
   L.push(`CRASH ${r.at}`, r.headline, '');
   L.push(`error: ${r.error.name}: ${r.error.message}`);

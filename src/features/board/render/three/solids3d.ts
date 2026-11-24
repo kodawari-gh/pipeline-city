@@ -37,7 +37,7 @@ export function gullWing(width: number): BufferGeometry {
 }
 
 /** A can's height for its radius: the big filter caps are tall, the small polymer ones squat. */
-export const canHeight = (r: number): number => r * (r >= 50 ? 2.5 : 2.1);
+const canHeight = (r: number): number => r * (r >= 50 ? 2.5 : 2.1);
 
 /** The vent cross scored in a can's aluminium top, and its polarity mark. */
 function canTop() {

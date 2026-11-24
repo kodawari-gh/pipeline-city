@@ -51,7 +51,7 @@ export function setShadowsOn(on: boolean): void {
 }
 
 /** The overlay's lamp caps, in order: 4, 1, All (0). */
-export const LIGHTS = [4, 1, 0];
+const LIGHTS = [4, 1, 0];
 
 /** The lamp cap now applied. */
 export const lightsNow = (): number => effective.peek().lights;

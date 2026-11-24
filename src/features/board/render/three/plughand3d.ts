@@ -42,7 +42,7 @@ import {
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
-export const OMEGA = 25;
+const OMEGA = 25;
 /** Screen distances (px) from the point in front of the socket: the plug squares up from FAR_PX in, and snaps inside SNAP_PX. */
 export const SNAP_PX = 70,
   FAR_PX = 260;

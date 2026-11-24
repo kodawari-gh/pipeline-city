@@ -7,7 +7,7 @@ import { fmtMbit, limiterLadder, linkUsable } from '../../network/ui/netui';
 import type { Level } from '@/core/ui/logic';
 import type { IconName } from '../../economy/ui/shop/picker';
 
-export type ResId = 'cpu' | 'vrm' | 'ram' | 'psu' | 'queue' | 'net' | `disk:${string}`;
+type ResId = 'cpu' | 'vrm' | 'ram' | 'psu' | 'queue' | 'net' | `disk:${string}`;
 
 export interface ResRow {
   id: ResId;
@@ -258,7 +258,7 @@ export function bottleneck(rows: ResRow[]): Bottleneck | null {
 
 // ---------- spool settings ----------
 
-export interface SpoolDriveRow {
+interface SpoolDriveRow {
   deviceId: string;
   label: string;
   home: boolean;

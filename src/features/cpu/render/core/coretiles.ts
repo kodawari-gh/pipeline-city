@@ -70,7 +70,7 @@ export function coreColor(core: number): string {
 }
 
 /** One structure of the out-of-order engine as a gauge: `used` of `cap` slots (each the class of the instruction in it, `done` when it has finished), and why it made no progress this cycle. */
-export interface OooGauge {
+interface OooGauge {
   name: string;
   used: number;
   cap: number;
@@ -79,7 +79,7 @@ export interface OooGauge {
 }
 
 /** An execution unit: the class of the instruction in it and how far through its latency it is (0..1). */
-export interface OooUnit {
+interface OooUnit {
   name: string;
   cls: TileCell;
   progress: number;

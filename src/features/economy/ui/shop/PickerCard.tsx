@@ -75,7 +75,7 @@ function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string | undefi
 }
 
 /** The small "+ price" on a fitted or spare tile (or board card): buy another copy, which goes into the inventory. */
-export function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
+function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
   if (!more || (more.state !== 'ready' && more.state !== 'poor')) return null;
   const cost = more.free ? 'free' : fmtMoney(more.price);
   if (more.state === 'poor')

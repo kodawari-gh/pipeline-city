@@ -28,7 +28,7 @@ export interface TypeStyle {
 }
 
 /** The descender's depth below the baseline, in cap heights. */
-export const DSC = 0.26;
+const DSC = 0.26;
 
 /** The tools a glyph draws with, in its box (`W` wide, cap height 1, y down). Skeleton bounds: `l r` (sides), `b` (baseline), `h` (half the weight). */
 interface G {

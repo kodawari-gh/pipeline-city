@@ -303,9 +303,3 @@ export const tpmChain = (write: boolean): Hop[] =>
         { bus: 'lpc', dir: 1 },
         { bus: 'dmi', dir: -1 },
       ];
-
-/** The slot number of a drive or card slot id, or -1. */
-export const slotIndex = (slot: string): number => {
-  const m = /(\d+)$/.exec(slot);
-  return m ? Number(m[1]) : -1;
-};

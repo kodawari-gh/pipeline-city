@@ -48,7 +48,7 @@ function prefetchStills(): void {
 }
 
 /** Load the list of the baked stills (once). */
-export function loadStills(): void {
+function loadStills(): void {
   if (stillsAsked || typeof document === 'undefined') return;
   stillsAsked = true;
   void fetch(`${STILLS}manifest.json`)
@@ -106,7 +106,7 @@ function fallBack() {
 }
 
 /** Can a picture be made for this id at all? (a part, a board, a case, a router, a plan; not an OS) */
-export function hasThumb(id: string): boolean {
+function hasThumb(id: string): boolean {
   if (/^(board|case)\d+$/.test(id)) return true;
   if (getRouterSpec(id) || getIspSpec(id)) return true;
   const k = getSpec(id)?.kind;

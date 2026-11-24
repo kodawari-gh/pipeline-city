@@ -52,7 +52,7 @@ const SCALE_TAU = 1.5;
 /** How hard a fan blows by its speed (0 to 1): a fan that turns moves air, a faster one more. */
 const blow = (l: number): number => (l > 0.02 ? 0.3 + 0.7 * Math.min(1.3, l) : 0);
 /** The same by the fans' bank id (`fanBank`: the 3D machine publishes the speed its fans turn at). */
-export const levelOf = (bank: string): number => blow(fanBank.level(bank));
+const levelOf = (bank: string): number => blow(fanBank.level(bank));
 
 export class AirView3D {
   private readonly group = new Group();

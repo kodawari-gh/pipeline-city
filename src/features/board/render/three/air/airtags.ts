@@ -15,7 +15,7 @@ const NET_LEGEND: readonly (readonly [string, string])[] = [
 const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 /** `heat`: a temperature; `watts`: a draw (the power lens); `warn`: something wrong; `dim`: a hint; `net`: a link's speed (the network lens); `limit`: the slowest link, or a link that needs care. */
-export type TagTone = 'heat' | 'warn' | 'dim' | 'watts' | 'net' | 'limit';
+type TagTone = 'heat' | 'warn' | 'dim' | 'watts' | 'net' | 'limit';
 
 export interface AirTag {
   id: string;
@@ -42,7 +42,7 @@ export interface AirTag {
 }
 
 /** A temperature that moves faster than this (C per second, smoothed) gets an arrow. */
-export const TREND_C_PER_S = 0.03;
+const TREND_C_PER_S = 0.03;
 
 /** The canvas rect in CSS px. `minTop`: the lowest a pill may sit (the foot of the HUD bar: a label under the bar cannot be read). */
 export interface TagView {

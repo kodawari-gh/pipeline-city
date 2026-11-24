@@ -1,4 +1,4 @@
-import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 
 import { currentTextResolution, registerLabel } from './camera';
 
@@ -130,10 +130,6 @@ export const rgrad = (inner: string, outer: string, centre: [number, number] = [
       textureSpace: 'local',
     }),
   );
-
-export function clear(c: Container): void {
-  for (const ch of c.removeChildren()) ch.destroy({ children: true });
-}
 
 /** Linear blend of two #rrggbb colours (other CSS colour forms fall back to `a`). */
 export function mix(a: string, b: string, t: number): string {

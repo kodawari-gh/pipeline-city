@@ -13,8 +13,7 @@
 import { MMU_BASE, MMU_REG, MMU_SIZE, DEVICE_BASE, PteBit, VmFault } from '@/core/sim/memmap';
 import type { Device } from '@/core/sim/hw/device';
 
-export const VA_BITS = 20;
-export const PAGE_BYTES = 256;
+const VA_BITS = 20;
 
 export class Mmu implements Device {
   readonly name = 'mmu';

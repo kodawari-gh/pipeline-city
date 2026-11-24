@@ -50,11 +50,6 @@ export function padsAt(c: Ctx, pts: [number, number][], w: number, h: number, a 
   c.g.fill({ color: color ?? c.P.via, alpha: a });
 }
 
-/** A row of `n` small rects along a line (pins, legs, vents). */
-export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: number, w: number, h: number) {
-  for (let i = 0; i < n; i++) c.g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h);
-}
-
 /** A mounting hole with its screw: a copper-ringed pad, the washer, a pan head with a cross slot (it threads into the case's standoff below). */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
   const { g, P } = c;
@@ -160,7 +155,7 @@ export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
 }
 
 /** A power inductor (metal-alloy choke): block, bevel, a winding cut across it. */
-export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
+function choke(c: Ctx, x: number, y: number, w: number, h: number) {
   const { g, P } = c;
   c.solid?.({ kind: 'choke', x: x + w / 2, y: y + h / 2, w, h });
   shadow(c, x, y, w, h, 14, 12, 0.32);
@@ -173,7 +168,7 @@ export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
 }
 
 /** A DrMOS power stage: a square package with a heat pad and legs on three sides. */
-export function powerStage(c: Ctx, x: number, y: number, s: number) {
+function powerStage(c: Ctx, x: number, y: number, s: number) {
   const { g, P } = c;
   c.solid?.({ kind: 'stage', x: x + s / 2, y: y + s / 2, w: s, h: s });
   for (let i = 0; i < 7; i++) {

@@ -94,7 +94,7 @@ export function TraceLayer({
 type Box = { x: number; y: number; w: number; h: number };
 
 /** Draws the trace of one screen into the layer inside `root`. Exported for the tests of the route. */
-export function traceScreen(root: HTMLElement, at: number, source: number, tp: boolean): void {
+function traceScreen(root: HTMLElement, at: number, source: number, tp: boolean): void {
   const svg = root.querySelector<SVGSVGElement>('svg.pl-trace');
   const unlit = svg?.querySelector<SVGPathElement>('[data-u]');
   const lit = svg?.querySelector<SVGPathElement>('[data-l]');

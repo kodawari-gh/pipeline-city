@@ -77,7 +77,7 @@ export interface GpuStep {
 }
 
 /** The words a vld / vst moved, as the card memory held them when it ran. */
-export interface GpuMemTouch {
+interface GpuMemTouch {
   /** Byte address and word moved for each active lane (same order). */
   addrs: number[];
   data: number[];
@@ -87,10 +87,10 @@ export interface GpuMemTouch {
 }
 
 /** Words of card memory a popup shows around the address an instruction touched. */
-export const GPU_AROUND = 9;
+const GPU_AROUND = 9;
 
 /** Why an instruction (or a warp) lost cycles: memory bank conflicts, a pending load, a barrier. */
-export type GpuStall = 'bank' | 'mem' | 'barrier';
+type GpuStall = 'bank' | 'mem' | 'barrier';
 
 const MASK_OPS = new Set(['mseteq', 'msetne', 'msetlt', 'msetge', 'mpush', 'melse', 'mpop']);
 const stepKind = (name: string): GpuStepKind =>

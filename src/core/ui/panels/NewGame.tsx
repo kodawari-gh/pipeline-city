@@ -183,6 +183,3 @@ export function NewGameScreen() {
     </div>
   );
 }
-
-/** The same screen under the name the tests use (`NewGame.test.ts`). */
-export const NewGameDialog = NewGameScreen;

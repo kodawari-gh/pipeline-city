@@ -96,7 +96,7 @@ const rnd = () => (seedN = (seedN * 16807) % 2147483647) / 2147483647;
 /** How deep a weave's threads are (`relief`, in its texels). */
 const WEAVE_DEPTH = 2.5;
 /** Woven cloth: a weave (`weave`) as its map, and its threads' relief from the same texture as its normal map, so the light rakes them. */
-export function woven(
+function woven(
   base: string,
   o: { knit?: boolean; repeat?: [number, number] } = {},
 ): { map: Texture | null; normalMap: Texture | null } {

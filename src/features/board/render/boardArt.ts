@@ -85,7 +85,7 @@ const hexPoly = (cx: number, cy: number, r: number): number[] => {
   return p;
 };
 
-export function strokeLane(g: Graphics, l: Lane, pair = 0) {
+function strokeLane(g: Graphics, l: Lane, pair = 0) {
   const parts = visibleParts(l);
   parts.forEach((part, pi) =>
     [pair ? -pair : 0, pair].slice(0, pair ? 2 : 1).forEach((off, k) => {
@@ -153,7 +153,7 @@ export const pchFixings = (q: Rect, tier: number): [number, number][] => {
 };
 
 /** The board palette of a tier: the theme's, mixed from the skin's solder mask, with the skin's silkscreen ink (skins.ts). */
-export function boardPalette(T: Theme, tier: number): Palette {
+function boardPalette(T: Theme, tier: number): Palette {
   const skin = skinOf(tier),
     k = 0,
     P = makePalette(T, skin.mask[k]);

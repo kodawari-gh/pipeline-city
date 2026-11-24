@@ -39,7 +39,7 @@ const disc = (x: number, z: number, r: number, y0: number, y1: number, mt: Mater
 
 // ------------------------------------------------------------------ the SSD's board
 /** The SSD's board in mm: 65 across, 90 long from its connector end; the packages' places in it. */
-export const SSD_BOARD = { w: 65, l: 90, t: 0.8 } as const;
+const SSD_BOARD = { w: 65, l: 90, t: 0.8 } as const;
 
 /**
  * The 2.5 in. SSD's board, its bottom at drive height `y`, its connector end at drive depth `z` and its west edge at drive `x`: a black board with the controller (a lidded package
@@ -123,7 +123,7 @@ export interface HddFit {
 }
 
 /** The platters' radius (95 mm across on a 3.5 in. drive: 45 mm leaves the casting's wall clear), the heads' reach along the arm (mm from the pivot). */
-export const PLATTER_R_MM = 45,
+const PLATTER_R_MM = 45,
   ARM_MM = 58;
 
 /**

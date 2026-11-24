@@ -233,7 +233,7 @@ export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMIS
  * The material of a sheet of art: `map` is the art (`rawSrgb`), the finish comes from its colours (see `Finish`). It reflects the scene's
  * environment (the room's probe), as the rest of the machine does.
  */
-export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
+function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
     map,
     bumpMap: map,

@@ -121,7 +121,7 @@ function led(g: Group, x: number, y: number, z: number) {
  * The die of the module as the 2D view draws it at rest (`TpmView`): the plate, the blocks' wires and cells, the labels, in board units over the
  * die's rect (`tpmGeo`). Null: the board has no header.
  */
-export function tpmDieArt(T: Theme, visual: string): Container | null {
+function tpmDieArt(T: Theme, visual: string): Container | null {
   const h = tpmHeader(GEO.tier);
   if (!h) return null;
   const geo = tpmGeo(visual, headerRect(h)),

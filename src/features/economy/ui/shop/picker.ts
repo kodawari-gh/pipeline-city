@@ -62,7 +62,7 @@ const BLOCK_BYTES = 256;
 
 export type PickerKind =
   DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
-export type BuyState = 'ready' | 'poor' | 'blocked';
+type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName =
   | 'bolt'
   | 'flame'
@@ -135,7 +135,7 @@ export interface Stat {
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
-export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 
 export interface LadderStep {
   /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
@@ -201,7 +201,7 @@ export interface PickerModel {
   tag?: string | undefined;
 }
 
-export interface OsQueueRow {
+interface OsQueueRow {
   keyId: number;
   label: string;
   type: string;
@@ -231,7 +231,7 @@ const findKey = (s: Snapshot, id: number): KeySnap | undefined =>
 const keyType = (s: Snapshot, id: number): string => findKey(s, id)?.type ?? '';
 
 /** What the needs chips, the deadline and the decline button read from a key. */
-export const jobView = (k: KeySnap): JobView => ({
+const jobView = (k: KeySnap): JobView => ({
   id: k.id,
   label: k.label,
   needs: k.needs,
@@ -292,7 +292,7 @@ export const boardId = (tier: number) => `board${tier}`;
 export const caseId = (tier: number) => `case${tier}`;
 
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
-export function catalogOf(kind: PickerKind): string[] {
+function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
   if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
   if (
@@ -320,7 +320,7 @@ export function catalogOf(kind: PickerKind): string[] {
 }
 
 /** Sustained throughput of a drive at its base clock, bytes per second (the same model as the sim's storage device). */
-export function drivePerSecond(spec: { clock: { base: number }; blockTicks: number }): number {
+function drivePerSecond(spec: { clock: { base: number }; blockTicks: number }): number {
   return Math.round((spec.clock.base * ECONOMY.cpuCyclesPerClock * BLOCK_BYTES) / spec.blockTicks);
 }
 
@@ -912,7 +912,7 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
 }
 
 /** Total memory of the working sticks in the machine, bytes. */
-export function installedRamBytes(s: Snapshot): number {
+function installedRamBytes(s: Snapshot): number {
   let n = 0;
   for (const d of s.devices) {
     if (d.kind !== 'ram' || d.burnt) continue;
@@ -935,7 +935,7 @@ export function nextUpgrade(ladder: LadderStep[]): LadderStep | undefined {
 }
 
 /** Plain lines about a key: what it is, how late, what it pays. */
-export function keyLines(k: KeySnap, now: number): PickerLine[] {
+function keyLines(k: KeySnap, now: number): PickerLine[] {
   const left = k.deadlineTick - now;
   return [
     { level: 'info', text: JOB_TYPES[k.type] ?? 'A client job.' },
@@ -949,11 +949,11 @@ export function keyLines(k: KeySnap, now: number): PickerLine[] {
 }
 
 /** The line on a retired USB key (its client went online): no penalty if it expires or is declined, serving it still pays. */
-export const RETIRED_LINE =
+const RETIRED_LINE =
   'Retired: this client now sends jobs over the network. If the key expires or you decline it, nothing is lost; serving it still pays.';
 
 /** Every key the machine knows about: tray plus the plugged one. */
-export function allKeys(s: Snapshot): KeySnap[] {
+function allKeys(s: Snapshot): KeySnap[] {
   return [...s.tray, ...(s.plugged ? [s.plugged] : [])];
 }
 

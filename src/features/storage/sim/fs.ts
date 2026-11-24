@@ -20,7 +20,7 @@ export function canHold(disk: Disk, kind: FileKind): boolean {
 /** Journal blocks an `os3`+ filesystem replays after a power cut. */
 export const JOURNAL_BLOCKS = 4;
 /** One bitmap block describes this many data blocks, so a scan reads `used / SCAN_SPAN` blocks. */
-export const SCAN_SPAN = 64;
+const SCAN_SPAN = 64;
 
 /**
  * Device ticks of a boot probe: `scan` reads the allocation metadata (plus a seek for every extra run of data), `repair`
@@ -37,7 +37,7 @@ export function mountCost(disk: Disk, journaled: boolean): { scan: number; repai
   return { scan, repair };
 }
 
-export interface Extent {
+interface Extent {
   first: number;
   len: number;
 }

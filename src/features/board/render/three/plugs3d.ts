@@ -688,7 +688,7 @@ export const swissLength = (f: SwissFit): number => SWISS.l * bootScale(f.k, f.c
 export const swissEngage = (k: number): number => Math.ceil((SWISS.head.l + SWISS.pin.l + 1) * k);
 
 /** The recess's outline `inset` mm in, as a shape of `k` units a mm (a plug's head, a socket's mouth). */
-export function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
+function lozengeShape(k: number, inset = 0, seg: number = SEG.plug): Shape {
   const s = new Shape(),
     p = lozenge(inset, seg);
   s.moveTo(p[0]![0] * k, p[0]![1] * k);

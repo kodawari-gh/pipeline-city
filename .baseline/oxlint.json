@@ -558,7 +558,6 @@
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 4,
-  "eslint(no-unused-vars)": 1,
   "eslint(no-use-before-define)": 8,
   "eslint(require-unicode-regexp)": 2,
   "typescript(method-signature-style)": 18,
@@ -1332,7 +1331,6 @@
  "src/core/render/airsource.ts": {
   "eslint(curly)": 2,
   "eslint(max-params)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
   "typescript(method-signature-style)": 2,
   "unicorn(explicit-length-check)": 1
  },
@@ -1484,13 +1482,13 @@
   "eslint(curly)": 10,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 8,
+  "eslint(max-params)": 6,
   "eslint(no-implicit-coercion)": 1,
-  "typescript(explicit-module-boundary-types)": 5,
+  "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 44,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-callback-reference)": 1,
-  "unicorn(no-array-fill-with-reference-type)": 6,
+  "unicorn(no-array-fill-with-reference-type)": 2,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-reduce)": 1,
   "unicorn(no-array-sort)": 1,
@@ -1505,10 +1503,6 @@
   "eslint(max-params)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(strict-boolean-expressions)": 1
- },
- "src/core/render/capture.ts": {
-  "eslint(max-params)": 1,
-  "import(consistent-type-specifier-style)": 3
  },
  "src/core/render/fanmotor.test.ts": {
   "eslint(curly)": 3,
@@ -1525,7 +1519,7 @@
   "typescript(explicit-module-boundary-types)": 4
  },
  "src/core/render/ink.ts": {
-  "eslint(curly)": 9,
+  "eslint(curly)": 8,
   "eslint(max-params)": 6,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
@@ -1641,7 +1635,6 @@
   "eslint(no-use-before-define)": 3,
   "eslint(prefer-destructuring)": 2,
   "oxc(approx-constant)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 66,
   "typescript(strict-boolean-expressions)": 10,
@@ -2093,7 +2086,7 @@
   "vitest(prefer-strict-equal)": 4
  },
  "src/core/render/three/geometry.ts": {
-  "eslint(curly)": 17,
+  "eslint(curly)": 16,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 14,
   "eslint(no-implicit-coercion)": 1,
@@ -2101,15 +2094,14 @@
   "eslint(no-nested-ternary)": 3,
   "import(consistent-type-specifier-style)": 3,
   "import(no-mutable-exports)": 1,
-  "typescript(no-non-null-assertion)": 17,
+  "typescript(no-non-null-assertion)": 16,
   "typescript(no-unsafe-class-instance-assignment)": 4,
   "typescript(no-unsafe-type-assertion)": 6,
   "typescript(strict-boolean-expressions)": 4,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(explicit-length-check)": 1,
   "unicorn(no-array-for-each)": 1,
   "unicorn(no-array-reverse)": 1,
-  "unicorn(prefer-at)": 5
+  "unicorn(prefer-at)": 2
  },
  "src/core/render/three/gesture.test.ts": {
   "eslint(curly)": 1,
@@ -2881,7 +2873,7 @@
  },
  "src/core/sim/memmap.ts": {
   "eslint(max-lines)": 1,
-  "unicorn(numeric-separators-style)": 51
+  "unicorn(numeric-separators-style)": 50
  },
  "src/core/sim/prng.ts": {
   "eslint(curly)": 1,
@@ -3037,7 +3029,7 @@
   "eslint(no-nested-ternary)": 2,
   "eslint(prefer-destructuring)": 1,
   "promise(prefer-await-to-then)": 1,
-  "react(only-export-components)": 3,
+  "react(only-export-components)": 2,
   "typescript(consistent-return)": 1,
   "typescript(consistent-type-definitions)": 1,
   "typescript(explicit-module-boundary-types)": 3,
@@ -3052,7 +3044,7 @@
   "eslint(curly)": 1,
   "import(consistent-type-specifier-style)": 1,
   "react(no-array-index-key)": 1,
-  "react(only-export-components)": 3,
+  "react(only-export-components)": 2,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 3,
@@ -3269,9 +3261,9 @@
   "jsx-a11y(no-static-element-interactions)": 1,
   "jsx-a11y(prefer-tag-over-role)": 7,
   "react(button-has-type)": 7,
-  "react(only-export-components)": 3,
+  "react(only-export-components)": 2,
   "typescript(consistent-return)": 1,
-  "typescript(explicit-module-boundary-types)": 3,
+  "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 3,
@@ -3642,7 +3634,6 @@
   "eslint(no-nested-ternary)": 3,
   "import(consistent-type-specifier-style)": 6,
   "import(max-dependencies)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 7,
   "typescript(no-non-null-assertion)": 25,
   "typescript(strict-boolean-expressions)": 2,
@@ -3653,12 +3644,12 @@
   "unicorn(prefer-spread)": 2
  },
  "src/features/board/render/boardParts.ts": {
-  "eslint(curly)": 23,
+  "eslint(curly)": 22,
   "eslint(max-lines)": 1,
-  "eslint(max-params)": 16,
+  "eslint(max-params)": 15,
   "import(consistent-type-specifier-style)": 2,
   "typescript(consistent-type-imports)": 1,
-  "typescript(explicit-module-boundary-types)": 21,
+  "typescript(explicit-module-boundary-types)": 18,
   "typescript(strict-boolean-expressions)": 2,
   "unicorn(no-array-fill-with-reference-type)": 32
  },
@@ -3677,41 +3668,32 @@
   "vitest(valid-expect)": 15
  },
  "src/features/board/render/cooler.ts": {
-  "eslint(class-methods-use-this)": 1,
-  "eslint(curly)": 19,
+  "eslint(curly)": 14,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 2,
   "eslint(max-params)": 8,
-  "eslint(no-nested-ternary)": 6,
-  "eslint(no-unused-vars)": 2,
+  "eslint(no-nested-ternary)": 5,
   "eslint(prefer-const)": 1,
-  "eslint(prefer-destructuring)": 2,
+  "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 3,
-  "typescript(explicit-module-boundary-types)": 1,
-  "typescript(no-non-null-assertion)": 36,
-  "typescript(prefer-readonly)": 2,
+  "typescript(no-non-null-assertion)": 22,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(no-array-fill-with-reference-type)": 7,
+  "unicorn(no-array-fill-with-reference-type)": 6,
   "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-at)": 6
+  "unicorn(prefer-at)": 5
  },
  "src/features/board/render/devices.ts": {
-  "eslint(complexity)": 2,
-  "eslint(curly)": 53,
+  "eslint(curly)": 24,
   "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 5,
-  "eslint(max-params)": 3,
+  "eslint(max-lines-per-function)": 3,
+  "eslint(max-params)": 2,
   "eslint(no-negated-condition)": 1,
-  "eslint(no-nested-ternary)": 11,
-  "eslint(prefer-destructuring)": 3,
-  "eslint(require-unicode-regexp)": 1,
+  "eslint(no-nested-ternary)": 4,
   "import(consistent-type-specifier-style)": 3,
-  "import(max-dependencies)": 1,
-  "typescript(explicit-module-boundary-types)": 3,
-  "typescript(no-confusing-void-expression)": 2,
+  "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 5,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(no-array-fill-with-reference-type)": 36
+  "unicorn(no-array-fill-with-reference-type)": 26
  },
  "src/features/board/render/layout/boardlayout.test.ts": {
   "eslint(curly)": 115,
@@ -3765,12 +3747,12 @@
   "eslint(no-param-reassign)": 2,
   "eslint(operator-assignment)": 1,
   "import(consistent-type-specifier-style)": 1,
-  "import(no-mutable-exports)": 61,
+  "import(no-mutable-exports)": 57,
   "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(explicit-length-check)": 1,
   "unicorn(numeric-separators-style)": 2,
-  "unicorn(prefer-export-from)": 5,
+  "unicorn(prefer-export-from)": 3,
   "unicorn(prefer-math-trunc)": 2
  },
  "src/features/board/render/layout/match.test.ts": {
@@ -3799,7 +3781,7 @@
  },
  "src/features/board/render/layout/pins.ts": {
   "eslint(max-params)": 8,
-  "typescript(explicit-module-boundary-types)": 3,
+  "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(no-array-sort)": 1,
@@ -3808,17 +3790,14 @@
  "src/features/board/render/layout/ports.ts": {
   "eslint(complexity)": 1,
   "eslint(curly)": 13,
-  "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 3,
-  "eslint(max-params)": 14,
-  "eslint(no-negated-condition)": 1,
+  "eslint(max-lines-per-function)": 1,
+  "eslint(max-params)": 6,
   "eslint(no-nested-ternary)": 3,
-  "eslint(no-unused-vars)": 1,
   "eslint(prefer-destructuring)": 2,
-  "typescript(explicit-module-boundary-types)": 12,
+  "typescript(explicit-module-boundary-types)": 4,
   "typescript(strict-boolean-expressions)": 2,
   "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(no-array-fill-with-reference-type)": 36,
+  "unicorn(no-array-fill-with-reference-type)": 18,
   "unicorn(no-object-as-default-parameter)": 1
  },
  "src/features/board/render/skins.test.ts": {
@@ -3936,7 +3915,6 @@
   "eslint(curly)": 13,
   "eslint(max-depth)": 1,
   "eslint(max-params)": 3,
-  "eslint(no-unused-vars)": 1,
   "eslint(prefer-destructuring)": 2,
   "typescript(no-non-null-assertion)": 32,
   "typescript(no-unnecessary-type-assertion)": 1,
@@ -4221,7 +4199,6 @@
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 3,
   "import(max-dependencies)": 1,
-  "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(explicit-length-check)": 1,
@@ -4630,8 +4607,7 @@
  "src/features/board/render/three/cablerig3d.ts": {
   "eslint(curly)": 6,
   "eslint(max-lines)": 1,
-  "eslint(max-params)": 6,
-  "eslint(no-unused-vars)": 1,
+  "eslint(max-params)": 5,
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 6,
   "typescript(no-non-null-assertion)": 26,
@@ -4672,12 +4648,11 @@
   "eslint(max-params)": 6,
   "eslint(no-nested-ternary)": 2,
   "eslint(no-shadow)": 2,
-  "eslint(no-unused-vars)": 3,
   "eslint(no-use-before-define)": 1,
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 9,
   "import(max-dependencies)": 1,
-  "typescript(explicit-module-boundary-types)": 4,
+  "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-non-null-assertion)": 4,
   "typescript(strict-boolean-expressions)": 1,
   "unicorn(consistent-function-scoping)": 1,
@@ -4758,10 +4733,10 @@
  },
  "src/features/board/render/three/casekit3d.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 35,
+  "eslint(curly)": 34,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
-  "eslint(max-params)": 22,
+  "eslint(max-params)": 20,
   "eslint(no-multi-assign)": 4,
   "eslint(no-param-reassign)": 1,
   "eslint(no-shadow)": 1,
@@ -4775,8 +4750,8 @@
   "typescript(no-unsafe-type-assertion)": 3,
   "typescript(strict-boolean-expressions)": 6,
   "unicorn(consistent-function-scoping)": 3,
-  "unicorn(explicit-length-check)": 6,
-  "unicorn(max-nested-calls)": 18,
+  "unicorn(explicit-length-check)": 5,
+  "unicorn(max-nested-calls)": 15,
   "unicorn(no-array-callback-reference)": 3,
   "unicorn(no-array-for-each)": 3,
   "unicorn(no-array-reduce)": 1,
@@ -5082,14 +5057,14 @@
   "eslint(curly)": 6,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
-  "eslint(max-params)": 7,
+  "eslint(max-params)": 6,
   "import(consistent-type-specifier-style)": 5,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unnecessary-type-assertion)": 3,
   "typescript(no-unsafe-class-instance-assignment)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
   "unicorn(max-nested-calls)": 3,
-  "unicorn(numeric-separators-style)": 12,
+  "unicorn(numeric-separators-style)": 10,
   "unicorn(prefer-single-call)": 1
  },
  "src/features/board/render/three/fit.test.ts": {
@@ -5374,7 +5349,6 @@
   "eslint(no-nested-ternary)": 7,
   "eslint(no-promise-executor-return)": 1,
   "eslint(no-shadow)": 7,
-  "eslint(no-unused-vars)": 5,
   "eslint(no-use-before-define)": 5,
   "eslint(prefer-destructuring)": 9,
   "eslint(prefer-named-capture-group)": 5,
@@ -5743,8 +5717,8 @@
  },
  "src/features/board/render/three/pcie.ts": {
   "eslint(curly)": 1,
-  "eslint(no-nested-ternary)": 6,
-  "typescript(explicit-module-boundary-types)": 5,
+  "eslint(no-nested-ternary)": 4,
+  "typescript(explicit-module-boundary-types)": 4,
   "typescript(no-non-null-assertion)": 1
  },
  "src/features/board/render/three/phychip3d.test.ts": {
@@ -6319,7 +6293,7 @@
  "src/features/board/render/three/wires3d.ts": {
   "eslint(curly)": 4,
   "eslint(max-lines)": 1,
-  "eslint(max-params)": 4,
+  "eslint(max-params)": 3,
   "import(consistent-type-specifier-style)": 6,
   "typescript(no-non-null-assertion)": 1,
   "typescript(no-unsafe-type-assertion)": 1,
@@ -6414,8 +6388,8 @@
   "eslint(curly)": 23,
   "eslint(max-lines)": 1,
   "eslint(max-params)": 1,
-  "eslint(prefer-named-capture-group)": 4,
-  "eslint(require-unicode-regexp)": 3,
+  "eslint(prefer-named-capture-group)": 3,
+  "eslint(require-unicode-regexp)": 2,
   "typescript(method-signature-style)": 2,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(explicit-length-check)": 1
@@ -6484,19 +6458,19 @@
   "eslint(curly)": 45,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 5,
-  "eslint(max-params)": 10,
+  "eslint(max-params)": 9,
   "eslint(no-lone-blocks)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-param-reassign)": 2,
   "eslint(no-shadow)": 5,
   "eslint(no-use-before-define)": 6,
   "eslint(prefer-destructuring)": 8,
-  "import(consistent-type-specifier-style)": 4,
+  "import(consistent-type-specifier-style)": 3,
   "typescript(consistent-type-definitions)": 1,
-  "typescript(explicit-module-boundary-types)": 4,
+  "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-non-null-assertion)": 126,
   "typescript(no-unnecessary-type-assertion)": 1,
-  "typescript(strict-boolean-expressions)": 3,
+  "typescript(strict-boolean-expressions)": 2,
   "typescript(strict-void-return)": 3,
   "unicorn(consistent-function-scoping)": 2,
   "unicorn(explicit-length-check)": 4,
@@ -6506,7 +6480,6 @@
   "unicorn(no-array-sort)": 6,
   "unicorn(no-immediate-mutation)": 1,
   "unicorn(prefer-at)": 8,
-  "unicorn(prefer-export-from)": 2,
   "unicorn(prefer-single-call)": 1,
   "unicorn(prefer-spread)": 5
  },
@@ -6746,7 +6719,7 @@
   "eslint(require-unicode-regexp)": 2,
   "import(consistent-type-specifier-style)": 5,
   "typescript(no-unsafe-type-assertion)": 5,
-  "typescript(strict-boolean-expressions)": 19,
+  "typescript(strict-boolean-expressions)": 18,
   "unicorn(explicit-length-check)": 2,
   "unicorn(no-array-callback-reference)": 1,
   "unicorn(no-array-sort)": 1
@@ -7487,7 +7460,7 @@
   "unicorn(consistent-function-scoping)": 1,
   "unicorn(no-array-fill-with-reference-type)": 5,
   "unicorn(no-array-for-each)": 14,
-  "unicorn(prefer-export-from)": 7,
+  "unicorn(prefer-export-from)": 2,
   "unicorn(switch-case-braces)": 14
  },
  "src/features/cpu/render/die/dieart.test.ts": {
@@ -7602,7 +7575,7 @@
   "eslint(curly)": 17,
   "eslint(max-params)": 7,
   "typescript(consistent-type-imports)": 1,
-  "typescript(explicit-module-boundary-types)": 6,
+  "typescript(explicit-module-boundary-types)": 5,
   "typescript(no-non-null-assertion)": 10,
   "typescript(no-unnecessary-type-assertion)": 4,
   "typescript(prefer-readonly)": 1,
@@ -8272,14 +8245,12 @@
   "react(button-has-type)": 14,
   "react(immutability)": 1,
   "react(no-array-index-key)": 4,
-  "react(only-export-components)": 2,
   "react-hooks(exhaustive-deps)": 4,
-  "typescript(explicit-module-boundary-types)": 2,
+  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 12,
   "typescript(no-non-null-assertion)": 4,
   "typescript(no-unnecessary-type-assertion)": 3,
-  "typescript(strict-boolean-expressions)": 3,
-  "unicorn(prefer-export-from)": 1
+  "typescript(strict-boolean-expressions)": 3
  },
  "src/features/cpu/ui/cpudesc.test.ts": {
   "eslint(curly)": 1,
@@ -8527,7 +8498,7 @@
   "react(button-has-type)": 5,
   "react(immutability)": 1,
   "react-hooks(exhaustive-deps)": 1,
-  "typescript(explicit-module-boundary-types)": 4,
+  "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 2,
   "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 2,
@@ -8542,12 +8513,10 @@
   "eslint(no-nested-ternary)": 1,
   "jsx-a11y(prefer-tag-over-role)": 1,
   "react(button-has-type)": 1,
-  "react(only-export-components)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(prefer-export-from)": 1,
   "unicorn(prefer-global-this)": 2
  },
  "src/features/economy/ui/progress/contractui.test.ts": {
@@ -8685,7 +8654,6 @@
   "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 15,
   "react(immutability)": 1,
-  "react(only-export-components)": 1,
   "typescript(consistent-return)": 1,
   "typescript(explicit-module-boundary-types)": 2,
   "typescript(no-confusing-void-expression)": 8,
@@ -8765,7 +8733,7 @@
   "react(immutability)": 4,
   "react(no-array-index-key)": 1,
   "typescript(consistent-return)": 3,
-  "typescript(explicit-module-boundary-types)": 4,
+  "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 4,
   "typescript(no-non-null-assertion)": 3,
   "typescript(no-unsafe-type-assertion)": 2,
@@ -9621,7 +9589,7 @@
   "unicorn(no-array-for-each)": 2,
   "unicorn(numeric-separators-style)": 2,
   "unicorn(prefer-at)": 1,
-  "unicorn(prefer-export-from)": 8,
+  "unicorn(prefer-export-from)": 6,
   "unicorn(prefer-math-trunc)": 5
  },
  "src/features/jobs/sim/gen/threadtest.ts": {
@@ -9755,9 +9723,9 @@
   "jsx-a11y(prefer-tag-over-role)": 9,
   "react(button-has-type)": 9,
   "react(no-array-index-key)": 2,
-  "react(only-export-components)": 4,
+  "react(only-export-components)": 3,
   "typescript(consistent-return)": 2,
-  "typescript(explicit-module-boundary-types)": 4,
+  "typescript(explicit-module-boundary-types)": 3,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 10,
   "typescript(no-unnecessary-type-assertion)": 2,
@@ -10102,7 +10070,6 @@
   "eslint(no-use-before-define)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
-  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(no-array-fill-with-reference-type)": 7
  },
@@ -10292,7 +10259,7 @@
   "eslint(no-nested-ternary)": 2
  },
  "src/features/network/render/plan/netplan.ts": {
-  "eslint(curly)": 6,
+  "eslint(curly)": 5,
   "eslint(max-params)": 2,
   "import(consistent-type-specifier-style)": 3,
   "oxc(no-map-spread)": 1,
@@ -10300,7 +10267,7 @@
   "typescript(no-unnecessary-type-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 1,
   "typescript(strict-boolean-expressions)": 2,
-  "unicorn(prefer-export-from)": 2
+  "unicorn(prefer-export-from)": 1
  },
  "src/features/network/render/router/routerart.ts": {
   "eslint(max-params)": 1,
@@ -10336,17 +10303,16 @@
   "eslint(max-params)": 3,
   "eslint(no-negated-condition)": 1,
   "eslint(no-nested-ternary)": 3,
-  "eslint(no-unused-vars)": 2,
   "eslint(no-use-before-define)": 1,
   "eslint(prefer-destructuring)": 2,
-  "import(consistent-type-specifier-style)": 6,
+  "import(consistent-type-specifier-style)": 4,
   "typescript(explicit-module-boundary-types)": 6,
   "typescript(no-non-null-assertion)": 7,
   "typescript(strict-void-return)": 4,
   "typescript(switch-exhaustiveness-check)": 2,
   "unicorn(no-array-fill-with-reference-type)": 1,
   "unicorn(no-array-for-each)": 13,
-  "unicorn(prefer-export-from)": 2,
+  "unicorn(prefer-export-from)": 1,
   "unicorn(switch-case-braces)": 2
  },
  "src/features/network/render/router/routerlayout.test.ts": {
@@ -10534,7 +10500,7 @@
   "import(consistent-type-specifier-style)": 3,
   "jsx-a11y(prefer-tag-over-role)": 2,
   "react(button-has-type)": 1,
-  "typescript(explicit-module-boundary-types)": 2,
+  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 2,
   "typescript(strict-boolean-expressions)": 7
  },
@@ -10578,7 +10544,7 @@
   "vitest(valid-expect)": 1
  },
  "src/features/network/ui/netui.ts": {
-  "eslint(curly)": 27,
+  "eslint(curly)": 19,
   "eslint(default-case)": 2,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 4,
@@ -10701,7 +10667,7 @@
   "eslint(no-nested-ternary)": 12,
   "eslint(no-shadow)": 1,
   "import(consistent-type-specifier-style)": 1,
-  "typescript(explicit-module-boundary-types)": 7,
+  "typescript(explicit-module-boundary-types)": 6,
   "typescript(no-confusing-void-expression)": 3,
   "typescript(no-non-null-assertion)": 37,
   "typescript(no-unnecessary-type-assertion)": 5,
@@ -11011,7 +10977,7 @@
   "jsx-a11y(prefer-tag-over-role)": 3,
   "react(button-has-type)": 4,
   "react(only-export-components)": 2,
-  "typescript(explicit-module-boundary-types)": 2,
+  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 6,
   "typescript(no-non-null-assertion)": 1,
   "typescript(prefer-nullish-coalescing)": 1,
@@ -11059,7 +11025,7 @@
  },
  "src/features/room/render/desk/airflow.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 17,
+  "eslint(curly)": 16,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 1,
   "eslint(max-params)": 1,
@@ -11120,15 +11086,15 @@
  },
  "src/features/room/render/desk/props/case.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 60,
+  "eslint(curly)": 59,
   "eslint(max-lines)": 1,
   "eslint(max-lines-per-function)": 3,
   "eslint(max-params)": 8,
   "eslint(no-shadow)": 1,
   "eslint(prefer-destructuring)": 5,
   "import(consistent-type-specifier-style)": 4,
-  "typescript(explicit-module-boundary-types)": 8,
-  "typescript(no-non-null-assertion)": 16,
+  "typescript(explicit-module-boundary-types)": 3,
+  "typescript(no-non-null-assertion)": 12,
   "typescript(prefer-readonly)": 3,
   "typescript(switch-exhaustiveness-check)": 1,
   "unicorn(explicit-length-check)": 3,
@@ -11136,7 +11102,6 @@
   "unicorn(no-array-fill-with-reference-type)": 25,
   "unicorn(no-array-for-each)": 2,
   "unicorn(prefer-at)": 2,
-  "unicorn(prefer-export-from)": 1,
   "unicorn(switch-case-braces)": 4
  },
  "src/features/room/render/desk/props/mail.test.ts": {
@@ -11157,29 +11122,25 @@
   "vitest(valid-expect)": 1
  },
  "src/features/room/render/desk/props/mail.ts": {
-  "eslint(curly)": 6,
+  "eslint(curly)": 4,
   "eslint(max-lines-per-function)": 1,
-  "eslint(no-unused-vars)": 1,
-  "typescript(explicit-module-boundary-types)": 6,
+  "typescript(explicit-module-boundary-types)": 4,
   "unicorn(no-array-fill-with-reference-type)": 6,
   "unicorn(numeric-separators-style)": 1
  },
  "src/features/room/render/desk/props/props.ts": {
-  "eslint(complexity)": 1,
-  "eslint(curly)": 26,
+  "eslint(curly)": 11,
   "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 4,
-  "eslint(max-params)": 6,
-  "eslint(no-nested-ternary)": 5,
-  "import(consistent-type-specifier-style)": 2,
-  "typescript(explicit-module-boundary-types)": 12,
-  "typescript(no-confusing-void-expression)": 2,
+  "eslint(max-lines-per-function)": 2,
+  "eslint(max-params)": 4,
+  "eslint(no-nested-ternary)": 1,
+  "import(consistent-type-specifier-style)": 1,
+  "typescript(explicit-module-boundary-types)": 5,
+  "typescript(no-confusing-void-expression)": 1,
   "typescript(strict-boolean-expressions)": 1,
   "typescript(switch-exhaustiveness-check)": 1,
-  "unicorn(no-array-fill-with-reference-type)": 24,
-  "unicorn(no-array-for-each)": 1,
-  "unicorn(prefer-export-from)": 2,
-  "unicorn(switch-case-braces)": 17
+  "unicorn(no-array-fill-with-reference-type)": 10,
+  "unicorn(switch-case-braces)": 7
  },
  "src/features/room/render/desk/screenmodel.test.ts": {
   "eslint(curly)": 1,
@@ -11240,18 +11201,17 @@
  },
  "src/features/room/render/shell/exterior.ts": {
   "eslint(complexity)": 1,
-  "eslint(curly)": 38,
+  "eslint(curly)": 35,
   "eslint(max-lines)": 1,
-  "eslint(max-lines-per-function)": 2,
-  "eslint(max-params)": 5,
-  "eslint(no-nested-ternary)": 8,
-  "eslint(no-unused-vars)": 1,
+  "eslint(max-lines-per-function)": 1,
+  "eslint(max-params)": 4,
+  "eslint(no-nested-ternary)": 4,
   "eslint(prefer-destructuring)": 1,
   "import(consistent-type-specifier-style)": 3,
-  "typescript(explicit-module-boundary-types)": 4,
-  "typescript(no-non-null-assertion)": 4,
+  "typescript(explicit-module-boundary-types)": 1,
+  "typescript(no-non-null-assertion)": 2,
   "typescript(no-unsafe-type-assertion)": 3,
-  "unicorn(no-array-fill-with-reference-type)": 18
+  "unicorn(no-array-fill-with-reference-type)": 16
  },
  "src/features/room/render/shell/light.test.ts": {
   "eslint(curly)": 2,
@@ -11272,21 +11232,11 @@
   "vitest(prefer-to-have-length)": 4
  },
  "src/features/room/render/shell/light.ts": {
-  "eslint(class-methods-use-this)": 2,
-  "eslint(curly)": 32,
+  "eslint(curly)": 6,
   "eslint(default-case)": 1,
-  "eslint(max-lines)": 1,
-  "eslint(max-params)": 3,
-  "eslint(no-implicit-coercion)": 1,
-  "eslint(no-multi-assign)": 4,
-  "import(consistent-type-specifier-style)": 1,
+  "eslint(max-params)": 1,
   "typescript(consistent-return)": 1,
-  "typescript(explicit-module-boundary-types)": 8,
-  "typescript(no-non-null-assertion)": 4,
-  "typescript(strict-boolean-expressions)": 4,
-  "unicorn(explicit-length-check)": 2,
-  "unicorn(no-array-fill-with-reference-type)": 13,
-  "unicorn(numeric-separators-style)": 9,
+  "unicorn(numeric-separators-style)": 6,
   "unicorn(prefer-single-call)": 11,
   "unicorn(switch-case-braces)": 3
  },
@@ -12117,7 +12067,7 @@
   "import(no-mutable-exports)": 1,
   "typescript(no-non-null-assertion)": 2,
   "unicorn(consistent-function-scoping)": 1,
-  "unicorn(numeric-separators-style)": 37
+  "unicorn(numeric-separators-style)": 36
  },
  "src/features/sandbox/sim/benchtasks.ts": {
   "eslint(curly)": 3,
@@ -12394,7 +12344,6 @@
   "eslint(no-implicit-coercion)": 1,
   "eslint(no-nested-ternary)": 1,
   "eslint(no-shadow)": 1,
-  "eslint(no-unused-vars)": 2,
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
   "import(consistent-type-specifier-style)": 1,
@@ -12521,7 +12470,7 @@
   "eslint(no-implicit-coercion)": 2,
   "eslint(no-nested-ternary)": 5,
   "import(consistent-type-specifier-style)": 1,
-  "typescript(explicit-module-boundary-types)": 8,
+  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-confusing-void-expression)": 1,
   "typescript(no-non-null-assertion)": 17,
   "typescript(strict-boolean-expressions)": 1,
@@ -12858,7 +12807,6 @@
   "eslint(prefer-named-capture-group)": 1,
   "eslint(require-unicode-regexp)": 1,
   "oxc(no-map-spread)": 4,
-  "typescript(explicit-module-boundary-types)": 1,
   "typescript(no-non-null-assertion)": 5,
   "typescript(strict-boolean-expressions)": 17,
   "typescript(switch-exhaustiveness-check)": 1,
@@ -12938,9 +12886,6 @@
   "unicorn(no-useless-spread)": 1,
   "unicorn(numeric-separators-style)": 1,
   "unicorn(prefer-export-from)": 1
- },
- "src/worker/game/index.ts": {
-  "oxc(no-barrel-file)": 1
  },
  "src/worker/game/internal.ts": {
   "import(consistent-type-specifier-style)": 2
@@ -13071,7 +13016,7 @@
   "unicorn(switch-case-braces)": 34
  },
  "src/worker/protocol.ts": {
-  "unicorn(prefer-export-from)": 3
+  "unicorn(prefer-export-from)": 2
  },
  "src/worker/worker.ts": {
   "eslint(curly)": 4,

@@ -74,15 +74,7 @@ export interface Frame {
 const black = () => mat(0x050608, { roughness: 0.85 });
 const steel = () => mat(0x959aa3, { metalness: 0.75, roughness: 0.38 });
 /** A cylinder whose axis is world x (a thumbscrew in the rear wall, a jack): centred on the world point, `len` long. */
-export function drumX(
-  x: number,
-  y: number,
-  z: number,
-  r: number,
-  len: number,
-  m: Material,
-  sides: number = SEG.post,
-): Mesh {
+function drumX(x: number, y: number, z: number, r: number, len: number, m: Material, sides: number = SEG.post): Mesh {
   const o = new Mesh(new CylinderGeometry(r, r, len, sides).rotateZ(Math.PI / 2), m);
   o.position.set(x, y, z);
   return place(o);

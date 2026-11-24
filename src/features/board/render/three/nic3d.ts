@@ -345,7 +345,7 @@ export function pinCoil(px: number, py: number, b1: number, m: Material, rise = 
 }
 
 /** A body of the card the player can point at (`NicOut.bodies`): its id (`pcie2.nic-xtal`), its footprint (layout, as the card is built and lies flat) and how tall it stands off the PCB's top face. */
-export interface NicBody {
+interface NicBody {
   id: string;
   rect: RectLike;
   h: number;

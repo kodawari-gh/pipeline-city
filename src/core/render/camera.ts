@@ -1,14 +1,3 @@
-export interface View {
-  x: number;
-  y: number;
-  z: number;
-}
-export interface Inset {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
 export interface Rect {
   x: number;
   y: number;

@@ -9,14 +9,14 @@ import { memoryTable, sizeText } from '@/features/memory/render/ramlayout';
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'dim';
 
-export interface DashBar {
+interface DashBar {
   label: string;
   text: string;
   frac: number;
   tone: Tone;
   mark?: number | undefined;
 }
-export interface DashProc {
+interface DashProc {
   pid: string;
   name: string;
   state: string;
@@ -25,7 +25,7 @@ export interface DashProc {
   tone: 'run' | 'wait' | 'done';
 }
 /** A stacked bar: the parts in order, each a fraction of the whole. */
-export interface DashStack {
+interface DashStack {
   label: string;
   text: string;
   parts: { frac: number; tone: 'sys' | 'proc' | 'free' }[];

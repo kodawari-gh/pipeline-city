@@ -9,14 +9,6 @@ import { RefCpu, RefMemory } from '../../cpu/sim/ref';
 /** What an instruction does for the machine: the classes the die and the RAM view colour by. */
 export type OpClass = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'sys';
 export const OP_CLASSES: readonly OpClass[] = ['alu', 'ld', 'st', 'mul', 'br', 'sys'];
-export const OP_CLASS_NAME: Record<OpClass, string> = {
-  alu: 'arithmetic and logic',
-  ld: 'loads',
-  st: 'stores',
-  mul: 'multiplies',
-  br: 'branches and jumps',
-  sys: 'system',
-};
 
 export function opClassOf(mnemonic: string): OpClass {
   if (mnemonic === 'mul') return 'mul';
@@ -1206,7 +1198,7 @@ def worker(x, k, T, barrier):
 HIGH_LEVEL['web'] = HIGH_LEVEL['calc']!;
 
 /** One cell of a job's picture: the kind of instruction it is and how often it ran (0 = never, 1 = the busiest word). */
-export interface SpriteCell {
+interface SpriteCell {
   cls: OpClass;
   heat: number;
 }

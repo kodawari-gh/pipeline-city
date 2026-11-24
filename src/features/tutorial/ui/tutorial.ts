@@ -17,7 +17,7 @@ import type { Progress } from '@/worker/game/save';
 import { fmtMoney } from '@/core/ui/logic';
 import { levelBar } from '../../economy/ui/progress/levelui';
 
-export interface ReplayBase {
+interface ReplayBase {
   completed: number;
   owned: number;
 }
@@ -87,7 +87,6 @@ export type StepId =
   | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS' | 'The network';
-export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS', 'The network'];
 
 export interface StepDef {
   id: StepId;
@@ -640,8 +639,6 @@ export const STEPS: StepDef[] = [
   },
 ];
 
-export const stepIndex = (id: StepId) => STEPS.findIndex((x) => x.id === id);
-
 const anyFlag = (p: Progress) => Object.values(p).some(Boolean);
 
 /**
@@ -686,13 +683,13 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
 }
 
 /** Whether a step is complete: its flag, else its live test. */
-export function isDone(step: StepDef, s: Snapshot, p: Progress, st?: TutorialState): boolean {
+function isDone(step: StepDef, s: Snapshot, p: Progress, st?: TutorialState): boolean {
   if (step.ack) return !!st?.acks.includes(step.id) || p.firstManualCycle || p.firstPurchase;
   if (step.done) return step.done(s, p);
   return step.flag ? p[step.flag] : false;
 }
 
-export function tutorialActive(st: TutorialState): boolean {
+function tutorialActive(st: TutorialState): boolean {
   return !st.skipped && !st.finished;
 }
 

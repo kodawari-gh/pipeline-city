@@ -6,7 +6,7 @@ import { signal } from '@preact/signals';
 const DIR = `${import.meta.env.BASE_URL}stills/builds/`;
 
 /** Each baked picture's file hash by start key; null while the list loads, `{}` when there is none. */
-export const buildStills = signal<Record<string, string> | null>(null);
+const buildStills = signal<Record<string, string> | null>(null);
 let asked = false;
 
 /** Load the list of the baked pictures (once). */

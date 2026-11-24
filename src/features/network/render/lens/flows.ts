@@ -33,7 +33,7 @@ export interface NetStrips {
   first: Int32Array;
   count: Int32Array;
 }
-export function netStrips(shape: NetShape): NetStrips {
+function netStrips(shape: NetShape): NetStrips {
   const lines = shape.lines;
   let cap = 0;
   for (const l of lines) cap += Math.max(0, l.pts.length - 1);

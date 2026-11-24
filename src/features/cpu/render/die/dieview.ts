@@ -47,7 +47,7 @@ export type { MemoryTouch } from './dietraffic';
 
 const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
 /** A register or memory value in a few characters. */
-export function showValue(v: number): string {
+function showValue(v: number): string {
   if (v >= -999 && v <= 99999) return String(v);
   return `0x${hex(v)}`;
 }

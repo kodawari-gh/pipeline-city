@@ -5,7 +5,7 @@ import type { Snapshot } from './game/game';
 import type { SaveV5 } from './game/save';
 import type { CrashReport } from './crash';
 
-export type { Snapshot, SaveV5, CrashReport };
+export type { Snapshot, CrashReport };
 /** The current save shape (older versions are migrated on load). The old name is kept for the main thread. */
 export type SaveV1 = SaveV5;
 
@@ -16,7 +16,6 @@ export type SaveV1 = SaveV5;
 export type Speed = 0 | 1 | 2 | 4 | 8 | 12 | 16 | 64;
 export const SPEEDS: Speed[] = [0, 1, 2, 4, 8, 12];
 /** The sandbox also offers 4x and 16x on screen (the host refuses 64 in a campaign game). */
-export const SANDBOX_SPEEDS: Speed[] = [0, 1, 2, 4, 8, 12, 16, 64];
 
 export type ToSim =
   /** Start (or restart) the sim, from a save if given, else a new game with `seed`. */

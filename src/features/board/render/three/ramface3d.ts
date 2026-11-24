@@ -36,7 +36,7 @@ export interface Routes {
 }
 
 /** The side margin of the finger row, the gap at the key (units). */
-export const FINGER_MARGIN = 54,
+const FINGER_MARGIN = 54,
   KEY_GAP = 24;
 
 /** The fingers' centres along the stick: `pins` of them at an even pitch, a gap where the key notch is. */

@@ -4,7 +4,7 @@
 
 import { getSpec, type NicSpec } from '../../board/sim/specs';
 import type { KeySnap, LinkState, Snapshot, TransferSnap } from '@/worker/game/game';
-import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec, NET, type Binding } from '../sim/specs';
+import { DISK_NET_MBPS, getIspSpec, getRouterSpec, NET, type Binding } from '../sim/specs';
 import { isProxied, natLine, netAddrs } from '../render/plan/netaddr';
 import { fmtMbit, jackPort, nicsInOrder } from './netdesc';
 import { fmtMoney, fmtTicks, type ChipLevel } from '@/core/ui/logic';
@@ -92,7 +92,7 @@ export function hudNetChip(s: Snapshot): (NetChip & { icon: IconName }) | null {
 
 export type LimiterId = 'port' | 'router' | 'isp' | 'disk';
 
-export interface LimiterSeg {
+interface LimiterSeg {
   id: LimiterId;
   label: string;
   /** Speed in Mbit/s, or null when the piece is missing. */
@@ -114,7 +114,7 @@ export interface LimiterLadder {
 }
 
 /** The OS drive's network sink rate (Mbit/s), or null with no OS. */
-export function diskMbps(s: Snapshot): number | null {
+function diskMbps(s: Snapshot): number | null {
   const host = s.storage.find((d) => d.hasOs);
   return host ? (DISK_NET_MBPS[host.spec] ?? 80) : null;
 }
@@ -237,7 +237,7 @@ export function limiterAdvice(l: LimiterLadder): string | null {
 
 // ---------- the link checklist ----------
 
-export interface CheckItem {
+interface CheckItem {
   id: 'plan' | 'router' | 'jack' | 'cable' | 'os' | 'ram';
   label: string;
   ok: boolean;
@@ -250,7 +250,7 @@ const ramK = (s: Snapshot): number =>
     .reduce((n, d) => n + ((getSpec(d.spec) as { sizeBytes?: number } | undefined)?.sizeBytes ?? 0) / 1024, 0);
 
 /** The things a working link needs, each ok or missing with the reason in words (hover text). */
-export function linkChecklist(s: Snapshot): CheckItem[] {
+function linkChecklist(s: Snapshot): CheckItem[] {
   const jack = s.board.features.ethernetMbps > 0 || nicsInOrder(s).some((d) => !d.burnt);
   const lan = s.cables.find((c) => c.id === 'lan');
   const need = NET.minRamBytes / 1024;
@@ -299,7 +299,7 @@ export function linkChecklist(s: Snapshot): CheckItem[] {
 }
 
 /** The unmet requirements, as one sentence ("To use it you still need an OS and a router."), or the all-clear. */
-export function stillNeeds(s: Snapshot, skip: CheckItem['id'][] = []): string {
+function stillNeeds(s: Snapshot, skip: CheckItem['id'][] = []): string {
   const miss = linkChecklist(s).filter((c) => !c.ok && !skip.includes(c.id));
   if (!miss.length) return 'Everything it needs is in place.';
   const words: Record<CheckItem['id'], string> = {
@@ -412,67 +412,10 @@ export function nicStats(spec: NicSpec): Stat[] {
   ];
 }
 
-/** One line of the key numbers of a router, plan or card, for hover text. */
-export function netBrief(specId: string): string | null {
-  const r = getRouterSpec(specId);
-  if (r) return `${fmtMbit(r.mbps)} port, ${r.clients} clients at once`;
-  const p = getIspSpec(specId);
-  if (p) return `${fmtMbit(p.downMbps)} down, ${fmtMbit(p.upMbps)} up, ${p.clients} clients at once`;
-  const c = getSpec(specId);
-  if (c?.kind === 'nic') return `${fmtMbit(c.mbps)} card, ${c.loadW} W under load`;
-  return null;
-}
-
-export interface Effect {
-  before: { downMbps: number; binding: Binding | null; clients: number };
-  after: { downMbps: number; binding: Binding | null; clients: number };
-}
-
-/**
- * What the candidate would do to the effective download speed and client slots, with the rest of the chain as it is now.
- * The candidate is a router, a plan or a network card. Null when the chain is missing pieces on both sides (no speed to compare).
- */
-export function effectOf(s: Snapshot, specId: string): Effect | null {
-  const n = s.net;
-  const port = portSpeed(s).mbps ?? 0;
-  const disk = diskMbps(s) ?? Infinity;
-  const router = n.router ? (getRouterSpec(n.router.id) ?? null) : null;
-  const isp = n.isp ? (getIspSpec(n.isp.id) ?? null) : null;
-  const calc = (p: number, r: typeof router, i: typeof isp) => {
-    const b = bandwidth(p, r, i, disk);
-    return { downMbps: b.downMbps, binding: b.binding, clients: b.clients };
-  };
-  const before = calc(port, router, isp);
-  let after = before;
-  const candR = getRouterSpec(specId);
-  const candP = getIspSpec(specId);
-  const candN = getSpec(specId);
-  if (candR) after = calc(port, candR, isp);
-  else if (candP) after = calc(port, router, candP);
-  else if (candN?.kind === 'nic') after = calc(Math.max(port, candN.mbps), router, isp);
-  else return null;
-  if (before.downMbps === 0 && after.downMbps === 0) return null;
-  return { before, after };
-}
-
-/** The effect as words: "Your download: 50 -> 100 Mbit, limited by the plan." */
-export function effectLine(e: Effect): { text: string; same: boolean; better: boolean } {
-  const lim: Record<Binding, string> = { port: 'the port', router: 'the router', isp: 'the plan', disk: 'the drive' };
-  const a = fmtMbit(e.before.downMbps);
-  const b = fmtMbit(e.after.downMbps);
-  const same = e.after.downMbps === e.before.downMbps;
-  const by = e.after.binding ? `, limited by ${lim[e.after.binding]}` : '';
-  return {
-    text: same ? `Your download stays ${a}${by}.` : `Your download: ${a} -> ${b}${by}.`,
-    same,
-    better: e.after.downMbps > e.before.downMbps,
-  };
-}
-
 // ---------- the network panel ----------
 
-export type StageId = 'offer' | 'downloading' | 'spooled' | 'uploading';
-export interface StageCount {
+type StageId = 'offer' | 'downloading' | 'spooled' | 'uploading';
+interface StageCount {
   id: StageId;
   label: string;
   count: number;
@@ -507,7 +450,7 @@ export interface OfferRow {
   /** Web only: the SLA countdown beside the payout estimate, which falls once it runs out. */
   sla: SlaModel | null;
 }
-export interface TransferRow {
+interface TransferRow {
   jobId: number;
   label: string;
   dir: 'down' | 'up';
@@ -520,17 +463,17 @@ export interface TransferRow {
 }
 
 /** One line of the panel's packet section: what it counts, its value, the words behind it and how it looks (`warn`: something is going wrong). */
-export interface StackRow {
+interface StackRow {
   id: 'rtt' | 'loss' | 'segments' | 'nic';
   label: string;
   text: string;
   title: string;
   level: 'info' | 'warn';
 }
-export interface StackModel {
+interface StackModel {
   rows: StackRow[];
 }
-export interface SpoolRow {
+interface SpoolRow {
   key: KeySnap;
   label: string;
   state: string;
@@ -701,14 +644,14 @@ export function addressModel(s: Snapshot): AddrModel {
 }
 
 /** A share of segments in words: `0%`, `0.5%`, `4.0%`, `12%`. */
-export const fmtLoss = (f: number): string =>
+const fmtLoss = (f: number): string =>
   f <= 0 ? '0%' : f < 0.1 ? `${(f * 100).toFixed(f < 0.01 ? 2 : 1)}%` : `${Math.round(f * 100)}%`;
 
 /**
  * The transport and the NIC as the panel's lines (docs/NETSTACK.md 3.7): the round trip the senders measured, the chance the line loses a segment now, the segments sent and sent
  * again, and the NIC's buffer, ring and drops. Null with no link and nothing sent (there is nothing to count).
  */
-export function stackModel(s: Snapshot): StackModel | null {
+function stackModel(s: Snapshot): StackModel | null {
   const k = s.net.stack;
   if (!k || !(linkUsable(s) || k.sent > 0)) return null;
   const again = k.sent > 0 ? k.resent / k.sent : 0;

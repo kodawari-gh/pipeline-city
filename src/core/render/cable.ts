@@ -421,34 +421,3 @@ export function drape(route: Pt[], o: DrapeOpts = {}): { path: Pt[]; clips: Clip
   });
   return { path, clips };
 }
-
-/** A cable clip screwed to the wall round a cable of width `w` at `at`: a saddle (a plate with a screw, a lit edge, a shadow). */
-export function paintClip(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number) {
-  const l = Math.hypot(dir[0], dir[1]) || 1,
-    tx = dir[0] / l,
-    ty = dir[1] / l,
-    nx = -ty,
-    ny = tx,
-    h = w * 0.78 + 10,
-    t = Math.max(10, w * 0.32);
-  const q = (ox: number, oy: number, hh: number, tt: number) =>
-    g.poly([
-      at[0] + ox + nx * hh - tx * tt,
-      at[1] + oy + ny * hh - ty * tt,
-      at[0] + ox + nx * hh + tx * tt,
-      at[1] + oy + ny * hh + ty * tt,
-      at[0] + ox - nx * hh + tx * tt,
-      at[1] + oy - ny * hh + ty * tt,
-      at[0] + ox - nx * hh - tx * tt,
-      at[1] + oy - ny * hh - ty * tt,
-    ]);
-  q(w * 0.1, w * 0.16, h, t);
-  g.fill({ color: '#000000', alpha: 0.28 });
-  q(0, 0, h, t);
-  g.fill({ color: '#7c8db8' });
-  q(-t * 0.25, 0, h, t * 0.3);
-  g.fill({ color: '#ffffff', alpha: 0.2 });
-  g.circle(at[0] + nx * h * 0.82, at[1] + ny * h * 0.82, Math.max(4, w * 0.09))
-    .circle(at[0] - nx * h * 0.82, at[1] - ny * h * 0.82, Math.max(4, w * 0.09))
-    .fill({ color: '#10151f' });
-}

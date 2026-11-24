@@ -289,7 +289,7 @@ function make(s: Spec<K>, r: GpuBlock['rect'], parent: string | undefined): GpuB
 }
 
 /** Stack slots of an execution mask. */
-export const MASK_SLOTS = 8;
+const MASK_SLOTS = 8;
 
 /** The mask strip (one bit per lane) and the stack slots in the lower part of a mask block (die coordinates). */
 export function maskParts(r: Rect, bits: number): { strip: Rect; bits: Rect[]; stack: Rect; slots: Rect[] } {

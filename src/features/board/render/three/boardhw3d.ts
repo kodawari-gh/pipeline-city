@@ -163,7 +163,7 @@ export function ioStacks(shells: IoShell[]): IoStack[] {
 }
 
 /** The depths the connectors span: from the shield's back (the rear wall's outer face) through the wall to their back on the board. */
-export const IO_X0 = () => CASE.x + 1,
+const IO_X0 = () => CASE.x + 1,
   IO_XB = () => CASE.x + 340;
 
 /** A barrel along x from x0 to x1 round the layout point (y, z). */

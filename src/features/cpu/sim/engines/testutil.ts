@@ -24,7 +24,7 @@ export const CONFIGS: Config[] = [
   { name: 'inorder nofwd shared=on', make: (x) => new InOrderEngine({ forwarding: false, sharedPort: true, ...x }) },
 ];
 
-export const COMPARE_BYTES = DATA_BASE + DATA_SIZE;
+const COMPARE_BYTES = DATA_BASE + DATA_SIZE;
 
 export interface Outcome {
   regs: number[];
@@ -135,7 +135,7 @@ export interface WideConfig {
   make: (extra?: EngineSettings) => PipelineEngine;
 }
 
-export const OOO_SIZES: Record<string, OooSettings> = {
+const OOO_SIZES: Record<string, OooSettings> = {
   default: {},
   tiny: { robSize: 2, schedSize: 1, fetchQueue: 2 },
   small: { robSize: 4, schedSize: 3, fetchQueue: 2 },

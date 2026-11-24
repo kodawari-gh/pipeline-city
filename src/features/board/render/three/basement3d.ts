@@ -59,7 +59,7 @@ export const psuOpening = (u: BasementPlan['psu']): Span => ({
 });
 
 /** The rubber strips the supply stands on are 3 mm thick: the fan guard's screw heads clear the floor. */
-export const PSU_FEET = 70;
+const PSU_FEET = 70;
 /** Where everything in the basement goes. */
 export function basementPlan(): BasementPlan {
   const floor = CASE.y + CASE.h - 150,

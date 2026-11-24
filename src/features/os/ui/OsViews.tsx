@@ -73,7 +73,7 @@ function Tile({ r, h, on, onPick }: { r: ResRow; h: number[]; on: boolean; onPic
  * The processor's logical cores, the ones that share a hardware core side by side: lit while a job runs on one, dim while the OS has it parked, outlined while it waits for work. A
  * job on several lit cores at once is a threaded job; several jobs on several cores are a machine that runs programs side by side.
  */
-export function CoreStrip({ s }: { s: Snapshot }) {
+function CoreStrip({ s }: { s: Snapshot }) {
   const live = s.cores?.live;
   if (!s.powered || !live || live.length < 2) return null;
   const hw = new Map<number, CoreLive[]>();

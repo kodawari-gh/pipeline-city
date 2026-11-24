@@ -104,7 +104,7 @@ export function keyFrames(hour: number, hours: readonly number[]): [number, numb
  * A light group's lightmap: its file, the scale its RGBM decodes by, a lamp group's baked lead intensity, a sun frame's hour. `ktx2` names the
  * same map as a KTX2 file (`tools/bake/lightmaps.mjs`): the game loads that one when it can, and the PNG when it cannot.
  */
-export interface BakeGroup {
+interface BakeGroup {
   id: string;
   kind: 'lamp' | 'sky' | 'city' | 'sun';
   file: string;
@@ -114,7 +114,7 @@ export interface BakeGroup {
   hour?: number;
 }
 /** A receiver: its hash, its corners (three a triangle, unindexed) and where its UVs start in `meshes.bin` (in corners). */
-export interface BakeMesh {
+interface BakeMesh {
   name: string;
   hash: string;
   corners: number;
@@ -124,7 +124,7 @@ export interface BakeMesh {
  * A lamp group's direct light on the receivers, for when the lamp cap takes its lights out of the scene: one channel of the file `map`
  * (`BakeManifest.direct.files`), the square root of the light over `scale`; `colour` gives it its hue; `lead` as a `BakeGroup`'s.
  */
-export interface BakeDirect {
+interface BakeDirect {
   id: string;
   map: number;
   channel: number;

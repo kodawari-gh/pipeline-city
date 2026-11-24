@@ -44,7 +44,7 @@ export type FanSize = 40 | 92 | 120 | 140;
 /** What a PCIe slot can give a card on its own (W). A card that draws more takes PCIe power leads, `cardLeads` (docs/ACCEL.md). */
 export const PCIE_SLOT_W = 75;
 /** What one PCIe power lead (a 6-pin) of the PSU gives a card (W). */
-export const PCIE_LEAD_W = 75;
+const PCIE_LEAD_W = 75;
 /** The lowest board tier with a PCIe power connector (the Starter board has none; the render layout matches it, `pciewY`). */
 export const PCIE_POWER_MIN_TIER = 1;
 /** PCIe power leads a card takes: what its load needs beyond the slot's share (0 = slot power only). */
@@ -52,14 +52,14 @@ export const cardLeads = (s: { loadW: number }): number =>
   s.loadW > PCIE_SLOT_W ? Math.ceil((s.loadW - PCIE_SLOT_W) / PCIE_LEAD_W) : 0;
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
-export interface ClockRange {
+interface ClockRange {
   min: number;
   base: number;
   max: number;
 }
 
 /** First-order thermal parameters. Temperatures in degrees C. */
-export interface ThermalSpec {
+interface ThermalSpec {
   /** Passive heat loss to the case, W per degree C above ambient. */
   passive: number;
   /** A card's own fans (graphics, neural): extra W per degree C at full fan speed. The speed follows the card's heat (`cardFan`, thermal.ts). */

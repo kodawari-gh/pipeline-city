@@ -9,8 +9,8 @@ import { ArtBaker, startBaker } from './bake';
 import type { Raise } from './parts3d';
 
 /** The texture densities (pixels per unit) of the board's own face and of a part raised off it, rising. */
-export const LV_BOARD = [0.2, 0.8, 2.4, 7],
-  LV_RAISED = [0.6, 2.4, 7];
+export const LV_BOARD = [0.2, 0.8, 2.4, 7];
+const LV_RAISED = [0.6, 2.4, 7];
 /**
  * The same for a part's face and for the dies (their names are 9 to 14 units high). The finest is for the closest view (`LIMITS.heightMin`:
  * about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.

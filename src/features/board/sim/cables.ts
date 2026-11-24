@@ -24,7 +24,7 @@ export type PcieLeadId = 'pcie' | 'pcie2' | 'pcie3' | 'pcie4';
 /** The PCIe lead cables in the order they are used (the first is `pcie`, as in older saves). */
 export const PCIE_LEADS: readonly PcieLeadId[] = ['pcie', 'pcie2', 'pcie3', 'pcie4'];
 /** Which lead (1-based) a cable id is, or 0 if it is no PCIe lead. */
-export const pcieLeadNo = (id: string): number => PCIE_LEADS.indexOf(id as PcieLeadId) + 1;
+const pcieLeadNo = (id: string): number => PCIE_LEADS.indexOf(id as PcieLeadId) + 1;
 export type CableId = StaticCableId | `fan:${string}`;
 
 export interface CableSpec {
@@ -39,7 +39,7 @@ export interface CableSpec {
 const PCIE_PLAIN =
   'Extra 75 W from the PSU to a graphics or AI card. A card that draws more than its slot gives asks for one lead per 75 W; the PSU has a fixed number of leads. Power the machine off before you touch it.';
 
-export const CABLES: readonly CableSpec[] = [
+const CABLES: readonly CableSpec[] = [
   {
     id: 'atx',
     name: '24-pin ATX power',
@@ -244,9 +244,6 @@ export function cableNeeded(board: Board, id: CableId): boolean {
   if (isFanCable(id)) return cableBlocked(board, id) === null;
   return true;
 }
-
-/** How many PCIe power leads are plugged. */
-export const pcieLeadsPlugged = (cables: Cables): number => PCIE_LEADS.filter((id) => cables[id]).length;
 
 /** One PCIe lead and the card socket it plugs into: the card's slot and which of its sockets (0 = the first). */
 export interface LeadPlug {

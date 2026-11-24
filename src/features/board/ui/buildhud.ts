@@ -29,7 +29,7 @@ export function readiness(board: Board, cables: Cables, shown: Shown = 'machine'
 }
 
 // (what is wrong with the machine, as a list, is the sim's: `sim/buildalerts.ts`, worked out once per change by the stage: `BuildStage.alerts`)
-export type { Alert, AlertLevel } from '@/features/board/sim/buildalerts';
+export type { Alert } from '@/features/board/sim/buildalerts';
 
 export type Tone = 'none' | 'ok' | 'warn' | 'bad';
 

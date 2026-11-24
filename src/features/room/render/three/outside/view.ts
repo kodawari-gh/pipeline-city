@@ -144,8 +144,8 @@ const SUPER = 2;
  * While the eye holds still the picture is drawn each this many frames: the traffic, the leaves, the clouds and the steam move on slowly at
  * that distance. An eye that moves the window's box by `HOLD_PX` (the frame's pixels) or more has it drawn again at once.
  */
-export const EVERY = 3,
-  HOLD_PX = 1;
+export const EVERY = 3;
+const HOLD_PX = 1;
 /** At Low the steam and the leaves' sway stand at this clock (s): their poses at that instant, for good. */
 const STILL_T = 0;
 

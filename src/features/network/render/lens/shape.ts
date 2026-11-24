@@ -21,7 +21,7 @@ export interface NetAnchors {
 }
 
 /** One line of the path. Data goes down its points in the order given (toward the machine). */
-export interface NetLine {
+interface NetLine {
   id: 'isp' | 'lan';
   pts: V3[];
   /** Half the width, units: the light is a little wider than the sleeve it runs along. */
@@ -73,7 +73,7 @@ export function netShape(a: NetAnchors): NetShape {
 }
 
 /** What a line does now: nothing runs (a dim thread), data may run, the lead is out or the link is down (red, pulsing, still). */
-export type LineState = 0 | 1 | 2;
+type LineState = 0 | 1 | 2;
 
 /** The slowest and the fastest link the pulses tell apart (Mbit/s): a pulse's pace and spacing follow a link's speed on a log scale between them. */
 const MBPS_FOOT = 10,

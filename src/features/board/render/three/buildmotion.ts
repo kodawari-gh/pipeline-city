@@ -275,7 +275,7 @@ const MOTIONS: Record<string, Motion> = {
  * Every action takes about a second, whatever the part (a player does this many times; the point is to see how it comes apart, not to wait): the keys above
  * give the shape and the proportions, and this sets the length. The shell and the board are bigger and take a little longer.
  */
-export const ACTION_SECONDS = 1,
+const ACTION_SECONDS = 1,
   BIG_SECONDS = 1.5;
 const BIG = new Set(['case', 'board']);
 for (const [kind, m] of Object.entries(MOTIONS)) {
@@ -309,7 +309,7 @@ export interface Pose {
 }
 
 /** How far (layout units) a part presses in, and how far it rocks (rad), while a latch or a screw is worked. */
-export const HOLD_PRESS = -14,
+const HOLD_PRESS = -14,
   HOLD_ROCK = 0.012;
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
@@ -416,8 +416,7 @@ export function placed(
 }
 
 /** How long (s) a part takes to fade at the far end of its way, at most `FADE_SHARE` of its motion. */
-export const FADE_SECONDS = 0.3,
-  FADE_SHARE = 0.35,
+const FADE_SECONDS = 0.3,
   FADE_SHARE_MAX = 0.5;
 
 /**
@@ -432,9 +431,6 @@ export function solidAt(m: Motion, t: number, dir: 'out' | 'in' = 'out'): number
     f = Math.min(Math.max(FADE_SECONDS, m.keys[m.keys.length - 1]!.sec), total * FADE_SHARE_MAX);
   return f > 0 ? 1 - ease(unit((s - (total - f)) / f)) : 1;
 }
-
-/** Is the motion finished `t` seconds in? */
-export const finished = (m: Motion, t: number): boolean => t >= motionSeconds(m);
 
 /**
  * How far a socket's latches are open (0 shut, 1 open) `t` seconds into a motion whose first key is the hold that works them: they open during that

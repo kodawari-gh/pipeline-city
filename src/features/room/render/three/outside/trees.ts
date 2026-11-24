@@ -393,7 +393,7 @@ export interface LeafUniforms {
  * the eye. Each scale fades to its average where a pixel covers it, so a far tree stays clean. At night the street's lamps light a crown from
  * under and the city's glow its top, so it stays a soft mass and not a black hole in the view.
  */
-export function leafShader(m: MeshStandardMaterial): LeafUniforms {
+function leafShader(m: MeshStandardMaterial): LeafUniforms {
   const u: LeafUniforms = {
     time: { value: 0 },
     sunView: { value: new Vector3(0, 1, 0) },

@@ -9,7 +9,7 @@ import type { StageSnap } from '@/worker/game/game';
 import type { RamRegion } from '../../memory/sim/ramregions';
 
 /** One slot of an out-of-order structure: the mnemonic ("" when empty) and a state code (see each field). */
-export interface OooSlot {
+interface OooSlot {
   op: string;
   state: number;
 }
@@ -129,7 +129,7 @@ function cacheSnap(c: { lines: number; ways: number; lineBytes: number; tags: nu
 }
 
 /** The stored state of an engine and the writes since cycle `from`. */
-export function storedOf(eng: PipelineEngine, ram: Uint8Array, from: number): StoredSnap {
+function storedOf(eng: PipelineEngine, ram: Uint8Array, from: number): StoredSnap {
   const st = eng.storedState();
   return {
     regs: st.regs,

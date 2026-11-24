@@ -40,7 +40,7 @@ export interface CueSink {
 export type Scene = 'boot' | 'menu' | 'game' | 'build' | 'gallery';
 
 /** What holds the clock while it is stopped by a popup or the menu. A Hold plays no pause or resume cue. */
-export type Hold = 'levelUp' | 'tutorial' | 'menu';
+type Hold = 'levelUp' | 'tutorial' | 'menu';
 
 /** What the UI tells the director: the clock's speed (0 = stopped), the hold on it, and whether the sim crashed. */
 export interface UiInput {
@@ -159,7 +159,7 @@ function stateCues(before: SeenState, now: SeenState, families: ReadonlySet<stri
  * The music's data and stress inputs from one snapshot (ticket #62). Flowing: the link is up or saturated, a transfer runs or
  * a job key ingests (`keyActivity` 'ingesting', or the plugged key's stage). A down link with a transfer or an ingest still flows.
  */
-export function musicFeed(s: DirectorSnap): MusicFeed {
+function musicFeed(s: DirectorSnap): MusicFeed {
   const link = s.net?.state;
   const up = link === 'link-up' || link === 'saturated';
   const transfers = (s.net?.transfers?.length ?? 0) > 0;

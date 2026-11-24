@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
+import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
   BASE_BAYS,
@@ -56,13 +56,13 @@ import {
   type CaseKind,
 } from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';
-import { paintCable, paintTie, sleeveOf, tiePoints } from '@/core/render/cable';
+import { paintCable, paintTie, tiePoints } from '@/core/render/cable';
 
 // The PC case: a thin low-contrast chassis around the board and the PSU, a quiet glass side, the top panel (brand, vents,
 // status lights, the power button sits on it) and the SATA drive cage with the cables that serve it. Everything here is static
 // (baked with the device layer); the lights and the drives are live (Live, props.ts).
 
-export const wallTone = (T: Theme) => mix(T.bg, T.line, 0.3);
+const wallTone = (T: Theme) => mix(T.bg, T.line, 0.3);
 /** What the player's case is called on its top panel, and how many vents it has: the cases differ at a glance (docs/render/board.md "Cases"). */
 export const CASE_LOOK = [
   { tag: 'MINI', vents: 7, trim: 0 },
@@ -70,17 +70,17 @@ export const CASE_LOOK = [
   { tag: 'MID', vents: 16, trim: 1 },
   { tag: 'FULL', vents: 22, trim: 2 },
 ] as const;
-export const cavityTone = (T: Theme) => mix(T.bg, '#000000', 0.45);
+const cavityTone = (T: Theme) => mix(T.bg, '#000000', 0.45);
 const edgeTone = (T: Theme) => mix(T.line, T.mute, 0.15);
 
 /** The kind of the case being drawn (`LAYOUT_CASE`): the same one the exterior reads (`CASE_KIND`). */
-export const kindNow = (): CaseKind => CASE_KIND[LAYOUT_CASE] ?? 'gamer';
+const kindNow = (): CaseKind => CASE_KIND[LAYOUT_CASE] ?? 'gamer';
 
 /**
  * The paint inside each kind of case: bare charcoal steel in the OEM tower, black powder coat in the matte case, blue-black with a violet
  * edge in the gaming case, near-black with a silver edge in the showcase. `wall` is the sheet metal, `cav` the dark behind the board.
  */
-export function caseInterior(T: Theme, kind: CaseKind) {
+function caseInterior(T: Theme, kind: CaseKind) {
   const wall = wallTone(T),
     cav = cavityTone(T),
     edge = edgeTone(T);
@@ -640,37 +640,6 @@ export function caseGlass(T: Theme): Container {
   return root;
 }
 
-/**
- * The light inside the case, over the board and under the glass's sheen: the walls shade the corners a little (a vignette) and the room's
- * lamp bounces a warm wash in from the top west, so the inside belongs to the room instead of being lit flat.
- */
-export function caseShade(T: Theme): Container {
-  const root = new Container();
-  // from the cavity's west wall to the glass's east edge, so no edge of it shows inside the picture
-  const r = { x: CASE_IN.x + 8, y: CASE_GLASS.y, w: CASE_GLASS.x + CASE_GLASS.w - CASE_IN.x - 8, h: CASE_GLASS.h };
-  const vig = new Graphics();
-  vig.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#00000000', '#000000', [0.5, 0.5], 0.72));
-  vig.alpha = 0.26;
-  const warm = new Graphics();
-  warm.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#ffb26a', '#ffb26a00', [0, 0], 0.8));
-  warm.alpha = 0.05;
-  root.addChild(vig, warm);
-  // the cases with lights wash the inside: a violet and pink glow from the floor in the gaming case, a violet glow from the front edge in the showcase
-  const kind = kindNow();
-  if (kind === 'gamer' || kind === 'show') {
-    const glow = new Graphics();
-    if (kind === 'gamer') {
-      glow.roundRect(r.x, r.y + r.h * 0.6, r.w, r.h * 0.4, 30).fill(lgrad('#a04dff00', '#a04dff', [0, 1]));
-    } else {
-      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(`${T.mul}00`, T.mul, [1, 0]));
-      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.mul, `${T.mul}00`));
-    }
-    glow.alpha = 0.1;
-    root.addChild(glow);
-  }
-  return root;
-}
-
 /** The drive cage: a stamped metal rack along the front (perforated uprights), a recessed bay per slot with its rails and grommets, the connector hints and the labels. Cells beyond the board's SATA ports are locked (dim, no bracket). */
 export function bayArt(T: Theme, nSata: number): Container {
   const root = new Container();
@@ -749,19 +718,6 @@ export function bayArt(T: Theme, nSata: number): Container {
   return root;
 }
 
-/** Hint drawn inside an empty, usable cell. */
-export function emptyCellHint(T: Theme, cell: Rect): Container {
-  const root = new Container();
-  root.addChild(
-    label('EMPTY · DROP A DRIVE', cell.x + cell.w / 2 + 20, cell.y + cell.h / 2, 46, T.mute, {
-      anchor: [0.5, 0.5],
-      a: 0.7,
-      head: true,
-    }),
-  );
-  return root;
-}
-
 // ---------------------------------------------------------------- SATA cables and power leads
 
 /**
@@ -784,18 +740,12 @@ export function sataCablePath(i: number): Lane {
   return mkLane(roundedPath(route, 70, 30));
 }
 
-export const SATA_CABLE_W = 32;
+const SATA_CABLE_W = 32;
 
-export function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, accent: string) {
+function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, accent: string) {
   box(g, x + 4, y + 8, w, h, 8, { fill: '#000000', fa: 0.25 });
   box(g, x, y, w, h, 8, { fill: '#1b2230', stroke: accent, lw: 4, sa: 0.85 });
 }
-
-export { sleeveOf };
-export const lineOf = (g: Graphics, list: Pt[]) => {
-  g.moveTo(list[0]![0], list[0]![1]);
-  for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]);
-};
 
 /** The data cable for the drive in cage cell i: the sleeve, the plug on the drive and the plug in the board's port. Sits under the PSU cables. */
 export function sataLinkArt(T: Theme, i: number): Container {

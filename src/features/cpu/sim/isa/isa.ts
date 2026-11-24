@@ -9,7 +9,7 @@
 //   J: rd[10:7] imm[31:11]              (21-bit signed byte offset, multiple of 4)
 //   N: no operands (ecall, iret)
 
-export type Format = 'R' | 'I' | 'S' | 'B' | 'U' | 'J' | 'N';
+type Format = 'R' | 'I' | 'S' | 'B' | 'U' | 'J' | 'N';
 
 export interface OpSpec {
   name: string;

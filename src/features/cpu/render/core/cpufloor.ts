@@ -245,7 +245,7 @@ class Heap {
  * face each other along enough of their edges, the hop becomes a jog: out of one block high on its edge, along the gutter, into the other low on
  * its edge, so the trace is long enough to see and to run a pulse along.
  */
-export function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
+function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
   if (pts.length !== 2) return pts;
   const [p, q] = [pts[0]!, pts[1]!];
   if (p[1] === q[1] && Math.abs(q[0] - p[0]) <= 40) {

@@ -197,7 +197,7 @@ function merge(pieces: [BufferGeometry, Part][]): BufferGeometry {
 }
 
 /** A model's geometry (`MODELS`), in its frame, on the road at y = 0. */
-export function carGeometry(model: number): BufferGeometry {
+function carGeometry(model: number): BufferGeometry {
   const { tail, len: L } = MODELS[model]!,
     W = 1.78,
     H = tail === 'estate' ? 1.5 : tail === 'hatch' ? 1.47 : 1.43,

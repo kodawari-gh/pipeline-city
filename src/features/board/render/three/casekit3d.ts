@@ -96,7 +96,7 @@ export function clipY(pts: Vector2[], y: number, keep: 1 | -1): Vector2[] {
 }
 
 /** The part of a convex outline (world points) east (`keep` +1) or west (-1) of `x`: the pieces beside an opening in the top or the floor. */
-export function clipX(pts: Vector2[], x: number, keep: 1 | -1): Vector2[] {
+function clipX(pts: Vector2[], x: number, keep: 1 | -1): Vector2[] {
   const out: Vector2[] = [],
     inside = (p: Vector2) => (p.x - x) * keep >= 0;
   pts.forEach((p, i) => {
@@ -133,7 +133,7 @@ export const wallCircle = (y: number, z: number, r: number, n = 48): Vector2[] =
   );
 
 export const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-export const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
+const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
 export const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
   const s = new Shape(pts);
   for (const h of holes) s.holes.push(new Path(h));
@@ -529,34 +529,6 @@ export function thumbscrews(spots: readonly Spot[], f: Facing, r: number, len: n
   return g;
 }
 
-/** Hex-socket cap screws: a tall polished head with a dark socket (what holds a tempered glass panel off its frame). */
-export function capScrews(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
-  const g = new Group(),
-    h = r * 0.6;
-  if (!spots.length) return g;
-  g.add(
-    instanced(
-      turned(
-        lathe([
-          [r, 0],
-          [r, h * 0.82],
-          [r * 0.9, h],
-          [r * 0.56, h],
-          [r * 0.5, h * 0.5],
-          [0, h * 0.5],
-        ]),
-        f,
-      ),
-      m,
-      spots,
-    ),
-  );
-  g.add(
-    instanced(turned(new CircleGeometry(r * 0.52, SEG.capSocket).translate(0, 0, h * 0.5 + 0.5), f), driveM(), spots),
-  );
-  return g;
-}
-
 /** Soft rubber pads: a flat-topped button (the bumpers a side panel closes on). */
 export function pads(spots: readonly Spot[], f: Facing, r: number, m: Material): Group {
   const g = new Group();
@@ -722,21 +694,6 @@ export function perforated(
 ): void {
   g.add(decal(r, z, mat(0x050608, { roughness: 0.9 })));
   g.add(decal(r, z + 5, perfMat(kind, r.w, r.h, pitch, tone, o)));
-}
-
-/** The same perforated sheet, lying flat at world height `top` over x `x0`–`x1` and z `z0`–`z1` (the holes show a dark backing). */
-export function perforatedFlat(
-  top: number,
-  x0: number,
-  x1: number,
-  z0: number,
-  z1: number,
-  kind: Perf,
-  pitch: number,
-  tone: number,
-  o: { metal?: number; rough?: number } = {},
-): Group {
-  return perforatedFlatRun(top, [[x0, x1, z0, z1]], kind, pitch, tone, o);
 }
 
 /**

@@ -63,7 +63,7 @@ export type Level = 'ok' | 'warn' | 'bad';
 
 // ---- stats ----
 
-export const STALL_CAUSES: { key: string; label: string; hint: string }[] = [
+const STALL_CAUSES: { key: string; label: string; hint: string }[] = [
   { key: 'stallData', label: 'Waiting on data', hint: 'An instruction waited for an earlier result.' },
   { key: 'stallLoad', label: 'Load-use', hint: 'An instruction needed a value that was still being loaded.' },
   { key: 'stallFlush', label: 'Flush', hint: 'Wrong-path instructions thrown away after a mispredicted branch.' },
@@ -196,7 +196,7 @@ export function triggeredHints(s: Snapshot): string[] {
 }
 
 /** Hints shown at once. */
-export const MAX_TOASTS = 1;
+const MAX_TOASTS = 1;
 
 /** Move queued hints into the visible list until `max` are visible. Pure. */
 export function fillToasts(visible: Hint[], queue: Hint[], max = MAX_TOASTS): { visible: Hint[]; queue: Hint[] } {

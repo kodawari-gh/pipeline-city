@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.harness.ts",
+    "tools/**/*.{ts,mjs}",
+    "e2e/**/*.mjs",
+    "src/features/sandbox/sim/speed.ts",
+    "src/features/room/render/three/hoodiecloth.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "tools/**/*.{ts,mjs}", "e2e/**/*.mjs"],
+  "ignoreUnresolved": ["^/src/", "^/tools/"],
+  "ignoreBinaries": ["uvx"],
+  "ignoreDependencies": ["@gltf-transform/cli", "cspell", "markdownlint-cli2"]
+}

@@ -1,6 +1,6 @@
 import { BOARD_TIERS } from '../../sim/specs';
 import type { Rect } from './layout';
-import { M2_H, M2_W, MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './pins';
+import { M2_H, M2_W, PKG_PIN, legRun, legsFrom, legsOf, memLanes, type IoPort } from './pins';
 
 // Per-tier motherboard geometry (pure data, no Pixi). The CPU socket is the origin on every board, the rear I/O sits on the west
 // edge and the power connectors on the east / top edges, as on a real board seen through the side glass of a case. Each tier is
@@ -21,12 +21,12 @@ import { M2_H, M2_W, MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPor
 // board's byte lanes do, so a stick takes its pins along its length (`memFrom` and `memLand`, see `routes.ts`). The lanes of the nearer sticks carry
 // zigzags between the CPU and the bank, so every lane is as long as the longest, and a lane dives to an inner layer under the sockets before its own.
 
-export interface Pt {
+interface Pt {
   x: number;
   y: number;
 }
 /** A pin header; `key`: the pin left out where a plug is keyed (the TPM's 14-1). */
-export interface HeaderGeo {
+interface HeaderGeo {
   name: string;
   x: number;
   y: number;
@@ -34,7 +34,7 @@ export interface HeaderGeo {
   rows: number;
   key?: [number, number];
 }
-export interface DimmGeo {
+interface DimmGeo {
   rect: Rect;
 }
 /** A row of small passives (decoupling capacitors, the art's `smd`): `n` parts from the centre (x, y), `dx` and `dy` apart, each `w` by `h`. */
@@ -135,11 +135,11 @@ export interface TierGeo {
   holes: [number, number][];
 }
 
-export const VRM_PITCH = 380,
+const VRM_PITCH = 380,
   VRM_BW = 340,
   VRM_BH = 470;
-export const DRAM_PITCH = 225,
-  DRAM_BW = 160,
+const DRAM_PITCH = 225;
+const DRAM_BW = 160,
   DRAM_BH = 300;
 /** A heatsink fan's side: a 40 mm fan (`fanLen(40)`). */
 export const SINK_FAN = 920;
@@ -151,11 +151,11 @@ const SHROUD_N = -1090;
 /** The width of a one-column pin header. */
 const HDR1 = 52 + 24;
 /** A memory socket: the pitch of a bank, the stick's width as the 2D lays it flat, and its length (a real DIMM's 133 mm at the board's scale). */
-export const DIMM_PITCH = 220,
-  DIMM_W0 = 170,
+const DIMM_PITCH = 220;
+export const DIMM_W0 = 170,
   DIMM_H0 = 2400;
 /** Vertical pitch of the SATA ports on the east edge. */
-export const SATA_PITCH = 150;
+const SATA_PITCH = 150;
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 
@@ -166,7 +166,7 @@ export const BD_X = IO_X + 210;
 /** The USB hub controller between the rear I/O and the CPU, level with the CPU's centre (west of the regulators' controllers and their fan header). */
 const HUB = R(IO_X + 960, -130, 260, 260);
 /** The rear I/O's shield plate (the connectors sit on it with their mouths facing west; the traces arrive at its east edge). */
-export const IO_PLATE = R(IO_X, -2000, 400, 2450);
+const IO_PLATE = R(IO_X, -2000, 400, 2450);
 /** Every connector the rear I/O can carry; a tier fits the first of each kind (the others are drawn as bare outlines). Mouths face west. */
 export const IO_PORTS: IoPort[] = [
   { id: 'line-out', kind: 'jack', x: IO_X + 30, y: -1928, w: 200, h: 70, tone: 'st' },
@@ -318,11 +318,11 @@ function build(s: Spec): TierGeo {
   const dimm: DimmGeo[] = Array.from({ length: n }, (_, i) => ({
     rect: R(X0 + i * DIMM_PITCH, top0, DIMM_W0, DIMM_H0),
   }));
-  const step = Math.max((n + 2) * MEM_SPACING, 140),
+  const step = Math.max((n + 2) * PKG_PIN, 140),
     mid = top0 + DIMM_H0 / 2,
     spread = s.bank.span / lanes;
   // (the rows sit as near the bank's middle as the edge's 460 of pins lets them: the shorter the fan, the more room it leaves the zigzags)
-  const free = 460 - ((lanes - 1) * step + (n - 1) * MEM_SPACING) / 2,
+  const free = 460 - ((lanes - 1) * step + (n - 1) * PKG_PIN) / 2,
     lean = Math.max(-free, Math.min(free, mid));
   const rowOf = (r: number) => r - (lanes - 1) / 2,
     onPkg = (r: number) => lean + rowOf(r) * step,
@@ -330,7 +330,7 @@ function build(s: Spec): TierGeo {
   const memFrom = Array.from({ length: n }, (_, i) =>
     Array.from(
       { length: lanes },
-      (_, r) => MEM_SPACING * Math.floor((onPkg(r) + (i - (n - 1) / 2) * MEM_SPACING) / MEM_SPACING + 0.5),
+      (_, r) => PKG_PIN * Math.floor((onPkg(r) + (i - (n - 1) / 2) * PKG_PIN) / PKG_PIN + 0.5),
     ),
   );
   // on the bank a lane keeps room for its zigzag above it: the more length it has to make up and the less room its row's fan leaves, the taller

@@ -44,7 +44,7 @@ const HSL = { h: 0, s: 0, l: 0 };
  * Is `c` a warm, saturated metal (copper, brass, gold)? Its colour is the metal's own, as seen in its reflections: a Lambert keeps it, where it
  * would turn a grey metal dark.
  */
-export const warmMetal = (c: Color): boolean => {
+const warmMetal = (c: Color): boolean => {
   c.getHSL(HSL);
   return HSL.s > 0.35 && (HSL.h < 0.18 || HSL.h > 0.97);
 };
@@ -53,7 +53,7 @@ export const warmMetal = (c: Color): boolean => {
  * What a Lambert of a metal reads as its colour: `src` mixed toward the dark metal range by `metalness`, as a metal has no diffuse of its own and
  * its look is the reflection that a Lambert cannot draw. The source's colour is not changed (High draws with it). Copper and gold keep theirs.
  */
-export function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
+function metalColor(src: Color, metalness: number, out: Color = new Color()): Color {
   const k = Math.min(1, Math.max(0, metalness));
   out.copy(src);
   if (k <= 0 || warmMetal(src)) return out;

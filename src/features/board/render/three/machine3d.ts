@@ -49,7 +49,6 @@ import { PartLod, type LodScope } from '@/core/render/three/partlod';
 import { findById, seeThrough, tag, unseen } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { npuGeo } from '@/features/npu/render/npulayout';
-import { nicFaceRect, nicGeo } from '@/features/network/render/nic/niclayout';
 import { BOARD_NIC, nicInput } from '@/features/network/render/nic/nicplan';
 import { routerDie } from '@/features/network/render/router/routerart';
 import { routerGeo } from '@/features/network/render/router/routerlayout';
@@ -73,7 +72,6 @@ import {
   CASE_GLASS,
   CASE_IN,
   COOLER,
-  CPU_S,
   DIE,
   DIE_PLAN,
   DIMM_H,
@@ -279,7 +277,7 @@ export function machineKey(s: Snapshot | null, shown: Shown = 'machine'): string
 }
 
 /** A device's state for its look: its power and a burn (a part that runs, runs hot or throttles looks as ever; the lenses show those). */
-export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
+function stateOf(s: Snapshot, d: DeviceSnap): PartState {
   return { powered: s.powered && !s.power.tripped, burnt: d.burnt };
 }
 
@@ -332,7 +330,7 @@ const patchable = (d: DeviceSnap): boolean => {
 /** A patch that leaves this many hidden parts in the tree asks for a build instead (their geometry is freed by it). */
 const GRAVE_MAX = 10;
 /** A part a patch took away answers to no id (`findById`, a pick, the outline): its host, built again, keeps the same id. */
-export const untag = (root: Object3D): void =>
+const untag = (root: Object3D): void =>
   root.traverse((o) => {
     if (typeof o.userData['id'] === 'string') delete o.userData['id'];
   });
@@ -350,7 +348,7 @@ const netVisible = (s: Snapshot) =>
  * The cables that stand: the sim lists a cable with the part it runs from fitted (or while it is plugged); `blocked` says that part is missing. A
  * cable never stands without its part: no PSU, no leads and no PC cord; no monitor, no video cable and no monitor cord.
  */
-export const standing = (s: Snapshot): Snapshot['cables'] => s.cables.filter((c) => c.connected || !c.blocked);
+const standing = (s: Snapshot): Snapshot['cables'] => s.cables.filter((c) => c.connected || !c.blocked);
 /** What the cables are built from: the net's lens, the router's tier (another tier has other ports, so the LAN lead's router end is another plug, in the room as on the stage, where its body is also a box the cords keep off), the ports the leads are in, the cards and display that offer them. */
 const videoKey = (s: Snapshot) =>
   `${netVisible(s)}|${routerTier(s.net?.router?.id) ?? ''}|${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices
@@ -1021,7 +1019,7 @@ export class Machine3D {
    * A NIC's detailed view (docs/render/net.md "Inside the NIC and the router"): the card and each of its parts is a flight (a double click, to an angled view of the standing card's face) and, once its cooler has gone, can be pointed at; the
    * controller's die wears the floorplan, which its lid hides until the zoom takes the lid away (the live layer runs on the die's face, `Chips3D`). The lid fades alone, so its materials are its own.
    */
-  private nicBits(d: DeviceSnap, c: Card3D, i: number, visual: string): void {
+  private nicBits(d: DeviceSnap, c: Card3D, _i: number, _visual: string): void {
     const turn = DEVICE_LOD.nic.parts[1];
     this.lie(d.id, c.face, turn);
     for (const b of c.bodies) if (!(c.die && b.id.endsWith('.nic-ctl'))) this.lie(b.id, b.lie, turn);

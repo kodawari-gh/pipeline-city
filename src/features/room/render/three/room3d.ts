@@ -378,7 +378,7 @@ const PLASTER_RELIEF = 0.12,
  * is the light's, not the paint's), and no colour map (the old one moved a texel 2 levels of 255 at most, which nobody saw, for 1.4 MB of
  * GPU memory). Its own stream of random numbers, so the room's other textures keep theirs and a bake gives the same files each time.
  */
-export function plasterMaps(): PlasterMaps {
+function plasterMaps(): PlasterMaps {
   const N = 512,
     hgt = new Float32Array(N * N);
   let seed = 4271;
@@ -443,7 +443,7 @@ export function plasterMaps(): PlasterMaps {
     }),
   };
 }
-export interface PlasterMaps {
+interface PlasterMaps {
   normalMap: Texture | null;
   roughnessMap: Texture | null;
 }
@@ -590,7 +590,7 @@ function planksTex(): Texture | null {
 const PLANKS_REPEAT: [number, number] = [2.4, 3.2];
 
 /** The floor's maps, painted: always the same boards (their own seed). The texture bake runs it (`room-planks`, `tools/bake/textures.mjs`). */
-export function planksMaps(): OakMaps {
+function planksMaps(): OakMaps {
   const keep = seedN;
   seedN = 4871;
   const maps = oakMaps(planksTex());
@@ -599,7 +599,7 @@ export function planksMaps(): OakMaps {
 }
 
 /** The rug's map, painted: always the same flecks (its own seed). The texture bake runs it (`room-rug`). */
-export function rugMap(): Texture | null {
+function rugMap(): Texture | null {
   const keep = seedN;
   seedN = 9311;
   const map = rugTex();

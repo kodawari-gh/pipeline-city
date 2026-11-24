@@ -4,11 +4,10 @@
 // the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
 // seated: loose or held, the plug goes only as far as that reaches.
 import { Group, Quaternion, Vector3, type Object3D } from 'three';
-import { lowDetail } from '@/core/render/three/detail';
 import { mergeWithin } from '@/core/render/three/merge';
 import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
 import type { RigPower } from './power/runs';
-import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
+import { cableMesh, type Env, type Look } from './wires3d';
 
 /** A socket's mouth and the way a plug pulls out of it (a unit vector). */
 export interface Seat {
@@ -72,21 +71,6 @@ export interface CableRig {
 const V = (p: V3) => new Vector3(p[0], p[1], p[2]);
 const T = (v: Vector3): V3 => [v.x, v.y, v.z];
 
-/** A straight plug standing out of its seat along the axis, `l` long (a video or mains plug): its model and its exit. */
-export function straightPlug(
-  seat: Seat,
-  w: number,
-  h: number,
-  l: number,
-  accent: string,
-): { root: Object3D; strands: RopeEnd[] } {
-  const root = loosePlug(w, h, l, accent),
-    ax = V(seat.axis);
-  root.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), ax);
-  root.position.copy(V(seat.at).addScaledVector(ax, l));
-  return { root, strands: [{ at: T(V(seat.at).addScaledVector(ax, l + 2)), dir: seat.axis }] };
-}
-
 /**
  * A plug model (plugs3d.ts: built round its own z axis, its socket's mouth at z = -l, the cable leaving at 0) standing in its seat, turned `roll`
  * round the seat's axis (a socket's keyed side down or toward the board): its model and its exit.
@@ -128,7 +112,7 @@ export function middle(ends: readonly RopeEnd[]): RopeEnd {
 }
 
 /** The pose of a plug hanging at a cable's tip: its strands' middle on the tip, the cable leaving it back along the tip's direction (`free` of the turn there, `freedom`). */
-export function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
+function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
   const m = middle(exits),
     q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), V(tip.dir).negate().normalize()), free);
   return { at: T(V(tip.at).sub(V(m.at).sub(V(seat.at)).applyQuaternion(q))), q };

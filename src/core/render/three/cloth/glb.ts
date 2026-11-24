@@ -3,7 +3,7 @@
 // in, bytes out.
 
 /** A custom attribute: `size` floats a vertex. glTF wants its name to start with `_`; three's loader reads it in lower case (`_AO` is `_ao`). */
-export interface GlbExtra {
+interface GlbExtra {
   name: string;
   size: number;
   data: Float32Array;

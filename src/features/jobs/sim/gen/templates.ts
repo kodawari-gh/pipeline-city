@@ -63,8 +63,8 @@ import {
   type TemplateFn,
 } from './build';
 
-export { BUF_BASE, MAX_CODE_BYTES };
-export type { Built, GenParams, GpuTarget, NpuTarget, ResolvedParams, TemplateFn };
+export { MAX_CODE_BYTES };
+export type { GenParams, GpuTarget, NpuTarget, ResolvedParams, TemplateFn };
 
 // ---------- CLI request family ----------
 
@@ -185,7 +185,7 @@ const cliScan: TemplateFn = (rng, p) => {
 };
 
 /** Where a program keeps its big working memory: virtual 0x10000 up under the paged OSes (their "big heap"), the same physical addresses without one. */
-export const HEAP_BASE = 0x10000;
+const HEAP_BASE = 0x10000;
 /** The bytes the in-memory index job needs at a scale (a power of two, so the probes can mask): 32K, 64K, 128K, 256K, 512K for scale 1, 2-3, 4-7, 8-15, 16. */
 export const indexBytes = (scale: number): number => 32 * 1024 * 2 ** Math.floor(Math.log2(Math.max(1, scale)));
 

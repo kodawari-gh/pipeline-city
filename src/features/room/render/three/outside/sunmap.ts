@@ -3,7 +3,7 @@
 // The map is drawn on the first frame the sun is lit, with the sun where it stands then: the dawn never shows the night's old map.
 
 /** The sun's steps an hour: its map is drawn again on each (3 game minutes). */
-export const SUN_STEPS = 20;
+const SUN_STEPS = 20;
 
 export class SunMap {
   /** The sun's step at the last `frame`. */

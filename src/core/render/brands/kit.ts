@@ -20,7 +20,7 @@ export type BrandId =
  * A brand's colour scheme. The accent is one palette neon (docs/art-style.md §2); the rest are the real materials and inks its parts wear, for
  * per-brand parts and UI. Rule C1 (art-style §4): the accent goes on the mark and on lit details only, never on a part's base paint.
  */
-export interface BrandColors {
+interface BrandColors {
   /** Its one neon: the lit part of the mark, its LEDs and RGB. */
   accent: string;
   /** Ink on dark: prints on metal and on its plate. */

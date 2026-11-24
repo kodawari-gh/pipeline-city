@@ -9,7 +9,7 @@
 // that `setLayoutTier(tier)` reassigns. The renderer calls it first thing when it builds a scene, so every importer sees the current
 // tier's rectangles; never copy one of these into a module-level constant.
 
-import { BD_X, DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
+import { BD_X, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
 import { CASE_TIERS } from '../../sim/specs';
 import { BASE_BAYS } from '../../sim/airflow';
 import { setCaseDepth } from '@/features/room/render/three/roomplan';
@@ -42,9 +42,7 @@ export const BOARD_SEED = 1337;
 export const DIE_PLAN: Rect = { x: -710, y: -565, w: 1420, h: 1130 };
 export const CPU_S = 0.7;
 /** A rect of the die's frame where it lands on the board. */
-export const onBoard = (r: Rect): Rect => ({ x: r.x * CPU_S, y: r.y * CPU_S, w: r.w * CPU_S, h: r.h * CPU_S });
-/** A rect of the board in the die's frame. */
-export const offBoard = (r: Rect): Rect => ({ x: r.x / CPU_S, y: r.y / CPU_S, w: r.w / CPU_S, h: r.h / CPU_S });
+const onBoard = (r: Rect): Rect => ({ x: r.x * CPU_S, y: r.y * CPU_S, w: r.w * CPU_S, h: r.h * CPU_S });
 export const DIE: Rect = onBoard(DIE_PLAN);
 /** The package (its pad rows on the 20 grid, `pkgPads`). */
 export const PKG: Rect = { x: -630, y: -530, w: 1260, h: 1060 };
@@ -121,15 +119,13 @@ export let M2_SLOTS: Rect[] = GEO.m2;
 export let PCIE_RAILS: Rect[] = GEO.pcie;
 
 // ---- VRM: one block north of the CPU with up to six phases, a PWM controller and the heatsink pad ----
-export const VRM_MAX = 6;
+
 /** One phase block (MOSFETs, choke, capacitors), left to right. */
 export const vrmPhase = (i: number): Rect => GEO.vrmPhases[i] ?? EMPTY;
-export let VRM_PWM: Rect = GEO.pwm;
 /** Where a VRM heatsink bolts on: over the MOSFET strip of all phases (slot `vrm-sink0`). */
 export let VRM_SINK: Rect = GEO.vrmSink;
 /** One phase block of the memory (DRAM) VRM, left to right (up to five; a tier fills the first ones). */
-export const DRAM_VRM_MAX = 5;
-export const dramPhase = (i: number): Rect => GEO.dPhases[i] ?? EMPTY;
+
 /** Where a memory VRM heatsink bolts on: over the MOSFET row of the DRAM phases (slot `ram-sink0`). */
 export let RAM_SINK: Rect = GEO.dSink;
 /** The square of the 40 mm fan a sink can carry (over the CPU regulator's sink, over the memory regulator's). */
@@ -137,14 +133,10 @@ export let VRM_FAN: Rect = GEO.vrmFan,
   RAM_FAN: Rect = GEO.dFan;
 /** The power-good light of the VRM. */
 export let VRM_LED = GEO.vrmLed;
-export { DRAM_BH, DRAM_BW };
-
 // ---- PSU (below the board, full width plus the cable gutter) ----
 export let GUTTER_X = 3400;
 /** The cable gutter is this much wider than it was with one PCIe socket: room for four PCIe leads next to the 24-pin and the 8-pin. */
 const GUTTER_EXTRA = 330;
-/** The lower compartment (PSU, drive bay, cables) moves with the board's height: this is the shift from the ATX board's. */
-export let SHIFT_Y = 0;
 export let PSU: Rect = { x: BD_X, y: 2750, w: 7400, h: 1100 };
 /** Fan grill centre and radius on the PSU face. */
 export let PSU_FAN = { x: -2450, y: 3300, r: 430 };
@@ -162,7 +154,7 @@ export let PSU_PORTS: { pcie: number[]; atx: number; cpu: number } = {
   cpu: 4070,
 };
 /** The PSU's four PCIe sockets are this far apart; the PSU draws as many as its spec has leads (`PsuSpec.pcieLeads`). */
-export const PCIE_PORT_PITCH = 90;
+const PCIE_PORT_PITCH = 90;
 export let PORT_Y = PSU.y;
 /** The heights (world y) of the ties round the PSU leads where they climb the gutter together: they line up across the leads, and the cable duct's clips sit under them. */
 export const gutterTieYs = () => [PORT_Y - 760, PORT_Y - 1640, PORT_Y - 2520];
@@ -175,7 +167,7 @@ export type PsuForm = (typeof PSU_FORM)['sfx' | 'atx'];
 /** Each case's supply bay: SFX in the Mini and the Micro, ATX in the Mid and the Full (an SFX unit fits it on an adapter plate). */
 export const caseForm = (caseTier: number): PsuForm => (caseTier >= 2 ? PSU_FORM.atx : PSU_FORM.sfx);
 /** How much deeper each case's basement is than the old 59 mm one: room for its supply's height on the floor's rubber strips, under the shroud. */
-export const BASE_GROW = [350, 350, 800, 800];
+const BASE_GROW = [350, 350, 800, 800];
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
 /** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: an 18.5 inch monitor (9900 units, 430 mm at the machine's 23 units a mm, as every PC part; its 3D body is `monitor3d.ts`) next to the case. */
@@ -218,7 +210,7 @@ export let MONITOR_POWER = { x: 0, y: 0 };
  * rail's. It is a wall thing with the monitor (the monitor moves with the desk, so does the rack), above the router's reach and clear of the
  * monitor's top. `TRAY` is the whole area (the rails and where the sticks hang).
  */
-export const TRAY_W = 3700,
+const TRAY_W = 3700,
   TRAY_H = 2460;
 export const TRAY_COLS = 5,
   TRAY_ROWS = 2;
@@ -232,16 +224,16 @@ export let TRAY: Rect = { x: 0, y: 0, w: TRAY_W, h: TRAY_H };
  * The letterbox on the wall between the router's shelf and the case: where a finished key's letter is posted (`mail.ts`). A wall thing like
  * the rack, so it follows the monitor (the case tier); clear of the router, the clock, the LAN cable's row below it and the case.
  */
-export const OUTBOX_W = 1000,
+const OUTBOX_W = 1000,
   OUTBOX_H = 800;
 export let OUTBOX: Rect = { x: 0, y: 0, w: OUTBOX_W, h: OUTBOX_H };
 
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
-export const WALL_T = 170,
-  CASE_TOP = -3400;
+export const WALL_T = 170;
+const CASE_TOP = -3400;
 /** Drive bays each case has (the Mini has room for four drives, the Full tower eight): a bay beyond the board's SATA ports is locked. */
-export const CASE_BAYS = [4, 6, 6, 8];
+const CASE_BAYS = [4, 6, 6, 8];
 /** Of them, the bays of the basement's cage under the shroud (sata0 and sata1, `BASE_BAYS`, sim/airflow.ts): the rest are the main cage's, behind the front fans. */
 export { BASE_BAYS };
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
@@ -261,18 +253,18 @@ export let REAR_FAN: Rect = { x: IO_X + WALL_T, y: -1260, w: 440, h: 2120 };
 export let REAR_FAN_FITTED = true;
 export let TOP_FANS: Rect[] = [];
 /** The fan mounts the cases have on the top and the front (mini, micro, mid, full tower), from the sim's `CASE_TIERS`. */
-export const TOP_FAN_COUNT = CASE_TIERS.map((c) => c.fans.top),
-  FRONT_FAN_COUNT = CASE_TIERS.map((c) => c.fans.front);
+const TOP_FAN_COUNT = CASE_TIERS.map((c) => c.fans.top);
+export const FRONT_FAN_COUNT = CASE_TIERS.map((c) => c.fans.front);
 /** A fan's frame side from its size in mm (23 units a mm: a 92 mm fan is 2120). */
 export const fanLen = (mm: number): number => Math.round((mm * 23) / 20) * 20;
 /**
  * Every fan mount of a case takes one size (the sim's `fanSize`): a frame this thick (a 25 mm fan, `fanDepth`) and this long on each side (front,
  * top and rear), so a fan reads the same wherever it sits. The first top fan stands clear of the rear fan by a radiator's end tank (`TOP_FAN_X0`).
  */
-export const TOP_FAN_T = 575;
-export let FAN_LEN = fanLen(92),
-  TOP_FAN_PITCH = FAN_LEN + 80,
-  TOP_FAN_X0 = -1625;
+const TOP_FAN_T = 575;
+export let FAN_LEN = fanLen(92);
+let TOP_FAN_PITCH = FAN_LEN + 80;
+let TOP_FAN_X0 = -1625;
 /**
  * A radiator's core by grade (slim, thick, big: 27, 36 and 45 mm thick, as the cooling it adds; 27 mm is an all-in-one loop's), `RAD_GAP` inboard
  * of the fans of its side. Each side with fan mounts keeps room for the thickest inboard of its fans (`RAD_ROOM`), and for an end tank past the fans
@@ -339,7 +331,6 @@ export const NET_K = 1.45;
 export const ROUTER_EAST = MONITOR_EAST - 300;
 /** The shelf line the router stands on (above the monitor, so it follows the desk), and the y where the cables turn after leaving their sockets. */
 export let SHELF_Y = -2480;
-export let CABLE_ROW_Y = SHELF_Y + 200;
 export let ROUTER_SPOT: Rect = {
   x: ROUTER_EAST - 1600 * NET_K,
   y: SHELF_Y - 420 * NET_K,
@@ -358,7 +349,7 @@ export const routerLan = () => ({
 /** The power socket plate on the wall under the desk (two outlets: the monitor's, the PC's). */
 /** Where the PC's mains cord drops: it leaves the plug's tail (the plug is 330 long, the cord turns down 150 beyond it) and falls straight to its outlet. */
 export const PC_CORD_X = IO_X - 476;
-export const POWER_PLATE_W = 1500,
+const POWER_PLATE_W = 1500,
   PC_OUTLET_AT = 0.72;
 export let POWER_PLATE: Rect = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: 0, w: POWER_PLATE_W, h: 800 };
 /** The ISP's wall plate, under the desk next to the power socket, its jack position (bottom edge, `WALL_Y`) and the y of the ISP cable's turn under the desk (the cable then runs up behind the desk, the riser and the monitor to the router). */
@@ -375,12 +366,11 @@ export const ispPlate = (): Rect => ({
   h: WALL_PLATE.h,
 });
 /** Vertical run of the ethernet cable in the gap between the monitor and the case (west of the PC's power plug and cord; a plugged key is drawn over it). */
-export const LAN_TRUNK_X = IO_X - 950;
+
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
-export const ETH0_MOUTH = { x: IO_X + 10, y: -1560 };
+
 export const ETH0_RECT: Rect = { x: IO_X + 10, y: -1622, w: 170, h: 124 };
-export const PLUG_L = 200,
-  PLUG_W = 100;
+
 /** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
 export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
 export const NIC_BRACKET_X = BD_X - 30;
@@ -408,7 +398,7 @@ export const nicRect = (i: number, visual: string): Rect => ({
  */
 export let WORLD: Rect = { x: MONITOR.x - 80, y: -3140, w: 5300 - (MONITOR.x - 80), h: 7540 };
 /** Fit margin for the overview (`fit(WORLD, OVERVIEW_MARGIN)`): the content fills the free area, with a small border. */
-export const OVERVIEW_MARGIN = 0.96;
+
 /** A free area narrower than this (width over height) is a phone held upright: the overview frames the case alone (`overviewFrame`). */
 export const PORTRAIT_ASPECT = 0.8;
 /**
@@ -421,24 +411,6 @@ export function overviewFrame(aspect: number): Rect {
   if (aspect < PORTRAIT_ASPECT) return { x: CASE.x - 200, y: CASE.y - 200, w: CASE.w + 400, h: DESK_Y - CASE.y + 400 };
   return { x: WORLD.x, y: WORLD.y, w: WORLD.w, h: Math.max(WORLD.h, WALL_PLATE.y + WALL_PLATE.h + 200 - WORLD.y) };
 }
-
-// ---- hover region list (ids are the contract with the UI); only the regions the tier has ----
-const REGION_IDS: [string, RegionId][] = [
-  ['vrm', 'vrm'],
-  ['vrm2', 'dvrm'],
-  ['pcie', 'pcie'],
-  ['chipset', 'chip'],
-  ['io', 'io'],
-  ['atx', 'atx'],
-  ['cpw', 'cpw'],
-  ['m2', 'm2'],
-  ['sata', 'sata'],
-  ['bat', 'bat'],
-  ['audio', 'audio'],
-  ['hex', 'hex'],
-  ['qr', 'qr'],
-];
-export let REGIONS: { id: string; rect: Rect }[] = [];
 
 /** Point every tier-dependent binding at this tier's board (call before building anything). */
 /**
@@ -464,7 +436,6 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   BR = regionsOf(g);
   PCIE_RAILS = g.pcie;
   M2_SLOTS = g.m2;
-  VRM_PWM = g.pwm;
   VRM_SINK = g.vrmSink;
   RAM_SINK = g.dSink;
   VRM_LED = g.vrmLed;
@@ -473,9 +444,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   // the lower compartment and the case follow the board: the PSU shroud runs under the board and the cable gutter, the drive bay
   // sits at its east end, the case closes round them
   const east = cg.bd.x + cg.bd.w,
-    south = cg.bd.y + cg.bd.h,
-    dy = south - 2500;
-  SHIFT_Y = dy;
+    south = cg.bd.y + cg.bd.h;
   GUTTER_X = east;
   // four PCIe sockets (90 apart, innermost first), then the 24-pin and the 8-pin; the gutter is wide enough for all six cables
   PSU_PORTS = { pcie: [0, 1, 2, 3].map((k) => east + 110 + k * PCIE_PORT_PITCH), atx: east + 540, cpu: east + 690 };
@@ -573,7 +542,6 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   TRAY = { x: MONITOR.x + 1700, y: MONITOR.y - 2800, w: TRAY_W, h: TRAY_H };
   OUTBOX = { x: IO_X - 1900, y: MONITOR.y - 1900, w: OUTBOX_W, h: OUTBOX_H };
   SHELF_Y = MONITOR.y - 700;
-  CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
   POWER_PLATE = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: FLOOR_Y - 1750, w: POWER_PLATE_W, h: 800 };
   WALL_PLATE = { x: WALL_PLATE_X, y: FLOOR_Y - 1750, w: 460 * NET_K, h: 420 * NET_K };
@@ -583,6 +551,5 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const wx = MONITOR.x - 120,
     wy = Math.min(top - 40, ROUTER_SPOT.y - 60, TRAY.y - 80);
   WORLD = { x: wx, y: wy, w: ce + 40 - wx, h: bottom + 150 - wy };
-  REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
 setLayoutTier(2);

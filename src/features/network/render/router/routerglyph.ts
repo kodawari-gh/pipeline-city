@@ -1,12 +1,12 @@
 import type { Graphics } from 'pixi.js';
 import type { Theme } from '@/core/render/theme';
 import { glyphKit, type Put } from '../../../cpu/render/die/blockart';
-import { actLevel, FRAME_FIELDS, type LiveKey, type NicLive } from '../nic/nicglyph';
-import { natLine, type Conn } from '../plan/netaddr';
+import { FRAME_FIELDS, type LiveKey, type NicLive } from '../nic/nicglyph';
+import { natLine } from '../plan/netaddr';
 import { fmtFrames, fmtPct, fmtSpeed } from '../plan/netmeter';
 import type { Rect } from '../plan/netplan';
 import type { RouterBlock, RouterPlanInput } from './routerplan';
-import { limitWords, type RouterFlow, type RouterShow } from './routershow';
+import { limitWords, type RouterShow } from './routershow';
 
 // What is inside a block of the router SoC's die (docs/render/net.md "Inside the NIC and the router"): the schematic an engineer would draw for the block, drawn with the CPU die's
 // own tools (`glyphKit`) so the router, the card and the CPU's die read as one family. The WAN MAC is an Ethernet frame as its fields, with the address the plan gives; the CPU its
@@ -30,7 +30,7 @@ const LAB = 11;
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 const wave = (ms: number, k: number, speed = 1): number => 0.5 + 0.5 * Math.sin(ms / (90 / speed) - k * 0.9);
 /** The stages of the forwarding engine, in the order a frame meets them. */
-export const PKT_STAGES = ['PARSE', 'LOOKUP', 'REWRITE', 'QUEUE'] as const;
+const PKT_STAGES = ['PARSE', 'LOOKUP', 'REWRITE', 'QUEUE'] as const;
 
 // ---------------------------------------------------------------- the geometry the drawing and the live layer share
 
@@ -380,5 +380,3 @@ export function routerLive(
   }
   return out;
 }
-
-export type { RouterFlow };

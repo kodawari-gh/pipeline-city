@@ -51,7 +51,7 @@ export const NYLON = 0xd6d1c2,
 /** The edge of a PCB's laminate: glass-epoxy seen side-on (docs/3D_STYLE.md §1). */
 export const LAMINATE = 0x45443a;
 /** A colour nearer than this to a family colour (sum of the channel differences) is that family colour: the eye sees no difference. */
-export const FAMILY_SNAP = 30;
+const FAMILY_SNAP = 30;
 // the first 7 family colours are the grey ladder; a grey is a colour of at most this chroma, no warmer than neutral, no lighter than this
 const GREYS = 7,
   GREY_CHROMA = 28,
@@ -61,7 +61,7 @@ const GOLD = 0xd4af5f,
 const snapped = new Map<number, number>();
 
 /** `color`, or the family colour it nearly is (ASR9): near-duplicates of one tone become one tone. */
-export function familyHex(color: number): number {
+function familyHex(color: number): number {
   let out = snapped.get(color);
   if (out !== undefined) return out;
   out = color;
@@ -100,10 +100,6 @@ export const cloth = (color: number, o: MeshPhysicalMaterialParameters = {}): Me
     sheenColor: 0x5a5650,
     ...o,
   });
-
-/** Varnished wood or lacquer: the base as `mat` under a thin clear coat that mirrors the window and the lamps. */
-export const varnish = (color: number, o: MeshPhysicalMaterialParameters = {}): MeshPhysicalMaterial =>
-  new MeshPhysicalMaterial({ color, metalness: 0.05, roughness: 0.6, clearcoat: 0.55, clearcoatRoughness: 0.2, ...o });
 
 /**
  * The materials of one part that follow its state, each eased toward the current look. `gain` scales the glow: a part with wide faces (a card's

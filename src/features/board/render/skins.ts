@@ -7,7 +7,7 @@
 //   3 Enthusiast   gloss black, gold silk, graphite sinks with a brushed silver insert, an armoured I/O cover, a violet accent and RGB
 
 /** A colour for each theme: [dark, light]. */
-export type Tone = readonly [string, string];
+type Tone = readonly [string, string];
 
 export interface BoardSkin {
   name: string;

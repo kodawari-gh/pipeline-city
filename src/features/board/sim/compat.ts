@@ -24,7 +24,7 @@ import { clockPowerW, TRIP_RATIO, UNFANNED_SHARE } from './thermal';
 import { SMT_LOAD_SHARE } from '@/core/sim/memmap';
 import { currentDemand, efficiency, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_OVERLOAD } from './vrm';
 
-export type CompatSeverity = 'error' | 'warn' | 'tip';
+type CompatSeverity = 'error' | 'warn' | 'tip';
 
 export interface CompatIssue {
   /** Stable id, for the UI to pick its wording or an icon (`vrm-overload`, `psu-brownout`...). */
@@ -60,7 +60,7 @@ export function cpuVrmRatio(board: Board, cpuId: string, clock?: number): number
 }
 
 /** The memory regulator's load for every stick at its clock, flat out. */
-export function ramVrmRatio(board: Board): number {
+function ramVrmRatio(board: Board): number {
   const sticks = findDevices(board, 'ram').filter((d) => !d.burnt);
   if (!sticks.length) return 0;
   let w = 0,

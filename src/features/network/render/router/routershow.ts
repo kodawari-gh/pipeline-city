@@ -11,7 +11,7 @@ import { netAddrs, type NetAddrs } from '../plan/netaddr';
 import { busy, fmtSpeed, lineFrames, loadOf, type FrameMeter } from '../plan/netmeter';
 
 /** A transfer in flight through the router: its job's name and how far it is. */
-export interface RouterFlow {
+interface RouterFlow {
   label: string;
   percent: number;
   jobId: number;

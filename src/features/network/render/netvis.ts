@@ -1,5 +1,5 @@
 /** The level that unlocks the network (docs/NETWORK.md): the router spot and the wall plate must be there to buy from. */
-export const NET_UNLOCK_LEVEL = 4;
+const NET_UNLOCK_LEVEL = 4;
 
 export interface NetVisInput {
   level: number;

@@ -15,8 +15,8 @@ export const GPU_TASK_KERNELS = [...GPU_KERNEL_NAMES, 'thresh', 'poly', 'sphere'
 export type GpuKernelName = (typeof GPU_TASK_KERNELS)[number];
 
 /** The picture: 64 x 40 words, 16:10. */
-export const PICTURE_COLS = 64;
-export const PICTURE_ROWS = 40;
+const PICTURE_COLS = 64;
+const PICTURE_ROWS = 40;
 export const PICTURE_LEN = PICTURE_COLS * PICTURE_ROWS;
 /** Byte addresses in card memory: the code, the two parameter words (phase, level), the picture (to 0x3000, inside the smallest card's 16K). */
 export const KERNEL_LAYOUT = { code: 0, param: 0x700, out: 0x800, maxPicture: PICTURE_LEN } as const;
@@ -63,14 +63,14 @@ export function frameParams(
 
 const tri = (a: number): number => Math.abs((a & 63) - 32);
 /** The scene the image jobs work on, 0..192: three moving triangle waves, a plasma. */
-export function scene(i: number, phase: number): number {
+function scene(i: number, phase: number): number {
   const x = i & 63,
     y = i >> 6;
   return 2 * (tri(2 * y - phase) + tri(3 * x + phase) + tri(x + y + 2 * phase));
 }
 
 /** mandel: Q12 window, real part from `xMin` in steps of `dx`, imaginary part from `yMin` in steps of `dy` (the rows are centred on the real axis, off it by half a step). */
-export const MANDEL = { xMin: -2 * 4096, dx: 192, yMin: -20 * 192 + 96, dy: 192 } as const;
+const MANDEL = { xMin: -2 * 4096, dx: 192, yMin: -20 * 192 + 96, dy: 192 } as const;
 
 /** Escape count of point i within `maxIter` rounds, with the kernel's exact fixed-point steps. */
 export function mandelCount(i: number, maxIter: number): number {
@@ -113,7 +113,7 @@ export function ballPixel(i: number, phase: number): number {
 const clamp255 = (v: number): number => Math.max(0, Math.min(255, v));
 
 /** One pixel of a frame. */
-export function pixel(name: GpuKernelName, i: number, phase: number, level: number): number {
+function pixel(name: GpuKernelName, i: number, phase: number, level: number): number {
   switch (name) {
     case 'vadd':
       return clamp255(scene(i, phase) + level); // brightness
