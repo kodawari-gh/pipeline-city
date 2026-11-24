@@ -17,7 +17,7 @@ Every run is also a pilot of the swarm: keep a **run log** of each problem you s
 4. **Act on events** as the table in `ticket-swarm` says. A stopped ticket leaves the others running. On `STOP critical`: read the log and the issue comment, find the cause, fix `swarm.mjs`, commit it, and rerun the same command. It resumes from its state file.
 5. **When the runner exits**, read `swarm.mjs status p<parent>`. If tickets are still open and unblocked (a planned model was set late, a blocker was fixed), start the runner again: it resumes from its state file. Its `gc:` lines show the cleanup it did.
 
-6. **Open the PR** when every child is Done. Merge the default branch into `parent/<parent>` (settle any conflict, then run the repo gates), push it, and open a PR to the default branch with the `pr` skill. Its body closes the parent issue. Then give the user the PR link and ask them to merge it. Merging stays their call.
+6. **Open the PR** when every child is Done. From the default branch, run `swarm.mjs catchup <parent>`: it merges the default branch into `parent/<parent>`, a merger agent settles conflicts, and the repo gates run. On `critical`, fix the script and rerun it. Then push `parent/<parent>`, and open a PR to the default branch with the `pr` skill. Its body closes the parent issue. Then give the user the PR link and ask them to merge it. Merging stays their call.
 
 Done when every child is Done, or each remaining child is held, stopped, blocked by a stopped ticket, or waiting on the user. Stop early only on a critical failure you cannot fix in the script.
 
